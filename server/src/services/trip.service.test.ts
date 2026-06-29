@@ -444,6 +444,38 @@ describe('TripService — buildTransitSegment', () => {
     expect(segment.details.transitDetails.routeOptions).toBeUndefined()
   })
 
+  test('mergeTripGroup dedupes routeOptions by shortName across raw/prefixed ids', () => {
+    // The GTFS-derived set carries raw route ids ("2"); a MOTIS leg's route id
+    // is feed-prefixed ("5_2"). Keying the union by id would list each line
+    // twice — dedupe by shortName instead.
+    const mk = (start: string, routeId: string, shortName: string) => ({
+      earliestStartTime: start,
+      segments: [
+        {
+          mode: 'transit',
+          details: {
+            transitDetails: {
+              route: { id: routeId, shortName },
+              routeOptions: [
+                { id: '2', shortName: '2' },
+                { id: '3', shortName: '3' },
+              ],
+            },
+          },
+        },
+      ],
+    })
+    const group = [
+      mk('2026-01-15T08:00:00Z', '5_2', '2'),
+      mk('2026-01-15T08:03:00Z', '5_3', '3'),
+    ]
+
+    const merged = (tripService as any).mergeTripGroup(group)
+    const opts = merged.segments[0].details.transitDetails.routeOptions
+
+    expect(opts.map((o: { shortName?: string }) => o.shortName)).toEqual(['2', '3'])
+  })
+
   test('realtime without delay only sets realTimeData flag', () => {
     const leg = {
       mode: 'BUS',

@@ -272,14 +272,19 @@ export class TripService {
     survivor.segments = survivor.segments.map((seg, idx) => {
       if (seg.mode !== 'transit' || !seg.details?.transitDetails) return seg
       const byKey = new Map<string, TransitRoute>()
+      // Dedupe by shortName, NOT id: the GTFS-derived set carries raw route ids
+      // ("2") while a MOTIS leg's route id is feed-prefixed ("5_2"), so keying
+      // by id would list the same line twice. shortName is also what the board
+      // renders and filters by.
+      const keyOf = (r: TransitRoute) => r.shortName || r.id || ''
       // Seed with the GTFS-derived interchangeable set barrelman attached, so a
       // line MOTIS never returned is still offered as a fallback.
       for (const r of seg.details.transitDetails.routeOptions ?? []) {
-        byKey.set(r.id || r.shortName || '', r)
+        byKey.set(keyOf(r), r)
       }
       for (const trip of group) {
         const route = trip.segments[idx]?.details?.transitDetails?.route
-        if (route) byKey.set(route.id || route.shortName || '', route)
+        if (route) byKey.set(keyOf(route), route)
       }
       if (byKey.size <= 1) return seg
       const routeOptions = [...byKey.values()].sort((x, y) =>

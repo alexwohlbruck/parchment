@@ -31,7 +31,6 @@ import {
   AccessibilityIcon,
   LogInIcon,
   LogOutIcon,
-  RssIcon,
   ShareIcon,
   Undo2Icon,
 } from 'lucide-vue-next'
@@ -213,25 +212,17 @@ function departuresFor(segmentIndex: number): DepartureOption[] {
   return segmentDepartures.value[segmentIndex] ?? []
 }
 
-/** "in 12 min" / "now" until a departure — the glanceable countdown a rider
- *  acts on, shown alongside the absolute clock time. Empty past an hour, where
- *  the clock time speaks for itself. Recomputes off the nowMs tick. */
-function relativeDeparture(ms: number): string {
-  const min = Math.round((ms - nowMs.value) / 60_000)
-  if (min <= 0) return 'now'
-  if (min < 60) return `in ${min} min`
-  return ''
-}
-
-/** Board-card countdown: a glanceable lead ("now" / "5 min") plus the absolute
- *  clock time as a sub-line. Past an hour the clock carries the card alone — no
- *  countdown. Recomputes off the nowMs tick. */
+/** Board-card countdown: a glanceable lead ("now" / "5 min" / "1h 4m") plus the
+ *  absolute clock time as a sub-line. Every future departure keeps both lines so
+ *  the cards stay uniform regardless of how far out. Recomputes off the nowMs tick. */
 function depCountdown(ms: number): { lead: string; sub: string } {
   const min = Math.round((ms - nowMs.value) / 60_000)
   const clock = formatTime(new Date(ms))
   if (min <= 0) return { lead: 'now', sub: clock }
   if (min < 60) return { lead: `${min} min`, sub: clock }
-  return { lead: clock, sub: '' }
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return { lead: m ? `${h}h ${m}m` : `${h}h`, sub: clock }
 }
 
 // ── Departure board scroll affordance ────────────────────────────────
@@ -289,8 +280,15 @@ function asMs(v: string | Date): number {
  *  run falls outside the cached window. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number): Promise<number | null> {
-  const cached = (segmentSchedule.value[segmentIndex] ?? []).find((d) => d.ms >= minMs)
-  if (cached) return cached.ms
+  const sched = segmentSchedule.value[segmentIndex] ?? []
+  // The cache yields the earliest run >= minMs only when it actually begins
+  // at/before minMs. After a forward rebook the cache was refetched around the
+  // bumped (later) time, so rolling back to an earlier connection needs runs
+  // ahead of the cached window — fall through to the API in that case.
+  if (sched.length > 0 && sched[0].ms <= minMs) {
+    const cached = sched.find((d) => d.ms >= minMs)
+    if (cached) return cached.ms
+  }
   try {
     const { data } = await api.get('/proxy/transit/departures', {
       params: {
@@ -382,6 +380,71 @@ function depState(segmentIndex: number, dep: DepartureOption): 'missed' | 'hurry
   if (walkMs > 0 && leadMs < walkMs + 180_000) return 'hurry'
   return 'ok'
 }
+
+/** A board card's full visual state, derived once per render so the template
+ *  stays declarative. The statuses are mutually legible at a glance:
+ *   • planned  — the run the trip currently boards (line-coloured emphasis)
+ *   • missed   — gone, or unreachable on foot in time (struck out, disabled)
+ *   • hurry    — catchable only if you leave now (amber)
+ *   • arriving — imminent, i.e. "now"
+ *   • live     — the time is a GTFS-RT prediction rather than the schedule */
+interface DepCard {
+  planned: boolean
+  missed: boolean
+  hurry: boolean
+  arriving: boolean
+  live: boolean
+  clickable: boolean
+  lead: string
+  sub: string
+  route?: DepartureOption['route']
+  title: string
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepCard {
+  const planned = isCurrentDeparture(segment, dep.ms)
+  const state = depState(segmentIndex, dep)
+  const missed = !planned && state === 'missed'
+  const hurry = !planned && state === 'hurry'
+  const { lead, sub } = depCountdown(dep.ms)
+  const name = dep.route?.shortName ?? segment.lineName
+  return {
+    planned,
+    missed,
+    hurry,
+    arriving: !missed && lead === 'now',
+    live: dep.realTime,
+    clickable: !planned && !missed,
+    lead,
+    sub,
+    route: dep.route,
+    title: planned
+      ? 'Planned departure'
+      : missed
+        ? 'Departed'
+        : hurry
+          ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
+          : `Switch to the ${name} at ${dep.label}`,
+  }
+}
+
+/** Per-segment board cards, each enriched with its visual state. Recomputes off
+ *  the nowMs tick and whenever fresh departures land. */
+const boardCards = computed(() => {
+  const t = trip.value
+  const out: Record<number, Array<DepartureOption & { card: DepCard }>> = {}
+  if (!t) return out
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  for (const [key, deps] of Object.entries(segmentDepartures.value)) {
+    const idx = Number(key)
+    const seg = segs[idx]
+    if (!seg) continue
+    out[idx] = deps.map((dep) => ({ ...dep, card: depCard(seg, idx, dep) }))
+  }
+  return out
+})
 
 /** Time actually in motion — a walk's duration minus the wait at the stop. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1134,21 +1197,21 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     :class="!entry.segment.lineColor && 'bg-muted/40'"
                     :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
-                    <!-- Interchangeable routes (4 or 5) render as several bullets -->
-                    <template v-if="(entry.segment.routeOptions?.length ?? 0) > 1">
-                      <template
-                        v-for="(opt, oi) in (entry.segment.routeOptions as { shortName?: string; color?: string; textColor?: string }[])"
+                    <!-- Interchangeable routes (4/5, N/Q/R/W) render as a tight
+                         cluster of bullets — any of them works for this leg. -->
+                    <div
+                      v-if="(entry.segment.routeOptions?.length ?? 0) > 1"
+                      class="flex items-center gap-1 shrink-0"
+                    >
+                      <RouteBullet
+                        v-for="opt in (entry.segment.routeOptions as { shortName?: string; color?: string; textColor?: string }[])"
                         :key="opt.shortName"
-                      >
-                        <span v-if="oi > 0" class="text-xs text-muted-foreground">or</span>
-                        <RouteBullet
-                          size="md"
-                          :label="opt.shortName"
-                          :color="opt.color"
-                          :text-color="opt.textColor"
-                        />
-                      </template>
-                    </template>
+                        size="md"
+                        :label="opt.shortName"
+                        :color="opt.color"
+                        :text-color="opt.textColor"
+                      />
+                    </div>
                     <RouteBullet
                       v-else
                       size="md"
@@ -1180,16 +1243,8 @@ function hasSegmentRouteInfo(segment: any): boolean {
                           Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
                         </div>
                       </div>
-                      <div class="text-right shrink-0">
-                        <div class="text-sm font-semibold tabular-nums">
-                          {{ formatTime(entry.segment.startTime) }}
-                        </div>
-                        <div
-                          v-if="relativeDeparture(asMs(entry.segment.startTime))"
-                          class="text-[11px] font-semibold leading-none text-parchment-600 dark:text-parchment-400"
-                        >
-                          {{ relativeDeparture(asMs(entry.segment.startTime)) }}
-                        </div>
+                      <div class="text-sm font-semibold tabular-nums shrink-0">
+                        {{ formatTime(entry.segment.startTime) }}
                       </div>
                     </div>
 
@@ -1206,61 +1261,71 @@ function hasSegmentRouteInfo(segment: any): boolean {
                         @scroll="onDepScroll(entry.segmentIndex, $event)"
                       >
                       <button
-                        v-for="dep in departuresFor(entry.segmentIndex)"
-                        :key="dep.ms"
+                        v-for="item in (boardCards[entry.segmentIndex] ?? [])"
+                        :key="item.ms"
                         type="button"
-                        class="shrink-0 min-w-[58px] flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-lg border text-center tabular-nums transition-all"
+                        class="shrink-0 min-w-[64px] flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-xl border-2 text-center tabular-nums transition-colors"
                         :class="[
-                          isCurrentDeparture(entry.segment, dep.ms)
-                            ? (!entry.segment.lineColor && 'bg-parchment-500 text-white border-transparent')
-                            : depState(entry.segmentIndex, dep) === 'missed'
-                              ? 'bg-muted/40 text-muted-foreground/50 border-transparent cursor-default'
-                              : depState(entry.segmentIndex, dep) === 'hurry'
-                                ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:ring-1 hover:ring-amber-400 cursor-pointer'
-                                : 'bg-muted/30 border-border text-foreground hover:bg-muted/60 hover:border-foreground/20 cursor-pointer',
+                          item.card.planned
+                            ? (entry.segment.lineColor ? '' : 'border-parchment-500 bg-parchment-500/10')
+                            : item.card.missed
+                              ? 'border-transparent bg-muted/20 cursor-default'
+                              : item.card.hurry
+                                ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/40 cursor-pointer'
+                                : 'border-border bg-muted/30 hover:bg-muted/60 hover:border-foreground/30 cursor-pointer',
                           rebooking && 'opacity-50 pointer-events-none',
                         ]"
-                        :style="isCurrentDeparture(entry.segment, dep.ms) && entry.segment.lineColor ? {
-                          background: `#${entry.segment.lineColor}`,
-                          color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
-                          borderColor: 'transparent',
+                        :style="item.card.planned && entry.segment.lineColor ? {
+                          borderColor: `#${entry.segment.lineColor}`,
+                          background: `#${entry.segment.lineColor}1f`,
                         } : {}"
-                        :title="isCurrentDeparture(entry.segment, dep.ms)
-                          ? 'Planned departure'
-                          : depState(entry.segmentIndex, dep) === 'missed'
-                            ? 'Departed'
-                            : depState(entry.segmentIndex, dep) === 'hurry'
-                              ? 'Catchable if you hurry'
-                              : `Leave on the ${dep.route?.shortName ?? entry.segment.lineName} at ${dep.label} instead`"
-                        :disabled="depState(entry.segmentIndex, dep) === 'missed' && !isCurrentDeparture(entry.segment, dep.ms)"
-                        @click="!isCurrentDeparture(entry.segment, dep.ms)
-                          && depState(entry.segmentIndex, dep) !== 'missed'
-                          && chooseDeparture(entry.segmentIndex, dep.ms)"
+                        :title="item.card.title"
+                        :disabled="item.card.missed"
+                        @click="item.card.clickable && chooseDeparture(entry.segmentIndex, item.ms)"
                       >
-                        <!-- Which train (on merged 4-or-5 boards) + whether this
-                             time is a live GTFS-RT prediction. -->
-                        <div class="flex items-center justify-center gap-1 h-3.5 leading-none">
-                          <span
-                            v-if="(entry.segment.routeOptions?.length ?? 0) > 1 && dep.route?.shortName"
-                            class="text-[11px] font-bold"
-                            :style="!isCurrentDeparture(entry.segment, dep.ms) && dep.route.color ? { color: `#${dep.route.color}` } : {}"
-                          >{{ dep.route.shortName }}</span>
-                          <RssIcon
-                            v-if="dep.realTime"
-                            class="size-2.5 opacity-80"
-                            :class="depState(entry.segmentIndex, dep) !== 'missed' && 'animate-pulse'"
+                        <!-- Route bullet + status cues. Scheduled is the norm and
+                             shown plainly (just the bullet); a live prediction adds
+                             a pulsing indicator, a tight connection a hurry glyph —
+                             both shape-based so they read without colour. -->
+                        <div
+                          class="flex items-center justify-center gap-1"
+                          :class="item.card.missed && 'opacity-50'"
+                        >
+                          <RouteBullet
+                            v-if="item.route?.shortName ?? entry.segment.lineName"
+                            size="sm"
+                            :label="item.route?.shortName ?? entry.segment.lineName"
+                            :color="item.route ? item.route.color : entry.segment.lineColor"
+                            :text-color="item.route ? item.route.textColor : entry.segment.lineTextColor"
+                          />
+                          <RealtimeIndicator
+                            v-if="item.card.live"
+                            :real-time="true"
+                            :class="!item.card.missed && 'animate-pulse'"
+                          />
+                          <AlertTriangleIcon
+                            v-if="item.card.hurry"
+                            class="size-2.5 text-amber-600 dark:text-amber-400"
                           />
                         </div>
-                        <!-- Glanceable countdown -->
+                        <!-- Countdown — 'now' for an arriving train, else N min.
+                             Statuses use theme-safe tokens (never the raw line
+                             colour as text): muted+struck when missed, amber when
+                             hurry, the parchment accent for an arriving 'now'. -->
                         <div
                           class="text-[13px] font-semibold leading-tight"
-                          :class="depState(entry.segmentIndex, dep) === 'missed' && 'line-through'"
-                        >{{ depCountdown(dep.ms).lead }}</div>
+                          :class="[
+                            item.card.missed && 'line-through text-muted-foreground/50',
+                            item.card.hurry && 'text-amber-700 dark:text-amber-300',
+                            item.card.arriving && !item.card.hurry && 'text-parchment-600 dark:text-parchment-400',
+                          ]"
+                        >{{ item.card.lead }}</div>
                         <!-- Absolute clock time -->
                         <div
-                          v-if="depCountdown(dep.ms).sub"
-                          class="text-[10px] leading-none opacity-70"
-                        >{{ depCountdown(dep.ms).sub }}</div>
+                          v-if="item.card.sub"
+                          class="text-[10px] leading-none text-muted-foreground"
+                          :class="item.card.missed && 'opacity-60'"
+                        >{{ item.card.sub }}</div>
                       </button>
                       </div>
                       <!-- Edge fades hint there are more departures off-screen -->

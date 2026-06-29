@@ -359,6 +359,42 @@ const availableIntegrations: IntegrationDefinition[] = [
   },
 ]
 
+/**
+ * Background retry for system integrations that failed their startup connection
+ * test — most often barrelman, which can still be warming up when the server
+ * boots (a co-restart race). Non-blocking and bounded; each integration stops
+ * retrying as soon as it initializes, so a still-down or genuinely-misconfigured
+ * one simply gives up after the budget. This is what keeps transit/routing from
+ * going dark until a manual restart when both services restart together.
+ */
+async function retrySystemIntegrations(
+  failed: IntegrationRecord[],
+  attempt = 1,
+): Promise<void> {
+  const MAX_ATTEMPTS = 6
+  const DELAY_MS = 10_000
+  if (failed.length === 0 || attempt > MAX_ATTEMPTS) return
+  await new Promise((resolve) => setTimeout(resolve, DELAY_MS))
+
+  const stillFailing: IntegrationRecord[] = []
+  await Promise.allSettled(
+    failed.map(async (integration) => {
+      try {
+        await integrationManager.initializeIntegration(undefined, integration)
+        console.log(
+          `Recovered system integration on retry ${attempt}: ${integration.integrationId}`,
+        )
+      } catch {
+        stillFailing.push(integration)
+      }
+    }),
+  )
+
+  if (stillFailing.length > 0) {
+    void retrySystemIntegrations(stillFailing, attempt + 1)
+  }
+}
+
 export async function initializeIntegrations() {
   console.log('Initializing integrations on server startup...')
 
@@ -388,6 +424,17 @@ export async function initializeIntegrations() {
           result.reason,
         )
       }
+    }
+
+    // Retry the failures in the background (non-blocking) — barrelman in
+    // particular can still be warming up during a co-restart, and its
+    // connection test fails until it's ready. Recovering here avoids the
+    // transit-goes-dark-until-manual-restart trap.
+    const failedSystem = systemIntegrations.filter(
+      (_, i) => systemResults[i].status === 'rejected',
+    )
+    if (failedSystem.length > 0) {
+      void retrySystemIntegrations(failedSystem)
     }
 
     // Get all users

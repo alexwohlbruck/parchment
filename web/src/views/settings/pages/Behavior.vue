@@ -6,11 +6,13 @@ import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCommandStore } from '@/stores/command.store'
 import { CommandName } from '@/stores/command.store'
-import { UnitSystem, LocateFlySpeed, StartupLocation, FloorNumbering } from '@/types/map.types'
+import { UnitSystem, LocateFlySpeed, StartupLocation, FloorNumbering, GridSnapMode } from '@/types/map.types'
 import type { Locale } from '@/lib/i18n'
 import { updatePreferences } from '@/services/preferences.service'
 import { useMapStore } from '@/stores/map.store'
+import { useMapService } from '@/services/map.service'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -19,12 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Gauge, GaugeIcon, LanguagesIcon, Navigation2Icon, LayersIcon } from 'lucide-vue-next'
+import { Gauge, GaugeIcon, LanguagesIcon, Navigation2Icon, LayersIcon, CompassIcon, Grid2x2 } from 'lucide-vue-next'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const commandStore = useCommandStore()
 const mapStore = useMapStore()
+const mapService = useMapService()
 const { unitSystem, floorNumbering } = storeToRefs(appStore)
 const { settings } = storeToRefs(mapStore)
 const { locale } = useI18n()
@@ -136,6 +139,51 @@ watch(
               </SelectItem>
               <SelectItem :value="LocateFlySpeed.SLOW">
                 {{ $t('settings.mapSettings.location.speed.slow') }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+    </SettingsSection>
+
+    <!-- Map rotation behavior -->
+    <SettingsSection
+      id="rotation"
+      :title="$t('settings.mapSettings.rotation.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.mapSettings.rotation.northUpSnap')"
+        :description="$t('settings.mapSettings.rotation.northUpSnapDescription')"
+        :icon="CompassIcon"
+      >
+        <Switch
+          :model-value="settings.northUpSnap !== false"
+          @update:model-value="mapService.toggleNorthUpSnap()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.rotation.gridSnap')"
+        :description="$t('settings.mapSettings.rotation.gridSnapDescription')"
+        :icon="Grid2x2"
+      >
+        <Select
+          :model-value="settings.gridSnapMode ?? GridSnapMode.NORTH_UP"
+          @update:model-value="settings.gridSnapMode = $event as GridSnapMode"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem :value="GridSnapMode.OFF">
+                {{ $t('settings.mapSettings.rotation.gridSnapModeOff') }}
+              </SelectItem>
+              <SelectItem :value="GridSnapMode.NORTH_UP">
+                {{ $t('settings.mapSettings.rotation.gridSnapModeNorthUp') }}
+              </SelectItem>
+              <SelectItem :value="GridSnapMode.ALL">
+                {{ $t('settings.mapSettings.rotation.gridSnapModeAll') }}
               </SelectItem>
             </SelectGroup>
           </SelectContent>

@@ -1258,14 +1258,7 @@
         "poiLabels": "Etiquetas de POI",
         "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",
-        "placeLabels": "Etiquetas de lugares",
-        "northUpSnap": "Ajustar al norte",
-        "northUpSnapDescription": "Endereza el mapa al rotar cerca del norte",
-        "gridSnap": "Ajustar a la cuadrícula",
-        "gridSnapDescription": "Ajusta la rotación a la cuadrícula de calles en ciudades como Nueva York",
-        "gridSnapModeOff": "Desactivado",
-        "gridSnapModeNorthUp": "Solo hacia el norte",
-        "gridSnapModeAll": "Todas las rotaciones de 90°"
+        "placeLabels": "Etiquetas de lugares"
       },
       "controls": {
         "title": "Controles del mapa",
@@ -1300,6 +1293,16 @@
           "normal": "Normal",
           "slow": "Lento"
         }
+      },
+      "rotation": {
+        "title": "Rotación del mapa",
+        "northUpSnap": "Ajustar al norte",
+        "northUpSnapDescription": "Endereza el mapa al rotar cerca del norte",
+        "gridSnap": "Ajustar a la cuadrícula",
+        "gridSnapDescription": "Ajusta la rotación a la cuadrícula de calles en ciudades como Nueva York",
+        "gridSnapModeOff": "Desactivado",
+        "gridSnapModeNorthUp": "Solo hacia el norte",
+        "gridSnapModeAll": "Todas las rotaciones de 90°"
       },
       "style": {
         "title": "Estilo",

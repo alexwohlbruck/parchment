@@ -1341,14 +1341,7 @@
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",
-        "placeLabels": "Place labels",
-        "northUpSnap": "Snap to north",
-        "northUpSnapDescription": "Snap the map upright when you rotate near north",
-        "gridSnap": "Snap to street grid",
-        "gridSnapDescription": "Snap rotation to the street grid in cities like New York",
-        "gridSnapModeOff": "Off",
-        "gridSnapModeNorthUp": "North up only",
-        "gridSnapModeAll": "All 90° rotations"
+        "placeLabels": "Place labels"
       },
       "controls": {
         "title": "Map controls",
@@ -1383,6 +1376,16 @@
           "normal": "Normal",
           "slow": "Slow"
         }
+      },
+      "rotation": {
+        "title": "Map rotation",
+        "northUpSnap": "Snap to north",
+        "northUpSnapDescription": "Snap the map upright when you rotate near north",
+        "gridSnap": "Snap to street grid",
+        "gridSnapDescription": "Snap rotation to the street grid in cities like New York",
+        "gridSnapModeOff": "Off",
+        "gridSnapModeNorthUp": "North up only",
+        "gridSnapModeAll": "All 90° rotations"
       },
       "style": {
         "title": "Style",

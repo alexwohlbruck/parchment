@@ -1,12 +1,27 @@
 import path from 'path'
 import vue from '@vitejs/plugin-vue'
-import { defineConfig } from 'vite'
+import { defineConfig, searchForWorkspaceRoot } from 'vite'
 import svgLoader from 'vite-svg-loader'
 import { readFileSync } from 'fs'
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 const host = process.env.TAURI_DEV_HOST
+
+// Local fork of MapLibre GL JS (v4.7.1 + variable `line-offset` via `line-progress`,
+// re-impl of mapbox-gl PR #13614). Alias the app to its built UMD dist so transit
+// ribbons can offset per-vertex. Toggle with MAPLIBRE_FORK=0 to fall back to the
+// npm package. Same UMD shape as the published build, so named imports are unchanged.
+const MAPLIBRE_FORK_DIR = '/Users/alexwohlbruck/Documents/code/maplibre-gl-js'
+const useMaplibreFork = process.env.MAPLIBRE_FORK !== '0'
+const maplibreAlias = useMaplibreFork
+  ? {
+      // CSS subpath MUST precede the bare specifier: Vite prefix-matches string
+      // aliases, so a bare `maplibre-gl` alias would otherwise mangle this import.
+      'maplibre-gl/dist/maplibre-gl.css': `${MAPLIBRE_FORK_DIR}/dist/maplibre-gl.css`,
+      'maplibre-gl': `${MAPLIBRE_FORK_DIR}/dist/maplibre-gl.js`,
+    }
+  : {}
 
 export default defineConfig({
   define: {
@@ -20,12 +35,23 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      ...maplibreAlias,
       '@': path.resolve(__dirname, './src'),
       '@server': path.resolve(__dirname, '../server/src'),
     },
   },
   optimizeDeps: {
-    include: ['@morev/vue-transitions'],
+    // Pre-bundle the aliased fork too: its dist is UMD/CJS, so esbuild must convert
+    // it to ESM for named imports (`import { Map } from 'maplibre-gl'`) to resolve —
+    // same as Vite auto-optimizing the npm package. Excluding it breaks named imports.
+    include: ['@morev/vue-transitions', ...(useMaplibreFork ? ['maplibre-gl'] : [])],
+  },
+  build: {
+    // The fork dist lives outside node_modules, so rollup's CommonJS handling
+    // (which powers named imports from the UMD build) must be widened to it.
+    commonjsOptions: {
+      include: [/node_modules/, ...(useMaplibreFork ? [`${MAPLIBRE_FORK_DIR}/**`] : [])],
+    },
   },
   server: {
     port: parseInt(process.env.VITE_PORT || '5173'),
@@ -33,6 +59,10 @@ export default defineConfig({
     // strictPort: true,
     watch: {
       ignored: ['**/src-tauri/target/**'],
+    },
+    // Allow Vite to serve the out-of-root MapLibre fork dist.
+    fs: {
+      allow: [searchForWorkspaceRoot(process.cwd()), MAPLIBRE_FORK_DIR],
     },
   },
   // envPrefix: ['VITE_', 'TAURI_ENV_*'],

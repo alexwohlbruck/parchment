@@ -1,4 +1,6 @@
 import { MapStrategy } from './map.strategy'
+import { ensureTransitBulletImage } from '../layers/transit-bullet'
+import { ensureTransitStationGlyphs } from '../layers/transit-station-glyphs'
 import {
   Map as MaplibreMap,
   NavigationControl,
@@ -171,6 +173,8 @@ export class MaplibreStrategy extends MapStrategy {
       showAccuracyCircle: true,
     })
 
+    ;(window as any).__map = this.mapInstance // DEBUG
+
     this.addControls()
     this.configureEventListeners()
 
@@ -206,6 +210,8 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       this.styleConfig = getStyleConfig(this.options.mapStyle ?? 'osm-liberty')
       this.setupPoiHandlers()
+      ensureTransitBulletImage(this.mapInstance)
+      ensureTransitStationGlyphs(this.mapInstance)
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {

@@ -1,4 +1,6 @@
 import { MapStrategy } from './map.strategy'
+import { ensureTransitBulletImage } from '../layers/transit-bullet'
+import { ensureTransitStationGlyphs } from '../layers/transit-station-glyphs'
 import {
   Map as MapboxMap,
   NavigationControl,
@@ -189,9 +191,12 @@ export class MapboxStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('style.load', () => {
+      ensureTransitBulletImage(this.mapInstance)
+      ensureTransitStationGlyphs(this.mapInstance)
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
     })
+    ;(window as any).__map = this.mapInstance // DEBUG
     this.mapInstance.on('move', () => {
       mapEventBus.emit('move', {
         center: this.mapInstance.getCenter(),

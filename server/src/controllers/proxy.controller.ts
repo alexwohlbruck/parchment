@@ -249,7 +249,15 @@ app.get(
           'Content-Type':
             response.headers.get('content-type') ||
             'application/x-protobuf',
-          'Cache-Control': 'public, max-age=86400',
+          // These tiles are regenerated on GTFS/LOOM rebuilds. In DEV we never
+          // cache them (Martin serves live from the matviews), so geometry
+          // changes always show on reload without cache-busting the URL or
+          // clearing the client template cache. In PROD keep a short browser
+          // cache; a CDN (with purge-on-rebuild) handles server-side perf.
+          'Cache-Control':
+            process.env.NODE_ENV === 'production'
+              ? 'public, max-age=60, stale-while-revalidate=600'
+              : 'no-store',
         },
       })
     } catch (error) {

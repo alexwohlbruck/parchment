@@ -170,8 +170,15 @@ function mapService() {
     }
   }
 
-  const canUseMapboxEngine = computed(() =>
-    authService.hasPermission(PermissionId.PREMIUM_LAYERS),
+  // Dev override: `localStorage['dev-force-maplibre'] = '1'` forces the open
+  // MapLibre engine even with Mapbox premium (so the variable line-offset transit
+  // taper — MapLibre-only — can be exercised). resolveEngine downgrades to MapLibre
+  // when Mapbox is unavailable, so making this false pins the app to MapLibre.
+  const forceMaplibre =
+    typeof localStorage !== 'undefined' &&
+    localStorage.getItem('dev-force-maplibre') === '1'
+  const canUseMapboxEngine = computed(
+    () => !forceMaplibre && authService.hasPermission(PermissionId.PREMIUM_LAYERS),
   )
 
   /**

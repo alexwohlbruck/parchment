@@ -214,7 +214,13 @@
     },
     "transit": {
       "chooseRoute": "Elige una ruta",
-      "chooseStop": "Elige una parada"
+      "chooseStop": "Elige una parada",
+      "modes": {
+        "title": "Modos de transporte",
+        "rail": "Tren",
+        "bus": "Autobús",
+        "ferry": "Ferry"
+      }
     }
   },
   "measure": {

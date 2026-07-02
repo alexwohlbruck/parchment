@@ -220,7 +220,13 @@
     },
     "transit": {
       "chooseRoute": "Choose a route",
-      "chooseStop": "Choose a stop"
+      "chooseStop": "Choose a stop",
+      "modes": {
+        "title": "Transit modes",
+        "rail": "Rail",
+        "bus": "Bus",
+        "ferry": "Ferry"
+      }
     }
   },
   "measure": {

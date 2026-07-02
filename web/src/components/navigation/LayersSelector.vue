@@ -6,17 +6,29 @@ import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useLayersService } from '@/services/layers/layers.service'
+import { useTransitLayersService } from '@/services/layers/features/transit-layers.service'
 import { useMapService } from '@/services/map.service'
 import { H6 } from '@/components/ui/typography'
 import { basemaps } from '../map/map.data'
 import { Basemap, LayerType } from '@/types/map.types'
+import {
+  TRANSIT_MODES,
+  isTransitModeVisible,
+  type TransitMode,
+} from '@/lib/transit.utils'
 import { storeToRefs } from 'pinia'
 import { toRaw } from 'vue'
 import * as LucideIcons from 'lucide-vue-next'
-import { MessageSquareIcon } from 'lucide-vue-next'
+import {
+  BusIcon,
+  MessageSquareIcon,
+  ShipIcon,
+  TrainFrontIcon,
+} from 'lucide-vue-next'
 
 const layersStore = useLayersStore()
 const layersService = useLayersService()
+const transitLayersService = useTransitLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
 const notesStore = useNotesStore()
@@ -88,6 +100,45 @@ const filteredGroups = computed(() => {
 // Get total layer count for a group (including sub-layers and descendant groups)
 function getGroupLayerCount(groupId: string): number {
   return layersStore.getGroupTotalLayerCount(groupId)
+}
+
+// ── Transit mode filter (rail / bus / ferry) ────────────────────────────
+// Chips scoped to the transit group: shown while the group is on, each chip
+// flips visibility of just that mode's layers (metadata.transitMode). Chip
+// state is DERIVED from per-layer visibility, so it persists through the
+// existing parchment-layer-visibility override map — no extra storage.
+const TRANSIT_MODE_ICONS: Record<TransitMode, any> = {
+  rail: TrainFrontIcon,
+  bus: BusIcon,
+  ferry: ShipIcon,
+}
+
+const transitGroup = computed(() =>
+  allLayerGroups.value.find(group =>
+    layers.value.some(
+      layer => layer.groupId === group.id && layer.type === LayerType.TRANSIT,
+    ),
+  ),
+)
+
+const showTransitModes = computed(() => !!transitGroup.value?.visible)
+
+const transitModeItems = computed(() =>
+  TRANSIT_MODES.map(mode => ({
+    mode,
+    icon: TRANSIT_MODE_ICONS[mode],
+    visible: isTransitModeVisible(layers.value, mode),
+  })),
+)
+
+function toggleTransitMode(mode: TransitMode, visible: boolean) {
+  transitLayersService.setTransitModeVisibility(
+    layers.value,
+    layersStore,
+    mapService.mapStrategy,
+    mode,
+    visible,
+  )
 }
 
 // Combine in the exact custom order from mainReorderableItems
@@ -245,6 +296,33 @@ const allLayers = computed(() => {
             </div>
           </div>
         </Toggle>
+      </div>
+
+      <!-- Transit mode filter: rail / bus / ferry chips, shown while the
+           transit group is on. Each chip toggles only its mode's layers. -->
+      <div v-if="showTransitModes" class="space-y-2">
+        <div class="text-xs text-muted-foreground">
+          {{ $t('map.transit.modes.title') }}
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <Toggle
+            v-for="item in transitModeItems"
+            :key="`${item.mode}-${item.visible}`"
+            variant="outline"
+            size="sm"
+            :aria-label="`Toggle ${$t(`map.transit.modes.${item.mode}`)}`"
+            :default-value="item.visible"
+            @update:model-value="
+              (v: boolean) => toggleTransitMode(item.mode, v)
+            "
+            class="flex items-center justify-center gap-1.5 px-2 transition-all duration-200 hover:bg-muted data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/50"
+          >
+            <component :is="item.icon" class="size-4 shrink-0" />
+            <span class="font-medium text-xs leading-tight truncate">
+              {{ $t(`map.transit.modes.${item.mode}`) }}
+            </span>
+          </Toggle>
+        </div>
       </div>
 
       <!-- Empty State (no custom layers) -->

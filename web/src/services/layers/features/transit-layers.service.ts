@@ -14,8 +14,11 @@ import { mapEventBus } from '@/lib/eventBus'
 import { styleConfigs } from '@/lib/basemap-style-config'
 import {
   getTransitHitMinZoom,
+  getTransitModeLayers,
   isTransitLineHitLayer,
+  isTransitModeLayer,
   isTransitStopHitLayer,
+  type TransitMode,
 } from '@/lib/transit.utils'
 import { collectRouteCandidates } from '@/lib/transit-route-candidates'
 import { collectStopCandidates } from '@/lib/transit-stop-candidates'
@@ -166,9 +169,10 @@ export function useTransitLayersService() {
     }
 
     // ── Hover: feature-state highlight + pointer cursor ──
-    // The non-bundled rail hover rides the dedicated `transit-routes-hover`
-    // halo layer (feature-state opacity); the bundled ribbons carry a
-    // feature-state width bump in their steady/transition templates.
+    // The non-bundled routes ride the dedicated per-mode halo layers
+    // (`transit-routes-hover`, `transit-routes-ferry-hover`; feature-state
+    // opacity); the bundled ribbons carry a feature-state width bump in their
+    // steady/transition templates.
     let hovered: FeatureStateTarget | null = null
     let cursorSet = false
 
@@ -337,8 +341,64 @@ export function useTransitLayersService() {
     }
   }
 
+  /**
+   * Toggle one transit mode (rail / bus / ferry) on or off.
+   *
+   * Flips visibility for ONLY the layers tagged with that mode
+   * (`metadata.transitMode`), through the same per-layer visibility override
+   * map the master toggle uses — so mode selections persist like any other
+   * layer toggle, and the group master toggle keeps working (turning the
+   * group on re-enables every mode).
+   *
+   * The transit group, basemap fade and native transit labels track whether
+   * ANY transit layer remains visible after the flip, so switching the last
+   * mode off behaves like switching transit off.
+   */
+  function setTransitModeVisibility(
+    layers: Layer[],
+    layersStore: any,
+    mapStrategy: MapStrategy | undefined,
+    mode: TransitMode,
+    visible: boolean,
+  ) {
+    const modeLayers = getTransitModeLayers(layers, mode)
+    if (modeLayers.length === 0) return
+
+    const affectedGroupIds = new Set<string>()
+    for (const layer of modeLayers) {
+      layersStore.updateLayerVisibility(layer.id, visible)
+      if (layer.groupId) affectedGroupIds.add(layer.groupId)
+      if (mapStrategy) {
+        mapStrategy.toggleLayerVisibility(layer.configuration.id, visible)
+      }
+    }
+
+    // Post-toggle transit visibility: the toggled mode's layers take the new
+    // state; everything else keeps its current one.
+    const anyTransitVisible = layers.some(l => {
+      if (l.type !== LayerType.TRANSIT) return false
+      if (isTransitModeLayer(l, mode)) return visible
+      return l.visible
+    })
+
+    // Group toggle state mirrors "is any transit visible" so the selector
+    // tile reads off once the last mode is switched off.
+    for (const groupId of affectedGroupIds) {
+      layersStore.toggleLayerGroupVisibility(groupId, anyTransitVisible)
+    }
+
+    if (mapStrategy) {
+      const shouldUseFaded = anyTransitVisible && !themeStore.isDark
+      mapStrategy.setMapColorTheme(
+        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+      )
+      mapStrategy.setTransitLabels(!anyTransitVisible)
+    }
+  }
+
   return {
     addTransitLineInteractions,
     toggleTransitLayers,
+    setTransitModeVisibility,
   }
 }

@@ -67,6 +67,8 @@ export enum AppRoute {
   FRIEND_DETAIL = 'friend-detail',
   TRACKER_DETAIL = 'tracker-detail',
   TRANSIT_ROUTE = 'transit-route',
+  TRANSIT_STOP = 'transit-stop',
+  TRANSIT_STATION = 'transit-station',
   DASHBOARD = 'dashboard',
   TIMELINE = 'timeline',
   NOT_FOUND = 'not-found',
@@ -157,6 +159,20 @@ const router = createRouter({
           name: AppRoute.TRANSIT_ROUTE,
           component: () => import('@/views/transit/TransitRouteDetail.vue'),
           props: true,
+        },
+        // Transit stop / station detail — one view, two id spaces (GTFS
+        // feedId+stopId for stops; label point coords for the clustered
+        // station complexes, which carry no GTFS ids). Query: ?name= for an
+        // instant header while departures load.
+        {
+          path: '/transit/stop/:feedId/:stopId',
+          name: AppRoute.TRANSIT_STOP,
+          component: () => import('@/views/transit/TransitStopDetail.vue'),
+        },
+        {
+          path: '/transit/station/:lat/:lng',
+          name: AppRoute.TRANSIT_STATION,
+          component: () => import('@/views/transit/TransitStopDetail.vue'),
         },
         {
           path: '/note/create',

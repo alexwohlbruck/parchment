@@ -65,5 +65,49 @@ is kept but disabled (`visible: false` plus a never-matching
 `['boolean', false]` filter, since bulk transit toggles re-enable visibility).
 A v3 bullet carrier is a follow-up.
 
+## Interactions (phases A–C)
+
+**Hover/click wiring (A).** One map-level listener set per map instance
+(`addTransitLineInteractions`,
+web/src/services/layers/features/transit-layers.service.ts), not per-layer
+delegates. Hit layers are discovered from the live style by
+`metadata.transitRole` (`routes`/`hover` line layers, `stops` circle layers);
+mousemove stashes the cursor and a rAF-throttled `queryRenderedFeatures`
+resolves hover — feature-state `{hover:true}` drives a width bump on the
+bundled ribbons and the `transit-routes-hover`/`transit-routes-ferry-hover`
+halo on the rest. `metadata.hitMinZoom` keeps opacity-ramped layers (buses)
+out of hit testing while invisible. Clicks yield to basemap POIs, street
+imagery dots and DOM markers.
+
+**Click-through (B).** Clicks land on Parchment's own GTFS id space
+(Barrelman) — never the transitland place provider. Feature→candidate logic
+is pure and unit-tested (web/src/lib/transit-route-candidates.ts,
+transit-stop-candidates.ts); bundled ribbons expand their comma-separated
+`route_ids` into one candidate per route. Destinations:
+`/transit/route/:feedId/:routeId`, `/transit/stop/:feedId/:stopId`, and
+`/transit/station/:lat/:lng` for the clustered station markers. Exactly one
+candidate navigates directly; several open `TransitLinePopover`
+(ResponsivePopover anchored at the click — popover on desktop, bottom sheet
+on mobile) listing stops above routes (RouteBullet + name).
+
+**Mode filter (C).** Every transit display layer carries
+`metadata.transitMode: 'rail'|'bus'|'ferry'` (one mode per layer — the
+templates split the old not-bus filter, giving ferries their own
+casing/line/hover/label layers over `transit_routes`). Rail/bus/ferry chips
+in LayersSelector show while the transit group is on; a chip flips visibility
+of just its mode's layers through the standard per-layer override map
+(`parchment-layer-visibility`), so mode choices persist with no extra
+storage and default to all-on. Chip state is derived (mode on ⇔ any of its
+layers visible); the group master toggle keeps working and re-enables every
+mode. The DOM station markers follow the rail chip via the
+`transit-stations-query` layer: a `styledata`-debounced refresh in
+TransitStationsLayer re-runs the query, which returns nothing while the
+layer is hidden. Basemap fade + native transit label suppression track
+"any transit layer still visible", so switching the last mode off behaves
+like switching transit off.
+
 Guard tests: `server/src/constants/default-layers/transit.test.ts` (template
-shape) and `web/src/lib/map.utils.test.ts` (degradation).
+shape + mode partition), `web/src/lib/map.utils.test.ts` (degradation),
+`web/src/lib/transit.utils.test.ts` (mode→layers mapping) and
+`web/src/lib/transit-route-candidates.test.ts` /
+`transit-stop-candidates.test.ts` (click candidates).

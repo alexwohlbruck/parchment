@@ -69,3 +69,76 @@ describe('transit v3 bundled ribbon templates', () => {
     expect(bullets?.configuration.filter).toEqual(['boolean', false])
   })
 })
+
+/**
+ * Guards the mode partition consumed by the client's rail/bus/ferry filter:
+ * every display layer carries exactly one `metadata.transitMode`, and no
+ * layer's route_type filter straddles two modes (the mode toggles flip layer
+ * visibility, so a mixed layer could not be filtered per mode).
+ */
+describe('transit mode partition (rail / bus / ferry)', () => {
+  const BUS_IDS = ['transit-routes-bus', 'transit-stops-bus']
+  const FERRY_IDS = [
+    'transit-routes-ferry-casing',
+    'transit-routes-ferry',
+    'transit-routes-ferry-hover',
+    'transit-route-labels-ferry',
+  ]
+
+  test('every template declares a known transitMode', () => {
+    for (const template of TRANSIT_LAYER_TEMPLATES) {
+      expect(['rail', 'bus', 'ferry']).toContain(
+        template.configuration.metadata?.transitMode,
+      )
+    }
+  })
+
+  test('bus and ferry membership is exactly the expected layer sets', () => {
+    const byMode = (mode: string) =>
+      TRANSIT_LAYER_TEMPLATES.filter(
+        t => t.configuration.metadata?.transitMode === mode,
+      ).map(t => t.configuration.id)
+    expect(byMode('bus').sort()).toEqual([...BUS_IDS].sort())
+    expect(byMode('ferry').sort()).toEqual([...FERRY_IDS].sort())
+    // Everything else is rail (ribbons, rail routes, stations, infra glyphs).
+    expect(byMode('rail').length).toBe(
+      TRANSIT_LAYER_TEMPLATES.length - BUS_IDS.length - FERRY_IDS.length,
+    )
+  })
+
+  test('transit_routes filters keep the modes disjoint', () => {
+    const RAIL_FILTER = ['match', ['get', 'route_type'], [3, 4, 11], false, true]
+    const FERRY_FILTER = ['match', ['get', 'route_type'], [4], true, false]
+    for (const id of [
+      'transit-routes-casing',
+      'transit-routes-line',
+      'transit-routes-hover',
+      'transit-route-labels',
+    ]) {
+      expect(byId(id)?.configuration.filter).toEqual(RAIL_FILTER)
+    }
+    for (const id of FERRY_IDS) {
+      expect(byId(id)?.configuration.filter).toEqual(FERRY_FILTER)
+    }
+  })
+
+  test('ferry layers mirror their rail counterparts (paint parity)', () => {
+    for (const [ferryId, railId] of [
+      ['transit-routes-ferry-casing', 'transit-routes-casing'],
+      ['transit-routes-ferry', 'transit-routes-line'],
+      ['transit-routes-ferry-hover', 'transit-routes-hover'],
+      ['transit-route-labels-ferry', 'transit-route-labels'],
+    ]) {
+      const ferry = byId(ferryId)?.configuration
+      const rail = byId(railId)?.configuration
+      expect(ferry?.paint).toEqual(rail?.paint)
+      expect(ferry?.type).toBe(rail?.type)
+    }
+  })
+
+  test('the station query layer (DOM marker feed) rides the rail toggle', () => {
+    expect(
+      byId('transit-stations-query')?.configuration.metadata?.transitMode,
+    ).toBe('rail')
+  })
+})

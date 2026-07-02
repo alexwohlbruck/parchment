@@ -26,8 +26,20 @@ import { LayerType } from '../../schema/layers.schema'
 const TRANSIT_SLOT = 'top'
 
 // ── Route-type partitioning ─────────────────────────────────────────
+// Every display layer serves exactly ONE transit mode and declares it via
+// `metadata.transitMode: 'rail' | 'bus' | 'ferry'` — the client's mode filter
+// (rail/bus/ferry chips) flips visibility per mode by matching this tag, so a
+// layer must never mix modes in its filter. Ferries therefore get their own
+// layer set (casing/line/hover/labels) split out of the old not-bus "rail"
+// filter instead of being re-filtered at runtime.
+//   - rail:  bundled ribbons, non-bundled rail routes, stations + infra glyphs
+//   - bus:   bus routes + bus stops
+//   - ferry: route_type 4 out of transit_routes
 const BUS_FILTER: any = ['match', ['get', 'route_type'], [3, 11], true, false]
-const RAIL_FILTER: any = ['match', ['get', 'route_type'], [3, 11], false, true]
+const FERRY_FILTER: any = ['match', ['get', 'route_type'], [4], true, false]
+const RAIL_FILTER: any = [
+  'match', ['get', 'route_type'], [3, 4, 11], false, true,
+]
 
 // ── Shared paint expressions ────────────────────────────────────────
 const TYPE_COLOR: any = [
@@ -243,7 +255,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 0,
     configuration: {
       id: 'transit-station-buildings',
-      metadata: { transitRole: 'stations' },
+      metadata: { transitRole: 'stations', transitMode: 'rail' },
       type: 'fill',
       slot: TRANSIT_SLOT,
       source: STATION_BUILDINGS_SOURCE,
@@ -267,7 +279,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 0,
     configuration: {
       id: 'transit-platforms',
-      metadata: { transitRole: 'stations' },
+      metadata: { transitRole: 'stations', transitMode: 'rail' },
       type: 'fill',
       slot: TRANSIT_SLOT,
       source: PLATFORMS_SOURCE,
@@ -293,7 +305,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 1,
     configuration: {
       id: 'transit-routes-bus',
-      metadata: { transitRole: 'routes', hitMinZoom: 11.5 },
+      metadata: { transitRole: 'routes', transitMode: 'bus', hitMinZoom: 11.5 },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: ROUTES_SOURCE,
@@ -319,7 +331,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 2,
     configuration: {
       id: 'transit-lines-casing-steady',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', transitMode: 'rail' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: LINES_SOURCE,
@@ -345,7 +357,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 2,
     configuration: {
       id: 'transit-lines-casing-transition',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', transitMode: 'rail' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: LINES_SOURCE,
@@ -369,7 +381,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 3,
     configuration: {
       id: 'transit-lines-steady',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', transitMode: 'rail' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: LINES_SOURCE,
@@ -393,7 +405,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 3,
     configuration: {
       id: 'transit-lines-transition',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', transitMode: 'rail' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: LINES_SOURCE,
@@ -417,7 +429,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 4,
     configuration: {
       id: 'transit-routes-casing',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', transitMode: 'rail' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: ROUTES_SOURCE,
@@ -440,7 +452,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 5,
     configuration: {
       id: 'transit-routes-line',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', transitMode: 'rail' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: ROUTES_SOURCE,
@@ -463,12 +475,89 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 6,
     configuration: {
       id: 'transit-routes-hover',
-      metadata: { transitRole: 'hover' },
+      metadata: { transitRole: 'hover', transitMode: 'rail' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: ROUTES_SOURCE,
       'source-layer': 'transit_routes',
       filter: RAIL_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ROUTE_COLOR,
+        'line-width': RAIL_HOVER_WIDTH,
+        'line-opacity': [
+          'case',
+          ['boolean', ['feature-state', 'hover'], false],
+          0.35,
+          0,
+        ],
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Ferry routes — split out of the old not-bus filter so the ferry mode
+  // toggle can hide them independently of rail. Paint is identical to the
+  // rail layers (the width/colour expressions already branch on route_type 4),
+  // so the split changes layer partitioning, not appearance.
+  {
+    ...base,
+    templateId: 'default:transit-routes-ferry-casing',
+    name: 'Ferry Casing',
+    order: 4,
+    configuration: {
+      id: 'transit-routes-ferry-casing',
+      metadata: { transitRole: 'routes', transitMode: 'ferry' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: FERRY_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': CASING_COLOR,
+        'line-width': RAIL_CASING_WIDTH,
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+  {
+    ...base,
+    templateId: 'default:transit-routes-ferry',
+    name: 'Ferry Routes',
+    order: 5,
+    configuration: {
+      id: 'transit-routes-ferry',
+      metadata: { transitRole: 'routes', transitMode: 'ferry' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: FERRY_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ROUTE_COLOR,
+        'line-width': RAIL_WIDTH,
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Ferry hover highlight — its own layer (not the rail hover) so hiding rail
+  // doesn't leave phantom hit-testable ferry geometry and vice versa.
+  {
+    ...base,
+    templateId: 'default:transit-routes-ferry-hover',
+    name: 'Ferry Hover',
+    order: 6,
+    configuration: {
+      id: 'transit-routes-ferry-hover',
+      metadata: { transitRole: 'hover', transitMode: 'ferry' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: FERRY_FILTER,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': ROUTE_COLOR,
@@ -492,7 +581,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 7,
     configuration: {
       id: 'transit-stops-bus',
-      metadata: { transitRole: 'stops' },
+      metadata: { transitRole: 'stops', transitMode: 'bus' },
       type: 'circle',
       slot: TRANSIT_SLOT,
       source: STOPS_SOURCE,
@@ -534,12 +623,51 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 9,
     configuration: {
       id: 'transit-route-labels',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', transitMode: 'rail' },
       type: 'symbol',
       slot: TRANSIT_SLOT,
       source: ROUTES_SOURCE,
       'source-layer': 'transit_routes',
       filter: RAIL_FILTER,
+      minzoom: 12,
+      layout: {
+        'symbol-placement': 'line',
+        'text-field': [
+          'case',
+          ['!=', ['get', 'route_short_name'], ''],
+          ['get', 'route_short_name'],
+          ['get', 'route_long_name'],
+        ],
+        'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+        'text-size': 11,
+        'text-max-angle': 30,
+        'symbol-spacing': 400,
+        'text-allow-overlap': false,
+      },
+      paint: {
+        'text-color': ROUTE_COLOR,
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.5,
+        'text-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Ferry route designation labels — same styling as the rail labels, split
+  // per mode so the ferry toggle hides them with the ferry lines.
+  {
+    ...base,
+    templateId: 'default:transit-route-labels-ferry',
+    name: 'Ferry Labels',
+    order: 9,
+    configuration: {
+      id: 'transit-route-labels-ferry',
+      metadata: { transitRole: 'routes', transitMode: 'ferry' },
+      type: 'symbol',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: FERRY_FILTER,
       minzoom: 12,
       layout: {
         'symbol-placement': 'line',
@@ -581,7 +709,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     visible: false,
     configuration: {
       id: 'transit-lines-bullets',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', transitMode: 'rail' },
       type: 'symbol',
       slot: TRANSIT_SLOT,
       // Baked (pre-offset) geometry so bullets sit ON the ribbons, not stacked on
@@ -634,7 +762,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 10,
     configuration: {
       id: 'transit-stations-query',
-      metadata: { transitRole: 'stations' },
+      metadata: { transitRole: 'stations', transitMode: 'rail' },
       type: 'circle',
       slot: TRANSIT_SLOT,
       source: STATIONS_SOURCE,
@@ -656,7 +784,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 11,
     configuration: {
       id: 'transit-stairs',
-      metadata: { transitRole: 'stations' },
+      metadata: { transitRole: 'stations', transitMode: 'rail' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: STAIRS_SOURCE,
@@ -679,7 +807,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 11,
     configuration: {
       id: 'transit-stairs-glyph',
-      metadata: { transitRole: 'stations' },
+      metadata: { transitRole: 'stations', transitMode: 'rail' },
       type: 'symbol',
       slot: TRANSIT_SLOT,
       source: STAIRS_SOURCE,
@@ -709,7 +837,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 12,
     configuration: {
       id: 'transit-elevators',
-      metadata: { transitRole: 'stations' },
+      metadata: { transitRole: 'stations', transitMode: 'rail' },
       type: 'symbol',
       slot: TRANSIT_SLOT,
       source: ELEVATORS_SOURCE,
@@ -740,7 +868,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 13,
     configuration: {
       id: 'transit-entrances',
-      metadata: { transitRole: 'stations' },
+      metadata: { transitRole: 'stations', transitMode: 'rail' },
       type: 'symbol',
       slot: TRANSIT_SLOT,
       source: ENTRANCES_SOURCE,

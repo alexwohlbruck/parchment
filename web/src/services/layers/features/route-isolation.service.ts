@@ -15,6 +15,13 @@ import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail
 import { densifyLine } from '@/lib/geo-densify'
 import { isFadeableTransitRole } from '@/lib/transit.utils'
 
+/** Paint properties overridden per layer type when fading transit layers. */
+const FADE_PAINT_PROPS: Record<string, string[]> = {
+  line: ['line-opacity'],
+  circle: ['circle-opacity', 'circle-stroke-opacity'],
+  symbol: ['text-opacity', 'icon-opacity'],
+}
+
 const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
 const ROUTE_OUTLINE_LAYER_ID = 'route-detail-outline'
@@ -27,6 +34,12 @@ export function useRouteIsolationService() {
   let mapInstance: any = null
   let watchStop: WatchStopHandle | null = null
   let isIsolated = false
+  // Original paint values captured before fading, restored exactly on
+  // un-isolate. Restoring `null` instead would reset props to STYLE-SPEC
+  // defaults (1.0) — turning the invisible `transit-stations-query` layer
+  // (circle-opacity 0) into visible dots and flattening the deliberately
+  // faint bus opacity zoom ramps.
+  let savedPaint: Map<string, Record<string, unknown>> | null = null
 
   function initialize(map: any) {
     mapInstance = map
@@ -141,35 +154,49 @@ export function useRouteIsolationService() {
   function fadeTransitLayers(opacity: number | null) {
     if (!mapInstance) return
 
+    if (opacity === null) {
+      // Restore the exact pre-fade paint values (null/undefined unsets back
+      // to the template's implicit default).
+      for (const [layerId, props] of savedPaint ?? []) {
+        for (const [prop, value] of Object.entries(props)) {
+          try {
+            if (!mapInstance.getLayer(layerId)) continue
+            mapInstance.setPaintProperty(layerId, prop, value ?? null)
+          } catch {
+            // Layer might not exist in current map style
+          }
+        }
+      }
+      savedPaint = null
+      return
+    }
+
+    const snapshot = savedPaint ?? (savedPaint = new Map())
     for (const layerId of getFadeableTransitLayerIds()) {
       try {
-        if (!mapInstance.getLayer(layerId)) continue
+        const layer = mapInstance.getLayer(layerId)
+        if (!layer) continue
 
-        if (opacity === null) {
-          // Restore — remove the opacity override
-          const layer = mapInstance.getLayer(layerId)
-          const type = layer?.type
-          if (type === 'line') {
-            mapInstance.setPaintProperty(layerId, 'line-opacity', null)
-          } else if (type === 'circle') {
-            mapInstance.setPaintProperty(layerId, 'circle-opacity', null)
-            mapInstance.setPaintProperty(layerId, 'circle-stroke-opacity', null)
-          } else if (type === 'symbol') {
-            mapInstance.setPaintProperty(layerId, 'text-opacity', null)
-            mapInstance.setPaintProperty(layerId, 'icon-opacity', null)
+        // Snapshot once — a second fade before restore must not capture the
+        // already-faded values.
+        let saved = snapshot.get(layerId)
+        const firstFade = !saved
+        if (!saved) {
+          saved = {}
+          snapshot.set(layerId, saved)
+        }
+
+        for (const prop of FADE_PAINT_PROPS[layer.type] ?? []) {
+          if (firstFade) {
+            const original = mapInstance.getPaintProperty(layerId, prop)
+            // Leave designed-invisible props alone (e.g. the query layer's
+            // circle-opacity: 0) — fading them in would reveal hidden geometry.
+            if (original === 0) continue
+            saved[prop] = original
+          } else if (!(prop in saved)) {
+            continue
           }
-        } else {
-          const layer = mapInstance.getLayer(layerId)
-          const type = layer?.type
-          if (type === 'line') {
-            mapInstance.setPaintProperty(layerId, 'line-opacity', opacity)
-          } else if (type === 'circle') {
-            mapInstance.setPaintProperty(layerId, 'circle-opacity', opacity)
-            mapInstance.setPaintProperty(layerId, 'circle-stroke-opacity', opacity)
-          } else if (type === 'symbol') {
-            mapInstance.setPaintProperty(layerId, 'text-opacity', opacity)
-            mapInstance.setPaintProperty(layerId, 'icon-opacity', opacity)
-          }
+          mapInstance.setPaintProperty(layerId, prop, opacity)
         }
       } catch {
         // Layer might not exist in current map style

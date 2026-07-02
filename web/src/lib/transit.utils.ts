@@ -178,3 +178,27 @@ export function isTransitStopLayer(
   return getTransitRole(carrier) === 'stops'
 }
 
+/**
+ * Roles whose LINE layers are hit targets for the transit line hover/click
+ * interactions (route detail click-through). Includes the `hover` hitbox —
+ * it duplicates the rail geometry at a wider width, giving a more forgiving
+ * hit area; candidate dedupe collapses the doubled features.
+ */
+const TRANSIT_LINE_HIT_ROLES: ReadonlySet<TransitRole> = new Set<TransitRole>([
+  'routes',
+  'hover',
+])
+
+/**
+ * True for line layers that participate in transit line hover/click hit
+ * testing. Label/bullet symbol layers (also role `routes`) are excluded —
+ * they ride the same routes and would only duplicate candidates.
+ */
+export function isTransitLineHitLayer(
+  carrier?: TransitRoleCarrier | null,
+): boolean {
+  const role = getTransitRole(carrier)
+  if (!role || !TRANSIT_LINE_HIT_ROLES.has(role)) return false
+  return carrier?.type === 'line'
+}
+

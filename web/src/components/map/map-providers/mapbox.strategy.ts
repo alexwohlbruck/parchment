@@ -37,7 +37,7 @@ import { decodeShape } from '@/lib/utils'
 import { palette } from '@/lib/palette'
 import { mapEventBus } from '@/lib/eventBus'
 import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
-import { parseMapboxToOsmId } from '@/lib/map.utils'
+import { degradeProgressLineOffset, parseMapboxToOsmId } from '@/lib/map.utils'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
@@ -651,6 +651,12 @@ export class MapboxStrategy extends MapStrategy {
     // the layer to silently disappear. JSON clone (rather than structuredClone)
     // because Pinia proxies may contain values structuredClone can't copy.
     const configuration: any = JSON.parse(JSON.stringify(themedLayer.configuration))
+
+    // Mapbox GL cannot evaluate ['line-progress'] inside `line-offset` (a
+    // local-MapLibre-fork capability used by the transit junction-transition
+    // layers) — substitute the constant from-offset ("step" degradation).
+    // No-op for every other layer.
+    degradeProgressLineOffset(configuration.paint)
 
     // Handle source if it exists in the configuration
     if (typeof configuration.source === 'object') {

@@ -32,6 +32,11 @@ const maplibreAlias = useMaplibreFork
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    // Engine capability flag: true iff `maplibre-gl` is aliased to the local
+    // fork (variable line-offset via line-progress). Stock MapLibre builds get
+    // false and must degrade progress-driven line-offset expressions — see
+    // degradeProgressLineOffset in src/lib/map.utils.ts.
+    __MAPLIBRE_FORK__: JSON.stringify(useMaplibreFork),
   },
   plugins: [
     vue(),

@@ -2,6 +2,10 @@
 
 declare const __APP_VERSION__: string
 
+// True iff maplibre-gl is aliased to the local variable-line-offset fork
+// (build-time constant from web/vite.config.ts `define`).
+declare const __MAPLIBRE_FORK__: boolean
+
 declare module '*.svg?component' {
   import type { DefineComponent } from 'vue'
   const component: DefineComponent

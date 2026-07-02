@@ -92,6 +92,50 @@ function stripMapboxExpressionsFromObject(obj: Record<string, any>): Record<stri
   return result
 }
 
+// ── Progress-driven line-offset (transit v3 junction transitions) ──────────
+// The transit transition-layer templates carry
+//   ['interpolate', ['cubic-bezier', .4, 0, .6, 1], ['line-progress'],
+//     0, ['get', 'off_from_px'], 1, ['get', 'off_to_px']]
+// in `line-offset`. Evaluating ['line-progress'] inside `line-offset` is a
+// capability of the LOCAL MapLibre fork only (transit/variable-line-offset —
+// per-vertex offsets via an ext buffer attribute). Stock MapLibre and Mapbox
+// GL reject/ignore the expression, so those engines must substitute a
+// constant offset instead ("step" degradation: each transition piece holds
+// its from-offset; steady corridors are untouched and remain full fidelity).
+
+/**
+ * True iff the running `maplibre-gl` is the local variable-line-offset fork.
+ * Compile-time constant injected by Vite (`__MAPLIBRE_FORK__`, set from the
+ * same check that installs the fork alias in web/vite.config.ts) — the alias
+ * IS the capability, so no runtime probing is needed. The `typeof` guard
+ * keeps non-Vite consumers (e.g. plain ts-node tooling) from throwing.
+ */
+export const MAPLIBRE_SUPPORTS_PROGRESS_OFFSET: boolean =
+  typeof __MAPLIBRE_FORK__ !== 'undefined' && __MAPLIBRE_FORK__
+
+/** Deep check: does an expression reference ['line-progress'] anywhere? */
+function usesLineProgress(value: unknown): boolean {
+  if (!Array.isArray(value)) return false
+  if (value[0] === 'line-progress') return true
+  return value.some(v => usesLineProgress(v))
+}
+
+/**
+ * Replace a progress-driven `line-offset` with its progress-0 output — for
+ * the transit transition layers that is ['get', 'off_from_px'], the approved
+ * constant "step" degradation for engines without the fork. Mutates `paint`
+ * in place; a no-op when `line-offset` doesn't reference line-progress, so
+ * it is safe to run over every layer.
+ */
+export function degradeProgressLineOffset(paint?: Record<string, any>): void {
+  const offset = paint?.['line-offset']
+  if (!paint || !usesLineProgress(offset)) return
+  paint['line-offset'] =
+    Array.isArray(offset) && offset[0] === 'interpolate' && offset.length >= 5
+      ? offset[4] // first stop output (offset at line-progress 0)
+      : 0
+}
+
 // TODO: Fix any types
 export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
   // IMPORTANT: deep clone the configuration before mutating. A shallow spread
@@ -113,6 +157,14 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
       }
     })
     maplibreConfig.paint = stripMapboxExpressionsFromObject(maplibreConfig.paint)
+
+    // Stock MapLibre cannot drive line-offset from line-progress (fork-only
+    // capability) — degrade transit transition layers to their constant
+    // from-offset. On the fork this is skipped and the smooth junction
+    // interpolation reaches the engine untouched.
+    if (!MAPLIBRE_SUPPORTS_PROGRESS_OFFSET) {
+      degradeProgressLineOffset(maplibreConfig.paint)
+    }
   }
 
   // Remove Mapbox-specific layout properties, then strip unsupported expressions

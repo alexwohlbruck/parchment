@@ -217,6 +217,9 @@
       "copyLocation": "Copy location",
       "loadingAddress": "Loading address...",
       "measure": "Measure"
+    },
+    "transit": {
+      "chooseRoute": "Choose a route"
     }
   },
   "measure": {

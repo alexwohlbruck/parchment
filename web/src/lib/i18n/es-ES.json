@@ -211,6 +211,9 @@
       "copyLocation": "Copiar ubicación",
       "loadingAddress": "Cargando dirección...",
       "measure": "Medir"
+    },
+    "transit": {
+      "chooseRoute": "Elige una ruta"
     }
   },
   "measure": {

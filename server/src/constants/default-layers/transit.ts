@@ -63,9 +63,9 @@ const ROUTE_COLOR: any = [
 // time. line-offset is in SCREEN PIXELS, so the on-screen gap is constant at
 // every zoom for free (no per-zoom baking). Centre the bundle around 0:
 // slot 0..line_count-1  ->  (slot - (line_count-1)/2) * gap.  line_count 1 -> 0.
-// Works on Mapbox AND MapLibre; MapLibre additionally multiplies this by a
-// line-progress junction taper (injected client-side — Mapbox rejects
-// line-progress in line-offset).
+// Applied identically on Mapbox AND MapLibre — no taper. Junction convergence
+// is deferred to Phase B rt2 transition geometry (off_from_px→off_to_px
+// interpolated via the fork's variable line-offset).
 const RUNTIME_GAP = 4.4 // px between adjacent ribbons (matches the baked px gap)
 const RUNTIME_OFFSET: any = [
   '*',
@@ -142,8 +142,8 @@ const ROUTES_SOURCE = {
 // Runtime-offset ribbons: one shared centreline per bundle run with slot +
 // line_count props (Martin function `transit_lines_rt`). The parallel offset is
 // applied per-vertex at draw time (RUNTIME_OFFSET) — constant on-screen gap at
-// every zoom without per-zoom baking, plus a MapLibre-only line-progress junction
-// taper. Serves any zoom (function source), so maxzoom can be modest + overzoom.
+// every zoom without per-zoom baking, identical on both engines. Serves any
+// zoom (function source), so maxzoom can be modest + overzoom.
 const LINES_SOURCE = {
   id: 'transit-lines',
   type: 'vector' as const,

@@ -21,6 +21,7 @@ const mockSearchResultsService = {
 
 const mockTransitService = {
   addTransitStopClickHandlers: vi.fn(),
+  addTransitLineInteractions: vi.fn(),
 }
 
 vi.mock('./features/search-results-layer.service', () => ({
@@ -149,6 +150,21 @@ describe('useLayersService', () => {
       service.initializeLayers([], mockMapStrategy)
 
       expect(mockMapStrategy.addLayer).not.toHaveBeenCalled()
+    })
+
+    test('wires transit line interactions once per pass (not per layer)', () => {
+      const service = useLayersService()
+      const layers: Layer[] = [
+        { id: 'layer-1', configuration: { id: 'layer-1' } } as Layer,
+        { id: 'layer-2', configuration: { id: 'layer-2' } } as Layer,
+      ]
+
+      service.initializeLayers(layers, mockMapStrategy)
+
+      expect(mockTransitService.addTransitLineInteractions).toHaveBeenCalledTimes(1)
+      expect(mockTransitService.addTransitLineInteractions).toHaveBeenCalledWith(
+        mockMapStrategy
+      )
     })
   })
 

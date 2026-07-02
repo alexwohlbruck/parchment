@@ -103,6 +103,11 @@ export function useLayersService() {
       // Add the layer to the map
       mapStrategy.addLayer(plainLayer)
     })
+
+    // Transit line hover + click-through (route detail with disambiguation).
+    // Map-level and role-driven, so it is wired once per map instance rather
+    // than per layer; idempotent across style reloads.
+    transitService.addTransitLineInteractions(mapStrategy)
   }
 
   /**

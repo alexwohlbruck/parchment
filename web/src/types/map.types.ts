@@ -171,6 +171,15 @@ export type MapEvents = {
   'click:tracker-marker': {
     trackerId: string
   }
+  // Click on transit route line(s). Emitted by the transit line interaction
+  // wiring with the deduped route candidates under the click; the popover
+  // component navigates (single candidate) or disambiguates (several).
+  'click:transit-line': {
+    lngLat: LngLat
+    /** Viewport (client) px of the click — anchors the picker popover. */
+    point: { x: number; y: number }
+    candidates: import('@/lib/transit-route-candidates').TransitRouteCandidate[]
+  }
 }
 
 export enum SourceType {

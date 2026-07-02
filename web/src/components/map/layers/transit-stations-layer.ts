@@ -51,6 +51,12 @@ export class TransitStationsLayer {
     // queryRenderedFeatures returns nothing. `idle` fires once tiles settle, so
     // this backfills the labels. It's idempotent (reconcile diffs the set).
     map.on('idle', this.onMove)
+    // And on style mutations: the rail mode toggle (and the transit master
+    // toggle) flip the query layer's visibility without moving the camera, and
+    // queryVisible() returns nothing while it's hidden — so a styledata-driven
+    // refresh is what adds/clears the DOM markers with the toggle. Debounced by
+    // the shared 250ms timer, so style-load bursts collapse to one refresh.
+    map.on('styledata', this.onMove)
 
     // Initial population attempt (tiles may already be loaded).
     this.refresh()
@@ -182,6 +188,7 @@ export class TransitStationsLayer {
       this.map.off('moveend', this.onMove)
       this.map.off('zoomend', this.onMove)
       this.map.off('idle', this.onMove)
+      this.map.off('styledata', this.onMove)
     }
     if (this.timer) clearTimeout(this.timer)
     this.clear()

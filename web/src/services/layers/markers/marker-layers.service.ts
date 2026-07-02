@@ -14,6 +14,7 @@ import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions
 import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
 import { TrackerLocationsLayer } from '@/components/map/layers/tracker-locations-layer'
 import { TransitVehiclesLayer } from '@/components/map/layers/transit-vehicles-layer'
+import { TransitStationsLayer } from '@/components/map/layers/transit-stations-layer'
 import {
   RouteBuilderLayer,
   RouteBuilderLineLayer,
@@ -34,6 +35,7 @@ export function useMarkerLayersService() {
   let userLocationLayer: UserLocationLayer | null = null
   let trackerLocationsLayer: TrackerLocationsLayer | null = null
   let transitVehiclesLayer: TransitVehiclesLayer | null = null
+  let transitStationsLayer: TransitStationsLayer | null = null
   let routeBuilderLayer: RouteBuilderLayer | null = null
   let routeBuilderLineLayer: RouteBuilderLineLayer | null = null
   let routeBuilderTurnaroundLayer: RouteBuilderTurnaroundLayer | null = null
@@ -62,6 +64,7 @@ export function useMarkerLayersService() {
     userLocationLayer = new UserLocationLayer()
     trackerLocationsLayer = new TrackerLocationsLayer()
     transitVehiclesLayer = new TransitVehiclesLayer()
+    transitStationsLayer = new TransitStationsLayer()
     routeBuilderLayer = new RouteBuilderLayer()
     routeBuilderLineLayer = new RouteBuilderLineLayer(mapStrategy)
     routeBuilderTurnaroundLayer = new RouteBuilderTurnaroundLayer()
@@ -97,6 +100,7 @@ export function useMarkerLayersService() {
     trackerLocationsLayer.initialize(markerAPI)
     transitVehiclesLayer.initialize(markerAPI)
     transitVehiclesLayer.setGetBounds(() => mapStrategy.getBounds())
+    transitStationsLayer.initialize(markerAPI, mapStrategy.mapInstance)
     routeBuilderLayer.initialize(markerAPI)
     routeBuilderLineLayer.initialize()
     routeBuilderTurnaroundLayer.initialize(markerAPI)
@@ -182,6 +186,7 @@ export function useMarkerLayersService() {
     userLocationLayer?.destroy()
     trackerLocationsLayer?.destroy()
     transitVehiclesLayer?.destroy()
+    transitStationsLayer?.destroy()
     routeBuilderLayer?.destroy()
     routeBuilderLineLayer?.destroy()
     routeBuilderTurnaroundLayer?.destroy()
@@ -192,6 +197,7 @@ export function useMarkerLayersService() {
     userLocationLayer = null
     trackerLocationsLayer = null
     transitVehiclesLayer = null
+    transitStationsLayer = null
     routeBuilderLayer = null
     routeBuilderLineLayer = null
     routeBuilderTurnaroundLayer = null

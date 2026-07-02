@@ -1,19 +1,17 @@
 /**
  * Transit Layers Service
  *
- * Handles transit-specific layer operations including bulk visibility toggles,
- * transit stop click handlers for navigation, and the transit line hover /
- * click interactions (route detail click-through with disambiguation).
+ * Handles transit-specific layer operations including bulk visibility toggles
+ * and the transit line hover / click interactions (route detail click-through
+ * with disambiguation).
  */
 
 import type { Layer } from '@/types/map.types'
 import { LayerType, MapColorTheme } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { useRouter } from 'vue-router'
-import { AppRoute } from '@/router'
 import { useThemeStore } from '@/stores/theme.store'
 import { mapEventBus } from '@/lib/eventBus'
-import { isTransitLineHitLayer, isTransitStopLayer } from '@/lib/transit.utils'
+import { isTransitLineHitLayer } from '@/lib/transit.utils'
 import { collectRouteCandidates } from '@/lib/transit-route-candidates'
 
 // ── Transit line hover / click interactions ────────────────────────────────
@@ -42,52 +40,7 @@ interface FeatureStateTarget {
 }
 
 export function useTransitLayersService() {
-  const router = useRouter()
   const themeStore = useThemeStore()
-
-  // ============================================================================
-  // TRANSIT STOP CLICK HANDLERS
-  // ============================================================================
-
-  /**
-   * Add click handlers for transit stops to open place detail view
-   */
-  function addTransitStopClickHandlers(
-    mapStrategy: MapStrategy,
-    layerId: string,
-  ) {
-    if (!mapStrategy?.mapInstance) return
-
-    const handleClick = (event: any) => {
-      const feature = event.features?.[0]
-      if (feature && feature.properties) {
-        const onestopId =
-          feature.properties.onestop_id || feature.properties.stop_id
-        if (onestopId) {
-          router.push({
-            name: AppRoute.PLACE_PROVIDER,
-            params: {
-              provider: 'transitland',
-              placeId: onestopId,
-            },
-          })
-        }
-      }
-    }
-
-    const handleMouseEnter = () => {
-      mapStrategy.mapInstance.getCanvas().style.cursor = 'pointer'
-    }
-
-    const handleMouseLeave = () => {
-      mapStrategy.mapInstance.getCanvas().style.cursor = ''
-    }
-
-    // Add all handlers
-    mapStrategy.mapInstance.on('click', layerId, handleClick)
-    mapStrategy.mapInstance.on('mouseenter', layerId, handleMouseEnter)
-    mapStrategy.mapInstance.on('mouseleave', layerId, handleMouseLeave)
-  }
 
   // ============================================================================
   // TRANSIT LINE HOVER + CLICK (route detail click-through)
@@ -110,7 +63,6 @@ export function useTransitLayersService() {
 
     // ── Hit-layer cache: recomputed lazily after style mutations ──
     let lineLayerIds: string[] = []
-    let stopLayerIds: string[] = []
     let layersDirty = true
     map.on('styledata', () => {
       layersDirty = true
@@ -125,9 +77,6 @@ export function useTransitLayersService() {
       }
       lineLayerIds = styleLayers
         .filter((layer: any) => isTransitLineHitLayer(layer))
-        .map((layer: any) => layer.id)
-      stopLayerIds = styleLayers
-        .filter((layer: any) => isTransitStopLayer(layer))
         .map((layer: any) => layer.id)
       layersDirty = false
     }
@@ -150,19 +99,6 @@ export function useTransitLayersService() {
         return map.queryRenderedFeatures(bbox, { layers }) ?? []
       } catch {
         return []
-      }
-    }
-
-    /** True when a transit stop sits under the point — the stop click
-     *  handler (place detail) wins over the co-located line geometry. */
-    function hitsTransitStop(point: { x: number; y: number }): boolean {
-      if (layersDirty) refreshLayerCaches()
-      const layers = stopLayerIds.filter(id => map.getLayer(id))
-      if (layers.length === 0) return false
-      try {
-        return (map.queryRenderedFeatures(point, { layers }) ?? []).length > 0
-      } catch {
-        return false
       }
     }
 
@@ -240,7 +176,6 @@ export function useTransitLayersService() {
 
     // ── Click: collect candidates → navigate or disambiguate ──
     map.on('click', (e: any) => {
-      if (hitsTransitStop(e.point)) return
       const features = queryTransitLines(e.point, CLICK_RADIUS_PX)
       if (features.length === 0) return
       const candidates = collectRouteCandidates(features)
@@ -322,7 +257,6 @@ export function useTransitLayersService() {
   }
 
   return {
-    addTransitStopClickHandlers,
     addTransitLineInteractions,
     toggleTransitLayers,
   }

@@ -5,7 +5,7 @@
  * - initializeLayers with mocked MapStrategy
  * - addLayerToMap / removeLayerFromMap
  * - Special handling for search results layer
- * - Transit stop click handlers
+ * - Transit line interaction wiring
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
@@ -20,7 +20,6 @@ const mockSearchResultsService = {
 }
 
 const mockTransitService = {
-  addTransitStopClickHandlers: vi.fn(),
   addTransitLineInteractions: vi.fn(),
 }
 
@@ -58,11 +57,6 @@ vi.mock('./core/layer-visibility.service', () => ({
     checkFadeBasemapVisibility: vi.fn(),
     applyFadedBasemap: vi.fn(),
   }),
-}))
-
-vi.mock('@/lib/transit.utils', () => ({
-  isTransitStopLayer: (carrier: { metadata?: { transitRole?: string } } | null) =>
-    carrier?.metadata?.transitRole === 'stops',
 }))
 
 describe('useLayersService', () => {
@@ -127,7 +121,7 @@ describe('useLayersService', () => {
       )
     })
 
-    test('adds transit stop click handlers for transit layers', () => {
+    test('adds transit stop layers as regular layers (no per-layer click wiring)', () => {
       const service = useLayersService()
       const layers: Layer[] = [
         { id: 'transit-layer', configuration: { id: 'transit-stops-bus', metadata: { transitRole: 'stops' } } } as unknown as Layer,
@@ -135,10 +129,6 @@ describe('useLayersService', () => {
 
       service.initializeLayers(layers, mockMapStrategy)
 
-      expect(mockTransitService.addTransitStopClickHandlers).toHaveBeenCalledWith(
-        mockMapStrategy,
-        'transit-stops-bus'
-      )
       expect(mockMapStrategy.addLayer).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'transit-layer' })
       )
@@ -180,21 +170,6 @@ describe('useLayersService', () => {
 
       expect(mockMapStrategy.addLayer).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'new-layer' })
-      )
-    })
-
-    test('adds transit click handlers for transit layers', () => {
-      const service = useLayersService()
-      const layer: Layer = {
-        id: 'transit-layer',
-        configuration: { id: 'transit-stops-rail', metadata: { transitRole: 'stops' } },
-      } as unknown as Layer
-
-      service.addLayerToMap(layer, mockMapStrategy)
-
-      expect(mockTransitService.addTransitStopClickHandlers).toHaveBeenCalledWith(
-        mockMapStrategy,
-        'transit-stops-rail'
       )
     })
 

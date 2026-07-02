@@ -6,8 +6,8 @@
  * 
  * This service acts as a facade, composing functionality from:
  * - Core services (CRUD, visibility)
- * - Feature services (transit - for click handlers)
- * 
+ * - Feature services (transit - for line hover/click interactions)
+ *
  * Note: Other feature-specific services (search results, place polygons, street view, markers)
  * are now called directly where they're used, rather than re-exported through this service.
  */
@@ -15,7 +15,6 @@
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { toRaw } from 'vue'
-import { isTransitStopLayer } from '@/lib/transit.utils'
 
 /** Check if a layer is compatible with the current map engine */
 function isLayerCompatible(layer: Layer, mapStrategy: MapStrategy): boolean {
@@ -95,11 +94,6 @@ export function useLayersService() {
         return
       }
 
-      // Add transit stop click handlers for transit stop layers
-      if (isTransitStopLayer(plainLayer.configuration)) {
-        transitService.addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
-      }
-
       // Add the layer to the map
       mapStrategy.addLayer(plainLayer)
     })
@@ -121,11 +115,6 @@ export function useLayersService() {
     if (dayNightService.isDayNightLayer(plainLayer)) {
       dayNightService.initializeDayNightLayer(mapStrategy, plainLayer)
       return
-    }
-
-    // Add transit stop click handlers for dynamically added transit stop layers
-    if (isTransitStopLayer(plainLayer.configuration)) {
-      transitService.addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
     }
 
     mapStrategy.addLayer(plainLayer)

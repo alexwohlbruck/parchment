@@ -128,7 +128,7 @@ export interface TransitStop {
  * without silently breaking click / fade / toggle wiring.
  *
  *   - `routes`   route lines, outlines and route-name labels
- *   - `stops`    stop circles and stop-name labels (click → place detail)
+ *   - `stops`    stop circles and stop-name labels
  *   - `stations` grouped-station markers (white interchange bars; future)
  *   - `hover`    hover/hitbox utility layers (excluded from isolation fade —
  *                they carry a feature-state opacity expression that breaks if
@@ -168,9 +168,9 @@ export function isFadeableTransitRole(role?: TransitRole): boolean {
 }
 
 /**
- * Check if a layer is a transit stop layer (a click target that opens stop /
- * place detail). Accepts the layer configuration (or live style layer) and
- * reads its `transitRole` rather than matching a hardcoded ID.
+ * Check if a layer is a transit stop layer (stop circles / stop-name labels).
+ * Accepts the layer configuration (or live style layer) and reads its
+ * `transitRole` rather than matching a hardcoded ID.
  */
 export function isTransitStopLayer(
   carrier?: TransitRoleCarrier | null,

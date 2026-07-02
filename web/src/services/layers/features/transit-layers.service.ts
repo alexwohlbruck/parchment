@@ -210,9 +210,13 @@ export function useTransitLayersService() {
       const point = pendingPoint
       pendingPoint = null
       if (!point) return
-      const feature = queryTransitLines(point, HOVER_RADIUS_PX).find(
-        (f: any) => f?.id !== undefined && f?.id !== null && f?.source,
-      )
+      // Lines carry the feature-state highlight; stops have no hover style
+      // but still take the pointer cursor (they navigate on click).
+      const hasId = (f: any) =>
+        f?.id !== undefined && f?.id !== null && f?.source
+      const feature =
+        queryTransitLines(point, HOVER_RADIUS_PX).find(hasId) ??
+        queryTransitStops(point, HOVER_RADIUS_PX).find(hasId)
       setHovered(
         feature
           ? {

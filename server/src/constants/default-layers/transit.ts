@@ -282,7 +282,10 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     },
   },
 
-  // Bus lines — bottom of the stack, thin + faint + zoom-gated.
+  // Bus lines — bottom of the stack, thin + faint + zoom-gated. minzoom
+  // matches the opacity ramp's zero point (fully transparent at z≤10);
+  // hitMinZoom keeps hover/click hit testing off until the ramp makes the
+  // lines legible (queryRenderedFeatures still reports transparent lines).
   {
     ...base,
     templateId: 'default:transit-routes-bus',
@@ -290,12 +293,13 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 1,
     configuration: {
       id: 'transit-routes-bus',
-      metadata: { transitRole: 'routes' },
+      metadata: { transitRole: 'routes', hitMinZoom: 11.5 },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: ROUTES_SOURCE,
       'source-layer': 'transit_routes',
       filter: BUS_FILTER,
+      minzoom: 10,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': BUS_BLUE,

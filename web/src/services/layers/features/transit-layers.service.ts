@@ -11,7 +11,11 @@ import { LayerType, MapColorTheme } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { useThemeStore } from '@/stores/theme.store'
 import { mapEventBus } from '@/lib/eventBus'
-import { isTransitLineHitLayer } from '@/lib/transit.utils'
+import { styleConfigs } from '@/lib/basemap-style-config'
+import {
+  getTransitHitMinZoom,
+  isTransitLineHitLayer,
+} from '@/lib/transit.utils'
 import { collectRouteCandidates } from '@/lib/transit-route-candidates'
 
 // ── Transit line hover / click interactions ────────────────────────────────
@@ -32,6 +36,14 @@ const lineInteractionsAttached = new WeakSet<object>()
 /** Hit-test slop around the cursor, in screen px. */
 const HOVER_RADIUS_PX = 3
 const CLICK_RADIUS_PX = 6
+
+/** Layer ids owned by other click-through handlers — basemap POIs (self-hosted
+ *  styles) and street imagery dots. Both navigate on click, so the transit
+ *  line click yields whenever one of them sits under the cursor. */
+const PRIORITY_CLICK_LAYER_IDS: string[] = [
+  ...new Set(Object.values(styleConfigs).flatMap(c => c.poiLayerIds)),
+  'mapillary-image',
+]
 
 interface FeatureStateTarget {
   source: string
@@ -62,7 +74,11 @@ export function useTransitLayersService() {
     lineInteractionsAttached.add(map)
 
     // ── Hit-layer cache: recomputed lazily after style mutations ──
-    let lineLayerIds: string[] = []
+    // Each hit layer carries its `metadata.hitMinZoom` gate: layers that fade
+    // in on an opacity ramp (buses are fully transparent when zoomed out) are
+    // still reported by queryRenderedFeatures, so hit testing skips them
+    // until they are actually visible.
+    let lineHitLayers: Array<{ id: string; minZoom: number }> = []
     let layersDirty = true
     map.on('styledata', () => {
       layersDirty = true
@@ -75,9 +91,12 @@ export function useTransitLayersService() {
       } catch {
         styleLayers = []
       }
-      lineLayerIds = styleLayers
+      lineHitLayers = styleLayers
         .filter((layer: any) => isTransitLineHitLayer(layer))
-        .map((layer: any) => layer.id)
+        .map((layer: any) => ({
+          id: layer.id,
+          minZoom: getTransitHitMinZoom(layer),
+        }))
       layersDirty = false
     }
 
@@ -86,10 +105,13 @@ export function useTransitLayersService() {
       radius: number,
     ): any[] {
       if (layersDirty) refreshLayerCaches()
-      if (lineLayerIds.length === 0) return []
+      if (lineHitLayers.length === 0) return []
       // Defensive: drop ids the style lost since the cache refresh — Mapbox
       // GL throws on unknown layer ids in queryRenderedFeatures.
-      const layers = lineLayerIds.filter(id => map.getLayer(id))
+      const zoom = map.getZoom()
+      const layers = lineHitLayers
+        .filter(layer => zoom >= layer.minZoom && map.getLayer(layer.id))
+        .map(layer => layer.id)
       if (layers.length === 0) return []
       const bbox: [[number, number], [number, number]] = [
         [point.x - radius, point.y - radius],
@@ -99,6 +121,19 @@ export function useTransitLayersService() {
         return map.queryRenderedFeatures(bbox, { layers }) ?? []
       } catch {
         return []
+      }
+    }
+
+    /** True when a feature owned by another click-through handler (basemap
+     *  POI, street imagery dot) sits under the point — that handler's
+     *  navigation wins over the transit line underneath. */
+    function hitsPriorityLayer(point: { x: number; y: number }): boolean {
+      const layers = PRIORITY_CLICK_LAYER_IDS.filter(id => map.getLayer(id))
+      if (layers.length === 0) return false
+      try {
+        return (map.queryRenderedFeatures(point, { layers }) ?? []).length > 0
+      } catch {
+        return false
       }
     }
 
@@ -176,6 +211,13 @@ export function useTransitLayersService() {
 
     // ── Click: collect candidates → navigate or disambiguate ──
     map.on('click', (e: any) => {
+      // DOM overlays (search pins, station/tracker markers) sit above the
+      // canvas and run their own click handlers; their clicks bubble through
+      // to the map, so only bare canvas clicks count here.
+      const target = e.originalEvent?.target
+      if (target && target !== map.getCanvas()) return
+      // Yield to feature layers with their own click-through navigation.
+      if (hitsPriorityLayer(e.point)) return
       const features = queryTransitLines(e.point, CLICK_RADIUS_PX)
       if (features.length === 0) return
       const candidates = collectRouteCandidates(features)

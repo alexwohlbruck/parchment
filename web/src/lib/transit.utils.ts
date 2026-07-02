@@ -122,7 +122,7 @@ export interface TransitStop {
 /**
  * Behavioural role tag attached to transit layer templates via
  * `configuration.metadata.transitRole`. Services derive behaviour (fade on
- * route isolation, attach stop-click handlers, …) from this role instead of
+ * route isolation, line hover/click hit testing, …) from this role instead of
  * matching hardcoded layer IDs — so the IDs can change (e.g. when the data
  * source moves from hosted Transitland tiles to our own generated tiles)
  * without silently breaking click / fade / toggle wiring.
@@ -139,7 +139,7 @@ export type TransitRole = 'routes' | 'stops' | 'stations' | 'hover'
 /** Minimal shape carrying an optional transit role (a layer config or a live
  *  style layer — both expose `metadata`). */
 interface TransitRoleCarrier {
-  metadata?: { transitRole?: TransitRole } | null
+  metadata?: { transitRole?: TransitRole; hitMinZoom?: number } | null
   // Layer configs / style layers carry many other keys; allow them so any
   // such object is structurally assignable (a bare string is not).
   [key: string]: unknown
@@ -150,6 +150,20 @@ export function getTransitRole(
   carrier?: TransitRoleCarrier | null,
 ): TransitRole | undefined {
   return carrier?.metadata?.transitRole ?? undefined
+}
+
+/**
+ * Minimum zoom at which a transit line layer takes part in hover/click hit
+ * testing (`metadata.hitMinZoom`). Layers that fade in on an opacity ramp
+ * (buses are fully transparent when zoomed out) are still reported by
+ * queryRenderedFeatures, so hit testing gates them until they are actually
+ * visible. Defaults to 0 — always hit-testable.
+ */
+export function getTransitHitMinZoom(
+  carrier?: TransitRoleCarrier | null,
+): number {
+  const value = carrier?.metadata?.hitMinZoom
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 /**

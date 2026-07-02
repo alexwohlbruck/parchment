@@ -153,7 +153,9 @@ export class TransitStationsLayer {
         id,
         c.lngLat,
         TransitStationMarker as Component,
-        { name: c.name, routes: c.routes, anchor, showLabel },
+        // lngLat keys the click-through (station detail page); constant per
+        // fid, so passing it never invalidates the recycling check above.
+        { name: c.name, routes: c.routes, anchor, showLabel, lngLat: c.lngLat },
         showLabel ? 6 : 5,
       )
       this.currentIds.add(id)

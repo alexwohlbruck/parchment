@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { mapEventBus } from '@/lib/eventBus'
 
 interface Route {
   n: string // short name
@@ -15,9 +16,24 @@ const props = withDefaults(
     anchor?: 'right' | 'bottom'
     /** Whether to draw the name + bullet label (dot always shows). */
     showLabel?: boolean
+    /** Station point — click-through key for the station detail page.
+     *  Clicks are inert when absent. */
+    lngLat?: { lng: number; lat: number }
   }>(),
-  { anchor: 'right', showLabel: true },
+  { anchor: 'right', showLabel: true, lngLat: undefined },
 )
+
+/** Click → station detail. Emitted on the map event bus (same pattern as
+ *  TrackerMarker) so the navigation glue lives in one mounted component
+ *  (TransitLinePopover) rather than per marker instance. `.stop` on the
+ *  template handlers keeps the click from bubbling to the map canvas. */
+function onClick() {
+  if (!props.lngLat) return
+  mapEventBus.emit('click:transit-station', {
+    name: props.name,
+    lngLat: props.lngLat,
+  })
+}
 
 /** White text on dark/saturated bullets, near-black on light ones (Apple). */
 function textColor(hex: string): string {
@@ -49,9 +65,19 @@ const dotStyle = computed(() => {
 </script>
 
 <template>
-  <div class="station-origin">
-    <div class="dot" :class="{ interchange: isInterchange }" :style="dotStyle"></div>
-    <div v-if="showLabel" class="station-block" :class="`anchor-${anchor}`">
+  <div class="station-origin" :class="{ clickable: !!lngLat }">
+    <div
+      class="dot"
+      :class="{ interchange: isInterchange }"
+      :style="dotStyle"
+      @click.stop="onClick"
+    ></div>
+    <div
+      v-if="showLabel"
+      class="station-block"
+      :class="`anchor-${anchor}`"
+      @click.stop="onClick"
+    >
       <div class="name">{{ name }}</div>
       <div class="bullets">
         <span
@@ -68,7 +94,10 @@ const dotStyle = computed(() => {
 
 <style scoped>
 /* Zero-size origin sitting exactly on the station point (maplibre/mapbox
-   anchor the marker element at 'center'). */
+   anchor the marker element at 'center'). The origin itself stays
+   pointer-transparent so map interactions pass through the empty gap
+   between the dot and its label; only the dot + label block (re-enabled
+   below when clickable) receive clicks. */
 .station-origin {
   position: relative;
   width: 0;
@@ -77,6 +106,18 @@ const dotStyle = computed(() => {
   user-select: none;
   font-family:
     'DIN Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.station-origin.clickable .dot,
+.station-origin.clickable .station-block {
+  pointer-events: auto;
+  cursor: pointer;
+}
+/* Forgiving hit area around the small dot (visual size stays 9–11 px). */
+.station-origin.clickable .dot::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
 }
 /* Custom station dot, centred on the point (replaces the baked circle layer). */
 .dot {

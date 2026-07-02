@@ -327,16 +327,18 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
 /**
  * Fetch transit departure data from Barrelman (MOTIS stoptimes).
  *
- * Accepts either coordinates (lat/lng) or feedId+stopId. Barrelman
- * finds nearby GTFS stops, queries MOTIS for timetable data, and
- * enriches with route colors from the GTFS database.
+ * Accepts either coordinates (lat/lng, with an optional search radius in
+ * metres) or feedId+stopId — a stop-keyed lookup needs no coordinates at
+ * all (Barrelman queries the stop directly). Barrelman finds the GTFS
+ * stops, queries MOTIS for timetable data, and enriches with route colors
+ * from the GTFS database.
  */
 async function fetchTransitDepartures(
-  params: { lat: number; lng: number; feedId?: string; stopId?: string },
+  params: { lat?: number; lng?: number; radius?: number; feedId?: string; stopId?: string },
   options?: { limit?: number },
 ): Promise<{
   departures: TransitDeparture[]
-  stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string }
+  stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string; lat?: number; lng?: number }
   routes?: TransitStopInfo['routes']
   sources: SourceReference[]
 }> {
@@ -353,18 +355,27 @@ async function fetchTransitDepartures(
   }
 
   try {
-    const queryParams = new URLSearchParams({
-      lat: String(params.lat),
-      lng: String(params.lng),
-      n: String(limit),
-    })
+    const queryParams = new URLSearchParams({ n: String(limit) })
+    const hasCoords =
+      Number.isFinite(params.lat) && Number.isFinite(params.lng)
+    if (hasCoords) {
+      queryParams.set('lat', String(params.lat))
+      queryParams.set('lng', String(params.lng))
+      if (Number.isFinite(params.radius)) {
+        queryParams.set('radius', String(params.radius))
+      }
+    }
     if (params.feedId) queryParams.set('feedId', params.feedId)
     if (params.stopId) queryParams.set('stopId', params.stopId)
 
     const headers: Record<string, string> = {}
     if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
 
-    console.debug(`🌐 [Widget/Transit] Fetching departures from Barrelman at (${params.lat}, ${params.lng})`)
+    console.debug(
+      hasCoords
+        ? `🌐 [Widget/Transit] Fetching departures from Barrelman at (${params.lat}, ${params.lng})`
+        : `🌐 [Widget/Transit] Fetching departures from Barrelman for stop ${params.feedId}/${params.stopId}`,
+    )
     const response = await fetch(`${config.host}/transit/departures?${queryParams}`, { headers })
 
     if (!response.ok) {
@@ -485,6 +496,10 @@ async function fetchTransitDepartures(
         feedId: primaryStop.feedId,
         stopId: primaryStop.stopId,
         timezone: primaryStop.timezone,
+        // Resolved stop coordinates (MOTIS place) — lets stop-keyed lookups
+        // (no client coordinates) still return a position.
+        lat: primaryStop.lat,
+        lng: primaryStop.lng,
       } : undefined,
       routes,
       sources,
@@ -584,16 +599,22 @@ export async function fetchWidgetData(
     case WidgetType.TRANSIT: {
       const lat = params.lat ? parseFloat(params.lat) : NaN
       const lng = params.lng ? parseFloat(params.lng) : NaN
+      const radius = params.radius ? parseFloat(params.radius) : NaN
       const limit = params.limit ? parseInt(params.limit, 10) : undefined
 
-      if (isNaN(lat) || isNaN(lng)) {
-        throw new Error('Missing lat/lng parameters for transit widget')
+      const hasCoords = !isNaN(lat) && !isNaN(lng)
+      const hasStopKey = Boolean(params.feedId && params.stopId)
+      // A stop-keyed lookup (feedId + stopId) needs no coordinates —
+      // Barrelman queries the stop directly and returns its position.
+      if (!hasCoords && !hasStopKey) {
+        throw new Error('Missing lat/lng or feedId/stopId parameters for transit widget')
       }
 
       const { departures, stopInfo, routes, sources } = await fetchTransitDepartures(
         {
-          lat,
-          lng,
+          lat: hasCoords ? lat : undefined,
+          lng: hasCoords ? lng : undefined,
+          radius: !isNaN(radius) ? radius : undefined,
           feedId: params.feedId || undefined,
           stopId: params.stopId || undefined,
         },
@@ -608,8 +629,8 @@ export async function fetchWidgetData(
         feedId: stopInfo?.feedId,
         stopId: stopInfo?.stopId,
         timezone: stopInfo?.timezone,
-        lat,
-        lng,
+        lat: hasCoords ? lat : stopInfo?.lat,
+        lng: hasCoords ? lng : stopInfo?.lng,
         // Preserve onestop ID if passed through (for tile layer linking)
         ...(params.onestopIds ? {
           onestopId: params.onestopIds.split(',')[0],

@@ -114,13 +114,29 @@ const RAIL_HOVER_WIDTH: any = [
 // Bundled offset ribbons are drawn thinner (they sit ~16 m apart on the
 // ground, so slim lines + a thin casing let adjacent ribbons separate as you
 // zoom in; they merge into a band when zoomed far out — the pre-baked tradeoff).
+//
+// Hover affordance: the client's transit line interaction wiring sets
+// `feature-state {hover:true}` on the ribbon feature under the cursor, and
+// the width stops bump for that feature only (composite zoom + feature-state
+// expression — supported by line-width on both engines). The colour pass
+// grows more than the casing so the highlight reads as the route colour
+// swelling, without covering the neighbouring ribbon 4.4 px away. The
+// non-bundled rail equivalent is the dedicated `transit-routes-hover` halo.
+const hoverWidth = (base: number, factor: number): any => [
+  'case',
+  ['boolean', ['feature-state', 'hover'], false],
+  Math.round(base * factor * 100) / 100,
+  base,
+]
 const OFFSET_WIDTH: any = [
   'interpolate', ['linear'], ['zoom'],
-  10, 1.0, 13, 2.0, 15, 3.0, 16, 3.6,
+  10, hoverWidth(1.0, 1.4), 13, hoverWidth(2.0, 1.4),
+  15, hoverWidth(3.0, 1.4), 16, hoverWidth(3.6, 1.4),
 ]
 const OFFSET_CASING_WIDTH: any = [
   'interpolate', ['linear'], ['zoom'],
-  10, 1.9, 13, 3.2, 15, 4.4, 16, 5.2,
+  10, hoverWidth(1.9, 1.2), 13, hoverWidth(3.2, 1.2),
+  15, hoverWidth(4.4, 1.2), 16, hoverWidth(5.2, 1.2),
 ]
 
 // Line casing colour, theme-aware. White reads well over the light/faded

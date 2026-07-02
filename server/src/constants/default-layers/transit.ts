@@ -1,1407 +1,671 @@
 import { DefaultLayerTemplate } from '../../types/layers.types'
 import { LayerType } from '../../schema/layers.schema'
 
+/**
+ * Transit display layers.
+ *
+ * Sourced from Parchment's own self-hosted vector tiles (Barrelman → Martin),
+ * NOT the hosted Transitland tiles. Two route sources:
+ *   - `transit_lines`  — LOOM-bundled parallel OFFSET ribbons for feeds/modes
+ *      that have a line graph (interlined routes drawn side-by-side).
+ *   - `transit_routes` — plain per-route geometry for everything else (bundled
+ *      feeds are excluded from this view so nothing is drawn twice).
+ *
+ * Styling target: Apple Maps — subtle and uncluttered. Rail is prominent with
+ * a white casing; buses are heavily de-emphasised (thin, faint, zoom-gated).
+ * Stops are coloured by their serving route (white for interchanges), bus stops
+ * only at high zoom. `route_color` is hex WITHOUT a leading `#`, with a
+ * per-`route_type` fallback. Every layer carries `metadata.transitRole`; the
+ * group carries `fadeBasemap` so the basemap dims when transit is shown.
+ */
+
+// Render slot. 'top' lifts transit above 3D buildings AND basemap labels in
+// Mapbox GL v3 (Standard style slots: bottom|middle|top). MapLibre has no slot
+// concept and ignores the key (no error) — its transit already stacks on top by
+// insertion order, so this is a Mapbox-only, no-branch change.
+const TRANSIT_SLOT = 'top'
+
+// ── Route-type partitioning ─────────────────────────────────────────
+const BUS_FILTER: any = ['match', ['get', 'route_type'], [3, 11], true, false]
+const RAIL_FILTER: any = ['match', ['get', 'route_type'], [3, 11], false, true]
+
+// ── Shared paint expressions ────────────────────────────────────────
+const TYPE_COLOR: any = [
+  'match',
+  ['get', 'route_type'],
+  0, '#ff9966',
+  1, '#ff3b30',
+  2, '#8a8a8e',
+  3, '#3478f6',
+  4, '#32ade6',
+  5, '#8e24aa',
+  6, '#ff7043',
+  7, '#795548',
+  11, '#3478f6',
+  12, '#ab47bc',
+  '#007cbf',
+]
+// Ferries + buses render as thin uniform blue (Apple style), ignoring the
+// agency's per-route colour.
+const FERRY_BLUE = '#4d9de0'
+const BUS_BLUE = '#5b8fc7'
+
+const ROUTE_COLOR: any = [
+  'case',
+  ['==', ['get', 'route_type'], 4], FERRY_BLUE,
+  ['==', ['get', 'route_color'], ''],
+  TYPE_COLOR,
+  ['concat', '#', ['get', 'route_color']],
+]
+
+// RUNTIME OFFSET: the transit_lines_rt source serves one shared centreline per
+// bundle run (slot + line_count props); the ribbon is offset per-vertex at draw
+// time. line-offset is in SCREEN PIXELS, so the on-screen gap is constant at
+// every zoom for free (no per-zoom baking). Centre the bundle around 0:
+// slot 0..line_count-1  ->  (slot - (line_count-1)/2) * gap.  line_count 1 -> 0.
+// Works on Mapbox AND MapLibre; MapLibre additionally multiplies this by a
+// line-progress junction taper (injected client-side — Mapbox rejects
+// line-progress in line-offset).
+const RUNTIME_GAP = 4.4 // px between adjacent ribbons (matches the baked px gap)
+const RUNTIME_OFFSET: any = [
+  '*',
+  ['-', ['get', 'slot'], ['/', ['-', ['get', 'line_count'], 1], 2]],
+  RUNTIME_GAP,
+]
+const STOP_FILL: any = [
+  'case',
+  ['==', ['get', 'route_color'], ''],
+  '#ffffff',
+  ['concat', '#', ['get', 'route_color']],
+]
+
+// Ferries (route_type 4) are drawn thinner than heavy rail.
+const RAIL_WIDTH: any = [
+  'interpolate', ['linear'], ['zoom'],
+  9, ['match', ['get', 'route_type'], 4, 0.8, 1.1],
+  12, ['match', ['get', 'route_type'], 4, 1.2, 2.2],
+  14, ['match', ['get', 'route_type'], 4, 1.5, 3],
+  16, ['match', ['get', 'route_type'], 4, 2, 4.5],
+]
+const RAIL_CASING_WIDTH: any = [
+  'interpolate', ['linear'], ['zoom'],
+  9, ['match', ['get', 'route_type'], 4, 1.6, 2.4],
+  12, ['match', ['get', 'route_type'], 4, 2.2, 3.8],
+  14, ['match', ['get', 'route_type'], 4, 2.8, 5],
+  16, ['match', ['get', 'route_type'], 4, 3.4, 7],
+]
+const RAIL_HOVER_WIDTH: any = [
+  'interpolate', ['linear'], ['zoom'],
+  9, 4.4, 12, 5.8, 14, 7, 16, 9,
+]
+
+// Bundled offset ribbons are drawn thinner (they sit ~16 m apart on the
+// ground, so slim lines + a thin casing let adjacent ribbons separate as you
+// zoom in; they merge into a band when zoomed far out — the pre-baked tradeoff).
+const OFFSET_WIDTH: any = [
+  'interpolate', ['linear'], ['zoom'],
+  10, 1.0, 13, 2.0, 15, 3.0, 16, 3.6,
+]
+const OFFSET_CASING_WIDTH: any = [
+  'interpolate', ['linear'], ['zoom'],
+  10, 1.9, 13, 3.2, 15, 4.4, 16, 5.2,
+]
+
+// Line casing colour, theme-aware. White reads well over the light/faded
+// basemap, but is jarring in dark mode — there we use a near-black casing that
+// blends into the dark base and just gives a subtle gap between parallel
+// ribbons (Apple's dark map has no white casing). measure-light is Mapbox
+// GL v3; it strips to the first stop on MapLibre.
+const CASING_COLOR: any = [
+  'interpolate', ['linear'], ['measure-light', 'brightness'],
+  0.25, '#15151a',
+  0.3, '#ffffff',
+]
+
+const BUS_WIDTH: any = [
+  'interpolate', ['linear'], ['zoom'],
+  11, 0.4, 13, 0.8, 15, 1.2, 17, 1.8,
+]
+const BUS_OPACITY: any = [
+  'interpolate', ['linear'], ['zoom'],
+  10, 0, 11.5, 0.12, 14, 0.3, 16, 0.45, 18, 0.6,
+]
+
+// ── Shared sources ──────────────────────────────────────────────────
+const ROUTES_SOURCE = {
+  id: 'transit-routes',
+  type: 'vector' as const,
+  tiles: ['{PROXY_URL}/barrelman/transit_routes/{z}/{x}/{y}?v=6'],
+  minzoom: 0,
+  maxzoom: 16,
+}
+// Runtime-offset ribbons: one shared centreline per bundle run with slot +
+// line_count props (Martin function `transit_lines_rt`). The parallel offset is
+// applied per-vertex at draw time (RUNTIME_OFFSET) — constant on-screen gap at
+// every zoom without per-zoom baking, plus a MapLibre-only line-progress junction
+// taper. Serves any zoom (function source), so maxzoom can be modest + overzoom.
+const LINES_SOURCE = {
+  id: 'transit-lines',
+  type: 'vector' as const,
+  tiles: ['{PROXY_URL}/barrelman/transit_lines_rt/{z}/{x}/{y}?v=1'],
+  minzoom: 0,
+  maxzoom: 16,
+}
+// Per-zoom baked, pre-OFFSET ribbons (`transit_lines_zoom`). Kept for the
+// along-line route bullets only: symbol layers can't be perpendicular-offset, so
+// they ride this already-offset geometry instead of stacking on the centreline.
+const BAKED_LINES_SOURCE = {
+  id: 'transit-lines-baked',
+  type: 'vector' as const,
+  tiles: ['{PROXY_URL}/barrelman/transit_lines_zoom/{z}/{x}/{y}?v=10'],
+  minzoom: 0,
+  maxzoom: 18,
+}
+const STOPS_SOURCE = {
+  id: 'transit-stops',
+  type: 'vector' as const,
+  tiles: ['{PROXY_URL}/barrelman/transit_stops/{z}/{x}/{y}?v=6'],
+  minzoom: 0,
+  maxzoom: 16,
+}
+// Per-station points (name + routes JSON). Drives the client's HTML station
+// label markers — rendered as an invisible circle query layer only, so
+// `queryRenderedFeatures` can feed the DOM markers (name + route bullets).
+const STATIONS_SOURCE = {
+  id: 'transit-stations',
+  type: 'vector' as const,
+  tiles: ['{PROXY_URL}/barrelman/transit_stations/{z}/{x}/{y}?v=9'],
+  minzoom: 0,
+  maxzoom: 16,
+}
+
+// OSM-derived station-navigation infrastructure (shown at high zoom).
+const vectorSource = (source: string) => ({
+  id: `transit-${source}`,
+  type: 'vector' as const,
+  tiles: [`{PROXY_URL}/barrelman/${source}/{z}/{x}/{y}?v=3`],
+  minzoom: 0,
+  maxzoom: 16,
+})
+const STATION_BUILDINGS_SOURCE = vectorSource('transit_station_buildings')
+const PLATFORMS_SOURCE = vectorSource('transit_platforms')
+const ENTRANCES_SOURCE = vectorSource('transit_entrances')
+const ELEVATORS_SOURCE = vectorSource('transit_elevators')
+const STAIRS_SOURCE = vectorSource('transit_stairs')
+
+const base = {
+  type: LayerType.TRANSIT,
+  engine: ['mapbox', 'maplibre'] as ('mapbox' | 'maplibre')[],
+  icon: 'TrainIcon',
+  showInLayerSelector: false,
+  visible: false,
+  fadeBasemap: true,
+  groupId: 'default:group:transit',
+  isSubLayer: true,
+  integrationId: 'barrelman',
+}
+
 export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
-  // Live vehicle positions — disabled from global layer group.
-  // Vehicles now only show in route detail context (isolated line view).
-  // Kept as a template for reference but hidden from the layer selector.
-  // {
-  //   templateId: 'default:transit-vehicles',
-  //   name: 'Live vehicles',
-  //   ...
-  // },
-  // Transitland Route Active (hitbox/hover layer)
+  // Station footprint (paid area) — subtle fill under the lines, high zoom.
   {
-    templateId: 'default:transitland-route-active',
-    name: 'Route Active',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 1,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
+    ...base,
+    templateId: 'default:transit-station-buildings',
+    name: 'Station Buildings',
+    order: 0,
     configuration: {
-      id: 'transitland-route-active',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
+      id: 'transit-station-buildings',
+      metadata: { transitRole: 'stations' },
+      type: 'fill',
+      slot: TRANSIT_SLOT,
+      source: STATION_BUILDINGS_SOURCE,
+      'source-layer': 'transit_station_buildings',
+      minzoom: 14,
       paint: {
+        'fill-color': '#eda78f',
+        'fill-opacity': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 0.18, 15, 0.38, 16, 0.5,
+        ],
+        'fill-outline-color': '#d98b72',
+        'fill-emissive-strength': 1,
+      },
+    },
+  },
+  {
+    ...base,
+    templateId: 'default:transit-platforms',
+    name: 'Platforms',
+    order: 0,
+    configuration: {
+      id: 'transit-platforms',
+      metadata: { transitRole: 'stations' },
+      type: 'fill',
+      slot: TRANSIT_SLOT,
+      source: PLATFORMS_SOURCE,
+      'source-layer': 'transit_platforms',
+      minzoom: 15,
+      paint: {
+        'fill-color': '#e59178',
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0.6, 16, 0.85],
+        'fill-outline-color': '#cf7658',
+        'fill-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Bus lines — bottom of the stack, thin + faint + zoom-gated.
+  {
+    ...base,
+    templateId: 'default:transit-routes-bus',
+    name: 'Bus Routes',
+    order: 1,
+    configuration: {
+      id: 'transit-routes-bus',
+      metadata: { transitRole: 'routes' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: BUS_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': BUS_BLUE,
+        'line-width': BUS_WIDTH,
+        'line-opacity': BUS_OPACITY,
         'line-emissive-strength': 1,
-        'line-color': '#ffff66',
-        'line-width': 12,
+      },
+    },
+  },
+
+  // Bundled offset ribbons — white casing.
+  {
+    ...base,
+    templateId: 'default:transit-lines-casing',
+    name: 'Bundled Casing',
+    order: 2,
+    configuration: {
+      id: 'transit-lines-casing',
+      metadata: { transitRole: 'routes' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: LINES_SOURCE,
+      'source-layer': 'transit_lines',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': CASING_COLOR,
+        'line-width': OFFSET_CASING_WIDTH,
+        'line-offset': RUNTIME_OFFSET,
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Bundled offset ribbons — route colour.
+  {
+    ...base,
+    templateId: 'default:transit-lines',
+    name: 'Bundled Routes',
+    order: 3,
+    configuration: {
+      id: 'transit-lines',
+      metadata: { transitRole: 'routes' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: LINES_SOURCE,
+      'source-layer': 'transit_lines',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ROUTE_COLOR,
+        'line-width': OFFSET_WIDTH,
+        'line-offset': RUNTIME_OFFSET,
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Non-bundled rail casing.
+  {
+    ...base,
+    templateId: 'default:transit-routes-casing',
+    name: 'Route Casing',
+    order: 4,
+    configuration: {
+      id: 'transit-routes-casing',
+      metadata: { transitRole: 'routes' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: RAIL_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': CASING_COLOR,
+        'line-width': RAIL_CASING_WIDTH,
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Non-bundled rail line (route colour).
+  {
+    ...base,
+    templateId: 'default:transit-routes-line',
+    name: 'Routes',
+    order: 5,
+    configuration: {
+      id: 'transit-routes-line',
+      metadata: { transitRole: 'routes' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: RAIL_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ROUTE_COLOR,
+        'line-width': RAIL_WIDTH,
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Hover highlight (feature-state driven; inert until hover wiring is added).
+  {
+    ...base,
+    templateId: 'default:transit-routes-hover',
+    name: 'Route Hover',
+    order: 6,
+    configuration: {
+      id: 'transit-routes-hover',
+      metadata: { transitRole: 'hover' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: RAIL_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ROUTE_COLOR,
+        'line-width': RAIL_HOVER_WIDTH,
         'line-opacity': [
           'case',
           ['boolean', ['feature-state', 'hover'], false],
-          1.0,
-          0.0,
+          0.35,
+          0,
         ],
-      },
-    },
-  },
-  // Rail Outline (route_type 2)
-  {
-    templateId: 'default:transitland-rail-outline',
-    name: 'Rail Outline',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 2,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-rail-outline',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['==', 'route_type', 2]],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 0.2,
-        'line-width': 3.0,
-        'line-gap-width': 1.0,
-        'line-color': '#ffffff',
-      },
-    },
-  },
-  // Rail (route_type < 3)
-  {
-    templateId: 'default:transitland-rail',
-    name: 'Rail',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 3,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-rail',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['<', 'route_type', 3]],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
         'line-emissive-strength': 1,
-        'line-width': 3.0,
-        'line-color': '#666666',
       },
     },
   },
-  // Bus Low Outline
+
+  // Bus stops — faint, small, only at high zoom.
   {
-    templateId: 'default:transitland-bus-low-outline',
-    name: 'Bus Low Outline',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 4,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-bus-low-outline',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: [
-        'all',
-        ['==', 'route_type', 3],
-        ['any', ['<=', 'headway_secs', 0], ['>', 'headway_secs', 1260]],
-      ],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 0.2,
-        'line-width': 1.5,
-        'line-gap-width': 0.5,
-        'line-color': '#ffffff',
-      },
-    },
-  },
-  // Bus Low/Unknown
-  {
-    templateId: 'default:transitland-bus-low',
-    name: 'Bus Low',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 5,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-bus-low',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: [
-        'all',
-        ['==', 'route_type', 3],
-        ['any', ['<=', 'headway_secs', 0], ['>', 'headway_secs', 1260]],
-      ],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 1,
-        'line-width': 1.5,
-        'line-color': '#8acaeb',
-      },
-    },
-  },
-  // Bus Medium/High Outline
-  {
-    templateId: 'default:transitland-bus-medium-outline',
-    name: 'Bus Medium Outline',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 6,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-bus-medium-outline',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: [
-        'all',
-        ['==', 'route_type', 3],
-        ['<=', 'headway_secs', 1260],
-        ['>', 'headway_secs', 0],
-      ],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 0.2,
-        'line-width': 2.0,
-        'line-gap-width': 1.0,
-        'line-color': '#ffffff',
-      },
-    },
-  },
-  // Bus Medium/High
-  {
-    templateId: 'default:transitland-bus-medium',
-    name: 'Bus Medium',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
+    ...base,
+    templateId: 'default:transit-stops-bus',
+    name: 'Bus Stops',
     order: 7,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
     configuration: {
-      id: 'transitland-bus-medium',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: [
-        'all',
-        ['==', 'route_type', 3],
-        ['<=', 'headway_secs', 1260],
-        ['>', 'headway_secs', 0],
-      ],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 1,
-        'line-width': 2.0,
-        'line-color': '#1c96d6',
-      },
-    },
-  },
-  // Tram Outline (route_type 0)
-  {
-    templateId: 'default:transitland-tram-outline',
-    name: 'Tram Outline',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 8,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-tram-outline',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['==', 'route_type', 0]],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 0.2,
-        'line-width': 3.0,
-        'line-gap-width': 1.0,
-        'line-color': '#ffffff',
-      },
-    },
-  },
-  // Tram (route_type 0)
-  {
-    templateId: 'default:transitland-tram',
-    name: 'Tram',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 9,
-    groupId: 'default:group:transit',
-    isSubLayer: false,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-tram',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['==', 'route_type', 0]],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 1,
-        'line-width': 3.0,
-        'line-color': ['coalesce', ['get', 'route_color'], '#ff9966'],
-      },
-    },
-  },
-  // Metro Outline (route_type 1)
-  {
-    templateId: 'default:transitland-metro-outline',
-    name: 'Metro Outline',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 10,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-metro-outline',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['==', 'route_type', 1]],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 0.2,
-        'line-width': 3.0,
-        'line-gap-width': 1.0,
-        'line-color': '#ffffff',
-      },
-    },
-  },
-  // Metro (route_type 1)
-  {
-    templateId: 'default:transitland-metro',
-    name: 'Metro',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 11,
-    groupId: 'default:group:transit',
-    isSubLayer: false,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-metro',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['==', 'route_type', 1]],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-emissive-strength': 1,
-        'line-width': 3.0,
-        'line-color': ['coalesce', ['get', 'route_color'], '#ff0000'],
-      },
-    },
-  },
-  // Other Routes Outline (route_type > 3)
-  {
-    templateId: 'default:transitland-other-outline',
-    name: 'Other Routes Outline',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 12,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-other-outline',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['>', 'route_type', 3]],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-width': [
-          'step',
-          ['get', 'headway_secs'],
-          1.5,
-          1,
-          2.5,
-          600,
-          1.5,
-          1200,
-          1.5,
-        ],
-        'line-gap-width': [
-          'step',
-          ['get', 'headway_secs'],
-          0.5,
-          1,
-          1.0,
-          600,
-          0.5,
-          1200,
-          0.5,
-        ],
-        'line-color': '#ffffff',
-        'line-emissive-strength': 0.2,
-      },
-    },
-  },
-  // Other Routes (route_type > 3)
-  {
-    templateId: 'default:transitland-other',
-    name: 'Other Routes',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 13,
-    groupId: 'default:group:transit',
-    isSubLayer: false,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-other',
-      type: 'line',
-      slot: 'middle',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['>', 'route_type', 3]],
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-      paint: {
-        'line-opacity': 1.0,
-        'line-width': [
-          'step',
-          ['get', 'headway_secs'],
-          1,
-          1,
-          2,
-          600,
-          1,
-          1200,
-          1,
-        ],
-        'line-color': '#E6A615',
-        'line-emissive-strength': 1,
-      },
-    },
-  },
-  // Route Labels - Tram
-  {
-    templateId: 'default:transitland-tram-labels',
-    name: 'Tram Labels',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 16,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-tram-labels',
-      type: 'symbol',
-      slot: 'top',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['==', 'route_type', 0]],
-      minzoom: 12,
-      layout: {
-        'symbol-placement': 'line',
-        'text-field': [
-          'case',
-          ['!=', ['get', 'route_long_name'], ''],
-          ['get', 'route_long_name'],
-          ['!=', ['get', 'route_short_name'], ''],
-          ['get', 'route_short_name'],
-          '',
-        ],
-        'text-font': [
-          ['concat', ['config', 'font'], ' Bold'],
-          'DIN Pro',
-          'Inter',
-          'Arial Unicode MS Bold',
-        ],
-        'text-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          10,
-          14,
-          11,
-          16,
-          12,
-          18,
-          13,
-        ],
-        'text-rotation-alignment': 'map',
-        'text-pitch-alignment': 'viewport',
-        'symbol-spacing': 400,
-        'text-max-angle': 30,
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-      },
-      paint: {
-        'text-color': [
-          'case',
-          [
-            'all',
-            ['!=', ['get', 'route_color'], ''],
-            ['!=', ['get', 'route_color'], '#000'],
-            ['!=', ['get', 'route_color'], '#000000'],
-            ['!=', ['get', 'route_color'], 'black'],
-          ],
-          [
-            'case',
-            ['!=', ['slice', ['get', 'route_color'], 0, 1], '#'],
-            ['concat', '#', ['get', 'route_color']],
-            ['get', 'route_color'],
-          ],
-          '#ff9966',
-        ],
-        'text-halo-width': 2,
-        'text-halo-blur': 0,
-        'text-halo-color': '#ffffff',
-        'text-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          0.8,
-          14,
-          0.9,
-          16,
-          1.0,
-        ],
-        'line-emissive-strength': 1,
-      },
-    },
-  },
-  // Route Labels - Metro
-  {
-    templateId: 'default:transitland-metro-labels',
-    name: 'Metro Labels',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 17,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-metro-labels',
-      type: 'symbol',
-      slot: 'top',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['==', 'route_type', 1]],
-      minzoom: 12,
-      layout: {
-        'symbol-placement': 'line',
-        'text-field': [
-          'case',
-          ['!=', ['get', 'route_long_name'], ''],
-          ['get', 'route_long_name'],
-          ['!=', ['get', 'route_short_name'], ''],
-          ['get', 'route_short_name'],
-          '',
-        ],
-        'text-font': [
-          ['concat', ['config', 'font'], ' Bold'],
-          'DIN Pro',
-          'Inter',
-          'Arial Unicode MS Bold',
-        ],
-        'text-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          10,
-          14,
-          11,
-          16,
-          12,
-          18,
-          13,
-        ],
-        'text-rotation-alignment': 'map',
-        'text-pitch-alignment': 'viewport',
-        'symbol-spacing': 400,
-        'text-max-angle': 30,
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-      },
-      paint: {
-        'line-emissive-strength': 1,
-        'text-color': [
-          'case',
-          [
-            'all',
-            ['!=', ['get', 'route_color'], ''],
-            ['!=', ['get', 'route_color'], '#000'],
-            ['!=', ['get', 'route_color'], '#000000'],
-            ['!=', ['get', 'route_color'], 'black'],
-          ],
-          [
-            'case',
-            ['!=', ['slice', ['get', 'route_color'], 0, 1], '#'],
-            ['concat', '#', ['get', 'route_color']],
-            ['get', 'route_color'],
-          ],
-          '#ff0000',
-        ],
-        'text-halo-width': 2,
-        'text-halo-blur': 0,
-        'text-halo-color': '#ffffff',
-        'text-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          0.8,
-          14,
-          0.9,
-          16,
-          1.0,
-        ],
-      },
-    },
-  },
-  // Route Labels - Rail
-  {
-    templateId: 'default:transitland-rail-labels',
-    name: 'Rail Labels',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 18,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-rail-labels',
-      type: 'symbol',
-      slot: 'top',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['<', 'route_type', 3]],
-      minzoom: 12,
-      layout: {
-        'symbol-placement': 'line',
-        'text-field': [
-          'case',
-          ['!=', ['get', 'route_long_name'], ''],
-          ['get', 'route_long_name'],
-          ['!=', ['get', 'route_short_name'], ''],
-          ['get', 'route_short_name'],
-          '',
-        ],
-        'text-font': [
-          ['concat', ['config', 'font'], ' Bold'],
-          'DIN Pro',
-          'Inter',
-          'Arial Unicode MS Bold',
-        ],
-        'text-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          10,
-          14,
-          11,
-          16,
-          12,
-          18,
-          13,
-        ],
-        'text-rotation-alignment': 'map',
-        'text-pitch-alignment': 'viewport',
-        'symbol-spacing': 400,
-        'text-max-angle': 30,
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-      },
-      paint: {
-        'text-color': [
-          'case',
-          [
-            'all',
-            ['!=', ['get', 'route_color'], ''],
-            ['!=', ['get', 'route_color'], '#000'],
-            ['!=', ['get', 'route_color'], '#000000'],
-            ['!=', ['get', 'route_color'], 'black'],
-          ],
-          [
-            'case',
-            ['!=', ['slice', ['get', 'route_color'], 0, 1], '#'],
-            ['concat', '#', ['get', 'route_color']],
-            ['get', 'route_color'],
-          ],
-          '#666666',
-        ],
-        'text-halo-width': 2,
-        'text-halo-blur': 0,
-        'text-halo-color': '#ffffff',
-        'text-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          0.8,
-          14,
-          0.9,
-          16,
-          1.0,
-        ],
-        'text-emissive-strength': 1,
-      },
-    },
-  },
-  // Route Labels - Bus Medium/High
-  {
-    templateId: 'default:transitland-bus-medium-labels',
-    name: 'Bus Medium Labels',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 19,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-bus-medium-labels',
-      type: 'symbol',
-      slot: 'top',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: [
-        'all',
-        ['==', 'route_type', 3],
-        ['<=', 'headway_secs', 1260],
-        ['>', 'headway_secs', 0],
-      ],
-      minzoom: 13,
-      layout: {
-        'symbol-placement': 'line',
-        'text-field': [
-          'case',
-          ['!=', ['get', 'route_long_name'], ''],
-          ['get', 'route_long_name'],
-          ['!=', ['get', 'route_short_name'], ''],
-          ['get', 'route_short_name'],
-          '',
-        ],
-        'text-font': [
-          ['concat', ['config', 'font'], ' Bold'],
-          'DIN Pro',
-          'Inter',
-          'Arial Unicode MS Bold',
-        ],
-        'text-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          13,
-          9,
-          15,
-          10,
-          17,
-          11,
-          19,
-          12,
-        ],
-        'text-rotation-alignment': 'map',
-        'text-pitch-alignment': 'viewport',
-        'symbol-spacing': 300,
-        'text-max-angle': 30,
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-      },
-      paint: {
-        'text-color': [
-          'case',
-          [
-            'all',
-            ['!=', ['get', 'route_color'], ''],
-            ['!=', ['get', 'route_color'], '#000'],
-            ['!=', ['get', 'route_color'], '#000000'],
-            ['!=', ['get', 'route_color'], 'black'],
-          ],
-          [
-            'case',
-            ['!=', ['slice', ['get', 'route_color'], 0, 1], '#'],
-            ['concat', '#', ['get', 'route_color']],
-            ['get', 'route_color'],
-          ],
-          '#1c96d6',
-        ],
-        'text-halo-width': 2,
-        'text-halo-blur': 0,
-        'text-halo-color': '#ffffff',
-        'text-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          13,
-          0.7,
-          15,
-          0.8,
-          17,
-          0.9,
-          19,
-          1.0,
-        ],
-        'text-emissive-strength': 1,
-      },
-    },
-  },
-  // Route Labels - Other Routes
-  {
-    templateId: 'default:transitland-other-labels',
-    name: 'Other Routes Labels',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 20,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-other-labels',
-      type: 'symbol',
-      slot: 'top',
-      source: {
-        id: 'transitland',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'routes',
-      filter: ['all', ['>', 'route_type', 3]],
-      minzoom: 12,
-      layout: {
-        'symbol-placement': 'line',
-        'text-field': [
-          'case',
-          ['!=', ['get', 'route_long_name'], ''],
-          ['get', 'route_long_name'],
-          ['!=', ['get', 'route_short_name'], ''],
-          ['get', 'route_short_name'],
-          '',
-        ],
-        'text-font': [
-          ['concat', ['config', 'font'], ' Bold'],
-          'DIN Pro',
-          'Inter',
-          'Arial Unicode MS Bold',
-        ],
-        'text-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          10,
-          14,
-          11,
-          16,
-          12,
-          18,
-          13,
-        ],
-        'text-rotation-alignment': 'map',
-        'text-pitch-alignment': 'viewport',
-        'symbol-spacing': 400,
-        'text-max-angle': 30,
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-      },
-      paint: {
-        'text-color': [
-          'case',
-          [
-            'all',
-            ['!=', ['get', 'route_color'], ''],
-            ['!=', ['get', 'route_color'], '#000'],
-            ['!=', ['get', 'route_color'], '#000000'],
-            ['!=', ['get', 'route_color'], 'black'],
-          ],
-          [
-            'case',
-            ['!=', ['slice', ['get', 'route_color'], 0, 1], '#'],
-            ['concat', '#', ['get', 'route_color']],
-            ['get', 'route_color'],
-          ],
-          '#E6A615',
-        ],
-        'text-halo-width': 2,
-        'text-halo-blur': 0,
-        'text-halo-color': '#ffffff',
-        'text-opacity': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          0.8,
-          14,
-          0.9,
-          16,
-          1.0,
-        ],
-        'text-emissive-strength': 1,
-      },
-    },
-  },
-  // ── Station infrastructure (OSM-derived, from Barrelman/Martin) ────
-  // Station Buildings — polygonal outlines of transit stations
-  {
-    templateId: 'default:transit-station-buildings',
-    name: 'Station Buildings',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 0,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'transit-station-buildings',
-      type: 'fill',
-      slot: 'middle',
-      source: {
-        id: 'transit-station-buildings',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/transit_station_buildings/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'transit_station_buildings',
+      id: 'transit-stops-bus',
+      metadata: { transitRole: 'stops' },
+      type: 'circle',
+      slot: TRANSIT_SLOT,
+      source: STOPS_SOURCE,
+      'source-layer': 'transit_stops',
+      filter: ['!', ['get', 'is_rail']],
       minzoom: 14,
-      layout: {},
       paint: {
-        'fill-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsla(220, 30%, 30%, 0.35)',
-          0.3,
-          'hsla(220, 20%, 75%, 0.35)',
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 1, 16, 1.8, 18, 3,
         ],
-        'fill-outline-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsla(220, 30%, 50%, 0.6)',
-          0.3,
-          'hsla(220, 20%, 55%, 0.6)',
+        'circle-color': STOP_FILL,
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 0.6,
+        'circle-opacity': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 0.35, 16, 0.6, 18, 0.85,
         ],
+        'circle-stroke-opacity': [
+          'interpolate', ['linear'], ['zoom'],
+          14, 0.35, 16, 0.6,
+        ],
+        'circle-emissive-strength': 1,
+        'circle-pitch-alignment': 'map',
       },
     },
   },
-  // Transit Platforms — platform shapes
+
+  // NOTE: rail station dots are rendered CLIENT-SIDE as custom HTML markers
+  // (TransitStationMarker.vue via TransitStationsLayer) for full control over
+  // the look — the old baked `transit-stops-rail` circle layer (big GTFS
+  // circles) was removed in favour of them.
+
+  // Rail route designation labels along the line (sparse, restrained).
   {
-    templateId: 'default:transit-platforms',
-    name: 'Transit Platforms',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 0,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'barrelman',
+    ...base,
+    templateId: 'default:transit-route-labels',
+    name: 'Route Labels',
+    order: 9,
     configuration: {
-      id: 'transit-platforms',
-      type: 'fill',
-      slot: 'middle',
-      source: {
-        id: 'transit-platforms',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/transit_platforms/{z}/{x}/{y}'],
-        maxzoom: 16,
+      id: 'transit-route-labels',
+      metadata: { transitRole: 'routes' },
+      type: 'symbol',
+      slot: TRANSIT_SLOT,
+      source: ROUTES_SOURCE,
+      'source-layer': 'transit_routes',
+      filter: RAIL_FILTER,
+      minzoom: 12,
+      layout: {
+        'symbol-placement': 'line',
+        'text-field': [
+          'case',
+          ['!=', ['get', 'route_short_name'], ''],
+          ['get', 'route_short_name'],
+          ['get', 'route_long_name'],
+        ],
+        'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+        'text-size': 11,
+        'text-max-angle': 30,
+        'symbol-spacing': 400,
+        'text-allow-overlap': false,
       },
-      'source-layer': 'transit_platforms',
-      minzoom: 15,
-      layout: {},
       paint: {
-        'fill-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsla(220, 25%, 40%, 0.45)',
-          0.3,
-          'hsla(220, 15%, 68%, 0.45)',
-        ],
-        'fill-outline-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsla(220, 30%, 55%, 0.7)',
-          0.3,
-          'hsla(220, 20%, 50%, 0.7)',
-        ],
+        'text-color': ROUTE_COLOR,
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.5,
+        'text-emissive-strength': 1,
       },
     },
   },
-  // Transit Entrances — subway and station entrance markers
+
+  // Route bullets along the bundled lines — Apple-style coloured circles with
+  // the route designation (tinted SDF circle + white text via icon-text-fit).
   {
+    ...base,
+    templateId: 'default:transit-lines-bullets',
+    name: 'Route Bullets',
+    order: 9,
+    configuration: {
+      id: 'transit-lines-bullets',
+      metadata: { transitRole: 'routes' },
+      type: 'symbol',
+      slot: TRANSIT_SLOT,
+      // Baked (pre-offset) geometry so bullets sit ON the ribbons, not stacked on
+      // the shared centreline (symbols have no perpendicular line-offset).
+      source: BAKED_LINES_SOURCE,
+      'source-layer': 'transit_lines',
+      minzoom: 12,
+      layout: {
+        'symbol-placement': 'line',
+        'symbol-spacing': 550,
+        'icon-image': 'transit-bullet',
+        'icon-text-fit': 'both',
+        'icon-text-fit-padding': [3, 5, 3, 5],
+        'icon-rotation-alignment': 'viewport',
+        'text-rotation-alignment': 'viewport',
+        'text-field': ['get', 'route_short_name'],
+        'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+        'text-size': 10,
+        'icon-allow-overlap': false,
+        'text-allow-overlap': false,
+      },
+      paint: {
+        'icon-color': ROUTE_COLOR,
+        'text-color': '#ffffff',
+        'icon-emissive-strength': 1,
+        'text-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Station query layer — an INVISIBLE symbol layer over the per-station
+  // points. Not a visual layer: the client `queryRenderedFeatures` it and draws
+  // Apple-style HTML label markers (station name + a row of coloured route
+  // bullets) via TransitStationsLayer. Baked name labels were removed in favour
+  // of those DOM markers.
+  //
+  // It returns EVERY in-view station (`*-allow-overlap: true`,
+  // `*-ignore-placement: true`) rather than letting the engine's own collision
+  // thin them — because that collision also competes with basemap street/POI
+  // labels, which unpredictably culled real stations (e.g. Kingston Av). The
+  // decluttering is done client-side in TransitStationsLayer, in screen space,
+  // against the real marker footprint and prioritising big interchanges. A tiny
+  // 1px transparent circle is the queryable geometry.
+  {
+    ...base,
+    templateId: 'default:transit-stations-query',
+    name: 'Station Labels',
+    order: 10,
+    configuration: {
+      id: 'transit-stations-query',
+      metadata: { transitRole: 'stations' },
+      type: 'circle',
+      slot: TRANSIT_SLOT,
+      source: STATIONS_SOURCE,
+      'source-layer': 'transit_stations',
+      minzoom: 11,
+      paint: {
+        'circle-radius': 1,
+        'circle-opacity': 0,
+        'circle-color': '#000000',
+      },
+    },
+  },
+
+  // Station stairs (very high zoom).
+  {
+    ...base,
+    templateId: 'default:transit-stairs',
+    name: 'Stairs',
+    order: 11,
+    configuration: {
+      id: 'transit-stairs',
+      metadata: { transitRole: 'stations' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: STAIRS_SOURCE,
+      'source-layer': 'transit_stairs',
+      minzoom: 16,
+      paint: {
+        'line-color': '#b0a99e',
+        'line-width': 1.4,
+        'line-dasharray': [1, 1],
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Stair glyph along the stair lines (very high zoom, sparse).
+  {
+    ...base,
+    templateId: 'default:transit-stairs-glyph',
+    name: 'Stairs Glyph',
+    order: 11,
+    configuration: {
+      id: 'transit-stairs-glyph',
+      metadata: { transitRole: 'stations' },
+      type: 'symbol',
+      slot: TRANSIT_SLOT,
+      source: STAIRS_SOURCE,
+      'source-layer': 'transit_stairs',
+      minzoom: 17,
+      layout: {
+        'symbol-placement': 'line-center',
+        'icon-image': 'transit-glyph-stair',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 17, 0.5, 19, 0.85],
+        'icon-rotation-alignment': 'viewport',
+        'icon-allow-overlap': false,
+      },
+      paint: {
+        'icon-color': '#8f8578',
+        'icon-halo-color': '#ffffff',
+        'icon-halo-width': 1.2,
+        'icon-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Station elevators (accessibility) — wheelchair/elevator glyph, blue.
+  {
+    ...base,
+    templateId: 'default:transit-elevators',
+    name: 'Elevators',
+    order: 12,
+    configuration: {
+      id: 'transit-elevators',
+      metadata: { transitRole: 'stations' },
+      type: 'symbol',
+      slot: TRANSIT_SLOT,
+      source: ELEVATORS_SOURCE,
+      'source-layer': 'transit_elevators',
+      minzoom: 15,
+      layout: {
+        'icon-image': 'transit-glyph-elevator',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 15, 0.55, 18, 0.95],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-pitch-alignment': 'map',
+      },
+      paint: {
+        'icon-color': '#4d9de0',
+        'icon-halo-color': '#ffffff',
+        'icon-halo-width': 1.4,
+        'icon-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Station entrances — descend glyph; Apple orange, accessibility blue when
+  // the entrance is wheelchair-accessible. Clickable for navigation.
+  {
+    ...base,
     templateId: 'default:transit-entrances',
-    name: 'Station Entrances',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 21,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'barrelman',
+    name: 'Entrances',
+    order: 13,
     configuration: {
       id: 'transit-entrances',
-      type: 'circle',
-      slot: 'middle',
-      source: {
-        id: 'transit-entrances',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/transit_entrances/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
+      metadata: { transitRole: 'stations' },
+      type: 'symbol',
+      slot: TRANSIT_SLOT,
+      source: ENTRANCES_SOURCE,
       'source-layer': 'transit_entrances',
       minzoom: 15,
-      layout: {},
-      paint: {
-        'circle-radius': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          15,
-          3,
-          16,
-          4,
-          18,
-          6,
-        ],
-        'circle-color': [
-          'case',
-          ['==', ['get', 'wheelchair'], 'yes'],
-          '#2563eb',
-          '#6366f1',
-        ],
-        'circle-stroke-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          15,
-          1.5,
-          18,
-          2,
-        ],
-        'circle-stroke-color': '#ffffff',
-        'circle-opacity': 0.9,
-        'circle-emissive-strength': 1,
-      },
-    },
-  },
-  // Transit Entrance Labels
-  {
-    templateId: 'default:transit-entrance-labels',
-    name: 'Station Entrance Labels',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 23,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'transit-entrance-labels',
-      type: 'symbol',
-      slot: 'top',
-      source: {
-        id: 'transit-entrances',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/transit_entrances/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'transit_entrances',
-      minzoom: 16,
-      filter: ['any', ['!=', ['get', 'description'], ''], ['!=', ['get', 'name'], '']],
       layout: {
-        'text-field': [
+        'icon-image': 'transit-glyph-entrance',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 15, 0.6, 18, 1.0],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-pitch-alignment': 'map',
+      },
+      paint: {
+        'icon-color': [
           'case',
-          ['!=', ['get', 'name'], ''],
-          ['get', 'name'],
-          ['!=', ['get', 'description'], ''],
-          ['get', 'description'],
-          '',
+          ['==', ['get', 'wheelchair'], 'yes'], '#4d9de0',
+          '#ff8c42',
         ],
-        'text-font': [
-          ['concat', ['config', 'font'], ' Medium'],
-          'DIN Pro',
-          'Inter',
-          'Arial Unicode MS Bold',
-        ],
-        'text-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          16,
-          9,
-          18,
-          11,
-        ],
-        'text-offset': [1.2, 0],
-        'text-anchor': 'left',
-        'text-max-width': 12,
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-      },
-      paint: {
-        'text-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(230, 60%, 80%)',
-          0.3,
-          'hsl(230, 50%, 40%)',
-        ],
-        'text-halo-width': 1.5,
-        'text-halo-blur': 0,
-        'text-halo-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(0, 0%, 5%)',
-          0.3,
-          'hsl(0, 0%, 100%)',
-        ],
-        'text-emissive-strength': 1,
-      },
-    },
-  },
-  // Transit Stops
-  {
-    templateId: 'default:transitland-stops',
-    name: 'Transit Stops',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 21,
-    groupId: 'default:group:transit',
-    isSubLayer: false,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-stops',
-      type: 'circle',
-      slot: 'middle',
-      source: {
-        id: 'transitland-stops',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/stops/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'stops',
-      minzoom: 12,
-      layout: {},
-      paint: {
-        'circle-radius': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          2,
-          14,
-          3,
-          16,
-          4,
-          18,
-          5,
-        ],
-        'circle-color': '#007cbf',
-        'circle-stroke-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          1,
-          16,
-          2,
-        ],
-        'circle-stroke-color': '#ffffff',
-        'circle-opacity': 0.9,
-        'circle-stroke-opacity': 1.0,
-        'circle-emissive-strength': 1,
-      },
-    },
-  },
-  // Transit Stop Labels
-  {
-    templateId: 'default:transitland-stops-labels',
-    name: 'Transit Stop Labels',
-    type: LayerType.TRANSIT,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'TrainIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 22,
-    groupId: 'default:group:transit',
-    isSubLayer: true,
-    integrationId: 'transitland',
-    configuration: {
-      id: 'transitland-stops-labels',
-      type: 'symbol',
-      slot: 'top',
-      source: {
-        id: 'transitland-stops',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/transitland/stops/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'stops',
-      minzoom: 14,
-      filter: ['has', 'stop_name'],
-      layout: {
-        'text-field': ['get', 'stop_name'],
-        'text-font': [
-          ['concat', ['config', 'font'], ' Medium'],
-          'DIN Pro',
-          'Inter',
-          'Arial Unicode MS Bold',
-        ],
-        'text-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          14,
-          9,
-          16,
-          10,
-          18,
-          11,
-        ],
-        'text-offset': [1, 0],
-        'text-anchor': 'left',
-        'text-allow-overlap': false,
-        'text-ignore-placement': false,
-        'symbol-sort-key': 100,
-      },
-      paint: {
-        'text-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(0, 0%, 95%)',
-          0.3,
-          'hsl(0, 0%, 15%)',
-        ],
-        'text-halo-width': 1.5,
-        'text-halo-blur': 0,
-        'text-halo-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(0, 0%, 5%)',
-          0.3,
-          'hsl(0, 0%, 100%)',
-        ],
-        'text-emissive-strength': 1,
+        'icon-halo-color': '#ffffff',
+        'icon-halo-width': 1.4,
+        'icon-emissive-strength': 1,
       },
     },
   },

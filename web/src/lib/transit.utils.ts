@@ -136,10 +136,29 @@ export interface TransitStop {
  */
 export type TransitRole = 'routes' | 'stops' | 'stations' | 'hover'
 
+/**
+ * Transit mode tag attached to every transit display layer via
+ * `configuration.metadata.transitMode`. The rail/bus/ferry mode filter flips
+ * visibility of a mode's layers by matching this tag — each layer belongs to
+ * exactly one mode (the templates split mixed-mode filters server-side).
+ *
+ *   - `rail`  bundled ribbons, non-bundled rail routes, stations, infra glyphs
+ *   - `bus`   bus routes + bus stops
+ *   - `ferry` ferry routes (route_type 4) split out of transit_routes
+ */
+export type TransitMode = 'rail' | 'bus' | 'ferry'
+
+/** Display order of the mode filter chips. */
+export const TRANSIT_MODES: readonly TransitMode[] = ['rail', 'bus', 'ferry']
+
 /** Minimal shape carrying an optional transit role (a layer config or a live
  *  style layer — both expose `metadata`). */
 interface TransitRoleCarrier {
-  metadata?: { transitRole?: TransitRole; hitMinZoom?: number } | null
+  metadata?: {
+    transitRole?: TransitRole
+    transitMode?: TransitMode
+    hitMinZoom?: number
+  } | null
   // Layer configs / style layers carry many other keys; allow them so any
   // such object is structurally assignable (a bare string is not).
   [key: string]: unknown
@@ -150,6 +169,55 @@ export function getTransitRole(
   carrier?: TransitRoleCarrier | null,
 ): TransitRole | undefined {
   return carrier?.metadata?.transitRole ?? undefined
+}
+
+/** Read the transit mode from a layer configuration or live style layer. */
+export function getTransitMode(
+  carrier?: TransitRoleCarrier | null,
+): TransitMode | undefined {
+  return carrier?.metadata?.transitMode ?? undefined
+}
+
+/** Minimal app-layer shape the mode filter operates on (`Layer` satisfies
+ *  it): the `LayerType` discriminant plus the map configuration. */
+interface TransitModeLayer {
+  type?: unknown
+  visible?: boolean
+  configuration?: TransitRoleCarrier | null
+}
+
+/**
+ * True when an app layer belongs to the given transit mode — i.e. the mode
+ * toggle should flip it. Only transit layers with a matching
+ * `metadata.transitMode` qualify; untagged transit layers are left to the
+ * group master toggle alone.
+ */
+export function isTransitModeLayer(
+  layer: TransitModeLayer | null | undefined,
+  mode: TransitMode,
+): boolean {
+  if (!layer || layer.type !== 'transit') return false
+  return getTransitMode(layer.configuration) === mode
+}
+
+/** The subset of `layers` the given mode toggle controls. */
+export function getTransitModeLayers<T extends TransitModeLayer>(
+  layers: readonly T[],
+  mode: TransitMode,
+): T[] {
+  return layers.filter(layer => isTransitModeLayer(layer, mode))
+}
+
+/**
+ * Derived chip state for a mode: on when ANY of its layers is visible. (Some
+ * mode layers are individually disabled by default — e.g. the parked route
+ * bullets template — so `every` would report a freshly enabled mode as off.)
+ */
+export function isTransitModeVisible(
+  layers: readonly TransitModeLayer[],
+  mode: TransitMode,
+): boolean {
+  return getTransitModeLayers(layers, mode).some(layer => !!layer.visible)
 }
 
 /**

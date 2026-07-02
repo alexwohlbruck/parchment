@@ -2,7 +2,7 @@ import path from 'path'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig, searchForWorkspaceRoot } from 'vite'
 import svgLoader from 'vite-svg-loader'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
@@ -10,10 +10,16 @@ const host = process.env.TAURI_DEV_HOST
 
 // Local fork of MapLibre GL JS (v4.7.1 + variable `line-offset` via `line-progress`,
 // re-impl of mapbox-gl PR #13614). Alias the app to its built UMD dist so transit
-// ribbons can offset per-vertex. Toggle with MAPLIBRE_FORK=0 to fall back to the
-// npm package. Same UMD shape as the published build, so named imports are unchanged.
-const MAPLIBRE_FORK_DIR = '/Users/alexwohlbruck/Documents/code/maplibre-gl-js'
-const useMaplibreFork = process.env.MAPLIBRE_FORK !== '0'
+// ribbons can offset per-vertex. Same UMD shape as the published build, so named
+// imports are unchanged. Only used when the fork checkout actually exists on this
+// machine (CI/Docker fall back to the npm package automatically); MAPLIBRE_FORK=0
+// opts out even when it exists. MAPLIBRE_FORK_DIR overrides the checkout path.
+const MAPLIBRE_FORK_DIR =
+  process.env.MAPLIBRE_FORK_DIR ||
+  '/Users/alexwohlbruck/Documents/code/maplibre-gl-js'
+const useMaplibreFork =
+  process.env.MAPLIBRE_FORK !== '0' &&
+  existsSync(`${MAPLIBRE_FORK_DIR}/dist/maplibre-gl.js`)
 const maplibreAlias = useMaplibreFork
   ? {
       // CSS subpath MUST precede the bare specifier: Vite prefix-matches string
@@ -62,7 +68,10 @@ export default defineConfig({
     },
     // Allow Vite to serve the out-of-root MapLibre fork dist.
     fs: {
-      allow: [searchForWorkspaceRoot(process.cwd()), MAPLIBRE_FORK_DIR],
+      allow: [
+        searchForWorkspaceRoot(process.cwd()),
+        ...(useMaplibreFork ? [MAPLIBRE_FORK_DIR] : []),
+      ],
     },
   },
   // envPrefix: ['VITE_', 'TAURI_ENV_*'],

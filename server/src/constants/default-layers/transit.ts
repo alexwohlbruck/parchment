@@ -58,19 +58,31 @@ const ROUTE_COLOR: any = [
   ['concat', '#', ['get', 'route_color']],
 ]
 
-// RUNTIME OFFSET: the transit_lines_rt source serves one shared centreline per
-// bundle run (slot + line_count props); the ribbon is offset per-vertex at draw
-// time. line-offset is in SCREEN PIXELS, so the on-screen gap is constant at
-// every zoom for free (no per-zoom baking). Centre the bundle around 0:
-// slot 0..line_count-1  ->  (slot - (line_count-1)/2) * gap.  line_count 1 -> 0.
-// Applied identically on Mapbox AND MapLibre — no taper. Junction convergence
-// is deferred to Phase B rt2 transition geometry (off_from_px→off_to_px
-// interpolated via the fork's variable line-offset).
-const RUNTIME_GAP = 4.4 // px between adjacent ribbons (matches the baked px gap)
-const RUNTIME_OFFSET: any = [
-  '*',
-  ['-', ['get', 'slot'], ['/', ['-', ['get', 'line_count'], 1], 2]],
-  RUNTIME_GAP,
+// V3 RENDER MODEL: the transit_lines_rt2 source serves per-ribbon features of
+// two kinds (transit_line_segments in barrelman):
+//   - kind='steady'     — constant signed `offset_px` (screen px) baked by the
+//     pipeline. Plain `['get','offset_px']` works on BOTH engines (line-offset
+//     is screen-px, so the on-screen gap is constant at every zoom for free).
+//   - kind='transition' — short fixed-length (~60 m) junction pieces carrying
+//     `off_from_px`/`off_to_px`; the offset eases between them along the
+//     feature via ['line-progress'] (per-tile-part mapbox_clip_start/end are
+//     LOCAL fractions of the feature, continuous across tile seams).
+// Offsets are signed in EACH FEATURE'S OWN travel frame — use the properties
+// raw; never recompute them client-side.
+const STEADY_FILTER: any = ['==', ['get', 'kind'], 'steady']
+const TRANSITION_FILTER: any = ['==', ['get', 'kind'], 'transition']
+const STEADY_OFFSET: any = ['get', 'offset_px']
+// Progress-driven offset: ONLY valid on the local MapLibre fork
+// (transit/variable-line-offset — line-progress allowed inside line-offset).
+// Engines without the fork (Mapbox, stock MapLibre) get the constant
+// ['get','off_from_px'] instead — the approved "step" degradation, substituted
+// client-side in `degradeProgressLineOffset` (web/src/lib/map.utils.ts).
+const TRANSITION_OFFSET: any = [
+  'interpolate',
+  ['cubic-bezier', 0.4, 0, 0.6, 1],
+  ['line-progress'],
+  0, ['get', 'off_from_px'],
+  1, ['get', 'off_to_px'],
 ]
 const STOP_FILL: any = [
   'case',
@@ -139,15 +151,16 @@ const ROUTES_SOURCE = {
   minzoom: 0,
   maxzoom: 16,
 }
-// Runtime-offset ribbons: one shared centreline per bundle run with slot +
-// line_count props (Martin function `transit_lines_rt`). The parallel offset is
-// applied per-vertex at draw time (RUNTIME_OFFSET) — constant on-screen gap at
-// every zoom without per-zoom baking, identical on both engines. Serves any
-// zoom (function source), so maxzoom can be modest + overzoom.
+// Runtime-offset ribbons: per-ribbon steady/transition features (Martin
+// function `transit_lines_rt2` over transit_line_segments, layer name
+// `transit_lines`). The parallel offset is applied per-vertex at draw time
+// (STEADY_OFFSET / TRANSITION_OFFSET) — constant on-screen gap at every zoom
+// without per-zoom baking. Serves any zoom (function source), so maxzoom can
+// be modest + overzoom.
 const LINES_SOURCE = {
   id: 'transit-lines',
   type: 'vector' as const,
-  tiles: ['{PROXY_URL}/barrelman/transit_lines_rt/{z}/{x}/{y}?v=1'],
+  tiles: ['{PROXY_URL}/barrelman/transit_lines_rt2/{z}/{x}/{y}?v=2'],
   minzoom: 0,
   maxzoom: 16,
 }
@@ -277,47 +290,100 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     },
   },
 
-  // Bundled offset ribbons — white casing.
+  // Bundled offset ribbons, steady corridors — white casing. Constant
+  // per-feature offset; full fidelity on both engines.
   {
     ...base,
-    templateId: 'default:transit-lines-casing',
+    templateId: 'default:transit-lines-casing-steady',
     name: 'Bundled Casing',
     order: 2,
     configuration: {
-      id: 'transit-lines-casing',
+      id: 'transit-lines-casing-steady',
       metadata: { transitRole: 'routes' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: LINES_SOURCE,
       'source-layer': 'transit_lines',
+      filter: STEADY_FILTER,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': CASING_COLOR,
         'line-width': OFFSET_CASING_WIDTH,
-        'line-offset': RUNTIME_OFFSET,
+        'line-offset': STEADY_OFFSET,
         'line-emissive-strength': 1,
       },
     },
   },
 
-  // Bundled offset ribbons — route colour.
+  // Bundled offset ribbons, junction transitions — white casing. Offset eases
+  // off_from_px → off_to_px along the feature (fork); constant off_from_px
+  // ("step") on engines without progress-driven offsets.
   {
     ...base,
-    templateId: 'default:transit-lines',
-    name: 'Bundled Routes',
-    order: 3,
+    templateId: 'default:transit-lines-casing-transition',
+    name: 'Bundled Casing (Junctions)',
+    order: 2,
     configuration: {
-      id: 'transit-lines',
+      id: 'transit-lines-casing-transition',
       metadata: { transitRole: 'routes' },
       type: 'line',
       slot: TRANSIT_SLOT,
       source: LINES_SOURCE,
       'source-layer': 'transit_lines',
+      filter: TRANSITION_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': CASING_COLOR,
+        'line-width': OFFSET_CASING_WIDTH,
+        'line-offset': TRANSITION_OFFSET,
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Bundled offset ribbons, steady corridors — route colour.
+  {
+    ...base,
+    templateId: 'default:transit-lines-steady',
+    name: 'Bundled Routes',
+    order: 3,
+    configuration: {
+      id: 'transit-lines-steady',
+      metadata: { transitRole: 'routes' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: LINES_SOURCE,
+      'source-layer': 'transit_lines',
+      filter: STEADY_FILTER,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': ROUTE_COLOR,
         'line-width': OFFSET_WIDTH,
-        'line-offset': RUNTIME_OFFSET,
+        'line-offset': STEADY_OFFSET,
+        'line-emissive-strength': 1,
+      },
+    },
+  },
+
+  // Bundled offset ribbons, junction transitions — route colour.
+  {
+    ...base,
+    templateId: 'default:transit-lines-transition',
+    name: 'Bundled Routes (Junctions)',
+    order: 3,
+    configuration: {
+      id: 'transit-lines-transition',
+      metadata: { transitRole: 'routes' },
+      type: 'line',
+      slot: TRANSIT_SLOT,
+      source: LINES_SOURCE,
+      'source-layer': 'transit_lines',
+      filter: TRANSITION_FILTER,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': ROUTE_COLOR,
+        'line-width': OFFSET_WIDTH,
+        'line-offset': TRANSITION_OFFSET,
         'line-emissive-strength': 1,
       },
     },
@@ -480,11 +546,19 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
 
   // Route bullets along the bundled lines — Apple-style coloured circles with
   // the route designation (tinted SDF circle + white text via icon-text-fit).
+  //
+  // DISABLED for v3: bullets still ride the LOOM-baked `transit_lines_zoom`
+  // geometry, which is geometrically inconsistent with the v3
+  // `transit_lines_rt2` ribbons (a v3 bullet carrier is a follow-up). Kept
+  // (not deleted) so the styling survives; hidden two ways: `visible: false`
+  // AND a never-matching filter, because bulk transit toggles flip `visible`
+  // back on for every transit layer.
   {
     ...base,
     templateId: 'default:transit-lines-bullets',
     name: 'Route Bullets',
     order: 9,
+    visible: false,
     configuration: {
       id: 'transit-lines-bullets',
       metadata: { transitRole: 'routes' },
@@ -494,6 +568,8 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       // the shared centreline (symbols have no perpendicular line-offset).
       source: BAKED_LINES_SOURCE,
       'source-layer': 'transit_lines',
+      // Never matches — see DISABLED note above.
+      filter: ['boolean', false],
       minzoom: 12,
       layout: {
         'symbol-placement': 'line',

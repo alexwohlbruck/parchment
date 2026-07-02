@@ -171,14 +171,23 @@ export type MapEvents = {
   'click:tracker-marker': {
     trackerId: string
   }
-  // Click on transit route line(s). Emitted by the transit line interaction
-  // wiring with the deduped route candidates under the click; the popover
-  // component navigates (single candidate) or disambiguates (several).
+  // Click on transit route line(s) and/or stop point(s). Emitted by the
+  // transit line interaction wiring with the deduped candidates under the
+  // click; the popover component navigates (single candidate) or
+  // disambiguates (several — stops listed above routes).
   'click:transit-line': {
     lngLat: LngLat
     /** Viewport (client) px of the click — anchors the picker popover. */
     point: { x: number; y: number }
     candidates: import('@/lib/transit-route-candidates').TransitRouteCandidate[]
+    stops: import('@/lib/transit-stop-candidates').TransitStopCandidate[]
+  }
+  // Click on a rail station DOM marker (TransitStationMarker). Station
+  // complexes carry no GTFS ids, so the label point + name key the
+  // /transit/station destination.
+  'click:transit-station': {
+    name: string
+    lngLat: LngLat
   }
 }
 

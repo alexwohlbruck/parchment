@@ -213,7 +213,8 @@
       "measure": "Medir"
     },
     "transit": {
-      "chooseRoute": "Elige una ruta"
+      "chooseRoute": "Elige una ruta",
+      "chooseStop": "Elige una parada"
     }
   },
   "measure": {

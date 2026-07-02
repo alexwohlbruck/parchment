@@ -2,8 +2,8 @@
  * Transit Layers Service
  *
  * Handles transit-specific layer operations including bulk visibility toggles
- * and the transit line hover / click interactions (route detail click-through
- * with disambiguation).
+ * and the transit line/stop hover + click interactions (route and stop detail
+ * click-through with disambiguation).
  */
 
 import type { Layer } from '@/types/map.types'
@@ -15,8 +15,10 @@ import { styleConfigs } from '@/lib/basemap-style-config'
 import {
   getTransitHitMinZoom,
   isTransitLineHitLayer,
+  isTransitStopHitLayer,
 } from '@/lib/transit.utils'
 import { collectRouteCandidates } from '@/lib/transit-route-candidates'
+import { collectStopCandidates } from '@/lib/transit-stop-candidates'
 
 // ── Transit line hover / click interactions ────────────────────────────────
 //
@@ -59,10 +61,11 @@ export function useTransitLayersService() {
   // ============================================================================
 
   /**
-   * Wire hover (pointer cursor + feature-state highlight) and click (route
-   * detail navigation with disambiguation) for every transit route line
-   * layer. Layers are discovered by `metadata.transitRole` from the live
-   * style, so the wiring survives layer additions/removals and style swaps.
+   * Wire hover (pointer cursor + feature-state highlight) and click (route /
+   * stop detail navigation with disambiguation) for every transit route line
+   * and stop layer. Layers are discovered by `metadata.transitRole` from the
+   * live style, so the wiring survives layer additions/removals and style
+   * swaps.
    *
    * Idempotent per map instance — safe to call from every initializeLayers
    * pass. Identical engine API surface on Mapbox GL and MapLibre
@@ -79,6 +82,7 @@ export function useTransitLayersService() {
     // still reported by queryRenderedFeatures, so hit testing skips them
     // until they are actually visible.
     let lineHitLayers: Array<{ id: string; minZoom: number }> = []
+    let stopHitLayers: Array<{ id: string; minZoom: number }> = []
     let layersDirty = true
     map.on('styledata', () => {
       layersDirty = true
@@ -97,19 +101,25 @@ export function useTransitLayersService() {
           id: layer.id,
           minZoom: getTransitHitMinZoom(layer),
         }))
+      stopHitLayers = styleLayers
+        .filter((layer: any) => isTransitStopHitLayer(layer))
+        .map((layer: any) => ({
+          id: layer.id,
+          minZoom: getTransitHitMinZoom(layer),
+        }))
       layersDirty = false
     }
 
-    function queryTransitLines(
+    function queryHitLayers(
+      hitLayers: Array<{ id: string; minZoom: number }>,
       point: { x: number; y: number },
       radius: number,
     ): any[] {
-      if (layersDirty) refreshLayerCaches()
-      if (lineHitLayers.length === 0) return []
+      if (hitLayers.length === 0) return []
       // Defensive: drop ids the style lost since the cache refresh — Mapbox
       // GL throws on unknown layer ids in queryRenderedFeatures.
       const zoom = map.getZoom()
-      const layers = lineHitLayers
+      const layers = hitLayers
         .filter(layer => zoom >= layer.minZoom && map.getLayer(layer.id))
         .map(layer => layer.id)
       if (layers.length === 0) return []
@@ -122,6 +132,24 @@ export function useTransitLayersService() {
       } catch {
         return []
       }
+    }
+
+    // Refresh BEFORE reading the cache variable — refreshLayerCaches
+    // reassigns it, so passing a stale reference would query dropped layers.
+    function queryTransitLines(
+      point: { x: number; y: number },
+      radius: number,
+    ): any[] {
+      if (layersDirty) refreshLayerCaches()
+      return queryHitLayers(lineHitLayers, point, radius)
+    }
+
+    function queryTransitStops(
+      point: { x: number; y: number },
+      radius: number,
+    ): any[] {
+      if (layersDirty) refreshLayerCaches()
+      return queryHitLayers(stopHitLayers, point, radius)
     }
 
     /** True when a feature owned by another click-through handler (basemap
@@ -218,10 +246,16 @@ export function useTransitLayersService() {
       if (target && target !== map.getCanvas()) return
       // Yield to feature layers with their own click-through navigation.
       if (hitsPriorityLayer(e.point)) return
-      const features = queryTransitLines(e.point, CLICK_RADIUS_PX)
-      if (features.length === 0) return
-      const candidates = collectRouteCandidates(features)
-      if (candidates.length === 0) return
+      // Stops (point targets, proprietary stop-detail destination) and route
+      // lines are collected together; the popover component navigates when
+      // exactly one candidate remains, else disambiguates.
+      const stops = collectStopCandidates(
+        queryTransitStops(e.point, CLICK_RADIUS_PX),
+      )
+      const candidates = collectRouteCandidates(
+        queryTransitLines(e.point, CLICK_RADIUS_PX),
+      )
+      if (stops.length === 0 && candidates.length === 0) return
 
       // Anchor in viewport coordinates (e.point is map-container-relative).
       let x = e.point.x
@@ -238,6 +272,7 @@ export function useTransitLayersService() {
         lngLat: { lng: e.lngLat.lng, lat: e.lngLat.lat },
         point: { x, y },
         candidates,
+        stops,
       })
     })
   }

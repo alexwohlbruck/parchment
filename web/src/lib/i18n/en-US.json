@@ -219,7 +219,8 @@
       "measure": "Measure"
     },
     "transit": {
-      "chooseRoute": "Choose a route"
+      "chooseRoute": "Choose a route",
+      "chooseStop": "Choose a stop"
     }
   },
   "measure": {

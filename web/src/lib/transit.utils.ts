@@ -216,3 +216,15 @@ export function isTransitLineHitLayer(
   return carrier?.type === 'line'
 }
 
+/**
+ * True for stop point layers that participate in transit stop click hit
+ * testing (stop-detail click-through). Circle layers only: stop-name symbol
+ * layers share the role but would duplicate candidates, and the station
+ * markers are DOM elements with their own click handling.
+ */
+export function isTransitStopHitLayer(
+  carrier?: TransitRoleCarrier | null,
+): boolean {
+  return getTransitRole(carrier) === 'stops' && carrier?.type === 'circle'
+}
+

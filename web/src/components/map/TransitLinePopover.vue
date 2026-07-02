@@ -10,9 +10,11 @@
  *     desktop, bottom sheet on mobile) listing each candidate as
  *     RouteBullet + name; picking one navigates.
  *
- * Anchoring follows ContextMenu.vue: a 1px fixed-position trigger element at
- * the click's viewport coordinates. Any map movement dismisses the picker
- * (the move listener is only registered while it is open).
+ * Desktop anchoring uses ResponsivePopover's `reference` — a floating-ui
+ * virtual element reading the click's viewport coordinates — so the picker
+ * opens exactly at the click with no placeholder trigger element. Any map
+ * movement dismisses the picker (the move listener is only registered while
+ * it is open).
  */
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -30,6 +32,13 @@ const { t } = useI18n()
 const open = ref(false)
 const position = ref({ x: 0, y: 0 })
 const candidates = ref<TransitRouteCandidate[]>([])
+
+// Stable virtual anchor at the last click's viewport coordinates. The rect is
+// read when the popover opens; re-opens (below) re-anchor it to fresh clicks.
+const clickAnchor = {
+  getBoundingClientRect: () =>
+    new DOMRect(position.value.x, position.value.y, 0, 0),
+}
 
 function openRoute(candidate: TransitRouteCandidate) {
   open.value = false
@@ -49,7 +58,7 @@ async function onTransitLineClick(event: MapEvents['click:transit-line']) {
   position.value = { x: event.point.x, y: event.point.y }
   candidates.value = event.candidates
   // Re-open even when already showing so the popover re-anchors to the new
-  // trigger position (the floating middleware doesn't track style moves).
+  // click position (floating-ui doesn't observe virtual-rect changes).
   open.value = false
   await nextTick()
   open.value = true
@@ -78,6 +87,7 @@ onUnmounted(() => {
 <template>
   <ResponsivePopover
     :open="open"
+    :reference="clickAnchor"
     align="start"
     side="bottom"
     :side-offset="6"
@@ -85,19 +95,6 @@ onUnmounted(() => {
     desktop-content-class="w-64 p-1.5"
     @update:open="value => (open = value)"
   >
-    <template #trigger>
-      <div
-        :style="{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-          pointerEvents: 'none',
-        }"
-      />
-    </template>
-
     <template #content="{ close }">
       <div class="px-2 pt-1 pb-1.5 text-xs text-muted-foreground">
         {{ t('map.transit.chooseRoute') }}

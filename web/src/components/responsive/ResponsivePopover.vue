@@ -8,9 +8,16 @@ import {
 import BottomSheet from '@/components/BottomSheet.vue'
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+
+/** Floating-ui reference: a real element or a virtual one (anything exposing
+ *  getBoundingClientRect in viewport coordinates). */
+type PopoverReference =
+  | HTMLElement
+  | { getBoundingClientRect: () => DOMRect }
 
 interface Props
   extends ResponsiveOverlayBaseProps,
@@ -25,6 +32,13 @@ interface Props
    * already content-sized).
    */
   fitContent?: boolean
+  /**
+   * Desktop only: anchor the popover to this element or virtual element
+   * instead of the trigger — e.g. a virtual rect at map click coordinates
+   * for popovers opened programmatically. Ignored on mobile (the bottom
+   * sheet has no anchor).
+   */
+  reference?: PopoverReference
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -113,6 +127,14 @@ watch(
     v-model:open="desktopOpen"
     @update:open="handleDesktopOpenChange"
   >
+    <!-- Custom anchor (element or virtual rect) wins over the trigger for
+         positioning; the trigger keeps its open/close role. Rendered as an
+         empty inline span so it never affects layout. -->
+    <PopoverAnchor
+      v-if="props.reference"
+      :reference="props.reference"
+      as="span"
+    />
     <PopoverTrigger as-child>
       <span class="inline-flex"><slot name="trigger" /></span>
     </PopoverTrigger>

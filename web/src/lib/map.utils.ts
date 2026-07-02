@@ -121,19 +121,40 @@ function usesLineProgress(value: unknown): boolean {
 }
 
 /**
- * Replace a progress-driven `line-offset` with its progress-0 output — for
- * the transit transition layers that is ['get', 'off_from_px'], the approved
- * constant "step" degradation for engines without the fork. Mutates `paint`
- * in place; a no-op when `line-offset` doesn't reference line-progress, so
- * it is safe to run over every layer.
+ * Rewrite every `['interpolate', <curve>, ['line-progress'], 0, X, ...]` node
+ * anywhere in an expression tree to its progress-0 output X. The transit
+ * templates wrap the line-progress interpolate in a top-level ['zoom']
+ * interpolate (low-zoom gap squeeze), so the rewrite must recurse rather than
+ * assume the progress interpolate sits at the top.
+ */
+function replaceLineProgressInterpolates(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+  const [op, , input] = value as any[]
+  if (
+    op === 'interpolate' &&
+    Array.isArray(input) &&
+    input[0] === 'line-progress' &&
+    value.length >= 5
+  ) {
+    return replaceLineProgressInterpolates(value[4]) // offset at progress 0
+  }
+  return (value as any[]).map(v => replaceLineProgressInterpolates(v))
+}
+
+/**
+ * Replace a progress-driven `line-offset` with its progress-0 outputs — for
+ * the transit transition layers that is ['get', 'off_from_px'] (still inside
+ * the zoom-squeeze wrapper), the approved constant "step" degradation for
+ * engines without the fork. Mutates `paint` in place; a no-op when
+ * `line-offset` doesn't reference line-progress, so it is safe to run over
+ * every layer. Any line-progress usage outside an interpolate (nothing we
+ * emit, but engines would reject it) falls back to 0.
  */
 export function degradeProgressLineOffset(paint?: Record<string, any>): void {
   const offset = paint?.['line-offset']
   if (!paint || !usesLineProgress(offset)) return
-  paint['line-offset'] =
-    Array.isArray(offset) && offset[0] === 'interpolate' && offset.length >= 5
-      ? offset[4] // first stop output (offset at line-progress 0)
-      : 0
+  const replaced = replaceLineProgressInterpolates(offset)
+  paint['line-offset'] = usesLineProgress(replaced) ? 0 : replaced
 }
 
 // TODO: Fix any types

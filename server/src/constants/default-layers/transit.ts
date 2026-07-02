@@ -83,19 +83,35 @@ const ROUTE_COLOR: any = [
 // raw; never recompute them client-side.
 const STEADY_FILTER: any = ['==', ['get', 'kind'], 'steady']
 const TRANSITION_FILTER: any = ['==', ['get', 'kind'], 'transition']
-const STEADY_OFFSET: any = ['get', 'offset_px']
+// Ribbons squeeze together at low zoom: full pipeline spacing (4.4 px slots)
+// from Z_GAP_FULL up, GAP_LOW_SCALE of it at/below Z_GAP_SQUEEZED, so dense
+// networks read as tidy trunks instead of fat overlapping ropes. ['zoom'] must
+// sit at the TOP level of a composite data-driven expression, so the scale
+// wraps each stop output rather than the whole property.
+const Z_GAP_SQUEEZED = 11
+const Z_GAP_FULL = 14
+const GAP_LOW_SCALE = 0.5
+const zoomScaledOffset = (offsetExpr: any): any => [
+  'interpolate', ['linear'], ['zoom'],
+  Z_GAP_SQUEEZED, ['*', offsetExpr, GAP_LOW_SCALE],
+  Z_GAP_FULL, offsetExpr,
+]
+const STEADY_OFFSET: any = zoomScaledOffset(['get', 'offset_px'])
 // Progress-driven offset: ONLY valid on the local MapLibre fork
 // (transit/variable-line-offset — line-progress allowed inside line-offset).
 // Engines without the fork (Mapbox, stock MapLibre) get the constant
-// ['get','off_from_px'] instead — the approved "step" degradation, substituted
-// client-side in `degradeProgressLineOffset` (web/src/lib/map.utils.ts).
-const TRANSITION_OFFSET: any = [
+// ['get','off_from_px'] (zoom-scaled like everything else) instead — the
+// approved "step" degradation, substituted client-side by the recursive
+// `degradeProgressLineOffset` (web/src/lib/map.utils.ts), which rewrites the
+// nested line-progress interpolates inside this zoom wrapper.
+const TRANSITION_PROGRESS_OFFSET: any = [
   'interpolate',
   ['cubic-bezier', 0.4, 0, 0.6, 1],
   ['line-progress'],
   0, ['get', 'off_from_px'],
   1, ['get', 'off_to_px'],
 ]
+const TRANSITION_OFFSET: any = zoomScaledOffset(TRANSITION_PROGRESS_OFFSET)
 const STOP_FILL: any = [
   'case',
   ['==', ['get', 'route_color'], ''],

@@ -53,4 +53,36 @@ describe('degradeProgressLineOffset', () => {
     degradeProgressLineOffset(paint)
     expect(paint['line-offset']).toBe(0)
   })
+
+  test('rewrites line-progress interpolates nested in the zoom-squeeze wrapper', () => {
+    // The real template shape: top-level ['zoom'] interpolate (low-zoom gap
+    // squeeze) with the line-progress interpolate inside BOTH stop outputs.
+    const paint: Record<string, any> = {
+      'line-offset': [
+        'interpolate', ['linear'], ['zoom'],
+        11, ['*', structuredClone(TRANSITION_OFFSET), 0.5],
+        14, structuredClone(TRANSITION_OFFSET),
+      ],
+    }
+    degradeProgressLineOffset(paint)
+    expect(paint['line-offset']).toEqual([
+      'interpolate', ['linear'], ['zoom'],
+      11, ['*', ['get', 'off_from_px'], 0.5],
+      14, ['get', 'off_from_px'],
+    ])
+  })
+
+  test('rewrites a chained progress interpolate stop output recursively', () => {
+    // Degenerate but legal: a progress interpolate whose progress-0 output is
+    // itself a progress interpolate — the rewrite must chase it to a constant.
+    const inner = structuredClone(TRANSITION_OFFSET)
+    const outer = [
+      'interpolate', ['linear'], ['line-progress'],
+      0, inner,
+      1, ['get', 'off_to_px'],
+    ]
+    const paint: Record<string, any> = { 'line-offset': outer }
+    degradeProgressLineOffset(paint)
+    expect(paint['line-offset']).toEqual(['get', 'off_from_px'])
+  })
 })

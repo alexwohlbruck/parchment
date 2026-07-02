@@ -17,12 +17,20 @@ const TRANSITION_IDS = [
   'transit-lines-transition',
 ]
 
-const TRANSITION_OFFSET_EXPR = [
+const TRANSITION_PROGRESS_EXPR = [
   'interpolate',
   ['cubic-bezier', 0.4, 0, 0.6, 1],
   ['line-progress'],
   0, ['get', 'off_from_px'],
   1, ['get', 'off_to_px'],
+]
+
+// Low-zoom gap squeeze: every offset rides a top-level ['zoom'] interpolate,
+// half spacing at z11 → full spacing at z14 (see zoomScaledOffset in transit.ts).
+const zoomSqueezed = (offsetExpr: unknown) => [
+  'interpolate', ['linear'], ['zoom'],
+  11, ['*', offsetExpr, 0.5],
+  14, offsetExpr,
 ]
 
 describe('transit v3 bundled ribbon templates', () => {
@@ -34,19 +42,23 @@ describe('transit v3 bundled ribbon templates', () => {
     }
   })
 
-  test('steady layers: kind filter + raw offset_px line-offset', () => {
+  test('steady layers: kind filter + zoom-squeezed offset_px line-offset', () => {
     for (const id of STEADY_IDS) {
       const config = byId(id)?.configuration
       expect(config?.filter).toEqual(['==', ['get', 'kind'], 'steady'])
-      expect(config?.paint['line-offset']).toEqual(['get', 'offset_px'])
+      expect(config?.paint['line-offset']).toEqual(
+        zoomSqueezed(['get', 'offset_px']),
+      )
     }
   })
 
-  test('transition layers: kind filter + line-progress interpolation', () => {
+  test('transition layers: kind filter + zoom-squeezed line-progress interpolation', () => {
     for (const id of TRANSITION_IDS) {
       const config = byId(id)?.configuration
       expect(config?.filter).toEqual(['==', ['get', 'kind'], 'transition'])
-      expect(config?.paint['line-offset']).toEqual(TRANSITION_OFFSET_EXPR)
+      expect(config?.paint['line-offset']).toEqual(
+        zoomSqueezed(TRANSITION_PROGRESS_EXPR),
+      )
     }
   })
 

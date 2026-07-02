@@ -120,24 +120,61 @@ export interface TransitStop {
 }
 
 /**
- * Transitland layer IDs for event handling
+ * Behavioural role tag attached to transit layer templates via
+ * `configuration.metadata.transitRole`. Services derive behaviour (fade on
+ * route isolation, attach stop-click handlers, …) from this role instead of
+ * matching hardcoded layer IDs — so the IDs can change (e.g. when the data
+ * source moves from hosted Transitland tiles to our own generated tiles)
+ * without silently breaking click / fade / toggle wiring.
+ *
+ *   - `routes`   route lines, outlines and route-name labels
+ *   - `stops`    stop circles and stop-name labels (click → place detail)
+ *   - `stations` grouped-station markers (white interchange bars; future)
+ *   - `hover`    hover/hitbox utility layers (excluded from isolation fade —
+ *                they carry a feature-state opacity expression that breaks if
+ *                overridden flat)
  */
-export const TRANSITLAND_LAYER_IDS = {
-  STOPS: 'transitland-stops',
-  STOPS_LABELS: 'transitland-stops-labels',
-  ROUTES: 'transitland',
-  ROUTES_CASE: 'transitland-case',
-  ROUTE_ACTIVE: 'transitland-route-active',
-} as const
+export type TransitRole = 'routes' | 'stops' | 'stations' | 'hover'
+
+/** Minimal shape carrying an optional transit role (a layer config or a live
+ *  style layer — both expose `metadata`). */
+interface TransitRoleCarrier {
+  metadata?: { transitRole?: TransitRole } | null
+  // Layer configs / style layers carry many other keys; allow them so any
+  // such object is structurally assignable (a bare string is not).
+  [key: string]: unknown
+}
+
+/** Read the transit role from a layer configuration or live style layer. */
+export function getTransitRole(
+  carrier?: TransitRoleCarrier | null,
+): TransitRole | undefined {
+  return carrier?.metadata?.transitRole ?? undefined
+}
 
 /**
- * Check if a layer ID is a transit stop layer (for click handling)
+ * Roles whose layers should fade when a single route is isolated — every
+ * transit display role except the `hover` hitbox.
  */
-export function isTransitStopLayer(layerId?: string): boolean {
-  if (!layerId) return false
-  return (
-    layerId === TRANSITLAND_LAYER_IDS.STOPS ||
-    layerId === TRANSITLAND_LAYER_IDS.STOPS_LABELS
-  )
+const FADEABLE_TRANSIT_ROLES: ReadonlySet<TransitRole> = new Set<TransitRole>([
+  'routes',
+  'stops',
+  'stations',
+])
+
+/** True for transit layers that should fade behind an isolated route. */
+export function isFadeableTransitRole(role?: TransitRole): boolean {
+  return !!role && FADEABLE_TRANSIT_ROLES.has(role)
+}
+
+/**
+ * Check if a layer is a transit stop layer (a click target that opens stop /
+ * place detail). Accepts the layer configuration (or live style layer) and
+ * reads its `transitRole` rather than matching a hardcoded ID.
+ */
+export function isTransitStopLayer(
+  carrier?: TransitRoleCarrier | null,
+): boolean {
+  return getTransitRole(carrier) === 'stops'
 }
 

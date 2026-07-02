@@ -60,7 +60,8 @@ vi.mock('./core/layer-visibility.service', () => ({
 }))
 
 vi.mock('@/lib/transit.utils', () => ({
-  isTransitStopLayer: (id: string) => id?.includes('transit-stops'),
+  isTransitStopLayer: (carrier: { metadata?: { transitRole?: string } } | null) =>
+    carrier?.metadata?.transitRole === 'stops',
 }))
 
 describe('useLayersService', () => {
@@ -128,7 +129,7 @@ describe('useLayersService', () => {
     test('adds transit stop click handlers for transit layers', () => {
       const service = useLayersService()
       const layers: Layer[] = [
-        { id: 'transit-layer', configuration: { id: 'transit-stops-bus' } } as Layer,
+        { id: 'transit-layer', configuration: { id: 'transit-stops-bus', metadata: { transitRole: 'stops' } } } as unknown as Layer,
       ]
 
       service.initializeLayers(layers, mockMapStrategy)
@@ -170,8 +171,8 @@ describe('useLayersService', () => {
       const service = useLayersService()
       const layer: Layer = {
         id: 'transit-layer',
-        configuration: { id: 'transit-stops-rail' },
-      } as Layer
+        configuration: { id: 'transit-stops-rail', metadata: { transitRole: 'stops' } },
+      } as unknown as Layer
 
       service.addLayerToMap(layer, mockMapStrategy)
 

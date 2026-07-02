@@ -13,6 +13,7 @@
 import { watch, type WatchStopHandle } from 'vue'
 import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail.store'
 import { densifyLine } from '@/lib/geo-densify'
+import { isFadeableTransitRole } from '@/lib/transit.utils'
 
 const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
@@ -20,31 +21,6 @@ const ROUTE_OUTLINE_LAYER_ID = 'route-detail-outline'
 const STOPS_SOURCE_ID = 'route-detail-stops'
 const STOPS_LAYER_ID = 'route-detail-stops-circles'
 const STOPS_LABELS_LAYER_ID = 'route-detail-stops-labels'
-
-/** Layer IDs in the transit group that should be faded when isolating.
- *  Excludes `transitland-route-active` — it's a hover utility layer with
- *  a feature-state opacity expression that breaks if overridden flat. */
-const TRANSIT_LAYER_IDS = [
-  'transitland-rail',
-  'transitland-rail-outline',
-  'transitland-bus-low',
-  'transitland-bus-low-outline',
-  'transitland-bus-medium',
-  'transitland-bus-medium-outline',
-  'transitland-tram',
-  'transitland-tram-outline',
-  'transitland-metro',
-  'transitland-metro-outline',
-  'transitland-other',
-  'transitland-other-outline',
-  'transitland-tram-labels',
-  'transitland-metro-labels',
-  'transitland-rail-labels',
-  'transitland-bus-medium-labels',
-  'transitland-other-labels',
-  'transitland-stops',
-  'transitland-stops-labels',
-]
 
 export function useRouteIsolationService() {
   const routeDetailStore = useRouteDetailStore()
@@ -146,10 +122,26 @@ export function useRouteIsolationService() {
     } catch { /* fitBounds can throw on degenerate bounds */ }
   }
 
+  /** Collect the IDs of every transit display layer currently in the map
+   *  style that should fade behind an isolated route. Derived from each
+   *  layer's `metadata.transitRole` so it survives layer-ID changes (e.g.
+   *  swapping hosted Transitland tiles for our own generated tiles) and the
+   *  `hover` hitbox layer is excluded automatically. */
+  function getFadeableTransitLayerIds(): string[] {
+    try {
+      const layers = mapInstance?.getStyle?.()?.layers ?? []
+      return layers
+        .filter((layer: any) => isFadeableTransitRole(layer?.metadata?.transitRole))
+        .map((layer: any) => layer.id)
+    } catch {
+      return []
+    }
+  }
+
   function fadeTransitLayers(opacity: number | null) {
     if (!mapInstance) return
 
-    for (const layerId of TRANSIT_LAYER_IDS) {
+    for (const layerId of getFadeableTransitLayerIds()) {
       try {
         if (!mapInstance.getLayer(layerId)) continue
 

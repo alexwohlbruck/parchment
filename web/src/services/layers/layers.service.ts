@@ -96,7 +96,7 @@ export function useLayersService() {
       }
 
       // Add transit stop click handlers for transit stop layers
-      if (isTransitStopLayer(plainLayer.configuration?.id)) {
+      if (isTransitStopLayer(plainLayer.configuration)) {
         transitService.addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
       }
 
@@ -119,7 +119,7 @@ export function useLayersService() {
     }
 
     // Add transit stop click handlers for dynamically added transit stop layers
-    if (isTransitStopLayer(plainLayer.configuration?.id)) {
+    if (isTransitStopLayer(plainLayer.configuration)) {
       transitService.addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
     }
 

@@ -36,6 +36,14 @@ Colours, widths, emissive, slot, group and `metadata.transitRole` are
 identical across the steady/transition pair of each pass. `line-offset` is in
 screen px, so the on-screen gap is constant at every zoom on both kinds.
 
+**Low-zoom gap squeeze:** every offset above is additionally wrapped in a
+top-level `['zoom']` interpolate (`zoomScaledOffset` in `transit.ts`): half
+spacing at z11 and below, full spacing from z14 up — dense networks read as
+tidy trunks instead of fat overlapping ropes at city scale. `['zoom']` must
+stay at the top level of the composite expression (style-spec rule), so the
+scale wraps each stop output. The degradation rewrite below is recursive and
+handles the wrapper.
+
 ## Engine degradation
 
 The transition expression (line-progress inside line-offset) is valid ONLY on

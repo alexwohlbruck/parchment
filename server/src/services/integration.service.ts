@@ -377,20 +377,28 @@ const availableIntegrations: IntegrationDefinition[] = [
 
 /**
  * Background retry for system integrations that failed their startup connection
- * test — most often barrelman, which can still be warming up when the server
- * boots (a co-restart race). Non-blocking and bounded; each integration stops
- * retrying as soon as it initializes, so a still-down or genuinely-misconfigured
- * one simply gives up after the budget. This is what keeps transit/routing from
- * going dark until a manual restart when both services restart together.
+ * test — most often barrelman. It can be warming up during a co-restart (a few
+ * seconds) OR genuinely down for an extended period; either way we must re-init
+ * it whenever it comes back, because `initializeWithTest` throws on a failed
+ * test and leaves the integration OUT of the cache entirely — so search/transit
+ * stay dark until it re-initializes.
+ *
+ * Exponential backoff (10s → capped at 5min), retried indefinitely rather than
+ * abandoned after a fixed budget: a bounded budget meant a longer-than-a-minute
+ * outage left the dependency excluded until a manual server restart. The cost of
+ * retrying forever is one connection test per failed integration per ≤5min —
+ * negligible — and each stops the moment it initializes.
  */
 async function retrySystemIntegrations(
   failed: IntegrationRecord[],
   attempt = 1,
 ): Promise<void> {
-  const MAX_ATTEMPTS = 6
-  const DELAY_MS = 10_000
-  if (failed.length === 0 || attempt > MAX_ATTEMPTS) return
-  await new Promise((resolve) => setTimeout(resolve, DELAY_MS))
+  if (failed.length === 0) return
+
+  const BASE_MS = 10_000
+  const MAX_DELAY_MS = 5 * 60_000
+  const delay = Math.min(BASE_MS * 2 ** (attempt - 1), MAX_DELAY_MS)
+  await new Promise((resolve) => setTimeout(resolve, delay))
 
   const stillFailing: IntegrationRecord[] = []
   await Promise.allSettled(
@@ -398,7 +406,7 @@ async function retrySystemIntegrations(
       try {
         await integrationManager.initializeIntegration(undefined, integration)
         console.log(
-          `Recovered system integration on retry ${attempt}: ${integration.integrationId}`,
+          `Recovered system integration: ${integration.integrationId}`,
         )
       } catch {
         stillFailing.push(integration)

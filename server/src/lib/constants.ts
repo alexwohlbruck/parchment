@@ -60,6 +60,7 @@ export const INTEGRATION_PRIORITIES: Partial<Record<IntegrationId, number>> = {
   [IntegrationId.PELIAS]: 100, // Fast, self-hosted, address geocoding (OpenAddresses)
   [IntegrationId.NOMINATIM]: 90, // Free, rate-limited, geocoding fallback
   [IntegrationId.GOOGLE_MAPS]: 80, // Fast, paid, excellent coverage
+  [IntegrationId.FOURSQUARE]: 55, // Paid, global POI coverage + reviews/photos; blends below OSM/Google
   [IntegrationId.WIKIPEDIA]: 78, // Free, high-quality detailed descriptions
   [IntegrationId.TRANSITLAND]: 77, // Paid, authoritative transit data
   [IntegrationId.GEOAPIFY]: 70, // Fast, paid, extensive categories but limited

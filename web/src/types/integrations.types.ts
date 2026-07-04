@@ -115,6 +115,10 @@ export const configSchemas: Record<
     apiKey: z.string().min(1, 'API Key is required'),
   }),
 
+  foursquareSchema: z.object({
+    apiKey: z.string().min(1, 'API Key is required'),
+  }),
+
   peliasSchema: z.object({
     host: z.string().url('Please enter a valid URL'),
   }),

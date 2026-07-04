@@ -6,7 +6,8 @@ import { Source, SOURCE } from '../lib/constants'
 import { findBookmarkByExternalIds } from './library/bookmarks.service'
 import * as turf from '@turf/turf'
 import { integrationManager } from './integrations'
-import { IntegrationCapabilityId } from '../types/integration.types'
+import { IntegrationCapabilityId, IntegrationId } from '../types/integration.types'
+import { FoursquareIntegration } from './integrations/foursquare-integration'
 import { User } from '../schema/users.schema'
 import { WikidataIntegration } from './integrations/wikidata-integration'
 import { WikipediaIntegration } from './integrations/wikipedia-integration'
@@ -709,6 +710,72 @@ async function enrichPlaceWithWikiData(
 }
 
 /**
+ * Enrich a place with Foursquare Premium data (photos, hours, ratings).
+ *
+ * Finds the place's Foursquare twin — reusing an `fsq_place_id` already
+ * attached during the search blend, or otherwise resolving one via the Place
+ * Match endpoint (a single best id + confidence) — then fetches full Premium
+ * details and merges them under Foursquare attribution. The matched id is
+ * carried on `externalIds` so it can later be persisted in Barrelman for
+ * user correction.
+ *
+ * Premium-gated and Foursquare-optional: a no-op unless the caller has premium
+ * data access and Foursquare is configured.
+ */
+async function enrichPlaceWithFoursquareData(
+  place: Place,
+  options?: { premiumData?: boolean; signal?: AbortSignal },
+): Promise<Place> {
+  const { premiumData = false, signal } = options || {}
+  if (!premiumData) return place
+
+  try {
+    const fsqRecord = integrationManager
+      .getConfiguredIntegrationsByCapability(IntegrationCapabilityId.PLACE_INFO)
+      .find((record) => record.integrationId === IntegrationId.FOURSQUARE)
+    if (!fsqRecord) return place // Foursquare not configured
+
+    const fsq = integrationManager.getCachedIntegrationInstance(fsqRecord) as
+      | FoursquareIntegration
+      | undefined
+    if (!fsq) return place
+
+    // Prefer an id already matched during the search blend; otherwise match by
+    // name + location via the Place Match endpoint.
+    let fsqPlaceId = place.externalIds?.[SOURCE.FOURSQUARE]
+
+    if (!fsqPlaceId) {
+      const name = place.name?.value
+      const addr = place.address?.value
+      if (!name || !addr) return place
+
+      // Place Match needs street address + city + country code; without them
+      // we can't confidently match, so enrichment is skipped for this place.
+      const match = await fsq.matchPlace(
+        name,
+        {
+          address: addr.street1 || addr.formatted,
+          city: addr.locality,
+          cc: addr.countryCode,
+        },
+        { signal },
+      )
+      if (!match) return place
+      fsqPlaceId = match.fsqPlaceId
+    }
+
+    const fsqPlace = await fsq.capabilities.placeInfo?.getPlaceInfo(fsqPlaceId)
+    if (!fsqPlace) return place
+
+    return mergePlaces(place, fsqPlace)
+  } catch (error) {
+    if (isAbortError(error)) return place
+    console.error('Error enriching place with Foursquare data:', error)
+    return place
+  }
+}
+
+/**
  * Look up a place by ID and enrich it with data from other sources
  *
  * @param source The source ID (e.g., SOURCE.GOOGLE, SOURCE.OSM)
@@ -776,13 +843,15 @@ export async function lookupEnrichedPlaceById(
     // Transit departure data is now fetched separately via the widget system
     // Clone the place object for each enrichment to avoid race conditions
     const enrichmentStart = Date.now()
-    const [wikiEnrichedPlace, addressEnrichedPlace] = await Promise.all([
+    const [wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace] = await Promise.all([
       enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
-      enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place)))
+      enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place))),
+      enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), { premiumData }),
     ])
 
-    // Merge the results (wiki data takes precedence for conflicts)
-    place = mergePlaces(wikiEnrichedPlace, addressEnrichedPlace)
+    // Merge the results (wiki data takes precedence for conflicts; Foursquare
+    // fills photos/hours/ratings that base + wiki + address lack)
+    place = mergePlaces(wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace)
     const enrichmentTime = Date.now() - enrichmentStart
     console.log(`⏱️ [PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
 

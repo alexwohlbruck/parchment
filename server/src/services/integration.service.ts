@@ -79,6 +79,22 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.FOURSQUARE,
+    name: 'Foursquare',
+    description:
+      'Global POI coverage, reviews, photos, and hours — blends into search and enriches place details',
+    color: '#F94877',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.FOURSQUARE,
+      )
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'foursquareSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.PELIAS,
     name: 'Pelias',
     description: 'Open-source geocoding and search',

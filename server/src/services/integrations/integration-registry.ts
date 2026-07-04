@@ -1,6 +1,7 @@
 import { IntegrationId } from '../../types/integration.types'
 import { Integration } from '../../types/integration.types'
 import { GoogleMapsIntegration } from './google-maps-integration'
+import { FoursquareIntegration } from './foursquare-integration'
 import { PeliasIntegration } from './pelias-integration'
 import { NominatimIntegration } from './nominatim-integration'
 import { OverpassIntegration } from './overpass-integration'
@@ -38,6 +39,7 @@ export class IntegrationRegistry {
   private registerDefaultIntegrations(): void {
     this.registerIntegration(new AxiomIntegration())
     this.registerIntegration(new GoogleMapsIntegration())
+    this.registerIntegration(new FoursquareIntegration())
     this.registerIntegration(new PeliasIntegration())
     this.registerIntegration(new NominatimIntegration())
     this.registerIntegration(new OverpassIntegration())

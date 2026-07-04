@@ -1,0 +1,123 @@
+import { describe, expect, it } from 'bun:test'
+import { FoursquareAdapter, type FoursquarePlace } from './foursquare-adapter'
+import { SOURCE } from '../../../lib/constants'
+
+const adapter = new FoursquareAdapter()
+
+const fullPlace: FoursquarePlace = {
+  fsq_place_id: 'abc123',
+  name: 'Joe’s Pizza',
+  latitude: 40.7305,
+  longitude: -74.0021,
+  location: {
+    address: '7 Carmine St',
+    locality: 'New York',
+    region: 'NY',
+    postcode: '10014',
+    country: 'US',
+    formatted_address: '7 Carmine St, New York, NY 10014',
+  },
+  categories: [{ fsq_category_id: '13064', name: 'Pizzeria' }],
+  tel: '+1 212-555-1234',
+  website: 'https://joespizza.example',
+  email: 'hi@joespizza.example',
+  social_media: { instagram: '@joespizza', twitter: 'joespizza', facebook_id: '999' },
+  hours: {
+    display: 'Mon–Sun 11:00–23:00',
+    open_now: true,
+    regular: [
+      { day: 1, open: '1100', close: '2300' }, // Monday
+      { day: 7, open: '1100', close: '2300' }, // Sunday
+    ],
+  },
+  rating: 8.6,
+  price: 1,
+  photos: [
+    { id: 'p1', prefix: 'https://fastly.4sqi.net/img/general/', suffix: '/photo1.jpg', width: 1920, height: 1080 },
+  ],
+  tips: [{ text: 'Best slice in the Village' }],
+  stats: { total_ratings: 4210, total_tips: 320, total_photos: 88 },
+}
+
+describe('FoursquareAdapter', () => {
+  it('maps identity, geometry and external id', () => {
+    const place = adapter.adaptPlace(fullPlace)
+    expect(place.id).toBe(`${SOURCE.FOURSQUARE}/abc123`)
+    expect(place.externalIds[SOURCE.FOURSQUARE]).toBe('abc123')
+    expect(place.name.value).toBe('Joe’s Pizza')
+    expect(place.name.sourceId).toBe(SOURCE.FOURSQUARE)
+    expect(place.geometry.value.center).toEqual({ lat: 40.7305, lng: -74.0021 })
+    expect(place.placeType.value).toBe('Pizzeria')
+  })
+
+  it('normalizes the 0–10 rating to a 0–1 scale and pulls review count from stats', () => {
+    const place = adapter.adaptPlace(fullPlace)
+    expect(place.ratings?.rating.value).toBe(0.86)
+    expect(place.ratings?.reviewCount.value).toBe(4210)
+  })
+
+  it('assembles the full-resolution photo url from prefix/suffix', () => {
+    const place = adapter.adaptPlace(fullPlace)
+    expect(place.photos).toHaveLength(1)
+    expect(place.photos[0].value.url).toBe(
+      'https://fastly.4sqi.net/img/general/original/photo1.jpg',
+    )
+    expect(place.photos[0].value.isPrimary).toBe(true)
+  })
+
+  it('converts Foursquare 1–7 (Mon–Sun) days to 0–6 (Sun–Sat) and HHMM to HH:mm', () => {
+    const place = adapter.adaptPlace(fullPlace)
+    const hours = place.openingHours?.value.regularHours
+    expect(hours).toEqual([
+      { day: 1, open: '11:00', close: '23:00' }, // Monday stays 1
+      { day: 0, open: '11:00', close: '23:00' }, // Sunday 7 → 0
+    ])
+  })
+
+  it('maps contact info and social handles to full urls', () => {
+    const place = adapter.adaptPlace(fullPlace)
+    expect(place.contactInfo.phone?.value).toBe('+1 212-555-1234')
+    expect(place.contactInfo.website?.value).toBe('https://joespizza.example')
+    expect(place.contactInfo.socials.instagram.value).toBe(
+      'https://instagram.com/joespizza',
+    )
+    expect(place.contactInfo.socials.twitter.value).toBe(
+      'https://twitter.com/joespizza',
+    )
+    expect(place.contactInfo.socials.facebook.value).toBe(
+      'https://facebook.com/999',
+    )
+  })
+
+  it('builds a formatted address and price amenity', () => {
+    const place = adapter.adaptPlace(fullPlace)
+    expect(place.address?.value.formatted).toBe('7 Carmine St, New York, NY 10014')
+    expect(place.address?.value.postalCode).toBe('10014')
+    expect(place.amenities.price_level.value).toBe('1')
+  })
+
+  it('handles a lean search result with no premium fields', () => {
+    const lean: FoursquarePlace = {
+      fsq_place_id: 'xyz789',
+      name: 'Corner Store',
+      latitude: 51.5,
+      longitude: -0.12,
+      location: { locality: 'London', country: 'GB' },
+      categories: [{ id: '17069', name: 'Convenience Store' }],
+    }
+    const place = adapter.adaptPlace(lean)
+    expect(place.name.value).toBe('Corner Store')
+    expect(place.photos).toEqual([])
+    expect(place.openingHours).toBeNull()
+    expect(place.ratings).toBeUndefined()
+    expect(place.contactInfo.phone).toBeNull()
+    expect(place.address?.value.locality).toBe('London')
+  })
+
+  it('does not crash on an empty-ish place', () => {
+    const place = adapter.adaptPlace({ fsq_place_id: 'empty' })
+    expect(place.name.value).toBeNull()
+    expect(place.geometry.value.center).toEqual({ lat: 0, lng: 0 })
+    expect(place.address).toBeNull()
+  })
+})

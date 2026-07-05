@@ -798,6 +798,7 @@
       "realTimeData": "Real-time data",
       "noUpcomingDepartures": "No upcoming departures available",
       "checkBackLater": "Check back later or visit the transit provider's website",
+      "connections": "Connections",
       "vehicleType": {
         "tram": "tram | trams",
         "subway": "train | trains",

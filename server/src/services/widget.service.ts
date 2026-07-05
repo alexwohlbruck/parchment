@@ -13,6 +13,49 @@ import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
 import { resolveDisplayChips } from '../lib/display-chips'
 
+/** Shape of Barrelman's /transit/station/:feedId/:stopId response (subset we
+ *  consume for the Apple-style "Connections" list). */
+export interface BarrelmanStationDetail {
+  connections?: Array<{
+    feedId: string
+    stopId: string
+    name: string
+    distanceM: number
+    routes: Array<{
+      routeId: string
+      routeShortName?: string | null
+      routeLongName?: string | null
+      routeType?: number
+      routeColor?: string | null
+      routeTextColor?: string | null
+    }>
+  }>
+}
+
+/**
+ * Map Barrelman's station-detail `connections` into the client-facing
+ * TransitStopInfo shape (route bullets normalised to id/shortName/color).
+ * Pure — unit-tested independently of the HTTP fetch.
+ */
+export function mapStationConnections(
+  detail: BarrelmanStationDetail,
+): NonNullable<TransitStopInfo['connections']> {
+  return (detail.connections || []).map((c) => ({
+    feedId: c.feedId,
+    stopId: c.stopId,
+    name: c.name,
+    distanceM: c.distanceM,
+    routes: (c.routes || []).map((r) => ({
+      id: r.routeId,
+      shortName: r.routeShortName ?? undefined,
+      longName: r.routeLongName ?? undefined,
+      color: r.routeColor ?? undefined,
+      textColor: r.routeTextColor ?? undefined,
+      type: r.routeType,
+    })),
+  }))
+}
+
 /**
  * Check if a place is a transit stop based on its OSM tags/type.
  * Used to detect transit stops that don't have stored transit info.
@@ -340,6 +383,7 @@ async function fetchTransitDepartures(
   departures: TransitDeparture[]
   stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string; lat?: number; lng?: number }
   routes?: TransitStopInfo['routes']
+  connections?: TransitStopInfo['connections']
   sources: SourceReference[]
 }> {
   const { limit = 50 } = options || {}
@@ -488,6 +532,27 @@ async function fetchTransitDepartures(
       }
     }
 
+    // Connections: nearby stations reachable on foot (Apple-Maps style). Now
+    // that same-name, close-but-distinct stations render as separate map
+    // markers, the detail page cross-references them. Barrelman's station
+    // endpoint keys on a parent station (location_type=1); it returns nothing
+    // for a plain platform stop, so this is a no-op for non-parent lookups.
+    let connections: TransitStopInfo['connections']
+    if (primaryStop) {
+      try {
+        const connRes = await fetch(
+          `${config.host}/transit/station/${encodeURIComponent(primaryStop.feedId)}/${encodeURIComponent(primaryStop.stopId)}`,
+          { headers },
+        )
+        if (connRes.ok) {
+          const detail = (await connRes.json()) as BarrelmanStationDetail
+          connections = mapStationConnections(detail)
+        }
+      } catch {
+        // Connections are an enhancement — the page renders without them.
+      }
+    }
+
     return {
       departures: allDepartures,
       stopInfo: primaryStop ? {
@@ -502,6 +567,7 @@ async function fetchTransitDepartures(
         lng: primaryStop.lng,
       } : undefined,
       routes,
+      connections,
       sources,
     }
   } catch (error) {
@@ -610,7 +676,7 @@ export async function fetchWidgetData(
         throw new Error('Missing lat/lng or feedId/stopId parameters for transit widget')
       }
 
-      const { departures, stopInfo, routes, sources } = await fetchTransitDepartures(
+      const { departures, stopInfo, routes, connections, sources } = await fetchTransitDepartures(
         {
           lat: hasCoords ? lat : undefined,
           lng: hasCoords ? lng : undefined,
@@ -624,6 +690,7 @@ export async function fetchWidgetData(
       const transitInfo: TransitStopInfo = {
         departures,
         routes,
+        connections,
         name: stopInfo?.name,
         code: stopInfo?.code,
         feedId: stopInfo?.feedId,

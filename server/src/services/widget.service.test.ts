@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { fetchWidgetData } from './widget.service'
+import { fetchWidgetData, mapStationConnections } from './widget.service'
 import { WidgetType } from '../types/place.types'
 
 /**
@@ -49,5 +49,68 @@ describe('fetchWidgetData transit parameter contract', () => {
     const info = result.data.value as { lat?: number; lng?: number }
     expect(info.lat).toBe(41.8845)
     expect(info.lng).toBe(-87.6305)
+  })
+})
+
+/**
+ * Station "Connections" transform (Apple-Maps cross-reference between
+ * same-name, close-but-distinct stations). Barrelman returns Jackson Red's
+ * connections including Jackson (Blue); the widget flattens each route into an
+ * id/shortName/color bullet the RouteBullet component renders.
+ */
+describe('mapStationConnections', () => {
+  test('maps Barrelman connections (Jackson Red → Jackson Blue) into bullets', () => {
+    const out = mapStationConnections({
+      connections: [
+        {
+          feedId: '29',
+          stopId: '40070',
+          name: 'Jackson',
+          distanceM: 133,
+          routes: [
+            {
+              routeId: 'Blue',
+              routeShortName: 'Blue',
+              routeLongName: 'Blue Line',
+              routeType: 1,
+              routeColor: '00A1DE',
+              routeTextColor: 'FFFFFF',
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({
+      feedId: '29',
+      stopId: '40070',
+      name: 'Jackson',
+      distanceM: 133,
+    })
+    expect(out[0].routes[0]).toMatchObject({
+      id: 'Blue',
+      shortName: 'Blue',
+      color: '00A1DE',
+      textColor: 'FFFFFF',
+      type: 1,
+    })
+  })
+
+  test('handles missing/empty connections and null route fields', () => {
+    expect(mapStationConnections({})).toEqual([])
+    const out = mapStationConnections({
+      connections: [
+        { feedId: '5', stopId: 'A38', name: 'Fulton Street', distanceM: 0, routes: [
+          { routeId: 'A', routeShortName: null, routeColor: null, routeTextColor: null },
+        ] },
+      ],
+    })
+    expect(out[0].routes[0]).toMatchObject({
+      id: 'A',
+      shortName: undefined,
+      color: undefined,
+      textColor: undefined,
+    })
   })
 })

@@ -231,7 +231,7 @@ const STOPS_SOURCE = {
 const STATIONS_SOURCE = {
   id: 'transit-stations',
   type: 'vector' as const,
-  tiles: ['{PROXY_URL}/barrelman/transit_stations/{z}/{x}/{y}?v=10'],
+  tiles: ['{PROXY_URL}/barrelman/transit_stations/{z}/{x}/{y}?v=11'],
   minzoom: 0,
   maxzoom: 16,
 }

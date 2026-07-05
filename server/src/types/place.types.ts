@@ -157,6 +157,29 @@ export interface TransitStopInfo {
     textColor?: string
     type?: number
   }>
+  /**
+   * Nearby stations reachable on foot (Apple-Maps "Connections"). Same-name,
+   * close-but-distinct stations (Jackson Blue vs Jackson Red) are separate map
+   * markers now, so the detail page cross-references them here. Sourced from
+   * Barrelman's /transit/station connections (transfers.txt + proximity).
+   */
+  connections?: TransitConnection[]
+}
+
+/** A nearby station the rider can transfer to on foot. */
+export interface TransitConnection {
+  feedId: string
+  stopId: string
+  name: string
+  distanceM: number
+  routes: Array<{
+    id: string
+    shortName?: string
+    longName?: string
+    color?: string
+    textColor?: string
+    type?: number
+  }>
 }
 
 /**

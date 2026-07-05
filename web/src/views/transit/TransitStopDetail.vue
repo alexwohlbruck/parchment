@@ -53,6 +53,11 @@ const title = computed(() => {
 /** Full badge row of lines serving the stop/station (transfer-complex wide). */
 const stationRoutes = computed(() => transitInfo.value?.routes || [])
 
+/** Nearby stations reachable on foot (Apple-Maps "Connections" list). Same-name
+ *  close-but-distinct stations (Jackson Blue vs Jackson Red) are separate map
+ *  markers now, cross-referenced here. */
+const connections = computed(() => transitInfo.value?.connections || [])
+
 /** The widget query for the current route params, or null off-route. */
 const widgetParams = computed((): Record<string, string> | null => {
   const { feedId, stopId, lat, lng } = route.params
@@ -102,6 +107,15 @@ function openRoute(routeEntry: { id: string }) {
     params: { feedId, routeId: routeEntry.id },
   })
 }
+
+/** Navigate to a connected station's detail page (stop-keyed). */
+function openConnection(conn: { feedId: string; stopId: string; name: string }) {
+  router.push({
+    name: AppRoute.TRANSIT_STOP,
+    params: { feedId: conn.feedId, stopId: conn.stopId },
+    query: { name: conn.name },
+  })
+}
 </script>
 
 <template>
@@ -136,7 +150,37 @@ function openRoute(routeEntry: { id: string }) {
       <div class="animate-spin h-6 w-6 border-2 border-foreground/20 border-t-foreground rounded-full" />
     </div>
 
-    <TransitDepartureBoard v-else-if="transitInfo" :transit-info="transitInfo" />
+    <template v-else-if="transitInfo">
+      <TransitDepartureBoard :transit-info="transitInfo" />
+
+      <!-- Connections: nearby stations reachable on foot (Apple-Maps style).
+           Tappable to that station's detail. -->
+      <section v-if="connections.length > 0" class="mt-6">
+        <h3 class="text-sm font-semibold text-muted-foreground mb-2">
+          {{ t('place.transit.connections') }}
+        </h3>
+        <ul class="flex flex-col gap-1">
+          <li v-for="conn in connections" :key="`${conn.feedId}:${conn.stopId}`">
+            <button
+              type="button"
+              class="w-full flex items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted transition-colors cursor-pointer"
+              @click="openConnection(conn)"
+            >
+              <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ conn.name }}</span>
+              <span class="flex flex-wrap items-center gap-1 shrink-0">
+                <RouteBullet
+                  v-for="r in conn.routes"
+                  :key="r.id"
+                  :label="r.shortName || r.id"
+                  :color="r.color"
+                  :text-color="r.textColor"
+                />
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
+    </template>
 
     <div v-else class="flex flex-col items-center justify-center py-12 text-muted-foreground">
       <MapPinIcon class="h-8 w-8 mb-2 opacity-50" />

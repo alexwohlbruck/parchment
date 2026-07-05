@@ -204,7 +204,7 @@ const ROUTES_SOURCE = {
 const LINES_SOURCE = {
   id: 'transit-lines',
   type: 'vector' as const,
-  tiles: ['{PROXY_URL}/barrelman/transit_lines_rt2/{z}/{x}/{y}?v=7'],
+  tiles: ['{PROXY_URL}/barrelman/transit_lines_rt2/{z}/{x}/{y}?v=8'],
   minzoom: 0,
   maxzoom: 16,
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { getRoutingMode, VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
@@ -41,8 +42,17 @@ import {
   type LucideIcon,
 } from 'lucide-vue-next'
 
+const { t, te } = useI18n()
+
 const vehiclesStore = useVehiclesStore()
 const { vehicles, loading } = storeToRefs(vehiclesStore)
+
+// Translated display name for a vehicle type, falling back to the shared
+// label constant (then the raw type) for anything not covered by i18n.
+function vehicleTypeLabel(type: string): string {
+  const key = `settings.vehicles.types.${type}`
+  return te(key) ? t(key) : VEHICLE_TYPE_LABELS[type as VehicleType] || type
+}
 
 // ── Vehicle type icons ─────────────────────────────────────────────────
 const vehicleTypeIcons: Record<string, LucideIcon> = {
@@ -74,22 +84,17 @@ const saving = ref(false)
 
 const isEditing = computed(() => editingVehicle.value !== null)
 
-const vehicleTypes: { value: VehicleType; label: string }[] = [
-  { value: 'car', label: 'Car' },
-  { value: 'truck', label: 'Truck' },
-  { value: 'moped', label: 'Moped' },
-  { value: 'bike', label: 'Bike' },
-  { value: 'e-bike', label: 'E-bike' },
-  { value: 'scooter', label: 'Scooter' },
-  { value: 'e-scooter', label: 'E-scooter' },
+const vehicleTypeValues: VehicleType[] = [
+  'car',
+  'truck',
+  'moped',
+  'bike',
+  'e-bike',
+  'scooter',
+  'e-scooter',
 ]
 
-const energyTypes: { value: EnergyType; label: string }[] = [
-  { value: 'gas', label: 'Gas' },
-  { value: 'diesel', label: 'Diesel' },
-  { value: 'electric', label: 'Electric' },
-  { value: 'hybrid', label: 'Hybrid' },
-]
+const energyTypeValues: EnergyType[] = ['gas', 'diesel', 'electric', 'hybrid']
 
 // Whether the current formType should show an energy type selector
 const showEnergyType = computed(() =>
@@ -151,18 +156,20 @@ function handleSetLocation(vehicle: UserVehicle) {
 function formatRelativeTime(dateStr: string): string {
   const ms = Date.now() - new Date(dateStr).getTime()
   const minutes = Math.floor(ms / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return t('settings.vehicles.time.justNow')
+  if (minutes < 60) return t('settings.vehicles.time.minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('settings.vehicles.time.hoursAgo', { count: hours })
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return t('settings.vehicles.time.daysAgo', { count: days })
 }
 
 function getLocationLabel(vehicle: UserVehicle): string {
-  if (!vehicle.lastKnownLocation) return 'Location not set'
-  if (!vehicle.locationUpdatedAt) return 'Location set'
-  return `Updated ${formatRelativeTime(vehicle.locationUpdatedAt)}`
+  if (!vehicle.lastKnownLocation) return t('settings.vehicles.location.notSet')
+  if (!vehicle.locationUpdatedAt) return t('settings.vehicles.location.set')
+  return t('settings.vehicles.location.updated', {
+    time: formatRelativeTime(vehicle.locationUpdatedAt),
+  })
 }
 
 function getStalenessClass(vehicle: UserVehicle): string {
@@ -192,18 +199,18 @@ const bikingVehicles = computed(() =>
 <template>
   <SettingsSection
     id="vehicles"
-    title="My Vehicles"
-    description="Manage your vehicles for trip planning. Active vehicles are used when planning routes with known vehicle locations."
+    :title="t('settings.vehicles.title')"
+    :description="t('settings.vehicles.description')"
   >
     <!-- Empty state -->
     <div v-if="!loading && vehicles.length === 0" class="py-8 text-center">
       <CarFrontIcon class="mx-auto mb-3 size-10 text-muted-foreground/50" />
       <p class="text-sm text-muted-foreground mb-4">
-        No vehicles added yet. Add your car or bike to get personalized routes that start from your vehicle's location.
+        {{ t('settings.vehicles.empty') }}
       </p>
       <Button variant="outline" size="sm" @click="openAddDialog">
         <PlusIcon class="size-4 mr-1.5" />
-        Add vehicle
+        {{ t('settings.vehicles.add') }}
       </Button>
     </div>
 
@@ -218,14 +225,14 @@ const bikingVehicles = computed(() =>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium truncate">
-                {{ vehicle.name || VEHICLE_TYPE_LABELS[vehicle.type as VehicleType] || vehicle.type }}
+                {{ vehicle.name || vehicleTypeLabel(vehicle.type) }}
               </span>
               <Badge v-if="vehicle.isActive" variant="secondary" class="text-[10px] px-1.5 py-0">
-                active
+                {{ t('settings.vehicles.active') }}
               </Badge>
               <Badge v-if="isElectric(vehicle.type)" variant="outline" class="text-[10px] px-1.5 py-0">
                 <ZapIcon class="size-2.5 mr-0.5" />
-                electric
+                {{ t('settings.vehicles.electric') }}
               </Badge>
             </div>
             <div class="flex items-center gap-1 mt-0.5">
@@ -241,18 +248,18 @@ const bikingVehicles = computed(() =>
               variant="ghost"
               size="icon"
               class="size-7"
-              title="Set as active"
+              :title="t('settings.vehicles.actions.setActive')"
               @click="handleActivate(vehicle)"
             >
               <CheckIcon class="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="size-7" title="Set location on map" @click="handleSetLocation(vehicle)">
+            <Button variant="ghost" size="icon" class="size-7" :title="t('settings.vehicles.actions.setLocation')" @click="handleSetLocation(vehicle)">
               <CrosshairIcon class="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="size-7" title="Edit" @click="openEditDialog(vehicle)">
+            <Button variant="ghost" size="icon" class="size-7" :title="t('settings.vehicles.actions.edit')" @click="openEditDialog(vehicle)">
               <PencilIcon class="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="size-7 text-destructive" title="Delete" @click="handleDelete(vehicle)">
+            <Button variant="ghost" size="icon" class="size-7 text-destructive" :title="t('settings.vehicles.actions.delete')" @click="handleDelete(vehicle)">
               <TrashIcon class="size-3.5" />
             </Button>
           </div>
@@ -268,14 +275,14 @@ const bikingVehicles = computed(() =>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
               <span class="text-sm font-medium truncate">
-                {{ vehicle.name || VEHICLE_TYPE_LABELS[vehicle.type as VehicleType] || vehicle.type }}
+                {{ vehicle.name || vehicleTypeLabel(vehicle.type) }}
               </span>
               <Badge v-if="vehicle.isActive" variant="secondary" class="text-[10px] px-1.5 py-0">
-                active
+                {{ t('settings.vehicles.active') }}
               </Badge>
               <Badge v-if="isElectric(vehicle.type)" variant="outline" class="text-[10px] px-1.5 py-0">
                 <ZapIcon class="size-2.5 mr-0.5" />
-                electric
+                {{ t('settings.vehicles.electric') }}
               </Badge>
             </div>
             <div class="flex items-center gap-1 mt-0.5">
@@ -291,18 +298,18 @@ const bikingVehicles = computed(() =>
               variant="ghost"
               size="icon"
               class="size-7"
-              title="Set as active"
+              :title="t('settings.vehicles.actions.setActive')"
               @click="handleActivate(vehicle)"
             >
               <CheckIcon class="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="size-7" title="Set location on map" @click="handleSetLocation(vehicle)">
+            <Button variant="ghost" size="icon" class="size-7" :title="t('settings.vehicles.actions.setLocation')" @click="handleSetLocation(vehicle)">
               <CrosshairIcon class="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="size-7" title="Edit" @click="openEditDialog(vehicle)">
+            <Button variant="ghost" size="icon" class="size-7" :title="t('settings.vehicles.actions.edit')" @click="openEditDialog(vehicle)">
               <PencilIcon class="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" class="size-7 text-destructive" title="Delete" @click="handleDelete(vehicle)">
+            <Button variant="ghost" size="icon" class="size-7 text-destructive" :title="t('settings.vehicles.actions.delete')" @click="handleDelete(vehicle)">
               <TrashIcon class="size-3.5" />
             </Button>
           </div>
@@ -312,7 +319,7 @@ const bikingVehicles = computed(() =>
       <!-- Add button -->
       <Button variant="outline" size="sm" class="w-full mt-2" @click="openAddDialog">
         <PlusIcon class="size-4 mr-1.5" />
-        Add vehicle
+        {{ t('settings.vehicles.add') }}
       </Button>
     </div>
   </SettingsSection>
@@ -321,36 +328,36 @@ const bikingVehicles = computed(() =>
   <Dialog v-model:open="showDialog">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>{{ isEditing ? 'Edit vehicle' : 'Add vehicle' }}</DialogTitle>
+        <DialogTitle>{{ isEditing ? t('settings.vehicles.dialog.editTitle') : t('settings.vehicles.dialog.addTitle') }}</DialogTitle>
         <DialogDescription>
-          {{ isEditing ? 'Update your vehicle details.' : 'Add a vehicle to use with trip planning.' }}
+          {{ isEditing ? t('settings.vehicles.dialog.editDescription') : t('settings.vehicles.dialog.addDescription') }}
         </DialogDescription>
       </DialogHeader>
 
       <div class="grid gap-4 py-2">
         <div class="grid gap-2">
-          <Label for="vehicle-name">Name (optional)</Label>
+          <Label for="vehicle-name">{{ t('settings.vehicles.form.name') }}</Label>
           <Input
             id="vehicle-name"
             v-model="formName"
-            placeholder="e.g. Blue Honda"
+            :placeholder="t('settings.vehicles.form.namePlaceholder')"
           />
         </div>
 
         <div class="grid gap-2">
-          <Label for="vehicle-type">Type</Label>
+          <Label for="vehicle-type">{{ t('settings.vehicles.form.type') }}</Label>
           <Select v-model="formType">
             <SelectTrigger id="vehicle-type">
-              <SelectValue placeholder="Select type" />
+              <SelectValue :placeholder="t('settings.vehicles.form.typePlaceholder')" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 <SelectItem
-                  v-for="vt in vehicleTypes"
-                  :key="vt.value"
-                  :value="vt.value"
+                  v-for="vt in vehicleTypeValues"
+                  :key="vt"
+                  :value="vt"
                 >
-                  {{ vt.label }}
+                  {{ vehicleTypeLabel(vt) }}
                 </SelectItem>
               </SelectGroup>
             </SelectContent>
@@ -358,19 +365,19 @@ const bikingVehicles = computed(() =>
         </div>
 
         <div v-if="showEnergyType" class="grid gap-2">
-          <Label for="vehicle-energy">Fuel type</Label>
+          <Label for="vehicle-energy">{{ t('settings.vehicles.form.fuelType') }}</Label>
           <Select v-model="formEnergyType">
             <SelectTrigger id="vehicle-energy">
-              <SelectValue placeholder="Select fuel type" />
+              <SelectValue :placeholder="t('settings.vehicles.form.fuelTypePlaceholder')" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
                 <SelectItem
-                  v-for="et in energyTypes"
-                  :key="et.value"
-                  :value="et.value"
+                  v-for="et in energyTypeValues"
+                  :key="et"
+                  :value="et"
                 >
-                  {{ et.label }}
+                  {{ t(`settings.vehicles.energyTypes.${et}`) }}
                 </SelectItem>
               </SelectGroup>
             </SelectContent>
@@ -379,9 +386,9 @@ const bikingVehicles = computed(() =>
       </div>
 
       <DialogFooter>
-        <Button variant="outline" @click="showDialog = false">Cancel</Button>
+        <Button variant="outline" @click="showDialog = false">{{ t('general.cancel') }}</Button>
         <Button :disabled="saving" @click="saveVehicle">
-          {{ isEditing ? 'Save' : 'Add' }}
+          {{ isEditing ? t('general.save') : t('general.add') }}
         </Button>
       </DialogFooter>
     </DialogContent>

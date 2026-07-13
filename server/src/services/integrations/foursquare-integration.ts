@@ -47,7 +47,7 @@ const SEARCH_FIELDS =
  * per-tip fields + sorting, so they're not requested inline here.
  */
 const DETAIL_FIELDS =
-  'fsq_place_id,name,latitude,longitude,location,categories,tel,website,email,social_media,hours,rating,price,photos,stats,attributes,tastes,popularity,hours_popular,menu,date_closed'
+  'fsq_place_id,name,latitude,longitude,location,categories,tel,website,email,social_media,hours,rating,price,photos,stats,attributes,popularity,hours_popular,menu,date_closed'
 
 /** Per-tip fields for the reviews list (the sub-endpoint's rich shape). */
 const TIP_FIELDS =

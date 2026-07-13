@@ -354,52 +354,6 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
 /**
  * Merges multiple Place objects into one, prioritizing data based on source priorities
  */
-/**
- * Union cuisine values from `place` into `result`, extending the primary's
- * cuisine without overwriting it. Reads from BOTH `tags.cuisine` and
- * `amenities.cuisine` (OSM engines vary in where they store it) and writes the
- * deduped union back to both, preserving the primary's source attribution.
- */
-function mergeCuisine(result: Place, place: Place): void {
-  const tokens = (p: Place): string[] => {
-    const raw = [
-      p.tags?.cuisine,
-      typeof p.amenities?.cuisine?.value === 'string'
-        ? p.amenities.cuisine.value
-        : undefined,
-    ]
-    const out: string[] = []
-    for (const src of raw) {
-      if (!src) continue
-      for (const part of src.split(';')) {
-        const v = part.trim()
-        if (v) out.push(v)
-      }
-    }
-    return out
-  }
-
-  const seen = new Set<string>()
-  const merged: string[] = []
-  for (const token of [...tokens(result), ...tokens(place)]) {
-    const key = token.toLowerCase()
-    if (!seen.has(key)) {
-      seen.add(key)
-      merged.push(token)
-    }
-  }
-  if (!merged.length) return
-
-  const joined = merged.join(';')
-  const sourceId =
-    result.amenities.cuisine?.sourceId ??
-    place.amenities?.cuisine?.sourceId ??
-    result.geometry.sourceId
-  result.amenities.cuisine = { value: joined, sourceId }
-  if (!result.tags) result.tags = {}
-  result.tags.cuisine = joined
-}
-
 export function mergePlaces(
   primaryPlace: Place,
   ...additionalPlaces: (Place | null)[]
@@ -472,12 +426,6 @@ export function mergePlaces(
         if (result.tags[key] === undefined) result.tags[key] = value
       }
     }
-
-    // Cuisine is a set, not a scalar: union values across sources so a
-    // lower-priority source (Foursquare tastes) EXTENDS the list rather than
-    // losing wholesale to OSM under the per-key merge. Written to both
-    // amenities.cuisine (Cuisine card) and tags.cuisine (kept in sync).
-    mergeCuisine(result, place)
 
     // Merge popularity metrics (higher-priority source wins)
     if (place.popularity) {

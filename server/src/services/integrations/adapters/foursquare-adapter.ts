@@ -91,8 +91,6 @@ export interface FoursquarePlace {
     /** wifi is a short enum string, e.g. "n" (none), "f"/"free", "p"/"paid". */
     wifi?: string
   }
-  /** Descriptive taste tags (≤25), treated like OSM cuisine values. */
-  tastes?: string[]
   /** 0–1 foot-traffic popularity over a ~6-month window. */
   popularity?: number
   /** Typical busy hours — same shape as `hours.regular`. */
@@ -338,37 +336,16 @@ export class FoursquareAdapter {
       amenities.price_level = attr(String(data.price))
     }
 
-    // Tastes flow into the same `cuisine` amenity the Cuisine card reads.
-    const cuisine = this.normalizeTastes(data.tastes)
-    if (cuisine) amenities.cuisine = attr(cuisine)
-
     return amenities
   }
 
   /**
-   * Normalize Foursquare tastes into an OSM-style, `;`-joined cuisine string
-   * (lowercased, spaces→underscores so `parseCuisines` renders them cleanly).
-   */
-  private normalizeTastes(tastes?: string[]): string | null {
-    if (!tastes?.length) return null
-    const seen = new Set<string>()
-    const values: string[] = []
-    for (const taste of tastes) {
-      const v = taste.trim().toLowerCase().replace(/\s+/g, '_')
-      if (v && !seen.has(v)) {
-        seen.add(v)
-        values.push(v)
-      }
-    }
-    return values.length ? values.join(';') : null
-  }
-
-  /**
    * Map Foursquare attributes onto raw OSM tag keys/values so they flow through
-   * the same DisplayChips + Cuisine pipeline as OSM data (chips read
-   * `place.tags`). Booleans become "yes"/"no"; `has_parking` uses an invented
-   * `parking` key since OSM has no documented POI-level parking-availability
-   * tag. `menu` → the official `website:menu` tag.
+   * the same DisplayChips pipeline as OSM data (chips read `place.tags`).
+   * Booleans become "yes"/"no"; `has_parking` uses an invented `parking` key
+   * since OSM has no documented POI-level parking-availability tag. `menu` →
+   * the official `website:menu` tag. Foursquare tastes are NOT mapped to
+   * cuisine — they mix real cuisines with descriptors, so cuisine stays OSM's.
    */
   private extractTags(data: FoursquarePlace): Record<string, string> {
     const tags: Record<string, string> = {}
@@ -397,8 +374,6 @@ export class FoursquareAdapter {
       }
     }
 
-    const cuisine = this.normalizeTastes(data.tastes)
-    if (cuisine) tags.cuisine = cuisine
     if (data.menu) tags['website:menu'] = data.menu
 
     return tags

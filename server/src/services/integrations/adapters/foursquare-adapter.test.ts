@@ -201,15 +201,14 @@ describe('FoursquareAdapter attributes → OSM tags', () => {
     ).toMatchObject({ internet_access: 'wlan', 'internet_access:fee': 'yes' })
   })
 
-  it('maps tastes into cuisine (tags + amenities), and menu into website:menu', () => {
+  it('maps menu to website:menu and does NOT touch cuisine (tastes dropped)', () => {
     const place = adapter.adaptPlace({
       fsq_place_id: 'a',
-      tastes: ['Brunch Food', 'cocktails', 'Ribs'],
       menu: 'https://x.example/menu',
     })
-    expect(place.tags?.cuisine).toBe('brunch_food;cocktails;ribs')
-    expect(place.amenities.cuisine.value).toBe('brunch_food;cocktails;ribs')
     expect(place.tags?.['website:menu']).toBe('https://x.example/menu')
+    expect(place.tags?.cuisine).toBeUndefined()
+    expect(place.amenities.cuisine).toBeUndefined()
   })
 
   it('maps popularity and hours_popular, and date_closed → permanently closed', () => {

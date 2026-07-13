@@ -7,7 +7,7 @@
  *     Headsign     Now, 7 min  📶
  *     Headsign     12, 25 min  📶
  */
-import { computed, markRaw, watch } from 'vue'
+import { computed, markRaw, onBeforeUnmount, watch } from 'vue'
 import { setPlaceTransitLines } from '@/composables/usePlaceTransitLines'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronRightIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
-import { useSheetPage } from '@/composables/useSheetPage'
+import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import { useTransitClock } from '@/composables/useTransitClock'
 import { getMinutesUntil } from '@/lib/transit'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
@@ -28,7 +28,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const { pushPage } = useSheetPage()
+const { register, unregister, activate } = usePlaceTabs()
 const router = useRouter()
 const currentTime = useTransitClock()
 
@@ -147,14 +147,29 @@ const agencyName = computed(() => {
   return first?.agency?.name || null
 })
 
+const TAB_ID = 'transit'
+watch(
+  [hasTransitData, transitInfo],
+  () => {
+    if (hasTransitData.value && transitInfo.value) {
+      register({
+        id: TAB_ID,
+        label: t('place.transit.departures'),
+        component: markRaw(PlaceTransitPage),
+        props: { transitInfo: transitInfo.value },
+        order: 10,
+      })
+    } else {
+      unregister(TAB_ID)
+    }
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => unregister(TAB_ID))
+
 function openFullTransit() {
   if (!transitInfo.value) return
-  pushPage({
-    name: 'transit',
-    component: markRaw(PlaceTransitPage),
-    props: { transitInfo: transitInfo.value },
-    title: transitInfo.value.name || t('place.transit.transitStop'),
-  })
+  activate(TAB_ID)
 }
 
 function openRouteDetail(group: RouteGroup) {

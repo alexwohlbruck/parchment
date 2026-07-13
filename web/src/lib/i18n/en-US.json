@@ -873,6 +873,11 @@
       "showAll": "Show all {count} reviews",
       "showLess": "Show less"
     },
+    "tabs": {
+      "overview": "Overview",
+      "reviews": "Reviews",
+      "visits": "Visits"
+    },
     "nearby": {
       "findNearby": "Find nearby"
     },

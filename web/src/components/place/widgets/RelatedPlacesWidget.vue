@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw } from 'vue'
+import { computed, markRaw, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronRightIcon } from 'lucide-vue-next'
 import type {
@@ -10,7 +10,7 @@ import type {
   RelatedParent,
 } from '@/types/place.types'
 import PlaceListItem from '@/components/place/PlaceListItem.vue'
-import { useSheetPage } from '@/composables/useSheetPage'
+import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import RelatedPlacesPage from '@/components/place/pages/RelatedPlacesPage.vue'
 
 const { t } = useI18n()
@@ -21,7 +21,7 @@ const props = defineProps<{
   place: Partial<Place>
 }>()
 
-const { pushPage } = useSheetPage()
+const { register, unregister, activate } = usePlaceTabs()
 
 const relatedData = computed(() => props.data.data.value as RelatedPlacesData)
 const strategy = computed(() => relatedData.value.strategy)
@@ -72,21 +72,39 @@ function parentToPlace(parent: RelatedParent): Place {
   } as unknown as Place
 }
 
+// Each related strategy (parent / children / admin) becomes its own tab so
+// multiple related sections don't collide.
+const tabId = computed(() => `related:${strategy.value}`)
+const tabOrder = computed(() =>
+  strategy.value === 'children' ? 22 : strategy.value === 'admin' ? 21 : 20,
+)
+
+watch(
+  [hasResults, tabId, headingText, () => props.data],
+  () => {
+    if (!hasResults.value) {
+      unregister(tabId.value)
+      return
+    }
+    register({
+      id: tabId.value,
+      label: headingText.value,
+      component: markRaw(RelatedPlacesPage),
+      props: {
+        data: props.data,
+        descriptor: props.descriptor,
+        place: props.place,
+        title: headingText.value,
+      },
+      order: tabOrder.value,
+    })
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => unregister(tabId.value))
+
 function openFullList() {
-  pushPage({
-    name: 'related',
-    component: markRaw(RelatedPlacesPage),
-    props: {
-      data: props.data,
-      descriptor: props.descriptor,
-      place: props.place,
-      title: headingText.value,
-    },
-    title: headingText.value,
-    // Distinguish children/parent/admin variants in the URL so multi-related
-    // pushes each get their own history entry.
-    query: { strategy: String(strategy.value) },
-  })
+  activate(tabId.value)
 }
 </script>
 

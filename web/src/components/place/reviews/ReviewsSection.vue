@@ -9,7 +9,14 @@ import type { Place } from '@/types/place.types'
 
 dayjs.extend(relativeTime)
 
-const props = defineProps<{ place: Place }>()
+const props = withDefaults(
+  defineProps<{
+    place: Partial<Place>
+    /** Render every review without the collapse (e.g. inside the Reviews tab). */
+    expanded?: boolean
+  }>(),
+  { expanded: false },
+)
 const { t, n } = useI18n()
 
 const COLLAPSED_COUNT = 3
@@ -19,9 +26,13 @@ const hasReviews = computed(() => reviews.value.length > 0)
 
 const showAll = ref(false)
 const visibleReviews = computed(() =>
-  showAll.value ? reviews.value : reviews.value.slice(0, COLLAPSED_COUNT),
+  showAll.value || props.expanded
+    ? reviews.value
+    : reviews.value.slice(0, COLLAPSED_COUNT),
 )
-const hasMore = computed(() => reviews.value.length > COLLAPSED_COUNT)
+const hasMore = computed(
+  () => !props.expanded && reviews.value.length > COLLAPSED_COUNT,
+)
 
 // Aggregate rating (0–1 normalized on the model → 0–5 for display).
 const ratingOutOfFive = computed(() => {

@@ -821,6 +821,11 @@
       "showAll": "Ver las {count} opiniones",
       "showLess": "Ver menos"
     },
+    "tabs": {
+      "overview": "Resumen",
+      "reviews": "Opiniones",
+      "visits": "Visitas"
+    },
     "nearby": {
       "findNearby": "Encontrar cerca"
     },

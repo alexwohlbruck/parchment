@@ -25,7 +25,9 @@ export function clearAllUserCaches() {
   // Add additional keys here as needed
   const keysToRemove = [
     'parchment-user',
-    'parchment-user-layers', 
+    'parchment-permissions',
+    'parchment-subscription',
+    'parchment-user-layers',
     'parchment-layer-groups',
     'integration-configurations',
     'available-integrations',

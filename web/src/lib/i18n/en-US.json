@@ -1414,6 +1414,61 @@
         "description": "Choose layers to display in the layer selector"
       }
     },
+    "vehicles": {
+      "title": "My Vehicles",
+      "description": "Manage your vehicles for trip planning. Active vehicles are used when planning routes with known vehicle locations.",
+      "empty": "No vehicles added yet. Add your car or bike to get personalized routes that start from your vehicle's location.",
+      "add": "Add vehicle",
+      "active": "active",
+      "electric": "electric",
+      "actions": {
+        "setActive": "Set as active",
+        "setLocation": "Set location on map",
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "location": {
+        "notSet": "Location not set",
+        "set": "Location set",
+        "updated": "Updated {time}"
+      },
+      "time": {
+        "justNow": "just now",
+        "minutesAgo": "{count}m ago",
+        "hoursAgo": "{count}h ago",
+        "daysAgo": "{count}d ago"
+      },
+      "dialog": {
+        "addTitle": "Add vehicle",
+        "editTitle": "Edit vehicle",
+        "addDescription": "Add a vehicle to use with trip planning.",
+        "editDescription": "Update your vehicle details."
+      },
+      "form": {
+        "name": "Name (optional)",
+        "namePlaceholder": "e.g. Blue Honda",
+        "type": "Type",
+        "typePlaceholder": "Select type",
+        "fuelType": "Fuel type",
+        "fuelTypePlaceholder": "Select fuel type"
+      },
+      "types": {
+        "car": "Car",
+        "truck": "Truck",
+        "moped": "Moped",
+        "bike": "Bike",
+        "e-bike": "E-bike",
+        "scooter": "Scooter",
+        "e-scooter": "E-scooter",
+        "wheelchair": "Wheelchair"
+      },
+      "energyTypes": {
+        "gas": "Gas",
+        "diesel": "Diesel",
+        "electric": "Electric",
+        "hybrid": "Hybrid"
+      }
+    },
     "integrations": {
       "title": "Integrations",
       "description": "Manage your configured external service connections",

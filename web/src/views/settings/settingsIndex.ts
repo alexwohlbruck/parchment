@@ -238,7 +238,8 @@ export const settingsIndex: SettingsPageDef[] = [
     sections: [
       {
         id: 'vehicles',
-        titleKey: 'My Vehicles',
+        titleKey: 'settings.vehicles.title',
+        descriptionKey: 'settings.vehicles.description',
         keywords: ['car', 'bike', 'scooter', 'vehicle', 'parking', 'location'],
       },
     ],

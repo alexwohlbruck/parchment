@@ -1331,6 +1331,61 @@
         "description": "Elige las capas para mostrar en el selector de capas"
       }
     },
+    "vehicles": {
+      "title": "Mis vehículos",
+      "description": "Gestiona tus vehículos para planificar viajes. Los vehículos activos se usan al planificar rutas con ubicaciones de vehículo conocidas.",
+      "empty": "Aún no has añadido vehículos. Añade tu coche o bicicleta para obtener rutas personalizadas que partan desde la ubicación de tu vehículo.",
+      "add": "Añadir vehículo",
+      "active": "activo",
+      "electric": "eléctrico",
+      "actions": {
+        "setActive": "Marcar como activo",
+        "setLocation": "Fijar ubicación en el mapa",
+        "edit": "Editar",
+        "delete": "Eliminar"
+      },
+      "location": {
+        "notSet": "Ubicación no fijada",
+        "set": "Ubicación fijada",
+        "updated": "Actualizado {time}"
+      },
+      "time": {
+        "justNow": "ahora mismo",
+        "minutesAgo": "hace {count} min",
+        "hoursAgo": "hace {count} h",
+        "daysAgo": "hace {count} d"
+      },
+      "dialog": {
+        "addTitle": "Añadir vehículo",
+        "editTitle": "Editar vehículo",
+        "addDescription": "Añade un vehículo para usar en la planificación de viajes.",
+        "editDescription": "Actualiza los datos de tu vehículo."
+      },
+      "form": {
+        "name": "Nombre (opcional)",
+        "namePlaceholder": "p. ej. Honda azul",
+        "type": "Tipo",
+        "typePlaceholder": "Selecciona un tipo",
+        "fuelType": "Tipo de combustible",
+        "fuelTypePlaceholder": "Selecciona el tipo de combustible"
+      },
+      "types": {
+        "car": "Coche",
+        "truck": "Camión",
+        "moped": "Ciclomotor",
+        "bike": "Bicicleta",
+        "e-bike": "Bicicleta eléctrica",
+        "scooter": "Patinete",
+        "e-scooter": "Patinete eléctrico",
+        "wheelchair": "Silla de ruedas"
+      },
+      "energyTypes": {
+        "gas": "Gasolina",
+        "diesel": "Diésel",
+        "electric": "Eléctrico",
+        "hybrid": "Híbrido"
+      }
+    },
     "integrations": {
       "title": "Integraciones",
       "description": "Gestionar tus conexiones a servicios externos",

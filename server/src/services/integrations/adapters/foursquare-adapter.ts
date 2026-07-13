@@ -5,8 +5,24 @@ import type {
   Address,
   OpeningHours,
   OpeningTime,
+  Review,
 } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
+
+/**
+ * A Foursquare "tip" — the platform's user-contributed review snippet. Rich
+ * fields (lang / agree_count) come from the `/places/{id}/tips` sub-endpoint;
+ * the inline `tips` place field only carries `text` + `created_at`.
+ */
+export interface FoursquareTip {
+  fsq_tip_id?: string
+  created_at?: string
+  text?: string
+  lang?: string
+  agree_count?: number
+  disagree_count?: number
+  url?: string
+}
 
 /**
  * Raw shape of a place from the Foursquare Places API (v2025-06-17).
@@ -64,6 +80,27 @@ export interface FoursquarePlace {
     total_ratings?: number
     total_tips?: number
   }
+  /** Boolean/enum service attributes (v2025 exposes a small stable set). */
+  attributes?: {
+    outdoor_seating?: boolean
+    delivery?: boolean
+    reservations?: boolean
+    restroom?: boolean
+    takes_credit_card?: boolean
+    has_parking?: boolean
+    /** wifi is a short enum string, e.g. "n" (none), "f"/"free", "p"/"paid". */
+    wifi?: string
+  }
+  /** Descriptive taste tags (≤25), treated like OSM cuisine values. */
+  tastes?: string[]
+  /** 0–1 foot-traffic popularity over a ~6-month window. */
+  popularity?: number
+  /** Typical busy hours — same shape as `hours.regular`. */
+  hours_popular?: Array<{ day: number; open: string; close: string }>
+  /** Menu URL. */
+  menu?: string
+  /** ISO date the place was marked permanently closed. */
+  date_closed?: string
 }
 
 const attr = <T>(value: T): AttributedValue<T> => ({
@@ -111,7 +148,10 @@ export class FoursquareAdapter {
       },
       openingHours: this.extractOpeningHours(data),
       amenities: this.extractAmenities(data),
+      tags: this.extractTags(data),
       ratings: this.extractRatings(data),
+      popularity: data.popularity != null ? attr(data.popularity) : undefined,
+      popularHours: this.extractPopularHours(data) ?? undefined,
       sources: [
         {
           id: SOURCE.FOURSQUARE,
@@ -123,6 +163,29 @@ export class FoursquareAdapter {
       lastUpdated: now,
       createdAt: now,
     }
+  }
+
+  /**
+   * Map Foursquare tips into attributed reviews. Foursquare tips are unrated
+   * text snippets with no author, so `rating`/`authorName` are left unset.
+   */
+  adaptReviews(tips: FoursquareTip[]): AttributedValue<Review>[] {
+    if (!tips?.length) return []
+    const reviews: AttributedValue<Review>[] = []
+    for (const tip of tips) {
+      const text = tip.text?.trim()
+      if (!tip.fsq_tip_id || !text) continue
+      const review: Review = {
+        id: tip.fsq_tip_id,
+        text,
+        createdAt: tip.created_at,
+        language: tip.lang,
+        helpfulCount: tip.agree_count,
+        url: tip.url,
+      }
+      reviews.push({ value: review, sourceId: SOURCE.FOURSQUARE })
+    }
+    return reviews
   }
 
   private extractPhotos(data: FoursquarePlace): AttributedValue<PlacePhoto>[] {
@@ -202,34 +265,50 @@ export class FoursquareAdapter {
     return socials
   }
 
-  private extractOpeningHours(
-    data: FoursquarePlace,
-  ): AttributedValue<OpeningHours> | null {
-    const regular = data.hours?.regular
-    if (!regular?.length) return null
-
-    const regularHours: OpeningTime[] = []
-    for (const period of regular) {
+  /** Convert Foursquare hour periods into our OpeningTime[] shape. */
+  private periodsToOpeningTimes(
+    periods?: Array<{ day: number; open: string; close: string }>,
+  ): OpeningTime[] {
+    if (!periods?.length) return []
+    const times: OpeningTime[] = []
+    for (const period of periods) {
       const open = this.formatTime(period.open)
       const close = this.formatTime(period.close)
       if (!open || !close) continue
-      regularHours.push({
-        // Foursquare days are 1–7 (Mon–Sun); our schema is 0–6 (Sun–Sat).
-        // `day % 7` maps 7→0 (Sun) and leaves 1–6 unchanged.
-        day: period.day % 7,
-        open,
-        close,
-      })
+      // Foursquare days are 1–7 (Mon–Sun); our schema is 0–6 (Sun–Sat).
+      // `day % 7` maps 7→0 (Sun) and leaves 1–6 unchanged.
+      times.push({ day: period.day % 7, open, close })
     }
+    return times
+  }
 
+  private extractOpeningHours(
+    data: FoursquarePlace,
+  ): AttributedValue<OpeningHours> | null {
+    const regularHours = this.periodsToOpeningTimes(data.hours?.regular)
+    const isPermanentlyClosed = !!data.date_closed
+    // Nothing to report if there are neither hours nor a closure signal.
+    if (!regularHours.length && !isPermanentlyClosed) return null
+    return attr({
+      regularHours,
+      isOpen24_7: false,
+      isPermanentlyClosed,
+      isTemporarilyClosed: false,
+      rawText: data.hours?.display,
+    })
+  }
+
+  /** Typical busy hours, mapped into the same OpeningHours shape. */
+  private extractPopularHours(
+    data: FoursquarePlace,
+  ): AttributedValue<OpeningHours> | null {
+    const regularHours = this.periodsToOpeningTimes(data.hours_popular)
     if (!regularHours.length) return null
-
     return attr({
       regularHours,
       isOpen24_7: false,
       isPermanentlyClosed: false,
       isTemporarilyClosed: false,
-      rawText: data.hours?.display,
     })
   }
 
@@ -259,7 +338,70 @@ export class FoursquareAdapter {
       amenities.price_level = attr(String(data.price))
     }
 
+    // Tastes flow into the same `cuisine` amenity the Cuisine card reads.
+    const cuisine = this.normalizeTastes(data.tastes)
+    if (cuisine) amenities.cuisine = attr(cuisine)
+
     return amenities
+  }
+
+  /**
+   * Normalize Foursquare tastes into an OSM-style, `;`-joined cuisine string
+   * (lowercased, spaces→underscores so `parseCuisines` renders them cleanly).
+   */
+  private normalizeTastes(tastes?: string[]): string | null {
+    if (!tastes?.length) return null
+    const seen = new Set<string>()
+    const values: string[] = []
+    for (const taste of tastes) {
+      const v = taste.trim().toLowerCase().replace(/\s+/g, '_')
+      if (v && !seen.has(v)) {
+        seen.add(v)
+        values.push(v)
+      }
+    }
+    return values.length ? values.join(';') : null
+  }
+
+  /**
+   * Map Foursquare attributes onto raw OSM tag keys/values so they flow through
+   * the same DisplayChips + Cuisine pipeline as OSM data (chips read
+   * `place.tags`). Booleans become "yes"/"no"; `has_parking` uses an invented
+   * `parking` key since OSM has no documented POI-level parking-availability
+   * tag. `menu` → the official `website:menu` tag.
+   */
+  private extractTags(data: FoursquarePlace): Record<string, string> {
+    const tags: Record<string, string> = {}
+    const a = data.attributes
+    const yn = (b: boolean) => (b ? 'yes' : 'no')
+
+    if (a) {
+      if (a.outdoor_seating !== undefined)
+        tags.outdoor_seating = yn(a.outdoor_seating)
+      if (a.delivery !== undefined) tags.delivery = yn(a.delivery)
+      if (a.reservations !== undefined) tags.reservation = yn(a.reservations)
+      if (a.restroom !== undefined) tags.toilets = yn(a.restroom)
+      if (a.takes_credit_card !== undefined)
+        tags['payment:credit_cards'] = yn(a.takes_credit_card)
+      if (a.has_parking !== undefined) tags.parking = yn(a.has_parking)
+      if (a.wifi !== undefined) {
+        const w = a.wifi?.trim().toLowerCase()
+        if (!w || w === 'n' || w === 'no' || w === 'none') {
+          tags.internet_access = 'no'
+        } else {
+          tags.internet_access = 'wlan'
+          if (w === 'p' || w === 'paid') tags['internet_access:fee'] = 'yes'
+          else if (w === 'f' || w === 'free')
+            tags['internet_access:fee'] = 'no'
+        }
+      }
+    }
+
+    const cuisine = this.normalizeTastes(data.tastes)
+    if (cuisine) tags.cuisine = cuisine
+    if (data.menu) tags['website:menu'] = data.menu
+
+    return tags
   }
 
   private extractRatings(data: FoursquarePlace):

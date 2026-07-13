@@ -354,6 +354,52 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
 /**
  * Merges multiple Place objects into one, prioritizing data based on source priorities
  */
+/**
+ * Union cuisine values from `place` into `result`, extending the primary's
+ * cuisine without overwriting it. Reads from BOTH `tags.cuisine` and
+ * `amenities.cuisine` (OSM engines vary in where they store it) and writes the
+ * deduped union back to both, preserving the primary's source attribution.
+ */
+function mergeCuisine(result: Place, place: Place): void {
+  const tokens = (p: Place): string[] => {
+    const raw = [
+      p.tags?.cuisine,
+      typeof p.amenities?.cuisine?.value === 'string'
+        ? p.amenities.cuisine.value
+        : undefined,
+    ]
+    const out: string[] = []
+    for (const src of raw) {
+      if (!src) continue
+      for (const part of src.split(';')) {
+        const v = part.trim()
+        if (v) out.push(v)
+      }
+    }
+    return out
+  }
+
+  const seen = new Set<string>()
+  const merged: string[] = []
+  for (const token of [...tokens(result), ...tokens(place)]) {
+    const key = token.toLowerCase()
+    if (!seen.has(key)) {
+      seen.add(key)
+      merged.push(token)
+    }
+  }
+  if (!merged.length) return
+
+  const joined = merged.join(';')
+  const sourceId =
+    result.amenities.cuisine?.sourceId ??
+    place.amenities?.cuisine?.sourceId ??
+    result.geometry.sourceId
+  result.amenities.cuisine = { value: joined, sourceId }
+  if (!result.tags) result.tags = {}
+  result.tags.cuisine = joined
+}
+
 export function mergePlaces(
   primaryPlace: Place,
   ...additionalPlaces: (Place | null)[]
@@ -415,6 +461,36 @@ export function mergePlaces(
     )
     result.amenities = mergeAttributedRecord(result.amenities, place.amenities)
 
+    // Merge raw OSM tags: fill keys the primary lacks, never overwrite. Since
+    // places are merged highest-priority-first, this is extend-don't-overwrite
+    // (OSM stays authoritative; lower-priority sources like Foursquare only
+    // fill gaps). This is what carries Foursquare-mapped attribute tags into
+    // the DisplayChips pipeline, which reads `place.tags`.
+    if (place.tags) {
+      if (!result.tags) result.tags = {}
+      for (const [key, value] of Object.entries(place.tags)) {
+        if (result.tags[key] === undefined) result.tags[key] = value
+      }
+    }
+
+    // Cuisine is a set, not a scalar: union values across sources so a
+    // lower-priority source (Foursquare tastes) EXTENDS the list rather than
+    // losing wholesale to OSM under the per-key merge. Written to both
+    // amenities.cuisine (Cuisine card) and tags.cuisine (kept in sync).
+    mergeCuisine(result, place)
+
+    // Merge popularity metrics (higher-priority source wins)
+    if (place.popularity) {
+      result.popularity =
+        mergeAttributedValue(result.popularity ?? null, place.popularity) ??
+        undefined
+    }
+    if (place.popularHours) {
+      result.popularHours =
+        mergeAttributedValue(result.popularHours ?? null, place.popularHours) ??
+        undefined
+    }
+
     // Merge icon (keep first available)
     if (!result.icon && place.icon) {
       result.icon = cloneDeep(place.icon)
@@ -442,6 +518,19 @@ export function mergePlaces(
               place.ratings.reviewCount,
             ) || result.ratings.reviewCount
         }
+      }
+    }
+
+    // Merge reviews without duplicates (dedup by provider review id)
+    if (place.reviews?.length) {
+      if (!result.reviews) result.reviews = []
+      const existingReviewIds = new Set(
+        result.reviews.map((review) => review.value.id),
+      )
+      for (const review of place.reviews) {
+        if (existingReviewIds.has(review.value.id)) continue
+        result.reviews.push(cloneDeep(review))
+        existingReviewIds.add(review.value.id)
       }
     }
 

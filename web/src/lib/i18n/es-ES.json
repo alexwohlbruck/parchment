@@ -815,6 +815,12 @@
       "partOf": "Parte de",
       "relatedPlaces": "Lugares relacionados"
     },
+    "reviews": {
+      "title": "Opiniones",
+      "ratings": "{count} valoración | {count} valoraciones",
+      "showAll": "Ver las {count} opiniones",
+      "showLess": "Ver menos"
+    },
     "nearby": {
       "findNearby": "Encontrar cerca"
     },

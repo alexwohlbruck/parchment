@@ -121,3 +121,108 @@ describe('FoursquareAdapter', () => {
     expect(place.address).toBeNull()
   })
 })
+
+describe('FoursquareAdapter.adaptReviews', () => {
+  it('maps tips to attributed reviews', () => {
+    const reviews = adapter.adaptReviews([
+      {
+        fsq_tip_id: 't1',
+        text: 'Best slice in the Village',
+        created_at: '2018-11-23T14:15:49.000Z',
+        lang: 'en',
+        agree_count: 12,
+        disagree_count: 0,
+        url: 'https://foursquare.com/tip/t1',
+      },
+    ])
+    expect(reviews).toHaveLength(1)
+    expect(reviews[0].sourceId).toBe(SOURCE.FOURSQUARE)
+    expect(reviews[0].value).toEqual({
+      id: 't1',
+      text: 'Best slice in the Village',
+      createdAt: '2018-11-23T14:15:49.000Z',
+      language: 'en',
+      helpfulCount: 12,
+      url: 'https://foursquare.com/tip/t1',
+    })
+    // Foursquare tips are unrated and anonymous.
+    expect(reviews[0].value.rating).toBeUndefined()
+    expect(reviews[0].value.authorName).toBeUndefined()
+  })
+
+  it('skips tips without an id or text, and trims', () => {
+    const reviews = adapter.adaptReviews([
+      { fsq_tip_id: '', text: 'no id' },
+      { fsq_tip_id: 't2', text: '   ' },
+      { fsq_tip_id: 't3', text: '  keep me  ' },
+    ])
+    expect(reviews).toHaveLength(1)
+    expect(reviews[0].value).toMatchObject({ id: 't3', text: 'keep me' })
+  })
+
+  it('returns empty for no tips', () => {
+    expect(adapter.adaptReviews([])).toEqual([])
+  })
+})
+
+describe('FoursquareAdapter attributes → OSM tags', () => {
+  it('maps boolean attributes to official OSM tag keys/values', () => {
+    const place = adapter.adaptPlace({
+      fsq_place_id: 'a',
+      attributes: {
+        outdoor_seating: true,
+        delivery: false,
+        reservations: true,
+        restroom: true,
+        takes_credit_card: true,
+        has_parking: false,
+        wifi: 'n',
+      },
+    })
+    expect(place.tags).toMatchObject({
+      outdoor_seating: 'yes',
+      delivery: 'no',
+      reservation: 'yes', // singular OSM key
+      toilets: 'yes',
+      'payment:credit_cards': 'yes',
+      parking: 'no',
+      internet_access: 'no', // wifi "n" → no
+    })
+  })
+
+  it('maps free/paid wifi to internet_access wlan + fee', () => {
+    expect(
+      adapter.adaptPlace({ fsq_place_id: 'a', attributes: { wifi: 'free' } })
+        .tags,
+    ).toMatchObject({ internet_access: 'wlan', 'internet_access:fee': 'no' })
+    expect(
+      adapter.adaptPlace({ fsq_place_id: 'a', attributes: { wifi: 'paid' } })
+        .tags,
+    ).toMatchObject({ internet_access: 'wlan', 'internet_access:fee': 'yes' })
+  })
+
+  it('maps tastes into cuisine (tags + amenities), and menu into website:menu', () => {
+    const place = adapter.adaptPlace({
+      fsq_place_id: 'a',
+      tastes: ['Brunch Food', 'cocktails', 'Ribs'],
+      menu: 'https://x.example/menu',
+    })
+    expect(place.tags?.cuisine).toBe('brunch_food;cocktails;ribs')
+    expect(place.amenities.cuisine.value).toBe('brunch_food;cocktails;ribs')
+    expect(place.tags?.['website:menu']).toBe('https://x.example/menu')
+  })
+
+  it('maps popularity and hours_popular, and date_closed → permanently closed', () => {
+    const place = adapter.adaptPlace({
+      fsq_place_id: 'a',
+      popularity: 0.99,
+      hours_popular: [{ day: 7, open: '1800', close: '2100' }],
+      date_closed: '2025-01-01',
+    })
+    expect(place.popularity?.value).toBe(0.99)
+    expect(place.popularHours?.value.regularHours).toEqual([
+      { day: 0, open: '18:00', close: '21:00' },
+    ])
+    expect(place.openingHours?.value.isPermanentlyClosed).toBe(true)
+  })
+})

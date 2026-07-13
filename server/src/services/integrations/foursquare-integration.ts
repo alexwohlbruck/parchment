@@ -11,7 +11,11 @@ import {
 } from '../../types/integration.types'
 import type { Place } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
-import { FoursquareAdapter, type FoursquarePlace } from './adapters/foursquare-adapter'
+import {
+  FoursquareAdapter,
+  type FoursquarePlace,
+  type FoursquareTip,
+} from './adapters/foursquare-adapter'
 
 export interface FoursquareConfig extends IntegrationConfig {
   apiKey: string
@@ -38,10 +42,19 @@ const SEARCH_FIELDS =
 
 /**
  * Rich fields for a single opened place — the Premium tier (hours, rating,
- * photos, tips, stats). Paid once per place-open, not per search result.
+ * photos, stats). Paid once per place-open, not per search result. Reviews
+ * (tips) come from the dedicated `/tips` sub-endpoint, which supports richer
+ * per-tip fields + sorting, so they're not requested inline here.
  */
 const DETAIL_FIELDS =
-  'fsq_place_id,name,latitude,longitude,location,categories,tel,website,email,social_media,hours,rating,price,photos,tips,stats'
+  'fsq_place_id,name,latitude,longitude,location,categories,tel,website,email,social_media,hours,rating,price,photos,stats,attributes,tastes,popularity,hours_popular,menu,date_closed'
+
+/** Per-tip fields for the reviews list (the sub-endpoint's rich shape). */
+const TIP_FIELDS =
+  'fsq_tip_id,created_at,text,lang,agree_count,disagree_count,url'
+
+/** How many reviews (tips) to pull per place. */
+const REVIEW_LIMIT = 12
 
 interface CacheEntry {
   value: Place | Place[] | null
@@ -220,12 +233,47 @@ export class FoursquareIntegration
       if (!data?.fsq_place_id) return null
 
       const place = this.adapter.adaptPlace(data)
+      const reviews = this.adapter.adaptReviews(await this.fetchTips(fsqId))
+      if (reviews.length) place.reviews = reviews
       this.writeCache(cacheKey, place)
       return place
     } catch (error) {
       if (this.isAbort(error)) return null
       console.error('Foursquare details error:', error)
       return null
+    }
+  }
+
+  /**
+   * Fetch a place's tips (Foursquare's user reviews) from the dedicated
+   * sub-endpoint, sorted by popularity. Failures degrade to an empty list so
+   * a place still enriches with its other Premium data.
+   */
+  private async fetchTips(fsqId: string): Promise<FoursquareTip[]> {
+    try {
+      const url = new URL(
+        `${this.baseUrl}/places/${encodeURIComponent(fsqId)}/tips`,
+      )
+      url.searchParams.set('limit', String(REVIEW_LIMIT))
+      url.searchParams.set('sort', 'popular')
+      url.searchParams.set('fields', TIP_FIELDS)
+
+      const response = await fetch(url.toString(), {
+        headers: this.headers(this.config.apiKey),
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (!response.ok) {
+        if (response.status !== 404) {
+          console.error(`Foursquare tips HTTP error: ${response.status}`)
+        }
+        return []
+      }
+      const data = await response.json()
+      return Array.isArray(data) ? (data as FoursquareTip[]) : []
+    } catch (error) {
+      if (this.isAbort(error)) return []
+      console.error('Foursquare tips error:', error)
+      return []
     }
   }
 

@@ -14,6 +14,7 @@ import PlaceGallery from './gallery/PlaceGallery.vue'
 import PlaceActions from './actions/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
+import ReviewsSection from './reviews/ReviewsSection.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
 import PlaceVisitHistoryWidget from './widgets/PlaceVisitHistoryWidget.vue'
 import NearbyCategories from './NearbyCategories.vue'
@@ -177,6 +178,7 @@ function handleBrandLogoError() {
               @imageError="handlePlaceImageError"
             />
             <DetailsList :place="place" />
+            <ReviewsSection :place="place" />
             <PlaceVisitHistoryWidget :place="place" />
             <PlaceWidgets :place="place" />
             <NearbyCategories :place="place" />

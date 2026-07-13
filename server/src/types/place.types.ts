@@ -49,6 +49,23 @@ export interface PlacePhoto {
   isLogo?: boolean
 }
 
+export interface Review {
+  id: string // Provider-native review/tip id (used for dedup + list keys)
+  text: string
+  /** 0–1 normalized per-review rating. Omitted when the source has no
+   *  per-review score (e.g. Foursquare tips, which are unrated snippets). */
+  rating?: number
+  /** Display name of the author, when the source exposes one. */
+  authorName?: string
+  authorUrl?: string
+  createdAt?: string // ISO 8601
+  language?: string // BCP-47 / ISO language code
+  /** Upvotes / "agree" count, when the source tracks review helpfulness. */
+  helpfulCount?: number
+  /** Link to the review on the source site. */
+  url?: string
+}
+
 export interface Address {
   street1?: string
   street2?: string
@@ -284,6 +301,11 @@ export type ChipCategory =
   | 'payment'
   | 'automation'
   | 'diet'
+  | 'facilities'
+  | 'recreation'
+  | 'services'
+  | 'cycling'
+  | 'timing'
 
 export interface DisplayChip {
   key: string           // OSM tag key (e.g. 'wheelchair')
@@ -354,6 +376,12 @@ export interface Place {
     rating: AttributedValue<number>
     reviewCount: AttributedValue<number>
   }
+  // Individual reviews, each attributed to its source (e.g. Foursquare tips).
+  reviews?: AttributedValue<Review>[]
+  // Foot-traffic popularity, 0–1 (e.g. Foursquare popularity).
+  popularity?: AttributedValue<number>
+  // Typical busy hours, same shape as openingHours (e.g. Foursquare hours_popular).
+  popularHours?: AttributedValue<OpeningHours>
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
 

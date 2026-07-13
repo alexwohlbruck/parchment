@@ -867,6 +867,12 @@
       "partOf": "Part of",
       "relatedPlaces": "Related Places"
     },
+    "reviews": {
+      "title": "Reviews",
+      "ratings": "{count} rating | {count} ratings",
+      "showAll": "Show all {count} reviews",
+      "showLess": "Show less"
+    },
     "nearby": {
       "findNearby": "Find nearby"
     },

@@ -15,6 +15,7 @@ import FilterChips from '@/components/map/FilterChips.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { useRouter } from 'vue-router'
 import { getPlaceRoute } from '@/lib/place.utils'
+import { usePlaceService } from '@/services/place.service'
 import { useCategoryStore } from '@/stores/category.store'
 import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
@@ -29,6 +30,7 @@ const router = useRouter()
 const searchService = useSearchService()
 const mapService = useMapService()
 const searchStore = useSearchStore()
+const { setPartialPlace } = usePlaceService()
 
 const geolocationService = useGeolocationService()
 
@@ -221,6 +223,9 @@ watch(() => searchStore.areaSearchRequestId, () => {
 // Handle click on search result from map markers
 function handleSearchResultClick(place: Place, event: any) {
   if (place?.id) {
+    // Seed the place view so it renders instantly; required for Pelias address
+    // results, which have no backend record to re-fetch.
+    setPartialPlace(place)
     const placeRoute = getPlaceRoute(place.id)
     router.push(placeRoute)
   }

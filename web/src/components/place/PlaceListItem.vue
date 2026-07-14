@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { getPlaceRoute, formatAddress } from '@/lib/place.utils'
+import { usePlaceService } from '@/services/place.service'
 import {
   getSearchResultIconName,
   getSearchResultIconPack,
@@ -26,6 +27,7 @@ const props = withDefaults(defineProps<{
 const { t } = useI18n()
 const router = useRouter()
 const themeStore = useThemeStore()
+const { setPartialPlace } = usePlaceService()
 
 const iconName = computed(() => getSearchResultIconName(props.place))
 const iconPack = computed(() => getSearchResultIconPack(props.place))
@@ -94,6 +96,10 @@ const hoursText = computed(() => {
 })
 
 function handleClick() {
+  // Seed the place view with the result we already have so it renders instantly
+  // (progressive loading, same as map POI clicks). Essential for Pelias address
+  // results, which have no backend record to re-fetch.
+  setPartialPlace(props.place)
   const route = getPlaceRoute(props.place.id)
   router.push(route)
 }

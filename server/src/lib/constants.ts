@@ -6,6 +6,9 @@ import { IntegrationId } from '../types/integration.types'
 export const SOURCE = {
   OSM: 'osm',
   OPENADDRESSES: 'openaddresses',
+  // Pelias geocoder (self-hosted, via Barrelman): street addresses that have no
+  // geo_places/OSM row. Resolved by gid through Barrelman's /geocode/place.
+  PELIAS: 'pelias',
   GOOGLE: 'google',
   WIKIDATA: 'wikidata',
   WIKIPEDIA: 'wikipedia',

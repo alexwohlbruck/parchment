@@ -206,7 +206,9 @@ export class BarrelmanIntegration
   private config: BarrelmanConfig = { host: '' }
 
   readonly integrationId = IntegrationId.BARRELMAN
-  readonly sources = [SOURCE.OSM]
+  // PELIAS: Barrelman also fronts the Pelias geocoder for address results, so it
+  // resolves `source=pelias` place lookups (getConfiguredIntegrationForSource).
+  readonly sources = [SOURCE.OSM, SOURCE.PELIAS]
   private graphhopperAdapter = new BarrelmanGraphHopperAdapter()
 
   readonly capabilityIds: IntegrationCapabilityId[] = [
@@ -587,10 +589,16 @@ export class BarrelmanIntegration
       }
     }
 
-    // External IDs — the id IS the OSM ID (e.g. "node/5718230659")
-    const externalIds: Record<string, string> = {
-      [SOURCE.OSM]: r.id,
-    }
+    // Pelias geocoder rows carry an id like "pelias/openaddresses:address:us/…"
+    // (osm_type="pelias", no geo_places/OSM row). Everything else is real OSM.
+    const isPelias = r.id.startsWith('pelias/')
+
+    // External IDs — for OSM rows the id IS the OSM id (e.g. "node/5718230659");
+    // for Pelias rows it's the geocoder gid (the part after "pelias/"), which is
+    // NOT an OSM id, so don't claim SOURCE.OSM.
+    const externalIds: Record<string, string> = isPelias
+      ? { [SOURCE.PELIAS]: r.id.slice('pelias/'.length) }
+      : { [SOURCE.OSM]: r.id }
 
     // Build OSM URL — r.id is always "node/123456" format, so parse from that
     // (r.osm_type may be stored as uppercase 'N'/'W'/'R' in some DB versions)
@@ -601,10 +609,19 @@ export class BarrelmanIntegration
       : undefined
 
     return {
-      id: `${SOURCE.OSM}/${r.id}`,
+      // Pelias id is already "pelias/<gid>"; only OSM rows get the "osm/" prefix.
+      // (A blanket "osm/" prefix produced "osm/pelias/…", which the client then
+      // mis-parsed into a dead /place/pelias/openaddresses:address:us URL.)
+      id: isPelias ? r.id : `${SOURCE.OSM}/${r.id}`,
       externalIds,
 
-      name: { value: r.name || null, sourceId, timestamp },
+      // Fall back to the street address as the display name for unnamed
+      // address-bearing features (e.g. a bare building polygon). This makes a
+      // building opened directly by OSM id identical to the same building
+      // reached via a Pelias address, and — because downstream third-party
+      // enrichment only runs when a place has a name — lets both surface the
+      // same Foursquare/phone data.
+      name: { value: r.name || address?.street1 || null, sourceId, timestamp },
       description: null,
       placeType: { value: placeTypeLabel, sourceId, timestamp },
       icon,
@@ -726,6 +743,19 @@ export class BarrelmanIntegration
 
   async getPlaceInfo(id: string): Promise<Place | null> {
     try {
+      // Pelias geocoder gid (e.g. "openaddresses:address:us/ny/…") — these have
+      // no geo_places/OSM row, so resolve via /geocode/place (Pelias /v1/place)
+      // rather than /place/:osmType/:osmId. Real OSM ids start with the element
+      // type; anything else is treated as a geocoder gid.
+      const isOsmId = /^(node|way|relation|intersection)\//.test(id)
+      if (!isOsmId) {
+        const response = await barrelmanSearchHttp.get(
+          `${this.config.host}/geocode/place`,
+          { params: { id }, headers: this.headers, timeout: 10000 },
+        )
+        return this.adaptPlace(response.data)
+      }
+
       // ID format: "node/5718230659" — maps to /place/node/5718230659
       const response = await barrelmanSearchHttp.get(
         `${this.config.host}/place/${id}`,

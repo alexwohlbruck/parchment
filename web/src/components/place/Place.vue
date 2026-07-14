@@ -129,9 +129,9 @@ onUnmounted(() => {
   if (sheetChromeBar) sheetChromeBar.value = false
 })
 
-// ── Sticky tab bar: detect when it's pinned + keep the active tab in view ────
+// ── Sticky tab bar: detect scroll/pinned state + keep the active tab in view ─
 const tabBarRef = ref<HTMLElement | null>(null)
-// The backing behind the tab bar only fades/wipes in once the bar is stuck.
+// The backing behind the tab row fades in once the bar actually pins.
 const stuck = ref(false)
 let scrollRootEl: HTMLElement | null = null
 let stuckRaf = 0
@@ -342,13 +342,11 @@ function handleBrandLogoError() {
                   class="sticky z-20 -mx-3"
                   :style="{ top: 'var(--sheet-sticky-top, 3rem)' }"
                 >
-                  <!-- Backing: transparent until the bar sticks; then it fades
-                       and wipes up, extending past the bar to the sheet top so
-                       the tab surface reads as reaching all the way up. -->
+                  <!-- Solid backing behind the tab row once the bar pins. -->
                   <div
-                    class="pointer-events-none absolute inset-x-0 bottom-0 origin-bottom bg-background transition-[opacity,transform] duration-200 ease-out"
+                    class="pointer-events-none absolute inset-x-0 bottom-0 bg-background transition-opacity duration-200 ease-out"
                     :style="{ top: 'calc(-1 * var(--sheet-sticky-top, 3rem))' }"
-                    :class="stuck ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0'"
+                    :class="stuck ? 'opacity-100' : 'opacity-0'"
                   />
                   <TabsList
                     variant="linear"

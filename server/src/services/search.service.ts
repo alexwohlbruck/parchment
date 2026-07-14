@@ -334,8 +334,28 @@ export async function search(
     }
   }
 
-  // Search bookmarks using bookmarks service
-  const userBookmarks = await searchBookmarksService(userId, query)
+  // TODO: searchRecentPlaces — not yet implemented, skipping to avoid no-op await
+
+  // Bookmarks and external place lookup are independent — run them
+  // concurrently so bookmark DB latency doesn't delay the Barrelman call.
+  const [userBookmarks, places] = await Promise.all([
+    searchBookmarksService(userId, query),
+    // External places via place service (only for 1+ character queries)
+    query && query.length > 0 && lat && lng
+      ? lookupPlacesByNameAndLocation(
+          query,
+          { lat, lng },
+          {
+            radius,
+            autocomplete,
+            userId,
+            language,
+            signal,
+          },
+        )
+      : Promise.resolve([]),
+  ])
+
   for (let i = 0; i < userBookmarks.length; i++) {
     // Bookmarks are pre-sorted by relevance; assign decreasing score
     scoredResults.push({
@@ -344,30 +364,13 @@ export async function search(
     })
   }
 
-  // TODO: searchRecentPlaces — not yet implemented, skipping to avoid no-op await
-
-  // Search external places using place service (only for 1+ character queries)
-  if (query && query.length > 0 && lat && lng) {
-    const places = await lookupPlacesByNameAndLocation(
-      query,
-      { lat, lng },
-      {
-        radius,
-        autocomplete,
-        userId,
-        language,
-        signal,
-      },
-    )
-
-    for (let i = 0; i < places.length; i++) {
-      // Places are pre-sorted by relevance from the integration;
-      // assign decreasing score starting at 0.9 (slightly below exact category match)
-      scoredResults.push({
-        result: convertPlaceToSearchResult(places[i]),
-        relevance: 0.9 - i * 0.02,
-      })
-    }
+  for (let i = 0; i < places.length; i++) {
+    // Places are pre-sorted by relevance from the integration;
+    // assign decreasing score starting at 0.9 (slightly below exact category match)
+    scoredResults.push({
+      result: convertPlaceToSearchResult(places[i]),
+      relevance: 0.9 - i * 0.02,
+    })
   }
 
   // Sort all results by relevance (descending) to interleave types naturally

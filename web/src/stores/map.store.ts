@@ -54,10 +54,12 @@ function getDefaultControlSettings(): MapControlSettings {
     scale: isMobile
       ? ControlVisibility.WHILE_ZOOMING
       : ControlVisibility.ALWAYS,
-    streetView: ControlVisibility.ALWAYS,
+    streetView: isMobile
+      ? ControlVisibility.WHILE_ACTIVE
+      : ControlVisibility.ALWAYS,
     locate: ControlVisibility.ALWAYS,
     weather: ControlVisibility.ALWAYS,
-    toolbox: ControlVisibility.ALWAYS,
+    toolbox: isMobile ? ControlVisibility.NEVER : ControlVisibility.ALWAYS,
   }
 }
 

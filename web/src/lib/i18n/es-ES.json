@@ -1192,6 +1192,9 @@
       "language": {
         "title": "Idioma"
       },
+      "mapBehavior": {
+        "title": "Comportamiento del mapa"
+      },
       "units": {
         "title": "Unidades",
         "system": "Sistema de unidades",

@@ -1275,6 +1275,9 @@
       "language": {
         "title": "Language"
       },
+      "mapBehavior": {
+        "title": "Map behavior"
+      },
       "units": {
         "title": "Units",
         "system": "Unit system",

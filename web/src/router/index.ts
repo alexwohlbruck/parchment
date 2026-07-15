@@ -9,7 +9,6 @@ import Settings from '@/views/settings/Settings.vue'
 import Account from '@/views/settings/pages/Account.vue'
 import Behavior from '@/views/settings/pages/Behavior.vue'
 import Appearance from '@/views/settings/pages/appearance/Appearance.vue'
-import MapSettings from '@/views/settings/pages/MapSettings.vue'
 import Users from '@/views/settings/pages/Users.vue'
 // Dev-only settings page hosting the GPX track simulator. Imported
 // statically so the route is always registered (cheap); the
@@ -51,7 +50,6 @@ export enum AppRoute {
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
   APPEARANCE = 'appearance',
-  MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
   USER_DETAIL = 'user-detail',
   ROLES = 'roles',
@@ -312,8 +310,7 @@ const router = createRouter({
         },
         {
           path: '/settings/map',
-          name: AppRoute.MAP_SETTINGS,
-          component: MapSettings,
+          redirect: '/settings/appearance',
         },
         {
           path: '/settings/vehicles',

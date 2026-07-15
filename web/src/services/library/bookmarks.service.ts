@@ -12,6 +12,7 @@ import { ref } from 'vue'
 import { api } from '@/lib/api'
 import { closestThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
+import type { PresetType } from '@/lib/preset-places'
 
 // TODO: i18n error messages
 
@@ -48,7 +49,11 @@ export const useBookmarksService = createSharedComposable(() => {
     )
   }
 
-  async function createBookmark(place: Place, collectionIds?: string[]) {
+  async function createBookmark(
+    place: Place,
+    collectionIds?: string[],
+    options: { presetType?: PresetType; silent?: boolean } = {},
+  ) {
     if (!place.externalIds || Object.keys(place.externalIds).length === 0) {
       toast.error(t('services.bookmarks.saveErrorNoOsmId'))
       return null
@@ -85,6 +90,7 @@ export const useBookmarksService = createSharedComposable(() => {
         icon: placeIcon?.icon,
         iconPack: placeIcon?.iconPack,
         iconColor: derivedIconColor,
+        ...(options.presetType ? { presetType: options.presetType } : {}),
         collectionIds,
       }
 
@@ -93,6 +99,11 @@ export const useBookmarksService = createSharedComposable(() => {
 
       bookmarksStore.addBookmark(bookmark)
       rememberLastSaved(collectionIds)
+
+      // Preset saves surface their own "Set as Home" toast (handled by the
+      // caller in `setPreset`), so skip the generic "Saved to collection"
+      // one here to avoid a double toast.
+      if (options.silent) return bookmark
 
       // Last element of collectionIds is the one we want to surface in the
       // toast — that's the same collection we just pinned as the target for
@@ -243,11 +254,109 @@ export const useBookmarksService = createSharedComposable(() => {
     )
   }
 
+  // ── Preset places (Home / Work / School) ────────────────────────────
+  // Presets are ordinary bookmarks tagged with `presetType`. They live in
+  // a collection like any other bookmark (creation requires one), so a
+  // preset set from an unsaved place is filed into the user's default
+  // collection. A category can hold multiple places (two homes, two
+  // offices) — a bookmark carries at most one `presetType`, but any number
+  // of bookmarks may share the same one.
+
+  /** All bookmarks tagged with a preset type, in save order. */
+  function getPresetBookmarks(): Bookmark[] {
+    return bookmarksStore.bookmarks.filter(b => b.presetType)
+  }
+
+  /**
+   * Pick a collection to file a newly-created preset into. Prefers the most
+   * recently used collection, else the first writable owned collection.
+   * Returns null when the user has no writable collection at all.
+   */
+  function resolveDefaultCollectionId(): string | null {
+    const writable = collectionsStore.collections.filter(
+      c => !c.role || c.role === 'owner' || c.role === 'editor',
+    )
+    if (writable.length === 0) return null
+
+    const lastSaved = collectionsStore.lastSavedCollectionId
+    if (lastSaved && writable.some(c => c.id === lastSaved)) return lastSaved
+
+    return writable[0].id
+  }
+
+  /** Find the id of an already-saved bookmark matching a place's externalIds. */
+  function findBookmarkIdForPlace(place: Place): string | undefined {
+    if (place.bookmark?.id) return place.bookmark.id
+    const ids = place.externalIds
+    if (!ids) return undefined
+    return bookmarksStore.bookmarks.find(b =>
+      Object.entries(ids).some(([provider, id]) => b.externalIds[provider] === id),
+    )?.id
+  }
+
+  /**
+   * Tag a place as Home/Work/School. Updates the tag if the place is
+   * already bookmarked; otherwise creates a bookmark in the default
+   * collection. Does NOT touch other bookmarks — a category can hold many
+   * places. A single bookmark still carries at most one `presetType`, so
+   * re-tagging the same place switches its category.
+   */
+  async function setPreset(
+    place: Place,
+    presetType: PresetType,
+  ): Promise<Bookmark | null> {
+    const targetBookmarkId = findBookmarkIdForPlace(place)
+
+    let result: Bookmark | null
+    if (targetBookmarkId) {
+      result = await updateBookmark(
+        targetBookmarkId,
+        { presetType },
+        { silent: true },
+      )
+    } else {
+      const collectionId = resolveDefaultCollectionId()
+      if (!collectionId) {
+        toast.error(t('services.bookmarks.presetNoCollection'))
+        return null
+      }
+      result = await createBookmark(place, [collectionId], {
+        presetType,
+        silent: true,
+      })
+    }
+
+    if (result) {
+      toast.success(
+        t('services.bookmarks.presetSet', {
+          label: t(`library.types.${presetType}`),
+        }),
+      )
+    }
+    return result
+  }
+
+  /** Remove the Home/Work/School tag from a specific bookmark. */
+  async function clearPreset(bookmarkId: string): Promise<void> {
+    const current = bookmarksStore.getBookmarkById(bookmarkId)
+    if (!current?.presetType) return
+    const label = t(`library.types.${current.presetType}`)
+    await updateBookmark(
+      bookmarkId,
+      { presetType: null } as unknown as Partial<Bookmark>,
+      { silent: true },
+    )
+    toast.success(t('services.bookmarks.presetRemoved', { label }))
+  }
+
   return {
     isSaving,
     createBookmark,
     updateBookmark,
     removeBookmark,
     isBookmarkSaved,
+    getPresetBookmarks,
+    setPreset,
+    clearPreset,
   }
 })

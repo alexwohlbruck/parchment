@@ -48,7 +48,15 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
   }
 
   function addBookmark(place: Bookmark) {
-    bookmarks.value = [...bookmarks.value, place]
+    // Idempotent by id: the same bookmark can arrive twice — once from the
+    // direct create call and again from its own `bookmark:created` realtime
+    // echo — so replace an existing row instead of appending a duplicate.
+    const index = bookmarks.value.findIndex(b => b.id === place.id)
+    if (index !== -1) {
+      bookmarks.value[index] = place
+    } else {
+      bookmarks.value = [...bookmarks.value, place]
+    }
   }
 
   function updateBookmark(

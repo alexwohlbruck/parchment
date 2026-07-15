@@ -23,6 +23,9 @@
     "search": "Search",
     "create": "Create",
     "add": "Add",
+    "open": "Open",
+    "remove": "Remove",
+    "more": "More",
     "loading": "Loading...",
     "dateAdded": "Date Added",
     "lastModified": "Last Modified",
@@ -511,7 +514,10 @@
       "removeFromCollectionSuccess": "Bookmark '{name}' removed from collection.",
       "removeFromCollectionError": "Failed to remove bookmark from collection.",
       "unsaveSuccess": "Removed {name}",
-      "updateErrorNotFound": "Bookmark not found. It may have been deleted."
+      "updateErrorNotFound": "Bookmark not found. It may have been deleted.",
+      "presetSet": "Set as {label}",
+      "presetRemoved": "{label} removed",
+      "presetNoCollection": "Create a collection first to save a place."
     },
     "collections": {
       "fetchError": "Failed to fetch collections",
@@ -742,7 +748,17 @@
     }
   },
   "dashboard": {
-    "title": "Dashboard"
+    "title": "Dashboard",
+    "yourPlaces": {
+      "title": "Your places",
+      "add": "Add place",
+      "change": "Change place",
+      "setTitle": "Set {label}",
+      "setDescription": "Search for a place to use as your {label}.",
+      "searchPlaceholder": "Search for a place",
+      "searchHint": "Start typing to find a place.",
+      "noResults": "No places found."
+    }
   },
   "navigation": {
     "title": "Navigation",

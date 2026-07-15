@@ -13,6 +13,7 @@ import { AppRoute } from '@/router'
 import type { ThemeColor } from '@/lib/utils'
 import { capitalize } from '@/filters/text.filters'
 import Palette from '@/components/palette/Palette.vue'
+import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
 import { appEventBus } from '@/lib/eventBus'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -55,10 +56,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   appEventBus.off('palette:focus', handlePaletteFocus)
-})
-
-const pinnedBookmarks = computed(() => {
-  return bookmarksStore.bookmarks.filter(b => b.presetType)
 })
 
 const recentBookmarks = computed(() => {
@@ -148,34 +145,10 @@ function formatTimeAgo(dateStr: string) {
       </div>
 
       <div v-show="!paletteFocused" class="space-y-6">
-      <!-- Pinned bookmarks -->
-      <div v-if="pinnedBookmarks.length > 0">
-        <h3 class="font-display text-lg mb-1.5 px-1 block">{{ t('general.pinned') }}</h3>
-        <div class="flex gap-2 overflow-x-auto scrollbar-hidden -mx-1 px-1">
-          <Card
-            v-for="bookmark in pinnedBookmarks"
-            :key="bookmark.id"
-            class="shrink-0 w-44 p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
-            @click="navigateToBookmark(bookmark)"
-          >
-            <ItemIcon
-              :icon="bookmark.icon"
-              :icon-pack="bookmark.iconPack ?? 'lucide'"
-              :color="(bookmark.iconColor as ThemeColor) || 'cobalt'"
-              size="sm"
-              variant="ghost"
-            />
-            <div class="flex flex-col min-w-0">
-              <span class="font-medium text-sm truncate">{{ bookmark.name }}</span>
-              <span v-if="bookmark.address" class="text-xs text-muted-foreground truncate">{{ bookmark.address }}</span>
-            </div>
-          </Card>
-        </div>
-      </div>
-
       <!-- Library Section -->
       <div>
         <h3 class="font-display text-lg mb-1.5 px-1 block">{{ t('library.title') }}</h3>
+
         <div class="grid grid-cols-2 gap-2">
           <Card
             v-for="tab in libraryTabs"
@@ -195,6 +168,9 @@ function formatTimeAgo(dateStr: string) {
             </div>
           </Card>
         </div>
+
+        <!-- Home / Work / School quick places -->
+        <PresetPlacesRow class="mt-2" />
       </div>
 
       <!-- Navigation Section (mobile only) -->

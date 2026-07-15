@@ -23,6 +23,9 @@
     "search": "Buscar",
     "create": "Crear",
     "add": "Añadir",
+    "open": "Abrir",
+    "remove": "Quitar",
+    "more": "Más",
     "loading": "Cargando...",
     "dateAdded": "Fecha añadida",
     "lastModified": "Última modificación",
@@ -473,7 +476,10 @@
       "removeFromCollectionSuccess": "Marcador '{name}' eliminado de la colección.",
       "removeFromCollectionError": "Error al eliminar el marcador de la colección.",
       "unsaveSuccess": "Eliminado {name}",
-      "updateErrorNotFound": "Marcador no encontrado. Puede haber sido eliminado."
+      "updateErrorNotFound": "Marcador no encontrado. Puede haber sido eliminado.",
+      "presetSet": "Establecido como {label}",
+      "presetRemoved": "{label} eliminado",
+      "presetNoCollection": "Crea una colección primero para guardar un lugar."
     },
     "collections": {
       "fetchError": "Error al obtener colecciones",
@@ -706,7 +712,17 @@
     }
   },
   "dashboard": {
-    "title": "Panel"
+    "title": "Panel",
+    "yourPlaces": {
+      "title": "Tus lugares",
+      "add": "Añadir lugar",
+      "change": "Cambiar lugar",
+      "setTitle": "Establecer {label}",
+      "setDescription": "Busca un lugar para usar como tu {label}.",
+      "searchPlaceholder": "Buscar un lugar",
+      "searchHint": "Empieza a escribir para encontrar un lugar.",
+      "noResults": "No se encontraron lugares."
+    }
   },
   "navigation": {
     "title": "Navegación",

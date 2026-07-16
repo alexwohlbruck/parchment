@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import * as searchService from '../services/search.service'
+import * as brandService from '../services/brand.service'
 import { integrationManager } from '../services/integrations'
 import {
   IntegrationCapabilityId,
@@ -230,6 +231,60 @@ const searchRouter = new Elysia({ prefix: '/search' })
       detail: {
         tags: ['Search'],
         summary: 'Search by category/preset',
+      },
+    },
+  )
+
+  // Browse all locations of a brand. Viewport-first, auto-widening when sparse.
+  .post(
+    '/brand',
+    async ({ body, status, language }) => {
+      const { brandKey, brandName, bounds, lat, lng, minResults, maxResults } = body
+
+      try {
+        const { brand, results } = await brandService.searchByBrand(brandKey, {
+          brandName,
+          bounds,
+          lat,
+          lng,
+          minResults,
+          maxResults,
+          language,
+        })
+
+        return {
+          brandKey,
+          brand,
+          results,
+          totalCount: results.length,
+          executedAt: new Date().toISOString(),
+        }
+      } catch (err) {
+        console.error('Error executing brand search:', err)
+        return status(500, {
+          message:
+            err instanceof Error ? err.message : 'Failed to execute brand search',
+        })
+      }
+    },
+    {
+      body: t.Object({
+        brandKey: t.String({ minLength: 1 }),
+        brandName: t.Optional(t.String()),
+        bounds: t.Optional(t.Object({
+          north: t.Number(),
+          south: t.Number(),
+          east: t.Number(),
+          west: t.Number(),
+        })),
+        lat: t.Optional(t.Number()),
+        lng: t.Optional(t.Number()),
+        minResults: t.Optional(t.Number({ minimum: 1, maximum: 100 })),
+        maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
+      }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Search all locations of a brand',
       },
     },
   )

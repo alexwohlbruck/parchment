@@ -37,7 +37,7 @@ export const useSearchStore = defineStore('search', () => {
 
   // Search metadata
   const searchQuery = ref<string | null>(null)
-  const searchType = ref<'text' | 'category' | 'overpass'>('text')
+  const searchType = ref<'text' | 'category' | 'brand' | 'overpass'>('text')
   const lastSearchBounds = ref<MapBounds | null>(null)
   const lastMaxResults = ref<number | null>(null)
   const lastResultCount = ref<number>(0)
@@ -191,7 +191,7 @@ export const useSearchStore = defineStore('search', () => {
     searchQuery.value = query
   }
 
-  function setSearchType(type: 'text' | 'category' | 'overpass') {
+  function setSearchType(type: 'text' | 'category' | 'brand' | 'overpass') {
     searchType.value = type
   }
 

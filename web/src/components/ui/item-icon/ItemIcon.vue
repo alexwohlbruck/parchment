@@ -22,6 +22,7 @@ const props = withDefaults(
     iconPack?: 'lucide' | 'maki'
     customColor?: string // Direct CSS color value (overrides ThemeColor)
     shape?: 'square' | 'circle' // Shape of the container
+    imageUrl?: string // When set, renders this image instead of an icon glyph (e.g. a brand logo)
   }>(),
   {
     icon: 'Folder',
@@ -34,6 +35,7 @@ const props = withDefaults(
   },
 )
 
+const hasImage = computed(() => !!props.imageUrl)
 const isMaki = computed(() => props.iconPack === 'maki')
 
 const iconComponent = computed(() => {
@@ -55,6 +57,8 @@ const iconComponent = computed(() => {
 const useCustomColor = computed(() => !!props.customColor && !props.plain)
 
 const colorClasses = computed(() => {
+  // A logo image sits on a neutral surface so transparent logos read cleanly.
+  if (hasImage.value) return 'bg-background border overflow-hidden'
   if (props.plain || useCustomColor.value) return ''
 
   if (props.variant === 'ghost') {
@@ -65,6 +69,7 @@ const colorClasses = computed(() => {
 })
 
 const customColorStyle = computed(() => {
+  if (hasImage.value) return {}
   if (!useCustomColor.value) return {}
 
   const color = props.customColor!
@@ -119,11 +124,17 @@ const iconSizeClass = computed(() => {
 <template>
   <div
     class="flex items-center justify-center shrink-0"
-    :class="[containerSizeClass, colorClasses, shapeClass, { 'border-2': shape === 'circle' && useCustomColor }]"
+    :class="[containerSizeClass, colorClasses, shapeClass, { 'border-2': shape === 'circle' && useCustomColor && !hasImage }]"
     :style="customColorStyle"
   >
+    <img
+      v-if="hasImage"
+      :src="imageUrl"
+      alt=""
+      class="w-full h-full object-contain p-0.5"
+    />
     <MakiIcon
-      v-if="isMaki"
+      v-else-if="isMaki"
       :name="icon"
       :size="size"
       class="fill-current"

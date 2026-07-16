@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search.store'
 import { useMapService } from '@/services/map.service'
@@ -7,7 +8,7 @@ import { useMapCamera } from '@/composables/useMapCamera'
 import { useMapListener } from '@/composables/useMapListener'
 import { useDebounceFn } from '@vueuse/core'
 import type { MapCamera, MapBounds } from '@/types/map.types'
-import { useSearchService } from '@/services/search.service'
+import { useSearchService, type BrandHeader } from '@/services/search.service'
 import type { Place } from '@/types/place.types'
 import type { SearchResult } from '@/types/search.types'
 import PlaceList from '@/components/place/PlaceList.vue'
@@ -16,6 +17,7 @@ import ErrorMessage from '@/components/ErrorMessage.vue'
 import { useRouter } from 'vue-router'
 import { getPlaceRoute } from '@/lib/place.utils'
 import { usePlaceService } from '@/services/place.service'
+import { useRecentsStore } from '@/stores/recents.store'
 import { useCategoryStore } from '@/stores/category.store'
 import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
@@ -27,6 +29,7 @@ import { useGeolocationService } from '@/services/geolocation.service'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const searchService = useSearchService()
 const mapService = useMapService()
 const searchStore = useSearchStore()
@@ -36,8 +39,19 @@ const geolocationService = useGeolocationService()
 
 const SIGNIFICANT_MOVEMENT_THRESHOLD = 0.3 // If camera moves to new area, refresh search results
 const NEARBY_RADIUS_KM = 5
+// Brand browse loads many nearby locations (so panning/zooming reveals them),
+// but the camera frames only the nearest handful — a big chain (e.g. Target)
+// has hundreds, and framing them all would zoom out to the whole metro.
+const BRAND_MAX_RESULTS = 100 // how many locations to load + plot as markers
+const BRAND_FIT_COUNT = 12 // how many of the nearest to frame the camera around
 
 let lastRefreshBounds: MapBounds | null = null
+// While a programmatic camera move is in flight (e.g. the brand browse framing
+// its results), moveend events must NOT trigger an auto-refresh — otherwise the
+// fit → moveend → refresh → fit cycle loops forever (each fit adds padding,
+// widening the view and pulling in more results). Epoch-ms deadline; moveends
+// before it adopt the fitted view as the baseline instead of re-searching.
+let programmaticMoveUntil = 0
 let suppressUrlSync = false
 let filtersRestored = false
 
@@ -123,9 +137,17 @@ function nearbyBounds(): MapBounds | null {
 
 const searchType = computed(() => {
   if (route.query.categoryId) return 'category'
+  if (route.query.brandKey) return 'brand'
   // if (route.query.overpassQuery) return 'overpass'
   return 'text'
 })
+
+// Brand results header (name + logo + total location count), set when a brand
+// browse resolves.
+const brandHeader = ref<BrandHeader | null>(null)
+const brandTitle = computed(
+  () => brandHeader.value?.name || (route.query.brandName as string) || '',
+)
 
 const categoryStore = useCategoryStore()
 const themeStore = useThemeStore()
@@ -178,7 +200,9 @@ let searchClickHandler: ((event: Event) => void) | null = null
 const debouncedMapRefresh = useDebounceFn(async (camera: MapCamera) => {
   searchStore.setMapRefreshing(true)
   try {
-    await performSearch()
+    // Map-move refresh: update markers for the new view, but don't re-frame the
+    // camera (a brand refit here would fight the user's pan/zoom).
+    await performSearch({ refit: false })
     lastRefreshBounds = mapService.getBounds()
   } catch (error) {
   } finally {
@@ -203,6 +227,13 @@ function shouldMapRefresh(camera: MapCamera) {
 }
 
 useMapListener('moveend', () => {
+  // Ignore camera moves we triggered ourselves (brand result framing) — adopt
+  // the settled view as the refresh baseline so a later user pan still works,
+  // but never re-search from our own fitBounds (which would loop).
+  if (Date.now() < programmaticMoveUntil) {
+    lastRefreshBounds = mapService.getBounds()
+    return
+  }
   if (searchStore.searchContext === 'nearby') return
   if (!shouldMapRefresh(camera.value)) return
 
@@ -217,7 +248,8 @@ useMapListener('moveend', () => {
 
 // React to "Search this area" button clicks from the map overlay
 watch(() => searchStore.areaSearchRequestId, () => {
-  performSearch()
+  // "Search this area" → search the current view; keep the camera where it is.
+  performSearch({ refit: false })
 })
 
 // Handle click on search result from map markers
@@ -231,19 +263,25 @@ function handleSearchResultClick(place: Place, event: any) {
   }
 }
 
-async function performSearch() {
+async function performSearch(opts: { refit?: boolean } = {}) {
+  // `refit` frames the camera to a brand's nearest locations. Only true for a
+  // fresh brand search — a map-move re-search must NOT re-fit, or the user could
+  // never zoom out to see the rest.
+  const refit = opts.refit ?? true
   searchStore.pendingAreaSearch = false
   searchStore.setSearchLoading(true)
   searchStore.setSearchError(null)
 
   // Set search metadata
   searchStore.setSearchType(
-    searchType.value as 'text' | 'category' | 'overpass',
+    searchType.value as 'text' | 'category' | 'brand' | 'overpass',
   )
   if (searchType.value === 'text') {
     searchStore.setSearchQuery(route.query.text as string)
   } else if (searchType.value === 'category') {
     searchStore.setSearchQuery(categoryTitle.value)
+  } else if (searchType.value === 'brand') {
+    searchStore.setSearchQuery(brandTitle.value)
   }
 
   const isNearby = searchStore.searchContext === 'nearby'
@@ -262,6 +300,21 @@ async function performSearch() {
     const { sort, filter, tags } = searchStore.serverFilterParams
 
     if (searchType.value === 'category') {
+      // Record the category search into (encrypted) recents. Re-selecting it
+      // re-runs the category (via the category:<id> path), not a text query.
+      // Stash the icon so the empty-state palette can render it later.
+      const catId = route.query.categoryId as string
+      if (catId) {
+        useRecentsStore().recordCategorySearch(catId, categoryTitle.value, {
+          iconName: categoryData.value?.iconName ?? undefined,
+          iconPack: categoryData.value?.iconPack,
+          iconCategory:
+            (route.query.categoryIconCategory as string) ??
+            categoryData.value?.iconCategory ??
+            undefined,
+        })
+      }
+
       const { results, fieldDefinitions } = await searchService.searchByCategory(
         route.query.categoryId as string,
         {
@@ -274,7 +327,39 @@ async function performSearch() {
       )
       places = results
       searchStore.setCategoryFields(fieldDefinitions)
+    } else if (searchType.value === 'brand') {
+      // Record the brand search into (encrypted) recents so it re-runs the
+      // brand browse (via the brand:<key> path), not a text query.
+      const brandKey = route.query.brandKey as string
+      const brandName = (route.query.brandName as string) || brandKey
+      if (brandKey) {
+        useRecentsStore().recordBrandSearch(brandKey, brandName, brandName)
+      }
+
+      searchStore.setCategoryFields([])
+      const { results, brand } = await searchService.searchByBrand({
+        brandKey,
+        brandName: route.query.brandName as string,
+        // Viewport-first; the server widens to the nearest locations when sparse.
+        // Capped low so a big chain frames to the nearest dozen, not the metro.
+        bounds: bounds || undefined,
+        lat: center.lat,
+        lng: center.lng,
+        maxResults: BRAND_MAX_RESULTS,
+      })
+      places = results
+      brandHeader.value = brand
+      // Backfill the recent entry's logo now that we have it.
+      if (brandKey && brand?.logoUrl) {
+        useRecentsStore().recordBrandSearch(brandKey, brandName, brandName, brand.logoUrl)
+      }
     } else if (searchType.value === 'text') {
+      // Record the committed query into (encrypted) recents. Every text search
+      // — palette, direct URL, or a re-selected recent — lands here, so this is
+      // the single choke-point. Dedupe just bumps recency on repeats.
+      const textQuery = (route.query.q as string) ?? ''
+      if (textQuery.trim()) useRecentsStore().recordSearch(textQuery)
+
       searchStore.setCategoryFields([])
       const searchResults = await searchService.search({
         query: route.query.q as string,
@@ -292,6 +377,26 @@ async function performSearch() {
     searchStore.setSearchResults(places)
     searchStore.setLastSearchBounds(bounds)
     lastRefreshBounds = bounds
+
+    // Brand browse: frame the camera around only the NEAREST few locations
+    // (results are distance-sorted) so a big chain stays usefully local — while
+    // still plotting every loaded location as a marker. Only on a fresh search;
+    // a map-move re-search must not re-fit (else the user can't zoom out).
+    if (searchType.value === 'brand' && refit && places.length > 0) {
+      let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity
+      for (const p of places.slice(0, BRAND_FIT_COUNT)) {
+        const c = p.geometry?.value?.center
+        if (!c) continue
+        minLat = Math.min(minLat, c.lat); maxLat = Math.max(maxLat, c.lat)
+        minLng = Math.min(minLng, c.lng); maxLng = Math.max(maxLng, c.lng)
+      }
+      if (Number.isFinite(minLat)) {
+        // Suppress moveend auto-refresh while this fit (and any settle re-fit)
+        // animates, so it can't feed back into another search.
+        programmaticMoveUntil = Date.now() + 2000
+        mapService.fitBounds({ minLat, minLng, maxLat, maxLng }, { maxZoom: 15 })
+      }
+    }
 
     // On first load, restore filters from URL (after categoryFields are set)
     if (!filtersRestored) {
@@ -363,6 +468,7 @@ watch(
   (newQuery, oldQuery) => {
     const searchChanged =
       newQuery.categoryId !== oldQuery?.categoryId ||
+      newQuery.brandKey !== oldQuery?.brandKey ||
       newQuery.q !== oldQuery?.q
     if (!searchChanged) return
     filtersRestored = false
@@ -407,15 +513,35 @@ watch(
         size="md"
       />
 
+      <!-- Brand logo / icon -->
+      <img
+        v-else-if="searchType === 'brand' && brandHeader?.logoUrl"
+        :src="brandHeader.logoUrl"
+        :alt="brandTitle"
+        class="w-10 h-10 rounded-md object-contain bg-background border p-1"
+      />
+      <ItemIcon
+        v-else-if="searchType === 'brand'"
+        icon="Store"
+        icon-pack="lucide"
+        variant="solid"
+        shape="circle"
+        size="md"
+      />
+
       <!-- Title + meta -->
       <div class="flex flex-col min-w-0">
         <h2 class="text-lg font-bold text-foreground tracking-tight leading-tight">
           <span v-if="searchType === 'category'">{{ categoryTitle }}</span>
+          <span v-else-if="searchType === 'brand'">{{ brandTitle }}</span>
           <span v-else-if="route.query.overpassQuery">Advanced Search</span>
           <span v-else>Search Results</span>
         </h2>
         <div class="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>
+          <span v-if="searchType === 'brand' && brandHeader?.locationCount != null">
+            {{ t('place.brand.locationsCount', { count: brandHeader.locationCount.toLocaleString() }) }}
+          </span>
+          <span v-else>
             {{ searchStore.filteredSearchResults.length.toLocaleString() }}
             {{ searchStore.filteredSearchResults.length === 1 ? 'result' : 'results' }}
           </span>

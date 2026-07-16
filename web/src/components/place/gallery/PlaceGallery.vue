@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { cn } from '@/lib/utils'
 import { TransitionExpand } from '@morev/vue-transitions'
 import type { Place } from '@/types/place.types'
@@ -11,19 +12,24 @@ const emit = defineEmits<{
   (e: 'imageLoaded'): void
   (e: 'imageError'): void
 }>()
+
+// The brand logo (isLogo) belongs in the header, not the gallery — exclude it.
+const galleryPhotos = computed(() =>
+  (place.photos ?? []).filter(p => !p.value?.isLogo),
+)
 </script>
 
 <template>
   <TransitionExpand>
     <div
-      v-if="place.photos && place.photos.length > 0"
+      v-if="galleryPhotos.length > 0"
       :class="cn('w-full relative', $attrs.class ?? '')"
     >
       <div
         class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-2 scrollbar-hidden pb-2 -mb-2"
       >
         <div
-          v-for="(photo, index) in place.photos"
+          v-for="(photo, index) in galleryPhotos"
           :key="index"
           class="h-48 flex-none snap-center relative first:ml-3 last:mr-3 rounded-lg overflow-hidden shadow-md"
           :style="{ width: 'auto' }"

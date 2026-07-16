@@ -55,15 +55,31 @@
     "sunrise": "Amanecer",
     "sunset": "Atardecer",
     "aqi": {
-      "good": "Buena",
-      "fair": "Aceptable",
-      "moderate": "Moderada",
-      "poor": "Mala",
-      "veryPoor": "Muy mala",
-      "unhealthySensitive": "Insalubre para grupos sensibles",
-      "unhealthy": "Insalubre",
-      "veryUnhealthy": "Muy insalubre",
-      "hazardous": "Peligrosa"
+      "dominant": "Contaminante principal",
+      "standards": {
+        "us_epa": "AQI EE. UU.",
+        "eu_eea": "AQI europeo",
+        "uk_daqi": "DAQI R. Unido",
+        "in_naqi": "AQI India",
+        "cn_mee": "AQI China",
+        "ca_aqhi": "AQHI Canadá"
+      },
+      "pollutants": {
+        "pm2_5": "PM2.5",
+        "pm10": "PM10",
+        "o3": "Ozono",
+        "no2": "Dióxido de nitrógeno",
+        "so2": "Dióxido de azufre",
+        "co": "Monóxido de carbono"
+      },
+      "levels": {
+        "1": "Buena",
+        "2": "Aceptable",
+        "3": "Moderada",
+        "4": "Mala",
+        "5": "Muy mala",
+        "6": "Peligrosa"
+      }
     }
   },
   "palette": {
@@ -93,9 +109,15 @@
           }
         },
         "groups": {
+          "frequents": "Frecuentes",
           "fullSearch": "Buscar",
+          "brands": "Marcas",
           "categories": "Categorías",
           "places": "Lugares"
+        },
+        "brand": {
+          "seeAll": "Ver todas las ubicaciones",
+          "locationsCount": "{count} ubicaciones"
         }
       },
       "goto": {
@@ -443,18 +465,22 @@
       }
     },
     "form": {
+      "frequent": "Frecuente",
+      "customName": "Nombre",
       "placeholders": {
         "collectionName": "Introduce el nombre de la colección",
         "collectionDescription": "Añade una descripción (opcional)",
         "collectionType": "Selecciona un tipo (opcional)",
         "bookmarkName": "Introduce el nombre del marcador",
-        "bookmarkType": "Selecciona el tipo de marcador (opcional)"
+        "bookmarkType": "No es frecuente",
+        "customName": "Escribe un nombre"
       }
     },
     "types": {
       "home": "Casa",
       "work": "Trabajo",
-      "school": "Escuela"
+      "school": "Escuela",
+      "custom": "Personalizado"
     },
     "loading": {
       "collection": "Cargando colección..."
@@ -477,9 +503,9 @@
       "removeFromCollectionError": "Error al eliminar el marcador de la colección.",
       "unsaveSuccess": "Eliminado {name}",
       "updateErrorNotFound": "Marcador no encontrado. Puede haber sido eliminado.",
-      "presetSet": "Establecido como {label}",
-      "presetRemoved": "{label} eliminado",
-      "presetNoCollection": "Crea una colección primero para guardar un lugar."
+      "frequentSet": "Establecido como {label}",
+      "frequentRemoved": "{label} eliminado",
+      "frequentNoCollection": "Crea una colección primero para guardar un lugar."
     },
     "collections": {
       "fetchError": "Error al obtener colecciones",
@@ -714,11 +740,15 @@
   "dashboard": {
     "title": "Panel",
     "yourPlaces": {
-      "title": "Tus lugares",
-      "add": "Añadir lugar",
+      "title": "Frecuentes",
+      "add": "Añadir frecuente",
       "change": "Cambiar lugar",
       "setTitle": "Establecer {label}",
       "setDescription": "Busca un lugar para usar como tu {label}.",
+      "setCustomTitle": "Añadir un frecuente",
+      "setCustomDescription": "Ponle un nombre y busca un lugar.",
+      "customName": "Nombre",
+      "customNamePlaceholder": "p. ej. Gimnasio, Casa de mamá",
       "searchPlaceholder": "Buscar un lugar",
       "searchHint": "Empieza a escribir para encontrar un lugar.",
       "noResults": "No se encontraron lugares."
@@ -844,6 +874,10 @@
     },
     "nearby": {
       "findNearby": "Encontrar cerca"
+    },
+    "brand": {
+      "seeAll": "Ver todas las de {name}",
+      "locationsCount": "{count} ubicaciones"
     },
     "osmTags": {
       "copiedMessage": "{label} copiado",

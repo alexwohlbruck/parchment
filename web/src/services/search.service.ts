@@ -56,6 +56,34 @@ interface RouteSearchOptions {
   autocomplete?: boolean
 }
 
+interface BrandSearchOptions {
+  brandKey: string
+  brandName?: string
+  bounds?: MapBounds
+  lat?: number
+  lng?: number
+  minResults?: number
+  maxResults?: number
+}
+
+export interface BrandHeader {
+  brandKey: string
+  name: string
+  wikidata: string | null
+  locationCount: number | null
+  category: string | null
+  logoUrl?: string
+  description?: string
+}
+
+interface BrandSearchResponse {
+  brandKey: string
+  brand: BrandHeader
+  results: Place[]
+  totalCount: number
+  executedAt: string
+}
+
 interface RouteSearchResponse {
   route: any
   results: Place[]
@@ -166,6 +194,37 @@ function searchService() {
     }
   }
 
+  async function searchByBrand(
+    options: BrandSearchOptions,
+  ): Promise<{ results: Place[]; brand: BrandHeader }> {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await api.post<BrandSearchResponse>('/search/brand', {
+        brandKey: options.brandKey,
+        ...(options.brandName ? { brandName: options.brandName } : {}),
+        ...(options.bounds ? { bounds: options.bounds } : {}),
+        ...(options.lat != null ? { lat: options.lat } : {}),
+        ...(options.lng != null ? { lng: options.lng } : {}),
+        ...(options.minResults != null ? { minResults: options.minResults } : {}),
+        maxResults: options.maxResults || 100,
+      })
+
+      return {
+        results: response.data.results,
+        brand: response.data.brand,
+      }
+    } catch (err) {
+      console.error('Error in brand search:', err)
+      error.value =
+        err instanceof Error ? err.message : 'Failed to execute brand search'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   function isAdvancedSearchAvailable(): boolean {
     const integrationsStore = useIntegrationsStore()
     const overpassConfigs = integrationsStore.getConfigurationsForIntegration(
@@ -251,6 +310,7 @@ function searchService() {
     getAutocompleteSuggestions,
     search,
     searchByCategory,
+    searchByBrand,
     searchAlongRoute,
     isAdvancedSearchAvailable,
     executeOverpassQuery,

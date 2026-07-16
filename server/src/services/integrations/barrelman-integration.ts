@@ -7,6 +7,8 @@ import type {
   SearchCapability,
   AutocompleteCapability,
   SearchCategoryCapability,
+  BrandCatalogCapability,
+  BrandSummary,
   PlaceInfoCapability,
   SpatialParentsCapability,
   SpatialChildrenCapability,
@@ -215,6 +217,7 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.SEARCH,
     IntegrationCapabilityId.AUTOCOMPLETE,
     IntegrationCapabilityId.SEARCH_CATEGORY,
+    IntegrationCapabilityId.BRAND_CATALOG,
     IntegrationCapabilityId.PLACE_INFO,
     IntegrationCapabilityId.SPATIAL_PARENTS,
     IntegrationCapabilityId.SPATIAL_CHILDREN,
@@ -234,6 +237,11 @@ export class BarrelmanIntegration
     searchCategory: {
       searchByCategory: this.searchByCategory.bind(this),
     } as SearchCategoryCapability,
+    brandCatalog: {
+      getBrands: this.getBrands.bind(this),
+      getBrand: this.getBrand.bind(this),
+      searchByBrand: this.searchByBrand.bind(this),
+    } as BrandCatalogCapability,
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
@@ -600,6 +608,17 @@ export class BarrelmanIntegration
       ? { [SOURCE.PELIAS]: r.id.slice('pelias/'.length) }
       : { [SOURCE.OSM]: r.id }
 
+    // Promote only the place's OWN Wikidata QID into externalIds so Wikidata
+    // enrichment resolves location-specific data. Deliberately NOT the brand's
+    // `brand:wikidata` — that would pull the brand entity's generic photos (same
+    // for every location) ahead of the location-specific Foursquare photos. The
+    // brand logo + description come from the brand catalog instead, so nothing
+    // is lost. Added as an EXTRA key; never replaces the osm/pelias id.
+    const wikidataQid = tags['wikidata']
+    if (wikidataQid && !externalIds[SOURCE.WIKIDATA]) {
+      externalIds[SOURCE.WIKIDATA] = wikidataQid
+    }
+
     // Build OSM URL — r.id is always "node/123456" format, so parse from that
     // (r.osm_type may be stored as uppercase 'N'/'W'/'R' in some DB versions)
     const osmTypeFromId = r.id.split('/')[0]
@@ -739,6 +758,86 @@ export class BarrelmanIntegration
       { headers: this.headers, timeout: 10000 },
     )
     return (response.data || []).map((r: any) => this.adaptPlace(r))
+  }
+
+  // ── Brand catalog ──────────────────────────────────────────────────────
+
+  async getBrands(q: string, limit = 8): Promise<BrandSummary[]> {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/brands`, {
+      params: { q, limit },
+      headers: this.headers,
+      timeout: 10000,
+    })
+    return (response.data?.brands || []) as BrandSummary[]
+  }
+
+  async getBrand(brandKey: string): Promise<BrandSummary | null> {
+    try {
+      const response = await barrelmanSearchHttp.get(
+        `${this.config.host}/brands/${encodeURIComponent(brandKey)}`,
+        { headers: this.headers, timeout: 10000 },
+      )
+      return (response.data || null) as BrandSummary | null
+    } catch (e: any) {
+      if (e.response?.status === 404) return null
+      throw e
+    }
+  }
+
+  /**
+   * List a brand's locations. Uses barrelman's browse mode with a brand tag
+   * filter: viewport-scoped first (lat/lng + radius), then — if too few results
+   * — a second global pass (lat/lng, NO radius → nearest-N by distance) so a
+   * sparse brand is never shown as empty.
+   */
+  async searchByBrand(
+    filter: { wikidata?: string; name?: string },
+    options?: { lat?: number; lng?: number; bounds?: MapBounds; minResults?: number; limit?: number },
+  ): Promise<Place[]> {
+    const tags = filter.wikidata
+      ? { 'brand:wikidata': filter.wikidata }
+      : filter.name
+        ? { brand: filter.name }
+        : null
+    if (!tags) return []
+
+    const limit = options?.limit ?? 15
+    const minResults = options?.minResults ?? 8
+
+    // Center + radius: prefer explicit bounds, else the given point.
+    let lat = options?.lat
+    let lng = options?.lng
+    let radius: number | undefined
+    if (options?.bounds) {
+      const b = options.bounds
+      lat = (b.north + b.south) / 2
+      lng = (b.east + b.west) / 2
+      const latDiff = Math.abs(b.north - b.south)
+      const lngDiff = Math.abs(b.east - b.west)
+      radius = Math.min((Math.max(latDiff, lngDiff) * 111320) / 2, 50000)
+    }
+
+    const post = (body: Record<string, any>) =>
+      barrelmanSearchHttp.post(`${this.config.host}/search`, body, {
+        headers: this.headers,
+        timeout: 10000,
+      })
+
+    // Pass 1: viewport-scoped (only when we have a radius to scope by).
+    let rows: any[] = []
+    if (radius != null && lat != null && lng != null) {
+      const res = await post({ lat, lng, radius, tags, limit })
+      rows = res.data || []
+    }
+
+    // Pass 2: widen to nearest-N globally when the viewport was sparse (or had
+    // no spatial scope to begin with).
+    if (rows.length < minResults) {
+      const res = await post({ lat, lng, tags, limit })
+      rows = res.data || []
+    }
+
+    return rows.map((r: any) => this.adaptPlace(r))
   }
 
   async getPlaceInfo(id: string): Promise<Place | null> {

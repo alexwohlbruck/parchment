@@ -419,12 +419,58 @@ async function retrySystemIntegrations(
   }
 }
 
+/**
+ * Reconcile stored capabilities for system integrations with the capabilities
+ * the code now declares. System integrations are code-defined (not user-tuned),
+ * so when a new capability is added to an integration's `capabilityIds` (e.g.
+ * brandCatalog on Barrelman), append it as active — mirroring create-time
+ * behavior where all capabilityIds start active. Never removes capabilities an
+ * operator may have disabled. Persists to the DB and mutates the in-memory
+ * records so this startup uses the updated set. Resolves the long-standing TODO
+ * in getConfiguredIntegrations.
+ */
+async function reconcileSystemCapabilities(
+  records: IntegrationRecord[],
+): Promise<void> {
+  for (const record of records) {
+    const codeCaps = integrationManager.getIntegrationCapabilities(
+      record.integrationId,
+    )
+    if (codeCaps.length === 0) continue
+    const existing = new Set(record.capabilities.map((c) => c.id))
+    const missing = codeCaps.filter((id) => !existing.has(id))
+    if (missing.length === 0) continue
+
+    const merged = [
+      ...record.capabilities,
+      ...missing.map((id) => ({ id, active: true })),
+    ]
+    try {
+      await db
+        .update(integrations)
+        .set({ capabilities: JSON.stringify(merged), updatedAt: new Date() })
+        .where(eq(integrations.id, record.id))
+      record.capabilities = merged // reflect in-memory for this startup
+      console.log(
+        `[integrations] Added new capabilit${missing.length === 1 ? 'y' : 'ies'} to ${record.integrationId}: ${missing.join(', ')}`,
+      )
+    } catch (err) {
+      console.error(
+        `[integrations] Failed to reconcile capabilities for ${record.integrationId}:`,
+        err,
+      )
+    }
+  }
+}
+
 export async function initializeIntegrations() {
   console.log('Initializing integrations on server startup...')
 
   try {
     // Get system-wide integrations first (where userId is null)
     const systemIntegrations = await getConfiguredIntegrations()
+    // Backfill any capabilities added in code since these records were created.
+    await reconcileSystemCapabilities(systemIntegrations)
     console.log(`Found ${systemIntegrations.length} system integrations`)
     console.log(
       'System integrations:',

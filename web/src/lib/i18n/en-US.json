@@ -56,15 +56,31 @@
     "sunrise": "Sunrise",
     "sunset": "Sunset",
     "aqi": {
-      "good": "Good",
-      "fair": "Fair",
-      "moderate": "Moderate",
-      "poor": "Poor",
-      "veryPoor": "Very Poor",
-      "unhealthySensitive": "Unhealthy for Sensitive Groups",
-      "unhealthy": "Unhealthy",
-      "veryUnhealthy": "Very Unhealthy",
-      "hazardous": "Hazardous"
+      "dominant": "Main pollutant",
+      "standards": {
+        "us_epa": "US AQI",
+        "eu_eea": "European AQI",
+        "uk_daqi": "UK DAQI",
+        "in_naqi": "India AQI",
+        "cn_mee": "China AQI",
+        "ca_aqhi": "Canada AQHI"
+      },
+      "pollutants": {
+        "pm2_5": "PM2.5",
+        "pm10": "PM10",
+        "o3": "Ozone",
+        "no2": "Nitrogen dioxide",
+        "so2": "Sulphur dioxide",
+        "co": "Carbon monoxide"
+      },
+      "levels": {
+        "1": "Good",
+        "2": "Fair",
+        "3": "Moderate",
+        "4": "Poor",
+        "5": "Very Poor",
+        "6": "Hazardous"
+      }
     }
   },
   "palette": {
@@ -95,9 +111,15 @@
           }
         },
         "groups": {
+          "frequents": "Frequents",
           "fullSearch": "Search",
+          "brands": "Brands",
           "categories": "Categories",
           "places": "Places"
+        },
+        "brand": {
+          "seeAll": "See all locations",
+          "locationsCount": "{count} locations"
         }
       },
       "goto": {
@@ -481,18 +503,22 @@
       }
     },
     "form": {
+      "frequent": "Frequent",
+      "customName": "Name",
       "placeholders": {
         "collectionName": "Enter collection name",
         "collectionDescription": "Add a description (optional)",
         "collectionType": "Select type (optional)",
         "bookmarkName": "Enter bookmark name",
-        "bookmarkType": "Select bookmark type (optional)"
+        "bookmarkType": "Not a frequent",
+        "customName": "Enter a name"
       }
     },
     "types": {
       "home": "Home",
       "work": "Work",
-      "school": "School"
+      "school": "School",
+      "custom": "Custom"
     },
     "loading": {
       "collection": "Loading collection..."
@@ -515,9 +541,9 @@
       "removeFromCollectionError": "Failed to remove bookmark from collection.",
       "unsaveSuccess": "Removed {name}",
       "updateErrorNotFound": "Bookmark not found. It may have been deleted.",
-      "presetSet": "Set as {label}",
-      "presetRemoved": "{label} removed",
-      "presetNoCollection": "Create a collection first to save a place."
+      "frequentSet": "Set as {label}",
+      "frequentRemoved": "{label} removed",
+      "frequentNoCollection": "Create a collection first to save a place."
     },
     "collections": {
       "fetchError": "Failed to fetch collections",
@@ -750,11 +776,15 @@
   "dashboard": {
     "title": "Dashboard",
     "yourPlaces": {
-      "title": "Your places",
-      "add": "Add place",
+      "title": "Frequents",
+      "add": "Add frequent",
       "change": "Change place",
       "setTitle": "Set {label}",
       "setDescription": "Search for a place to use as your {label}.",
+      "setCustomTitle": "Add a frequent",
+      "setCustomDescription": "Name it, then search for a place.",
+      "customName": "Name",
+      "customNamePlaceholder": "e.g. Gym, Mom's house",
       "searchPlaceholder": "Search for a place",
       "searchHint": "Start typing to find a place.",
       "noResults": "No places found."
@@ -896,6 +926,10 @@
     },
     "nearby": {
       "findNearby": "Find nearby"
+    },
+    "brand": {
+      "seeAll": "See all {name}",
+      "locationsCount": "{count} locations"
     },
     "osmTags": {
       "copiedMessage": "{label} copied",

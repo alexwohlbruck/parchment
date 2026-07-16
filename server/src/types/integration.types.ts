@@ -196,6 +196,44 @@ export interface SearchCategoryCapability {
   ): Promise<Place[]>
 }
 
+/** One brand from the brand catalog (aggregated across all its OSM locations). */
+export interface BrandSummary {
+  /** brand:wikidata QID (e.g. "Q38076") or "name:<lower>" when no QID. */
+  brandKey: string
+  name: string
+  wikidata: string | null
+  locationCount: number
+  category: string | null
+  repLat: number | null
+  repLng: number | null
+  /** Brand logo (Wikidata P154 via Commons) — resolved in the catalog. */
+  logoUrl?: string | null
+  /** Short brand description (Wikidata) — resolved in the catalog. */
+  description?: string | null
+}
+
+export interface BrandCatalogCapability {
+  /** Autocomplete over the brand catalog by name. */
+  getBrands(q: string, limit?: number): Promise<BrandSummary[]>
+  /** Fetch one brand by its brand_key. */
+  getBrand(brandKey: string): Promise<BrandSummary | null>
+  /**
+   * List locations of a brand. Scopes to the given viewport first, and — when
+   * the result is sparse (fewer than `minResults`) — widens to the nearest
+   * locations globally so a brand is never shown as empty.
+   */
+  searchByBrand(
+    filter: { wikidata?: string; name?: string },
+    options?: {
+      lat?: number
+      lng?: number
+      bounds?: MapBounds
+      minResults?: number
+      limit?: number
+    },
+  ): Promise<Place[]>
+}
+
 // TODO: Return types
 export interface ImageryCapability {
   getImagery(lat: number, lng: number, options?: any): Promise<any[]>
@@ -404,20 +442,39 @@ export interface WeatherData {
   condition: string // e.g., "Clear", "Clouds", "Rain", etc.
   conditionDescription: string // e.g., "clear sky", "light rain"
   conditionIcon: string // weather icon code
-  aqi?: number // Air Quality Index (1-5 scale, 1=Good, 5=Very Poor)
+  airQuality?: AirQuality // Air quality computed with the location's regional standard
   aqiComponents?: {
-    co?: number // Carbon monoxide
-    no?: number // Nitrogen monoxide
-    no2?: number // Nitrogen dioxide
-    o3?: number // Ozone
-    so2?: number // Sulphur dioxide
-    pm2_5?: number // Fine particulate matter
-    pm10?: number // Coarse particulate matter
-    nh3?: number // Ammonia
+    co?: number // Carbon monoxide (μg/m³)
+    no?: number // Nitrogen monoxide (μg/m³)
+    no2?: number // Nitrogen dioxide (μg/m³)
+    o3?: number // Ozone (μg/m³)
+    so2?: number // Sulphur dioxide (μg/m³)
+    pm2_5?: number // Fine particulate matter (μg/m³)
+    pm10?: number // Coarse particulate matter (μg/m³)
+    nh3?: number // Ammonia (μg/m³)
   }
   timestamp: string // ISO 8601 timestamp
   sunrise?: string // ISO 8601 timestamp
   sunset?: string // ISO 8601 timestamp
+}
+
+/** Regional air-quality standards supported by the AQI engine. */
+export type AqiStandard =
+  | 'us_epa' // United States EPA AQI (0–500), updated May 2024
+  | 'eu_eea' // European Environment Agency European Air Quality Index (1–6 bands)
+  | 'uk_daqi' // UK Daily Air Quality Index (1–10)
+  | 'in_naqi' // India National Air Quality Index (0–500)
+  | 'cn_mee' // China MEE / GB 3095-2012 AQI (0–500)
+  | 'ca_aqhi' // Canada Air Quality Health Index (1–10+)
+
+/** Pollutants that can drive a regional index. */
+export type AqiPollutant = 'pm2_5' | 'pm10' | 'o3' | 'no2' | 'so2' | 'co'
+
+export interface AirQuality {
+  standard: AqiStandard // Which regional standard was applied (chosen from the location's country)
+  index: number // The standard's own index value (US/CN/IN: 0–500, UK/CA: 1–10+, EU: 1–6 band)
+  severity: number // Normalized 1–6 severity; drives the color scale and the friendly word
+  dominant: AqiPollutant // The pollutant with the highest sub-index
 }
 
 export interface WeatherCapability {
@@ -560,6 +617,7 @@ export interface RideshareEstimateCapability {
 export interface IntegrationCapabilities {
   search?: SearchCapability
   searchCategory?: SearchCategoryCapability
+  brandCatalog?: BrandCatalogCapability
   autocomplete?: AutocompleteCapability
   placeInfo?: PlaceInfoCapability
   geocoding?: GeocodingCapability

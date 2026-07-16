@@ -325,6 +325,20 @@ export interface NearbyCategory {
   iconCategory?: PlaceCategory // For color theming
 }
 
+/**
+ * The brand a place belongs to (from OSM brand / brand:wikidata tags). Powers
+ * the "See all {brand} locations" affordance on the place detail.
+ */
+export interface PlaceBrand {
+  /** brand:wikidata QID (e.g. "Q38076") or "name:<lower>" when no QID. */
+  brandKey: string
+  name: string // Display name, e.g. "McDonald's"
+  wikidata?: string // brand:wikidata QID, when present
+  locationCount?: number // Total locations of this brand (from the catalog)
+  category?: string // Representative OSM category, e.g. "amenity/fast_food"
+  logoUrl?: string // Brand logo (Wikidata P154), when resolved
+}
+
 export type PlaceCategory =
   | 'food_and_drink'
   | 'education'
@@ -400,6 +414,10 @@ export interface Place {
 
   // Nearby category chips for contextual exploration
   nearbyCategories?: NearbyCategory[]
+
+  // Brand this place belongs to (from brand / brand:wikidata tags), for the
+  // "See all {brand} locations" affordance
+  brand?: PlaceBrand | null
 
   // Icon/category for display
   icon?: PlaceIcon

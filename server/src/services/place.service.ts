@@ -869,6 +869,35 @@ export async function lookupEnrichedPlaceById(
     const { resolveWidgetDescriptors } = await import('./widget.service')
     const { resolveNearbyCategories } = await import('../lib/nearby-categories')
     place.nearbyCategories = resolveNearbyCategories(place)
+
+    // Brand this place belongs to (from brand / brand:wikidata tags), enriched
+    // with its total location count from the brand catalog for the chip.
+    const { resolveBrand } = await import('../lib/brand')
+    place.brand = resolveBrand(place)
+    if (place.brand) {
+      const { getBrandMeta } = await import('./brand.service')
+      const summary = await getBrandMeta(place.brand.brandKey)
+      if (summary) {
+        place.brand.locationCount = summary.locationCount
+        if (summary.category) place.brand.category = summary.category
+        if (summary.name) place.brand.name = summary.name
+        if (summary.logoUrl) {
+          place.brand.logoUrl = summary.logoUrl
+          // Surface the brand logo on the place header via the existing isLogo
+          // photo slot, unless the place already has a logo photo.
+          const hasLogo = place.photos?.some((p) => p.value?.isLogo)
+          if (!hasLogo) {
+            const ts = new Date().toISOString()
+            ;(place.photos ||= []).push({
+              value: { url: summary.logoUrl, sourceId: SOURCE.WIKIDATA, isLogo: true },
+              sourceId: SOURCE.WIKIDATA,
+              timestamp: ts,
+            })
+          }
+        }
+      }
+    }
+
     place.widgets = resolveWidgetDescriptors(place)
 
     // Step 7: Add bookmark information if user ID is provided

@@ -36,7 +36,7 @@ import { useI18n } from 'vue-i18n'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor, fuzzyFilter } from '@/lib/utils'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
-import { PRESET_META, type PresetType } from '@/lib/preset-places'
+import { frequentChipMeta, type FrequentType } from '@/lib/frequents'
 import type { Bookmark } from '@/types/library.types'
 
 const searchService = useSearchService()
@@ -53,22 +53,24 @@ const { isMobileScreen } = useResponsive()
 // category (Home/Work/School) as the subtitle and its canonical icon.
 const presetBookmarks = computed(() =>
   bookmarksStore.bookmarks
-    .filter(b => b.presetType)
-    .map(b => ({ type: b.presetType as PresetType, bookmark: b })),
+    .filter(b => b.frequentType)
+    .map(b => ({ type: b.frequentType as FrequentType, bookmark: b })),
 )
 
 function presetToResult(entry: {
-  type: PresetType
+  type: FrequentType
   bookmark: Bookmark
 }): AutocompleteResult {
-  const { type, bookmark } = entry
+  const { bookmark } = entry
+  // Canonical types → fixed icon + "Home" subtitle; custom → own icon + address.
+  const meta = frequentChipMeta(bookmark)
   return {
     id: bookmark.id,
     type: 'bookmark',
     title: bookmark.name,
-    description: t(PRESET_META[type].labelKey),
-    icon: PRESET_META[type].icon,
-    color: PRESET_META[type].color,
+    description: meta.labelKey ? t(meta.labelKey) : bookmark.address || '',
+    icon: meta.icon,
+    color: meta.color,
     lat: bookmark.lat,
     lng: bookmark.lng,
   }

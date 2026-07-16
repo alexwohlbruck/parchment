@@ -590,7 +590,7 @@ export interface ChangeCollectionSchemeParams {
     lng: number
     icon?: string
     iconColor?: string
-    presetType?: string | null
+    frequentType?: string | null
   }>
 
   /** Rewrapped per-recipient share envelopes after the scheme change. */
@@ -778,7 +778,7 @@ export async function changeCollectionScheme(
                 ST_SetSRID(ST_MakePoint(${bm.lng}, ${bm.lat}), 4326),
                 ${bm.icon ?? 'map-pin'},
                 ${bm.iconColor ?? '#F43F5E'},
-                ${bm.presetType ?? null},
+                ${bm.frequentType ?? null},
                 ${params.userId}
               )`,
           )

@@ -10,6 +10,7 @@ import { useIntegrationService } from '@/services/integration.service'
 import { useCategoryStore } from '@/stores/category.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useLayersStore } from '@/stores/layers.store'
+import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
@@ -45,6 +46,7 @@ const integrationService = useIntegrationService()
 const categoryStore = useCategoryStore()
 const categoryPaletteStore = useCategoryPaletteStore()
 const layersStore = useLayersStore()
+const bookmarksService = useBookmarksService()
 const appStore = useAppStore()
 const friendLocationsLayer = useFriendLocationsLayer()
 const trackerLocationsLayer = useTrackerLocationsLayer()
@@ -124,6 +126,9 @@ onMounted(async () => {
     await integrationService.fetchAvailableIntegrations()
     // Load user-owned layers + default templates + user state sidecar
     await layersStore.loadLayers()
+    // Frequents are standalone bookmarks (no collection), so hydrate them
+    // directly — the collection hydrate won't surface them.
+    void bookmarksService.fetchFrequents()
     // Fetch user vehicles for trip planning
     vehiclesStore.fetchVehicles()
     // Initialize categories and palette (returns from cache instantly if available)

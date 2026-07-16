@@ -12,7 +12,11 @@ import { ref } from 'vue'
 import { api } from '@/lib/api'
 import { closestThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
-import type { PresetType } from '@/lib/preset-places'
+import {
+  FREQUENT_META,
+  isCanonicalFrequent,
+  type FrequentType,
+} from '@/lib/frequents'
 
 // TODO: i18n error messages
 
@@ -52,7 +56,16 @@ export const useBookmarksService = createSharedComposable(() => {
   async function createBookmark(
     place: Place,
     collectionIds?: string[],
-    options: { presetType?: PresetType; silent?: boolean } = {},
+    options: {
+      frequentType?: FrequentType
+      silent?: boolean
+      /** Override the bookmark name (used for custom frequents). */
+      name?: string
+      /** Override the icon/colour (used to stamp a canonical frequent's icon). */
+      icon?: string
+      iconPack?: 'lucide' | 'maki'
+      iconColor?: string
+    } = {},
   ) {
     if (!place.externalIds || Object.keys(place.externalIds).length === 0) {
       toast.error(t('services.bookmarks.saveErrorNoOsmId'))
@@ -83,14 +96,14 @@ export const useBookmarksService = createSharedComposable(() => {
     try {
       const params: CreateBookmarkParams & { collectionIds?: string[] } = {
         externalIds: place.externalIds,
-        name: place.name.value || '',
+        name: options.name || place.name.value || '',
         address: place.address?.value.formatted,
         lat: geometry.center.lat,
         lng: geometry.center.lng,
-        icon: placeIcon?.icon,
-        iconPack: placeIcon?.iconPack,
-        iconColor: derivedIconColor,
-        ...(options.presetType ? { presetType: options.presetType } : {}),
+        icon: options.icon ?? placeIcon?.icon,
+        iconPack: options.iconPack ?? placeIcon?.iconPack,
+        iconColor: options.iconColor ?? derivedIconColor,
+        ...(options.frequentType ? { frequentType: options.frequentType } : {}),
         collectionIds,
       }
 
@@ -101,7 +114,7 @@ export const useBookmarksService = createSharedComposable(() => {
       rememberLastSaved(collectionIds)
 
       // Preset saves surface their own "Set as Home" toast (handled by the
-      // caller in `setPreset`), so skip the generic "Saved to collection"
+      // caller in `setFrequent`), so skip the generic "Saved to collection"
       // one here to avoid a double toast.
       if (options.silent) return bookmark
 
@@ -254,17 +267,26 @@ export const useBookmarksService = createSharedComposable(() => {
     )
   }
 
-  // ── Preset places (Home / Work / School) ────────────────────────────
-  // Presets are ordinary bookmarks tagged with `presetType`. They live in
-  // a collection like any other bookmark (creation requires one), so a
-  // preset set from an unsaved place is filed into the user's default
-  // collection. A category can hold multiple places (two homes, two
-  // offices) — a bookmark carries at most one `presetType`, but any number
-  // of bookmarks may share the same one.
+  // ── Frequents (Home / Work / School / Custom) ───────────────────────
+  // Frequents are bookmarks tagged with `frequentType`. Unlike ordinary
+  // bookmarks they are *standalone* — not linked to any collection — so they
+  // have a dedicated fetch (`fetchFrequents`) since the collection hydrate
+  // won't surface them. The same place can still be added to a collection
+  // separately. A bookmark carries at most one `frequentType`.
 
-  /** All bookmarks tagged with a preset type, in save order. */
-  function getPresetBookmarks(): Bookmark[] {
-    return bookmarksStore.bookmarks.filter(b => b.presetType)
+  /** All bookmarks tagged with a frequent type, in save order. */
+  function getFrequentBookmarks(): Bookmark[] {
+    return bookmarksStore.bookmarks.filter(b => b.frequentType)
+  }
+
+  /** Load the user's standalone frequents from the server into the store. */
+  async function fetchFrequents(): Promise<void> {
+    try {
+      const { data } = await api.get<Bookmark[]>('/library/bookmarks/frequents')
+      for (const bm of data ?? []) bookmarksStore.addBookmark(bm)
+    } catch (e) {
+      console.warn('Failed to fetch frequents:', e)
+    }
   }
 
   /**
@@ -295,41 +317,53 @@ export const useBookmarksService = createSharedComposable(() => {
   }
 
   /**
-   * Tag a place as Home/Work/School. Updates the tag if the place is
-   * already bookmarked; otherwise creates a bookmark in the default
-   * collection. Does NOT touch other bookmarks — a category can hold many
-   * places. A single bookmark still carries at most one `presetType`, so
-   * re-tagging the same place switches its category.
+   * Mark a place as a frequent (Home/Work/School/Custom). Updates the tag if
+   * the place is already bookmarked; otherwise creates a bookmark in the
+   * default collection.
+   *
+   * Canonical types (home/work/school) stamp their fixed icon + colour onto the
+   * bookmark so it always looks the part. `custom` keeps the place's own icon
+   * and takes an optional user-supplied `name` as its label.
    */
-  async function setPreset(
+  async function setFrequent(
     place: Place,
-    presetType: PresetType,
+    frequentType: FrequentType,
+    opts: { name?: string } = {},
   ): Promise<Bookmark | null> {
     const targetBookmarkId = findBookmarkIdForPlace(place)
+
+    // Stamp the canonical icon/colour so a Home always looks like a Home.
+    const iconOverride = isCanonicalFrequent(frequentType)
+      ? {
+          icon: FREQUENT_META[frequentType].icon,
+          iconPack: 'lucide' as const,
+          iconColor: FREQUENT_META[frequentType].color,
+        }
+      : {}
+    const name = opts.name?.trim() || undefined
 
     let result: Bookmark | null
     if (targetBookmarkId) {
       result = await updateBookmark(
         targetBookmarkId,
-        { presetType },
+        { frequentType, ...iconOverride, ...(name ? { name } : {}) },
         { silent: true },
       )
     } else {
-      const collectionId = resolveDefaultCollectionId()
-      if (!collectionId) {
-        toast.error(t('services.bookmarks.presetNoCollection'))
-        return null
-      }
-      result = await createBookmark(place, [collectionId], {
-        presetType,
+      // Frequents are standalone — created with no collection. The same place
+      // can still be added to a collection separately.
+      result = await createBookmark(place, [], {
+        frequentType,
         silent: true,
+        ...iconOverride,
+        ...(name ? { name } : {}),
       })
     }
 
     if (result) {
       toast.success(
-        t('services.bookmarks.presetSet', {
-          label: t(`library.types.${presetType}`),
+        t('services.bookmarks.frequentSet', {
+          label: name || t(`library.types.${frequentType}`),
         }),
       )
     }
@@ -337,16 +371,16 @@ export const useBookmarksService = createSharedComposable(() => {
   }
 
   /** Remove the Home/Work/School tag from a specific bookmark. */
-  async function clearPreset(bookmarkId: string): Promise<void> {
+  async function clearFrequent(bookmarkId: string): Promise<void> {
     const current = bookmarksStore.getBookmarkById(bookmarkId)
-    if (!current?.presetType) return
-    const label = t(`library.types.${current.presetType}`)
+    if (!current?.frequentType) return
+    const label = t(`library.types.${current.frequentType}`)
     await updateBookmark(
       bookmarkId,
-      { presetType: null } as unknown as Partial<Bookmark>,
+      { frequentType: null } as unknown as Partial<Bookmark>,
       { silent: true },
     )
-    toast.success(t('services.bookmarks.presetRemoved', { label }))
+    toast.success(t('services.bookmarks.frequentRemoved', { label }))
   }
 
   return {
@@ -355,8 +389,9 @@ export const useBookmarksService = createSharedComposable(() => {
     updateBookmark,
     removeBookmark,
     isBookmarkSaved,
-    getPresetBookmarks,
-    setPreset,
-    clearPreset,
+    getFrequentBookmarks,
+    fetchFrequents,
+    setFrequent,
+    clearFrequent,
   }
 })

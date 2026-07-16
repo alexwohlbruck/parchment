@@ -28,28 +28,35 @@ import SetPlaceDialog from '@/components/dashboard/SetPlaceDialog.vue'
 import ResponsiveDropdown, {
   type MenuItemDefinition,
 } from '@/components/responsive/ResponsiveDropdown.vue'
-import { PRESET_TYPES, PRESET_META, type PresetType } from '@/lib/preset-places'
+import {
+  FREQUENT_TYPES,
+  FREQUENT_META,
+  frequentChipMeta,
+  CUSTOM_FREQUENT_ICON,
+  CUSTOM_FREQUENT_LABEL_KEY,
+  type FrequentType,
+} from '@/lib/frequents'
 import { getPlaceRoute } from '@/lib/place.utils'
 
-// Colored category chips for the "Add place" menu. ResponsiveDropdown renders
+// Colored icon chips for the "Set as frequent" menu. ResponsiveDropdown renders
 // an item's `icon` as a bare component, so wrap ItemIcon (which needs props) in
 // a tiny render component per type. inheritAttrs:false keeps the menu's applied
 // `size-4` class from overriding ItemIcon's own sizing.
-const PRESET_ICON = Object.fromEntries(
-  PRESET_TYPES.map(type => [
+const MENU_ICON = Object.fromEntries(
+  ([...FREQUENT_TYPES, 'custom'] as FrequentType[]).map(type => [
     type,
     markRaw({
       inheritAttrs: false,
       render: () =>
         h(ItemIcon, {
-          icon: PRESET_META[type].icon,
-          color: PRESET_META[type].color,
+          icon: type === 'custom' ? CUSTOM_FREQUENT_ICON : FREQUENT_META[type].icon,
+          color: type === 'custom' ? 'parchment' : FREQUENT_META[type].color,
           size: 'xs',
           variant: 'ghost',
         }),
     }),
   ]),
-) as unknown as Record<PresetType, Component>
+) as unknown as Record<FrequentType, Component>
 
 const { t } = useI18n()
 const router = useRouter()
@@ -62,41 +69,55 @@ const directionsService = useDirectionsService()
 // no-op default.
 const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
 
-// Home / Work / School places. A category can hold more than one, so this is a
-// flat list of every tagged bookmark (labeled by its own name, with the
-// category's icon).
-const presetPlaces = computed(() =>
+// Every frequent bookmark, resolved to its chip display: canonical types show
+// their fixed label ("Home") over the address; a custom frequent shows its own
+// name over the address.
+const frequentPlaces = computed(() =>
   bookmarksStore.bookmarks
-    .filter(b => b.presetType)
-    .map(b => ({
-      bookmark: b,
-      type: b.presetType as PresetType,
-      meta: PRESET_META[b.presetType as PresetType],
-    })),
+    .filter(b => b.frequentType)
+    .map(b => {
+      const meta = frequentChipMeta(b)
+      const isCanonical = !!meta.labelKey
+      return {
+        bookmark: b,
+        title: isCanonical ? t(meta.labelKey as string) : meta.title ?? b.name,
+        secondary: isCanonical ? b.address || b.name : b.address || '',
+        icon: meta.icon,
+        iconPack: meta.iconPack,
+        color: meta.color,
+      }
+    }),
 )
 
-// Keep the "Add place" label while the row is sparse (0–1 places); once it's
-// filling up, collapse to an icon-only button to save horizontal room.
-const showAddLabel = computed(() => presetPlaces.value.length <= 1)
+// Keep the label while the row is sparse (0–1 places); once it's filling up,
+// collapse to an icon-only button to save horizontal room.
+const showAddLabel = computed(() => frequentPlaces.value.length <= 1)
 
 const pickerOpen = ref(false)
-const pickerType = ref<PresetType>('home')
+const pickerType = ref<FrequentType>('home')
 
-function openPicker(type: PresetType) {
+function openPicker(type: FrequentType) {
   pickerType.value = type
   pickerOpen.value = true
 }
 
-// Home / Work / School options for the "Add place" button's responsive menu.
-const addMenuItems = computed<MenuItemDefinition[]>(() =>
-  PRESET_TYPES.map(type => ({
-    type: 'item',
+// Home / Work / School / Custom options for the "Set as frequent" menu.
+const addMenuItems = computed<MenuItemDefinition[]>(() => [
+  ...FREQUENT_TYPES.map(type => ({
+    type: 'item' as const,
     id: type,
-    label: t(PRESET_META[type].labelKey),
-    icon: PRESET_ICON[type],
+    label: t(FREQUENT_META[type].labelKey),
+    icon: MENU_ICON[type],
     onSelect: () => openPicker(type),
   })),
-)
+  {
+    type: 'item' as const,
+    id: 'custom',
+    label: t(CUSTOM_FREQUENT_LABEL_KEY),
+    icon: MENU_ICON.custom,
+    onSelect: () => openPicker('custom'),
+  },
+])
 
 /** Minimal Place built from a bookmark, enough to seed a directions waypoint. */
 function bookmarkToPlace(bookmark: Bookmark): Place {
@@ -142,7 +163,7 @@ function openBookmark(bookmark: Bookmark) {
 }
 
 async function removePreset(bookmark: Bookmark) {
-  await bookmarksService.clearPreset(bookmark.id)
+  await bookmarksService.clearFrequent(bookmark.id)
 }
 </script>
 
@@ -151,18 +172,27 @@ async function removePreset(bookmark: Bookmark) {
     <!-- Horizontally scrolling so a long list of places stays one row -->
     <div class="flex items-stretch gap-2 overflow-x-auto scrollbar-hidden -mx-1 px-1 py-0.5">
       <Card
-        v-for="entry in presetPlaces"
+        v-for="entry in frequentPlaces"
         :key="entry.bookmark.id"
         class="relative shrink-0 w-44 py-1.5 pl-1.5 pr-1 flex items-center gap-1.5 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
         @click="startDirections(entry.bookmark)"
       >
         <ItemIcon
-          :icon="entry.meta.icon"
-          :color="entry.meta.color"
+          :icon="entry.icon"
+          :icon-pack="entry.iconPack"
+          :color="entry.color"
           size="xs"
           variant="ghost"
         />
-        <span class="text-xs truncate min-w-0 flex-1">{{ entry.bookmark.name }}</span>
+        <div class="min-w-0 flex-1 flex flex-col leading-tight">
+          <span class="text-xs font-medium truncate">{{ entry.title }}</span>
+          <span
+            v-if="entry.secondary"
+            class="text-[10px] text-muted-foreground truncate"
+          >
+            {{ entry.secondary }}
+          </span>
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger as-child @click.stop>
@@ -215,6 +245,6 @@ async function removePreset(bookmark: Bookmark) {
       </ResponsiveDropdown>
     </div>
 
-    <SetPlaceDialog v-model:open="pickerOpen" :preset-type="pickerType" />
+    <SetPlaceDialog v-model:open="pickerOpen" :frequent-type="pickerType" />
   </div>
 </template>

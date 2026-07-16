@@ -102,6 +102,24 @@ export function getPlaceRoute(placeId: string): RouteLocationRaw {
   }
 }
 
+/**
+ * Build a place-id string for a bookmark, suitable for `getPlaceRoute`.
+ * Prefers the OSM id, then coords, then the first external id — mirroring how
+ * a bookmark resolves back to a place. Returns null if it has no usable id.
+ */
+export function getBookmarkPlaceId(bookmark: {
+  externalIds: Record<string, string>
+}): string | null {
+  const ids = bookmark.externalIds ?? {}
+  const [key, value] = ids.osm
+    ? ['osm', ids.osm]
+    : ids.coords
+      ? ['coords', ids.coords]
+      : [Object.keys(ids)[0], Object.values(ids)[0]]
+  if (!key || !value) return null
+  return `${key}/${value}`
+}
+
 export function formatAddress(place: Place): string {
   if (!place.address) return ''
 

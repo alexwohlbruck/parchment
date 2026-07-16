@@ -44,7 +44,7 @@ watch(
 const filteredBookmarks = computed(() => {
   let result = searchQuery.value
     ? fuzzyFilter(localBookmarks.value, searchQuery.value, {
-        keys: ['name', 'presetType', 'address'],
+        keys: ['name', 'frequentType', 'address'],
         preserveOrder: true,
       })
     : localBookmarks.value

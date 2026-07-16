@@ -81,7 +81,7 @@ async function editBookmark() {
 
       const params = {
         name: formData.name,
-        presetType: formData.type || null,
+        frequentType: formData.type || null,
         icon: formData.icon,
         iconColor: formData.iconColor as ThemeColor,
       }
@@ -159,10 +159,10 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
             </div>
 
             <div
-              v-if="bookmark.presetType"
+              v-if="bookmark.frequentType"
               class="text-xs text-muted-foreground capitalize"
             >
-              {{ bookmark.presetType }}
+              {{ bookmark.frequentType }}
             </div>
           </div>
 

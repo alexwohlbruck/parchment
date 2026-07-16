@@ -10,10 +10,10 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useAppService } from '@/services/app.service'
 import {
-  PRESET_TYPES,
-  PRESET_META,
-  type PresetType,
-} from '@/lib/preset-places'
+  FREQUENT_TYPES,
+  FREQUENT_META,
+  type FrequentType,
+} from '@/lib/frequents'
 import CollectionForm from '@/components/library/CollectionForm.vue'
 import { storeToRefs } from 'pinia'
 import type {
@@ -194,7 +194,7 @@ function handleKeydown(event: KeyboardEvent) {
 // ── Quick set: Home / Work / School ─────────────────────────────────
 // The preset tag currently pointing at this place's bookmark (if any).
 // Reads from the store so it reacts to set/clear immediately.
-const presetTypes = PRESET_TYPES
+const frequentTypes = FREQUENT_TYPES
 // This place's own bookmark, if it exists in the store. A bookmark carries
 // at most one preset type, so this drives the chip's active state.
 const activePresetBookmark = computed(() => {
@@ -208,24 +208,24 @@ const activePresetBookmark = computed(() => {
   }
   return bm ?? null
 })
-const activePreset = computed<PresetType | null>(
-  () => (activePresetBookmark.value?.presetType as PresetType) ?? null,
+const activePreset = computed<FrequentType | null>(
+  () => (activePresetBookmark.value?.frequentType as FrequentType) ?? null,
 )
 
 const isSettingPreset = ref(false)
 
-async function togglePreset(type: PresetType) {
+async function togglePreset(type: FrequentType) {
   if (isSettingPreset.value) return
   isSettingPreset.value = true
   try {
     if (activePreset.value === type) {
       // Untag just this place — other Home/Work/School places are untouched.
       const id = activePresetBookmark.value?.id
-      if (id) await bookmarksService.clearPreset(id)
+      if (id) await bookmarksService.clearFrequent(id)
       return
     }
     if (!props.place) return
-    const result = await bookmarksService.setPreset(props.place, type)
+    const result = await bookmarksService.setFrequent(props.place, type)
     // Setting a preset on an unsaved place creates the bookmark (in the
     // default collection). Adopt it so the picker reflects the new saved
     // state and the parent flips its bookmark button badge.
@@ -394,7 +394,7 @@ function openCreateCollectionDialog() {
     <!-- Quick set: tag this place as Home / Work / School -->
     <div v-if="props.place" class="px-4 flex gap-1.5">
       <Button
-        v-for="type in presetTypes"
+        v-for="type in frequentTypes"
         :key="type"
         variant="outline"
         size="sm"
@@ -404,12 +404,12 @@ function openCreateCollectionDialog() {
         @click.prevent.stop="togglePreset(type)"
       >
         <ItemIcon
-          :icon="PRESET_META[type].icon"
-          :color="PRESET_META[type].color"
+          :icon="FREQUENT_META[type].icon"
+          :color="FREQUENT_META[type].color"
           size="xs"
           variant="ghost"
         />
-        <span class="truncate">{{ t(PRESET_META[type].labelKey) }}</span>
+        <span class="truncate">{{ t(FREQUENT_META[type].labelKey) }}</span>
       </Button>
     </div>
 

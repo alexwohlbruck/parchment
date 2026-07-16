@@ -20,11 +20,17 @@ import type { AutocompleteResult } from '@/types/search.types'
 import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import { type ThemeColor } from '@/lib/utils'
-import { PRESET_META, deriveExternalIds, type PresetType } from '@/lib/preset-places'
+import {
+  FREQUENT_META,
+  CUSTOM_FREQUENT_ICON,
+  isCanonicalFrequent,
+  deriveExternalIds,
+  type FrequentType,
+} from '@/lib/frequents'
 
 const props = defineProps<{
   open: boolean
-  presetType: PresetType
+  frequentType: FrequentType
 }>()
 
 const emit = defineEmits<{
@@ -38,11 +44,25 @@ const bookmarksService = useBookmarksService()
 const mapCamera = useMapCamera()
 
 const query = ref('')
+const customName = ref('')
 const results = ref<AutocompleteResult[]>([])
 const isLoading = ref(false)
 const isSaving = ref(false)
 
-const presetLabel = computed(() => t(`library.types.${props.presetType}`))
+const isCustom = computed(() => props.frequentType === 'custom')
+const frequentLabel = computed(() => t(`library.types.${props.frequentType}`))
+
+// Header icon: canonical types use their fixed chip; custom uses a star.
+const headerIcon = computed(() =>
+  isCanonicalFrequent(props.frequentType)
+    ? FREQUENT_META[props.frequentType].icon
+    : CUSTOM_FREQUENT_ICON,
+)
+const headerColor = computed<ThemeColor>(() =>
+  isCanonicalFrequent(props.frequentType)
+    ? FREQUENT_META[props.frequentType].color
+    : 'parchment',
+)
 
 // Reset each time the dialog opens so a previous search doesn't linger.
 watch(
@@ -50,6 +70,7 @@ watch(
   isOpen => {
     if (isOpen) {
       query.value = ''
+      customName.value = ''
       results.value = []
       isLoading.value = false
     }
@@ -89,6 +110,12 @@ watch(query, value => {
  *  id so the created bookmark carries a real provider id (matches the place
  *  detail's ids, so "already saved" detection lights up later). */
 function resultToPlace(result: AutocompleteResult): Place {
+  // The autocomplete description is "<PlaceType> · <address>" (for the results
+  // list); store only the address part so the saved bookmark's address is clean.
+  const address = result.description?.includes(' · ')
+    ? result.description.slice(result.description.indexOf(' · ') + 3)
+    : result.description
+
   return {
     id: result.id,
     name: { value: result.title },
@@ -99,9 +126,7 @@ function resultToPlace(result: AutocompleteResult): Place {
       },
     },
     externalIds: deriveExternalIds(result.id),
-    address: result.description
-      ? { value: { formatted: result.description } }
-      : null,
+    address: address ? { value: { formatted: address } } : null,
     placeType: { value: 'place' },
   } as unknown as Place
 }
@@ -112,7 +137,9 @@ async function onSelect(result: AutocompleteResult) {
   isSaving.value = true
   try {
     const place = resultToPlace(result)
-    const bookmark = await bookmarksService.setPreset(place, props.presetType)
+    const bookmark = await bookmarksService.setFrequent(place, props.frequentType, {
+      name: isCustom.value ? customName.value : undefined,
+    })
     if (bookmark) {
       emit('set', bookmark)
       emit('update:open', false)
@@ -132,17 +159,36 @@ async function onSelect(result: AutocompleteResult) {
       <DialogHeader>
         <DialogTitle class="flex items-center gap-2">
           <ItemIcon
-            :icon="PRESET_META[presetType].icon"
-            :color="PRESET_META[presetType].color"
+            :icon="headerIcon"
+            :color="headerColor"
             size="sm"
             variant="ghost"
           />
-          {{ t('dashboard.yourPlaces.setTitle', { label: presetLabel }) }}
+          {{
+            isCustom
+              ? t('dashboard.yourPlaces.setCustomTitle')
+              : t('dashboard.yourPlaces.setTitle', { label: frequentLabel })
+          }}
         </DialogTitle>
         <DialogDescription>
-          {{ t('dashboard.yourPlaces.setDescription', { label: presetLabel }) }}
+          {{
+            isCustom
+              ? t('dashboard.yourPlaces.setCustomDescription')
+              : t('dashboard.yourPlaces.setDescription', { label: frequentLabel })
+          }}
         </DialogDescription>
       </DialogHeader>
+
+      <!-- Custom frequents are user-named. -->
+      <div v-if="isCustom">
+        <label class="text-xs text-muted-foreground mb-1 block">
+          {{ t('dashboard.yourPlaces.customName') }}
+        </label>
+        <Input
+          v-model="customName"
+          :placeholder="t('dashboard.yourPlaces.customNamePlaceholder')"
+        />
+      </div>
 
       <div class="relative">
         <SearchIcon
@@ -152,7 +198,7 @@ async function onSelect(result: AutocompleteResult) {
           v-model="query"
           class="w-full pl-8"
           :placeholder="t('dashboard.yourPlaces.searchPlaceholder')"
-          autofocus
+          :autofocus="!isCustom"
         />
       </div>
 

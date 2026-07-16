@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import type { Bookmark } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
+import { FREQUENT_META, isCanonicalFrequent } from '@/lib/frequents'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
@@ -34,6 +35,7 @@ const bookmarkTypes = [
   { value: 'home', label: t('library.types.home') },
   { value: 'work', label: t('library.types.work') },
   { value: 'school', label: t('library.types.school') },
+  { value: 'custom', label: t('library.types.custom') },
 ]
 
 const bookmarkSchema = toTypedSchema(
@@ -68,7 +70,7 @@ onMounted(() => {
     resetForm({
       values: {
         name: props.bookmark.name,
-        type: props.bookmark.presetType || undefined,
+        type: props.bookmark.frequentType || undefined,
         icon: props.bookmark.icon,
         iconColor: props.bookmark.iconColor as ThemeColor,
       },
@@ -87,8 +89,21 @@ const bookmarkStyle = computed({
   },
 })
 
+// Canonical frequents (home/work/school) have a fixed icon + colour — stamp it
+// whenever the type is set to one so a Home always looks like a Home. Custom
+// keeps whatever icon the place/user provides (still editable below).
+watch(
+  () => values.type,
+  type => {
+    if (isCanonicalFrequent(type as any)) {
+      const meta = FREQUENT_META[type as 'home' | 'work' | 'school']
+      setFieldValue('icon', meta.icon)
+      setFieldValue('iconColor', meta.color)
+    }
+  },
+)
+
 const onSubmit = handleSubmit(formValues => {
-  console.log('Form submitted with values:', formValues)
   return formValues
 })
 
@@ -107,7 +122,7 @@ watch(
       resetForm({
         values: {
           name: newBookmark.name,
-          type: newBookmark.presetType || undefined,
+          type: newBookmark.frequentType || undefined,
           icon: newBookmark.icon,
           iconColor: newBookmark.iconColor as ThemeColor,
         },
@@ -141,7 +156,7 @@ defineExpose({
     <!-- Bookmark type field -->
     <FormField name="type" v-slot="{ field }">
       <FormItem>
-        <FormLabel>{{ t('general.type') }}</FormLabel>
+        <FormLabel>{{ t('library.form.frequent') }}</FormLabel>
         <FormControl>
           <Select
             :model-value="field.value"

@@ -5,7 +5,8 @@ import { UnitSystem } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
 import type { WeatherData } from '@server/types/integration.types'
 import ResponsiveDialog from '@/components/responsive/ResponsiveDialog.vue'
-import { aqiSeverityClass } from '@/lib/aqi-colors'
+import { useI18n } from 'vue-i18n'
+import { aqiSeverityClass, aqiCategoryLabel } from '@/lib/aqi-colors'
 import {
   Sun,
   Moon,
@@ -224,6 +225,10 @@ const visibilityUnit = computed(() => {
 // preferring a nearby OpenAQ ground station over the model. See lib/aqi.ts.
 const airQuality = computed(() => props.weather?.airQuality ?? null)
 
+// Descriptive word from the reading's own regional category (US EPA, EEA, …).
+const { t, te } = useI18n()
+const aqiLabel = computed(() => aqiCategoryLabel(airQuality.value, t, te))
+
 const aqiColor = computed(() =>
   airQuality.value
     ? aqiSeverityClass(airQuality.value.severity)
@@ -305,7 +310,7 @@ const weatherIcon = computed(() => getWeatherIcon(props.weather))
                   <span class="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wide">{{ $t('weather.airQuality') }}</span>
                 </div>
                 <div class="text-2xl font-semibold">
-                  {{ $t('weather.aqi.levels.' + airQuality.severity) }}
+                  {{ aqiLabel }}
                 </div>
                 <div class="text-xs text-muted-foreground/80 mt-1">
                   {{ airQuality.index }} · {{ $t('weather.aqi.standards.' + airQuality.standard) }} · {{ $t('weather.aqi.dominant') }}: {{ $t('weather.aqi.pollutants.' + airQuality.dominant) }}

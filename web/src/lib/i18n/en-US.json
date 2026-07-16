@@ -76,11 +76,61 @@
       },
       "levels": {
         "1": "Good",
-        "2": "Fair",
-        "3": "Moderate",
-        "4": "Poor",
-        "5": "Very Poor",
+        "2": "Moderate",
+        "3": "Poor",
+        "4": "Very Poor",
+        "5": "Severe",
         "6": "Hazardous"
+      },
+      "categories": {
+        "us_epa": {
+          "1": "Good",
+          "2": "Moderate",
+          "3": "Unhealthy for Sensitive Groups",
+          "4": "Unhealthy",
+          "5": "Very Unhealthy",
+          "6": "Hazardous"
+        },
+        "eu_eea": {
+          "1": "Good",
+          "2": "Fair",
+          "3": "Moderate",
+          "4": "Poor",
+          "5": "Very Poor",
+          "6": "Extremely Poor"
+        },
+        "uk_daqi": {
+          "1": "Low",
+          "2": "Low",
+          "3": "Moderate",
+          "4": "High",
+          "5": "High",
+          "6": "Very High"
+        },
+        "ca_aqhi": {
+          "1": "Low",
+          "2": "Low",
+          "3": "Moderate",
+          "4": "High",
+          "5": "High",
+          "6": "Very High"
+        },
+        "cn_mee": {
+          "1": "Excellent",
+          "2": "Good",
+          "3": "Lightly Polluted",
+          "4": "Moderately Polluted",
+          "5": "Heavily Polluted",
+          "6": "Severely Polluted"
+        },
+        "in_naqi": {
+          "1": "Good",
+          "2": "Satisfactory",
+          "3": "Moderate",
+          "4": "Poor",
+          "5": "Very Poor",
+          "6": "Severe"
+        }
       }
     }
   },

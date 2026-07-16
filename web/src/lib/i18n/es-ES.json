@@ -75,11 +75,61 @@
       },
       "levels": {
         "1": "Buena",
-        "2": "Aceptable",
-        "3": "Moderada",
-        "4": "Mala",
-        "5": "Muy mala",
+        "2": "Moderada",
+        "3": "Mala",
+        "4": "Muy mala",
+        "5": "Severa",
         "6": "Peligrosa"
+      },
+      "categories": {
+        "us_epa": {
+          "1": "Buena",
+          "2": "Moderada",
+          "3": "Dañina para grupos sensibles",
+          "4": "Dañina",
+          "5": "Muy dañina",
+          "6": "Peligrosa"
+        },
+        "eu_eea": {
+          "1": "Buena",
+          "2": "Aceptable",
+          "3": "Moderada",
+          "4": "Mala",
+          "5": "Muy mala",
+          "6": "Extremadamente mala"
+        },
+        "uk_daqi": {
+          "1": "Baja",
+          "2": "Baja",
+          "3": "Moderada",
+          "4": "Alta",
+          "5": "Alta",
+          "6": "Muy alta"
+        },
+        "ca_aqhi": {
+          "1": "Bajo",
+          "2": "Bajo",
+          "3": "Moderado",
+          "4": "Alto",
+          "5": "Alto",
+          "6": "Muy alto"
+        },
+        "cn_mee": {
+          "1": "Excelente",
+          "2": "Buena",
+          "3": "Ligeramente contaminada",
+          "4": "Moderadamente contaminada",
+          "5": "Muy contaminada",
+          "6": "Gravemente contaminada"
+        },
+        "in_naqi": {
+          "1": "Buena",
+          "2": "Satisfactoria",
+          "3": "Moderada",
+          "4": "Mala",
+          "5": "Muy mala",
+          "6": "Severa"
+        }
       }
     }
   },

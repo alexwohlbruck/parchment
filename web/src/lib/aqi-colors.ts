@@ -34,6 +34,28 @@ export const aqiSeverityHex = (severity: number) =>
 export const aqiSeverityClass = (severity: number) =>
   AQI_SEVERITY_CLASS[clamp6(severity) - 1]
 
+/**
+ * The descriptive word for an AQI reading. Each standard shows its OWN official
+ * category name — US EPA "Unhealthy for Sensitive Groups", EEA "Moderate", UK
+ * "High", … — so the word always agrees with the number and its regional scale
+ * (the way Apple/AirNow label a reading). Using one worldwide word scale mislabels
+ * US readings, whose categories sit a notch above the generic severity words
+ * (US AQI 125 is "Unhealthy for Sensitive Groups", not "Moderate"). Falls back
+ * to the generic severity word if a standard-specific label is missing.
+ *
+ * `t`/`te` come from the caller's `useI18n()` (or `$t`/`$te` in a template).
+ */
+export function aqiCategoryLabel(
+  aq: { standard?: string | null; severity?: number } | null | undefined,
+  t: (key: string) => string,
+  te: (key: string) => boolean,
+): string {
+  const severity = aq?.severity
+  if (!severity) return ''
+  const key = `weather.aqi.categories.${aq?.standard}.${severity}`
+  return aq?.standard && te(key) ? t(key) : t(`weather.aqi.levels.${severity}`)
+}
+
 /** MapLibre expression: feature `severity` prop → hex. */
 export const aqiSeverityColorExpression = (): unknown => [
   'match',

@@ -194,7 +194,9 @@ const aqiColor = computed(() =>
     : 'bg-muted-foreground',
 )
 
-// Single friendly word derived from the normalized 1–6 severity
+// Compact chip shows a short, glanceable severity word; the details dialog
+// carries the reading's precise regional category name (which can be long,
+// e.g. US "Unhealthy for Sensitive Groups").
 const aqiLabel = computed(() => {
   const severity = airQuality.value?.severity
   return severity ? t(`weather.aqi.levels.${severity}`) : ''

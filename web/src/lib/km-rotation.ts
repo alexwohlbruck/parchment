@@ -310,8 +310,10 @@ async function rebuildPersonalBlob(params: {
   const encodedType = encodeURIComponent(params.blobType)
   let envelope: ServerBlobValue
   try {
-    const { data } = await api.get<ServerBlobValue>(`/me/blobs/${encodedType}`)
-    envelope = data
+    const res = await api.get<ServerBlobValue>(`/me/blobs/${encodedType}`)
+    // 204/empty (or legacy 404 below) — blob disappeared between list + fetch.
+    if (res.status === 204 || !res.data?.encryptedBlob) return null
+    envelope = res.data
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } })?.response?.status
     if (status === 404) return null // disappeared between list + fetch

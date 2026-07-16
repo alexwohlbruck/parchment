@@ -41,14 +41,19 @@ app.use(permissions(PermissionId.LIBRARY_READ)).get(
       return status(400, { message: 'Invalid blob type' })
     }
     const blob = await getPersonalBlob(user.id, type)
-    if (!blob) return status(404, { message: 'Not found' })
+    // A personal blob is a singleton-per-user slot; "not stored yet" is an
+    // empty slot, not a missing resource. Return 204 (No Content) so clients
+    // (and the network tab) don't treat a fresh/never-synced blob as an error.
+    if (!blob) return status(204)
     return blob
   },
   {
     params: t.Object({ type: t.String() }),
     detail: {
       tags: ['PersonalBlob'],
-      description: 'Get a client-encrypted personal blob by type',
+      description:
+        'Get a client-encrypted personal blob by type. Returns 204 (No ' +
+        'Content) when the caller has no blob of that type yet.',
     },
   },
 )

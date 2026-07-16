@@ -315,11 +315,12 @@ const weatherIcon = computed(() => getWeatherIcon(props.weather))
                 <div class="text-xs text-muted-foreground/80 mt-1">
                   {{ airQuality.index }} · {{ $t('weather.aqi.standards.' + airQuality.standard) }} · {{ $t('weather.aqi.dominant') }}: {{ $t('weather.aqi.pollutants.' + airQuality.dominant) }}
                 </div>
+                <!-- Source attribution (required by OpenAQ's terms of use). -->
                 <div class="text-[0.65rem] text-muted-foreground/70 mt-0.5">
                   {{
-                    airQuality.source === 'openaq' && airQuality.stationName
-                      ? airQuality.stationName
-                      : $t('weather.aqi.modeled')
+                    airQuality.stationName
+                      ? `OpenAQ · ${airQuality.stationName}`
+                      : 'OpenAQ'
                   }}
                 </div>
               </div>

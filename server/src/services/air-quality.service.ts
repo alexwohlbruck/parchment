@@ -155,27 +155,94 @@ function apiKey(): string | undefined {
   return (rec?.config as { apiKey?: string } | undefined)?.apiKey?.trim() || undefined
 }
 
+// ---------------------------------------------------------------------------
+// Rate limiting + circuit breaker — stay within OpenAQ's usage terms.
+// Free tier: 60 req/min, 2,000 req/hr, and they suspend keys that burst or
+// over-consume. Every request funnels through openaqGet, which (a) meters via a
+// token bucket so we never spike and stay well under both ceilings, and (b)
+// trips a circuit breaker when OpenAQ blocks us, so we stop probing instead of
+// hammering a limited or suspended key.
+// ---------------------------------------------------------------------------
+
+// Token bucket: sustained ~24 req/min (≈1,440/hr) with bursts capped at 6 — a
+// comfortable margin under the 60/min and 2,000/hr limits, and never a spike.
+const BUCKET = { capacity: 6, tokens: 6, refillPerSec: 0.4, last: Date.now() }
+
+async function takeToken(): Promise<void> {
+  for (;;) {
+    const now = Date.now()
+    BUCKET.tokens = Math.min(
+      BUCKET.capacity,
+      BUCKET.tokens + ((now - BUCKET.last) / 1000) * BUCKET.refillPerSec,
+    )
+    BUCKET.last = now
+    if (BUCKET.tokens >= 1) {
+      BUCKET.tokens -= 1
+      return
+    }
+    const waitMs = Math.ceil(((1 - BUCKET.tokens) / BUCKET.refillPerSec) * 1000)
+    await new Promise((r) => setTimeout(r, waitMs))
+  }
+}
+
+// Circuit breaker: once OpenAQ blocks us (429 rate-limit, or 401/403
+// suspension/unauthorized) we stop sending until the cooldown passes.
+let circuitOpenUntil = 0
+function openCircuit(ms: number, reason: string) {
+  circuitOpenUntil = Math.max(circuitOpenUntil, Date.now() + ms)
+  console.warn(`[openaq] pausing requests ${Math.round(ms / 1000)}s (${reason})`)
+}
+
+function headerNum(res: Response, name: string): number {
+  return Number(res.headers.get(name))
+}
+
 async function openaqGet(path: string): Promise<any | null> {
   const key = apiKey()
   if (!key) return null
+  if (Date.now() < circuitOpenUntil) return null // blocked — skip entirely
+
+  await takeToken()
+  if (Date.now() < circuitOpenUntil) return null // may have tripped while queued
+
   try {
     const res = await fetch(`${OPENAQ_BASE}${path}`, {
       headers: { 'X-API-Key': key },
       signal: AbortSignal.timeout(8000),
     })
+
+    // Suspended / unauthorized — back off for hours; do not keep probing.
+    if (res.status === 401 || res.status === 403) {
+      openCircuit(6 * 60 * 60 * 1000, `HTTP ${res.status}`)
+      return null
+    }
+    // Rate limited — honour the reset window.
+    if (res.status === 429) {
+      const reset = headerNum(res, 'x-ratelimit-reset') || 60
+      openCircuit(Math.min(Math.max(reset, 60), 3600) * 1000, 'rate limited')
+      return null
+    }
     if (!res.ok) return null
+
+    // Proactively pause if we've drained the current window. Only act when the
+    // header is actually present — a missing header must not read as 0.
+    const remainingRaw = res.headers.get('x-ratelimit-remaining')
+    if (remainingRaw != null && Number(remainingRaw) <= 1) {
+      const reset = headerNum(res, 'x-ratelimit-reset') || 60
+      openCircuit(Math.min(reset, 120) * 1000, 'window exhausted')
+    }
     return await res.json()
   } catch {
     return null
   }
 }
 
-// Small in-memory cache (OpenAQ updates ~hourly; stations move rarely).
+// In-memory cache. OpenAQ data refreshes ~hourly, so a long TTL both keeps the
+// widget snappy and keeps request volume low. Misses (no nearby station) are
+// cached for a while too so we don't re-probe station-less areas repeatedly.
 const cache = new Map<string, { at: number; data: unknown }>()
-const CACHE_TTL = 5 * 60 * 1000
-// A miss (no station / transient OpenAQ failure) is cached only briefly so the
-// widget doesn't get stuck on the modeled fallback for minutes at a time.
-const MISS_CACHE_TTL = 45 * 1000
+const CACHE_TTL = 30 * 60 * 1000
+const MISS_CACHE_TTL = 10 * 60 * 1000
 
 function readCache<T>(k: string): T | undefined {
   const c = cache.get(k)
@@ -195,7 +262,9 @@ export async function getStationsInBbox(
   opts: { limit?: number } = {},
 ): Promise<AirQualityStation[]> {
   if (!apiKey()) return []
-  const limit = Math.min(opts.limit ?? 50, 100)
+  // Each location needs its own /latest call, so keep this modest — the token
+  // bucket in openaqGet meters it regardless, but a smaller set is cheaper.
+  const limit = Math.min(opts.limit ?? 20, 30)
   const key = `bbox:${bbox.west.toFixed(2)},${bbox.south.toFixed(2)},${bbox.east.toFixed(2)},${bbox.north.toFixed(2)}:${limit}`
   const hit = readCache<AirQualityStation[]>(key)
   if (hit) return hit
@@ -222,11 +291,16 @@ export async function getStationsInBbox(
   return stations
 }
 
-// Aggregate over this many nearest stations. A single station usually measures
-// just one or two pollutants (a school might report only pm2.5), so an
-// area AQI has to blend several monitors to catch the dominant pollutant —
-// exactly how AirNow/Apple report a single metro-area number.
-const AGGREGATE_STATIONS = 8
+// Probe at most this many nearest stations. A single station usually measures
+// just one or two pollutants (a school might report only pm2.5), so an area AQI
+// blends a few monitors to catch the dominant pollutant — like AirNow. Kept
+// small (and fetched serially with early-exit below) to stay within OpenAQ's
+// rate terms.
+const AGGREGATE_STATIONS = 4
+// Pollutants that drive the index; once collected we stop probing more stations.
+const WANTED_POLLUTANTS: (keyof AqiComponents)[] = [
+  'pm2_5', 'o3', 'pm10', 'no2', 'so2', 'co',
+]
 
 /**
  * Area air quality for the weather widget: the nearest available reading for
@@ -249,7 +323,8 @@ export async function getNearestStationAirQuality(
   distanceKm: number
 } | null> {
   if (!apiKey()) return null
-  const key = `near:${lat.toFixed(3)},${lng.toFixed(3)}`
+  // ~1km cache grid: nearby lookups share one entry, cutting request volume.
+  const key = `near:${lat.toFixed(2)},${lng.toFixed(2)}`
   const hit =
     readCache<Awaited<ReturnType<typeof getNearestStationAirQuality>>>(key)
   if (hit !== undefined) return hit
@@ -267,25 +342,25 @@ export async function getNearestStationAirQuality(
     .sort((a, b) => a.d - b.d)
     .slice(0, AGGREGATE_STATIONS)
 
-  // Fetch the nearest stations' latest readings in parallel, then merge in
-  // distance order so the nearest reading wins for each pollutant.
-  const stations = await Promise.all(
-    ranked.map(async ({ loc, d }) => {
-      const latest = await openaqGet(`/locations/${loc.id}/latest`)
-      return { station: assembleStation(loc, latest?.results ?? []), d }
-    }),
-  )
-
+  // Fetch nearest stations' latest readings SERIALLY (never a burst), merging in
+  // distance order so the nearest reading wins per pollutant. Stop early once
+  // pm2.5 + ozone (the usual index drivers) are in hand, so a typical lookup is
+  // just 1–2 /latest calls rather than one per station.
   const merged: AqiComponents = {}
   const provenance = new Map<string, { name: string; d: number }>()
-  for (const { station, d } of stations) {
-    if (!station) continue
-    for (const [k, v] of Object.entries(station.components)) {
-      if (merged[k as keyof AqiComponents] == null && v != null) {
-        merged[k as keyof AqiComponents] = v
-        provenance.set(k, { name: station.name, d })
+  for (const { loc, d } of ranked) {
+    if (WANTED_POLLUTANTS.every((p) => merged[p] != null)) break
+    const latest = await openaqGet(`/locations/${loc.id}/latest`)
+    const station = assembleStation(loc, latest?.results ?? [])
+    if (station) {
+      for (const [k, v] of Object.entries(station.components)) {
+        if (merged[k as keyof AqiComponents] == null && v != null) {
+          merged[k as keyof AqiComponents] = v
+          provenance.set(k, { name: station.name, d })
+        }
       }
     }
+    if (merged.pm2_5 != null && merged.o3 != null) break
   }
 
   if (Object.keys(merged).length === 0) {

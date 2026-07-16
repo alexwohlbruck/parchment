@@ -293,6 +293,34 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.OPENAQ,
+    name: 'OpenAQ',
+    description: 'Open air-quality data from ground monitoring stations',
+    color: '#2E7D32',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.OPENAQ)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'apiKeySchema',
+    publicFields: ['apiKey'],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.FIRMS,
+    name: 'NASA FIRMS',
+    description: 'Active wildfire detections from satellite (VIIRS/MODIS)',
+    color: '#E64A19',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.FIRMS)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'firmsMapKeySchema',
+    publicFields: ['apiKey'],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.AXIOM,
     name: 'Axiom',
     description:

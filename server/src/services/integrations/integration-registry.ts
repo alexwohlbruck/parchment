@@ -22,6 +22,8 @@ import { OpenStreetMapSystemIntegration } from './openstreetmap-system-integrati
 import { DawarichIntegration } from './dawarich-integration'
 import { UberIntegration } from './uber-integration'
 import { LyftIntegration } from './lyft-integration'
+import { OpenAqIntegration } from './openaq-integration'
+import { FirmsIntegration } from './firms-integration'
 
 /**
  * Registry for all integrations
@@ -59,6 +61,8 @@ export class IntegrationRegistry {
     this.registerIntegration(new DawarichIntegration())
     this.registerIntegration(new UberIntegration())
     this.registerIntegration(new LyftIntegration())
+    this.registerIntegration(new OpenAqIntegration())
+    this.registerIntegration(new FirmsIntegration())
   }
 
   /**

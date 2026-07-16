@@ -1634,7 +1634,9 @@
         "barrelman": "Self-hosted OSM search and spatial engine",
         "openstreetmap": "Configure OSM OAuth",
         "openstreetmap-account": "Add notes, comments, and make quick edits",
-        "dawarich": "Private, encrypted location history tracking"
+        "dawarich": "Private, encrypted location history tracking",
+        "openaq": "Open air-quality data from ground monitoring stations",
+        "firms": "Active wildfire detections from satellite (VIIRS/MODIS)"
       },
       "scheme": {
         "endToEnd": {

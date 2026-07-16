@@ -27,6 +27,10 @@ export enum IntegrationId {
   /** Rideshare providers — price/time estimates + booking deep links. */
   UBER = 'uber',
   LYFT = 'lyft',
+  /** OpenAQ — open air-quality ground-station data (Environment overlay + widget). */
+  OPENAQ = 'openaq',
+  /** NASA FIRMS — active-fire satellite detections (Environment wildfire overlay). */
+  FIRMS = 'firms',
 }
 
 export enum IntegrationCapabilityId {

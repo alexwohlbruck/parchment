@@ -52,8 +52,10 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
           language,
         )
 
-        // Prefer a real ground-sensor reading (OpenAQ) over the modeled AQI
-        // when a monitoring station is nearby; otherwise keep the model value.
+        // Air quality comes ONLY from a real OpenAQ ground station — never from
+        // the modeled estimate (a wrong number is worse than none). When no
+        // station is available (or OpenAQ is unreachable), we leave air quality
+        // off and the widget simply omits it.
         try {
           const nearest = await getNearestStationAirQuality(
             Number(lat),
@@ -61,13 +63,10 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
           )
           if (nearest) {
             weatherData.airQuality = nearest.airQuality
-            weatherData.aqiComponents = {
-              ...weatherData.aqiComponents,
-              ...nearest.components,
-            }
+            weatherData.aqiComponents = nearest.components
           }
         } catch (e) {
-          console.warn('OpenAQ lookup failed; using modeled AQI:', e)
+          console.warn('OpenAQ lookup failed; omitting air quality:', e)
         }
 
         return weatherData

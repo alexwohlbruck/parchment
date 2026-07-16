@@ -1,36 +1,12 @@
 <script setup lang="ts">
 /**
- * TODO: Regional AQI Scales
- * Currently we only support two AQI scales:
- * - European CAQI (1-5 scale) for metric users
- * - US EPA AQI (0-500 scale) for imperial users
- *
- * Future enhancement: Add support for regional AQI scales based on user location:
- *
- * Key Regional AQI Differences:
- * - U.S. EPA AQI (0-500): Often used internationally (e.g., AirNow, PurpleAir).
- *   Stricter for lower pollutant levels (PM2.5 below 9 μg/m³ is "Good").
- *
- * - China AQI (0-500): Different, sometimes more linear calculation.
- *   Less strict than US at lower concentrations but comparable at higher levels.
- *
- * - India NAQI (0-500): 6-category scale similar to US, but with higher breakpoints
- *   for "Good" or "Satisfactory" levels, allowing higher pollutant levels before
- *   labeling air "Unhealthy".
- *
- * - EU CAQI (0-100): Focuses on 0-100 scale, often separating measurements for
- *   roadside vs background locations, with lower, stricter numerical indices.
- *
- * - Canada AQHI (0-10+): Air Quality Health Index representing health risks rather
- *   than just pollutant concentrations, usually ranging from 0-10+.
- *
- * Implementation approach:
- * 1. Add user preference or auto-detect based on location
- * 2. Implement conversion functions for each regional scale
- * 3. Update UI labels and color scales accordingly
- * 4. Consider adding PM2.5/PM10 concentration display as fallback
+ * Air quality is computed server-side using the regional standard for the
+ * location's country (US EPA, EEA, UK DAQI, China, India, Canada AQHI) and
+ * delivered on `weather.airQuality`. See server/src/lib/aqi.ts.
  */
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { aqiSeverityClass } from '@/lib/aqi-colors'
 import { useWeatherService } from '@/services/weather.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useMapStore } from '@/stores/map.store'
@@ -64,6 +40,7 @@ const integrationsStore = useIntegrationsStore()
 const mapStore = useMapStore()
 const appStore = useAppStore()
 
+const { t } = useI18n()
 const { weather, loading } = weatherService
 const { controlSettings } = storeToRefs(mapStore)
 const { unitSystem } = storeToRefs(appStore)
@@ -208,87 +185,19 @@ const weatherIcon = computed((): LucideIcon => {
   return isNight ? Moon : Sun
 })
 
-// Calculate US EPA AQI from PM2.5 (μg/m³)
-// https://www.airnow.gov/aqi/aqi-calculator-concentration/
-function calculateUSAQI(pm25: number): number {
-  // PM2.5 breakpoints and corresponding AQI values
-  const breakpoints = [
-    { pm_low: 0.0, pm_high: 12.0, aqi_low: 0, aqi_high: 50 },
-    { pm_low: 12.1, pm_high: 35.4, aqi_low: 51, aqi_high: 100 },
-    { pm_low: 35.5, pm_high: 55.4, aqi_low: 101, aqi_high: 150 },
-    { pm_low: 55.5, pm_high: 150.4, aqi_low: 151, aqi_high: 200 },
-    { pm_low: 150.5, pm_high: 250.4, aqi_low: 201, aqi_high: 300 },
-    { pm_low: 250.5, pm_high: 350.4, aqi_low: 301, aqi_high: 400 },
-    { pm_low: 350.5, pm_high: 500.4, aqi_low: 401, aqi_high: 500 },
-  ]
+// Server-computed regional air quality (null when unavailable)
+const airQuality = computed(() => weather.value?.airQuality ?? null)
 
-  for (const bp of breakpoints) {
-    if (pm25 >= bp.pm_low && pm25 <= bp.pm_high) {
-      const aqi =
-        ((bp.aqi_high - bp.aqi_low) / (bp.pm_high - bp.pm_low)) *
-          (pm25 - bp.pm_low) +
-        bp.aqi_low
-      return Math.round(aqi)
-    }
-  }
+const aqiColor = computed(() =>
+  airQuality.value
+    ? aqiSeverityClass(airQuality.value.severity)
+    : 'bg-muted-foreground',
+)
 
-  // If PM2.5 is above the highest breakpoint
-  return 500
-}
-
-const aqiLevel = computed(() => {
-  if (unitSystem.value === UnitSystem.METRIC) {
-    // Use OpenWeatherMap's European AQI scale (1-5)
-    return weather.value?.aqi ?? null
-  } else {
-    // Use US EPA AQI scale (0-500) calculated from PM2.5
-    if (!weather.value?.aqiComponents?.pm2_5) return null
-    return calculateUSAQI(weather.value.aqiComponents.pm2_5)
-  }
-})
-
-const aqiBadgeClass = computed(() => {
-  const aqi = aqiLevel.value
-  if (!aqi) return ''
-
-  if (unitSystem.value === UnitSystem.METRIC) {
-    // European AQI color scale (1-5)
-    if (aqi === 1) return 'bg-forest-500 text-white' // Good
-    if (aqi === 2) return 'bg-amber-400 text-white' // Fair
-    if (aqi === 3) return 'bg-compass-500 text-white' // Moderate
-    if (aqi === 4) return 'bg-coral-500 text-white' // Poor
-    return 'bg-violet-600 text-white' // Very Poor (5)
-  } else {
-    // US EPA AQI color scale (0-500)
-    if (aqi <= 50) return 'bg-forest-500 text-white' // Good
-    if (aqi <= 100) return 'bg-amber-400 text-white' // Moderate
-    if (aqi <= 150) return 'bg-compass-500 text-white' // Unhealthy for Sensitive Groups
-    if (aqi <= 200) return 'bg-coral-500 text-white' // Unhealthy
-    if (aqi <= 300) return 'bg-violet-600 text-white' // Very Unhealthy
-    return 'bg-maroon-800 text-white' // Hazardous
-  }
-})
-
+// Single friendly word derived from the normalized 1–6 severity
 const aqiLabel = computed(() => {
-  const aqi = aqiLevel.value
-  if (!aqi) return ''
-
-  if (unitSystem.value === UnitSystem.METRIC) {
-    // European AQI descriptive labels (1-5)
-    if (aqi === 1) return 'Good'
-    if (aqi === 2) return 'Fair'
-    if (aqi === 3) return 'Moderate'
-    if (aqi === 4) return 'Poor'
-    return 'Very Poor' // 5
-  } else {
-    // US EPA AQI descriptive labels (0-500)
-    if (aqi <= 50) return 'Good'
-    if (aqi <= 100) return 'Moderate'
-    if (aqi <= 150) return 'Unhealthy for Sensitive Groups'
-    if (aqi <= 200) return 'Unhealthy'
-    if (aqi <= 300) return 'Very Unhealthy'
-    return 'Hazardous'
-  }
+  const severity = airQuality.value?.severity
+  return severity ? t(`weather.aqi.levels.${severity}`) : ''
 })
 </script>
 
@@ -298,7 +207,7 @@ const aqiLabel = computed(() => {
       v-if="isVisible"
       variant="outline"
       class="weather-control h-auto px-2 py-1.5 flex flex-col gap-0.5 items-center justify-center min-w-[3rem]"
-      :title="`${weather?.conditionDescription}, ${temperature}${temperatureUnit}${aqiLevel ? ` • Air Quality: ${aqiLabel}` : ''}`"
+      :title="`${weather?.conditionDescription}, ${temperature}${temperatureUnit}${airQuality ? ` • ${$t('weather.airQuality')}: ${aqiLabel}` : ''}`"
       @click="showDetailsDialog = true"
     >
       <!-- Weather Icon and Temperature -->
@@ -307,19 +216,13 @@ const aqiLabel = computed(() => {
         <span class="text-sm font-bold leading-none"> {{ temperature }}° </span>
       </div>
 
-      <!-- AQI Badge -->
-      <div v-if="aqiLevel" class="flex items-center gap-1 mt-0.5">
-        <span class="text-[0.5rem] font-medium opacity-60 leading-none"
-          >AQI</span
-        >
+      <!-- AQI: descriptive word + color dot -->
+      <div v-if="airQuality" class="flex items-center gap-1 mt-0.5">
         <span class="text-[0.5rem] font-bold leading-none">
-          {{ aqiLevel }}
+          {{ aqiLabel }}
         </span>
         <!-- Color indicator dot -->
-        <div
-          class="w-1.5 h-1.5 rounded-full"
-          :class="aqiBadgeClass.split(' ')[0]"
-        />
+        <div class="w-1.5 h-1.5 rounded-full" :class="aqiColor" />
       </div>
     </Button>
   </TransitionFade>

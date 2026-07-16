@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia'
 import { integrationManager } from '../services/integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { getLanguageCode } from '../lib/i18n'
+import { getNearestStationAirQuality } from '../services/air-quality.service'
 
 const weatherRouter = new Elysia({ prefix: '/weather' })
   /**
@@ -50,6 +51,24 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
           Number(lng),
           language,
         )
+
+        // Prefer a real ground-sensor reading (OpenAQ) over the modeled AQI
+        // when a monitoring station is nearby; otherwise keep the model value.
+        try {
+          const nearest = await getNearestStationAirQuality(
+            Number(lat),
+            Number(lng),
+          )
+          if (nearest) {
+            weatherData.airQuality = nearest.airQuality
+            weatherData.aqiComponents = {
+              ...weatherData.aqiComponents,
+              ...nearest.components,
+            }
+          }
+        } catch (e) {
+          console.warn('OpenAQ lookup failed; using modeled AQI:', e)
+        }
 
         return weatherData
       } catch (err: any) {

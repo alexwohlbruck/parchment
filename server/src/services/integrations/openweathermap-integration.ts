@@ -7,6 +7,7 @@ import {
   WeatherCapability,
   WeatherData,
 } from '../../types/integration.types'
+import { computeAirQuality } from '../../lib/aqi'
 
 export interface OpenWeatherMapConfig extends IntegrationConfig {
   apiKey: string
@@ -174,7 +175,6 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
       // Add air quality data if available
       if (aqiData?.list?.[0]) {
         const aqi = aqiData.list[0]
-        result.aqi = aqi.main.aqi
         result.aqiComponents = {
           co: aqi.components.co,
           no: aqi.components.no,
@@ -185,6 +185,14 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
           pm10: aqi.components.pm10,
           nh3: aqi.components.nh3,
         }
+        // Compute the index using the standard for the location's country
+        // (OWM returns the country of the weather location in `sys.country`).
+        // Tagged `model` — the weather controller may override with a nearby
+        // OpenAQ ground station (`openaq`) when one is available.
+        const modeled = computeAirQuality(result.aqiComponents, sys?.country)
+        result.airQuality = modeled
+          ? { ...modeled, source: 'model' }
+          : undefined
       }
 
       return result

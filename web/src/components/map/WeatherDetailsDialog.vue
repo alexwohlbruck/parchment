@@ -5,6 +5,7 @@ import { UnitSystem } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
 import type { WeatherData } from '@server/types/integration.types'
 import ResponsiveDialog from '@/components/responsive/ResponsiveDialog.vue'
+import { aqiSeverityClass } from '@/lib/aqi-colors'
 import {
   Sun,
   Moon,
@@ -219,76 +220,15 @@ const visibilityUnit = computed(() => {
   return unitSystem.value === UnitSystem.IMPERIAL ? 'mi' : 'km'
 })
 
-// AQI calculation
-function calculateUSAQI(pm25: number): number {
-  const breakpoints = [
-    { pm_low: 0.0, pm_high: 12.0, aqi_low: 0, aqi_high: 50 },
-    { pm_low: 12.1, pm_high: 35.4, aqi_low: 51, aqi_high: 100 },
-    { pm_low: 35.5, pm_high: 55.4, aqi_low: 101, aqi_high: 150 },
-    { pm_low: 55.5, pm_high: 150.4, aqi_low: 151, aqi_high: 200 },
-    { pm_low: 150.5, pm_high: 250.4, aqi_low: 201, aqi_high: 300 },
-    { pm_low: 250.5, pm_high: 350.4, aqi_low: 301, aqi_high: 400 },
-    { pm_low: 350.5, pm_high: 500.4, aqi_low: 401, aqi_high: 500 },
-  ]
+// Air quality is computed server-side using the location's regional standard,
+// preferring a nearby OpenAQ ground station over the model. See lib/aqi.ts.
+const airQuality = computed(() => props.weather?.airQuality ?? null)
 
-  for (const bp of breakpoints) {
-    if (pm25 >= bp.pm_low && pm25 <= bp.pm_high) {
-      const aqi = ((bp.aqi_high - bp.aqi_low) / (bp.pm_high - bp.pm_low)) * (pm25 - bp.pm_low) + bp.aqi_low
-      return Math.round(aqi)
-    }
-  }
-
-  return 500
-}
-
-const aqiLevel = computed(() => {
-  if (unitSystem.value === UnitSystem.METRIC) {
-    return props.weather?.aqi ?? null
-  } else {
-    if (!props.weather?.aqiComponents?.pm2_5) return null
-    return calculateUSAQI(props.weather.aqiComponents.pm2_5)
-  }
-})
-
-const aqiLabel = computed(() => {
-  const aqi = aqiLevel.value
-  if (!aqi) return ''
-
-  if (unitSystem.value === UnitSystem.METRIC) {
-    if (aqi === 1) return 'weather.aqi.good'
-    if (aqi === 2) return 'weather.aqi.fair'
-    if (aqi === 3) return 'weather.aqi.moderate'
-    if (aqi === 4) return 'weather.aqi.poor'
-    return 'weather.aqi.veryPoor'
-  } else {
-    if (aqi <= 50) return 'weather.aqi.good'
-    if (aqi <= 100) return 'weather.aqi.moderate'
-    if (aqi <= 150) return 'weather.aqi.unhealthySensitive'
-    if (aqi <= 200) return 'weather.aqi.unhealthy'
-    if (aqi <= 300) return 'weather.aqi.veryUnhealthy'
-    return 'weather.aqi.hazardous'
-  }
-})
-
-const aqiBadgeClass = computed(() => {
-  const aqi = aqiLevel.value
-  if (!aqi) return 'bg-muted-foreground'
-
-  if (unitSystem.value === UnitSystem.METRIC) {
-    if (aqi === 1) return 'bg-forest-500'
-    if (aqi === 2) return 'bg-amber-400'
-    if (aqi === 3) return 'bg-compass-500'
-    if (aqi === 4) return 'bg-coral-500'
-    return 'bg-violet-600'
-  } else {
-    if (aqi <= 50) return 'bg-forest-500'
-    if (aqi <= 100) return 'bg-amber-400'
-    if (aqi <= 150) return 'bg-compass-500'
-    if (aqi <= 200) return 'bg-coral-500'
-    if (aqi <= 300) return 'bg-violet-600'
-    return 'bg-coral-800'
-  }
-})
+const aqiColor = computed(() =>
+  airQuality.value
+    ? aqiSeverityClass(airQuality.value.severity)
+    : 'bg-muted-foreground',
+)
 
 // Format time
 const formatTime = (isoString: string | undefined) => {
@@ -357,21 +297,28 @@ const weatherIcon = computed(() => getWeatherIcon(props.weather))
         <!-- Details Grid -->
         <div class="p-4 space-y-3">
           <!-- Air Quality (if available) -->
-          <div v-if="aqiLevel" class="rounded-lg border border-border/50 p-3">
-            <div class="flex items-center justify-between">
+          <div v-if="airQuality" class="rounded-lg border border-border/50 p-3">
+            <div class="flex items-center justify-between gap-3">
               <div class="flex-1">
                 <div class="flex items-center gap-1.5 mb-1.5">
                   <Waves class="h-3.5 w-3.5 text-muted-foreground" :stroke-width="2" />
                   <span class="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wide">{{ $t('weather.airQuality') }}</span>
                 </div>
-                <div class="flex items-baseline gap-2">
-                  <div class="text-2xl font-semibold tabular-nums">{{ aqiLevel }}</div>
-                  <div class="text-sm text-muted-foreground font-medium">{{ $t(aqiLabel) }}</div>
+                <div class="text-2xl font-semibold">
+                  {{ $t('weather.aqi.levels.' + airQuality.severity) }}
+                </div>
+                <div class="text-xs text-muted-foreground/80 mt-1">
+                  {{ airQuality.index }} · {{ $t('weather.aqi.standards.' + airQuality.standard) }} · {{ $t('weather.aqi.dominant') }}: {{ $t('weather.aqi.pollutants.' + airQuality.dominant) }}
+                </div>
+                <div class="text-[0.65rem] text-muted-foreground/70 mt-0.5">
+                  {{
+                    airQuality.source === 'openaq' && airQuality.stationName
+                      ? airQuality.stationName
+                      : $t('weather.aqi.modeled')
+                  }}
                 </div>
               </div>
-              <div class="flex items-center gap-1.5">
-                <div class="w-2 h-2 rounded-full" :class="aqiBadgeClass" />
-              </div>
+              <div class="w-2 h-2 rounded-full shrink-0" :class="aqiColor" />
             </div>
           </div>
 

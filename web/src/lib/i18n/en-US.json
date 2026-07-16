@@ -57,6 +57,7 @@
     "sunset": "Sunset",
     "aqi": {
       "dominant": "Main pollutant",
+      "modeled": "Modeled estimate",
       "standards": {
         "us_epa": "US AQI",
         "eu_eea": "European AQI",

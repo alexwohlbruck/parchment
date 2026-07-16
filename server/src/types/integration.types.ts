@@ -475,6 +475,8 @@ export interface AirQuality {
   index: number // The standard's own index value (US/CN/IN: 0–500, UK/CA: 1–10+, EU: 1–6 band)
   severity: number // Normalized 1–6 severity; drives the color scale and the friendly word
   dominant: AqiPollutant // The pollutant with the highest sub-index
+  source?: 'openaq' | 'model' // Ground sensor (OpenAQ) vs modeled (OpenWeatherMap/CAMS)
+  stationName?: string // Name of the OpenAQ station, when source === 'openaq'
 }
 
 export interface WeatherCapability {

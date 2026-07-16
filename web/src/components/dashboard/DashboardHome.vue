@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed, inject, ref, onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useDark } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useLayersStore } from '@/stores/layers.store'
+import { useRecentsStore } from '@/stores/recents.store'
 import { useResponsive } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 
 import { ItemIcon } from '@/components/ui/item-icon'
 import { AppRoute } from '@/router'
 import type { ThemeColor } from '@/lib/utils'
+import type { RecentPlaceEntry } from '@/lib/recents'
 import { capitalize } from '@/filters/text.filters'
 import Palette from '@/components/palette/Palette.vue'
 import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
@@ -18,14 +21,17 @@ import { appEventBus } from '@/lib/eventBus'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { getPlaceRoute } from '@/lib/place.utils'
+import { getCategoryColor } from '@/lib/place-colors'
 
 dayjs.extend(relativeTime)
 
 const router = useRouter()
 const { t } = useI18n()
-const bookmarksStore = useBookmarksStore()
+const isDark = useDark()
 const collectionsStore = useCollectionsStore()
 const layersStore = useLayersStore()
+const recentsStore = useRecentsStore()
+const { places: recentPlaces } = storeToRefs(recentsStore)
 const { isMobileScreen, isDesktopScreen } = useResponsive()
 
 const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
@@ -52,19 +58,11 @@ const handlePaletteFocus = () => {
 
 onMounted(() => {
   appEventBus.on('palette:focus', handlePaletteFocus)
+  recentsStore.ensurePlacesHydrated()
 })
 
 onUnmounted(() => {
   appEventBus.off('palette:focus', handlePaletteFocus)
-})
-
-const recentBookmarks = computed(() => {
-  return [...bookmarksStore.bookmarks]
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
-    .slice(0, 5)
 })
 
 const libraryTabs = computed(() => [
@@ -110,24 +108,20 @@ function navigateToRoute(routeName: AppRoute) {
   router.push({ name: routeName })
 }
 
-function navigateToBookmark(bookmark: typeof recentBookmarks.value[number]) {
-  bookmarksStore.navigateToBookmark(bookmark)
-  const ids = bookmark.externalIds as Record<string, string>
-  const [key, value] = ids.osm
-    ? ['osm', ids.osm]
-    : ids.coords
-      ? ['coords', ids.coords]
-      : [Object.keys(ids)[0], Object.values(ids)[0]]
-  if (!key || !value) return
-  const route = getPlaceRoute(`${key}/${value}`)
+function navigateToRecentPlace(place: RecentPlaceEntry) {
+  const route = getPlaceRoute(place.id)
   if (route) {
     minimizeSheet()
     router.push(route)
   }
 }
 
-function formatTimeAgo(dateStr: string) {
-  return dayjs(dateStr).fromNow()
+function placeColor(place: RecentPlaceEntry): string {
+  return getCategoryColor(place.category ?? 'default', isDark.value)
+}
+
+function formatTimeAgo(date: string | number) {
+  return dayjs(date).fromNow()
 }
 </script>
 
@@ -211,31 +205,30 @@ function formatTimeAgo(dateStr: string) {
         </div>
       </div>
 
-      <!-- Recent Places -->
-      <div v-if="recentBookmarks.length > 0">
+      <!-- Recently viewed places -->
+      <div v-if="recentPlaces.length > 0">
         <h3 class="font-display text-lg mb-1.5 px-1">{{ t('general.recents') }}</h3>
         <div class="space-y-2">
           <Card
-            v-for="bookmark in recentBookmarks"
-            :key="bookmark.id"
+            v-for="place in recentPlaces.slice(0, 5)"
+            :key="place.id"
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
-            @click="navigateToBookmark(bookmark)"
+            @click="navigateToRecentPlace(place)"
           >
             <ItemIcon
-              :icon="bookmark.icon"
-              :icon-pack="bookmark.iconPack ?? 'lucide'"
-              :color="(bookmark.iconColor as ThemeColor) || 'cobalt'"
+              :icon="place.icon || 'MapPin'"
+              :icon-pack="place.iconPack ?? 'lucide'"
+              :custom-color="placeColor(place)"
               size="sm"
               variant="ghost"
             />
             <div class="grow min-w-0">
-              <div class="font-medium text-sm truncate">{{ bookmark.name }}</div>
+              <div class="font-medium text-sm truncate">{{ place.title }}</div>
               <div class="text-xs text-muted-foreground truncate">
-                <template v-if="bookmark.presetType">{{ capitalize(bookmark.presetType) }}</template>
-                <template v-else-if="bookmark.address">{{ bookmark.address }}</template>
-                <template v-if="bookmark.createdAt">
-                  <span v-if="bookmark.presetType || bookmark.address"> · </span>
-                  {{ formatTimeAgo(bookmark.createdAt) }}
+                <template v-if="place.subtitle">{{ place.subtitle }}</template>
+                <template v-if="place.at">
+                  <span v-if="place.subtitle"> · </span>
+                  {{ formatTimeAgo(place.at) }}
                 </template>
               </div>
             </div>

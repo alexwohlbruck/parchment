@@ -84,6 +84,18 @@
       }
     }
   },
+  "environment": {
+    "title": "Environment",
+    "layers": {
+      "airQuality": "Air Quality",
+      "hotspots": "Fire hotspots",
+      "perimeters": "Fire perimeters",
+      "smoke": "Smoke"
+    },
+    "legend": {
+      "aqi": "AQI"
+    }
+  },
   "palette": {
     "placeholder": {
       "default": "Search nearby...",

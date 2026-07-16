@@ -83,6 +83,18 @@
       }
     }
   },
+  "environment": {
+    "title": "Entorno",
+    "layers": {
+      "airQuality": "Calidad del aire",
+      "hotspots": "Focos de incendio",
+      "perimeters": "Perímetros de incendio",
+      "smoke": "Humo"
+    },
+    "legend": {
+      "aqi": "ICA"
+    }
+  },
   "palette": {
     "placeholder": {
       "default": "Buscar cerca...",

@@ -25,6 +25,7 @@ import { usePlacePolygonLayerService } from '@/services/layers/features/place-po
 import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
 import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
+import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { useAppStore } from '../stores/app.store'
 import { calculateFitPadding, type Padding } from '@/lib/map-padding'
@@ -65,6 +66,7 @@ function mapService() {
   const searchResultsLayerService = useSearchResultsLayerService()
   const markerLayersService = useMarkerLayersService()
   const notesLayerService = useNotesLayerService()
+  const environmentDataService = useEnvironmentDataService()
   const timelineLayerService = useTimelineLayerService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
@@ -483,6 +485,10 @@ function mapService() {
 
       // Initialize notes layer for OSM notes overlay
       notesLayerService.initializeNotesLayer(mapStrategy)
+
+      // Fill the Environment vector layers (perimeters, smoke) with data —
+      // the layers themselves are default-layer templates that render natively.
+      environmentDataService.initializeEnvironmentData(mapStrategy)
 
       // Initialize timeline layer (stops + path lines) — rendered when the
       // /timeline page populates the timeline store. Pass the smart

@@ -222,7 +222,23 @@ export async function getStationsInBbox(
   return stations
 }
 
-/** Nearest station with a usable AQI, for the weather widget. */
+// Aggregate over this many nearest stations. A single station usually measures
+// just one or two pollutants (a school might report only pm2.5), so an
+// area AQI has to blend several monitors to catch the dominant pollutant —
+// exactly how AirNow/Apple report a single metro-area number.
+const AGGREGATE_STATIONS = 8
+
+/**
+ * Area air quality for the weather widget: the nearest available reading for
+ * each pollutant across the nearby stations, combined into one AQI whose value
+ * is the max sub-index (the dominant pollutant), à la AirNow. Reporting the
+ * single nearest station instead under-reports whenever the dominant pollutant
+ * (often ozone in summer) is only measured at a neighbouring station.
+ *
+ * `stationName`/`distanceKm` describe the station that supplied the *dominant*
+ * pollutant, so the widget's "OpenAQ · <station>" label points at what's
+ * actually driving the number.
+ */
 export async function getNearestStationAirQuality(
   lat: number,
   lng: number,
@@ -239,7 +255,7 @@ export async function getNearestStationAirQuality(
   if (hit !== undefined) return hit
 
   const data = await openaqGet(
-    `/locations?coordinates=${lat},${lng}&radius=25000&limit=8`,
+    `/locations?coordinates=${lat},${lng}&radius=25000&limit=12`,
   )
   const locations: OpenAqLocation[] = data?.results ?? []
   const ranked = locations
@@ -249,27 +265,56 @@ export async function getNearestStationAirQuality(
     }))
     .filter((x): x is { loc: OpenAqLocation; d: number } => x.d != null)
     .sort((a, b) => a.d - b.d)
+    .slice(0, AGGREGATE_STATIONS)
 
-  for (const { loc, d } of ranked) {
-    const latest = await openaqGet(`/locations/${loc.id}/latest`)
-    const station = assembleStation(loc, latest?.results ?? [])
-    if (station?.airQuality) {
-      const result = {
-        components: station.components,
-        airQuality: {
-          ...station.airQuality,
-          source: 'openaq' as const,
-          stationName: station.name,
-        },
-        stationName: station.name,
-        distanceKm: d,
+  // Fetch the nearest stations' latest readings in parallel, then merge in
+  // distance order so the nearest reading wins for each pollutant.
+  const stations = await Promise.all(
+    ranked.map(async ({ loc, d }) => {
+      const latest = await openaqGet(`/locations/${loc.id}/latest`)
+      return { station: assembleStation(loc, latest?.results ?? []), d }
+    }),
+  )
+
+  const merged: AqiComponents = {}
+  const provenance = new Map<string, { name: string; d: number }>()
+  for (const { station, d } of stations) {
+    if (!station) continue
+    for (const [k, v] of Object.entries(station.components)) {
+      if (merged[k as keyof AqiComponents] == null && v != null) {
+        merged[k as keyof AqiComponents] = v
+        provenance.set(k, { name: station.name, d })
       }
-      cache.set(key, { at: Date.now(), data: result })
-      return result
     }
   }
-  cache.set(key, { at: Date.now(), data: null })
-  return null
+
+  if (Object.keys(merged).length === 0) {
+    cache.set(key, { at: Date.now(), data: null })
+    return null
+  }
+
+  // Country of the nearest station (they're all within 25km → same country).
+  const country = countryCode(ranked[0].loc)
+  const airQuality = computeAirQuality(merged, country)
+  if (!airQuality) {
+    cache.set(key, { at: Date.now(), data: null })
+    return null
+  }
+  // Attribute to the station that supplied the dominant pollutant.
+  const src = (airQuality.dominant && provenance.get(airQuality.dominant)) ||
+    provenance.values().next().value
+  const result = {
+    components: merged,
+    airQuality: {
+      ...airQuality,
+      source: 'openaq' as const,
+      stationName: src?.name,
+    },
+    stationName: src?.name ?? 'Station',
+    distanceKm: src?.d ?? 0,
+  }
+  cache.set(key, { at: Date.now(), data: result })
+  return result
 }
 
 /** GeoJSON FeatureCollection of stations for the map overlay. */

@@ -40,11 +40,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ref } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { AppRoute } from '@/router'
 
 dayjs.extend(duration)
 
+const route = useRoute()
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 
@@ -127,9 +128,16 @@ function clearDepartureTime() {
   showTimePicker.value = false
 }
 
-onBeforeRouteLeave(to => {
+// Tear down on unmount rather than in onBeforeRouteLeave: the leave guard runs
+// mid-navigation while the route is still /directions, so clearing waypoints
+// there fires the service's syncUrl watcher, which issues a router.replace
+// (?mode=…) that cancels the outgoing close navigation and traps the drawer
+// open until a second click. By onUnmounted the route has committed, so syncUrl
+// bails on its /directions path guard. `route.name` is the committed
+// destination here — skip clearing when drilling into a trip detail.
+onUnmounted(() => {
   // Keep trips alive when drilling into a trip detail — TripDetail needs them.
-  if (to.name === AppRoute.TRIP) return
+  if (route.name === AppRoute.TRIP) return
   directionsService.clearWaypoints()
   directionsStore.unsetTrips()
 })

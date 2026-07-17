@@ -156,6 +156,14 @@ export const useSearchStore = defineStore('search', () => {
     searchError.value = null
   }
 
+  /** Append a page of results (scroll pagination), de-duplicated by id. */
+  function appendSearchResults(places: Place[]) {
+    const seen = new Set(searchResults.value.map(p => p.id))
+    const fresh = places.filter(p => !seen.has(p.id))
+    if (fresh.length) searchResults.value = [...searchResults.value, ...fresh]
+    lastResultCount.value = searchResults.value.length
+  }
+
   function setCategoryFields(fields: FieldDefinition[]) {
     categoryFields.value = fields
   }
@@ -274,6 +282,7 @@ export const useSearchStore = defineStore('search', () => {
 
     // Actions
     setSearchResults,
+    appendSearchResults,
     setCategoryFields,
     clearSearchResults,
     setSearchLoading,

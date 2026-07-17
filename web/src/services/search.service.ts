@@ -24,6 +24,7 @@ interface AdvancedSearchResponse {
 interface CategorySearchOptions {
   bounds?: MapBounds
   maxResults?: number
+  offset?: number
   sort?: string
   filter?: Record<string, any>
   tags?: Record<string, string>
@@ -42,7 +43,7 @@ interface CategorySearchResponse {
   presetId: string
   results: Place[]
   fieldDefinitions?: CategoryFieldDefinition[]
-  totalCount: number
+  hasMore: boolean
   executedAt: string
 }
 
@@ -163,7 +164,7 @@ function searchService() {
   async function searchByCategory(
     presetId: string,
     options: CategorySearchOptions = {},
-  ): Promise<{ results: Place[]; fieldDefinitions: CategoryFieldDefinition[] }> {
+  ): Promise<{ results: Place[]; fieldDefinitions: CategoryFieldDefinition[]; hasMore: boolean }> {
     loading.value = true
     error.value = null
 
@@ -173,7 +174,8 @@ function searchService() {
         {
           presetId,
           bounds: options.bounds,
-          maxResults: options.maxResults || 100,
+          maxResults: options.maxResults || 30,
+          ...(options.offset ? { offset: options.offset } : {}),
           ...(options.sort ? { sort: options.sort } : {}),
           ...(options.filter ? { filter: options.filter } : {}),
           ...(options.tags ? { tags: options.tags } : {}),
@@ -183,6 +185,7 @@ function searchService() {
       return {
         results: response.data.results,
         fieldDefinitions: response.data.fieldDefinitions || [],
+        hasMore: response.data.hasMore ?? false,
       }
     } catch (err) {
       console.error('Error in category search:', err)

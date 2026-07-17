@@ -45,6 +45,16 @@ const NEARBY_RADIUS_KM = 5
 const BRAND_MAX_RESULTS = 100 // how many locations to load + plot as markers
 const BRAND_FIT_COUNT = 12 // how many of the nearest to frame the camera around
 
+// Category results load one page at a time and paginate as the user scrolls.
+const CATEGORY_PAGE_SIZE = 30
+// When a fresh category search comes back with fewer than CATEGORY_MIN_RESULTS
+// inside the viewport, the server has widened a thin category to the nearest
+// matches beyond it — frame the camera to the nearest CATEGORY_FIT_COUNT so the
+// user actually sees them (they'd otherwise be off-screen). Keep in sync with
+// the server widen threshold (barrelman-integration.searchByCategory).
+const CATEGORY_MIN_RESULTS = 6
+const CATEGORY_FIT_COUNT = 12
+
 let lastRefreshBounds: MapBounds | null = null
 // While a programmatic camera move is in flight (e.g. the brand browse framing
 // its results), moveend events must NOT trigger an auto-refresh — otherwise the
@@ -148,6 +158,12 @@ const brandHeader = ref<BrandHeader | null>(null)
 const brandTitle = computed(
   () => brandHeader.value?.name || (route.query.brandName as string) || '',
 )
+
+// Scroll pagination (category searches). `hasMoreResults` tracks whether the
+// last page came back full (so another page may exist); `isLoadingMore` guards
+// against firing overlapping page loads while one is in flight.
+const hasMoreResults = ref(false)
+const isLoadingMore = ref(false)
 
 const categoryStore = useCategoryStore()
 const themeStore = useThemeStore()
@@ -263,6 +279,23 @@ function handleSearchResultClick(place: Place, event: any) {
   }
 }
 
+// Frame the camera around the nearest `count` results (results come back
+// distance-sorted from the viewport centre). Suppresses moveend auto-refresh
+// while the programmatic move animates so it can't feed back into another search.
+function frameNearestResults(places: Place[], count: number) {
+  let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity
+  for (const p of places.slice(0, count)) {
+    const c = p.geometry?.value?.center
+    if (!c) continue
+    minLat = Math.min(minLat, c.lat); maxLat = Math.max(maxLat, c.lat)
+    minLng = Math.min(minLng, c.lng); maxLng = Math.max(maxLng, c.lng)
+  }
+  if (Number.isFinite(minLat)) {
+    programmaticMoveUntil = Date.now() + 2000
+    mapService.fitBounds({ minLat, minLng, maxLat, maxLng }, { maxZoom: 15 })
+  }
+}
+
 async function performSearch(opts: { refit?: boolean } = {}) {
   // `refit` frames the camera to a brand's nearest locations. Only true for a
   // fresh brand search — a map-move re-search must NOT re-fit, or the user could
@@ -315,17 +348,19 @@ async function performSearch(opts: { refit?: boolean } = {}) {
         })
       }
 
-      const { results, fieldDefinitions } = await searchService.searchByCategory(
+      const { results, fieldDefinitions, hasMore } = await searchService.searchByCategory(
         route.query.categoryId as string,
         {
           bounds: bounds || undefined,
-          maxResults,
+          maxResults: CATEGORY_PAGE_SIZE,
+          offset: 0,
           sort,
           filter,
           tags,
         },
       )
       places = results
+      hasMoreResults.value = hasMore
       searchStore.setCategoryFields(fieldDefinitions)
     } else if (searchType.value === 'brand') {
       // Record the brand search into (encrypted) recents so it re-runs the
@@ -378,23 +413,29 @@ async function performSearch(opts: { refit?: boolean } = {}) {
     searchStore.setLastSearchBounds(bounds)
     lastRefreshBounds = bounds
 
-    // Brand browse: frame the camera around only the NEAREST few locations
-    // (results are distance-sorted) so a big chain stays usefully local — while
-    // still plotting every loaded location as a marker. Only on a fresh search;
-    // a map-move re-search must not re-fit (else the user can't zoom out).
-    if (searchType.value === 'brand' && refit && places.length > 0) {
-      let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity
-      for (const p of places.slice(0, BRAND_FIT_COUNT)) {
-        const c = p.geometry?.value?.center
-        if (!c) continue
-        minLat = Math.min(minLat, c.lat); maxLat = Math.max(maxLat, c.lat)
-        minLng = Math.min(minLng, c.lng); maxLng = Math.max(maxLng, c.lng)
-      }
-      if (Number.isFinite(minLat)) {
-        // Suppress moveend auto-refresh while this fit (and any settle re-fit)
-        // animates, so it can't feed back into another search.
-        programmaticMoveUntil = Date.now() + 2000
-        mapService.fitBounds({ minLat, minLng, maxLat, maxLng }, { maxZoom: 15 })
+    // Frame the camera around the nearest results on a fresh search when it helps
+    // (every loaded place is still plotted as a marker regardless). A map-move
+    // re-search must not re-fit, or the user could never zoom back out.
+    //  - brand: always — a big chain stays usefully local (nearest dozen).
+    //  - category: only when the viewport was sparse, i.e. the server widened a
+    //    thin category (e.g. gas stations) to nearby matches that are off-screen.
+    if (refit && places.length > 0) {
+      if (searchType.value === 'brand') {
+        frameNearestResults(places, BRAND_FIT_COUNT)
+      } else if (searchType.value === 'category' && bounds) {
+        const inView = places.filter(p => {
+          const c = p.geometry?.value?.center
+          return (
+            !!c &&
+            c.lat <= bounds.north &&
+            c.lat >= bounds.south &&
+            c.lng <= bounds.east &&
+            c.lng >= bounds.west
+          )
+        }).length
+        if (inView < CATEGORY_MIN_RESULTS) {
+          frameNearestResults(places, CATEGORY_FIT_COUNT)
+        }
       }
     }
 
@@ -414,6 +455,44 @@ async function performSearch(opts: { refit?: boolean } = {}) {
     searchStore.setSearchResults([])
   } finally {
     searchStore.setSearchLoading(false)
+  }
+}
+
+// Load the next page of category results and append them. Paginates against the
+// bounds the search was run with (not the live viewport), so the nearest-first
+// ordering stays consistent as the user scrolls.
+async function loadMoreResults() {
+  if (searchType.value !== 'category') return
+  if (!hasMoreResults.value || isLoadingMore.value || searchStore.isLoading) return
+
+  isLoadingMore.value = true
+  try {
+    const { sort, filter, tags } = searchStore.serverFilterParams
+    const { results, hasMore } = await searchService.searchByCategory(
+      route.query.categoryId as string,
+      {
+        bounds: searchStore.lastSearchBounds || undefined,
+        maxResults: CATEGORY_PAGE_SIZE,
+        offset: searchStore.searchResults.length,
+        sort,
+        filter,
+        tags,
+      },
+    )
+    searchStore.appendSearchResults(results)
+    hasMoreResults.value = hasMore
+  } catch (error) {
+    console.error('Load more error:', error)
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
+// Infinite scroll: pull the next page when the list nears the bottom.
+function onResultsScroll(e: Event) {
+  const el = e.target as HTMLElement
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
+    loadMoreResults()
   }
 }
 
@@ -538,12 +617,10 @@ watch(
           <span v-else>Search Results</span>
         </h2>
         <div class="flex items-center gap-2 text-sm text-muted-foreground">
+          <!-- Brands have a real, cheap total; category/text results paginate on
+               scroll with no count (a true COUNT is expensive and not shown). -->
           <span v-if="searchType === 'brand' && brandHeader?.locationCount != null">
             {{ t('place.brand.locationsCount', { count: brandHeader.locationCount.toLocaleString() }) }}
-          </span>
-          <span v-else>
-            {{ searchStore.filteredSearchResults.length.toLocaleString() }}
-            {{ searchStore.filteredSearchResults.length === 1 ? 'result' : 'results' }}
           </span>
           <!-- Premium: auto-refresh spinner -->
           <div
@@ -591,6 +668,7 @@ watch(
     <div
       v-if="searchStore.hasResults || searchStore.isLoading"
       class="flex-1 overflow-auto"
+      @scroll.passive="onResultsScroll"
     >
       <div class="max-w-4xl mx-auto">
         <PlaceList
@@ -599,6 +677,10 @@ watch(
           @place-hover="searchStore.setHoveredPlace($event)"
           @place-leave="searchStore.setHoveredPlace(null)"
         />
+        <!-- Scroll-pagination spinner -->
+        <div v-if="isLoadingMore" class="flex justify-center py-4">
+          <div class="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+        </div>
       </div>
     </div>
   </div>

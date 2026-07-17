@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import {
   Select,
   SelectContent,
@@ -11,13 +11,28 @@ import {
 import { Span } from '@/components/ui/typography'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
-import { CheckIcon } from 'lucide-vue-next'
+import { Switch } from '@/components/ui/switch'
+import {
+  CheckIcon,
+  MountainSnowIcon,
+  Building2Icon,
+  MapIcon,
+  MilestoneIcon,
+  InfoIcon,
+  TrainIcon,
+  MapPinIcon,
+  RouteIcon,
+} from 'lucide-vue-next'
 import { useThemeStore, allColors } from '@/stores/theme.store'
+import { useMapStore } from '@/stores/map.store'
+import { useMapService } from '@/services/map.service'
+import { MapEngine, type MapStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+import Layers from '@/components/map/Layers.vue'
 
 const mapTheme = ref('auto')
 
@@ -25,6 +40,13 @@ const mapTheme = ref('auto')
 const themeStore = useThemeStore()
 const { isDark, accentColor, radius } = storeToRefs(themeStore)
 const { toggleDark, setAccentColor, setRadius } = themeStore
+
+// Map store
+const mapStore = useMapStore()
+const mapService = useMapService()
+const { settings } = storeToRefs(mapStore)
+
+const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
 
 // Convert radius to slider format (array)
 const sliderRadius = ref([radius.value])
@@ -153,5 +175,129 @@ const handleColorChange = (value: any) => {
         </Select>
       </SettingsItem>
     </SettingsSection>
+
+    <!-- Map configuration -->
+    <SettingsSection
+      id="configuration"
+      :title="$t('settings.mapSettings.configuration.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.3dObjects')"
+        :icon="Building2Icon"
+      >
+        <Switch
+          :model-value="settings.objects3d"
+          @update:model-value="mapService.toggle3dObjects()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.3dTerrain')"
+        :icon="MountainSnowIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
+      >
+        <Switch
+          :model-value="settings.terrain3d"
+          @update:model-value="mapService.toggle3dTerrain()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.hdRoads')"
+        :description="
+          $t('settings.mapSettings.configuration.hdRoadsDescription')
+        "
+        :icon="RouteIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
+      >
+        <Switch
+          :model-value="settings.hdRoads"
+          @update:model-value="mapService.toggleHdRoads()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.poiLabels')"
+        :icon="InfoIcon"
+      >
+        <Switch
+          :model-value="settings.poiLabels"
+          @update:model-value="mapService.togglePoiLabels()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.roadLabels')"
+        :icon="MilestoneIcon"
+      >
+        <Switch
+          :model-value="settings.roadLabels"
+          @update:model-value="mapService.toggleRoadLabels()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.transitLabels')"
+        :icon="TrainIcon"
+      >
+        <Switch
+          :model-value="settings.transitLabels"
+          @update:model-value="mapService.toggleTransitLabels()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.placeLabels')"
+        :icon="MapPinIcon"
+      >
+        <Switch
+          :model-value="settings.placeLabels"
+          @update:model-value="mapService.togglePlaceLabels()"
+        />
+      </SettingsItem>
+    </SettingsSection>
+
+    <SettingsSection
+      id="style"
+      :title="$t('settings.mapSettings.style.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.mapSettings.style.mapStyle')"
+        :description="
+          isMaplibre
+            ? $t('settings.mapSettings.style.descriptionMaplibre')
+            : $t('settings.mapSettings.style.descriptionMapbox')
+        "
+        :icon="MapIcon"
+      >
+        <Select
+          :model-value="
+            isMaplibre ? settings.mapStyle : 'mapbox-standard'
+          "
+          :disabled="!isMaplibre"
+          @update:model-value="
+            v => mapStore.setMapStyle(v as MapStyleId)
+          "
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue :placeholder="$t('settings.mapSettings.style.placeholder')" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-if="!isMaplibre" value="mapbox-standard">
+              Mapbox Standard
+            </SelectItem>
+            <SelectItem value="osm-liberty">OSM Liberty</SelectItem>
+            <SelectItem value="osm-openmaptiles">
+              OSM OpenMapTiles
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+    </SettingsSection>
+
+    <!-- Layers configuration -->
+    <Layers />
   </div>
 </template>

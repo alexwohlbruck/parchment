@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import {
+  ref,
+  watch,
+  computed,
+  inject,
+  onUnmounted,
+  nextTick,
+  type Ref,
+} from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { LngLat } from 'mapbox-gl'
 import { useDirectionsService } from '@/services/directions.service'
@@ -14,12 +22,17 @@ import PlaceGallery from './gallery/PlaceGallery.vue'
 import PlaceActions from './actions/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
+import ReviewsSection from './reviews/ReviewsSection.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
 import PlaceVisitHistoryWidget from './widgets/PlaceVisitHistoryWidget.vue'
 import NearbyCategories from './NearbyCategories.vue'
+import SeeAllBrand from './SeeAllBrand.vue'
 import PlaceDisplayChips from './PlaceDisplayChips.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHost from './SheetPageHost.vue'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useI18n } from 'vue-i18n'
+import { providePlaceTabs } from '@/composables/usePlaceTabs'
 import { useSheetPeek } from '@/composables/useSheetPeek'
 
 const props = defineProps<{
@@ -60,10 +73,145 @@ watch(
   },
 )
 
+const { t } = useI18n()
+const route = useRoute()
+
 const coordinates = computed(() => {
   if (!props.place?.geometry) return null
   return props.place.geometry.value.center
 })
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+// Overview + Reviews are built-in; widgets that used to open a full sub-page
+// (Related / Visits / Departures) register their own tab at runtime. The
+// active tab lives in the URL as `?tab=` so it's shareable; we use `replace`
+// so switching tabs doesn't pile up browser-history entries.
+const hasReviews = computed(() => (props.place?.reviews?.length ?? 0) > 0)
+
+function setTab(id: string) {
+  const tab = id === 'overview' ? undefined : id
+  if ((route.query.tab ?? undefined) === tab) return
+  router.replace({ query: { ...route.query, tab } })
+}
+
+const { tabs: widgetTabs } = providePlaceTabs({ activate: setTab })
+
+const validTabIds = computed(() => [
+  'overview',
+  ...(hasReviews.value ? ['reviews'] : []),
+  ...widgetTabs.value.map((tab) => tab.id),
+])
+// Falls back to overview when the URL points at a tab that isn't present
+// (yet) — a widget-contributed tab appears once its data loads, and a deep
+// link activates it automatically as soon as it registers.
+const activeTab = computed(() => {
+  const q = route.query.tab
+  const id = typeof q === 'string' ? q : 'overview'
+  return validTabIds.value.includes(id) ? id : 'overview'
+})
+const showTabs = computed(
+  () => hasReviews.value || widgetTabs.value.length > 0,
+)
+
+// Opt the sheet into its "chrome bar" while the sticky tab bar is shown: this
+// populates `--sheet-sticky-top` (so the tab bar docks below the drag handle /
+// nav buttons / safe-area) and fades in an opaque backing under the chrome as
+// you scroll. Mirrors the pinned-header pattern in Directions.vue. No-op on
+// desktop (LeftSheet doesn't expose the injection).
+const sheetChromeBar = inject<Ref<boolean> | null>('sheetChromeBar', null)
+watch(
+  showTabs,
+  (on) => {
+    if (sheetChromeBar) sheetChromeBar.value = on
+  },
+  { immediate: true },
+)
+onUnmounted(() => {
+  if (sheetChromeBar) sheetChromeBar.value = false
+})
+
+// ── Sticky tab bar: detect scroll/pinned state + keep the active tab in view ─
+const tabBarRef = ref<HTMLElement | null>(null)
+// The backing behind the tab row fades in once the bar actually pins.
+const stuck = ref(false)
+let scrollRootEl: HTMLElement | null = null
+let stuckRaf = 0
+
+function findScrollRoot(el: HTMLElement): HTMLElement | null {
+  const named = el.closest('[data-sheet-scroll]') as HTMLElement | null
+  if (named) return named
+  let node = el.parentElement
+  while (node) {
+    const oy = getComputedStyle(node).overflowY
+    if (oy === 'auto' || oy === 'scroll') return node
+    node = node.parentElement
+  }
+  return null
+}
+
+// Stuck exactly when the bar can rise no higher than its docked line — not
+// merely when scrolling begins.
+function measureStuck() {
+  stuckRaf = 0
+  const bar = tabBarRef.value
+  if (!bar || !scrollRootEl) return
+  const dockTop = parseFloat(getComputedStyle(bar).top) || 0
+  const rootTop = scrollRootEl.getBoundingClientRect().top
+  stuck.value = bar.getBoundingClientRect().top <= rootTop + dockTop + 0.5
+}
+function onRootScroll() {
+  if (!stuckRaf) stuckRaf = requestAnimationFrame(measureStuck)
+}
+function attachStuck() {
+  detachStuck()
+  const bar = tabBarRef.value
+  if (!bar) return
+  scrollRootEl = findScrollRoot(bar)
+  scrollRootEl?.addEventListener('scroll', onRootScroll, { passive: true })
+  measureStuck()
+}
+function detachStuck() {
+  if (stuckRaf) {
+    cancelAnimationFrame(stuckRaf)
+    stuckRaf = 0
+  }
+  scrollRootEl?.removeEventListener('scroll', onRootScroll)
+  scrollRootEl = null
+  stuck.value = false
+}
+
+watch(
+  showTabs,
+  async (on) => {
+    if (!on) {
+      detachStuck()
+      return
+    }
+    await nextTick()
+    attachStuck()
+  },
+  { immediate: true },
+)
+onUnmounted(detachStuck)
+
+// When the active tab changes, scroll the tab bar so the whole tab is visible.
+watch(
+  activeTab,
+  async () => {
+    await nextTick()
+    const list = tabBarRef.value?.querySelector(
+      '[role="tablist"]',
+    ) as HTMLElement | null
+    const active = list?.querySelector(
+      '[data-state="active"]',
+    ) as HTMLElement | null
+    if (!list || !active) return
+    const target =
+      active.offsetLeft - (list.clientWidth - active.offsetWidth) / 2
+    list.scrollTo({ left: Math.max(0, target), behavior: 'smooth' })
+  },
+  { immediate: true },
+)
 
 function sharePlace() {
   const url = window.location.href
@@ -176,10 +324,88 @@ function handleBrandLogoError() {
               @imageLoaded="handlePlaceImageLoad"
               @imageError="handlePlaceImageError"
             />
-            <DetailsList :place="place" />
-            <PlaceVisitHistoryWidget :place="place" />
-            <PlaceWidgets :place="place" />
-            <NearbyCategories :place="place" />
+
+            <!-- The Overview content is always mounted (force-mount) so the
+                 widgets inside it can register their tabs even while another
+                 tab is active. The tab bar only appears once there's more than
+                 the Overview tab, so sparse places read as a flat layout. -->
+            <Tabs
+              :model-value="activeTab"
+              class="w-full"
+              @update:model-value="(v) => setTab(String(v))"
+            >
+              <template v-if="showTabs">
+                <!-- z-20 keeps this above the scrolling content but below the
+                     sheet's nav buttons / drag handle (z-22+), so the backing
+                     can reach up behind them. -->
+                <div
+                  ref="tabBarRef"
+                  class="sticky z-20 -mx-3"
+                  :style="{ top: 'var(--sheet-sticky-top, 3rem)' }"
+                >
+                  <!-- Solid backing behind the tab row once the bar pins. -->
+                  <div
+                    class="pointer-events-none absolute inset-x-0 bottom-0 bg-background transition-opacity duration-200 ease-out"
+                    :style="{ top: 'calc(-1 * var(--sheet-sticky-top, 3rem))' }"
+                    :class="stuck ? 'opacity-100' : 'opacity-0'"
+                  />
+                  <!-- overflow-y-hidden: the triggers' -mb-px underline overlap
+                       is 1px of vertical overflow; without this, overflow-x-auto
+                       promotes overflow-y to auto and shows a stray y-scrollbar. -->
+                  <TabsList
+                    variant="linear"
+                    class="relative px-3 pt-2 overflow-x-auto overflow-y-hidden scrollbar-hidden"
+                  >
+                    <TabsTrigger variant="linear" value="overview">
+                      {{ t('place.tabs.overview') }}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      v-if="hasReviews"
+                      variant="linear"
+                      value="reviews"
+                      :count="place.reviews?.length ?? null"
+                    >
+                      {{ t('place.tabs.reviews') }}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      v-for="tab in widgetTabs"
+                      :key="tab.id"
+                      variant="linear"
+                      :value="tab.id"
+                    >
+                      {{ tab.label }}
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+              </template>
+
+              <TabsContent
+                value="overview"
+                force-mount
+                class="mt-3 space-y-3 data-[state=inactive]:hidden"
+              >
+                <DetailsList :place="place" />
+                <PlaceVisitHistoryWidget :place="place" />
+                <PlaceWidgets :place="place" />
+                <SeeAllBrand :place="place" />
+                <NearbyCategories :place="place" />
+              </TabsContent>
+
+              <TabsContent v-if="hasReviews" value="reviews" class="mt-3">
+                <ReviewsSection :place="place" expanded />
+              </TabsContent>
+
+              <TabsContent
+                v-for="tab in widgetTabs"
+                :key="tab.id"
+                :value="tab.id"
+                class="mt-3"
+              >
+                <component :is="tab.component" v-bind="tab.props" embedded />
+              </TabsContent>
+            </Tabs>
+
+            <!-- Attribution stays outside the tabs so it's always visible. -->
             <PlaceSources :place="place" />
           </template>
         </div>

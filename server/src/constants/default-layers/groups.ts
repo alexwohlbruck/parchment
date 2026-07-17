@@ -157,4 +157,22 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     order: 6,
     parentGroupId: null,
   },
+  {
+    templateId: 'default:group:air-quality',
+    name: 'Air Quality',
+    icon: 'WindIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 7,
+    parentGroupId: null,
+  },
+  {
+    templateId: 'default:group:wildfires',
+    name: 'Wildfires',
+    icon: 'FlameIcon',
+    showInLayerSelector: true,
+    visible: false,
+    order: 8,
+    parentGroupId: null,
+  },
 ]

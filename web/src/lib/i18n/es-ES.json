@@ -23,6 +23,9 @@
     "search": "Buscar",
     "create": "Crear",
     "add": "Añadir",
+    "open": "Abrir",
+    "remove": "Quitar",
+    "more": "Más",
     "loading": "Cargando...",
     "dateAdded": "Fecha añadida",
     "lastModified": "Última modificación",
@@ -52,15 +55,94 @@
     "sunrise": "Amanecer",
     "sunset": "Atardecer",
     "aqi": {
-      "good": "Buena",
-      "fair": "Aceptable",
-      "moderate": "Moderada",
-      "poor": "Mala",
-      "veryPoor": "Muy mala",
-      "unhealthySensitive": "Insalubre para grupos sensibles",
-      "unhealthy": "Insalubre",
-      "veryUnhealthy": "Muy insalubre",
-      "hazardous": "Peligrosa"
+      "dominant": "Contaminante principal",
+      "modeled": "Estimación por modelo",
+      "standards": {
+        "us_epa": "AQI EE. UU.",
+        "eu_eea": "AQI europeo",
+        "uk_daqi": "DAQI R. Unido",
+        "in_naqi": "AQI India",
+        "cn_mee": "AQI China",
+        "ca_aqhi": "AQHI Canadá"
+      },
+      "pollutants": {
+        "pm2_5": "PM2.5",
+        "pm10": "PM10",
+        "o3": "Ozono",
+        "no2": "Dióxido de nitrógeno",
+        "so2": "Dióxido de azufre",
+        "co": "Monóxido de carbono"
+      },
+      "levels": {
+        "1": "Buena",
+        "2": "Moderada",
+        "3": "Mala",
+        "4": "Muy mala",
+        "5": "Severa",
+        "6": "Peligrosa"
+      },
+      "categories": {
+        "us_epa": {
+          "1": "Buena",
+          "2": "Moderada",
+          "3": "Dañina para grupos sensibles",
+          "4": "Dañina",
+          "5": "Muy dañina",
+          "6": "Peligrosa"
+        },
+        "eu_eea": {
+          "1": "Buena",
+          "2": "Aceptable",
+          "3": "Moderada",
+          "4": "Mala",
+          "5": "Muy mala",
+          "6": "Extremadamente mala"
+        },
+        "uk_daqi": {
+          "1": "Baja",
+          "2": "Baja",
+          "3": "Moderada",
+          "4": "Alta",
+          "5": "Alta",
+          "6": "Muy alta"
+        },
+        "ca_aqhi": {
+          "1": "Bajo",
+          "2": "Bajo",
+          "3": "Moderado",
+          "4": "Alto",
+          "5": "Alto",
+          "6": "Muy alto"
+        },
+        "cn_mee": {
+          "1": "Excelente",
+          "2": "Buena",
+          "3": "Ligeramente contaminada",
+          "4": "Moderadamente contaminada",
+          "5": "Muy contaminada",
+          "6": "Gravemente contaminada"
+        },
+        "in_naqi": {
+          "1": "Buena",
+          "2": "Satisfactoria",
+          "3": "Moderada",
+          "4": "Mala",
+          "5": "Muy mala",
+          "6": "Severa"
+        }
+      }
+    }
+  },
+  "environment": {
+    "title": "Entorno",
+    "layers": {
+      "airQuality": "Calidad del aire",
+      "hotspots": "Focos de incendio",
+      "perimeters": "Perímetros de incendio",
+      "smoke": "Humo"
+    },
+    "legend": {
+      "aqi": "ICA"
     }
   },
   "palette": {
@@ -90,9 +172,31 @@
           }
         },
         "groups": {
+          "frequents": "Frecuentes",
+          "suggestedCategories": "Categorías",
           "fullSearch": "Buscar",
+          "recents": "Recientes",
+          "brands": "Marcas",
           "categories": "Categorías",
           "places": "Lugares"
+        },
+        "commonCategories": {
+          "restaurants": "Restaurantes",
+          "coffee": "Café",
+          "fastFood": "Comida rápida",
+          "groceries": "Supermercados",
+          "gas": "Gasolina",
+          "parking": "Aparcamiento",
+          "pharmacy": "Farmacia",
+          "hotels": "Hoteles",
+          "bars": "Bares",
+          "parks": "Parques",
+          "hospitals": "Hospitales",
+          "atms": "Cajeros"
+        },
+        "brand": {
+          "seeAll": "Ver todas las ubicaciones",
+          "locationsCount": "{count} ubicaciones"
         }
       },
       "goto": {
@@ -338,6 +442,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "hacia {headsign}",
+    "or": "o",
     "title": "Direcciones",
     "planRouteFromHere": "Planificar ruta desde aquí",
     "directionsHere": "Direcciones a aquí",
@@ -439,18 +544,22 @@
       }
     },
     "form": {
+      "frequent": "Frecuente",
+      "customName": "Nombre",
       "placeholders": {
         "collectionName": "Introduce el nombre de la colección",
         "collectionDescription": "Añade una descripción (opcional)",
         "collectionType": "Selecciona un tipo (opcional)",
         "bookmarkName": "Introduce el nombre del marcador",
-        "bookmarkType": "Selecciona el tipo de marcador (opcional)"
+        "bookmarkType": "No es frecuente",
+        "customName": "Escribe un nombre"
       }
     },
     "types": {
       "home": "Casa",
       "work": "Trabajo",
-      "school": "Escuela"
+      "school": "Escuela",
+      "custom": "Personalizado"
     },
     "loading": {
       "collection": "Cargando colección..."
@@ -472,7 +581,10 @@
       "removeFromCollectionSuccess": "Marcador '{name}' eliminado de la colección.",
       "removeFromCollectionError": "Error al eliminar el marcador de la colección.",
       "unsaveSuccess": "Eliminado {name}",
-      "updateErrorNotFound": "Marcador no encontrado. Puede haber sido eliminado."
+      "updateErrorNotFound": "Marcador no encontrado. Puede haber sido eliminado.",
+      "frequentSet": "Establecido como {label}",
+      "frequentRemoved": "{label} eliminado",
+      "frequentNoCollection": "Crea una colección primero para guardar un lugar."
     },
     "collections": {
       "fetchError": "Error al obtener colecciones",
@@ -705,7 +817,21 @@
     }
   },
   "dashboard": {
-    "title": "Panel"
+    "title": "Panel",
+    "yourPlaces": {
+      "title": "Frecuentes",
+      "add": "Añadir frecuente",
+      "change": "Cambiar lugar",
+      "setTitle": "Establecer {label}",
+      "setDescription": "Busca un lugar para usar como tu {label}.",
+      "setCustomTitle": "Añadir un frecuente",
+      "setCustomDescription": "Ponle un nombre y busca un lugar.",
+      "customName": "Nombre",
+      "customNamePlaceholder": "p. ej. Gimnasio, Casa de mamá",
+      "searchPlaceholder": "Buscar un lugar",
+      "searchHint": "Empieza a escribir para encontrar un lugar.",
+      "noResults": "No se encontraron lugares."
+    }
   },
   "navigation": {
     "title": "Navegación",
@@ -814,8 +940,23 @@
       "partOf": "Parte de",
       "relatedPlaces": "Lugares relacionados"
     },
+    "reviews": {
+      "title": "Opiniones",
+      "ratings": "{count} valoración | {count} valoraciones",
+      "showAll": "Ver las {count} opiniones",
+      "showLess": "Ver menos"
+    },
+    "tabs": {
+      "overview": "Resumen",
+      "reviews": "Opiniones",
+      "visits": "Visitas"
+    },
     "nearby": {
       "findNearby": "Encontrar cerca"
+    },
+    "brand": {
+      "seeAll": "Ver todas las de {name}",
+      "locationsCount": "{count} ubicaciones"
     },
     "osmTags": {
       "copiedMessage": "{label} copiado",
@@ -1180,6 +1321,9 @@
       "language": {
         "title": "Idioma"
       },
+      "mapBehavior": {
+        "title": "Comportamiento del mapa"
+      },
       "units": {
         "title": "Unidades",
         "system": "Sistema de unidades",
@@ -1293,6 +1437,16 @@
           "slow": "Lento"
         }
       },
+      "rotation": {
+        "title": "Rotación del mapa",
+        "northUpSnap": "Ajustar al norte",
+        "northUpSnapDescription": "Endereza el mapa al rotar cerca del norte",
+        "gridSnap": "Ajustar a la cuadrícula",
+        "gridSnapDescription": "Ajusta la rotación a la cuadrícula de calles en ciudades como Nueva York",
+        "gridSnapModeOff": "Desactivado",
+        "gridSnapModeNorthUp": "Solo hacia el norte",
+        "gridSnapModeAll": "Todas las rotaciones de 90°"
+      },
       "style": {
         "title": "Estilo",
         "mapStyle": "Estilo del mapa",
@@ -1312,6 +1466,61 @@
         "title": "Capas",
         "new": "Nueva capa",
         "description": "Elige las capas para mostrar en el selector de capas"
+      }
+    },
+    "vehicles": {
+      "title": "Mis vehículos",
+      "description": "Gestiona tus vehículos para planificar viajes. Los vehículos activos se usan al planificar rutas con ubicaciones de vehículo conocidas.",
+      "empty": "Aún no has añadido vehículos. Añade tu coche o bicicleta para obtener rutas personalizadas que partan desde la ubicación de tu vehículo.",
+      "add": "Añadir vehículo",
+      "active": "activo",
+      "electric": "eléctrico",
+      "actions": {
+        "setActive": "Marcar como activo",
+        "setLocation": "Fijar ubicación en el mapa",
+        "edit": "Editar",
+        "delete": "Eliminar"
+      },
+      "location": {
+        "notSet": "Ubicación no fijada",
+        "set": "Ubicación fijada",
+        "updated": "Actualizado {time}"
+      },
+      "time": {
+        "justNow": "ahora mismo",
+        "minutesAgo": "hace {count} min",
+        "hoursAgo": "hace {count} h",
+        "daysAgo": "hace {count} d"
+      },
+      "dialog": {
+        "addTitle": "Añadir vehículo",
+        "editTitle": "Editar vehículo",
+        "addDescription": "Añade un vehículo para usar en la planificación de viajes.",
+        "editDescription": "Actualiza los datos de tu vehículo."
+      },
+      "form": {
+        "name": "Nombre (opcional)",
+        "namePlaceholder": "p. ej. Honda azul",
+        "type": "Tipo",
+        "typePlaceholder": "Selecciona un tipo",
+        "fuelType": "Tipo de combustible",
+        "fuelTypePlaceholder": "Selecciona el tipo de combustible"
+      },
+      "types": {
+        "car": "Coche",
+        "truck": "Camión",
+        "moped": "Ciclomotor",
+        "bike": "Bicicleta",
+        "e-bike": "Bicicleta eléctrica",
+        "scooter": "Patinete",
+        "e-scooter": "Patinete eléctrico",
+        "wheelchair": "Silla de ruedas"
+      },
+      "energyTypes": {
+        "gas": "Gasolina",
+        "diesel": "Diésel",
+        "electric": "Eléctrico",
+        "hybrid": "Híbrido"
       }
     },
     "integrations": {
@@ -1396,7 +1605,9 @@
         "barrelman": "Motor de búsqueda y espacial OSM autoalojado",
         "openstreetmap": "Configurar credenciales OAuth de OSM",
         "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas",
-        "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo"
+        "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo",
+        "openaq": "Datos abiertos de calidad del aire de estaciones de monitoreo terrestres",
+        "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)"
       },
       "scheme": {
         "endToEnd": {

@@ -32,6 +32,12 @@ import { useCommandService } from '@/services/command.service'
 import { getCategoryColor } from '@/lib/place-colors'
 import type { PlaceCategory } from '@/types/place.types'
 import { useCategoryStore } from '@/stores/category.store'
+import { useRecentsStore } from '@/stores/recents.store'
+import type { RecentSearchEntry, RecentPlaceEntry } from '@/lib/recents'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { getBookmarkPlaceId } from '@/lib/place.utils'
+import { frequentChipMeta } from '@/lib/frequents'
+import { COMMON_CATEGORIES } from '@/lib/common-categories'
 import { appEventBus } from '@/lib/eventBus'
 
 import { AppRoute } from '@/router'
@@ -113,6 +119,20 @@ export const useCommandStore = defineStore('command', () => {
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
         action: async (itemId: string) => {
+          // Re-running a recent search — navigate; Search.vue records the
+          // committed query (single choke-point for all text searches).
+          if (
+            typeof itemId === 'string' &&
+            itemId.startsWith('recent-search:')
+          ) {
+            const q = itemId.slice('recent-search:'.length)
+            router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: { q },
+            })
+            return
+          }
+
           if (itemId === 'search-more-results') {
             const { currentSearchQuery } = useCommandService()
             router.push({
@@ -137,6 +157,19 @@ export const useCommandStore = defineStore('command', () => {
                 ...(category?.iconCategory ? { categoryIconCategory: category.iconCategory } : {}),
               },
             })
+          } else if (itemId.startsWith('brand:')) {
+            // Payload carries the brand key + original-cased name (needed to
+            // browse name-only brands, whose OSM tag value is case-sensitive).
+            const payload = JSON.parse(
+              decodeURIComponent(itemId.slice('brand:'.length)),
+            )
+            await router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: {
+                brandKey: payload.key,
+                ...(payload.name ? { brandName: payload.name } : {}),
+              },
+            })
           } else {
             // Regular place navigation
             const route = getPlaceRoute(itemId)
@@ -152,6 +185,177 @@ export const useCommandStore = defineStore('command', () => {
               // Use the command service to get the current search query
               const { currentSearchQuery } = useCommandService()
               const searchText = currentSearchQuery.value
+
+              // Recent searches + places (client-side, end-to-end encrypted).
+              // They surface in a dedicated "Recents" section, deduped from the
+              // live result groups so the same entity never appears twice.
+              // Hydration is a no-op after the first load.
+              const recentsStore = useRecentsStore()
+              const q = searchText.trim().toLowerCase()
+
+              // A recent, ready to render, plus the metadata used to order and
+              // dedupe it: `at` (recency) and `identity` (stable entity key).
+              type RecentEntry = {
+                option: CommandArgumentOption
+                at: number
+                identity: string
+              }
+
+              const recentSearchToEntry = (e: RecentSearchEntry): RecentEntry => {
+                if (e.kind === 'category' && e.categoryId) {
+                  return {
+                    at: e.at,
+                    identity: `category:${e.categoryId}`,
+                    option: {
+                      value: `category:${e.categoryId}`,
+                      name: e.query,
+                      iconName: e.iconName || 'MapPin',
+                      iconPack: (e.iconPack || 'lucide') as 'lucide' | 'maki',
+                      iconColor: getCategoryColor(
+                        (e.iconCategory || 'default') as PlaceCategory,
+                        isDark.value,
+                      ),
+                      group: 'recents',
+                    },
+                  }
+                }
+                if (e.kind === 'brand' && e.brandKey) {
+                  return {
+                    at: e.at,
+                    identity: `brand:${e.brandKey}`,
+                    option: {
+                      value: `brand:${encodeURIComponent(
+                        JSON.stringify({ key: e.brandKey, name: e.brandName || e.query }),
+                      )}`,
+                      name: e.query,
+                      iconName: e.iconName || 'Store',
+                      iconPack: (e.iconPack || 'lucide') as 'lucide' | 'maki',
+                      iconColor: getCategoryColor('default', isDark.value),
+                      imageUrl: e.brandLogoUrl,
+                      group: 'recents',
+                    },
+                  }
+                }
+                return {
+                  at: e.at,
+                  identity: `text:${e.query.trim().toLowerCase()}`,
+                  option: {
+                    value: `recent-search:${e.query}`,
+                    name: e.query,
+                    iconName: 'History',
+                    iconColor: getCategoryColor('default', isDark.value),
+                    group: 'recents',
+                  },
+                }
+              }
+
+              const recentPlaceToEntry = (e: RecentPlaceEntry): RecentEntry => ({
+                at: e.at,
+                identity: `place:${e.id}`,
+                option: {
+                  value: e.id,
+                  name: e.title,
+                  description: e.subtitle,
+                  iconName: e.icon || 'MapPin',
+                  iconPack: (e.iconPack || 'lucide') as 'lucide' | 'maki',
+                  iconColor: getCategoryColor(
+                    (e.category || 'default') as PlaceCategory,
+                    isDark.value,
+                  ),
+                  group: 'recents',
+                },
+              })
+
+              // Merge every recent kind, keep the ones matching `predicate`,
+              // order newest-first, and cap the section.
+              const buildRecents = (
+                predicate: (label: string) => boolean,
+              ): RecentEntry[] =>
+                [
+                  ...recentsStore.searches
+                    .filter(e => predicate(e.query))
+                    .map(recentSearchToEntry),
+                  ...recentsStore.places
+                    .filter(e => predicate(e.title) || predicate(e.subtitle || ''))
+                    .map(recentPlaceToEntry),
+                ]
+                  .sort((a, b) => b.at - a.at)
+                  .slice(0, 8)
+
+              // ── Empty query → frequents, common categories, recents. ──
+              if (!q) {
+                await Promise.all([
+                  recentsStore.ensureSearchesHydrated(),
+                  recentsStore.ensurePlacesHydrated(),
+                ])
+
+                // Frequents: Home / Work / School / custom, rendered as tiles.
+                const bookmarksStore = useBookmarksStore()
+                const frequentItems = bookmarksStore.bookmarks
+                  .filter(b => b.frequentType)
+                  .slice(0, 8)
+                  .map(b => {
+                    const meta = frequentChipMeta(b)
+                    return {
+                      value: getBookmarkPlaceId(b) ?? '',
+                      name: meta.labelKey ? t(meta.labelKey) : meta.title ?? b.name,
+                      description: b.address || undefined,
+                      iconName: meta.icon,
+                      iconPack: meta.iconPack,
+                      color: meta.color,
+                      group: 'frequents',
+                    }
+                  })
+                  .filter(item => item.value)
+
+                const recentEntries = buildRecents(() => true)
+
+                // Common categories: a fixed, curated set of browse shortcuts.
+                // Always shown in full — it's a stable menu, so using one doesn't
+                // make it disappear (it may also appear under Recents, which is
+                // fine: the menu and your history mean different things).
+                const suggestedCategoryItems = COMMON_CATEGORIES.map(c => ({
+                  value: `category:${c.id}`,
+                  name: t(c.labelKey),
+                  iconName: c.icon,
+                  iconPack: 'lucide' as const,
+                  iconColor: getCategoryColor(c.category, isDark.value),
+                  group: 'suggestedCategories',
+                }))
+
+                return [
+                  ...frequentItems,
+                  ...suggestedCategoryItems,
+                  ...recentEntries.map(r => r.option),
+                ]
+              }
+
+              // ── Typed query → server autocomplete + matching recents. ──
+              await Promise.all([
+                recentsStore.ensureSearchesHydrated(),
+                recentsStore.ensurePlacesHydrated(),
+              ])
+
+              // Matching recents → their own section; also used to dedupe the
+              // same entity out of the live brands/categories/places groups.
+              const recentEntries = buildRecents(label => {
+                const l = label.toLowerCase()
+                return l.includes(q) && l !== q
+              })
+              const recentIdentities = new Set(recentEntries.map(r => r.identity))
+              const recentItems = recentEntries.map(r => r.option)
+
+              const fullSearchItem = searchText.trim()
+                ? [
+                    {
+                      value: 'search-more-results',
+                      name: searchText,
+                      iconName: 'Search',
+                      iconColor: getCategoryColor('default', isDark.value),
+                      group: 'fullSearch',
+                    },
+                  ]
+                : []
 
               try {
                 // Get map center for location-aware search
@@ -179,36 +383,62 @@ export const useCommandStore = defineStore('command', () => {
                     lat,
                     lng,
                   }, signal)
-                const results = searchResults.map(result => {
-                  const itemValue = result.type === 'category'
-                    ? `category:${result.id}`
-                    : result.id
-                  const iconCategory = (result.iconCategory || 'default') as PlaceCategory
-                  return {
-                    value: itemValue,
-                    name: result.title,
-                    description: result.description && !/^\S+=\S+$/.test(result.description)
-                      ? result.description
-                      : undefined,
-                    iconName: result.icon || 'MapPin',
-                    iconPack: result.iconPack || 'lucide',
-                    iconColor: getCategoryColor(iconCategory, isDark.value),
-                    group: result.type === 'category' ? 'categories' : 'places',
-                  }
-                })
+                const results = searchResults
+                  .map(result => {
+                    // Brand suggestion ("See all McDonald's locations"): encode the
+                    // key + name so the action can browse it; own group + icon.
+                    if (result.type === 'brand' && result.brand) {
+                      const payload = encodeURIComponent(
+                        JSON.stringify({ key: result.brand.brandKey, name: result.brand.name }),
+                      )
+                      return {
+                        identity: `brand:${result.brand.brandKey}`,
+                        option: {
+                          value: `brand:${payload}`,
+                          name: result.title,
+                          description: result.brand.locationCount != null
+                            ? t('palette.commands.search.brand.locationsCount', { count: result.brand.locationCount })
+                            : t('palette.commands.search.brand.seeAll'),
+                          iconName: result.icon || 'Store',
+                          iconPack: (result.iconPack || 'lucide') as 'lucide' | 'maki',
+                          iconColor: getCategoryColor('default', isDark.value),
+                          imageUrl: result.brand.logoUrl,
+                          group: 'brands',
+                        },
+                      }
+                    }
 
-                return [
-                  {
-                    value: 'search-more-results',
-                    name: searchText,
-                    icon: SearchIcon,
-                    group: 'fullSearch',
-                  },
-                  ...results,
-                ]
+                    const itemValue = result.type === 'category'
+                      ? `category:${result.id}`
+                      : result.id
+                    const iconCategory = (result.iconCategory || 'default') as PlaceCategory
+                    return {
+                      identity:
+                        result.type === 'category'
+                          ? `category:${result.id}`
+                          : `place:${result.id}`,
+                      option: {
+                        value: itemValue,
+                        name: result.title,
+                        description: result.description && !/^\S+=\S+$/.test(result.description)
+                          ? result.description
+                          : undefined,
+                        iconName: result.icon || 'MapPin',
+                        iconPack: result.iconPack || 'lucide',
+                        iconColor: getCategoryColor(iconCategory, isDark.value),
+                        group: result.type === 'category' ? 'categories' : 'places',
+                      },
+                    }
+                  })
+                  // Drop live results already surfaced in the Recents section.
+                  .filter(r => !recentIdentities.has(r.identity))
+                  .map(r => r.option)
+
+                return [...fullSearchItem, ...recentItems, ...results]
               } catch (error) {
                 console.error('Error loading search suggestions:', error)
-                return []
+                // Still surface recents even when the server search fails.
+                return [...fullSearchItem, ...recentItems]
               }
             },
           },

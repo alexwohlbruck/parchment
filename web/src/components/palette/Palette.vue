@@ -125,12 +125,33 @@ const filteredArgumentOptions = computed(() => {
     : argumentOptions.value
 })
 
-const SEARCH_GROUP_ORDER = ['fullSearch', 'categories', 'places'] as const
+const SEARCH_GROUP_ORDER = [
+  'frequents',
+  'suggestedCategories',
+  'fullSearch',
+  'recents',
+  'brands',
+  'categories',
+  'places',
+] as const
+
+// Layout per group. Most groups render as a vertical list; Frequents renders as
+// a horizontal row of tile cards, and the common-categories browse shortcuts as
+// a two-column grid of chips. Extend this map to add more.
+const GROUP_LAYOUT: Record<string, 'list' | 'tiles' | 'chips'> = {
+  frequents: 'tiles',
+  suggestedCategories: 'chips',
+}
 
 const groupedArgumentOptions = computed(() => {
   if (!isSearch.value) return null
 
-  const groups: { key: string; heading: string; items: CommandArgumentOption[] }[] = []
+  const groups: {
+    key: string
+    heading: string
+    layout: 'list' | 'tiles' | 'chips'
+    items: CommandArgumentOption[]
+  }[] = []
   for (const groupKey of SEARCH_GROUP_ORDER) {
     const items = filteredArgumentOptions.value.filter(
       item => item.group === groupKey,
@@ -139,6 +160,7 @@ const groupedArgumentOptions = computed(() => {
       groups.push({
         key: groupKey,
         heading: t(`palette.commands.search.groups.${groupKey}`),
+        layout: GROUP_LAYOUT[groupKey] ?? 'list',
         items,
       })
     }
@@ -467,8 +489,11 @@ const filterFunction = computed(() => {
           <CommandEmpty>No matching commands.</CommandEmpty>
         </CommandList>
 
-        <!-- Command selected, display arguments -->
-        <CommandList v-if="activeArgument && (!isSearch || query.length)">
+        <!-- Command selected, display arguments. For search we also render with
+             no query typed so the empty state can show recents + shortcuts. -->
+        <CommandList
+          v-if="activeArgument && (!isSearch || query.length || (groupedArgumentOptions && groupedArgumentOptions.length > 0))"
+        >
           <div v-if="loadingOptions" class="py-6 text-center">
             <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
             <p class="mt-2 text-sm text-muted-foreground">
@@ -486,18 +511,75 @@ const filterFunction = computed(() => {
               :key="group.key"
               :heading="group.heading"
             >
+              <!-- Tile layout: horizontal scrolling cards (e.g. Frequents). -->
+              <div
+                v-if="group.layout === 'tiles'"
+                class="flex items-stretch gap-2 overflow-x-auto scrollbar-hidden px-1 pb-1"
+              >
+                <button
+                  v-for="argumentOption in group.items"
+                  :key="argumentOption.value"
+                  type="button"
+                  class="shrink-0 w-40 p-2 flex items-center gap-2 rounded-lg border bg-card hover:bg-secondary/40 transition-colors text-left"
+                  @click="onArgumentSelected(argumentOption.value)"
+                >
+                  <ItemIcon
+                    :icon="argumentOption.iconName"
+                    :icon-pack="argumentOption.iconPack"
+                    :color="argumentOption.color"
+                    size="xs"
+                    variant="ghost"
+                  />
+                  <div class="min-w-0 flex-1 flex flex-col leading-tight">
+                    <span class="text-sm font-medium truncate">{{ argumentOption.name }}</span>
+                    <span
+                      v-if="argumentOption.description"
+                      class="text-xs text-muted-foreground truncate"
+                    >
+                      {{ argumentOption.description }}
+                    </span>
+                  </div>
+                </button>
+              </div>
+
+              <!-- Chip layout: two-row, horizontally scrolling browse shortcuts (Categories). -->
+              <div
+                v-else-if="group.layout === 'chips'"
+                class="grid grid-rows-2 grid-flow-col auto-cols-max gap-2 overflow-x-auto scrollbar-hidden px-1 pb-1"
+              >
+                <button
+                  v-for="argumentOption in group.items"
+                  :key="argumentOption.value"
+                  type="button"
+                  class="flex items-center gap-1.5 rounded-full border bg-card hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
+                  @click="onArgumentSelected(argumentOption.value)"
+                >
+                  <ItemIcon
+                    :icon="argumentOption.iconName"
+                    :icon-pack="argumentOption.iconPack"
+                    :custom-color="argumentOption.iconColor"
+                    shape="circle"
+                    variant="solid"
+                    size="xs"
+                  />
+                  <span class="text-sm font-medium whitespace-nowrap">{{ argumentOption.name }}</span>
+                </button>
+              </div>
+
+              <!-- Default list layout. -->
               <CommandItem
-                v-for="argumentOption in group.items"
+                v-for="argumentOption in group.layout === 'list' ? group.items : []"
                 :key="argumentOption.value"
                 :value="argumentOption"
                 class="flex gap-2"
                 @select="onArgumentSelected(argumentOption.value)"
               >
                 <ItemIcon
-                  v-if="argumentOption.iconColor"
+                  v-if="argumentOption.iconName || argumentOption.iconColor || argumentOption.imageUrl"
                   :icon="argumentOption.iconName"
                   :icon-pack="argumentOption.iconPack"
                   :custom-color="argumentOption.iconColor"
+                  :image-url="argumentOption.imageUrl"
                   shape="circle"
                   variant="solid"
                   size="sm"
@@ -575,11 +657,12 @@ const filterFunction = computed(() => {
             </CommandItem>
           </CommandGroup>
 
-          <!-- Settings entries are surfaced even when the palette is in
-               search mode, so users can find a setting without first
-               backing out of the search command. -->
+          <!-- Settings entries are surfaced for argument-taking commands, but
+               NOT for place search — a place query ("park") shouldn't turn up
+               settings pages ("My Vehicles"). Settings are still reachable by
+               typing in the idle palette (the top-level list above). -->
           <CommandGroup
-            v-if="filteredSettings.length"
+            v-if="!isSearch && filteredSettings.length"
             :heading="t('settings.title')"
           >
             <CommandItem

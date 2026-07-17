@@ -15,6 +15,7 @@ import {
   MapSettings,
   LocateFlySpeed,
   StartupLocation,
+  GridSnapMode,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
 import { useMapStore } from '../stores/map.store'
@@ -24,9 +25,16 @@ import { usePlacePolygonLayerService } from '@/services/layers/features/place-po
 import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
 import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
+import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { useAppStore } from '../stores/app.store'
 import { calculateFitPadding, type Padding } from '@/lib/map-padding'
+import {
+  findGriddedCity,
+  gridOrientations,
+  angularDistanceDeg,
+  GRID_SNAP_THRESHOLD_DEG,
+} from '@/lib/grid-orientation'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -58,6 +66,7 @@ function mapService() {
   const searchResultsLayerService = useSearchResultsLayerService()
   const markerLayersService = useMarkerLayersService()
   const notesLayerService = useNotesLayerService()
+  const environmentDataService = useEnvironmentDataService()
   const timelineLayerService = useTimelineLayerService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
@@ -267,6 +276,12 @@ function mapService() {
       mapStore.setMapCamera(data)
     })
 
+    // When the user finishes a manual rotation, snap to north and/or the local
+    // city's street grid, per the snap settings.
+    mapEventBus.on('rotateend', () => {
+      snapRotation()
+    })
+
     // Track rotation/pitch state for conditional control visibility
     mapEventBus.on('move', data => {
       const { bearing, pitch } = data
@@ -309,12 +324,19 @@ function mapService() {
         mapStrategy.flyTo({
           center: lngLat,
         })
-        router.push({
+        const location = {
           name: AppRoute.STREET,
-          params: {
-            id: image.id,
-          },
-        })
+          params: { id: image.id },
+        }
+        // Moving between panos while already in street view replaces the URL,
+        // so hopping along the map dots doesn't pile up browser-history
+        // entries — otherwise Close would step back through every pano visited
+        // instead of exiting street view.
+        if (router.currentRoute.value.name === AppRoute.STREET) {
+          router.replace(location)
+        } else {
+          router.push(location)
+        }
       }
     })
 
@@ -372,6 +394,7 @@ function mapService() {
     mapEventBus.off('style.load')
     mapEventBus.off('move')
     mapEventBus.off('moveend')
+    mapEventBus.off('rotateend')
     mapEventBus.off('click')
     mapEventBus.off('click:mapillary-image')
   }
@@ -462,6 +485,10 @@ function mapService() {
 
       // Initialize notes layer for OSM notes overlay
       notesLayerService.initializeNotesLayer(mapStrategy)
+
+      // Fill the Environment vector layers (perimeters, smoke) with data —
+      // the layers themselves are default-layer templates that render natively.
+      environmentDataService.initializeEnvironmentData(mapStrategy)
 
       // Initialize timeline layer (stops + path lines) — rendered when the
       // /timeline page populates the timeline store. Pass the smart
@@ -911,6 +938,12 @@ function mapService() {
     },
   )
 
+  function toggleNorthUpSnap(value?: boolean) {
+    // Default-on: a persisted settings object may predate this key.
+    const enabled = mapStore.settings.northUpSnap !== false
+    mapStore.settings.northUpSnap = value ?? !enabled
+  }
+
   function resize() {
     mapStrategy?.resize()
   }
@@ -1220,6 +1253,55 @@ function mapService() {
     mapStrategy?.resetNorth()
   }
 
+  /**
+   * Snap the map's rotation when a manual rotation gesture ends: to true north
+   * (if "snap to north" is enabled) and/or to the local city's street grid (if
+   * enabled and over a known gridded city), whichever aligned bearing is
+   * closest. We disable the engine's built-in bearingSnap and do north snapping
+   * here too, so both toggles take effect live without recreating the map.
+   * Invoked on a user rotateend and from the compass drag handler.
+   */
+  function snapRotation() {
+    const map = mapStrategy?.mapInstance
+    if (!map) return
+
+    const current = map.getBearing()
+    const targets: number[] = []
+
+    // North-up snap (replaces the engine's native bearingSnap).
+    if (mapStore.settings.northUpSnap !== false) {
+      targets.push(0)
+    }
+
+    // City street-grid snap.
+    const mode = mapStore.settings.gridSnapMode ?? GridSnapMode.NORTH_UP
+    if (mode !== GridSnapMode.OFF) {
+      const center = map.getCenter()
+      const city = center
+        ? findGriddedCity({ lng: center.lng, lat: center.lat })
+        : null
+      if (city) targets.push(...gridOrientations(city.bearing, mode))
+    }
+
+    if (targets.length === 0) return
+
+    // Snap to the nearest enabled target, if within threshold and not already
+    // aligned (a redundant easeTo would needlessly re-fire rotate events).
+    let best = targets[0]
+    let bestDelta = Infinity
+    for (const target of targets) {
+      const delta = angularDistanceDeg(current, target)
+      if (delta < bestDelta) {
+        bestDelta = delta
+        best = target
+      }
+    }
+
+    if (bestDelta > GRID_SNAP_THRESHOLD_DEG || bestDelta < 0.1) return
+
+    map.easeTo({ bearing: best, duration: 300 })
+  }
+
   return {
     initializeMap,
     resize,
@@ -1237,6 +1319,7 @@ function mapService() {
     toggleTransitLabels,
     togglePlaceLabels,
     toggleHdRoads,
+    toggleNorthUpSnap,
     destroy,
     on,
     off,
@@ -1267,6 +1350,7 @@ function mapService() {
     zoomIn,
     zoomOut,
     resetNorth,
+    snapRotation,
     locate: () => locateUser(),
     setMapContainer,
     setVisibleTrips,

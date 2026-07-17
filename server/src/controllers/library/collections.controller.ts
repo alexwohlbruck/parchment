@@ -284,7 +284,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
               lng: t.Number(),
               icon: t.Optional(t.String()),
               iconColor: t.Optional(t.String()),
-              presetType: t.Optional(t.Nullable(t.String())),
+              frequentType: t.Optional(t.Nullable(t.String())),
             }),
           ),
         ),

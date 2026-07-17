@@ -18,6 +18,8 @@ import { AppRoute } from '@/router'
 
 const props = defineProps<{
   transitInfo: TransitStopInfo
+  /** When rendered inside a place tab: drop the page chrome (header/padding). */
+  embedded?: boolean
 }>()
 
 const { t } = useI18n()
@@ -106,8 +108,11 @@ function openTransitlandLink() {
 </script>
 
 <template>
-  <PanelLayout>
-    <SheetPageHeader :title="transitInfo?.name || t('place.transit.transitStop')" />
+  <component :is="embedded ? 'div' : PanelLayout">
+    <SheetPageHeader
+      v-if="!embedded"
+      :title="transitInfo?.name || t('place.transit.transitStop')"
+    />
 
     <div v-if="transitInfo?.code" class="text-xs text-muted-foreground mb-3 -mt-1">
       Stop ID: {{ transitInfo.code }}
@@ -200,5 +205,5 @@ function openTransitlandLink() {
         View on Transitland
       </button>
     </div>
-  </PanelLayout>
+  </component>
 </template>

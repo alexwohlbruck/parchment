@@ -132,11 +132,11 @@ export function getSearchResultDescription(place: Place): string {
     const parts: string[] = []
 
     // Get preset type from bookmark if available, otherwise use place type
-    const presetType = place.bookmark?.presetType || place.placeType.value
+    const frequentType = place.bookmark?.frequentType || place.placeType.value
 
     // Add preset type if it exists and isn't just 'bookmark'
-    if (presetType && presetType !== 'bookmark') {
-      parts.push(presetType.charAt(0).toUpperCase() + presetType.slice(1))
+    if (frequentType && frequentType !== 'bookmark') {
+      parts.push(frequentType.charAt(0).toUpperCase() + frequentType.slice(1))
     } else {
       parts.push('Saved')
     }
@@ -326,7 +326,7 @@ export function adaptBookmarkResult(result: any): Place {
       name: result.title,
       icon: result.icon || 'map-pin',
       iconColor: result.color || 'magenta',
-      presetType: bookmark.presetType,
+      frequentType: bookmark.frequentType,
       lat: bookmark.lat,
       lng: bookmark.lng,
       address: bookmark.address,

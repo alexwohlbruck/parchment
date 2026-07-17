@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia'
 import { optionalAuth } from '../middleware/auth.middleware'
 import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import * as searchService from '../services/search.service'
+import * as brandService from '../services/brand.service'
 import { integrationManager } from '../services/integrations'
 import {
   IntegrationCapabilityId,
@@ -17,7 +18,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
 
   .get(
     '/',
-    async ({ query, user, i18n, status }) => {
+    async ({ query, user, i18n, status, request }) => {
       const language = i18n?.language ?? DEFAULT_LANGUAGE
       const {
         q: searchQuery = '',
@@ -39,6 +40,9 @@ const searchRouter = new Elysia({ prefix: '/search' })
           autocomplete: autocomplete === 'true' || autocomplete === true,
         },
         language,
+        // Propagate client disconnect (user kept typing) so the upstream
+        // Barrelman request is aborted instead of running to completion.
+        request.signal,
       )
 
       return searchResults
@@ -171,12 +175,13 @@ const searchRouter = new Elysia({ prefix: '/search' })
   .post(
     '/category',
     async ({ body, status, language }) => {
-      const { presetId, bounds, maxResults = 100, sort, filter, tags } = body
+      const { presetId, bounds, maxResults = 30, offset = 0, sort, filter, tags } = body
 
       try {
         const results = await searchService.searchByCategory(presetId, {
           bounds,
           limit: maxResults,
+          offset,
           sort,
           filter,
           tags,
@@ -189,7 +194,9 @@ const searchRouter = new Elysia({ prefix: '/search' })
           presetId,
           results,
           fieldDefinitions,
-          totalCount: results.length,
+          // No total count: a COUNT over a broad category/wide area is expensive.
+          // `hasMore` (a full page came back) drives scroll pagination instead.
+          hasMore: results.length >= maxResults,
           executedAt: new Date().toISOString(),
         }
       } catch (err) {
@@ -212,6 +219,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           west: t.Number(),
         }),
         maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
+        offset: t.Optional(t.Number({ minimum: 0 })),
         sort: t.Optional(t.Union([
           t.Literal('relevance'),
           t.Literal('distance'),
@@ -227,6 +235,60 @@ const searchRouter = new Elysia({ prefix: '/search' })
       detail: {
         tags: ['Search'],
         summary: 'Search by category/preset',
+      },
+    },
+  )
+
+  // Browse all locations of a brand. Viewport-first, auto-widening when sparse.
+  .post(
+    '/brand',
+    async ({ body, status, language }) => {
+      const { brandKey, brandName, bounds, lat, lng, minResults, maxResults } = body
+
+      try {
+        const { brand, results } = await brandService.searchByBrand(brandKey, {
+          brandName,
+          bounds,
+          lat,
+          lng,
+          minResults,
+          maxResults,
+          language,
+        })
+
+        return {
+          brandKey,
+          brand,
+          results,
+          totalCount: results.length,
+          executedAt: new Date().toISOString(),
+        }
+      } catch (err) {
+        console.error('Error executing brand search:', err)
+        return status(500, {
+          message:
+            err instanceof Error ? err.message : 'Failed to execute brand search',
+        })
+      }
+    },
+    {
+      body: t.Object({
+        brandKey: t.String({ minLength: 1 }),
+        brandName: t.Optional(t.String()),
+        bounds: t.Optional(t.Object({
+          north: t.Number(),
+          south: t.Number(),
+          east: t.Number(),
+          west: t.Number(),
+        })),
+        lat: t.Optional(t.Number()),
+        lng: t.Optional(t.Number()),
+        minResults: t.Optional(t.Number({ minimum: 1, maximum: 100 })),
+        maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
+      }),
+      detail: {
+        tags: ['Search'],
+        summary: 'Search all locations of a brand',
       },
     },
   )

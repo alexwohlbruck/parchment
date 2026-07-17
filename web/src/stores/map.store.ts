@@ -15,6 +15,7 @@ import {
   ControlVisibility,
   LocateFlySpeed,
   StartupLocation,
+  GridSnapMode,
 } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { useStorage } from '@vueuse/core'
@@ -34,6 +35,8 @@ const defaultSettings: MapSettings = {
   transitLabels: true,
   placeLabels: true,
   hdRoads: false,
+  northUpSnap: true,
+  gridSnapMode: GridSnapMode.NORTH_UP,
   locateFlySpeed: LocateFlySpeed.NORMAL,
   startupLocation: StartupLocation.LAST_VISITED,
 }
@@ -51,10 +54,12 @@ function getDefaultControlSettings(): MapControlSettings {
     scale: isMobile
       ? ControlVisibility.WHILE_ZOOMING
       : ControlVisibility.ALWAYS,
-    streetView: ControlVisibility.ALWAYS,
+    streetView: isMobile
+      ? ControlVisibility.WHILE_ACTIVE
+      : ControlVisibility.ALWAYS,
     locate: ControlVisibility.ALWAYS,
     weather: ControlVisibility.ALWAYS,
-    toolbox: ControlVisibility.ALWAYS,
+    toolbox: isMobile ? ControlVisibility.NEVER : ControlVisibility.ALWAYS,
   }
 }
 

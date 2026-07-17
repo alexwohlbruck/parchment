@@ -114,12 +114,46 @@ function payloadFromLogEvent(logEvent: LogEvent): Record<string, unknown> {
 }
 
 /**
+ * Attach debugging/analytics context to a failing request's log event:
+ * the authenticated user's non-sensitive id and the parsed request payload.
+ * Device info (user_agent, ip) is already captured on `logEvent.http`.
+ *
+ * `ctx` is the full Elysia request context; `user` and `body` are populated by
+ * downstream derives (auth middleware, body parser) and typed loosely here since
+ * they are not part of the logger plugin's own context type. Called only for
+ * failures (status >= 400) — successful requests are not logged.
+ */
+function attachDebugContext(logEvent: LogEvent, ctx: unknown): void {
+  const context = ctx as { user?: { id?: unknown }; body?: unknown }
+
+  const userId = context.user?.id
+  if (typeof userId === 'string') {
+    logEvent.user = { ...(logEvent.user ?? {}), id: userId }
+  }
+
+  // Include the parsed request body so errors can be reproduced. Redaction of
+  // sensitive keys and truncation happen later in payloadFromLogEvent.
+  if (context.body !== undefined && logEvent.request?.body === undefined) {
+    logEvent.request = { ...(logEvent.request ?? {}), body: context.body }
+  }
+}
+
+/**
  * Elysia plugin implementing the "wide event" / canonical log line pattern.
  *
- * - Every request is logged to stdout (pino).
- * - Only failed (status >= 400) or slow (> SLOW_REQUEST_THRESHOLD_MS) requests are sent to OTLP.
- * - Response body is NOT auto-logged. Handlers can set `logEvent.response.body` explicitly.
- * - Handlers can set `logEvent.request.body` to include the request body in failure logs.
+ * Logging is split by destination to keep stdout quiet while preserving analytics:
+ * - stdout (pino): ONLY server errors (status >= 500) and unhandled exceptions.
+ *   Successful (2xx/3xx) and routine client-error (4xx, e.g. 401 auth rejections)
+ *   requests produce no stdout line. Error lines carry full debug context:
+ *   stack trace, request payload, non-sensitive user (id) and device (user_agent,
+ *   ip) info, timing, request id, and trace correlation.
+ * - OTLP (e.g. Axiom): all failures (status >= 400) and slow requests
+ *   (> SLOW_REQUEST_THRESHOLD_MS) are exported as structured events for analytics,
+ *   even when they are kept out of stdout.
+ *
+ * Other behavior:
+ * - Request payload is auto-attached to failure logs (redacted + truncated).
+ * - Response body is NOT auto-logged. Handlers can set `logEvent.response.body`.
  * - Incoming `traceparent`/`tracestate` headers are respected for distributed tracing.
  * - `X-Request-Id` is returned in every response for client-side correlation.
  */
@@ -174,7 +208,8 @@ export const loggerMiddleware = new Elysia({ name: 'parchment-logger' })
     return { logEvent }
   })
 
-  .onAfterHandle({ as: 'global' }, ({ logEvent, set }) => {
+  .onAfterHandle({ as: 'global' }, (ctx) => {
+    const { logEvent, set } = ctx
     if (!logEvent) return
     const meta = (logEvent as LogEvent & { _meta: LogEventMeta })._meta
     if (meta.logged) return
@@ -191,14 +226,25 @@ export const loggerMiddleware = new Elysia({ name: 'parchment-logger' })
     meta.span.setStatus({ code: status >= 500 ? SpanStatusCode.ERROR : SpanStatusCode.OK })
     meta.span.end()
 
-    const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info'
     const isFailure = status >= 400
+    const isServerError = status >= 500
     const isSlow = duration_ms > SLOW_REQUEST_THRESHOLD_MS
-    const payload = payloadFromLogEvent(logEvent)
-    emitLogRecord(level, 'request', payload, { sendToOtlp: isFailure || isSlow })
+
+    // Successful, fast requests are not logged at all.
+    if (!isFailure && !isSlow) return
+
+    if (isFailure) attachDebugContext(logEvent, ctx)
+
+    // stdout only for real server errors; 4xx and slow requests go to OTLP only.
+    const level = isServerError ? 'error' : status >= 400 ? 'warn' : 'info'
+    emitLogRecord(level, 'request', payloadFromLogEvent(logEvent), {
+      sendToOtlp: true,
+      stdout: isServerError,
+    })
   })
 
-  .onError({ as: 'global' }, ({ logEvent, error, code, set }) => {
+  .onError({ as: 'global' }, (ctx) => {
+    const { logEvent, error, code, set } = ctx
     if (!logEvent) return
     const meta = (logEvent as LogEvent & { _meta: LogEventMeta })._meta
     if (meta.logged) return
@@ -221,6 +267,14 @@ export const loggerMiddleware = new Elysia({ name: 'parchment-logger' })
     meta.span.setStatus({ code: SpanStatusCode.ERROR, message: logEvent.error.message })
     meta.span.end()
 
-    const payload = payloadFromLogEvent(logEvent)
-    emitLogRecord('error', 'request', payload, { sendToOtlp: true })
+    attachDebugContext(logEvent, ctx)
+
+    // Real server errors (5xx, incl. the default for thrown exceptions) print to
+    // stdout with full detail. Exceptions that map to a 4xx (validation, parse,
+    // not-found) are client errors — exported to OTLP only, kept out of stdout.
+    const isServerError = status >= 500
+    emitLogRecord(isServerError ? 'error' : 'warn', 'request', payloadFromLogEvent(logEvent), {
+      sendToOtlp: true,
+      stdout: isServerError,
+    })
   })

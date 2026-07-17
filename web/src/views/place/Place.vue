@@ -72,6 +72,18 @@ async function loadPlace() {
 
   // Case 2: Provider-specific ID
   if (typeof provider === 'string' && typeof placeId === 'string') {
+    // Pelias geocoder addresses (provider "pelias", placeId = the gid): seed the
+    // panel from the cached search result so it paints instantly when navigated
+    // from search, then resolve/enrich by gid via the backend (which also covers
+    // the command palette and cold/shared URLs, where there's no cached result).
+    if (provider === 'pelias') {
+      setPartialPlace({ id: `pelias/${placeId}` })
+      const partial = currentPlace.value
+      const place = await fetchPlaceDetails(placeId, provider, undefined, nextSignal())
+      if (!place && partial) currentPlace.value = partial
+      handlePlaceResult(currentPlace.value)
+      return
+    }
     const place = await fetchPlaceDetails(placeId, provider, undefined, nextSignal())
     handlePlaceResult(place)
     return

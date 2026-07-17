@@ -35,6 +35,9 @@ import { useGeolocationService } from '@/services/geolocation.service'
 import { useI18n } from 'vue-i18n'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor, fuzzyFilter } from '@/lib/utils'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { frequentChipMeta, type FrequentType } from '@/lib/frequents'
+import type { Bookmark } from '@/types/library.types'
 
 const searchService = useSearchService()
 const mapCamera = useMapCamera()
@@ -42,7 +45,36 @@ const { coords, isSupported: isGeolocationSupported, resume } = useGeolocationSe
 const { t } = useI18n()
 
 const directionsService = useDirectionsService()
+const bookmarksStore = useBookmarksStore()
 const { isMobileScreen } = useResponsive()
+
+// Home / Work / School as quick destinations. A category can hold several
+// places, so this lists every tagged bookmark by its own name, with the
+// category (Home/Work/School) as the subtitle and its canonical icon.
+const presetBookmarks = computed(() =>
+  bookmarksStore.bookmarks
+    .filter(b => b.frequentType)
+    .map(b => ({ type: b.frequentType as FrequentType, bookmark: b })),
+)
+
+function presetToResult(entry: {
+  type: FrequentType
+  bookmark: Bookmark
+}): AutocompleteResult {
+  const { bookmark } = entry
+  // Canonical types → fixed icon + "Home" subtitle; custom → own icon + address.
+  const meta = frequentChipMeta(bookmark)
+  return {
+    id: bookmark.id,
+    type: 'bookmark',
+    title: bookmark.name,
+    description: meta.labelKey ? t(meta.labelKey) : bookmark.address || '',
+    icon: meta.icon,
+    color: meta.color,
+    lat: bookmark.lat,
+    lng: bookmark.lng,
+  }
+}
 
 const MIN_LOCATIONS = 2
 
@@ -199,7 +231,24 @@ const currentQuery = ref('')
 
 // Combined results with current location prepended if not already used and matches query
 const combinedResults = computed(() => {
-  const results = [...autocompleteResults.value]
+  // Drop any server autocomplete rows that duplicate a preset — we surface
+  // presets ourselves with canonical labels/icons at the top.
+  const presetIds = new Set(presetBookmarks.value.map(p => p.bookmark!.id))
+  const results = autocompleteResults.value.filter(r => !presetIds.has(r.id))
+
+  // Preset quick-destinations (Home / Work / School). Empty query shows all;
+  // otherwise fuzzy-match by label/address.
+  const query = currentQuery.value.trim()
+  const presetResults = presetBookmarks.value.map(e =>
+    presetToResult({ type: e.type, bookmark: e.bookmark }),
+  )
+  const shownPresets = query
+    ? fuzzyFilter(presetResults, query, {
+        keys: ['title', 'description'],
+        threshold: -10000,
+      })
+    : presetResults
+  results.unshift(...shownPresets)
 
   // Only add current location if it's not already used AND (query is empty OR fuzzy matches)
   if (!isCurrentLocationUsed.value) {

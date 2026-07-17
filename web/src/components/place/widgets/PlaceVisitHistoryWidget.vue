@@ -3,6 +3,7 @@ import { computed, markRaw, onBeforeUnmount, ref, watch } from 'vue'
 import axios from 'axios'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
+import { useI18n } from 'vue-i18n'
 import { HistoryIcon, ChevronRightIcon } from 'lucide-vue-next'
 import PlaceSection from '@/components/place/details/PlaceSection.vue'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -11,7 +12,7 @@ import {
   fetchPlaceVisitHistory,
   MissingDawarichConfigError,
 } from '@/services/timeline.service'
-import { useSheetPage } from '@/composables/useSheetPage'
+import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import PlaceVisitHistoryPage from '@/components/place/pages/PlaceVisitHistoryPage.vue'
 import type { Place } from '@/types/place.types'
 import type { PlaceVisitHistory } from '@server/types/location-history.types'
@@ -22,8 +23,9 @@ const props = defineProps<{
   place: Partial<Place>
 }>()
 
+const { t } = useI18n()
 const integrationsStore = useIntegrationsStore()
-const { pushPage } = useSheetPage()
+const { register, unregister, activate } = usePlaceTabs()
 
 const data = ref<PlaceVisitHistory | null>(null)
 const loading = ref(false)
@@ -99,13 +101,28 @@ const totalDurationLabel = computed(() => {
 
 const hasContent = computed(() => (data.value?.totalVisits ?? 0) > 0)
 
+const TAB_ID = 'visits'
+watch(
+  hasContent,
+  (has) => {
+    if (has) {
+      register({
+        id: TAB_ID,
+        label: t('place.tabs.visits'),
+        component: markRaw(PlaceVisitHistoryPage),
+        props: { place: props.place },
+        order: 30,
+      })
+    } else {
+      unregister(TAB_ID)
+    }
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => unregister(TAB_ID))
+
 function openFullHistory() {
-  pushPage({
-    name: 'visits',
-    component: markRaw(PlaceVisitHistoryPage),
-    props: { place: props.place },
-    title: 'Visit History',
-  })
+  activate(TAB_ID)
 }
 </script>
 

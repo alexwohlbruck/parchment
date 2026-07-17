@@ -119,6 +119,41 @@ const emit = defineEmits<{
   (e: 'logoError'): void
 }>()
 
+function handleLogoLoad() {
+  brandLogoLoaded.value = true
+  logoLoading.value = false
+  emit('logoLoaded')
+}
+
+function handleLogoError() {
+  logoError.value = true
+  logoLoading.value = false
+  emit('logoError')
+}
+
+// A cached <img> can finish loading before Vue attaches the @load listener, so
+// confirm completion when the element mounts too — otherwise the logo stays
+// hidden behind v-show forever.
+function onLogoRef(el: unknown) {
+  const img = el as HTMLImageElement | null
+  if (img && img.complete && img.naturalWidth > 0) handleLogoLoad()
+}
+
+// Reset + show the shimmer whenever a new brand logo URL appears.
+watch(
+  brandLogo,
+  (url) => {
+    if (url) {
+      brandLogoLoaded.value = false
+      logoError.value = false
+      logoLoading.value = true
+    } else {
+      logoLoading.value = false
+    }
+  },
+  { immediate: true },
+)
+
 function formatTime(time: string) {
   const [hours, minutes] = time.split(':').map(Number)
   const period = hours >= 12 ? 'PM' : 'AM'
@@ -246,7 +281,7 @@ watch(
     </div>
 
     <!-- Place name -->
-    <div class="flex items-start gap-3">
+    <div class="flex items-center gap-3">
       <!-- Brand Logo -->
       <div
         v-if="logoLoading || brandLogo || logoError"
@@ -267,12 +302,13 @@ watch(
             enter-active-class="transition-opacity duration-200"
           >
             <img
+              :ref="onLogoRef"
               v-show="brandLogoLoaded"
               :src="brandLogo"
               :alt="(place.name?.value ?? '') + ' logo'"
               class="w-full h-full object-contain bg-white"
-              @load="emit('logoLoaded')"
-              @error="emit('logoError')"
+              @load="handleLogoLoad"
+              @error="handleLogoError"
             />
           </transition>
         </div>

@@ -5,7 +5,6 @@ import {
   CodeIcon,
   CogIcon,
   Contact2Icon,
-  MapIcon,
   PaintbrushIcon,
   UserRoundIcon,
 } from 'lucide-vue-next'
@@ -131,6 +130,42 @@ export const settingsIndex: SettingsPageDef[] = [
         keywords: ['locale', 'translation'],
       },
       {
+        id: 'map-behavior',
+        titleKey: 'settings.behavior.mapBehavior.title',
+        keywords: [
+          'mapbox',
+          'maplibre',
+          'projection',
+          'globe',
+          'mercator',
+          'rotation',
+          'snap',
+        ],
+        items: [
+          {
+            titleKey: 'settings.mapSettings.rotation.northUpSnap',
+            descriptionKey: 'settings.mapSettings.rotation.northUpSnapDescription',
+          },
+          {
+            titleKey: 'settings.mapSettings.rotation.gridSnap',
+            descriptionKey: 'settings.mapSettings.rotation.gridSnapDescription',
+          },
+        ],
+      },
+      {
+        id: 'controls',
+        titleKey: 'settings.mapSettings.controls.title',
+        items: [
+          { titleKey: 'settings.mapSettings.controls.zoom' },
+          { titleKey: 'settings.mapSettings.controls.compass' },
+          { titleKey: 'settings.mapSettings.controls.scale' },
+          { titleKey: 'settings.mapSettings.controls.streetView' },
+          { titleKey: 'settings.mapSettings.controls.locate' },
+          { titleKey: 'settings.mapSettings.controls.weather' },
+          { titleKey: 'settings.mapSettings.controls.toolbox' },
+        ],
+      },
+      {
         id: 'location',
         titleKey: 'settings.mapSettings.location.title',
         items: [
@@ -180,14 +215,6 @@ export const settingsIndex: SettingsPageDef[] = [
         titleKey: 'settings.appearance.mapTheme.title',
         keywords: ['day', 'night', 'dawn', 'dusk', 'time of day'],
       },
-    ],
-  },
-  {
-    pageId: 'mapSettings',
-    to: '/settings/map',
-    icon: MapIcon,
-    iconColor: 'moss',
-    sections: [
       {
         id: 'configuration',
         titleKey: 'settings.mapSettings.configuration.title',
@@ -203,19 +230,6 @@ export const settingsIndex: SettingsPageDef[] = [
           { titleKey: 'settings.mapSettings.configuration.roadLabels' },
           { titleKey: 'settings.mapSettings.configuration.transitLabels' },
           { titleKey: 'settings.mapSettings.configuration.placeLabels' },
-        ],
-      },
-      {
-        id: 'controls',
-        titleKey: 'settings.mapSettings.controls.title',
-        items: [
-          { titleKey: 'settings.mapSettings.controls.zoom' },
-          { titleKey: 'settings.mapSettings.controls.compass' },
-          { titleKey: 'settings.mapSettings.controls.scale' },
-          { titleKey: 'settings.mapSettings.controls.streetView' },
-          { titleKey: 'settings.mapSettings.controls.locate' },
-          { titleKey: 'settings.mapSettings.controls.weather' },
-          { titleKey: 'settings.mapSettings.controls.toolbox' },
         ],
       },
       {
@@ -238,7 +252,8 @@ export const settingsIndex: SettingsPageDef[] = [
     sections: [
       {
         id: 'vehicles',
-        titleKey: 'My Vehicles',
+        titleKey: 'settings.vehicles.title',
+        descriptionKey: 'settings.vehicles.description',
         keywords: ['car', 'bike', 'scooter', 'vehicle', 'parking', 'location'],
       },
     ],

@@ -8,7 +8,7 @@ export interface Bookmark {
   icon: string
   iconPack?: 'lucide' | 'maki'
   iconColor: string
-  presetType?: 'home' | 'work' | 'school'
+  frequentType?: 'home' | 'work' | 'school' | 'custom'
   userId: string
   createdAt: string
   updatedAt: string
@@ -89,7 +89,7 @@ export interface CreateBookmarkParams {
   icon?: string
   iconPack?: 'lucide' | 'maki'
   iconColor?: string
-  presetType?: 'home' | 'work' | 'school'
+  frequentType?: 'home' | 'work' | 'school' | 'custom'
 }
 
 export interface CreateCollectionParams {

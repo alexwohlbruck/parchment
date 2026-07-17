@@ -25,6 +25,7 @@ import {
   sharing as sharingController,
   location as locationController,
   weather as weatherController,
+  environment as environmentController,
   locationHistory as locationHistoryController,
   osmOAuth as osmOAuthController,
   notes as notesController,
@@ -101,6 +102,7 @@ async function main() {
   app.use(sharingController)
   app.use(locationController)
   app.use(weatherController)
+  app.use(environmentController)
   app.use(locationHistoryController)
   app.use(osmOAuthController)
   app.use(notesController)

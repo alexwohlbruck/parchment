@@ -9,7 +9,6 @@ import Settings from '@/views/settings/Settings.vue'
 import Account from '@/views/settings/pages/Account.vue'
 import Behavior from '@/views/settings/pages/Behavior.vue'
 import Appearance from '@/views/settings/pages/appearance/Appearance.vue'
-import MapSettings from '@/views/settings/pages/MapSettings.vue'
 import Users from '@/views/settings/pages/Users.vue'
 // Dev-only settings page hosting the GPX track simulator. Imported
 // statically so the route is always registered (cheap); the
@@ -44,11 +43,13 @@ export enum AppRoute {
   LIBRARY_LAYERS = 'library-layers',
   LIBRARY_MAPS = 'library-maps',
   COLLECTION = 'collection',
+  ROUTE_BUILDER = 'route-builder',
+  ROUTE_BUILDER_EDIT = 'route-builder-edit',
+  ROUTE_DETAIL = 'route-detail',
   SETTINGS = 'settings',
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
   APPEARANCE = 'appearance',
-  MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
   USER_DETAIL = 'user-detail',
   ROLES = 'roles',
@@ -183,7 +184,7 @@ const router = createRouter({
             {
               path: 'routes',
               name: AppRoute.LIBRARY_ROUTES,
-              component: () => import('@/views/library/EmptyTab.vue'),
+              component: () => import('@/views/library/routes/Routes.vue'),
             },
             {
               path: 'layers',
@@ -201,6 +202,23 @@ const router = createRouter({
           path: '/library/collections/:id',
           name: AppRoute.COLLECTION,
           component: Collection,
+          props: true,
+        },
+        {
+          path: '/routes/new',
+          name: AppRoute.ROUTE_BUILDER,
+          component: () => import('@/views/routes/RouteBuilder.vue'),
+        },
+        {
+          path: '/routes/:id/edit',
+          name: AppRoute.ROUTE_BUILDER_EDIT,
+          component: () => import('@/views/routes/RouteBuilder.vue'),
+          props: true,
+        },
+        {
+          path: '/routes/:id',
+          name: AppRoute.ROUTE_DETAIL,
+          component: () => import('@/views/routes/RouteDetail.vue'),
           props: true,
         },
         {
@@ -292,8 +310,7 @@ const router = createRouter({
         },
         {
           path: '/settings/map',
-          name: AppRoute.MAP_SETTINGS,
-          component: MapSettings,
+          redirect: '/settings/appearance',
         },
         {
           path: '/settings/vehicles',

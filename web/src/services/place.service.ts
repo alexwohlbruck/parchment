@@ -10,12 +10,26 @@ import { SOURCE } from '@/lib/constants'
 import { useSearchStore } from '@/stores/search.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { usePlaceCacheStore, buildPlaceCacheKey } from '@/stores/place-cache.store'
+import { useRecentsStore } from '@/stores/recents.store'
 
 function placeService() {
   const currentPlace = ref<Partial<Place> | null>(null)
   const loading = ref(false)
   const { toast } = useAppService()
   const placeCache = usePlaceCacheStore()
+
+  /**
+   * Log a foreground place resolve into the user's (encrypted) recents.
+   * Best-effort: recents must never block or break place loading.
+   */
+  function recordPlaceView(place: Partial<Place> | null) {
+    if (!place) return
+    try {
+      useRecentsStore().recordPlace(place)
+    } catch (e) {
+      console.warn('Failed to record recently-viewed place:', e)
+    }
+  }
 
   /**
    * Look up a place in the local search results store by ID
@@ -66,6 +80,7 @@ function placeService() {
     if (cached) {
       currentPlace.value = cached.data
       loading.value = false
+      recordPlaceView(cached.data)
       if (placeCache.isStale(cached)) {
         // Background revalidate — don't await. UI keeps cached render until
         // the fresh response lands. Errors are swallowed (no toast) since
@@ -87,6 +102,7 @@ function placeService() {
     try {
       const data = await fetchPlaceFromApi(cacheKey, queryParams, signal)
       currentPlace.value = data ?? null
+      recordPlaceView(data)
       return data
     } catch (e) {
       if (axios.isCancel(e)) return null
@@ -221,7 +237,7 @@ function placeService() {
             createdAt: new Date(bookmark.createdAt),
             updatedAt: new Date(bookmark.updatedAt),
             address: bookmark.address ?? null,
-            presetType: bookmark.presetType ?? null,
+            frequentType: bookmark.frequentType ?? null,
             // Server's column is NOT NULL with a default — older bookmark
             // payloads from the API may still arrive without the field
             // until the next refetch, so coerce to the schema default.

@@ -49,6 +49,23 @@ export interface PlacePhoto {
   isLogo?: boolean
 }
 
+export interface Review {
+  id: string // Provider-native review/tip id (used for dedup + list keys)
+  text: string
+  /** 0–1 normalized per-review rating. Omitted when the source has no
+   *  per-review score (e.g. Foursquare tips, which are unrated snippets). */
+  rating?: number
+  /** Display name of the author, when the source exposes one. */
+  authorName?: string
+  authorUrl?: string
+  createdAt?: string // ISO 8601
+  language?: string // BCP-47 / ISO language code
+  /** Upvotes / "agree" count, when the source tracks review helpfulness. */
+  helpfulCount?: number
+  /** Link to the review on the source site. */
+  url?: string
+}
+
 export interface Address {
   street1?: string
   street2?: string
@@ -205,6 +222,21 @@ export enum WidgetType {
 }
 
 /**
+ * Nearest street-level image to a place, resolved from Mapillary's image
+ * radius search. Powers the street imagery preview on the place detail panel.
+ */
+export interface StreetImageryPreview {
+  imageId: string
+  thumbUrl: string // ~1024px preview suitable for a card thumbnail
+  isPano: boolean
+  capturedAt?: number // epoch ms the image was captured
+  compassAngle?: number // camera heading in degrees
+  lat: number
+  lng: number
+  distanceMeters?: number // distance from the place center
+}
+
+/**
  * Widget data source types.
  *
  * STATIC — data is serialised into the descriptor at resolve time.
@@ -269,6 +301,11 @@ export type ChipCategory =
   | 'payment'
   | 'automation'
   | 'diet'
+  | 'facilities'
+  | 'recreation'
+  | 'services'
+  | 'cycling'
+  | 'timing'
 
 export interface DisplayChip {
   key: string           // OSM tag key (e.g. 'wheelchair')
@@ -286,6 +323,20 @@ export interface NearbyCategory {
   icon?: string // Resolved icon name
   iconPack?: 'lucide' | 'maki'
   iconCategory?: PlaceCategory // For color theming
+}
+
+/**
+ * The brand a place belongs to (from OSM brand / brand:wikidata tags). Powers
+ * the "See all {brand} locations" affordance on the place detail.
+ */
+export interface PlaceBrand {
+  /** brand:wikidata QID (e.g. "Q38076") or "name:<lower>" when no QID. */
+  brandKey: string
+  name: string // Display name, e.g. "McDonald's"
+  wikidata?: string // brand:wikidata QID, when present
+  locationCount?: number // Total locations of this brand (from the catalog)
+  category?: string // Representative OSM category, e.g. "amenity/fast_food"
+  logoUrl?: string // Brand logo (Wikidata P154), when resolved
 }
 
 export type PlaceCategory =
@@ -339,6 +390,12 @@ export interface Place {
     rating: AttributedValue<number>
     reviewCount: AttributedValue<number>
   }
+  // Individual reviews, each attributed to its source (e.g. Foursquare tips).
+  reviews?: AttributedValue<Review>[]
+  // Foot-traffic popularity, 0–1 (e.g. Foursquare popularity).
+  popularity?: AttributedValue<number>
+  // Typical busy hours, same shape as openingHours (e.g. Foursquare hours_popular).
+  popularHours?: AttributedValue<OpeningHours>
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
 
@@ -357,6 +414,10 @@ export interface Place {
 
   // Nearby category chips for contextual exploration
   nearbyCategories?: NearbyCategory[]
+
+  // Brand this place belongs to (from brand / brand:wikidata tags), for the
+  // "See all {brand} locations" affordance
+  brand?: PlaceBrand | null
 
   // Icon/category for display
   icon?: PlaceIcon

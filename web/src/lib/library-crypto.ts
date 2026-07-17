@@ -24,6 +24,8 @@ import { deriveCollectionKey } from './federation-crypto'
 
 const COLLECTION_CONTEXT = 'parchment-collection-metadata-v1'
 const CANVAS_CONTEXT = 'parchment-canvas-metadata-v1'
+const ROUTE_METADATA_CONTEXT = 'parchment-route-metadata-v1'
+const ROUTE_BODY_CONTEXT = 'parchment-route-body-v1'
 
 export interface CollectionMetadata {
   name?: string
@@ -138,4 +140,97 @@ export function decryptCanvasMetadata(params: {
     }),
   })
   return JSON.parse(plaintext) as CanvasMetadata
+}
+
+// ── Custom routes ─────────────────────────────────────────────────────────
+//
+// Routes mirror collections: display metadata is ALWAYS encrypted; the body
+// (waypoints + geometry + stats) is cleartext for server-key routes and
+// encrypted for user-e2ee routes. Two separate key derivations + AADs keep a
+// route key from decrypting a collection (and a route's metadata key from
+// decrypting its body) — belt + suspenders on top of the AAD binding.
+
+export interface RouteMetadata {
+  name?: string
+  description?: string
+  icon?: string
+  iconPack?: 'lucide' | 'maki'
+  iconColor?: string
+}
+
+function routeMetadataAAD(params: { userId: string; routeId: string }): AAD {
+  return {
+    userId: params.userId,
+    recordType: 'route-metadata',
+    recordId: params.routeId,
+    keyContext: ROUTE_METADATA_CONTEXT,
+  }
+}
+
+function routeBodyAAD(params: { userId: string; routeId: string }): AAD {
+  return {
+    userId: params.userId,
+    recordType: 'route-body',
+    recordId: params.routeId,
+    keyContext: ROUTE_BODY_CONTEXT,
+  }
+}
+
+export function encryptRouteMetadata(params: {
+  metadata: RouteMetadata
+  seed: Uint8Array
+  userId: string
+  routeId: string
+}): string {
+  const key = deriveCollectionKey(params.seed, `route:${params.routeId}`)
+  return encryptEnvelopeString({
+    plaintext: JSON.stringify(params.metadata),
+    key,
+    aad: routeMetadataAAD({ userId: params.userId, routeId: params.routeId }),
+  })
+}
+
+export function decryptRouteMetadata(params: {
+  envelope: string
+  seed: Uint8Array
+  userId: string
+  routeId: string
+}): RouteMetadata {
+  const key = deriveCollectionKey(params.seed, `route:${params.routeId}`)
+  const plaintext = decryptEnvelopeString({
+    envelope: params.envelope,
+    key,
+    aad: routeMetadataAAD({ userId: params.userId, routeId: params.routeId }),
+  })
+  return JSON.parse(plaintext) as RouteMetadata
+}
+
+/** Encrypt a route body (user-e2ee routes only). Returns the envelope string. */
+export function encryptRouteBody(params: {
+  body: unknown
+  seed: Uint8Array
+  userId: string
+  routeId: string
+}): string {
+  const key = deriveCollectionKey(params.seed, `route-body:${params.routeId}`)
+  return encryptEnvelopeString({
+    plaintext: JSON.stringify(params.body),
+    key,
+    aad: routeBodyAAD({ userId: params.userId, routeId: params.routeId }),
+  })
+}
+
+export function decryptRouteBody<T = unknown>(params: {
+  envelope: string
+  seed: Uint8Array
+  userId: string
+  routeId: string
+}): T {
+  const key = deriveCollectionKey(params.seed, `route-body:${params.routeId}`)
+  const plaintext = decryptEnvelopeString({
+    envelope: params.envelope,
+    key,
+    aad: routeBodyAAD({ userId: params.userId, routeId: params.routeId }),
+  })
+  return JSON.parse(plaintext) as T
 }

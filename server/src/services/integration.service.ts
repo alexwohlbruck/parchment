@@ -79,6 +79,22 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.FOURSQUARE,
+    name: 'Foursquare',
+    description:
+      'Global POI coverage, reviews, photos, and hours — blends into search and enriches place details',
+    color: '#F94877',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.FOURSQUARE,
+      )
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'foursquareSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.PELIAS,
     name: 'Pelias',
     description: 'Open-source geocoding and search',
@@ -277,6 +293,34 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.OPENAQ,
+    name: 'OpenAQ',
+    description: 'Open air-quality data from ground monitoring stations',
+    color: '#2E7D32',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.OPENAQ)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'apiKeySchema',
+    publicFields: ['apiKey'],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.FIRMS,
+    name: 'NASA FIRMS',
+    description: 'Active wildfire detections from satellite (VIIRS/MODIS)',
+    color: '#E64A19',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.FIRMS)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'firmsMapKeySchema',
+    publicFields: ['apiKey'],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.AXIOM,
     name: 'Axiom',
     description:
@@ -359,12 +403,102 @@ const availableIntegrations: IntegrationDefinition[] = [
   },
 ]
 
+/**
+ * Background retry for system integrations that failed their startup connection
+ * test — most often barrelman. It can be warming up during a co-restart (a few
+ * seconds) OR genuinely down for an extended period; either way we must re-init
+ * it whenever it comes back, because `initializeWithTest` throws on a failed
+ * test and leaves the integration OUT of the cache entirely — so search/transit
+ * stay dark until it re-initializes.
+ *
+ * Exponential backoff (10s → capped at 5min), retried indefinitely rather than
+ * abandoned after a fixed budget: a bounded budget meant a longer-than-a-minute
+ * outage left the dependency excluded until a manual server restart. The cost of
+ * retrying forever is one connection test per failed integration per ≤5min —
+ * negligible — and each stops the moment it initializes.
+ */
+async function retrySystemIntegrations(
+  failed: IntegrationRecord[],
+  attempt = 1,
+): Promise<void> {
+  if (failed.length === 0) return
+
+  const BASE_MS = 10_000
+  const MAX_DELAY_MS = 5 * 60_000
+  const delay = Math.min(BASE_MS * 2 ** (attempt - 1), MAX_DELAY_MS)
+  await new Promise((resolve) => setTimeout(resolve, delay))
+
+  const stillFailing: IntegrationRecord[] = []
+  await Promise.allSettled(
+    failed.map(async (integration) => {
+      try {
+        await integrationManager.initializeIntegration(undefined, integration)
+        console.log(
+          `Recovered system integration: ${integration.integrationId}`,
+        )
+      } catch {
+        stillFailing.push(integration)
+      }
+    }),
+  )
+
+  if (stillFailing.length > 0) {
+    void retrySystemIntegrations(stillFailing, attempt + 1)
+  }
+}
+
+/**
+ * Reconcile stored capabilities for system integrations with the capabilities
+ * the code now declares. System integrations are code-defined (not user-tuned),
+ * so when a new capability is added to an integration's `capabilityIds` (e.g.
+ * brandCatalog on Barrelman), append it as active — mirroring create-time
+ * behavior where all capabilityIds start active. Never removes capabilities an
+ * operator may have disabled. Persists to the DB and mutates the in-memory
+ * records so this startup uses the updated set. Resolves the long-standing TODO
+ * in getConfiguredIntegrations.
+ */
+async function reconcileSystemCapabilities(
+  records: IntegrationRecord[],
+): Promise<void> {
+  for (const record of records) {
+    const codeCaps = integrationManager.getIntegrationCapabilities(
+      record.integrationId,
+    )
+    if (codeCaps.length === 0) continue
+    const existing = new Set(record.capabilities.map((c) => c.id))
+    const missing = codeCaps.filter((id) => !existing.has(id))
+    if (missing.length === 0) continue
+
+    const merged = [
+      ...record.capabilities,
+      ...missing.map((id) => ({ id, active: true })),
+    ]
+    try {
+      await db
+        .update(integrations)
+        .set({ capabilities: JSON.stringify(merged), updatedAt: new Date() })
+        .where(eq(integrations.id, record.id))
+      record.capabilities = merged // reflect in-memory for this startup
+      console.log(
+        `[integrations] Added new capabilit${missing.length === 1 ? 'y' : 'ies'} to ${record.integrationId}: ${missing.join(', ')}`,
+      )
+    } catch (err) {
+      console.error(
+        `[integrations] Failed to reconcile capabilities for ${record.integrationId}:`,
+        err,
+      )
+    }
+  }
+}
+
 export async function initializeIntegrations() {
   console.log('Initializing integrations on server startup...')
 
   try {
     // Get system-wide integrations first (where userId is null)
     const systemIntegrations = await getConfiguredIntegrations()
+    // Backfill any capabilities added in code since these records were created.
+    await reconcileSystemCapabilities(systemIntegrations)
     console.log(`Found ${systemIntegrations.length} system integrations`)
     console.log(
       'System integrations:',
@@ -388,6 +522,17 @@ export async function initializeIntegrations() {
           result.reason,
         )
       }
+    }
+
+    // Retry the failures in the background (non-blocking) — barrelman in
+    // particular can still be warming up during a co-restart, and its
+    // connection test fails until it's ready. Recovering here avoids the
+    // transit-goes-dark-until-manual-restart trap.
+    const failedSystem = systemIntegrations.filter(
+      (_, i) => systemResults[i].status === 'rejected',
+    )
+    if (failedSystem.length > 0) {
+      void retrySystemIntegrations(failedSystem)
     }
 
     // Get all users

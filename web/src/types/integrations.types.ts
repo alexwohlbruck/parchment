@@ -19,6 +19,20 @@ export interface SchemaConfig {
 
 /** Per-schema field config and dependencies for AutoForm. */
 export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
+  apiKeySchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'API Key',
+      },
+    },
+  },
+  firmsMapKeySchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'MAP_KEY',
+      },
+    },
+  },
   openstreetmapSystemSchema: {
     fieldConfig: {
       server: {
@@ -72,6 +86,10 @@ export const configSchemas: Record<
     apiKey: z.string().min(1, 'API Key is required').describe('public'),
   }),
 
+  firmsMapKeySchema: z.object({
+    apiKey: z.string().min(1, 'MAP_KEY is required').describe('public'),
+  }),
+
   hostConfigSchema: z.object({
     host: z.string().url('Please enter a valid URL'),
     apiKey: z.string().min(1, 'API Key is required'),
@@ -112,6 +130,10 @@ export const configSchemas: Record<
   }),
 
   googleMapsSchema: z.object({
+    apiKey: z.string().min(1, 'API Key is required'),
+  }),
+
+  foursquareSchema: z.object({
     apiKey: z.string().min(1, 'API Key is required'),
   }),
 

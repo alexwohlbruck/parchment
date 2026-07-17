@@ -151,6 +151,9 @@ export class MapboxStrategy extends MapStrategy {
       pitch,
       zoom,
       attributionControl: false,
+      // Disable the engine's built-in north snap — we do north + grid snapping
+      // ourselves in map.service (snapRotation) so both settings toggle live.
+      bearingSnap: 0,
       projection: {
         name: projection,
       },
@@ -199,6 +202,19 @@ export class MapboxStrategy extends MapStrategy {
     })
     this.mapInstance.on('moveend', () => {
       mapEventBus.emit('moveend', {
+        center: this.mapInstance.getCenter(),
+        zoom: this.mapInstance.getZoom(),
+        bearing: this.mapInstance.getBearing(),
+        pitch: this.mapInstance.getPitch(),
+      })
+    })
+    // Surface user-driven rotation gestures so the service can apply the
+    // city-grid orientation snap. Programmatic camera moves (compass-drag
+    // jumpTo, the snap easeTo itself) carry no originalEvent — skip them so we
+    // only snap when the user finishes rotating by hand, and never loop.
+    this.mapInstance.on('rotateend', (e: any) => {
+      if (!e?.originalEvent) return
+      mapEventBus.emit('rotateend', {
         center: this.mapInstance.getCenter(),
         zoom: this.mapInstance.getZoom(),
         bearing: this.mapInstance.getBearing(),

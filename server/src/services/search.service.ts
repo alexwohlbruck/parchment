@@ -16,8 +16,10 @@ import {
   IntegrationCapabilityId,
   IntegrationId,
   MapBounds,
+  type BrandSummary,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
+import { getBrandSuggestions } from './brand.service'
 import { resolveIcon } from '../lib/place-categories'
 
 
@@ -93,6 +95,38 @@ function convertPresetToSearchResult(preset: any): SearchResult {
   }
 }
 
+/** Normalize a brand/query string for exact-match comparison. */
+function normalizeBrandText(s: string): string {
+  return s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+/**
+ * Convert a brand catalog row to a SearchResult ("See all McDonald's
+ * locations"). The client renders the "See all locations" label + count; we
+ * carry the brand key + representative location for navigation.
+ */
+function convertBrandToSearchResult(brand: BrandSummary): SearchResult {
+  return {
+    id: brand.brandKey,
+    type: 'brand',
+    title: brand.name,
+    icon: 'Store',
+    iconPack: 'lucide',
+    metadata: {
+      brand: {
+        brandKey: brand.brandKey,
+        name: brand.name,
+        wikidata: brand.wikidata ?? undefined,
+        locationCount: brand.locationCount,
+        category: brand.category ?? undefined,
+        logoUrl: brand.logoUrl ?? undefined,
+        lat: brand.repLat ?? undefined,
+        lng: brand.repLng ?? undefined,
+      },
+    },
+  }
+}
+
 /**
  * Convert a full SearchResult to a lightweight AutocompleteResult
  */
@@ -100,6 +134,7 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
   // Extract coordinates from metadata based on result type
   let lat: number | undefined, lng: number | undefined
   let category: AutocompleteResult['category'] | undefined
+  let brand: AutocompleteResult['brand'] | undefined
 
   if (result.type === 'bookmark' && result.metadata.bookmark) {
     lat = result.metadata.bookmark.lat
@@ -110,6 +145,10 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
   } else if (result.type === 'category' && result.metadata.category) {
     // Categories don't have coordinates, but include category metadata
     category = result.metadata.category
+  } else if (result.type === 'brand' && result.metadata.brand) {
+    brand = result.metadata.brand
+    lat = result.metadata.brand.lat
+    lng = result.metadata.brand.lng
   }
 
   return {
@@ -124,20 +163,8 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
     lat,
     lng,
     category,
+    brand,
   }
-}
-
-/**
- * Search recent places (placeholder for future implementation)
- */
-async function searchRecentPlaces(
-  userId: string,
-  query: string,
-): Promise<SearchResult[]> {
-  // TODO: Implement recent places functionality
-  // 0 characters: return recent places
-  // 1+ characters: fuzzy search recent places
-  return []
 }
 
 /**
@@ -151,18 +178,18 @@ function convertBookmarkToSearchResult(bookmark: Bookmark): SearchResult {
   }
 
   // Type guard for preset type
-  const validPresetType =
-    bookmark.presetType &&
-    ['home', 'work', 'school'].includes(bookmark.presetType)
-      ? (bookmark.presetType as 'home' | 'work' | 'school')
+  const validFrequentType =
+    bookmark.frequentType &&
+    ['home', 'work', 'school'].includes(bookmark.frequentType)
+      ? (bookmark.frequentType as 'home' | 'work' | 'school')
       : undefined
 
   // Determine description based on preset type
   let description: string | undefined
-  if (validPresetType) {
+  if (validFrequentType) {
     // For preset bookmarks, use the preset type as description (capitalized)
     description =
-      validPresetType.charAt(0).toUpperCase() + validPresetType.slice(1)
+      validFrequentType.charAt(0).toUpperCase() + validFrequentType.slice(1)
   } else {
     // For non-preset bookmarks, use "Bookmarked • street address" format
     // TODO: i18n
@@ -178,14 +205,21 @@ function convertBookmarkToSearchResult(bookmark: Bookmark): SearchResult {
     type: 'bookmark',
     title: bookmark.name,
     description: description,
-    icon: validPresetType
-      ? presetIcons[validPresetType] || bookmark.icon
+    icon: validFrequentType
+      ? presetIcons[validFrequentType] || bookmark.icon
       : bookmark.icon,
     color: bookmark.iconColor,
     metadata: {
       bookmark: {
         id: bookmark.id,
-        presetType: validPresetType,
+        // Pass the raw type through so `custom` frequents aren't dropped;
+        // only canonical types (home/work/school) get a fixed icon above.
+        frequentType: (bookmark.frequentType || undefined) as
+          | 'home'
+          | 'work'
+          | 'school'
+          | 'custom'
+          | undefined,
         iconColor: bookmark.iconColor,
         address: bookmark.address || undefined,
         lat: bookmark.lat,
@@ -255,6 +289,7 @@ export async function search(
   userId: string,
   options: SearchOptions,
   language: Language = 'en-US',
+  signal?: AbortSignal,
 ): Promise<SearchResponse | AutocompleteResponse> {
   const {
     query,
@@ -333,8 +368,33 @@ export async function search(
     }
   }
 
-  // Search bookmarks using bookmarks service
-  const userBookmarks = await searchBookmarksService(userId, query)
+  // Recents (searches + viewed places) are client-side and end-to-end
+  // encrypted, so the server can't surface them here — see web/src/lib/recents.
+
+  // Bookmarks, external place lookup, and brand suggestions are independent —
+  // run them concurrently so no one leg's latency delays the others.
+  const [userBookmarks, places, brands] = await Promise.all([
+    searchBookmarksService(userId, query),
+    // External places via place service (only for 1+ character queries)
+    query && query.length > 0 && lat && lng
+      ? lookupPlacesByNameAndLocation(
+          query,
+          { lat, lng },
+          {
+            radius,
+            autocomplete,
+            userId,
+            language,
+            signal,
+          },
+        )
+      : Promise.resolve([]),
+    // Brand suggestions from the catalog (gated ≥2 chars; empty if unavailable)
+    query && query.trim().length >= 2
+      ? getBrandSuggestions(query, 3)
+      : Promise.resolve([] as BrandSummary[]),
+  ])
+
   for (let i = 0; i < userBookmarks.length; i++) {
     // Bookmarks are pre-sorted by relevance; assign decreasing score
     scoredResults.push({
@@ -343,27 +403,24 @@ export async function search(
     })
   }
 
-  // TODO: searchRecentPlaces — not yet implemented, skipping to avoid no-op await
+  for (let i = 0; i < places.length; i++) {
+    // Places are pre-sorted by relevance from the integration;
+    // assign decreasing score starting at 0.9 (slightly below exact category match)
+    scoredResults.push({
+      result: convertPlaceToSearchResult(places[i]),
+      relevance: 0.9 - i * 0.02,
+    })
+  }
 
-  // Search external places using place service (only for 1+ character queries)
-  if (query && query.length > 0 && lat && lng) {
-    const places = await lookupPlacesByNameAndLocation(
-      query,
-      { lat, lng },
-      {
-        radius,
-        autocomplete,
-        userId,
-        language,
-      },
-    )
-
-    for (let i = 0; i < places.length; i++) {
-      // Places are pre-sorted by relevance from the integration;
-      // assign decreasing score starting at 0.9 (slightly below exact category match)
+  // Brand suggestions: an exact-name brand pins above the individual locations
+  // (places top out at 0.9); a fuzzy brand match sits just alongside them.
+  if (brands.length > 0) {
+    const qNorm = normalizeBrandText(query || '')
+    for (let i = 0; i < brands.length; i++) {
+      const exact = normalizeBrandText(brands[i].name) === qNorm
       scoredResults.push({
-        result: convertPlaceToSearchResult(places[i]),
-        relevance: 0.9 - i * 0.02,
+        result: convertBrandToSearchResult(brands[i]),
+        relevance: exact ? 0.97 : 0.9 - i * 0.02,
       })
     }
   }
@@ -401,6 +458,7 @@ export async function search(
 export interface CategorySearchOptions {
   bounds: MapBounds
   limit?: number
+  offset?: number
   sort?: 'relevance' | 'distance' | 'name'
   filter?: {
     access?: string[]
@@ -491,6 +549,7 @@ export async function searchByCategory(
 
   return await searchCapability.searchByCategory(categoryId, options.bounds, {
     limit: options.limit,
+    offset: options.offset,
     filterTags: Object.keys(mergedTags).length > 0 ? mergedTags : undefined,
     sort: options.sort,
     filter: options.filter,

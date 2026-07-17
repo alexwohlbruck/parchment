@@ -4,7 +4,7 @@
 
 - **Parchment server** (API): runs in Docker as `parchment-server`, port 5000. Restart with `docker compose -f docker-compose.dev.yml restart parchment-server`
 - **Parchment web** (Vite): runs on port 5173. HMR handles client code changes. Do NOT start a new dev server.
-- **Barrelman** (geospatial engine): separate repo at `../barrelman`, Docker container `barrelman`, port 5001. Rebuild with `cd ../barrelman && docker build -t alexwohlbruck/barrelman:latest . && docker compose up -d barrelman`
+- **Barrelman** (geospatial engine): separate repo at `../barrelman`, Docker container `barrelman`, port 5001. Runs with hot-reload in dev (`bun --hot`, source mounted) — `src/` changes apply instantly, no rebuild. The `.env` defaults `COMPOSE_FILE` to base + dev override, so `cd ../barrelman && docker compose up -d barrelman` uses HMR. Only rebuild (`docker compose up -d --build barrelman`) for dependency or `Dockerfile`/`Dockerfile.dev` changes.
 - **Parchment DB**: Docker container `parchment-db`
 - **Barrelman DB**: Docker container `barrelman-db`, port 5434
 
@@ -12,7 +12,8 @@
 
 - **Client code changes** (`web/src/`): Vite HMR picks them up automatically
 - **Server code changes** (`server/src/`): `bun --hot` in Docker picks them up automatically (source is volume-mounted from `./server` into the container). If hot reload fails: `docker compose -f docker-compose.dev.yml restart parchment-server`
-- **Barrelman code changes** (`../barrelman/src/`): must rebuild and restart — `cd ../barrelman && docker build -t alexwohlbruck/barrelman:latest . && docker compose up -d barrelman`
+- **Barrelman code changes** (`../barrelman/src/`): `bun --hot` picks them up automatically (source volume-mounted via the dev compose override). If hot reload fails: `docker compose -f ../barrelman/docker-compose.yml -f ../barrelman/docker-compose.dev.yml restart barrelman`. Rebuild the image only for dependency / `Dockerfile` changes.
+- **Barrelman import scripts** (`../barrelman/import/`, `../barrelman/scripts/`): mounted into the container; re-run them directly, no rebuild.
 
 ## Important rules
 

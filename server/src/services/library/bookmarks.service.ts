@@ -4,7 +4,7 @@ import {
   collections,
   bookmarksCollections,
 } from '../../schema/library.schema'
-import { and, eq, desc, inArray, count, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, count, sql, isNotNull } from 'drizzle-orm'
 import {
   CreateBookmarkParams,
   NewBookmark,
@@ -50,7 +50,7 @@ async function createBookmarkInternal(
       icon: params.icon || 'map-pin',
       iconPack: params.iconPack || 'lucide',
       iconColor: params.iconColor || '#F43F5E',
-      presetType: params.presetType,
+      frequentType: params.frequentType,
       userId: params.userId,
     })
     .returning(bookmarkReturningFields)
@@ -69,23 +69,27 @@ export async function createBookmark(
 ): Promise<Bookmark> {
   const bookmark = await createBookmarkInternal(params)
 
-  const relations: NewBookmarkCollection[] = collectionIds.map(
-    (collectionId) => ({
-      bookmarkId: bookmark.id,
-      collectionId,
-      addedAt: new Date(),
-    }),
-  )
+  // Standalone bookmarks (e.g. frequents) carry no collection links.
+  if (collectionIds.length > 0) {
+    const relations: NewBookmarkCollection[] = collectionIds.map(
+      (collectionId) => ({
+        bookmarkId: bookmark.id,
+        collectionId,
+        addedAt: new Date(),
+      }),
+    )
 
-  await db.insert(bookmarksCollections).values(relations)
-  await db
-    .update(collections)
-    .set({ updatedAt: new Date() })
-    .where(inArray(collections.id, collectionIds))
+    await db.insert(bookmarksCollections).values(relations)
+    await db
+      .update(collections)
+      .set({ updatedAt: new Date() })
+      .where(inArray(collections.id, collectionIds))
+  }
 
   // Fan out to everyone who can see any of the target collections. The
   // payload carries the collectionIds so recipients can link the new
   // bookmark into their collections store without a follow-up fetch.
+  // (No collections → no recipients; the owner's own device already has it.)
   await emit.bookmarkAcrossCollections(
     'bookmark:created',
     { ...bookmark, collectionIds },
@@ -482,6 +486,19 @@ export async function findBookmarkByExternalIds(
 }
 
 /**
+ * List the user's frequents (Home/Work/School/custom). These are standalone
+ * bookmarks tagged with `frequentType` and are NOT linked to any collection,
+ * so they need their own fetch (the collection hydrate won't include them).
+ */
+export async function getFrequentBookmarks(userId: string): Promise<Bookmark[]> {
+  const rows = await db
+    .select(bookmarkSelectFields)
+    .from(bookmarks)
+    .where(and(eq(bookmarks.userId, userId), isNotNull(bookmarks.frequentType)))
+  return rows as Bookmark[]
+}
+
+/**
  * Search bookmarks for the given user and query
  */
 export async function searchBookmarks(
@@ -502,7 +519,7 @@ export async function searchBookmarks(
   const searchCondition = createBookmarkSearchCondition(
     bookmarks.name,
     bookmarks.address,
-    bookmarks.presetType,
+    bookmarks.frequentType,
     query,
   )
 

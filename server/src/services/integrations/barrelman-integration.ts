@@ -7,6 +7,8 @@ import type {
   SearchCapability,
   AutocompleteCapability,
   SearchCategoryCapability,
+  BrandCatalogCapability,
+  BrandSummary,
   PlaceInfoCapability,
   SpatialParentsCapability,
   SpatialChildrenCapability,
@@ -65,7 +67,7 @@ import { parseOsmHours } from '../../lib/hours.utils'
  * Tune the cap to Barrelman's headroom: high enough that one trip plan isn't
  * serialized, low enough that concurrent plans can't stampede the process.
  */
-const BARRELMAN_MAX_CONCURRENCY = 16
+const BARRELMAN_MAX_CONCURRENCY = 48
 
 class Semaphore {
   private active = 0
@@ -91,26 +93,63 @@ class Semaphore {
   }
 }
 
-const barrelmanLimiter = new Semaphore(BARRELMAN_MAX_CONCURRENCY)
+/**
+ * Interactive reads (search, autocomplete, place detail) run on their OWN pool,
+ * separate from the routing/transit fan-out above. These are latency-critical —
+ * fired while the user types — and individually cheap (~20ms). They must never
+ * queue behind a trip plan's 100+ slow MOTIS/walk-leg requests: sharing one
+ * limiter meant a single directions lookup saturated all slots for up to 25s,
+ * so concurrent autocomplete requests blew past their 5s timeout and silently
+ * returned no results. A dedicated pool keeps search responsive under that load
+ * while still capping interactive concurrency so it can't stampede Barrelman.
+ */
+const BARRELMAN_INTERACTIVE_CONCURRENCY = 24
 
 /**
- * Shared axios instance for every Barrelman call. Use this — never the bare
- * `axios` import — for Barrelman requests, or the concurrency cap is bypassed.
+ * Backstop timeout for interactive search/autocomplete requests. This is NOT a
+ * latency budget — cancellation of superseded requests is driven by the client's
+ * abort signal. It only exists to reclaim a pool slot if Barrelman genuinely
+ * hangs (no response at all), so it is set well above any legitimate query time
+ * so that merely-slow requests still return results instead of erroring empty.
  */
-const barrelmanHttp = axios.create()
-barrelmanHttp.interceptors.request.use(async (config) => {
-  await barrelmanLimiter.acquire()
-  return config
-})
-barrelmanHttp.interceptors.response.use(
-  (response) => {
-    barrelmanLimiter.release()
-    return response
-  },
-  (error) => {
-    barrelmanLimiter.release()
-    return Promise.reject(error)
-  },
+const SEARCH_BACKSTOP_TIMEOUT = 30_000
+
+/**
+ * Build an axios instance whose in-flight requests are bounded by `limiter`.
+ * Slots are held only for the HTTP round-trip — acquired in the request
+ * interceptor, released in the response interceptor on both success and failure.
+ */
+function createLimitedHttp(limiter: Semaphore) {
+  const http = axios.create()
+  http.interceptors.request.use(async (config) => {
+    await limiter.acquire()
+    return config
+  })
+  http.interceptors.response.use(
+    (response) => {
+      limiter.release()
+      return response
+    },
+    (error) => {
+      limiter.release()
+      return Promise.reject(error)
+    },
+  )
+  return http
+}
+
+/**
+ * Shared axios instance for routing/transit Barrelman calls. Use this — never
+ * the bare `axios` import — for those requests, or the concurrency cap is bypassed.
+ */
+const barrelmanHttp = createLimitedHttp(new Semaphore(BARRELMAN_MAX_CONCURRENCY))
+
+/**
+ * Dedicated axios instance for interactive search/autocomplete/place reads so
+ * they can't be starved by the routing fan-out on `barrelmanHttp`.
+ */
+const barrelmanSearchHttp = createLimitedHttp(
+  new Semaphore(BARRELMAN_INTERACTIVE_CONCURRENCY),
 )
 
 export interface BarrelmanConfig extends IntegrationConfig {
@@ -169,13 +208,16 @@ export class BarrelmanIntegration
   private config: BarrelmanConfig = { host: '' }
 
   readonly integrationId = IntegrationId.BARRELMAN
-  readonly sources = [SOURCE.OSM]
+  // PELIAS: Barrelman also fronts the Pelias geocoder for address results, so it
+  // resolves `source=pelias` place lookups (getConfiguredIntegrationForSource).
+  readonly sources = [SOURCE.OSM, SOURCE.PELIAS]
   private graphhopperAdapter = new BarrelmanGraphHopperAdapter()
 
   readonly capabilityIds: IntegrationCapabilityId[] = [
     IntegrationCapabilityId.SEARCH,
     IntegrationCapabilityId.AUTOCOMPLETE,
     IntegrationCapabilityId.SEARCH_CATEGORY,
+    IntegrationCapabilityId.BRAND_CATALOG,
     IntegrationCapabilityId.PLACE_INFO,
     IntegrationCapabilityId.SPATIAL_PARENTS,
     IntegrationCapabilityId.SPATIAL_CHILDREN,
@@ -195,6 +237,11 @@ export class BarrelmanIntegration
     searchCategory: {
       searchByCategory: this.searchByCategory.bind(this),
     } as SearchCategoryCapability,
+    brandCatalog: {
+      getBrands: this.getBrands.bind(this),
+      getBrand: this.getBrand.bind(this),
+      searchByBrand: this.searchByBrand.bind(this),
+    } as BrandCatalogCapability,
     placeInfo: {
       getPlaceInfo: this.getPlaceInfo.bind(this),
     } as PlaceInfoCapability,
@@ -550,9 +597,26 @@ export class BarrelmanIntegration
       }
     }
 
-    // External IDs — the id IS the OSM ID (e.g. "node/5718230659")
-    const externalIds: Record<string, string> = {
-      [SOURCE.OSM]: r.id,
+    // Pelias geocoder rows carry an id like "pelias/openaddresses:address:us/…"
+    // (osm_type="pelias", no geo_places/OSM row). Everything else is real OSM.
+    const isPelias = r.id.startsWith('pelias/')
+
+    // External IDs — for OSM rows the id IS the OSM id (e.g. "node/5718230659");
+    // for Pelias rows it's the geocoder gid (the part after "pelias/"), which is
+    // NOT an OSM id, so don't claim SOURCE.OSM.
+    const externalIds: Record<string, string> = isPelias
+      ? { [SOURCE.PELIAS]: r.id.slice('pelias/'.length) }
+      : { [SOURCE.OSM]: r.id }
+
+    // Promote only the place's OWN Wikidata QID into externalIds so Wikidata
+    // enrichment resolves location-specific data. Deliberately NOT the brand's
+    // `brand:wikidata` — that would pull the brand entity's generic photos (same
+    // for every location) ahead of the location-specific Foursquare photos. The
+    // brand logo + description come from the brand catalog instead, so nothing
+    // is lost. Added as an EXTRA key; never replaces the osm/pelias id.
+    const wikidataQid = tags['wikidata']
+    if (wikidataQid && !externalIds[SOURCE.WIKIDATA]) {
+      externalIds[SOURCE.WIKIDATA] = wikidataQid
     }
 
     // Build OSM URL — r.id is always "node/123456" format, so parse from that
@@ -564,10 +628,19 @@ export class BarrelmanIntegration
       : undefined
 
     return {
-      id: `${SOURCE.OSM}/${r.id}`,
+      // Pelias id is already "pelias/<gid>"; only OSM rows get the "osm/" prefix.
+      // (A blanket "osm/" prefix produced "osm/pelias/…", which the client then
+      // mis-parsed into a dead /place/pelias/openaddresses:address:us URL.)
+      id: isPelias ? r.id : `${SOURCE.OSM}/${r.id}`,
       externalIds,
 
-      name: { value: r.name || null, sourceId, timestamp },
+      // Fall back to the street address as the display name for unnamed
+      // address-bearing features (e.g. a bare building polygon). This makes a
+      // building opened directly by OSM id identical to the same building
+      // reached via a Pelias address, and — because downstream third-party
+      // enrichment only runs when a place has a name — lets both surface the
+      // same Foursquare/phone data.
+      name: { value: r.name || address?.street1 || null, sourceId, timestamp },
       description: null,
       placeType: { value: placeTypeLabel, sourceId, timestamp },
       icon,
@@ -609,9 +682,9 @@ export class BarrelmanIntegration
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any> },
+    options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any>; signal?: AbortSignal },
   ): Promise<Place[]> {
-    const response = await barrelmanHttp.post(
+    const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
         query,
@@ -623,7 +696,7 @@ export class BarrelmanIntegration
         ...(options?.sort ? { sort: options.sort } : {}),
         ...(options?.filter ? { filter: options.filter } : {}),
       },
-      { headers: this.headers, timeout: 10000 },
+      { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
     return (response.data || []).map((r: any) => this.adaptPlace(r))
   }
@@ -632,12 +705,18 @@ export class BarrelmanIntegration
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number },
+    options?: { radius?: number; limit?: number; signal?: AbortSignal },
   ): Promise<Place[]> {
     // autocomplete: true disables the Ollama semantic layer entirely (it's too slow
     // for typing latency). Relies on parallel FTS + GIN-indexed trigram instead.
     // Barrelman searches globally and uses proximity re-rank for location bias.
-    const response = await barrelmanHttp.post(
+    //
+    // Cancellation is driven by the client's abort signal, not a short timeout:
+    // a stale request is dropped the instant the user types another character,
+    // while a slow-but-live request is allowed to finish rather than being killed
+    // mid-flight and surfacing as an empty result. The timeout is only a backstop
+    // for a genuinely hung Barrelman.
+    const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
         query,
@@ -648,43 +727,165 @@ export class BarrelmanIntegration
         semantic: false,
         autocomplete: true,
       },
-      { headers: this.headers, timeout: 5000 },
+      { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
     return (response.data || []).map((r: any) => this.adaptPlace(r))
   }
 
+  /**
+   * Search a POI category. Two tiers, both fast:
+   *  1. Viewport-scoped (lat/lng + radius) — barrelman orders browse results
+   *     nearest-first via the GiST KNN index, so this is quick at any zoom.
+   *  2. Widen — when the viewport is sparse (fewer than `minResults`), re-query
+   *     with NO radius. Barrelman then drives the scan from the category GIN
+   *     index and returns the nearest matches within a wide bbox, so a zoomed-in
+   *     search for a thin category (e.g. gas stations in Manhattan) still finds
+   *     the nearest ones (~1s) instead of coming back empty.
+   * Supports `offset` for scroll pagination — a sparse viewport widens at every
+   * offset, so pages stay consistent. No total count is computed (a COUNT over a
+   * broad category is itself expensive); the client paginates until a short page.
+   */
   async searchByCategory(
     presetId: string,
     bounds: MapBounds,
-    options?: { limit?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any> },
+    options?: { limit?: number; offset?: number; minResults?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any> },
   ): Promise<Place[]> {
     const lat = (bounds.north + bounds.south) / 2
     const lng = (bounds.east + bounds.west) / 2
     const latDiff = Math.abs(bounds.north - bounds.south)
     const lngDiff = Math.abs(bounds.east - bounds.west)
-    const radius = (Math.max(latDiff, lngDiff) * 111320) / 2
+    const radius = Math.min((Math.max(latDiff, lngDiff) * 111320) / 2, 50000)
 
-    const response = await barrelmanHttp.post(
-      `${this.config.host}/search`,
-      {
-        lat,
-        lng,
-        radius: Math.min(radius, 50000),
-        categories: [presetId],
-        limit: options?.limit || 20,
-        ...(options?.filterTags ? { tags: options.filterTags } : {}),
-        ...(options?.sort ? { sort: options.sort } : {}),
-        ...(options?.filter ? { filter: options.filter } : {}),
-      },
-      { headers: this.headers, timeout: 10000 },
-    )
-    return (response.data || []).map((r: any) => this.adaptPlace(r))
+    const limit = options?.limit || 20
+    const offset = options?.offset || 0
+    const minResults = options?.minResults ?? 6
+
+    const post = (body: Record<string, any>) =>
+      barrelmanSearchHttp.post(`${this.config.host}/search`, body, {
+        headers: this.headers,
+        timeout: 10000,
+      })
+
+    const baseBody = {
+      lat,
+      lng,
+      categories: [presetId],
+      limit,
+      ...(offset ? { offset } : {}),
+      ...(options?.filterTags ? { tags: options.filterTags } : {}),
+      ...(options?.sort ? { sort: options.sort } : {}),
+      ...(options?.filter ? { filter: options.filter } : {}),
+    }
+
+    // Tier 1: viewport-scoped (bounded radius → KNN).
+    let rows: any[] = (await post({ ...baseBody, radius })).data || []
+
+    // Tier 2: widen when the viewport is sparse — omit the radius so barrelman
+    // uses the category-index scan (fast even for a thin category).
+    if (rows.length < minResults) {
+      rows = (await post(baseBody)).data || []
+    }
+
+    return rows.map((r: any) => this.adaptPlace(r))
+  }
+
+  // ── Brand catalog ──────────────────────────────────────────────────────
+
+  async getBrands(q: string, limit = 8): Promise<BrandSummary[]> {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/brands`, {
+      params: { q, limit },
+      headers: this.headers,
+      timeout: 10000,
+    })
+    return (response.data?.brands || []) as BrandSummary[]
+  }
+
+  async getBrand(brandKey: string): Promise<BrandSummary | null> {
+    try {
+      const response = await barrelmanSearchHttp.get(
+        `${this.config.host}/brands/${encodeURIComponent(brandKey)}`,
+        { headers: this.headers, timeout: 10000 },
+      )
+      return (response.data || null) as BrandSummary | null
+    } catch (e: any) {
+      if (e.response?.status === 404) return null
+      throw e
+    }
+  }
+
+  /**
+   * List a brand's locations. Uses barrelman's browse mode with a brand tag
+   * filter: viewport-scoped first (lat/lng + radius), then — if too few results
+   * — a second global pass (lat/lng, NO radius → nearest-N by distance) so a
+   * sparse brand is never shown as empty.
+   */
+  async searchByBrand(
+    filter: { wikidata?: string; name?: string },
+    options?: { lat?: number; lng?: number; bounds?: MapBounds; minResults?: number; limit?: number },
+  ): Promise<Place[]> {
+    const tags = filter.wikidata
+      ? { 'brand:wikidata': filter.wikidata }
+      : filter.name
+        ? { brand: filter.name }
+        : null
+    if (!tags) return []
+
+    const limit = options?.limit ?? 15
+    const minResults = options?.minResults ?? 8
+
+    // Center + radius: prefer explicit bounds, else the given point.
+    let lat = options?.lat
+    let lng = options?.lng
+    let radius: number | undefined
+    if (options?.bounds) {
+      const b = options.bounds
+      lat = (b.north + b.south) / 2
+      lng = (b.east + b.west) / 2
+      const latDiff = Math.abs(b.north - b.south)
+      const lngDiff = Math.abs(b.east - b.west)
+      radius = Math.min((Math.max(latDiff, lngDiff) * 111320) / 2, 50000)
+    }
+
+    const post = (body: Record<string, any>) =>
+      barrelmanSearchHttp.post(`${this.config.host}/search`, body, {
+        headers: this.headers,
+        timeout: 10000,
+      })
+
+    // Pass 1: viewport-scoped (only when we have a radius to scope by).
+    let rows: any[] = []
+    if (radius != null && lat != null && lng != null) {
+      const res = await post({ lat, lng, radius, tags, limit })
+      rows = res.data || []
+    }
+
+    // Pass 2: widen to nearest-N globally when the viewport was sparse (or had
+    // no spatial scope to begin with).
+    if (rows.length < minResults) {
+      const res = await post({ lat, lng, tags, limit })
+      rows = res.data || []
+    }
+
+    return rows.map((r: any) => this.adaptPlace(r))
   }
 
   async getPlaceInfo(id: string): Promise<Place | null> {
     try {
+      // Pelias geocoder gid (e.g. "openaddresses:address:us/ny/…") — these have
+      // no geo_places/OSM row, so resolve via /geocode/place (Pelias /v1/place)
+      // rather than /place/:osmType/:osmId. Real OSM ids start with the element
+      // type; anything else is treated as a geocoder gid.
+      const isOsmId = /^(node|way|relation|intersection)\//.test(id)
+      if (!isOsmId) {
+        const response = await barrelmanSearchHttp.get(
+          `${this.config.host}/geocode/place`,
+          { params: { id }, headers: this.headers, timeout: 10000 },
+        )
+        return this.adaptPlace(response.data)
+      }
+
       // ID format: "node/5718230659" — maps to /place/node/5718230659
-      const response = await barrelmanHttp.get(
+      const response = await barrelmanSearchHttp.get(
         `${this.config.host}/place/${id}`,
         { headers: this.headers, timeout: 10000 },
       )
@@ -707,7 +908,7 @@ export class BarrelmanIntegration
       autocomplete?: boolean
     },
   ): Promise<Place[]> {
-    const response = await barrelmanHttp.post(
+    const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
       {
         ...(options?.query ? { query: options.query } : {}),
@@ -725,7 +926,7 @@ export class BarrelmanIntegration
   }
 
   async getContainingAreas(lat: number, lng: number, exclude?: string): Promise<Place[]> {
-    const response = await barrelmanHttp.get(`${this.config.host}/contains`, {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/contains`, {
       params: { lat, lng, ...(exclude ? { exclude } : {}) },
       headers: this.headers,
       timeout: 10000,
@@ -741,7 +942,7 @@ export class BarrelmanIntegration
     lat?: number,
     lng?: number,
   ): Promise<Place[]> {
-    const response = await barrelmanHttp.get(`${this.config.host}/children`, {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/children`, {
       params: {
         id: areaId,
         categories: categories?.join(','),
@@ -870,7 +1071,7 @@ export class BarrelmanIntegration
         request,
         {
           headers: this.headers,
-          timeout: 30_000,
+          timeout: 25_000,
         },
       )
       return response.data
@@ -896,7 +1097,7 @@ export class BarrelmanIntegration
         request,
         {
           headers: this.headers,
-          timeout: 30_000,
+          timeout: 25_000,
         },
       )
       return response.data

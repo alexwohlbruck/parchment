@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia'
 import { integrationManager } from '../services/integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { getLanguageCode } from '../lib/i18n'
+import { getNearestStationAirQuality } from '../services/air-quality.service'
 
 const weatherRouter = new Elysia({ prefix: '/weather' })
   /**
@@ -50,6 +51,23 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
           Number(lng),
           language,
         )
+
+        // Air quality comes ONLY from a real OpenAQ ground station — never from
+        // the modeled estimate (a wrong number is worse than none). When no
+        // station is available (or OpenAQ is unreachable), we leave air quality
+        // off and the widget simply omits it.
+        try {
+          const nearest = await getNearestStationAirQuality(
+            Number(lat),
+            Number(lng),
+          )
+          if (nearest) {
+            weatherData.airQuality = nearest.airQuality
+            weatherData.aqiComponents = nearest.components
+          }
+        } catch (e) {
+          console.warn('OpenAQ lookup failed; omitting air quality:', e)
+        }
 
         return weatherData
       } catch (err: any) {

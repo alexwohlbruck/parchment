@@ -32,7 +32,7 @@ function openBookmarkDialog(place: Bookmark) {
 
       const params = {
         name: formData.name,
-        ...(formData.type ? { presetType: formData.type } : {}),
+        ...(formData.type ? { frequentType: formData.type } : {}),
         icon: formData.icon,
         iconColor: formData.iconColor,
       }

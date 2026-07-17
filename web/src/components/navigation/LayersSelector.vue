@@ -20,6 +20,7 @@ const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
 const notesStore = useNotesStore()
+
 const { layers, allLayerGroups, mainReorderableItems } =
   storeToRefs(layersStore)
 

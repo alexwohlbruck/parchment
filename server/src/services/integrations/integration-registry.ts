@@ -1,6 +1,7 @@
 import { IntegrationId } from '../../types/integration.types'
 import { Integration } from '../../types/integration.types'
 import { GoogleMapsIntegration } from './google-maps-integration'
+import { FoursquareIntegration } from './foursquare-integration'
 import { PeliasIntegration } from './pelias-integration'
 import { NominatimIntegration } from './nominatim-integration'
 import { OverpassIntegration } from './overpass-integration'
@@ -21,6 +22,8 @@ import { OpenStreetMapSystemIntegration } from './openstreetmap-system-integrati
 import { DawarichIntegration } from './dawarich-integration'
 import { UberIntegration } from './uber-integration'
 import { LyftIntegration } from './lyft-integration'
+import { OpenAqIntegration } from './openaq-integration'
+import { FirmsIntegration } from './firms-integration'
 
 /**
  * Registry for all integrations
@@ -38,6 +41,7 @@ export class IntegrationRegistry {
   private registerDefaultIntegrations(): void {
     this.registerIntegration(new AxiomIntegration())
     this.registerIntegration(new GoogleMapsIntegration())
+    this.registerIntegration(new FoursquareIntegration())
     this.registerIntegration(new PeliasIntegration())
     this.registerIntegration(new NominatimIntegration())
     this.registerIntegration(new OverpassIntegration())
@@ -57,6 +61,8 @@ export class IntegrationRegistry {
     this.registerIntegration(new DawarichIntegration())
     this.registerIntegration(new UberIntegration())
     this.registerIntegration(new LyftIntegration())
+    this.registerIntegration(new OpenAqIntegration())
+    this.registerIntegration(new FirmsIntegration())
   }
 
   /**

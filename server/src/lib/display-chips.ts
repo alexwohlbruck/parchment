@@ -140,6 +140,10 @@ const CHIP_LABELS: Record<string, ChipDef> = {
   'payment:apple_pay_yes':     { label: 'Apple Pay',       icon: 'smartphone',  sentiment: 'positive', category: 'payment' },
   'payment:google_pay_yes':    { label: 'Google Pay',      icon: 'smartphone',  sentiment: 'positive', category: 'payment' },
 
+  // ── Parking ──────────────────────────────────────────────────────────────
+  parking_yes:         { label: 'Parking',            icon: 'car',       sentiment: 'positive', category: 'facilities' },
+  parking_no:          { label: 'No Parking',         icon: 'car',       sentiment: 'negative', category: 'facilities' },
+
   // ── Accommodation & Facilities ────────────────────────────────────────────
   heating_yes:         { label: 'Heating',            icon: 'flame',     sentiment: 'positive', category: 'facilities' },
   heating_no:          { label: 'No Heating',         icon: 'flame',     sentiment: 'negative', category: 'facilities' },
@@ -219,7 +223,7 @@ const CHIP_ROOT_KEYS = new Set([
   'outdoor_seating', 'indoor_seating', 'indoor', 'covered', 'heated', 'lit', 'air_conditioning',
   'smoking',
   'takeaway', 'delivery', 'drive_through',
-  'reservation', 'self_service',
+  'reservation', 'self_service', 'parking',
   'breakfast', 'bar', 'cocktails', 'microbrewery', 'live_music',
   'organic', 'second_hand', 'bulk_purchase',
   'drinking_water',

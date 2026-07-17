@@ -23,6 +23,9 @@
     "search": "Search",
     "create": "Create",
     "add": "Add",
+    "open": "Open",
+    "remove": "Remove",
+    "more": "More",
     "loading": "Loading...",
     "dateAdded": "Date Added",
     "lastModified": "Last Modified",
@@ -53,15 +56,94 @@
     "sunrise": "Sunrise",
     "sunset": "Sunset",
     "aqi": {
-      "good": "Good",
-      "fair": "Fair",
-      "moderate": "Moderate",
-      "poor": "Poor",
-      "veryPoor": "Very Poor",
-      "unhealthySensitive": "Unhealthy for Sensitive Groups",
-      "unhealthy": "Unhealthy",
-      "veryUnhealthy": "Very Unhealthy",
-      "hazardous": "Hazardous"
+      "dominant": "Main pollutant",
+      "modeled": "Modeled estimate",
+      "standards": {
+        "us_epa": "US AQI",
+        "eu_eea": "European AQI",
+        "uk_daqi": "UK DAQI",
+        "in_naqi": "India AQI",
+        "cn_mee": "China AQI",
+        "ca_aqhi": "Canada AQHI"
+      },
+      "pollutants": {
+        "pm2_5": "PM2.5",
+        "pm10": "PM10",
+        "o3": "Ozone",
+        "no2": "Nitrogen dioxide",
+        "so2": "Sulphur dioxide",
+        "co": "Carbon monoxide"
+      },
+      "levels": {
+        "1": "Good",
+        "2": "Moderate",
+        "3": "Poor",
+        "4": "Very Poor",
+        "5": "Severe",
+        "6": "Hazardous"
+      },
+      "categories": {
+        "us_epa": {
+          "1": "Good",
+          "2": "Moderate",
+          "3": "Unhealthy for Sensitive Groups",
+          "4": "Unhealthy",
+          "5": "Very Unhealthy",
+          "6": "Hazardous"
+        },
+        "eu_eea": {
+          "1": "Good",
+          "2": "Fair",
+          "3": "Moderate",
+          "4": "Poor",
+          "5": "Very Poor",
+          "6": "Extremely Poor"
+        },
+        "uk_daqi": {
+          "1": "Low",
+          "2": "Low",
+          "3": "Moderate",
+          "4": "High",
+          "5": "High",
+          "6": "Very High"
+        },
+        "ca_aqhi": {
+          "1": "Low",
+          "2": "Low",
+          "3": "Moderate",
+          "4": "High",
+          "5": "High",
+          "6": "Very High"
+        },
+        "cn_mee": {
+          "1": "Excellent",
+          "2": "Good",
+          "3": "Lightly Polluted",
+          "4": "Moderately Polluted",
+          "5": "Heavily Polluted",
+          "6": "Severely Polluted"
+        },
+        "in_naqi": {
+          "1": "Good",
+          "2": "Satisfactory",
+          "3": "Moderate",
+          "4": "Poor",
+          "5": "Very Poor",
+          "6": "Severe"
+        }
+      }
+    }
+  },
+  "environment": {
+    "title": "Environment",
+    "layers": {
+      "airQuality": "Air Quality",
+      "hotspots": "Fire hotspots",
+      "perimeters": "Fire perimeters",
+      "smoke": "Smoke"
+    },
+    "legend": {
+      "aqi": "AQI"
     }
   },
   "palette": {
@@ -92,9 +174,31 @@
           }
         },
         "groups": {
+          "frequents": "Frequents",
+          "suggestedCategories": "Categories",
           "fullSearch": "Search",
+          "recents": "Recents",
+          "brands": "Brands",
           "categories": "Categories",
           "places": "Places"
+        },
+        "commonCategories": {
+          "restaurants": "Restaurants",
+          "coffee": "Coffee",
+          "fastFood": "Fast Food",
+          "groceries": "Groceries",
+          "gas": "Gas",
+          "parking": "Parking",
+          "pharmacy": "Pharmacy",
+          "hotels": "Hotels",
+          "bars": "Bars",
+          "parks": "Parks",
+          "hospitals": "Hospitals",
+          "atms": "ATMs"
+        },
+        "brand": {
+          "seeAll": "See all locations",
+          "locationsCount": "{count} locations"
         }
       },
       "goto": {
@@ -357,6 +461,7 @@
       "parkAndRide": "Park & Ride"
     },
     "toward": "toward {headsign}",
+    "or": "or",
     "title": "Directions",
     "planRouteFromHere": "Plan route from here",
     "directionsHere": "Directions here",
@@ -477,18 +582,22 @@
       }
     },
     "form": {
+      "frequent": "Frequent",
+      "customName": "Name",
       "placeholders": {
         "collectionName": "Enter collection name",
         "collectionDescription": "Add a description (optional)",
         "collectionType": "Select type (optional)",
         "bookmarkName": "Enter bookmark name",
-        "bookmarkType": "Select bookmark type (optional)"
+        "bookmarkType": "Not a frequent",
+        "customName": "Enter a name"
       }
     },
     "types": {
       "home": "Home",
       "work": "Work",
-      "school": "School"
+      "school": "School",
+      "custom": "Custom"
     },
     "loading": {
       "collection": "Loading collection..."
@@ -510,7 +619,10 @@
       "removeFromCollectionSuccess": "Bookmark '{name}' removed from collection.",
       "removeFromCollectionError": "Failed to remove bookmark from collection.",
       "unsaveSuccess": "Removed {name}",
-      "updateErrorNotFound": "Bookmark not found. It may have been deleted."
+      "updateErrorNotFound": "Bookmark not found. It may have been deleted.",
+      "frequentSet": "Set as {label}",
+      "frequentRemoved": "{label} removed",
+      "frequentNoCollection": "Create a collection first to save a place."
     },
     "collections": {
       "fetchError": "Failed to fetch collections",
@@ -741,7 +853,21 @@
     }
   },
   "dashboard": {
-    "title": "Dashboard"
+    "title": "Dashboard",
+    "yourPlaces": {
+      "title": "Frequents",
+      "add": "Add frequent",
+      "change": "Change place",
+      "setTitle": "Set {label}",
+      "setDescription": "Search for a place to use as your {label}.",
+      "setCustomTitle": "Add a frequent",
+      "setCustomDescription": "Name it, then search for a place.",
+      "customName": "Name",
+      "customNamePlaceholder": "e.g. Gym, Mom's house",
+      "searchPlaceholder": "Search for a place",
+      "searchHint": "Start typing to find a place.",
+      "noResults": "No places found."
+    }
   },
   "navigation": {
     "title": "Navigation",
@@ -866,8 +992,23 @@
       "partOf": "Part of",
       "relatedPlaces": "Related Places"
     },
+    "reviews": {
+      "title": "Reviews",
+      "ratings": "{count} rating | {count} ratings",
+      "showAll": "Show all {count} reviews",
+      "showLess": "Show less"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "reviews": "Reviews",
+      "visits": "Visits"
+    },
     "nearby": {
       "findNearby": "Find nearby"
+    },
+    "brand": {
+      "seeAll": "See all {name}",
+      "locationsCount": "{count} locations"
     },
     "osmTags": {
       "copiedMessage": "{label} copied",
@@ -1263,6 +1404,9 @@
       "language": {
         "title": "Language"
       },
+      "mapBehavior": {
+        "title": "Map behavior"
+      },
       "units": {
         "title": "Units",
         "system": "Unit system",
@@ -1376,6 +1520,16 @@
           "slow": "Slow"
         }
       },
+      "rotation": {
+        "title": "Map rotation",
+        "northUpSnap": "Snap to north",
+        "northUpSnapDescription": "Snap the map upright when you rotate near north",
+        "gridSnap": "Snap to street grid",
+        "gridSnapDescription": "Snap rotation to the street grid in cities like New York",
+        "gridSnapModeOff": "Off",
+        "gridSnapModeNorthUp": "North up only",
+        "gridSnapModeAll": "All 90° rotations"
+      },
       "style": {
         "title": "Style",
         "mapStyle": "Map style",
@@ -1395,6 +1549,61 @@
         "title": "Layers",
         "new": "New layer",
         "description": "Choose layers to display in the layer selector"
+      }
+    },
+    "vehicles": {
+      "title": "My Vehicles",
+      "description": "Manage your vehicles for trip planning. Active vehicles are used when planning routes with known vehicle locations.",
+      "empty": "No vehicles added yet. Add your car or bike to get personalized routes that start from your vehicle's location.",
+      "add": "Add vehicle",
+      "active": "active",
+      "electric": "electric",
+      "actions": {
+        "setActive": "Set as active",
+        "setLocation": "Set location on map",
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "location": {
+        "notSet": "Location not set",
+        "set": "Location set",
+        "updated": "Updated {time}"
+      },
+      "time": {
+        "justNow": "just now",
+        "minutesAgo": "{count}m ago",
+        "hoursAgo": "{count}h ago",
+        "daysAgo": "{count}d ago"
+      },
+      "dialog": {
+        "addTitle": "Add vehicle",
+        "editTitle": "Edit vehicle",
+        "addDescription": "Add a vehicle to use with trip planning.",
+        "editDescription": "Update your vehicle details."
+      },
+      "form": {
+        "name": "Name (optional)",
+        "namePlaceholder": "e.g. Blue Honda",
+        "type": "Type",
+        "typePlaceholder": "Select type",
+        "fuelType": "Fuel type",
+        "fuelTypePlaceholder": "Select fuel type"
+      },
+      "types": {
+        "car": "Car",
+        "truck": "Truck",
+        "moped": "Moped",
+        "bike": "Bike",
+        "e-bike": "E-bike",
+        "scooter": "Scooter",
+        "e-scooter": "E-scooter",
+        "wheelchair": "Wheelchair"
+      },
+      "energyTypes": {
+        "gas": "Gas",
+        "diesel": "Diesel",
+        "electric": "Electric",
+        "hybrid": "Hybrid"
       }
     },
     "integrations": {
@@ -1504,7 +1713,9 @@
         "barrelman": "Self-hosted OSM search and spatial engine",
         "openstreetmap": "Configure OSM OAuth",
         "openstreetmap-account": "Add notes, comments, and make quick edits",
-        "dawarich": "Private, encrypted location history tracking"
+        "dawarich": "Private, encrypted location history tracking",
+        "openaq": "Open air-quality data from ground monitoring stations",
+        "firms": "Active wildfire detections from satellite (VIIRS/MODIS)"
       },
       "scheme": {
         "endToEnd": {

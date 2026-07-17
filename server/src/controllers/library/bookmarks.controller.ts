@@ -46,10 +46,8 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         return { error: 'Missing required externalIds' }
       }
 
-      if (!body.collectionIds || body.collectionIds.length === 0) {
-        set.status = 400
-        return { error: 'Missing required collectionIds in body' }
-      }
+      // An empty collectionIds array is allowed: standalone bookmarks (e.g.
+      // frequents) live outside any collection.
 
       try {
         await assertCanWriteCollections(user.id, body.collectionIds)
@@ -81,8 +79,8 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
           t.Union([t.Literal('lucide'), t.Literal('maki')]),
         ),
         iconColor: t.Optional(t.String()),
-        presetType: t.Optional(
-          t.Union([t.Literal('home'), t.Literal('work'), t.Literal('school')]),
+        frequentType: t.Optional(
+          t.Union([t.Literal('home'), t.Literal('work'), t.Literal('school'), t.Literal('custom')]),
         ),
         collectionIds: t.Array(t.String()),
       }),
@@ -155,10 +153,10 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
           lng: t.Number(),
           icon: t.String(),
           iconColor: t.String(),
-          presetType: t.Union([
+          frequentType: t.Union([
             t.Literal('home'),
             t.Literal('work'),
-            t.Literal('school'),
+            t.Literal('school'), t.Literal('custom'),
             t.Null(),
           ]),
           collectionIds: t.Array(t.String()),
@@ -213,6 +211,20 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
   )
 
   // Get collections for a bookmark
+  // List the caller's frequents (standalone, not in any collection).
+  .get(
+    '/frequents',
+    async ({ user }) => {
+      return await bookmarksService.getFrequentBookmarks(user.id)
+    },
+    {
+      detail: {
+        tags: ['Library'],
+        summary: "Get the caller's frequent bookmarks",
+      },
+    },
+  )
+
   .get(
     '/:id/collections',
     async ({ params: { id }, user }) => {

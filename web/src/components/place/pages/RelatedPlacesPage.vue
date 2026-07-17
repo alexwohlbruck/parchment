@@ -22,6 +22,8 @@ const props = defineProps<{
   descriptor: WidgetDescriptor
   place: Partial<Place>
   title: string
+  /** When rendered inside a place tab: drop the page chrome (header/padding). */
+  embedded?: boolean
 }>()
 
 const relatedData = computed(() => props.data.data.value as RelatedPlacesData)
@@ -106,8 +108,8 @@ const items = computed(() => {
 </script>
 
 <template>
-  <PanelLayout>
-    <SheetPageHeader :title="title" />
+  <component :is="embedded ? 'div' : PanelLayout">
+    <SheetPageHeader v-if="!embedded" :title="title" />
 
     <div class="space-y-1">
       <PlaceListItem
@@ -131,5 +133,5 @@ const items = computed(() => {
         aria-hidden="true"
       />
     </div>
-  </PanelLayout>
+  </component>
 </template>

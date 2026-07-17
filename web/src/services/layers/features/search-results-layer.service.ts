@@ -258,7 +258,7 @@ export function useSearchResultsLayerService() {
   function createResultsGeoJSON(places: Place[]) {
     const features = places
       .filter(place => place.geometry?.value?.center)
-      .map(place => {
+      .map((place, index) => {
         const { lat, lng } = place.geometry.value.center
         const hasName =
           place.name.value && place.name.value !== place.placeType.value
@@ -276,6 +276,10 @@ export function useSearchResultsLayerService() {
             placeType: place.placeType.value,
             category: place.icon?.category ?? 'default',
             hasLabel: hasName,
+            // Collision priority for the label layer's symbol-sort-key: results
+            // are distance/relevance-ordered, so index 0 (nearest/best) is placed
+            // first and wins overlaps.
+            sortKey: index,
             sizerank: 10,
             class: 'place_like',
           },

@@ -25,6 +25,8 @@ dayjs.extend(relativeTime)
 
 const props = defineProps<{
   place: Partial<Place>
+  /** When rendered inside a place tab: drop the page chrome (header/padding). */
+  embedded?: boolean
 }>()
 
 const { t } = useI18n()
@@ -154,8 +156,8 @@ function viewOnTimeline(visit: PlaceVisitSummary) {
 </script>
 
 <template>
-  <PanelLayout>
-    <SheetPageHeader title="Visit History" />
+  <component :is="embedded ? 'div' : PanelLayout">
+    <SheetPageHeader v-if="!embedded" title="Visit History" />
 
     <Skeleton v-if="loading" class="rounded-lg" style="min-height: 200px" />
 
@@ -249,5 +251,5 @@ function viewOnTimeline(visit: PlaceVisitSummary) {
         </CardContent>
       </Card>
     </template>
-  </PanelLayout>
+  </component>
 </template>

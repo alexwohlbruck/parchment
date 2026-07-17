@@ -415,6 +415,30 @@ export function mergePlaces(
     )
     result.amenities = mergeAttributedRecord(result.amenities, place.amenities)
 
+    // Merge raw OSM tags: fill keys the primary lacks, never overwrite. Since
+    // places are merged highest-priority-first, this is extend-don't-overwrite
+    // (OSM stays authoritative; lower-priority sources like Foursquare only
+    // fill gaps). This is what carries Foursquare-mapped attribute tags into
+    // the DisplayChips pipeline, which reads `place.tags`.
+    if (place.tags) {
+      if (!result.tags) result.tags = {}
+      for (const [key, value] of Object.entries(place.tags)) {
+        if (result.tags[key] === undefined) result.tags[key] = value
+      }
+    }
+
+    // Merge popularity metrics (higher-priority source wins)
+    if (place.popularity) {
+      result.popularity =
+        mergeAttributedValue(result.popularity ?? null, place.popularity) ??
+        undefined
+    }
+    if (place.popularHours) {
+      result.popularHours =
+        mergeAttributedValue(result.popularHours ?? null, place.popularHours) ??
+        undefined
+    }
+
     // Merge icon (keep first available)
     if (!result.icon && place.icon) {
       result.icon = cloneDeep(place.icon)
@@ -442,6 +466,19 @@ export function mergePlaces(
               place.ratings.reviewCount,
             ) || result.ratings.reviewCount
         }
+      }
+    }
+
+    // Merge reviews without duplicates (dedup by provider review id)
+    if (place.reviews?.length) {
+      if (!result.reviews) result.reviews = []
+      const existingReviewIds = new Set(
+        result.reviews.map((review) => review.value.id),
+      )
+      for (const review of place.reviews) {
+        if (existingReviewIds.has(review.value.id)) continue
+        result.reviews.push(cloneDeep(review))
+        existingReviewIds.add(review.value.id)
       }
     }
 

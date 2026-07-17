@@ -31,7 +31,7 @@ export interface ClearBookmarkRow {
   lng: number
   icon: string
   iconColor: string
-  presetType?: string | null
+  frequentType?: string | null
 }
 
 /** Existing encrypted point as returned by the library API. */
@@ -143,7 +143,7 @@ export async function upgradeCollectionToE2ee(
       lng: bm.lng,
       icon: bm.icon,
       iconColor: bm.iconColor,
-      presetType: bm.presetType ?? null,
+      frequentType: bm.frequentType ?? null,
     })
     const envelope = encryptEnvelopeString({
       plaintext,
@@ -247,7 +247,7 @@ export async function downgradeCollectionToServerKey(
       lng: number
       icon?: string
       iconColor?: string
-      presetType?: string | null
+      frequentType?: string | null
     }
     onProgress?.('transforming', (i + 1) / Math.max(1, currentPoints.length))
     return {
@@ -259,7 +259,7 @@ export async function downgradeCollectionToServerKey(
       lng: parsed.lng,
       icon: parsed.icon,
       iconColor: parsed.iconColor,
-      presetType: parsed.presetType ?? null,
+      frequentType: parsed.frequentType ?? null,
     }
   })
 

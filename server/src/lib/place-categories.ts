@@ -375,7 +375,7 @@ export function resolveIcon(presetIcon: string): { icon: string; iconPack: 'luci
   }
 
   // Last resort: use as maki name but log the miss
-  console.warn(`⚠️  Unmapped icon "${presetIcon}" → falling back to "${stripped}" (maki). Add to nonMakiFallbackMap.`)
+  console.warn(`Unmapped icon "${presetIcon}" → falling back to "${stripped}" (maki). Add to nonMakiFallbackMap.`)
   return { icon: stripped, iconPack: 'maki' }
 }
 
@@ -395,7 +395,7 @@ export function buildPlaceIcon(presetMatch: MatchResult | null): PlaceIcon | und
     const key = presetMatch.preset.id
     if (!loggedMissingIcons.has(key)) {
       loggedMissingIcons.add(key)
-      console.warn(`📍 No icon for preset "${key}" (raw: ${presetIcon || 'none'}). Will show MapPin.`)
+      console.warn(`No icon for preset "${key}" (raw: ${presetIcon || 'none'}). Will show MapPin.`)
     }
   }
 

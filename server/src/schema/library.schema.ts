@@ -50,7 +50,7 @@ export const bookmarks = pgTable(
     // bookmark rows rendering correctly during the rollout.
     iconPack: text('icon_pack').notNull().default('lucide'),
     iconColor: text('icon_color').notNull().default('#F43F5E'),
-    presetType: text('preset_type'),
+    frequentType: text('preset_type'),
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -69,7 +69,7 @@ export const bookmarks = pgTable(
     ),
     presetTrigramIdx: trigramIndex(
       'idx_bookmarks_preset_trgm',
-      table.presetType,
+      table.frequentType,
     ),
   }),
 )

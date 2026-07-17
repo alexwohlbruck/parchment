@@ -37,7 +37,7 @@ export const useSearchStore = defineStore('search', () => {
 
   // Search metadata
   const searchQuery = ref<string | null>(null)
-  const searchType = ref<'text' | 'category' | 'overpass'>('text')
+  const searchType = ref<'text' | 'category' | 'brand' | 'overpass'>('text')
   const lastSearchBounds = ref<MapBounds | null>(null)
   const lastMaxResults = ref<number | null>(null)
   const lastResultCount = ref<number>(0)
@@ -156,6 +156,14 @@ export const useSearchStore = defineStore('search', () => {
     searchError.value = null
   }
 
+  /** Append a page of results (scroll pagination), de-duplicated by id. */
+  function appendSearchResults(places: Place[]) {
+    const seen = new Set(searchResults.value.map(p => p.id))
+    const fresh = places.filter(p => !seen.has(p.id))
+    if (fresh.length) searchResults.value = [...searchResults.value, ...fresh]
+    lastResultCount.value = searchResults.value.length
+  }
+
   function setCategoryFields(fields: FieldDefinition[]) {
     categoryFields.value = fields
   }
@@ -191,7 +199,7 @@ export const useSearchStore = defineStore('search', () => {
     searchQuery.value = query
   }
 
-  function setSearchType(type: 'text' | 'category' | 'overpass') {
+  function setSearchType(type: 'text' | 'category' | 'brand' | 'overpass') {
     searchType.value = type
   }
 
@@ -274,6 +282,7 @@ export const useSearchStore = defineStore('search', () => {
 
     // Actions
     setSearchResults,
+    appendSearchResults,
     setCategoryFields,
     clearSearchResults,
     setSearchLoading,

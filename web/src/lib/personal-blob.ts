@@ -79,10 +79,11 @@ export async function loadBlob<T>(
 
   let envelope: BlobEnvelope
   try {
-    const { data } = await api.get(
-      `/me/blobs/${encodeURIComponent(blobType)}`,
-    )
-    envelope = data as BlobEnvelope
+    const res = await api.get(`/me/blobs/${encodeURIComponent(blobType)}`)
+    // 204 (No Content) — the server has no blob of this type yet. Empty body
+    // is the same signal. (404 kept below for back-compat with older servers.)
+    if (res.status === 204 || !res.data) return null
+    envelope = res.data as BlobEnvelope
   } catch (err: any) {
     if (err?.response?.status === 404) return null
     throw err

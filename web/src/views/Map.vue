@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, watch, computed } from 'vue'
+import { ref, onMounted, nextTick, watch, computed, type CSSProperties } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useResponsive } from '@/lib/utils'
@@ -19,6 +19,7 @@ import BottomSheet from '@/components/BottomSheet.vue'
 import LeftSheet from '@/components/LeftSheet.vue'
 import SheetActionButtons from '@/components/SheetActionButtons.vue'
 import StreetViewPip from '@/components/map/StreetViewPip.vue'
+import StreetImageryPeek from '@/components/map/StreetImageryPeek.vue'
 import { useMapService } from '@/services/map.service'
 import { useLayersStore } from '@/stores/layers.store'
 import { storeToRefs } from 'pinia'
@@ -34,7 +35,8 @@ import { useMapStore } from '@/stores/map.store'
 import { useSearchStore } from '@/stores/search.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { ControlVisibility } from '@/types/map.types'
+import { ControlVisibility, LayerType } from '@/types/map.types'
+import { usePlaceService } from '@/services/place.service'
 import { SearchIcon } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -50,6 +52,7 @@ const mapStore = useMapStore()
 const searchStore = useSearchStore()
 const vehiclesStore = useVehiclesStore()
 const directionsStore = useDirectionsStore()
+const { currentPlace } = usePlaceService()
 const { controlSettings } = storeToRefs(mapStore)
 const showToolbox = computed(
   () =>
@@ -152,6 +155,51 @@ const mountTeleports = ref(false)
 const streetView = ref(false)
 const mapUIArea = computed(() => appStore.mapUIArea)
 const hideUI = computed(() => !!route.meta?.hideUI)
+
+// ── Floating street imagery peek (Apple "Look Around" style) ──────────────────
+// Tracks whether entering street view auto-enabled the street view layer group,
+// so we only switch it back off on exit if the user didn't have it on already.
+let autoEnabledStreetView = false
+
+const PLACE_ROUTES = new Set<string | symbol>([
+  AppRoute.PLACE,
+  AppRoute.PLACE_PROVIDER,
+  AppRoute.PLACE_LOCATION,
+  AppRoute.PLACE_COORDS,
+])
+
+// Show the peek on a place detail (never over street view itself).
+const showStreetPeek = computed(
+  () => !!route.name && PLACE_ROUTES.has(route.name) && !streetView.value,
+)
+
+// Fade away once the mobile sheet covers more than half the screen. Driven by
+// the sheet's live bounds (published each frame while dragging) so the fade
+// tracks the drag in real time rather than waiting for the snap to settle.
+const streetPeekFaded = computed(() => {
+  if (!isMobileScreen.value) return false
+  const sheet = appStore.componentDimensions.get('map-content-sheet')
+  if (!sheet) return false
+  return window.innerHeight - sheet.y > window.innerHeight * 0.5
+})
+
+// Anchor the peek to the bottom-left of the map (viewport-fixed) with a uniform
+// inset, clearing whichever sheet is open. On desktop sit just right of the
+// left sheet panel; on mobile float just above the bottom sheet's top edge.
+// Reading componentDimensions keeps this reactive as the sheets slide/drag.
+const PEEK_INSET = 8
+const streetPeekStyle = computed<CSSProperties>(() => {
+  const dims = appStore.componentDimensions
+  if (!isMobileScreen.value) {
+    const panel = document.querySelector('.bg-muted-light')
+    const right = panel ? panel.getBoundingClientRect().right : 0
+    return { position: 'fixed', left: `${right + PEEK_INSET}px`, bottom: `${PEEK_INSET}px` }
+  }
+  const sheet = dims.get('map-content-sheet')
+  const sheetTop = sheet ? sheet.y : window.innerHeight
+  const bottom = Math.max(PEEK_INSET, window.innerHeight - sheetTop + PEEK_INSET)
+  return { position: 'fixed', left: `${PEEK_INSET}px`, bottom: `${bottom}px` }
+})
 const bottomSheetOpen = ref(false)
 const isNavTransitioning = ref(isMobileScreen.value)
 
@@ -169,18 +217,22 @@ watch(isBottomSheetView, async isOpen => {
   } else {
     bottomSheetOpen.value = isOpen
     // Don't redirect to MAP when leaving the bottom sheet by navigating to a
-    // dialog route (e.g. /settings/integrations). The user wants to stay at
-    // the dialog; pushing to MAP here would close it immediately.
-    if (!route.meta.dialog) {
+    // dialog route (e.g. /settings/integrations) or a full-screen takeover
+    // (e.g. /street/:id street view). The user wants to stay there; pushing to
+    // MAP here would bounce them back immediately.
+    if (!route.meta.dialog && !route.meta.hideUI) {
       router.push({ name: AppRoute.MAP })
     }
   }
 })
 
-// Navigate back to map when bottom sheet is closed
+// Navigate back to map when the bottom sheet is dismissed — but not when it
+// closed because we navigated to a dialog route or a full-screen takeover
+// (e.g. /street/:id). Mirrors the isBottomSheetView watcher; without this the
+// sheet's close event would bounce mobile street view straight back to the map.
 function onOpenChange(value: boolean) {
   bottomSheetOpen.value = value
-  if (!value) {
+  if (!value && !route.meta.dialog && !route.meta.hideUI) {
     router.push({ name: AppRoute.MAP })
   }
 }
@@ -223,16 +275,42 @@ onMounted(() => {
 
 watch(
   () => route.name,
-  async name => {
+  async (name, oldName) => {
     nextTick(async () => {
-      streetView.value = name === AppRoute.STREET
-      if (streetView.value) {
-        await streetViewLayersService.toggleStreetViewLayers(
-          layers.value,
-          layersStore,
-          mapService.mapStrategy,
-          true,
+      const enteringStreetView = name === AppRoute.STREET
+      streetView.value = enteringStreetView
+
+      if (enteringStreetView) {
+        // Open with street view large and the map demoted to the pip.
+        pipSwapped.value = true
+
+        // Auto-enable the street view layer group, remembering whether it was
+        // already on so we can leave it untouched if the user toggled it.
+        const alreadyVisible = layers.value.some(
+          layer => layer.type === LayerType.STREET_VIEW && layer.visible,
         )
+        autoEnabledStreetView = !alreadyVisible
+        if (autoEnabledStreetView) {
+          await streetViewLayersService.toggleStreetViewLayers(
+            layers.value,
+            layersStore,
+            mapService.mapStrategy,
+            true,
+          )
+        }
+      } else if (oldName === AppRoute.STREET) {
+        pipSwapped.value = false
+
+        // Only switch the layer back off if street view turned it on.
+        if (autoEnabledStreetView) {
+          await streetViewLayersService.toggleStreetViewLayers(
+            layers.value,
+            layersStore,
+            mapService.mapStrategy,
+            false,
+          )
+          autoEnabledStreetView = false
+        }
       }
     })
   },
@@ -491,6 +569,27 @@ defineExpose({
         </div>
       </template>
 
+      <!-- Floating street imagery peek (Apple "Look Around" style).
+           Wrapper stays pointer-events-none so it never blocks the map when no
+           imagery exists; the inner button re-enables pointer events. -->
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="opacity-0 translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-2"
+      >
+        <div
+          v-if="showStreetPeek"
+          class="pointer-events-none absolute z-20 h-24 w-36 transition-opacity duration-300 safe-area-inset"
+          :class="streetPeekFaded ? 'opacity-0' : 'opacity-100'"
+          :style="streetPeekStyle"
+        >
+          <StreetImageryPeek />
+        </div>
+      </Transition>
+
       <template v-if="mountTeleports">
         <Teleport
           :to="pipSwapped && streetView ? '#pipContent' : '#mainContent'"
@@ -502,7 +601,7 @@ defineExpose({
   </div>
 
   <!-- Street view pip -->
-  <StreetViewPip :hide-ui="route.meta?.hideUI" v-model:pip-swapped="pipSwapped">
+  <StreetViewPip v-model:pip-swapped="pipSwapped">
     <template v-if="mountTeleports && streetView">
       <Teleport :to="pipSwapped ? '#mainContent' : '#pipContent'">
         <StreetView class="w-full h-full" :pip-swapped="pipSwapped" />

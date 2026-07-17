@@ -655,7 +655,7 @@ export function clearAllData(): void {
 }
 
 export function initializeOsmPresets(): void {
-  console.log('🏗️  Initializing OSM preset system...')
+  console.log('Initializing OSM preset system...')
   const start = Date.now()
 
   const presetData = loadPresets()
@@ -663,7 +663,7 @@ export function initializeOsmPresets(): void {
   buildIndex(presetData)
   createCache()
 
-  console.log(`✅ OSM preset system ready:`)
+  console.log(`OSM preset system ready:`)
   console.log(`   - ${Object.keys(presetData).length} presets`)
   console.log(`   - ${Object.keys(fieldData).length} fields`)
   console.log(`   - Geometry index built`)

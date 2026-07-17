@@ -9,7 +9,24 @@ import { AppRoute } from '@/router'
  * @returns A route object that can be used with router.push()
  */
 export function getPlaceRoute(placeId: string): RouteLocationRaw {
-  console.log(`getPlaceRoute called with placeId: "${placeId}"`)
+  // Pelias / OpenAddresses geocoder results, e.g.
+  // "pelias/openaddresses:address:us/ny/city_of_new_york:7e5bd55eb1baa131".
+  // These aren't backed by a retrievable record — the full address is already
+  // in the search result (carried into the store via setPartialPlace at click
+  // time) — and the embedded '/' and ':' break the naive split() below, which
+  // truncated the id to "openaddresses:address:us" and produced a dead URL.
+  // Route to the provider view with the whole id after the "pelias/" prefix
+  // (vue-router percent-encodes the slashes); Place.vue renders the cached
+  // place for the "pelias" provider instead of a nonexistent backend lookup.
+  if (placeId.startsWith('pelias/')) {
+    return {
+      name: AppRoute.PLACE_PROVIDER,
+      params: {
+        provider: 'pelias',
+        placeId: placeId.slice('pelias/'.length),
+      },
+    }
+  }
 
   // OSM format: "osm/node/123456789"
   if (placeId.startsWith('osm/')) {
@@ -58,10 +75,13 @@ export function getPlaceRoute(placeId: string): RouteLocationRaw {
       }
     }
   }
-  // Generic provider format: "provider/id"
+  // Generic provider format: "provider/id". Split on the FIRST slash only —
+  // the id portion may itself contain slashes, and destructuring split('/')
+  // would silently drop everything after the second segment.
   else if (placeId.includes('/')) {
-    const [provider, id] = placeId.split('/')
-    console.log(`Parsed as provider route: provider=${provider}, placeId=${id}`)
+    const slash = placeId.indexOf('/')
+    const provider = placeId.slice(0, slash)
+    const id = placeId.slice(slash + 1)
     return {
       name: AppRoute.PLACE_PROVIDER,
       params: {
@@ -80,6 +100,24 @@ export function getPlaceRoute(placeId: string): RouteLocationRaw {
       placeId,
     },
   }
+}
+
+/**
+ * Build a place-id string for a bookmark, suitable for `getPlaceRoute`.
+ * Prefers the OSM id, then coords, then the first external id — mirroring how
+ * a bookmark resolves back to a place. Returns null if it has no usable id.
+ */
+export function getBookmarkPlaceId(bookmark: {
+  externalIds: Record<string, string>
+}): string | null {
+  const ids = bookmark.externalIds ?? {}
+  const [key, value] = ids.osm
+    ? ['osm', ids.osm]
+    : ids.coords
+      ? ['coords', ids.coords]
+      : [Object.keys(ids)[0], Object.values(ids)[0]]
+  if (!key || !value) return null
+  return `${key}/${value}`
 }
 
 export function formatAddress(place: Place): string {

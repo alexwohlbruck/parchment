@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/trip-rebooking'
@@ -31,7 +31,6 @@ import {
   AccessibilityIcon,
   LogInIcon,
   LogOutIcon,
-  RssIcon,
   ShareIcon,
   Undo2Icon,
 } from 'lucide-vue-next'
@@ -75,11 +74,21 @@ interface DepartureOption {
   label: string
   /** True when the time comes from a GTFS-RT prediction, not the schedule. */
   realTime: boolean
+  /** Which route this departure is — shown on merged "4 or 5" boards so the
+   *  rider knows whether each run is the 4 or the 5. */
+  route?: { shortName?: string; color?: string; textColor?: string }
 }
 const segmentDepartures = ref<Record<number, DepartureOption[]>>({})
 // Full fetched schedule per segment (superset of the chips) — rebooking
 // resolves runs from this synchronously, so switching departures is instant.
 const segmentSchedule = ref<Record<number, DepartureOption[]>>({})
+
+// How far back to fetch + keep already-departed runs, so the board carries
+// recent past departures (shown struck) as context and they survive a rebook.
+const DEPARTURE_PAST_WINDOW_MS = 30 * 60_000
+// On first entry we default the selection to the soonest catchable run; this
+// guards that to once per trip (refreshes/rebooks must not re-trigger it).
+const didAutoSelectDeparture = ref(false)
 
 // Clock driving missed/hurry chip states; departures re-fetch keeps the
 // realtime predictions fresh as vehicles move.
@@ -89,6 +98,7 @@ const refreshTimer = setInterval(() => { void loadDepartures() }, 30_000)
 onUnmounted(() => {
   clearInterval(tickTimer)
   clearInterval(refreshTimer)
+  window.removeEventListener('resize', remeasureDepEdges)
 })
 
 async function loadDepartures() {
@@ -124,41 +134,82 @@ async function loadDepartures() {
           floorMs = requestedMs + (startMs - new Date(t.startTime).getTime())
         }
 
+        // Fetch from a fixed past window (anchored on now, not the selected
+        // run) so recent departures are always included and don't drop out when
+        // the rider picks a later train.
+        const fetchFromMs =
+          Math.min(floorMs, startMs, nowMs.value) - DEPARTURE_PAST_WINDOW_MS
         const { data } = await api.get('/proxy/transit/departures', {
           params: {
             lat: seg.departureStop.location.lat,
             lng: seg.departureStop.location.lng,
             radius: 50,
             n: 60,
-            time: new Date(Math.min(floorMs, startMs) - 60_000).toISOString(),
+            time: new Date(fetchFromMs).toISOString(),
           },
         })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const all: any[] = (Array.isArray(data) ? data : []).flatMap(
           (s: { departures?: unknown[] }) => s.departures ?? [],
         )
+        // Merged "4 or 5" legs match any of their interchangeable routes.
+        const routeNames: (string | undefined)[] = seg.routeOptions?.length
+          ? seg.routeOptions.map((o: { shortName?: string }) => o.shortName)
+          : [seg.lineName]
         const sameLine = all.filter(
-          (d) => d.route?.shortName === seg.lineName && !d.cancelled,
+          (d) => routeNames.includes(d.route?.shortName) && !d.cancelled,
         )
-        // Prefer same-direction departures when the headsign matches
-        const sameDirection = sameLine.filter(
-          (d) => d.headsign?.toLowerCase() === seg.headsign?.toLowerCase(),
-        )
-        const pool = sameDirection.length >= 2 ? sameDirection : sameLine
+        // Same direction: by GTFS direction_id when present (reliable across
+        // the 4 and 5, which carry different headsigns), else by headsign.
+        let pool: typeof sameLine
+        if (seg.directionId != null) {
+          const sameDir = sameLine.filter(
+            (d) => String(d.directionId) === String(seg.directionId),
+          )
+          pool = sameDir.length ? sameDir : sameLine
+        } else {
+          const sameDir = sameLine.filter(
+            (d) => d.headsign?.toLowerCase() === seg.headsign?.toLowerCase(),
+          )
+          pool = sameDir.length >= 2 ? sameDir : sameLine
+        }
         // Dedup by minute; a run is "live" when any source row carries a
-        // GTFS-RT prediction for it.
-        const byMs = new Map<number, boolean>()
+        // GTFS-RT prediction for it. Keep the route so a merged board can show
+        // which train each run is.
+        const byMs = new Map<number, { realTime: boolean; route?: DepartureOption['route'] }>()
         for (const d of pool) {
           const depMs = new Date(d.departureTime).getTime()
-          if (depMs < floorMs - 30_000) continue
-          byMs.set(depMs, (byMs.get(depMs) ?? false) || d.realTime === true)
+          // Keep already-departed runs (down to the past window) — they show as
+          // missed and give the rider useful "just missed it" context.
+          if (depMs < fetchFromMs) continue
+          const prev = byMs.get(depMs)
+          byMs.set(depMs, {
+            realTime: (prev?.realTime ?? false) || d.realTime === true,
+            route:
+              prev?.route ??
+              (d.route
+                ? { shortName: d.route.shortName, color: d.route.color, textColor: d.route.textColor }
+                : undefined),
+          })
         }
         const runs: DepartureOption[] = [...byMs.entries()]
           .sort((a, b) => a[0] - b[0])
-          .map(([ms, realTime]) => ({ ms, realTime, label: formatTime(new Date(ms)) }))
+          .map(([ms, info]) => ({
+            ms,
+            realTime: info.realTime,
+            route: info.route,
+            label: formatTime(new Date(ms)),
+          }))
         nextSched[idx] = runs
-        const earlier = runs.filter((d) => d.ms < startMs - 30_000).slice(-2)
-        const current = runs.filter((d) => d.ms >= startMs - 30_000).slice(0, 4)
+        // Window on NOW (not the selected run): a tail of recently-departed
+        // runs (struck context) stays put when the rider picks a later train,
+        // plus the next ~hour of upcoming service — always extended through the
+        // planned run so the selection is never sliced out of view.
+        const cutoff = nowMs.value - 30_000
+        const upcoming = runs.filter((d) => d.ms >= cutoff)
+        const selIdx = upcoming.findIndex((d) => Math.abs(d.ms - startMs) < 30_000)
+        const earlier = runs.filter((d) => d.ms < cutoff).slice(-8)
+        const current = upcoming.slice(0, Math.max(12, selIdx + 2))
         nextChips[idx] = [...earlier, ...current]
       } catch {
         // Departures are an enhancement — skip on failure
@@ -168,6 +219,34 @@ async function loadDepartures() {
   // Atomic swap — no flicker on the periodic refresh
   segmentDepartures.value = nextChips
   segmentSchedule.value = nextSched
+
+  // On first entry, default the selection to the SOONEST catchable departure of
+  // the first transit leg (which may be a tight "hurry" connection) — the
+  // planner often defaults to a later run.
+  if (!didAutoSelectDeparture.value) {
+    didAutoSelectDeparture.value = true
+    selectFirstAvailableDeparture()
+  }
+}
+
+/** Default the first transit leg to its earliest catchable (not-missed) run —
+ *  including a "hurry" one, so the rider lands on the soonest train they can
+ *  still make. Runs once per trip; a no-op when that's already the planned run. */
+function selectFirstAvailableDeparture() {
+  const t = trip.value
+  if (!t) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const idx = segs.findIndex(
+    (s) => s.mode === 'transit' && s.departureStop?.location,
+  )
+  if (idx < 0) return
+  const firstCatchable = (segmentDepartures.value[idx] ?? []).find(
+    (d) => depState(idx, d) !== 'missed',
+  )
+  if (firstCatchable && !isCurrentDeparture(segs[idx], firstCatchable.ms)) {
+    void chooseDeparture(idx, firstCatchable.ms)
+  }
 }
 
 /** Is this run the one the trip currently boards? */
@@ -179,6 +258,89 @@ function isCurrentDeparture(segment: any, ms: number): boolean {
 function departuresFor(segmentIndex: number): DepartureOption[] {
   return segmentDepartures.value[segmentIndex] ?? []
 }
+
+/** Board-card countdown: a glanceable lead plus the absolute clock time as a
+ *  sub-line. Already-departed runs read "Nm ago" (NOT "now" — that's only the
+ *  current minute); upcoming runs read "now" / "5 min" / "1h 4m". Both lines are
+ *  always present so the cards stay uniform. Recomputes off the nowMs tick. */
+function depCountdown(ms: number): { lead: string; sub: string } {
+  const clock = formatTime(new Date(ms))
+  const deltaMs = ms - nowMs.value
+  // Already departed — detect by exact sign (not the rounded minute, which would
+  // fold the last ~30s into "now") so a struck card never reads "now".
+  if (deltaMs < 0) {
+    const ago = Math.max(1, Math.round(-deltaMs / 60_000))
+    return { lead: ago < 60 ? `${ago}m ago` : 'departed', sub: clock }
+  }
+  const min = Math.round(deltaMs / 60_000)
+  if (min === 0) return { lead: 'now', sub: clock }
+  if (min < 60) return { lead: `${min} min`, sub: clock }
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return { lead: m ? `${h}h ${m}m` : `${h}h`, sub: clock }
+}
+
+// ── Departure board scroll affordance ────────────────────────────────
+// Fade the board's edges to hint there's more to scroll. Each leg's strip
+// reports whether it's scrolled away from the start/end so the fades only
+// show when they mean something (and not at all when it doesn't overflow).
+const depEdges = ref<Record<number, { start: boolean; end: boolean }>>({})
+const depScrollEls = new Map<number, HTMLElement>()
+// Segments whose board has already had its one-time scroll-to-first-available
+// applied. Reset per trip; prevents re-yanking the rider's manual scroll on the
+// periodic refresh.
+const didScrollToFirst = new Set<number>()
+
+function updateDepEdges(segmentIndex: number, el: HTMLElement) {
+  const start = el.scrollLeft > 4
+  const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+  const cur = depEdges.value[segmentIndex]
+  if (!cur || cur.start !== start || cur.end !== end) {
+    depEdges.value = { ...depEdges.value, [segmentIndex]: { start, end } }
+  }
+}
+
+/** Scroll the board so the first available (not-departed) run sits at the left,
+ *  leaving a sliver of the past as a scroll-back hint. The leading struck cards
+ *  are otherwise irrelevant on open. */
+function scrollToFirstAvailable(segmentIndex: number, el: HTMLElement) {
+  const cards = boardCards.value[segmentIndex] ?? []
+  const firstIdx = cards.findIndex((c) => !c.card.missed)
+  if (firstIdx <= 0) return // already at the start, or nothing catchable
+  const btn = el.children[firstIdx] as HTMLElement | undefined
+  if (!btn) return
+  const delta =
+    btn.getBoundingClientRect().left - el.getBoundingClientRect().left
+  el.scrollLeft += delta - 16
+}
+
+function onDepScroll(segmentIndex: number, e: Event) {
+  if (e.target instanceof HTMLElement) updateDepEdges(segmentIndex, e.target)
+}
+
+/** Function ref that tracks each board strip and, on its first layout, scrolls
+ *  past the irrelevant departed runs to the first available one. */
+function depScrollRef(segmentIndex: number) {
+  return (el: unknown) => {
+    if (el instanceof HTMLElement) {
+      depScrollEls.set(segmentIndex, el)
+      requestAnimationFrame(() => {
+        if (!didScrollToFirst.has(segmentIndex)) {
+          didScrollToFirst.add(segmentIndex)
+          scrollToFirstAvailable(segmentIndex, el)
+        }
+        updateDepEdges(segmentIndex, el)
+      })
+    } else {
+      depScrollEls.delete(segmentIndex)
+    }
+  }
+}
+
+function remeasureDepEdges() {
+  for (const [idx, el] of depScrollEls) updateDepEdges(idx, el)
+}
+onMounted(() => window.addEventListener('resize', remeasureDepEdges))
 
 // ── Departure rebooking ──────────────────────────────────────────────
 // Choosing a later run is pure schedule math on the existing plan — no
@@ -198,8 +360,15 @@ function asMs(v: string | Date): number {
  *  run falls outside the cached window. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number): Promise<number | null> {
-  const cached = (segmentSchedule.value[segmentIndex] ?? []).find((d) => d.ms >= minMs)
-  if (cached) return cached.ms
+  const sched = segmentSchedule.value[segmentIndex] ?? []
+  // The cache yields the earliest run >= minMs only when it actually begins
+  // at/before minMs. After a forward rebook the cache was refetched around the
+  // bumped (later) time, so rolling back to an earlier connection needs runs
+  // ahead of the cached window — fall through to the API in that case.
+  if (sched.length > 0 && sched[0].ms <= minMs) {
+    const cached = sched.find((d) => d.ms >= minMs)
+    if (cached) return cached.ms
+  }
   try {
     const { data } = await api.get('/proxy/transit/departures', {
       params: {
@@ -216,7 +385,17 @@ async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number)
     )
     return (
       all
-        .filter((d) => d.route?.shortName === seg.lineName && !d.cancelled)
+        .filter(
+          (d) =>
+            (seg.routeOptions?.length
+              ? seg.routeOptions.some(
+                  (o: { shortName?: string }) => o.shortName === d.route?.shortName,
+                )
+              : d.route?.shortName === seg.lineName) &&
+            (seg.directionId == null ||
+              String(d.directionId) === String(seg.directionId)) &&
+            !d.cancelled,
+        )
         .map((d) => new Date(d.departureTime).getTime())
         .filter((m) => m >= minMs)
         .sort((a, b) => a - b)[0] ?? null
@@ -281,6 +460,73 @@ function depState(segmentIndex: number, dep: DepartureOption): 'missed' | 'hurry
   if (walkMs > 0 && leadMs < walkMs + 180_000) return 'hurry'
   return 'ok'
 }
+
+/** A board card's full visual state, derived once per render so the template
+ *  stays declarative. The statuses are mutually legible at a glance:
+ *   • planned  — the run the trip currently boards (line-coloured emphasis)
+ *   • missed   — gone, or unreachable on foot in time (struck out, disabled)
+ *   • hurry    — catchable only if you leave now (amber)
+ *   • arriving — imminent, i.e. "now"
+ *   • live     — the time is a GTFS-RT prediction rather than the schedule */
+interface DepCard {
+  planned: boolean
+  missed: boolean
+  hurry: boolean
+  arriving: boolean
+  live: boolean
+  clickable: boolean
+  lead: string
+  sub: string
+  route?: DepartureOption['route']
+  title: string
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepCard {
+  const planned = isCurrentDeparture(segment, dep.ms)
+  const state = depState(segmentIndex, dep)
+  const missed = !planned && state === 'missed'
+  // hurry stands even on the selected card — you still have to rush for it, so
+  // it isn't suppressed by `planned` the way `missed` is.
+  const hurry = state === 'hurry'
+  const { lead, sub } = depCountdown(dep.ms)
+  const name = dep.route?.shortName ?? segment.lineName
+  return {
+    planned,
+    missed,
+    hurry,
+    arriving: !missed && lead === 'now',
+    live: dep.realTime,
+    clickable: !planned && !missed,
+    lead,
+    sub,
+    route: dep.route,
+    title: missed
+      ? 'Departed'
+      : planned
+        ? 'Planned departure'
+        : hurry
+          ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
+          : `Switch to the ${name} at ${dep.label}`,
+  }
+}
+
+/** Per-segment board cards, each enriched with its visual state. Recomputes off
+ *  the nowMs tick and whenever fresh departures land. */
+const boardCards = computed(() => {
+  const t = trip.value
+  const out: Record<number, Array<DepartureOption & { card: DepCard }>> = {}
+  if (!t) return out
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  for (const [key, deps] of Object.entries(segmentDepartures.value)) {
+    const idx = Number(key)
+    const seg = segs[idx]
+    if (!seg) continue
+    out[idx] = deps.map((dep) => ({ ...dep, card: depCard(seg, idx, dep) }))
+  }
+  return out
+})
 
 /** Time actually in motion — a walk's duration minus the wait at the stop. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -383,7 +629,16 @@ watch(
   { immediate: true },
 )
 
-watch(trip, loadDepartures, { immediate: true })
+watch(
+  trip,
+  () => {
+    // A new trip gets its own first-entry default selection + board scroll.
+    didAutoSelectDeparture.value = false
+    didScrollToFirst.clear()
+    void loadDepartures()
+  },
+  { immediate: true },
+)
 
 // Keep the URL's id canonical after a signature match, so departure
 // rebooking and further shares reference the live trip object.
@@ -1033,7 +1288,23 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     :class="!entry.segment.lineColor && 'bg-muted/40'"
                     :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
+                    <!-- Interchangeable routes (4/5, N/Q/R/W) render as a tight
+                         cluster of bullets — any of them works for this leg. -->
+                    <div
+                      v-if="(entry.segment.routeOptions?.length ?? 0) > 1"
+                      class="flex items-center gap-1 shrink-0"
+                    >
+                      <RouteBullet
+                        v-for="opt in (entry.segment.routeOptions as { shortName?: string; color?: string; textColor?: string }[])"
+                        :key="opt.shortName"
+                        size="md"
+                        :label="opt.shortName"
+                        :color="opt.color"
+                        :text-color="opt.textColor"
+                      />
+                    </div>
                     <RouteBullet
+                      v-else
                       size="md"
                       :label="entry.segment.lineName"
                       :color="entry.segment.lineColor"
@@ -1063,55 +1334,105 @@ function hasSegmentRouteInfo(segment: any): boolean {
                           Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
                         </div>
                       </div>
-                      <span class="text-sm font-semibold tabular-nums shrink-0">
+                      <div class="text-sm font-semibold tabular-nums shrink-0">
                         {{ formatTime(entry.segment.startTime) }}
-                      </span>
+                      </div>
                     </div>
 
-                    <!-- Departure picker — tap a later run to re-plan around it -->
+                    <!-- Departure board — glanceable countdown cards a rider
+                         acts on; tap a later run to re-plan around it. Scrolls
+                         horizontally through the next ~hour of service. -->
                     <div
                       v-if="departuresFor(entry.segmentIndex).length > 1"
-                      class="flex flex-wrap items-center gap-1.5"
+                      class="relative -mx-3"
                     >
+                      <div
+                        :ref="depScrollRef(entry.segmentIndex)"
+                        class="dep-scroll px-3 flex items-stretch gap-1.5 overflow-x-auto"
+                        @scroll="onDepScroll(entry.segmentIndex, $event)"
+                      >
                       <button
-                        v-for="dep in departuresFor(entry.segmentIndex)"
-                        :key="dep.ms"
+                        v-for="item in (boardCards[entry.segmentIndex] ?? [])"
+                        :key="item.ms"
                         type="button"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium tabular-nums transition-all"
+                        class="shrink-0 min-w-[80px] flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-xl border-2 text-center tabular-nums transition-colors"
                         :class="[
-                          isCurrentDeparture(entry.segment, dep.ms)
-                            ? (!entry.segment.lineColor && 'bg-parchment-500 text-white')
-                            : depState(entry.segmentIndex, dep) === 'missed'
-                              ? 'bg-muted/60 text-muted-foreground/50 line-through cursor-default'
-                              : depState(entry.segmentIndex, dep) === 'hurry'
-                                ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 hover:ring-1 hover:ring-amber-400 cursor-pointer'
-                                : 'bg-muted text-muted-foreground hover:text-foreground hover:ring-1 hover:ring-border cursor-pointer',
+                          item.card.planned
+                            ? (entry.segment.lineColor ? '' : 'border-parchment-500 bg-parchment-500/10')
+                            : item.card.missed
+                              ? 'border-transparent bg-muted/20 cursor-default'
+                              : item.card.hurry
+                                ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/40 cursor-pointer'
+                                : 'border-border bg-muted/30 hover:bg-muted/60 hover:border-foreground/30 cursor-pointer',
                           rebooking && 'opacity-50 pointer-events-none',
                         ]"
-                        :style="isCurrentDeparture(entry.segment, dep.ms) && entry.segment.lineColor ? {
-                          background: `#${entry.segment.lineColor}`,
-                          color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                        :style="item.card.planned && entry.segment.lineColor ? {
+                          borderColor: `#${entry.segment.lineColor}`,
+                          background: `#${entry.segment.lineColor}1f`,
                         } : {}"
-                        :title="isCurrentDeparture(entry.segment, dep.ms)
-                          ? 'Planned departure'
-                          : depState(entry.segmentIndex, dep) === 'missed'
-                            ? 'Departed'
-                            : depState(entry.segmentIndex, dep) === 'hurry'
-                              ? 'Catchable if you hurry'
-                              : 'Take this departure instead'"
-                        :disabled="depState(entry.segmentIndex, dep) === 'missed' && !isCurrentDeparture(entry.segment, dep.ms)"
-                        @click="!isCurrentDeparture(entry.segment, dep.ms)
-                          && depState(entry.segmentIndex, dep) !== 'missed'
-                          && chooseDeparture(entry.segmentIndex, dep.ms)"
+                        :title="item.card.title"
+                        :disabled="item.card.missed"
+                        @click="item.card.clickable && chooseDeparture(entry.segmentIndex, item.ms)"
                       >
-                        <!-- Live (GTFS-RT) vs scheduled indicator -->
-                        <RssIcon
-                          v-if="dep.realTime"
-                          class="size-2.5 opacity-70"
-                          :class="depState(entry.segmentIndex, dep) !== 'missed' && 'animate-pulse'"
-                        />
-                        {{ dep.label }}
+                        <!-- Route bullet + status cue. A tight connection shows a
+                             spelled-out "hurry" (visible without the tooltip and
+                             kept even when this run is selected); otherwise a live
+                             prediction adds a pulsing indicator; scheduled is just
+                             the bullet. -->
+                        <div
+                          class="flex items-center justify-center gap-1 leading-none"
+                          :class="item.card.missed && 'opacity-50'"
+                        >
+                          <RouteBullet
+                            v-if="item.route?.shortName ?? entry.segment.lineName"
+                            size="sm"
+                            :label="item.route?.shortName ?? entry.segment.lineName"
+                            :color="item.route ? item.route.color : entry.segment.lineColor"
+                            :text-color="item.route ? item.route.textColor : entry.segment.lineTextColor"
+                          />
+                          <span
+                            v-if="item.card.hurry"
+                            class="text-[10px] font-semibold text-amber-700 dark:text-amber-300"
+                          >hurry</span>
+                          <RealtimeIndicator
+                            v-else-if="item.card.live"
+                            :real-time="true"
+                            :class="!item.card.missed && 'animate-pulse'"
+                          />
+                        </div>
+                        <!-- Countdown — 'now' for an arriving train, else N min.
+                             Statuses use theme-safe tokens (never the raw line
+                             colour as text): muted+struck when missed, amber when
+                             hurry, the parchment accent for an arriving 'now'. -->
+                        <div
+                          class="text-[13px] font-semibold leading-tight whitespace-nowrap"
+                          :class="[
+                            item.card.missed && 'line-through text-muted-foreground/50',
+                            item.card.hurry && 'text-amber-700 dark:text-amber-300',
+                            item.card.arriving && !item.card.hurry && 'text-parchment-600 dark:text-parchment-400',
+                          ]"
+                        >{{ item.card.lead }}</div>
+                        <!-- Absolute clock time (always kept — even on a hurry or
+                             selected card the rider still needs the departure time;
+                             the "hurry" warning lives in the cue row above). -->
+                        <div
+                          v-if="item.card.sub"
+                          class="text-[10px] leading-none text-muted-foreground"
+                          :class="item.card.missed && 'opacity-60'"
+                        >{{ item.card.sub }}</div>
                       </button>
+                      </div>
+                      <!-- Edge fades hint there are more departures off-screen -->
+                      <div
+                        v-show="depEdges[entry.segmentIndex]?.start"
+                        class="pointer-events-none absolute inset-y-0 left-0 w-6"
+                        style="background: linear-gradient(to right, hsl(var(--card)), hsl(var(--card) / 0))"
+                      />
+                      <div
+                        v-show="depEdges[entry.segmentIndex]?.end"
+                        class="pointer-events-none absolute inset-y-0 right-0 w-6"
+                        style="background: linear-gradient(to left, hsl(var(--card)), hsl(var(--card) / 0))"
+                      />
                     </div>
 
                     <!-- Intermediate stops -->
@@ -1453,6 +1774,14 @@ function hasSegmentRouteInfo(segment: any): boolean {
 </template>
 
 <style scoped>
+/* Departure board — clean horizontal scroll, no visible scrollbar */
+.dep-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.dep-scroll::-webkit-scrollbar {
+  display: none;
+}
 .step-row {
   display: flex;
   gap: 10px;

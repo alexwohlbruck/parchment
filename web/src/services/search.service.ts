@@ -24,6 +24,7 @@ interface AdvancedSearchResponse {
 interface CategorySearchOptions {
   bounds?: MapBounds
   maxResults?: number
+  offset?: number
   sort?: string
   filter?: Record<string, any>
   tags?: Record<string, string>
@@ -42,7 +43,7 @@ interface CategorySearchResponse {
   presetId: string
   results: Place[]
   fieldDefinitions?: CategoryFieldDefinition[]
-  totalCount: number
+  hasMore: boolean
   executedAt: string
 }
 
@@ -54,6 +55,34 @@ interface RouteSearchOptions {
   limit?: number
   semantic?: boolean
   autocomplete?: boolean
+}
+
+interface BrandSearchOptions {
+  brandKey: string
+  brandName?: string
+  bounds?: MapBounds
+  lat?: number
+  lng?: number
+  minResults?: number
+  maxResults?: number
+}
+
+export interface BrandHeader {
+  brandKey: string
+  name: string
+  wikidata: string | null
+  locationCount: number | null
+  category: string | null
+  logoUrl?: string
+  description?: string
+}
+
+interface BrandSearchResponse {
+  brandKey: string
+  brand: BrandHeader
+  results: Place[]
+  totalCount: number
+  executedAt: string
 }
 
 interface RouteSearchResponse {
@@ -135,7 +164,7 @@ function searchService() {
   async function searchByCategory(
     presetId: string,
     options: CategorySearchOptions = {},
-  ): Promise<{ results: Place[]; fieldDefinitions: CategoryFieldDefinition[] }> {
+  ): Promise<{ results: Place[]; fieldDefinitions: CategoryFieldDefinition[]; hasMore: boolean }> {
     loading.value = true
     error.value = null
 
@@ -145,7 +174,8 @@ function searchService() {
         {
           presetId,
           bounds: options.bounds,
-          maxResults: options.maxResults || 100,
+          maxResults: options.maxResults || 30,
+          ...(options.offset ? { offset: options.offset } : {}),
           ...(options.sort ? { sort: options.sort } : {}),
           ...(options.filter ? { filter: options.filter } : {}),
           ...(options.tags ? { tags: options.tags } : {}),
@@ -155,11 +185,43 @@ function searchService() {
       return {
         results: response.data.results,
         fieldDefinitions: response.data.fieldDefinitions || [],
+        hasMore: response.data.hasMore ?? false,
       }
     } catch (err) {
       console.error('Error in category search:', err)
       error.value =
         err instanceof Error ? err.message : 'Failed to execute category search'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function searchByBrand(
+    options: BrandSearchOptions,
+  ): Promise<{ results: Place[]; brand: BrandHeader }> {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await api.post<BrandSearchResponse>('/search/brand', {
+        brandKey: options.brandKey,
+        ...(options.brandName ? { brandName: options.brandName } : {}),
+        ...(options.bounds ? { bounds: options.bounds } : {}),
+        ...(options.lat != null ? { lat: options.lat } : {}),
+        ...(options.lng != null ? { lng: options.lng } : {}),
+        ...(options.minResults != null ? { minResults: options.minResults } : {}),
+        maxResults: options.maxResults || 100,
+      })
+
+      return {
+        results: response.data.results,
+        brand: response.data.brand,
+      }
+    } catch (err) {
+      console.error('Error in brand search:', err)
+      error.value =
+        err instanceof Error ? err.message : 'Failed to execute brand search'
       throw err
     } finally {
       loading.value = false
@@ -251,6 +313,7 @@ function searchService() {
     getAutocompleteSuggestions,
     search,
     searchByCategory,
+    searchByBrand,
     searchAlongRoute,
     isAdvancedSearchAvailable,
     executeOverpassQuery,

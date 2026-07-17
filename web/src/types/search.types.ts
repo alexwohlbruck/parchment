@@ -21,18 +21,32 @@ export interface CategoryResult {
   aliases?: string[]
 }
 
+/** A brand suggestion in search results ("See all McDonald's locations"). */
+export interface BrandSearchMeta {
+  brandKey: string
+  name: string
+  wikidata?: string
+  locationCount?: number
+  category?: string
+  logoUrl?: string
+  lat?: number
+  lng?: number
+}
+
 export interface SearchResult {
   id: string
-  type: 'bookmark' | 'place' | 'current_location' | 'category'
+  type: 'bookmark' | 'place' | 'current_location' | 'category' | 'brand'
   title: string
   description?: string
   icon?: string
   color?: string
   metadata: {
+    // Brand metadata
+    brand?: BrandSearchMeta
     // Bookmark metadata
     bookmark?: {
       id: string
-      presetType?: 'home' | 'work' | 'school'
+      frequentType?: 'home' | 'work' | 'school' | 'custom'
       iconColor: string
       address?: string
       lat: number
@@ -71,7 +85,7 @@ export interface SearchResult {
 // Lightweight autocomplete result with minimal data
 export interface AutocompleteResult {
   id: string
-  type: 'bookmark' | 'place' | 'current_location' | 'category'
+  type: 'bookmark' | 'place' | 'current_location' | 'category' | 'brand'
   title: string
   description?: string
   icon?: string
@@ -87,6 +101,8 @@ export interface AutocompleteResult {
     addTags?: Record<string, string>
     geometry: string[]
   }
+  // Brand metadata for the "see all locations" browse
+  brand?: BrandSearchMeta
 }
 
 export interface SearchOptions {

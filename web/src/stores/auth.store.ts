@@ -16,10 +16,28 @@ export const useAuthStore = defineStore('auth', () => {
   const cachedUser = useStorage<User | null>('parchment-user', null, undefined, {
     serializer: jsonSerializer,
   })
-  
+
   const me = ref<User | null | undefined>(cachedUser.value ?? undefined)
-  const permissions = ref<PermissionId[]>([])
-  const subscription = ref<{ isPremium: boolean; isBasic: boolean; hasSubscription: boolean; tier: string } | null>(null)
+
+  // Permissions and subscription are cached in localStorage alongside the user
+  // so the map-engine decision (Mapbox is premium-gated) is correct
+  // synchronously on page load. Without this, `permissions` starts empty on
+  // every reload, the map falls back to MapLibre, and then swaps to Mapbox
+  // once the async permissions fetch resolves — rendering both engines.
+  const permissions = useStorage<PermissionId[]>(
+    'parchment-permissions',
+    [],
+    undefined,
+    { serializer: jsonSerializer },
+  )
+  const subscription = useStorage<{
+    isPremium: boolean
+    isBasic: boolean
+    hasSubscription: boolean
+    tier: string
+  } | null>('parchment-subscription', null, undefined, {
+    serializer: jsonSerializer,
+  })
   const sessions = ref<Session[]>([])
   const sessionId = ref<Session['id'] | null>(null)
   const stashedPath = ref<string | null>(null)
@@ -72,6 +90,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function unsetAuthenticatedUser() {
     me.value = null
     cachedUser.value = null // Clear localStorage cache
+    permissions.value = [] // Clear cached premium permissions
+    subscription.value = null // Clear cached subscription
     sessionId.value = null
     authenticatedUserPromise.value = undefined // Clear the promise to prevent router guards from waiting
     if (isTauri) {

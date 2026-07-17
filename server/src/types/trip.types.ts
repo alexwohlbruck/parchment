@@ -277,6 +277,17 @@ export interface TransitDetails {
   realTimeData?: boolean
   delay?: number // seconds
   alerts?: TransitAlert[]
+  /** GTFS direction_id ("0"/"1") of this leg — pass to the departures board so
+   *  it shows only departures heading the rider's way. */
+  directionId?: string
+  /**
+   * Interchangeable routes for this leg, when several serve the identical
+   * board→…→alight stop sequence on the same tracks (e.g. the 4 and the 5
+   * express). Present (length > 1) only on merged legs; the frontend renders
+   * "4 or 5" and the trip-detail departure board unions their schedules.
+   * `route` remains the representative (soonest-departing) option.
+   */
+  routeOptions?: TransitRoute[]
 }
 
 export interface TransitRoute {

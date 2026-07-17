@@ -19,6 +19,7 @@ import {
 } from 'lucide-vue-next'
 import CollectionCard from '@/components/library/CollectionCard.vue'
 import CollectionForm from '@/components/library/CollectionForm.vue'
+import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
 import { useAppService } from '@/services/app.service'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { fuzzyFilter } from '@/lib/utils'
@@ -230,6 +231,9 @@ async function createCollection() {
         </Button>
       </div>
     </div>
+
+    <!-- Home / Work / School quick places -->
+    <PresetPlacesRow />
 
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <Spinner />

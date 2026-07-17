@@ -19,7 +19,6 @@ export interface OpenWeatherMapConfig extends IntegrationConfig {
 export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConfig> {
   private initialized = false
   private readonly WEATHER_URL = 'https://api.openweathermap.org/data/2.5/weather'
-  private readonly AIR_POLLUTION_URL = 'https://api.openweathermap.org/data/2.5/air_pollution'
 
   readonly integrationId = IntegrationId.OPENWEATHERMAP
   readonly capabilityIds: IntegrationCapabilityId[] = [
@@ -132,17 +131,10 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
 
       const weatherData = await weatherResponse.json()
 
-      // Fetch air quality data (also free tier)
-      let aqiData: any = null
-      try {
-        const aqiUrl = `${this.AIR_POLLUTION_URL}?lat=${lat}&lon=${lng}&appid=${this.config.apiKey}`
-        const aqiResponse = await fetch(aqiUrl)
-        if (aqiResponse.ok) {
-          aqiData = await aqiResponse.json()
-        }
-      } catch (error) {
-        console.warn('Failed to fetch air quality data:', error)
-      }
+      // NOTE: Air quality is intentionally NOT sourced here. The weather
+      // controller attaches it solely from a real OpenAQ ground station — we do
+      // not fall back to OpenWeatherMap's modeled AQI (a wrong number is worse
+      // than none), so there's no air-pollution fetch or computation here.
 
       // Transform the response to our WeatherData format
       // Current Weather API 2.5 has a different structure than One Call API
@@ -169,22 +161,6 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
         timestamp: new Date(weatherData.dt * 1000).toISOString(),
         sunrise: sys.sunrise ? new Date(sys.sunrise * 1000).toISOString() : undefined,
         sunset: sys.sunset ? new Date(sys.sunset * 1000).toISOString() : undefined,
-      }
-
-      // Add air quality data if available
-      if (aqiData?.list?.[0]) {
-        const aqi = aqiData.list[0]
-        result.aqi = aqi.main.aqi
-        result.aqiComponents = {
-          co: aqi.components.co,
-          no: aqi.components.no,
-          no2: aqi.components.no2,
-          o3: aqi.components.o3,
-          so2: aqi.components.so2,
-          pm2_5: aqi.components.pm2_5,
-          pm10: aqi.components.pm10,
-          nh3: aqi.components.nh3,
-        }
       }
 
       return result

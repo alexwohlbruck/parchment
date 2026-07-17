@@ -173,10 +173,26 @@
         },
         "groups": {
           "frequents": "Frecuentes",
+          "suggestedCategories": "Categorías",
           "fullSearch": "Buscar",
+          "recents": "Recientes",
           "brands": "Marcas",
           "categories": "Categorías",
           "places": "Lugares"
+        },
+        "commonCategories": {
+          "restaurants": "Restaurantes",
+          "coffee": "Café",
+          "fastFood": "Comida rápida",
+          "groceries": "Supermercados",
+          "gas": "Gasolina",
+          "parking": "Aparcamiento",
+          "pharmacy": "Farmacia",
+          "hotels": "Hoteles",
+          "bars": "Bares",
+          "parks": "Parques",
+          "hospitals": "Hospitales",
+          "atms": "Cajeros"
         },
         "brand": {
           "seeAll": "Ver todas las ubicaciones",

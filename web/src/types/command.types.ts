@@ -46,11 +46,4 @@ export type CommandArgumentOption = PaletteItem & {
   color?: ThemeColor
   /** When true, the option is shown but gated behind a premium subscription. */
   premium?: boolean
-  /**
-   * When true, the item is one the user visited/searched before. Rendered with
-   * a trailing clock badge so recency is shown inline in the item's own group
-   * instead of a separate "recents" section. The pattern for all recent-able
-   * entities (categories, places, …).
-   */
-  isRecent?: boolean
 }

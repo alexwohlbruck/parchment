@@ -468,7 +468,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     const [osmType, rawId] = osmId.split('/')
     const numericId = parseInt(rawId, 10)
     if (!numericId || (osmType !== 'way' && osmType !== 'relation')) {
-      console.debug(`🚫 [Overpass/Area] Cannot create area from ${osmId} (only way/relation supported)`)
+      console.debug(`[Overpass/Area] Cannot create area from ${osmId} (only way/relation supported)`)
       return []
     }
 
@@ -496,7 +496,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       out body geom ${maxResults};`.trim()
 
     try {
-      console.debug(`🌐 [Overpass/Area] Searching within area ${osmId} for ${presetIds.length} categories`)
+      console.debug(`[Overpass/Area] Searching within area ${osmId} for ${presetIds.length} categories`)
       const response = await axios.post(
         this.config.host,
         new URLSearchParams({ data: query }),
@@ -509,7 +509,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       if (!response.data?.elements) return []
       return this.elementsToPlaces(response.data.elements.slice(0, maxResults))
     } catch (error) {
-      console.error(`❌ [Overpass/Area] Error executing area query for ${osmId}:`, error)
+      console.error(`[Overpass/Area] Error executing area query for ${osmId}:`, error)
       return []
     }
   }
@@ -543,7 +543,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       out body geom ${maxResults};`.trim()
 
     try {
-      console.debug(`🌐 [Overpass/Bbox] Searching within bbox of ${osmId} for ${tagSets.length} categories`)
+      console.debug(`[Overpass/Bbox] Searching within bbox of ${osmId} for ${tagSets.length} categories`)
       const response = await axios.post(
         this.config.host,
         new URLSearchParams({ data: query }),
@@ -555,10 +555,10 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
 
       if (!response.data?.elements) return []
       const places = this.elementsToPlaces(response.data.elements.slice(0, maxResults))
-      console.debug(`✅ [Overpass/Bbox] Found ${places.length} places within ${osmId}`)
+      console.debug(`[Overpass/Bbox] Found ${places.length} places within ${osmId}`)
       return places
     } catch (error) {
-      console.error(`❌ [Overpass/Bbox] Error executing bbox query for ${osmId}:`, error)
+      console.error(`[Overpass/Bbox] Error executing bbox query for ${osmId}:`, error)
       return []
     }
   }
@@ -622,7 +622,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
           }
         })
     } catch (error) {
-      console.error('❌ [Overpass/IsIn] Error fetching containing areas:', error)
+      console.error('[Overpass/IsIn] Error fetching containing areas:', error)
       return []
     }
   }

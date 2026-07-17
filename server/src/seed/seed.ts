@@ -10,7 +10,7 @@ import { syncPermissionsAndRoles } from './sync-permissions'
  */
 
 await syncPermissionsAndRoles()
-console.info('✅ Permissions and roles synced')
+console.info('Permissions and roles synced')
 
 // Insert initial user if none exist.
 const users = await db.select().from(usersSchema).limit(1)
@@ -32,14 +32,14 @@ if (users.length === 0) {
     })
     .returning()
 
-  console.info(`✅ Inserted user ${firstName} ${lastName}`)
+  console.info(`Inserted user ${firstName} ${lastName}`)
 
   await db.insert(usersToRoles).values({
     userId: user.id,
     roleId: 'admin',
   })
 
-  console.info(`✅ Assigned admin role to ${firstName} ${lastName}`)
+  console.info(`Assigned admin role to ${firstName} ${lastName}`)
 }
 
 console.log('Seed finished')

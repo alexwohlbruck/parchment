@@ -732,32 +732,61 @@ export class BarrelmanIntegration
     return (response.data || []).map((r: any) => this.adaptPlace(r))
   }
 
+  /**
+   * Search a POI category. Two tiers, both fast:
+   *  1. Viewport-scoped (lat/lng + radius) — barrelman orders browse results
+   *     nearest-first via the GiST KNN index, so this is quick at any zoom.
+   *  2. Widen — when the viewport is sparse (fewer than `minResults`), re-query
+   *     with NO radius. Barrelman then drives the scan from the category GIN
+   *     index and returns the nearest matches within a wide bbox, so a zoomed-in
+   *     search for a thin category (e.g. gas stations in Manhattan) still finds
+   *     the nearest ones (~1s) instead of coming back empty.
+   * Supports `offset` for scroll pagination — a sparse viewport widens at every
+   * offset, so pages stay consistent. No total count is computed (a COUNT over a
+   * broad category is itself expensive); the client paginates until a short page.
+   */
   async searchByCategory(
     presetId: string,
     bounds: MapBounds,
-    options?: { limit?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any> },
+    options?: { limit?: number; offset?: number; minResults?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any> },
   ): Promise<Place[]> {
     const lat = (bounds.north + bounds.south) / 2
     const lng = (bounds.east + bounds.west) / 2
     const latDiff = Math.abs(bounds.north - bounds.south)
     const lngDiff = Math.abs(bounds.east - bounds.west)
-    const radius = (Math.max(latDiff, lngDiff) * 111320) / 2
+    const radius = Math.min((Math.max(latDiff, lngDiff) * 111320) / 2, 50000)
 
-    const response = await barrelmanSearchHttp.post(
-      `${this.config.host}/search`,
-      {
-        lat,
-        lng,
-        radius: Math.min(radius, 50000),
-        categories: [presetId],
-        limit: options?.limit || 20,
-        ...(options?.filterTags ? { tags: options.filterTags } : {}),
-        ...(options?.sort ? { sort: options.sort } : {}),
-        ...(options?.filter ? { filter: options.filter } : {}),
-      },
-      { headers: this.headers, timeout: 10000 },
-    )
-    return (response.data || []).map((r: any) => this.adaptPlace(r))
+    const limit = options?.limit || 20
+    const offset = options?.offset || 0
+    const minResults = options?.minResults ?? 6
+
+    const post = (body: Record<string, any>) =>
+      barrelmanSearchHttp.post(`${this.config.host}/search`, body, {
+        headers: this.headers,
+        timeout: 10000,
+      })
+
+    const baseBody = {
+      lat,
+      lng,
+      categories: [presetId],
+      limit,
+      ...(offset ? { offset } : {}),
+      ...(options?.filterTags ? { tags: options.filterTags } : {}),
+      ...(options?.sort ? { sort: options.sort } : {}),
+      ...(options?.filter ? { filter: options.filter } : {}),
+    }
+
+    // Tier 1: viewport-scoped (bounded radius → KNN).
+    let rows: any[] = (await post({ ...baseBody, radius })).data || []
+
+    // Tier 2: widen when the viewport is sparse — omit the radius so barrelman
+    // uses the category-index scan (fast even for a thin category).
+    if (rows.length < minResults) {
+      rows = (await post(baseBody)).data || []
+    }
+
+    return rows.map((r: any) => this.adaptPlace(r))
   }
 
   // ── Brand catalog ──────────────────────────────────────────────────────

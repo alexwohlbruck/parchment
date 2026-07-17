@@ -175,12 +175,13 @@ const searchRouter = new Elysia({ prefix: '/search' })
   .post(
     '/category',
     async ({ body, status, language }) => {
-      const { presetId, bounds, maxResults = 100, sort, filter, tags } = body
+      const { presetId, bounds, maxResults = 30, offset = 0, sort, filter, tags } = body
 
       try {
         const results = await searchService.searchByCategory(presetId, {
           bounds,
           limit: maxResults,
+          offset,
           sort,
           filter,
           tags,
@@ -193,7 +194,9 @@ const searchRouter = new Elysia({ prefix: '/search' })
           presetId,
           results,
           fieldDefinitions,
-          totalCount: results.length,
+          // No total count: a COUNT over a broad category/wide area is expensive.
+          // `hasMore` (a full page came back) drives scroll pagination instead.
+          hasMore: results.length >= maxResults,
           executedAt: new Date().toISOString(),
         }
       } catch (err) {
@@ -216,6 +219,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           west: t.Number(),
         }),
         maxResults: t.Optional(t.Number({ minimum: 1, maximum: 1000 })),
+        offset: t.Optional(t.Number({ minimum: 0 })),
         sort: t.Optional(t.Union([
           t.Literal('relevance'),
           t.Literal('distance'),

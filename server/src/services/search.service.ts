@@ -458,6 +458,7 @@ export async function search(
 export interface CategorySearchOptions {
   bounds: MapBounds
   limit?: number
+  offset?: number
   sort?: 'relevance' | 'distance' | 'name'
   filter?: {
     access?: string[]
@@ -548,6 +549,7 @@ export async function searchByCategory(
 
   return await searchCapability.searchByCategory(categoryId, options.bounds, {
     limit: options.limit,
+    offset: options.offset,
     filterTags: Object.keys(mergedTags).length > 0 ? mergedTags : undefined,
     sort: options.sort,
     filter: options.filter,

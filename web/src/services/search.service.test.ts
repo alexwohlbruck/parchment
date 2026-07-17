@@ -163,7 +163,11 @@ describe('useSearchService', () => {
         bounds: { north: 1, south: 0, east: 1, west: 0 },
         maxResults: 50,
       })
-      expect(results).toEqual({ results: mockPlaces, fieldDefinitions: [] })
+      expect(results).toEqual({
+        results: mockPlaces,
+        fieldDefinitions: [],
+        hasMore: false,
+      })
     })
 
     test('uses default maxResults when not provided', async () => {
@@ -176,7 +180,7 @@ describe('useSearchService', () => {
 
       expect(api.post).toHaveBeenCalledWith('/search/category', {
         presetId: 'amenity-cafe',
-        maxResults: 100,
+        maxResults: 30,
       })
     })
 

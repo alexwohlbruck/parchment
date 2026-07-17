@@ -175,10 +175,26 @@
         },
         "groups": {
           "frequents": "Frequents",
+          "suggestedCategories": "Categories",
           "fullSearch": "Search",
+          "recents": "Recents",
           "brands": "Brands",
           "categories": "Categories",
           "places": "Places"
+        },
+        "commonCategories": {
+          "restaurants": "Restaurants",
+          "coffee": "Coffee",
+          "fastFood": "Fast Food",
+          "groceries": "Groceries",
+          "gas": "Gas",
+          "parking": "Parking",
+          "pharmacy": "Pharmacy",
+          "hotels": "Hotels",
+          "bars": "Bars",
+          "parks": "Parks",
+          "hospitals": "Hospitals",
+          "atms": "ATMs"
         },
         "brand": {
           "seeAll": "See all locations",

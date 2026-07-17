@@ -46,10 +46,16 @@ const pinoToSeverity: Record<string, SeverityNumber> = {
 export interface EmitLogRecordOptions {
   /** When false, only log to pino (stdout). When true, also send to OTLP (e.g. Axiom). Default true. */
   sendToOtlp?: boolean
+  /**
+   * When false, skip the pino/stdout line entirely and only export to OTLP.
+   * Used to keep routine events (client errors, slow requests) out of the noisy
+   * stdout stream while still recording them for analytics. Default true.
+   */
+  stdout?: boolean
 }
 
 /**
- * Emit a structured log record to pino (stdout). Optionally also send to the OTLP pipeline.
+ * Emit a structured log record to pino (stdout) and/or the OTLP pipeline.
  * Use this for canonical/wide event log lines — NOT for per-line debug output.
  */
 export function emitLogRecord(
@@ -58,9 +64,11 @@ export function emitLogRecord(
   attributes: Record<string, unknown> = {},
   options: EmitLogRecordOptions = {},
 ) {
-  const { sendToOtlp = true } = options
+  const { sendToOtlp = true, stdout = true } = options
 
-  logger[level](attributes, message)
+  if (stdout) {
+    logger[level](attributes, message)
+  }
 
   if (sendToOtlp) {
     getOtelLogger().emit({

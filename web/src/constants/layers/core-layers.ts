@@ -38,9 +38,9 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
     id: SEARCH_RESULTS_LABELS_LAYER_ID,
     type: MapboxLayerType.SYMBOL,
     source: SEARCH_RESULTS_SOURCE_ID,
-    // Labels only appear when zoomed in close enough; at city-level zoom the
-    // dot markers alone are sufficient and labels would create clutter.
-    minzoom: 14,
+    // No minzoom: labels show at every zoom. The engine's built-in collision
+    // (text-allow-overlap: false, below) hides any label that would overlap
+    // another, so clutter is prevented without a hard zoom cutoff.
     filter: ['has', 'name'],
     layout: {
       'symbol-z-elevate': true,
@@ -53,7 +53,9 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
       'text-anchor': 'top',
       'text-allow-overlap': false,
       'text-ignore-placement': false,
-      'symbol-sort-key': 1000,
+      // Per-result rank (0 = nearest/best). Lower sort keys are placed first, so
+      // the top results win collisions and their labels stay visible.
+      'symbol-sort-key': ['get', 'sortKey'],
     },
     paint: {
       'text-halo-width': 1,

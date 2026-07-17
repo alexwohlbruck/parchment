@@ -30,7 +30,6 @@ import {
   XIcon,
   LoaderIcon,
   SettingsIcon,
-  ClockIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { Badge } from '@/components/ui/badge'
@@ -126,12 +125,22 @@ const filteredArgumentOptions = computed(() => {
     : argumentOptions.value
 })
 
-const SEARCH_GROUP_ORDER = ['frequents', 'fullSearch', 'brands', 'categories', 'places'] as const
+const SEARCH_GROUP_ORDER = [
+  'frequents',
+  'suggestedCategories',
+  'fullSearch',
+  'recents',
+  'brands',
+  'categories',
+  'places',
+] as const
 
-// Layout per group. Most groups render as a vertical list; a few (Frequents)
-// render as a horizontal row of tile cards. Extend this map to add more.
-const GROUP_LAYOUT: Record<string, 'list' | 'tiles'> = {
+// Layout per group. Most groups render as a vertical list; Frequents renders as
+// a horizontal row of tile cards, and the common-categories browse shortcuts as
+// a two-column grid of chips. Extend this map to add more.
+const GROUP_LAYOUT: Record<string, 'list' | 'tiles' | 'chips'> = {
   frequents: 'tiles',
+  suggestedCategories: 'chips',
 }
 
 const groupedArgumentOptions = computed(() => {
@@ -140,7 +149,7 @@ const groupedArgumentOptions = computed(() => {
   const groups: {
     key: string
     heading: string
-    layout: 'list' | 'tiles'
+    layout: 'list' | 'tiles' | 'chips'
     items: CommandArgumentOption[]
   }[] = []
   for (const groupKey of SEARCH_GROUP_ORDER) {
@@ -533,6 +542,30 @@ const filterFunction = computed(() => {
                 </button>
               </div>
 
+              <!-- Chip layout: two-row, horizontally scrolling browse shortcuts (Categories). -->
+              <div
+                v-else-if="group.layout === 'chips'"
+                class="grid grid-rows-2 grid-flow-col auto-cols-max gap-2 overflow-x-auto scrollbar-hidden px-1 pb-1"
+              >
+                <button
+                  v-for="argumentOption in group.items"
+                  :key="argumentOption.value"
+                  type="button"
+                  class="flex items-center gap-1.5 rounded-full border bg-card hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
+                  @click="onArgumentSelected(argumentOption.value)"
+                >
+                  <ItemIcon
+                    :icon="argumentOption.iconName"
+                    :icon-pack="argumentOption.iconPack"
+                    :custom-color="argumentOption.iconColor"
+                    shape="circle"
+                    variant="solid"
+                    size="xs"
+                  />
+                  <span class="text-sm font-medium whitespace-nowrap">{{ argumentOption.name }}</span>
+                </button>
+              </div>
+
               <!-- Default list layout. -->
               <CommandItem
                 v-for="argumentOption in group.layout === 'list' ? group.items : []"
@@ -565,11 +598,6 @@ const filterFunction = computed(() => {
                     {{ argumentOption.description }}
                   </span>
                 </div>
-                <!-- Recency badge: item stays in its own group, clock marks it recent. -->
-                <ClockIcon
-                  v-if="argumentOption.isRecent"
-                  class="size-4 shrink-0 self-center text-muted-foreground opacity-60"
-                />
               </CommandItem>
             </CommandGroup>
           </template>
@@ -629,11 +657,12 @@ const filterFunction = computed(() => {
             </CommandItem>
           </CommandGroup>
 
-          <!-- Settings entries are surfaced even when the palette is in
-               search mode, so users can find a setting without first
-               backing out of the search command. -->
+          <!-- Settings entries are surfaced for argument-taking commands, but
+               NOT for place search — a place query ("park") shouldn't turn up
+               settings pages ("My Vehicles"). Settings are still reachable by
+               typing in the idle palette (the top-level list above). -->
           <CommandGroup
-            v-if="filteredSettings.length"
+            v-if="!isSearch && filteredSettings.length"
             :heading="t('settings.title')"
           >
             <CommandItem

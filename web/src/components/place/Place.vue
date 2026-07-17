@@ -349,9 +349,12 @@ function handleBrandLogoError() {
                     :style="{ top: 'calc(-1 * var(--sheet-sticky-top, 3rem))' }"
                     :class="stuck ? 'opacity-100' : 'opacity-0'"
                   />
+                  <!-- overflow-y-hidden: the triggers' -mb-px underline overlap
+                       is 1px of vertical overflow; without this, overflow-x-auto
+                       promotes overflow-y to auto and shows a stray y-scrollbar. -->
                   <TabsList
                     variant="linear"
-                    class="relative px-3 pt-2 overflow-x-auto scrollbar-hidden"
+                    class="relative px-3 pt-2 overflow-x-auto overflow-y-hidden scrollbar-hidden"
                   >
                     <TabsTrigger variant="linear" value="overview">
                       {{ t('place.tabs.overview') }}

@@ -27,7 +27,7 @@ export async function fetchNearestStreetImage(
   try {
     return await mapillary.findNearestImage(lat, lng)
   } catch (error) {
-    console.error('❌ [StreetImagery] Mapillary lookup failed:', error)
+    console.error('[StreetImagery] Mapillary lookup failed:', error)
     return null
   }
 }

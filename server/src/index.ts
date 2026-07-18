@@ -1,13 +1,13 @@
 process.env.TZ = 'UTC'
 
 import { getObservabilityConfig } from './services/observability.config'
-import { initOtel } from './lib/otel'
+import { initOtel, flushOtel } from './lib/otel'
 import { Elysia } from 'elysia'
 import { swagger } from '@elysiajs/swagger'
 import { cors } from '@elysiajs/cors'
 import { i18next } from 'elysia-i18next'
 import { cors as corsConfig, swagger as swaggerConfig } from './config'
-import { logger } from './lib/logger'
+import { logger, logError } from './lib/logger'
 import { loggerMiddleware } from './middleware/logger.middleware'
 import {
   healthCheck as healthCheckController,
@@ -70,6 +70,17 @@ async function main() {
     process.exit(1)
   }
 
+  // Capture top-level failures that never reach the request middleware so they
+  // still land in Axiom. uncaughtException is fatal — flush the OTLP batch
+  // before exiting so the record isn't lost in the buffer.
+  process.on('uncaughtException', (error) => {
+    logError('Uncaught exception', error, { fatal: true })
+    flushOtel().finally(() => process.exit(1))
+  })
+  process.on('unhandledRejection', (reason) => {
+    logError('Unhandled promise rejection', reason)
+  })
+
   const app = new Elysia()
 
   app.use(loggerMiddleware)
@@ -123,7 +134,7 @@ async function main() {
 
   app.onError(({ code, error }) => {
     if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error
-    logger.error({ err: error, code }, 'Request error')
+    logError('Request error', error, { code })
     return new Response(
       JSON.stringify({ error: 'Internal server error', code }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
@@ -156,11 +167,11 @@ async function main() {
     await initializeIntegrations()
     logger.info('Integrations initialized')
   } catch (error) {
-    logger.error({ err: error }, 'Failed to initialize services')
+    logError('Failed to initialize services', error)
   }
 }
 
 main().catch((err) => {
-  logger.error({ err }, 'Unhandled error in main')
-  process.exit(1)
+  logError('Unhandled error in main', err, { fatal: true })
+  flushOtel().finally(() => process.exit(1))
 })

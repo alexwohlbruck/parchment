@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
 import { integrationManager } from '../services/integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
+import { logError } from '../lib/logger'
 
 const geocodingRouter = new Elysia({ prefix: '/geocoding' })
   .use(requireAuth)
@@ -62,7 +63,7 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
           integration: integrationRecord.integrationId,
         }
       } catch (err) {
-        console.error('Error performing forward geocoding:', err)
+        logError('Error performing forward geocoding', err)
         return status(500, {
           message:
             err instanceof Error ? err.message : 'Failed to perform geocoding',
@@ -166,7 +167,7 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
           integration: integrationRecord.integrationId,
         }
       } catch (err) {
-        console.error('Error performing reverse geocoding:', err)
+        logError('Error performing reverse geocoding', err)
         return status(500, {
           message:
             err instanceof Error

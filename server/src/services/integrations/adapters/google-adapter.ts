@@ -11,6 +11,7 @@ import {
   SOURCE,
 } from '../../../lib/constants'
 import { parseGoogleHours } from '../../../lib/hours.utils'
+import { logError } from '../../../lib/logger'
 
 // TODO: Move this type def
 export interface GooglePlaceDetails {
@@ -269,7 +270,7 @@ export class GoogleAdapter {
         })
       })
     } catch (error) {
-      console.error('Error processing Google photos:', error)
+      logError('Error processing Google photos', error)
     }
 
     return photos
@@ -384,7 +385,7 @@ export class GoogleAdapter {
         sourceId: SOURCE.GOOGLE,
       }
     } catch (error) {
-      console.error('Error processing Google opening hours:', error)
+      logError('Error processing Google opening hours', error)
       return null
     }
   }

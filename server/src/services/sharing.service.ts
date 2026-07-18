@@ -26,6 +26,7 @@ import {
 } from './federation.service'
 import { parseHandle } from '../lib/crypto'
 import { publish } from './realtime/event-bus.service'
+import { logError } from '../lib/logger'
 
 export type ResourceType = 'collection' | 'route' | 'map' | 'layer'
 
@@ -542,8 +543,9 @@ async function sendShareToRemote(
       // A cross-server share without a complete client-signed envelope is
       // rejected — we'd send an unsigned message that the remote peer would
       // discard anyway, so surface the error to the caller instead.
-      console.error(
+      logError(
         'Refusing to send remote share without a signed v2 envelope',
+        undefined,
         { shareId: share.id },
       )
       return false
@@ -575,7 +577,7 @@ async function sendShareToRemote(
 
     return true
   } catch (error) {
-    console.error('Failed to send share to remote:', error)
+    logError('Failed to send share to remote', error)
     return false
   }
 }

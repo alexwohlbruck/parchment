@@ -3,6 +3,7 @@ import { integrationManager } from '../services/integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { getLanguageCode } from '../lib/i18n'
 import { getNearestStationAirQuality } from '../services/air-quality.service'
+import { logError, logWarn } from '../lib/logger'
 
 const weatherRouter = new Elysia({ prefix: '/weather' })
   /**
@@ -66,12 +67,12 @@ const weatherRouter = new Elysia({ prefix: '/weather' })
             weatherData.aqiComponents = nearest.components
           }
         } catch (e) {
-          console.warn('OpenAQ lookup failed; omitting air quality:', e)
+          logWarn('OpenAQ lookup failed; omitting air quality', e)
         }
 
         return weatherData
       } catch (err: any) {
-        console.error('Error fetching weather:', err)
+        logError('Error fetching weather', err)
         return status(500, {
           message: err.message || t('errors.weather.fetchFailed'),
         })

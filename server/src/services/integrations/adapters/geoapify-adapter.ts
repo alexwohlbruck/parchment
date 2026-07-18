@@ -19,6 +19,7 @@ import { matchTags } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { getPresetFromGeoapifyCategory } from '../mappings/geoapify-preset-mapping'
+import { logError } from '../../../lib/logger'
 
 export interface GeoapifyFeature {
   type: string
@@ -245,7 +246,7 @@ export class GeoapifyAdapter {
 
       return place
     } catch (error) {
-      console.error('Error adapting Geoapify data:', error)
+      logError('Error adapting Geoapify data', error)
 
       const fallbackExternalIds: Record<string, string> = {}
       if (feature.properties?.place_id) {

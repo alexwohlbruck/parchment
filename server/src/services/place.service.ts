@@ -14,6 +14,7 @@ import { WikipediaIntegration } from './integrations/wikipedia-integration'
 import { WikimediaIntegration } from './integrations/wikimedia-integration'
 import { dedupeWikiPhotos } from './integrations/wiki-utils'
 import { isTransitStop, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
+import { logError, logWarn } from '../lib/logger'
 
 /** True for an aborted/cancelled request (axios CanceledError or DOM AbortError). */
 function isAbortError(error: unknown): boolean {
@@ -131,7 +132,7 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
           }
         }
       } catch (error) {
-        console.error(`Error enriching address with ${integrationRecord.integrationId}:`, error)
+        logError(`Error enriching address with ${integrationRecord.integrationId}`, error)
         // Continue to next integration
       }
     }
@@ -139,7 +140,7 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
     console.log('No geocoding integration returned useful address data')
     return place
   } catch (error) {
-    console.error('Error during address enrichment:', error)
+    logError('Error during address enrichment', error)
     return place
   }
 }
@@ -181,7 +182,7 @@ async function enrichPlaceWithParentRelations(place: Place): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Error looking up parent relations:', error)
+    logError('Error looking up parent relations', error)
   }
 }
 
@@ -239,7 +240,7 @@ async function addBookmarkInfo(places: Place[], userId: string): Promise<void> {
       }
     }
   } catch (error) {
-    console.error('Error adding bookmark information:', error)
+    logError('Error adding bookmark information', error)
   }
 }
 
@@ -285,7 +286,7 @@ export async function lookupPlaceById(
       )) ?? null
     )
   } catch (error) {
-    console.error(`[lookupPlaceById] Error:`, error)
+    logError(`[lookupPlaceById] Error`, error)
     return null
   }
 }
@@ -388,7 +389,7 @@ export async function lookupPlacesByNameAndLocation(
     // CanceledError. That's expected control flow, not a failure — return
     // quietly without logging noise.
     if (isAbortError(error)) return []
-    console.error('Error looking up places by name and coordinates:', error)
+    logError('Error looking up places by name and coordinates', error)
     return []
   }
 }
@@ -454,7 +455,7 @@ export async function lookupPlaceByNameAndLocation(
 
     return places[0] || null
   } catch (error) {
-    console.error(`[PERF] Error getting place by name and coordinates (${Date.now() - startTime}ms):`, error)
+    logError(`[PERF] Error getting place by name and coordinates (${Date.now() - startTime}ms)`, error)
     return null
   }
 }
@@ -652,7 +653,7 @@ async function enrichPlaceWithWikiData(
               place = mergePlaces(place, wikimediaPlace)
             }
           } catch (error) {
-            console.warn('Error fetching Wikimedia Commons images:', error)
+            logWarn('Error fetching Wikimedia Commons images', error)
           }
         }
       } else {
@@ -694,7 +695,7 @@ async function enrichPlaceWithWikiData(
             }
           }
         } catch (fallbackErr) {
-          console.warn('Wikimedia Commons fallback failed:', fallbackErr)
+          logWarn('Wikimedia Commons fallback failed', fallbackErr)
         }
       }
     }
@@ -704,7 +705,7 @@ async function enrichPlaceWithWikiData(
 
     return place
   } catch (error) {
-    console.error('Error enriching place with Wiki data:', error)
+    logError('Error enriching place with Wiki data', error)
     return place // Return original place if enrichment fails
   }
 }
@@ -770,7 +771,7 @@ async function enrichPlaceWithFoursquareData(
     return mergePlaces(place, fsqPlace)
   } catch (error) {
     if (isAbortError(error)) return place
-    console.error('Error enriching place with Foursquare data:', error)
+    logError('Error enriching place with Foursquare data', error)
     return place
   }
 }
@@ -921,8 +922,8 @@ export async function lookupEnrichedPlaceById(
     return place
   } catch (error) {
     const totalTime = Date.now() - startTime
-    console.error(
-      `[PERF] Error looking up and merging place data (${source}/${id}) after ${totalTime}ms:`,
+    logError(
+      `[PERF] Error looking up and merging place data (${source}/${id}) after ${totalTime}ms`,
       error,
     )
     return null
@@ -959,14 +960,14 @@ export async function lookupEnrichedPlaceByCoordinates(
     )
     
     if (!geocodingIntegrations.length) {
-      console.error('No geocoding integration available')
+      logError('No geocoding integration available')
       return null
     }
     
     const geocodingIntegration = integrationManager.getCachedIntegrationInstance(geocodingIntegrations[0])
     
     if (!geocodingIntegration?.capabilities.geocoding) {
-      console.error('Geocoding capability not available')
+      logError('Geocoding capability not available')
       return null
     }
     
@@ -1100,7 +1101,7 @@ export async function lookupEnrichedPlaceByCoordinates(
               }
             }
           } catch (error) {
-            console.error('Error fetching Geoapify place for OSM ID extraction:', error)
+            logError('Error fetching Geoapify place for OSM ID extraction', error)
           }
         }
       }
@@ -1182,8 +1183,8 @@ export async function lookupEnrichedPlaceByCoordinates(
     return place
   } catch (error) {
     const totalTime = Date.now() - startTime
-    console.error(
-      `[PERF] Error looking up place by coordinates (${lat},${lng}) after ${totalTime}ms:`,
+    logError(
+      `[PERF] Error looking up place by coordinates (${lat},${lng}) after ${totalTime}ms`,
       error,
     )
     return null

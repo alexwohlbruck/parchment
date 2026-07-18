@@ -11,6 +11,7 @@ import {
 import { SOURCE } from '../../lib/constants'
 import { NominatimAdapter } from './adapters/nominatim-adapter'
 import type { Place } from '../../types/place.types'
+import { logError } from '../../lib/logger'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -131,7 +132,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
 
       return { success: true }
     } catch (error: any) {
-      console.error('Error testing Nominatim API:', error)
+      logError('Error testing Nominatim API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Nominatim API',
@@ -271,7 +272,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       // Adapt the result to Place format
       return [this.adapter.placeInfo.adaptPlaceDetails(response.data)]
     } catch (error) {
-      console.error('Error reverse geocoding with Nominatim:', error)
+      logError('Error reverse geocoding with Nominatim', error)
       return []
     }
   }
@@ -307,7 +308,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
 
       // Validate OSM type
       if (osmType && !['node', 'way', 'relation'].includes(osmType)) {
-        console.error(`Invalid OSM type: ${osmType}`)
+        logError(`Invalid OSM type: ${osmType}`)
         return null
       }
 
@@ -349,7 +350,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       const result = response.data[0]
       return this.adapter.placeInfo.adaptPlaceDetails(result)
     } catch (error) {
-      console.error('Error getting place details from Nominatim:', error)
+      logError('Error getting place details from Nominatim', error)
       return null
     }
   }

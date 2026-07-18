@@ -1,5 +1,6 @@
 import type { PlaceCategory, PlaceIcon } from '../types/place.types'
 import type { MatchResult } from './osm-presets'
+import { logWarn } from './logger'
 
 // ─── Category palette ────────────────────────────────────────────────────────
 
@@ -375,7 +376,7 @@ export function resolveIcon(presetIcon: string): { icon: string; iconPack: 'luci
   }
 
   // Last resort: use as maki name but log the miss
-  console.warn(`Unmapped icon "${presetIcon}" → falling back to "${stripped}" (maki). Add to nonMakiFallbackMap.`)
+  logWarn(`Unmapped icon "${presetIcon}" → falling back to "${stripped}" (maki). Add to nonMakiFallbackMap.`)
   return { icon: stripped, iconPack: 'maki' }
 }
 
@@ -395,7 +396,7 @@ export function buildPlaceIcon(presetMatch: MatchResult | null): PlaceIcon | und
     const key = presetMatch.preset.id
     if (!loggedMissingIcons.has(key)) {
       loggedMissingIcons.add(key)
-      console.warn(`No icon for preset "${key}" (raw: ${presetIcon || 'none'}). Will show MapPin.`)
+      logWarn(`No icon for preset "${key}" (raw: ${presetIcon || 'none'}). Will show MapPin.`)
     }
   }
 

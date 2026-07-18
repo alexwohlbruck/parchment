@@ -19,6 +19,7 @@ import {
 } from '../../util/geometry-conversion'
 import { createBookmarkSearchCondition } from '../../util/text-search.util'
 import { emit } from '../realtime/emit'
+import { logWarn } from '../../lib/logger'
 
 // Automatically generate select fields with geometry conversion - no manual field listing needed!
 const bookmarkSelectFields = createSelectFieldsWithGeometry(bookmarks)
@@ -321,7 +322,7 @@ export async function removeBookmarkFromCollections(
   // Verify the bookmark belongs to the user before proceeding
   const bookmark = await getBookmarkById(bookmarkId, userId)
   if (!bookmark) {
-    console.warn(
+    logWarn(
       `Bookmark ${bookmarkId} not found for user ${userId}. Cannot remove from collections.`,
     )
     return false // Bookmark not found or doesn't belong to user

@@ -10,6 +10,7 @@ import { matchTags } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { parseOsmHours } from '../../../lib/hours.utils'
+import { logError } from '../../../lib/logger'
 
 // TODO: Check all SOURCE.PELIAS and SOURCE.OSM references. Idk what to do with these yet. Pelias can use various sources.
 
@@ -171,7 +172,7 @@ export class PeliasAdapter {
         opening_hours: osmData.opening_hours,
       })
     } catch (error) {
-      console.error('Error processing Pelias opening hours:', error)
+      logError('Error processing Pelias opening hours', error)
       return null
     }
   }
@@ -320,7 +321,7 @@ export class PeliasAdapter {
 
       return unifiedPlace
     } catch (error) {
-      console.error('Error adapting Pelias data:', error)
+      logError('Error adapting Pelias data', error)
 
       // Determine the actual source for error case
       const actualSource =

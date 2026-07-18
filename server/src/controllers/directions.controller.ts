@@ -12,6 +12,7 @@ import {
   WaypointType,
   EnergyType,
 } from '../types/trip.types'
+import { logError } from '../lib/logger'
 
 // Validation schemas for multimodal trip planning
 const CoordinateSchema = t.Object({
@@ -207,7 +208,7 @@ app.post(
 
       return result
     } catch (error) {
-      console.error('Multimodal trip planning error:', error)
+      logError('Multimodal trip planning error', error)
       throw new Error(
         `Failed to plan trip: ${
           error instanceof Error ? error.message : 'Unknown error'

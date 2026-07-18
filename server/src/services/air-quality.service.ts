@@ -13,6 +13,7 @@
  */
 
 import { computeAirQuality, type AqiComponents } from '../lib/aqi'
+import { logWarn } from '../lib/logger'
 import { IntegrationId, type AirQuality } from '../types/integration.types'
 import { integrationManager } from './integrations'
 
@@ -190,7 +191,7 @@ async function takeToken(): Promise<void> {
 let circuitOpenUntil = 0
 function openCircuit(ms: number, reason: string) {
   circuitOpenUntil = Math.max(circuitOpenUntil, Date.now() + ms)
-  console.warn(`[openaq] pausing requests ${Math.round(ms / 1000)}s (${reason})`)
+  logWarn(`[openaq] pausing requests ${Math.round(ms / 1000)}s (${reason})`)
 }
 
 function headerNum(res: Response, name: string): number {

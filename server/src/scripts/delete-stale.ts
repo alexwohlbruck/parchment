@@ -1,6 +1,7 @@
 import { db } from '../db'
 import { encryptedLocations } from '../schema/location.schema'
 import { eq } from 'drizzle-orm'
+import { logError } from '../lib/logger'
 
 async function main() {
   const result = await db
@@ -12,4 +13,4 @@ async function main() {
   process.exit(0)
 }
 
-main().catch(console.error)
+main().catch((error) => logError('Failed to delete stale location', error))

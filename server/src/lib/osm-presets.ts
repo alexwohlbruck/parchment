@@ -1,6 +1,7 @@
 import type { Language } from './i18n'
 import { getLanguageCode } from './i18n'
 import { getChipLabel } from './display-chips'
+import { logWarn } from './logger'
 
 export type GeometryType = 'point' | 'line' | 'area' | 'vertex' | 'relation'
 
@@ -133,7 +134,7 @@ function loadPresets(): Record<string, PresetDefinition> {
     const rawData = require('@openstreetmap/id-tagging-schema/dist/translations/en.json')
     presetNames = rawData.en?.presets?.presets || {}
   } catch (error) {
-    console.warn('Could not load preset translations')
+    logWarn('Could not load preset translations', error)
   }
 
   presets = {}

@@ -16,6 +16,7 @@ import {
   type FoursquarePlace,
   type FoursquareTip,
 } from './adapters/foursquare-adapter'
+import { logError } from '../../lib/logger'
 
 export interface FoursquareConfig extends IntegrationConfig {
   apiKey: string
@@ -118,7 +119,7 @@ export class FoursquareIntegration
       }
       return { success: true }
     } catch (error: any) {
-      console.error('Foursquare test connection error:', error)
+      logError('Foursquare test connection error', error)
       return {
         success: false,
         message: error?.message || 'Failed to connect to Foursquare',
@@ -180,7 +181,7 @@ export class FoursquareIntegration
         signal: options?.signal ?? AbortSignal.timeout(10_000),
       })
       if (!response.ok) {
-        console.error(`Foursquare search HTTP error: ${response.status}`)
+        logError(`Foursquare search HTTP error: ${response.status}`)
         return []
       }
 
@@ -194,7 +195,7 @@ export class FoursquareIntegration
       return places
     } catch (error) {
       if (this.isAbort(error)) return []
-      console.error('Foursquare search error:', error)
+      logError('Foursquare search error', error)
       return []
     }
   }
@@ -224,7 +225,7 @@ export class FoursquareIntegration
       })
       if (!response.ok) {
         if (response.status !== 404) {
-          console.error(`Foursquare details HTTP error: ${response.status}`)
+          logError(`Foursquare details HTTP error: ${response.status}`)
         }
         return null
       }
@@ -239,7 +240,7 @@ export class FoursquareIntegration
       return place
     } catch (error) {
       if (this.isAbort(error)) return null
-      console.error('Foursquare details error:', error)
+      logError('Foursquare details error', error)
       return null
     }
   }
@@ -264,7 +265,7 @@ export class FoursquareIntegration
       })
       if (!response.ok) {
         if (response.status !== 404) {
-          console.error(`Foursquare tips HTTP error: ${response.status}`)
+          logError(`Foursquare tips HTTP error: ${response.status}`)
         }
         return []
       }
@@ -272,7 +273,7 @@ export class FoursquareIntegration
       return Array.isArray(data) ? (data as FoursquareTip[]) : []
     } catch (error) {
       if (this.isAbort(error)) return []
-      console.error('Foursquare tips error:', error)
+      logError('Foursquare tips error', error)
       return []
     }
   }
@@ -309,7 +310,7 @@ export class FoursquareIntegration
       // 404 = no confident match; treat as "no twin", not an error.
       if (response.status === 404) return null
       if (!response.ok) {
-        console.error(`Foursquare match HTTP error: ${response.status}`)
+        logError(`Foursquare match HTTP error: ${response.status}`)
         return null
       }
 
@@ -324,7 +325,7 @@ export class FoursquareIntegration
       return { fsqPlaceId, matchRate }
     } catch (error) {
       if (this.isAbort(error)) return null
-      console.error('Foursquare match error:', error)
+      logError('Foursquare match error', error)
       return null
     }
   }

@@ -31,6 +31,7 @@ import type {
   GraphHopperErrorResponse,
 } from '../../types/graphhopper.types'
 import { GraphHopperAdapter } from './adapters/graphhopper-adapter'
+import { logError, logWarn } from '../../lib/logger'
 
 /**
  * GraphHopper integration for routing
@@ -209,7 +210,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing GraphHopper API:', error)
+      logError('Error testing GraphHopper API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to GraphHopper server',
@@ -321,7 +322,10 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('GraphHopper error response:', response.status, errorText)
+        logError('GraphHopper error response', undefined, {
+          status: response.status,
+          errorText,
+        })
 
         let errorMessage = `GraphHopper routing error: ${response.status}`
         try {
@@ -394,7 +398,7 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
 
     if (customModel) {
       if (!isSelfHosted) {
-        console.warn(
+        logWarn(
           'GraphHopper: Custom model features require paid plan or self-hosted instance. Skipping custom_model.',
         )
       } else {

@@ -25,6 +25,7 @@ import type {
   ValhallaManeuver,
 } from '../../types/valhalla.types'
 import { ValhallaAdapter } from './adapters/valhalla-adapter'
+import { logError } from '../../lib/logger'
 
 /**
  * Valhalla integration for routing
@@ -154,7 +155,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Valhalla API:', error)
+      logError('Error testing Valhalla API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Valhalla server',
@@ -223,7 +224,10 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('Valhalla error response:', response.status, errorText)
+        logError('Valhalla error response', undefined, {
+          status: response.status,
+          errorText,
+        })
         throw new Error(
           `Valhalla routing error: ${response.status} - ${errorText}`,
         )

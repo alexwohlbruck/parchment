@@ -16,6 +16,7 @@ import type { Place } from '../../types/place.types'
 import { OverpassAdapter } from './adapters/overpass-adapter'
 import { SOURCE } from '../../lib/constants'
 import { calculateOSMCenter } from '../../util/geometry-conversion'
+import { logError } from '../../lib/logger'
 
 // TODO: Remove overpass integration
 // TODO: Overpass is designed for OSM editors to edit the map, not for backend search
@@ -81,7 +82,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Overpass API:', error)
+      logError('Error testing Overpass API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Overpass API',
@@ -112,7 +113,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     _options?: { language?: string },
   ): Promise<Place | null> {
     if (!this.config.host) {
-      console.error('Overpass integration not properly configured')
+      logError('Overpass integration not properly configured')
       return null
     }
 
@@ -137,7 +138,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       )
 
       if (!response.data.elements || response.data.elements.length === 0) {
-        console.error('No place found with ID:', id)
+        logError('No place found with ID', undefined, { id })
         return null
       }
 
@@ -151,7 +152,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       // Use the adapter to convert to standardized Place format
       return this.adapter.placeInfo.adaptPlaceDetails(place)
     } catch (error) {
-      console.error('Error fetching place from Overpass:', error)
+      logError('Error fetching place from Overpass', error)
       return null
     }
   }
@@ -228,7 +229,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     radius?: number,
   ): Promise<any[]> {
     if (!this.config.host) {
-      console.error('Overpass integration not properly configured')
+      logError('Overpass integration not properly configured')
       return []
     }
 
@@ -264,7 +265,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
 
       return places
     } catch (error) {
-      console.error('Error searching places with Overpass:', error)
+      logError('Error searching places with Overpass', error)
       return []
     }
   }
@@ -315,13 +316,13 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
             places.push(place)
           }
         } catch (error) {
-          console.error('Error converting Overpass element to Place:', error)
+          logError('Error converting Overpass element to Place', error)
         }
       }
 
       return places
     } catch (error) {
-      console.error('Error executing Overpass query:', error)
+      logError('Error executing Overpass query', error)
       throw new Error(
         `Failed to execute Overpass query: ${
           error instanceof Error ? error.message : 'Unknown error'
@@ -336,7 +337,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     options?: { limit?: number },
   ): Promise<Place[]> {
     if (!this.config.host) {
-      console.error('Overpass integration not properly configured')
+      logError('Overpass integration not properly configured')
       return []
     }
 
@@ -377,13 +378,13 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
             places.push(place)
           }
         } catch (error) {
-          console.error('Error converting Overpass element to Place:', error)
+          logError('Error converting Overpass element to Place', error)
         }
       }
 
       return places
     } catch (error) {
-      console.error('Error executing Overpass category query:', error)
+      logError('Error executing Overpass category query', error)
       return []
     }
   }
@@ -446,7 +447,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     },
   ): Promise<Place[]> {
     if (!this.config.host) {
-      console.error('Overpass integration not properly configured')
+      logError('Overpass integration not properly configured')
       return []
     }
 
@@ -509,7 +510,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       if (!response.data?.elements) return []
       return this.elementsToPlaces(response.data.elements.slice(0, maxResults))
     } catch (error) {
-      console.error(`[Overpass/Area] Error executing area query for ${osmId}:`, error)
+      logError(`[Overpass/Area] Error executing area query for ${osmId}`, error)
       return []
     }
   }
@@ -558,7 +559,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       console.debug(`[Overpass/Bbox] Found ${places.length} places within ${osmId}`)
       return places
     } catch (error) {
-      console.error(`[Overpass/Bbox] Error executing bbox query for ${osmId}:`, error)
+      logError(`[Overpass/Bbox] Error executing bbox query for ${osmId}`, error)
       return []
     }
   }
@@ -622,7 +623,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
           }
         })
     } catch (error) {
-      console.error('[Overpass/IsIn] Error fetching containing areas:', error)
+      logError('[Overpass/IsIn] Error fetching containing areas', error)
       return []
     }
   }
@@ -698,7 +699,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
           places.push(place)
         }
       } catch (error) {
-        console.error('Error converting Overpass element to Place:', error)
+        logError('Error converting Overpass element to Place', error)
       }
     }
     return places

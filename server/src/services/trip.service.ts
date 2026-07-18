@@ -26,6 +26,7 @@ import { routingService } from './routing.service'
 import { transitRoutingService } from './transit-routing.service'
 import { rideshareService } from './rideshare.service'
 import { searchByCategory } from './search.service'
+import { logError, logWarn } from '../lib/logger'
 
 /**
  * Simplified multimodal trip planning service
@@ -68,7 +69,7 @@ export class TripService {
             return trip ? [trip] : []
           }
         } catch (error) {
-          console.error(`Failed to plan ${mode} trip:`, error)
+          logError(`Failed to plan ${mode} trip`, error)
           return []
         }
       })
@@ -76,7 +77,7 @@ export class TripService {
     if (modes.includes('biking')) {
       modePromises.push(
         this.planSharedVehicleTrips(request, dataSources).catch((error) => {
-          console.error('Shared vehicle planning failed:', error)
+          logError('Shared vehicle planning failed', error)
           return []
         }),
       )
@@ -88,7 +89,7 @@ export class TripService {
           this.planDrivingWithParkingTrip(request, dataSources)
             .then((trip) => trip ? [trip] : [])
             .catch((error) => {
-              console.error('Parking-aware driving failed:', error)
+              logError('Parking-aware driving failed', error)
               return []
             }),
         )
@@ -98,7 +99,7 @@ export class TripService {
           this.planBikingWithParkingTrip(request, dataSources)
             .then((trip) => trip ? [trip] : [])
             .catch((error) => {
-              console.error('Parking-aware biking failed:', error)
+              logError('Parking-aware biking failed', error)
               return []
             }),
         )
@@ -590,7 +591,7 @@ export class TripService {
         },
       }
     } catch (error) {
-      console.error('Walking route failed:', error)
+      logError('Walking route failed', error)
       return null
     }
   }
@@ -650,7 +651,7 @@ export class TripService {
         },
       }
     } catch (error) {
-      console.error('Wheelchair route failed:', error)
+      logError('Wheelchair route failed', error)
       return null
     }
   }
@@ -772,7 +773,7 @@ export class TripService {
         },
       }
     } catch (error) {
-      console.error('Multimodal driving failed:', error)
+      logError('Multimodal driving failed', error)
       return null
     }
   }
@@ -837,7 +838,7 @@ export class TripService {
         },
       }
     } catch (error) {
-      console.error('Direct driving failed:', error)
+      logError('Direct driving failed', error)
       return null
     }
   }
@@ -1463,7 +1464,7 @@ export class TripService {
         return true
       })
     } catch (error) {
-      console.error(`Parking search (${category}) failed:`, error)
+      logError(`Parking search (${category}) failed`, error)
       return []
     }
   }
@@ -1576,7 +1577,7 @@ export class TripService {
         },
       }
     } catch (error) {
-      console.error('Multimodal biking failed:', error)
+      logError('Multimodal biking failed', error)
       return null
     }
   }
@@ -1604,9 +1605,10 @@ export class TripService {
       )
 
       if (!route.routes.length) {
-        console.warn(
-          'Direct biking: routing returned no routes for',
-          `(${from.location.lat},${from.location.lng}) → (${to.location.lat},${to.location.lng})`,
+        logWarn(
+          'Direct biking: routing returned no routes',
+          undefined,
+          { endpoints: `(${from.location.lat},${from.location.lng}) → (${to.location.lat},${to.location.lng})` },
         )
         return null
       }
@@ -1644,7 +1646,7 @@ export class TripService {
         },
       }
     } catch (error) {
-      console.error('Direct biking failed:', error)
+      logError('Direct biking failed', error)
       return null
     }
   }
@@ -1840,7 +1842,7 @@ export class TripService {
       return transitRoutingService.getIntermodalRoute(req)
         .then(r => r.itineraries ?? [])
         .catch(e => {
-          console.error(`Intermodal query (${label}) failed:`, e)
+          logError(`Intermodal query (${label}) failed`, e)
           return [] as import('../types/integration.types').TransitItinerary[]
         })
     }
@@ -1973,7 +1975,7 @@ export class TripService {
           walkTrips, from, to, startTime, preferences,
         )
       } catch (error) {
-        console.error('Rideshare+transit composition failed:', error)
+        logError('Rideshare+transit composition failed', error)
       }
     }
 
@@ -2373,7 +2375,7 @@ export class TripService {
 
       return trips
     } catch (error) {
-      console.error(`Vehicle-access (${vehicle.type}) transit query failed:`, error)
+      logError(`Vehicle-access (${vehicle.type}) transit query failed`, error)
       return []
     }
   }
@@ -2447,7 +2449,7 @@ export class TripService {
       )
       return adapted.filter((t): t is TripResponse => t !== null)
     } catch (error) {
-      console.error('Intermodal query failed:', error)
+      logError('Intermodal query failed', error)
       return []
     }
   }
@@ -3124,7 +3126,7 @@ export class TripService {
     )
 
     const logFailure = (side: string) => (error: unknown) => {
-      console.error(`Rideshare ${side} variant failed:`, error)
+      logError(`Rideshare ${side} variant failed`, error)
       return null
     }
 

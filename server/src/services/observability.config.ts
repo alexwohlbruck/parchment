@@ -1,6 +1,8 @@
 import { getConfiguredIntegrations } from './integration.service'
 import { IntegrationId } from '../types/integration.enums'
 import type { IntegrationRecord } from '../schema/integrations.schema'
+import { setObservabilityConfig } from '../lib/otel'
+import { logger } from '../lib/logger'
 
 export interface ObservabilityConfig {
   endpoint: string
@@ -38,6 +40,21 @@ export async function getObservabilityConfig(): Promise<ObservabilityConfig | nu
   ].join(',')
 
   return { endpoint, headers, serviceName: process.env.OTEL_SERVICE_NAME ?? undefined }
+}
+
+/**
+ * Re-resolve the observability config and apply it to the live OTLP exporters.
+ * Call after the Axiom integration is created/updated/enabled/disabled/deleted
+ * so logging changes take effect immediately, without a server restart.
+ */
+export async function refreshObservability(): Promise<void> {
+  try {
+    const config = await getObservabilityConfig()
+    const active = setObservabilityConfig(config)
+    logger.info({ exporting: active }, 'Observability export config refreshed')
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to refresh observability config')
+  }
 }
 
 function getObservabilityConfigFromEnv(): ObservabilityConfig | null {

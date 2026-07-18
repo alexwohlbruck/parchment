@@ -25,6 +25,7 @@ import { requireAuth, getSession } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import { hasPermission, getPermissions } from '../services/auth.service'
 import { logger } from '../lib/logger'
+import { refreshObservability } from '../services/observability.config'
 
 const app = new Elysia({ prefix: '/integrations' })
 
@@ -350,6 +351,10 @@ app.post(
         effectiveScheme,
       )
 
+      // Apply logging config live so the Axiom integration starts exporting
+      // without a server restart.
+      if (integrationId === IntegrationId.AXIOM) await refreshObservability()
+
       return integration
     } catch (err: unknown) {
       if (err instanceof IntegrationSchemeConflictError) {
@@ -463,6 +468,13 @@ app.put(
       }
 
       const updatedIntegration = await updateIntegration(id, userId, updates)
+
+      // Apply logging config live (enable/disable, token/dataset change) so the
+      // Axiom integration takes effect without a server restart.
+      if (integration!.integrationId === IntegrationId.AXIOM) {
+        await refreshObservability()
+      }
+
       return updatedIntegration
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -623,6 +635,11 @@ app.delete(
       const userId: string | undefined = systemIntegration ? undefined : user.id
 
       await deleteIntegration(id, userId)
+
+      // Stop live log export when the Axiom integration is removed.
+      if (integration!.integrationId === IntegrationId.AXIOM) {
+        await refreshObservability()
+      }
 
       set.status = 204
       return null

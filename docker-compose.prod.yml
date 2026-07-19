@@ -46,8 +46,10 @@ services:
       # Self-hosted mode: grant all users full permissions without a subscription.
       # Only effective when billing is not configured.
       PARCHMENT_SELF_HOSTED: ${PARCHMENT_SELF_HOSTED:-false}
-      # Billing (optional) — requires BOTH a valid PARCHMENT_LICENSE and Polar
-      # credentials. POLAR_WEBHOOK_SECRET is required when billing is enabled.
+      # Subscription billing — Parchment Cloud only. Requires a signed
+      # PARCHMENT_LICENSE that self-hosted instances cannot obtain, so these
+      # have no effect when self-hosting (use PARCHMENT_SELF_HOSTED above).
+      # POLAR_WEBHOOK_SECRET is required when billing is enabled.
       PARCHMENT_LICENSE: ${PARCHMENT_LICENSE:-}
       POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN:-}
       POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET:-}

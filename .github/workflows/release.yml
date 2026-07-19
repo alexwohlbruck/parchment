@@ -260,7 +260,10 @@ jobs:
   build-ios:
     needs: [test]
     name: Build iOS app
-    runs-on: macos-15
+    # macos-latest ships Xcode 26 (iOS 26 SDK). macos-15 defaults to Xcode 16
+    # (iOS 18.5 SDK), which App Store Connect now rejects on upload (error 90725:
+    # apps must be built with the iOS 26 SDK or later). Match the upload runner.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
 

@@ -32,5 +32,7 @@ Then open **http://localhost:3001/docs** (live site: **https://docs.parchment.ap
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE). Free to self-host; cannot sell as a service without sharing source.
+Parchment is source-available under the **Apache License 2.0 with the Commons Clause** — see [LICENSE](LICENSE).
+
+In short: **free to self-host and use, including inside your business — but you may not sell it.** You can run it for yourself, your friends, or your company's internal use; fork it; and contribute back. You may not resell it, or host it as a paid service, where the value comes substantially from Parchment. See [LICENSING.md](LICENSING.md) for a plain-language explanation with examples.
 

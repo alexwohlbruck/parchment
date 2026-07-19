@@ -50,6 +50,7 @@ import { useRouter } from 'vue-router'
 import { ref, toRaw, watch, computed, Component } from 'vue'
 import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
+import { useOrientationService } from '@/services/orientation.service'
 import { useSearchStore } from '@/stores/search.store'
 import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
@@ -409,6 +410,9 @@ function mapService() {
 
   function locateUser() {
     const geo = useGeolocationService()
+    // Called from the locate button — a user gesture — so this is our chance
+    // to prompt for compass access on iOS, which powers the direction beam.
+    void useOrientationService().requestPermission()
     const speed = mapStore.settings.locateFlySpeed ?? LocateFlySpeed.NORMAL
     const duration = LOCATE_FLY_DURATIONS[speed]
 

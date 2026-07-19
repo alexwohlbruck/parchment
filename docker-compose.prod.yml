@@ -26,6 +26,8 @@ services:
     image: alexwohlbruck/parchment-server:latest
     environment:
       NODE_ENV: production
+      # Barrelman Martin tile server (host:port reachable from this container)
+      MARTIN_HOST: ${MARTIN_HOST:-}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@parchment-db:5432/${POSTGRES_DB}
       SERVER_ORIGIN: ${SERVER_ORIGIN}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN}

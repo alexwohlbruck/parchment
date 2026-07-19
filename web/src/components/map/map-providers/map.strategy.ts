@@ -213,7 +213,7 @@ export class MapStrategy {
    * north-relative as the map rotates (pitch stays viewport-flat so the dot
    * doesn't distort when the map is tilted). `null` hides the beam.
    */
-  setMarkerHeading(id: string, heading: number | null) {
+  setMarkerHeading(id: string, heading: number | null, spread = 1) {
     const marker = this.markers.get(id)
     if (!marker || typeof marker.setRotation !== 'function') return
 
@@ -231,6 +231,7 @@ export class MapStrategy {
       marker.setPitchAlignment('viewport')
     }
     marker.setRotation(heading)
+    element?.style.setProperty('--beam-spread', String(spread))
     element?.style.setProperty('--heading-opacity', '1')
   }
 

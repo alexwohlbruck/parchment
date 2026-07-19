@@ -35,6 +35,33 @@ const MARKER_ID = 'self'
 // See friend-locations-layer.ts for the rationale on this threshold.
 const POSITION_EPSILON_DEG = 0.0000005
 
+// Beam cone horizontal scale by heading confidence. 1 is the SVG's native
+// ~53° cone; tighter when the compass is confident, wider when it's unsure.
+const BEAM_SPREAD_DEFAULT = 1
+const BEAM_SPREAD_MIN = 0.55 // ~30° cone (confident)
+const BEAM_SPREAD_MAX = 2.4 // ~100° cone (uncalibrated / poor)
+
+// iOS `webkitCompassAccuracy` deviation range mapped onto the spread range.
+const ACCURACY_TIGHT_DEG = 10
+const ACCURACY_LOOSE_DEG = 60
+
+/**
+ * Map a heading-accuracy reading (degrees of uncertainty) to a beam spread.
+ * `null` means the platform gave no accuracy signal → default width; a
+ * negative value is iOS's "uncalibrated" flag → widest.
+ */
+function spreadFromAccuracy(accuracy: number | null): number {
+  if (accuracy == null) return BEAM_SPREAD_DEFAULT
+  if (accuracy < 0) return BEAM_SPREAD_MAX
+  const clamped = Math.min(
+    Math.max(accuracy, ACCURACY_TIGHT_DEG),
+    ACCURACY_LOOSE_DEG,
+  )
+  const t =
+    (clamped - ACCURACY_TIGHT_DEG) / (ACCURACY_LOOSE_DEG - ACCURACY_TIGHT_DEG)
+  return BEAM_SPREAD_MIN + t * (BEAM_SPREAD_MAX - BEAM_SPREAD_MIN)
+}
+
 export class UserLocationLayer extends BaseMarkerLayer {
   private geolocation = useGeolocationService()
   private orientation = useOrientationService()
@@ -45,10 +72,12 @@ export class UserLocationLayer extends BaseMarkerLayer {
   private headingWatchStop: WatchStopHandle | null = null
 
   /**
-   * Last heading pushed to the marker, and a dirty flag forcing a re-push
-   * after the marker is recreated (recreate resets rotation + beam opacity).
+   * Last heading + beam spread pushed to the marker, and a dirty flag forcing
+   * a re-push after the marker is recreated (recreate resets rotation, spread
+   * and beam opacity).
    */
   private lastHeadingApplied: number | null = null
+  private lastSpreadApplied = BEAM_SPREAD_DEFAULT
   private headingDirty = true
 
   /**
@@ -157,37 +186,48 @@ export class UserLocationLayer extends BaseMarkerLayer {
    */
   private startHeadingWatcher() {
     this.headingWatchStop = watch(
-      () => this.orientation.heading.value ?? this.geolocation.heading.value,
+      () => [
+        this.orientation.heading.value,
+        this.orientation.headingAccuracy.value,
+        this.geolocation.heading.value,
+      ],
       () => this.applyHeading(),
       { immediate: true },
     )
   }
 
   /**
-   * Push the current heading to the marker. Prefers the device compass (works
-   * while stationary); falls back to GPS course. `null` when neither is
-   * available, which hides the beam. Sub-degree changes are skipped unless the
-   * marker was just recreated (`headingDirty`).
+   * Push the current heading + beam width to the marker. Prefers the device
+   * compass (works while stationary); falls back to GPS course. `null` when
+   * neither is available, which hides the beam. The beam widens as the
+   * compass accuracy degrades (iOS only; a default width elsewhere). Skips
+   * redundant updates unless the marker was just recreated (`headingDirty`).
    */
   private applyHeading = () => {
     if (!this.mapAPI) return
     const fullId = `${this.idPrefix}${MARKER_ID}`
     if (!this.mapAPI.hasMarker(fullId)) return
 
-    const effective =
-      this.orientation.heading.value ?? this.geolocation.heading.value
+    const compass = this.orientation.heading.value
+    const effective = compass ?? this.geolocation.heading.value
+    // Accuracy only pairs with the compass source; GPS course carries none.
+    const accuracy =
+      compass != null ? this.orientation.headingAccuracy.value : null
+    const spread = spreadFromAccuracy(accuracy)
 
-    if (
-      !this.headingDirty &&
+    const headingSettled =
       effective != null &&
       this.lastHeadingApplied != null &&
       Math.abs(effective - this.lastHeadingApplied) < 1
-    ) {
+    const spreadSettled = Math.abs(spread - this.lastSpreadApplied) < 0.02
+
+    if (!this.headingDirty && headingSettled && spreadSettled) {
       return
     }
 
-    this.mapAPI.setMarkerHeading(fullId, effective)
+    this.mapAPI.setMarkerHeading(fullId, effective, spread)
     this.lastHeadingApplied = effective
+    this.lastSpreadApplied = spread
     this.headingDirty = false
   }
 

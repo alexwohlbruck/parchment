@@ -58,9 +58,10 @@ export interface MapMarkerAPI {
    * Rotate an already-mounted marker to a compass heading (degrees clockwise
    * from north) without recreating it — used by the user-location beam. Pass
    * `null` to hide the heading cue. The marker is rotated in map space so the
-   * heading stays north-relative as the map turns.
+   * heading stays north-relative as the map turns. `spread` is a horizontal
+   * scale for the beam cone (wider = less certain heading); defaults to 1.
    */
-  setMarkerHeading(id: string, heading: number | null): void
+  setMarkerHeading(id: string, heading: number | null, spread?: number): void
 }
 
 /**

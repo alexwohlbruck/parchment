@@ -94,13 +94,18 @@ const props = withDefaults(defineProps<Props>(), {
   position: absolute;
   left: 50%;
   top: 50%;
-  /* Anchor the cone's apex (bottom-centre of the SVG) at the dot centre. */
-  transform: translate(-50%, -100%);
+  /* Anchor the cone's apex (bottom-centre of the SVG) at the dot centre, then
+     scale horizontally by the layer-provided spread (wider = less certain
+     heading). scaleX pivots on the centreline, which passes through the apex,
+     so the cone stays anchored. */
+  transform: translate(-50%, -100%) scaleX(var(--beam-spread, 1));
+  /* Ease width changes as compass accuracy improves/degrades. */
+  transition: transform 0.3s ease;
   z-index: 0;
   /* Softens the cone edges into a diffuse beam. */
   filter: blur(2px);
   /* Toggled by the layer via setMarkerHeading; hidden until a heading is
-     known. No transition so recreating the marker never re-fades the beam. */
+     known. No opacity transition so recreating the marker never re-fades. */
   opacity: var(--heading-opacity, 0);
   pointer-events: none;
 }

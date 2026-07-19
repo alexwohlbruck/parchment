@@ -88,8 +88,8 @@ export function useMarkerLayersService() {
       hasMarker: (id: string) => mapStrategy?.hasMarker(id) ?? false,
       setMarkerLngLat: (id: string, lngLat: LngLat) =>
         mapStrategy?.setMarkerLngLat(id, lngLat),
-      setMarkerHeading: (id: string, heading: number | null) =>
-        mapStrategy?.setMarkerHeading(id, heading),
+      setMarkerHeading: (id: string, heading: number | null, spread?: number) =>
+        mapStrategy?.setMarkerHeading(id, heading, spread),
     }
 
     waypointsLayer.initialize(markerAPI)

@@ -9,6 +9,7 @@ import {
   RouteWaypoint,
   RoutingPreferences,
 } from '../types/unified-routing.types'
+import { logError, logWarn } from '../lib/logger'
 
 export class RoutingService {
   /**
@@ -44,7 +45,7 @@ export class RoutingService {
       if (preferredIntegration) {
         routingIntegrationRecord = preferredIntegration
       } else {
-        console.warn(
+        logWarn(
           `Preferred routing engine ${preferences.routingEngine} not found, using default`,
         )
       }
@@ -129,7 +130,7 @@ export class RoutingService {
       // The result is now already in unified format
       return result
     } catch (error) {
-      console.error('Routing integration error:', error)
+      logError('Routing integration error', error)
       throw new Error(
         `Failed to get route: ${
           error instanceof Error ? error.message : 'Unknown error'

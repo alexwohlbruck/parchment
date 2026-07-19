@@ -26,6 +26,7 @@
  */
 
 import { TravelMode, RoutingPreferences } from '../types/unified-routing.types'
+import { logWarn } from './logger'
 
 export interface CustomModelRule {
   if: string
@@ -123,10 +124,9 @@ function computeGraphHopperCustomModel(
       if (keys.every((k) => allowedKeys.has(k))) {
         return parsed
       }
-      console.warn(
-        'customModelOverride contained disallowed keys:',
-        keys.filter((k) => !allowedKeys.has(k)),
-      )
+      logWarn('customModelOverride contained disallowed keys', undefined, {
+        disallowedKeys: keys.filter((k) => !allowedKeys.has(k)),
+      })
     } catch {
       // Fall through to auto-generation
     }

@@ -1,5 +1,4 @@
 ### Changed
 
-* Subscription billing groundwork — license verification and Polar billing configuration wired up for the hosted service (no change for self-hosted instances)
-* Clearer self-hosting setup — the example environment file now points self-hosters to full-access mode and marks billing variables as hosted-only
-* Assorted fixes and internal improvements
+* More reliable error reporting — server-side errors and crashes now consistently reach the observability pipeline, including a live-reconfigure path when logging settings change
+* Hosted-deployment fixes for basemap map tiles

@@ -82,6 +82,58 @@ export function emitLogRecord(
 }
 
 /**
+ * Serialize an unknown thrown value into structured attributes. Extracts the
+ * name/message/stack from Error instances so the stack survives export (raw
+ * Error objects would otherwise be stringified to "[object Error]").
+ */
+export function serializeError(err: unknown): Record<string, unknown> {
+  if (err instanceof Error) {
+    return {
+      error: {
+        type: err.name,
+        message: err.message,
+        ...(err.stack && { stack: err.stack }),
+      },
+    }
+  }
+  return { error: { type: 'Unknown', message: String(err) } }
+}
+
+/**
+ * Log a handled error to stdout AND export it to OTLP (Axiom).
+ *
+ * Use this for caught, gracefully-handled errors in services/controllers —
+ * the ones that never reach the request middleware's onError and would
+ * otherwise be invisible in Axiom. Prefer this over `console.error`.
+ */
+export function logError(
+  message: string,
+  err?: unknown,
+  context: Record<string, unknown> = {},
+) {
+  emitLogRecord(
+    'error',
+    message,
+    { ...(err !== undefined ? serializeError(err) : {}), ...context },
+    { sendToOtlp: true, stdout: true },
+  )
+}
+
+/** Like {@link logError} but at warn level (expected/recoverable conditions). */
+export function logWarn(
+  message: string,
+  err?: unknown,
+  context: Record<string, unknown> = {},
+) {
+  emitLogRecord(
+    'warn',
+    message,
+    { ...(err !== undefined ? serializeError(err) : {}), ...context },
+    { sendToOtlp: true, stdout: true },
+  )
+}
+
+/**
  * OTel log attributes must be primitives or arrays of primitives.
  * Flatten nested objects to dot-notation strings for compatibility.
  */

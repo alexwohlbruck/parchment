@@ -5,6 +5,7 @@ import {
   IntegrationCapabilityId,
   IntegrationId,
 } from '../types/integration.types'
+import { logError } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/proxy' })
 
@@ -90,9 +91,7 @@ async function proxyTileRequest(
     const response = await fetch(targetUrl)
 
     if (!response.ok) {
-      console.error(
-        `${errorContext}: ${response.status} ${response.statusText}`,
-      )
+      logError(`${errorContext}: ${response.status} ${response.statusText}`)
       return new Response('Upstream error', { status: response.status })
     }
 
@@ -105,7 +104,7 @@ async function proxyTileRequest(
       },
     })
   } catch (error) {
-    console.error(`${errorContext} proxy error:`, error, 'params:', params)
+    logError(`${errorContext} proxy error`, error, { params })
     return new Response('Proxy error', { status: 500 })
   }
 }
@@ -135,7 +134,7 @@ app.get(
         },
       })
     } catch (error) {
-      console.error('Proxy error:', error)
+      logError('Proxy error', error)
       return new Response('Proxy error', { status: 500 })
     }
   },
@@ -236,7 +235,7 @@ app.get(
       const response = await fetch(tileUrl.toString())
 
       if (!response.ok) {
-        console.error(
+        logError(
           `Barrelman tile proxy: ${response.status} ${response.statusText}`,
         )
         return new Response('Upstream error', { status: response.status })
@@ -253,7 +252,7 @@ app.get(
         },
       })
     } catch (error) {
-      console.error('Barrelman tile proxy error:', error, 'params:', params)
+      logError('Barrelman tile proxy error', error, { params })
       return new Response('Proxy error', { status: 500 })
     }
   },

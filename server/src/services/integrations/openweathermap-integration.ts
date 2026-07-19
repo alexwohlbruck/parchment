@@ -7,6 +7,7 @@ import {
   WeatherCapability,
   WeatherData,
 } from '../../types/integration.types'
+import { logError } from '../../lib/logger'
 
 export interface OpenWeatherMapConfig extends IntegrationConfig {
   apiKey: string
@@ -98,7 +99,7 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
 
       return { success: true }
     } catch (error: any) {
-      console.error('Error testing OpenWeatherMap API:', error)
+      logError('Error testing OpenWeatherMap API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to OpenWeatherMap API',
@@ -165,7 +166,7 @@ export class OpenWeatherMapIntegration implements Integration<OpenWeatherMapConf
 
       return result
     } catch (error: any) {
-      console.error('Error fetching weather data:', error)
+      logError('Error fetching weather data', error)
       throw new Error(error.message || 'Failed to fetch weather data')
     }
   }

@@ -9,6 +9,7 @@ import {
 } from '../../types/integration.types'
 import { TransitDeparture, Place } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
+import { logError } from '../../lib/logger'
 
 const TRANSITLAND_API_BASE_URL = 'https://transit.land/api/v2/rest'
 
@@ -157,7 +158,7 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
       const data = await response.json()
       return data.stops || []
     } catch (error) {
-      console.error('Error searching stops in Transitland:', error)
+      logError('Error searching stops in Transitland', error)
       return []
     }
   }
@@ -222,7 +223,7 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
 
       return this.transformDepartures(collected)
     } catch (error) {
-      console.error('Error fetching departures from Transitland:', error)
+      logError('Error fetching departures from Transitland', error)
       return []
     }
   }
@@ -387,7 +388,10 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
           console.log(`[PERF] Transitland getStop (404): ${Date.now() - startTime}ms`)
           return null
         }
-        console.error('Transitland stop API error:', response.status, response.statusText)
+        logError('Transitland stop API error', undefined, {
+          status: response.status,
+          statusText: response.statusText,
+        })
         return null
       }
 
@@ -406,7 +410,7 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
       console.log(`[PERF] Transitland getStop (no stops): ${Date.now() - startTime}ms`)
       return null
     } catch (error) {
-      console.error(`[PERF] Error fetching stop from Transitland (${Date.now() - startTime}ms):`, error)
+      logError(`[PERF] Error fetching stop from Transitland (${Date.now() - startTime}ms)`, error)
       return null
     }
   }
@@ -427,7 +431,7 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
       // Convert Transitland stop to unified Place format
       return this.adaptStopToPlace(stop)
     } catch (error) {
-      console.error('Error getting place info from Transitland:', error)
+      logError('Error getting place info from Transitland', error)
       return null
     }
   }

@@ -16,6 +16,7 @@ import type { Place } from '../../types/place.types'
 import { GoogleAdapter } from './adapters/google-adapter'
 import { SOURCE } from '../../lib/constants'
 import { getLanguageCode } from '../../lib/i18n'
+import { logError, logWarn } from '../../lib/logger'
 
 // TODO: Use official Google client SDK for requests
 
@@ -96,7 +97,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       return { success: true }
     } catch (error: any) {
-      console.error('Error testing Google Maps API:', error)
+      logError('Error testing Google Maps API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Google Maps API',
@@ -148,9 +149,9 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       })
 
       if (!response.ok) {
-        console.error(`Google Place Details HTTP error: ${response.status}`)
+        logError(`Google Place Details HTTP error: ${response.status}`)
         if (response.status === 404) {
-          console.warn(`Place not found: ${placeId}`)
+          logWarn(`Place not found: ${placeId}`)
           return null
         }
         throw new Error(`Google API error: ${response.status}`)
@@ -158,7 +159,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       const data = await response.json()
       if (data.error) {
-        console.error('Google Place Details API error:', data.error)
+        logError('Google Place Details API error', data.error)
         return null
       }
 
@@ -170,7 +171,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       )
       return this.adapter.placeInfo.adaptPlaceDetails(data)
     } catch (error) {
-      console.error('Google place details error:', error)
+      logError('Google place details error', error)
       return null
     }
   }
@@ -252,7 +253,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
         }),
       )
     } catch (error) {
-      console.error('Google geocoding error:', error)
+      logError('Google geocoding error', error)
       return []
     }
   }
@@ -334,7 +335,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
         }),
       )
     } catch (error) {
-      console.error('Google reverse geocoding error:', error)
+      logError('Google reverse geocoding error', error)
       return []
     }
   }
@@ -358,7 +359,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     },
   ): Promise<Place[]> {
     if (!this.config.apiKey) {
-      console.error('Google Maps API key not configured')
+      logError('Google Maps API key not configured')
       return []
     }
 
@@ -406,7 +407,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       })
 
       if (!response.ok) {
-        console.error(
+        logError(
           `Google Places Text Search HTTP error: ${response.status}`,
         )
         throw new Error(`Google API error: ${response.status}`)
@@ -414,7 +415,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       const data = await response.json()
       if (data.error) {
-        console.error('Google Places Text Search API error:', data.error)
+        logError('Google Places Text Search API error', data.error)
         return []
       }
 
@@ -432,7 +433,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       return places
     } catch (error) {
-      console.error('Google Places Text Search error:', error)
+      logError('Google Places Text Search error', error)
       return []
     }
   }

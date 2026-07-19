@@ -2,6 +2,7 @@ import type { StreetImageryPreview } from '../types/place.types'
 import { IntegrationId } from '../types/integration.enums'
 import { integrationManager } from './integrations'
 import { MapillaryIntegration } from './integrations/mapillary-integration'
+import { logError } from '../lib/logger'
 
 function getMapillaryInstance(): MapillaryIntegration | null {
   const record = integrationManager
@@ -27,7 +28,7 @@ export async function fetchNearestStreetImage(
   try {
     return await mapillary.findNearestImage(lat, lng)
   } catch (error) {
-    console.error('[StreetImagery] Mapillary lookup failed:', error)
+    logError('[StreetImagery] Mapillary lookup failed', error)
     return null
   }
 }

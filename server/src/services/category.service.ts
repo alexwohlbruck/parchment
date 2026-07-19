@@ -2,6 +2,7 @@ import { CategoryResult } from '../types/search.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import { getLanguageCode } from '../lib/i18n'
 import { getPlaceCategory, resolveIcon } from '../lib/place-categories'
+import { logWarn } from '../lib/logger'
 
 /**
  * Custom aliases for common colloquial / alternative names not in the iD schema.
@@ -184,7 +185,7 @@ export class CategoryService {
             translations = enTranslations.en || {}
             presetTranslations = translations?.presets?.presets || {}
           } catch (enError) {
-            console.warn('Could not load translations for', apiLang)
+            logWarn('Could not load translations for', undefined, { apiLang })
           }
         }
       }

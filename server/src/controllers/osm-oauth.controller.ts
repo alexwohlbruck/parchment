@@ -15,6 +15,7 @@ import {
 import { IntegrationId } from '../types/integration.types'
 import { getOsmConfig } from '../config/osm.config'
 import { generateId } from '../util'
+import { logError } from '../lib/logger'
 
 const OSM_SCOPES = ['read_prefs', 'write_notes', 'write_api'] // read_prefs needed to fetch display name during OAuth callback
 
@@ -196,7 +197,7 @@ app.get(
 
       return oauthCallbackPage({ status: 'connected' })
     } catch (error: any) {
-      console.error('OSM OAuth2 callback error:', error)
+      logError('OSM OAuth2 callback error', error)
       const message =
         error instanceof arctic.OAuth2RequestError
           ? `OAuth2 error: ${error.code}`

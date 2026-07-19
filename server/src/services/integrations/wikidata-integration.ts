@@ -12,6 +12,7 @@ import {
 import type { Place, PlacePhoto } from '../../types/place.types'
 import { WikidataAdapter } from './adapters/wikidata-adapter'
 import { SOURCE } from '../../lib/constants'
+import { logError } from '../../lib/logger'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -77,7 +78,7 @@ export class WikidataIntegration implements Integration<WikidataConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Wikidata API:', error)
+      logError('Error testing Wikidata API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Wikidata API',
@@ -132,7 +133,7 @@ export class WikidataIntegration implements Integration<WikidataConfig> {
 
       // Validate that this looks like a Wikidata Q ID
       if (!wikidataId.match(/^Q\d+$/)) {
-        console.error(`Invalid Wikidata ID format: ${wikidataId}`)
+        logError(`Invalid Wikidata ID format: ${wikidataId}`)
         return null
       }
 
@@ -150,7 +151,7 @@ export class WikidataIntegration implements Integration<WikidataConfig> {
       )
 
       if (!response.data?.entities?.[wikidataId]) {
-        console.error('No entity found with ID:', wikidataId)
+        logError('No entity found with ID', undefined, { wikidataId })
         return null
       }
 
@@ -159,7 +160,7 @@ export class WikidataIntegration implements Integration<WikidataConfig> {
       // Use the adapter to convert to standardized Place format
       return this.adapter.placeInfo.adaptPlaceDetails(entity, wikidataId)
     } catch (error) {
-      console.error('Error fetching place from Wikidata:', error)
+      logError('Error fetching place from Wikidata', error)
       return null
     }
   }
@@ -188,7 +189,7 @@ export class WikidataIntegration implements Integration<WikidataConfig> {
 
       return response.data?.entities?.[wikidataId] || null
     } catch (error) {
-      console.error('Error fetching entity from Wikidata:', error)
+      logError('Error fetching entity from Wikidata', error)
       return null
     }
   }

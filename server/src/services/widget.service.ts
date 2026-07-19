@@ -12,6 +12,7 @@ import { matchTags } from '../lib/osm-presets'
 import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
 import { resolveDisplayChips } from '../lib/display-chips'
+import { logError } from '../lib/logger'
 
 /**
  * Check if a place is a transit stop based on its OSM tags/type.
@@ -368,7 +369,7 @@ async function fetchTransitDepartures(
     const response = await fetch(`${config.host}/transit/departures?${queryParams}`, { headers })
 
     if (!response.ok) {
-      console.error(`[Widget/Transit] Barrelman returned ${response.status}`)
+      logError(`[Widget/Transit] Barrelman returned ${response.status}`)
       return { departures: [], sources: [] }
     }
 
@@ -490,7 +491,7 @@ async function fetchTransitDepartures(
       sources,
     }
   } catch (error) {
-    console.error('[Widget/Transit] Barrelman departure fetch failed:', error)
+    logError('[Widget/Transit] Barrelman departure fetch failed', error)
     return { departures: [], sources: [] }
   }
 }
@@ -531,7 +532,7 @@ async function fetchBikeshareStatus(
     if (!response.ok) {
       // 404 just means this dock isn't in any known GBFS feed — not an error.
       if (response.status !== 404) {
-        console.error(`[Widget/Bikeshare] Barrelman returned ${response.status}`)
+        logError(`[Widget/Bikeshare] Barrelman returned ${response.status}`)
       }
       return { status: null, sources: [] }
     }
@@ -568,7 +569,7 @@ async function fetchBikeshareStatus(
       sources: [{ id: 'gbfs', name: status.systemName || status.operator || 'GBFS' }],
     }
   } catch (error) {
-    console.error('[Widget/Bikeshare] Barrelman station fetch failed:', error)
+    logError('[Widget/Bikeshare] Barrelman station fetch failed', error)
     return { status: null, sources: [] }
   }
 }
@@ -930,7 +931,7 @@ async function fetchParentPlaces(
           }
         }
       } catch (error) {
-        console.error('[Widget/Parent] is_in query failed, falling back to Nominatim:', error)
+        logError('[Widget/Parent] is_in query failed, falling back to Nominatim', error)
       }
     }
   }
@@ -973,7 +974,7 @@ async function fetchParentPlaces(
 
     return parents
   } catch (error) {
-    console.error('[Widget/RelatedPlaces] Error fetching parent places:', error)
+    logError('[Widget/RelatedPlaces] Error fetching parent places', error)
     return []
   }
 }

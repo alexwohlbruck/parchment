@@ -13,6 +13,7 @@ import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
 import { extractTransitIdentifiers, isTransitStopType, isTransitStop, createTransitInfo } from '../../../lib/transit-utils'
+import { logError } from '../../../lib/logger'
 
 /**
  * Interface for Nominatim hierarchy response (parent relations)
@@ -540,7 +541,7 @@ export class NominatimAdapter {
           tags: item.extratags || {}
         }))
     } catch (error) {
-      console.error('Error looking up parent relations:', error)
+      logError('Error looking up parent relations', error)
       return []
     }
   }

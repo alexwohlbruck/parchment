@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { SOURCE } from '../lib/constants'
 import packageJson from '../../package.json'
+import { logError } from '../lib/logger'
 
 // Wikidata API URLs
 const WIKIDATA_API_BASE = 'https://www.wikidata.org/w/api.php'
@@ -48,7 +49,7 @@ export const fetchWikidataImage = async (
 
     return url || null
   } catch (error) {
-    console.error('Error fetching Wikidata image:', error)
+    logError('Error fetching Wikidata image', error)
     return null
   }
 }
@@ -96,7 +97,7 @@ export const fetchWikidataBrandMeta = async (
 
     return { logoUrl, description }
   } catch (error) {
-    console.error('Error fetching Wikidata brand meta:', error)
+    logError('Error fetching Wikidata brand meta', error)
     return { logoUrl: null, description: null }
   }
 }
@@ -134,7 +135,7 @@ export const fetchWikidataBrandLogo = async (
 
     return url || null
   } catch (error) {
-    console.error('Error fetching Wikidata brand logo:', error)
+    logError('Error fetching Wikidata brand logo', error)
     return null
   }
 }

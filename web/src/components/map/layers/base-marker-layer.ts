@@ -54,6 +54,14 @@ export interface MapMarkerAPI {
    * friend-locations dead-reckoning) call this from their own rAF loop.
    */
   setMarkerLngLat(id: string, lngLat: LngLat): void
+  /**
+   * Rotate an already-mounted marker to a compass heading (degrees clockwise
+   * from north) without recreating it — used by the user-location beam. Pass
+   * `null` to hide the heading cue. The marker is rotated in map space so the
+   * heading stays north-relative as the map turns. `spread` is a horizontal
+   * scale for the beam cone (wider = less certain heading); defaults to 1.
+   */
+  setMarkerHeading(id: string, heading: number | null, spread?: number): void
 }
 
 /**

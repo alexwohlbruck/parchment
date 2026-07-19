@@ -15,6 +15,27 @@ const props = withDefaults(defineProps<Props>(), {
     class="user-location-marker"
     :class="{ 'navigation-mode': props.mode === 'navigation' }"
   >
+    <!--
+      Compass direction beam (dot mode). Points "up" in the marker's local
+      frame; the map layer rotates the whole marker to the device heading via
+      MapLibre `setRotation` (rotationAlignment 'map'), so it stays
+      north-relative as the map turns. Hidden until a heading is available,
+      toggled by the `--heading-opacity` custom property the layer sets.
+    -->
+    <div v-if="props.mode === 'dot'" class="heading-beam">
+      <svg width="72" height="72" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="user-heading-beam" cx="50%" cy="100%" r="100%">
+            <stop offset="0%" stop-color="hsl(var(--primary))" stop-opacity="0.5" />
+            <stop offset="55%" stop-color="hsl(var(--primary))" stop-opacity="0.18" />
+            <stop offset="100%" stop-color="hsl(var(--primary))" stop-opacity="0" />
+          </radialGradient>
+        </defs>
+        <!-- Cone with its apex at the dot centre (36,72), fanning upward. -->
+        <path d="M36 72 L6 12 Q36 2 66 12 Z" fill="url(#user-heading-beam)" />
+      </svg>
+    </div>
+
     <!-- Accuracy pulse ring (dot mode only) -->
     <div v-if="props.mode === 'dot'" class="accuracy-ring" />
 
@@ -67,6 +88,26 @@ const props = withDefaults(defineProps<Props>(), {
   border: 2.5px solid white;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   transition: transform 0.3s ease;
+}
+
+.heading-beam {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* Anchor the cone's apex (bottom-centre of the SVG) at the dot centre, then
+     scale horizontally by the layer-provided spread (wider = less certain
+     heading). scaleX pivots on the centreline, which passes through the apex,
+     so the cone stays anchored. */
+  transform: translate(-50%, -100%) scaleX(var(--beam-spread, 1));
+  /* Ease width changes as compass accuracy improves/degrades. */
+  transition: transform 0.3s ease;
+  z-index: 0;
+  /* Softens the cone edges into a diffuse beam. */
+  filter: blur(2px);
+  /* Toggled by the layer via setMarkerHeading; hidden until a heading is
+     known. No opacity transition so recreating the marker never re-fades. */
+  opacity: var(--heading-opacity, 0);
+  pointer-events: none;
 }
 
 .accuracy-ring {

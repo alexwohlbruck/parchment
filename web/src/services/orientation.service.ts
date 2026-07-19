@@ -46,6 +46,11 @@ function screenAngle(): number {
 
 function orientationService() {
   const heading = ref<number | null>(null)
+  // Heading uncertainty in degrees, as reported by iOS `webkitCompassAccuracy`
+  // (lower = more confident, negative = uncalibrated). `null` where the
+  // platform gives no accuracy signal (Chrome/Android), so callers can fall
+  // back to a default beam width.
+  const headingAccuracy = ref<number | null>(null)
   const permissionState = ref<OrientationPermissionState>('prompt')
   let listening = false
 
@@ -61,6 +66,10 @@ function orientationService() {
       !Number.isNaN(e.webkitCompassHeading)
     ) {
       heading.value = e.webkitCompassHeading
+      headingAccuracy.value =
+        typeof e.webkitCompassAccuracy === 'number'
+          ? e.webkitCompassAccuracy
+          : null
       return
     }
 
@@ -69,6 +78,8 @@ function orientationService() {
     // heading is its complement, offset by the current screen rotation.
     if (e.absolute && e.alpha != null) {
       heading.value = (360 - e.alpha + screenAngle() + 360) % 360
+      // The DeviceOrientation API carries no heading-accuracy on this path.
+      headingAccuracy.value = null
     }
   }
 
@@ -150,6 +161,7 @@ function orientationService() {
 
   return {
     heading: readonly(heading),
+    headingAccuracy: readonly(headingAccuracy),
     permissionState: readonly(permissionState),
     isSupported,
     requestPermission,

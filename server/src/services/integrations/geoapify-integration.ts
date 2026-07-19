@@ -13,6 +13,7 @@ import {
   MapBounds,
 } from '../../types/integration.types'
 import { Place } from '../../types/place.types'
+import { logError } from '../../lib/logger'
 import {
   RouteRequest,
   UnifiedRoute,
@@ -145,7 +146,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Geoapify API:', error)
+      logError('Error testing Geoapify API', error)
       return {
         success: false,
         message: error.response?.data?.message || error.message || 'Failed to connect to Geoapify API',
@@ -188,7 +189,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         this.adapter.adaptPlaceDetails(feature),
       )
     } catch (error) {
-      console.error('Error searching Geoapify places:', error)
+      logError('Error searching Geoapify places', error)
       return []
     }
   }
@@ -250,7 +251,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         this.adapter.adaptPlaceDetails(feature),
       )
     } catch (error) {
-      console.error('Error getting Geoapify autocomplete:', error)
+      logError('Error getting Geoapify autocomplete', error)
       return []
     }
   }
@@ -298,7 +299,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         this.adapter.adaptPlaceDetails(feature),
       )
     } catch (error) {
-      console.error('Error geocoding with Geoapify:', error)
+      logError('Error geocoding with Geoapify', error)
       return []
     }
   }
@@ -336,7 +337,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         this.adapter.adaptPlaceDetails(feature),
       )
     } catch (error) {
-      console.error('Error reverse geocoding with Geoapify:', error)
+      logError('Error reverse geocoding with Geoapify', error)
       return []
     }
   }
@@ -368,7 +369,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
 
       return this.adapter.adaptPlaceDetails(response.data.features[0])
     } catch (error) {
-      console.error('[Geoapify] Error getting place details:', error)
+      logError('[Geoapify] Error getting place details', error)
       return null
     }
   }

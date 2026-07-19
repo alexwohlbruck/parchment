@@ -12,6 +12,7 @@ import { SOURCE } from '../lib/constants.js'
 import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
 import { fetchNearestStreetImage } from '../services/street-imagery.service'
+import { logError } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/places' })
   .use(getSession)
@@ -145,7 +146,7 @@ app.get(
 
       return place
     } catch (err) {
-      console.error('Error in place lookup:', err)
+      logError('Error in place lookup', err)
       return status(500, {
         message: t('errors.place.retrievalError'),
       })
@@ -188,7 +189,7 @@ app.get(
       const result = await fetchWidgetData(widgetType, query as Record<string, string>)
       return result
     } catch (err) {
-      console.error(`Error fetching widget data (${widgetType}):`, err)
+      logError(`Error fetching widget data (${widgetType})`, err)
       return status(500, {
         message: err instanceof Error ? err.message : 'Error fetching widget data',
       })
@@ -225,7 +226,7 @@ app.get(
       const preview = await fetchNearestStreetImage(lat, lng)
       return { preview }
     } catch (err) {
-      console.error('Error fetching street imagery:', err)
+      logError('Error fetching street imagery', err)
       return status(500, {
         message: err instanceof Error ? err.message : 'Error fetching street imagery',
       })

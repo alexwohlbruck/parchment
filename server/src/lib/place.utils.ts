@@ -4,6 +4,7 @@ import {
   getPlaceType as getOSMPlaceType,
   type GeometryType,
 } from './osm-presets'
+import { logError } from './logger'
 
 export function getPlaceType(
   tags: Record<string, string>,
@@ -89,7 +90,7 @@ export function parseOpeningHoursForUnifiedFormat(
 
     return result.length > 0 ? result : null
   } catch (error) {
-    console.error('Error parsing opening hours:', error)
+    logError('Error parsing opening hours', error)
     return null
   }
 }

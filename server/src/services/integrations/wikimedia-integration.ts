@@ -12,6 +12,7 @@ import {
 import type { Place } from '../../types/place.types'
 import { WikimediaAdapter } from './adapters/wikimedia-adapter'
 import { SOURCE } from '../../lib/constants'
+import { logError, logWarn } from '../../lib/logger'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -83,7 +84,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Wikimedia Commons API:', error)
+      logError('Error testing Wikimedia Commons API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Wikimedia Commons API',
@@ -192,7 +193,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
         createdAt: timestamp,
       }
     } catch (error) {
-      console.error('Error fetching place from Wikimedia Commons:', error)
+      logError('Error fetching place from Wikimedia Commons', error)
       return null
     }
   }
@@ -272,10 +273,10 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       // TODO: Implement geographic search by coordinates
       // This would require using a geographic search API or service
-      console.warn('Geographic image search not yet implemented for Wikimedia Commons')
+      logWarn('Geographic image search not yet implemented for Wikimedia Commons')
       return []
     } catch (error) {
-      console.error('Error fetching imagery from Wikimedia Commons:', error)
+      logError('Error fetching imagery from Wikimedia Commons', error)
       return []
     }
   }
@@ -317,7 +318,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
       )
 
       if (!response.data?.query?.pages) {
-        console.warn(`No images found in category: ${categoryName}`)
+        logWarn(`No images found in category: ${categoryName}`)
         return []
       }
 
@@ -331,7 +332,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       return images
     } catch (error) {
-      console.error('Error fetching images from Wikimedia Commons category:', error)
+      logError('Error fetching images from Wikimedia Commons category', error)
       return []
     }
   }
@@ -410,7 +411,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       return images
     } catch (error) {
-      console.error('Error fetching images from Wikimedia Commons gallery:', error)
+      logError('Error fetching images from Wikimedia Commons gallery', error)
       return []
     }
   }
@@ -436,7 +437,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       return fileNames
     } catch (error) {
-      console.warn('Error parsing gallery content:', error)
+      logWarn('Error parsing gallery content', error)
       return []
     }
   }
@@ -484,7 +485,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       return images
     } catch (error) {
-      console.error('Error searching Wikimedia Commons images:', error)
+      logError('Error searching Wikimedia Commons images', error)
       return []
     }
   }

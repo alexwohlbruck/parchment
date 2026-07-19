@@ -12,6 +12,7 @@ import { OverpassIntegration } from '../services/integrations/overpass-integrati
 import { categoryService } from '../services/category.service'
 import { categoryPalette } from '../lib/place-categories'
 import { getPresetById, getPresetFields } from '../lib/osm-presets'
+import { logError } from '../lib/logger'
 
 const searchRouter = new Elysia({ prefix: '/search' })
   .use(optionalAuth)
@@ -139,7 +140,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           executedAt: new Date().toISOString(),
         }
       } catch (err) {
-        console.error('Error executing route search:', err)
+        logError('Error executing route search', err)
         return status(500, {
           message:
             err instanceof Error
@@ -200,7 +201,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           executedAt: new Date().toISOString(),
         }
       } catch (err) {
-        console.error('Error executing category search:', err)
+        logError('Error executing category search', err)
         return status(500, {
           message:
             err instanceof Error
@@ -264,7 +265,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           executedAt: new Date().toISOString(),
         }
       } catch (err) {
-        console.error('Error executing brand search:', err)
+        logError('Error executing brand search', err)
         return status(500, {
           message:
             err instanceof Error ? err.message : 'Failed to execute brand search',
@@ -324,7 +325,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           totalCount: categories.length,
         }
       } catch (err) {
-        console.error('Error loading categories:', err)
+        logError('Error loading categories', err)
         return status(500, {
           message: t('errors.search.categoriesLoadFailed'),
         })
@@ -356,7 +357,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
 
         return category
       } catch (err) {
-        console.error('Error getting category:', err)
+        logError('Error getting category', err)
         return status(500, {
           message: t('errors.search.categoryFailed'),
         })

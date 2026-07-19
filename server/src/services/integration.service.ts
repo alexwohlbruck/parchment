@@ -21,7 +21,7 @@ import {
   encryptIntegrationConfig,
   decryptIntegrationConfig,
 } from '../lib/integration-encryption'
-import { logger } from '../lib/logger'
+import { logger, logError } from '../lib/logger'
 import { getPersonalBlobsByTypePrefix } from './personal-blob.service'
 
 // Personal-blob type namespace for user-e2ee integration configs.
@@ -483,8 +483,8 @@ async function reconcileSystemCapabilities(
         `[integrations] Added new capabilit${missing.length === 1 ? 'y' : 'ies'} to ${record.integrationId}: ${missing.join(', ')}`,
       )
     } catch (err) {
-      console.error(
-        `[integrations] Failed to reconcile capabilities for ${record.integrationId}:`,
+      logError(
+        `Failed to reconcile capabilities for ${record.integrationId}`,
         err,
       )
     }
@@ -517,8 +517,8 @@ export async function initializeIntegrations() {
     for (let i = 0; i < systemResults.length; i++) {
       const result = systemResults[i]
       if (result.status === 'rejected') {
-        console.error(
-          `Failed to initialize system integration ${systemIntegrations[i].integrationId}:`,
+        logError(
+          `Failed to initialize system integration ${systemIntegrations[i].integrationId}`,
           result.reason,
         )
       }
@@ -569,8 +569,8 @@ export async function initializeIntegrations() {
         for (let i = 0; i < results.length; i++) {
           const result = results[i]
           if (result.status === 'rejected') {
-            console.error(
-              `Failed to initialize integration ${serverKeyIntegrations[i].integrationId} for user ${user.id}:`,
+            logError(
+              `Failed to initialize integration ${serverKeyIntegrations[i].integrationId} for user ${user.id}`,
               result.reason,
             )
           }
@@ -580,8 +580,8 @@ export async function initializeIntegrations() {
     for (let i = 0; i < userResults.length; i++) {
       const result = userResults[i]
       if (result.status === 'rejected') {
-        console.error(
-          `Failed to get integrations for user ${allUsers[i].id}:`,
+        logError(
+          `Failed to get integrations for user ${allUsers[i].id}`,
           result.reason,
         )
       }
@@ -589,7 +589,7 @@ export async function initializeIntegrations() {
 
     console.log('Integration initialization completed')
   } catch (error) {
-    console.error('Failed to initialize integrations:', error)
+    logError('Failed to initialize integrations', error)
     throw error
   }
 }

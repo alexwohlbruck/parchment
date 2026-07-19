@@ -6,6 +6,8 @@ dist
 .env.test
 # E2E env with secrets – do not commit
 web/e2e/env.test
+# Infisical CLI project link (local dev convenience; keeps repo provider-agnostic)
+.infisical.json
 
 # Playwright
 playwright-report/

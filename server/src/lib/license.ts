@@ -5,7 +5,8 @@ ed.hashes.sha512 = (...m) => sha512(ed.etc.concatBytes(...m))
 
 // Ed25519 public key for license verification. Only Parchment's
 // official build pipeline holds the corresponding private key.
-const LICENSE_PUBLIC_KEY = 'a]placeholder-replace-with-real-key'
+const LICENSE_PUBLIC_KEY =
+  'cf8d2d32bd78e1f58649ca9c1b6af18ba66e2e5559a91ba65c2f9b15e39d7d46'
 
 export type LicensePayload = {
   org: string

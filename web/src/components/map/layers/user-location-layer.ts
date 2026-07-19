@@ -17,6 +17,7 @@ import {
   type MarkerData,
 } from './base-marker-layer'
 import { useGeolocationService } from '@/services/geolocation.service'
+import { useOrientationService } from '@/services/orientation.service'
 import {
   buildTrack,
   predict,
@@ -36,10 +37,19 @@ const POSITION_EPSILON_DEG = 0.0000005
 
 export class UserLocationLayer extends BaseMarkerLayer {
   private geolocation = useGeolocationService()
+  private orientation = useOrientationService()
 
   private track: Track | null = null
   private unregisterTick: (() => void) | null = null
   private samplesWatchStop: WatchStopHandle | null = null
+  private headingWatchStop: WatchStopHandle | null = null
+
+  /**
+   * Last heading pushed to the marker, and a dirty flag forcing a re-push
+   * after the marker is recreated (recreate resets rotation + beam opacity).
+   */
+  private lastHeadingApplied: number | null = null
+  private headingDirty = true
 
   /**
    * Last position pushed to maplibre. Lets the scheduler tick skip
@@ -67,6 +77,7 @@ export class UserLocationLayer extends BaseMarkerLayer {
   initialize(mapAPI: MapMarkerAPI) {
     super.initialize(mapAPI)
     this.startSampleWatcher()
+    this.startHeadingWatcher()
     this.unregisterTick = registerTick(this.tick)
   }
 
@@ -138,6 +149,49 @@ export class UserLocationLayer extends BaseMarkerLayer {
   }
 
   /**
+   * Watch the effective heading (device compass, falling back to GPS
+   * course-over-ground) and rotate the marker's direction beam in place.
+   * Rotation goes through `setMarkerHeading`, not a prop, so the marker
+   * isn't recreated on every heading change — that would restart the pulse
+   * animation and thrash the Vue instance.
+   */
+  private startHeadingWatcher() {
+    this.headingWatchStop = watch(
+      () => this.orientation.heading.value ?? this.geolocation.heading.value,
+      () => this.applyHeading(),
+      { immediate: true },
+    )
+  }
+
+  /**
+   * Push the current heading to the marker. Prefers the device compass (works
+   * while stationary); falls back to GPS course. `null` when neither is
+   * available, which hides the beam. Sub-degree changes are skipped unless the
+   * marker was just recreated (`headingDirty`).
+   */
+  private applyHeading = () => {
+    if (!this.mapAPI) return
+    const fullId = `${this.idPrefix}${MARKER_ID}`
+    if (!this.mapAPI.hasMarker(fullId)) return
+
+    const effective =
+      this.orientation.heading.value ?? this.geolocation.heading.value
+
+    if (
+      !this.headingDirty &&
+      effective != null &&
+      this.lastHeadingApplied != null &&
+      Math.abs(effective - this.lastHeadingApplied) < 1
+    ) {
+      return
+    }
+
+    this.mapAPI.setMarkerHeading(fullId, effective)
+    this.lastHeadingApplied = effective
+    this.headingDirty = false
+  }
+
+  /**
    * Per-frame work, called by the shared animation scheduler. Returns
    * `'active'` when the dot actually moved this frame so the scheduler
    * keeps ticking; `'idle'` otherwise so it can sleep.
@@ -170,9 +224,9 @@ export class UserLocationLayer extends BaseMarkerLayer {
    * one frame and snaps it to the raw sample before the next rAF
    * tick moves it to the predicted position.
    *
-   * Heading is bucketed to 5° so navigation-mode rotation still
-   * updates frequently enough to feel responsive without thrashing
-   * the Vue instance every sample.
+   * Heading is deliberately excluded from the recreate snapshot — the
+   * beam is rotated in place via `setMarkerHeading`, so heading changes
+   * never remount the marker (which would restart the pulse animation).
    */
   protected updateMarkers(data: MarkerData[]) {
     if (!this.mapAPI) return
@@ -204,6 +258,8 @@ export class UserLocationLayer extends BaseMarkerLayer {
       // last-rendered cache so the scheduler tick force-emits the
       // predicted position on the next frame.
       this.lastRendered = null
+      // Recreate also resets the beam rotation + opacity; force a re-push.
+      this.headingDirty = true
     }
 
     for (const oldId of this.currentMarkerIds) {
@@ -216,13 +272,16 @@ export class UserLocationLayer extends BaseMarkerLayer {
       this.lastRendered = null
     }
     this.currentMarkerIds = newMarkerIds
-    if (data.length > 0) requestTick()
+    if (data.length > 0) {
+      requestTick()
+      // Re-apply the beam heading to the (possibly freshly created) marker.
+      this.applyHeading()
+    }
   }
 
   private snapshotProps(markerData: MarkerData): string {
     const p = markerData.props as {
       accuracy?: number | null
-      heading?: number | null
       mode?: 'dot' | 'navigation'
     }
     return [
@@ -230,10 +289,6 @@ export class UserLocationLayer extends BaseMarkerLayer {
       // 5m accuracy buckets — the pulse ring is roughly that resolution
       // visually, so finer grain wouldn't change anything on screen.
       p.accuracy != null ? Math.floor(p.accuracy / 5) : 'na',
-      // 5° heading buckets — fine enough for the navigation arrow not
-      // to look snappy, coarse enough to skip recreates on tiny GPS
-      // heading wobble.
-      p.heading != null ? Math.round(p.heading / 5) : 'na',
     ].join('|')
   }
 
@@ -242,6 +297,8 @@ export class UserLocationLayer extends BaseMarkerLayer {
     this.unregisterTick = null
     this.samplesWatchStop?.()
     this.samplesWatchStop = null
+    this.headingWatchStop?.()
+    this.headingWatchStop = null
     this.track = null
     this.lastSnapshot = null
     this.lastRendered = null

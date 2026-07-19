@@ -41,6 +41,20 @@ services:
       # In production the server refuses to boot without these.
       SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY}
       PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY}
+      # Registration mode: 'invite' (admin creates users) or 'open' (self-register)
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-invite}
+      # Self-hosted mode: grant all users full permissions without a subscription.
+      # Only effective when billing is not configured.
+      PARCHMENT_SELF_HOSTED: ${PARCHMENT_SELF_HOSTED:-false}
+      # Billing (optional) — requires BOTH a valid PARCHMENT_LICENSE and Polar
+      # credentials. POLAR_WEBHOOK_SECRET is required when billing is enabled.
+      PARCHMENT_LICENSE: ${PARCHMENT_LICENSE:-}
+      POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN:-}
+      POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET:-}
+      POLAR_ORGANIZATION_ID: ${POLAR_ORGANIZATION_ID:-}
+      POLAR_BASIC_PRODUCT_ID: ${POLAR_BASIC_PRODUCT_ID:-}
+      POLAR_PREMIUM_PRODUCT_ID: ${POLAR_PREMIUM_PRODUCT_ID:-}
+      POLAR_SANDBOX: ${POLAR_SANDBOX:-false}
     ports:
       - "5000:5000"
     volumes:

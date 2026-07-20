@@ -569,6 +569,33 @@
   font-display: swap;
 }
 
+/* Exposure has no weight axis; its EXPO axis drives thickness
+   (-100 = thickest ... 0 = default ... 100 = thinnest). A base default plus
+   per-header overrides. Only elements carrying `font-display` render in
+   Exposure (e.g. <H3>/<h3 class="font-display"> and a few p/span). */
+.font-display {
+  font-variation-settings: 'EXPO' -7;
+}
+
+h1.font-display {
+  font-variation-settings: 'EXPO' -14;
+}
+h2.font-display {
+  font-variation-settings: 'EXPO' -15;
+}
+h3.font-display {
+  font-variation-settings: 'EXPO' -16;
+}
+h4.font-display {
+  font-variation-settings: 'EXPO' -17;
+}
+h5.font-display {
+  font-variation-settings: 'EXPO' -19;
+}
+h6.font-display {
+  font-variation-settings: 'EXPO' -21;
+}
+
 :root {
   --font: var(--font-sans);
   --font-display: var(--font-serif);

@@ -17,7 +17,7 @@
     'Segoe UI Symbol', 'Noto Color Emoji';
 
   --font-serif:
-    'Boston Angel', ui-serif, Georgia, serif;
+    'Exposure', ui-serif, Georgia, serif;
 
   --font-mono:
     'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -562,8 +562,8 @@
 }
 
 @font-face {
-  font-family: 'Boston Angel';
-  src: url('@/assets/fonts/BostonAngel-Regular.ttf') format('truetype');
+  font-family: 'Exposure';
+  src: url('@/assets/fonts/Exposure-Variable.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;

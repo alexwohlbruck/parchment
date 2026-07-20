@@ -456,6 +456,9 @@
   font-weight: 500;
   letter-spacing: -0.005em;
   font-feature-settings: 'liga' 0, 'ss01' 0, 'ss02' 0, 'ss03' 0, 'ss04' 0, 'ss05' 0, 'ss06' 0;
+  /* Base Exposure thickness for non-heading display text (p/span). Headings
+     get per-level thickness from the unlayered h1..h6 rules further down. */
+  font-variation-settings: 'EXPO' -7;
 }
 
 @utility depth {
@@ -553,7 +556,10 @@
     border-color: var(--color-border, currentcolor);
   }
 
-  h1, h2 {
+  /* h1..h3 are display titles (page/section headers, names) → Exposure.
+     h4..h6 stay sans; they're used for small structural labels (settings
+     rows, detail sub-sections, etc.), not display titles. */
+  h1, h2, h3 {
     font-family: var(--font-display);
     font-weight: 500;
     letter-spacing: -0.005em;
@@ -570,31 +576,28 @@
 }
 
 /* Exposure has no weight axis; its EXPO axis drives thickness
-   (-100 = thickest ... 0 = default ... 100 = thinnest). A base default plus
-   per-header overrides. Only elements carrying `font-display` render in
-   Exposure (e.g. <H3>/<h3 class="font-display"> and a few p/span). */
-.font-display {
-  font-variation-settings: 'EXPO' -7;
-}
-
-h1.font-display {
-  font-variation-settings: 'EXPO' -14;
-}
-h2.font-display {
-  font-variation-settings: 'EXPO' -15;
-}
-h3.font-display {
-  font-variation-settings: 'EXPO' -16;
-}
-h4.font-display {
-  font-variation-settings: 'EXPO' -17;
-}
-h5.font-display {
-  font-variation-settings: 'EXPO' -19;
-}
-h6.font-display {
-  font-variation-settings: 'EXPO' -21;
-}
+   (-100 = thickest ... 0 = default ... 100 = thinnest). h1..h3 use the display
+   font by default (see the base rule above); these set the per-level thickness.
+   h4..h6 stay sans, so no EXPO rules for them. Left unlayered so they win over
+   the .font-display utility's base EXPO on any element that carries the class. */
+   h1 {
+     font-variation-settings: 'EXPO' -24;
+   }
+   h2 {
+     font-variation-settings: 'EXPO' -22;
+   }
+   h3 {
+     font-variation-settings: 'EXPO' -20;
+   }
+   h4 {
+     font-variation-settings: 'EXPO' -18;
+   }
+   h5 {
+     font-variation-settings: 'EXPO' -16;
+   }
+   h6 {
+     font-variation-settings: 'EXPO' -14;
+   }
 
 :root {
   --font: var(--font-sans);

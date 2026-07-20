@@ -319,7 +319,9 @@ watch(
       </div>
 
       <div class="flex-1 min-w-0">
-        <h1 class="text-[28px] leading-[1.05] line-clamp-2">
+        <!-- pb/-mb pair gives Exposure's descenders room inside the
+             line-clamp overflow without changing the element's layout height -->
+        <h1 class="text-[28px] leading-[1.05] line-clamp-2 pb-[0.2em] -mb-[0.2em]">
           {{ displayName }}
         </h1>
       </div>

@@ -38,7 +38,7 @@ const {
       class="sticky top-0 z-10 -mx-4 px-4 md:-ml-6 md:pl-6 pt-2 pb-1.5 flex justify-between items-center bg-background border-b"
     >
       <div>
-        <H5 v-if="title">{{ title }}</H5>
+        <H5 v-if="title" class="font-display">{{ title }}</H5>
         <Caption v-if="description">{{ description }}</Caption>
       </div>
       <slot name="actions"></slot>

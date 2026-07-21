@@ -1,4 +1,12 @@
+### Added
+
+* Compass heading beam — the location marker now shows a live direction beam that widens when the compass reading is less certain
+
 ### Changed
 
-* More reliable error reporting — server-side errors and crashes now consistently reach the observability pipeline, including a live-reconfigure path when logging settings change
-* Hosted-deployment fixes for basemap map tiles
+* Refreshed heading typography — headings now use the Exposure display typeface, with weight tuned per heading level
+* Further error-reporting reliability and hosted-deployment tile fixes
+
+### Fixed
+
+* Saved map layers now load immediately after a fresh sign-in, instead of only after a reload

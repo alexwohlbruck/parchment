@@ -111,6 +111,39 @@ function handleExternalLinkClick(event: MouseEvent) {
   }
 }
 
+// Post-auth client bootstrap: load user-owned data and initialize the
+// map/realtime layers. Runs once per authenticated session. Guarded so it
+// can be safely invoked from both the initial mount (cached session) and the
+// auth watcher (fresh sign-in) without double-executing.
+let authBootstrapped = false
+async function bootstrapAuthenticatedUser() {
+  if (authBootstrapped || !authStore.me) return
+  authBootstrapped = true
+
+  // These calls return immediately if cached, refreshing data in background
+  await integrationService.fetchAvailableIntegrations()
+  // Load user-owned layers + default templates + user state sidecar
+  await layersStore.loadLayers()
+  // Frequents are standalone bookmarks (no collection), so hydrate them
+  // directly — the collection hydrate won't surface them.
+  void bookmarksService.fetchFrequents()
+  // Fetch user vehicles for trip planning
+  vehiclesStore.fetchVehicles()
+  // Initialize categories and palette (returns from cache instantly if available)
+  categoryStore.init()
+  categoryPaletteStore.loadPalette()
+  // Initialize friend locations layer (watches visibility and polls accordingly)
+  // Requires social permissions — skip for free users to avoid 403s
+  if (authService.hasPermission(PermissionId.SOCIAL_READ)) {
+    friendLocationsLayer.initialize()
+  }
+  // Initialize tracker locations layer (handles marker click → detail navigation)
+  trackerLocationsLayer.initialize()
+  // Open the realtime WebSocket now that the user is known. Disconnects
+  // and reconnects across signin/signout are handled by the auth watcher below.
+  realtimeConnect()
+}
+
 onMounted(async () => {
   // TODO: Use maplibre if not authed or not on paid plan
   commandService.bindAllHotkeysToCommands()
@@ -121,31 +154,9 @@ onMounted(async () => {
   // This provides Mapbox token, OSM server URL, etc. to the client.
   await integrationService.fetchConfiguredIntegrations()
 
-  if (authStore.me) {
-    // These calls return immediately if cached, refreshing data in background
-    await integrationService.fetchAvailableIntegrations()
-    // Load user-owned layers + default templates + user state sidecar
-    await layersStore.loadLayers()
-    // Frequents are standalone bookmarks (no collection), so hydrate them
-    // directly — the collection hydrate won't surface them.
-    void bookmarksService.fetchFrequents()
-    // Fetch user vehicles for trip planning
-    vehiclesStore.fetchVehicles()
-    // Initialize categories and palette (returns from cache instantly if available)
-    categoryStore.init()
-    categoryPaletteStore.loadPalette()
-    // Initialize friend locations layer (watches visibility and polls accordingly)
-    // Requires social permissions — skip for free users to avoid 403s
-    if (authService.hasPermission(PermissionId.SOCIAL_READ)) {
-      friendLocationsLayer.initialize()
-    }
-    // Initialize tracker locations layer (handles marker click → detail navigation)
-    trackerLocationsLayer.initialize()
-    // Open the realtime WebSocket now that the user is known. Disconnects
-    // and reconnects across signin/signout are handled by the watcher
-    // below.
-    realtimeConnect()
-  }
+  // Bootstrap if the user is already known at mount (cached session). A fresh
+  // sign-in leaves `me` null here and is handled by the auth watcher below.
+  await bootstrapAuthenticatedUser()
 
   // Add global click handler for external links
   document.addEventListener('click', handleExternalLinkClick, true)
@@ -162,13 +173,19 @@ onUnmounted(() => {
   realtimeDisconnect()
 })
 
-// Tie realtime lifecycle to auth lifecycle. Signing out closes the socket;
-// signing in (or getting auth'd after an initial anonymous load) opens it.
+// Tie the authed bootstrap + realtime lifecycle to auth lifecycle. A fresh
+// sign-in (or getting auth'd after an initial anonymous load) leaves `me` null
+// at mount, so this watcher is what runs the bootstrap in that case — without
+// it, layers and other user data only appear on the next full page reload.
+// Signing out resets the guard so a subsequent sign-in re-bootstraps.
 watch(
   () => authStore.me?.id,
   (id, previous) => {
-    if (id && !previous) realtimeConnect()
-    else if (!id && previous) realtimeDisconnect()
+    if (id && !previous) void bootstrapAuthenticatedUser()
+    else if (!id && previous) {
+      authBootstrapped = false
+      realtimeDisconnect()
+    }
   },
 )
 

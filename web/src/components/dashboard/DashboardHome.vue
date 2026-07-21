@@ -141,7 +141,7 @@ function formatTimeAgo(date: string | number) {
       <div v-show="!paletteFocused" class="space-y-6">
       <!-- Library Section -->
       <div>
-        <h3 class="font-display text-lg mb-1.5 px-1 block">{{ t('library.title') }}</h3>
+        <h3 class="text-lg mb-1.5 px-1 block">{{ t('library.title') }}</h3>
 
         <div class="grid grid-cols-2 gap-2">
           <Card
@@ -169,7 +169,7 @@ function formatTimeAgo(date: string | number) {
 
       <!-- Navigation Section (mobile only) -->
       <div v-if="isMobileScreen">
-        <h3 class="font-display text-lg mb-1.5 px-1 block">{{ t('navigation.title') }}</h3>
+        <h3 class="text-lg mb-1.5 px-1 block">{{ t('navigation.title') }}</h3>
         <div class="grid grid-cols-2 gap-2">
           <Card
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
@@ -207,7 +207,7 @@ function formatTimeAgo(date: string | number) {
 
       <!-- Recently viewed places -->
       <div v-if="recentPlaces.length > 0">
-        <h3 class="font-display text-lg mb-1.5 px-1">{{ t('general.recents') }}</h3>
+        <h3 class="text-lg mb-1.5 px-1">{{ t('general.recents') }}</h3>
         <div class="space-y-2">
           <Card
             v-for="place in recentPlaces.slice(0, 5)"

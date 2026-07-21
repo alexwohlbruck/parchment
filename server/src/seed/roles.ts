@@ -64,13 +64,19 @@ const alpha: Role = {
   id: 'alpha',
   name: 'Alpha tester',
   description:
-    'A privileged user that is able to read all data in the app, but has limited write permissions',
+    'A privileged tester with every premium feature plus read-only, non-destructive access to admin data (users, roles, permissions, system integrations, and system status). Cannot make admin changes or view integration secrets.',
   permissions: [
-    ...(basic.permissions as PermissionId[]),
+    // Every premium feature (inherits the basic + premium permission sets)
+    ...(premium.permissions as PermissionId[]),
+    // Read-only, non-destructive admin access. Deliberately excludes every
+    // write/create/delete admin permission and INTEGRATIONS_WRITE_SYSTEM —
+    // system-integration secrets are only returned on the write path, so
+    // read-system alone never exposes them.
+    PermissionId.USERS_READ,
+    PermissionId.ROLES_READ,
+    PermissionId.PERMISSIONS_READ,
     PermissionId.INTEGRATIONS_READ_SYSTEM,
     PermissionId.SYSTEM_READ,
-    PermissionId.LAYERS_DELETE,
-    PermissionId.SEARCH_AUTO_REFRESH,
   ],
 }
 

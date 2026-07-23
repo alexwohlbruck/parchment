@@ -9,7 +9,7 @@ import { permissions as permissionsSchema } from '../schema/permissions.schema'
 import { roleToPermissions } from '../schema/roles-permissions.schema'
 import { lucia } from '../lucia'
 import { generateId } from '../util'
-import { getRoles } from '../services/auth.service'
+import { getRoles, getPermissions, hasPermission } from '../services/auth.service'
 import { sendMail } from '../services/mailer.service'
 import { clientOrigin } from '../config/origins.config'
 import { permissions, requireAuth } from '../middleware/auth.middleware'
@@ -133,9 +133,26 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_CREATE))
     .post(
       '/',
-      async ({ body, status }) => {
-        // Validate roles exist
+      async ({ body, user, status }) => {
         const roleIds = body.roles?.length ? body.roles : ['user']
+
+        // Assigning roles other than the default 'user' is a privileged action:
+        // it can provision elevated accounts (e.g. admin). Gate it on
+        // USERS_UPDATE (the "role assignments" permission) so an invite-only
+        // caller such as an alpha tester can create plain users but cannot
+        // escalate by inviting a privileged account.
+        const assignsPrivilegedRole =
+          roleIds.length !== 1 || roleIds[0] !== 'user'
+        if (assignsPrivilegedRole) {
+          const callerPermissions = await getPermissions(user.id)
+          if (!hasPermission(callerPermissions, PermissionId.USERS_UPDATE)) {
+            return status(403, {
+              message: 'You do not have permission to assign roles to invited users',
+            })
+          }
+        }
+
+        // Validate roles exist
         const existingRoles = await db
           .select({ id: roles.id })
           .from(roles)

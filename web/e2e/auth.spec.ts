@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { signIn, TEST_USER } from './helpers/auth'
+import { signIn, fillOtp, TEST_USER } from './helpers/auth'
 import { requireBackend } from './helpers/database'
 import { enableVirtualAuthenticator, disableVirtualAuthenticator, getCredentials } from './helpers/webauthn'
 
@@ -52,8 +52,7 @@ test.describe('Authentication', () => {
     await expect(pinInput).toBeVisible()
 
     // Fill in test OTP (0000-0000 = 00000000)
-    const firstInput = page.locator('#pin-input')
-    await firstInput.fill(TEST_USER.otp)
+    await fillOtp(page, TEST_USER.otp)
 
     // Wait for successful signin and redirect
     await page.waitForURL(url => !url.pathname.includes('/signin'), {

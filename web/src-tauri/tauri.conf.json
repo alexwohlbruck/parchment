@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Parchment",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "identifier": "app.parchment",
   "build": {
     "frontendDist": "../dist",
@@ -66,7 +66,7 @@
       "minimumSystemVersion": "16.0"
     },
     "android": {
-      "versionCode": 5040
+      "versionCode": 5050
     }
   }
 }

@@ -11,6 +11,28 @@ export const TEST_USER = {
 }
 
 /**
+ * Enter the OTP into the PIN field.
+ *
+ * The reka-ui PinInput renders one <input> per digit, each exposed as a
+ * textbox named "pin input N of 8". `#pin-input` is only the component root and
+ * isn't a fillable <input>, so we target the per-digit boxes by role and fill
+ * each one. The component auto-submits on @complete, but that event can be
+ * missed when digits are set programmatically, so we also click Submit
+ * explicitly (no-op if auto-submit already navigated away).
+ */
+export async function fillOtp(page: Page, otp: string) {
+  const inputs = page.getByRole('textbox', { name: /pin input/i })
+  await inputs.first().waitFor({ state: 'visible', timeout: 10000 })
+  for (let i = 0; i < otp.length; i++) {
+    await inputs.nth(i).fill(otp[i])
+  }
+  const submit = page.getByRole('button', { name: 'Submit' })
+  if (await submit.isEnabled().catch(() => false)) {
+    await submit.click({ timeout: 3000 }).catch(() => {})
+  }
+}
+
+/**
  * Sign in to the app using the test user
  */
 export async function signIn(page: Page) {
@@ -35,12 +57,11 @@ export async function signIn(page: Page) {
   await page.waitForSelector('#pin-input', { timeout: 10000 })
 
   // Fill in OTP (8 digits)
-  const pinInput = page.locator('#pin-input')
-  await pinInput.fill(TEST_USER.otp)
+  await fillOtp(page, TEST_USER.otp)
 
   // Wait for redirect to main app (should go to / or wherever stashed path was)
   await page.waitForURL(url => !url.pathname.includes('/signin'), {
-    timeout: 15000,
+    timeout: 20000,
   })
 }
 

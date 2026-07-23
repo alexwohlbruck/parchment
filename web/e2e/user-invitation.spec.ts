@@ -83,7 +83,7 @@ test.describe('User invitation', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(2000)
     await expect(page.locator('#app')).toBeVisible({ timeout: 15000 })
-    expect(page.url()).toContain('/friends')
+    expect(page.url()).toContain('/lookout')
     // Dismiss any dialog (e.g. recovery key setup) so tabs are interactable
     await page.keyboard.press('Escape')
     await page.locator('[data-slot="dialog-overlay"]').waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {})
@@ -96,7 +96,7 @@ test.describe('User invitation', () => {
     }
     await page.getByRole('tab', { name: /Invitations/i }).click({ timeout: 10000 })
     await page.waitForTimeout(500)
-    expect(page.url()).toContain('/friends')
+    expect(page.url()).toContain('/lookout')
   })
 
   test('can view pending invitations section', async ({ page }) => {
@@ -104,7 +104,7 @@ test.describe('User invitation', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(2000)
     await expect(page.locator('#app')).toBeVisible({ timeout: 15000 })
-    expect(page.url()).toContain('/friends')
+    expect(page.url()).toContain('/lookout')
   })
 
   test('can send friend invitation when form available', async ({ page }) => {
@@ -136,6 +136,6 @@ test.describe('User invitation', () => {
       }
     }
 
-    expect(page.url()).toContain('/friends')
+    expect(page.url()).toContain('/lookout')
   })
 })

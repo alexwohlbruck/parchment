@@ -3,7 +3,8 @@ import { ref, computed } from 'vue'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { z } from 'zod'
-import type { Role } from '@/types/auth.types'
+import { type Role, PermissionId } from '@/types/auth.types'
+import { useAuthService } from '@/services/auth.service'
 
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -34,6 +35,15 @@ const { validate } = useForm({
   },
 })
 
+const authService = useAuthService()
+
+// Assigning roles on invite is a privileged action gated server-side by
+// USERS_UPDATE. Invite-only callers (e.g. alpha testers) can only create
+// plain users, so hide the picker and default them to the 'user' role.
+const canAssignRoles = computed(() =>
+  authService.hasPermission(PermissionId.USERS_UPDATE),
+)
+
 const selectedRoles = ref<string[]>(['user'])
 const searchTerm = ref('')
 const open = ref(false)
@@ -55,7 +65,7 @@ defineExpose({
     if (!valid) return false
     return {
       ...values,
-      roles: selectedRoles.value,
+      roles: canAssignRoles.value ? selectedRoles.value : ['user'],
     }
   },
 })
@@ -73,7 +83,7 @@ defineExpose({
       </FormItem>
     </FormField>
 
-    <div>
+    <div v-if="canAssignRoles">
       <p class="text-sm font-medium mb-2">Roles</p>
       <Combobox v-model="selectedRoles" v-model:open="open" v-model:search-term="searchTerm" multiple open-on-focus>
         <ComboboxAnchor as-child>

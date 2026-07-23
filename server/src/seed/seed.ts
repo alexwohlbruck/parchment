@@ -29,6 +29,10 @@ if (users.length === 0) {
       lastName: lastName!,
       email: email!,
       picture: picture!,
+      // The bootstrap user already has its profile provided here, so mark
+      // onboarding complete — otherwise it's forced through the multi-step
+      // onboarding dialog on first sign-in (and e2e signin never reaches the app).
+      onboardingCompletedAt: new Date(),
     })
     .returning()
 

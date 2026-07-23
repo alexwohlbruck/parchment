@@ -64,12 +64,12 @@ const alpha: Role = {
   id: 'alpha',
   name: 'Alpha tester',
   description:
-    'A privileged tester with every premium feature plus read-only, non-destructive access to admin data (users, roles, permissions, system integrations, and system status). Cannot make admin changes or view integration secrets.',
+    'A privileged tester with every premium feature plus read-only admin access to users, roles, permissions, system integrations, and system status. Can invite new users, but cannot edit or remove them, assign elevated roles, or view integration secrets.',
   permissions: [
     // Every premium feature (inherits the basic + premium permission sets)
     ...(premium.permissions as PermissionId[]),
-    // Read-only, non-destructive admin access. Deliberately excludes every
-    // write/create/delete admin permission and INTEGRATIONS_WRITE_SYSTEM —
+    // Read-only admin access. Deliberately excludes USERS_UPDATE/USERS_DELETE,
+    // every ROLES write permission, and INTEGRATIONS_WRITE_SYSTEM —
     // system-integration secrets are only returned on the write path, so
     // read-system alone never exposes them.
     PermissionId.USERS_READ,
@@ -77,6 +77,10 @@ const alpha: Role = {
     PermissionId.PERMISSIONS_READ,
     PermissionId.INTEGRATIONS_READ_SYSTEM,
     PermissionId.SYSTEM_READ,
+    // Invite-only user creation. Assigning roles on invite additionally
+    // requires USERS_UPDATE (see the invite endpoint), which alpha lacks — so
+    // alpha can only invite plain users, never provision elevated accounts.
+    PermissionId.USERS_CREATE,
   ],
 }
 

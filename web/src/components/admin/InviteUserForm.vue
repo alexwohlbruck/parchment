@@ -5,6 +5,7 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { z } from 'zod'
 import { type Role, PermissionId } from '@/types/auth.types'
 import { useAuthService } from '@/services/auth.service'
+import { useAuthStore } from '@/stores/auth.store'
 
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -36,12 +37,21 @@ const { validate } = useForm({
 })
 
 const authService = useAuthService()
+const authStore = useAuthStore()
 
-// Assigning roles on invite is a privileged action gated server-side by
-// USERS_UPDATE. Invite-only callers (e.g. alpha testers) can only create
-// plain users, so hide the picker and default them to the 'user' role.
-const canAssignRoles = computed(() =>
+// Role assignment on invite is gated server-side: callers with USERS_UPDATE
+// (admins) may grant any role; everyone else may grant only the default 'user'
+// role plus roles they themselves hold. Mirror that here so the picker offers
+// exactly the assignable roles — letting an alpha tester invite other alphas.
+const canAssignAnyRole = computed(() =>
   authService.hasPermission(PermissionId.USERS_UPDATE),
+)
+const grantableRoleIds = computed(() =>
+  canAssignAnyRole.value ? null : new Set(['user', ...authStore.roles]),
+)
+// Only worth showing the picker when there's a non-default role to choose.
+const showRolePicker = computed(
+  () => canAssignAnyRole.value || authStore.roles.some(r => r !== 'user'),
 )
 
 const selectedRoles = ref<string[]>(['user'])
@@ -51,7 +61,8 @@ const open = ref(false)
 const availableRoles = computed(() =>
   props.roles.filter(r =>
     !selectedRoles.value.includes(r.id) &&
-    r.name.toLowerCase().includes(searchTerm.value.toLowerCase()),
+    r.name.toLowerCase().includes(searchTerm.value.toLowerCase()) &&
+    (!grantableRoleIds.value || grantableRoleIds.value.has(r.id)),
   ),
 )
 
@@ -65,7 +76,8 @@ defineExpose({
     if (!valid) return false
     return {
       ...values,
-      roles: canAssignRoles.value ? selectedRoles.value : ['user'],
+      // Picker only offers grantable roles; empty falls back to 'user' server-side.
+      roles: selectedRoles.value,
     }
   },
 })
@@ -83,7 +95,7 @@ defineExpose({
       </FormItem>
     </FormField>
 
-    <div v-if="canAssignRoles">
+    <div v-if="showRolePicker">
       <p class="text-sm font-medium mb-2">Roles</p>
       <Combobox v-model="selectedRoles" v-model:open="open" v-model:search-term="searchTerm" multiple open-on-focus>
         <ComboboxAnchor as-child>

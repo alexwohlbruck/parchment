@@ -42,11 +42,14 @@ function authService() {
 
   async function getPermissions() {
     const {
-      data: { permissions, subscription },
+      data: { permissions, subscription, roles },
     } = await api.get('auth/sessions/current/permissions')
     authStore.setPermissions(permissions)
     if (subscription) {
       authStore.setSubscription(subscription)
+    }
+    if (roles) {
+      authStore.setRoles(roles)
     }
   }
 

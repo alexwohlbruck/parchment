@@ -1,7 +1,9 @@
-# Release pipeline: on tag push v*, build all artifacts first, then deploy
-# only after ALL builds succeed. This prevents partial releases.
+# Release pipeline: on tag push v*, build all artifacts, then publish each
+# channel independently. A failing native build (e.g. iOS) no longer blocks
+# the others — Docker, the GitHub Release, desktop updater, and Google Play
+# still publish. Each store upload is gated only on its own build.
 #
-# Flow: test → build (docker, tauri, android, ios) → deploy (push images, create release, upload to stores)
+# Flow: test → build (docker, tauri, android, ios) → publish (push images, create release, upload to stores)
 #
 # Required secrets:
 # - DOCKERHUB_USERNAME, DOCKERHUB_TOKEN: Docker Hub credentials
@@ -399,6 +401,9 @@ jobs:
   deploy-github-release:
     name: Create GitHub Release
     needs: [build-docker, build-tauri, build-android, build-ios]
+    # Publish the release as long as at least one app artifact built. A single
+    # failed native target (e.g. iOS) must not withhold the whole release.
+    if: ${{ !cancelled() && (needs.build-tauri.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -453,7 +458,9 @@ jobs:
 
   deploy-google-play:
     name: Upload to Google Play
-    needs: [deploy-github-release]
+    # Gated only on the Android build — independent of iOS or the GitHub Release.
+    needs: [build-android]
+    if: ${{ !cancelled() && needs.build-android.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -491,7 +498,9 @@ jobs:
 
   deploy-app-store:
     name: Upload to App Store
-    needs: [deploy-github-release]
+    # Gated only on the iOS build — skips cleanly when the iOS build fails.
+    needs: [build-ios]
+    if: ${{ !cancelled() && needs.build-ios.result == 'success' }}
     runs-on: macos-latest
     env:
       APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}

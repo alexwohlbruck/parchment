@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
 import { signIn } from './helpers/auth'
 import { requireBackend } from './helpers/database'
 
@@ -95,28 +96,14 @@ test.describe('Directions', () => {
   })
 
   test('directions page loads without errors', async ({ page }) => {
-    const errors: string[] = []
-    page.on('console', msg => {
-      if (msg.type() === 'error') {
-        errors.push(msg.text())
-      }
-    })
+    const errors = collectConsoleErrors(page)
 
     await page.goto('/directions')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
 
     // Filter out expected errors
-    const criticalErrors = errors.filter(
-      err =>
-        !err.includes('tile') &&
-        !err.includes('404') &&
-        !err.includes('Failed to load resource') &&
-        !err.includes('Passkey') &&
-        !err.includes('NotSupportedError') &&
-        !err.includes('WebGL') && // WebGL may not be available in headless mode
-        !err.includes('mapbox.com'), // Mapbox API may block headless browsers
-    )
+    const criticalErrors = filterCritical(errors)
 
     expect(criticalErrors).toHaveLength(0)
   })

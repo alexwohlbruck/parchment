@@ -29,6 +29,10 @@ RUN bun install --frozen-lockfile --production || (rm -f bun.lock && bun install
 # Copy build output from builder stage
 COPY --from=builder /app/server/dist ./dist
 
+# Copy static data assets served by the /data endpoints (timezones.geojson, logos).
+# The build bundles code into ./dist but does not include these files.
+COPY --from=builder /app/server/data ./data
+
 # Copy compiled email templates
 COPY --from=builder /app/server/emails/output ./emails/output
 

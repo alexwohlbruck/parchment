@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
 import { signIn } from './helpers/auth'
 import { requireBackend } from './helpers/database'
 
@@ -34,12 +35,7 @@ test.describe('Places', () => {
   })
 
   test('place detail page loads without errors', async ({ page }) => {
-    const errors: string[] = []
-    page.on('console', msg => {
-      if (msg.type() === 'error') {
-        errors.push(msg.text())
-      }
-    })
+    const errors = collectConsoleErrors(page)
 
     // Try to navigate to a place (will 404 if not found, but shouldn't crash)
     await page.goto('/place/osm/node/123456789')
@@ -47,16 +43,7 @@ test.describe('Places', () => {
     await page.waitForTimeout(1000)
 
     // Filter out expected errors
-    const criticalErrors = errors.filter(err =>
-      !err.includes('tile') &&
-      !err.includes('404') &&
-      !err.includes('Failed to load resource') &&
-      !err.includes('Passkey') &&
-      !err.includes('NotSupportedError') &&
-      !err.includes('Not Found') && // Place might not exist
-      !err.includes('WebGL') && // WebGL may not be available in headless mode
-      !err.includes('mapbox.com') // Mapbox API may block headless browsers
-    )
+    const criticalErrors = filterCritical(errors)
 
     // Should handle missing places gracefully
     expect(criticalErrors).toHaveLength(0)

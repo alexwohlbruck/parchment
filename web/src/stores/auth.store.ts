@@ -38,6 +38,12 @@ export const useAuthStore = defineStore('auth', () => {
   } | null>('parchment-subscription', null, undefined, {
     serializer: jsonSerializer,
   })
+  // Role IDs the current user holds. Used to decide which roles they may grant
+  // when inviting users (a caller can grant the default 'user' role plus roles
+  // they hold; admins with USERS_UPDATE can grant any role).
+  const roles = useStorage<string[]>('parchment-roles', [], undefined, {
+    serializer: jsonSerializer,
+  })
   const sessions = ref<Session[]>([])
   const sessionId = ref<Session['id'] | null>(null)
   const stashedPath = ref<string | null>(null)
@@ -87,11 +93,16 @@ export const useAuthStore = defineStore('auth', () => {
     subscription.value = _subscription
   }
 
+  function setRoles(_roles: string[]) {
+    roles.value = _roles
+  }
+
   async function unsetAuthenticatedUser() {
     me.value = null
     cachedUser.value = null // Clear localStorage cache
     permissions.value = [] // Clear cached premium permissions
     subscription.value = null // Clear cached subscription
+    roles.value = [] // Clear cached role membership
     sessionId.value = null
     authenticatedUserPromise.value = undefined // Clear the promise to prevent router guards from waiting
     if (isTauri) {
@@ -168,6 +179,7 @@ export const useAuthStore = defineStore('auth', () => {
     needsOnboarding,
     permissions,
     subscription,
+    roles,
     sessionId,
     stashPath,
     setAuthToken,
@@ -175,6 +187,7 @@ export const useAuthStore = defineStore('auth', () => {
     updateUser,
     setPermissions,
     setSubscription,
+    setRoles,
     unsetAuthenticatedUser,
     authenticatedUserPromise,
     setAuthenticatedUserPromise,

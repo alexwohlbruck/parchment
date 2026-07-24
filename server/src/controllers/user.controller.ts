@@ -136,18 +136,19 @@ app.group('', (admin) =>
       async ({ body, user, status }) => {
         const roleIds = body.roles?.length ? body.roles : ['user']
 
-        // Assigning roles other than the default 'user' is a privileged action:
-        // it can provision elevated accounts (e.g. admin). Gate it on
-        // USERS_UPDATE (the "role assignments" permission) so an invite-only
-        // caller such as an alpha tester can create plain users but cannot
-        // escalate by inviting a privileged account.
-        const assignsPrivilegedRole =
-          roleIds.length !== 1 || roleIds[0] !== 'user'
-        if (assignsPrivilegedRole) {
-          const callerPermissions = await getPermissions(user.id)
-          if (!hasPermission(callerPermissions, PermissionId.USERS_UPDATE)) {
+        // Assigning roles on invite is privileged. Callers with USERS_UPDATE
+        // (the "role assignments" permission, e.g. admins) may assign any role.
+        // Everyone else may only assign the default 'user' role plus roles they
+        // themselves hold — so an alpha tester can invite other alpha testers,
+        // but no one can grant a role above their own (no privilege escalation).
+        const callerPermissions = await getPermissions(user.id)
+        if (!hasPermission(callerPermissions, PermissionId.USERS_UPDATE)) {
+          const ownRoleIds = (await getRoles(user.id)).map((r) => r.id)
+          const grantable = new Set(['user', ...ownRoleIds])
+          const disallowed = roleIds.filter((r) => !grantable.has(r))
+          if (disallowed.length) {
             return status(403, {
-              message: 'You do not have permission to assign roles to invited users',
+              message: 'You can only invite users with your own roles',
             })
           }
         }

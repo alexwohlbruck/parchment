@@ -21,6 +21,7 @@ import {
   rpID,
   sendEmailVerificationCode,
   getPermissions,
+  getRoles,
 } from '../services/auth.service'
 import {
   fetchUser,
@@ -561,13 +562,14 @@ app.group('/sessions', (app) => {
   app.use(requireAuth).get(
     'current/permissions',
     async ({ user }) => {
-      const [permissions, subscription] = await Promise.all([
+      const [permissions, subscription, userRoles] = await Promise.all([
         getPermissions(user.id),
         billing.enabled
           ? getSubscriptionStatus(user.id)
           : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const },
+        getRoles(user.id),
       ])
-      return { permissions, subscription }
+      return { permissions, subscription, roles: userRoles.map((r) => r.id) }
     },
     {
       detail: {

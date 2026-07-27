@@ -145,16 +145,30 @@ app.group('', (admin) =>
           return status(400, { message: 'One or more role IDs are invalid' })
         }
 
-        const result = await db
-          .insert(users)
-          .values({
-            id: generateId(),
-            firstName: body.firstName,
-            lastName: body.lastName,
-            email: body.email,
-            picture: body.picture,
-          })
-          .returning()
+        let result
+        try {
+          result = await db
+            .insert(users)
+            .values({
+              id: generateId(),
+              firstName: body.firstName,
+              lastName: body.lastName,
+              email: body.email,
+              picture: body.picture,
+            })
+            .returning()
+        } catch (err: any) {
+          // Postgres unique_violation = 23505 — a user with this email
+          // already exists. Postgres.js surfaces it on .code; drizzle may
+          // wrap it via .cause depending on the driver, so check both.
+          const code = err?.code ?? err?.cause?.code
+          if (code === '23505') {
+            return status(409, {
+              message: 'A user with this email already exists',
+            })
+          }
+          throw err
+        }
 
         const newUser = result[0]
 

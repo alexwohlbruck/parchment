@@ -41,13 +41,21 @@ export function useSettingsIndex() {
 
   // Filter out pages the current user can't access. Permissions on a page
   // hide all of its sections from both the sub-nav and the search.
-  // The subscription page is hidden when billing is disabled (self-hosted).
   const allowedPages = computed<SettingsPageDef[]>(() => {
     return settingsIndex.filter(page => {
-      if (page.pageId === 'billing' && !subscriptionService.billingEnabled.value) return false
       return !page.permissions || authService.hasPermission(page.permissions)
     })
   })
+
+  // The subscription section (nested under the account page) is hidden when
+  // billing is disabled — self-hosted or not configured — so search and the
+  // sub-nav don't surface a section that renders nothing.
+  const isSectionVisible = (section: SettingsSectionDef): boolean => {
+    if (section.id === 'subscription') {
+      return subscriptionService.billingEnabled.value
+    }
+    return true
+  }
 
   // Sections grouped by page, with i18n applied. Used by the sidebar to
   // render sub-nav items beneath each tab.
@@ -59,7 +67,7 @@ export function useSettingsIndex() {
     for (const page of allowedPages.value) {
       map.set(
         page.pageId,
-        page.sections.map(section => ({
+        page.sections.filter(isSectionVisible).map(section => ({
           id: section.id,
           title: tr(section.titleKey) ?? section.id,
           hash: `#${section.id}`,
@@ -77,6 +85,7 @@ export function useSettingsIndex() {
     for (const page of allowedPages.value) {
       const pageTitle = tr(`settings.${page.pageId}.title`) ?? page.pageId
       for (const section of page.sections) {
+        if (!isSectionVisible(section)) continue
         const sectionTitle = tr(section.titleKey) ?? section.id
         const sectionDescription = tr(section.descriptionKey)
         entries.push({

@@ -322,7 +322,11 @@ app.group('', (g) =>
           DEFAULT_GROUP_TEMPLATES,
           resolveProxyUrls,
         } = await import('../../constants/default-layers')
-        const serverUrl = process.env.SERVER_URL || 'http://localhost:5000'
+        // SERVER_ORIGIN is the canonical public-origin env everything else uses;
+        // fall back to it so a deployment that sets only SERVER_ORIGIN doesn't
+        // silently emit localhost tile URLs (mixed-content-blocked on https).
+        const serverUrl =
+          process.env.SERVER_URL || process.env.SERVER_ORIGIN || 'http://localhost:5000'
         return {
           layers: DEFAULT_LAYER_TEMPLATES.map((t) => ({
             ...t,
@@ -433,7 +437,8 @@ app.group('', (g) =>
           set.status = 404
           return { error: 'Default layer template not found' }
         }
-        const serverUrl = process.env.SERVER_URL || 'http://localhost:5000'
+        const serverUrl =
+          process.env.SERVER_URL || process.env.SERVER_ORIGIN || 'http://localhost:5000'
         const resolved = resolveProxyUrls(template.configuration, serverUrl)
         const clone = await layersService.cloneDefaultLayer(
           user.id,

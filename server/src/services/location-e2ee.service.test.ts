@@ -65,7 +65,13 @@ describe('Location Sharing Configuration', () => {
 
   describe('getLocationSharingConfigs', () => {
     test('returns empty array when no configs exist', async () => {
-      mockDb.returning.mockResolvedValue([])
+      // The select chain ends at .where() and is awaited directly, so .where()
+      // is what has to resolve — not .returning(), which selects never call.
+      const mockQuery = {
+        from: mock(() => mockQuery),
+        where: mock(() => Promise.resolve([])),
+      }
+      mockDb.select.mockReturnValue(mockQuery)
 
       const configs = await getLocationSharingConfigs('user-123')
 

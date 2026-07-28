@@ -290,13 +290,31 @@ fi
 # are completed, and cutting the release retitles that section. Offer an edit
 # pass first — entries are written one at a time as work lands, so this is the
 # first chance to read them together and reorder, merge, or cut.
+#
+# A hotfix (X.Y.Z-N) usually rebuilds an existing release rather than shipping
+# anything new, so an empty [Unreleased] is expected there: skip the stamp and
+# let the release reuse the notes of the version being patched.
+parse_version "$NEW_VERSION"
+STAMP_CHANGELOG=1
 if ! ./scripts/changelog.sh unreleased | grep -q .; then
-    echo "Error: nothing under [Unreleased] in CHANGELOG.md — nothing to release."
-    echo "Add an entry for each user-facing change, then re-run."
-    exit 1
+    if [ -n "$VERSION_HOTFIX" ]; then
+        STAMP_CHANGELOG=""
+        echo ""
+        echo "Nothing under [Unreleased] — hotfix will reuse the notes from:"
+        ./scripts/changelog.sh latest | sed 's/^/  /'
+        read -r -p "Continue? [y/N] " reply
+        if [[ ! "$reply" =~ ^[yY]$ ]]; then
+            echo "Aborted."
+            exit 0
+        fi
+    else
+        echo "Error: nothing under [Unreleased] in CHANGELOG.md — nothing to release."
+        echo "Add an entry for each user-facing change, then re-run."
+        exit 1
+    fi
 fi
 
-while true; do
+while [ -n "$STAMP_CHANGELOG" ]; do
     echo ""
     echo "--- Release notes ([Unreleased] in CHANGELOG.md) ---"
     ./scripts/changelog.sh unreleased
@@ -345,8 +363,12 @@ echo "Version files updated."
 # Retitle [Unreleased] as this version and open a fresh empty one for the next
 # cycle. Both land in the release commit, so the tag CI builds from carries the
 # notes while dev is immediately ready to accumulate again.
-./scripts/changelog.sh release "$NEW_VERSION"
-echo "CHANGELOG.md: [Unreleased] stamped as $NEW_VERSION."
+if [ -n "$STAMP_CHANGELOG" ]; then
+    ./scripts/changelog.sh release "$NEW_VERSION"
+    echo "CHANGELOG.md: [Unreleased] stamped as $NEW_VERSION."
+else
+    echo "CHANGELOG.md unchanged — hotfix reuses the previous release's notes."
+fi
 
 # Stage version files and commit
 VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md RELEASE_TITLE"

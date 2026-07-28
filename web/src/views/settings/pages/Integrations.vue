@@ -23,7 +23,8 @@ import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useIntegrationService } from '@/services/integration.service'
 import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
-import { PermissionId } from '@/types/auth.types'
+import { canConfigureIntegration } from '@/lib/integration-permissions'
+import type { IntegrationDefinition } from '@/types/integrations.types'
 import {
   useIntegrationFilters,
   type SortField,
@@ -76,6 +77,13 @@ const {
   removeFilter,
   clearAllFilters,
 } = useIntegrationFilters()
+
+// Write access depends on the integration's scope, not on system write alone.
+// A read-only admin role holds integrations:read:system but still configures
+// its own user-scoped integrations (OSM account, Dawarich).
+function canConfigure(integration: IntegrationDefinition): boolean {
+  return canConfigureIntegration(integration, authService.hasPermission)
+}
 
 // Handle OAuth callback query params
 function handleOAuthCallback() {
@@ -594,9 +602,7 @@ onMounted(async () => {
             :key="item.config?.id || item.integration.id"
             :integration="item.integration"
             :configuration="item.config"
-            :disabled="
-              !authService.hasPermission(PermissionId.INTEGRATIONS_WRITE_SYSTEM)
-            "
+            :disabled="!canConfigure(item.integration)"
           />
         </div>
       </SettingsSection>

@@ -428,7 +428,7 @@ jobs:
 
       - name: Prepare release notes
         id: changelog
-        # CHANGELOG.md is cumulative, so take only the newest version's section.
+        # Take the newest version's section, skipping the [Unreleased] header.
         run: |
           CHANGELOG=$(./scripts/changelog.sh latest || true)
           if [ -z "$CHANGELOG" ]; then

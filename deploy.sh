@@ -286,10 +286,10 @@ fi
 
 # Review the accumulated release notes.
 #
-# CHANGELOG.md is cumulative: entries land under `## [Unreleased]` as features
-# are completed, and cutting the release retitles that section. Offer an edit
-# pass first — entries are written one at a time as work lands, so this is the
-# first chance to read them together and reorder, merge, or cut.
+# Entries land under `## [Unreleased]` in CHANGELOG.md as features are
+# completed, and cutting the release retitles that section. Offer an edit pass
+# first — entries are written one at a time as work lands, so this is the first
+# chance to read them together and reorder, merge, or cut.
 #
 # A hotfix (X.Y.Z-N) usually rebuilds an existing release rather than shipping
 # anything new, so an empty [Unreleased] is expected there: skip the stamp and
@@ -360,9 +360,10 @@ update_tauri_android_version_code "$NEW_VERSION"
 echo ""
 echo "Version files updated."
 
-# Retitle [Unreleased] as this version and open a fresh empty one for the next
-# cycle. Both land in the release commit, so the tag CI builds from carries the
-# notes while dev is immediately ready to accumulate again.
+# Retitle [Unreleased] as this version, drop the previous release's section, and
+# open a fresh empty [Unreleased] for the next cycle. All of it lands in the
+# release commit, so the tag CI builds from carries the notes while dev is
+# immediately ready to accumulate again.
 if [ -n "$STAMP_CHANGELOG" ]; then
     ./scripts/changelog.sh release "$NEW_VERSION"
     echo "CHANGELOG.md: [Unreleased] stamped as $NEW_VERSION."

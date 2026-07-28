@@ -1,8 +1,11 @@
 #!/bin/bash
 #
-# Reads and updates CHANGELOG.md, which follows Keep a Changelog: a cumulative
-# file with an `## [Unreleased]` section on top that accumulates entries as work
-# lands, followed by `## [X.Y.Z] - DATE` sections newest-first.
+# Reads and updates CHANGELOG.md, which holds only the current release: an
+# `## [Unreleased]` section that accumulates entries as work lands, above the
+# most recently released `## [X.Y.Z] - DATE` section. Cutting a release retitles
+# [Unreleased] and drops the previous version, so the file stays two sections
+# long. Older notes live in the git tags (`git show vX.Y.Z:CHANGELOG.md`) and,
+# where the pipeline published them, in GitHub Releases.
 #
 # Every consumer of the changelog goes through here so the format is known in
 # exactly one place: deploy.sh (PR body, release cut) and release.yml (GitHub
@@ -74,19 +77,16 @@ case "${1:-}" in
             exit 1
         fi
 
-        # Retitle [Unreleased] as the new version and open an empty one above it.
-        # The accumulated entries stay put and fall under the new version header.
+        # Rebuild as: preamble, an empty [Unreleased], then the accumulated
+        # entries under the new version. Re-emitting rather than editing in
+        # place is what drops the previous release — its notes stay reachable
+        # at its tag.
         tmp=$(mktemp)
-        awk -v v="$version" -v d="$(date +%Y-%m-%d)" '
-            !stamped && /^## \[Unreleased\]/ {
-                print "## [Unreleased]"
-                print ""
-                print "## [" v "] - " d
-                stamped = 1
-                next
-            }
-            { print }
-        ' "$CHANGELOG" > "$tmp"
+        {
+            awk '/^## \[Unreleased\]/ { exit } { print }' "$CHANGELOG"
+            printf '## [Unreleased]\n\n## [%s] - %s\n\n' "$version" "$(date +%Y-%m-%d)"
+            section unreleased
+        } > "$tmp"
         mv "$tmp" "$CHANGELOG"
         ;;
 

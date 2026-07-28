@@ -17,12 +17,12 @@
 
 ## Release notes
 
-`CHANGELOG.md` is cumulative ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)). When a user-facing feature or fix is complete, append an entry under `## [Unreleased]` at the top — do not wait for release time.
+`CHANGELOG.md` holds the current release only ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format): an `## [Unreleased]` section above the most recent `## [X.Y.Z]` one. When a user-facing feature or fix is complete, append an entry under `## [Unreleased]` — do not wait for release time.
 
 - Group entries under `### Added`, `### Changed`, or `### Fixed` within `[Unreleased]`. Create the heading if it isn't there; otherwise append to the existing one.
-- One `*` bullet per change, written for users rather than developers: what it does for them, not which files moved. Match the tone of the released sections below it.
+- One `*` bullet per change, written for users rather than developers: what it does for them, not which files moved. Match the tone of the released section below it.
 - Skip purely internal work (refactors, test-only changes, dependency bumps) — if a user wouldn't notice it, it doesn't belong here.
-- Never edit the released `## [X.Y.Z]` sections. `deploy.sh` retitles `[Unreleased]` at release time and opens a fresh empty one; `scripts/changelog.sh` is the only thing that should rewrite the file.
+- Never edit the released `## [X.Y.Z]` section. `deploy.sh` retitles `[Unreleased]` at release time, drops the previous version, and opens a fresh empty one; `scripts/changelog.sh` is the only thing that should rewrite the file. Older notes stay reachable at their tags.
 
 ## Important rules
 

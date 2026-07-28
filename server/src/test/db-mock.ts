@@ -26,6 +26,12 @@ export interface DbMock {
   setSelectRows(rows: unknown[]): void
   /** Rows returned by `.returning()` after an insert or update. */
   setReturningRows(rows: unknown[]): void
+  /**
+   * Rows for the *next* `.returning()` only. Use when one handler issues
+   * several writes whose results must differ — e.g. a conditional UPDATE that
+   * matches zero rows, followed by a second write that matches one.
+   */
+  queueReturning(rows: unknown[]): void
   /** Values passed to each `insert().values(...)`. */
   inserted: unknown[]
   /** Values passed to each `update().set(...)`. */
@@ -46,7 +52,12 @@ export interface DbMock {
 export function createDbMock(): DbMock {
   let selectQueue: unknown[][] = []
   let selectRows: unknown[] = []
+  let returningQueue: unknown[][] = []
   let returningRows: unknown[] = []
+
+  function nextReturningRows(): unknown[] {
+    return returningQueue.length > 0 ? returningQueue.shift()! : returningRows
+  }
 
   const state = {
     inserted: [] as unknown[],
@@ -78,7 +89,7 @@ export function createDbMock(): DbMock {
       innerJoin: self,
       fullJoin: self,
       for: self,
-      returning: () => chain(returningRows),
+      returning: () => chain(nextReturningRows()),
       onConflictDoNothing: self,
       onConflictDoUpdate: (config: any) => {
         state.conflictUpdates.push(config?.set)
@@ -106,7 +117,7 @@ export function createDbMock(): DbMock {
       return {
         values: (values: unknown) => {
           state.inserted.push(values)
-          return chain(returningRows)
+          return chain([])
         },
       }
     },
@@ -115,13 +126,13 @@ export function createDbMock(): DbMock {
       return {
         set: (values: unknown) => {
           state.updated.push(values)
-          return chain(returningRows)
+          return chain([])
         },
       }
     },
     delete: (_table: unknown) => {
       state.deleteCount++
-      return chain(returningRows)
+      return chain([])
     },
     execute: async () => [],
     // Transactions run their callback against the same mock, so writes inside
@@ -139,6 +150,9 @@ export function createDbMock(): DbMock {
     },
     setReturningRows(rows) {
       returningRows = rows
+    },
+    queueReturning(rows) {
+      returningQueue.push(rows)
     },
     get inserted() {
       return state.inserted
@@ -164,6 +178,7 @@ export function createDbMock(): DbMock {
     reset() {
       selectQueue = []
       selectRows = []
+      returningQueue = []
       returningRows = []
       state.inserted.length = 0
       state.updated.length = 0

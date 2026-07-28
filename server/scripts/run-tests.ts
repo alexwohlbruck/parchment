@@ -56,7 +56,11 @@ async function runFile(file: string): Promise<Result> {
   const proc = Bun.spawn(['bun', 'test', file, ...passThrough], {
     stdout: 'pipe',
     stderr: 'pipe',
-    env: process.env,
+    // `bun test` normally defaults NODE_ENV to "test", but handing it an
+    // explicit env object suppresses that default and the parent's value
+    // (often "development") leaks in. Set it so a file behaves identically
+    // whether run through this runner or invoked directly.
+    env: { ...process.env, NODE_ENV: 'test' },
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),

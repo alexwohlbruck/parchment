@@ -72,7 +72,9 @@ describe('GET / — healthy', () => {
 
     expect(typeof res.body.version).toBe('string')
     expect(res.body.version).toMatch(/^\d+\.\d+\.\d+/)
-    expect(res.body.environment).toBe('test')
+    // Reported from NODE_ENV rather than hardcoded, so this holds however the
+    // suite was invoked.
+    expect(res.body.environment).toBe(process.env.NODE_ENV ?? 'unknown')
   })
 
   test('includes uptime, memory and an ISO timestamp', async () => {

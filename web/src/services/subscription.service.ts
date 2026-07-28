@@ -49,7 +49,10 @@ function subscriptionService() {
     }
   }
 
-  fetchConfig()
+  // Kick off the config fetch once and keep the promise so callers (and
+  // guarded endpoints below) can wait for `billingEnabled` to settle before
+  // deciding whether to hit billing-only routes.
+  const configReady = fetchConfig()
 
   const isPremium = computed(() => authStore.subscription?.isPremium ?? false)
   const isBasic = computed(() => authStore.subscription?.isBasic ?? false)
@@ -81,8 +84,19 @@ function subscriptionService() {
   }
 
   async function fetchDetails() {
+    // Billing-only route: when billing is disabled the server never registers
+    // it, so calling would 404 (and spawn an error toast). Wait for config,
+    // then bail out cleanly. `silentStatuses` is a defensive net in case
+    // billing flips off server-side between config and this call.
+    await configReady
+    if (!billingEnabled.value) {
+      details.value = null
+      return
+    }
     try {
-      const { data } = await api.get('/subscriptions/details')
+      const { data } = await api.get('/subscriptions/details', {
+        silentStatuses: [404],
+      } as any)
       details.value = data.details
     } catch {
       details.value = null
@@ -119,6 +133,7 @@ function subscriptionService() {
     verifySubscription,
     fetchConfig,
     fetchDetails,
+    configReady,
   }
 }
 

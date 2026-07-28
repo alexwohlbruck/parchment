@@ -390,5 +390,5 @@ export async function getRoles(userId: User['id']) {
     .where(eq(usersToRoles.userId, userId))
     .innerJoin(roles, eq(usersToRoles.roleId, roles.id))
 
-  return result.map(({ role }) => role)
+  return result.map(({ roles: role }) => role)
 }

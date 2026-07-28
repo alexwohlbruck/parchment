@@ -213,9 +213,12 @@ describe('subscription.service', () => {
 
   describe('findUserByPolarCustomerId', () => {
     test('returns the user when found', async () => {
+      // Only the columns the service selects; cast past the full row type.
       const fakeUser = { id: 'u1', email: 'a@b.com', polarCustomerId: 'pol_1' }
       selectRows = [fakeUser]
-      expect(await subService.findUserByPolarCustomerId('pol_1')).toEqual(fakeUser)
+      expect(await subService.findUserByPolarCustomerId('pol_1')).toEqual(
+        fakeUser as any,
+      )
     })
 
     test('returns null when not found', async () => {

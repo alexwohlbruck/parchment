@@ -28,10 +28,22 @@ const vehicleRow = {
 
 const getUserVehicles = mock(async () => [vehicleRow])
 const createVehicle = mock(async () => vehicleRow)
-const updateVehicle = mock(async () => vehicleRow as typeof vehicleRow | null)
-const deleteVehicle = mock(async () => true)
-const setActiveVehicle = mock(async () => vehicleRow as typeof vehicleRow | null)
-const updateVehicleLocation = mock(async () => vehicleRow as typeof vehicleRow | null)
+const updateVehicle = mock(
+  async (_userId: string, _id: string, _patch: unknown) =>
+    vehicleRow as typeof vehicleRow | null,
+)
+const deleteVehicle = mock(async (_userId: string, _id: string) => true)
+const setActiveVehicle = mock(
+  async (_userId: string, _id: string) => vehicleRow as typeof vehicleRow | null,
+)
+const updateVehicleLocation = mock(
+  async (
+    _userId: string,
+    _id: string,
+    _coords: { lat: number; lng: number },
+    _source: string,
+  ) => vehicleRow as typeof vehicleRow | null,
+)
 
 mock.module('../services/vehicle.service', () => ({
   getUserVehicles,

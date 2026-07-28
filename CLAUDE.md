@@ -15,6 +15,15 @@
 - **Barrelman code changes** (`../barrelman/src/`): `bun --hot` picks them up automatically (source volume-mounted via the dev compose override). If hot reload fails: `docker compose -f ../barrelman/docker-compose.yml -f ../barrelman/docker-compose.dev.yml restart barrelman`. Rebuild the image only for dependency / `Dockerfile` changes.
 - **Barrelman import scripts** (`../barrelman/import/`, `../barrelman/scripts/`): mounted into the container; re-run them directly, no rebuild.
 
+## Release notes
+
+`CHANGELOG.md` is cumulative ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)). When a user-facing feature or fix is complete, append an entry under `## [Unreleased]` at the top — do not wait for release time.
+
+- Group entries under `### Added`, `### Changed`, or `### Fixed` within `[Unreleased]`. Create the heading if it isn't there; otherwise append to the existing one.
+- One `*` bullet per change, written for users rather than developers: what it does for them, not which files moved. Match the tone of the released sections below it.
+- Skip purely internal work (refactors, test-only changes, dependency bumps) — if a user wouldn't notice it, it doesn't belong here.
+- Never edit the released `## [X.Y.Z]` sections. `deploy.sh` retitles `[Unreleased]` at release time and opens a fresh empty one; `scripts/changelog.sh` is the only thing that should rewrite the file.
+
 ## Important rules
 
 - Do NOT start new dev servers. The user runs their own.

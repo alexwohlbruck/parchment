@@ -37,7 +37,13 @@ export type AxiosMock = {
   module: Record<string, unknown>
   /** Records every config object passed to `axios.create()`. */
   create: ReturnType<typeof mock>
-  /** Clears recorded calls and queued one-off implementations on every verb. */
+  /**
+   * Clears recorded calls AND any queued `mockResolvedValueOnce` /
+   * `mockRejectedValueOnce` entries, then restores the default resolution.
+   * Call in `beforeEach`: a queued one-off that the test under test never
+   * consumed would otherwise fire in a later test and shift every subsequent
+   * response by one.
+   */
   reset(): void
 }
 
@@ -81,8 +87,14 @@ export function createAxiosMock(): AxiosMock {
       ...axiosDefault,
     },
     reset() {
-      for (const verb of VERBS) verbs[verb].mockClear()
-      create.mockClear()
+      for (const verb of VERBS) {
+        // mockReset (not mockClear) is what drops the queued *Once entries;
+        // it also drops the implementation, so put the default back.
+        verbs[verb].mockReset()
+        verbs[verb].mockImplementation(() => Promise.resolve({ data: undefined }))
+      }
+      create.mockReset()
+      create.mockImplementation(() => instance())
     },
   }
 }

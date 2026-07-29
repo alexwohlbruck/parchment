@@ -1,17 +1,13 @@
 import { test, expect } from '@playwright/test'
-import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
-import { signIn } from './helpers/auth'
+import { collectConsoleErrors, expectNoCriticalErrors } from './helpers/console'
 import { requireBackend } from './helpers/database'
+import { gotoApp } from './helpers/navigate'
 
 test.describe('Friends', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('friends page is accessible', async ({ page }) => {
-    await page.goto('/friends')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/friends')
     
     // Check URL
     expect(page.url()).toContain('/lookout')
@@ -24,19 +20,15 @@ test.describe('Friends', () => {
   test('friends page loads without errors', async ({ page }) => {
     const errors = collectConsoleErrors(page)
 
-    await page.goto('/friends')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/friends')
     await page.waitForTimeout(1000)
 
     // Filter out expected errors
-    const criticalErrors = filterCritical(errors)
-
-    expect(criticalErrors).toHaveLength(0)
+    expectNoCriticalErrors(errors)
   })
 
   test('can navigate to friends list', async ({ page }) => {
-    await page.goto('/friends')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/friends')
     
     // Should be on friends page
     expect(page.url()).toContain('/lookout')
@@ -56,8 +48,7 @@ test.describe('Friends', () => {
   })
 
   test('friends profile route is accessible', async ({ page }) => {
-    await page.goto('/friends/testuser')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/friends/testuser')
     // Allow time for route to resolve (may show profile or not-found)
     await page.waitForTimeout(1500)
     const app = page.locator('#app')
@@ -66,8 +57,7 @@ test.describe('Friends', () => {
   })
 
   test('can view location sharing features', async ({ page }) => {
-    await page.goto('/friends')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/friends')
     
     // Look for location sharing toggle or settings
     const locationToggle = page.locator('button[role="switch"], input[type="checkbox"]').first()

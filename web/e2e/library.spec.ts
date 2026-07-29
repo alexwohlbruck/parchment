@@ -1,17 +1,13 @@
 import { test, expect } from '@playwright/test'
-import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
-import { signIn } from './helpers/auth'
+import { collectConsoleErrors, expectNoCriticalErrors } from './helpers/console'
 import { requireBackend } from './helpers/database'
+import { gotoApp } from './helpers/navigate'
 
 test.describe('Library', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('library page is accessible', async ({ page }) => {
-    await page.goto('/library')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/library')
     
     // Check URL
     expect(page.url()).toContain('/library')
@@ -24,19 +20,15 @@ test.describe('Library', () => {
   test('library page loads without errors', async ({ page }) => {
     const errors = collectConsoleErrors(page)
 
-    await page.goto('/library')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/library')
     await page.waitForTimeout(1000)
 
     // Filter out expected errors
-    const criticalErrors = filterCritical(errors)
-
-    expect(criticalErrors).toHaveLength(0)
+    expectNoCriticalErrors(errors)
   })
 
   test('can navigate between library tabs', async ({ page }) => {
-    await page.goto('/library')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/library')
     
     // Look for tabs (bookmarks, collections, layers, etc.)
     const tabs = page.locator('button[role="tab"], [class*="tab"]')
@@ -53,8 +45,7 @@ test.describe('Library', () => {
   })
 
   test('bookmarks section is accessible', async ({ page }) => {
-    await page.goto('/library')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/library')
     
     // Look for bookmarks-related content
     // This could be a tab, heading, or section
@@ -66,8 +57,7 @@ test.describe('Library', () => {
   })
 
   test('collections section is accessible', async ({ page }) => {
-    await page.goto('/library')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/library')
     
     // Look for collections tab or section
     const collectionsTab = page.locator('text=/collections/i, button:has-text("Collections")').first()
@@ -83,8 +73,7 @@ test.describe('Library', () => {
   })
 
   test('layers section is accessible', async ({ page }) => {
-    await page.goto('/library')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/library')
     
     // Look for layers tab or section
     const layersTab = page.locator('text=/layers/i, button:has-text("Layers")').first()
@@ -101,8 +90,7 @@ test.describe('Library', () => {
 
   test('can bookmark a place from search', async ({ page }) => {
     // First, search for something
-    await page.goto('/search?q=cafe')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?q=cafe')
     await page.waitForTimeout(2000)
     
     // Try to find a place and its bookmark button
@@ -114,8 +102,7 @@ test.describe('Library', () => {
       await page.waitForTimeout(500)
       
       // Navigate to library to check
-      await page.goto('/library')
-      await page.waitForLoadState('networkidle')
+      await gotoApp(page, '/library')
       
       // Should be on library page
       expect(page.url()).toContain('/library')

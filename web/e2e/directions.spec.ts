@@ -1,17 +1,13 @@
 import { test, expect } from '@playwright/test'
-import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
-import { signIn } from './helpers/auth'
+import { collectConsoleErrors, expectNoCriticalErrors } from './helpers/console'
 import { requireBackend } from './helpers/database'
+import { gotoApp } from './helpers/navigate'
 
 test.describe('Directions', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('directions view is accessible', async ({ page }) => {
-    await page.goto('/directions')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/directions')
 
     // Check URL
     expect(page.url()).toContain('/directions')
@@ -31,16 +27,14 @@ test.describe('Directions', () => {
   })
 
   test('travel mode selector is visible', async ({ page }) => {
-    await page.goto('/directions')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/directions')
     await page.waitForTimeout(1500)
     const modeSelector = page.locator('[role="tablist"], [class*="tabs"], button[role="tab"]').first()
     await expect(modeSelector).toBeVisible({ timeout: 8000 })
   })
 
   test('can switch between travel modes', async ({ page }) => {
-    await page.goto('/directions')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/directions')
     await page.waitForTimeout(1500)
     const modeTabs = page.locator('button[role="tab"]')
     const tabCount = await modeTabs.count()
@@ -57,8 +51,7 @@ test.describe('Directions', () => {
   })
 
   test('waypoint inputs accept text', async ({ page }) => {
-    await page.goto('/directions')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/directions')
 
     // Find first waypoint input
     const firstInput = page.locator('input[type="text"]').first()
@@ -73,8 +66,7 @@ test.describe('Directions', () => {
   })
 
   test('can add additional waypoints', async ({ page }) => {
-    await page.goto('/directions')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/directions')
     await page.waitForTimeout(1500)
     const initialInputs = await page.locator('input[type="text"]').count()
     const addButton = page.locator(
@@ -98,13 +90,10 @@ test.describe('Directions', () => {
   test('directions page loads without errors', async ({ page }) => {
     const errors = collectConsoleErrors(page)
 
-    await page.goto('/directions')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/directions')
     await page.waitForTimeout(1000)
 
     // Filter out expected errors
-    const criticalErrors = filterCritical(errors)
-
-    expect(criticalErrors).toHaveLength(0)
+    expectNoCriticalErrors(errors)
   })
 })

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
+import { collectConsoleErrors, expectNoCriticalErrors } from './helpers/console'
 import { requireBackend } from './helpers/database'
+import { gotoApp, settle } from './helpers/navigate'
 
 test.describe('Smoke tests', () => {
   test.beforeAll(async () => { await requireBackend() })
@@ -9,7 +10,7 @@ test.describe('Smoke tests', () => {
     await page.goto('/')
     
     // Wait for the app to load
-    await page.waitForLoadState('networkidle')
+    await settle(page)
     
     // Check that we're either on signin or the main app
     const body = page.locator('body')
@@ -30,12 +31,9 @@ test.describe('Smoke tests', () => {
   test('app loads without console errors', async ({ page }) => {
     const errors = collectConsoleErrors(page)
     
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/')
     
     // Filter out known harmless errors (e.g., map tile 404s, passkey not supported in test env)
-    const criticalErrors = filterCritical(errors)
-    
-    expect(criticalErrors).toHaveLength(0)
+    expectNoCriticalErrors(errors)
   })
 })

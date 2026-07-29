@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test'
 import { signIn, fillOtp, TEST_USER } from './helpers/auth'
 import { requireBackend } from './helpers/database'
 import { enableVirtualAuthenticator, disableVirtualAuthenticator, getCredentials } from './helpers/webauthn'
+import { gotoApp, settle } from './helpers/navigate'
+
+// These specs exercise signing in, so they must start signed OUT — opt out of
+// the shared storage state the rest of the suite replays.
+test.use({ storageState: { cookies: [], origins: [] } })
 
 test.describe('Authentication', () => {
   test.beforeAll(async () => {
@@ -9,8 +14,7 @@ test.describe('Authentication', () => {
   })
 
   test('signin page is accessible', async ({ page }) => {
-    await page.goto('/signin')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/signin')
 
     // Check that we're on the signin page
     expect(page.url()).toContain('/signin')
@@ -24,17 +28,16 @@ test.describe('Authentication', () => {
   })
 
   test('unauthenticated user is redirected to signin', async ({ page }) => {
-    // Try to access a protected route
+    // The map subtree is auth-gated, so the router guard bounces a signed-out
+    // visitor here before the view renders.
     await page.goto('/')
-    await page.waitForLoadState('networkidle')
 
-    // Should redirect to signin
+    await page.waitForURL((url) => url.pathname.includes('/signin'))
     expect(page.url()).toContain('/signin')
   })
 
   test('can sign in with test user email and OTP', async ({ page }) => {
-    await page.goto('/signin')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/signin')
 
     // Fill in email
     const emailInput = page.locator('input[type="email"]')
@@ -74,8 +77,7 @@ test.describe('Authentication', () => {
   // Passkey tests: temporarily skipped; remove .skip below to re-enable
   test.describe.skip('Passkey (saved for later)', () => {
     test('passkey signin button is visible', async ({ page }) => {
-      await page.goto('/signin')
-      await page.waitForLoadState('networkidle')
+      await gotoApp(page, '/signin')
       
       // Look for passkey signin button (i18n: "Sign in with passkey" in en-US)
       const passkeyButton = page.getByRole('button', { name: /sign in with passkey/i })
@@ -93,11 +95,9 @@ test.describe('Authentication', () => {
 
       const { client, authenticatorId } = await enableVirtualAuthenticator(page)
       try {
-        await page.goto('/signin')
-        await page.waitForLoadState('networkidle')
+        await gotoApp(page, '/signin')
         await signIn(page)
-        await page.goto('/settings/account')
-        await page.waitForLoadState('networkidle')
+        await gotoApp(page, '/settings/account')
 
         const addPasskeyButton = page.locator('button:has-text("Add Passkey"), button:has-text("passkey"), button:has-text("Add")')
         const hasButton = await addPasskeyButton.first().isVisible().catch(() => false)
@@ -122,7 +122,7 @@ test.describe('Authentication', () => {
           } else {
             await page.goto('/signin')
           }
-          await page.waitForLoadState('networkidle')
+          await settle(page)
           const passkeySigninButton = page.getByRole('button', { name: /sign in with passkey/i })
           await expect(passkeySigninButton).toBeVisible({ timeout: 5000 })
           await passkeySigninButton.click()

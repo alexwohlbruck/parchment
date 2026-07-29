@@ -1,16 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { signIn } from './helpers/auth'
 import { requireBackend } from './helpers/database'
+import { gotoApp } from './helpers/navigate'
 
 test.describe('User invitation', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('can access user management page', async ({ page }) => {
-    await page.goto('/settings/users')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/users')
 
     expect(page.url()).toContain('/settings/users')
 
@@ -19,8 +15,7 @@ test.describe('User invitation', () => {
   })
 
   test('user management shows users list or empty state', async ({ page }) => {
-    await page.goto('/settings/users')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/users')
     await page.waitForTimeout(1000)
 
     const table = page.locator('table, [role="table"]')
@@ -31,8 +26,7 @@ test.describe('User invitation', () => {
   })
 
   test('invite user button visible when user has permission', async ({ page }) => {
-    await page.goto('/settings/users')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/users')
     await page.waitForTimeout(1000)
 
     const inviteButton = page.locator('button:has-text("Invite user")')
@@ -44,8 +38,7 @@ test.describe('User invitation', () => {
   })
 
   test('can open invite user dialog and fill form', async ({ page }) => {
-    await page.goto('/settings/users')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/users')
     await page.waitForTimeout(1000)
 
     const inviteButton = page.locator('button:has-text("Invite user")')
@@ -79,8 +72,7 @@ test.describe('User invitation', () => {
   })
 
   test('friend invitations tab is accessible', async ({ page }) => {
-    await page.goto('/friends')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/friends')
     await page.waitForTimeout(2000)
     await expect(page.locator('#app')).toBeVisible({ timeout: 15000 })
     expect(page.url()).toContain('/lookout')
@@ -100,16 +92,14 @@ test.describe('User invitation', () => {
   })
 
   test('can view pending invitations section', async ({ page }) => {
-    await page.goto('/friends')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/friends')
     await page.waitForTimeout(2000)
     await expect(page.locator('#app')).toBeVisible({ timeout: 15000 })
     expect(page.url()).toContain('/lookout')
   })
 
   test('can send friend invitation when form available', async ({ page }) => {
-    await page.goto('/friends')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/friends')
     await page.waitForTimeout(1000)
 
     const addButton = page.locator('button:has-text("Add"), button:has-text("Invite")').first()

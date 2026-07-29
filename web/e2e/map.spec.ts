@@ -1,17 +1,13 @@
 import { test, expect } from '@playwright/test'
-import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
-import { signIn } from './helpers/auth'
+import { collectConsoleErrors, expectNoCriticalErrors } from './helpers/console'
 import { requireBackend } from './helpers/database'
+import { gotoApp } from './helpers/navigate'
 
 test.describe('Map', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('map container loads and is visible', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/')
     // Map canvas, loading, or Mapbox fallback when no token (use .first() to avoid strict mode when multiple match)
     const mapCanvas = page.locator('canvas.maplibregl-canvas, canvas.mapboxgl-canvas').first()
     const mapLoading = page.getByText(/Loading Map|Preparing map|Mapbox Integration Required|Configure Mapbox/).first()
@@ -19,8 +15,7 @@ test.describe('Map', () => {
   })
 
   test('map controls are visible', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/')
     await page.waitForTimeout(5000)
     const mapCanvas = page.locator('canvas.maplibregl-canvas, canvas.mapboxgl-canvas').first()
     const loadingOrFallback = page.getByText(/Loading Map|Preparing map|Mapbox Integration Required|Configure Mapbox/).first()
@@ -32,21 +27,17 @@ test.describe('Map', () => {
   test('map loads without critical errors', async ({ page }) => {
     const errors = collectConsoleErrors(page)
 
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/')
     
     // Wait for map to initialize
     await page.waitForTimeout(3000)
 
     // Filter out expected errors (tile loading, etc.)
-    const criticalErrors = filterCritical(errors)
-
-    expect(criticalErrors).toHaveLength(0)
+    expectNoCriticalErrors(errors)
   })
 
   test('can interact with map (pan/zoom)', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/')
     await page.waitForTimeout(4000)
     const mapCanvas = page.locator('canvas.maplibregl-canvas, canvas.mapboxgl-canvas').first()
     const visible = await mapCanvas.isVisible({ timeout: 8000 }).catch(() => false)

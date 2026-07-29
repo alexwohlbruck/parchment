@@ -17,3 +17,5 @@ web/test-results/
 # Maizzle email build output
 server/emails/output/
 
+# Playwright saved sign-in state (contains a live session cookie)
+web/e2e/.auth/

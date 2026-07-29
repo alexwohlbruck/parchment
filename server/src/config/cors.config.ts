@@ -28,7 +28,12 @@ const tauriOrigins = [
 // emulator's host alias (10.0.2.2).
 const devOriginMatchers =
   process.env.NODE_ENV !== 'production'
-    ? [/^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/]
+    ? [
+        /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/,
+        // Dev only: let the deployed frontend point at a local backend — e.g.
+        // debugging the prod client (map.parchment.app) against localhost:5000.
+        /^https:\/\/([a-z0-9-]+\.)*parchment\.app$/,
+      ]
     : []
 
 const corsConfig: CORSConfig = {

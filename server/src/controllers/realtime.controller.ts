@@ -17,6 +17,7 @@ import {
   updateBounds as transitUpdateBounds,
   onConnectionClosed as transitOnClose,
 } from '../services/transit/transit-poller.service'
+import { validateBounds } from '../services/realtime/bounds'
 import { logger } from '../lib/logger'
 
 /**
@@ -155,17 +156,8 @@ wsApi.ws('/', {
       close: (code?: number, reason?: string) => ws.close(code, reason),
     }
 
-    // Validate bounds: must be finite numbers in valid ranges
-    const b = parsed.bounds
-    const validBounds = b &&
-      Number.isFinite(b.north) && Number.isFinite(b.south) &&
-      Number.isFinite(b.east) && Number.isFinite(b.west) &&
-      b.north >= b.south &&
-      b.north >= -90 && b.north <= 90 &&
-      b.south >= -90 && b.south <= 90 &&
-      b.east >= -180 && b.east <= 180 &&
-      b.west >= -180 && b.west <= 180
-      ? b : null
+    // Untrusted client JSON — must be finite numbers in valid ranges.
+    const validBounds = validateBounds(parsed.bounds)
 
     switch (parsed.type) {
       case 'transit:subscribe':

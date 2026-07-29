@@ -12,7 +12,7 @@ import {
 import type { Place } from '../../types/place.types'
 import { WikipediaAdapter } from './adapters/wikipedia-adapter'
 import { SOURCE } from '../../lib/constants'
-import { logError, logWarn } from '../../lib/logger'
+import { logError, logWarn, logger } from '../../lib/logger'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -145,7 +145,7 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
         return null
       }
 
-      console.log(`Getting place details from Wikipedia for page: ${language}:${title}`)
+      logger.debug(`Getting place details from Wikipedia for page: ${language}:${title}`)
 
       const pageData = await this.getPageData(title, language)
       if (!pageData) return null

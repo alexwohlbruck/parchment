@@ -12,7 +12,7 @@ import { matchTags } from '../lib/osm-presets'
 import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
 import { resolveDisplayChips } from '../lib/display-chips'
-import { logError } from '../lib/logger'
+import { logError, logger } from '../lib/logger'
 
 /**
  * Check if a place is a transit stop based on its OSM tags/type.
@@ -349,7 +349,7 @@ async function fetchTransitDepartures(
 
   const config = barrelmanRecord?.config as { host?: string; apiKey?: string } | undefined
   if (!config?.host) {
-    console.debug('[Widget/Transit] Barrelman not configured')
+    logger.debug('[Widget/Transit] Barrelman not configured')
     return { departures: [], sources: [] }
   }
 
@@ -365,7 +365,7 @@ async function fetchTransitDepartures(
     const headers: Record<string, string> = {}
     if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
 
-    console.debug(`[Widget/Transit] Fetching departures from Barrelman at (${params.lat}, ${params.lng})`)
+    logger.debug(`[Widget/Transit] Fetching departures from Barrelman at (${params.lat}, ${params.lng})`)
     const response = await fetch(`${config.host}/transit/departures?${queryParams}`, { headers })
 
     if (!response.ok) {
@@ -443,7 +443,7 @@ async function fetchTransitDepartures(
       return timeA.localeCompare(timeB)
     })
 
-    console.debug(`[Widget/Transit] Got ${allDepartures.length} departures from ${stopResults.length} stop(s)`)
+    logger.debug(`[Widget/Transit] Got ${allDepartures.length} departures from ${stopResults.length} stop(s)`)
 
     const sources: SourceReference[] = allDepartures.length > 0
       ? [{ id: 'barrelman', name: 'GTFS Timetable' }]
@@ -512,7 +512,7 @@ async function fetchBikeshareStatus(
 
   const config = barrelmanRecord?.config as { host?: string; apiKey?: string } | undefined
   if (!config?.host) {
-    console.debug('[Widget/Bikeshare] Barrelman not configured')
+    logger.debug('[Widget/Bikeshare] Barrelman not configured')
     return { status: null, sources: [] }
   }
 
@@ -526,7 +526,7 @@ async function fetchBikeshareStatus(
     const headers: Record<string, string> = {}
     if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
 
-    console.debug(`[Widget/Bikeshare] Fetching station ${params.systemId ?? ''}:${params.stationId ?? ''} from Barrelman`)
+    logger.debug(`[Widget/Bikeshare] Fetching station ${params.systemId ?? ''}:${params.stationId ?? ''} from Barrelman`)
     const response = await fetch(`${config.host}/gbfs/station?${queryParams}`, { headers })
 
     if (!response.ok) {
@@ -562,7 +562,7 @@ async function fetchBikeshareStatus(
       lastReported: s.lastReported ?? null,
     }
 
-    console.debug(`[Widget/Bikeshare] ${status.name}: ${status.bikesAvailable + status.ebikesAvailable} bikes, ${status.docksAvailable} docks`)
+    logger.debug(`[Widget/Bikeshare] ${status.name}: ${status.bikesAvailable + status.ebikesAvailable} bikes, ${status.docksAvailable} docks`)
 
     return {
       status,
@@ -831,27 +831,27 @@ async function fetchChildrenInArea(
   const barrelman = getBarrelmanInstance()
   if (barrelman) {
     try {
-      console.debug(`[Widget/RelatedPlaces] Fetching children via Barrelman for ${osmId} (limit=${limit}, offset=${offset})`)
+      logger.debug(`[Widget/RelatedPlaces] Fetching children via Barrelman for ${osmId} (limit=${limit}, offset=${offset})`)
       const children = await barrelman.getChildren(osmId, presetIds, limit + 1, offset, centerLat, centerLng)
       if (children.length || offset > 0) {
         const hasMore = children.length > limit
         const page = children.slice(0, limit).filter((p) => p.id !== excludePlaceId)
-        console.debug(`[Widget/RelatedPlaces] Barrelman returned ${page.length} children (hasMore=${hasMore})`)
+        logger.debug(`[Widget/RelatedPlaces] Barrelman returned ${page.length} children (hasMore=${hasMore})`)
         return { children: page, hasMore }
       }
     } catch (error) {
-      console.debug('[Widget/RelatedPlaces] Barrelman children query failed, falling back to Overpass:', error)
+      logger.debug({ err: error }, '[Widget/RelatedPlaces] Barrelman children query failed, falling back to Overpass')
     }
   }
 
   // Fallback: Overpass
   const overpass = getOverpassInstance()
   if (!overpass) {
-    console.debug('[Widget/RelatedPlaces] Overpass integration not configured')
+    logger.debug('[Widget/RelatedPlaces] Overpass integration not configured')
     return { children: [], hasMore: false }
   }
 
-  console.debug(`[Widget/RelatedPlaces] Fetching children in ${osmId} for ${presetIds.length} categories via Overpass (bbox: ${bbox ? 'yes' : 'no'})`)
+  logger.debug(`[Widget/RelatedPlaces] Fetching children in ${osmId} for ${presetIds.length} categories via Overpass (bbox: ${bbox ? 'yes' : 'no'})`)
   const places = await overpass.searchByCategoryInArea(osmId, presetIds, { limit: 50, bbox })
 
   const ranked = scoreAndRankChildren(places, excludePlaceId, presetIds, centerLat, centerLng)
@@ -879,7 +879,7 @@ async function fetchParentPlaces(
     const barrelman = getBarrelmanContainsInstance()
     if (barrelman) {
       try {
-        console.debug(`[Widget/Parent] Finding containers via Barrelman for (${lat},${lng})`)
+        logger.debug(`[Widget/Parent] Finding containers via Barrelman for (${lat},${lng})`)
         const containers = await barrelman.getContainingAreas(lat, lng, osmId)
         if (containers.length) {
           // Filter self-references: c.id is "osm/way/123", osmId is "way/123"
@@ -889,7 +889,7 @@ async function fetchParentPlaces(
                 return cOsmId !== osmId && c.id !== osmId && c.id !== `osm/${osmId}`
               })
             : containers
-          console.debug(`[Widget/Parent] Barrelman returned ${nonSelf.length} containers`)
+          logger.debug(`[Widget/Parent] Barrelman returned ${nonSelf.length} containers`)
           if (nonSelf.length) {
             return nonSelf.map((c) => ({
               id: c.id,
@@ -900,7 +900,7 @@ async function fetchParentPlaces(
           }
         }
       } catch (error) {
-        console.debug('[Widget/Parent] Barrelman contains query failed, falling back:', error)
+        logger.debug({ err: error }, '[Widget/Parent] Barrelman contains query failed, falling back')
       }
     }
   }
@@ -910,7 +910,7 @@ async function fetchParentPlaces(
     const overpass = getOverpassInstance()
     if (overpass && lat && lng) {
       try {
-        console.debug(`[Widget/Parent] Finding containers for (${lat},${lng}) via Overpass is_in`)
+        logger.debug(`[Widget/Parent] Finding containers for (${lat},${lng}) via Overpass is_in`)
         const containers = await overpass.findContainingAreas(lat, lng)
         if (containers.length) {
           // Filter out self-reference and building parts
@@ -919,7 +919,7 @@ async function fetchParentPlaces(
             if (c.tags?.['building:part']) return false
             return true
           })
-          console.debug(`[Widget/Parent] Found ${nonSelf.length} containers via is_in (${containers.length - nonSelf.length} self-refs removed)`)
+          logger.debug(`[Widget/Parent] Found ${nonSelf.length} containers via is_in (${containers.length - nonSelf.length} self-refs removed)`)
           if (nonSelf.length) {
             return nonSelf.map((c) => ({
               id: c.id,
@@ -939,7 +939,7 @@ async function fetchParentPlaces(
   // Admin strategy (or is_in fallback): use Nominatim hierarchy
   const nominatimIntegration = integrationManager.getIntegration('nominatim')
   if (!nominatimIntegration) {
-    console.debug('[Widget/RelatedPlaces] Nominatim integration not configured')
+    logger.debug('[Widget/RelatedPlaces] Nominatim integration not configured')
     return []
   }
 

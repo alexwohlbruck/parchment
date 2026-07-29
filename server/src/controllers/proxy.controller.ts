@@ -322,7 +322,9 @@ app.use(transitProxy)
 
 // ── GBFS shared mobility proxy ──────────────────────────────────────
 
-const gbfsProxy = new Elysia({ prefix: '/proxy/gbfs' }).use(requireAuth)
+// Prefix is relative to `app`, which already contributes `/proxy` — spelling
+// it out here again would mount these at /proxy/proxy/gbfs.
+const gbfsProxy = new Elysia({ prefix: '/gbfs' }).use(requireAuth)
 
 gbfsProxy.get('/nearby-stations', ({ query }) =>
   proxyBarrelman('/gbfs/nearby-stations', query, 'no-cache'),

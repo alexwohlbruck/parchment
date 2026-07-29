@@ -16,7 +16,7 @@ import type { Place } from '../../types/place.types'
 import { GoogleAdapter } from './adapters/google-adapter'
 import { SOURCE } from '../../lib/constants'
 import { getLanguageCode } from '../../lib/i18n'
-import { logError, logWarn } from '../../lib/logger'
+import { logError, logWarn, logger } from '../../lib/logger'
 
 // TODO: Use official Google client SDK for requests
 
@@ -128,7 +128,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     options?: { language?: string },
   ): Promise<Place | null> {
     try {
-      console.log('Fetching place details for:', placeId)
+      logger.debug({ placeId }, 'Fetching Google place details')
       const lang = options?.language ? getLanguageCode(options.language) : undefined
       const url = new URL(`${this.baseUrl}/places/${placeId}`)
       if (lang) url.searchParams.set('languageCode', lang)
@@ -136,9 +136,9 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       const fieldMask =
         'id,displayName,formattedAddress,addressComponents,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes'
 
-      console.log(
-        'Place Details URL:',
-        url.toString().replace(this.config.apiKey, '[API_KEY]'),
+      logger.debug(
+        { url: url.toString().replace(this.config.apiKey, '[API_KEY]') },
+        'Google Place Details URL',
       )
       const response = await fetch(url.toString(), {
         method: 'GET',
@@ -163,11 +163,9 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
         return null
       }
 
-      console.log(
-        'Place details found for:',
-        placeId,
-        'with location:',
-        !!data.location,
+      logger.debug(
+        { placeId, hasLocation: !!data.location },
+        'Google place details found',
       )
       return this.adapter.placeInfo.adaptPlaceDetails(data)
     } catch (error) {
@@ -364,7 +362,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     }
 
     try {
-      console.log(`Searching Google Places for: "${query}"`)
+      logger.debug(`Searching Google Places for: "${query}"`)
       const lang = options?.language ? getLanguageCode(options.language) : undefined
 
       const url = `${this.baseUrl}/places:searchText`
@@ -391,9 +389,9 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       const fieldMask =
         'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types,places.photos,places.rating,places.userRatingCount,places.googleMapsUri,places.priceLevel,places.businessStatus,places.editorialSummary,places.location,places.dineIn,places.takeout,places.delivery,places.curbsidePickup,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesBeer,places.servesVegetarianFood,places.servesCocktails,places.servesCoffee,places.outdoorSeating,places.liveMusic,places.goodForChildren,places.goodForGroups,places.restroom,places.regularOpeningHours,places.utcOffsetMinutes'
 
-      console.log(
-        'Google Places Text Search URL:',
-        url.replace(this.config.apiKey, '[API_KEY]'),
+      logger.debug(
+        { url: url.replace(this.config.apiKey, '[API_KEY]') },
+        'Google Places Text Search URL',
       )
 
       const response = await fetch(url, {
@@ -420,11 +418,11 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       }
 
       if (!data.places || data.places.length === 0) {
-        console.log('No places found for query:', query)
+        logger.debug({ query }, 'No Google places found for query')
         return []
       }
 
-      console.log(`Found ${data.places.length} places for query: "${query}"`)
+      logger.debug(`Found ${data.places.length} places for query: "${query}"`)
 
       // Convert results to Place objects using the adapter
       const places = data.places.map((result: any) =>

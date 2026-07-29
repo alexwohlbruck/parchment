@@ -61,6 +61,16 @@ function oauthCallbackPage(result: { status: 'connected' | 'error'; message?: st
   )
 }
 
+/**
+ * The OAuth callback is a top-level browser navigation from openstreetmap.org,
+ * so it cannot rely on a session — it identifies the user through the state
+ * token instead. It lives on its own instance because `.use(requireAuth)`
+ * mutates the instance in place and would otherwise guard it too, no matter
+ * where the route is declared. The two are merged at the bottom of this file.
+ */
+const publicApi = new Elysia({ prefix: '/integrations/osm' })
+
+/** Everything that requires an authenticated session. */
 const app = new Elysia({ prefix: '/integrations/osm' })
 
 /**
@@ -117,7 +127,7 @@ app.use(requireAuth).get(
  * Opens in a popup/new tab — posts result back to opener via postMessage.
  * Falls back to redirect if there's no opener (e.g. popup was blocked).
  */
-app.get(
+publicApi.get(
   '/callback',
   async ({ query }) => {
     const { code, state } = query
@@ -324,4 +334,4 @@ app.use(requireAuth).post(
   },
 )
 
-export default app
+export default new Elysia().use(publicApi).use(app)

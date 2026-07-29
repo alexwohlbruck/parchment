@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+* The final step of a set of directions now shows the arrival flag again instead of a turn arrow
+
 ## [0.5.8] - 2026-07-29
 
 ### Changed

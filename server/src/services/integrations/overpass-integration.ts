@@ -16,7 +16,7 @@ import type { Place } from '../../types/place.types'
 import { OverpassAdapter } from './adapters/overpass-adapter'
 import { SOURCE } from '../../lib/constants'
 import { calculateOSMCenter } from '../../util/geometry-conversion'
-import { logError } from '../../lib/logger'
+import { logError, logger } from '../../lib/logger'
 
 // TODO: Remove overpass integration
 // TODO: Overpass is designed for OSM editors to edit the map, not for backend search
@@ -91,10 +91,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
   }
 
   initialize(config: OverpassConfig): void {
-    console.log(
-      'Overpass Integration - initialize called with config:',
-      JSON.stringify(config, null, 2),
-    )
+    logger.debug({ host: config.host }, 'Overpass integration initialized')
     this.config = config
   }
 
@@ -118,7 +115,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     }
 
     try {
-      console.log(`Getting place details from Overpass for ID: ${id}`)
+      logger.debug(`Getting place details from Overpass for ID: ${id}`)
 
       // Remove provider prefix if present
       if (id.startsWith('osm/')) {
@@ -234,7 +231,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     }
 
     try {
-      console.log(`Searching Overpass for "${query}"`)
+      logger.debug(`Searching Overpass for "${query}"`)
 
       const overpassQuery = this.buildSearchQuery(query, lat, lng, radius)
 
@@ -281,7 +278,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       throw new Error('Overpass integration host not configured')
     }
 
-    console.log(`Executing Overpass query: ${query.substring(0, 100)}...`)
+    logger.debug(`Executing Overpass query: ${query.substring(0, 100)}...`)
 
     try {
       const response = await axios.post(
@@ -300,7 +297,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       }
 
       const elements = response.data.elements.slice(0, maxResults)
-      console.log(`Overpass query returned ${elements.length} elements`)
+      logger.debug(`Overpass query returned ${elements.length} elements`)
 
       const places: Place[] = []
 
@@ -469,7 +466,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     const [osmType, rawId] = osmId.split('/')
     const numericId = parseInt(rawId, 10)
     if (!numericId || (osmType !== 'way' && osmType !== 'relation')) {
-      console.debug(`[Overpass/Area] Cannot create area from ${osmId} (only way/relation supported)`)
+      logger.debug(`[Overpass/Area] Cannot create area from ${osmId} (only way/relation supported)`)
       return []
     }
 
@@ -497,7 +494,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       out body geom ${maxResults};`.trim()
 
     try {
-      console.debug(`[Overpass/Area] Searching within area ${osmId} for ${presetIds.length} categories`)
+      logger.debug(`[Overpass/Area] Searching within area ${osmId} for ${presetIds.length} categories`)
       const response = await axios.post(
         this.config.host,
         new URLSearchParams({ data: query }),
@@ -544,7 +541,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       out body geom ${maxResults};`.trim()
 
     try {
-      console.debug(`[Overpass/Bbox] Searching within bbox of ${osmId} for ${tagSets.length} categories`)
+      logger.debug(`[Overpass/Bbox] Searching within bbox of ${osmId} for ${tagSets.length} categories`)
       const response = await axios.post(
         this.config.host,
         new URLSearchParams({ data: query }),
@@ -556,7 +553,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
 
       if (!response.data?.elements) return []
       const places = this.elementsToPlaces(response.data.elements.slice(0, maxResults))
-      console.debug(`[Overpass/Bbox] Found ${places.length} places within ${osmId}`)
+      logger.debug(`[Overpass/Bbox] Found ${places.length} places within ${osmId}`)
       return places
     } catch (error) {
       logError(`[Overpass/Bbox] Error executing bbox query for ${osmId}`, error)

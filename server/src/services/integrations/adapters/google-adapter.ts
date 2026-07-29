@@ -171,8 +171,7 @@ export class GoogleAdapter {
 
   placeInfo = {
     adaptPlaceDetails: (data: GooglePlaceDetails, id?: string): Place => {
-      console.log('data', data)
-      // Use the new ID format: source/providerId
+        // Use the new ID format: source/providerId
       const primaryId = id || `${SOURCE.GOOGLE}/${data.id}`
 
       // Generate Google Maps URL if not provided

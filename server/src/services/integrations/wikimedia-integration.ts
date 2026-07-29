@@ -12,7 +12,7 @@ import {
 import type { Place } from '../../types/place.types'
 import { WikimediaAdapter } from './adapters/wikimedia-adapter'
 import { SOURCE } from '../../lib/constants'
-import { logError, logWarn } from '../../lib/logger'
+import { logError, logWarn, logger } from '../../lib/logger'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -291,7 +291,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
     this.ensureInitialized()
 
     try {
-      console.log(`Getting images from Wikimedia Commons category: ${categoryName}`)
+      logger.debug(`Getting images from Wikimedia Commons category: ${categoryName}`)
 
       // Ensure category has proper prefix
       const fullCategoryName = categoryName.startsWith('Category:') 
@@ -347,7 +347,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
     this.ensureInitialized()
 
     try {
-      console.log(`Getting images from Wikimedia Commons gallery: ${galleryName}`)
+      logger.debug(`Getting images from Wikimedia Commons gallery: ${galleryName}`)
 
       // For galleries, we need to get the gallery page content and parse it
       const galleryPageResponse = await axios.get(
@@ -452,7 +452,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
     this.ensureInitialized()
 
     try {
-      console.log(`Searching Wikimedia Commons for images: ${query}`)
+      logger.debug(`Searching Wikimedia Commons for images: ${query}`)
 
       const response = await axios.get(
         'https://commons.wikimedia.org/w/api.php',

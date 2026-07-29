@@ -358,13 +358,11 @@ describe('GET /integrations/osm/callback — callback page safety', () => {
     )
   })
 
-  test('currently requires a session, inherited from the earlier guard', async () => {
-    // The callback is declared with a bare `app.get(...)`, but the preceding
-    // `app.use(requireAuth).get('/authorize', ...)` mutates the shared instance,
-    // so every route after it inherits the guard. OSM sends the user's browser
-    // here as a top-level navigation, so a SameSite=Lax session cookie does
-    // ride along and the flow works — but the callback is authenticated by the
-    // session rather than by the state token it goes on to validate.
+  test('completes without a session, authenticated by the state token', async () => {
+    // OSM sends the user's browser here as a top-level navigation. The callback
+    // identifies the user from the state token it validates, so it must not
+    // depend on a session cookie riding along — it lives on its own Elysia
+    // instance for that reason.
     setAuthUser(null)
     dbMock.queueSelect([futureStateToken()])
     http.get.mockResolvedValueOnce({ data: { user: OSM_USER } })
@@ -373,7 +371,23 @@ describe('GET /integrations/osm/callback — callback page safety', () => {
       query: { code: 'auth-code', state: 'generated-state' },
     })
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(200)
+    expect(String(res.body)).toContain('osm-oauth-callback')
+  })
+
+  test('creates the integration for the state token’s owner, not the session', async () => {
+    setAuthUser(null)
+    dbMock.queueSelect([futureStateToken()])
+    http.get.mockResolvedValueOnce({ data: { user: OSM_USER } })
+
+    await req(app).get('/integrations/osm/callback', {
+      query: { code: 'auth-code', state: 'generated-state' },
+    })
+
+    expect(createIntegration.mock.calls[0][0]).toBe(TEST_USER.id)
+    expect(createIntegration.mock.calls[0][2]).toMatchObject({
+      accessToken: 'osm-access-token',
+    })
   })
 })
 

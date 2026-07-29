@@ -172,22 +172,34 @@ beforeEach(() => {
 })
 
 describe('GET /integrations/configured', () => {
-  test('BUG: 401s for an anonymous caller despite being documented as public', async () => {
-    // The route is declared `app.use(getSession).get('/configured', ...)` and
-    // its doc comment says "Public endpoint (no auth required)". But the later
-    // bare `app.use(requireAuth)` on the same instance applies retroactively to
-    // it, so signed-out callers are rejected.
-    //
-    // This is user-visible: web/src/App.vue calls fetchConfiguredIntegrations()
-    // on mount "for all users" to pick up the Mapbox token and OSM server URL,
-    // so a signed-out visitor (e.g. opening a /public/... share link) silently
-    // loses the configured map engine. Asserted as-is so the fix flips this
-    // test rather than leaving the regression unnoticed.
+  test('serves an anonymous caller', async () => {
+    // web/src/App.vue calls fetchConfiguredIntegrations() on mount for ALL
+    // users to pick up the Mapbox token and OSM server URL, so a signed-out
+    // visitor opening a /public/... share link needs this to succeed or the
+    // map renders with no engine configured. The route therefore lives on its
+    // own Elysia instance — a bare `.use(requireAuth)` applies retroactively
+    // to routes declared before it on the same instance.
     setAuthUser(null)
 
     const res = await req(app).get('/integrations/configured')
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(200)
+  })
+
+  test('returns system integrations to an anonymous caller', async () => {
+    setAuthUser(null)
+
+    const res = await req(app).get('/integrations/configured')
+
+    expect(res.body.map((i: any) => i.id)).toEqual(['sys-1'])
+  })
+
+  test('withholds user integrations from an anonymous caller', async () => {
+    setAuthUser(null)
+
+    const res = await req(app).get('/integrations/configured')
+
+    expect(res.body.every((i: any) => i.userId === undefined)).toBe(true)
   })
 
   test('never exposes non-public config fields', async () => {

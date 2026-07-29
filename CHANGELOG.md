@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 * Neighbouring businesses that share a name — two locations of the same chain on one street, adjacent mall units — no longer collapse into a single map pin when their street addresses clearly differ
+* Shared links opened while signed out now load the map properly instead of coming up blank
+* The final step of a set of directions now shows the arrival flag again instead of a turn arrow
 
 ## [0.5.7] - 2026-07-27
 

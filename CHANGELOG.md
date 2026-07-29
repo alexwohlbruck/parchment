@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+* Neighbouring businesses that share a name — two locations of the same chain on one street, adjacent mall units — no longer collapse into a single map pin when their street addresses clearly differ
+
 ## [0.5.7] - 2026-07-27
 
 ### Changed

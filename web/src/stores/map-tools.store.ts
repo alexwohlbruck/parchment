@@ -6,8 +6,9 @@ import {
   MEASURE_LAYER_ID,
   MEASURE_POINTS_LAYER_ID,
 } from '@/constants/layer.constants'
+import { useIsochroneStore } from './isochrone.store'
 
-export type MapToolId = 'none' | 'measure' | 'radius'
+export type MapToolId = 'none' | 'measure' | 'radius' | 'isochrone'
 
 export const useMapToolsStore = defineStore('map-tools', () => {
   const activeTool = ref<MapToolId>('none')
@@ -46,6 +47,12 @@ export const useMapToolsStore = defineStore('map-tools', () => {
     }
     if (tool !== 'radius') {
       clearRadius()
+    }
+    if (tool !== 'isochrone') {
+      // Isochrone state lives in its own store — the fetch, abort and result
+      // handling would swamp this one. Resolved lazily so the dependency stays
+      // one-way and this store keeps loading without it.
+      useIsochroneStore().clear()
     }
   }
 

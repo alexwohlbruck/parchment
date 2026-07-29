@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test'
+import { Page, expect } from '@playwright/test'
 
 /**
  * Console-error text that is expected in the backend-light e2e environment and
@@ -25,6 +25,11 @@ const EXPECTED_NOISE = [
   'WebGL',
   'mapbox',
   'Mapbox',
+  // Errors thrown from inside the map bundle. The test stack configures no map
+  // credentials, so maplibre reports style/source failures as minified error
+  // objects whose text is a single character ("L") — matched here by the source
+  // URL the collector appends, since the text itself identifies nothing.
+  'maplibre-gl.js',
   'ResizeObserver',
   'CORS',
   'favicon',
@@ -41,7 +46,12 @@ export function isExpectedNoise(text: string): boolean {
 export function collectConsoleErrors(page: Page): string[] {
   const errors: string[] = []
   page.on('console', msg => {
-    if (msg.type() === 'error') errors.push(msg.text())
+    if (msg.type() !== 'error') return
+    // Include the source location: some libraries log a bare token (a single
+    // character, an opaque object) whose text alone identifies nothing.
+    const { url, lineNumber } = msg.location()
+    const where = url ? ` (${url}:${lineNumber})` : ''
+    errors.push(`${msg.text()}${where}`)
   })
   return errors
 }
@@ -49,4 +59,20 @@ export function collectConsoleErrors(page: Page): string[] {
 /** Drop expected-noise entries, leaving only errors that should fail a test. */
 export function criticalErrors(errors: string[]): string[] {
   return errors.filter(e => !isExpectedNoise(e))
+}
+
+/**
+ * Assert no unexpected console errors, naming them in the failure message.
+ *
+ * A bare `expect(criticalErrors(errors)).toHaveLength(0)` reports only a count
+ * and an abbreviated array, which tells you nothing about what actually broke.
+ */
+export function expectNoCriticalErrors(errors: string[]) {
+  const critical = criticalErrors(errors)
+  expect(
+    critical,
+    critical.length
+      ? `Unexpected console errors:\n  - ${critical.join('\n  - ')}`
+      : undefined,
+  ).toEqual([])
 }

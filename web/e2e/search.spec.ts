@@ -1,16 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { signIn } from './helpers/auth'
 import { requireBackend } from './helpers/database'
+import { gotoApp } from './helpers/navigate'
 
 test.describe('Search', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('search page is accessible', async ({ page }) => {
-    await page.goto('/search?q=coffee')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?q=coffee')
     
     // URL should contain search query
     expect(page.url()).toContain('/search')
@@ -18,8 +14,7 @@ test.describe('Search', () => {
   })
 
   test('search returns results for common query', async ({ page }) => {
-    await page.goto('/search?q=coffee')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?q=coffee')
     
     // Wait a bit for search to complete
     await page.waitForTimeout(2000)
@@ -38,8 +33,7 @@ test.describe('Search', () => {
   })
 
   test('search with unlikely query shows appropriate state', async ({ page }) => {
-    await page.goto('/search?q=xyzabc123nonexistent9999')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?q=xyzabc123nonexistent9999')
     
     // Wait for search to complete
     await page.waitForTimeout(3000)
@@ -52,8 +46,7 @@ test.describe('Search', () => {
 
   test('category search works', async ({ page }) => {
     // Test category-based search with a common category
-    await page.goto('/search?categoryId=amenity-restaurant')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?categoryId=amenity-restaurant')
     
     // Wait for search to complete
     await page.waitForTimeout(2000)
@@ -67,8 +60,7 @@ test.describe('Search', () => {
   })
 
   test('search results are clickable', async ({ page }) => {
-    await page.goto('/search?q=restaurant')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?q=restaurant')
     
     // Wait for potential results
     await page.waitForTimeout(2000)
@@ -94,16 +86,14 @@ test.describe('Search', () => {
 
   test('search updates when query changes', async ({ page }) => {
     // Start with one query
-    await page.goto('/search?q=coffee')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?q=coffee')
     await page.waitForTimeout(1000)
     
     const firstUrl = page.url()
     expect(firstUrl).toContain('q=coffee')
     
     // Navigate to different query
-    await page.goto('/search?q=pizza')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?q=pizza')
     await page.waitForTimeout(1000)
     
     const secondUrl = page.url()

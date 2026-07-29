@@ -57,12 +57,25 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
+  // Per-test budget. The old 30s default was routinely exceeded on CI's
+  // 2-worker runner, which is what produced a suite-wide "fails once, passes
+  // on retry" pattern rather than any real instability.
+  timeout: 60 * 1000,
+
   // Configure projects for major browsers
   projects: [
+    // Signs in once; every other project replays the saved state.
+    {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
     {
       name: 'chromium',
+      dependencies: ['setup'],
       use: { 
         ...devices['Desktop Chrome'],
+        storageState: 'e2e/.auth/user.json',
         // Enable WebGL support in headless mode
         launchOptions: {
           args: [
@@ -71,11 +84,10 @@ export default defineConfig({
             '--disable-gpu-sandbox',
           ],
         },
-        // Inject flag to indicate we're in a test environment
-        contextOptions: {
-          // This will be available as window.__playwright
-          storageState: undefined,
-        },
+        // NOTE: no `contextOptions.storageState` here — it used to be set to
+        // `undefined`, which silently clobbers the storageState above. The
+        // map strategy detects automation via `navigator.webdriver`, which
+        // Playwright sets on its own.
       },
     },
   ],

@@ -289,7 +289,12 @@ async function loadArgumentOptions(signal?: AbortSignal) {
   try {
     const items = activeArgument.value.getItems(undefined, signal)
     if (items instanceof Promise) {
-      argumentOptions.value = await items
+      const resolved = await items
+      // A superseded request doesn't reject here: the search service turns an
+      // axios cancel into an empty array. Assigning it would blank the list the
+      // newer request is about to fill, which reads as a flicker while typing.
+      if (signal?.aborted) return
+      argumentOptions.value = resolved
     } else {
       argumentOptions.value = items
     }
@@ -298,8 +303,12 @@ async function loadArgumentOptions(signal?: AbortSignal) {
     console.error('Error loading argument options:', error)
     argumentOptions.value = []
   } finally {
-    if (loadingTimer) clearTimeout(loadingTimer)
-    loadingOptions.value = false
+    // Same reasoning: a superseded request must not clear the spinner that the
+    // request which replaced it is still waiting on.
+    if (!signal?.aborted) {
+      if (loadingTimer) clearTimeout(loadingTimer)
+      loadingOptions.value = false
+    }
   }
 }
 
@@ -314,12 +323,18 @@ watch(activeArgument, async newArg => {
 
 // Create a debounced function for loading search options.
 // nextSignal() cancels the previous in-flight autocomplete request before issuing a new one.
+//
+// 150ms: barrelman's autocomplete now answers in ~20-40ms server-side (it was
+// 0.5-1.5s, with short prefixes reaching 10-20s), so the debounce no longer has
+// to hide backend latency — it only has to avoid firing on every keystroke of a
+// fast typist. Superseded requests are aborted above, so the extra in-flight
+// requests a shorter window allows are cancelled rather than raced.
 const debouncedLoadOptions = useDebounceFn(async () => {
   // Load options if we're in search mode
   if (activeCommand.value?.id === CommandName.SEARCH && activeArgument.value) {
     await loadArgumentOptions(nextSignal())
   }
-}, 300)
+}, 150)
 
 // Watch query and handle search
 watch(query, newQuery => {

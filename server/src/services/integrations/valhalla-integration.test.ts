@@ -709,12 +709,15 @@ describe('instructions', () => {
 
   test('maps the maneuver type families', async () => {
     for (const [type, expected] of [
+      [0, 'none'],
       [1, 'start'],
-      [3, 'turn'],
-      [7, 'continue'],
-      [9, 'merge'],
-      [15, 'roundabout'],
-      [27, 'ramp'],
+      [9, 'turn'],
+      [15, 'continue'],
+      [20, 'ramp'],
+      [24, 'exit'],
+      [26, 'roundabout'],
+      [29, 'ferry'],
+      [37, 'merge'],
     ] as const) {
       expect((await instructionFor({ type })).type).toBe(expected)
     }
@@ -724,33 +727,48 @@ describe('instructions', () => {
     expect((await instructionFor({ type: 99 })).type).toBe('continue')
   })
 
-  test('BUG: type 4 can never map to destination', async () => {
-    // `mapManeuverType` lists `case 4` twice — the first, grouped with the turn
-    // family, wins, so the later `case 4: return 'destination'` is dead code and
-    // arrival is reported as a turn. Fixing it means using Valhalla's real
-    // destination type instead of reusing 4; this test flips when that happens.
-    expect((await instructionFor({ type: 4 })).type).toBe('turn')
+  test('reports arrival as a destination', async () => {
+    // The client keys its arrival flag icon off this exact value, so folding
+    // it into the turn family loses the marker at the end of the route.
+    expect((await instructionFor({ type: 4 })).type).toBe('destination')
+    expect((await instructionFor({ type: 5 })).type).toBe('destination-right')
+    expect((await instructionFor({ type: 6 })).type).toBe('destination-left')
+  })
+
+  test('distinguishes the sided start maneuvers', async () => {
+    expect((await instructionFor({ type: 2 })).type).toBe('start-right')
+    expect((await instructionFor({ type: 3 })).type).toBe('start-left')
   })
 
   test('maps the turn modifiers', async () => {
     for (const [type, expected] of [
-      [2, 'straight'],
-      [3, 'slight-right'],
-      [4, 'right'],
-      [6, 'u-turn'],
-      [8, 'left'],
-      [9, 'slight-left'],
+      [7, 'slight-left'],
+      [8, 'right'],
+      [9, 'slight-right'],
+      [11, 'u-turn'],
+      [12, 'u-turn'],
+      [14, 'left'],
+      [15, 'straight'],
     ] as const) {
       expect((await instructionFor({ type })).modifier).toBe(expected)
     }
   })
 
   test('flattens sharp turns onto the plain direction', async () => {
-    expect((await instructionFor({ type: 5 })).modifier).toBe('right')
-    expect((await instructionFor({ type: 7 })).modifier).toBe('left')
+    expect((await instructionFor({ type: 10 })).modifier).toBe('right')
+    expect((await instructionFor({ type: 13 })).modifier).toBe('left')
   })
 
   test('leaves the modifier unset for non-turn maneuvers', async () => {
     expect((await instructionFor({ type: 1 })).modifier).toBeUndefined()
+    expect((await instructionFor({ type: 4 })).modifier).toBeUndefined()
+  })
+
+  test('shares one table with the Barrelman-proxied adapter', async () => {
+    // Both consume the same upstream enum; separate copies drifted apart once
+    // already, which is how the unreachable destination branch survived.
+    const { mapManeuverType } = await import('../../lib/valhalla-maneuvers')
+
+    expect((await instructionFor({ type: 4 })).type).toBe(mapManeuverType(4))
   })
 })

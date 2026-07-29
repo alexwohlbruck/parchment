@@ -25,7 +25,11 @@ import type {
   ValhallaManeuver,
 } from '../../types/valhalla.types'
 import { ValhallaAdapter } from './adapters/valhalla-adapter'
-import { logError } from '../../lib/logger'
+import {
+  mapManeuverType,
+  mapManeuverModifier,
+} from '../../lib/valhalla-maneuvers'
+import { logError, logger } from '../../lib/logger'
 
 /**
  * Valhalla integration for routing
@@ -208,11 +212,8 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
         },
       }
 
-      console.log('Valhalla request URL:', url)
-      console.log(
-        'Valhalla request body:',
-        JSON.stringify(requestBody, null, 2),
-      )
+      logger.debug({ url }, 'Valhalla request URL')
+      logger.debug({ requestBody }, 'Valhalla request body')
 
       const response = await fetch(url, {
         method: 'POST',
@@ -573,97 +574,16 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
     }
     
     return {
-      type: this.mapManeuverType(maneuver.type),
+      type: mapManeuverType(maneuver.type),
       text: maneuver.instruction,
       coordinate,
       distance: maneuver.length * 1000, // Convert km to meters
       duration: maneuver.time,
       streetName: maneuver.street_names?.[0],
-      modifier: this.mapManeuverModifier(maneuver.type),
+      modifier: mapManeuverModifier(maneuver.type),
       exitNumber: maneuver.sign?.exit_number
         ? parseInt(maneuver.sign.exit_number)
         : undefined,
-    }
-  }
-
-  /**
-   * Map Valhalla maneuver type to unified instruction type
-   */
-  private mapManeuverType(type: number): string {
-    // Valhalla maneuver type mappings
-    switch (type) {
-      case 1:
-        return 'start'
-      case 2:
-      case 3:
-      case 4:
-      case 5:
-      case 6:
-        return 'turn'
-      case 7:
-      case 8:
-        return 'continue'
-      case 9:
-      case 10:
-        return 'merge'
-      case 11:
-      case 12:
-      case 13:
-      case 14:
-      case 15:
-      case 16:
-      case 17:
-      case 18:
-      case 19:
-      case 20:
-      case 21:
-      case 22:
-      case 23:
-      case 24:
-      case 25:
-      case 26:
-        return 'roundabout'
-      case 27:
-        return 'ramp'
-      case 4:
-        return 'destination'
-      default:
-        return 'continue'
-    }
-  }
-
-  /**
-   * Map Valhalla maneuver type to turn modifier
-   */
-  private mapManeuverModifier(
-    type: number,
-  ):
-    | 'left'
-    | 'right'
-    | 'straight'
-    | 'slight-left'
-    | 'slight-right'
-    | 'u-turn'
-    | undefined {
-    switch (type) {
-      case 2:
-        return 'straight'
-      case 3:
-        return 'slight-right'
-      case 4:
-        return 'right'
-      case 5:
-        return 'right' // sharp-right -> right
-      case 6:
-        return 'u-turn'
-      case 7:
-        return 'left' // sharp-left -> left
-      case 8:
-        return 'left'
-      case 9:
-        return 'slight-left'
-      default:
-        return undefined
     }
   }
 

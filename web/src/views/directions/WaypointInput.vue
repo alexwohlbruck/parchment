@@ -27,6 +27,7 @@ import { Place } from '@/types/place.types'
 import { AutocompleteResult } from '@/types/search.types'
 import { useSearchService } from '@/services/search.service'
 import { useMapCamera } from '@/composables/useMapCamera'
+import { useAbortController } from '@/composables/useAbortController'
 import { cn, useResponsive } from '@/lib/utils'
 import { useDebounceFn } from '@vueuse/core'
 import { Spinner } from '@/components/ui/spinner'
@@ -228,6 +229,7 @@ function selectPlace(index: number, place: Place, result?: AutocompleteResult) {
 const autocompleteResults = ref<AutocompleteResult[]>([])
 const isLoading = ref(false)
 const currentQuery = ref('')
+const { nextSignal } = useAbortController()
 
 // Combined results with current location prepended if not already used and matches query
 const combinedResults = computed(() => {
@@ -278,8 +280,14 @@ const combinedResults = computed(() => {
   return results
 })
 
+// 150ms: barrelman's autocomplete now answers in ~20-40ms server-side, so the
+// debounce only has to avoid firing on every keystroke rather than hide backend
+// latency. nextSignal() cancels the previous request, which a shorter window
+// makes essential: without it a slower earlier response could land after a
+// newer one and overwrite the list with stale suggestions.
 const getAutocomplete = useDebounceFn(async (index: number, value: string) => {
   currentQuery.value = value
+  const signal = nextSignal()
   isLoading.value = true
   try {
     const { camera } = mapCamera
@@ -292,15 +300,19 @@ const getAutocomplete = useDebounceFn(async (index: number, value: string) => {
         ? [center.lng, center.lat]
         : [center.lon, center.lat]
 
-    autocompleteResults.value = await searchService.getAutocompleteSuggestions({
-      query: value,
-      lat,
-      lng,
-    })
+    const results = await searchService.getAutocompleteSuggestions(
+      { query: value, lat, lng },
+      signal,
+    )
+    // A cancelled request resolves to [] rather than rejecting, so assigning it
+    // would blank the list the newer request is about to fill.
+    if (signal.aborted) return
+    autocompleteResults.value = results
   } finally {
-    isLoading.value = false
+    // Don't clear the spinner the request that superseded this one still needs.
+    if (!signal.aborted) isLoading.value = false
   }
-}, 200)
+}, 150)
 
 // Convert AutocompleteResult to Place object
 function autocompleteResultToPlace(result: AutocompleteResult): Place {

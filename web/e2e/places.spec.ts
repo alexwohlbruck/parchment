@@ -1,18 +1,14 @@
 import { test, expect } from '@playwright/test'
-import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
-import { signIn } from './helpers/auth'
+import { collectConsoleErrors, expectNoCriticalErrors } from './helpers/console'
 import { requireBackend } from './helpers/database'
+import { gotoApp, settle } from './helpers/navigate'
 
 test.describe('Places', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('can navigate to place detail from search', async ({ page }) => {
     // Search for something likely to have results
-    await page.goto('/search?q=restaurant')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/search?q=restaurant')
     await page.waitForTimeout(2000)
     
     // Try to find a place link
@@ -21,7 +17,7 @@ test.describe('Places', () => {
     
     if (hasLink) {
       await placeLink.click()
-      await page.waitForLoadState('networkidle')
+      await settle(page)
       
       // Should be on a place detail page
       expect(page.url()).toContain('/place/')
@@ -38,21 +34,16 @@ test.describe('Places', () => {
     const errors = collectConsoleErrors(page)
 
     // Try to navigate to a place (will 404 if not found, but shouldn't crash)
-    await page.goto('/place/osm/node/123456789')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/place/osm/node/123456789')
     await page.waitForTimeout(1000)
 
-    // Filter out expected errors
-    const criticalErrors = filterCritical(errors)
-
     // Should handle missing places gracefully
-    expect(criticalErrors).toHaveLength(0)
+    expectNoCriticalErrors(errors)
   })
 
   test('place coords route is accessible', async ({ page }) => {
     // Test the coords-based place route
-    await page.goto('/place/coords/37.7749/-122.4194')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/place/coords/37.7749/-122.4194')
     
     // Should load without crashing
     const app = page.locator('#app')
@@ -64,8 +55,7 @@ test.describe('Places', () => {
 
   test('place location route is accessible', async ({ page }) => {
     // Test the named location route
-    await page.goto('/place/location/San%20Francisco/37.7749/-122.4194')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/place/location/San%20Francisco/37.7749/-122.4194')
     
     // Should load without crashing
     const app = page.locator('#app')

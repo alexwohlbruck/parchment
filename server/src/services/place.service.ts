@@ -14,7 +14,7 @@ import { WikipediaIntegration } from './integrations/wikipedia-integration'
 import { WikimediaIntegration } from './integrations/wikimedia-integration'
 import { dedupeWikiPhotos } from './integrations/wiki-utils'
 import { isTransitStop, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
-import { logError, logWarn } from '../lib/logger'
+import { logError, logWarn, logger } from '../lib/logger'
 
 /** True for an aborted/cancelled request (axios CanceledError or DOM AbortError). */
 function isAbortError(error: unknown): boolean {
@@ -71,18 +71,18 @@ function isMissingAddressData(place: Place): boolean {
 async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
   // Skip if we already have good address data
   if (!isMissingAddressData(place)) {
-    console.log('Place already has address data, skipping address enrichment')
+    logger.debug('Place already has address data, skipping address enrichment')
     return place
   }
   
   // Skip if we don't have coordinates
   if (!place.geometry.value.center) {
-    console.log('Place has no coordinates, cannot enrich address')
+    logger.debug('Place has no coordinates, cannot enrich address')
     return place
   }
   
   const startTime = Date.now()
-  console.log('Place missing address data, attempting reverse geocoding enrichment...')
+  logger.debug('Place missing address data, attempting reverse geocoding enrichment...')
   
   try {
     const { lat, lng } = place.geometry.value.center
@@ -93,7 +93,7 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
     )
     
     if (!geocodingIntegrations.length) {
-      console.log('No geocoding integration available for address enrichment')
+      logger.debug('No geocoding integration available for address enrichment')
       return place
     }
     
@@ -103,7 +103,7 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
       
       if (!integration?.capabilities.geocoding) continue
       
-      console.log(`Trying address enrichment with ${integrationRecord.integrationId}...`)
+      logger.debug(`Trying address enrichment with ${integrationRecord.integrationId}...`)
       
       try {
         const results = await integration.capabilities.geocoding.reverseGeocode(lat, lng)
@@ -114,7 +114,7 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
           // Only use the address if it has meaningful data
           const addr = geocodedAddress.value
           if (addr.street1 || addr.locality) {
-            console.log(`Successfully enriched address from ${integrationRecord.integrationId}`)
+            logger.debug(`Successfully enriched address from ${integrationRecord.integrationId}`)
             place.address = geocodedAddress
             
             // Add to sources if not already present
@@ -127,7 +127,7 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
             }
             
             const enrichTime = Date.now() - startTime
-            console.log(`[PERF] Address enrichment: ${enrichTime}ms`)
+            logger.debug(`[PERF] Address enrichment: ${enrichTime}ms`)
             return place
           }
         }
@@ -137,7 +137,7 @@ async function enrichPlaceWithAddressData(place: Place): Promise<Place> {
       }
     }
     
-    console.log('No geocoding integration returned useful address data')
+    logger.debug('No geocoding integration returned useful address data')
     return place
   } catch (error) {
     logError('Error during address enrichment', error)
@@ -258,7 +258,7 @@ export async function lookupPlaceById(
   options?: { language?: Language },
 ): Promise<Place | null> {
   try {
-    console.log(`[lookupPlaceById] Looking up source=${source}, placeId=${placeId}`)
+    logger.debug(`[lookupPlaceById] Looking up source=${source}, placeId=${placeId}`)
     const integrationRecord =
       integrationManager.getConfiguredIntegrationForSource(
         source,
@@ -266,19 +266,19 @@ export async function lookupPlaceById(
       )
 
     if (!integrationRecord) {
-      console.log(`[lookupPlaceById] No integration found for source=${source} with PLACE_INFO capability`)
+      logger.debug(`[lookupPlaceById] No integration found for source=${source} with PLACE_INFO capability`)
       return null
     }
 
-    console.log(`[lookupPlaceById] Found integration: ${integrationRecord.integrationId}`)
+    logger.debug(`[lookupPlaceById] Found integration: ${integrationRecord.integrationId}`)
     const integration =
       integrationManager.getCachedIntegrationInstance(integrationRecord)
     if (!integration) {
-      console.log(`[lookupPlaceById] Integration instance not cached`)
+      logger.debug(`[lookupPlaceById] Integration instance not cached`)
       return null
     }
 
-    console.log(`[lookupPlaceById] Calling getPlaceInfo...`)
+    logger.debug(`[lookupPlaceById] Calling getPlaceInfo...`)
     return (
       (await integration.capabilities.placeInfo?.getPlaceInfo(
         placeId,
@@ -415,7 +415,7 @@ export async function lookupPlaceByNameAndLocation(
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
-  console.log(`[PERF] Third party place lookup: ${name} at ${coordinates.lat},${coordinates.lng}`)
+  logger.debug(`[PERF] Third party place lookup: ${name} at ${coordinates.lat},${coordinates.lng}`)
   
   try {
     const {
@@ -435,10 +435,10 @@ export async function lookupPlaceByNameAndLocation(
       language,
     })
     const searchTime = Date.now() - searchStart
-    console.log(`[PERF] Multi-provider search: ${searchTime}ms (found ${places.length} places)`)
+    logger.debug(`[PERF] Multi-provider search: ${searchTime}ms (found ${places.length} places)`)
 
     if (places.length === 0) {
-      console.log(`[PERF] Third party lookup (no results): ${Date.now() - startTime}ms`)
+      logger.debug(`[PERF] Third party lookup (no results): ${Date.now() - startTime}ms`)
       return null
     }
 
@@ -447,11 +447,11 @@ export async function lookupPlaceByNameAndLocation(
       // TODO: Where else do we need to add bookmark info?
       await addBookmarkInfo(places, userId)
       const bookmarkTime = Date.now() - bookmarkStart
-      console.log(`[PERF] Third party bookmark info: ${bookmarkTime}ms`)
+      logger.debug(`[PERF] Third party bookmark info: ${bookmarkTime}ms`)
     }
 
     const totalTime = Date.now() - startTime
-    console.log(`[PERF] Third party place lookup total: ${totalTime}ms`)
+    logger.debug(`[PERF] Third party place lookup total: ${totalTime}ms`)
 
     return places[0] || null
   } catch (error) {
@@ -473,7 +473,7 @@ async function enrichPlaceWithWikiData(
   language: Language = 'en'
 ): Promise<Place> {
   const startTime = Date.now()
-  console.log(`[PERF] Starting Wiki data enrichment`)
+  logger.debug(`[PERF] Starting Wiki data enrichment`)
   
   try {
     // First, try to find Wikidata ID via parent relations (especially for transit stops)
@@ -500,7 +500,7 @@ async function enrichPlaceWithWikiData(
         }
       }
       
-      console.log(`[PERF] Wiki data enrichment (no Wikidata ID): ${Date.now() - startTime}ms`)
+      logger.debug(`[PERF] Wiki data enrichment (no Wikidata ID): ${Date.now() - startTime}ms`)
       return place
     }
 
@@ -511,13 +511,13 @@ async function enrichPlaceWithWikiData(
     )
 
     if (!wikidataIntegrationRecord) {
-      console.log('Wikidata integration not configured, skipping Wiki enrichment')
+      logger.debug('Wikidata integration not configured, skipping Wiki enrichment')
       return place
     }
 
     const wikidataIntegration = integrationManager.getCachedIntegrationInstance(wikidataIntegrationRecord) as WikidataIntegration
     if (!wikidataIntegration) {
-      console.log('Wikidata integration instance not found')
+      logger.debug('Wikidata integration instance not found')
       return place
     }
 
@@ -525,11 +525,11 @@ async function enrichPlaceWithWikiData(
     const wikidataFetchStart = Date.now()
     const wikidataEntity = await wikidataIntegration.getEntityData(wikidataId, language)
     const wikidataFetchTime = Date.now() - wikidataFetchStart
-    console.log(`[PERF] Wikidata entity fetch: ${wikidataFetchTime}ms`)
+    logger.debug(`[PERF] Wikidata entity fetch: ${wikidataFetchTime}ms`)
     
     if (!wikidataEntity) {
-      console.log(`No Wikidata entity found for ID: ${wikidataId}`)
-      console.log(`[PERF] Wiki data enrichment (no entity): ${Date.now() - startTime}ms`)
+      logger.debug(`No Wikidata entity found for ID: ${wikidataId}`)
+      logger.debug(`[PERF] Wiki data enrichment (no entity): ${Date.now() - startTime}ms`)
       return place
     }
 
@@ -539,12 +539,12 @@ async function enrichPlaceWithWikiData(
     if (allOnestopIds.length > 0 && isPlaceTransitStop(place)) {
       const timestamp = new Date().toISOString()
       
-      console.debug(`[Transit] Wikidata → Transitland mapping successful:`)
-      console.debug(`  - Wikidata ID: ${wikidataId}`)
-      console.debug(`  - Onestop IDs: ${allOnestopIds.join(', ')}`)
-      console.debug(`  - Source: Wikidata P11109 property`)
+      logger.debug(`[Transit] Wikidata → Transitland mapping successful:`)
+      logger.debug(`  - Wikidata ID: ${wikidataId}`)
+      logger.debug(`  - Onestop IDs: ${allOnestopIds.join(', ')}`)
+      logger.debug(`  - Source: Wikidata P11109 property`)
       allOnestopIds.forEach(id => {
-        console.debug(`  - Transitland URL: https://www.transit.land/stops/${id}`)
+        logger.debug(`  - Transitland URL: https://www.transit.land/stops/${id}`)
       })
       
       // Create or update transit info. Keep onestop IDs for Transitland
@@ -565,9 +565,9 @@ async function enrichPlaceWithWikiData(
       }
 
       if (allOnestopIds.length > 1) {
-        console.log(`Linked transit hub to Transitland via Wikidata: ${allOnestopIds.join(', ')}`)
+        logger.debug(`Linked transit hub to Transitland via Wikidata: ${allOnestopIds.join(', ')}`)
       } else {
-        console.log(`Linked transit stop to Transitland via Wikidata: ${allOnestopIds[0]}`)
+        logger.debug(`Linked transit stop to Transitland via Wikidata: ${allOnestopIds[0]}`)
       }
     }
 
@@ -575,13 +575,13 @@ async function enrichPlaceWithWikiData(
     const wikidataPlaceStart = Date.now()
     const wikidataPlace = await wikidataIntegration.capabilities.placeInfo?.getPlaceInfo(wikidataId)
     const wikidataPlaceTime = Date.now() - wikidataPlaceStart
-    console.log(`[PERF] Wikidata place info fetch: ${wikidataPlaceTime}ms`)
+    logger.debug(`[PERF] Wikidata place info fetch: ${wikidataPlaceTime}ms`)
     
     if (wikidataPlace) {
       const mergeStart = Date.now()
       place = mergePlaces(place, wikidataPlace)
       const mergeTime = Date.now() - mergeStart
-      console.log(`[PERF] Wikidata place merge: ${mergeTime}ms`)
+      logger.debug(`[PERF] Wikidata place merge: ${mergeTime}ms`)
     }
 
     // Extract Wikipedia title from Wikidata entity
@@ -600,13 +600,13 @@ async function enrichPlaceWithWikiData(
           const wikipediaStart = Date.now()
           const wikipediaPlace = await wikipediaIntegration.capabilities.placeInfo?.getPlaceInfo(`${language}:${wikipediaTitle}`)
           const wikipediaTime = Date.now() - wikipediaStart
-          console.log(`[PERF] Wikipedia fetch: ${wikipediaTime}ms`)
+          logger.debug(`[PERF] Wikipedia fetch: ${wikipediaTime}ms`)
           
           if (wikipediaPlace) {
             const mergeStart = Date.now()
             place = mergePlaces(place, wikipediaPlace)
             const mergeTime = Date.now() - mergeStart
-            console.log(`[PERF] Wikipedia merge: ${mergeTime}ms`)
+            logger.debug(`[PERF] Wikipedia merge: ${mergeTime}ms`)
           }
         }
       }
@@ -636,7 +636,7 @@ async function enrichPlaceWithWikiData(
             const wikimediaStart = Date.now()
             const wikimediaPlace = await wikimediaIntegration.capabilities.placeInfo?.getPlaceInfo(wikimediaId)
             const wikimediaTime = Date.now() - wikimediaStart
-            console.log(`[PERF] Wikimedia fetch: ${wikimediaTime}ms`)
+            logger.debug(`[PERF] Wikimedia fetch: ${wikimediaTime}ms`)
 
             if (wikimediaPlace && wikimediaPlace.photos.length > 0) {
               // Update photo priorities before merging
@@ -795,7 +795,7 @@ export async function lookupEnrichedPlaceById(
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
-  console.log(`[PERF] Starting enriched place lookup: source=${source}, id=${id}`)
+  logger.debug(`[PERF] Starting enriched place lookup: source=${source}, id=${id}`)
 
   try {
     const { userId, language = 'en', premiumData = false } = options || {}
@@ -804,10 +804,10 @@ export async function lookupEnrichedPlaceById(
     const step1Start = Date.now()
     let place = await lookupPlaceById(source, id)
     const step1Time = Date.now() - step1Start
-    console.log(`[PERF] Step 1 - Base place lookup: ${step1Time}ms`)
+    logger.debug(`[PERF] Step 1 - Base place lookup: ${step1Time}ms`)
     
     if (!place) {
-      console.log(`[PERF] Total time (no place found): ${Date.now() - startTime}ms`)
+      logger.debug(`[PERF] Total time (no place found): ${Date.now() - startTime}ms`)
       return null
     }
 
@@ -828,16 +828,16 @@ export async function lookupEnrichedPlaceById(
         },
       )
       const step2Time = Date.now() - step2Start
-      console.log(`[PERF] Step 2 - Third party place lookup: ${step2Time}ms`)
+      logger.debug(`[PERF] Step 2 - Third party place lookup: ${step2Time}ms`)
 
       if (thirdPartyPlace) {
         const mergeStart = Date.now()
         place = mergePlaces(place, thirdPartyPlace)
         const mergeTime = Date.now() - mergeStart
-        console.log(`[PERF] Step 2b - Place merge: ${mergeTime}ms`)
+        logger.debug(`[PERF] Step 2b - Place merge: ${mergeTime}ms`)
       }
     } else if (skipThirdPartySearch) {
-      console.log(`[PERF] Step 2 - Skipped third party search for Transitland transit stop`)
+      logger.debug(`[PERF] Step 2 - Skipped third party search for Transitland transit stop`)
     }
 
     // Step 3 & 4: Enrich with Wiki data and address data in parallel
@@ -854,7 +854,7 @@ export async function lookupEnrichedPlaceById(
     // fills photos/hours/ratings that base + wiki + address lack)
     place = mergePlaces(wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace)
     const enrichmentTime = Date.now() - enrichmentStart
-    console.log(`[PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
+    logger.debug(`[PERF] Step 3-4 - Parallel enrichment (Wiki + Address): ${enrichmentTime}ms`)
 
     // Step 5: Resolve timezone from coordinates
     if (place.geometry?.value?.center) {
@@ -913,11 +913,11 @@ export async function lookupEnrichedPlaceById(
         place.collectionIds = bookmarkInfo.collectionIds
       }
       const step7Time = Date.now() - step7Start
-      console.log(`[PERF] Step 7 - Bookmark info: ${step7Time}ms`)
+      logger.debug(`[PERF] Step 7 - Bookmark info: ${step7Time}ms`)
     }
 
     const totalTime = Date.now() - startTime
-    console.log(`[PERF] Total enriched place lookup time: ${totalTime}ms`)
+    logger.debug(`[PERF] Total enriched place lookup time: ${totalTime}ms`)
 
     return place
   } catch (error) {
@@ -949,7 +949,7 @@ export async function lookupEnrichedPlaceByCoordinates(
   },
 ): Promise<Place | null> {
   const startTime = Date.now()
-  console.log(`[PERF] Starting coordinate-based place lookup: lat=${lat}, lng=${lng}`)
+  logger.debug(`[PERF] Starting coordinate-based place lookup: lat=${lat}, lng=${lng}`)
 
   try {
     const { userId, radius = 50, language = 'en', addressOnly = false, premiumData = false } = options || {}
@@ -974,10 +974,10 @@ export async function lookupEnrichedPlaceByCoordinates(
     const step1Start = Date.now()
     const results = await geocodingIntegration.capabilities.geocoding.reverseGeocode(lat, lng)
     const step1Time = Date.now() - step1Start
-    console.log(`[PERF] Step 1 - Reverse geocoding: ${step1Time}ms`)
+    logger.debug(`[PERF] Step 1 - Reverse geocoding: ${step1Time}ms`)
     
     if (!results?.[0]) {
-      console.log(`[PERF] Total time (no results): ${Date.now() - startTime}ms`)
+      logger.debug(`[PERF] Total time (no results): ${Date.now() - startTime}ms`)
       return null
     }
     
@@ -1023,7 +1023,7 @@ export async function lookupEnrichedPlaceByCoordinates(
       }
 
       const totalTime = Date.now() - startTime
-      console.log(`[PERF] Total coordinate lookup time (address-only): ${totalTime}ms`)
+      logger.debug(`[PERF] Total coordinate lookup time (address-only): ${totalTime}ms`)
       return place
     }
 
@@ -1033,12 +1033,12 @@ export async function lookupEnrichedPlaceByCoordinates(
     // First, check if we have an OSM ID - if so, use the full enrichment pipeline
     const osmId = place.externalIds?.[SOURCE.OSM]
     if (osmId) {
-      console.log(`Found OSM ID: ${osmId}, using full enrichment pipeline...`)
+      logger.debug(`Found OSM ID: ${osmId}, using full enrichment pipeline...`)
       
       const step2Start = Date.now()
       const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, { userId, language, premiumData })
       const step2Time = Date.now() - step2Start
-      console.log(`[PERF] Step 2 - Full enrichment by OSM ID: ${step2Time}ms`)
+      logger.debug(`[PERF] Step 2 - Full enrichment by OSM ID: ${step2Time}ms`)
       
       if (enrichedPlace) {
         // Override the coordinates with the exact clicked coordinates
@@ -1052,7 +1052,7 @@ export async function lookupEnrichedPlaceByCoordinates(
         }
         
         const totalTime = Date.now() - startTime
-        console.log(`[PERF] Total coordinate lookup time (with OSM enrichment): ${totalTime}ms`)
+        logger.debug(`[PERF] Total coordinate lookup time (with OSM enrichment): ${totalTime}ms`)
         return enrichedPlace
       }
     }
@@ -1061,7 +1061,7 @@ export async function lookupEnrichedPlaceByCoordinates(
     // Fetch it to extract the OSM ID, then use OSM for full enrichment
     const geoapifyPlaceId = place.externalIds?.[SOURCE.GEOAPIFY]
     if (!osmId && geoapifyPlaceId) {
-      console.log(`Found Geoapify place ID: ${geoapifyPlaceId}, extracting OSM ID...`)
+      logger.debug(`Found Geoapify place ID: ${geoapifyPlaceId}, extracting OSM ID...`)
       
       const step2Start = Date.now()
       
@@ -1080,10 +1080,10 @@ export async function lookupEnrichedPlaceByCoordinates(
             const extractedOsmId = geoapifyPlace?.externalIds?.[SOURCE.OSM]
             
             if (extractedOsmId) {
-              console.log(`Extracted OSM ID from Geoapify: ${extractedOsmId}, using full OSM enrichment...`)
+              logger.debug(`Extracted OSM ID from Geoapify: ${extractedOsmId}, using full OSM enrichment...`)
               const enrichedPlace = await lookupEnrichedPlaceById(SOURCE.OSM, extractedOsmId, { userId, language, premiumData })
               const step2Time = Date.now() - step2Start
-              console.log(`[PERF] Step 2 - Full enrichment via Geoapify→OSM: ${step2Time}ms`)
+              logger.debug(`[PERF] Step 2 - Full enrichment via Geoapify→OSM: ${step2Time}ms`)
               
               if (enrichedPlace) {
                 // Override the coordinates with the exact clicked coordinates
@@ -1096,7 +1096,7 @@ export async function lookupEnrichedPlaceByCoordinates(
                 }
                 
                 const totalTime = Date.now() - startTime
-                console.log(`[PERF] Total coordinate lookup time (with Geoapify→OSM enrichment): ${totalTime}ms`)
+                logger.debug(`[PERF] Total coordinate lookup time (with Geoapify→OSM enrichment): ${totalTime}ms`)
                 return enrichedPlace
               }
             }
@@ -1107,12 +1107,12 @@ export async function lookupEnrichedPlaceByCoordinates(
       }
       
       const step2Time = Date.now() - step2Start
-      console.log(`[PERF] Step 2 - Geoapify place lookup (no OSM ID found): ${step2Time}ms`)
+      logger.debug(`[PERF] Step 2 - Geoapify place lookup (no OSM ID found): ${step2Time}ms`)
     }
     
     // If no OSM ID but we have a name, try name+location search
     if (place.name?.value && place.geometry.value.center) {
-      console.log(`Found place with name: ${place.name.value}, searching for full details...`)
+      logger.debug(`Found place with name: ${place.name.value}, searching for full details...`)
       
       const step2Start = Date.now()
       const fullPlace = await lookupPlaceByNameAndLocation(
@@ -1125,7 +1125,7 @@ export async function lookupEnrichedPlaceByCoordinates(
         }
       )
       const step2Time = Date.now() - step2Start
-      console.log(`[PERF] Step 2 - Name+location search: ${step2Time}ms`)
+      logger.debug(`[PERF] Step 2 - Name+location search: ${step2Time}ms`)
       
       if (fullPlace) {
         // Override the coordinates with the exact clicked coordinates
@@ -1139,13 +1139,13 @@ export async function lookupEnrichedPlaceByCoordinates(
         }
         
         const totalTime = Date.now() - startTime
-        console.log(`[PERF] Total coordinate lookup time (with name search): ${totalTime}ms`)
+        logger.debug(`[PERF] Total coordinate lookup time (with name search): ${totalTime}ms`)
         return fullPlace
       }
     }
     
     // Step 3: No place found or no name - return address-only data
-    console.log(`No place found, returning address-only data`)
+    logger.debug(`No place found, returning address-only data`)
     
     // Override geocoded coordinates with the exact clicked coordinates
     place.geometry = {
@@ -1178,7 +1178,7 @@ export async function lookupEnrichedPlaceByCoordinates(
     // Note: No enrichment for address-only results since we've stripped all IDs and data
 
     const totalTime = Date.now() - startTime
-    console.log(`[PERF] Total coordinate lookup time (basic enrichment): ${totalTime}ms`)
+    logger.debug(`[PERF] Total coordinate lookup time (basic enrichment): ${totalTime}ms`)
 
     return place
   } catch (error) {

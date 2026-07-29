@@ -51,7 +51,10 @@ services:
       SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY:-AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=}
       PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY:-AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=}
     ports:
-      - "5001:5000"
+      # Host port is overridable so the suite can run alongside a dev stack
+      # that already holds 5001 (barrelman). Set TEST_SERVER_PORT and a
+      # matching SERVER_ORIGIN in web/e2e/env.test to relocate it.
+      - "${TEST_SERVER_PORT:-5001}:5000"
     volumes:
       - test-data:/app/data
     depends_on:

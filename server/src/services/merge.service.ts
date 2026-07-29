@@ -97,25 +97,32 @@ export function extractNumbers(text: string): string[] {
 
 /**
  * Improved address similarity that handles structured data, formatted addresses, and missing data
- * Returns 0 if either place has no address data (as requested)
  * Focuses on street name and number only - simple and fast
+ *
+ * Return value distinguishes "no information" from "the addresses disagree":
+ * - `null` when there is nothing to compare (one or both places lack usable
+ *   address data). Absence of evidence, not evidence of a mismatch.
+ * - `0` when the addresses genuinely conflict (both places have house numbers
+ *   and they differ, or the street names have nothing in common). That is a
+ *   positive signal that these are two different places.
+ * - otherwise a 0-1 street name similarity score.
  */
 export function calculateAddressSimilarity(
   place1: Place,
   place2: Place,
-): number {
+): number | null {
   const address1 = place1.address?.value
   const address2 = place2.address?.value
 
-  // Return 0% match if either place has no address data
-  if (!address1 || !address2) return 0
+  // Nothing to compare if either place has no address data
+  if (!address1 || !address2) return null
 
   // Get street strings from both addresses
   const street1 = getStreetString(address1)
   const street2 = getStreetString(address2)
 
-  // If we can't extract street info from either, return 0
-  if (!street1 || !street2) return 0
+  // Nothing to compare if we can't extract street info from either
+  if (!street1 || !street2) return null
 
   // Extract and compare house numbers first
   const numbers1 = extractNumbers(street1)
@@ -321,10 +328,15 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
   // Early rejection if name similarity is too low
   if (nameSimilarity < requiredNameSimilarity) return false
 
+  // Conflicting addresses (different house numbers on the same street, or
+  // unrelated streets) mean these are different places regardless of how close
+  // together or similarly named they are
+  if (addressSimilarity === 0) return false
+
   // For very close places with addresses, require address match
   if (
     distanceSimilarity > 0.5 &&
-    addressSimilarity > 0 && // Has address data
+    addressSimilarity !== null && // Has address data
     addressSimilarity < 0.7
   ) {
     return false
@@ -333,7 +345,7 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
   // Calculate weighted merge score
   let mergeScore: number
 
-  if (addressSimilarity > 0) {
+  if (addressSimilarity !== null) {
     // With addresses: name 50%, distance 25%, address 25%
     mergeScore =
       nameSimilarity * 0.5 +

@@ -13,7 +13,7 @@ import {
   MapBounds,
 } from '../../types/integration.types'
 import { Place } from '../../types/place.types'
-import { logError } from '../../lib/logger'
+import { logError, logger } from '../../lib/logger'
 import {
   RouteRequest,
   UnifiedRoute,
@@ -441,12 +441,15 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         }
       }
 
-      console.log('[Geoapify] Routing request params:', {
-        waypoints: params.waypoints,
-        mode: params.mode,
-        avoid: params.avoid,
-        type: params.type,
-      })
+      logger.debug(
+        {
+          waypoints: params.waypoints,
+          mode: params.mode,
+          avoid: params.avoid,
+          type: params.type,
+        },
+        '[Geoapify] Routing request params',
+      )
 
       const response = await axios.get(url, { params })
 

@@ -1,7 +1,7 @@
 import type { Language } from './i18n'
 import { getLanguageCode } from './i18n'
 import { getChipLabel } from './display-chips'
-import { logWarn } from './logger'
+import { logWarn, logger } from './logger'
 
 export type GeometryType = 'point' | 'line' | 'area' | 'vertex' | 'relation'
 
@@ -656,7 +656,7 @@ export function clearAllData(): void {
 }
 
 export function initializeOsmPresets(): void {
-  console.log('Initializing OSM preset system...')
+  logger.debug('Initializing OSM preset system...')
   const start = Date.now()
 
   const presetData = loadPresets()
@@ -664,10 +664,10 @@ export function initializeOsmPresets(): void {
   buildIndex(presetData)
   createCache()
 
-  console.log(`OSM preset system ready:`)
-  console.log(`   - ${Object.keys(presetData).length} presets`)
-  console.log(`   - ${Object.keys(fieldData).length} fields`)
-  console.log(`   - Geometry index built`)
-  console.log(`   - Cache initialized`)
-  console.log(`   - Took ${Date.now() - start}ms`)
+  logger.debug(`OSM preset system ready:`)
+  logger.debug(`   - ${Object.keys(presetData).length} presets`)
+  logger.debug(`   - ${Object.keys(fieldData).length} fields`)
+  logger.debug(`   - Geometry index built`)
+  logger.debug(`   - Cache initialized`)
+  logger.debug(`   - Took ${Date.now() - start}ms`)
 }

@@ -15,6 +15,10 @@ import type {
   ValhallaManeuver,
   ValhallaEdgeSegment,
 } from '../../../types/valhalla.types'
+import {
+  mapManeuverType,
+  mapManeuverModifier,
+} from '../../../lib/valhalla-maneuvers'
 
 /**
  * Adapter for transforming Valhalla responses received through the Barrelman
@@ -152,111 +156,16 @@ export class BarrelmanValhallaAdapter {
     }
 
     return {
-      type: this.mapManeuverType(maneuver.type),
+      type: mapManeuverType(maneuver.type),
       text: maneuver.instruction,
       coordinate,
       distance: maneuver.length * 1000,
       duration: maneuver.time,
       streetName: maneuver.street_names?.[0],
-      modifier: this.mapManeuverModifier(maneuver.type),
+      modifier: mapManeuverModifier(maneuver.type),
       exitNumber: maneuver.sign?.exit_number
         ? parseInt(maneuver.sign.exit_number)
         : undefined,
-    }
-  }
-
-  // ── Maneuver type / modifier mapping ────────────────────────────
-
-  private mapManeuverType(type: number): string {
-    switch (type) {
-      case 0:
-        return 'none'
-      case 1:
-        return 'start'
-      case 2:
-        return 'start-right'
-      case 3:
-        return 'start-left'
-      case 4:
-        return 'destination'
-      case 5:
-        return 'destination-right'
-      case 6:
-        return 'destination-left'
-      case 7:
-      case 8:
-      case 9:
-      case 10:
-      case 11:
-      case 12:
-      case 13:
-      case 14:
-        return 'turn'
-      case 15:
-      case 16:
-      case 17:
-        return 'continue'
-      case 18:
-      case 19:
-      case 20:
-      case 21:
-      case 22:
-      case 23:
-        return 'ramp'
-      case 24:
-        return 'exit'
-      case 25:
-      case 26:
-      case 27:
-      case 28:
-        return 'roundabout'
-      case 29:
-        return 'ferry'
-      case 30:
-        return 'transit'
-      case 31:
-        return 'transit-connection'
-      case 32:
-        return 'transit-remain'
-      case 33:
-        return 'transit-transfer'
-      case 37:
-        return 'merge'
-      default:
-        return 'continue'
-    }
-  }
-
-  private mapManeuverModifier(
-    type: number,
-  ):
-    | 'left'
-    | 'right'
-    | 'straight'
-    | 'slight-left'
-    | 'slight-right'
-    | 'u-turn'
-    | undefined {
-    // Valhalla maneuver types with directional meaning
-    switch (type) {
-      case 8:  // kRight
-      case 10: // kSharpRight
-        return 'right'
-      case 9:  // kSlightRight
-        return 'slight-right'
-      case 11: // kUturnRight
-      case 12: // kUturnLeft
-        return 'u-turn'
-      case 13: // kSharpLeft
-      case 14: // kLeft
-        return 'left'
-      case 7:  // kSlightLeft
-        return 'slight-left'
-      case 15: // kContinue
-      case 16: // kContinueStraight
-        return 'straight'
-      default:
-        return undefined
     }
   }
 

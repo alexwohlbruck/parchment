@@ -27,6 +27,15 @@ import { hasPermission, getPermissions } from '../services/auth.service'
 import { logger } from '../lib/logger'
 import { refreshObservability } from '../services/observability.config'
 
+/**
+ * Public routes live on their own instance. `.use(requireAuth)` mutates the
+ * instance in place and applies to routes declared BEFORE it as well, so a
+ * public route and a guarded one cannot share one instance — the two are
+ * merged at the bottom of this file.
+ */
+const publicApi = new Elysia({ prefix: '/integrations' })
+
+/** Everything that requires an authenticated session. */
 const app = new Elysia({ prefix: '/integrations' })
 
 /**
@@ -40,7 +49,7 @@ const app = new Elysia({ prefix: '/integrations' })
  * - Authenticated: system integrations (always) + user integrations,
  *   all with public config fields only. Filtered by read permissions.
  */
-app.use(getSession).get(
+publicApi.use(getSession).get(
   '/configured',
   async ({ user }) => {
     const { integrationManager } = await import('../services/integrations')
@@ -744,4 +753,4 @@ app.post(
   },
 )
 
-export default app
+export default new Elysia().use(publicApi).use(app)

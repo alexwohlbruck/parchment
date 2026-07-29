@@ -1,17 +1,13 @@
 import { test, expect } from '@playwright/test'
-import { collectConsoleErrors, criticalErrors as filterCritical } from './helpers/console'
-import { signIn } from './helpers/auth'
+import { collectConsoleErrors, expectNoCriticalErrors } from './helpers/console'
 import { requireBackend } from './helpers/database'
+import { gotoApp, settle } from './helpers/navigate'
 
 test.describe('Settings', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('settings page is accessible', async ({ page }) => {
-    await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings')
     
     // Check URL
     expect(page.url()).toContain('/settings')
@@ -24,17 +20,13 @@ test.describe('Settings', () => {
   test('settings page loads without errors', async ({ page }) => {
     const errors = collectConsoleErrors(page)
 
-    await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings')
     await page.waitForTimeout(1000)
-
-    const criticalErrors = filterCritical(errors)
-    expect(criticalErrors).toHaveLength(0)
+    expectNoCriticalErrors(errors)
   })
 
   test('account settings are accessible', async ({ page }) => {
-    await page.goto('/settings/account')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/account')
     
     // Check URL
     expect(page.url()).toContain('/settings/account')
@@ -45,8 +37,7 @@ test.describe('Settings', () => {
   })
 
   test('appearance settings are accessible', async ({ page }) => {
-    await page.goto('/settings/appearance')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/appearance')
     
     // Check URL
     expect(page.url()).toContain('/settings/appearance')
@@ -57,8 +48,7 @@ test.describe('Settings', () => {
   })
 
   test('map settings are accessible', async ({ page }) => {
-    await page.goto('/settings/map')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/map')
     
     // Check URL
     expect(page.url()).toContain('/settings/appearance')
@@ -69,8 +59,7 @@ test.describe('Settings', () => {
   })
 
   test('behavior settings are accessible', async ({ page }) => {
-    await page.goto('/settings/behavior')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/behavior')
     
     // Check URL
     expect(page.url()).toContain('/settings/behavior')
@@ -81,8 +70,7 @@ test.describe('Settings', () => {
   })
 
   test('can navigate between settings sections', async ({ page }) => {
-    await page.goto('/settings')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings')
     
     // Look for navigation links or tabs
     const navLinks = page.locator('a[href*="/settings/"], button[data-section]')
@@ -91,7 +79,7 @@ test.describe('Settings', () => {
     if (linkCount >= 2) {
       // Click on second link
       await navLinks.nth(1).click()
-      await page.waitForLoadState('networkidle')
+      await settle(page)
       
       // Should still be in settings
       expect(page.url()).toContain('/settings')
@@ -99,8 +87,7 @@ test.describe('Settings', () => {
   })
 
   test('can toggle theme', async ({ page }) => {
-    await page.goto('/settings/appearance')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/appearance')
     
     // Look for theme toggle (dark mode, light mode, etc.)
     const themeToggle = page.locator('button[aria-label*="theme"], button:has-text("Dark"), button:has-text("Light")').first()

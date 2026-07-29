@@ -12,7 +12,7 @@ import { SOURCE } from '../lib/constants.js'
 import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
 import { fetchNearestStreetImage } from '../services/street-imagery.service'
-import { logError } from '../lib/logger'
+import { logError, logger } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/places' })
   .use(getSession)
@@ -98,7 +98,7 @@ app.get(
           
           if (osmId) {
             // If OSM ID exists, get enriched data from OSM
-            console.log(`[place.controller] Geoapify place ${id} → OSM ${osmId}`)
+            logger.debug(`[place.controller] Geoapify place ${id} → OSM ${osmId}`)
             place = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, {
               userId: user?.id,
               language,
@@ -106,7 +106,7 @@ app.get(
             })
           } else {
             // No OSM ID, return Geoapify data as-is
-            console.log(`[place.controller] Geoapify place ${id} has no OSM ID, returning Geoapify data`)
+            logger.debug(`[place.controller] Geoapify place ${id} has no OSM ID, returning Geoapify data`)
             place = geoapifyPlace
           }
         } else {

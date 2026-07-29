@@ -1,17 +1,20 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
+import { createAxiosMock } from '../../test/axios-mock'
+import type { BarrelmanIntegration as BarrelmanIntegrationClass } from './barrelman-integration'
 
-// ── Axios mock (must be declared before the integration import) ───────────────
-const mockAxiosGet = mock((_url: string, _config?: any) => Promise.resolve({ data: null }))
-const mockAxiosPost = mock((_url: string, _body?: any, _config?: any) => Promise.resolve({ data: [] }))
+// ── Axios mock ────────────────────────────────────────────────────────────────
+// Barrelman routes its calls through pooled `axios.create()` instances built at
+// module load, so the mock has to cover `create` *and* be installed before the
+// integration is evaluated. A static import wouldn't work: ESM hoists it above
+// this call, the pool would capture real axios, and every test would hit the
+// network. Hence the dynamic import below.
+const http = createAxiosMock()
+mock.module('axios', () => http.module)
 
-mock.module('axios', () => ({
-  default: {
-    get: mockAxiosGet,
-    post: mockAxiosPost,
-  },
-}))
+const mockAxiosGet = http.get
+const mockAxiosPost = http.post
 
-import { BarrelmanIntegration } from './barrelman-integration'
+const { BarrelmanIntegration } = await import('./barrelman-integration')
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -27,7 +30,7 @@ const baseResult = {
 }
 
 describe('BarrelmanIntegration', () => {
-  let integration: BarrelmanIntegration
+  let integration: BarrelmanIntegrationClass
 
   beforeEach(() => {
     integration = new BarrelmanIntegration()

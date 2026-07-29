@@ -433,7 +433,7 @@ async function retrySystemIntegrations(
     failed.map(async (integration) => {
       try {
         await integrationManager.initializeIntegration(undefined, integration)
-        console.log(
+        logger.debug(
           `Recovered system integration: ${integration.integrationId}`,
         )
       } catch {
@@ -479,7 +479,7 @@ async function reconcileSystemCapabilities(
         .set({ capabilities: JSON.stringify(merged), updatedAt: new Date() })
         .where(eq(integrations.id, record.id))
       record.capabilities = merged // reflect in-memory for this startup
-      console.log(
+      logger.debug(
         `[integrations] Added new capabilit${missing.length === 1 ? 'y' : 'ies'} to ${record.integrationId}: ${missing.join(', ')}`,
       )
     } catch (err) {
@@ -492,23 +492,23 @@ async function reconcileSystemCapabilities(
 }
 
 export async function initializeIntegrations() {
-  console.log('Initializing integrations on server startup...')
+  logger.debug('Initializing integrations on server startup...')
 
   try {
     // Get system-wide integrations first (where userId is null)
     const systemIntegrations = await getConfiguredIntegrations()
     // Backfill any capabilities added in code since these records were created.
     await reconcileSystemCapabilities(systemIntegrations)
-    console.log(`Found ${systemIntegrations.length} system integrations`)
-    console.log(
-      'System integrations:',
-      systemIntegrations.map((i) => i.integrationId),
+    logger.debug(`Found ${systemIntegrations.length} system integrations`)
+    logger.debug(
+      { integrationIds: systemIntegrations.map((i) => i.integrationId) },
+      'System integrations',
     )
 
     // Initialize system integrations in parallel
     const systemResults = await Promise.allSettled(
       systemIntegrations.map((integration) => {
-        console.log(
+        logger.debug(
           `Initializing system integration: ${integration.integrationId}`,
         )
         return integrationManager.initializeIntegration(undefined, integration)
@@ -537,7 +537,7 @@ export async function initializeIntegrations() {
 
     // Get all users
     const allUsers = await db.select().from(users)
-    console.log(`Found ${allUsers.length} users`)
+    logger.debug(`Found ${allUsers.length} users`)
 
     // Initialize user-specific integrations in parallel
     const userResults = await Promise.allSettled(
@@ -548,7 +548,7 @@ export async function initializeIntegrations() {
         const serverKeyIntegrations = userIntegrations.filter(
           (i) => i.scheme === 'server-key',
         )
-        console.log(
+        logger.debug(
           `Found ${serverKeyIntegrations.length} server-key integrations for user ${user.id}` +
             (userIntegrations.length !== serverKeyIntegrations.length
               ? ` (+${userIntegrations.length - serverKeyIntegrations.length} user-e2ee skipped)`
@@ -557,7 +557,7 @@ export async function initializeIntegrations() {
 
         const results = await Promise.allSettled(
           serverKeyIntegrations.map((integration) => {
-            console.log(
+            logger.debug(
               `Initializing user integration: ${integration.integrationId} for user ${user.id}`,
             )
             return integrationManager.initializeIntegration(
@@ -587,7 +587,7 @@ export async function initializeIntegrations() {
       }
     }
 
-    console.log('Integration initialization completed')
+    logger.debug('Integration initialization completed')
   } catch (error) {
     logError('Failed to initialize integrations', error)
     throw error

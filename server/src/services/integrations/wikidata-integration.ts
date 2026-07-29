@@ -12,7 +12,7 @@ import {
 import type { Place, PlacePhoto } from '../../types/place.types'
 import { WikidataAdapter } from './adapters/wikidata-adapter'
 import { SOURCE } from '../../lib/constants'
-import { logError } from '../../lib/logger'
+import { logError, logger } from '../../lib/logger'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -137,7 +137,7 @@ export class WikidataIntegration implements Integration<WikidataConfig> {
         return null
       }
 
-      console.log(`Getting place details from Wikidata for ID: ${wikidataId}`)
+      logger.debug(`Getting place details from Wikidata for ID: ${wikidataId}`)
 
       const response = await axios.get(
         `https://www.wikidata.org/wiki/Special:EntityData/${wikidataId}.json`,

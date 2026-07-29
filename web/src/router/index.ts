@@ -98,6 +98,14 @@ const router = createRouter({
       component: Map,
       meta: {
         transition: 'slide',
+        // Gates the whole map subtree — children inherit it through the
+        // merged `to.meta`. Signed-out visitors used to be bounced here by a
+        // side effect instead: App.vue fetches configured integrations on
+        // mount for every visitor, that request 401'd, and the global 401
+        // interceptor in lib/api.ts pushed them to /signin. Once the endpoint
+        // became public (as its contract always said it was), that accident
+        // stopped firing, so the redirect is declared properly here.
+        auth: true,
       },
       children: [
         {

@@ -25,8 +25,6 @@ async function loadPlace() {
 
   const { type, id, provider, placeId, name, lat, lng } = route.params
 
-  console.log(route.params)
-
   // Handle URL correction for nested routes
   // If we receive route parameters in incorrect positions, redirect to the correct route
   if (
@@ -172,8 +170,13 @@ onMounted(async () => {
   await loadPlace()
 })
 
+// Watch route.path (not route.params): all place-identity params live in the
+// path, while the active tab lives in route.query. vue-router 4 hands a fresh
+// route.params object on every navigation, so watching it would re-run
+// loadPlace() on query-only changes like tab switches, needlessly tearing down
+// and rebuilding the marker, polygon, and camera.
 watch(
-  () => route.params,
+  () => route.path,
   async () => {
     await loadPlace()
   },

@@ -1,16 +1,12 @@
 import { test, expect } from '@playwright/test'
-import { signIn } from './helpers/auth'
 import { requireBackend } from './helpers/database'
+import { gotoApp } from './helpers/navigate'
 
 test.describe('Integrations', () => {
   test.beforeAll(async () => { await requireBackend() })
-  test.beforeEach(async ({ page }) => {
-    await signIn(page)
-  })
 
   test('integrations page is accessible', async ({ page }) => {
-    await page.goto('/settings/integrations')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/integrations')
 
     expect(page.url()).toContain('/settings/integrations')
 
@@ -19,8 +15,7 @@ test.describe('Integrations', () => {
   })
 
   test('can view available integrations', async ({ page }) => {
-    await page.goto('/settings/integrations')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/integrations')
 
     // Wait for loading to finish
     await page.waitForTimeout(2000)
@@ -33,8 +28,7 @@ test.describe('Integrations', () => {
   })
 
   test('can configure Mapbox integration', async ({ page }) => {
-    await page.goto('/settings/integrations')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/integrations')
     await page.waitForTimeout(2000)
 
     // Find Mapbox tile and click (configure or edit)
@@ -69,8 +63,7 @@ test.describe('Integrations', () => {
   })
 
   test('integration status indicators are visible', async ({ page }) => {
-    await page.goto('/settings/integrations')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/integrations')
     await page.waitForTimeout(3000)
     // Integrations page uses SettingsSection (H5 titles) and cards; wait for content or empty state
     const content = page.locator('h5, [class*="card"], [class*="integration"], .text-muted-foreground').first()
@@ -78,8 +71,7 @@ test.describe('Integrations', () => {
   })
 
   test('can remove integration when configured', async ({ page }) => {
-    await page.goto('/settings/integrations')
-    await page.waitForLoadState('networkidle')
+    await gotoApp(page, '/settings/integrations')
     await page.waitForTimeout(3000)
     await page.keyboard.press('Escape')
     await page.waitForTimeout(300)

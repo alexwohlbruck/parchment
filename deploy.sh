@@ -284,20 +284,51 @@ if [[ ! "$reply" =~ ^[yY]$ ]]; then
     exit 0
 fi
 
-# Show changelog and confirm
-echo ""
-if [ -f CHANGELOG.md ]; then
-    echo "--- CHANGELOG.md ---"
-    cat CHANGELOG.md
+# Review the accumulated release notes.
+#
+# CHANGELOG.md is cumulative: entries land under `## [Unreleased]` as features
+# are completed, and cutting the release retitles that section. Offer an edit
+# pass first — entries are written one at a time as work lands, so this is the
+# first chance to read them together and reorder, merge, or cut.
+#
+# A hotfix (X.Y.Z-N) usually rebuilds an existing release rather than shipping
+# anything new, so an empty [Unreleased] is expected there: skip the stamp and
+# let the release reuse the notes of the version being patched.
+parse_version "$NEW_VERSION"
+STAMP_CHANGELOG=1
+if ! ./scripts/changelog.sh unreleased | grep -q .; then
+    if [ -n "$VERSION_HOTFIX" ]; then
+        STAMP_CHANGELOG=""
+        echo ""
+        echo "Nothing under [Unreleased] — hotfix will reuse the notes from:"
+        ./scripts/changelog.sh latest | sed 's/^/  /'
+        read -r -p "Continue? [y/N] " reply
+        if [[ ! "$reply" =~ ^[yY]$ ]]; then
+            echo "Aborted."
+            exit 0
+        fi
+    else
+        echo "Error: nothing under [Unreleased] in CHANGELOG.md — nothing to release."
+        echo "Add an entry for each user-facing change, then re-run."
+        exit 1
+    fi
+fi
+
+while [ -n "$STAMP_CHANGELOG" ]; do
+    echo ""
+    echo "--- Release notes ([Unreleased] in CHANGELOG.md) ---"
+    ./scripts/changelog.sh unreleased
     echo "---"
     echo ""
-    echo "This will be used as the PR description and release notes."
-fi
-read -r -p "Confirm changelog is updated for this release. Continue? [y/N] " reply
-if [[ ! "$reply" =~ ^[yY]$ ]]; then
-    echo "Aborted. Update CHANGELOG.md and re-run."
-    exit 0
-fi
+    echo "Used as the PR description, GitHub Release body, and store release notes."
+    echo "Google Play truncates to 500 characters — put the notable changes first."
+    read -r -p "Continue with these notes? [y]es / [e]dit / [N]o " reply
+    case "$reply" in
+        [yY]) break ;;
+        [eE]) "${EDITOR:-vi}" CHANGELOG.md ;;
+        *) echo "Aborted."; exit 0 ;;
+    esac
+done
 
 # Prompt for release title (used as PR title and GitHub Release name)
 # For hotfix releases, default to the previous release title
@@ -329,6 +360,16 @@ update_tauri_android_version_code "$NEW_VERSION"
 echo ""
 echo "Version files updated."
 
+# Retitle [Unreleased] as this version and open a fresh empty one for the next
+# cycle. Both land in the release commit, so the tag CI builds from carries the
+# notes while dev is immediately ready to accumulate again.
+if [ -n "$STAMP_CHANGELOG" ]; then
+    ./scripts/changelog.sh release "$NEW_VERSION"
+    echo "CHANGELOG.md: [Unreleased] stamped as $NEW_VERSION."
+else
+    echo "CHANGELOG.md unchanged — hotfix reuses the previous release's notes."
+fi
+
 # Stage version files and commit
 VERSION_FILES="web/package.json server/package.json web/src-tauri/tauri.conf.json web/src-tauri/Cargo.toml CHANGELOG.md RELEASE_TITLE"
 git add $VERSION_FILES 2>/dev/null || true
@@ -358,7 +399,7 @@ echo "Pushed to origin/dev."
 # Create PR from dev -> main
 echo ""
 echo "Creating pull request..."
-CHANGELOG_BODY=$(cat CHANGELOG.md)
+CHANGELOG_BODY=$(./scripts/changelog.sh latest)
 PR_URL=$(gh pr create \
     --base main \
     --head dev \

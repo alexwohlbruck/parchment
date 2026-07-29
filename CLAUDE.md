@@ -26,6 +26,7 @@
 - "Modules" represent all code components for a single entity. Users, directions, search, settings, etc are all modules. These module identities are represented throught the codebase and should contain related UI, data, and business logic for that entity. Make sure to keep new and old code nicely modularized.
 - Offer to refactor malformed code when we come across any. This is anything that doesn't follow our normal conventions or industry practices.
 - When we add new features, integrations, modules, etc, update the relevant documentation in the sibiling `parchment-docs` repo.
+- Write clean, functional tests for new code logic. Do not add frivilous and non-meaningful tests.
 - Keep the swagger API documentation up-to-date and clean while making changes to the backend.
 - Always apply a clean, minimalist, and refined style when designing UI.
 - No uppercase tracking-wider text in UI.

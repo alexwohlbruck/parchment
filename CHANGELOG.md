@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-07-29
+
 ### Changed
 
 * Place search is dramatically faster — results now appear as you type instead of lagging a beat behind, and suggestions no longer flicker or briefly show matches for an earlier keystroke

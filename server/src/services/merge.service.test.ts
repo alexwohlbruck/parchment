@@ -188,10 +188,14 @@ describe('extractNumbers', () => {
 })
 
 describe('calculateAddressSimilarity', () => {
-  test('returns 0 when either place has no address', () => {
-    expect(
-      calculateAddressSimilarity(place(), place({ address: address('123 Main St') })),
-    ).toBe(0)
+  // The return type distinguishes "no information" from "the addresses
+  // disagree": null means nothing to compare, 0 means a genuine conflict.
+  test('returns null when either place has no address', () => {
+    const withAddress = place({ address: address('123 Main St') })
+
+    expect(calculateAddressSimilarity(place(), withAddress)).toBeNull()
+    expect(calculateAddressSimilarity(withAddress, place())).toBeNull()
+    expect(calculateAddressSimilarity(place(), place())).toBeNull()
   })
 
   test('matches identical structured addresses', () => {
@@ -215,8 +219,9 @@ describe('calculateAddressSimilarity', () => {
     expect(calculateAddressSimilarity(a, b)).toBe(1)
   })
 
-  test('rejects outright when house numbers conflict', () => {
-    // Same street, different building — not the same place.
+  test('returns 0 — a positive conflict signal — when house numbers differ', () => {
+    // Same street, different building: evidence they are NOT the same place,
+    // which is why this is 0 rather than null.
     const a = place({ address: address('123 Main St') })
     const b = place({ address: address('456 Main St') })
 
@@ -232,11 +237,12 @@ describe('calculateAddressSimilarity', () => {
     expect(calculateAddressSimilarity(a, b)).toBe(1)
   })
 
-  test('returns 0 when no street can be extracted', () => {
+  test('returns null when no street can be extracted', () => {
+    // A city-only address carries no comparable evidence either way.
     const a = place({ address: { value: { locality: 'Charlotte' }, source: SOURCE.OSM } })
     const b = place({ address: address('123 Main St') })
 
-    expect(calculateAddressSimilarity(a, b)).toBe(0)
+    expect(calculateAddressSimilarity(a, b)).toBeNull()
   })
 })
 
@@ -364,15 +370,10 @@ describe('mergePlacesCollection — merge decisions', () => {
     expect(merged).toHaveLength(2)
   })
 
-  test('BUG: a directly conflicting house number does NOT block a merge', () => {
-    // calculateAddressSimilarity returns 0 both for "no address data" and for
-    // "house numbers conflict". shouldMergePlaces only blocks when the score is
-    // strictly between 0 and 0.7, so a definite conflict falls through to the
-    // no-address scoring branch (name 70% + distance 30%) and merges.
-    //
-    // Result: 123 Main St and 456 Main St, same name, ~22m apart, collapse into
-    // one pin. Asserted as-is so a fix flips this test. See the accompanying
-    // issue.
+  test('a directly conflicting house number blocks a merge', () => {
+    // Two same-named branches ~22m apart at different street numbers — common
+    // for chains with adjacent units. Before the null/0 split these collapsed
+    // into a single pin, losing one from results.
     const merged = mergePlacesCollection([
       place({ id: 'a', name: 'Starbucks', address: address('123 Main St') }),
       place({
@@ -381,6 +382,16 @@ describe('mergePlacesCollection — merge decisions', () => {
         address: address('456 Main St'),
         lat: 35.2002,
       }),
+    ])
+
+    expect(merged).toHaveLength(2)
+  })
+
+  test('still merges when only one place has an address', () => {
+    // Missing data must not be read as a conflict.
+    const merged = mergePlacesCollection([
+      place({ id: 'a', name: 'Starbucks', address: address('123 Main St') }),
+      place({ id: 'b', name: 'Starbucks', sources: [{ id: SOURCE.GOOGLE }] }),
     ])
 
     expect(merged).toHaveLength(1)

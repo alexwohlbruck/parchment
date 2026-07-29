@@ -84,12 +84,31 @@ const step = (over: Record<string, unknown> = {}) => ({
 const firstLeg = (response: any, req: any = request()) =>
   adapter.routing.adaptRouteResponse(response, req as any).routes[0].legs[0]
 
+/**
+ * Strip the wall-clock fields the adapter stamps on every place. Two calls a
+ * millisecond apart legitimately differ in them, so comparing whole places
+ * would be a coin flip on a loaded machine.
+ */
+function withoutTimestamps(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutTimestamps)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => !['timestamp', 'lastUpdated', 'createdAt'].includes(key))
+        .map(([key, v]) => [key, withoutTimestamps(v)]),
+    )
+  }
+  return value
+}
+
 describe('capability wrappers', () => {
   test('geocoding and autocomplete share the place adapter', () => {
     const input = feature()
 
-    expect(adapter.geocoding.adaptPlaceDetails(input as any)).toEqual(
-      adapter.autocomplete.adaptPlaceDetails(input as any),
+    expect(
+      withoutTimestamps(adapter.geocoding.adaptPlaceDetails(input as any)),
+    ).toEqual(
+      withoutTimestamps(adapter.autocomplete.adaptPlaceDetails(input as any)),
     )
   })
 })

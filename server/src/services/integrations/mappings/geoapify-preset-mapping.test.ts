@@ -58,15 +58,19 @@ describe('getGeoapifyCategory', () => {
     expect(getGeoapifyCategory('')).toBeNull()
   })
 
-  test('BUG: resolves inherited Object properties', () => {
-    // Both lookups read a plain object with `[]` and `in`, so prototype members
-    // answer as if they were mapped presets: `getGeoapifyCategory` hands back a
-    // function where its signature promises `string | null`, and the support
-    // check agrees. Reachable whenever a preset id arrives from a request.
-    // Guarding both with `Object.hasOwn` fixes it and flips this test.
-    expect(getGeoapifyCategory('constructor')).not.toBeNull()
-    expect(typeof getGeoapifyCategory('toString')).toBe('function')
-    expect(isGeoapifyPresetSupported('constructor')).toBe(true)
+  test('does not resolve inherited Object properties', () => {
+    // A bare `[]`/`in` lookup would answer for prototype members, handing back
+    // a function where the signature promises `string | null`. Reachable
+    // whenever a preset id arrives from a request.
+    expect(getGeoapifyCategory('constructor')).toBeNull()
+    expect(getGeoapifyCategory('toString')).toBeNull()
+    expect(getGeoapifyCategory('__proto__')).toBeNull()
+    expect(isGeoapifyPresetSupported('constructor')).toBe(false)
+  })
+
+  test('does not resolve inherited properties in the category direction either', () => {
+    expect(getPresetFromGeoapifyCategory('constructor')).toBeNull()
+    expect(isGeoapifyCategorySupported('valueOf')).toBe(false)
   })
 })
 

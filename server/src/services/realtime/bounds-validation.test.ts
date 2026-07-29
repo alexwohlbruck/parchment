@@ -1,27 +1,13 @@
 /**
- * Tests for bounds validation logic used in the realtime WS handler.
+ * Tests for the viewport bounds validator used by the realtime WS handler.
  *
- * Extracted the validation check so it can be tested independently
- * of the WS infrastructure.
+ * The function under test is the one the handler actually calls. It used to be
+ * inline in the controller with a copy of the logic reproduced here, which meant
+ * these tests passed regardless of what the handler did.
  */
 
 import { describe, test, expect } from 'bun:test'
-
-/**
- * Mirrors the validation logic in realtime.controller.ts message handler.
- */
-function validateBounds(b: any): { north: number; south: number; east: number; west: number } | null {
-  if (!b) return null
-  const valid = b &&
-    Number.isFinite(b.north) && Number.isFinite(b.south) &&
-    Number.isFinite(b.east) && Number.isFinite(b.west) &&
-    b.north >= b.south &&
-    b.north >= -90 && b.north <= 90 &&
-    b.south >= -90 && b.south <= 90 &&
-    b.east >= -180 && b.east <= 180 &&
-    b.west >= -180 && b.west <= 180
-  return valid ? b : null
-}
+import { validateBounds } from './bounds'
 
 describe('bounds validation', () => {
   test('accepts valid NYC bounds', () => {

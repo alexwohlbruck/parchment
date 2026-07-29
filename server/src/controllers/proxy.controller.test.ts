@@ -389,29 +389,37 @@ describe('transit proxy — Barrelman passthrough', () => {
 })
 
 describe('GBFS proxy', () => {
-  // NOTE: the GBFS sub-app declares `prefix: '/proxy/gbfs'` while already being
-  // mounted inside the `/proxy` app, so these land at /proxy/proxy/gbfs/*.
-  // Every sibling sub-app uses a relative prefix ('/transit'). The paths below
-  // record what the server actually serves today — see the accompanying issue.
-  test('nearby-stations is served under the doubled prefix', async () => {
+  // The sub-app's prefix is relative to the mounting `/proxy` app, matching its
+  // sibling ('/transit'). Spelling '/proxy/gbfs' out here again mounted these
+  // at /proxy/proxy/gbfs/* instead.
+  test('nearby-stations is served under a single /proxy prefix', async () => {
     fetchResponses = [jsonResponse({ stations: [] })]
 
-    const res = await req(app).get('/proxy/proxy/gbfs/nearby-stations')
+    const res = await req(app).get('/proxy/gbfs/nearby-stations')
 
     expect(res.status).toBe(200)
     expect(fetchCalls[0]).toContain('https://barrelman.test/gbfs/nearby-stations')
   })
 
-  test('the intended path is not currently routed', async () => {
-    const res = await req(app).get('/proxy/gbfs/nearby-stations')
+  test('is not reachable under a doubled prefix', async () => {
+    const res = await req(app).get('/proxy/proxy/gbfs/nearby-stations')
 
     expect(res.status).toBe(404)
+  })
+
+  test('nearby-stations is never cached', async () => {
+    // Station availability is the whole point; a stale answer is useless.
+    fetchResponses = [jsonResponse({ stations: [] })]
+
+    const res = await req(app).get('/proxy/gbfs/nearby-stations')
+
+    expect(res.headers.get('cache-control')).toBe('no-cache')
   })
 
   test('systems is cached for an hour', async () => {
     fetchResponses = [jsonResponse({})]
 
-    const res = await req(app).get('/proxy/proxy/gbfs/systems')
+    const res = await req(app).get('/proxy/gbfs/systems')
 
     expect(res.headers.get('cache-control')).toBe('public, max-age=3600')
   })
@@ -419,7 +427,7 @@ describe('GBFS proxy', () => {
   test('rejects an unauthenticated caller', async () => {
     setAuthUser(null)
 
-    const res = await req(app).get('/proxy/proxy/gbfs/nearby-stations')
+    const res = await req(app).get('/proxy/gbfs/nearby-stations')
 
     expect(res.status).toBe(401)
   })

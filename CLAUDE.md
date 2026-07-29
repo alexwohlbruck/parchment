@@ -19,6 +19,7 @@
 
 - Do NOT start new dev servers. The user runs their own.
 - Do NOT merge to main. Work on feature branches.
+- If a Linear ticket was linked for the relevant work, update the status of the ticket as work progresses.
 - Use `bun` over `npm` for package management.
 - Commit messages: short (5-20 words), distinct logical commits.
 - Keep code structure clean, modular, and dry. Use simple and straightforward naming conventions and move code to appropriate modules when it isn't in the correct place. Add comments when the code is not intuitive at a glance or to convey important context/information.

@@ -21,6 +21,7 @@ import { roles } from '../schema/roles.schema'
 import { rotateAllForUser } from './device-wrap-secrets.service'
 import { derivePrfSalt, bytesToBase64url } from '../lib/passkey-prf'
 import { wrappedMasterKeys } from '../schema/wrapped-master-keys.schema'
+import { logger } from '../lib/logger'
 
 // Webauthn relaying party information
 export const rpName = appName
@@ -119,7 +120,7 @@ export async function destroyOtherSessions(
  */
 export async function sendEmailVerificationCode(email: string, code: string) {
   if (process.env.NODE_ENV === 'development' || !isEmailConfigured) {
-    console.log(`One time verification code: ${code}`)
+    logger.debug(`One time verification code: ${code}`)
   }
   await sendMail({
     to: email,

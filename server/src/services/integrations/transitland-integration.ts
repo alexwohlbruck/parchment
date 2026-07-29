@@ -9,7 +9,7 @@ import {
 } from '../../types/integration.types'
 import { TransitDeparture, Place } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
-import { logError } from '../../lib/logger'
+import { logError, logger } from '../../lib/logger'
 
 const TRANSITLAND_API_BASE_URL = 'https://transit.land/api/v2/rest'
 
@@ -173,7 +173,7 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
     limit?: number
   }): Promise<TransitDeparture[]> {
     const startTime = Date.now()
-    console.log(`[PERF] Transitland getDepartures: ${onestopId}`)
+    logger.debug(`[PERF] Transitland getDepartures: ${onestopId}`)
     
     this.ensureInitialized()
 
@@ -365,7 +365,7 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
    */
   async getStop(onestopId: string): Promise<any | null> {
     const startTime = Date.now()
-    console.log(`[PERF] Transitland getStop: ${onestopId}`)
+    logger.debug(`[PERF] Transitland getStop: ${onestopId}`)
     
     this.ensureInitialized()
 
@@ -381,11 +381,11 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
       const fetchStart = Date.now()
       const response = await fetch(fullUrl)
       const fetchTime = Date.now() - fetchStart
-      console.log(`[PERF] Transitland API fetch: ${fetchTime}ms`)
+      logger.debug(`[PERF] Transitland API fetch: ${fetchTime}ms`)
 
       if (!response.ok) {
         if (response.status === 404) {
-          console.log(`[PERF] Transitland getStop (404): ${Date.now() - startTime}ms`)
+          logger.debug(`[PERF] Transitland getStop (404): ${Date.now() - startTime}ms`)
           return null
         }
         logError('Transitland stop API error', undefined, {
@@ -398,16 +398,16 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
       const parseStart = Date.now()
       const data = await response.json()
       const parseTime = Date.now() - parseStart
-      console.log(`[PERF] Transitland JSON parse: ${parseTime}ms`)
+      logger.debug(`[PERF] Transitland JSON parse: ${parseTime}ms`)
       
       // Transitland API returns stops in an array
       if (data.stops && data.stops.length > 0) {
         const totalTime = Date.now() - startTime
-        console.log(`[PERF] Transitland getStop total: ${totalTime}ms`)
+        logger.debug(`[PERF] Transitland getStop total: ${totalTime}ms`)
         return data.stops[0]
       }
       
-      console.log(`[PERF] Transitland getStop (no stops): ${Date.now() - startTime}ms`)
+      logger.debug(`[PERF] Transitland getStop (no stops): ${Date.now() - startTime}ms`)
       return null
     } catch (error) {
       logError(`[PERF] Error fetching stop from Transitland (${Date.now() - startTime}ms)`, error)

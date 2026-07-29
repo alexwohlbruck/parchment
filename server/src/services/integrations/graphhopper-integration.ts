@@ -31,7 +31,7 @@ import type {
   GraphHopperErrorResponse,
 } from '../../types/graphhopper.types'
 import { GraphHopperAdapter } from './adapters/graphhopper-adapter'
-import { logError, logWarn } from '../../lib/logger'
+import { logError, logWarn, logger } from '../../lib/logger'
 
 /**
  * GraphHopper integration for routing
@@ -306,11 +306,8 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
 
       const requestUrl = `${url}${queryParams.toString() ? '?' + queryParams.toString() : ''}`
 
-      console.log('GraphHopper request URL:', requestUrl)
-      console.log(
-        'GraphHopper request body:',
-        JSON.stringify(requestBody, null, 2),
-      )
+      logger.debug({ url: requestUrl }, 'GraphHopper request URL')
+      logger.debug({ requestBody }, 'GraphHopper request body')
 
       const response = await fetch(requestUrl, {
         method: 'POST',

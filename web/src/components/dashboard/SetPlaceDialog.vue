@@ -16,7 +16,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { useSearchService } from '@/services/search.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useMapCamera } from '@/composables/useMapCamera'
-import { useAbortController } from '@/composables/useAbortController'
 import type { AutocompleteResult } from '@/types/search.types'
 import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
@@ -48,7 +47,6 @@ const query = ref('')
 const customName = ref('')
 const results = ref<AutocompleteResult[]>([])
 const isLoading = ref(false)
-const { nextSignal } = useAbortController()
 const isSaving = ref(false)
 
 const isCustom = computed(() => props.frequentType === 'custom')
@@ -79,18 +77,12 @@ watch(
   },
 )
 
-// 150ms: barrelman's autocomplete now answers in ~20-40ms server-side, so the
-// debounce only has to avoid firing on every keystroke rather than hide backend
-// latency. nextSignal() cancels the previous request, which a shorter window
-// makes essential: without it a slower earlier response could land after a
-// newer one and overwrite the list with stale suggestions.
 const runSearch = useDebounceFn(async (value: string) => {
   if (!value.trim()) {
     results.value = []
     isLoading.value = false
     return
   }
-  const signal = nextSignal()
   isLoading.value = true
   try {
     const center = mapCamera.camera.value.center
@@ -100,19 +92,15 @@ const runSearch = useDebounceFn(async (value: string) => {
         ? [center.lng, center.lat]
         : [center.lon, center.lat]
 
-    const found = await searchService.getAutocompleteSuggestions(
-      { query: value, lat, lng },
-      signal,
-    )
-    // A cancelled request resolves to [] rather than rejecting, so assigning it
-    // would blank the list the newer request is about to fill.
-    if (signal.aborted) return
-    results.value = found
+    results.value = await searchService.getAutocompleteSuggestions({
+      query: value,
+      lat,
+      lng,
+    })
   } finally {
-    // Don't clear the spinner the request that superseded this one still needs.
-    if (!signal.aborted) isLoading.value = false
+    isLoading.value = false
   }
-}, 150)
+}, 200)
 
 watch(query, value => {
   runSearch(value)

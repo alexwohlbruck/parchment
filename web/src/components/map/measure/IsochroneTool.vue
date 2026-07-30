@@ -5,7 +5,7 @@
  * Drops an origin on the map and paints the area reachable from it within a
  * set of time budgets. The contours come from Barrelman (GraphHopper for
  * street modes, MOTIS + walking egress for transit) via the authenticated
- * `/proxy/isochrone` endpoint; everything here is presentation.
+ * `/isochrone` endpoint; everything here is presentation.
  *
  * Layer handling mirrors its sibling measure tools: sources and layers are
  * added while the tool is active, torn down when it isn't, and re-added on

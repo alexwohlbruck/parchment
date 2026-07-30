@@ -27,9 +27,9 @@ const REQUEST_DEBOUNCE_MS = 350
 
 /**
  * Isochrones outrun the client's 15s default: a transit contour fans out to
- * hundreds of per-stop graph searches upstream. Sits just above the proxy's
- * own 60s upstream budget so a slow Barrelman surfaces as its 502 rather than
- * as a client-side timeout that says nothing about what went wrong.
+ * hundreds of per-stop graph searches upstream. Sits just above the server's
+ * own 60s Barrelman budget so a slow engine surfaces as its 502 rather than as
+ * a client-side timeout that says nothing about what went wrong.
  */
 const REQUEST_TIMEOUT_MS = 65_000
 
@@ -132,7 +132,7 @@ export const useIsochroneStore = defineStore('isochrone', () => {
     error.value = null
 
     try {
-      const { data } = await api.get<IsochroneResponse>('/proxy/isochrone', {
+      const { data } = await api.get<IsochroneResponse>('/isochrone', {
         params: {
           lat: point.lat,
           lng: point.lng,
@@ -209,7 +209,7 @@ function isAbort(err: unknown): boolean {
 
 /**
  * Barrelman's 4xx bodies name the offending parameter and its limit, and the
- * proxy forwards them intact — so prefer that message over a generic one.
+ * server forwards them intact — so prefer that message over a generic one.
  */
 function messageFor(err: unknown): string {
   const body = (err as { response?: { data?: { error?: string } } } | null)

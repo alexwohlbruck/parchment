@@ -16,6 +16,9 @@ import {
   directions as directionsController,
   place as placeController,
   proxy as proxyController,
+  transit as transitController,
+  gbfs as gbfsController,
+  isochrone as isochroneController,
   library as libraryController,
   integrations as integrationsController,
   search as searchController,
@@ -104,6 +107,9 @@ async function main() {
   app.use(directionsController)
   app.use(placeController)
   app.use(proxyController)
+  app.use(transitController)
+  app.use(gbfsController)
+  app.use(isochroneController)
   app.use(libraryController)
   app.use(integrationsController)
   app.use(searchController)

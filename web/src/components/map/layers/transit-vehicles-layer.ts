@@ -336,7 +336,7 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     pendingShapeFetches.add(key)
 
     api
-      .get<{ coordinates: [number, number][] }>('/proxy/transit/shapes', {
+      .get<{ coordinates: [number, number][] }>('/transit/shapes', {
         params: { feedId, routeId },
       })
       .then(({ data }) => {

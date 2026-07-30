@@ -85,7 +85,7 @@ describe('useIsochroneStore', () => {
       await vi.runAllTimersAsync()
 
       expect(get).toHaveBeenCalledTimes(1)
-      expect(get.mock.calls[0][0]).toBe('/proxy/isochrone')
+      expect(get.mock.calls[0][0]).toBe('/isochrone')
       expect(store.status).toBe('ready')
       expect(store.bands).toHaveLength(3)
     })

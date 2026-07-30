@@ -73,7 +73,7 @@ export interface IsochroneResponse {
   }
 }
 
-/** Parameters accepted by `GET /proxy/isochrone`. */
+/** Parameters accepted by `GET /isochrone`. */
 export interface IsochroneQuery {
   lat: number
   lng: number

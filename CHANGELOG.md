@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+* New isochrone measurement tool — drop a point on the map and see how far you can get from it in a given time on foot, by bike, by car or on transit, drawn as shaded travel-time bands with the area each one covers. It also works in reverse, showing everywhere that can reach the point in time
+
 ### Fixed
 
 * The final step of a set of directions now shows the arrival flag again instead of a turn arrow

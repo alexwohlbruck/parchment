@@ -17,6 +17,15 @@ import {
   CORE_LAYER_IDS,
   serverUrl,
 } from '@/constants/layer.constants'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useCollectionsStore } from '@/stores/library/collections.store'
+import {
+  buildSavedPlacesProjection,
+  isVirtualLayerId,
+  EMPTY_SAVED_PLACES_VISIBILITY,
+  SAVED_PLACES_GROUP_ID,
+} from '@/lib/saved-places-layers'
+import { i18n } from '@/lib/i18n'
 
 /**
  * Fields on a layer that, when modified, trigger a clone-on-modify of the
@@ -47,6 +56,14 @@ const GROUP_CONTENT_FIELDS = new Set<keyof LayerGroup>([
 function isTemplateId(id: string): boolean {
   return typeof id === 'string' && id.startsWith('default:')
 }
+
+/**
+ * Store-scope translator. The typed `i18n.global.t` overloads blow past TS's
+ * instantiation depth when called from inside a computed here, so it is
+ * narrowed to the one signature this file uses. `legacy: false` keeps it
+ * reactive, so labels still follow a locale change.
+ */
+const translate = (i18n.global as any).t as (key: string) => string
 
 function hasContentChanges(
   patch: Partial<Layer | LayerGroup>,
@@ -249,8 +266,38 @@ export const useLayersStore = defineStore('layers', () => {
     } as unknown as LayerGroup
   }
 
+  // ==========================================================================
+  // SAVED PLACES (virtual)
+  // ==========================================================================
+
+  /**
+   * The user's collections, projected into a layer group. Rebuilt on every
+   * read rather than persisted — see `saved-places-layers.ts` for why these
+   * can never become `layers` rows.
+   */
+  const savedPlaces = computed(() =>
+    buildSavedPlacesProjection({
+      collections: useCollectionsStore().collections,
+      bookmarks: useBookmarksStore().bookmarks,
+      layerOverrides: layerVisibilityOverrides.value ?? {},
+      groupOverrides: groupVisibilityOverrides.value ?? {},
+      groupLabel: translate('layers.savedPlaces.group'),
+      frequentsLabel: translate('layers.savedPlaces.frequents'),
+      uncategorizedLabel: translate('layers.savedPlaces.uncategorized'),
+      lockedLabel: translate('layers.savedPlaces.locked'),
+    }),
+  )
+
+  /** Consumed by the saved-places map layer to filter its GeoJSON source. */
+  const savedPlacesVisibility = computed(
+    () => savedPlaces.value.visibility ?? EMPTY_SAVED_PLACES_VISIBILITY,
+  )
+
+  /** Icon pack / color / count per virtual layer id, for the selector rows. */
+  const savedPlacesMeta = computed(() => savedPlaces.value.meta)
+
   const mergedLayers = computed<Layer[]>(() => {
-    const projected: Layer[] = []
+    const projected: Layer[] = [...savedPlaces.value.layers]
     for (const template of defaultLayerTemplates.value) {
       const p = projectDefaultLayer(template)
       if (p) projected.push(p)
@@ -270,6 +317,8 @@ export const useLayersStore = defineStore('layers', () => {
 
   const mergedGroups = computed<LayerGroup[]>(() => {
     const projected: LayerGroup[] = []
+    const savedPlacesGroup = savedPlaces.value.group
+    if (savedPlacesGroup) projected.push(savedPlacesGroup)
     for (const template of defaultGroupTemplates.value) {
       const p = projectDefaultGroup(template)
       if (p) projected.push(p)
@@ -612,6 +661,10 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   async function updateLayer(id: string, updates: Partial<Layer>) {
+    // Virtual layers/groups (saved places) have no server row — a PATCH
+    // would 404. Visibility is the only mutable thing about them and it
+    // flows through the override maps instead.
+    if (isVirtualLayerId(id)) return
     if (Object.values(CORE_LAYER_IDS).includes(id as any)) {
       console.warn('Cannot update core layer:', id)
       return
@@ -652,6 +705,10 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   async function removeLayer(id: string) {
+    // Virtual layers/groups (saved places) have no server row — a PATCH
+    // would 404. Visibility is the only mutable thing about them and it
+    // flows through the override maps instead.
+    if (isVirtualLayerId(id)) return
     if (Object.values(CORE_LAYER_IDS).includes(id as any)) {
       console.warn('Cannot remove core layer:', id)
       return
@@ -682,6 +739,10 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   async function updateLayerGroup(id: string, updates: Partial<LayerGroup>) {
+    // Virtual layers/groups (saved places) have no server row — a PATCH
+    // would 404. Visibility is the only mutable thing about them and it
+    // flows through the override maps instead.
+    if (isVirtualLayerId(id)) return
     if (isTemplateId(id)) {
       if (hasContentChanges(updates, GROUP_CONTENT_FIELDS)) {
         const clone = await crudService.cloneDefaultGroup(id, updates)
@@ -709,6 +770,10 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   async function removeLayerGroup(id: string) {
+    // Virtual layers/groups (saved places) have no server row — a PATCH
+    // would 404. Visibility is the only mutable thing about them and it
+    // flows through the override maps instead.
+    if (isVirtualLayerId(id)) return
     if (isTemplateId(id)) {
       // Tombstone the default group itself, and also reassign any layers
       // currently projected into this group out to the top level. Without
@@ -851,6 +916,12 @@ export const useLayersStore = defineStore('layers', () => {
 
     newItems.forEach((item, index) => {
       const isLayer = 'groupId' in item
+      // Virtual entries (saved places) have no server row — reordering one
+      // would PATCH an id that doesn't exist. Their position is fixed by the
+      // projection instead.
+      if (isVirtualLayerId(item.id)) {
+        return
+      }
       if (isTemplateId(item.id)) {
         stateUpdates.push({
           templateId: item.id,
@@ -924,6 +995,12 @@ export const useLayersStore = defineStore('layers', () => {
 
     newItems.forEach((item, index) => {
       const isLayer = 'groupId' in item
+      // Virtual entries (saved places) have no server row — reordering one
+      // would PATCH an id that doesn't exist. Their position is fixed by the
+      // projection instead.
+      if (isVirtualLayerId(item.id)) {
+        return
+      }
       if (isTemplateId(item.id)) {
         stateUpdates.push({
           templateId: item.id,
@@ -1096,6 +1173,11 @@ export const useLayersStore = defineStore('layers', () => {
     defaultLayerTemplates,
     defaultGroupTemplates,
     defaultState,
+
+    // Saved places (virtual — projected from collections, never persisted)
+    savedPlacesVisibility,
+    savedPlacesMeta,
+    SAVED_PLACES_GROUP_ID,
 
     // Settings-panel views
     ungroupedLayers,

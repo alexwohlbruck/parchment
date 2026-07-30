@@ -461,6 +461,12 @@
     "badges": {
       "default": "Default",
       "custom": "Custom"
+    },
+    "savedPlaces": {
+      "group": "Saved places",
+      "uncategorized": "Unfiled",
+      "locked": "Locked collection",
+      "frequents": "Frequents"
     }
   },
   "directions": {

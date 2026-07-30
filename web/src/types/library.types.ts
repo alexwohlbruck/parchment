@@ -5,6 +5,12 @@ export interface Bookmark {
   address?: string
   lat: number
   lng: number
+  /**
+   * The bookmarked POI's own icon/colour, stamped by the server at creation.
+   * Not user-editable — there is no picker and the update endpoint rejects
+   * them. Collection lists render from these; the map uses the parent
+   * collection's look instead, and frequents use their type's fixed look.
+   */
   icon: string
   iconPack?: 'lucide' | 'maki'
   iconColor: string
@@ -12,6 +18,35 @@ export interface Bookmark {
   userId: string
   createdAt: string
   updatedAt: string
+  /**
+   * Collections this bookmark belongs to, most recently added FIRST — the map
+   * styles a bookmark after `collectionIds[0]`, so the order matters.
+   *
+   * Only populated by the list-all fetch (`GET /library/bookmarks`);
+   * single-bookmark responses omit it, so treat absent as "membership
+   * unknown", not "belongs to nothing".
+   */
+  collectionIds?: string[]
+}
+
+/**
+ * A point from a `user-e2ee` collection after client-side decryption.
+ *
+ * Mirrors the plaintext payload written by the scheme-switch upgrade in
+ * `collection-scheme-switch.ts` — which predates `iconPack`, so that field is
+ * absent on every existing point and callers must default it.
+ */
+export interface DecryptedPoint {
+  id: string
+  externalIds: Record<string, string>
+  name: string
+  address?: string | null
+  lat: number
+  lng: number
+  icon: string
+  iconPack?: 'lucide' | 'maki'
+  iconColor: string
+  frequentType?: string | null
 }
 
 export type CollectionScheme = 'server-key' | 'user-e2ee'

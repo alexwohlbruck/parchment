@@ -27,17 +27,12 @@ function openBookmarkDialog(place: Bookmark) {
       },
     })
     .then(async formData => {
-      console.log('Form data received in dialog:', formData)
       if (!formData) return
 
       const params = {
         name: formData.name,
         ...(formData.type ? { frequentType: formData.type } : {}),
-        icon: formData.icon,
-        iconColor: formData.iconColor,
       }
-
-      console.log('Sending to API:', params)
 
       await bookmarksService.updateBookmark(place.id, params)
     })

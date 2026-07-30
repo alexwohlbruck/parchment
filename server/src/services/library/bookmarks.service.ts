@@ -97,7 +97,10 @@ export async function createBookmark(
     collectionIds,
   )
 
-  return bookmark
+  // Return the membership too, matching the emit. The map styles a saved
+  // place after its parent collection, so a response without `collectionIds`
+  // leaves the new bookmark looking unfiled until the next full fetch.
+  return { ...bookmark, collectionIds }
 }
 
 /**
@@ -108,7 +111,21 @@ async function updateBookmarkInternal(
   userId: string,
   updates: Partial<Bookmark>,
 ): Promise<Bookmark | undefined> {
-  const { externalIds, userId: _, id: __, lat, lng, ...validUpdates } = updates
+  // `icon` / `iconPack` / `iconColor` are stripped alongside the identity
+  // fields: they describe the bookmarked POI and are stamped once at
+  // creation, so there is no legitimate update that changes them. Dropping
+  // them here means a stale or hand-rolled client can't either.
+  const {
+    externalIds,
+    userId: _,
+    id: __,
+    lat,
+    lng,
+    icon: _icon,
+    iconPack: _iconPack,
+    iconColor: _iconColor,
+    ...validUpdates
+  } = updates
 
   // If lat/lng are provided, convert to geometry
   const updateData: any = { ...validUpdates, updatedAt: new Date() }
@@ -263,6 +280,7 @@ export async function updateBookmark(
       .select({ collectionId: bookmarksCollections.collectionId })
       .from(bookmarksCollections)
       .where(eq(bookmarksCollections.bookmarkId, bookmarkId))
+      .orderBy(desc(bookmarksCollections.addedAt))
   ).map((row) => row.collectionId)
   await emit.bookmark(
     'bookmark:updated',
@@ -270,7 +288,7 @@ export async function updateBookmark(
     bookmarkId,
   )
 
-  return updatedBookmark
+  return { ...updatedBookmark, collectionIds: currentCollectionIds }
 }
 
 /**
@@ -497,6 +515,63 @@ export async function getFrequentBookmarks(userId: string): Promise<Bookmark[]> 
     .from(bookmarks)
     .where(and(eq(bookmarks.userId, userId), isNotNull(bookmarks.frequentType)))
   return rows as Bookmark[]
+}
+
+/**
+ * Every bookmark the user owns, with its collection membership attached.
+ *
+ * Backs the map overlay and the client's bookmark store hydration — before
+ * this existed the store was only ever filled opportunistically (on create,
+ * or when a collection view was opened), so a fresh device had no bookmarks
+ * until the user browsed to one.
+ *
+ * Scoped to `bookmarks.user_id`, so bookmarks living in a collection someone
+ * else shared with the caller are NOT included: those rows belong to the
+ * collection owner and need share-level access checks to read.
+ *
+ * Membership is fetched as a second indexed query rather than a GROUP BY —
+ * the select fields are ST_X/ST_Y expressions that don't group cleanly, and
+ * two lookups on a user-sized result set are cheaper than the join blowup.
+ * Each row's `collectionIds` come back most-recently-added first.
+ */
+export async function getBookmarks(
+  userId: string,
+): Promise<Array<Bookmark & { collectionIds: string[] }>> {
+  const rows = (await db
+    .select(bookmarkSelectFields)
+    .from(bookmarks)
+    .where(eq(bookmarks.userId, userId))
+    .orderBy(desc(bookmarks.createdAt))) as Bookmark[]
+
+  if (rows.length === 0) return []
+
+  // Ordered newest-first: the map styles a bookmark after the collection it
+  // was most recently filed into, so `collectionIds[0]` is load-bearing.
+  const links = await db
+    .select({
+      bookmarkId: bookmarksCollections.bookmarkId,
+      collectionId: bookmarksCollections.collectionId,
+    })
+    .from(bookmarksCollections)
+    .where(
+      inArray(
+        bookmarksCollections.bookmarkId,
+        rows.map((b) => b.id),
+      ),
+    )
+    .orderBy(desc(bookmarksCollections.addedAt))
+
+  const byBookmark = new Map<string, string[]>()
+  for (const link of links) {
+    const list = byBookmark.get(link.bookmarkId)
+    if (list) list.push(link.collectionId)
+    else byBookmark.set(link.bookmarkId, [link.collectionId])
+  }
+
+  return rows.map((bookmark) => ({
+    ...bookmark,
+    collectionIds: byBookmark.get(bookmark.id) ?? [],
+  }))
 }
 
 /**

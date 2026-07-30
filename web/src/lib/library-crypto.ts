@@ -21,6 +21,7 @@ import {
   type AAD,
 } from './crypto-envelope'
 import { deriveCollectionKey } from './federation-crypto'
+import type { DecryptedPoint } from '@/types/library.types'
 
 const COLLECTION_CONTEXT = 'parchment-collection-metadata-v1'
 const CANVAS_CONTEXT = 'parchment-canvas-metadata-v1'
@@ -103,6 +104,71 @@ export function decryptCollectionMetadata(params: {
     }),
   })
   return JSON.parse(plaintext) as CollectionMetadata
+}
+
+/**
+ * AAD for a point inside a `user-e2ee` collection.
+ *
+ * Note the key context is per-collection (`parchment-collection-<id>`), not
+ * the metadata context above — points and metadata are bound separately so a
+ * metadata envelope can't be replayed as a point or vice versa.
+ */
+export function collectionPointAAD(params: {
+  collectionId: string
+  pointId: string
+  ownerUserId: string
+}): AAD {
+  return {
+    userId: params.ownerUserId,
+    recordType: 'encrypted-point',
+    recordId: params.pointId,
+    keyContext: `parchment-collection-${params.collectionId}`,
+  }
+}
+
+/**
+ * Decrypt one stored point into the plaintext place it represents.
+ *
+ * `keyVersion` must be the collection's CURRENT `metadataKeyVersion` — points
+ * are re-encrypted under the new key whenever the collection rotates or
+ * switches scheme, so an older version silently fails AEAD.
+ */
+export function decryptCollectionPoint(params: {
+  point: { id: string; encryptedData: string }
+  seed: Uint8Array
+  ownerUserId: string
+  collectionId: string
+  keyVersion?: number
+}): DecryptedPoint {
+  const key = deriveCollectionKey(
+    params.seed,
+    params.collectionId,
+    params.keyVersion ?? 1,
+  )
+  const plaintext = decryptEnvelopeString({
+    envelope: params.point.encryptedData,
+    key,
+    aad: collectionPointAAD({
+      collectionId: params.collectionId,
+      pointId: params.point.id,
+      ownerUserId: params.ownerUserId,
+    }),
+  })
+  const parsed = JSON.parse(plaintext) as Partial<DecryptedPoint>
+
+  return {
+    id: params.point.id,
+    externalIds: parsed.externalIds ?? {},
+    name: parsed.name ?? '',
+    address: parsed.address ?? null,
+    lat: parsed.lat as number,
+    lng: parsed.lng as number,
+    icon: parsed.icon ?? 'map-pin',
+    // Absent on every point written before icon packs existed.
+    iconPack: parsed.iconPack ?? 'lucide',
+    iconColor: parsed.iconColor ?? '#F43F5E',
+    frequentType: parsed.frequentType ?? null,
+  }
 }
 
 export function encryptCanvasMetadata(params: {

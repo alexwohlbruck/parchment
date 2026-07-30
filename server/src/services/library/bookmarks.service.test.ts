@@ -53,6 +53,7 @@ const {
   unbookmark,
   getCollectionsForBookmark,
   getFrequentBookmarks,
+  getBookmarks,
   searchBookmarks,
 } = await import('./bookmarks.service')
 
@@ -167,7 +168,10 @@ describe('updateBookmark — ownership split', () => {
 
     const result = await updateBookmark('bm-1', 'user-1', { name: 'Renamed' })
 
-    expect(result).toEqual(bookmark)
+    // Membership rides along on the response so the map can restyle the
+    // place without waiting for a full refetch.
+    expect(result).toMatchObject(bookmark)
+    expect((result as any).collectionIds).toEqual([])
     expect(dbMock.updated[0]).toMatchObject({ name: 'Renamed' })
   })
 
@@ -188,7 +192,8 @@ describe('updateBookmark — ownership split', () => {
       collectionIds: ['col-2'],
     })
 
-    expect(result).toEqual(bookmark)
+    expect(result).toMatchObject(bookmark)
+    expect((result as any).collectionIds).toEqual(['col-2'])
     // No bookmark-row update was issued, only pivot writes.
     expect(dbMock.updated.some((u: any) => 'name' in u)).toBe(false)
   })
@@ -225,6 +230,28 @@ describe('updateBookmark — ownership split', () => {
     expect('id' in written).toBe(false)
     expect('userId' in written).toBe(false)
     expect('externalIds' in written).toBe(false)
+  })
+
+  test('never lets a caller rewrite the POI-derived icon or colour', async () => {
+    // Icon/colour describe the bookmarked place, are stamped once at
+    // creation, and have no picker. A stale or hand-rolled client must not be
+    // able to change them after the fact.
+    dbMock.setReturningRows([bookmark])
+    dbMock.queueSelect([])
+
+    await updateBookmark('bm-1', 'user-1', {
+      name: 'Renamed',
+      icon: 'Skull',
+      iconPack: 'lucide',
+      iconColor: 'magenta',
+    } as any)
+
+    const written = dbMock.updated[0] as any
+    expect('icon' in written).toBe(false)
+    expect('iconPack' in written).toBe(false)
+    expect('iconColor' in written).toBe(false)
+    // The legitimate part of the patch still lands.
+    expect(written.name).toBe('Renamed')
   })
 })
 
@@ -397,6 +424,51 @@ describe('reads', () => {
 
     expect(rows).toHaveLength(1)
     expect((rows[0] as any).frequentType).toBe('home')
+  })
+
+  test('createBookmark returns the membership it just wrote', async () => {
+    // The map styles a saved place after its parent collection. A response
+    // without `collectionIds` leaves a just-saved bookmark looking unfiled
+    // until the next full fetch — a generic pin instead of the collection's.
+    dbMock.setReturningRows([bookmark])
+
+    const created = await createBookmark(createParams, ['col-1', 'col-2'])
+
+    expect((created as any).collectionIds).toEqual(['col-1', 'col-2'])
+  })
+
+  test('getBookmarks attaches collection membership, preserving query order', async () => {
+    // The query orders links by `added_at` DESC and the grouping must not
+    // reshuffle them: the map styles a bookmark after `collectionIds[0]`, so
+    // "most recently filed into" is carried entirely by this order.
+    dbMock.queueSelect([bookmark, { ...bookmark, id: 'bm-2' }])
+    dbMock.queueSelect([
+      { bookmarkId: 'bm-1', collectionId: 'newest' },
+      { bookmarkId: 'bm-1', collectionId: 'older' },
+      { bookmarkId: 'bm-2', collectionId: 'only' },
+    ])
+
+    const rows = await getBookmarks('user-1')
+
+    expect(rows.map(r => r.id)).toEqual(['bm-1', 'bm-2'])
+    expect(rows[0].collectionIds).toEqual(['newest', 'older'])
+    expect(rows[1].collectionIds).toEqual(['only'])
+  })
+
+  test('getBookmarks gives an unfiled bookmark an empty collection list', async () => {
+    dbMock.queueSelect([bookmark])
+    dbMock.queueSelect([])
+
+    const rows = await getBookmarks('user-1')
+
+    expect(rows[0].collectionIds).toEqual([])
+  })
+
+  test('getBookmarks skips the membership query when the user has none', async () => {
+    dbMock.queueSelect([])
+
+    expect(await getBookmarks('user-1')).toEqual([])
+    expect(dbMock.selectCount).toBe(1)
   })
 
   test('searchBookmarks with an empty query returns everything', async () => {

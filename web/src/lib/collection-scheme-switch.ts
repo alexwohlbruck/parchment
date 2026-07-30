@@ -18,6 +18,7 @@ import {
   importPublicKey,
 } from './federation-crypto'
 import { encryptEnvelopeString, decryptEnvelopeString } from './crypto-envelope'
+import { collectionPointAAD, decryptCollectionPoint } from './library-crypto'
 import { getSeed } from './key-storage'
 import type { Collection, CollectionScheme } from '@/types/library.types'
 
@@ -70,18 +71,11 @@ export interface SwitchDowngradeInput {
   onProgress?: (phase: SwitchPhase, pctInPhase: number) => void
 }
 
-function pointAAD(
+const pointAAD = (
   collectionId: string,
   pointId: string,
   ownerUserId: string,
-) {
-  return {
-    userId: ownerUserId,
-    recordType: 'encrypted-point' as const,
-    recordId: pointId,
-    keyContext: `parchment-collection-${collectionId}`,
-  }
-}
+) => collectionPointAAD({ collectionId, pointId, ownerUserId })
 
 function metaAAD(collectionId: string, ownerUserId: string) {
   return {
@@ -228,38 +222,31 @@ export async function downgradeCollectionToServerKey(
 
   const oldVersion = collection.metadataKeyVersion ?? 1
   const newVersion = oldVersion + 1
-  const oldKey = deriveCollectionKey(seed, collection.id, oldVersion)
   const newKey = deriveCollectionKey(seed, collection.id, newVersion)
 
   // ---- Phase 1: decrypt each point into a plaintext bookmark payload ----
+  // Fields are picked explicitly rather than spread: the decrypt helper also
+  // returns `iconPack`, which the change-scheme body schema doesn't accept.
   onProgress?.('transforming', 0)
   const newBookmarks = currentPoints.map((p, i) => {
-    const plaintext = decryptEnvelopeString({
-      envelope: p.encryptedData,
-      key: oldKey,
-      aad: pointAAD(collection.id, p.id, ownerUserId),
+    const point = decryptCollectionPoint({
+      point: p,
+      seed,
+      ownerUserId,
+      collectionId: collection.id,
+      keyVersion: oldVersion,
     })
-    const parsed = JSON.parse(plaintext) as {
-      externalIds?: Record<string, string>
-      name?: string
-      address?: string | null
-      lat: number
-      lng: number
-      icon?: string
-      iconColor?: string
-      frequentType?: string | null
-    }
     onProgress?.('transforming', (i + 1) / Math.max(1, currentPoints.length))
     return {
-      id: p.id,
-      externalIds: parsed.externalIds ?? {},
-      name: parsed.name ?? '',
-      address: parsed.address ?? null,
-      lat: parsed.lat,
-      lng: parsed.lng,
-      icon: parsed.icon,
-      iconColor: parsed.iconColor,
-      frequentType: parsed.frequentType ?? null,
+      id: point.id,
+      externalIds: point.externalIds,
+      name: point.name,
+      address: point.address ?? null,
+      lat: point.lat,
+      lng: point.lng,
+      icon: point.icon,
+      iconColor: point.iconColor,
+      frequentType: point.frequentType ?? null,
     }
   })
 

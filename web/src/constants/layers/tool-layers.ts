@@ -90,3 +90,43 @@ export const RADIUS_LINE_LAYER_SPEC = {
     'line-emissive-strength': 1,
   },
 } as const
+
+// ============================================================================
+// ISOCHRONE TOOL LAYERS
+// Reachability bands and their outlines. One source holds every band; the
+// tool cuts the nested contours into disjoint rings before handing them over,
+// so each band carries its own opacity and nothing compounds where contours
+// overlap. Colors are set at add/update time by IsochroneTool from theme.
+// ============================================================================
+
+export const ISOCHRONE_SOURCE_ID = 'isochrone-bands'
+export const ISOCHRONE_FILL_LAYER_ID = 'isochrone-fill-layer'
+export const ISOCHRONE_LINE_LAYER_ID = 'isochrone-line-layer'
+
+export const EMPTY_ISOCHRONE_GEOJSON = {
+  type: 'FeatureCollection' as const,
+  features: [] as GeoJSON.Feature[],
+}
+
+/** Band fill spec; paint['fill-color'] set by IsochroneTool from theme */
+export const ISOCHRONE_FILL_LAYER_SPEC = {
+  type: 'fill' as const,
+  source: ISOCHRONE_SOURCE_ID,
+  paint: {
+    // Data-driven so one layer can shade every band from its own property.
+    'fill-opacity': ['get', 'opacity'],
+    'fill-emissive-strength': 1,
+  },
+} as const
+
+/** Band outline spec; paint['line-color'] set by IsochroneTool from theme */
+export const ISOCHRONE_LINE_LAYER_SPEC = {
+  type: 'line' as const,
+  source: ISOCHRONE_SOURCE_ID,
+  layout: { 'line-join': 'round' as const, 'line-cap': 'round' as const },
+  paint: {
+    'line-width': 1.5,
+    'line-opacity': 0.65,
+    'line-emissive-strength': 1,
+  },
+} as const

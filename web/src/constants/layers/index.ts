@@ -31,7 +31,7 @@ export {
   CORE_LAYERS,
 } from './core-layers'
 
-// Tool layers (measure, radius)
+// Tool layers (measure, radius, isochrone)
 export {
   MEASURE_SOURCE_ID,
   MEASURE_LAYER_ID,
@@ -50,4 +50,10 @@ export {
   EMPTY_RADIUS_GEOJSON,
   RADIUS_FILL_LAYER_SPEC,
   RADIUS_LINE_LAYER_SPEC,
+  ISOCHRONE_SOURCE_ID,
+  ISOCHRONE_FILL_LAYER_ID,
+  ISOCHRONE_LINE_LAYER_ID,
+  EMPTY_ISOCHRONE_GEOJSON,
+  ISOCHRONE_FILL_LAYER_SPEC,
+  ISOCHRONE_LINE_LAYER_SPEC,
 } from './tool-layers'

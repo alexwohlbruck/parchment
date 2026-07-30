@@ -30,6 +30,7 @@ import WeatherControl from '@/components/map/controls/WeatherControl.vue'
 import MapToolbox from '@/components/map/controls/MapToolbox.vue'
 import MeasureTool from '@/components/map/measure/MeasureTool.vue'
 import RadiusTool from '@/components/map/measure/RadiusTool.vue'
+import IsochroneTool from '@/components/map/measure/IsochroneTool.vue'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useMapStore } from '@/stores/map.store'
 import { useSearchStore } from '@/stores/search.store'
@@ -563,6 +564,13 @@ defineExpose({
                 :class="{ 'mb-16': isMobileScreen }"
               >
                 <RadiusTool />
+              </div>
+              <div
+                v-else-if="mapToolsStore.activeTool === 'isochrone'"
+                class="pointer-events-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <IsochroneTool />
               </div>
             </TransitionSlide>
           </div>

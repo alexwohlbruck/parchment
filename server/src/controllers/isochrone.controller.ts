@@ -78,9 +78,12 @@ function badRequest(message: string): Response {
   })
 }
 
-const app = new Elysia({ prefix: '/isochrone' }).use(requireAuth)
+// Paths are spelled out rather than set as a prefix: a prefixed sub-app's
+// collection root registers as `/isochrone/`, and that trailing slash is what
+// ends up in the OpenAPI spec and the generated docs.
+const app = new Elysia().use(requireAuth)
 
-app.get('/', ({ query }) => {
+app.get('/isochrone', ({ query }) => {
   const invalid = validateIsochroneQuery(query)
   if (invalid) return badRequest(invalid)
 
@@ -102,7 +105,7 @@ app.get('/', ({ query }) => {
   },
 })
 
-app.get('/modes', () =>
+app.get('/isochrone/modes', () =>
   requestBarrelman('/isochrone/modes', {}, { cacheControl: 'public, max-age=3600' }),
   { detail: { tags: ['Isochrone'], summary: 'Supported isochrone modes and limits' } },
 )

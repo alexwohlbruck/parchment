@@ -20,7 +20,15 @@ export default {
       { name: 'Sharing', description: 'Sharing and invitations' },
       { name: 'Federation', description: 'Federation and external identity' },
       { name: 'Integrations', description: 'Third-party integrations' },
-      { name: 'Proxy', description: 'Proxy endpoints' },
+      {
+        name: 'Proxy',
+        description:
+          'Map tile proxying — keeps provider keys server-side and sidesteps ' +
+          'CORS for tile sources MapLibre fetches directly',
+      },
+      { name: 'Transit', description: 'Transit vehicles, routes, and stops' },
+      { name: 'GBFS', description: 'Shared mobility docks and availability' },
+      { name: 'Isochrone', description: 'Travel-time reachability polygons' },
       { name: 'Weather', description: 'Weather data' },
     ],
   },

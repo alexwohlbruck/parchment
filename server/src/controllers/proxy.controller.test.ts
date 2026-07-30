@@ -1,12 +1,13 @@
 /**
- * Endpoint tests for the proxy controller.
+ * Endpoint tests for the tile proxy.
  *
- * The split that matters: tile routes are unauthenticated because a MapLibre
- * raster/vector source can't attach our auth header, while the transit and
- * GBFS data routes require a session so live vehicle positions and route
- * topology can't be enumerated anonymously. Provider keys must stay server-side
- * in every case — several tests assert the key appears in the upstream URL but
- * never in the response.
+ * Tile routes are deliberately unauthenticated: a MapLibre raster/vector
+ * source fetches them directly and can't attach our auth header. What they
+ * must never do is leak a provider key, so several tests assert the key
+ * appears in the upstream URL but never in the response.
+ *
+ * Data endpoints that happen to be served by Barrelman are not proxies and
+ * live elsewhere — see transit / gbfs / isochrone controller tests.
  */
 
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
@@ -50,12 +51,6 @@ afterAll(() => {
 function tileResponse() {
   return new Response(new Uint8Array([1, 2, 3]), {
     headers: { 'content-type': 'application/x-protobuf' },
-  })
-}
-
-function jsonResponse(body: unknown) {
-  return new Response(JSON.stringify(body), {
-    headers: { 'content-type': 'application/json' },
   })
 }
 
@@ -269,166 +264,5 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
     const res = await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
 
     expect(res.status).toBe(404)
-  })
-})
-
-describe('transit proxy — authentication', () => {
-  const transitRoutes = [
-    '/proxy/transit/vehicles',
-    '/proxy/transit/shapes',
-    '/proxy/transit/route-vehicles',
-    '/proxy/transit/trip-stops',
-    '/proxy/transit/route-detail',
-    '/proxy/transit/departures',
-    '/proxy/transit/bikes-allowed',
-    '/proxy/transit/nearest-entrance',
-    '/proxy/transit/station/feed-1/stop-1',
-  ]
-
-  for (const path of transitRoutes) {
-    test(`GET ${path} rejects an unauthenticated caller`, async () => {
-      setAuthUser(null)
-
-      const res = await req(app).get(path)
-
-      // Anonymous enumeration of live vehicle positions and route topology
-      // is exactly what this guard exists to prevent.
-      expect(res.status).toBe(401)
-      expect(fetchCalls).toHaveLength(0)
-    })
-  }
-})
-
-describe('transit proxy — Barrelman passthrough', () => {
-  test('forwards query params and the bearer key upstream', async () => {
-    fetchResponses = [jsonResponse({ vehicles: [] })]
-
-    const res = await req(app).get('/proxy/transit/vehicles', {
-      query: { feedId: 'feed-1', bbox: '-81,35,-80,36' },
-    })
-
-    expect(res.status).toBe(200)
-    expect(fetchCalls[0]).toContain('https://barrelman.test/transit/vehicles')
-    expect(fetchCalls[0]).toContain('feedId=feed-1')
-  })
-
-  test('drops empty and null query params', async () => {
-    fetchResponses = [jsonResponse({})]
-
-    await req(app).get('/proxy/transit/vehicles', {
-      query: { feedId: 'feed-1', bbox: '' },
-    })
-
-    expect(fetchCalls[0]).not.toContain('bbox=')
-  })
-
-  test('501s when Barrelman is not configured', async () => {
-    configuredIntegrations = []
-
-    const res = await req(app).get('/proxy/transit/vehicles')
-
-    expect(res.status).toBe(501)
-    expect(res.body.error).toBe('Barrelman not configured')
-    expect(fetchCalls).toHaveLength(0)
-  })
-
-  test('replaces an upstream HTML error with clean JSON', async () => {
-    fetchResponses = [
-      new Response('<html>502 Bad Gateway</html>', {
-        status: 502,
-        headers: { 'content-type': 'text/html' },
-      }),
-    ]
-
-    const res = await req(app).get('/proxy/transit/vehicles')
-
-    expect(res.status).toBe(502)
-    expect(res.body).toEqual({ error: 'Upstream error: 502' })
-    expect(String(res.body)).not.toContain('<html>')
-  })
-
-  test('never echoes the Barrelman API key to the client', async () => {
-    fetchResponses = [jsonResponse({ ok: true })]
-
-    const res = await req(app).get('/proxy/transit/vehicles')
-
-    expect(JSON.stringify(res.body)).not.toContain('barrelman-key')
-  })
-
-  test('live vehicle positions are not cached', async () => {
-    fetchResponses = [jsonResponse({ vehicles: [] })]
-
-    const res = await req(app).get('/proxy/transit/vehicles')
-
-    expect(res.headers.get('cache-control')).toBe('no-cache')
-  })
-
-  test('route shapes are cached for a day', async () => {
-    fetchResponses = [jsonResponse({})]
-
-    const res = await req(app).get('/proxy/transit/shapes')
-
-    expect(res.headers.get('cache-control')).toBe('public, max-age=86400')
-  })
-
-  test('departures are cached briefly', async () => {
-    fetchResponses = [jsonResponse({})]
-
-    const res = await req(app).get('/proxy/transit/departures')
-
-    expect(res.headers.get('cache-control')).toBe('public, max-age=30')
-  })
-
-  test('station detail encodes the feed and stop ids into the path', async () => {
-    fetchResponses = [jsonResponse({})]
-
-    await req(app).get('/proxy/transit/station/feed%2F1/stop%201')
-
-    expect(fetchCalls[0]).toContain('/transit/station/feed%2F1/stop%201')
-  })
-})
-
-describe('GBFS proxy', () => {
-  // The sub-app's prefix is relative to the mounting `/proxy` app, matching its
-  // sibling ('/transit'). Spelling '/proxy/gbfs' out here again mounted these
-  // at /proxy/proxy/gbfs/* instead.
-  test('nearby-stations is served under a single /proxy prefix', async () => {
-    fetchResponses = [jsonResponse({ stations: [] })]
-
-    const res = await req(app).get('/proxy/gbfs/nearby-stations')
-
-    expect(res.status).toBe(200)
-    expect(fetchCalls[0]).toContain('https://barrelman.test/gbfs/nearby-stations')
-  })
-
-  test('is not reachable under a doubled prefix', async () => {
-    const res = await req(app).get('/proxy/proxy/gbfs/nearby-stations')
-
-    expect(res.status).toBe(404)
-  })
-
-  test('nearby-stations is never cached', async () => {
-    // Station availability is the whole point; a stale answer is useless.
-    fetchResponses = [jsonResponse({ stations: [] })]
-
-    const res = await req(app).get('/proxy/gbfs/nearby-stations')
-
-    expect(res.headers.get('cache-control')).toBe('no-cache')
-  })
-
-  test('systems is cached for an hour', async () => {
-    fetchResponses = [jsonResponse({})]
-
-    const res = await req(app).get('/proxy/gbfs/systems')
-
-    expect(res.headers.get('cache-control')).toBe('public, max-age=3600')
-  })
-
-  test('rejects an unauthenticated caller', async () => {
-    setAuthUser(null)
-
-    const res = await req(app).get('/proxy/gbfs/nearby-stations')
-
-    expect(res.status).toBe(401)
   })
 })

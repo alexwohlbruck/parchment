@@ -391,6 +391,87 @@ export function rgbToHex(rgb: string): string {
   return `#${r}${g}${b}`
 }
 
+/**
+ * Resolve a stored colour to a hex value a map paint expression can use.
+ *
+ * `bookmarks.icon_color` holds either a `ThemeColor` NAME (`'cobalt'`) — what
+ * the icon picker and `closestThemeColor` write — or a raw hex, which is the
+ * column default. Vue components take the name and map it to Tailwind classes,
+ * but MapLibre/Mapbox paint properties need a real colour, and neither engine
+ * parses the `oklch()` the palette is authored in. So the palette variable is
+ * resolved through the browser and normalised to hex.
+ *
+ * Results are cached: the `--color-*-500` palette is a fixed set of tokens,
+ * not theme-dependent, so a name always resolves to the same value.
+ */
+const themeColorHexCache = new Map<string, string>()
+
+export function themeColorToHex(
+  color: string | null | undefined,
+  fallback = '#F43F5E',
+): string {
+  if (!color) return fallback
+  // Already a colour literal — hex, rgb(), hsl(), oklch(), a named CSS colour.
+  if (color.startsWith('#') || color.includes('(')) return color
+
+  const cached = themeColorHexCache.get(color)
+  if (cached) return cached
+
+  try {
+    const probe = document.createElement('span')
+    probe.style.position = 'absolute'
+    probe.style.left = '-9999px'
+    // `primary` is an accent token rather than a palette ramp.
+    probe.style.color =
+      color === 'primary'
+        ? 'var(--color-primary)'
+        : `var(--color-${color}-500)`
+    document.body.appendChild(probe)
+    const computed = getComputedStyle(probe).color
+    document.body.removeChild(probe)
+    if (!computed) return fallback
+
+    const hex = cssColorToHex(computed)
+    if (!hex) return fallback
+    themeColorHexCache.set(color, hex)
+    return hex
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * Normalise any CSS colour the browser can parse down to hex.
+ *
+ * The palette is authored in `oklch()`, and browsers disagree about what
+ * `getComputedStyle().color` hands back for it — Chrome tends to return
+ * `rgb(...)`, Firefox returns `oklch(...)` verbatim. Painting a single pixel
+ * and reading it back sidesteps the difference entirely, and covers whatever
+ * colour syntax lands here next.
+ */
+function cssColorToHex(value: string): string | null {
+  if (value.startsWith('rgb')) return rgbToHex(value)
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  // An unparseable colour leaves fillStyle at its default, which would
+  // silently paint every unknown token black — so check that it took.
+  ctx.fillStyle = '#000000'
+  ctx.fillStyle = value
+  if (ctx.fillStyle === '#000000' && !/^(#000000|black|rgb\(0, 0, 0\))$/i.test(value)) {
+    return null
+  }
+
+  ctx.fillRect(0, 0, 1, 1)
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+  const toHex = (n: number) => n.toString(16).padStart(2, '0')
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
 export function hexToHsl(hex: string) {
   hex = hex.replace('#', '')
   // Expand 3-char shorthand (e.g. "abc" → "aabbcc")

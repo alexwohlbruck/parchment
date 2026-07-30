@@ -29,22 +29,26 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     }
   })
 
-  function navigateToBookmark(bookmark: Bookmark) {
-    const osmId = bookmark.externalIds.osm
-    const osmType = bookmark.externalIds.osmType || 'node'
-
-    if (osmId && osmType) {
-      return {
-        name: 'Place',
-        params: { type: osmType, id: osmId },
-      }
-    }
-
-    return null
-  }
-
   function setBookmarks(places: Bookmark[]) {
     bookmarks.value = places
+  }
+
+/**
+   * Merge an incoming row over the stored one, keeping `collectionIds` when
+   * the incoming row doesn't carry any.
+   *
+   * Not every endpoint returns membership — `GET /collections/:id` embeds bare
+   * bookmark rows, for instance — and the type documents absent as "membership
+   * unknown", not "belongs to nothing". Overwriting wholesale meant that
+   * merely opening a collection erased what its places belonged to, which the
+   * map reads as unfiled: they'd jump to the Unfiled toggle and lose their
+   * collection's icon and colour until the next full fetch.
+   */
+  function mergeBookmark(incoming: Bookmark, existing: Bookmark | undefined) {
+    if (!existing || incoming.collectionIds) return incoming
+    return existing.collectionIds
+      ? { ...incoming, collectionIds: existing.collectionIds }
+      : incoming
   }
 
   function addBookmark(place: Bookmark) {
@@ -53,7 +57,7 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     // echo — so replace an existing row instead of appending a duplicate.
     const index = bookmarks.value.findIndex(b => b.id === place.id)
     if (index !== -1) {
-      bookmarks.value[index] = place
+      bookmarks.value[index] = mergeBookmark(place, bookmarks.value[index])
     } else {
       bookmarks.value = [...bookmarks.value, place]
     }
@@ -65,7 +69,7 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
   ) {
     const index = bookmarks.value.findIndex(place => place.id === id)
     if (index !== -1) {
-      bookmarks.value[index] = updatedPlace
+      bookmarks.value[index] = mergeBookmark(updatedPlace, bookmarks.value[index])
     }
 
     if (updatedPlace.collectionIds) {
@@ -82,7 +86,6 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     getBookmarkById,
     getBookmarkByExternalId,
     isPlaceSaved,
-    navigateToBookmark,
     setBookmarks,
     addBookmark,
     updateBookmark,

@@ -12,11 +12,7 @@ import { ref } from 'vue'
 import { api } from '@/lib/api'
 import { closestThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
-import {
-  FREQUENT_META,
-  isCanonicalFrequent,
-  type FrequentType,
-} from '@/lib/frequents'
+import { type FrequentType } from '@/lib/frequents'
 
 // TODO: i18n error messages
 
@@ -61,10 +57,6 @@ export const useBookmarksService = createSharedComposable(() => {
       silent?: boolean
       /** Override the bookmark name (used for custom frequents). */
       name?: string
-      /** Override the icon/colour (used to stamp a canonical frequent's icon). */
-      icon?: string
-      iconPack?: 'lucide' | 'maki'
-      iconColor?: string
     } = {},
   ) {
     if (!place.externalIds || Object.keys(place.externalIds).length === 0) {
@@ -81,17 +73,17 @@ export const useBookmarksService = createSharedComposable(() => {
 
     isSaving.value = true
 
-    // Pre-fill the bookmark's icon/color from the place's resolved
-    // category icon when available. The server emits `place.icon` with
-    // the maki/lucide name + the abstract category; we then snap the
-    // category's CSS color to the closest discrete `ThemeColor` so it
-    // matches what the picker offers. This avoids the "everything is a
-    // map-pin in default-red" baseline for newly-saved places.
+    // Stamp the POI's own icon/colour onto the bookmark. The server emits
+    // `place.icon` with the maki/lucide name plus the abstract category; the
+    // category's CSS colour is snapped to the closest discrete `ThemeColor`
+    // so it matches the palette the rest of the UI renders with.
+    //
+    // This runs once, at creation. There is no picker and the update endpoint
+    // rejects these fields — a bookmark looks like the place it is.
     const placeIcon = place.icon
     const categoryColorString = placeIcon?.category
       ? categoryPaletteStore.getCategoryColor(placeIcon.category, themeStore.isDark)
       : null
-    const derivedIconColor = closestThemeColor(categoryColorString)
 
     try {
       const params: CreateBookmarkParams & { collectionIds?: string[] } = {
@@ -100,9 +92,9 @@ export const useBookmarksService = createSharedComposable(() => {
         address: place.address?.value.formatted,
         lat: geometry.center.lat,
         lng: geometry.center.lng,
-        icon: options.icon ?? placeIcon?.icon,
-        iconPack: options.iconPack ?? placeIcon?.iconPack,
-        iconColor: options.iconColor ?? derivedIconColor,
+        icon: placeIcon?.icon,
+        iconPack: placeIcon?.iconPack,
+        iconColor: closestThemeColor(categoryColorString),
         ...(options.frequentType ? { frequentType: options.frequentType } : {}),
         collectionIds,
       }
@@ -270,7 +262,7 @@ export const useBookmarksService = createSharedComposable(() => {
   // ── Frequents (Home / Work / School / Custom) ───────────────────────
   // Frequents are bookmarks tagged with `frequentType`. Unlike ordinary
   // bookmarks they are *standalone* — not linked to any collection — so they
-  // have a dedicated fetch (`fetchFrequents`) since the collection hydrate
+  // have a dedicated fetch since the collection hydrate
   // won't surface them. The same place can still be added to a collection
   // separately. A bookmark carries at most one `frequentType`.
 
@@ -279,13 +271,23 @@ export const useBookmarksService = createSharedComposable(() => {
     return bookmarksStore.bookmarks.filter(b => b.frequentType)
   }
 
-  /** Load the user's standalone frequents from the server into the store. */
-  async function fetchFrequents(): Promise<void> {
+  /**
+   * Replace the store with the user's full bookmark list.
+   *
+   * The store is localStorage-backed and otherwise only fills up
+   * opportunistically (on create, or when a collection view is opened), so
+   * without this a fresh device shows no saved places until the user browses
+   * to a collection. Rows come back with `collectionIds`, which the map layer
+   * needs to honour per-collection visibility.
+   */
+  async function fetchBookmarks(): Promise<void> {
     try {
-      const { data } = await api.get<Bookmark[]>('/library/bookmarks/frequents')
-      for (const bm of data ?? []) bookmarksStore.addBookmark(bm)
+      const { data } = await api.get<Bookmark[]>('/library/bookmarks')
+      bookmarksStore.setBookmarks(data ?? [])
     } catch (e) {
-      console.warn('Failed to fetch frequents:', e)
+      // Non-fatal: the cached store still renders. Logged, not toasted —
+      // this runs during boot and the user didn't ask for it.
+      console.warn('Failed to fetch bookmarks:', e)
     }
   }
 
@@ -321,9 +323,10 @@ export const useBookmarksService = createSharedComposable(() => {
    * the place is already bookmarked; otherwise creates a bookmark in the
    * default collection.
    *
-   * Canonical types (home/work/school) stamp their fixed icon + colour onto the
-   * bookmark so it always looks the part. `custom` keeps the place's own icon
-   * and takes an optional user-supplied `name` as its label.
+   * A frequent's icon and colour come from its `frequentType` at render time
+   * (see `frequentChipMeta`), not from the bookmark row — so nothing about the
+   * look is stored here. `custom` takes an optional user-supplied `name` as
+   * its label.
    */
   async function setFrequent(
     place: Place,
@@ -331,22 +334,13 @@ export const useBookmarksService = createSharedComposable(() => {
     opts: { name?: string } = {},
   ): Promise<Bookmark | null> {
     const targetBookmarkId = findBookmarkIdForPlace(place)
-
-    // Stamp the canonical icon/colour so a Home always looks like a Home.
-    const iconOverride = isCanonicalFrequent(frequentType)
-      ? {
-          icon: FREQUENT_META[frequentType].icon,
-          iconPack: 'lucide' as const,
-          iconColor: FREQUENT_META[frequentType].color,
-        }
-      : {}
     const name = opts.name?.trim() || undefined
 
     let result: Bookmark | null
     if (targetBookmarkId) {
       result = await updateBookmark(
         targetBookmarkId,
-        { frequentType, ...iconOverride, ...(name ? { name } : {}) },
+        { frequentType, ...(name ? { name } : {}) },
         { silent: true },
       )
     } else {
@@ -355,7 +349,6 @@ export const useBookmarksService = createSharedComposable(() => {
       result = await createBookmark(place, [], {
         frequentType,
         silent: true,
-        ...iconOverride,
         ...(name ? { name } : {}),
       })
     }
@@ -390,7 +383,7 @@ export const useBookmarksService = createSharedComposable(() => {
     removeBookmark,
     isBookmarkSaved,
     getFrequentBookmarks,
-    fetchFrequents,
+    fetchBookmarks,
     setFrequent,
     clearFrequent,
   }

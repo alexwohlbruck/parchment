@@ -344,6 +344,26 @@
     "empty": "Click on the map to set the center point.",
     "clickToConfirm": "Click on the map to set the radius."
   },
+  "isochrone": {
+    "title": "Reachable area",
+    "close": "Close isochrone tool",
+    "empty": "Click on the map to set a starting point.",
+    "loading": "Computing reachable area…",
+    "errorGeneric": "Couldn't compute the reachable area.",
+    "unreachable": "Nothing is reachable from this point.",
+    "retry": "Try again",
+    "modeWalk": "Walk",
+    "modeBike": "Bike",
+    "modeCar": "Drive",
+    "modeTransit": "Transit",
+    "reach": "Within",
+    "minutes": "{count} min",
+    "bands": "Bands",
+    "bandsCount": "{count} bands",
+    "arriveBy": "Arrive by",
+    "arriveByHint": "Show the area that can reach this point",
+    "stopsReachable": "{count} transit stops reachable"
+  },
   "layers": {
     "title": "Layers",
     "meta": {
@@ -441,6 +461,12 @@
     "badges": {
       "default": "Default",
       "custom": "Custom"
+    },
+    "savedPlaces": {
+      "group": "Saved places",
+      "uncategorized": "Unfiled",
+      "locked": "Locked collection",
+      "frequents": "Frequents"
     }
   },
   "directions": {

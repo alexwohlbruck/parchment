@@ -12,6 +12,7 @@ import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
+import { useIsochroneStore } from '@/stores/isochrone.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
 import type { VehicleType } from '@/types/multimodal.types'
@@ -32,6 +33,7 @@ import {
   MapPinIcon,
   RulerIcon,
   CircleDotIcon,
+  RadarIcon,
   CrosshairIcon,
   CarFrontIcon,
 } from 'lucide-vue-next'
@@ -54,6 +56,7 @@ const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 const mapStore = useMapStore()
 const mapToolsStore = useMapToolsStore()
+const isochroneStore = useIsochroneStore()
 const vehiclesStore = useVehiclesStore()
 const { t } = useI18n()
 const { openExternalLink } = useExternalLink()
@@ -529,6 +532,15 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     mapToolsStore.setRadiusCenter(lngLat)
   }
 
+  const isochroneOnSelect = () => {
+    const lngLat = clickedLngLat.value
+    if (!lngLat) return
+    // Activate first: switching tools clears the isochrone store, which would
+    // otherwise throw away the origin we just set.
+    mapToolsStore.setActiveTool('isochrone')
+    isochroneStore.setOrigin(lngLat)
+  }
+
   items.push({
     type: 'submenu',
     id: 'measure',
@@ -551,6 +563,13 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
         label: t('measure.circle'),
         icon: CircleDotIcon,
         onSelect: measureCircleOnSelect,
+      },
+      {
+        type: 'item',
+        id: 'measure-isochrone',
+        label: t('isochrone.title'),
+        icon: RadarIcon,
+        onSelect: isochroneOnSelect,
       },
     ],
   })

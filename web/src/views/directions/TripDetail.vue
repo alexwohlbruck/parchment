@@ -139,7 +139,7 @@ async function loadDepartures() {
         // the rider picks a later train.
         const fetchFromMs =
           Math.min(floorMs, startMs, nowMs.value) - DEPARTURE_PAST_WINDOW_MS
-        const { data } = await api.get('/proxy/transit/departures', {
+        const { data } = await api.get('/transit/departures', {
           params: {
             lat: seg.departureStop.location.lat,
             lng: seg.departureStop.location.lng,
@@ -370,7 +370,7 @@ async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number)
     if (cached) return cached.ms
   }
   try {
-    const { data } = await api.get('/proxy/transit/departures', {
+    const { data } = await api.get('/transit/departures', {
       params: {
         lat: seg.departureStop.location.lat,
         lng: seg.departureStop.location.lng,

@@ -11,6 +11,7 @@ import { useCategoryStore } from '@/stores/category.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
+import { useCollectionsService } from '@/services/library/collections.service'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
@@ -47,6 +48,7 @@ const categoryStore = useCategoryStore()
 const categoryPaletteStore = useCategoryPaletteStore()
 const layersStore = useLayersStore()
 const bookmarksService = useBookmarksService()
+const collectionsService = useCollectionsService()
 const appStore = useAppStore()
 const friendLocationsLayer = useFriendLocationsLayer()
 const trackerLocationsLayer = useTrackerLocationsLayer()
@@ -124,9 +126,16 @@ async function bootstrapAuthenticatedUser() {
   await integrationService.fetchAvailableIntegrations()
   // Load user-owned layers + default templates + user state sidecar
   await layersStore.loadLayers()
-  // Frequents are standalone bookmarks (no collection), so hydrate them
-  // directly — the collection hydrate won't surface them.
-  void bookmarksService.fetchFrequents()
+  // Hydrate the full bookmark list. Covers frequents (standalone, in no
+  // collection) and everything the saved-places map layer draws, neither of
+  // which the per-collection hydrate would surface.
+  void bookmarksService.fetchBookmarks()
+  // Collections are needed alongside them, not just on the library screen:
+  // the map styles each saved place after its collection, and the layer
+  // selector builds a toggle per collection. Without this a fresh device has
+  // bookmarks whose collections it has never heard of, so they'd draw nowhere
+  // and have no switch that could turn them on.
+  void collectionsService.fetchCollections()
   // Fetch user vehicles for trip planning
   vehiclesStore.fetchVehicles()
   // Initialize categories and palette (returns from cache instantly if available)

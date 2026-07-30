@@ -235,7 +235,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     stopVehiclePolling()
     try {
       const { data } = await api.get<RouteDetail>(
-        '/proxy/transit/route-detail',
+        '/transit/route-detail',
         { params: { feedId, routeId } },
       )
       // Guard: if another openRoute was called while we awaited, bail
@@ -282,7 +282,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     const fetchId = tripStopFetchId
     try {
       const { data } = await api.get<{ stops: Array<{ stopId: string; arrivalTime?: string; departureTime?: string }> }>(
-        '/proxy/transit/trip-stops',
+        '/transit/trip-stops',
         { params: { feedId, tripId } },
       )
       // Guard against stale write: only apply if the vehicle is still selected
@@ -468,7 +468,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
       try {
         const { data } = await api.get<{ vehicles: TransitVehiclePosition[] }>(
-          '/proxy/transit/route-vehicles',
+          '/transit/route-vehicles',
           { params: { routeIds: routeIds.join(','), feedId: activeRoute.value.feedId } },
         )
         vehicleData = data?.vehicles ?? null
@@ -481,7 +481,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
         const bounds = routeBounds()
         if (!bounds) return
         const { data } = await api.get<{ vehicles: TransitVehiclePosition[] }>(
-          '/proxy/transit/vehicles',
+          '/transit/vehicles',
           { params: bounds },
         )
         // Filter to our routes client-side

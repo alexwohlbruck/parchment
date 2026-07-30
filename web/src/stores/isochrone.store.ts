@@ -212,7 +212,25 @@ function isAbort(err: unknown): boolean {
  * server forwards them intact — so prefer that message over a generic one.
  */
 function messageFor(err: unknown): string {
-  const body = (err as { response?: { data?: { error?: string } } } | null)
-    ?.response?.data
-  return body?.error || (err instanceof Error ? err.message : 'unknown')
+  const response = (
+    err as { response?: { status?: number; data?: unknown } } | null
+  )?.response
+  const data = response?.data
+
+  if (
+    data &&
+    typeof data === 'object' &&
+    typeof (data as { error?: unknown }).error === 'string'
+  ) {
+    return (data as { error: string }).error
+  }
+
+  // A plain-text body means the response never came from the isochrone
+  // endpoint — most often a 404 from a server that predates it, where axios
+  // would otherwise report a bare "Request failed with status code 404".
+  if (typeof data === 'string' && data.trim()) {
+    return `${response?.status ?? ''} ${data.trim()}`.trim()
+  }
+
+  return err instanceof Error ? err.message : 'unknown'
 }

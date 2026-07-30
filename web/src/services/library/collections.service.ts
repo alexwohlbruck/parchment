@@ -5,12 +5,18 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
-import type { CreateCollectionParams, Collection } from '@/types/library.types'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
+import type {
+  CreateCollectionParams,
+  Collection,
+  DecryptedPoint,
+} from '@/types/library.types'
 import { api } from '@/lib/api'
 import { getSeed } from '@/lib/key-storage'
 import {
   encryptCollectionMetadata,
   decryptCollectionMetadata,
+  decryptCollectionPoint,
   type CollectionMetadata,
 } from '@/lib/library-crypto'
 import {
@@ -569,6 +575,68 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
+  /**
+   * Fetch and decrypt a `user-e2ee` collection's points into the encrypted
+   * points store, so the saved-places layer can draw them.
+   *
+   * Called lazily when a collection's layer is switched on rather than at
+   * boot: decryption is per-point work the user hasn't asked for until they
+   * want to see the collection, and the plaintext is deliberately session-only.
+   *
+   * A point that fails to decrypt is skipped, not thrown — one bad envelope
+   * (wrong seed, stale key version, tampering) must not blank the whole map.
+   */
+  async function fetchAndDecryptPoints(
+    collection: Collection,
+  ): Promise<DecryptedPoint[]> {
+    const pointsStore = useEncryptedPointsStore()
+    const { id } = collection
+
+    if (pointsStore.isLoaded(id) || pointsStore.isLoading(id)) {
+      return pointsStore.getPoints(id)
+    }
+    pointsStore.beginLoad(id)
+
+    try {
+      const seed = await getSeed()
+      const ownerUserId = collection.userId || authStore.me?.id
+      if (!seed || !ownerUserId) {
+        pointsStore.setPoints(id, [])
+        return []
+      }
+
+      const raw = await getEncryptedPoints(id)
+      const decrypted: DecryptedPoint[] = []
+      for (const point of raw) {
+        try {
+          decrypted.push(
+            decryptCollectionPoint({
+              point,
+              seed,
+              ownerUserId,
+              collectionId: id,
+              keyVersion: collection.metadataKeyVersion ?? 1,
+            }),
+          )
+        } catch {
+          console.warn(
+            '[collections] could not decrypt point',
+            point.id,
+            'in collection',
+            id,
+          )
+        }
+      }
+
+      pointsStore.setPoints(id, decrypted)
+      return decrypted
+    } catch (e) {
+      console.warn('[collections] failed to load encrypted points for', id, e)
+      pointsStore.endLoad(id)
+      return []
+    }
+  }
+
   async function createEncryptedPoint(
     collectionId: string,
     encryptedData: string,
@@ -627,6 +695,7 @@ export const useCollectionsService = createSharedComposable(() => {
     // Sensitive collections
     setSensitive,
     getEncryptedPoints,
+    fetchAndDecryptPoints,
     createEncryptedPoint,
     updateEncryptedPoint,
     deleteEncryptedPoint,

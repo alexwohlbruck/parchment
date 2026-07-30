@@ -20,9 +20,11 @@ import type { Bookmark } from '@/types/library.types'
 /**
  * Server emits carry `collectionIds` alongside the bookmark payload so
  * recipients can update both stores (bookmarks + collections pivot) in
- * one apply. The field is stripped before handing the payload to
- * `addBookmark` / `updateBookmark` so it doesn't pollute the Bookmark
- * type downstream.
+ * one apply.
+ *
+ * It is kept ON the stored bookmark, not stripped: the map styles a saved
+ * place after its parent collection, so a bookmark in the store without its
+ * membership renders as though it were unfiled.
  */
 interface BookmarkPayloadWithCollections extends Bookmark {
   collectionIds?: string[]
@@ -46,19 +48,20 @@ function linkIfAbsent(cid: string, bookmark: Bookmark) {
 
 function applyCreated(payload: unknown) {
   if (!isBookmarkLike(payload)) return
-  const { collectionIds, ...bookmark } = payload
-  useBookmarksStore().addBookmark(bookmark as Bookmark)
+  const { collectionIds } = payload
+  useBookmarksStore().addBookmark(payload as Bookmark)
 
   if (collectionIds && collectionIds.length > 0) {
     for (const cid of collectionIds) {
-      linkIfAbsent(cid, bookmark as Bookmark)
+      linkIfAbsent(cid, payload as Bookmark)
     }
   }
 }
 
 function applyUpdated(payload: unknown) {
   if (!isBookmarkLike(payload)) return
-  const { collectionIds, ...bookmark } = payload
+  const { collectionIds } = payload
+  const bookmark = payload
   const bookmarksStore = useBookmarksStore()
   bookmarksStore.updateBookmark(bookmark.id, bookmark)
 
@@ -95,12 +98,27 @@ function applyUnlinked(payload: unknown) {
   if (typeof id !== 'string' || !Array.isArray(collectionIds)) return
 
   const store = useCollectionsStore()
+  const removed = new Set<string>()
   for (const cid of collectionIds) {
     if (typeof cid !== 'string') continue
+    removed.add(cid)
     const collection = store.collections.find((c) => c.id === cid)
     if (collection?.bookmarkIds) {
       collection.bookmarkIds = collection.bookmarkIds.filter((x) => x !== id)
     }
+  }
+
+  // Prune the bookmark's own side of the link too. Dropping it from the
+  // collection alone leaves the bookmark claiming a membership it no longer
+  // has, and the map styles a saved place after its collection — so it would
+  // keep wearing the icon and colour of a collection it just left.
+  const bookmarksStore = useBookmarksStore()
+  const bookmark = bookmarksStore.getBookmarkById(id)
+  if (bookmark?.collectionIds) {
+    bookmarksStore.updateBookmark(id, {
+      ...bookmark,
+      collectionIds: bookmark.collectionIds.filter((cid) => !removed.has(cid)),
+    })
   }
 }
 

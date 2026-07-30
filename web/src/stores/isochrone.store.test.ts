@@ -258,6 +258,24 @@ describe('useIsochroneStore', () => {
       expect(store.error).toBe('Point not found in graph')
     })
 
+    test('a plain-text body still says something useful', async () => {
+      const store = useIsochroneStore()
+      // What a server predating the isochrone route returns: Elysia's own
+      // 404, whose body is text rather than our JSON error shape. Without
+      // handling it the panel showed only "Request failed with status code
+      // 404", which says nothing about the endpoint being missing.
+      get.mockRejectedValueOnce({
+        response: { status: 404, data: 'NOT_FOUND' },
+        message: 'Request failed with status code 404',
+      })
+
+      store.setOrigin(ORIGIN)
+      await vi.runAllTimersAsync()
+
+      expect(store.status).toBe('error')
+      expect(store.error).toBe('404 NOT_FOUND')
+    })
+
     test('an empty contour set reads as unreachable, not as success', async () => {
       const store = useIsochroneStore()
       get.mockResolvedValueOnce({ data: response([]) } as never)

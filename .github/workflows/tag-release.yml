@@ -3,12 +3,33 @@
 #
 # Tags pushed by GITHUB_TOKEN don't trigger `on: push: tags` workflows,
 # so we call release.yml directly via workflow_call instead.
+#
+# The manual trigger is an escape hatch for two ways a release can silently
+# not happen:
+#
+#   1. GitHub skips a whole push event when the commit message contains a
+#      CI-skip directive — and squash-merging a PR concatenates every branch
+#      commit message into the merge commit body. One routine "update the
+#      OpenAPI spec" commit on the branch is enough to swallow the release,
+#      with no run and no failure to notice. (This ate 0.5.9.)
+#
+#   2. Once the tag exists, a re-run finds it and no-ops, so the release can
+#      never be retried for that version. Historically this produced 9-second
+#      "successes" that hid the failing iOS build for three releases.
+#
+# Dispatch with `force` to release a version whose tag already exists.
 
 name: Tag Release
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Release even if the tag already exists
+        type: boolean
+        default: false
 
 # The release workflow needs contents:write (GitHub Releases, tauri uploads)
 # and id-token:write (Docker Hub OIDC). These must be set at the top level
@@ -23,7 +44,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.version.outputs.TAG }}
-      created: ${{ steps.check_tag.outputs.exists == 'false' }}
+      # Release when the tag is new, or when a manual run explicitly forces it
+      # for a version that was already tagged but never actually shipped.
+      release: ${{ steps.check_tag.outputs.exists == 'false' || inputs.force == true }}
     steps:
       - uses: actions/checkout@v6
 
@@ -55,7 +78,7 @@ jobs:
   release:
     name: Release
     needs: tag
-    if: needs.tag.outputs.created == 'true'
+    if: needs.tag.outputs.release == 'true'
     uses: ./.github/workflows/release.yml
     with:
       tag: ${{ needs.tag.outputs.tag }}

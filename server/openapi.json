@@ -5092,6 +5092,16 @@
         "responses": {
           "200": {}
         }
+      },
+      "get": {
+        "operationId": "getLibraryBookmarks",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Get all of the caller's bookmarks",
+        "responses": {
+          "200": {}
+        }
       }
     },
     "/library/bookmarks/{id}": {
@@ -5129,12 +5139,6 @@
                   },
                   "lng": {
                     "type": "number"
-                  },
-                  "icon": {
-                    "type": "string"
-                  },
-                  "iconColor": {
-                    "type": "string"
                   },
                   "frequentType": {
                     "anyOf": [
@@ -5184,12 +5188,6 @@
                   "lng": {
                     "type": "number"
                   },
-                  "icon": {
-                    "type": "string"
-                  },
-                  "iconColor": {
-                    "type": "string"
-                  },
                   "frequentType": {
                     "anyOf": [
                       {
@@ -5237,12 +5235,6 @@
                   },
                   "lng": {
                     "type": "number"
-                  },
-                  "icon": {
-                    "type": "string"
-                  },
-                  "iconColor": {
-                    "type": "string"
                   },
                   "frequentType": {
                     "anyOf": [

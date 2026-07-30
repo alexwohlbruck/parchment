@@ -50,6 +50,9 @@ const getCollectionsForBookmark = mock(async (_id: string, _userId: string) => [
 const getFrequentBookmarks = mock(async (_userId: string) => [
   { ...bookmarkRow, frequentType: 'home' },
 ])
+const getBookmarks = mock(async (_userId: string) => [
+  { ...bookmarkRow, collectionIds: ['col-1'] },
+])
 
 mock.module('../../services/library/bookmarks.service', () => ({
   createBookmark,
@@ -57,6 +60,7 @@ mock.module('../../services/library/bookmarks.service', () => ({
   removeBookmarkFromCollections,
   getCollectionsForBookmark,
   getFrequentBookmarks,
+  getBookmarks,
 }))
 
 mock.module('../../middleware/auth.middleware', () => authMockModule())
@@ -85,6 +89,7 @@ beforeEach(() => {
   getCollectionsForBookmark.mockClear()
   getCollectionsForBookmark.mockImplementation(async () => [{ id: 'col-1' }])
   getFrequentBookmarks.mockClear()
+  getBookmarks.mockClear()
 })
 
 describe('gating', () => {
@@ -92,6 +97,7 @@ describe('gating', () => {
     ['post', '/bookmarks'],
     ['put', '/bookmarks/bm-1'],
     ['delete', '/bookmarks/bm-1'],
+    ['get', '/bookmarks'],
     ['get', '/bookmarks/frequents'],
     ['get', '/bookmarks/bm-1/collections'],
   ] as const
@@ -343,6 +349,16 @@ describe('DELETE /bookmarks/:id', () => {
     })
 
     expect(res.status).toBe(404)
+  })
+})
+
+describe('GET /bookmarks', () => {
+  test('returns the caller’s bookmarks with their collection membership', async () => {
+    const res = await req(app).get('/bookmarks')
+
+    expect(res.status).toBe(200)
+    expect(getBookmarks).toHaveBeenCalledWith(TEST_USER.id)
+    expect(res.body[0].collectionIds).toEqual(['col-1'])
   })
 })
 

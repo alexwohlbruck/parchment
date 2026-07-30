@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, watch, onMounted } from 'vue'
+import { watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
-import { IconPicker } from '@/components/ui/icon-picker'
 import {
   Select,
   SelectContent,
@@ -11,8 +10,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { Bookmark } from '@/types/library.types'
-import type { ThemeColor } from '@/lib/utils'
-import { FREQUENT_META, isCanonicalFrequent } from '@/lib/frequents'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
@@ -38,32 +35,29 @@ const bookmarkTypes = [
   { value: 'custom', label: t('library.types.custom') },
 ]
 
+// Icon and colour are absent by design. A bookmark shows the POI's own icon
+// in collection lists, its parent collection's on the map, and — for a
+// frequent — the look fixed by its type. None of that is a user choice, so
+// there is nothing here to pick.
 const bookmarkSchema = toTypedSchema(
   z.object({
     name: z.string().min(1, 'Name is required'),
     type: z.string().optional(),
-    icon: z.string().default('MapPin'),
-    iconColor: z.string().default('cobalt'),
   }),
 )
 
 interface BookmarkFormValues {
   name: string
   type?: string
-  icon: string
-  iconColor: string
 }
 
-const { handleSubmit, values, meta, setFieldValue, resetForm } =
-  useForm<BookmarkFormValues>({
-    validationSchema: bookmarkSchema,
-    initialValues: {
-      name: '',
-      type: undefined,
-      icon: 'MapPin',
-      iconColor: 'cobalt',
-    },
-  })
+const { handleSubmit, meta, resetForm } = useForm<BookmarkFormValues>({
+  validationSchema: bookmarkSchema,
+  initialValues: {
+    name: '',
+    type: undefined,
+  },
+})
 
 onMounted(() => {
   if (props.bookmark) {
@@ -71,37 +65,10 @@ onMounted(() => {
       values: {
         name: props.bookmark.name,
         type: props.bookmark.frequentType || undefined,
-        icon: props.bookmark.icon,
-        iconColor: props.bookmark.iconColor as ThemeColor,
       },
     })
   }
 })
-
-const bookmarkStyle = computed({
-  get: () => ({
-    icon: values.icon || 'MapPin',
-    color: values.iconColor as ThemeColor,
-  }),
-  set: newValue => {
-    setFieldValue('icon', newValue.icon)
-    setFieldValue('iconColor', newValue.color)
-  },
-})
-
-// Canonical frequents (home/work/school) have a fixed icon + colour — stamp it
-// whenever the type is set to one so a Home always looks like a Home. Custom
-// keeps whatever icon the place/user provides (still editable below).
-watch(
-  () => values.type,
-  type => {
-    if (isCanonicalFrequent(type as any)) {
-      const meta = FREQUENT_META[type as 'home' | 'work' | 'school']
-      setFieldValue('icon', meta.icon)
-      setFieldValue('iconColor', meta.color)
-    }
-  },
-)
 
 const onSubmit = handleSubmit(formValues => {
   return formValues
@@ -123,8 +90,6 @@ watch(
         values: {
           name: newBookmark.name,
           type: newBookmark.frequentType || undefined,
-          icon: newBookmark.icon,
-          iconColor: newBookmark.iconColor as ThemeColor,
         },
       })
     }
@@ -178,16 +143,6 @@ defineExpose({
               </SelectItem>
             </SelectContent>
           </Select>
-        </FormControl>
-      </FormItem>
-    </FormField>
-
-    <!-- Icon picker -->
-    <FormField name="icon" v-slot="{}">
-      <FormItem>
-        <FormLabel>{{ t('general.icon') }}</FormLabel>
-        <FormControl>
-          <IconPicker v-model="bookmarkStyle" />
         </FormControl>
       </FormItem>
     </FormField>

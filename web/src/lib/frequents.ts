@@ -7,7 +7,12 @@ import type { ThemeColor } from '@/lib/utils'
  *  - Home / Work / School are *canonical* types: each has a fixed icon, colour
  *    and label, so a Home always looks like a Home.
  *  - `custom` is a user-named frequent (e.g. "Gym"): it keeps the bookmark's
- *    own name as its label and the place's own icon/colour, both editable.
+ *    own name as its label, but its icon and colour are fixed like the
+ *    canonical types'.
+ *
+ * Every frequent's look is therefore decided by its type, never by the
+ * bookmark row — frequents live outside collections, so there is no parent
+ * collection to inherit from the way a filed bookmark does.
  *
  * The DB column stays `preset_type` — only the code concept was renamed.
  */
@@ -20,8 +25,7 @@ export type CanonicalFrequentType = (typeof FREQUENT_TYPES)[number]
 export type FrequentType = CanonicalFrequentType | 'custom'
 
 interface FrequentMeta {
-  /** Lucide icon name — canonical types override the bookmark's own icon so a
-   *  Home always looks like a Home. */
+  /** Lucide icon name. Fixed by type, so a Home always looks like a Home. */
   icon: string
   /** i18n key for the human label. */
   labelKey: string
@@ -39,8 +43,13 @@ export const FREQUENT_META: Record<CanonicalFrequentType, FrequentMeta> = {
   },
 }
 
-/** Menu icon + label for the `custom` frequent option (no fixed chip icon). */
+/**
+ * The `custom` frequent's fixed look. It has no canonical label — the chip
+ * shows the bookmark's own name — but it does get a fixed icon and colour, so
+ * a user-named frequent reads as a frequent rather than as a saved place.
+ */
 export const CUSTOM_FREQUENT_ICON = 'Star'
+export const CUSTOM_FREQUENT_COLOR: ThemeColor = 'amber'
 export const CUSTOM_FREQUENT_LABEL_KEY = 'library.types.custom'
 
 /** True for a canonical type whose icon/colour is fixed by FREQUENT_META. */
@@ -51,10 +60,15 @@ export function isCanonicalFrequent(
 }
 
 /**
- * How to render a frequent bookmark's chip: canonical types use the fixed
- * FREQUENT_META icon/colour and a translated label; `custom` (and any untagged
- * bookmark) uses its own name, icon and colour. `labelKey` is set for canonical
- * types (translate it); `title` is set otherwise.
+ * How to render a frequent bookmark's chip.
+ *
+ * Canonical types use the fixed FREQUENT_META icon/colour and a translated
+ * label. `custom` frequents use the fixed star look with their own name.
+ * Anything untagged isn't a frequent at all and falls back to the POI's own
+ * icon/colour, which is what collection lists render.
+ *
+ * `labelKey` is set for canonical types (translate it); `title` is set
+ * otherwise.
  */
 export function frequentChipMeta(bookmark: {
   frequentType?: FrequentType | null
@@ -78,6 +92,15 @@ export function frequentChipMeta(bookmark: {
       labelKey: meta.labelKey,
     }
   }
+  if (bookmark.frequentType === 'custom') {
+    return {
+      icon: CUSTOM_FREQUENT_ICON,
+      iconPack: 'lucide',
+      color: CUSTOM_FREQUENT_COLOR,
+      title: bookmark.name,
+    }
+  }
+
   return {
     icon: bookmark.icon,
     iconPack: bookmark.iconPack ?? 'lucide',

@@ -12,13 +12,12 @@ import {
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
-import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
 import type { Bookmark } from '@/types/library.types'
-import type { ThemeColor } from '@/lib/utils'
-import { getPlaceRoute } from '@/lib/place.utils'
+import { frequentChipMeta } from '@/lib/frequents'
+import { getPlaceRouteFromExternalIds } from '@/lib/place.utils'
 import { useAppService } from '@/services/app.service'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
@@ -40,12 +39,14 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const collectionsStore = useCollectionsStore()
-const bookmarksStore = useBookmarksStore()
 const { collections } = storeToRefs(collectionsStore)
 const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
 const appService = useAppService()
 const { t } = useI18n()
+
+/** Frequents get their type's fixed look; everything else the POI's own. */
+const chipMeta = computed(() => frequentChipMeta(props.bookmark))
 
 onMounted(async () => {
   if (collections.value.length === 0) {
@@ -54,14 +55,8 @@ onMounted(async () => {
 })
 
 function navigateToBookmark() {
-  bookmarksStore.navigateToBookmark(props.bookmark)
-  const ids = props.bookmark.externalIds as Record<string, string>
-  const [key, value] = ids.osm ? ['osm', ids.osm] : ids.coords ? ['coords', ids.coords] : [Object.keys(ids)[0], Object.values(ids)[0]]
-  if (!key || !value) return
-  const route = getPlaceRoute(`${key}/${value}`)
-  if (route) {
-    router.push(route)
-  }
+  const route = getPlaceRouteFromExternalIds(props.bookmark.externalIds)
+  if (route) router.push(route)
 }
 
 async function editBookmark() {
@@ -82,8 +77,6 @@ async function editBookmark() {
       const params = {
         name: formData.name,
         frequentType: formData.type || null,
-        icon: formData.icon,
-        iconColor: formData.iconColor as ThemeColor,
       }
 
       await bookmarksService.updateBookmark(props.bookmark.id, params)
@@ -142,10 +135,12 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     @click="navigateToBookmark"
   >
     <CardContent class="p-2 flex items-center gap-3">
+      <!-- A frequent shows the look fixed by its type; everything else shows
+           the bookmarked POI's own icon and colour. Neither is user-chosen. -->
       <ItemIcon
-        :icon="bookmark.icon"
-        :icon-pack="bookmark.iconPack ?? 'lucide'"
-        :color="(bookmark.iconColor as ThemeColor) || 'cobalt'"
+        :icon="chipMeta.icon"
+        :icon-pack="chipMeta.iconPack"
+        :color="chipMeta.color"
         size="md"
       />
 

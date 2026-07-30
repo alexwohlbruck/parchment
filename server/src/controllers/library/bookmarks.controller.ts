@@ -151,8 +151,10 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
           address: t.Optional(t.String()),
           lat: t.Number(),
           lng: t.Number(),
-          icon: t.String(),
-          iconColor: t.String(),
+          // `icon` / `iconPack` / `iconColor` are deliberately absent: they
+          // describe the place, not a user preference, and are stamped from
+          // the POI when the bookmark is created. Frequents get their look
+          // from their `frequentType` at render time, not from these columns.
           frequentType: t.Union([
             t.Literal('home'),
             t.Literal('work'),
@@ -206,6 +208,21 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
       detail: {
         tags: ['Library'],
         summary: 'Remove bookmark from collections',
+      },
+    },
+  )
+
+  // Every bookmark the caller owns, each with its `collectionIds`. Hydrates
+  // the client's bookmark store on boot and feeds the saved-places map layer.
+  .get(
+    '/',
+    async ({ user }) => {
+      return await bookmarksService.getBookmarks(user.id)
+    },
+    {
+      detail: {
+        tags: ['Library'],
+        summary: "Get all of the caller's bookmarks",
       },
     },
   )

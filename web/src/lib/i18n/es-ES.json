@@ -338,6 +338,26 @@
     "empty": "Haz clic en el mapa para fijar el centro.",
     "clickToConfirm": "Haz clic en el mapa para fijar el radio."
   },
+  "isochrone": {
+    "title": "Área alcanzable",
+    "close": "Cerrar herramienta de isócronas",
+    "empty": "Haz clic en el mapa para fijar un punto de partida.",
+    "loading": "Calculando el área alcanzable…",
+    "errorGeneric": "No se pudo calcular el área alcanzable.",
+    "unreachable": "No se puede llegar a ningún sitio desde este punto.",
+    "retry": "Reintentar",
+    "modeWalk": "A pie",
+    "modeBike": "En bici",
+    "modeCar": "En coche",
+    "modeTransit": "Transporte",
+    "reach": "En",
+    "minutes": "{count} min",
+    "bands": "Bandas",
+    "bandsCount": "{count} bandas",
+    "arriveBy": "Llegar a",
+    "arriveByHint": "Mostrar el área desde la que se puede llegar a este punto",
+    "stopsReachable": "{count} paradas alcanzables"
+  },
   "layers": {
     "title": "Capas",
     "meta": {
@@ -422,6 +442,12 @@
     "badges": {
       "default": "Predeterminado",
       "custom": "Personalizado"
+    },
+    "savedPlaces": {
+      "group": "Lugares guardados",
+      "uncategorized": "Sin archivar",
+      "locked": "Colección bloqueada",
+      "frequents": "Frecuentes"
     }
   },
   "directions": {

@@ -1,6 +1,6 @@
 {
   "name": "parchment",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "scripts": {
     "dev": "bun src/index.ts --watch",
     "build:emails": "cd emails && bun install && npx maizzle build production",
@@ -17,7 +17,8 @@
     "seed:dev": "bun src/seed/seed.ts",
     "seed:prod": "bun dist/seed/seed.js",
     "studio": "drizzle-kit studio",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "openapi": "SERVER_ORIGIN=${SERVER_ORIGIN:-http://localhost:5000} CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:5173} bun scripts/generate-openapi.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.3.3",

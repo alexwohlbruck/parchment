@@ -250,7 +250,15 @@ export enum LayerType {
  * - 'custom':  user-created or cloned-from-default DB row, fully user-owned
  * - 'core':    hardcoded client-side layer (search results, place polygons, etc.)
  */
-export type LayerOrigin = 'default' | 'custom' | 'core'
+/**
+ * Where a layer came from.
+ *
+ * `virtual` layers have no `layers` row and never will: they are projected
+ * client-side from other state (today, the user's collections). Their names
+ * are E2EE, so persisting them would hand the server plaintext it is not
+ * supposed to have. Every mutation path must skip them.
+ */
+export type LayerOrigin = 'default' | 'custom' | 'core' | 'virtual'
 
 export interface Layer {
   id: string

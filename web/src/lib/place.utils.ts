@@ -8,6 +8,27 @@ import { AppRoute } from '@/router'
  * @param placeId The place ID string (e.g., "osm/node/123456", "google/abc123", "location/name/lat/lng")
  * @returns A route object that can be used with router.push()
  */
+/**
+ * Route to a saved place's detail page from its `externalIds`.
+ *
+ * Prefers OSM, then coordinates, then whatever provider is present — the same
+ * precedence a bookmark card uses. Returns null when there is no id to route
+ * to at all.
+ */
+export function getPlaceRouteFromExternalIds(
+  externalIds: Record<string, string> | undefined | null,
+): RouteLocationRaw | null {
+  const ids = externalIds ?? {}
+  const [key, value] = ids.osm
+    ? ['osm', ids.osm]
+    : ids.coords
+      ? ['coords', ids.coords]
+      : [Object.keys(ids)[0], Object.values(ids)[0]]
+
+  if (!key || !value) return null
+  return getPlaceRoute(`${key}/${value}`)
+}
+
 export function getPlaceRoute(placeId: string): RouteLocationRaw {
   // Pelias / OpenAddresses geocoder results, e.g.
   // "pelias/openaddresses:address:us/ny/city_of_new_york:7e5bd55eb1baa131".

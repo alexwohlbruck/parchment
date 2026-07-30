@@ -31,7 +31,9 @@ const delegatedProps = computed(() => {
   return delegated
 })
 
-const forwarded = useForwardPropsEmits(delegatedProps.value, emits)
+// Pass the computed itself, not its value — unwrapping here would snapshot the
+// props at setup and the root would never see later `modelValue` changes.
+const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>

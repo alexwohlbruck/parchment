@@ -43,12 +43,20 @@ export const bookmarks = pgTable(
     name: text('name').notNull(),
     address: text('address'),
     geometry: pointGeometry('geometry').notNull(),
+    // Icon/colour describe the bookmarked POI, not a user preference. They
+    // are stamped from the place's resolved category when the bookmark is
+    // created and never change after — there is no picker, and the update
+    // path strips them. Collection lists render from these; the map instead
+    // uses the parent collection's icon/colour, and frequents use the fixed
+    // look assigned to their `frequentType`.
     icon: text('icon').notNull().default('map-pin'),
     // Which icon pack `icon` is drawn from. 'lucide' for the default
     // PascalCase set; 'maki' for the geographic POI glyphs sourced from
     // place categorization. Defaulting to 'lucide' keeps existing
     // bookmark rows rendering correctly during the rollout.
     iconPack: text('icon_pack').notNull().default('lucide'),
+    // A `ThemeColor` name (e.g. 'cobalt'), snapped from the category colour.
+    // Older rows may hold a hex literal; render paths accept both.
     iconColor: text('icon_color').notNull().default('#F43F5E'),
     frequentType: text('preset_type'),
     userId: text('user_id')

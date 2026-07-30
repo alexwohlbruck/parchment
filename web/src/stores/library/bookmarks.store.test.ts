@@ -110,6 +110,54 @@ describe('useBookmarksStore', () => {
     })
   })
 
+  describe('collectionIds preservation', () => {
+    // Not every endpoint returns membership — `GET /collections/:id` embeds
+    // bare bookmark rows. Overwriting wholesale meant merely opening a
+    // collection erased what its places belonged to, which the map reads as
+    // unfiled: they'd lose their collection's icon and colour.
+    const filed = {
+      id: 'bm-1',
+      name: 'Cafe',
+      externalIds: {},
+      collectionIds: ['col-1'],
+    } as unknown as Bookmark
+
+    test('addBookmark keeps membership when the incoming row omits it', () => {
+      const store = useBookmarksStore()
+      store.addBookmark(filed)
+
+      store.addBookmark({ ...filed, collectionIds: undefined } as Bookmark)
+
+      expect(store.bookmarks[0].collectionIds).toEqual(['col-1'])
+    })
+
+    test('updateBookmark keeps membership when the incoming row omits it', () => {
+      const store = useBookmarksStore()
+      store.addBookmark(filed)
+
+      store.updateBookmark('bm-1', {
+        ...filed,
+        name: 'Renamed',
+        collectionIds: undefined,
+      } as Bookmark)
+
+      expect(store.bookmarks[0].name).toBe('Renamed')
+      expect(store.bookmarks[0].collectionIds).toEqual(['col-1'])
+    })
+
+    test('an explicit membership still replaces the old one', () => {
+      const store = useBookmarksStore()
+      store.addBookmark(filed)
+
+      store.updateBookmark('bm-1', {
+        ...filed,
+        collectionIds: ['col-2'],
+      } as Bookmark)
+
+      expect(store.bookmarks[0].collectionIds).toEqual(['col-2'])
+    })
+  })
+
   describe('removeBookmark', () => {
     test('removes bookmark by id', () => {
       const store = useBookmarksStore()
@@ -255,53 +303,6 @@ describe('useBookmarksStore', () => {
       expect(savedByOsm).toBe(true)
       expect(savedByGoogle).toBe(true)
       expect(savedByBoth).toBe(true)
-    })
-  })
-
-  describe('navigateToBookmark', () => {
-    test('returns route for OSM bookmark', () => {
-      const store = useBookmarksStore()
-      const bookmark: Bookmark = {
-        id: 'bm-1',
-        name: 'Coffee Shop',
-        externalIds: { osm: '123', osmType: 'node' },
-      } as unknown as Bookmark
-
-      const route = store.navigateToBookmark(bookmark)
-
-      expect(route).toEqual({
-        name: 'Place',
-        params: { type: 'node', id: '123' },
-      })
-    })
-
-    test('uses default osmType if not provided', () => {
-      const store = useBookmarksStore()
-      const bookmark: Bookmark = {
-        id: 'bm-1',
-        name: 'Coffee Shop',
-        externalIds: { osm: '123' },
-      } as unknown as Bookmark
-
-      const route = store.navigateToBookmark(bookmark)
-
-      expect(route).toEqual({
-        name: 'Place',
-        params: { type: 'node', id: '123' },
-      })
-    })
-
-    test('returns null if no OSM id', () => {
-      const store = useBookmarksStore()
-      const bookmark: Bookmark = {
-        id: 'bm-1',
-        name: 'Coffee Shop',
-        externalIds: { google: 'abc' },
-      } as unknown as Bookmark
-
-      const route = store.navigateToBookmark(bookmark)
-
-      expect(route).toBeNull()
     })
   })
 })

@@ -25,6 +25,7 @@ import { usePlacePolygonLayerService } from '@/services/layers/features/place-po
 import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
 import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
+import { useBookmarksLayerService } from '@/services/layers/features/bookmarks-layer.service'
 import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { useAppStore } from '../stores/app.store'
@@ -67,6 +68,7 @@ function mapService() {
   const searchResultsLayerService = useSearchResultsLayerService()
   const markerLayersService = useMarkerLayersService()
   const notesLayerService = useNotesLayerService()
+  const bookmarksLayerService = useBookmarksLayerService()
   const environmentDataService = useEnvironmentDataService()
   const timelineLayerService = useTimelineLayerService()
   const appStore = useAppStore()
@@ -489,6 +491,11 @@ function mapService() {
 
       // Initialize notes layer for OSM notes overlay
       notesLayerService.initializeNotesLayer(mapStrategy)
+
+      // Initialize the saved places overlay (bookmarks + decrypted E2EE
+      // points). Runs on every style.load because setStyle drops the source,
+      // the layers AND the registered icon images.
+      bookmarksLayerService.initializeBookmarksLayer(mapStrategy)
 
       // Fill the Environment vector layers (perimeters, smoke) with data —
       // the layers themselves are default-layer templates that render natively.
@@ -1128,6 +1135,7 @@ function mapService() {
     // Clean up search results layer
     if (mapStrategy) {
       searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
+      bookmarksLayerService.removeBookmarksLayer(mapStrategy)
     }
 
     // Remove every listener registered by bindMapEvents().

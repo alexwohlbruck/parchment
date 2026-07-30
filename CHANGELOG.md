@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-07-30
+
+### Added
+
+* Your saved places now appear on the map, wearing the icon and colour of the collection they're in. Zoomed out they show as dots; zoom in and the collection's icon fills in. Home, Work and School keep their own markers
+* The layer picker now expands, so you can toggle what's inside a group — including a new "Saved places" group with a switch per collection
+* New isochrone tool — drop a point and see how far you can get in a given time on foot, by bike, by car or on transit, drawn as shaded travel-time bands. It works in reverse too, showing everywhere that can reach the point
+
+### Changed
+
+* Saved places take their icon and colour from the place itself in your lists, and from their collection on the map. The per-bookmark icon picker is gone
+
 ### Fixed
 
-* The final step of a set of directions now shows the arrival flag again instead of a turn arrow
+* The final step of a set of directions shows the arrival flag again instead of a turn arrow
+* Toggle buttons now highlight the option you picked
 
 ## [0.5.8] - 2026-07-29
 

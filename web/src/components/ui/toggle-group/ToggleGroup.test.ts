@@ -20,7 +20,13 @@ const Harness = defineComponent({
       {
         type: 'single',
         modelValue: this.value,
-        'onUpdate:modelValue': (v: string) => (this.value = v),
+        // reka's emit is typed for every ToggleGroup shape, so the payload is
+        // `AcceptableValue | AcceptableValue[]` — including null when the
+        // active item is deselected. This harness is single-select over
+        // strings, so narrow it here rather than widening `value`.
+        'onUpdate:modelValue': (v: unknown) => {
+          if (typeof v === 'string') this.value = v
+        },
       },
       () =>
         ['walk', 'bike'].map(id =>

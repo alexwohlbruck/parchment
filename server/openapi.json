@@ -4288,7 +4288,7 @@
           "Geocoding"
         ],
         "summary": "Forward geocode an address to coordinates",
-        "description": "Convert an address or location query into geographic coordinates. Optionally provide lat/lng for location bias.",
+        "description": "Convert an address or location query into geographic coordinates. Optionally provide lat/lng for location bias. Served by the highest-priority configured geocoding integration, falling back to the next when one is unavailable or has no coverage.",
         "responses": {
           "200": {}
         }
@@ -4334,7 +4334,7 @@
           "Geocoding"
         ],
         "summary": "Reverse geocode coordinates to an address",
-        "description": "Convert geographic coordinates (latitude and longitude) into a human-readable address.",
+        "description": "Convert geographic coordinates (latitude and longitude) into a human-readable address. Served by the highest-priority configured geocoding integration, falling back to the next when one is unavailable or has no coverage.",
         "responses": {
           "200": {}
         }

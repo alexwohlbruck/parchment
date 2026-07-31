@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+* Looking up an address — right-clicking the map, dropping a pin, searching a street — now answers from your own Barrelman instance instead of the public OpenStreetMap geocoder. It's faster, isn't rate limited, and the place you land on comes back with its real outline, opening hours and tags rather than just a name. Nominatim and the other providers stay on as fallbacks for anywhere outside the regions you've imported
+* Right-clicking somewhere with nothing on it — a park, a field, open water — now names the town or city you're in instead of coming back blank
+
 ## [0.5.10] - 2026-07-30
 
 ### Added

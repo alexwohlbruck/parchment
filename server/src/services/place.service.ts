@@ -14,6 +14,7 @@ import { WikipediaIntegration } from './integrations/wikipedia-integration'
 import { WikimediaIntegration } from './integrations/wikimedia-integration'
 import { dedupeWikiPhotos } from './integrations/wiki-utils'
 import { isTransitStop, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
+import { reverseGeocode } from './geocoding.service'
 import { logError, logWarn, logger } from '../lib/logger'
 
 /** True for an aborted/cancelled request (axios CanceledError or DOM AbortError). */
@@ -954,28 +955,19 @@ export async function lookupEnrichedPlaceByCoordinates(
   try {
     const { userId, radius = 50, language = 'en', addressOnly = false, premiumData = false } = options || {}
 
-    // Step 1: Reverse geocode to find place at coordinates
-    const geocodingIntegrations = integrationManager.getConfiguredIntegrationsByCapability(
-      IntegrationCapabilityId.GEOCODING
-    )
-    
-    if (!geocodingIntegrations.length) {
+    // Step 1: Reverse geocode to find place at coordinates. Walks the geocoding
+    // integrations by priority (Barrelman first), so a provider with no
+    // coverage at this coordinate falls through to the next.
+    const step1Start = Date.now()
+    const { results, integrationId } = await reverseGeocode(lat, lng)
+    const step1Time = Date.now() - step1Start
+    logger.debug(`[PERF] Step 1 - Reverse geocoding: ${step1Time}ms`)
+
+    if (!integrationId) {
       logError('No geocoding integration available')
       return null
     }
-    
-    const geocodingIntegration = integrationManager.getCachedIntegrationInstance(geocodingIntegrations[0])
-    
-    if (!geocodingIntegration?.capabilities.geocoding) {
-      logError('Geocoding capability not available')
-      return null
-    }
-    
-    const step1Start = Date.now()
-    const results = await geocodingIntegration.capabilities.geocoding.reverseGeocode(lat, lng)
-    const step1Time = Date.now() - step1Start
-    logger.debug(`[PERF] Step 1 - Reverse geocoding: ${step1Time}ms`)
-    
+
     if (!results?.[0]) {
       logger.debug(`[PERF] Total time (no results): ${Date.now() - startTime}ms`)
       return null
@@ -998,7 +990,7 @@ export async function lookupEnrichedPlaceByCoordinates(
       place.name = { value: `${parseFloat(lat.toFixed(5))}, ${parseFloat(lng.toFixed(5))}`, sourceId: 'geocoding', timestamp: new Date().toISOString() }
       place.description = null
       place.placeType = { value: 'Coordinates', sourceId: 'geocoding', timestamp: new Date().toISOString() }
-      place.icon = { icon: 'Crosshair', iconPack: 'lucide' }
+      place.icon = { category: 'default', icon: 'Crosshair', iconPack: 'lucide' }
       place.photos = []
       place.contactInfo = { phone: null, email: null, website: null, socials: {} }
       place.openingHours = null

@@ -82,11 +82,38 @@ describe('BarrelmanIntegration', () => {
       expect(result.success).toBe(true)
     })
 
-    test('fails when endpoint returns non-ok status', async () => {
-      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'degraded' } })
+    test('succeeds when degraded — an optional subsystem down is not an outage', async () => {
+      // A stale MOTIS realtime feed reports `degraded`. Failing here would throw
+      // out of initializeWithTest and leave Barrelman uncached, taking search,
+      // place detail and geocoding down with transit.
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { status: 'degraded', database: 'connected', motis: 'unavailable' },
+      })
+      const result = await integration.testConnection({ host: 'http://api.example.com' })
+      expect(result.success).toBe(true)
+    })
+
+    test('fails when the status is error — the database is down', async () => {
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { status: 'error', database: 'disconnected' },
+      })
+      const result = await integration.testConnection({ host: 'http://api.example.com' })
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('error')
+    })
+
+    test('fails when the response carries no status at all', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: {} })
       const result = await integration.testConnection({ host: 'http://api.example.com' })
       expect(result.success).toBe(false)
       expect(result.message).toBeDefined()
+    })
+
+    test('allows enough time for the health probe to reach MOTIS', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'ok' } })
+      await integration.testConnection({ host: 'http://api.example.com' })
+      const [, config] = mockAxiosGet.mock.calls[0]
+      expect(config.timeout).toBeGreaterThanOrEqual(10_000)
     })
 
     test('fails immediately when config has no host', async () => {

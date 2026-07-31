@@ -13,6 +13,7 @@ import type {
   SpatialParentsCapability,
   SpatialChildrenCapability,
   SearchAlongRouteCapability,
+  GeocodingCapability,
   RoutingCapability,
   TransitRoutingCapability,
   TransitRouteRequest,
@@ -222,6 +223,7 @@ export class BarrelmanIntegration
     IntegrationCapabilityId.SPATIAL_PARENTS,
     IntegrationCapabilityId.SPATIAL_CHILDREN,
     IntegrationCapabilityId.SEARCH_ALONG_ROUTE,
+    IntegrationCapabilityId.GEOCODING,
     IntegrationCapabilityId.TILE_SERVER,
     IntegrationCapabilityId.ROUTING,
     IntegrationCapabilityId.TRANSIT_ROUTING,
@@ -254,6 +256,14 @@ export class BarrelmanIntegration
     searchAlongRoute: {
       searchAlongRoute: this.searchAlongRoute.bind(this),
     } as SearchAlongRouteCapability,
+    geocoding: {
+      // Forward geocoding is just search: barrelman's /search already folds the
+      // Pelias address index in with its own POI layers, so one call resolves
+      // both "Starbucks" and "9201 University City Blvd".
+      geocode: (query: string, lat?: number, lng?: number) =>
+        this.searchPlaces(query, lat, lng),
+      reverseGeocode: this.reverseGeocode.bind(this),
+    } as GeocodingCapability,
     routing: {
       getRoute: this.getRoute.bind(this),
       metadata: {
@@ -921,6 +931,26 @@ export class BarrelmanIntegration
         autocomplete: options?.autocomplete ?? false,
       },
       { headers: this.headers, timeout: 10000 },
+    )
+    return (response.data || []).map((r: any) => this.adaptPlace(r))
+  }
+
+  /**
+   * Reverse geocode a coordinate to the places at that point. Barrelman returns
+   * the geocoder hit already hydrated into its full OSM row (geometry, tags,
+   * hours), falling back to the smallest containing administrative area when
+   * nothing addressable is nearby — so a dropped pin always resolves to
+   * something, and does so from our own index rather than a rate-limited
+   * upstream.
+   */
+  async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+    const response = await barrelmanSearchHttp.get(
+      `${this.config.host}/geocode/reverse`,
+      {
+        params: { lat, lng },
+        headers: this.headers,
+        timeout: 10000,
+      },
     )
     return (response.data || []).map((r: any) => this.adaptPlace(r))
   }

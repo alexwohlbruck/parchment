@@ -783,6 +783,50 @@ describe('BarrelmanIntegration', () => {
     })
   })
 
+  // ── Geocoding ─────────────────────────────────────────────────────────────
+
+  describe('geocoding capability', () => {
+    test('declares the geocoding capability so it outranks Nominatim', () => {
+      expect(integration.capabilityIds).toContain('geocoding')
+      expect(integration.capabilities.geocoding).toBeDefined()
+    })
+
+    test('reverseGeocode calls /geocode/reverse with the coordinate', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: [] })
+      await integration.reverseGeocode(37.77, -122.41)
+      const [url, config] = mockAxiosGet.mock.calls[0] as any
+      expect(url).toBe('http://localhost:3100/geocode/reverse')
+      expect(config.params).toEqual({ lat: 37.77, lng: -122.41 })
+    })
+
+    test('reverseGeocode adapts results into the unified Place model', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: [baseResult] })
+      const places = await integration.reverseGeocode(37.7749, -122.4194)
+      expect(places).toHaveLength(1)
+      expect(places[0].name.value).toBe('Test Place')
+      expect(places[0].externalIds.osm).toBe('node/123456')
+    })
+
+    test('reverseGeocode returns [] when barrelman has nothing at the point', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: [] })
+      expect(await integration.reverseGeocode(0, 0)).toEqual([])
+    })
+
+    test('forward geocode goes through /search so addresses and POIs both resolve', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: [baseResult] })
+      const places = await integration.capabilities.geocoding.geocode(
+        '9201 University City Blvd',
+        37.77,
+        -122.41,
+      )
+      const [url, body] = mockAxiosPost.mock.calls[0] as any
+      expect(url).toBe('http://localhost:3100/search')
+      expect(body.query).toBe('9201 University City Blvd')
+      expect(body.lat).toBe(37.77)
+      expect(places[0].name.value).toBe('Test Place')
+    })
+  })
+
   // ── API key authentication ────────────────────────────────────────────────
 
   describe('API key authentication', () => {

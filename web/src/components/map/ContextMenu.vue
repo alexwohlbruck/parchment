@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed, watch, h } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAppService } from '@/services/app.service'
@@ -39,7 +39,7 @@ import {
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatAddress } from '@/lib/place.utils'
+import { formatAddress, getPlaceRouteFromExternalIds } from '@/lib/place.utils'
 import {
   findSegmentToInsert,
   distancePx,
@@ -72,8 +72,8 @@ const clickedLngLat = ref<LngLat | null>(null)
 const clickedPoint = ref<{ x: number; y: number } | null>(null)
 const geocodedPlaceName = ref<string | null>(null)
 const geocodedAddress = ref<string | null>(null)
-const geocodedOsmId = ref<string | null>(null)
-const geocodedPlaceId = ref<{ provider: string; id: string } | null>(null)
+/** Route to the geocoded place's detail page, when its ids resolve to one. */
+const geocodedRoute = ref<RouteLocationRaw | null>(null)
 const isGeocoding = ref(false)
 
 onMounted(() => {
@@ -120,25 +120,11 @@ function copyAddress() {
 function openPlaceAtLocation() {
   if (!clickedLngLat.value) return
 
-  // Priority 1: If we have an OSM ID from geocoding, open the full OSM place
-  if (geocodedOsmId.value) {
-    const [type, id] = geocodedOsmId.value.split('/')
-    router.push({
-      name: AppRoute.PLACE,
-      params: { type, id },
-    })
+  // Priority 1: the geocoded place resolved to its own detail route
+  if (geocodedRoute.value) {
+    router.push(geocodedRoute.value)
   }
-  // Priority 2: If we have a provider-specific place ID (e.g., Geoapify), use provider lookup
-  else if (geocodedPlaceId.value) {
-    router.push({
-      name: AppRoute.PLACE_PROVIDER,
-      params: {
-        provider: geocodedPlaceId.value.provider,
-        placeId: geocodedPlaceId.value.id,
-      },
-    })
-  }
-  // Priority 3: If we have a place name (but no ID), use name+coordinate lookup
+  // Priority 2: If we have a place name (but no ID), use name+coordinate lookup
   else if (geocodedPlaceName.value) {
     router.push({
       name: AppRoute.PLACE_LOCATION,
@@ -149,7 +135,7 @@ function openPlaceAtLocation() {
       },
     })
   }
-  // Priority 4: No name or ID, use coordinate-only lookup
+  // Priority 3: No name or ID, use coordinate-only lookup
   else {
     router.push({
       name: AppRoute.PLACE_COORDS,
@@ -177,8 +163,7 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
   if (isOpen && lngLat) {
     geocodedPlaceName.value = null
     geocodedAddress.value = null
-    geocodedOsmId.value = null
-    geocodedPlaceId.value = null
+    geocodedRoute.value = null
     isGeocoding.value = true
 
     try {
@@ -192,20 +177,13 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
       if (result.results?.[0]) {
         const place = result.results[0]
 
-        // Priority 1: Store OSM ID if available
-        geocodedOsmId.value = place.externalIds?.osm || null
-
-        // Priority 2: Store provider-specific place ID (e.g., Geoapify)
-        if (
-          !geocodedOsmId.value &&
-          result.integration &&
-          place.externalIds?.[result.integration]
-        ) {
-          geocodedPlaceId.value = {
-            provider: result.integration,
-            id: place.externalIds[result.integration],
-          }
-        }
+        // Resolve the route from the place's own external ids. Keying off the
+        // integration name instead would miss geocoder addresses: Barrelman
+        // fronts Pelias, so an address comes back under `pelias` while the
+        // integration reads `barrelman`, and the mismatch dropped it through to
+        // a fuzzy name search. This is the same helper bookmarks and map dots
+        // route on, so every surface resolves a place identically.
+        geocodedRoute.value = getPlaceRouteFromExternalIds(place.externalIds)
 
         // Store place name and address separately
         geocodedPlaceName.value = place.name?.value || null
@@ -219,8 +197,7 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
   } else {
     geocodedPlaceName.value = null
     geocodedAddress.value = null
-    geocodedOsmId.value = null
-    geocodedPlaceId.value = null
+    geocodedRoute.value = null
     isGeocoding.value = false
   }
 })

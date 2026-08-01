@@ -11,7 +11,7 @@ import { AppRoute } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
-const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace } =
+const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace } =
   usePlaceService()
 const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMapService()
 const { nextSignal } = useAbortController()
@@ -100,7 +100,7 @@ async function loadPlace() {
     }
 
     // Use name-based search for more accurate results
-    const place = await fetchPlaceDetails(name, undefined, coordinates, nextSignal())
+    const place = await fetchPlaceDetailsByName(name, coordinates, undefined, nextSignal())
     handlePlaceResult(place)
     return
   }

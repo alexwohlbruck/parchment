@@ -226,6 +226,11 @@ export const settingsIndex: SettingsPageDef[] = [
             descriptionKey:
               'settings.mapSettings.configuration.hdRoadsDescription',
           },
+          {
+            titleKey: 'settings.mapSettings.configuration.indoorMaps',
+            descriptionKey:
+              'settings.mapSettings.configuration.indoorMapsDescription',
+          },
           { titleKey: 'settings.mapSettings.configuration.poiLabels' },
           { titleKey: 'settings.mapSettings.configuration.roadLabels' },
           { titleKey: 'settings.mapSettings.configuration.transitLabels' },

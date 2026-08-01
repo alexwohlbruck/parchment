@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+* Indoor maps — switch it on under Appearance and airports, malls and stadiums that Mapbox has mapped inside show their floor plans, with a floor selector on the edge of the map for moving between levels
+
 ### Changed
 
 * Looking up an address — right-clicking the map, dropping a pin, searching a street — now answers from your own Barrelman instance instead of the public OpenStreetMap geocoder. It's faster, isn't rate limited, and the place you land on comes back with its real outline, opening hours and tags rather than just a name. Nominatim and the other providers stay on as fallbacks for anywhere outside the regions you've imported

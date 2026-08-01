@@ -1424,6 +1424,8 @@
         "3dObjects": "Objetos 3D",
         "hdRoads": "Carreteras HD",
         "hdRoadsDescription": "Visualización de carreteras de alta definición con detalles mejorados",
+        "indoorMaps": "Mapas de interiores",
+        "indoorMapsDescription": "Muestra planos de aeropuertos, centros comerciales y estadios, con un selector de plantas. Requiere el mapa base estándar.",
         "poiLabels": "Etiquetas de POI",
         "roadLabels": "Etiquetas de carreteras",
         "transitLabels": "Etiquetas de tránsito",

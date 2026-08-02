@@ -2,7 +2,7 @@
  * Harness for controller (endpoint) tests.
  *
  * Mounts a controller into a bare Elysia app composed the same way `index.ts`
- * composes the real one — notably the i18next plugin, which `requireAuth` and
+ * composes the real one — notably the i18n plugin, which `requireAuth` and
  * most error paths call `t()` on. Requests are driven through `app.handle()`,
  * so there is no listening socket and no port to collide on.
  *
@@ -17,28 +17,21 @@
  */
 
 import { Elysia } from 'elysia'
-import { i18next } from 'elysia-i18next'
-import { getI18nInitOptions, detectLanguage } from '../lib/i18n'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 /** Anything Elysia accepts in `.use()` — a controller module's default export. */
 type Plugin = Parameters<Elysia['use']>[0]
+
+/** The only surface the request helpers need — keeps them independent of the
+ * exact generic Elysia infers for the app under test. */
+type Handler = { handle(request: Request): Promise<Response> }
 
 /**
  * Build an app with `controllers` mounted. Pass several when a route under test
  * depends on another controller being present.
  */
-export function createTestApp(...controllers: Plugin[]): Elysia {
-  const app = new Elysia().use(
-    i18next({
-      initOptions: getI18nInitOptions(),
-      detectLanguage: ({ request }) => {
-        const url = new URL(request.url)
-        const queryLang = url.searchParams.get('lang') ?? undefined
-        const acceptLanguage = request.headers.get('accept-language') ?? undefined
-        return detectLanguage(queryLang, acceptLanguage)
-      },
-    }),
-  )
+export function createTestApp(...controllers: Plugin[]) {
+  const app = new Elysia().use(i18nPlugin)
   for (const controller of controllers) app.use(controller)
   return app
 }
@@ -63,7 +56,7 @@ export interface RequestOptions {
 const BASE = 'http://localhost'
 
 async function send(
-  app: Elysia,
+  app: Handler,
   method: string,
   path: string,
   options: RequestOptions = {},
@@ -101,7 +94,7 @@ async function send(
 /**
  * Verb helpers bound to an app:  `await req(app).post('/vehicles', { body })`
  */
-export function req(app: Elysia) {
+export function req(app: Handler) {
   return {
     get: (path: string, options?: RequestOptions) => send(app, 'GET', path, options),
     post: (path: string, options?: RequestOptions) => send(app, 'POST', path, options),

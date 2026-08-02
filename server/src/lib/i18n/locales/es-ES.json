@@ -35,11 +35,16 @@
       "invalidParams": "Proporcione source+id, name+lat+lng o lat+lng",
       "invalidOsmType": "Tipo OSM no válido. El formato debe ser \"type/id\" donde type es node, way o relation.",
       "notFoundWithParams": "Lugar no encontrado con los parámetros proporcionados",
-      "retrievalError": "Error al recuperar datos del lugar"
+      "retrievalError": "Error al recuperar datos del lugar",
+      "coordinatesRequired": "Se requieren lat y lng"
     },
     "server": {
       "internal": "Se produjo un error interno del servidor",
-      "serviceUnavailable": "Servicio no disponible temporalmente"
+      "serviceUnavailable": "Servicio no disponible temporalmente",
+      "endpointNotFound": "Este endpoint no existe"
+    },
+    "rateLimit": {
+      "exceeded": "Se superó el límite de solicitudes"
     },
     "integration": {
       "failed": "La solicitud al servicio externo falló",
@@ -52,7 +57,22 @@
       "unsupportedScheme": "Esta integración no admite el esquema de cifrado solicitado",
       "schemeAlreadyConfigured": "Esta integración ya está configurada con el mismo esquema",
       "credentialsMissing": "Se requieren los encabezados de endpoint y token de la integración",
-      "endpointInvalid": "El endpoint de la integración no es una URL válida"
+      "endpointInvalid": "El endpoint de la integración no es una URL válida",
+      "prerequisiteNotConfigured": "La integración requerida por el sistema no está configurada. Un administrador debe configurarla primero.",
+      "createFailed": "Error al crear la integración",
+      "updateFailed": "Error al actualizar la integración",
+      "deleteFailed": "Error al eliminar la integración",
+      "testFailed": "Error al probar la integración"
+    },
+    "osm": {
+      "notConfigured": "No hay ninguna integración de OSM configurada. Conecta tu cuenta de OSM primero.",
+      "integrationNotFound": "No se encontró ninguna integración de OSM",
+      "missingCodeOrState": "Falta el código de autorización o el estado",
+      "invalidState": "Parámetro de estado inválido o expirado",
+      "authorizationExpired": "La solicitud de autorización expiró",
+      "userDetailsFailed": "Error al obtener los datos del usuario de OSM",
+      "accessTokenMissing": "No se encontró ningún token de acceso",
+      "accessTokenInvalid": "El token de acceso de OSM es inválido o expiró"
     },
     "locationHistory": {
       "rangeInvalid": "La hora de inicio debe ser anterior a la hora de fin",
@@ -62,11 +82,18 @@
     "geocoding": {
       "queryRequired": "Se requiere el parámetro de consulta",
       "coordinatesRequired": "Se requieren los parámetros lat y lng",
-      "serviceUnavailable": "No hay servicio de geocodificación disponible"
+      "serviceUnavailable": "No hay servicio de geocodificación disponible",
+      "forwardFailed": "Error al realizar la geocodificación",
+      "reverseFailed": "Error al realizar la geocodificación inversa"
     },
     "directions": {
       "noRoute": "No se encontró ruta",
       "invalidWaypoints": "Puntos de paso no válidos"
+    },
+    "trip": {
+      "snapshotTooLarge": "La instantánea del viaje es demasiado grande",
+      "snapshotNotFound": "Instantánea del viaje no encontrada",
+      "snapshotExpired": "La instantánea del viaje expiró"
     },
     "weather": {
       "fetchFailed": "Error al obtener datos meteorológicos",
@@ -78,10 +105,100 @@
       "overpassNotConfigured": "La integración de Overpass no está configurada",
       "overpassNotAvailable": "La integración de Overpass no está disponible",
       "categoriesLoadFailed": "Error al cargar categorías",
-      "categoryFailed": "Error al obtener categoría"
+      "categoryFailed": "Error al obtener categoría",
+      "overpassQueryFailed": "Error al ejecutar la consulta de Overpass",
+      "routeSearchFailed": "Error al ejecutar la búsqueda de rutas",
+      "categorySearchFailed": "Error al ejecutar la búsqueda por categoría",
+      "brandSearchFailed": "Error al ejecutar la búsqueda por marca"
     },
     "friends": {
       "invalidHandle": "Formato de handle no válido. Use alias@domain"
+    },
+    "sharing": {
+      "collectionNotPermitted": "No tienes permiso para compartir esta colección",
+      "federationEnvelopeRequired": "Compartir entre servidores requiere federationSignature + federationNonce + federationTimestamp"
+    },
+    "library": {
+      "collectionNotFound": "Colección no encontrada",
+      "collectionUpdateFailed": "Colección no encontrada o error al actualizar",
+      "collectionDeleteFailed": "Colección no encontrada o error al eliminar",
+      "collectionViewerReadOnly": "El rol de lector no puede modificar esta colección",
+      "collectionPointsViewerReadOnly": "El rol de lector no puede modificar los puntos cifrados de esta colección",
+      "pointNotFound": "Punto no encontrado",
+      "bookmarkCreateFailed": "Error al crear el marcador",
+      "bookmarkUpdateFailed": "Marcador no encontrado o error al actualizar",
+      "bookmarkRemoveFailed": "Marcador no encontrado o error al eliminar",
+      "bookmarkCollectionsRemoveFailed": "Error al quitar el marcador de las colecciones",
+      "externalIdsRequired": "Faltan los externalIds obligatorios",
+      "collectionIdsRequired": "Faltan los collectionIds obligatorios en el cuerpo",
+      "emptyBody": "El cuerpo de la solicitud no puede estar vacío",
+      "layerNotFound": "Capa no encontrada",
+      "layerGroupNotFound": "Grupo de capas no encontrado",
+      "layerTemplateNotFound": "Plantilla de capa predeterminada no encontrada",
+      "layerGroupTemplateNotFound": "Plantilla de grupo predeterminada no encontrada",
+      "routeNotFound": "Ruta no encontrada",
+      "routeUpdateFailed": "Ruta no encontrada o error al actualizar",
+      "routeDeleteFailed": "Ruta no encontrada o error al eliminar"
+    },
+    "avatar": {
+      "invalidType": "El archivo debe ser JPEG, PNG o WebP",
+      "tooLarge": "El archivo debe pesar menos de 2 MB"
+    },
+    "personalBlob": {
+      "invalidType": "Tipo de blob no válido"
+    },
+    "deviceTransfer": {
+      "sessionNotFound": "Sesión no encontrada",
+      "sessionNotYours": "La sesión pertenece a otro usuario",
+      "sessionConsumed": "La sesión ya fue utilizada",
+      "sessionExpired": "La sesión expiró",
+      "payloadAlreadyUploaded": "La carga ya fue subida",
+      "payloadNotUploaded": "La carga aún no se ha subido"
+    },
+    "subscription": {
+      "invalidWebhookSignature": "Firma de webhook no válida",
+      "invalidWebhookPayload": "Carga de webhook no válida",
+      "notFound": "No se encontró ninguna suscripción",
+      "billingNotEnabled": "La facturación no está habilitada"
+    },
+    "user": {
+      "inviteRolesNotOwned": "Solo puedes invitar usuarios con tus propios roles",
+      "invalidRoleIds": "Uno o más IDs de rol no son válidos",
+      "invalidPermissionIds": "Uno o más IDs de permiso no son válidos",
+      "emailAlreadyExists": "Ya existe un usuario con este correo electrónico",
+      "roleNotFound": "Rol no encontrado",
+      "permissionNotFound": "Permiso no encontrado",
+      "defaultRoleImmutable": "No se pueden modificar los roles predeterminados",
+      "defaultRoleUndeletable": "No se pueden eliminar los roles predeterminados",
+      "defaultRolePermissionsImmutable": "No se pueden modificar los permisos de los roles predeterminados",
+      "cannotDeleteSelf": "No puedes eliminarte a ti mismo",
+      "cannotDeleteLastAdmin": "No se puede eliminar al último administrador",
+      "impersonationNotAllowed": "La suplantación no está disponible en producción",
+      "cannotImpersonateSelf": "No puedes suplantarte a ti mismo",
+      "eraseConfirmationRequired": "Se requiere confirmación. Envía `{ \"confirm\": \"erase-all-my-data\" }`.",
+      "invalidAlias": "Alias no válido. Usa entre 3 y 30 caracteres alfanuméricos o guiones bajos.",
+      "noPendingRevocation": "No hay ninguna revocación pendiente"
+    },
+    "vehicle": {
+      "notFound": "Vehículo no encontrado"
+    }
+  },
+  "email": {
+    "verificationCode": {
+      "subject": "Verificación de correo de Parchment",
+      "preheader": "Tu código de verificación de Parchment",
+      "heading": "Verifica tu correo",
+      "body": "Introduce este código para terminar de iniciar sesión en Parchment.",
+      "expiry": "Este código caduca en {{minutes}} minutos.",
+      "ignore": "Si no has solicitado esto, puedes ignorar este correo."
+    },
+    "invitation": {
+      "subject": "Te han invitado a Parchment Maps",
+      "preheader": "Te han invitado a Parchment",
+      "heading": "Te han invitado a Parchment",
+      "body": "Alguien te ha invitado a unirte a su servidor de Parchment. Abre el enlace de abajo para crear tu cuenta.",
+      "cta": "Empezar",
+      "ignore": "Si no esperabas esta invitación, puedes ignorar este correo."
     }
   },
   "success": {

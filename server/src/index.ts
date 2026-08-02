@@ -5,7 +5,6 @@ import { initOtel, flushOtel } from './lib/otel'
 import { Elysia } from 'elysia'
 import { swagger } from '@elysiajs/swagger'
 import { cors } from '@elysiajs/cors'
-import { i18next } from 'elysia-i18next'
 import { cors as corsConfig, swagger as swaggerConfig } from './config'
 import { logger, logError } from './lib/logger'
 import { loggerMiddleware } from './middleware/logger.middleware'
@@ -47,7 +46,7 @@ import { initializeIntegrations } from './services/integration.service'
 import { clearProductCache } from './services/subscription.service'
 import { bootstrapRealtime } from './services/realtime/bootstrap'
 import { syncPermissionsAndRoles } from './seed/sync-permissions'
-import { getI18nInitOptions, detectLanguage } from './lib/i18n'
+import { i18nPlugin, translatorFor } from './lib/i18n/plugin'
 import { initializeOsmPresets } from './lib/osm-presets'
 import { getServerIdentity } from './lib/server-identity'
 import { assertIntegrationKeyConfigured } from './lib/integration-encryption'
@@ -89,17 +88,7 @@ async function main() {
   app.use(loggerMiddleware)
   app.use(cors(corsConfig))
   app.use(swagger(swaggerConfig))
-  app.use(
-    i18next({
-      initOptions: getI18nInitOptions(),
-      detectLanguage: ({ request }) => {
-        const url = new URL(request.url)
-        const queryLang = url.searchParams.get('lang') ?? undefined
-        const acceptLanguage = request.headers.get('accept-language') ?? undefined
-        return detectLanguage(queryLang, acceptLanguage)
-      },
-    }),
-  )
+  app.use(i18nPlugin)
 
   app.use(healthCheckController)
   app.use(authController)
@@ -138,11 +127,17 @@ async function main() {
   // federation forwarding). Must run before the first write path emits.
   bootstrapRealtime()
 
-  app.onError(({ code, error }) => {
-    if (code === 'NOT_FOUND') return 'Route not found :(' // TODO: i18n, proper error
+  app.onError(({ code, error, request }) => {
+    const t = translatorFor(request)
+    if (code === 'NOT_FOUND') {
+      return new Response(
+        JSON.stringify({ message: t('errors.server.endpointNotFound'), code }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
     logError('Request error', error, { code })
     return new Response(
-      JSON.stringify({ error: 'Internal server error', code }),
+      JSON.stringify({ message: t('errors.server.internal'), code }),
       { status: 500, headers: { 'Content-Type': 'application/json' } },
     )
   })

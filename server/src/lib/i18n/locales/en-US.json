@@ -35,11 +35,16 @@
       "invalidParams": "Please provide either source+id, name+lat+lng, or lat+lng",
       "invalidOsmType": "Invalid OSM type. Format should be \"type/id\" where type is node, way, or relation.",
       "notFoundWithParams": "Place not found with the provided parameters",
-      "retrievalError": "Error retrieving place data"
+      "retrievalError": "Error retrieving place data",
+      "coordinatesRequired": "lat and lng are required"
     },
     "server": {
       "internal": "An internal server error occurred",
-      "serviceUnavailable": "Service temporarily unavailable"
+      "serviceUnavailable": "Service temporarily unavailable",
+      "endpointNotFound": "This endpoint does not exist"
+    },
+    "rateLimit": {
+      "exceeded": "Rate limit exceeded"
     },
     "integration": {
       "failed": "External service request failed",
@@ -52,7 +57,22 @@
       "unsupportedScheme": "This integration does not support the requested encryption scheme",
       "schemeAlreadyConfigured": "This integration is already configured under the same scheme",
       "credentialsMissing": "Integration endpoint and token headers are required",
-      "endpointInvalid": "Integration endpoint is not a valid URL"
+      "endpointInvalid": "Integration endpoint is not a valid URL",
+      "prerequisiteNotConfigured": "System prerequisite integration is not configured. An admin must configure it first.",
+      "createFailed": "Failed to create integration",
+      "updateFailed": "Failed to update integration",
+      "deleteFailed": "Failed to delete integration",
+      "testFailed": "Failed to test integration"
+    },
+    "osm": {
+      "notConfigured": "No OSM integration configured. Connect your OSM account first.",
+      "integrationNotFound": "No OSM integration found",
+      "missingCodeOrState": "Missing authorization code or state",
+      "invalidState": "Invalid or expired state parameter",
+      "authorizationExpired": "Authorization request expired",
+      "userDetailsFailed": "Failed to fetch OSM user details",
+      "accessTokenMissing": "No access token found",
+      "accessTokenInvalid": "OSM access token is invalid or expired"
     },
     "locationHistory": {
       "rangeInvalid": "Start time must be before end time",
@@ -62,11 +82,18 @@
     "geocoding": {
       "queryRequired": "Query parameter is required",
       "coordinatesRequired": "Both lat and lng parameters are required",
-      "serviceUnavailable": "No geocoding service is currently available"
+      "serviceUnavailable": "No geocoding service is currently available",
+      "forwardFailed": "Failed to perform geocoding",
+      "reverseFailed": "Failed to perform reverse geocoding"
     },
     "directions": {
       "noRoute": "No route found",
       "invalidWaypoints": "Invalid waypoints provided"
+    },
+    "trip": {
+      "snapshotTooLarge": "Trip snapshot too large",
+      "snapshotNotFound": "Trip snapshot not found",
+      "snapshotExpired": "Trip snapshot expired"
     },
     "weather": {
       "fetchFailed": "Failed to fetch weather data",
@@ -78,10 +105,100 @@
       "overpassNotConfigured": "Overpass integration is not configured",
       "overpassNotAvailable": "Overpass integration is not available",
       "categoriesLoadFailed": "Failed to load categories",
-      "categoryFailed": "Failed to get category"
+      "categoryFailed": "Failed to get category",
+      "overpassQueryFailed": "Failed to execute Overpass query",
+      "routeSearchFailed": "Failed to execute route search",
+      "categorySearchFailed": "Failed to execute category search",
+      "brandSearchFailed": "Failed to execute brand search"
     },
     "friends": {
       "invalidHandle": "Invalid handle format. Use alias@domain"
+    },
+    "sharing": {
+      "collectionNotPermitted": "Not permitted to share this collection",
+      "federationEnvelopeRequired": "Cross-server shares require federationSignature + federationNonce + federationTimestamp"
+    },
+    "library": {
+      "collectionNotFound": "Collection not found",
+      "collectionUpdateFailed": "Collection not found or update failed",
+      "collectionDeleteFailed": "Collection not found or delete failed",
+      "collectionViewerReadOnly": "Viewer role cannot modify this collection",
+      "collectionPointsViewerReadOnly": "Viewer role cannot modify encrypted points in this collection",
+      "pointNotFound": "Point not found",
+      "bookmarkCreateFailed": "Failed to create bookmark",
+      "bookmarkUpdateFailed": "Bookmark not found or update failed",
+      "bookmarkRemoveFailed": "Bookmark not found or removal failed",
+      "bookmarkCollectionsRemoveFailed": "Failed to remove bookmark from collections",
+      "externalIdsRequired": "Missing required externalIds",
+      "collectionIdsRequired": "Missing required collectionIds in body",
+      "emptyBody": "Request body cannot be empty",
+      "layerNotFound": "Layer not found",
+      "layerGroupNotFound": "Layer group not found",
+      "layerTemplateNotFound": "Default layer template not found",
+      "layerGroupTemplateNotFound": "Default group template not found",
+      "routeNotFound": "Route not found",
+      "routeUpdateFailed": "Route not found or update failed",
+      "routeDeleteFailed": "Route not found or delete failed"
+    },
+    "avatar": {
+      "invalidType": "File must be JPEG, PNG, or WebP",
+      "tooLarge": "File must be under 2MB"
+    },
+    "personalBlob": {
+      "invalidType": "Invalid blob type"
+    },
+    "deviceTransfer": {
+      "sessionNotFound": "Session not found",
+      "sessionNotYours": "Session belongs to another user",
+      "sessionConsumed": "Session already consumed",
+      "sessionExpired": "Session expired",
+      "payloadAlreadyUploaded": "Payload already uploaded",
+      "payloadNotUploaded": "Payload not yet uploaded"
+    },
+    "subscription": {
+      "invalidWebhookSignature": "Invalid webhook signature",
+      "invalidWebhookPayload": "Invalid webhook payload",
+      "notFound": "No subscription found",
+      "billingNotEnabled": "Billing not enabled"
+    },
+    "user": {
+      "inviteRolesNotOwned": "You can only invite users with your own roles",
+      "invalidRoleIds": "One or more role IDs are invalid",
+      "invalidPermissionIds": "One or more permission IDs are invalid",
+      "emailAlreadyExists": "A user with this email already exists",
+      "roleNotFound": "Role not found",
+      "permissionNotFound": "Permission not found",
+      "defaultRoleImmutable": "Cannot modify default roles",
+      "defaultRoleUndeletable": "Cannot delete default roles",
+      "defaultRolePermissionsImmutable": "Cannot modify default role permissions",
+      "cannotDeleteSelf": "Cannot delete yourself",
+      "cannotDeleteLastAdmin": "Cannot delete the last admin",
+      "impersonationNotAllowed": "Impersonation is not available in production",
+      "cannotImpersonateSelf": "Cannot impersonate yourself",
+      "eraseConfirmationRequired": "Confirmation required. Pass `{ \"confirm\": \"erase-all-my-data\" }`.",
+      "invalidAlias": "Invalid alias. Use 3-30 alphanumeric characters or underscores.",
+      "noPendingRevocation": "No pending revocation"
+    },
+    "vehicle": {
+      "notFound": "Vehicle not found"
+    }
+  },
+  "email": {
+    "verificationCode": {
+      "subject": "Parchment Email Verification",
+      "preheader": "Your Parchment verification code",
+      "heading": "Verify your email",
+      "body": "Enter this code to finish signing in to Parchment.",
+      "expiry": "This code expires in {{minutes}} minutes.",
+      "ignore": "If you didn't request this, you can safely ignore this email."
+    },
+    "invitation": {
+      "subject": "You are invited to Parchment Maps",
+      "preheader": "You've been invited to Parchment",
+      "heading": "You're invited to Parchment",
+      "body": "Someone invited you to join their Parchment server. Open the link below to create your account.",
+      "cta": "Get started",
+      "ignore": "If you weren't expecting this invitation, you can safely ignore this email."
     }
   },
   "success": {

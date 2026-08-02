@@ -5,7 +5,7 @@ import esES from './locales/es-ES.json'
 
 export { LANGUAGES, DEFAULT_LANGUAGE, type Language }
 
-/** Options for elysia-i18next plugin (single source of config; no direct i18next runtime use). */
+/** Single source of i18next config — consumed by the Elysia plugin in `./plugin`. */
 export function getI18nInitOptions(): InitOptions {
   const enUSResource = enUS as Record<string, unknown>
   const esESResource = esES as Record<string, unknown>

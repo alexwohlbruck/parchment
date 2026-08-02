@@ -9,27 +9,15 @@
 
 import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
-import { i18next } from 'elysia-i18next'
 import { cors as corsConfig } from './config'
-import { getI18nInitOptions, detectLanguage } from './lib/i18n'
+import { i18nPlugin } from './lib/i18n/plugin'
 import federationController from './controllers/federation.controller'
 import { logger } from './lib/logger'
 
 async function main() {
   const app = new Elysia()
   app.use(cors(corsConfig))
-  app.use(
-    i18next({
-      initOptions: getI18nInitOptions(),
-      detectLanguage: ({ request }) => {
-        const url = new URL(request.url)
-        const queryLang = url.searchParams.get('lang') ?? undefined
-        const acceptLanguage =
-          request.headers.get('accept-language') ?? undefined
-        return detectLanguage(queryLang, acceptLanguage)
-      },
-    }),
-  )
+  app.use(i18nPlugin)
   app.use(federationController)
 
   const port = process.env.PORT ? Number(process.env.PORT) : 5099

@@ -138,7 +138,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
           <Card
             v-for="tab in libraryTabs"
             :key="tab.id"
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateToRoute(tab.route)"
           >
             <ItemIcon
@@ -163,7 +163,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
         <h3 class="text-lg mb-1.5 px-1 block">{{ t('navigation.title') }}</h3>
         <div class="grid grid-cols-2 gap-2">
           <Card
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/directions')"
           >
             <ItemIcon icon="Navigation" color="forest" size="sm" variant="ghost" />
@@ -171,7 +171,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
           </Card>
 
           <Card
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/lookout')"
           >
             <ItemIcon icon="Telescope" color="violet" size="sm" variant="ghost" />
@@ -179,7 +179,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
           </Card>
 
           <Card
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/timeline')"
           >
             <ItemIcon icon="History" color="amber" size="sm" variant="ghost" />
@@ -187,7 +187,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
           </Card>
 
           <Card
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/settings')"
           >
             <ItemIcon icon="Settings" color="parchment" size="sm" variant="ghost" />
@@ -208,7 +208,6 @@ function recentSubtitle(place: RecentPlaceEntry): string {
             size="sm"
             icon-variant="ghost"
             :subtitle="recentSubtitle(place)"
-            class="shadow-none"
             @click="minimizeSheet()"
           />
         </div>

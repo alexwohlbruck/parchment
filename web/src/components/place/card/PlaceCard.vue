@@ -219,10 +219,24 @@ const isMultiline = computed(() =>
 
 // ── Surface ───────────────────────────────────────────────────────────────
 
+/**
+ * `rounded-lg` is the app's card radius: the Tailwind scale is remapped onto
+ * the user's `--radius` setting in style.css, and `-lg` is the step that maps
+ * to it exactly — the same one `components/ui/card` uses. Nested surfaces drop
+ * to `-md` so an inline card inside a card doesn't out-round its container.
+ *
+ * A bare `border` is deliberate: style.css defaults every element's
+ * border-color to `--color-border`, so `border-border` isn't needed.
+ *
+ * `depth` is the app's card elevation — an inset top highlight plus a soft
+ * drop shadow — and is what `components/ui/card` applies. Only the two card
+ * surfaces take it: `inline` is a well nested inside another card, and `chip`
+ * is a pill; lighting either would read as a card floating on a card.
+ */
 const SURFACES = {
-  row: 'w-full rounded-xl border bg-card',
-  tile: 'shrink-0 rounded-xl border bg-card',
-  inline: 'w-full rounded-lg bg-muted/40',
+  row: 'w-full rounded-lg border bg-card depth',
+  tile: 'shrink-0 rounded-lg border bg-card depth',
+  inline: 'w-full rounded-md bg-muted/40',
   chip: 'rounded-full border bg-background',
 } as const
 

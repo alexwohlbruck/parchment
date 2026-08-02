@@ -18,7 +18,7 @@ const lastWidth = `${40 + ((props.seed * 17) % 45)}%`
 </script>
 
 <template>
-  <div class="w-full rounded-xl border bg-card px-2 py-2">
+  <div class="w-full rounded-lg border bg-card depth px-2 py-2">
     <div class="flex items-start gap-2">
       <Skeleton class="size-8 rounded-full shrink-0 mt-0.5" />
       <div class="flex-1 flex flex-col gap-1.5 min-w-0">

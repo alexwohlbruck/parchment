@@ -1,6 +1,7 @@
 import type { Language } from './i18n'
 import { getLanguageCode } from './i18n'
 import { getChipLabel } from './display-chips'
+import { translate } from './i18n/translate'
 import { logWarn, logger } from './logger'
 
 export type GeometryType = 'point' | 'line' | 'area' | 'vertex' | 'relation'
@@ -540,14 +541,15 @@ export function getPresetFields(
         }
 
         // Enrich with curated display-chip labels where available
+        const t = translate(language)
         if (translatedField.type === 'check') {
-          const chipLabel = getChipLabel(translatedField.key, 'yes')
+          const chipLabel = getChipLabel(translatedField.key, 'yes', t)
           if (chipLabel) translatedField.label = chipLabel
         }
 
         if (translatedField.options) {
           for (const [optKey] of Object.entries(translatedField.options)) {
-            const chipLabel = getChipLabel(translatedField.key, optKey)
+            const chipLabel = getChipLabel(translatedField.key, optKey, t)
             if (chipLabel) translatedField.options[optKey] = chipLabel
           }
         }

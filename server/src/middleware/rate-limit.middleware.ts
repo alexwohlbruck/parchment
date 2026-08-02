@@ -15,7 +15,7 @@
 
 import { Elysia } from 'elysia'
 import { logger } from '../lib/logger'
-import { translatorFor } from '../lib/i18n/plugin'
+import { translatorFor } from '../lib/i18n/translate'
 
 interface Bucket {
   count: number

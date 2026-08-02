@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer'
 import { smtpConfig, smtpFrom, isEmailConfigured } from '../config/mailer.config'
 import { serverOrigin } from '../config/origins.config'
 import { logger } from '../lib/logger'
-import { translate } from '../lib/i18n/plugin'
+import { translate } from '../lib/i18n/translate'
 import { DEFAULT_LANGUAGE, type Language, type TranslationKey } from '../lib/i18n/i18n.types'
 
 interface TemplateDataMap {

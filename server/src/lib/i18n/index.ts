@@ -24,6 +24,10 @@ export function getI18nInitOptions(): InitOptions {
       es: { translation: esESResource },
     },
     interpolation: { escapeValue: false },
+    // Everything lives in the single default namespace, and chip keys are raw
+    // OSM tag keys — `chips.payment:cash_yes`, `chips.diet:vegan_only`. Left on,
+    // i18next would read the `:` as a namespace separator and never find them.
+    nsSeparator: false,
     // i18next otherwise console.info's a sponsor notice on every init, which
     // lands in the server logs and in every test run's output.
     showSupportNotice: false,

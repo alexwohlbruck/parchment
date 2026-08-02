@@ -5,12 +5,13 @@ import type {
   AttributedValue,
   OpeningHours,
 } from '../../../types/place.types'
-import { getPlaceType } from '../../../lib/place.utils'
+import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
 import { matchTags } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { parseOsmHours } from '../../../lib/hours.utils'
 import { logError } from '../../../lib/logger'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 
 // TODO: Check all SOURCE.PELIAS and SOURCE.OSM references. Idk what to do with these yet. Pelias can use various sources.
 
@@ -61,20 +62,32 @@ export interface PeliasFeature {
  */
 export class PeliasAdapter {
   autocomplete = {
-    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptPlaceDetails(feature, id)
+    adaptPlaceDetails: (
+      feature: PeliasFeature,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      return this.adaptPlaceDetails(feature, id, language)
     },
   }
 
   placeInfo = {
-    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptPlaceDetails(feature, id)
+    adaptPlaceDetails: (
+      feature: PeliasFeature,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      return this.adaptPlaceDetails(feature, id, language)
     },
   }
 
   geocoding = {
-    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptPlaceDetails(feature, id)
+    adaptPlaceDetails: (
+      feature: PeliasFeature,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      return this.adaptPlaceDetails(feature, id, language)
     },
   }
 
@@ -210,7 +223,11 @@ export class PeliasAdapter {
   /**
    * Core method to transform Pelias API data to unified place format
    */
-  private adaptPlaceDetails(feature: PeliasFeature, id?: string): Place {
+  private adaptPlaceDetails(
+    feature: PeliasFeature,
+    id?: string,
+    language: Language = DEFAULT_LANGUAGE,
+  ): Place {
     try {
       const props = feature.properties
       const osmId = props.source_id
@@ -243,7 +260,7 @@ export class PeliasAdapter {
 
       let presetMatch = null
       if (props.addendum?.osm) {
-        placeType = getPlaceType(props.addendum.osm)
+        placeType = getPlaceType(props.addendum.osm, language)
         presetMatch = matchTags(props.addendum.osm)
       }
       const icon = buildPlaceIcon(presetMatch)
@@ -279,7 +296,7 @@ export class PeliasAdapter {
         id: primaryId,
         externalIds,
         name: {
-          value: props.name || null,
+          value: getLocalizedName(props.addendum?.osm, language, props.name) ?? null,
           sourceId: actualSource,
         },
         description: null,

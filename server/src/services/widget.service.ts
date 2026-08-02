@@ -13,6 +13,8 @@ import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
 import { resolveDisplayChips } from '../lib/display-chips'
 import { logError, logger } from '../lib/logger'
+import { DEFAULT_LANGUAGE, type Language } from '../lib/i18n'
+import { translate } from '../lib/i18n/translate'
 
 /**
  * Check if a place is a transit stop based on its OSM tags/type.
@@ -113,7 +115,10 @@ function filterOsmTags(tags: Record<string, string>): Record<string, string> {
  * These descriptors tell the client which widgets to render and what
  * params to pass when fetching widget data.
  */
-export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
+export function resolveWidgetDescriptors(
+  place: Place,
+  language: Language = DEFAULT_LANGUAGE,
+): WidgetDescriptor[] {
   const descriptors: WidgetDescriptor[] = []
 
   // ── 1. Transit (ASYNC) ──────────────────────────────────────────────────────
@@ -192,7 +197,7 @@ export function resolveWidgetDescriptors(place: Place): WidgetDescriptor[] {
     const rawTags = place.tags
     if (rawTags && Object.keys(rawTags).length > 0) {
       // Resolve display chips from raw tags
-      const { chips, remainingTags } = resolveDisplayChips(rawTags)
+      const { chips, remainingTags } = resolveDisplayChips(rawTags, translate(language))
       if (chips.length > 0) {
         place.displayChips = chips
       }

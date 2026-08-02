@@ -1,34 +1,8 @@
 import { Elysia } from 'elysia'
-import i18next from 'i18next'
-import { getI18nInitOptions, detectLanguage } from './index'
+import { initialization, translate, languageFor, translatorFor } from './translate'
 import type { Language, TranslateFn } from './i18n.types'
 
-/**
- * i18next is initialized once and shared by every request. Kicked off at import
- * so synchronous callers (`translatorFor`) find a populated resource store.
- */
-const initialization = i18next.init(getI18nInitOptions())
-
-/** The language a raw request asks for: `?lang` first, then `Accept-Language`. */
-function languageFor(request: Request): Language {
-  const url = new URL(request.url)
-  return detectLanguage(
-    url.searchParams.get('lang') ?? undefined,
-    request.headers.get('accept-language') ?? undefined,
-  )
-}
-
-/** A translate function bound to `language` — for work that happens outside a
- * request handler, such as sending email. */
-export function translate(language: Language): TranslateFn {
-  return i18next.getFixedT(language) as unknown as TranslateFn
-}
-
-/** Translate for a raw request — for `onError` and other places outside a
- * handler, where the plugin's derived context isn't available. */
-export function translatorFor(request: Request): TranslateFn {
-  return translate(languageFor(request))
-}
+export { translate, translatorFor }
 
 /**
  * Request-scoped translation. Controllers `.use(i18nPlugin)` to get a

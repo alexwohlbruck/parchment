@@ -155,6 +155,19 @@ function optionDisplay(option: CommandArgumentOption) {
   })
 }
 
+/**
+ * Deal chip items into two rows, alternating, so the row order matches the
+ * column-major fill this layout used to get from the grid — the leading items
+ * stay leading across both rows rather than the second row starting halfway
+ * down the list.
+ */
+function chipRows(items: CommandArgumentOption[]): CommandArgumentOption[][] {
+  if (items.length <= 2) return [items]
+  const rows: CommandArgumentOption[][] = [[], []]
+  items.forEach((item, i) => rows[i % 2].push(item))
+  return rows
+}
+
 // Layout per group. Most groups render as a vertical list; Frequents renders as
 // a horizontal row of tile cards, and the common-categories browse shortcuts as
 // a two-column grid of chips. Extend this map to add more.
@@ -567,28 +580,40 @@ const filterFunction = computed(() => {
                 />
               </div>
 
-              <!-- Chip layout: two-row, horizontally scrolling browse shortcuts (Categories). -->
+              <!-- Chip layout: two-row, horizontally scrolling browse shortcuts (Categories).
+                   Two independent flex rows rather than a grid: a grid sizes each
+                   column to its widest cell and stretches the other to match, so
+                   "Coffee" was padded out to "Restaurants" width. Rows here scroll
+                   together but size each chip to its own label. -->
               <div
                 v-else-if="group.layout === 'chips'"
-                class="grid grid-rows-2 grid-flow-col auto-cols-max gap-2 overflow-x-auto scrollbar-hidden px-1 pb-1"
+                class="overflow-x-auto scrollbar-hidden px-1 pb-1"
               >
-                <button
-                  v-for="argumentOption in group.items"
-                  :key="argumentOption.value"
-                  type="button"
-                  class="flex items-center gap-1.5 rounded-full border bg-card hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
-                  @click="onArgumentSelected(argumentOption.value)"
-                >
-                  <ItemIcon
-                    :icon="argumentOption.iconName"
-                    :icon-pack="argumentOption.iconPack"
-                    :custom-color="argumentOption.iconColor"
-                    shape="circle"
-                    variant="solid"
-                    size="xs"
-                  />
-                  <span class="text-sm font-medium whitespace-nowrap">{{ argumentOption.name }}</span>
-                </button>
+                <div class="w-max flex flex-col gap-2">
+                  <div
+                    v-for="(row, rowIndex) in chipRows(group.items)"
+                    :key="rowIndex"
+                    class="flex items-center gap-2"
+                  >
+                    <button
+                      v-for="argumentOption in row"
+                      :key="argumentOption.value"
+                      type="button"
+                      class="shrink-0 flex items-center gap-1.5 rounded-full border bg-card hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
+                      @click="onArgumentSelected(argumentOption.value)"
+                    >
+                      <ItemIcon
+                        :icon="argumentOption.iconName"
+                        :icon-pack="argumentOption.iconPack"
+                        :custom-color="argumentOption.iconColor"
+                        shape="circle"
+                        variant="solid"
+                        size="xs"
+                      />
+                      <span class="text-sm font-medium whitespace-nowrap">{{ argumentOption.name }}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <!-- Default list layout. -->

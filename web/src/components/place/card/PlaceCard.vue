@@ -229,15 +229,15 @@ const isMultiline = computed(() =>
  * border-color to `--color-border`, so `border-border` isn't needed.
  *
  * `depth` is the app's card elevation — an inset top highlight plus a soft
- * drop shadow — and is what `components/ui/card` applies. Only the two card
- * surfaces take it: `inline` is a well nested inside another card, and `chip`
- * is a pill; lighting either would read as a card floating on a card.
+ * drop shadow — and is what `components/ui/card` applies. Every free-standing
+ * surface takes it. `inline` is the exception: it's a well nested inside
+ * another card, and lighting it would read as a card floating on a card.
  */
 const SURFACES = {
   row: 'w-full rounded-lg border bg-card depth',
   tile: 'shrink-0 rounded-lg border bg-card depth',
   inline: 'w-full rounded-md bg-muted/40',
-  chip: 'rounded-full border bg-background',
+  chip: 'rounded-full border bg-card depth',
 } as const
 
 const isInteractive = computed(

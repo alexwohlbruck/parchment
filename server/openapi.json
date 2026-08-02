@@ -789,18 +789,6 @@
         }
       }
     },
-    "/auth/sessions/current": {
-      "get": {
-        "operationId": "getAuthSessionsCurrent",
-        "tags": [
-          "Auth",
-          "Users"
-        ],
-        "responses": {
-          "200": {}
-        }
-      }
-    },
     "/auth/sessions/current/permissions": {
       "get": {
         "operationId": "getAuthSessionsCurrentPermissions",
@@ -829,6 +817,18 @@
             "name": "sessionId",
             "required": true
           }
+        ],
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/auth/sessions/current": {
+      "get": {
+        "operationId": "getAuthSessionsCurrent",
+        "tags": [
+          "Auth",
+          "Users"
         ],
         "responses": {
           "200": {}

@@ -383,17 +383,32 @@ describe('GET /auth/sessions/current', () => {
     expect(res.body.subscription.tier).toBe('basic')
   })
 
-  test('401s when signed out, despite the handler’s 204 branch', async () => {
-    // The handler starts with `if (!user) { set.status = 204; return null }`,
-    // but that branch is unreachable: this route is declared with
-    // `app.use(getSession)` AFTER earlier routes in the same group called
-    // `app.use(requireAuth)`, and Elysia's `.use()` mutates the instance, so
-    // the guard is inherited and rejects first.
+  test('answers 204 when signed out, not 401', async () => {
+    // The client polls this to decide whether it *is* signed in, so a signed
+    // out caller must get the handler's `if (!user)` branch rather than a
+    // guard rejection. That branch was unreachable until the `/all` and
+    // `/others` routes were moved into their own `.group('')` scope: Elysia's
+    // `.use()` leaks forward, so their requireAuth was inherited here.
     setAuthUser(null)
 
     const res = await req(app).get('/auth/sessions/current')
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(204)
+  })
+
+  test('sign-in and sign-out stay reachable without a session', async () => {
+    // Same guard-leak class as above: these sit on the /sessions instance
+    // alongside requireAuth'd routes. Pinned so a future route added in the
+    // wrong place can't quietly lock anonymous callers out of signing in.
+    setAuthUser(null)
+
+    const signIn = await req(app).post('/auth/sessions', {
+      body: { method: 'otp', email: TEST_USER.email, token: '12345678' },
+    })
+    expect(signIn.status).toBe(200)
+
+    const signOut = await req(app).delete('/auth/sessions')
+    expect(signOut.status).toBe(204)
   })
 })
 

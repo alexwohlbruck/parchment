@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import {
   getThemeColorClasses,
   getThemeColorGhostClasses,
+  getCustomColorTint,
   type ThemeColor,
 } from '@/lib/utils'
 import * as LucideIcons from 'lucide-vue-next'
@@ -68,24 +69,33 @@ const colorClasses = computed(() => {
   return getThemeColorClasses(props.color as ThemeColor)
 })
 
+/**
+ * A custom colour is tinted the same way a themed one is: a light background
+ * with a dark glyph of the same hue, inverted in dark mode. Previously the
+ * solid variant painted the raw colour behind a flat white or black glyph,
+ * which read as a different design language from the themed (bookmark) tiles
+ * sitting beside it in the same lists.
+ */
 const customColorStyle = computed(() => {
   if (hasImage.value) return {}
   if (!useCustomColor.value) return {}
 
   const color = props.customColor!
+  const tint = getCustomColorTint(color, props.variant, themeStore.isDark)
+  // Unparseable colour — fall back to painting it raw rather than rendering
+  // an untinted, invisible glyph.
+  if (!tint) return { backgroundColor: color, color: '#fff' }
+
   if (props.variant === 'ghost') {
+    // Translucent wash rather than an opaque tint, so the tile settles onto
+    // whatever surface it sits on. Matches `bg-{c}-500/10` and its dark /20.
     return {
-      backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`,
-      color,
+      backgroundColor: `color-mix(in srgb, ${color} ${themeStore.isDark ? 20 : 10}%, transparent)`,
+      color: tint.foreground,
     }
   }
-  // Solid variant with custom color — colored background, contrasting icon + ring
-  const contrast = themeStore.isDark ? '#0C0C0C' : '#FFFFFF'
-  return {
-    backgroundColor: color,
-    borderColor: contrast,
-    color: contrast,
-  }
+
+  return { backgroundColor: tint.background!, color: tint.foreground }
 })
 
 const shapeClass = computed(() => {
@@ -124,7 +134,7 @@ const iconSizeClass = computed(() => {
 <template>
   <div
     class="flex items-center justify-center shrink-0"
-    :class="[containerSizeClass, colorClasses, shapeClass, { 'border-2': shape === 'circle' && useCustomColor && !hasImage }]"
+    :class="[containerSizeClass, colorClasses, shapeClass]"
     :style="customColorStyle"
   >
     <img

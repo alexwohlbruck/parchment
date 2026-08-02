@@ -543,6 +543,59 @@ export function adjustLightness(hex: string, delta: number) {
 }
 
 /**
+ * Lightness and saturation targets that reproduce, for an arbitrary colour,
+ * the shade relationship `getThemeColorClasses` gets from the Tailwind ramp.
+ *
+ * Solid mirrors `bg-{c}-200 text-{c}-800` (and its dark-mode inverse); ghost
+ * mirrors `text-{c}-700` / `dark:text-{c}-300`. Saturation is damped towards
+ * the ends of the ramp because the theme ramps lose chroma there too — holding
+ * the source saturation at L 88 would give neon pastels rather than tints.
+ *
+ * Absolute targets, not deltas: category colours arrive anywhere from L 28 to
+ * L 75, so nudging by a fixed amount would produce wildly uneven results.
+ *
+ * The foreground lightnesses are set so the least contrasty category in the
+ * palette (park, then sport & leisure) still clears WCAG's 3:1 floor for
+ * non-text graphics with room to spare — 4.1:1 light, 4.8:1 dark.
+ */
+const COLOR_TINTS = {
+  solid: {
+    light: { bg: { l: 88, s: 0.7 }, fg: { l: 30, s: 0.95 } },
+    dark: { bg: { l: 30, s: 0.75 }, fg: { l: 88, s: 0.8 } },
+  },
+  ghost: {
+    light: { bg: null, fg: { l: 42, s: 1 } },
+    dark: { bg: null, fg: { l: 80, s: 0.85 } },
+  },
+} as const
+
+/**
+ * Background and foreground for an icon tile tinted from an arbitrary colour,
+ * matching how a themed (bookmark) tile looks. Returns `null` when the colour
+ * can't be parsed, so callers can fall back.
+ *
+ * `ghost` leaves the background to the caller — those tiles sit on varying
+ * surfaces, so a translucent wash reads better than an opaque tint.
+ */
+export function getCustomColorTint(
+  color: string,
+  variant: 'solid' | 'ghost',
+  isDark: boolean,
+): { background: string | null; foreground: string } | null {
+  const hsl = parseColorToHsl(color)
+  if (!hsl) return null
+
+  const target = COLOR_TINTS[variant][isDark ? 'dark' : 'light']
+  const shade = (t: { l: number; s: number }) =>
+    hslToHex(hsl.h, Math.min(100, hsl.s * t.s), t.l)
+
+  return {
+    background: target.bg ? shade(target.bg) : null,
+    foreground: shade(target.fg),
+  }
+}
+
+/**
  * Parse Tailwind/theme HSL string to hex.
  * Supports "hsl(H S% L%)" (space-separated, no commas) and "hsl(H, S%, L%)".
  */

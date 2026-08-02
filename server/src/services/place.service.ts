@@ -733,9 +733,9 @@ async function enrichPlaceWithWikiData(
  */
 async function enrichPlaceWithFoursquareData(
   place: Place,
-  options?: { premiumData?: boolean; signal?: AbortSignal },
+  options?: { premiumData?: boolean; language?: Language; signal?: AbortSignal },
 ): Promise<Place> {
-  const { premiumData = false, signal } = options || {}
+  const { premiumData = false, language, signal } = options || {}
   if (!premiumData) return place
 
   try {
@@ -773,7 +773,9 @@ async function enrichPlaceWithFoursquareData(
       fsqPlaceId = match.fsqPlaceId
     }
 
-    const fsqPlace = await fsq.capabilities.placeInfo?.getPlaceInfo(fsqPlaceId)
+    const fsqPlace = await fsq.capabilities.placeInfo?.getPlaceInfo(fsqPlaceId, {
+      language,
+    })
     if (!fsqPlace) return place
 
     return mergePlaces(place, fsqPlace)
@@ -856,7 +858,10 @@ export async function lookupEnrichedPlaceById(
     const [wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace] = await Promise.all([
       enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
       enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place))),
-      enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), { premiumData }),
+      enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), {
+        premiumData,
+        language,
+      }),
     ])
 
     // Merge the results (wiki data takes precedence for conflicts; Foursquare

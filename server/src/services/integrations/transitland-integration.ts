@@ -10,6 +10,7 @@ import {
 import { TransitDeparture, Place } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 import { logError, logger } from '../../lib/logger'
+import type { Language } from '../../lib/i18n'
 
 const TRANSITLAND_API_BASE_URL = 'https://transit.land/api/v2/rest'
 
@@ -420,7 +421,10 @@ export class TransitlandIntegration implements Integration<TransitlandConfig> {
    */
   private async getPlaceInfo(
     onestopId: string,
-    _options?: { language?: string },
+    // Language is accepted for interface parity but unused: stop names come
+    // from the agency's own GTFS feed, which publishes a single `stop_name`
+    // with no translations. Renaming a stop would misidentify it on the ground.
+    _options?: { language?: Language },
   ): Promise<Place | null> {
     try {
       const stop = await this.getStop(onestopId)

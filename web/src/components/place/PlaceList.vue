@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import PlaceListItem from './PlaceListItem.vue'
 import type { Place } from '@/types/place.types'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PlaceCardSkeleton } from '@/components/place/card'
 
 const props = withDefaults(defineProps<{
   places: Place[]
@@ -21,20 +21,7 @@ const emit = defineEmits<{
   <div class="w-full">
     <!-- Skeleton loading cards -->
     <div v-if="loading" class="space-y-2">
-      <div
-        v-for="i in 6"
-        :key="i"
-        class="rounded-xl border bg-card px-3 py-3"
-      >
-        <div class="flex items-start gap-3">
-          <Skeleton class="size-8 rounded-full shrink-0 mt-0.5" />
-          <div class="flex-1 flex flex-col gap-1.5 min-w-0">
-            <Skeleton class="h-[14px] rounded" :style="{ width: `${50 + (i * 13) % 40}%` }" />
-            <Skeleton class="h-[11px] rounded w-20" />
-            <Skeleton class="h-[11px] rounded" :style="{ width: `${40 + (i * 17) % 45}%` }" />
-          </div>
-        </div>
-      </div>
+      <PlaceCardSkeleton v-for="i in 6" :key="i" :seed="i" />
     </div>
 
     <!-- Empty State -->

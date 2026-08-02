@@ -27,7 +27,6 @@ import {
   ClockIcon,
   ExternalLinkIcon,
   FlagIcon,
-  FootprintsIcon,
   AccessibilityIcon,
   LogInIcon,
   LogOutIcon,
@@ -50,6 +49,7 @@ import {
 import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { PlaceCard } from '@/components/place/card'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
@@ -1210,36 +1210,20 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 </span>
               </div>
               <!-- Place info card — only for a real POI worth opening, not a
-                   plain address / shared location (those just repeat the title) -->
-              <router-link
+                   plain address / shared location (those just repeat the title).
+                   The waypoint row above already carries the name, so the card
+                   leads with the type instead of repeating it. -->
+              <PlaceCard
                 v-if="isPoiCard(entry.wp.place)"
-                :to="getPlaceRoute(entry.wp.place!.id!)"
-                class="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors"
-              >
-                <ItemIcon
-                  :icon="getSearchResultIconName(entry.wp.place as Place)"
-                  :icon-pack="getSearchResultIconPack(entry.wp.place as Place)"
-                  :custom-color="getCategoryColor(getSearchResultCategory(entry.wp.place as Place), themeStore.isDark)"
-                  size="xs"
-                  variant="ghost"
-                  shape="circle"
-                  class="shrink-0"
-                />
-                <div class="flex-1 min-w-0 flex flex-col">
-                  <span
-                    v-if="entry.wp.place!.placeType?.value"
-                    class="text-xs text-muted-foreground leading-snug"
-                  >
-                    {{ entry.wp.place!.placeType!.value }}
-                  </span>
-                  <span
-                    v-if="(entry.wp.place as any).summary"
-                    class="text-xs text-muted-foreground leading-snug"
-                  >
-                    {{ (entry.wp.place as any).summary }}
-                  </span>
-                </div>
-              </router-link>
+                :place="entry.wp.place as Place"
+                variant="inline"
+                size="xs"
+                density="compact"
+                icon-variant="ghost"
+                :title="entry.wp.place!.placeType?.value || undefined"
+                :subtitle="entry.wp.place!.summary ?? ''"
+                class="mt-1.5"
+              />
             </template>
 
             <!-- ═══ Place stop content (parking, etc.) ═══ -->
@@ -1259,7 +1243,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 </router-link>
               </div>
               <div
-                v-if="(entry.place as any).summary || entry.place.placeType?.value"
+                v-if="entry.place.summary || entry.place.placeType?.value"
                 class="mt-0.5 flex flex-col gap-0.5"
               >
                 <span
@@ -1269,10 +1253,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   {{ entry.place.placeType.value }}
                 </span>
                 <span
-                  v-if="(entry.place as any).summary"
+                  v-if="entry.place.summary"
                   class="text-xs text-muted-foreground"
                 >
-                  {{ (entry.place as any).summary }}
+                  {{ entry.place.summary }}
                 </span>
               </div>
             </template>

@@ -13,7 +13,7 @@ import {
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useDirectionsService } from '@/services/directions.service'
-import { Card } from '@/components/ui/card'
+import { PlaceCard } from '@/components/place/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,9 +69,10 @@ const directionsService = useDirectionsService()
 // no-op default.
 const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
 
-// Every frequent bookmark, resolved to its chip display: canonical types show
-// their fixed label ("Home") over the address; a custom frequent shows its own
-// name over the address.
+// Every frequent bookmark, with the title/subtitle overrides its row needs:
+// canonical types show their fixed label ("Home") over the address; a custom
+// frequent shows its own name. The icon and colour come from the bookmark
+// itself, resolved by PlaceCard.
 const frequentPlaces = computed(() =>
   bookmarksStore.bookmarks
     .filter(b => b.frequentType)
@@ -82,9 +83,6 @@ const frequentPlaces = computed(() =>
         bookmark: b,
         title: isCanonical ? t(meta.labelKey as string) : meta.title ?? b.name,
         secondary: isCanonical ? b.address || b.name : b.address || '',
-        icon: meta.icon,
-        iconPack: meta.iconPack,
-        color: meta.color,
       }
     }),
 )
@@ -171,54 +169,48 @@ async function removePreset(bookmark: Bookmark) {
   <div>
     <!-- Horizontally scrolling so a long list of places stays one row -->
     <div class="flex items-stretch gap-2 overflow-x-auto scrollbar-hidden -mx-1 px-1 py-0.5">
-      <Card
+      <!-- Tapping the tile starts directions rather than opening the place, so
+           the card doesn't navigate on its own. -->
+      <PlaceCard
         v-for="entry in frequentPlaces"
         :key="entry.bookmark.id"
-        class="relative shrink-0 w-44 py-1.5 pl-1.5 pr-1 flex items-center gap-1.5 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+        :bookmark="entry.bookmark"
+        variant="tile"
+        size="xs"
+        icon-variant="ghost"
+        :title="entry.title"
+        :subtitle="entry.secondary"
+        :navigate="false"
+        class="w-44 shadow-none cursor-pointer hover:bg-secondary/40"
         @click="startDirections(entry.bookmark)"
       >
-        <ItemIcon
-          :icon="entry.icon"
-          :icon-pack="entry.iconPack"
-          :color="entry.color"
-          size="xs"
-          variant="ghost"
-        />
-        <div class="min-w-0 flex-1 flex flex-col leading-tight">
-          <span class="text-xs font-medium truncate">{{ entry.title }}</span>
-          <span
-            v-if="entry.secondary"
-            class="text-[10px] text-muted-foreground truncate"
-          >
-            {{ entry.secondary }}
-          </span>
-        </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child @click.stop>
-            <button
-              class="shrink-0 size-5 rounded-md flex items-center justify-center text-muted-foreground hover:bg-secondary/70 hover:text-foreground transition-colors"
-              :aria-label="t('general.more')"
-            >
-              <MoreVerticalIcon class="size-3.5" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-44">
-            <DropdownMenuItem @click="startDirections(entry.bookmark)">
-              <NavigationIcon class="size-4 mr-2" />
-              {{ t('directions.directions') }}
-            </DropdownMenuItem>
-            <DropdownMenuItem @click="openBookmark(entry.bookmark)">
-              <MapPinIcon class="size-4 mr-2" />
-              {{ t('general.open') }}
-            </DropdownMenuItem>
-            <DropdownMenuItem class="text-destructive" @click="removePreset(entry.bookmark)">
-              <Trash2Icon class="size-4 mr-2" />
-              {{ t('general.remove') }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </Card>
+        <template #trailing>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child @click.stop>
+              <button
+                class="shrink-0 size-5 rounded-md flex items-center justify-center text-muted-foreground hover:bg-secondary/70 hover:text-foreground transition-colors"
+                :aria-label="t('general.more')"
+              >
+                <MoreVerticalIcon class="size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-44">
+              <DropdownMenuItem @click="startDirections(entry.bookmark)">
+                <NavigationIcon class="size-4 mr-2" />
+                {{ t('directions.directions') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="openBookmark(entry.bookmark)">
+                <MapPinIcon class="size-4 mr-2" />
+                {{ t('general.open') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem class="text-destructive" @click="removePreset(entry.bookmark)">
+                <Trash2Icon class="size-4 mr-2" />
+                {{ t('general.remove') }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </template>
+      </PlaceCard>
 
       <!-- Add: pick a category first — dropdown on desktop, sheet on mobile -->
       <ResponsiveDropdown

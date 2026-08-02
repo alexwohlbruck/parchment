@@ -20,8 +20,8 @@ import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
 import { appEventBus } from '@/lib/eventBus'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { getPlaceRoute } from '@/lib/place.utils'
-import { getCategoryColor } from '@/lib/place-colors'
+import { PlaceCard } from '@/components/place/card'
+import { recentPlaceToDisplay } from '@/lib/place-display'
 
 dayjs.extend(relativeTime)
 
@@ -108,20 +108,11 @@ function navigateToRoute(routeName: AppRoute) {
   router.push({ name: routeName })
 }
 
-function navigateToRecentPlace(place: RecentPlaceEntry) {
-  const route = getPlaceRoute(place.id)
-  if (route) {
-    minimizeSheet()
-    router.push(route)
-  }
-}
-
-function placeColor(place: RecentPlaceEntry): string {
-  return getCategoryColor(place.category ?? 'default', isDark.value)
-}
-
-function formatTimeAgo(date: string | number) {
-  return dayjs(date).fromNow()
+/** A recent's own subtitle, with how long ago it was viewed appended. */
+function recentSubtitle(place: RecentPlaceEntry): string {
+  return [place.subtitle, place.at && dayjs(place.at).fromNow()]
+    .filter(Boolean)
+    .join(' · ')
 }
 </script>
 
@@ -209,30 +200,17 @@ function formatTimeAgo(date: string | number) {
       <div v-if="recentPlaces.length > 0">
         <h3 class="text-lg mb-1.5 px-1">{{ t('general.recents') }}</h3>
         <div class="space-y-2">
-          <Card
+          <PlaceCard
             v-for="place in recentPlaces.slice(0, 5)"
             :key="place.id"
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
-            @click="navigateToRecentPlace(place)"
-          >
-            <ItemIcon
-              :icon="place.icon || 'MapPin'"
-              :icon-pack="place.iconPack ?? 'lucide'"
-              :custom-color="placeColor(place)"
-              size="sm"
-              variant="ghost"
-            />
-            <div class="grow min-w-0">
-              <div class="font-medium text-sm truncate">{{ place.title }}</div>
-              <div class="text-xs text-muted-foreground truncate">
-                <template v-if="place.subtitle">{{ place.subtitle }}</template>
-                <template v-if="place.at">
-                  <span v-if="place.subtitle"> · </span>
-                  {{ formatTimeAgo(place.at) }}
-                </template>
-              </div>
-            </div>
-          </Card>
+            :display="recentPlaceToDisplay(place, { isDark })"
+            variant="row"
+            size="sm"
+            icon-variant="ghost"
+            :subtitle="recentSubtitle(place)"
+            class="shadow-none"
+            @click="minimizeSheet()"
+          />
         </div>
       </div>
       </div>

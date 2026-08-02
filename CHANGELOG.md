@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Places now look the same everywhere they appear — search results, saved places, your frequent places, recents and trip stops all share one card, so an icon, a name and an address read the same way wherever you meet them
 * Category icons are now tinted in their own colour rather than sitting as a flat white glyph on a solid block, matching how your saved places have always looked
 * The search palette's browse shortcuts go from 12 categories to 44, including the small things other map apps skip — restrooms, drinking water, benches, picnic tables, bike parking, trash cans, bus stops and defibrillators. Each chip is now sized to its own label, and categories matching what you type appear as the same chips instead of taking up a list row each
+* Places now read in your language, not just the app around them. A place shows the name it's known by in your language where mappers have recorded one — the Hudson River is "Río Hudson" in Spanish — along with its type ("Parque" rather than "Park") and its detail tags ("Perros con correa", "Prohibido fumar"). You can search by that name too, so looking for "Consulado General de Irlanda" finds it
 
 ### Fixed
 
@@ -25,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Error messages from the server now come back in your language rather than always in English — sharing, saved places, routes, layers, vehicles, notes, account settings and the OpenStreetMap connection were all still answering in English regardless of what you'd set
 * Sign-in codes now actually expire. The email has always said the code is good for 15 minutes, but the server accepted it indefinitely — an old code sitting in a mailbox stayed usable until you requested a new one. Codes past 15 minutes are now refused, and entering one tells you it's expired rather than that it's wrong
 * Sign-in codes and invitation emails are now written in your language. Sign-in codes follow the language saved on your account; an invitation follows the language of whoever sent it, since the person receiving it doesn't have an account yet
+* Place descriptions from Wikipedia come back again. Parchment was asking for `en-US.wikipedia.org`, which doesn't exist, so the summary on a place's detail view had been silently blank in every language
 
 ## [0.5.10] - 2026-07-30
 

@@ -78,6 +78,11 @@ export interface MapSettings {
   placeLabels: boolean
   hdRoads: boolean
   /**
+   * Render indoor floor plans (airports, malls, stadiums) with a floor
+   * selector. Mapbox Standard style only, and only from zoom 16.
+   */
+  indoorMaps: boolean
+  /**
    * When true, snaps the map upright when a rotation ends close to north. This
    * is our own reimplementation — the engine's native `bearingSnap` is disabled
    * so the behavior can be toggled live (see map.service `snapRotation`).

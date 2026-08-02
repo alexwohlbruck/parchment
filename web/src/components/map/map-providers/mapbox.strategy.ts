@@ -1,5 +1,7 @@
 import { MapStrategy } from './map.strategy'
-import {
+// `IndoorControl` is only reachable through the default export — mapbox-gl's
+// typings don't re-export the experimental indoor API as a named binding.
+import mapboxgl, {
   Map as MapboxMap,
   NavigationControl,
   AttributionControl,
@@ -68,13 +70,18 @@ declare module 'mapbox-gl' {
   }
 }
 
+// Whether the loaded style imports the Standard `basemap` fragment. Config
+// properties (lightPreset, showIndoor, …) only exist on that import — the
+// satellite styles have none, so setting them there throws.
+function hasBasemapImport(map: MapboxMap): boolean {
+  return !!(map.style as any).fragments?.some((f: any) => f.id === 'basemap')
+}
+
 // Guard decorator to ensure the basemap is loaded
 function ifBasemapLoaded(target, name, descriptor) {
   const original = descriptor.value
   descriptor.value = function (...args) {
-    if (
-      this.mapInstance.style.fragments?.some((f: any) => f.id === 'basemap')
-    ) {
+    if (hasBasemapImport(this.mapInstance)) {
       original.apply(this, args)
     }
   }
@@ -120,6 +127,7 @@ export class MapboxStrategy extends MapStrategy {
   layerGroups: Map<string, MapLayerGroup> = new Map()
   private currentLanguage?: string
   private hdRoadsEnabled: boolean = false
+  private indoorControl?: InstanceType<typeof mapboxgl.IndoorControl>
 
   constructor(
     container,
@@ -432,12 +440,10 @@ export class MapboxStrategy extends MapStrategy {
     })
 
     // Get all route coordinates
-    const allCoordinates: mapboxgl.LngLatLike[] = directions.legs.flatMap(
-      leg => {
-        const shape = decodeShape(leg.shape)
-        return shape.map(([lat, lon]) => [lon, lat] as mapboxgl.LngLatLike)
-      },
-    )
+    const allCoordinates: LngLatLike[] = directions.legs.flatMap(leg => {
+      const shape = decodeShape(leg.shape)
+      return shape.map(([lat, lon]) => [lon, lat] as LngLatLike)
+    })
 
     // Create a bounds object that encompasses all coordinates
     const bounds = allCoordinates.reduce(
@@ -594,6 +600,32 @@ export class MapboxStrategy extends MapStrategy {
     } else {
       // Remove HD roads import
       this.mapInstance.removeImport('hd-roads')
+    }
+  }
+
+  /**
+   * Indoor floor plans, plus the floor selector needed to move between them.
+   * Standard style only — on satellite/hybrid there is no `basemap` import to
+   * configure, so the control would render an empty shell. Config properties
+   * reset on every style load, but the control persists across them, so the
+   * two are kept in sync independently.
+   */
+  setIndoorMaps(value: boolean) {
+    // A persisted settings object may predate this key, and setConfigProperty
+    // rejects `undefined` outright — coerce before handing it to the engine.
+    const enabled = !!value
+    const supported = hasBasemapImport(this.mapInstance)
+    if (supported) {
+      this.mapInstance.setConfigProperty('basemap', 'showIndoor', enabled)
+    }
+
+    const shouldShowControl = enabled && supported
+    if (shouldShowControl && !this.indoorControl) {
+      this.indoorControl = new mapboxgl.IndoorControl()
+      this.mapInstance.addControl(this.indoorControl, 'right')
+    } else if (!shouldShowControl && this.indoorControl) {
+      this.mapInstance.removeControl(this.indoorControl)
+      this.indoorControl = undefined
     }
   }
 

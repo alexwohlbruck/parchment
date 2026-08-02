@@ -331,12 +331,25 @@ export class BarrelmanIntegration
     try {
       const response = await barrelmanHttp.get(`${config.host}/health/auth`, {
         headers,
-        timeout: 5000,
+        // Generous, because /health/auth transitively probes MOTIS (3s of its
+        // own) — a tighter budget times out while Barrelman is merely busy
+        // starting up, and a failed test leaves it out of the cache entirely.
+        timeout: 10_000,
       })
-      if (response.data?.status === 'ok') {
+      // `degraded` means an optional subsystem is down — today that is MOTIS
+      // realtime, which affects transit only. Search, place detail, geocoding,
+      // tiles and routing all still serve. Refusing the connection there would
+      // drop EVERY Barrelman capability (initializeWithTest throws and the
+      // integration is never cached), turning a stale transit feed into a
+      // total search outage. Only `error` — the database being down — is fatal.
+      const status = response.data?.status
+      if (status === 'ok' || status === 'degraded') {
         return { success: true }
       }
-      return { success: false, message: 'Barrelman health check failed' }
+      return {
+        success: false,
+        message: `Barrelman health check failed${status ? `: ${status}` : ''}`,
+      }
     } catch (e: any) {
       if (e.response?.status === 401) {
         return {

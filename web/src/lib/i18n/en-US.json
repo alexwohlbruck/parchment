@@ -1507,6 +1507,8 @@
         "3dObjects": "3D objects",
         "hdRoads": "HD roads",
         "hdRoadsDescription": "High-definition road visualization with enhanced detail",
+        "indoorMaps": "Indoor maps",
+        "indoorMapsDescription": "Show floor plans for airports, malls and stadiums, with a floor selector. Requires the standard basemap.",
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",

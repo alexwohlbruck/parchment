@@ -22,6 +22,7 @@ import {
   TrainIcon,
   MapPinIcon,
   RouteIcon,
+  DoorOpenIcon,
 } from 'lucide-vue-next'
 import { useThemeStore, allColors } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
@@ -215,6 +216,21 @@ const handleColorChange = (value: any) => {
         <Switch
           :model-value="settings.hdRoads"
           @update:model-value="mapService.toggleHdRoads()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.indoorMaps')"
+        :description="
+          $t('settings.mapSettings.configuration.indoorMapsDescription')
+        "
+        :icon="DoorOpenIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
+      >
+        <Switch
+          :model-value="settings.indoorMaps"
+          @update:model-value="mapService.toggleIndoorMaps()"
         />
       </SettingsItem>
 

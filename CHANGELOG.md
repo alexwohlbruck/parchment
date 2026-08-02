@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Search, place detail and geocoding no longer go dark when Barrelman's transit data is stale. A single degraded subsystem was enough to make Parchment drop the connection entirely, taking every other Barrelman feature down with it
 * Error messages from the server now come back in your language rather than always in English — sharing, saved places, routes, layers, vehicles, notes, account settings and the OpenStreetMap connection were all still answering in English regardless of what you'd set
+* Sign-in codes now actually expire. The email has always said the code is good for 15 minutes, but the server accepted it indefinitely — an old code sitting in a mailbox stayed usable until you requested a new one. Codes past 15 minutes are now refused, and entering one tells you it's expired rather than that it's wrong
 * Sign-in codes and invitation emails are now written in your language. Sign-in codes follow the language saved on your account; an invitation follows the language of whoever sent it, since the person receiving it doesn't have an account yet
 
 ## [0.5.10] - 2026-07-30

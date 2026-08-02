@@ -98,9 +98,9 @@ mock.module('../services/user.service', () => ({
 const createServerToken = mock(
   async (_type: string, _userId: string, fixed?: string) => fixed ?? '12345678',
 )
-let tokenValid = true
+let tokenValidation: 'valid' | 'invalid' | 'expired' = 'valid'
 const validateServerToken = mock(
-  async (_token: string, _type: string, _userId: string) => tokenValid,
+  async (_token: string, _type: string, _userId: string) => tokenValidation,
 )
 
 mock.module('../services/token.service', () => ({
@@ -140,7 +140,7 @@ beforeEach(() => {
   billingEnabled = true
   existingUser = { id: 'user-1', email: 'user@parchment.test' }
   anyUsersExist = true
-  tokenValid = true
+  tokenValidation = 'valid'
   createSession.mockClear()
   destroySession.mockClear()
   destroyAllSessions.mockClear()
@@ -265,11 +265,23 @@ describe('POST /auth/sessions — OTP exchange', () => {
   })
 
   test('401s on an invalid OTP and mints no session', async () => {
-    tokenValid = false
+    tokenValidation = 'invalid'
 
     const res = await req(app).post('/auth/sessions', { body })
 
     expect(res.status).toBe(401)
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
+  test('401s on an expired OTP and says so', async () => {
+    // A stale code and a wrong code are different problems for the user: one
+    // means request a new one, the other means check what you typed.
+    tokenValidation = 'expired'
+
+    const res = await req(app).post('/auth/sessions', { body })
+
+    expect(res.status).toBe(401)
+    expect(res.body.message).toMatch(/expired/i)
     expect(createSession).not.toHaveBeenCalled()
   })
 

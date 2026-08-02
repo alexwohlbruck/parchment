@@ -19,6 +19,7 @@
       "passkeyNotFound": "Passkey does not exist for this user",
       "challengeNotFound": "Could not find challenge cookie",
       "invalidSession": "Invalid or expired session",
+      "otpExpired": "That code has expired. Request a new one to sign in.",
       "insufficientPermissions": "Insufficient permissions"
     },
     "notFound": {

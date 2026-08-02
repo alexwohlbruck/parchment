@@ -6,10 +6,12 @@
  *     read can't hand an attacker a live OTP;
  *   - an ephemeral token is deleted the moment it validates, making it
  *     single-use — otherwise a leaked OTP would stay valid for its whole
- *     lifetime.
+ *     lifetime;
+ *   - a code past its expiry is refused, so an OTP that leaks later (an old
+ *     email, a synced inbox) is worthless.
  *
  * The DB layer is mocked; what's under test is the hashing, the single-use
- * deletion, and the per-type code generation.
+ * deletion, the expiry check, and the per-type code generation.
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
@@ -21,7 +23,9 @@ const dbMock = createDbMock()
 mock.module('../db', () => ({ db: dbMock.db }))
 mock.module('../util', () => ({ generateId: () => 'generated-id' }))
 
-const { createServerToken, validateServerToken } = await import('./token.service')
+const { createServerToken, validateServerToken, TOKEN_TTL_MS } = await import(
+  './token.service'
+)
 
 /** The hash the service would store for a given plaintext code. */
 async function hashOf(code: string): Promise<string> {
@@ -93,6 +97,15 @@ describe('createServerToken', () => {
     expect((dbMock.inserted[0] as any).ephemeral).toBe(false)
   })
 
+  test('stamps an expiry one TTL out', async () => {
+    const before = Date.now()
+    await createServerToken('otp', 'user-1')
+
+    const expires = (dbMock.inserted[0] as any).expires as Date
+    expect(expires.getTime()).toBeGreaterThanOrEqual(before + TOKEN_TTL_MS)
+    expect(expires.getTime()).toBeLessThanOrEqual(Date.now() + TOKEN_TTL_MS)
+  })
+
   test('issues a different OTP each time', async () => {
     const codes = new Set<string>()
     for (let i = 0; i < 20; i++) {
@@ -110,20 +123,24 @@ describe('validateServerToken', () => {
     const hash = await hashOf('12345678')
     dbMock.queueSelect([{ id: 'tok-1', hash, ephemeral: true }])
 
-    expect(await validateServerToken('12345678', 'otp', 'user-1')).toBe(true)
+    expect(await validateServerToken('12345678', 'otp', 'user-1')).toBe('valid')
   })
 
   test('rejects a wrong code', async () => {
     const hash = await hashOf('12345678')
     dbMock.queueSelect([{ id: 'tok-1', hash, ephemeral: true }])
 
-    expect(await validateServerToken('87654321', 'otp', 'user-1')).toBe(false)
+    expect(await validateServerToken('87654321', 'otp', 'user-1')).toBe(
+      'invalid',
+    )
   })
 
   test('rejects when the user has no token of that type', async () => {
     dbMock.queueSelect([])
 
-    expect(await validateServerToken('12345678', 'otp', 'user-1')).toBe(false)
+    expect(await validateServerToken('12345678', 'otp', 'user-1')).toBe(
+      'invalid',
+    )
   })
 
   test('consumes an ephemeral token on success — single use', async () => {
@@ -139,7 +156,9 @@ describe('validateServerToken', () => {
     const hash = await hashOf('long-lived')
     dbMock.queueSelect([{ id: 'tok-1', hash, ephemeral: false }])
 
-    expect(await validateServerToken('long-lived', 'token', 'user-1')).toBe(true)
+    expect(await validateServerToken('long-lived', 'token', 'user-1')).toBe(
+      'valid',
+    )
     expect(dbMock.deleteCount).toBe(0)
   })
 
@@ -158,7 +177,70 @@ describe('validateServerToken', () => {
       { id: 'tok-2', hash: await hashOf('22222222'), ephemeral: true },
     ])
 
-    expect(await validateServerToken('22222222', 'otp', 'user-1')).toBe(true)
+    expect(await validateServerToken('22222222', 'otp', 'user-1')).toBe('valid')
+  })
+
+  test('rejects a correct code that has expired', async () => {
+    const hash = await hashOf('12345678')
+    dbMock.queueSelect([
+      {
+        id: 'tok-1',
+        hash,
+        ephemeral: true,
+        expires: new Date(Date.now() - 1000),
+      },
+    ])
+
+    expect(await validateServerToken('12345678', 'otp', 'user-1')).toBe(
+      'expired',
+    )
+  })
+
+  test('clears the expired token it refused', async () => {
+    const hash = await hashOf('12345678')
+    dbMock.queueSelect([
+      {
+        id: 'tok-1',
+        hash,
+        ephemeral: true,
+        expires: new Date(Date.now() - 1000),
+      },
+    ])
+
+    await validateServerToken('12345678', 'otp', 'user-1')
+
+    expect(dbMock.deleteCount).toBe(1)
+  })
+
+  test('accepts a code still inside its window', async () => {
+    const hash = await hashOf('12345678')
+    dbMock.queueSelect([
+      {
+        id: 'tok-1',
+        hash,
+        ephemeral: true,
+        expires: new Date(Date.now() + 60_000),
+      },
+    ])
+
+    expect(await validateServerToken('12345678', 'otp', 'user-1')).toBe('valid')
+  })
+
+  test('expiry applies to long-lived tokens too', async () => {
+    // OAuth state tokens are non-ephemeral in shape but still time-boxed.
+    const hash = await hashOf('long-lived')
+    dbMock.queueSelect([
+      {
+        id: 'tok-1',
+        hash,
+        ephemeral: false,
+        expires: new Date(Date.now() - 1000),
+      },
+    ])
+
+    expect(await validateServerToken('long-lived', 'token', 'user-1')).toBe(
+      'expired',
+    )
   })
 
   test('a row with no hash never matches', async () => {
@@ -166,7 +248,9 @@ describe('validateServerToken', () => {
     // matchable through the hash path with an undefined hash.
     dbMock.queueSelect([{ id: 'tok-1', value: '12345678', ephemeral: true }])
 
-    expect(await validateServerToken('12345678', 'otp', 'user-1')).toBe(false)
+    expect(await validateServerToken('12345678', 'otp', 'user-1')).toBe(
+      'invalid',
+    )
   })
 })
 
@@ -175,9 +259,16 @@ describe('round trip', () => {
     const code = await createServerToken('otp', 'user-1')
     const stored = dbMock.inserted[0] as any
 
-    dbMock.queueSelect([{ id: 'tok-1', hash: stored.hash, ephemeral: true }])
+    dbMock.queueSelect([
+      {
+        id: 'tok-1',
+        hash: stored.hash,
+        ephemeral: true,
+        expires: stored.expires,
+      },
+    ])
 
-    expect(await validateServerToken(code, 'otp', 'user-1')).toBe(true)
+    expect(await validateServerToken(code, 'otp', 'user-1')).toBe('valid')
   })
 
   test('the same code does not validate for a different stored hash', async () => {
@@ -187,6 +278,8 @@ describe('round trip', () => {
       { id: 'tok-1', hash: await hashOf('99999999'), ephemeral: true },
     ])
 
-    expect(await validateServerToken('11111111', 'otp', 'user-1')).toBe(false)
+    expect(await validateServerToken('11111111', 'otp', 'user-1')).toBe(
+      'invalid',
+    )
   })
 })

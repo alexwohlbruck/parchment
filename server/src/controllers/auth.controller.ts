@@ -107,7 +107,8 @@ app.post(
   {
     detail: {
       tags: ['Auth'],
-      description: 'Verify an email address by requesting a one-time password.',
+      description:
+        'Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use.',
     },
     body: t.Object({
       email: t.String({
@@ -443,10 +444,15 @@ app.group('/sessions', (app) => {
         return status(404, { message: t('errors.notFound.user') })
       }
 
-      const isValid = await validateServerToken(token, 'otp', user.id)
+      const validation = await validateServerToken(token, 'otp', user.id)
 
-      if (!isValid)
-        return status(401, { message: t('errors.auth.invalidSession') })
+      if (validation !== 'valid')
+        return status(401, {
+          message:
+            validation === 'expired'
+              ? t('errors.auth.otpExpired')
+              : t('errors.auth.invalidSession'),
+        })
 
       const session = await createSession(user.id, context)
 

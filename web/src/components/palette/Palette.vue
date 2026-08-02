@@ -604,7 +604,7 @@ const filterFunction = computed(() => {
                       v-for="argumentOption in row"
                       :key="argumentOption.value"
                       type="button"
-                      class="shrink-0 flex items-center gap-1.5 rounded-full border bg-card hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
+                      class="shrink-0 flex items-center gap-1.5 rounded-full border bg-card depth hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
                       @click="onArgumentSelected(argumentOption.value)"
                     >
                       <ItemIcon

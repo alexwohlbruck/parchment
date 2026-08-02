@@ -173,7 +173,12 @@ function chipRows(items: CommandArgumentOption[]): CommandArgumentOption[][] {
 // a two-column grid of chips. Extend this map to add more.
 const GROUP_LAYOUT: Record<string, 'list' | 'tiles' | 'chips'> = {
   frequents: 'tiles',
+  // Category results are browse shortcuts whether they were suggested for an
+  // empty query or matched against a typed one, so both render as chips —
+  // several fit in the space one list row would take, and they read as
+  // "narrow the search" rather than "here is a result".
   suggestedCategories: 'chips',
+  categories: 'chips',
 }
 
 const groupedArgumentOptions = computed(() => {

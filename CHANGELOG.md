@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Looking up an address — right-clicking the map, dropping a pin, searching a street — now answers from your own Barrelman instance instead of the public OpenStreetMap geocoder. It's faster, isn't rate limited, and the place you land on comes back with its real outline, opening hours and tags rather than just a name. Nominatim and the other providers stay on as fallbacks for anywhere outside the regions you've imported
 * Right-clicking somewhere with nothing on it — a park, a field, open water — now names the town or city you're in instead of coming back blank
 * Places now look the same everywhere they appear — search results, saved places, your frequent places, recents and trip stops all share one card, so an icon, a name and an address read the same way wherever you meet them
+* Category icons are now tinted in their own colour rather than sitting as a flat white glyph on a solid block, matching how your saved places have always looked
+* The search palette's browse shortcuts go from 12 categories to 44, including the small things other map apps skip — restrooms, drinking water, benches, picnic tables, bike parking, trash cans, bus stops and defibrillators. Each chip is now sized to its own label, and categories matching what you type appear as the same chips instead of taking up a list row each
 
 ### Fixed
 

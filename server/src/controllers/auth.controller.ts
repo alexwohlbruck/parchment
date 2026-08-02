@@ -69,7 +69,7 @@ const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
 app.post(
   '/verify',
-  async ({ body: { email }, set, status, t }) => {
+  async ({ body: { email }, set, status, t, language }) => {
     let user = await fetchUserByEmail(email)
 
     if (!user) {
@@ -91,7 +91,12 @@ app.post(
     )
     const emailSuccess = isAppTester
       ? true
-      : await sendEmailVerificationCode(user.email, verificationCode)
+      : await sendEmailVerificationCode(
+          user.email,
+          verificationCode,
+          user.id,
+          language,
+        )
 
     if (emailSuccess) {
       set.status = 201

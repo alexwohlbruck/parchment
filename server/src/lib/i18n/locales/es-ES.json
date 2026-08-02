@@ -186,19 +186,17 @@
   "email": {
     "verificationCode": {
       "subject": "Verificación de correo de Parchment",
-      "preheader": "Tu código de verificación de Parchment",
-      "heading": "Verifica tu correo",
-      "body": "Introduce este código para terminar de iniciar sesión en Parchment.",
-      "expiry": "Este código caduca en {{minutes}} minutos.",
+      "heading": "Inicia sesión en Parchment",
+      "body": "Introduce este código para verificar tu identidad.",
+      "expiry": "Este código caduca en 15 minutos.",
       "ignore": "Si no has solicitado esto, puedes ignorar este correo."
     },
     "invitation": {
       "subject": "Te han invitado a Parchment Maps",
-      "preheader": "Te han invitado a Parchment",
-      "heading": "Te han invitado a Parchment",
-      "body": "Alguien te ha invitado a unirte a su servidor de Parchment. Abre el enlace de abajo para crear tu cuenta.",
+      "heading": "Te han invitado",
+      "body": "Te han invitado a unirte a Parchment Maps. Pulsa el botón de abajo para empezar.",
       "cta": "Empezar",
-      "ignore": "Si no esperabas esta invitación, puedes ignorar este correo."
+      "fallback": "O copia y pega este enlace en tu navegador:"
     }
   },
   "success": {

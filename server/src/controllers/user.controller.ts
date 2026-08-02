@@ -132,7 +132,7 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_CREATE))
     .post(
       '/',
-      async ({ body, user, status, t }) => {
+      async ({ body, user, status, t, language }) => {
         const roleIds = body.roles?.length ? body.roles : ['user']
 
         // Assigning roles on invite is privileged. Callers with USERS_UPDATE
@@ -197,11 +197,13 @@ app.group('', (admin) =>
 
         const userRoles = await getRoles(newUser.id)
 
+        // The invitee has no account yet, so there is no saved preference to
+        // read — the inviter's request language is the best signal available.
         sendMail({
           to: newUser.email,
-          subject: 'You are invited to Parchment Maps',
           template: 'invitation',
           data: { appUrl: clientOrigin },
+          language,
         }).catch(err => logger.error(err, 'Failed to send invitation email'))
 
         return {

@@ -9,15 +9,22 @@ import type { Language, TranslateFn } from './i18n.types'
  */
 const initialization = i18next.init(getI18nInitOptions())
 
+/** A translate function bound to `language` — for work that happens outside a
+ * request handler, such as sending email. */
+export function translate(language: Language): TranslateFn {
+  return i18next.getFixedT(language) as unknown as TranslateFn
+}
+
 /** Resolve the language for a raw request — for `onError` and other places
  * outside a handler, where the plugin's derived context isn't available. */
 export function translatorFor(request: Request): TranslateFn {
   const url = new URL(request.url)
-  const language = detectLanguage(
-    url.searchParams.get('lang') ?? undefined,
-    request.headers.get('accept-language') ?? undefined,
+  return translate(
+    detectLanguage(
+      url.searchParams.get('lang') ?? undefined,
+      request.headers.get('accept-language') ?? undefined,
+    ),
   )
-  return i18next.getFixedT(language) as unknown as TranslateFn
 }
 
 /**
@@ -44,9 +51,6 @@ export const i18nPlugin = new Elysia({ name: 'parchment-i18n' }).derive(
       url.searchParams.get('lang') ?? undefined,
       request.headers.get('accept-language') ?? undefined,
     )
-    return {
-      t: i18next.getFixedT(language) as unknown as TranslateFn,
-      language,
-    }
+    return { t: translate(language), language }
   },
 )

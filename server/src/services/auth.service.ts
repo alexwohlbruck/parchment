@@ -16,6 +16,8 @@ import { roleToPermissions } from '../schema/roles-permissions.schema'
 import { AuthenticatorTransportFuture } from '@simplewebauthn/types'
 import { sessions } from '../schema/sessions.schema'
 import { sendMail } from './mailer.service'
+import { resolveEmailLanguage } from './user-preferences.service'
+import type { Language } from '../lib/i18n/i18n.types'
 import { isEmailConfigured } from '../config/mailer.config'
 import { roles } from '../schema/roles.schema'
 import { rotateAllForUser } from './device-wrap-secrets.service'
@@ -116,19 +118,26 @@ export async function destroyOtherSessions(
  * Send a one-time verification code to a user's email inbox
  * @param email Email address of the user
  * @param code Code to send
+ * @param userId Recipient, when known — their saved language wins over the request's
+ * @param requestLanguage Language of the request that triggered the send
  * @returns Whether email was successfully sent
  */
-export async function sendEmailVerificationCode(email: string, code: string) {
+export async function sendEmailVerificationCode(
+  email: string,
+  code: string,
+  userId: string | null = null,
+  requestLanguage?: Language,
+) {
   if (process.env.NODE_ENV === 'development' || !isEmailConfigured) {
     logger.debug(`One time verification code: ${code}`)
   }
   await sendMail({
     to: email,
-    subject: 'Parchment Email Verification',
     template: 'verification-code',
     data: {
       code,
     },
+    language: await resolveEmailLanguage(userId, requestLanguage),
   })
   return true
 }

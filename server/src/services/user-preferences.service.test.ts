@@ -18,6 +18,7 @@ const {
   getUserPreferences,
   getOrCreateUserPreferences,
   updateUserPreferences,
+  resolveEmailLanguage,
 } = await import('./user-preferences.service')
 
 const existingRow = {
@@ -167,5 +168,35 @@ describe('updateUserPreferences', () => {
     await expect(
       updateUserPreferences('user-1', { language: 'en-US' }),
     ).rejects.toThrow('Failed to create user preferences')
+  })
+})
+
+describe('resolveEmailLanguage', () => {
+  test("prefers the recipient's saved language", async () => {
+    dbMock.queueSelect([existingRow])
+
+    expect(await resolveEmailLanguage('user-1', 'en-US')).toBe('es-ES')
+  })
+
+  test('falls back to the request language when nothing is saved', async () => {
+    dbMock.queueSelect([])
+
+    expect(await resolveEmailLanguage('user-1', 'es-ES')).toBe('es-ES')
+  })
+
+  test('ignores a saved value the resources do not cover', async () => {
+    dbMock.queueSelect([{ ...existingRow, language: 'fr-FR' }])
+
+    expect(await resolveEmailLanguage('user-1', 'en-US')).toBe('en-US')
+  })
+
+  test('skips the lookup entirely for a recipient with no account', async () => {
+    expect(await resolveEmailLanguage(null, 'es-ES')).toBe('es-ES')
+  })
+
+  test('defaults when the request language is unknown too', async () => {
+    dbMock.queueSelect([])
+
+    expect(await resolveEmailLanguage('user-1')).toBe(DEFAULT_LANGUAGE)
   })
 })

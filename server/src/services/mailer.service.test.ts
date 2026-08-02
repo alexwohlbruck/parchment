@@ -5,7 +5,9 @@
  * self-hosted case) sending must be a logged no-op rather than a throw, or
  * every sign-in attempt would 500. Template rendering also has to replace ALL
  * occurrences of a placeholder — `replaceAll`, not `replace` — since the
- * verification code appears more than once in the HTML.
+ * verification code appears more than once in the HTML. Subject and body copy
+ * come from the locale files, so they follow the recipient's language rather
+ * than anything the caller passes in.
  */
 
 import { describe, test, expect, mock, beforeEach } from 'bun:test'
@@ -57,7 +59,6 @@ describe('sendMail', () => {
   test('sends through the configured transport', async () => {
     const result = await sendMail({
       to: 'user@parchment.test',
-      subject: 'Your code',
       template: 'verification-code',
       data: { code: '12345678' },
     })
@@ -69,7 +70,6 @@ describe('sendMail', () => {
   test('addresses the message from the configured sender', async () => {
     await sendMail({
       to: 'user@parchment.test',
-      subject: 'Your code',
       template: 'verification-code',
       data: { code: '12345678' },
     })
@@ -77,14 +77,26 @@ describe('sendMail', () => {
     expect(sendMailImpl.mock.calls[0][0]).toMatchObject({
       from: 'Parchment <no-reply@parchment.test>',
       to: 'user@parchment.test',
-      subject: 'Your code',
+      subject: 'Parchment Email Verification',
     })
+  })
+
+  test('takes the subject from the recipient language, not the caller', async () => {
+    await sendMail({
+      to: 'user@parchment.test',
+      template: 'verification-code',
+      data: { code: '1' },
+      language: 'es-ES',
+    })
+
+    expect(sendMailImpl.mock.calls[0][0].subject).toBe(
+      'Verificación de correo de Parchment',
+    )
   })
 
   test('accepts a list of recipients', async () => {
     await sendMail({
       to: ['a@parchment.test', 'b@parchment.test'],
-      subject: 'Hi',
       template: 'verification-code',
       data: { code: '1' },
     })
@@ -101,7 +113,6 @@ describe('template rendering', () => {
     // The code appears twice in the real template; `replace` would leave one.
     await sendMail({
       to: 'user@parchment.test',
-      subject: 'Your code',
       template: 'verification-code',
       data: { code: '12345678' },
     })
@@ -114,7 +125,6 @@ describe('template rendering', () => {
   test('injects the absolute logo URL from the server origin', async () => {
     await sendMail({
       to: 'user@parchment.test',
-      subject: 'Your code',
       template: 'verification-code',
       data: { code: '1' },
     })
@@ -124,10 +134,27 @@ describe('template rendering', () => {
     expect(html).not.toContain('{{logoUrl}}')
   })
 
+  test('fills the body copy in the requested language', async () => {
+    readFileSync.mockImplementationOnce(
+      () => '<html lang="{{lang}}"><h1>{{heading}}</h1><p>{{body}}</p></html>',
+    )
+
+    await sendMail({
+      to: 'user@parchment.test',
+      template: 'verification-code',
+      data: { code: '1' },
+      language: 'es-ES',
+    })
+
+    const { html } = sendMailImpl.mock.calls[0][0]
+    expect(html).toContain('lang="es-ES"')
+    expect(html).toContain('Inicia sesión en Parchment')
+    expect(html).not.toContain('{{heading}}')
+  })
+
   test('reads the template matching the requested name', async () => {
     await sendMail({
       to: 'user@parchment.test',
-      subject: 'Invite',
       template: 'invitation',
       data: { appUrl: 'https://app.parchment.test' },
     })

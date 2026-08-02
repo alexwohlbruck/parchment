@@ -24,6 +24,9 @@ export function getI18nInitOptions(): InitOptions {
       es: { translation: esESResource },
     },
     interpolation: { escapeValue: false },
+    // i18next otherwise console.info's a sponsor notice on every init, which
+    // lands in the server logs and in every test run's output.
+    showSupportNotice: false,
   }
 }
 

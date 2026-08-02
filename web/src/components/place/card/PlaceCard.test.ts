@@ -127,6 +127,18 @@ describe('PlaceCard variants', () => {
     expect(w.element.tagName).toBe('DIV')
   })
 
+  it('can act as a button when the card performs an action', () => {
+    // The palette hands the value back rather than navigating, so its tiles
+    // need to be real buttons.
+    const w = mountCard({ navigate: false, as: 'button' })
+    expect(w.element.tagName).toBe('BUTTON')
+    expect(w.attributes('type')).toBe('button')
+  })
+
+  it('ignores `as` while navigating, so the link stays a link', () => {
+    expect(mountCard({ as: 'button' }).element.tagName).toBe('A')
+  })
+
   it('chip collapses to icon and title only', () => {
     const w = mountCard({ variant: 'chip', density: 'rich' })
     expect(w.text()).toContain('Blue Bottle Coffee')

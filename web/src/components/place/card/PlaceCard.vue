@@ -51,6 +51,12 @@ const props = withDefaults(
     iconShape?: 'circle' | 'square'
     /** Navigate to the place detail view on click. */
     navigate?: boolean
+    /**
+     * Root element when the card doesn't navigate. Use `button` where the card
+     * performs an action rather than going somewhere — but not when the card
+     * holds its own controls, since a nested button is invalid markup.
+     */
+    as?: string
     /** Overrides the derived title. */
     title?: string
     /**
@@ -68,6 +74,7 @@ const props = withDefaults(
     iconVariant: 'solid',
     iconShape: 'circle',
     navigate: true,
+    as: 'div',
   },
 )
 
@@ -234,7 +241,7 @@ const hoverClass = computed(() => {
  * A real link when it navigates, so middle-click and copy-link behave — a
  * `router.push` handler would swallow both.
  */
-const rootTag = computed(() => (isInteractive.value ? RouterLink : 'div'))
+const rootTag = computed(() => (isInteractive.value ? RouterLink : props.as))
 
 function onClick() {
   // Seed the detail view with the record already in hand so it renders
@@ -249,7 +256,8 @@ function onClick() {
   <component
     :is="rootTag"
     :to="isInteractive ? item.route : undefined"
-    class="transition-colors no-underline text-inherit"
+    :type="rootTag === 'button' ? 'button' : undefined"
+    class="transition-colors no-underline text-inherit text-left"
     :class="[
       SURFACES[variant],
       hoverClass,

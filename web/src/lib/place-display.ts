@@ -52,6 +52,33 @@ export interface PlaceDisplay {
 /** Minimal translation function — matches the `t` from `useI18n`. */
 type TFn = (key: string) => string
 
+/**
+ * Build a display record from whatever fields a caller has, defaulting the
+ * rest to "nothing to render". For sources that are neither a `Place` nor a
+ * `Bookmark` — command-palette options, for instance — where spelling out
+ * every null at the call site would bury the two fields that matter.
+ */
+export function makePlaceDisplay(
+  fields: Partial<PlaceDisplay> & { title: string },
+): PlaceDisplay {
+  return {
+    id: null,
+    icon: 'MapPin',
+    iconPack: 'lucide',
+    imageUrl: null,
+    placeType: null,
+    address: null,
+    summary: null,
+    phone: null,
+    rating: null,
+    reviewCount: null,
+    openState: null,
+    hoursText: null,
+    route: null,
+    ...fields,
+  }
+}
+
 export interface PlaceDisplayOptions {
   isDark: boolean
   t: TFn

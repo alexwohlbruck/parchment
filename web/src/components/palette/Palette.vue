@@ -32,6 +32,8 @@ import {
   SettingsIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { PlaceCard } from '@/components/place/card'
+import { makePlaceDisplay } from '@/lib/place-display'
 import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
@@ -134,6 +136,24 @@ const SEARCH_GROUP_ORDER = [
   'categories',
   'places',
 ] as const
+
+/**
+ * A palette option rendered as a place. Tile groups (Frequents) are saved
+ * places, so they get the same card the rest of the app uses; the option
+ * carries no route because selecting one hands the value back to the palette
+ * rather than navigating.
+ */
+function optionDisplay(option: CommandArgumentOption) {
+  return makePlaceDisplay({
+    title: option.name,
+    icon: option.iconName ?? 'MapPin',
+    iconPack: option.iconPack ?? 'lucide',
+    color: option.color,
+    customColor: option.iconColor,
+    imageUrl: option.imageUrl ?? null,
+    address: option.description ?? null,
+  })
+}
 
 // Layout per group. Most groups render as a vertical list; Frequents renders as
 // a horizontal row of tile cards, and the common-categories browse shortcuts as
@@ -531,30 +551,20 @@ const filterFunction = computed(() => {
                 v-if="group.layout === 'tiles'"
                 class="flex items-stretch gap-2 overflow-x-auto scrollbar-hidden px-1 pb-1"
               >
-                <button
+                <!-- Selecting hands the value back to the palette rather than
+                     navigating, so the card acts as a button. -->
+                <PlaceCard
                   v-for="argumentOption in group.items"
                   :key="argumentOption.value"
-                  type="button"
-                  class="shrink-0 w-40 p-2 flex items-center gap-2 rounded-lg border bg-card hover:bg-secondary/40 transition-colors text-left"
+                  :display="optionDisplay(argumentOption)"
+                  variant="tile"
+                  size="xs"
+                  icon-variant="ghost"
+                  :navigate="false"
+                  as="button"
+                  class="w-40 hover:bg-secondary/40"
                   @click="onArgumentSelected(argumentOption.value)"
-                >
-                  <ItemIcon
-                    :icon="argumentOption.iconName"
-                    :icon-pack="argumentOption.iconPack"
-                    :color="argumentOption.color"
-                    size="xs"
-                    variant="ghost"
-                  />
-                  <div class="min-w-0 flex-1 flex flex-col leading-tight">
-                    <span class="text-sm font-medium truncate">{{ argumentOption.name }}</span>
-                    <span
-                      v-if="argumentOption.description"
-                      class="text-xs text-muted-foreground truncate"
-                    >
-                      {{ argumentOption.description }}
-                    </span>
-                  </div>
-                </button>
+                />
               </div>
 
               <!-- Chip layout: two-row, horizontally scrolling browse shortcuts (Categories). -->

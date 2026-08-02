@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { placeToDisplay, bookmarkToDisplay, recentPlaceToDisplay } from './place-display'
+import {
+  placeToDisplay,
+  bookmarkToDisplay,
+  recentPlaceToDisplay,
+  makePlaceDisplay,
+} from './place-display'
 import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 
@@ -122,6 +127,30 @@ describe('bookmarkToDisplay', () => {
   it('routes by external id rather than bookmark id', () => {
     expect(bookmarkToDisplay(bookmark()).route).not.toBeNull()
     expect(bookmarkToDisplay(bookmark({ externalIds: {} })).route).toBeNull()
+  })
+})
+
+describe('makePlaceDisplay', () => {
+  it('defaults every unsupplied field to "nothing to render"', () => {
+    const d = makePlaceDisplay({ title: 'Work' })
+    expect(d.title).toBe('Work')
+    expect(d.icon).toBe('MapPin')
+    expect(d.iconPack).toBe('lucide')
+    expect(d.address).toBeNull()
+    expect(d.rating).toBeNull()
+    expect(d.route).toBeNull()
+  })
+
+  it('keeps what the caller supplies', () => {
+    const d = makePlaceDisplay({
+      title: 'Home',
+      icon: 'Home',
+      color: 'cobalt',
+      address: '139 Rogers Avenue',
+    })
+    expect(d.icon).toBe('Home')
+    expect(d.color).toBe('cobalt')
+    expect(d.address).toBe('139 Rogers Avenue')
   })
 })
 

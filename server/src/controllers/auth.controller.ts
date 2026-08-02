@@ -45,9 +45,9 @@ import {
 import { generateId } from '../util'
 import { billing, registrationMode } from '../config'
 import { getSubscriptionStatus } from '../services/subscription.service'
-import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 // Rate limits on the PRF-options endpoints. These hand out WebAuthn
 // challenges that an attacker with a valid session cookie could
@@ -65,7 +65,7 @@ const prfEnrollRateLimit = makeUserRateLimit({
   windowMs: 60_000,
 })
 
-const app = new Elysia({ prefix: '/auth' })
+const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
 app.post(
   '/verify',
@@ -381,13 +381,13 @@ app.group('/passkeys', (app) => {
     .use(prfEnrollRateLimit)
     .post(
       '/:credentialId/prf-enroll/options',
-      async ({ user, params, status }) => {
+      async ({ user, params, status, t }) => {
         const options = await generatePrfEnrollOptionsForCredential(
           user.id,
           params.credentialId,
         )
         if (!options) {
-          return status(404, { message: 'Passkey not found' })
+          return status(404, { message: t('errors.auth.passkeyNotFound') })
         }
         return options
       },

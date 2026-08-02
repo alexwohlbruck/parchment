@@ -106,7 +106,7 @@ describe('GET /public/collections/:token', () => {
     const res = await req(app).get('/public/collections/revoked')
 
     expect(res.status).toBe(404)
-    expect(res.body).toEqual({ error: 'Not found' })
+    expect(res.body).toEqual({ error: 'Resource not found' })
   })
 
   test('the 404 body reveals nothing about why the token failed', async () => {
@@ -114,7 +114,7 @@ describe('GET /public/collections/:token', () => {
 
     const res = await req(app).get('/public/collections/never-existed')
 
-    expect(res.body).toEqual({ error: 'Not found' })
+    expect(res.body).toEqual({ error: 'Resource not found' })
   })
 })
 
@@ -160,7 +160,7 @@ describe('GET /public/routes/:token', () => {
     const res = await req(app).get('/public/routes/revoked')
 
     expect(res.status).toBe(404)
-    expect(res.body).toEqual({ error: 'Not found' })
+    expect(res.body).toEqual({ error: 'Resource not found' })
   })
 })
 

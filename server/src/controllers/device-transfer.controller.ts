@@ -4,6 +4,7 @@ import { db } from '../db'
 import { deviceTransferSessions } from '../schema/device-transfer.schema'
 import { generateId } from '../util'
 import { requireAuth } from '../middleware/auth.middleware'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 /**
  * Device-to-device recovery transfer relay (Part C.8).
@@ -17,7 +18,7 @@ import { requireAuth } from '../middleware/auth.middleware'
  * createSession below).
  */
 
-const app = new Elysia()
+const app = new Elysia().use(i18nPlugin)
 
 const SESSION_TTL_MS = 60_000
 const RATE_LIMIT_WINDOW_MS = 60 * 60_000
@@ -85,7 +86,7 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).post(
   '/device-transfer/:id/upload',
-  async ({ user, params, body, status }) => {
+  async ({ user, params, body, status, t }) => {
     // Atomic conditional update: only succeeds if the session exists, belongs
     // to this user, is still unconsumed, unexpired, and has no payload yet.
     // Race-safe — two concurrent sender uploads can't both "win" and overwrite
@@ -118,19 +119,19 @@ app.use(requireAuth).post(
       .from(deviceTransferSessions)
       .where(eq(deviceTransferSessions.id, params.id))
       .limit(1)
-    if (!row[0]) return status(404, { message: 'Session not found' })
+    if (!row[0]) return status(404, { message: t('errors.deviceTransfer.sessionNotFound') })
     if (row[0].userId !== user.id) {
-      return status(403, { message: 'Session belongs to another user' })
+      return status(403, { message: t('errors.deviceTransfer.sessionNotYours') })
     }
     if (row[0].consumed) {
-      return status(410, { message: 'Session already consumed' })
+      return status(410, { message: t('errors.deviceTransfer.sessionConsumed') })
     }
     if (row[0].expiresAt.getTime() < Date.now()) {
-      return status(410, { message: 'Session expired' })
+      return status(410, { message: t('errors.deviceTransfer.sessionExpired') })
     }
     // sealedSeed already populated — either a double-submit from this sender
     // or a race another sender won.
-    return status(409, { message: 'Payload already uploaded' })
+    return status(409, { message: t('errors.deviceTransfer.payloadAlreadyUploaded') })
   },
   {
     params: t.Object({ id: t.String() }),
@@ -151,25 +152,25 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).get(
   '/device-transfer/:id',
-  async ({ user, params, status }) => {
+  async ({ user, params, status, t }) => {
     const row = await db
       .select()
       .from(deviceTransferSessions)
       .where(eq(deviceTransferSessions.id, params.id))
       .limit(1)
-    if (!row[0]) return status(404, { message: 'Session not found' })
+    if (!row[0]) return status(404, { message: t('errors.deviceTransfer.sessionNotFound') })
     if (row[0].userId !== user.id) {
-      return status(403, { message: 'Session belongs to another user' })
+      return status(403, { message: t('errors.deviceTransfer.sessionNotYours') })
     }
     if (row[0].consumed) {
-      return status(410, { message: 'Session already consumed' })
+      return status(410, { message: t('errors.deviceTransfer.sessionConsumed') })
     }
     if (row[0].expiresAt.getTime() < Date.now()) {
-      return status(410, { message: 'Session expired' })
+      return status(410, { message: t('errors.deviceTransfer.sessionExpired') })
     }
     if (!row[0].sealedSeed) {
       // Not yet uploaded — receiver should poll.
-      return status(425, { message: 'Payload not yet uploaded' })
+      return status(425, { message: t('errors.deviceTransfer.payloadNotUploaded') })
     }
 
     // Atomically mark consumed. If someone else grabbed it first, bail.
@@ -184,7 +185,7 @@ app.use(requireAuth).get(
       )
       .returning()
     if (consumedResult.length === 0) {
-      return status(410, { message: 'Session already consumed' })
+      return status(410, { message: t('errors.deviceTransfer.sessionConsumed') })
     }
 
     return {

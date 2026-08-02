@@ -43,10 +43,9 @@ import { isValidAlias } from '../lib/crypto'
 import { billing } from '../config'
 import { logger } from '../lib/logger'
 import { getAdminUserSubscriptionInfo } from '../services/subscription.service'
-import { i18next } from 'elysia-i18next'
-import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/users' })
+const app = new Elysia({ prefix: '/users' }).use(i18nPlugin)
 
 // Admin routes — scoped inside a group so the permissions() middleware
 // does not leak into the /me/* routes below.
@@ -133,7 +132,7 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_CREATE))
     .post(
       '/',
-      async ({ body, user, status }) => {
+      async ({ body, user, status, t }) => {
         const roleIds = body.roles?.length ? body.roles : ['user']
 
         // Assigning roles on invite is privileged. Callers with USERS_UPDATE
@@ -148,7 +147,7 @@ app.group('', (admin) =>
           const disallowed = roleIds.filter((r) => !grantable.has(r))
           if (disallowed.length) {
             return status(403, {
-              message: 'You can only invite users with your own roles',
+              message: t('errors.user.inviteRolesNotOwned'),
             })
           }
         }
@@ -160,7 +159,7 @@ app.group('', (admin) =>
           .where(inArray(roles.id, roleIds))
 
         if (existingRoles.length !== roleIds.length) {
-          return status(400, { message: 'One or more role IDs are invalid' })
+          return status(400, { message: t('errors.user.invalidRoleIds') })
         }
 
         let result
@@ -182,7 +181,7 @@ app.group('', (admin) =>
           const code = err?.code ?? err?.cause?.code
           if (code === '23505') {
             return status(409, {
-              message: 'A user with this email already exists',
+              message: t('errors.user.emailAlreadyExists'),
             })
           }
           throw err
@@ -250,14 +249,14 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.ROLES_READ))
     .get(
       '/roles/:id',
-      async ({ params, status }) => {
+      async ({ params, status, t }) => {
         const [role] = await db
           .select()
           .from(roles)
           .where(eq(roles.id, params.id))
           .limit(1)
 
-        if (!role) return status(404, { message: 'Role not found' })
+        if (!role) return status(404, { message: t('errors.user.roleNotFound') })
 
         const rolePerms = await db
           .select({
@@ -302,7 +301,7 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.ROLES_CREATE))
     .post(
       '/roles',
-      async ({ body, status }) => {
+      async ({ body, status, t }) => {
         const id = body.id || generateId()
 
         // Check for duplicate ID
@@ -322,7 +321,7 @@ app.group('', (admin) =>
             .from(permissionsSchema)
             .where(inArray(permissionsSchema.id, body.permissions))
           if (existingPerms.length !== body.permissions.length) {
-            return status(400, { message: 'One or more permission IDs are invalid' })
+            return status(400, { message: t('errors.user.invalidPermissionIds') })
           }
         }
 
@@ -365,16 +364,16 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.ROLES_WRITE))
     .patch(
       '/roles/:id',
-      async ({ params, body, status }) => {
+      async ({ params, body, status, t }) => {
         const [role] = await db
           .select()
           .from(roles)
           .where(eq(roles.id, params.id))
           .limit(1)
 
-        if (!role) return status(404, { message: 'Role not found' })
+        if (!role) return status(404, { message: t('errors.user.roleNotFound') })
         if (role.isDefault) {
-          return status(403, { message: 'Cannot modify default roles' })
+          return status(403, { message: t('errors.user.defaultRoleImmutable') })
         }
 
         const [updated] = await db
@@ -406,16 +405,16 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.ROLES_DELETE))
     .delete(
       '/roles/:id',
-      async ({ params, status }) => {
+      async ({ params, status, t }) => {
         const [role] = await db
           .select()
           .from(roles)
           .where(eq(roles.id, params.id))
           .limit(1)
 
-        if (!role) return status(404, { message: 'Role not found' })
+        if (!role) return status(404, { message: t('errors.user.roleNotFound') })
         if (role.isDefault) {
-          return status(403, { message: 'Cannot delete default roles' })
+          return status(403, { message: t('errors.user.defaultRoleUndeletable') })
         }
 
         // Unassign all users from this role, then delete
@@ -441,16 +440,16 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.ROLES_WRITE))
     .put(
       '/roles/:id/permissions',
-      async ({ params, body, status }) => {
+      async ({ params, body, status, t }) => {
         const [role] = await db
           .select()
           .from(roles)
           .where(eq(roles.id, params.id))
           .limit(1)
 
-        if (!role) return status(404, { message: 'Role not found' })
+        if (!role) return status(404, { message: t('errors.user.roleNotFound') })
         if (role.isDefault) {
-          return status(403, { message: 'Cannot modify default role permissions' })
+          return status(403, { message: t('errors.user.defaultRolePermissionsImmutable') })
         }
 
         if (body.permissions.length > 0) {
@@ -459,7 +458,7 @@ app.group('', (admin) =>
             .from(permissionsSchema)
             .where(inArray(permissionsSchema.id, body.permissions))
           if (existingPerms.length !== body.permissions.length) {
-            return status(400, { message: 'One or more permission IDs are invalid' })
+            return status(400, { message: t('errors.user.invalidPermissionIds') })
           }
         }
 
@@ -512,14 +511,14 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.PERMISSIONS_READ))
     .get(
       '/permissions/:id',
-      async ({ params, status }) => {
+      async ({ params, status, t }) => {
         const [perm] = await db
           .select()
           .from(permissionsSchema)
           .where(eq(permissionsSchema.id, params.id))
           .limit(1)
 
-        if (!perm) return status(404, { message: 'Permission not found' })
+        if (!perm) return status(404, { message: t('errors.user.permissionNotFound') })
 
         const associatedRoles = await db
           .select({
@@ -550,7 +549,7 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_READ))
     .get(
       '/:id',
-      async ({ params, status }) => {
+      async ({ params, status, t }) => {
         const [userRow] = await db
           .select({
             id: users.id,
@@ -565,7 +564,7 @@ app.group('', (admin) =>
           .where(eq(users.id, params.id))
           .limit(1)
 
-        if (!userRow) return status(404, { message: 'User not found' })
+        if (!userRow) return status(404, { message: t('errors.notFound.user') })
 
         const userRoles = await db
           .select({ id: roles.id, name: roles.name, description: roles.description })
@@ -606,9 +605,9 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_READ))
     .get(
       '/:id/billing',
-      async ({ params, status }) => {
+      async ({ params, status, t }) => {
         if (!billing.enabled) {
-          return status(404, { message: 'Billing not enabled' })
+          return status(404, { message: t('errors.subscription.billingNotEnabled') })
         }
         const billingInfo = await getAdminUserSubscriptionInfo(params.id)
         return billingInfo ?? { subscription: null, orders: [], portalUrl: null }
@@ -625,14 +624,14 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_UPDATE))
     .patch(
       '/:id',
-      async ({ params, body, status }) => {
+      async ({ params, body, status, t }) => {
         const [existing] = await db
           .select({ id: users.id })
           .from(users)
           .where(eq(users.id, params.id))
           .limit(1)
 
-        if (!existing) return status(404, { message: 'User not found' })
+        if (!existing) return status(404, { message: t('errors.notFound.user') })
 
         // Validate roles upfront, before the transaction
         if (body.roles) {
@@ -642,7 +641,7 @@ app.group('', (admin) =>
             .where(inArray(roles.id, body.roles))
 
           if (existingRoles.length !== body.roles.length) {
-            return status(400, { message: 'One or more role IDs are invalid' })
+            return status(400, { message: t('errors.user.invalidRoleIds') })
           }
         }
 
@@ -724,9 +723,9 @@ app.group('', (admin) =>
     .use(permissions(PermissionId.USERS_DELETE))
     .delete(
       '/:id',
-      async ({ params, user, status }) => {
+      async ({ params, user, status, t }) => {
         if (params.id === user.id) {
-          return status(400, { message: 'Cannot delete yourself' })
+          return status(400, { message: t('errors.user.cannotDeleteSelf') })
         }
 
         const [existing] = await db
@@ -735,7 +734,7 @@ app.group('', (admin) =>
           .where(eq(users.id, params.id))
           .limit(1)
 
-        if (!existing) return status(404, { message: 'User not found' })
+        if (!existing) return status(404, { message: t('errors.notFound.user') })
 
         // Protect last admin
         const [isAdmin] = await db
@@ -760,7 +759,7 @@ app.group('', (admin) =>
             )
 
           if (otherAdmins.count === 0) {
-            return status(400, { message: 'Cannot delete the last admin' })
+            return status(400, { message: t('errors.user.cannotDeleteLastAdmin') })
           }
         }
 
@@ -782,13 +781,13 @@ app.group('', (admin) =>
     .use(requireAuth)
     .post(
       '/:id/impersonate',
-      async ({ params, user, status }) => {
+      async ({ params, user, status, t }) => {
         if (process.env.NODE_ENV === 'production') {
-          return status(403, { message: 'Impersonation is not available in production' })
+          return status(403, { message: t('errors.user.impersonationNotAllowed') })
         }
 
         if (params.id === user.id) {
-          return status(400, { message: 'Cannot impersonate yourself' })
+          return status(400, { message: t('errors.user.cannotImpersonateSelf') })
         }
 
         const [target] = await db
@@ -803,7 +802,7 @@ app.group('', (admin) =>
           .where(eq(users.id, params.id))
           .limit(1)
 
-        if (!target) return status(404, { message: 'User not found' })
+        if (!target) return status(404, { message: t('errors.notFound.user') })
 
         const session = await lucia.createSession(target.id, {})
         logger.warn(
@@ -844,11 +843,10 @@ app.group('', (admin) =>
  */
 app.use(requireAuth).post(
   '/me/identity/reset',
-  async ({ user, body, status }) => {
+  async ({ user, body, status, t }) => {
     if (body.confirm !== 'erase-all-my-data') {
       return status(400, {
-        message:
-          'Confirmation required. Pass `{ "confirm": "erase-all-my-data" }`.',
+        message: t('errors.user.eraseConfirmationRequired'),
       })
     }
     await resetUserIdentity(user.id)
@@ -932,10 +930,10 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).delete(
   '/me/revocations/pending/:peerHandle',
-  async ({ user, params: { peerHandle }, status }) => {
+  async ({ user, params: { peerHandle }, status, t }) => {
     const decoded = decodeURIComponent(peerHandle)
     const deleted = await discardPendingRevocation(user.id, decoded)
-    if (!deleted) return status(404, { message: 'No pending revocation' })
+    if (!deleted) return status(404, { message: t('errors.user.noPendingRevocation') })
     return { success: true }
   },
   {
@@ -975,13 +973,12 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).patch(
   '/me/alias',
-  async ({ user, body, status }) => {
+  async ({ user, body, status, t }) => {
     const { alias } = body
 
     if (!isValidAlias(alias)) {
       return status(400, {
-        message:
-          'Invalid alias. Use 3-30 alphanumeric characters or underscores.',
+        message: t('errors.user.invalidAlias'),
       })
     }
 
@@ -1097,9 +1094,9 @@ app.use(requireAuth).patch(
  */
 app.use(requireAuth).get(
   '/me/km-version',
-  async ({ user, status }) => {
+  async ({ user, status, t }) => {
     const v = await getUserKmVersion(user.id)
-    if (v === null) return status(404, { message: 'User not found' })
+    if (v === null) return status(404, { message: t('errors.notFound.user') })
     return { kmVersion: v }
   },
   {
@@ -1126,7 +1123,7 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).post(
   '/me/km-version/commit',
-  async ({ user, body, status, t }) => {
+  async ({ user, body, status }) => {
     try {
       const nextKmVersion = await commitRotation({
         userId: user.id,

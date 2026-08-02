@@ -371,7 +371,7 @@ describe('PUT /collections/:id — role-scoped updates', () => {
     })
 
     expect(res.status).toBe(403)
-    expect(res.body.error).toContain('Viewer role cannot update')
+    expect(res.body.error).toContain('Viewer role cannot modify')
   })
 
   test('404s when the update matched no row', async () => {

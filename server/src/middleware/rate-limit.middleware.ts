@@ -15,6 +15,7 @@
 
 import { Elysia } from 'elysia'
 import { logger } from '../lib/logger'
+import { translatorFor } from '../lib/i18n/plugin'
 
 interface Bucket {
   count: number
@@ -64,7 +65,7 @@ export const federationRateLimit = new Elysia({ name: 'federation-rate-limit' })
         logger.warn({ ip, path }, 'Federation inbox rate limit exceeded')
         set.status = 429
         set.headers['Retry-After'] = '60'
-        return { message: 'Rate limit exceeded' }
+        return { message: translatorFor(request)('errors.rateLimit.exceeded') }
       }
       return
     }
@@ -75,7 +76,7 @@ export const federationRateLimit = new Elysia({ name: 'federation-rate-limit' })
         logger.warn({ ip, path }, 'Federation well-known rate limit exceeded')
         set.status = 429
         set.headers['Retry-After'] = '60'
-        return { message: 'Rate limit exceeded' }
+        return { message: translatorFor(request)('errors.rateLimit.exceeded') }
       }
     }
   })
@@ -112,7 +113,7 @@ export function makeUserRateLimit({
         logger.warn({ userId, path, name }, 'User rate limit exceeded')
         set.status = 429
         set.headers['Retry-After'] = String(Math.ceil(windowMs / 1000))
-        return { message: 'Rate limit exceeded' }
+        return { message: translatorFor(request)('errors.rateLimit.exceeded') }
       }
     })
 }
@@ -145,7 +146,7 @@ export function makeIpRateLimit({
         logger.warn({ ip, path, name }, 'IP rate limit exceeded')
         ctx.set.status = 429
         ctx.set.headers['Retry-After'] = String(Math.ceil(windowMs / 1000))
-        return { message: 'Rate limit exceeded' }
+        return { message: translatorFor(ctx.request)('errors.rateLimit.exceeded') }
       }
     })
 }

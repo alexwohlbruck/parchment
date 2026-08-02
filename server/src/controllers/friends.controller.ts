@@ -13,8 +13,9 @@ import {
 } from '../services/friends.service'
 import { resolveHandle } from '../services/federation.service'
 import { parseHandle } from '../lib/crypto'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/friends' })
+const app = new Elysia({ prefix: '/friends' }).use(i18nPlugin)
 
 /**
  * Get all friends
@@ -96,7 +97,7 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
  */
 app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invitations/:id/accept',
-  async ({ user, params: { id }, body, status, t }) => {
+  async ({ user, params: { id }, body, status }) => {
     const result = await acceptFriendInvitation(user.id, id, body.signature)
 
     if (!result.success) {
@@ -126,7 +127,7 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
  */
 app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invitations/:id/reject',
-  async ({ user, params: { id }, body, status, t }) => {
+  async ({ user, params: { id }, body, status }) => {
     const result = await rejectFriendInvitation(user.id, id, body?.signature)
 
     if (!result.success) {
@@ -158,7 +159,7 @@ app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
  */
 app.use(permissions(PermissionId.SOCIAL_WRITE)).delete(
   '/invitations/:id',
-  async ({ user, params: { id }, status, t }) => {
+  async ({ user, params: { id }, status }) => {
     const result = await cancelFriendInvitation(user.id, id)
 
     if (!result.success) {

@@ -181,7 +181,7 @@ async function removePreset(bookmark: Bookmark) {
         :title="entry.title"
         :subtitle="entry.secondary"
         :navigate="false"
-        class="w-44 shadow-none cursor-pointer hover:bg-secondary/40"
+        class="w-44 cursor-pointer hover:bg-secondary/40"
         @click="startDirections(entry.bookmark)"
       >
         <template #trailing>

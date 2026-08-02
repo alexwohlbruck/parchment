@@ -105,7 +105,7 @@ function openDetail(vehicle: UserVehicle) {
         <Card
           v-for="vehicle in trackedVehicles"
           :key="vehicle.id"
-          class="flex items-center gap-3 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border shadow-none"
+          class="flex items-center gap-3 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border"
           @click="openDetail(vehicle)"
         >
           <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -135,7 +135,7 @@ function openDetail(vehicle: UserVehicle) {
         <Card
           v-for="vehicle in untrackedVehicles"
           :key="vehicle.id"
-          class="flex items-center gap-3 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border shadow-none"
+          class="flex items-center gap-3 p-3 cursor-pointer hover:bg-secondary/40 transition-colors border"
           @click="openDetail(vehicle)"
         >
           <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">

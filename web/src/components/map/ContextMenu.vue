@@ -20,6 +20,13 @@ import { encode } from 'pluscodes'
 import type { MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
 import BrandIcon from '@/components/ui/brand-icon/BrandIcon.vue'
 import { useExternalLink } from '@/composables/useExternalLink'
+import {
+  externalMapUrl,
+  mapEditorUrl,
+  type ExternalMapService,
+  type MapEditor,
+} from '@/lib/external-map-links'
+import { nextMeasurePoints } from '@/lib/measure-click'
 import { siOpenstreetmap, siGooglemaps, siApple } from 'simple-icons/icons'
 import {
   PencilIcon,
@@ -231,71 +238,17 @@ function fillWaypoint() {
   })
 }
 
-function openMapEditor(editor: 'id' | 'rapid' | 'josm') {
+function openMapEditor(editor: MapEditor) {
   if (!clickedLngLat.value) return
-  switch (editor) {
-    case 'id':
-      openExternalLink(
-        `https://www.openstreetmap.org/edit?editor=id#map=18/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}`,
-        '_blank',
-      )
-      break
-    case 'rapid':
-      openExternalLink(
-        `https://mapwith.ai/rapid?#map=18/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}&photo_overlay=mapillary&photo=mapillary/147417114029979`,
-        '_blank',
-      )
-      break
-    case 'josm':
-      openExternalLink(
-        `http://127.0.0.1:8111/load_and_zoom?left=${clickedLngLat.value.lng}&right=${clickedLngLat.value.lng}&top=${clickedLngLat.value.lat}&bottom=${clickedLngLat.value.lat}`,
-        '_blank',
-      )
-      break
-  }
+  openExternalLink(mapEditorUrl(editor, clickedLngLat.value), '_blank')
 }
 
-function openExternalMap(
-  service: 'osm' | 'google' | 'apple' | 'yandex' | '2gis',
-) {
+function openExternalMap(service: ExternalMapService) {
   if (!clickedLngLat.value) return
-  switch (service) {
-    case 'osm':
-      openExternalLink(
-        `https://www.openstreetmap.org/#map=${Math.ceil(
-          mapCamera.value.zoom,
-        )}/${clickedLngLat.value.lat}/${clickedLngLat.value.lng}`,
-        '_blank',
-      )
-      break
-    case 'google':
-      openExternalLink(
-        `https://www.google.com/maps/@${clickedLngLat.value.lat},${clickedLngLat.value.lng},${mapCamera.value.zoom}z`,
-        '_blank',
-      )
-      break
-    case 'apple':
-      const span = Math.pow(2, 20 - mapCamera.value.zoom) / 1024
-      openExternalLink(
-        `https://maps.apple.com/frame?center=${clickedLngLat.value.lat}%2C${clickedLngLat.value.lng}&span=${span}%2C${span}`,
-        '_blank',
-      )
-      break
-    case 'yandex':
-      openExternalLink(
-        `https://yandex.com/maps/?ll=${clickedLngLat.value.lng}%2C${
-          clickedLngLat.value.lat
-        }&z=${Math.ceil(mapCamera.value.zoom)}`,
-        '_blank',
-      )
-      break
-    case '2gis':
-      openExternalLink(
-        `https://2gis.ae/?m=${clickedLngLat.value.lng}%2C${clickedLngLat.value.lat}%2F${mapCamera.value.zoom}&immersive=on`,
-        '_blank',
-      )
-      break
-  }
+  openExternalLink(
+    externalMapUrl(service, clickedLngLat.value, mapCamera.value.zoom),
+    '_blank',
+  )
 }
 
 // Build menu items based on current state
@@ -439,67 +392,21 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     const lngLat = clickedLngLat.value
     const point = clickedPoint.value
     if (!lngLat || !point) return
-    const project = (ll: LngLat) => mapService.project(ll)
-    const click = { lngLat, point }
+
+    // First click starts a measurement rather than extending one.
     if (mapToolsStore.activeTool !== 'measure') {
       mapToolsStore.setActiveTool('measure')
       mapToolsStore.pushMeasureState([lngLat])
       return
     }
-    const points = mapToolsStore.measurePoints
-    if (!project(lngLat)) {
-      mapToolsStore.pushMeasureState([...points, lngLat])
-      return
-    }
-    if (mapToolsStore.isMeasureClosed) {
-      const insert = findSegmentToInsert(
-        points,
-        click,
-        project,
-        INSERT_THRESHOLD_PX,
-      )
-      if (insert) {
-        const startPx = project(points[insert.segmentIndex])
-        const endPx = project(points[insert.segmentIndex + 1])
-        const insertPx = project(insert.point)
-        const nearStart =
-          startPx && insertPx && distancePx(insertPx, startPx) < VERTEX_NEAR_PX
-        const nearEnd =
-          endPx && insertPx && distancePx(insertPx, endPx) < VERTEX_NEAR_PX
-        if (!nearStart && !nearEnd) {
-          const next = [...points]
-          next.splice(insert.segmentIndex + 1, 0, insert.point)
-          mapToolsStore.pushMeasureState(next)
-        }
-      }
-      return
-    }
-    const insert = findSegmentToInsert(
-      points,
-      click,
-      project,
-      INSERT_THRESHOLD_PX,
+
+    const next = nextMeasurePoints(
+      mapToolsStore.measurePoints,
+      { lngLat, point },
+      ll => mapService.project(ll),
+      mapToolsStore.isMeasureClosed,
     )
-    if (insert) {
-      const startPx = project(points[insert.segmentIndex])
-      const endPx = project(points[insert.segmentIndex + 1])
-      const insertPx = project(insert.point)
-      const nearStart =
-        startPx && insertPx && distancePx(insertPx, startPx) < VERTEX_NEAR_PX
-      const nearEnd =
-        endPx && insertPx && distancePx(insertPx, endPx) < VERTEX_NEAR_PX
-      if (!nearStart && !nearEnd) {
-        const next = [...points]
-        next.splice(insert.segmentIndex + 1, 0, insert.point)
-        mapToolsStore.pushMeasureState(next)
-        return
-      }
-    }
-    if (shouldCloseLoop(points, click, project, CLOSE_LOOP_THRESHOLD_PX)) {
-      mapToolsStore.pushMeasureState([...points, { ...points[0] }])
-      return
-    }
-    mapToolsStore.pushMeasureState([...points, lngLat])
+    if (next) mapToolsStore.pushMeasureState(next)
   }
 
   const measureCircleOnSelect = () => {

@@ -26,6 +26,7 @@ import { PermissionId } from '../types/auth.types'
 import { hasPermission, getPermissions } from '../services/auth.service'
 import { logger } from '../lib/logger'
 import { refreshObservability } from '../services/observability.config'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 /**
  * Public routes live on their own instance. `.use(requireAuth)` mutates the
@@ -36,7 +37,7 @@ import { refreshObservability } from '../services/observability.config'
 const publicApi = new Elysia({ prefix: '/integrations' })
 
 /** Everything that requires an authenticated session. */
-const app = new Elysia({ prefix: '/integrations' })
+const app = new Elysia({ prefix: '/integrations' }).use(i18nPlugin)
 
 /**
  * GET /integrations/configured
@@ -330,8 +331,7 @@ app.post(
       )
       if (!hasPrerequisite) {
         return status(400, {
-          message:
-            'System prerequisite integration is not configured. An admin must configure it first.',
+          message: t('errors.integration.prerequisiteNotConfigured'),
         })
       }
     }
@@ -380,7 +380,7 @@ app.post(
         return status(400, { message: err.message })
       }
       logger.error({ err }, 'createIntegration unexpected non-Error throw')
-      return status(500, { message: 'Failed to create integration' })
+      return status(500, { message: t('errors.integration.createFailed') })
     }
   },
   {
@@ -491,7 +491,7 @@ app.put(
         return status(400, { message: err.message })
       }
       logger.error({ err }, 'updateIntegration unexpected non-Error throw')
-      return status(500, { message: 'Failed to update integration' })
+      return status(500, { message: t('errors.integration.updateFailed') })
     }
   },
   {
@@ -658,7 +658,7 @@ app.delete(
         return status(400, { message: err.message })
       }
       logger.error({ err }, 'deleteIntegration unexpected non-Error throw')
-      return status(500, { message: 'Failed to delete integration' })
+      return status(500, { message: t('errors.integration.deleteFailed') })
     }
   },
   {
@@ -738,7 +738,7 @@ app.post(
         return status(400, { message: err.message })
       }
       logger.error({ err }, 'testIntegrationConfig unexpected non-Error throw')
-      return status(500, { message: 'Failed to test integration' })
+      return status(500, { message: t('errors.integration.testFailed') })
     }
   },
   {

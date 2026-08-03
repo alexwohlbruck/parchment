@@ -33,7 +33,7 @@ import type {
   UnifiedRoute,
 } from '../../types/unified-routing.types'
 import { TravelMode, WaypointType } from '../../types/unified-routing.types'
-import { getLanguageCode } from '../../lib/i18n'
+import { getLanguageCode, DEFAULT_LANGUAGE, type Language } from '../../lib/i18n'
 import { BarrelmanGraphHopperAdapter } from './adapters/barrelman-graphhopper-adapter'
 import type {
   Place,
@@ -47,7 +47,7 @@ import type {
 import { SOURCE } from '../../lib/constants'
 import { matchTags, type GeometryType } from '../../lib/osm-presets'
 import { buildPlaceIcon } from '../../lib/place-categories'
-import { getPlaceType } from '../../lib/place.utils'
+import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
 
 /**
@@ -500,7 +500,10 @@ export class BarrelmanIntegration
   /**
    * Adapt a raw Barrelman result into the unified Place model.
    */
-  private adaptPlace(r: BarrelmanPlaceResult): Place {
+  private adaptPlace(
+    r: BarrelmanPlaceResult,
+    language: Language = DEFAULT_LANGUAGE,
+  ): Place {
     const timestamp = new Date().toISOString()
     const sourceId = SOURCE.OSM
 
@@ -595,7 +598,9 @@ export class BarrelmanIntegration
       : buildPlaceIcon(presetMatch)
     const placeTypeLabel = isIntersection
       ? 'Intersection'
-      : getPlaceType(tags, 'en', osmGeomHint as GeometryType) || r.categories?.[0] || 'place'
+      : getPlaceType(tags, language, osmGeomHint as GeometryType) ||
+        r.categories?.[0] ||
+        'place'
 
     // Contact info
     const phone = r.phones?.length ? r.phones[0] : null
@@ -663,7 +668,11 @@ export class BarrelmanIntegration
       // reached via a Pelias address, and — because downstream third-party
       // enrichment only runs when a place has a name — lets both surface the
       // same Foursquare/phone data.
-      name: { value: r.name || address?.street1 || null, sourceId, timestamp },
+      name: {
+        value: getLocalizedName(tags, language, r.name) || address?.street1 || null,
+        sourceId,
+        timestamp,
+      },
       description: null,
       placeType: { value: placeTypeLabel, sourceId, timestamp },
       icon,
@@ -705,7 +714,7 @@ export class BarrelmanIntegration
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any>; signal?: AbortSignal },
+    options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any>; language?: Language; signal?: AbortSignal },
   ): Promise<Place[]> {
     const response = await barrelmanSearchHttp.post(
       `${this.config.host}/search`,
@@ -721,14 +730,14 @@ export class BarrelmanIntegration
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) => this.adaptPlace(r))
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
   }
 
   async getAutocomplete(
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number; signal?: AbortSignal },
+    options?: { radius?: number; limit?: number; language?: Language; signal?: AbortSignal },
   ): Promise<Place[]> {
     // autocomplete: true disables the Ollama semantic layer entirely (it's too slow
     // for typing latency). Relies on parallel FTS + GIN-indexed trigram instead.
@@ -752,7 +761,7 @@ export class BarrelmanIntegration
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) => this.adaptPlace(r))
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
   }
 
   /**
@@ -771,7 +780,7 @@ export class BarrelmanIntegration
   async searchByCategory(
     presetId: string,
     bounds: MapBounds,
-    options?: { limit?: number; offset?: number; minResults?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any> },
+    options?: { limit?: number; offset?: number; minResults?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any>; language?: Language },
   ): Promise<Place[]> {
     const lat = (bounds.north + bounds.south) / 2
     const lng = (bounds.east + bounds.west) / 2
@@ -809,7 +818,7 @@ export class BarrelmanIntegration
       rows = (await post(baseBody)).data || []
     }
 
-    return rows.map((r: any) => this.adaptPlace(r))
+    return rows.map((r: any) => this.adaptPlace(r, options?.language))
   }
 
   // ── Brand catalog ──────────────────────────────────────────────────────
@@ -844,7 +853,7 @@ export class BarrelmanIntegration
    */
   async searchByBrand(
     filter: { wikidata?: string; name?: string },
-    options?: { lat?: number; lng?: number; bounds?: MapBounds; minResults?: number; limit?: number },
+    options?: { lat?: number; lng?: number; bounds?: MapBounds; minResults?: number; limit?: number; language?: Language },
   ): Promise<Place[]> {
     const tags = filter.wikidata
       ? { 'brand:wikidata': filter.wikidata }
@@ -889,10 +898,13 @@ export class BarrelmanIntegration
       rows = res.data || []
     }
 
-    return rows.map((r: any) => this.adaptPlace(r))
+    return rows.map((r: any) => this.adaptPlace(r, options?.language))
   }
 
-  async getPlaceInfo(id: string): Promise<Place | null> {
+  async getPlaceInfo(
+    id: string,
+    options?: { language?: Language },
+  ): Promise<Place | null> {
     try {
       // Pelias geocoder gid (e.g. "openaddresses:address:us/ny/…") — these have
       // no geo_places/OSM row, so resolve via /geocode/place (Pelias /v1/place)
@@ -904,7 +916,7 @@ export class BarrelmanIntegration
           `${this.config.host}/geocode/place`,
           { params: { id }, headers: this.headers, timeout: 10000 },
         )
-        return this.adaptPlace(response.data)
+        return this.adaptPlace(response.data, options?.language)
       }
 
       // ID format: "node/5718230659" — maps to /place/node/5718230659
@@ -912,7 +924,7 @@ export class BarrelmanIntegration
         `${this.config.host}/place/${id}`,
         { headers: this.headers, timeout: 10000 },
       )
-      return this.adaptPlace(response.data)
+      return this.adaptPlace(response.data, options?.language)
     } catch (e: any) {
       if (e.response?.status === 404) return null
       throw e
@@ -929,6 +941,7 @@ export class BarrelmanIntegration
       limit?: number
       semantic?: boolean
       autocomplete?: boolean
+      language?: Language
     },
   ): Promise<Place[]> {
     const response = await barrelmanSearchHttp.post(
@@ -945,7 +958,7 @@ export class BarrelmanIntegration
       },
       { headers: this.headers, timeout: 10000 },
     )
-    return (response.data || []).map((r: any) => this.adaptPlace(r))
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
   }
 
   /**
@@ -956,7 +969,11 @@ export class BarrelmanIntegration
    * something, and does so from our own index rather than a rate-limited
    * upstream.
    */
-  async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+  async reverseGeocode(
+    lat: number,
+    lng: number,
+    options?: { language?: Language },
+  ): Promise<Place[]> {
     const response = await barrelmanSearchHttp.get(
       `${this.config.host}/geocode/reverse`,
       {
@@ -965,16 +982,21 @@ export class BarrelmanIntegration
         timeout: 10000,
       },
     )
-    return (response.data || []).map((r: any) => this.adaptPlace(r))
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
   }
 
-  async getContainingAreas(lat: number, lng: number, exclude?: string): Promise<Place[]> {
+  async getContainingAreas(
+    lat: number,
+    lng: number,
+    exclude?: string,
+    options?: { language?: Language },
+  ): Promise<Place[]> {
     const response = await barrelmanSearchHttp.get(`${this.config.host}/contains`, {
       params: { lat, lng, ...(exclude ? { exclude } : {}) },
       headers: this.headers,
       timeout: 10000,
     })
-    return (response.data || []).map((r: any) => this.adaptPlace(r))
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
   }
 
   async getChildren(
@@ -984,6 +1006,7 @@ export class BarrelmanIntegration
     offset?: number,
     lat?: number,
     lng?: number,
+    options?: { language?: Language },
   ): Promise<Place[]> {
     const response = await barrelmanSearchHttp.get(`${this.config.host}/children`, {
       params: {
@@ -996,7 +1019,7 @@ export class BarrelmanIntegration
       headers: this.headers,
       timeout: 10000,
     })
-    return (response.data || []).map((r: any) => this.adaptPlace(r))
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
   }
 
   // ── Routing (GraphHopper via Barrelman proxy) ──────────────────

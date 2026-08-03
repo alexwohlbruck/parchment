@@ -3,6 +3,8 @@ import { permissions } from '../../middleware/auth.middleware'
 import { PermissionId } from '../../types/auth.types'
 import * as bookmarksService from '../../services/library/bookmarks.service'
 import * as sharingService from '../../services/sharing.service'
+import { i18nPlugin } from '../../lib/i18n/plugin'
+import type { TranslateFn } from '../../lib/i18n/i18n.types'
 
 /**
  * Per-collection write guard. The bookmark controller touches one or more
@@ -22,28 +24,30 @@ function mapSharingError(
   // mutate `status`. Accept a minimal structural type so the helper is
   // portable across handlers without pulling Elysia's internal types.
   set: { status?: unknown },
+  t: TranslateFn,
 ): { error: string } | null {
   if (err instanceof sharingService.CollectionAccessDeniedError) {
     set.status = 404
-    return { error: 'Collection not found' }
+    return { error: t('errors.library.collectionNotFound') }
   }
   if (err instanceof sharingService.InsufficientRoleError) {
     set.status = 403
-    return { error: 'Viewer role cannot modify this collection' }
+    return { error: t('errors.library.collectionViewerReadOnly') }
   }
   return null
 }
 
 const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
+  .use(i18nPlugin)
   .use(permissions(PermissionId.LIBRARY_WRITE))
 
   // Create a new bookmark and assign to collections
   .post(
     '/',
-    async ({ body, user, set }) => {
+    async ({ body, user, set, t }) => {
       if (!body.externalIds || Object.keys(body.externalIds).length === 0) {
         set.status = 400
-        return { error: 'Missing required externalIds' }
+        return { error: t('errors.library.externalIdsRequired') }
       }
 
       // An empty collectionIds array is allowed: standalone bookmarks (e.g.
@@ -61,10 +65,10 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         set.status = 201
         return createdBookmark
       } catch (error) {
-        const mapped = mapSharingError(error, set)
+        const mapped = mapSharingError(error, set, t)
         if (mapped) return mapped
         set.status = 500
-        return { error: 'Failed to create bookmark' } // TODO: Improve error handling
+        return { error: t('errors.library.bookmarkCreateFailed') } // TODO: Improve error handling
       }
     },
     {
@@ -94,12 +98,12 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
   // Update an existing bookmark (using PUT due to CORS issues with PATCH)
   .put(
     '/:id',
-    async ({ params: { id }, body, user, set }) => {
+    async ({ params: { id }, body, user, set, t }) => {
       // Keep validation for empty body if desired, though PUT often implies full replacement
       // However, we are using it for partial updates here.
       if (Object.keys(body).length === 0) {
         set.status = 400
-        return { error: 'Request body cannot be empty' }
+        return { error: t('errors.library.emptyBody') }
       }
 
       try {
@@ -125,7 +129,7 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         if (updated === undefined) {
           // Service error
           set.status = 404
-          return { error: 'Bookmark not found or update failed' }
+          return { error: t('errors.library.bookmarkUpdateFailed') }
         } else if (updated === null) {
           // Deleted by service
           set.status = 204
@@ -135,7 +139,7 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         // Success
         return updated
       } catch (err) {
-        const mapped = mapSharingError(err, set)
+        const mapped = mapSharingError(err, set, t)
         if (mapped) return mapped
         throw err
       }
@@ -174,10 +178,10 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
   // DELETE endpoint remains for removing from specific collections (optional, maybe remove later if PATCH covers all cases)
   .delete(
     '/:id',
-    async ({ params: { id }, body, user, set }) => {
+    async ({ params: { id }, body, user, set, t }) => {
       if (!body.collectionIds || body.collectionIds.length === 0) {
         set.status = 400
-        return { error: 'Missing required collectionIds in body' }
+        return { error: t('errors.library.collectionIdsRequired') }
       }
       try {
         await assertCanWriteCollections(user.id, body.collectionIds)
@@ -188,14 +192,14 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
         )
         if (!success) {
           set.status = 404
-          return { error: 'Bookmark not found or removal failed' }
+          return { error: t('errors.library.bookmarkRemoveFailed') }
         }
         set.status = 204 // Success, no content
       } catch (error) {
-        const mapped = mapSharingError(error, set)
+        const mapped = mapSharingError(error, set, t)
         if (mapped) return mapped
         set.status = 500
-        return { error: 'Failed to remove bookmark from collections' }
+        return { error: t('errors.library.bookmarkCollectionsRemoveFailed') }
       }
     },
     {

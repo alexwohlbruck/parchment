@@ -7,6 +7,7 @@ import {
   deletePersonalBlob,
   listPersonalBlobTypes,
 } from '../services/personal-blob.service'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 /**
  * Personal-blob storage.
@@ -14,7 +15,7 @@ import {
  * Opaque container for client-encrypted data keyed by blobType.
  * The server doesn't know or care what's inside.
  */
-const app = new Elysia()
+const app = new Elysia().use(i18nPlugin)
 
 const ALLOWED_TYPE_PATTERN = /^[a-zA-Z0-9._:-]{1,64}$/
 
@@ -36,9 +37,9 @@ app.use(permissions(PermissionId.LIBRARY_READ)).get(
 
 app.use(permissions(PermissionId.LIBRARY_READ)).get(
   '/me/blobs/:type',
-  async ({ user, params: { type }, status }) => {
+  async ({ user, params: { type }, status, t }) => {
     if (!ALLOWED_TYPE_PATTERN.test(type)) {
-      return status(400, { message: 'Invalid blob type' })
+      return status(400, { message: t('errors.personalBlob.invalidType') })
     }
     const blob = await getPersonalBlob(user.id, type)
     // A personal blob is a singleton-per-user slot; "not stored yet" is an
@@ -60,9 +61,9 @@ app.use(permissions(PermissionId.LIBRARY_READ)).get(
 
 app.use(permissions(PermissionId.LIBRARY_WRITE)).put(
   '/me/blobs/:type',
-  async ({ user, params: { type }, body, status }) => {
+  async ({ user, params: { type }, body, status, t }) => {
     if (!ALLOWED_TYPE_PATTERN.test(type)) {
-      return status(400, { message: 'Invalid blob type' })
+      return status(400, { message: t('errors.personalBlob.invalidType') })
     }
     await putPersonalBlob(user.id, type, {
       encryptedBlob: body.encryptedBlob,
@@ -87,9 +88,9 @@ app.use(permissions(PermissionId.LIBRARY_WRITE)).put(
 
 app.use(permissions(PermissionId.LIBRARY_WRITE)).delete(
   '/me/blobs/:type',
-  async ({ user, params: { type }, status }) => {
+  async ({ user, params: { type }, status, t }) => {
     if (!ALLOWED_TYPE_PATTERN.test(type)) {
-      return status(400, { message: 'Invalid blob type' })
+      return status(400, { message: t('errors.personalBlob.invalidType') })
     }
     await deletePersonalBlob(user.id, type)
     return { success: true }

@@ -91,7 +91,7 @@
         "tags": [
           "Auth"
         ],
-        "description": "Verify an email address by requesting a one-time password.",
+        "description": "Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use.",
         "requestBody": {
           "required": true,
           "content": {

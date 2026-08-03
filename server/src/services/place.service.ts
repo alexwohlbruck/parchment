@@ -1,5 +1,6 @@
 import type { Place } from '../types/place.types'
-import type { Language } from '../lib/i18n/i18n.types'
+import { DEFAULT_LANGUAGE, type Language } from '../lib/i18n/i18n.types'
+import { getLanguageCode } from '../lib/i18n'
 import { mergePlacesCollection, mergePlaces } from './merge.service'
 import type { PlaceRelation } from '../types/place.types'
 import { Source, SOURCE } from '../lib/constants'
@@ -362,7 +363,7 @@ export async function lookupPlacesByNameAndLocation(
           name,
           coordinates.lat,
           coordinates.lng,
-          { radius, signal },
+          { radius, language, signal },
         )
       } else {
         return integration.capabilities.search?.searchPlaces(
@@ -470,11 +471,17 @@ export async function lookupPlaceByNameAndLocation(
  * @returns The enriched place or the original place if Wiki data is not available
  */
 async function enrichPlaceWithWikiData(
-  place: Place, 
-  language: Language = 'en'
+  place: Place,
+  language: Language = DEFAULT_LANGUAGE,
 ): Promise<Place> {
   const startTime = Date.now()
   logger.debug(`[PERF] Starting Wiki data enrichment`)
+
+  // Wikidata sitelinks and Wikipedia hostnames are keyed by bare language code
+  // (`eswiki`, `es.wikipedia.org`) — never the full tag. Passing `es-ES` through
+  // yields `es-ESwiki`, which matches nothing, so enrichment silently returned
+  // no summary for every language including `en-US`.
+  const languageCode = getLanguageCode(language)
   
   try {
     // First, try to find Wikidata ID via parent relations (especially for transit stops)
@@ -524,7 +531,7 @@ async function enrichPlaceWithWikiData(
 
     // Fetch Wikidata entity
     const wikidataFetchStart = Date.now()
-    const wikidataEntity = await wikidataIntegration.getEntityData(wikidataId, language)
+    const wikidataEntity = await wikidataIntegration.getEntityData(wikidataId, languageCode)
     const wikidataFetchTime = Date.now() - wikidataFetchStart
     logger.debug(`[PERF] Wikidata entity fetch: ${wikidataFetchTime}ms`)
     
@@ -586,7 +593,7 @@ async function enrichPlaceWithWikiData(
     }
 
     // Extract Wikipedia title from Wikidata entity
-    const wikipediaTitle = wikidataIntegration.extractWikipediaTitle(wikidataEntity, language)
+    const wikipediaTitle = wikidataIntegration.extractWikipediaTitle(wikidataEntity, languageCode)
     if (wikipediaTitle) {
       // Get Wikipedia integration
       const wikipediaIntegrationRecord = integrationManager.getConfiguredIntegrationForSource(
@@ -599,7 +606,7 @@ async function enrichPlaceWithWikiData(
         if (wikipediaIntegration) {
           // Fetch Wikipedia data
           const wikipediaStart = Date.now()
-          const wikipediaPlace = await wikipediaIntegration.capabilities.placeInfo?.getPlaceInfo(`${language}:${wikipediaTitle}`)
+          const wikipediaPlace = await wikipediaIntegration.capabilities.placeInfo?.getPlaceInfo(`${languageCode}:${wikipediaTitle}`)
           const wikipediaTime = Date.now() - wikipediaStart
           logger.debug(`[PERF] Wikipedia fetch: ${wikipediaTime}ms`)
           
@@ -726,9 +733,9 @@ async function enrichPlaceWithWikiData(
  */
 async function enrichPlaceWithFoursquareData(
   place: Place,
-  options?: { premiumData?: boolean; signal?: AbortSignal },
+  options?: { premiumData?: boolean; language?: Language; signal?: AbortSignal },
 ): Promise<Place> {
-  const { premiumData = false, signal } = options || {}
+  const { premiumData = false, language, signal } = options || {}
   if (!premiumData) return place
 
   try {
@@ -766,7 +773,9 @@ async function enrichPlaceWithFoursquareData(
       fsqPlaceId = match.fsqPlaceId
     }
 
-    const fsqPlace = await fsq.capabilities.placeInfo?.getPlaceInfo(fsqPlaceId)
+    const fsqPlace = await fsq.capabilities.placeInfo?.getPlaceInfo(fsqPlaceId, {
+      language,
+    })
     if (!fsqPlace) return place
 
     return mergePlaces(place, fsqPlace)
@@ -799,11 +808,11 @@ export async function lookupEnrichedPlaceById(
   logger.debug(`[PERF] Starting enriched place lookup: source=${source}, id=${id}`)
 
   try {
-    const { userId, language = 'en', premiumData = false } = options || {}
+    const { userId, language = DEFAULT_LANGUAGE, premiumData = false } = options || {}
 
     // Step 1: Get base place data
     const step1Start = Date.now()
-    let place = await lookupPlaceById(source, id)
+    let place = await lookupPlaceById(source, id, { language })
     const step1Time = Date.now() - step1Start
     logger.debug(`[PERF] Step 1 - Base place lookup: ${step1Time}ms`)
     
@@ -826,6 +835,7 @@ export async function lookupEnrichedPlaceById(
         {
           radius: 500,
           sourceBlacklist: [source], // Exclude the original source
+          language,
         },
       )
       const step2Time = Date.now() - step2Start
@@ -848,7 +858,10 @@ export async function lookupEnrichedPlaceById(
     const [wikiEnrichedPlace, addressEnrichedPlace, foursquareEnrichedPlace] = await Promise.all([
       enrichPlaceWithWikiData(JSON.parse(JSON.stringify(place)), language),
       enrichPlaceWithAddressData(JSON.parse(JSON.stringify(place))),
-      enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), { premiumData }),
+      enrichPlaceWithFoursquareData(JSON.parse(JSON.stringify(place)), {
+        premiumData,
+        language,
+      }),
     ])
 
     // Merge the results (wiki data takes precedence for conflicts; Foursquare
@@ -900,7 +913,7 @@ export async function lookupEnrichedPlaceById(
       }
     }
 
-    place.widgets = resolveWidgetDescriptors(place)
+    place.widgets = resolveWidgetDescriptors(place, language)
 
     // Step 7: Add bookmark information if user ID is provided
     if (userId && place) {
@@ -953,7 +966,7 @@ export async function lookupEnrichedPlaceByCoordinates(
   logger.debug(`[PERF] Starting coordinate-based place lookup: lat=${lat}, lng=${lng}`)
 
   try {
-    const { userId, radius = 50, language = 'en', addressOnly = false, premiumData = false } = options || {}
+    const { userId, radius = 50, language = DEFAULT_LANGUAGE, addressOnly = false, premiumData = false } = options || {}
 
     // Step 1: Reverse geocode to find place at coordinates. Walks the geocoding
     // integrations by priority (Barrelman first), so a provider with no
@@ -1004,7 +1017,7 @@ export async function lookupEnrichedPlaceByCoordinates(
       place.timezone = getTimezone(lat, lng) ?? undefined
 
       const { resolveWidgetDescriptors } = await import('./widget.service')
-      place.widgets = resolveWidgetDescriptors(place)
+      place.widgets = resolveWidgetDescriptors(place, language)
 
       if (userId) {
         const bookmarkInfo = await findBookmarkByExternalIds(place.externalIds, userId)

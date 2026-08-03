@@ -13,14 +13,15 @@ import { categoryService } from '../services/category.service'
 import { categoryPalette } from '../lib/place-categories'
 import { getPresetById, getPresetFields } from '../lib/osm-presets'
 import { logError } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 const searchRouter = new Elysia({ prefix: '/search' })
+  .use(i18nPlugin)
   .use(optionalAuth)
 
   .get(
     '/',
-    async ({ query, user, i18n, status, request }) => {
-      const language = i18n?.language ?? DEFAULT_LANGUAGE
+    async ({ query, user, language, status, request }) => {
       const {
         q: searchQuery = '',
         lat,
@@ -109,7 +110,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           message:
             err instanceof Error
               ? err.message
-              : 'Failed to execute Overpass query',
+              : t('errors.search.overpassQueryFailed'),
         })
       }
     },
@@ -127,7 +128,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
 
   .post(
     '/route',
-    async ({ body, status }) => {
+    async ({ body, status, t }) => {
       const { route, ...options } = body
 
       try {
@@ -145,7 +146,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           message:
             err instanceof Error
               ? err.message
-              : 'Failed to execute route search',
+              : t('errors.search.routeSearchFailed'),
         })
       }
     },
@@ -175,7 +176,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
   // TODO: Remove client-side category cache. Return category suggestions in search endpoint
   .post(
     '/category',
-    async ({ body, status, language }) => {
+    async ({ body, status, language, t }) => {
       const { presetId, bounds, maxResults = 30, offset = 0, sort, filter, tags } = body
 
       try {
@@ -206,7 +207,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
           message:
             err instanceof Error
               ? err.message
-              : 'Failed to execute category search', // TODO: i18n
+              : t('errors.search.categorySearchFailed'),
         })
       }
     },
@@ -243,7 +244,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
   // Browse all locations of a brand. Viewport-first, auto-widening when sparse.
   .post(
     '/brand',
-    async ({ body, status, language }) => {
+    async ({ body, status, language, t }) => {
       const { brandKey, brandName, bounds, lat, lng, minResults, maxResults } = body
 
       try {
@@ -268,7 +269,7 @@ const searchRouter = new Elysia({ prefix: '/search' })
         logError('Error executing brand search', err)
         return status(500, {
           message:
-            err instanceof Error ? err.message : 'Failed to execute brand search',
+            err instanceof Error ? err.message : t('errors.search.brandSearchFailed'),
         })
       }
     },

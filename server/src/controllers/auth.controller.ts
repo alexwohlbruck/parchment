@@ -45,9 +45,9 @@ import {
 import { generateId } from '../util'
 import { billing, registrationMode } from '../config'
 import { getSubscriptionStatus } from '../services/subscription.service'
-import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 // Rate limits on the PRF-options endpoints. These hand out WebAuthn
 // challenges that an attacker with a valid session cookie could
@@ -65,11 +65,11 @@ const prfEnrollRateLimit = makeUserRateLimit({
   windowMs: 60_000,
 })
 
-const app = new Elysia({ prefix: '/auth' })
+const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
 app.post(
   '/verify',
-  async ({ body: { email }, set, status, t }) => {
+  async ({ body: { email }, set, status, t, language }) => {
     let user = await fetchUserByEmail(email)
 
     if (!user) {
@@ -91,7 +91,12 @@ app.post(
     )
     const emailSuccess = isAppTester
       ? true
-      : await sendEmailVerificationCode(user.email, verificationCode)
+      : await sendEmailVerificationCode(
+          user.email,
+          verificationCode,
+          user.id,
+          language,
+        )
 
     if (emailSuccess) {
       set.status = 201
@@ -102,7 +107,8 @@ app.post(
   {
     detail: {
       tags: ['Auth'],
-      description: 'Verify an email address by requesting a one-time password.',
+      description:
+        'Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use.',
     },
     body: t.Object({
       email: t.String({
@@ -381,13 +387,13 @@ app.group('/passkeys', (app) => {
     .use(prfEnrollRateLimit)
     .post(
       '/:credentialId/prf-enroll/options',
-      async ({ user, params, status }) => {
+      async ({ user, params, status, t }) => {
         const options = await generatePrfEnrollOptionsForCredential(
           user.id,
           params.credentialId,
         )
         if (!options) {
-          return status(404, { message: 'Passkey not found' })
+          return status(404, { message: t('errors.auth.passkeyNotFound') })
         }
         return options
       },
@@ -438,10 +444,15 @@ app.group('/sessions', (app) => {
         return status(404, { message: t('errors.notFound.user') })
       }
 
-      const isValid = await validateServerToken(token, 'otp', user.id)
+      const validation = await validateServerToken(token, 'otp', user.id)
 
-      if (!isValid)
-        return status(401, { message: t('errors.auth.invalidSession') })
+      if (validation !== 'valid')
+        return status(401, {
+          message:
+            validation === 'expired'
+              ? t('errors.auth.otpExpired')
+              : t('errors.auth.invalidSession'),
+        })
 
       const session = await createSession(user.id, context)
 

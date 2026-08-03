@@ -8,8 +8,9 @@ import {
   setActiveVehicle,
   updateVehicleLocation,
 } from '../services/vehicle.service'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/vehicles' })
+const app = new Elysia({ prefix: '/vehicles' }).use(i18nPlugin)
 
 /**
  * List user's vehicles
@@ -57,9 +58,9 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).patch(
   '/:id',
-  async ({ params, body, user, status }) => {
+  async ({ params, body, user, status, t }) => {
     const vehicle = await updateVehicle(user.id, params.id, body)
-    if (!vehicle) return status(404, { message: 'Vehicle not found' })
+    if (!vehicle) return status(404, { message: t('errors.vehicle.notFound') })
     return { vehicle: serializeVehicle(vehicle) }
   },
   {
@@ -81,9 +82,9 @@ app.use(requireAuth).patch(
  */
 app.use(requireAuth).delete(
   '/:id',
-  async ({ params, user, status }) => {
+  async ({ params, user, status, t }) => {
     const deleted = await deleteVehicle(user.id, params.id)
-    if (!deleted) return status(404, { message: 'Vehicle not found' })
+    if (!deleted) return status(404, { message: t('errors.vehicle.notFound') })
     return { deleted: true }
   },
   {
@@ -100,9 +101,9 @@ app.use(requireAuth).delete(
  */
 app.use(requireAuth).post(
   '/:id/activate',
-  async ({ params, user, status }) => {
+  async ({ params, user, status, t }) => {
     const vehicle = await setActiveVehicle(user.id, params.id)
-    if (!vehicle) return status(404, { message: 'Vehicle not found' })
+    if (!vehicle) return status(404, { message: t('errors.vehicle.notFound') })
     return { vehicle: serializeVehicle(vehicle) }
   },
   {
@@ -119,14 +120,14 @@ app.use(requireAuth).post(
  */
 app.use(requireAuth).put(
   '/:id/location',
-  async ({ params, body, user, status }) => {
+  async ({ params, body, user, status, t }) => {
     const vehicle = await updateVehicleLocation(
       user.id,
       params.id,
       { lat: body.lat, lng: body.lng },
       body.source ?? 'manual',
     )
-    if (!vehicle) return status(404, { message: 'Vehicle not found' })
+    if (!vehicle) return status(404, { message: t('errors.vehicle.notFound') })
     return { vehicle: serializeVehicle(vehicle) }
   },
   {

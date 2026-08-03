@@ -4,8 +4,10 @@ import { PermissionId } from '../../types/auth.types'
 import * as collectionsService from '../../services/library/collections.service'
 import * as encryptedPointsService from '../../services/library/encrypted-points.service'
 import * as sharingService from '../../services/sharing.service'
+import { i18nPlugin } from '../../lib/i18n/plugin'
 
 const collectionsRouter = new Elysia({ prefix: '/collections' })
+  .use(i18nPlugin)
   .use(permissions(PermissionId.LIBRARY_WRITE))
 
   // Get all collections for the authenticated user
@@ -69,14 +71,14 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // UI. Responds 404 when the caller neither owns nor has an active share.
   .get(
     '/:id',
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, user, set, t }) => {
       const collection = await collectionsService.getAccessibleCollection(
         id,
         user.id,
       )
       if (!collection) {
         set.status = 404
-        return { error: 'Collection not found' }
+        return { error: t('errors.library.collectionNotFound') }
       }
 
       // Bookmarks live on the owning user's rows — use the owner's id when
@@ -109,7 +111,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // Owner or editor may write; viewers get 403.
   .put(
     '/:id',
-    async ({ params: { id }, body, user, set }) => {
+    async ({ params: { id }, body, user, set, t }) => {
       try {
         const role = await sharingService.requireWriteAccessToCollection(
           user.id,
@@ -131,17 +133,17 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         )
         if (!updated) {
           set.status = 404
-          return { error: 'Collection not found or update failed' }
+          return { error: t('errors.library.collectionUpdateFailed') }
         }
         return updated
       } catch (err) {
         if (err instanceof sharingService.CollectionAccessDeniedError) {
           set.status = 404
-          return { error: 'Collection not found' }
+          return { error: t('errors.library.collectionNotFound') }
         }
         if (err instanceof sharingService.InsufficientRoleError) {
           set.status = 403
-          return { error: 'Viewer role cannot update this collection' }
+          return { error: t('errors.library.collectionViewerReadOnly') }
         }
         throw err
       }
@@ -165,12 +167,12 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // Delete a collection
   .delete(
     '/:id',
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, user, set, t }) => {
       try {
         const deleted = await collectionsService.deleteCollection(id, user.id)
         if (!deleted) {
           set.status = 404
-          return { error: 'Collection not found or delete failed' }
+          return { error: t('errors.library.collectionDeleteFailed') }
         }
         set.status = 204
       } catch (err) {
@@ -192,7 +194,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // Toggle sensitive mode for a collection
   .put(
     '/:id/sensitive',
-    async ({ params: { id }, body, user, set }) => {
+    async ({ params: { id }, body, user, set, t }) => {
       const updated = await encryptedPointsService.setCollectionSensitive(
         id,
         user.id,
@@ -200,7 +202,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       )
       if (!updated) {
         set.status = 404
-        return { error: 'Collection not found' }
+        return { error: t('errors.library.collectionNotFound') }
       }
       return { success: true, isSensitive: body.isSensitive }
     },
@@ -224,7 +226,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // envelope) and the server applies it in one transaction. Owner only.
   .post(
     '/:id/change-scheme',
-    async ({ params: { id }, body, user, set }) => {
+    async ({ params: { id }, body, user, set, t }) => {
       try {
         const updated = await collectionsService.changeCollectionScheme({
           collectionId: id,
@@ -239,7 +241,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         })
         if (!updated) {
           set.status = 404
-          return { error: 'Collection not found' }
+          return { error: t('errors.library.collectionNotFound') }
         }
         return updated
       } catch (err) {
@@ -312,7 +314,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // calling this endpoint — the server never touches plaintext.
   .post(
     '/:id/rotate-key',
-    async ({ params: { id }, body, user, set }) => {
+    async ({ params: { id }, body, user, set, t }) => {
       try {
         const updated = await collectionsService.rotateCollectionKey({
           collectionId: id,
@@ -325,7 +327,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         })
         if (!updated) {
           set.status = 404
-          return { error: 'Collection not found' }
+          return { error: t('errors.library.collectionNotFound') }
         }
         return updated
       } catch (err) {
@@ -370,12 +372,12 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // caller doesn't own the collection.
   .post(
     '/:id/public-link',
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, user, set, t }) => {
       try {
         const result = await collectionsService.createPublicLink(id, user.id)
         if (!result) {
           set.status = 404
-          return { error: 'Collection not found' }
+          return { error: t('errors.library.collectionNotFound') }
         }
         return result
       } catch (err) {
@@ -399,11 +401,11 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // no token was set.
   .delete(
     '/:id/public-link',
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, user, set, t }) => {
       const revoked = await collectionsService.revokePublicLink(id, user.id)
       if (!revoked) {
         set.status = 404
-        return { error: 'Collection not found' }
+        return { error: t('errors.library.collectionNotFound') }
       }
       set.status = 204
     },
@@ -438,7 +440,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // Create encrypted point in a collection. Editor or owner only.
   .post(
     '/:id/encrypted-points',
-    async ({ params: { id }, body, user, set }) => {
+    async ({ params: { id }, body, user, set, t }) => {
       try {
         await sharingService.requireWriteAccessToCollection(user.id, id)
         const point = await encryptedPointsService.createEncryptedPoint({
@@ -457,11 +459,11 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       } catch (err) {
         if (err instanceof sharingService.CollectionAccessDeniedError) {
           set.status = 404
-          return { error: 'Collection not found' }
+          return { error: t('errors.library.collectionNotFound') }
         }
         if (err instanceof sharingService.InsufficientRoleError) {
           set.status = 403
-          return { error: 'Viewer role cannot add encrypted points' }
+          return { error: t('errors.library.collectionPointsViewerReadOnly') }
         }
         set.status = 400
         return { error: (err as Error).message }
@@ -485,7 +487,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // Update an encrypted point. Editor or owner only.
   .put(
     '/:id/encrypted-points/:pointId',
-    async ({ params, body, user, set }) => {
+    async ({ params, body, user, set, t }) => {
       try {
         await sharingService.requireWriteAccessToCollection(user.id, params.id)
         const ownerId = (await collectionsService.getAccessibleCollection(
@@ -500,17 +502,17 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         )
         if (!point) {
           set.status = 404
-          return { error: 'Point not found' }
+          return { error: t('errors.library.pointNotFound') }
         }
         return point
       } catch (err) {
         if (err instanceof sharingService.CollectionAccessDeniedError) {
           set.status = 404
-          return { error: 'Collection not found' }
+          return { error: t('errors.library.collectionNotFound') }
         }
         if (err instanceof sharingService.InsufficientRoleError) {
           set.status = 403
-          return { error: 'Viewer role cannot update encrypted points' }
+          return { error: t('errors.library.collectionPointsViewerReadOnly') }
         }
         throw err
       }
@@ -534,7 +536,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
   // Delete an encrypted point. Editor or owner only.
   .delete(
     '/:id/encrypted-points/:pointId',
-    async ({ params, user, set }) => {
+    async ({ params, user, set, t }) => {
       try {
         await sharingService.requireWriteAccessToCollection(user.id, params.id)
         const ownerId = (await collectionsService.getAccessibleCollection(
@@ -547,17 +549,17 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         )
         if (!deleted) {
           set.status = 404
-          return { error: 'Point not found' }
+          return { error: t('errors.library.pointNotFound') }
         }
         set.status = 204
       } catch (err) {
         if (err instanceof sharingService.CollectionAccessDeniedError) {
           set.status = 404
-          return { error: 'Collection not found' }
+          return { error: t('errors.library.collectionNotFound') }
         }
         if (err instanceof sharingService.InsufficientRoleError) {
           set.status = 403
-          return { error: 'Viewer role cannot delete encrypted points' }
+          return { error: t('errors.library.collectionPointsViewerReadOnly') }
         }
         throw err
       }

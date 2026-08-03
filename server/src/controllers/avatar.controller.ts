@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { requireAuth } from '../middleware/auth.middleware'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 const AVATARS_DIR = resolve(__dirname, '../../data/uploads/avatars')
 const MAX_SIZE = 2 * 1024 * 1024 // 2MB
@@ -51,17 +52,17 @@ app.get(
   },
 )
 
-app.use(requireAuth).post(
+app.use(i18nPlugin).use(requireAuth).post(
   '/me/avatar',
-  async ({ body: { file }, user, set }) => {
+  async ({ body: { file }, user, set, t }) => {
     if (!ALLOWED_TYPES.includes(file.type)) {
       set.status = 400
-      return { message: 'File must be JPEG, PNG, or WebP' }
+      return { message: t('errors.avatar.invalidType') }
     }
 
     if (file.size > MAX_SIZE) {
       set.status = 400
-      return { message: 'File must be under 2MB' }
+      return { message: t('errors.avatar.tooLarge') }
     }
 
     await ensureAvatarsDir()

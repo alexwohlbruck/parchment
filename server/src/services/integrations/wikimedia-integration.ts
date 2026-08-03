@@ -13,6 +13,7 @@ import type { Place } from '../../types/place.types'
 import { WikimediaAdapter } from './adapters/wikimedia-adapter'
 import { SOURCE } from '../../lib/constants'
 import { logError, logWarn, logger } from '../../lib/logger'
+import type { Language } from '../../lib/i18n'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -127,7 +128,9 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
    */
   private async getPlaceInfo(
     id: string,
-    _options?: { language?: string },
+    // Language is accepted for interface parity but unused: this returns
+    // Commons images, and nothing in the response is prose shown to the user.
+    _options?: { language?: Language },
   ): Promise<Place | null> {
     this.ensureInitialized()
 

@@ -1,9 +1,33 @@
 import { db } from '../db'
 import { userPreferences, type UserPreferences, type NewUserPreferences } from '../schema/user-preferences.schema'
 import { eq } from 'drizzle-orm'
-import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
+import { DEFAULT_LANGUAGE, LANGUAGES, type Language } from '../lib/i18n/i18n.types'
 
 const DEFAULT_UNIT_SYSTEM = 'metric'
+
+/**
+ * Language to write an email in for `userId`. The user's saved preference wins;
+ * otherwise fall back to `requestLanguage` — the language of the request that
+ * triggered the send, which for a brand-new account is the only signal there is.
+ *
+ * Never throws: a preferences lookup failing should not stop an email going out.
+ */
+export async function resolveEmailLanguage(
+  userId: string | null,
+  requestLanguage: Language = DEFAULT_LANGUAGE,
+): Promise<Language> {
+  if (!userId) return requestLanguage
+  try {
+    const prefs = await getUserPreferences(userId)
+    const saved = prefs?.language
+    if (saved && (LANGUAGES as readonly string[]).includes(saved)) {
+      return saved as Language
+    }
+  } catch {
+    // Fall through to the request language.
+  }
+  return requestLanguage
+}
 
 export async function getUserPreferences(
   userId: string,

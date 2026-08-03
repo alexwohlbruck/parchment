@@ -1,5 +1,5 @@
 import type { OpeningTime } from '../types/place.types'
-import type { Language } from './i18n'
+import { getLanguageCode, type Language } from './i18n'
 import {
   getPlaceType as getOSMPlaceType,
   type GeometryType,
@@ -12,6 +12,25 @@ export function getPlaceType(
   geometry: GeometryType = 'point',
 ): string {
   return getOSMPlaceType(tags, language, geometry)
+}
+
+/**
+ * The place's name in `language`, from OSM's `name:<code>` tags.
+ *
+ * English is deliberately left alone: `name` is the on-the-ground name, which
+ * is the convention mappers actually maintain, while `name:en` is often absent
+ * or a worse transliteration. For other languages `name:<code>` is the only
+ * translation available, so it wins when present — "Hudson River" becomes
+ * "Río Hudson", but a place with no Spanish tag keeps its local name.
+ */
+export function getLocalizedName(
+  tags: Record<string, string> | null | undefined,
+  language: Language = 'en-US',
+  fallback?: string | null,
+): string | undefined {
+  const code = getLanguageCode(language)
+  const localized = code !== 'en' ? tags?.[`name:${code}`]?.trim() : undefined
+  return localized || fallback?.trim() || tags?.name?.trim() || undefined
 }
 
 export function parseOpeningHoursForUnifiedFormat(

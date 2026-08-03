@@ -3,8 +3,9 @@ import { requireAuth } from '../../middleware/auth.middleware'
 import { permissions } from '../../middleware/auth.middleware'
 import { PermissionId } from '../../types/auth.types'
 import * as layersService from '../../services/layers.service'
+import { i18nPlugin } from '../../lib/i18n/plugin'
 
-const app = new Elysia()
+const app = new Elysia().use(i18nPlugin)
 
 // Each route is wrapped in .group('') to isolate the permissions()
 // middleware — Elysia's .use() leaks to all subsequent routes otherwise.
@@ -71,11 +72,11 @@ app.group('', (g) =>
     .use(permissions(PermissionId.LAYERS_WRITE))
     .put(
       '/layers/:id',
-      async ({ user, params: { id }, body, set }) => {
+      async ({ user, params: { id }, body, set, t }) => {
         const layer = await layersService.updateLayer(id, user.id, body)
         if (!layer) {
           set.status = 404
-          return { error: 'Layer not found' }
+          return { error: t('errors.library.layerNotFound') }
         }
         return layer
       },
@@ -171,11 +172,11 @@ app.group('', (g) =>
     .use(permissions(PermissionId.LAYERS_WRITE))
     .put(
       '/layers/groups/:id',
-      async ({ user, params: { id }, body, set }) => {
+      async ({ user, params: { id }, body, set, t }) => {
         const group = await layersService.updateLayerGroup(id, user.id, body)
         if (!group) {
           set.status = 404
-          return { error: 'Layer group not found' }
+          return { error: t('errors.library.layerGroupNotFound') }
         }
         return group
       },
@@ -426,7 +427,7 @@ app.group('', (g) =>
     .use(permissions(PermissionId.LAYERS_WRITE))
     .post(
       '/layers/default-clone/layer',
-      async ({ user, body, set }) => {
+      async ({ user, body, set, t }) => {
         const { DEFAULT_LAYER_TEMPLATES, resolveProxyUrls } = await import(
           '../../constants/default-layers'
         )
@@ -435,7 +436,7 @@ app.group('', (g) =>
         )
         if (!template) {
           set.status = 404
-          return { error: 'Default layer template not found' }
+          return { error: t('errors.library.layerTemplateNotFound') }
         }
         const serverUrl =
           process.env.SERVER_URL || process.env.SERVER_ORIGIN || 'http://localhost:5000'
@@ -467,7 +468,7 @@ app.group('', (g) =>
     .use(permissions(PermissionId.LAYERS_WRITE))
     .post(
       '/layers/default-clone/group',
-      async ({ user, body, set }) => {
+      async ({ user, body, set, t }) => {
         const { DEFAULT_GROUP_TEMPLATES } = await import(
           '../../constants/default-layers'
         )
@@ -476,7 +477,7 @@ app.group('', (g) =>
         )
         if (!template) {
           set.status = 404
-          return { error: 'Default group template not found' }
+          return { error: t('errors.library.layerGroupTemplateNotFound') }
         }
         const clone = await layersService.cloneDefaultGroup(
           user.id,

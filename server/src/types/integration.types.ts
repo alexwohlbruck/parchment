@@ -82,6 +82,7 @@ export interface AutocompleteCapability {
     options?: {
       radius?: number
       limit?: number
+      language?: import('../lib/i18n').Language
       /** Aborts the request when the client disconnects (e.g. user kept typing). */
       signal?: AbortSignal
     },

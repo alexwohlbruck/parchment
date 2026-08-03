@@ -13,6 +13,7 @@ import {
   EnergyType,
 } from '../types/trip.types'
 import { logError } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 // Validation schemas for multimodal trip planning
 const CoordinateSchema = t.Object({
@@ -143,7 +144,7 @@ const TripRequestSchema = t.Object({
   timestamp: t.Optional(t.String()),
 })
 
-const app = new Elysia({ prefix: '/directions' })
+const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin)
 
 /**
  * Plan a multimodal trip (replaces original directions endpoint)
@@ -152,11 +153,10 @@ const app = new Elysia({ prefix: '/directions' })
 app.post(
   '/',
   async (ctx) => {
-    const { body, i18n } = ctx as typeof ctx & { i18n?: { language: import('../lib/i18n').Language } }
+    const { body, language } = ctx
     try {
-      // Language from elysia-i18next context; fallback from lib/i18n config only (no magic strings)
       const request: TripRequest = {
-        language: i18n?.language ?? DEFAULT_LANGUAGE,
+        language,
         waypoints: body.waypoints.map((wp, index) => ({
           location: {
             lat: wp.location.lat,
@@ -484,10 +484,10 @@ const PLANNED_TRIP_MAX_BYTES = 1_500_000
 
 app.post(
   '/trips',
-  async ({ body, set }) => {
+  async ({ body, set, t }) => {
     if (JSON.stringify(body).length > PLANNED_TRIP_MAX_BYTES) {
       set.status = 413
-      return { error: 'Trip snapshot too large' }
+      return { error: t('errors.trip.snapshotTooLarge') }
     }
     const id = randomBytes(8).toString('hex')
     const expiresAt = new Date(Date.now() + PLANNED_TRIP_TTL_MS)
@@ -517,7 +517,7 @@ app.post(
 
 app.get(
   '/trips/:id',
-  async ({ params, set }) => {
+  async ({ params, set, t }) => {
     const rows = await db
       .select()
       .from(plannedTrips)
@@ -526,12 +526,12 @@ app.get(
     const row = rows[0]
     if (!row) {
       set.status = 404
-      return { error: 'Trip snapshot not found' }
+      return { error: t('errors.trip.snapshotNotFound') }
     }
     if (row.expiresAt.getTime() < Date.now()) {
       await db.delete(plannedTrips).where(eq(plannedTrips.id, params.id))
       set.status = 404
-      return { error: 'Trip snapshot expired' }
+      return { error: t('errors.trip.snapshotExpired') }
     }
     return {
       id: row.id,

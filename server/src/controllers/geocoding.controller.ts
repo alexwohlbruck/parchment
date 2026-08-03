@@ -2,8 +2,10 @@ import { Elysia, t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
 import { forwardGeocode, reverseGeocode } from '../services/geocoding.service'
 import { logError } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 const geocodingRouter = new Elysia({ prefix: '/geocoding' })
+  .use(i18nPlugin)
   .use(requireAuth)
 
   /**
@@ -46,7 +48,7 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
         logError('Error performing forward geocoding', err)
         return status(500, {
           message:
-            err instanceof Error ? err.message : 'Failed to perform geocoding',
+            err instanceof Error ? err.message : t('errors.geocoding.forwardFailed'),
         })
       }
     },
@@ -131,7 +133,7 @@ const geocodingRouter = new Elysia({ prefix: '/geocoding' })
           message:
             err instanceof Error
               ? err.message
-              : 'Failed to perform reverse geocoding',
+              : t('errors.geocoding.reverseFailed'),
         })
       }
     },

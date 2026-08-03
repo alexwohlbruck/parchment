@@ -16,6 +16,7 @@ import { IntegrationId } from '../types/integration.types'
 import { getOsmConfig } from '../config/osm.config'
 import { generateId } from '../util'
 import { logError } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 const OSM_SCOPES = ['read_prefs', 'write_notes', 'write_api'] // read_prefs needed to fetch display name during OAuth callback
 
@@ -68,10 +69,10 @@ function oauthCallbackPage(result: { status: 'connected' | 'error'; message?: st
  * mutates the instance in place and would otherwise guard it too, no matter
  * where the route is declared. The two are merged at the bottom of this file.
  */
-const publicApi = new Elysia({ prefix: '/integrations/osm' })
+const publicApi = new Elysia({ prefix: '/integrations/osm' }).use(i18nPlugin)
 
 /** Everything that requires an authenticated session. */
-const app = new Elysia({ prefix: '/integrations/osm' })
+const app = new Elysia({ prefix: '/integrations/osm' }).use(i18nPlugin)
 
 /**
  * Initiate OSM OAuth2 authorization flow.
@@ -129,11 +130,11 @@ app.use(requireAuth).get(
  */
 publicApi.get(
   '/callback',
-  async ({ query }) => {
+  async ({ query, t }) => {
     const { code, state } = query
 
     if (!code || !state) {
-      return oauthCallbackPage({ status: 'error', message: 'Missing authorization code or state' })
+      return oauthCallbackPage({ status: 'error', message: t('errors.osm.missingCodeOrState') })
     }
 
     try {
@@ -144,7 +145,7 @@ publicApi.get(
         .where(and(eq(tokens.type, 'token'), eq(tokens.value, state)))
 
       if (matchingTokens.length === 0) {
-        return oauthCallbackPage({ status: 'error', message: 'Invalid or expired state parameter' })
+        return oauthCallbackPage({ status: 'error', message: t('errors.osm.invalidState') })
       }
 
       const stateToken = matchingTokens[0]
@@ -153,7 +154,7 @@ publicApi.get(
       // Check expiry
       if (stateToken.expires && new Date(stateToken.expires) < new Date()) {
         await db.delete(tokens).where(eq(tokens.id, stateToken.id))
-        return oauthCallbackPage({ status: 'error', message: 'Authorization request expired' })
+        return oauthCallbackPage({ status: 'error', message: t('errors.osm.authorizationExpired') })
       }
 
       // Clean up the state token
@@ -180,7 +181,7 @@ publicApi.get(
 
       const osmUser = userResponse.data?.user
       if (!osmUser) {
-        return oauthCallbackPage({ status: 'error', message: 'Failed to fetch OSM user details' })
+        return oauthCallbackPage({ status: 'error', message: t('errors.osm.userDetailsFailed') })
       }
 
       // Check if user already has an OSM integration and remove it
@@ -232,7 +233,7 @@ publicApi.get(
  */
 app.use(requireAuth).get(
   '/profile',
-  async ({ user, status }) => {
+  async ({ user, status, t }) => {
     try {
       const userIntegrations = await getConfiguredIntegrations(user.id)
       const osmIntegration = userIntegrations.find(
@@ -240,12 +241,12 @@ app.use(requireAuth).get(
       )
 
       if (!osmIntegration) {
-        return status(404, { message: 'No OSM integration found' })
+        return status(404, { message: t('errors.osm.integrationNotFound') })
       }
 
       const accessToken = (osmIntegration.config as any)?.accessToken
       if (!accessToken) {
-        return status(400, { message: 'No access token found' })
+        return status(400, { message: t('errors.osm.accessTokenMissing') })
       }
 
       const osmCfg = getOsmConfig()
@@ -258,7 +259,7 @@ app.use(requireAuth).get(
 
       const osmUser = userResponse.data?.user
       if (!osmUser) {
-        return status(502, { message: 'Failed to fetch OSM user details' })
+        return status(502, { message: t('errors.osm.userDetailsFailed') })
       }
 
       // Update stored config with fresh profile data
@@ -286,7 +287,7 @@ app.use(requireAuth).get(
     } catch (error: any) {
       const errorStatus = error.response?.status
       if (errorStatus === 401) {
-        return status(401, { message: 'OSM access token is invalid or expired' })
+        return status(401, { message: t('errors.osm.accessTokenInvalid') })
       }
       return status(500, {
         message: error.message || 'Failed to fetch OSM profile',
@@ -306,7 +307,7 @@ app.use(requireAuth).get(
  */
 app.use(requireAuth).post(
   '/disconnect',
-  async ({ user, status }) => {
+  async ({ user, status, t }) => {
     try {
       const userIntegrations = await getConfiguredIntegrations(user.id)
       const osmIntegration = userIntegrations.find(
@@ -314,7 +315,7 @@ app.use(requireAuth).post(
       )
 
       if (!osmIntegration) {
-        return status(404, { message: 'No OSM integration found' })
+        return status(404, { message: t('errors.osm.integrationNotFound') })
       }
 
       await deleteIntegration(osmIntegration.id, user.id)

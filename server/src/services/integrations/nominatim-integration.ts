@@ -12,6 +12,7 @@ import { SOURCE } from '../../lib/constants'
 import { NominatimAdapter } from './adapters/nominatim-adapter'
 import type { Place } from '../../types/place.types'
 import { logError } from '../../lib/logger'
+import { getLanguageCode, DEFAULT_LANGUAGE, type Language } from '../../lib/i18n'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -173,7 +174,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number; language?: string },
+    options?: { radius?: number; limit?: number; language?: Language },
   ): Promise<Place[]> {
     this.ensureInitialized()
     const radius = options?.radius
@@ -187,7 +188,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       namedetails: '1',
       limit: String(options?.limit ?? 50),
       dedupe: '1',
-      'accept-language': options?.language ?? 'en',
+      'accept-language': getLanguageCode(options?.language ?? DEFAULT_LANGUAGE),
       polygon_geojson: '1', // Request polygon geometry in GeoJSON format
       // email: this.config.email,
     }
@@ -209,7 +210,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
 
     // Adapt Nominatim search results to unified Place objects
     return results.map((result) =>
-      this.adapter.placeInfo.adaptPlaceDetails(result),
+      this.adapter.placeInfo.adaptPlaceDetails(result, undefined, options?.language),
     )
   }
 
@@ -240,7 +241,11 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
    * @param lng Longitude
    * @returns Array of places
    */
-  private async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+  private async reverseGeocode(
+    lat: number,
+    lng: number,
+    options?: { language?: Language },
+  ): Promise<Place[]> {
     this.ensureInitialized()
 
     const apiUrl = `${
@@ -256,7 +261,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       addressdetails: 1,
       extratags: 1,
       namedetails: 1,
-      'accept-language': 'en', // TODO: i18n
+      'accept-language': getLanguageCode(options?.language ?? DEFAULT_LANGUAGE),
       polygon_geojson: 1,
       // email: this.config.email,
     }
@@ -270,7 +275,13 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
       if (!response.data) return []
       
       // Adapt the result to Place format
-      return [this.adapter.placeInfo.adaptPlaceDetails(response.data)]
+      return [
+        this.adapter.placeInfo.adaptPlaceDetails(
+          response.data,
+          undefined,
+          options?.language,
+        ),
+      ]
     } catch (error) {
       logError('Error reverse geocoding with Nominatim', error)
       return []
@@ -285,7 +296,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
    */
   private async getPlaceInfo(
     id: string,
-    _options?: { language?: string },
+    options?: { language?: Language },
   ): Promise<Place | null> {
     this.ensureInitialized()
 
@@ -328,7 +339,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
         addressdetails: 1,
         extratags: 1,
         namedetails: 1,
-        'accept-language': 'en',
+        'accept-language': getLanguageCode(options?.language ?? DEFAULT_LANGUAGE),
         polygon_geojson: 1, // Request polygon geometry in GeoJSON format
       }
 
@@ -348,7 +359,7 @@ export class NominatimIntegration implements Integration<NominatimConfig> {
 
       // Use the adapter to convert to standardized Place format
       const result = response.data[0]
-      return this.adapter.placeInfo.adaptPlaceDetails(result)
+      return this.adapter.placeInfo.adaptPlaceDetails(result, undefined, options?.language)
     } catch (error) {
       logError('Error getting place details from Nominatim', error)
       return null

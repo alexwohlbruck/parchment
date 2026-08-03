@@ -17,6 +17,7 @@ import { OverpassAdapter } from './adapters/overpass-adapter'
 import { SOURCE } from '../../lib/constants'
 import { calculateOSMCenter } from '../../util/geometry-conversion'
 import { logError, logger } from '../../lib/logger'
+import type { Language } from '../../lib/i18n'
 
 // TODO: Remove overpass integration
 // TODO: Overpass is designed for OSM editors to edit the map, not for backend search
@@ -107,7 +108,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
    */
   private async getPlaceInfo(
     id: string,
-    _options?: { language?: string },
+    options?: { language?: Language },
   ): Promise<Place | null> {
     if (!this.config.host) {
       logError('Overpass integration not properly configured')
@@ -147,7 +148,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       }
 
       // Use the adapter to convert to standardized Place format
-      return this.adapter.placeInfo.adaptPlaceDetails(place)
+      return this.adapter.placeInfo.adaptPlaceDetails(place, undefined, options?.language)
     } catch (error) {
       logError('Error fetching place from Overpass', error)
       return null
@@ -273,7 +274,11 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
    * @param maxResults Maximum number of results to return
    * @returns Array of Place objects
    */
-  async executeRawQuery(query: string, maxResults: number): Promise<Place[]> {
+  async executeRawQuery(
+    query: string,
+    maxResults: number,
+    options?: { language?: Language },
+  ): Promise<Place[]> {
     if (!this.config.host) {
       throw new Error('Overpass integration host not configured')
     }
@@ -308,7 +313,11 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
             element.center = { lat: center.lat, lon: center.lng }
           }
 
-          const place = this.adapter.placeInfo.adaptPlaceDetails(element)
+          const place = this.adapter.placeInfo.adaptPlaceDetails(
+            element,
+            undefined,
+            options?.language,
+          )
           if (place) {
             places.push(place)
           }
@@ -331,7 +340,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
   async searchByCategory(
     presetId: string,
     bounds?: MapBounds,
-    options?: { limit?: number },
+    options?: { limit?: number; language?: Language },
   ): Promise<Place[]> {
     if (!this.config.host) {
       logError('Overpass integration not properly configured')
@@ -370,7 +379,11 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
             element.center = { lat: center.lat, lon: center.lng }
           }
 
-          const place = this.adapter.placeInfo.adaptPlaceDetails(element)
+          const place = this.adapter.placeInfo.adaptPlaceDetails(
+            element,
+            undefined,
+            options?.language,
+          )
           if (place) {
             places.push(place)
           }
@@ -441,6 +454,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     options?: {
       limit?: number
       bbox?: { south: number; west: number; north: number; east: number }
+      language?: Language
     },
   ): Promise<Place[]> {
     if (!this.config.host) {
@@ -459,7 +473,13 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
 
     // Prefer bbox query — much faster and doesn't require Overpass area pre-computation
     if (options?.bbox) {
-      return this.searchByCategoryInBbox(tagSets, options.bbox, maxResults, osmId)
+      return this.searchByCategoryInBbox(
+        tagSets,
+        options.bbox,
+        maxResults,
+        osmId,
+        options.language,
+      )
     }
 
     // Fall back to area() query when no bbox available
@@ -505,7 +525,10 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       )
 
       if (!response.data?.elements) return []
-      return this.elementsToPlaces(response.data.elements.slice(0, maxResults))
+      return this.elementsToPlaces(
+        response.data.elements.slice(0, maxResults),
+        options?.language,
+      )
     } catch (error) {
       logError(`[Overpass/Area] Error executing area query for ${osmId}`, error)
       return []
@@ -521,6 +544,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
     bbox: { south: number; west: number; north: number; east: number },
     maxResults: number,
     osmId: string,
+    language?: Language,
   ): Promise<Place[]> {
     const bboxStr = `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`
 
@@ -552,7 +576,10 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
       )
 
       if (!response.data?.elements) return []
-      const places = this.elementsToPlaces(response.data.elements.slice(0, maxResults))
+      const places = this.elementsToPlaces(
+        response.data.elements.slice(0, maxResults),
+        language,
+      )
       logger.debug(`[Overpass/Bbox] Found ${places.length} places within ${osmId}`)
       return places
     } catch (error) {
@@ -683,7 +710,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
   /**
    * Convert raw Overpass elements to Place objects.
    */
-  private elementsToPlaces(elements: any[]): Place[] {
+  private elementsToPlaces(elements: any[], language?: Language): Place[] {
     const places: Place[] = []
     for (const element of elements) {
       try {
@@ -691,7 +718,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         if (center) {
           element.center = { lat: center.lat, lon: center.lng }
         }
-        const place = this.adapter.placeInfo.adaptPlaceDetails(element)
+        const place = this.adapter.placeInfo.adaptPlaceDetails(element, undefined, language)
         if (place) {
           places.push(place)
         }

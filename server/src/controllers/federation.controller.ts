@@ -15,8 +15,9 @@ import {
 import { canonicalJsonStringify } from '../lib/federation-canonical'
 import { logger } from '../lib/logger'
 import { federationRateLimit } from '../middleware/rate-limit.middleware'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia()
+const app = new Elysia().use(i18nPlugin)
 
 app.use(federationRateLimit)
 

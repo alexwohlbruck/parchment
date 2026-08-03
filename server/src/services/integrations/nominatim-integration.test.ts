@@ -181,11 +181,12 @@ describe('searchPlaces', () => {
 
     await configured().searchPlaces('bakery', undefined, undefined, {
       limit: 5,
-      language: 'de',
+      language: 'es-ES',
     })
 
     expect(paramsOf().limit).toBe('5')
-    expect(paramsOf()['accept-language']).toBe('de')
+    // Nominatim wants a bare code, not the full tag.
+    expect(paramsOf()['accept-language']).toBe('es')
   })
 
   test('returns an empty list when nothing matches', async () => {

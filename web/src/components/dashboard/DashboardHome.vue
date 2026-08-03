@@ -21,6 +21,7 @@ import { appEventBus } from '@/lib/eventBus'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { PlaceCard } from '@/components/place/card'
+import { SectionHeader } from '@/components/ui/section-header'
 import { recentPlaceToDisplay } from '@/lib/place-display'
 
 dayjs.extend(relativeTime)
@@ -132,7 +133,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
       <div v-show="!paletteFocused" class="space-y-6">
       <!-- Library Section -->
       <div>
-        <h3 class="text-lg mb-1.5 px-1 block">{{ t('library.title') }}</h3>
+        <SectionHeader size="lg" :title="t('library.title')" class="mb-1.5 px-1" />
 
         <div class="grid grid-cols-2 gap-2">
           <Card
@@ -160,7 +161,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
 
       <!-- Navigation Section (mobile only) -->
       <div v-if="isMobileScreen">
-        <h3 class="text-lg mb-1.5 px-1 block">{{ t('navigation.title') }}</h3>
+        <SectionHeader size="lg" :title="t('navigation.title')" class="mb-1.5 px-1" />
         <div class="grid grid-cols-2 gap-2">
           <Card
             class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
@@ -198,7 +199,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
 
       <!-- Recently viewed places -->
       <div v-if="recentPlaces.length > 0">
-        <h3 class="text-lg mb-1.5 px-1">{{ t('general.recents') }}</h3>
+        <SectionHeader size="lg" :title="t('general.recents')" class="mb-1.5 px-1" />
         <div class="space-y-2">
           <PlaceCard
             v-for="place in recentPlaces.slice(0, 5)"

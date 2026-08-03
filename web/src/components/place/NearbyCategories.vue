@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import type { Place, NearbyCategory } from '@/types/place.types'
 import PlaceTypeChip from './PlaceTypeChip.vue'
+import { SectionHeader } from '@/components/ui/section-header'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -41,7 +42,7 @@ function handleCategoryClick(cat: NearbyCategory) {
 
 <template>
   <div v-if="categories.length" class="flex flex-col gap-2">
-    <h3 class="text-sm font-semibold text-muted-foreground">{{ t('place.nearby.findNearby') }}</h3>
+    <SectionHeader :title="t('place.nearby.findNearby')" />
     <div class="flex flex-wrap gap-1.5">
     <PlaceTypeChip
       v-for="cat in categories"

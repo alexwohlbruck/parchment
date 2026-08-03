@@ -30,6 +30,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import { Button } from '@/components/ui/button'
+import { formatClockTime } from '@/lib/time.utils'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -140,12 +141,7 @@ const isHoursExpanded = ref(false)
 
 const DAYS = computed(() => [0, 1, 2, 3, 4, 5, 6].map(i => t(`place.hours.days.${i}`)))
 
-function formatTime(time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  const period = hours >= 12 ? 'PM' : 'AM'
-  const hour = hours % 12 || 12
-  return `${hour}:${minutes.toString().padStart(2, '0')} ${period}`
-}
+const formatTime = (time: string) => formatClockTime(time)
 
 function formatOpeningHours(hours: any) {
   if (!hours || !hours.rawText) return ''

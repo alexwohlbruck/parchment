@@ -41,7 +41,13 @@
     "all": "All",
     "recents": "Recents",
     "pinned": "Pinned",
-    "seeAll": "See all"
+    "seeAll": "See all",
+    "timeAgo": {
+      "justNow": "just now",
+      "minutesAgo": "{n}m ago",
+      "hoursAgo": "{n}h ago",
+      "daysAgo": "{n}d ago"
+    }
   },
   "weather": {
     "title": "Weather Conditions",

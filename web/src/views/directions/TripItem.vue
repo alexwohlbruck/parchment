@@ -11,6 +11,7 @@ import type {
   TripsResponse,
 } from '@/types/directions.types'
 import { TravelMode } from '@/types/directions.types'
+import { formatDurationParts } from '@/lib/time.utils'
 
 interface Props {
   trip: TripOption
@@ -177,18 +178,8 @@ function getTripModeLabel(mode: string): string {
   return t(`directions.modes.${normalizedMode}`)
 }
 
-function formatDuration(seconds: number) {
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return { parts: [{ value: minutes, unit: 'min' }] }
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  const parts = [{ value: hours, unit: 'h' }]
-  if (remainingMinutes > 0) parts.push({ value: remainingMinutes, unit: 'm' })
-  return { parts }
-}
-
 function formatDurationString(seconds: number) {
-  const { parts } = formatDuration(seconds)
+  const { parts } = formatDurationParts(seconds)
   return parts.map(p => `${p.value}${p.unit}`).join(' ')
 }
 
@@ -301,7 +292,7 @@ function handleMouseEnter() {
     <!-- Duration sidebar -->
     <div data-sidebar class="text-right tabular-nums pt-0.5 pl-3 pr-2 whitespace-nowrap">
       <div class="text-base font-semibold leading-tight">
-        <template v-for="(part, i) in formatDuration(trip.summary.totalDuration).parts" :key="i">
+        <template v-for="(part, i) in formatDurationParts(trip.summary.totalDuration).parts" :key="i">
           <span v-if="i > 0" class="inline-block w-1" />{{ part.value }}<span class="text-[11px] font-medium ml-px">{{ part.unit }}</span>
         </template>
       </div>

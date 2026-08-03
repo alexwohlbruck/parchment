@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { ClockIcon } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
 import type { OpeningHours } from '@/types/place.types'
+import { formatClockTime } from '@/lib/time.utils'
 
 const props = defineProps<{
   hours: OpeningHours
@@ -93,12 +94,7 @@ const openingStatus = computed(() => {
   }
 })
 
-function formatTime(time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  const period = hours >= 12 ? 'PM' : 'AM'
-  const hour = hours % 12 || 12
-  return `${hour}:${minutes.toString().padStart(2, '0')} ${period}`
-}
+const formatTime = (time: string) => formatClockTime(time)
 
 function formatOpeningHours(hours: OpeningHours) {
   if (!hours || !hours.rawText) return ''

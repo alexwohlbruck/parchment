@@ -9,6 +9,7 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip'
 import { mapEventBus } from '@/lib/eventBus'
+import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
 
 // Simple translation function - markers are rendered outside app context
 function t(key: string, params?: Record<string, any>): string {
@@ -59,18 +60,8 @@ const initials = computed(() => {
 /**
  * Simple time ago formatter
  */
-function formatTimeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
-
-  if (seconds < 60) return t('friends.map.justNow')
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return t('friends.map.minutesAgo', { n: minutes })
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return t('friends.map.hoursAgo', { n: hours })
-  const days = Math.floor(hours / 24)
-  if (days < 7) return t('friends.map.daysAgo', { n: days })
-  return date.toLocaleDateString()
-}
+const formatTimeAgo = (input: Date | string | number) =>
+  sharedTimeAgo(input, t)
 
 const timeAgo = computed(() => {
   return formatTimeAgo(props.updatedAt)

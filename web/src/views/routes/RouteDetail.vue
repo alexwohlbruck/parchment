@@ -32,6 +32,7 @@ import { useMapService } from '@/services/map.service'
 import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { Route } from '@/types/routes.types'
+import { formatDurationLong } from '@/lib/time.utils'
 
 const props = defineProps<{ id: string }>()
 
@@ -75,13 +76,6 @@ const chartGeometry = computed(() => {
 const hasElevation = computed(() => !!route.value?.body?.elevation?.length)
 const isPrivate = computed(() => route.value?.scheme === 'user-e2ee')
 
-function formatDuration(seconds: number): string {
-  const m = Math.round(seconds / 60)
-  if (m < 60) return `${m} min`
-  const h = Math.floor(m / 60)
-  const rem = m % 60
-  return rem ? `${h} hr ${rem} min` : `${h} hr`
-}
 
 function frameRoute() {
   const geom = route.value?.body?.geometry
@@ -184,7 +178,7 @@ async function remove() {
             class="inline-flex items-center gap-1 text-sm text-muted-foreground"
           >
             <ClockIcon class="size-3.5" />
-            {{ formatDuration(stats.duration) }}
+            {{ formatDurationLong(stats.duration) }}
           </span>
           <span
             v-if="stats.elevationGain"

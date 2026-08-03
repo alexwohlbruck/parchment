@@ -47,6 +47,7 @@ import { useMapListener } from '@/composables/useMapListener'
 import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { RouteMode } from '@/types/routes.types'
+import { formatDurationLong } from '@/lib/time.utils'
 
 const props = defineProps<{ id?: string }>()
 
@@ -77,13 +78,6 @@ const modes: { id: RouteMode; label: string; icon: any }[] = [
   { id: 'driving', label: 'Driving', icon: CarFrontIcon },
 ]
 
-function formatDuration(seconds: number): string {
-  const m = Math.round(seconds / 60)
-  if (m < 60) return `${m} min`
-  const h = Math.floor(m / 60)
-  const rem = m % 60
-  return rem ? `${h} hr ${rem} min` : `${h} hr`
-}
 
 // Build the {lng,lat,elevation} array the ElevationChart expects.
 const chartGeometry = computed(() =>
@@ -346,7 +340,7 @@ async function confirmSave() {
             class="inline-flex items-center gap-1 text-sm text-muted-foreground"
           >
             <ClockIcon class="size-3.5" />
-            {{ formatDuration(stats.duration) }}
+            {{ formatDurationLong(stats.duration) }}
           </span>
           <span
             v-if="stats?.elevationGain"

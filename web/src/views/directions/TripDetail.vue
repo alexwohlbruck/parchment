@@ -55,6 +55,7 @@ import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { useUnits } from '@/composables/useUnits'
+import { formatDurationCompact } from '@/lib/time.utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -747,12 +748,6 @@ const heroDuration = computed(() => {
   return { main: String(minutes), suffix: 'min' }
 })
 
-const formatDuration = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
-}
 
 const formatDistanceDisplay = (meters: number | undefined): string => {
   if (!meters) return formatDistance(0)
@@ -1426,7 +1421,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     >
                       <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
                         <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
-                        <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDuration(entry.segment.duration) }}</span>
+                        <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div
@@ -1484,7 +1479,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
                 <!-- Meta under the card -->
                 <div class="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
-                  <span class="tabular-nums">{{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
+                  <span class="tabular-nums">{{ formatDurationCompact(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
                   <span v-if="entry.segment.agencyName">· {{ entry.segment.agencyName }}</span>
                   <span
                     v-if="entry.segment.carryingVehicle"
@@ -1519,7 +1514,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     <ClockIcon class="size-3" />
                     {{ Math.ceil(entry.segment.rideshareDetails.pickupEta / 60) }} min pickup
                   </span>
-                  <span>{{ formatDuration(entry.segment.duration) }}</span>
+                  <span>{{ formatDurationCompact(entry.segment.duration) }}</span>
                 </div>
                 <a
                   v-if="entry.segment.rideshareDetails.bookingUrl"
@@ -1551,7 +1546,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     Shared
                   </span>
                   <span class="text-sm text-muted-foreground">
-                    {{ formatDuration(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
+                    {{ formatDurationCompact(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
                   </span>
                 </div>
                 <!-- Station entrance/exit this walk uses -->
@@ -1731,7 +1726,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                       >
                         {{ formatDistanceDisplay(instruction.distance) }}
                         <template v-if="instruction.duration">
-                          · {{ formatDuration(instruction.duration) }}
+                          · {{ formatDurationCompact(instruction.duration) }}
                         </template>
                       </span>
                     </div>

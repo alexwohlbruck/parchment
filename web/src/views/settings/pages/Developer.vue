@@ -44,6 +44,7 @@ import { useAppService } from '@/services/app.service'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { User } from '@/types/auth.types'
+import { formatStopwatch } from '@/lib/time.utils'
 
 const state = ref<SimulatorState>(simulatorStore.getState())
 const errorMsg = ref<string | null>(null)
@@ -86,15 +87,9 @@ const headingLabel = computed(() => {
   return p?.heading != null ? `${p.heading.toFixed(0)}°` : '—'
 })
 
-const totalLabel = computed(() => formatDuration(state.value.totalDurationMs / 1000))
-const elapsedLabel = computed(() => formatDuration(state.value.trackTimeMs / 1000))
+const totalLabel = computed(() => formatStopwatch(state.value.totalDurationMs / 1000))
+const elapsedLabel = computed(() => formatStopwatch(state.value.trackTimeMs / 1000))
 
-function formatDuration(sec: number): string {
-  if (!Number.isFinite(sec) || sec < 0) return '0:00'
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
 
 async function loadFile(file: File) {
   errorMsg.value = null

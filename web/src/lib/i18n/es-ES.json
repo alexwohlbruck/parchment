@@ -40,7 +40,13 @@
     "enabled": "Habilitado",
     "all": "Todos",
     "recents": "Recientes",
-    "seeAll": "Ver todo"
+    "seeAll": "Ver todo",
+    "timeAgo": {
+      "justNow": "ahora mismo",
+      "minutesAgo": "hace {n} min",
+      "hoursAgo": "hace {n} h",
+      "daysAgo": "hace {n} d"
+    }
   },
   "weather": {
     "title": "Condiciones del tiempo",

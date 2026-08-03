@@ -24,6 +24,7 @@ import {
   ArrowLeftIcon,
 } from 'lucide-vue-next'
 import type { TransitDeparture } from '@/types/place.types'
+import { Spinner } from '@/components/ui/spinner'
 
 const props = defineProps<{
   feedId: string
@@ -189,7 +190,7 @@ onUnmounted(() => {
     </div>
 
     <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <div class="animate-spin h-6 w-6 border-2 border-foreground/20 border-t-foreground rounded-full" />
+      <Spinner size="sm" />
     </div>
 
     <div v-else-if="route" class="flex flex-col pb-6">

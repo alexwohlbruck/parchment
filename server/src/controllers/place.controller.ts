@@ -13,16 +13,17 @@ import { WidgetType } from '../types/place.types'
 import { fetchWidgetData } from '../services/widget.service'
 import { fetchNearestStreetImage } from '../services/street-imagery.service'
 import { logError, logger } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 const app = new Elysia({ prefix: '/places' })
+  .use(i18nPlugin)
   .use(getSession)
 
 // Get place by looking up source+id or name+lat+lng
 app.get(
   '/details',
   async (ctx) => {
-    const { query, user, i18n, t, status } = ctx as typeof ctx & { i18n?: { language: import('../lib/i18n').Language }; t?: any; status?: any }
-    const language = i18n?.language ?? DEFAULT_LANGUAGE
+    const { query, user, language, t, status } = ctx
     const { source, id, name, lat, lng, radius = 500 } = query
 
     const isIdLookup = Boolean(source) && Boolean(id)
@@ -214,12 +215,12 @@ app.get(
 app.get(
   '/street-imagery',
   async (ctx) => {
-    const { query, status } = ctx as typeof ctx & { status?: any }
+    const { query, status, t } = ctx
     const lat = parseFloat(query.lat as string)
     const lng = parseFloat(query.lng as string)
 
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return status(400, { message: 'lat and lng are required' })
+      return status(400, { message: t('errors.place.coordinatesRequired') })
     }
 
     try {

@@ -17,7 +17,6 @@ import {
   ArrowUpRightIcon,
   ArrowDownRightIcon,
   ClockIcon,
-  Loader2Icon,
 } from 'lucide-vue-next'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
@@ -47,6 +46,8 @@ import { useMapListener } from '@/composables/useMapListener'
 import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { RouteMode } from '@/types/routes.types'
+import { formatDurationLong } from '@/lib/time.utils'
+import { Spinner } from '@/components/ui/spinner'
 
 const props = defineProps<{ id?: string }>()
 
@@ -77,13 +78,6 @@ const modes: { id: RouteMode; label: string; icon: any }[] = [
   { id: 'driving', label: 'Driving', icon: CarFrontIcon },
 ]
 
-function formatDuration(seconds: number): string {
-  const m = Math.round(seconds / 60)
-  if (m < 60) return `${m} min`
-  const h = Math.floor(m / 60)
-  const rem = m % 60
-  return rem ? `${h} hr ${rem} min` : `${h} hr`
-}
 
 // Build the {lng,lat,elevation} array the ElevationChart expects.
 const chartGeometry = computed(() =>
@@ -346,7 +340,7 @@ async function confirmSave() {
             class="inline-flex items-center gap-1 text-sm text-muted-foreground"
           >
             <ClockIcon class="size-3.5" />
-            {{ formatDuration(stats.duration) }}
+            {{ formatDurationLong(stats.duration) }}
           </span>
           <span
             v-if="stats?.elevationGain"
@@ -362,10 +356,7 @@ async function confirmSave() {
             <ArrowDownRightIcon class="size-3.5" />
             {{ formatElevation(stats.elevationLoss) }}
           </span>
-          <Loader2Icon
-            v-if="isRouting"
-            class="size-4 animate-spin text-muted-foreground"
-          />
+          <Spinner v-if="isRouting" size="icon" class="text-muted-foreground" />
         </div>
         <p v-if="routeError" class="text-sm text-destructive mt-1">
           {{ routeError }}

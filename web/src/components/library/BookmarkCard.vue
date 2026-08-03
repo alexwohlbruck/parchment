@@ -1,23 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, markRaw } from 'vue'
-import { Card, CardContent } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
-import { ItemIcon } from '@/components/ui/item-icon'
+import { PlaceCard } from '@/components/place/card'
 import {
   MoreVerticalIcon,
   PencilIcon,
   FolderPlusIcon,
   FolderMinusIcon,
 } from 'lucide-vue-next'
-import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
 import type { Bookmark } from '@/types/library.types'
-import { frequentChipMeta } from '@/lib/frequents'
-import { getPlaceRouteFromExternalIds } from '@/lib/place.utils'
 import { useAppService } from '@/services/app.service'
 import BookmarkForm from '@/components/library/BookmarkForm.vue'
 import CollectionPicker from '@/components/library/CollectionPicker.vue'
@@ -37,7 +33,6 @@ const emit = defineEmits<{
   removeFromCollection: [bookmark: Bookmark]
 }>()
 
-const router = useRouter()
 const collectionsStore = useCollectionsStore()
 const { collections } = storeToRefs(collectionsStore)
 const collectionsService = useCollectionsService()
@@ -45,19 +40,11 @@ const bookmarksService = useBookmarksService()
 const appService = useAppService()
 const { t } = useI18n()
 
-/** Frequents get their type's fixed look; everything else the POI's own. */
-const chipMeta = computed(() => frequentChipMeta(props.bookmark))
-
 onMounted(async () => {
   if (collections.value.length === 0) {
     await collectionsService.fetchCollections()
   }
 })
-
-function navigateToBookmark() {
-  const route = getPlaceRouteFromExternalIds(props.bookmark.externalIds)
-  if (route) router.push(route)
-}
 
 async function editBookmark() {
   appService
@@ -130,57 +117,27 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
 </script>
 
 <template>
-  <Card
-    class="overflow-hidden hover:bg-secondary/40 transition-colors cursor-pointer"
-    @click="navigateToBookmark"
-  >
-    <CardContent class="p-2 flex items-center gap-3">
-      <!-- A frequent shows the look fixed by its type; everything else shows
-           the bookmarked POI's own icon and colour. Neither is user-chosen. -->
-      <ItemIcon
-        :icon="chipMeta.icon"
-        :icon-pack="chipMeta.iconPack"
-        :color="chipMeta.color"
-        size="md"
-      />
-
-      <div class="grow min-w-0">
-        <div class="flex items-center justify-between">
-          <div class="flex flex-col justify-center">
-            <h3 class="font-sans font-semibold text-sm">{{ bookmark.name }}</h3>
-
-            <div v-if="bookmark.address" class="text-xs text-muted-foreground">
-              {{ bookmark.address }}
-            </div>
-
-            <div
-              v-if="bookmark.frequentType"
-              class="text-xs text-muted-foreground capitalize"
-            >
-              {{ bookmark.frequentType }}
-            </div>
-          </div>
-
-          <!-- Actions dropdown -->
-          <ResponsiveDropdown
-            align="end"
-            :items="menuItems"
-            :z-index-offset="1"
-            :custom-snap-points="['400px', 0.7]"
+  <!-- A frequent shows the look fixed by its type; everything else shows the
+       bookmarked POI's own icon and colour. Neither is user-chosen. -->
+  <PlaceCard :bookmark="bookmark" variant="row" size="md">
+    <template #trailing>
+      <ResponsiveDropdown
+        align="end"
+        :items="menuItems"
+        :z-index-offset="1"
+        :custom-snap-points="['400px', 0.7]"
+      >
+        <template #trigger="{ open }">
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-8 shrink-0"
+            @click.stop.prevent="open"
           >
-            <template #trigger="{ open }">
-              <Button
-                variant="ghost"
-                size="icon"
-                class="size-8"
-                @click.stop="open"
-              >
-                <MoreVerticalIcon class="size-4" />
-              </Button>
-            </template>
-          </ResponsiveDropdown>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
+            <MoreVerticalIcon class="size-4" />
+          </Button>
+        </template>
+      </ResponsiveDropdown>
+    </template>
+  </PlaceCard>
 </template>

@@ -28,7 +28,6 @@ import {
   FootprintsIcon,
   RotateCwIcon,
   TrainIcon,
-  XIcon,
 } from 'lucide-vue-next'
 import type { IsochroneMode } from '@server/types/isochrone.types'
 import { useMapService } from '@/services/map.service'
@@ -59,8 +58,8 @@ import {
   ISOCHRONE_SOURCE_ID,
 } from '@/constants/layer.constants'
 import MeasureDot from './MeasureDot.vue'
+import MeasureToolPanel from './MeasureToolPanel.vue'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
@@ -322,35 +321,21 @@ function closeTool() {
 </script>
 
 <template>
-  <div v-if="isActive" class="pointer-events-auto w-[19rem] shrink-0">
-    <Card
-      class="rounded-xl border-border/60 bg-background/90 backdrop-blur-sm shadow-sm"
-    >
-      <CardHeader
-        class="flex flex-row items-center justify-between px-3.5 py-2"
-      >
-        <CardTitle
-          class="mb-0 flex items-center gap-2 text-[15px] font-semibold tracking-[-0.02em]"
-        >
-          {{ t('isochrone.title') }}
-          <Spinner
-            v-if="status === 'loading'"
-            size="icon"
-            class="text-muted-foreground"
-          />
-        </CardTitle>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7 shrink-0 -my-1 -mr-2"
-          :aria-label="t('isochrone.close')"
-          @click="closeTool"
-        >
-          <XIcon class="size-4" />
-        </Button>
-      </CardHeader>
+  <MeasureToolPanel
+    v-if="isActive"
+    :title="t('isochrone.title')"
+    :close-label="t('isochrone.close')"
+    width-class="w-[19rem]"
+    @close="closeTool"
+  >
+    <template #title-adornment>
+      <Spinner
+        v-if="status === 'loading'"
+        size="icon"
+        class="text-muted-foreground"
+      />
+    </template>
 
-      <CardContent class="flex flex-col gap-3 px-3.5 pb-3 pt-0">
         <!-- Travel mode -->
         <ToggleGroup
           type="single"
@@ -528,7 +513,5 @@ function closeTool() {
             status === 'loading' ? t('isochrone.loading') : t('isochrone.empty')
           }}
         </p>
-      </CardContent>
-    </Card>
-  </div>
+  </MeasureToolPanel>
 </template>

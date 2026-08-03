@@ -21,6 +21,7 @@ import TimelineNoIntegration from './TimelineNoIntegration.vue'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
+import { StatTile } from '@/components/ui/stat'
 
 const authService = useAuthService()
 const canAccessTimeline = computed(() => authService.hasPermission(PermissionId.LOCATION_SHARING))
@@ -277,22 +278,9 @@ onBeforeUnmount(() => {
       v-if="summary.stops > 0 || summary.distanceM > 0"
       class="grid grid-cols-3 gap-2 my-3"
     >
-      <div class="border border-border/50 rounded-lg px-3 py-2.5">
-        <div class="text-[10px] font-semibold text-muted-foreground">Places</div>
-        <div class="text-xl font-semibold tabular-nums mt-1">{{ summary.stops }}</div>
-      </div>
-      <div class="border border-border/50 rounded-lg px-3 py-2.5">
-        <div class="text-[10px] font-semibold text-muted-foreground">Distance</div>
-        <div class="text-xl font-semibold tabular-nums mt-1">
-          {{ distanceLabel }}
-        </div>
-      </div>
-      <div class="border border-border/50 rounded-lg px-3 py-2.5">
-        <div class="text-[10px] font-semibold text-muted-foreground">Active</div>
-        <div class="text-xl font-semibold tabular-nums mt-1">
-          {{ movingTimeLabel }}
-        </div>
-      </div>
+      <StatTile label="Places" :value="summary.stops" />
+      <StatTile label="Distance" :value="distanceLabel" />
+      <StatTile label="Active" :value="movingTimeLabel" />
     </div>
 
     <!-- Daily distance chart -->

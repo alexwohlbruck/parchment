@@ -23,6 +23,7 @@ import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
 import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import { formatClockTime } from '@/lib/time.utils'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -154,13 +155,8 @@ watch(
   { immediate: true },
 )
 
-function formatTime(time: string) {
-  const [hours, minutes] = time.split(':').map(Number)
-  const period = hours >= 12 ? 'PM' : 'AM'
-  const hour = hours % 12 || 12
-  if (minutes === 0) return `${hour} ${period}`
-  return `${hour}:${minutes.toString().padStart(2, '0')} ${period}`
-}
+const formatTime = (time: string) =>
+  formatClockTime(time, { omitZeroMinutes: true })
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000

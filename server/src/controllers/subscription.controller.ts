@@ -18,8 +18,9 @@ import {
 } from '../services/subscription.service'
 import { logger } from '../lib/logger'
 import { publish } from '../services/realtime/event-bus.service'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/subscriptions' })
+const app = new Elysia({ prefix: '/subscriptions' }).use(i18nPlugin)
 
 app.get(
   '/config',
@@ -40,7 +41,7 @@ if (billing.enabled) {
   // Authenticated routes use a separate Elysia instance below.
   app.post(
     '/webhook',
-    async ({ body, request, status }) => {
+    async ({ body, request, status, t }) => {
       const rawBody = body as string
       const headers: Record<string, string> = {}
       request.headers.forEach((value, key) => {
@@ -53,10 +54,10 @@ if (billing.enabled) {
       } catch (err) {
         if (err instanceof WebhookVerificationError) {
           logger.warn('Webhook signature verification failed')
-          return status(400, { message: 'Invalid webhook signature' })
+          return status(400, { message: t('errors.subscription.invalidWebhookSignature') })
         }
         logger.warn({ errorName: (err as Error).name }, 'Webhook event validation failed')
-        return status(400, { message: 'Invalid webhook payload' })
+        return status(400, { message: t('errors.subscription.invalidWebhookPayload') })
       }
 
       const { type, data } = event
@@ -162,7 +163,7 @@ if (billing.enabled) {
 
   // Authenticated routes — each chains .use(requireAuth) individually
   // so the webhook route above stays unauthenticated.
-  const authed = new Elysia().use(requireAuth)
+  const authed = new Elysia().use(i18nPlugin).use(requireAuth)
 
   app.use(
     authed
@@ -221,10 +222,10 @@ if (billing.enabled) {
 
       .get(
         '/portal',
-        async ({ user, status }) => {
+        async ({ user, status, t }) => {
           const fullUser = await fetchUser(user.id)
           if (!fullUser.polarCustomerId) {
-            return status(404, { message: 'No subscription found' })
+            return status(404, { message: t('errors.subscription.notFound') })
           }
           const portalUrl = await getCustomerPortalUrl(fullUser.polarCustomerId)
           return { portalUrl }

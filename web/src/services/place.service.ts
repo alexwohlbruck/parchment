@@ -204,6 +204,32 @@ function placeService() {
   }
 
   /**
+   * Fetch place details by name near a coordinate — the fallback for a place
+   * that has a label but no id we can look up (a geocoder hit whose source we
+   * can't resolve to a provider route).
+   *
+   * Kept separate from `fetchPlaceDetails` rather than threaded through its
+   * options: that function defaults `source` to `osm`, so passing `undefined`
+   * still produced `?source=osm&id=<the name>` and the backend rejected it as a
+   * malformed OSM id.
+   */
+  async function fetchPlaceDetailsByName(
+    name: string,
+    coordinates: { lat: number; lng: number },
+    options?: { radius?: number },
+    signal?: AbortSignal,
+  ): Promise<Place | null> {
+    const queryParams: Record<string, string> = {
+      name,
+      lat: coordinates.lat.toString(),
+      lng: coordinates.lng.toString(),
+    }
+    if (options?.radius) queryParams.radius = options.radius.toString()
+
+    return fetchPlaceWithCache(queryParams, signal)
+  }
+
+  /**
    * Fetch place details by coordinates with enrichment
    */
   async function fetchPlaceDetailsByCoordinates(
@@ -254,6 +280,7 @@ function placeService() {
     currentPlace,
     loading,
     fetchPlaceDetails,
+    fetchPlaceDetailsByName,
     fetchPlaceDetailsByCoordinates,
     setPartialPlace,
     findCachedPlace,

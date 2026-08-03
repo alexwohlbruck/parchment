@@ -6,12 +6,13 @@ import type {
   TransitStopInfo,
 } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
-import { getPlaceType } from '../../../lib/place.utils'
+import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
 import { matchTags } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
 import { calculateOSMCenter } from '../../../util/geometry-conversion'
 import { extractTransitIdentifiers, isTransitStopType, createTransitInfo } from '../../../lib/transit-utils'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 
 // TODO: Move this type def to a shared types file
 export interface OverpassElement {
@@ -36,7 +37,11 @@ export interface OverpassElement {
 export class OverpassAdapter {
   // Capability-specific adapters
   placeInfo = {
-    adaptPlaceDetails: (data: OverpassElement, id?: string): Place => {
+    adaptPlaceDetails: (
+      data: OverpassElement,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
       // Use the new ID format: source/providerId
       const osmId = `${data.type}/${data.id}`
       const primaryId = id || `${SOURCE.OSM}/${osmId}`
@@ -57,11 +62,11 @@ export class OverpassAdapter {
           [SOURCE.OSM]: osmId,
         },
         name: {
-          value: this.extractName(data.tags),
+          value: getLocalizedName(data.tags, language, this.extractName(data.tags)) ?? null,
           sourceId: SOURCE.OSM,
         },
         placeType: {
-          value: getPlaceType(data.tags || {}, 'en-US', geometryHint) || 'unknown',
+          value: getPlaceType(data.tags || {}, language, geometryHint) || 'unknown',
           sourceId: SOURCE.OSM,
         },
         icon,

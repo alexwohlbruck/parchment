@@ -45,9 +45,9 @@ import {
 import { generateId } from '../util'
 import { billing, registrationMode } from '../config'
 import { getSubscriptionStatus } from '../services/subscription.service'
-import { detectLanguage, getI18nInitOptions } from '../lib/i18n'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 // Rate limits on the PRF-options endpoints. These hand out WebAuthn
 // challenges that an attacker with a valid session cookie could
@@ -65,11 +65,11 @@ const prfEnrollRateLimit = makeUserRateLimit({
   windowMs: 60_000,
 })
 
-const app = new Elysia({ prefix: '/auth' })
+const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
 app.post(
   '/verify',
-  async ({ body: { email }, set, status, t }) => {
+  async ({ body: { email }, set, status, t, language }) => {
     let user = await fetchUserByEmail(email)
 
     if (!user) {
@@ -91,7 +91,12 @@ app.post(
     )
     const emailSuccess = isAppTester
       ? true
-      : await sendEmailVerificationCode(user.email, verificationCode)
+      : await sendEmailVerificationCode(
+          user.email,
+          verificationCode,
+          user.id,
+          language,
+        )
 
     if (emailSuccess) {
       set.status = 201
@@ -102,7 +107,8 @@ app.post(
   {
     detail: {
       tags: ['Auth'],
-      description: 'Verify an email address by requesting a one-time password.',
+      description:
+        'Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use.',
     },
     body: t.Object({
       email: t.String({
@@ -381,13 +387,13 @@ app.group('/passkeys', (app) => {
     .use(prfEnrollRateLimit)
     .post(
       '/:credentialId/prf-enroll/options',
-      async ({ user, params, status }) => {
+      async ({ user, params, status, t }) => {
         const options = await generatePrfEnrollOptionsForCredential(
           user.id,
           params.credentialId,
         )
         if (!options) {
-          return status(404, { message: 'Passkey not found' })
+          return status(404, { message: t('errors.auth.passkeyNotFound') })
         }
         return options
       },
@@ -438,10 +444,15 @@ app.group('/sessions', (app) => {
         return status(404, { message: t('errors.notFound.user') })
       }
 
-      const isValid = await validateServerToken(token, 'otp', user.id)
+      const validation = await validateServerToken(token, 'otp', user.id)
 
-      if (!isValid)
-        return status(401, { message: t('errors.auth.invalidSession') })
+      if (validation !== 'valid')
+        return status(401, {
+          message:
+            validation === 'expired'
+              ? t('errors.auth.otpExpired')
+              : t('errors.auth.invalidSession'),
+        })
 
       const session = await createSession(user.id, context)
 
@@ -483,53 +494,122 @@ app.group('/sessions', (app) => {
     },
   )
 
-  app.use(requireAuth).delete(
-    '/all',
-    async ({ user, cookie, set }) => {
-      await destroyAllSessions(user.id)
-      // Drop the current cookie too so the caller doesn't keep a stale
-      // session id locally after the DB rows are gone.
-      const sessionCookie = cookie['auth_session']
-      if (sessionCookie) {
-        sessionCookie.path = '/'
-        sessionCookie.remove()
-      }
-      set.status = 204
-    },
-    {
-      detail: {
-        tags: ['Auth'],
-        description:
-          'Sign out of every device. Destroys all session rows and rotates ' +
-          'every per-device wrap secret so any cached seed envelope on any ' +
-          'device is immediately unusable.',
-      },
-    },
-  )
+  // Every session-guarded route lives in this one `.group('')` scope, and the
+  // public routes stay outside it. `.use()` applies to the whole instance it is
+  // called on regardless of declaration order, so a bare `.use(requireAuth)`
+  // here would also guard `current` below — which must answer 204 rather than
+  // 401 when signed out, since the client polls it to decide if it is signed
+  // in. `.group('')` is what contains the guard; ordering alone does not.
+  // Keep `/all` and `/others` ahead of `/:sessionId` so the literal paths win.
+  app.group('', (app) => {
+    // `.use()` mutates and returns the same instance, but only the returned
+    // reference carries the derived `user` / `session` types — bind it.
+    const guarded = app.use(requireAuth)
 
-  app.use(requireAuth).delete(
-    '/others',
-    async ({ user, session, body, set }) => {
-      await destroyOtherSessions(user.id, session.id, body.deviceId)
-      set.status = 204
-    },
-    {
-      body: t.Object({
-        deviceId: t.String({
-          minLength: 8,
-          maxLength: 64,
-          pattern: '^[a-zA-Z0-9-]+$',
-        }),
-      }),
-      detail: {
-        tags: ['Auth'],
-        description:
-          "Sign out of every OTHER device. Keeps the caller's session " +
-          "and wrap secret intact; rotates every other device's wrap " +
-          'secret and deletes every other session row.',
+    guarded.delete(
+      '/all',
+      async ({ user, cookie, set }) => {
+        await destroyAllSessions(user.id)
+        // Drop the current cookie too so the caller doesn't keep a stale
+        // session id locally after the DB rows are gone.
+        const sessionCookie = cookie['auth_session']
+        if (sessionCookie) {
+          sessionCookie.path = '/'
+          sessionCookie.remove()
+        }
+        set.status = 204
       },
-    },
-  )
+      {
+        detail: {
+          tags: ['Auth'],
+          description:
+            'Sign out of every device. Destroys all session rows and rotates ' +
+            'every per-device wrap secret so any cached seed envelope on any ' +
+            'device is immediately unusable.',
+        },
+      },
+    )
+
+    guarded.delete(
+      '/others',
+      async ({ user, session, body, set }) => {
+        await destroyOtherSessions(user.id, session.id, body.deviceId)
+        set.status = 204
+      },
+      {
+        body: t.Object({
+          deviceId: t.String({
+            minLength: 8,
+            maxLength: 64,
+            pattern: '^[a-zA-Z0-9-]+$',
+          }),
+        }),
+        detail: {
+          tags: ['Auth'],
+          description:
+            "Sign out of every OTHER device. Keeps the caller's session " +
+            "and wrap secret intact; rotates every other device's wrap " +
+            'secret and deletes every other session row.',
+        },
+      },
+    )
+
+    guarded.get(
+      'current/permissions',
+      async ({ user }) => {
+        const [permissions, subscription, userRoles] = await Promise.all([
+          getPermissions(user.id),
+          billing.enabled
+            ? getSubscriptionStatus(user.id)
+            : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const },
+          getRoles(user.id),
+        ])
+        return { permissions, subscription, roles: userRoles.map((r) => r.id) }
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Get current session permissions',
+        },
+      },
+    )
+
+    guarded.get(
+      '/',
+      async ({ set, user }) => {
+        return await db
+          .select()
+          .from(sessions)
+          .where(eq(sessions.userId, user.id))
+          .orderBy(desc(sessions.createdAt))
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Get all sessions for current user',
+        },
+      },
+    )
+
+    guarded.delete(
+      '/:sessionId',
+      async ({ set, user, params: { sessionId } }) => {
+        if (!user) return (set.status = 401)
+        await db
+          .delete(sessions)
+          .where(and(eq(sessions.id, sessionId), eq(sessions.userId, user.id)))
+        return (set.status = 204)
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Delete a session',
+        },
+      },
+    )
+
+    return app
+  })
 
   app.use(getSession).get(
     'current',
@@ -555,60 +635,6 @@ app.group('/sessions', (app) => {
     {
       detail: {
         tags: ['Auth', 'Users'],
-      },
-    },
-  )
-
-  app.use(requireAuth).get(
-    'current/permissions',
-    async ({ user }) => {
-      const [permissions, subscription, userRoles] = await Promise.all([
-        getPermissions(user.id),
-        billing.enabled
-          ? getSubscriptionStatus(user.id)
-          : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const },
-        getRoles(user.id),
-      ])
-      return { permissions, subscription, roles: userRoles.map((r) => r.id) }
-    },
-    {
-      detail: {
-        tags: ['Auth'],
-        summary: 'Get current session permissions',
-      },
-    },
-  )
-
-  app.use(requireAuth).get(
-    '/',
-    async ({ set, user }) => {
-      return await db
-        .select()
-        .from(sessions)
-        .where(eq(sessions.userId, user.id))
-        .orderBy(desc(sessions.createdAt))
-    },
-    {
-      detail: {
-        tags: ['Auth'],
-        summary: 'Get all sessions for current user',
-      },
-    },
-  )
-
-  app.use(requireAuth).delete(
-    '/:sessionId',
-    async ({ set, user, params: { sessionId } }) => {
-      if (!user) return (set.status = 401)
-      await db
-        .delete(sessions)
-        .where(and(eq(sessions.id, sessionId), eq(sessions.userId, user.id)))
-      return (set.status = 204)
-    },
-    {
-      detail: {
-        tags: ['Auth'],
-        summary: 'Delete a session',
       },
     },
   )

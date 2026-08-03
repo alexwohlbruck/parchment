@@ -7,6 +7,7 @@ import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
+import { groupDepartures } from '@/lib/transit-departures'
 import {
   formatDepartureTime,
   getMinutesUntil,
@@ -31,57 +32,11 @@ const departures = computed((): TransitDeparture[] => {
   return props.transitInfo?.departures || []
 })
 
-interface DirectionGroup {
-  headsign: string
-  upcoming: TransitDeparture[]
-}
-
-interface RouteGroup {
-  routeKey: string
-  route: TransitDeparture['route']
-  directions: DirectionGroup[]
-  representative: TransitDeparture
-}
-
-const routeGroups = computed((): RouteGroup[] => {
-  if (!departures.value.length) return []
-
-  const routeMap = new Map<string, {
-    route: TransitDeparture['route']
-    dirMap: Map<string, TransitDeparture[]>
-    rep: TransitDeparture
-  }>()
-
-  for (const dep of departures.value) {
-    const mins = getMinutesUntil(dep, currentTime.value)
-    if (mins !== null && mins < -1) continue
-
-    const routeKey = dep.route.shortName || dep.route.longName || dep.route.id
-    const headsign = dep.headsign || dep.direction || t('place.transit.unknownDirection')
-
-    if (!routeMap.has(routeKey)) {
-      routeMap.set(routeKey, { route: dep.route, dirMap: new Map(), rep: dep })
-    }
-    const entry = routeMap.get(routeKey)!
-    if (!entry.dirMap.has(headsign)) entry.dirMap.set(headsign, [])
-    entry.dirMap.get(headsign)!.push(dep)
-  }
-
-  const groups: RouteGroup[] = []
-  for (const [routeKey, entry] of routeMap) {
-    const directions: DirectionGroup[] = []
-    for (const [headsign, deps] of entry.dirMap) {
-      const sorted = [...deps].sort((a, b) => {
-        const ma = getMinutesUntil(a, currentTime.value)
-        const mb = getMinutesUntil(b, currentTime.value)
-        return (ma ?? 9999) - (mb ?? 9999)
-      })
-      directions.push({ headsign, upcoming: sorted })
-    }
-    groups.push({ routeKey, route: entry.route, directions, representative: entry.rep })
-  }
-  return groups
-})
+const routeGroups = computed(() =>
+  groupDepartures(departures.value, currentTime.value, {
+    unknownDirectionLabel: t('place.transit.unknownDirection'),
+  }),
+)
 
 function formatMin(dep: TransitDeparture): string {
   const m = getMinutesUntil(dep, currentTime.value)
@@ -147,7 +102,7 @@ function openTransitlandLink() {
             <!-- Row 1: headsign + next 2 countdowns -->
             <span class="text-sm truncate">{{ dir.headsign }}</span>
             <div class="flex items-center gap-1 justify-end">
-              <template v-for="(dep, i) in dir.upcoming.slice(0, 2)" :key="i">
+              <template v-for="(dep, i) in dir.departures.slice(0, 2)" :key="i">
                 <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
                 <span
                   class="text-sm tabular-nums"
@@ -159,16 +114,16 @@ function openTransitlandLink() {
 
             <!-- Row 2: additional departure times (smaller, muted) -->
             <div
-              v-if="dir.upcoming.length > 2"
+              v-if="dir.departures.length > 2"
               class="col-span-2 flex items-center gap-1 flex-wrap"
             >
-              <template v-for="(dep, i) in dir.upcoming.slice(2, 8)" :key="i">
+              <template v-for="(dep, i) in dir.departures.slice(2, 8)" :key="i">
                 <span v-if="i > 0" class="text-muted-foreground text-[10px]">,</span>
                 <span class="text-xs tabular-nums text-muted-foreground">{{ formatDepartureTime(dep) }}</span>
                 <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
               </template>
-              <span v-if="dir.upcoming.length > 8" class="text-xs text-muted-foreground">
-                +{{ dir.upcoming.length - 8 }} more
+              <span v-if="dir.departures.length > 8" class="text-xs text-muted-foreground">
+                +{{ dir.departures.length - 8 }} more
               </span>
             </div>
           </div>

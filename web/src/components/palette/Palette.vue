@@ -28,16 +28,18 @@ import {
   MapPinIcon,
   TerminalIcon,
   XIcon,
-  LoaderIcon,
   SettingsIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { PlaceCard } from '@/components/place/card'
+import { makePlaceDisplay } from '@/lib/place-display'
 import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
+import { Spinner } from '@/components/ui/spinner'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -135,12 +137,48 @@ const SEARCH_GROUP_ORDER = [
   'places',
 ] as const
 
+/**
+ * A palette option rendered as a place. Tile groups (Frequents) are saved
+ * places, so they get the same card the rest of the app uses; the option
+ * carries no route because selecting one hands the value back to the palette
+ * rather than navigating.
+ */
+function optionDisplay(option: CommandArgumentOption) {
+  return makePlaceDisplay({
+    title: option.name,
+    icon: option.iconName ?? 'MapPin',
+    iconPack: option.iconPack ?? 'lucide',
+    color: option.color,
+    customColor: option.iconColor,
+    imageUrl: option.imageUrl ?? null,
+    address: option.description ?? null,
+  })
+}
+
+/**
+ * Deal chip items into two rows, alternating, so the row order matches the
+ * column-major fill this layout used to get from the grid — the leading items
+ * stay leading across both rows rather than the second row starting halfway
+ * down the list.
+ */
+function chipRows(items: CommandArgumentOption[]): CommandArgumentOption[][] {
+  if (items.length <= 2) return [items]
+  const rows: CommandArgumentOption[][] = [[], []]
+  items.forEach((item, i) => rows[i % 2].push(item))
+  return rows
+}
+
 // Layout per group. Most groups render as a vertical list; Frequents renders as
 // a horizontal row of tile cards, and the common-categories browse shortcuts as
 // a two-column grid of chips. Extend this map to add more.
 const GROUP_LAYOUT: Record<string, 'list' | 'tiles' | 'chips'> = {
   frequents: 'tiles',
+  // Category results are browse shortcuts whether they were suggested for an
+  // empty query or matched against a typed one, so both render as chips —
+  // several fit in the space one list row would take, and they read as
+  // "narrow the search" rather than "here is a result".
   suggestedCategories: 'chips',
+  categories: 'chips',
 }
 
 const groupedArgumentOptions = computed(() => {
@@ -510,7 +548,7 @@ const filterFunction = computed(() => {
           v-if="activeArgument && (!isSearch || query.length || (groupedArgumentOptions && groupedArgumentOptions.length > 0))"
         >
           <div v-if="loadingOptions" class="py-6 text-center">
-            <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
+            <Spinner size="icon" class="mx-auto opacity-50" />
             <p class="mt-2 text-sm text-muted-foreground">
               Loading suggestions...
             </p>
@@ -531,54 +569,56 @@ const filterFunction = computed(() => {
                 v-if="group.layout === 'tiles'"
                 class="flex items-stretch gap-2 overflow-x-auto scrollbar-hidden px-1 pb-1"
               >
-                <button
+                <!-- Selecting hands the value back to the palette rather than
+                     navigating, so the card acts as a button. -->
+                <PlaceCard
                   v-for="argumentOption in group.items"
                   :key="argumentOption.value"
-                  type="button"
-                  class="shrink-0 w-40 p-2 flex items-center gap-2 rounded-lg border bg-card hover:bg-secondary/40 transition-colors text-left"
+                  :display="optionDisplay(argumentOption)"
+                  variant="tile"
+                  size="xs"
+                  icon-variant="ghost"
+                  :navigate="false"
+                  as="button"
+                  class="w-40 hover:bg-secondary/40"
                   @click="onArgumentSelected(argumentOption.value)"
-                >
-                  <ItemIcon
-                    :icon="argumentOption.iconName"
-                    :icon-pack="argumentOption.iconPack"
-                    :color="argumentOption.color"
-                    size="xs"
-                    variant="ghost"
-                  />
-                  <div class="min-w-0 flex-1 flex flex-col leading-tight">
-                    <span class="text-sm font-medium truncate">{{ argumentOption.name }}</span>
-                    <span
-                      v-if="argumentOption.description"
-                      class="text-xs text-muted-foreground truncate"
-                    >
-                      {{ argumentOption.description }}
-                    </span>
-                  </div>
-                </button>
+                />
               </div>
 
-              <!-- Chip layout: two-row, horizontally scrolling browse shortcuts (Categories). -->
+              <!-- Chip layout: two-row, horizontally scrolling browse shortcuts (Categories).
+                   Two independent flex rows rather than a grid: a grid sizes each
+                   column to its widest cell and stretches the other to match, so
+                   "Coffee" was padded out to "Restaurants" width. Rows here scroll
+                   together but size each chip to its own label. -->
               <div
                 v-else-if="group.layout === 'chips'"
-                class="grid grid-rows-2 grid-flow-col auto-cols-max gap-2 overflow-x-auto scrollbar-hidden px-1 pb-1"
+                class="overflow-x-auto scrollbar-hidden px-1 pb-1"
               >
-                <button
-                  v-for="argumentOption in group.items"
-                  :key="argumentOption.value"
-                  type="button"
-                  class="flex items-center gap-1.5 rounded-full border bg-card hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
-                  @click="onArgumentSelected(argumentOption.value)"
-                >
-                  <ItemIcon
-                    :icon="argumentOption.iconName"
-                    :icon-pack="argumentOption.iconPack"
-                    :custom-color="argumentOption.iconColor"
-                    shape="circle"
-                    variant="solid"
-                    size="xs"
-                  />
-                  <span class="text-sm font-medium whitespace-nowrap">{{ argumentOption.name }}</span>
-                </button>
+                <div class="w-max flex flex-col gap-2">
+                  <div
+                    v-for="(row, rowIndex) in chipRows(group.items)"
+                    :key="rowIndex"
+                    class="flex items-center gap-2"
+                  >
+                    <button
+                      v-for="argumentOption in row"
+                      :key="argumentOption.value"
+                      type="button"
+                      class="shrink-0 flex items-center gap-1.5 rounded-full border bg-card depth hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
+                      @click="onArgumentSelected(argumentOption.value)"
+                    >
+                      <ItemIcon
+                        :icon="argumentOption.iconName"
+                        :icon-pack="argumentOption.iconPack"
+                        :custom-color="argumentOption.iconColor"
+                        shape="circle"
+                        variant="solid"
+                        size="xs"
+                      />
+                      <span class="text-sm font-medium whitespace-nowrap">{{ argumentOption.name }}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <!-- Default list layout. -->

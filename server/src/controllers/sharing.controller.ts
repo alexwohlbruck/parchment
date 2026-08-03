@@ -2,8 +2,9 @@ import Elysia, { t } from 'elysia'
 import { permissions } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import * as sharingService from '../services/sharing.service'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/sharing' })
+const app = new Elysia({ prefix: '/sharing' }).use(i18nPlugin)
 
 // ============================================================================
 // Outgoing Shares
@@ -56,7 +57,7 @@ app.use(permissions(PermissionId.SHARING_READ)).get(
  */
 app.use(permissions(PermissionId.SHARING_WRITE)).post(
   '/',
-  async ({ body, user, status }) => {
+  async ({ body, user, status, t }) => {
     const role = body.role ?? 'viewer'
 
     // For collection shares, enforce that the caller is allowed to share
@@ -69,7 +70,7 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
         body.resourceId,
       )
       if (!allowed) {
-        return status(403, { message: 'Not permitted to share this collection' })
+        return status(403, { message: t('errors.sharing.collectionNotPermitted') })
       }
     }
 
@@ -83,8 +84,7 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
         !body.federationTimestamp
       if (missing) {
         return status(400, {
-          message:
-            'Cross-server shares require federationSignature + federationNonce + federationTimestamp',
+          message: t('errors.sharing.federationEnvelopeRequired'),
         })
       }
     }
@@ -138,10 +138,10 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
  */
 app.use(permissions(PermissionId.SHARING_WRITE)).post(
   '/:shareId/revoke',
-  async ({ params, user, status }) => {
+  async ({ params, user, status, t }) => {
     const revoked = await sharingService.revokeShare(user.id, params.shareId)
     if (!revoked) {
-      return status(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return { success: true }
   },
@@ -163,7 +163,7 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
  */
 app.use(permissions(PermissionId.SHARING_WRITE)).put(
   '/envelope',
-  async ({ body, user, status }) => {
+  async ({ body, user, status, t }) => {
     const updated = await sharingService.updateShareEnvelope(
       user.id,
       body.recipientHandle,
@@ -173,7 +173,7 @@ app.use(permissions(PermissionId.SHARING_WRITE)).put(
       body.nonce,
     )
     if (!updated) {
-      return status(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return updated
   },
@@ -204,14 +204,14 @@ app.use(permissions(PermissionId.SHARING_WRITE)).put(
  */
 app.use(permissions(PermissionId.SHARING_WRITE)).patch(
   '/:shareId',
-  async ({ params, body, user, status }) => {
+  async ({ params, body, user, status, t }) => {
     const updated = await sharingService.updateShareRole(
       user.id,
       params.shareId,
       body.role,
     )
     if (!updated) {
-      return status(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return updated
   },
@@ -234,10 +234,10 @@ app.use(permissions(PermissionId.SHARING_WRITE)).patch(
  */
 app.use(permissions(PermissionId.SHARING_WRITE)).delete(
   '/:shareId',
-  async ({ params, user, status }) => {
+  async ({ params, user, status, t }) => {
     const deleted = await sharingService.deleteShare(user.id, params.shareId)
     if (!deleted) {
-      return status(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return { success: true }
   },
@@ -295,13 +295,13 @@ app.use(permissions(PermissionId.SHARING_READ)).get(
  */
 app.use(permissions(PermissionId.SHARING_WRITE)).post(
   '/incoming/:shareId/accept',
-  async ({ params, user, status }) => {
+  async ({ params, user, status, t }) => {
     const share = await sharingService.acceptIncomingShare(
       user.id,
       params.shareId,
     )
     if (!share) {
-      return status(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return share
   },
@@ -321,13 +321,13 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
  */
 app.use(permissions(PermissionId.SHARING_WRITE)).post(
   '/incoming/:shareId/reject',
-  async ({ params, user, status }) => {
+  async ({ params, user, status, t }) => {
     const rejected = await sharingService.rejectIncomingShare(
       user.id,
       params.shareId,
     )
     if (!rejected) {
-      return status(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return { success: true }
   },
@@ -347,13 +347,13 @@ app.use(permissions(PermissionId.SHARING_WRITE)).post(
  */
 app.use(permissions(PermissionId.SHARING_WRITE)).delete(
   '/incoming/:shareId',
-  async ({ params, user, status }) => {
+  async ({ params, user, status, t }) => {
     const deleted = await sharingService.deleteIncomingShare(
       user.id,
       params.shareId,
     )
     if (!deleted) {
-      return status(404, { message: 'Share not found' })
+      return status(404, { message: t('errors.notFound.share') })
     }
     return { success: true }
   },

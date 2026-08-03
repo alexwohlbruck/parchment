@@ -98,9 +98,9 @@ mock.module('../services/user.service', () => ({
 const createServerToken = mock(
   async (_type: string, _userId: string, fixed?: string) => fixed ?? '12345678',
 )
-let tokenValid = true
+let tokenValidation: 'valid' | 'invalid' | 'expired' = 'valid'
 const validateServerToken = mock(
-  async (_token: string, _type: string, _userId: string) => tokenValid,
+  async (_token: string, _type: string, _userId: string) => tokenValidation,
 )
 
 mock.module('../services/token.service', () => ({
@@ -140,7 +140,7 @@ beforeEach(() => {
   billingEnabled = true
   existingUser = { id: 'user-1', email: 'user@parchment.test' }
   anyUsersExist = true
-  tokenValid = true
+  tokenValidation = 'valid'
   createSession.mockClear()
   destroySession.mockClear()
   destroyAllSessions.mockClear()
@@ -265,11 +265,23 @@ describe('POST /auth/sessions — OTP exchange', () => {
   })
 
   test('401s on an invalid OTP and mints no session', async () => {
-    tokenValid = false
+    tokenValidation = 'invalid'
 
     const res = await req(app).post('/auth/sessions', { body })
 
     expect(res.status).toBe(401)
+    expect(createSession).not.toHaveBeenCalled()
+  })
+
+  test('401s on an expired OTP and says so', async () => {
+    // A stale code and a wrong code are different problems for the user: one
+    // means request a new one, the other means check what you typed.
+    tokenValidation = 'expired'
+
+    const res = await req(app).post('/auth/sessions', { body })
+
+    expect(res.status).toBe(401)
+    expect(res.body.message).toMatch(/expired/i)
     expect(createSession).not.toHaveBeenCalled()
   })
 
@@ -383,17 +395,32 @@ describe('GET /auth/sessions/current', () => {
     expect(res.body.subscription.tier).toBe('basic')
   })
 
-  test('401s when signed out, despite the handler’s 204 branch', async () => {
-    // The handler starts with `if (!user) { set.status = 204; return null }`,
-    // but that branch is unreachable: this route is declared with
-    // `app.use(getSession)` AFTER earlier routes in the same group called
-    // `app.use(requireAuth)`, and Elysia's `.use()` mutates the instance, so
-    // the guard is inherited and rejects first.
+  test('answers 204 when signed out, not 401', async () => {
+    // The client polls this to decide whether it *is* signed in, so a signed
+    // out caller must get the handler's `if (!user)` branch rather than a
+    // guard rejection. That branch was unreachable until the `/all` and
+    // `/others` routes were moved into their own `.group('')` scope: Elysia's
+    // `.use()` leaks forward, so their requireAuth was inherited here.
     setAuthUser(null)
 
     const res = await req(app).get('/auth/sessions/current')
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(204)
+  })
+
+  test('sign-in and sign-out stay reachable without a session', async () => {
+    // Same guard-leak class as above: these sit on the /sessions instance
+    // alongside requireAuth'd routes. Pinned so a future route added in the
+    // wrong place can't quietly lock anonymous callers out of signing in.
+    setAuthUser(null)
+
+    const signIn = await req(app).post('/auth/sessions', {
+      body: { method: 'otp', email: TEST_USER.email, token: '12345678' },
+    })
+    expect(signIn.status).toBe(200)
+
+    const signOut = await req(app).delete('/auth/sessions')
+    expect(signOut.status).toBe(204)
   })
 })
 

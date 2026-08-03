@@ -20,8 +20,9 @@ import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
 import { appEventBus } from '@/lib/eventBus'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { getPlaceRoute } from '@/lib/place.utils'
-import { getCategoryColor } from '@/lib/place-colors'
+import { PlaceCard } from '@/components/place/card'
+import { SectionHeader } from '@/components/ui/section-header'
+import { recentPlaceToDisplay } from '@/lib/place-display'
 
 dayjs.extend(relativeTime)
 
@@ -108,20 +109,11 @@ function navigateToRoute(routeName: AppRoute) {
   router.push({ name: routeName })
 }
 
-function navigateToRecentPlace(place: RecentPlaceEntry) {
-  const route = getPlaceRoute(place.id)
-  if (route) {
-    minimizeSheet()
-    router.push(route)
-  }
-}
-
-function placeColor(place: RecentPlaceEntry): string {
-  return getCategoryColor(place.category ?? 'default', isDark.value)
-}
-
-function formatTimeAgo(date: string | number) {
-  return dayjs(date).fromNow()
+/** A recent's own subtitle, with how long ago it was viewed appended. */
+function recentSubtitle(place: RecentPlaceEntry): string {
+  return [place.subtitle, place.at && dayjs(place.at).fromNow()]
+    .filter(Boolean)
+    .join(' · ')
 }
 </script>
 
@@ -141,13 +133,13 @@ function formatTimeAgo(date: string | number) {
       <div v-show="!paletteFocused" class="space-y-6">
       <!-- Library Section -->
       <div>
-        <h3 class="text-lg mb-1.5 px-1 block">{{ t('library.title') }}</h3>
+        <SectionHeader size="lg" :title="t('library.title')" class="mb-1.5 px-1" />
 
         <div class="grid grid-cols-2 gap-2">
           <Card
             v-for="tab in libraryTabs"
             :key="tab.id"
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateToRoute(tab.route)"
           >
             <ItemIcon
@@ -169,10 +161,10 @@ function formatTimeAgo(date: string | number) {
 
       <!-- Navigation Section (mobile only) -->
       <div v-if="isMobileScreen">
-        <h3 class="text-lg mb-1.5 px-1 block">{{ t('navigation.title') }}</h3>
+        <SectionHeader size="lg" :title="t('navigation.title')" class="mb-1.5 px-1" />
         <div class="grid grid-cols-2 gap-2">
           <Card
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/directions')"
           >
             <ItemIcon icon="Navigation" color="forest" size="sm" variant="ghost" />
@@ -180,7 +172,7 @@ function formatTimeAgo(date: string | number) {
           </Card>
 
           <Card
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/lookout')"
           >
             <ItemIcon icon="Telescope" color="violet" size="sm" variant="ghost" />
@@ -188,7 +180,7 @@ function formatTimeAgo(date: string | number) {
           </Card>
 
           <Card
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/timeline')"
           >
             <ItemIcon icon="History" color="amber" size="sm" variant="ghost" />
@@ -196,7 +188,7 @@ function formatTimeAgo(date: string | number) {
           </Card>
 
           <Card
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
+            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border"
             @click="navigateTo('/settings')"
           >
             <ItemIcon icon="Settings" color="parchment" size="sm" variant="ghost" />
@@ -207,32 +199,18 @@ function formatTimeAgo(date: string | number) {
 
       <!-- Recently viewed places -->
       <div v-if="recentPlaces.length > 0">
-        <h3 class="text-lg mb-1.5 px-1">{{ t('general.recents') }}</h3>
+        <SectionHeader size="lg" :title="t('general.recents')" class="mb-1.5 px-1" />
         <div class="space-y-2">
-          <Card
+          <PlaceCard
             v-for="place in recentPlaces.slice(0, 5)"
             :key="place.id"
-            class="p-3 flex items-center gap-3 hover:bg-secondary/40 transition-colors cursor-pointer border shadow-none"
-            @click="navigateToRecentPlace(place)"
-          >
-            <ItemIcon
-              :icon="place.icon || 'MapPin'"
-              :icon-pack="place.iconPack ?? 'lucide'"
-              :custom-color="placeColor(place)"
-              size="sm"
-              variant="ghost"
-            />
-            <div class="grow min-w-0">
-              <div class="font-medium text-sm truncate">{{ place.title }}</div>
-              <div class="text-xs text-muted-foreground truncate">
-                <template v-if="place.subtitle">{{ place.subtitle }}</template>
-                <template v-if="place.at">
-                  <span v-if="place.subtitle"> · </span>
-                  {{ formatTimeAgo(place.at) }}
-                </template>
-              </div>
-            </div>
-          </Card>
+            :display="recentPlaceToDisplay(place, { isDark })"
+            variant="row"
+            size="sm"
+            icon-variant="ghost"
+            :subtitle="recentSubtitle(place)"
+            @click="minimizeSheet()"
+          />
         </div>
       </div>
       </div>

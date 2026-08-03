@@ -54,7 +54,6 @@ describe('sendMail with SMTP unconfigured', () => {
     await expect(
       sendMail({
         to: 'user@parchment.test',
-        subject: 'Your code',
         template: 'verification-code',
         data: { code: '12345678' },
       }),
@@ -64,7 +63,6 @@ describe('sendMail with SMTP unconfigured', () => {
   test('sends nothing', async () => {
     await sendMail({
       to: 'user@parchment.test',
-      subject: 'Your code',
       template: 'verification-code',
       data: { code: '12345678' },
     })
@@ -75,7 +73,6 @@ describe('sendMail with SMTP unconfigured', () => {
   test('logs a warning naming the template and recipient', async () => {
     await sendMail({
       to: 'user@parchment.test',
-      subject: 'Your code',
       template: 'verification-code',
       data: { code: '12345678' },
     })
@@ -90,7 +87,6 @@ describe('sendMail with SMTP unconfigured', () => {
   test('does not even render the template', async () => {
     await sendMail({
       to: 'user@parchment.test',
-      subject: 'Your code',
       template: 'verification-code',
       data: { code: '12345678' },
     })
@@ -101,7 +97,6 @@ describe('sendMail with SMTP unconfigured', () => {
   test('never logs the verification code itself', async () => {
     await sendMail({
       to: 'user@parchment.test',
-      subject: 'Your code',
       template: 'verification-code',
       data: { code: '12345678' },
     })

@@ -26,7 +26,7 @@ import {
 } from './adapters/geoapify-adapter'
 import { getGeoapifyCategory } from './mappings/geoapify-preset-mapping'
 import { SOURCE } from '../../lib/constants'
-import { getLanguageCode } from '../../lib/i18n'
+import { getLanguageCode, type Language } from '../../lib/i18n'
 
 export interface GeoapifyConfig extends IntegrationConfig {
   apiKey: string
@@ -161,7 +161,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
   async searchByCategory(
     presetId: string,
     bounds: MapBounds,
-    options?: { limit?: number },
+    options?: { limit?: number; language?: Language },
   ): Promise<Place[]> {
     this.ensureInitialized()
 
@@ -186,7 +186,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       }
 
       return response.data.features.map((feature: any) =>
-        this.adapter.adaptPlaceDetails(feature),
+        this.adapter.adaptPlaceDetails(feature, options?.language),
       )
     } catch (error) {
       logError('Error searching Geoapify places', error)
@@ -213,6 +213,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     options?: {
       radius?: number
       limit?: number
+      language?: Language
     },
   ): Promise<Place[]> {
     this.ensureInitialized()
@@ -248,7 +249,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       }
 
       return response.data.features.map((feature: GeoapifyFeature) =>
-        this.adapter.adaptPlaceDetails(feature),
+        this.adapter.adaptPlaceDetails(feature, options?.language),
       )
     } catch (error) {
       logError('Error getting Geoapify autocomplete', error)
@@ -267,7 +268,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     query: string,
     lat?: number,
     lng?: number,
-    _options?: { language?: string },
+    options?: { language?: Language },
   ): Promise<Place[]> {
     this.ensureInitialized()
 
@@ -296,7 +297,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       }
 
       return response.data.features.map((feature: GeoapifyFeature) =>
-        this.adapter.adaptPlaceDetails(feature),
+        this.adapter.adaptPlaceDetails(feature, options?.language),
       )
     } catch (error) {
       logError('Error geocoding with Geoapify', error)
@@ -313,7 +314,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
   async reverseGeocode(
     lat: number,
     lng: number,
-    _options?: { language?: string },
+    options?: { language?: Language },
   ): Promise<Place[]> {
     this.ensureInitialized()
 
@@ -334,7 +335,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       }
 
       return response.data.features.map((feature: GeoapifyFeature) =>
-        this.adapter.adaptPlaceDetails(feature),
+        this.adapter.adaptPlaceDetails(feature, options?.language),
       )
     } catch (error) {
       logError('Error reverse geocoding with Geoapify', error)
@@ -349,7 +350,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
    */
   async getPlaceInfo(
     id: string,
-    _options?: { language?: string },
+    options?: { language?: Language },
   ): Promise<Place | null> {
     this.ensureInitialized()
 
@@ -367,7 +368,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         return null
       }
 
-      return this.adapter.adaptPlaceDetails(response.data.features[0])
+      return this.adapter.adaptPlaceDetails(response.data.features[0], options?.language)
     } catch (error) {
       logError('[Geoapify] Error getting place details', error)
       return null

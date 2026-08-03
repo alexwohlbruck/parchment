@@ -12,6 +12,7 @@ import { Place, Address } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 import { PeliasAdapter, PeliasFeature } from './adapters/pelias-adapter'
 import { logError, logWarn } from '../../lib/logger'
+import type { Language } from '../../lib/i18n'
 
 // TODO: Check all SOURCE.PELIAS and SOURCE.OSM references. Idk what to do with these yet. Pelias can use various sources.
 
@@ -38,7 +39,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
       reverseGeocode: async (
         lat: number,
         lng: number,
-        _options?: { language?: string },
+        options?: { language?: Language },
       ) => {
         // Implement reverse geocoding using Pelias reverse endpoint
         const url = `${this.config.host}/v1/reverse`
@@ -166,7 +167,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
     query: string,
     lat?: number,
     lng?: number,
-    options?: { radius?: number; limit?: number; language?: string },
+    options?: { radius?: number; limit?: number; language?: Language },
   ) {
     this.ensureInitialized()
     const radius = options?.radius
@@ -202,7 +203,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
 
     // Use the adapter to transform each feature
     return features.map((feature: PeliasFeature) =>
-      this.adapter.geocoding.adaptPlaceDetails(feature),
+      this.adapter.geocoding.adaptPlaceDetails(feature, undefined, options?.language),
     )
   }
 
@@ -221,6 +222,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
     options?: {
       radius?: number
       limit?: number
+      language?: Language
     },
   ): Promise<Place[]> {
     this.ensureInitialized()
@@ -282,7 +284,11 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
       }
 
       const places = data.features.map((feature: any) => {
-        const place = this.adapter.autocomplete.adaptPlaceDetails(feature)
+        const place = this.adapter.autocomplete.adaptPlaceDetails(
+          feature,
+          undefined,
+          options?.language,
+        )
         return place
       })
 
@@ -301,7 +307,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
    */
   private async getPlaceInfo(
     id: string,
-    _options?: { language?: string },
+    options?: { language?: Language },
   ): Promise<Place | null> {
     this.ensureInitialized()
 
@@ -354,7 +360,7 @@ export class PeliasIntegration implements Integration<PeliasConfig> {
 
       // Use the adapter to convert the Pelias feature to a standardized Place
       const feature = response.data.features[0] as PeliasFeature
-      return this.adapter.placeInfo.adaptPlaceDetails(feature)
+      return this.adapter.placeInfo.adaptPlaceDetails(feature, undefined, options?.language)
     } catch (error) {
       logError('Error getting place details from Pelias', error)
       return null

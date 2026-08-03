@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
+import { SectionHeader } from '@/components/ui/section-header'
 import { MessageSquareQuoteIcon, StarIcon, ThumbsUpIcon } from 'lucide-vue-next'
 import PlaceSection from '../details/PlaceSection.vue'
 import type { Place } from '@/types/place.types'
@@ -53,12 +54,10 @@ function relativeDate(iso?: string): string | null {
   <PlaceSection v-if="hasReviews">
     <template #main>
       <!-- Heading -->
-      <div class="flex items-center gap-2">
-        <MessageSquareQuoteIcon class="size-4 text-muted-foreground" />
-        <h3 class="text-sm font-semibold text-muted-foreground">
-          {{ t('place.reviews.title') }}
-        </h3>
-      </div>
+      <SectionHeader
+        :icon="MessageSquareQuoteIcon"
+        :title="t('place.reviews.title')"
+      />
 
       <!-- Aggregate rating summary -->
       <div v-if="ratingOutOfFive !== null" class="flex items-center gap-2">

@@ -14,8 +14,10 @@ import { Elysia, t } from 'elysia'
 import * as collectionsService from '../services/library/collections.service'
 import * as routesService from '../services/library/routes.service'
 import { makeIpRateLimit } from '../middleware/rate-limit.middleware'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 const publicController = new Elysia({ prefix: '/public' })
+  .use(i18nPlugin)
   .use(
     makeIpRateLimit({
       name: 'public-collection-resolve',
@@ -36,11 +38,11 @@ const publicController = new Elysia({ prefix: '/public' })
    */
   .get(
     '/collections/:token',
-    async ({ params: { token }, set }) => {
+    async ({ params: { token }, set, t }) => {
       const result = await collectionsService.getPublicCollectionByToken(token)
       if (!result) {
         set.status = 404
-        return { error: 'Not found' }
+        return { error: t('errors.notFound.resource') }
       }
       const { collection, bookmarks } = result
       return {
@@ -76,11 +78,11 @@ const publicController = new Elysia({ prefix: '/public' })
    */
   .get(
     '/routes/:token',
-    async ({ params: { token }, set }) => {
+    async ({ params: { token }, set, t }) => {
       const route = await routesService.getPublicRouteByToken(token)
       if (!route) {
         set.status = 404
-        return { error: 'Not found' }
+        return { error: t('errors.notFound.resource') }
       }
       return {
         route: {

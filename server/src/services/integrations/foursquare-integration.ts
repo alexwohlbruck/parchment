@@ -17,6 +17,7 @@ import {
   type FoursquareTip,
 } from './adapters/foursquare-adapter'
 import { logError } from '../../lib/logger'
+import { getLanguageCode, DEFAULT_LANGUAGE, type Language } from '../../lib/i18n'
 
 export interface FoursquareConfig extends IntegrationConfig {
   apiKey: string
@@ -136,11 +137,13 @@ export class FoursquareIntegration
     return !!config.apiKey
   }
 
-  private headers(apiKey: string): Record<string, string> {
+  private headers(apiKey: string, language?: Language): Record<string, string> {
     return {
       Authorization: `Bearer ${apiKey}`,
       'X-Places-Api-Version': PLACES_API_VERSION,
       Accept: 'application/json',
+      // Foursquare localizes place names and category labels off this header.
+      'Accept-Language': getLanguageCode(language ?? DEFAULT_LANGUAGE),
     }
   }
 
@@ -155,6 +158,7 @@ export class FoursquareIntegration
     options?: {
       radius?: number
       limit?: number
+      language?: Language
       signal?: AbortSignal
     },
   ): Promise<Place[]> {
@@ -177,7 +181,7 @@ export class FoursquareIntegration
       url.searchParams.set('fields', SEARCH_FIELDS)
 
       const response = await fetch(url.toString(), {
-        headers: this.headers(this.config.apiKey),
+        headers: this.headers(this.config.apiKey, options?.language),
         signal: options?.signal ?? AbortSignal.timeout(10_000),
       })
       if (!response.ok) {
@@ -204,7 +208,10 @@ export class FoursquareIntegration
    * Fetch full Premium details for a known Foursquare place id. Accepts either
    * a bare `fsq_place_id` or a prefixed `foursquare/<id>` place id.
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    options?: { language?: Language },
+  ): Promise<Place | null> {
     if (!this.config.apiKey) return null
 
     const fsqId = id.startsWith(`${SOURCE.FOURSQUARE}/`)
@@ -220,7 +227,7 @@ export class FoursquareIntegration
       url.searchParams.set('fields', DETAIL_FIELDS)
 
       const response = await fetch(url.toString(), {
-        headers: this.headers(this.config.apiKey),
+        headers: this.headers(this.config.apiKey, options?.language),
         signal: AbortSignal.timeout(10_000),
       })
       if (!response.ok) {
@@ -234,7 +241,9 @@ export class FoursquareIntegration
       if (!data?.fsq_place_id) return null
 
       const place = this.adapter.adaptPlace(data)
-      const reviews = this.adapter.adaptReviews(await this.fetchTips(fsqId))
+      const reviews = this.adapter.adaptReviews(
+        await this.fetchTips(fsqId, options?.language),
+      )
       if (reviews.length) place.reviews = reviews
       this.writeCache(cacheKey, place)
       return place
@@ -250,7 +259,10 @@ export class FoursquareIntegration
    * sub-endpoint, sorted by popularity. Failures degrade to an empty list so
    * a place still enriches with its other Premium data.
    */
-  private async fetchTips(fsqId: string): Promise<FoursquareTip[]> {
+  private async fetchTips(
+    fsqId: string,
+    language?: Language,
+  ): Promise<FoursquareTip[]> {
     try {
       const url = new URL(
         `${this.baseUrl}/places/${encodeURIComponent(fsqId)}/tips`,
@@ -260,7 +272,7 @@ export class FoursquareIntegration
       url.searchParams.set('fields', TIP_FIELDS)
 
       const response = await fetch(url.toString(), {
-        headers: this.headers(this.config.apiKey),
+        headers: this.headers(this.config.apiKey, language),
         signal: AbortSignal.timeout(10_000),
       })
       if (!response.ok) {
@@ -289,7 +301,7 @@ export class FoursquareIntegration
   async matchPlace(
     name: string,
     location: { address?: string; city?: string; cc?: string },
-    options?: { signal?: AbortSignal },
+    options?: { language?: Language; signal?: AbortSignal },
   ): Promise<{ fsqPlaceId: string; matchRate: number } | null> {
     if (!this.config.apiKey) return null
     const { address, city, cc } = location
@@ -304,7 +316,7 @@ export class FoursquareIntegration
       url.searchParams.set('cc', cc)
 
       const response = await fetch(url.toString(), {
-        headers: this.headers(this.config.apiKey),
+        headers: this.headers(this.config.apiKey, options?.language),
         signal: options?.signal ?? AbortSignal.timeout(10_000),
       })
       // 404 = no confident match; treat as "no twin", not an error.

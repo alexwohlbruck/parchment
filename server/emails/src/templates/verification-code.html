@@ -1,7 +1,7 @@
 <x-main>
-  <h1 class="m-0 mb-2 text-2xl font-semibold text-[#18181b]">Sign in to Parchment</h1>
+  <h1 class="m-0 mb-2 text-2xl font-semibold text-[#18181b]">{{heading}}</h1>
   <p class="m-0 mb-6 text-base text-[#52525b] leading-relaxed">
-    Enter this code to verify your identity.
+    {{body}}
   </p>
   <table role="presentation" class="w-full mb-6" cellpadding="0" cellspacing="0">
     <tr>
@@ -11,6 +11,6 @@
     </tr>
   </table>
   <p class="m-0 text-sm text-[#71717a] leading-relaxed">
-    This code expires in 15 minutes. If you didn't request this, you can safely ignore this email.
+    {{expiry}} {{ignore}}
   </p>
 </x-main>

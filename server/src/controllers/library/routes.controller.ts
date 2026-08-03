@@ -2,8 +2,10 @@ import { Elysia, t } from 'elysia'
 import { permissions } from '../../middleware/auth.middleware.js'
 import { PermissionId } from '../../types/auth.types'
 import * as routesService from '../../services/library/routes.service'
+import { i18nPlugin } from '../../lib/i18n/plugin'
 
 const routesRouter = new Elysia({ prefix: '/routes' })
+  .use(i18nPlugin)
   .use(permissions(PermissionId.LIBRARY_WRITE))
 
   // All custom routes owned by the authenticated user.
@@ -45,11 +47,11 @@ const routesRouter = new Elysia({ prefix: '/routes' })
 
   .get(
     '/:id',
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, user, set, t }) => {
       const route = await routesService.getRouteById(id, user.id)
       if (!route) {
         set.status = 404
-        return { error: 'Route not found' }
+        return { error: t('errors.library.routeNotFound') }
       }
       return route
     },
@@ -63,11 +65,11 @@ const routesRouter = new Elysia({ prefix: '/routes' })
   // body (user-e2ee), or isPublic. Owner-only.
   .put(
     '/:id',
-    async ({ params: { id }, body, user, set }) => {
+    async ({ params: { id }, body, user, set, t }) => {
       const updated = await routesService.updateRoute(id, user.id, body)
       if (!updated) {
         set.status = 404
-        return { error: 'Route not found or update failed' }
+        return { error: t('errors.library.routeUpdateFailed') }
       }
       return updated
     },
@@ -100,11 +102,11 @@ const routesRouter = new Elysia({ prefix: '/routes' })
 
   .delete(
     '/:id',
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, user, set, t }) => {
       const deleted = await routesService.deleteRoute(id, user.id)
       if (!deleted) {
         set.status = 404
-        return { error: 'Route not found or delete failed' }
+        return { error: t('errors.library.routeDeleteFailed') }
       }
       set.status = 204
     },
@@ -117,12 +119,12 @@ const routesRouter = new Elysia({ prefix: '/routes' })
   // Mint a public-link token. Owner-only, server-key only.
   .post(
     '/:id/public-link',
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, user, set, t }) => {
       try {
         const result = await routesService.createPublicLink(id, user.id)
         if (!result) {
           set.status = 404
-          return { error: 'Route not found' }
+          return { error: t('errors.library.routeNotFound') }
         }
         return result
       } catch (err) {
@@ -141,11 +143,11 @@ const routesRouter = new Elysia({ prefix: '/routes' })
 
   .delete(
     '/:id/public-link',
-    async ({ params: { id }, user, set }) => {
+    async ({ params: { id }, user, set, t }) => {
       const revoked = await routesService.revokePublicLink(id, user.id)
       if (!revoked) {
         set.status = 404
-        return { error: 'Route not found' }
+        return { error: t('errors.library.routeNotFound') }
       }
       set.status = 204
     },

@@ -15,6 +15,8 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip'
 import { mapEventBus } from '@/lib/eventBus'
+import { useI18n } from 'vue-i18n'
+import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
 
 interface Props {
   trackerId: string
@@ -45,16 +47,10 @@ const vehicleTypeIcons: Record<string, LucideIcon> = {
 
 const IconComponent = computed(() => vehicleTypeIcons[props.trackerType] || MapPinIcon)
 
-function formatTimeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
-}
+const { t } = useI18n()
+
+const formatTimeAgo = (input: Date | string | number) =>
+  sharedTimeAgo(input, t, { absoluteAfterDays: Infinity })
 
 const timeAgo = computed(() => {
   if (!props.updatedAt) return null

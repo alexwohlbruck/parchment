@@ -559,6 +559,7 @@ function mapService() {
     mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
     mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
     mapStrategy?.setHdRoads(mapStore.settings.hdRoads)
+    mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
   }
 
   let isInitializingGroups = false
@@ -949,6 +950,17 @@ function mapService() {
     },
   )
 
+  function toggleIndoorMaps(value?: boolean) {
+    mapStore.settings.indoorMaps = value ?? !mapStore.settings.indoorMaps
+  }
+
+  watch(
+    () => mapStore.settings.indoorMaps,
+    value => {
+      mapStrategy?.setIndoorMaps(value)
+    },
+  )
+
   function toggleNorthUpSnap(value?: boolean) {
     // Default-on: a persisted settings object may predate this key.
     const enabled = mapStore.settings.northUpSnap !== false
@@ -1331,6 +1343,7 @@ function mapService() {
     toggleTransitLabels,
     togglePlaceLabels,
     toggleHdRoads,
+    toggleIndoorMaps,
     toggleNorthUpSnap,
     destroy,
     on,

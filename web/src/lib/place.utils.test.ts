@@ -38,6 +38,30 @@ describe('getPlaceRouteFromExternalIds', () => {
     ).toMatchObject({ params: { lat: '35.2271', lng: '-80.8431' } })
   })
 
+  it('routes a geocoder address to the pelias provider view', () => {
+    // Barrelman fronts Pelias, so a reverse-geocoded street address arrives
+    // with only a `pelias` id. Routing it by name instead produced
+    // `?source=osm&id=1415 South Church Street`, which the backend rejects as a
+    // malformed OSM id.
+    expect(
+      getPlaceRouteFromExternalIds({
+        pelias: 'openaddresses:address:us/nc/mecklenburg:9944f712',
+      }),
+    ).toMatchObject({
+      params: {
+        provider: 'pelias',
+        placeId: 'openaddresses:address:us/nc/mecklenburg:9944f712',
+      },
+    })
+  })
+
+  it('keeps the whole gid when the id itself contains slashes', () => {
+    const route: any = getPlaceRouteFromExternalIds({
+      pelias: 'openaddresses:address:us/nc/mecklenburg:9944f712',
+    })
+    expect(route.params.placeId).toContain('us/nc/mecklenburg')
+  })
+
   it('returns null when there is nothing to route to', () => {
     expect(getPlaceRouteFromExternalIds({})).toBeNull()
     expect(getPlaceRouteFromExternalIds(undefined)).toBeNull()

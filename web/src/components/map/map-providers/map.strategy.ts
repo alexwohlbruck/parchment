@@ -139,6 +139,7 @@ export class MapStrategy {
   setBasemap(basemap: Basemap) {}
   setMapStyle(styleId: MapStyleId) {}
   setHdRoads(value: boolean) {}
+  setIndoorMaps(value: boolean) {}
   setMapLanguage(locale: string): boolean {
     return false // Default: no reinitialization needed
   }

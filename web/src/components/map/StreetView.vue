@@ -6,12 +6,12 @@ import { Viewer, ViewerOptions } from 'mapillary-js'
 import { useMapService } from '@/services/map.service'
 import { cn, useResponsive } from '@/lib/utils'
 import { TransitionFade } from '@morev/vue-transitions'
-import { Loader2Icon } from 'lucide-vue-next'
 import { updatePegmanData } from '@/lib/pegman.utils'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { usePlaceService } from '@/services/place.service'
 import { IntegrationId } from '@server/types/integration.types'
 import type { Image as MapillaryViewerImage } from 'mapillary-js'
+import { Spinner } from '@/components/ui/spinner'
 
 let viewer: Viewer | null = null
 const container = ref()
@@ -189,7 +189,7 @@ watch(
         v-if="loading"
         class="absolute inset-0 bg-black/30 flex items-center justify-center z-10"
       >
-        <Loader2Icon class="size-8 animate-spin text-white" />
+        <Spinner class="text-white" />
       </div>
     </TransitionFade>
   </div>

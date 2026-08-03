@@ -26,6 +26,7 @@ import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import { newViewFraction } from '@/lib/map-bounds.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
+import { Spinner } from '@/components/ui/spinner'
 
 const route = useRoute()
 const router = useRouter()
@@ -627,7 +628,7 @@ watch(
             v-if="searchStore.isMapRefreshing"
             class="flex items-center gap-1 text-primary text-xs"
           >
-            <div class="w-2.5 h-2.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            <Spinner class="size-2.5" />
             <span>Updating…</span>
           </div>
         </div>
@@ -679,7 +680,7 @@ watch(
         />
         <!-- Scroll-pagination spinner -->
         <div v-if="isLoadingMore" class="flex justify-center py-4">
-          <div class="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+          <Spinner size="icon" class="text-muted-foreground" />
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/trip-rebooking'
@@ -19,20 +19,15 @@ import {
   BikeIcon,
   CarTaxiFrontIcon,
   ArrowRight,
-  ArrowUp,
-  ArrowUpLeft,
-  ArrowUpRight,
   BookmarkIcon,
   ChevronDownIcon,
   ClockIcon,
   ExternalLinkIcon,
   FlagIcon,
-  FootprintsIcon,
   AccessibilityIcon,
   LogInIcon,
   LogOutIcon,
   ShareIcon,
-  Undo2Icon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import { tripSignature } from '@/lib/trip-signature'
@@ -50,11 +45,14 @@ import {
 import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
-import ElevationChart from '@/components/directions/ElevationChart.vue'
+import { PlaceCard } from '@/components/place/card'
+import SegmentDetails from '@/components/directions/timeline/SegmentDetails.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import DepartureBoard from '@/components/directions/timeline/DepartureBoard.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { useUnits } from '@/composables/useUnits'
+import { formatDurationCompact } from '@/lib/time.utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -98,7 +96,6 @@ const refreshTimer = setInterval(() => { void loadDepartures() }, 30_000)
 onUnmounted(() => {
   clearInterval(tickTimer)
   clearInterval(refreshTimer)
-  window.removeEventListener('resize', remeasureDepEdges)
 })
 
 async function loadDepartures() {
@@ -279,68 +276,6 @@ function depCountdown(ms: number): { lead: string; sub: string } {
   const m = min % 60
   return { lead: m ? `${h}h ${m}m` : `${h}h`, sub: clock }
 }
-
-// ── Departure board scroll affordance ────────────────────────────────
-// Fade the board's edges to hint there's more to scroll. Each leg's strip
-// reports whether it's scrolled away from the start/end so the fades only
-// show when they mean something (and not at all when it doesn't overflow).
-const depEdges = ref<Record<number, { start: boolean; end: boolean }>>({})
-const depScrollEls = new Map<number, HTMLElement>()
-// Segments whose board has already had its one-time scroll-to-first-available
-// applied. Reset per trip; prevents re-yanking the rider's manual scroll on the
-// periodic refresh.
-const didScrollToFirst = new Set<number>()
-
-function updateDepEdges(segmentIndex: number, el: HTMLElement) {
-  const start = el.scrollLeft > 4
-  const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 4
-  const cur = depEdges.value[segmentIndex]
-  if (!cur || cur.start !== start || cur.end !== end) {
-    depEdges.value = { ...depEdges.value, [segmentIndex]: { start, end } }
-  }
-}
-
-/** Scroll the board so the first available (not-departed) run sits at the left,
- *  leaving a sliver of the past as a scroll-back hint. The leading struck cards
- *  are otherwise irrelevant on open. */
-function scrollToFirstAvailable(segmentIndex: number, el: HTMLElement) {
-  const cards = boardCards.value[segmentIndex] ?? []
-  const firstIdx = cards.findIndex((c) => !c.card.missed)
-  if (firstIdx <= 0) return // already at the start, or nothing catchable
-  const btn = el.children[firstIdx] as HTMLElement | undefined
-  if (!btn) return
-  const delta =
-    btn.getBoundingClientRect().left - el.getBoundingClientRect().left
-  el.scrollLeft += delta - 16
-}
-
-function onDepScroll(segmentIndex: number, e: Event) {
-  if (e.target instanceof HTMLElement) updateDepEdges(segmentIndex, e.target)
-}
-
-/** Function ref that tracks each board strip and, on its first layout, scrolls
- *  past the irrelevant departed runs to the first available one. */
-function depScrollRef(segmentIndex: number) {
-  return (el: unknown) => {
-    if (el instanceof HTMLElement) {
-      depScrollEls.set(segmentIndex, el)
-      requestAnimationFrame(() => {
-        if (!didScrollToFirst.has(segmentIndex)) {
-          didScrollToFirst.add(segmentIndex)
-          scrollToFirstAvailable(segmentIndex, el)
-        }
-        updateDepEdges(segmentIndex, el)
-      })
-    } else {
-      depScrollEls.delete(segmentIndex)
-    }
-  }
-}
-
-function remeasureDepEdges() {
-  for (const [idx, el] of depScrollEls) updateDepEdges(idx, el)
-}
-onMounted(() => window.addEventListener('resize', remeasureDepEdges))
 
 // ── Departure rebooking ──────────────────────────────────────────────
 // Choosing a later run is pure schedule math on the existing plan — no
@@ -634,7 +569,6 @@ watch(
   () => {
     // A new trip gets its own first-entry default selection + board scroll.
     didAutoSelectDeparture.value = false
-    didScrollToFirst.clear()
     void loadDepartures()
   },
   { immediate: true },
@@ -724,20 +658,6 @@ function getInstructionKey(segmentIndex: number, instrIndex: number): string {
   return `${segmentIndex}-${instrIndex}`
 }
 
-function getInstructionIcon(instruction: string | RouteInstruction) {
-  if (typeof instruction === 'string') return ArrowUp
-  if (instruction.type === 'arrive' || instruction.type === 'destination') return FlagIcon
-  switch (instruction.modifier) {
-    case 'left': return ArrowLeft
-    case 'right': return ArrowRight
-    case 'straight': return ArrowUp
-    case 'slight-left': return ArrowUpLeft
-    case 'slight-right': return ArrowUpRight
-    case 'u-turn': return Undo2Icon
-    default: return ArrowUp
-  }
-}
-
 const heroDuration = computed(() => {
   if (!trip.value) return { main: '', suffix: '' }
   const s = trip.value.summary.totalDuration
@@ -747,12 +667,6 @@ const heroDuration = computed(() => {
   return { main: String(minutes), suffix: 'min' }
 })
 
-const formatDuration = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
-}
 
 const formatDistanceDisplay = (meters: number | undefined): string => {
   if (!meters) return formatDistance(0)
@@ -972,13 +886,6 @@ function showSegmentChart(segment: any): boolean {
   )
 }
 
-function hasSegmentRouteInfo(segment: any): boolean {
-  return !!(
-    segment.totalElevationGain ||
-    segment.totalElevationLoss ||
-    showSegmentChart(segment)
-  )
-}
 </script>
 
 <template>
@@ -1210,36 +1117,20 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 </span>
               </div>
               <!-- Place info card — only for a real POI worth opening, not a
-                   plain address / shared location (those just repeat the title) -->
-              <router-link
+                   plain address / shared location (those just repeat the title).
+                   The waypoint row above already carries the name, so the card
+                   leads with the type instead of repeating it. -->
+              <PlaceCard
                 v-if="isPoiCard(entry.wp.place)"
-                :to="getPlaceRoute(entry.wp.place!.id!)"
-                class="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors"
-              >
-                <ItemIcon
-                  :icon="getSearchResultIconName(entry.wp.place as Place)"
-                  :icon-pack="getSearchResultIconPack(entry.wp.place as Place)"
-                  :custom-color="getCategoryColor(getSearchResultCategory(entry.wp.place as Place), themeStore.isDark)"
-                  size="xs"
-                  variant="ghost"
-                  shape="circle"
-                  class="shrink-0"
-                />
-                <div class="flex-1 min-w-0 flex flex-col">
-                  <span
-                    v-if="entry.wp.place!.placeType?.value"
-                    class="text-xs text-muted-foreground leading-snug"
-                  >
-                    {{ entry.wp.place!.placeType!.value }}
-                  </span>
-                  <span
-                    v-if="(entry.wp.place as any).summary"
-                    class="text-xs text-muted-foreground leading-snug"
-                  >
-                    {{ (entry.wp.place as any).summary }}
-                  </span>
-                </div>
-              </router-link>
+                :place="entry.wp.place as Place"
+                variant="inline"
+                size="xs"
+                density="compact"
+                icon-variant="ghost"
+                :title="entry.wp.place!.placeType?.value || undefined"
+                :subtitle="entry.wp.place!.summary ?? ''"
+                class="mt-1.5"
+              />
             </template>
 
             <!-- ═══ Place stop content (parking, etc.) ═══ -->
@@ -1259,7 +1150,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 </router-link>
               </div>
               <div
-                v-if="(entry.place as any).summary || entry.place.placeType?.value"
+                v-if="entry.place.summary || entry.place.placeType?.value"
                 class="mt-0.5 flex flex-col gap-0.5"
               >
                 <span
@@ -1269,10 +1160,10 @@ function hasSegmentRouteInfo(segment: any): boolean {
                   {{ entry.place.placeType.value }}
                 </span>
                 <span
-                  v-if="(entry.place as any).summary"
+                  v-if="entry.place.summary"
                   class="text-xs text-muted-foreground"
                 >
-                  {{ (entry.place as any).summary }}
+                  {{ entry.place.summary }}
                 </span>
               </div>
             </template>
@@ -1339,101 +1230,16 @@ function hasSegmentRouteInfo(segment: any): boolean {
                       </div>
                     </div>
 
-                    <!-- Departure board — glanceable countdown cards a rider
-                         acts on; tap a later run to re-plan around it. Scrolls
-                         horizontally through the next ~hour of service. -->
-                    <div
+                    <DepartureBoard
                       v-if="departuresFor(entry.segmentIndex).length > 1"
-                      class="relative -mx-3"
-                    >
-                      <div
-                        :ref="depScrollRef(entry.segmentIndex)"
-                        class="dep-scroll px-3 flex items-stretch gap-1.5 overflow-x-auto"
-                        @scroll="onDepScroll(entry.segmentIndex, $event)"
-                      >
-                      <button
-                        v-for="item in (boardCards[entry.segmentIndex] ?? [])"
-                        :key="item.ms"
-                        type="button"
-                        class="shrink-0 min-w-[80px] flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-xl border-2 text-center tabular-nums transition-colors"
-                        :class="[
-                          item.card.planned
-                            ? (entry.segment.lineColor ? '' : 'border-parchment-500 bg-parchment-500/10')
-                            : item.card.missed
-                              ? 'border-transparent bg-muted/20 cursor-default'
-                              : item.card.hurry
-                                ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/40 cursor-pointer'
-                                : 'border-border bg-muted/30 hover:bg-muted/60 hover:border-foreground/30 cursor-pointer',
-                          rebooking && 'opacity-50 pointer-events-none',
-                        ]"
-                        :style="item.card.planned && entry.segment.lineColor ? {
-                          borderColor: `#${entry.segment.lineColor}`,
-                          background: `#${entry.segment.lineColor}1f`,
-                        } : {}"
-                        :title="item.card.title"
-                        :disabled="item.card.missed"
-                        @click="item.card.clickable && chooseDeparture(entry.segmentIndex, item.ms)"
-                      >
-                        <!-- Route bullet + status cue. A tight connection shows a
-                             spelled-out "hurry" (visible without the tooltip and
-                             kept even when this run is selected); otherwise a live
-                             prediction adds a pulsing indicator; scheduled is just
-                             the bullet. -->
-                        <div
-                          class="flex items-center justify-center gap-1 leading-none"
-                          :class="item.card.missed && 'opacity-50'"
-                        >
-                          <RouteBullet
-                            v-if="item.route?.shortName ?? entry.segment.lineName"
-                            size="sm"
-                            :label="item.route?.shortName ?? entry.segment.lineName"
-                            :color="item.route ? item.route.color : entry.segment.lineColor"
-                            :text-color="item.route ? item.route.textColor : entry.segment.lineTextColor"
-                          />
-                          <span
-                            v-if="item.card.hurry"
-                            class="text-[10px] font-semibold text-amber-700 dark:text-amber-300"
-                          >hurry</span>
-                          <RealtimeIndicator
-                            v-else-if="item.card.live"
-                            :real-time="true"
-                            :class="!item.card.missed && 'animate-pulse'"
-                          />
-                        </div>
-                        <!-- Countdown — 'now' for an arriving train, else N min.
-                             Statuses use theme-safe tokens (never the raw line
-                             colour as text): muted+struck when missed, amber when
-                             hurry, the parchment accent for an arriving 'now'. -->
-                        <div
-                          class="text-[13px] font-semibold leading-tight whitespace-nowrap"
-                          :class="[
-                            item.card.missed && 'line-through text-muted-foreground/50',
-                            item.card.hurry && 'text-amber-700 dark:text-amber-300',
-                            item.card.arriving && !item.card.hurry && 'text-parchment-600 dark:text-parchment-400',
-                          ]"
-                        >{{ item.card.lead }}</div>
-                        <!-- Absolute clock time (always kept — even on a hurry or
-                             selected card the rider still needs the departure time;
-                             the "hurry" warning lives in the cue row above). -->
-                        <div
-                          v-if="item.card.sub"
-                          class="text-[10px] leading-none text-muted-foreground"
-                          :class="item.card.missed && 'opacity-60'"
-                        >{{ item.card.sub }}</div>
-                      </button>
-                      </div>
-                      <!-- Edge fades hint there are more departures off-screen -->
-                      <div
-                        v-show="depEdges[entry.segmentIndex]?.start"
-                        class="pointer-events-none absolute inset-y-0 left-0 w-6"
-                        style="background: linear-gradient(to right, hsl(var(--card)), hsl(var(--card) / 0))"
-                      />
-                      <div
-                        v-show="depEdges[entry.segmentIndex]?.end"
-                        class="pointer-events-none absolute inset-y-0 right-0 w-6"
-                        style="background: linear-gradient(to left, hsl(var(--card)), hsl(var(--card) / 0))"
-                      />
-                    </div>
+                      :key="`${trip.id}-${entry.segmentIndex}`"
+                      :cards="boardCards[entry.segmentIndex] ?? []"
+                      :line-color="entry.segment.lineColor"
+                      :line-text-color="entry.segment.lineTextColor"
+                      :line-name="entry.segment.lineName"
+                      :busy="rebooking"
+                      @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
+                    />
 
                     <!-- Intermediate stops -->
                     <Collapsible
@@ -1442,7 +1248,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     >
                       <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
                         <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
-                        <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDuration(entry.segment.duration) }}</span>
+                        <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <div
@@ -1500,7 +1306,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
                 <!-- Meta under the card -->
                 <div class="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
-                  <span class="tabular-nums">{{ formatDuration(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
+                  <span class="tabular-nums">{{ formatDurationCompact(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
                   <span v-if="entry.segment.agencyName">· {{ entry.segment.agencyName }}</span>
                   <span
                     v-if="entry.segment.carryingVehicle"
@@ -1535,7 +1341,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     <ClockIcon class="size-3" />
                     {{ Math.ceil(entry.segment.rideshareDetails.pickupEta / 60) }} min pickup
                   </span>
-                  <span>{{ formatDuration(entry.segment.duration) }}</span>
+                  <span>{{ formatDurationCompact(entry.segment.duration) }}</span>
                 </div>
                 <a
                   v-if="entry.segment.rideshareDetails.bookingUrl"
@@ -1567,7 +1373,7 @@ function hasSegmentRouteInfo(segment: any): boolean {
                     Shared
                   </span>
                   <span class="text-sm text-muted-foreground">
-                    {{ formatDuration(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
+                    {{ formatDurationCompact(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
                   </span>
                 </div>
                 <!-- Station entrance/exit this walk uses -->
@@ -1652,108 +1458,14 @@ function hasSegmentRouteInfo(segment: any): boolean {
                 </a>
               </div>
 
-              <!-- Details: stats, elevation, turn-by-turn — folded by default
-                   so the whole trip fits on one screen -->
-              <Collapsible
-                v-if="hasSegmentRouteInfo(entry.segment) || entry.segment.instructions?.length"
-                v-slot="{ open }"
-                class="mt-2"
-              >
-                <CollapsibleTrigger
-                  class="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                >
-                  <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
-                  <span>{{ open ? 'Hide details' : 'Details' }}</span>
-                  <span
-                    v-if="!open && entry.segment.instructions?.length"
-                    class="font-normal text-muted-foreground/70"
-                  >· {{ entry.segment.instructions.length }} steps</span>
-                </CollapsibleTrigger>
-
-                <CollapsibleContent>
-                  <!-- Stats + elevation -->
-                  <div
-                    v-if="hasSegmentRouteInfo(entry.segment)"
-                    class="mt-2 rounded-lg border bg-card p-3.5 space-y-3"
-                  >
-                    <div
-                      v-if="entry.segment.totalElevationGain || entry.segment.totalElevationLoss"
-                      class="grid grid-cols-3 gap-2 pb-3 border-b"
-                    >
-                      <div>
-                        <div class="text-[11px] text-muted-foreground font-medium">Distance</div>
-                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                          {{ formatDistanceDisplay(entry.segment.distance) }}
-                        </div>
-                      </div>
-                      <div v-if="entry.segment.totalElevationGain">
-                        <div class="text-[11px] text-muted-foreground font-medium">Ascent</div>
-                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                          {{ formatElevation(entry.segment.totalElevationGain) }}
-                        </div>
-                      </div>
-                      <div v-if="entry.segment.totalElevationLoss">
-                        <div class="text-[11px] text-muted-foreground font-medium">Descent</div>
-                        <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-                          {{ formatElevation(entry.segment.totalElevationLoss) }}
-                        </div>
-                      </div>
-                    </div>
-
-                    <ElevationChart
-                      v-if="showSegmentChart(entry.segment)"
-                      :segment-index="entry.segmentIndex"
-                      :geometry="entry.segment.geometry!"
-                      :max-elevation="entry.segment.maxElevation"
-                      :min-elevation="entry.segment.minElevation"
-                      :edge-segments="entry.segment.edgeSegments"
-                      :mode="entry.segment.mode"
-                      :total-elevation-gain="entry.segment.totalElevationGain"
-                      :total-elevation-loss="entry.segment.totalElevationLoss"
-                      @update:route-profile="onRouteProfileChange"
-                    />
-                  </div>
-
-                  <!-- Turn-by-turn -->
-                  <div v-if="entry.segment.instructions?.length" class="mt-2">
-                    <div
-                      v-for="(instruction, instrIndex) in entry.segment.instructions"
-                      :key="instrIndex"
-                      class="step-row"
-                      :class="{
-                        'step-row-active': hoveredInstructionKey === getInstructionKey(entry.segmentIndex, Number(instrIndex)),
-                      }"
-                      @mouseenter="onInstructionHover(entry.segmentIndex, Number(instrIndex), instruction)"
-                      @mouseleave="onInstructionLeave"
-                    >
-                      <span class="step-num">{{ Number(instrIndex) + 1 }}</span>
-                      <span class="step-icon">
-                        <component :is="getInstructionIcon(instruction)" class="size-3.5" />
-                      </span>
-                      <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium text-foreground leading-snug">
-                          {{ typeof instruction === 'string' ? instruction : instruction.text }}
-                        </div>
-                        <div
-                          v-if="typeof instruction === 'object' && instruction.streetName"
-                          class="text-[11px] text-muted-foreground mt-0.5"
-                        >
-                          {{ instruction.streetName }}
-                        </div>
-                      </div>
-                      <span
-                        v-if="typeof instruction === 'object'"
-                        class="step-dist"
-                      >
-                        {{ formatDistanceDisplay(instruction.distance) }}
-                        <template v-if="instruction.duration">
-                          · {{ formatDuration(instruction.duration) }}
-                        </template>
-                      </span>
-                    </div>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              <SegmentDetails
+                :segment="entry.segment"
+                :segment-index="entry.segmentIndex"
+                :hovered-key="hoveredInstructionKey"
+                @hover-instruction="onInstructionHover"
+                @leave-instruction="onInstructionLeave"
+                @update:route-profile="onRouteProfileChange"
+              />
             </template>
           </div>
         </div>
@@ -1775,58 +1487,4 @@ function hasSegmentRouteInfo(segment: any): boolean {
 
 <style scoped>
 /* Departure board — clean horizontal scroll, no visible scrollbar */
-.dep-scroll {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.dep-scroll::-webkit-scrollbar {
-  display: none;
-}
-.step-row {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 8px 4px;
-  margin: 0 -4px;
-  cursor: default;
-  border-radius: 6px;
-  transition: background 0.1s;
-}
-.step-row:hover,
-.step-row-active {
-  background: hsl(var(--muted) / 0.5);
-}
-.step-num {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11px;
-  width: 16px;
-  flex: none;
-  text-align: right;
-  color: hsl(var(--muted-foreground));
-  font-weight: 500;
-  line-height: 1.5;
-  padding-top: 3px;
-  font-variant-numeric: tabular-nums;
-}
-.step-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  flex: none;
-  background: hsl(var(--muted));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: hsl(var(--muted-foreground));
-}
-.step-dist {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11px;
-  color: hsl(var(--muted-foreground));
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  flex: none;
-  padding-top: 3px;
-  white-space: nowrap;
-}
 </style>

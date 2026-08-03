@@ -4,7 +4,6 @@ import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import IntegrationTile from '@/components/integration/IntegrationTile.vue'
 import {
-  LoaderCircleIcon,
   SearchIcon,
   ArrowUpDownIcon,
   ArrowUpIcon,
@@ -46,6 +45,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
+import { Spinner } from '@/components/ui/spinner'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -121,7 +121,7 @@ onMounted(async () => {
       "
       class="flex justify-center items-center py-10"
     >
-      <LoaderCircleIcon class="animate-spin h-8 w-8 text-primary" />
+      <Spinner class="text-primary" />
     </div>
 
     <div v-else>

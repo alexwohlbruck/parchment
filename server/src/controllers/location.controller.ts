@@ -4,8 +4,9 @@ import { PermissionId } from '../types/auth.types'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { isFriend } from '../services/friends.service'
 import * as locationE2eeService from '../services/location-e2ee.service'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/location' })
+const app = new Elysia({ prefix: '/location' }).use(i18nPlugin)
 
 // Rate-limit the broadcast endpoint. Movement-driven gating in the
 // client (2s floor, 3m distance threshold, 5min stationary refresh)
@@ -27,7 +28,7 @@ const updateRateLimit = makeUserRateLimit({
  */
 app.use(permissions(PermissionId.LOCATION_SHARING)).get(
   '/e2ee/config',
-  async ({ user, status }) => {
+  async ({ user, status, t }) => {
     if (!user) {
       return status(401, { message: t('errors.auth.authenticationRequired') })
     }
@@ -48,7 +49,7 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).get(
  */
 app.use(permissions(PermissionId.LOCATION_SHARING)).post(
   '/e2ee/config',
-  async ({ body, user, status }) => {
+  async ({ body, user, status, t }) => {
     if (!user) {
       return status(401, { message: t('errors.auth.authenticationRequired') })
     }
@@ -78,7 +79,7 @@ app.use(permissions(PermissionId.LOCATION_SHARING)).post(
  */
 app.use(permissions(PermissionId.LOCATION_SHARING)).delete(
   '/e2ee/config/:friendHandle',
-  async ({ params, user, status }) => {
+  async ({ params, user, status, t }) => {
     if (!user) {
       return status(401, { message: t('errors.auth.authenticationRequired') })
     }
@@ -124,7 +125,7 @@ app
   .use(updateRateLimit)
   .post(
     '/e2ee/update',
-    async ({ body, user, status }) => {
+    async ({ body, user, status, t }) => {
       if (!user) {
         return status(401, { message: t('errors.auth.authenticationRequired') })
       }
@@ -186,7 +187,7 @@ app
  */
 app.use(permissions(PermissionId.LOCATION_SHARING)).get(
   '/e2ee/friends',
-  async ({ user, status }) => {
+  async ({ user, status, t }) => {
     if (!user) {
       return status(401, { message: t('errors.auth.authenticationRequired') })
     }

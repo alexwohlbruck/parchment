@@ -4,17 +4,18 @@ import { IntegrationCapabilityId } from '../types/integration.types'
 import { getLanguageCode } from '../lib/i18n'
 import { getNearestStationAirQuality } from '../services/air-quality.service'
 import { logError, logWarn } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const weatherRouter = new Elysia({ prefix: '/weather' })
+const weatherRouter = new Elysia({ prefix: '/weather' }).use(i18nPlugin)
   /**
    * Get current weather data for a location
    * GET /weather?lat=40.7128&lng=-74.0060
    */
   .get(
     '/',
-    async ({ query, t, i18n, status }) => {
+    async ({ query, t, language: requestLanguage, status }) => {
       const { lat, lng, lang } = query
-      const language = lang ?? getLanguageCode(i18n.language)
+      const language = lang ?? getLanguageCode(requestLanguage)
 
       if (lat === undefined || lng === undefined) {
         return status(400, {

@@ -7,13 +7,14 @@ import type {
   TransitStopInfo,
   PlaceRelation,
 } from '../../../types/place.types'
-import { getPlaceType } from '../../../lib/place.utils'
+import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
 import { matchTags, type GeometryType } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
 import { extractTransitIdentifiers, isTransitStopType, isTransitStop, createTransitInfo } from '../../../lib/transit-utils'
 import { logError } from '../../../lib/logger'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 
 /**
  * Interface for Nominatim hierarchy response (parent relations)
@@ -66,7 +67,11 @@ export interface NominatimLookupResult {
  */
 export class NominatimAdapter {
   placeInfo = {
-    adaptPlaceDetails: (data: NominatimLookupResult, id?: string): Place => {
+    adaptPlaceDetails: (
+      data: NominatimLookupResult,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
       const osmId = `${data.osm_type}/${data.osm_id}`
       const primaryId = id || `${SOURCE.OSM}/${osmId}`
       const timestamp = new Date().toISOString()
@@ -96,13 +101,13 @@ export class NominatimAdapter {
         id: primaryId,
         externalIds: this.extractExternalIds(data, osmId),
         name: {
-          value: this.extractName(data),
+          value: getLocalizedName(tags, language, this.extractName(data)) ?? null,
           sourceId: SOURCE.OSM,
           timestamp,
         },
         description: this.extractDescription(data.extratags),
         placeType: {
-          value: getPlaceType(tags, 'en', osmGeometryType) || data.type || 'unknown',
+          value: getPlaceType(tags, language, osmGeometryType) || data.type || 'unknown',
           sourceId: SOURCE.OSM,
           timestamp,
         },

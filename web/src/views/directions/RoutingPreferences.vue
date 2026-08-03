@@ -38,6 +38,10 @@ import {
 } from '@/stores/directions.store'
 import { storeToRefs } from 'pinia'
 import { useUnits } from '@/composables/useUnits'
+import PreferenceRow from '@/components/directions/preferences/PreferenceRow.vue'
+import PreferenceToggle from '@/components/directions/preferences/PreferenceToggle.vue'
+import PreferenceValueSlider from '@/components/directions/preferences/PreferenceValueSlider.vue'
+import { providePreferences } from '@/components/directions/preferences/context'
 
 const { t } = useI18n()
 const { isMetric, convert } = useUnits()
@@ -172,6 +176,16 @@ function getHintLabel(key: string, value: number): string {
   const index = Math.round(value * 4)
   return labels[Math.min(index, 4)]
 }
+
+// Controls read the merged view and route their writes back through here
+// rather than each taking five identical props.
+providePreferences({
+  preferences,
+  updatePreference,
+  isSupported,
+  isRange,
+  getHintLabel,
+})
 
 // ── Speed display conversion (kph ↔ mph) ────────────────────────
 const KPH_TO_MPH = 0.621371
@@ -382,23 +396,7 @@ const customModelError = computed(() => {
       </div>
 
       <!-- Ferries (applies to all modes) -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <Label class="text-sm font-normal">Ferries</Label>
-          <span class="text-xs text-muted-foreground">{{
-            getHintLabel('ferries', preferences.ferries ?? 0.5)
-          }}</span>
-        </div>
-        <Slider
-          :model-value="[preferences.ferries ?? 0.5]"
-          :min="0"
-          :max="1"
-          :step="0.01"
-          @update:model-value="
-            val => val && updatePreference('ferries', val[0])
-          "
-        />
-      </div>
+      <PreferenceRow pref="ferries" label="Ferries" />
     </div>
 
     <Separator />
@@ -434,95 +432,38 @@ const customModelError = computed(() => {
       <!-- ═══════════════════ Walking ═══════════════════ -->
       <TabsContent value="walking" class="py-4 px-2 space-y-5 mt-0">
         <!-- Hills -->
-        <div v-if="isSupported('hills')">
-          <template v-if="isRange('hills')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Hills</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('hills', preferences.hills ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.hills ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('hills', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid hills</Label>
-            <Switch
-              :model-value="(preferences.hills ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('hills', val ? 0 : 0.5)
-              "
-            />
-          </div>
-        </div>
+        <PreferenceRow
+          pref="hills"
+          label="Hills"
+          toggle-label="Avoid hills"
+          :on="0"
+          :off="0.5"
+          toggle-when="below"
+        />
 
         <!-- Lit Paths -->
-        <div v-if="isSupported('litPaths')">
-          <template v-if="isRange('litPaths')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Lit paths</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('litPaths', preferences.litPaths ?? 0)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.litPaths ?? 0]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('litPaths', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Prefer lit paths</Label>
-            <Switch
-              :model-value="(preferences.litPaths ?? 0) > 0.5"
-              @update:model-value="
-                val => updatePreference('litPaths', val ? 1 : 0)
-              "
-            />
-          </div>
-        </div>
+        <PreferenceRow
+          pref="litPaths"
+          label="Lit paths"
+          toggle-label="Prefer lit paths"
+          :on="1"
+          :off="0"
+          :fallback="0"
+        />
 
         <!-- Walking Speed -->
-        <div v-if="isSupported('walkingSpeed')" class="space-y-2">
-          <div class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Walking speed</Label>
-            <span class="text-xs text-muted-foreground"
-              >{{ walkingSpeedDisplay }} {{ speedUnit }}</span
-            >
-          </div>
-          <Slider
-            :model-value="[walkingSpeedDisplay]"
-            :min="walkingSpeedMin"
-            :max="walkingSpeedMax"
-            :step="0.5"
-            @update:model-value="val => val && (walkingSpeedDisplay = val[0])"
-          />
-        </div>
+        <PreferenceValueSlider
+          v-model="walkingSpeedDisplay"
+          pref="walkingSpeed"
+          label="Walking speed"
+          :hint="`${walkingSpeedDisplay} ${speedUnit}`"
+          :min="walkingSpeedMin"
+          :max="walkingSpeedMax"
+          :step="0.5"
+        />
 
         <!-- Wheelchair -->
-        <div
-          v-if="isSupported('wheelchairAccessible')"
-          class="flex items-center justify-between"
-        >
-          <Label class="text-sm font-normal">Wheelchair accessible</Label>
-          <Switch
-            :model-value="preferences.wheelchairAccessible ?? false"
-            @update:model-value="
-              val => updatePreference('wheelchairAccessible', val)
-            "
-          />
-        </div>
+        <PreferenceToggle pref="wheelchairAccessible" label="Wheelchair accessible" />
       </TabsContent>
 
       <!-- ═══════════════════ Cycling ═══════════════════ -->
@@ -551,111 +492,42 @@ const customModelError = computed(() => {
         </div>
 
         <!-- Safety vs Speed -->
-        <div v-if="isSupported('safetyVsSpeed')">
-          <template v-if="isRange('safetyVsSpeed')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Route priority</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('safetyVsSpeed', preferences.safetyVsSpeed ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.safetyVsSpeed ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('safetyVsSpeed', val[0])
-              "
-            />
-            <div
-              class="flex justify-between text-xs text-muted-foreground mt-1"
-            >
-              <span>Safest</span>
-              <span>Fastest</span>
-            </div>
-          </template>
-        </div>
+        <PreferenceRow
+          pref="safetyVsSpeed"
+          label="Route priority"
+          :end-labels="['Safest', 'Fastest']"
+        />
 
         <!-- Hills -->
-        <div v-if="isSupported('hills')">
-          <template v-if="isRange('hills')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Hills</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('hills', preferences.hills ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.hills ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('hills', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid hills</Label>
-            <Switch
-              :model-value="(preferences.hills ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('hills', val ? 0 : 0.5)
-              "
-            />
-          </div>
-        </div>
+        <PreferenceRow
+          pref="hills"
+          label="Hills"
+          toggle-label="Avoid hills"
+          :on="0"
+          :off="0.5"
+          toggle-when="below"
+        />
 
         <!-- Surface Quality -->
-        <div v-if="isSupported('surfaceQuality')">
-          <template v-if="isRange('surfaceQuality')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Surface quality</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel(
-                  'surfaceQuality',
-                  preferences.surfaceQuality ?? 0.25,
-                )
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.surfaceQuality ?? 0.25]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('surfaceQuality', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Prefer paved paths</Label>
-            <Switch
-              :model-value="(preferences.surfaceQuality ?? 0.25) > 0.5"
-              @update:model-value="
-                val => updatePreference('surfaceQuality', val ? 1 : 0.25)
-              "
-            />
-          </div>
-        </div>
+        <PreferenceRow
+          pref="surfaceQuality"
+          label="Surface quality"
+          toggle-label="Prefer paved paths"
+          :on="1"
+          :off="0.25"
+          :fallback="0.25"
+        />
 
         <!-- Cycling Speed -->
-        <div v-if="isSupported('cyclingSpeed')" class="space-y-2">
-          <div class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Average cycling speed</Label>
-            <span class="text-xs text-muted-foreground"
-              >{{ cyclingSpeedDisplay }} {{ speedUnit }}</span
-            >
-          </div>
-          <Slider
-            :model-value="[cyclingSpeedDisplay]"
-            :min="cyclingSpeedMin"
-            :max="cyclingSpeedMax"
-            :step="1"
-            @update:model-value="val => val && (cyclingSpeedDisplay = val[0])"
-          />
-        </div>
+        <PreferenceValueSlider
+          v-model="cyclingSpeedDisplay"
+          pref="cyclingSpeed"
+          label="Average cycling speed"
+          :hint="`${cyclingSpeedDisplay} ${speedUnit}`"
+          :min="cyclingSpeedMin"
+          :max="cyclingSpeedMax"
+          :step="1"
+        />
       </TabsContent>
 
       <!-- ═══════════════════ Transit ═══════════════════ -->
@@ -712,176 +584,67 @@ const customModelError = computed(() => {
           </p>
         </div>
 
-        <div
-          v-if="isSupported('wheelchairAccessible')"
-          class="flex items-center justify-between"
-        >
-          <Label class="text-sm font-normal">Wheelchair accessible</Label>
-          <Switch
-            :model-value="preferences.wheelchairAccessible ?? false"
-            @update:model-value="
-              val => updatePreference('wheelchairAccessible', val)
-            "
-          />
-        </div>
+        <PreferenceToggle pref="wheelchairAccessible" label="Wheelchair accessible" />
       </TabsContent>
 
       <!-- ═══════════════════ Driving ═══════════════════ -->
       <TabsContent value="driving" class="py-4 px-2 space-y-5 mt-0">
         <!-- Highways -->
-        <div v-if="isSupported('highways')">
-          <template v-if="isRange('highways')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Highways</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('highways', preferences.highways ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.highways ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('highways', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid highways</Label>
-            <Switch
-              :model-value="(preferences.highways ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('highways', val ? 0 : 0.5)
-              "
-            />
-          </div>
-        </div>
+        <PreferenceRow
+          pref="highways"
+          label="Highways"
+          toggle-label="Avoid highways"
+          :on="0"
+          :off="0.5"
+          toggle-when="below"
+        />
 
         <!-- Tolls -->
-        <div v-if="isSupported('tolls')">
-          <template v-if="isRange('tolls')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Tolls</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('tolls', preferences.tolls ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.tolls ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('tolls', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid tolls</Label>
-            <Switch
-              :model-value="(preferences.tolls ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('tolls', val ? 0 : 0.5)
-              "
-            />
-          </div>
-        </div>
+        <PreferenceRow
+          pref="tolls"
+          label="Tolls"
+          toggle-label="Avoid tolls"
+          :on="0"
+          :off="0.5"
+          toggle-when="below"
+        />
 
         <!-- HOV -->
-        <div
-          v-if="isSupported('preferHOV')"
-          class="flex items-center justify-between"
-        >
-          <Label class="text-sm font-normal">Prefer HOV lanes</Label>
-          <Switch
-            :model-value="preferences.preferHOV ?? false"
-            @update:model-value="val => updatePreference('preferHOV', val)"
-          />
-        </div>
+        <PreferenceToggle pref="preferHOV" label="Prefer HOV lanes" />
       </TabsContent>
 
       <!-- ═══════════════════ Wheelchair ═══════════════════ -->
       <TabsContent value="wheelchair" class="py-4 px-2 space-y-5 mt-0">
         <!-- Hills -->
-        <div v-if="isSupported('hills')">
-          <template v-if="isRange('hills')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Hills</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel('hills', preferences.hills ?? 0.5)
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.hills ?? 0.5]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('hills', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Avoid hills</Label>
-            <Switch
-              :model-value="(preferences.hills ?? 0.5) < 0.5"
-              @update:model-value="
-                val => updatePreference('hills', val ? 0 : 0.5)
-              "
-            />
-          </div>
-        </div>
+        <PreferenceRow
+          pref="hills"
+          label="Hills"
+          toggle-label="Avoid hills"
+          :on="0"
+          :off="0.5"
+          toggle-when="below"
+        />
 
         <!-- Surface Quality -->
-        <div v-if="isSupported('surfaceQuality')">
-          <template v-if="isRange('surfaceQuality')">
-            <div class="flex items-center justify-between mb-2">
-              <Label class="text-sm font-normal">Surface quality</Label>
-              <span class="text-xs text-muted-foreground">{{
-                getHintLabel(
-                  'surfaceQuality',
-                  preferences.surfaceQuality ?? 0.25,
-                )
-              }}</span>
-            </div>
-            <Slider
-              :model-value="[preferences.surfaceQuality ?? 0.25]"
-              :min="0"
-              :max="1"
-              :step="0.01"
-              @update:model-value="
-                val => val && updatePreference('surfaceQuality', val[0])
-              "
-            />
-          </template>
-          <div v-else class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Prefer paved paths</Label>
-            <Switch
-              :model-value="(preferences.surfaceQuality ?? 0.25) > 0.5"
-              @update:model-value="
-                val => updatePreference('surfaceQuality', val ? 1 : 0.25)
-              "
-            />
-          </div>
-        </div>
+        <PreferenceRow
+          pref="surfaceQuality"
+          label="Surface quality"
+          toggle-label="Prefer paved paths"
+          :on="1"
+          :off="0.25"
+          :fallback="0.25"
+        />
 
         <!-- Walking Speed -->
-        <div v-if="isSupported('walkingSpeed')" class="space-y-2">
-          <div class="flex items-center justify-between">
-            <Label class="text-sm font-normal">Speed</Label>
-            <span class="text-xs text-muted-foreground"
-              >{{ walkingSpeedDisplay }} {{ speedUnit }}</span
-            >
-          </div>
-          <Slider
-            :model-value="[walkingSpeedDisplay]"
-            :min="walkingSpeedMin"
-            :max="walkingSpeedMax"
-            :step="0.5"
-            @update:model-value="val => val && (walkingSpeedDisplay = val[0])"
-          />
-        </div>
+        <PreferenceValueSlider
+          v-model="walkingSpeedDisplay"
+          pref="walkingSpeed"
+          label="Walking speed"
+          :hint="`${walkingSpeedDisplay} ${speedUnit}`"
+          :min="walkingSpeedMin"
+          :max="walkingSpeedMax"
+          :step="0.5"
+        />
       </TabsContent>
     </Tabs>
 

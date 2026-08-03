@@ -63,7 +63,7 @@ mock.module('../services/user.service', () => ({
 
 mock.module('../services/token.service', () => ({
   createServerToken: mock(async () => '12345678'),
-  validateServerToken: mock(async () => true),
+  validateServerToken: mock(async () => 'valid'),
 }))
 
 const getSubscriptionStatus = mock(async () => ({

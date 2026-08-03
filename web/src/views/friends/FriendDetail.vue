@@ -47,6 +47,7 @@ import { useMapService } from '@/services/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { appEventBus } from '@/lib/eventBus'
 import { useUnits } from '@/composables/useUnits'
+import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
 
 const props = defineProps<{
   handle: string
@@ -91,19 +92,8 @@ const friendLocation = computed(() => {
 })
 
 // Format time ago
-function formatTimeAgo(timestamp: number): string {
-  const now = Date.now()
-  const diff = now - timestamp
-  const seconds = Math.floor(diff / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-
-  if (seconds < 60) return t('friends.detail.justNow')
-  if (minutes < 60) return t('friends.detail.minutesAgo', { count: minutes })
-  if (hours < 24) return t('friends.detail.hoursAgo', { count: hours })
-  return t('friends.detail.daysAgo', { count: days })
-}
+const formatTimeAgo = (input: Date | string | number) =>
+  sharedTimeAgo(input, t, { absoluteAfterDays: Infinity })
 
 // Get initials from name or handle
 function getInitials(name?: string | null, handle?: string): string {

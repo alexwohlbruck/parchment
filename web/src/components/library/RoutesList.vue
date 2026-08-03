@@ -2,6 +2,8 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { RouteIcon } from 'lucide-vue-next'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import {
@@ -150,12 +152,11 @@ function createRoute() {
       v-else-if="filteredRoutes.length === 0"
       class="flex-1 flex items-center justify-center"
     >
-      <div class="text-center">
-        <p class="text-muted-foreground mb-2">No routes found</p>
-        <Button v-if="searchQuery" @click="searchQuery = ''">
+      <EmptyState :icon="RouteIcon" title="No routes found">
+        <Button v-if="searchQuery" size="sm" variant="outline" @click="searchQuery = ''">
           Clear search
         </Button>
-      </div>
+      </EmptyState>
     </div>
 
     <div v-else class="flex flex-col gap-2 pb-4 flex-1">

@@ -82,11 +82,38 @@ describe('BarrelmanIntegration', () => {
       expect(result.success).toBe(true)
     })
 
-    test('fails when endpoint returns non-ok status', async () => {
-      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'degraded' } })
+    test('succeeds when degraded — an optional subsystem down is not an outage', async () => {
+      // A stale MOTIS realtime feed reports `degraded`. Failing here would throw
+      // out of initializeWithTest and leave Barrelman uncached, taking search,
+      // place detail and geocoding down with transit.
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { status: 'degraded', database: 'connected', motis: 'unavailable' },
+      })
+      const result = await integration.testConnection({ host: 'http://api.example.com' })
+      expect(result.success).toBe(true)
+    })
+
+    test('fails when the status is error — the database is down', async () => {
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { status: 'error', database: 'disconnected' },
+      })
+      const result = await integration.testConnection({ host: 'http://api.example.com' })
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('error')
+    })
+
+    test('fails when the response carries no status at all', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: {} })
       const result = await integration.testConnection({ host: 'http://api.example.com' })
       expect(result.success).toBe(false)
       expect(result.message).toBeDefined()
+    })
+
+    test('allows enough time for the health probe to reach MOTIS', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: { status: 'ok' } })
+      await integration.testConnection({ host: 'http://api.example.com' })
+      const [, config] = mockAxiosGet.mock.calls[0]
+      expect(config.timeout).toBeGreaterThanOrEqual(10_000)
     })
 
     test('fails immediately when config has no host', async () => {
@@ -780,6 +807,50 @@ describe('BarrelmanIntegration', () => {
       const params = (mockAxiosGet.mock.calls[0] as any)[1].params
       expect(params.lat).toBeUndefined()
       expect(params.lng).toBeUndefined()
+    })
+  })
+
+  // ── Geocoding ─────────────────────────────────────────────────────────────
+
+  describe('geocoding capability', () => {
+    test('declares the geocoding capability so it outranks Nominatim', () => {
+      expect(integration.capabilityIds).toContain('geocoding')
+      expect(integration.capabilities.geocoding).toBeDefined()
+    })
+
+    test('reverseGeocode calls /geocode/reverse with the coordinate', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: [] })
+      await integration.reverseGeocode(37.77, -122.41)
+      const [url, config] = mockAxiosGet.mock.calls[0] as any
+      expect(url).toBe('http://localhost:3100/geocode/reverse')
+      expect(config.params).toEqual({ lat: 37.77, lng: -122.41 })
+    })
+
+    test('reverseGeocode adapts results into the unified Place model', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: [baseResult] })
+      const places = await integration.reverseGeocode(37.7749, -122.4194)
+      expect(places).toHaveLength(1)
+      expect(places[0].name.value).toBe('Test Place')
+      expect(places[0].externalIds.osm).toBe('node/123456')
+    })
+
+    test('reverseGeocode returns [] when barrelman has nothing at the point', async () => {
+      mockAxiosGet.mockResolvedValueOnce({ data: [] })
+      expect(await integration.reverseGeocode(0, 0)).toEqual([])
+    })
+
+    test('forward geocode goes through /search so addresses and POIs both resolve', async () => {
+      mockAxiosPost.mockResolvedValueOnce({ data: [baseResult] })
+      const places = await integration.capabilities.geocoding.geocode(
+        '9201 University City Blvd',
+        37.77,
+        -122.41,
+      )
+      const [url, body] = mockAxiosPost.mock.calls[0] as any
+      expect(url).toBe('http://localhost:3100/search')
+      expect(body.query).toBe('9201 University City Blvd')
+      expect(body.lat).toBe(37.77)
+      expect(places[0].name.value).toBe('Test Place')
     })
   })
 

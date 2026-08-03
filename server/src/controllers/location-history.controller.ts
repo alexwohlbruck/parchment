@@ -3,8 +3,9 @@ import { permissions } from '../middleware/auth.middleware'
 import { PermissionId } from '../types/auth.types'
 import { requireIntegrationCredentials } from '../middleware/integration-credentials.middleware'
 import { logger } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const locationHistoryRouter = new Elysia({ prefix: '/location-history' }).use(
+const locationHistoryRouter = new Elysia({ prefix: '/location-history' }).use(i18nPlugin).use(
   permissions(PermissionId.LOCATION_SHARING),
 )
 

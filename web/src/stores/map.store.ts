@@ -35,6 +35,7 @@ const defaultSettings: MapSettings = {
   transitLabels: true,
   placeLabels: true,
   hdRoads: false,
+  indoorMaps: false,
   northUpSnap: true,
   gridSnapMode: GridSnapMode.NORTH_UP,
   locateFlySpeed: LocateFlySpeed.NORMAL,

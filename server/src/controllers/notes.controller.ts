@@ -9,6 +9,7 @@ import {
   OsmNoteComment,
 } from '../types/integration.types'
 import { getOsmConfig } from '../config/osm.config'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 /**
  * Look up the user's OSM access token from their configured integrations.
@@ -121,12 +122,12 @@ app.get(
  * POST /notes/create — Create a new note (requires auth).
  * Uses /create path to avoid conflict with GET /.
  */
-app.use(permissions(PermissionId.NOTES_WRITE)).post(
+app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
   '/create',
-  async ({ body, user, status }) => {
+  async ({ body, user, status, t }) => {
     const accessToken = await getOsmAccessToken(user.id)
     if (!accessToken) {
-      return status(403, { message: 'No OSM integration configured. Connect your OSM account first.' })
+      return status(403, { message: t('errors.osm.notConfigured') })
     }
 
     try {
@@ -165,12 +166,12 @@ app.use(permissions(PermissionId.NOTES_WRITE)).post(
 /**
  * POST /notes/:id/comment — Add a comment to a note (requires auth).
  */
-app.use(permissions(PermissionId.NOTES_WRITE)).post(
+app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/comment',
-  async ({ params, body, user, status }) => {
+  async ({ params, body, user, status, t }) => {
     const accessToken = await getOsmAccessToken(user.id)
     if (!accessToken) {
-      return status(403, { message: 'No OSM integration configured. Connect your OSM account first.' })
+      return status(403, { message: t('errors.osm.notConfigured') })
     }
 
     try {
@@ -210,12 +211,12 @@ app.use(permissions(PermissionId.NOTES_WRITE)).post(
 /**
  * POST /notes/:id/close — Close/resolve a note (requires auth).
  */
-app.use(permissions(PermissionId.NOTES_WRITE)).post(
+app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/close',
-  async ({ params, body, user, status }) => {
+  async ({ params, body, user, status, t }) => {
     const accessToken = await getOsmAccessToken(user.id)
     if (!accessToken) {
-      return status(403, { message: 'No OSM integration configured. Connect your OSM account first.' })
+      return status(403, { message: t('errors.osm.notConfigured') })
     }
 
     try {
@@ -255,12 +256,12 @@ app.use(permissions(PermissionId.NOTES_WRITE)).post(
 /**
  * POST /notes/:id/reopen — Reopen a note (requires auth).
  */
-app.use(permissions(PermissionId.NOTES_WRITE)).post(
+app.use(i18nPlugin).use(permissions(PermissionId.NOTES_WRITE)).post(
   '/:id/reopen',
-  async ({ params, body, user, status }) => {
+  async ({ params, body, user, status, t }) => {
     const accessToken = await getOsmAccessToken(user.id)
     if (!accessToken) {
-      return status(403, { message: 'No OSM integration configured. Connect your OSM account first.' })
+      return status(403, { message: t('errors.osm.notConfigured') })
     }
 
     try {

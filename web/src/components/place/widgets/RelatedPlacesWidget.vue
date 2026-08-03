@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, markRaw, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ChevronRightIcon } from 'lucide-vue-next'
+import { SectionHeader } from '@/components/ui/section-header'
 import type {
   WidgetResponse,
   WidgetDescriptor,
@@ -110,17 +110,13 @@ function openFullList() {
 
 <template>
   <template v-if="hasResults">
-    <button
-      type="button"
-      class="w-full text-left flex items-center justify-between gap-2 group"
-      @click="openFullList"
-    >
-      <h3 class="text-sm font-semibold text-muted-foreground">
-        {{ headingText }}
-        <span v-if="hasMore || itemCount > 3" class="font-normal">({{ itemCount }}{{ hasMore ? '+' : '' }})</span>
-      </h3>
-      <ChevronRightIcon class="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
-    </button>
+    <SectionHeader
+      :title="headingText"
+      :count="hasMore || itemCount > 3 ? itemCount : undefined"
+      :has-more="hasMore"
+      clickable
+      @select="openFullList"
+    />
 
     <!-- Children: horizontal scroll preview -->
     <template v-if="strategy === 'children'">

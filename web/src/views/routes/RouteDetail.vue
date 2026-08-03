@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, markRaw, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   FootprintsIcon,
@@ -33,6 +33,7 @@ import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { Route } from '@/types/routes.types'
 import { formatDurationLong } from '@/lib/time.utils'
+import { StatRow, type StatRowItem } from '@/components/ui/stat'
 
 const props = defineProps<{ id: string }>()
 
@@ -42,6 +43,18 @@ const builderStore = useRouteBuilderStore()
 const builder = useRouteBuilderService()
 const mapService = useMapService()
 const { formatDistance, formatElevation } = useUnits()
+
+/** Secondary figures beside the headline distance. */
+const statItems = computed<StatRowItem[]>(() => {
+  const items: StatRowItem[] = [
+    { icon: markRaw(ClockIcon), value: formatDurationLong(stats.value.duration) },
+  ]
+  if (stats.value.elevationGain)
+    items.push({ icon: markRaw(ArrowUpRightIcon), value: formatElevation(stats.value.elevationGain) })
+  if (stats.value.elevationLoss)
+    items.push({ icon: markRaw(ArrowDownRightIcon), value: formatElevation(stats.value.elevationLoss) })
+  return items
+})
 
 const route = ref<Route | null>(null)
 const loading = ref(true)
@@ -170,31 +183,7 @@ async function remove() {
 
       <!-- Stats -->
       <div class="rounded-lg border p-3 mb-3">
-        <div class="flex items-baseline gap-3 flex-wrap">
-          <span class="text-2xl font-semibold">
-            {{ formatDistance(stats.distance) }}
-          </span>
-          <span
-            class="inline-flex items-center gap-1 text-sm text-muted-foreground"
-          >
-            <ClockIcon class="size-3.5" />
-            {{ formatDurationLong(stats.duration) }}
-          </span>
-          <span
-            v-if="stats.elevationGain"
-            class="inline-flex items-center gap-0.5 text-sm text-muted-foreground"
-          >
-            <ArrowUpRightIcon class="size-3.5" />
-            {{ formatElevation(stats.elevationGain) }}
-          </span>
-          <span
-            v-if="stats.elevationLoss"
-            class="inline-flex items-center gap-0.5 text-sm text-muted-foreground"
-          >
-            <ArrowDownRightIcon class="size-3.5" />
-            {{ formatElevation(stats.elevationLoss) }}
-          </span>
-        </div>
+        <StatRow :lead="formatDistance(stats.distance)" :items="statItems" />
         <div v-if="hasElevation" class="mt-3">
           <ElevationChart
             :segment-index="0"

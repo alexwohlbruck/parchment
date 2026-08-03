@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/collapsible'
 import ElevationChart from '@/components/directions/ElevationChart.vue'
 import { useUnits } from '@/composables/useUnits'
+import { StatTile } from '@/components/ui/stat'
 import { formatDurationCompact } from '@/lib/time.utils'
 import type { RouteInstruction } from '@/types/directions.types'
 
@@ -116,24 +117,23 @@ const instructionKey = (index: number) => `${props.segmentIndex}-${index}`
           v-if="segment.totalElevationGain || segment.totalElevationLoss"
           class="grid grid-cols-3 gap-2 pb-3 border-b"
         >
-          <div>
-            <div class="text-[11px] text-muted-foreground font-medium">Distance</div>
-            <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-              {{ formatDistanceDisplay(segment.distance) }}
-            </div>
-          </div>
-          <div v-if="segment.totalElevationGain">
-            <div class="text-[11px] text-muted-foreground font-medium">Ascent</div>
-            <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-              {{ formatElevation(segment.totalElevationGain) }}
-            </div>
-          </div>
-          <div v-if="segment.totalElevationLoss">
-            <div class="text-[11px] text-muted-foreground font-medium">Descent</div>
-            <div class="text-base font-medium tabular-nums mt-0.5 tracking-tight">
-              {{ formatElevation(segment.totalElevationLoss) }}
-            </div>
-          </div>
+          <StatTile
+            variant="bare"
+            label="Distance"
+            :value="formatDistanceDisplay(segment.distance)"
+          />
+          <StatTile
+            v-if="segment.totalElevationGain"
+            variant="bare"
+            label="Ascent"
+            :value="formatElevation(segment.totalElevationGain)"
+          />
+          <StatTile
+            v-if="segment.totalElevationLoss"
+            variant="bare"
+            label="Descent"
+            :value="formatElevation(segment.totalElevationLoss)"
+          />
         </div>
 
         <ElevationChart

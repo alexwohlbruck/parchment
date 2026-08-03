@@ -17,6 +17,11 @@ import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import { useTransitClock } from '@/composables/useTransitClock'
+import {
+  groupDepartures,
+  type DirectionGroup,
+  type RouteGroup,
+} from '@/lib/transit-departures'
 import { getMinutesUntil } from '@/lib/transit'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
 import { useRouter } from 'vue-router'
@@ -54,76 +59,12 @@ watch(
   { immediate: true },
 )
 
-// ── Group departures: route → direction → sorted upcoming list ──
-
-interface DirectionGroup {
-  headsign: string
-  departures: TransitDeparture[]
-  hasRealtime: boolean
-}
-
-interface RouteGroup {
-  routeKey: string
-  route: TransitDeparture['route']
-  directions: DirectionGroup[]
-  /** A representative departure for opening route detail. */
-  representative: TransitDeparture
-}
-
-const routeGroups = computed((): RouteGroup[] => {
-  if (!departures.value.length) return []
-
-  const routeMap = new Map<string, {
-    route: TransitDeparture['route']
-    dirMap: Map<string, TransitDeparture[]>
-    rep: TransitDeparture
-  }>()
-
-  for (const dep of departures.value) {
-    const mins = getMinutesUntil(dep, currentTime.value)
-    if (mins !== null && mins < -1) continue
-
-    const routeKey = dep.route.shortName || dep.route.longName || dep.route.id
-    const headsign = dep.headsign || dep.direction || t('place.transit.unknownDirection')
-
-    if (!routeMap.has(routeKey)) {
-      routeMap.set(routeKey, { route: dep.route, dirMap: new Map(), rep: dep })
-    }
-    const entry = routeMap.get(routeKey)!
-    if (!entry.dirMap.has(headsign)) {
-      entry.dirMap.set(headsign, [])
-    }
-    entry.dirMap.get(headsign)!.push(dep)
-  }
-
-  const groups: RouteGroup[] = []
-  for (const [routeKey, entry] of routeMap) {
-    const directions: DirectionGroup[] = []
-    for (const [headsign, deps] of entry.dirMap) {
-      const sorted = [...deps].sort((a, b) => {
-        const ma = getMinutesUntil(a, currentTime.value)
-        const mb = getMinutesUntil(b, currentTime.value)
-        if (ma === null && mb === null) return 0
-        if (ma === null) return 1
-        if (mb === null) return -1
-        return ma - mb
-      })
-      directions.push({
-        headsign,
-        departures: sorted.slice(0, 3),
-        hasRealtime: sorted.some(d => d.realTime),
-      })
-    }
-    groups.push({
-      routeKey,
-      route: entry.route,
-      directions,
-      representative: entry.rep,
-    })
-  }
-
-  return groups
-})
+const routeGroups = computed(() =>
+  groupDepartures(departures.value, currentTime.value, {
+    unknownDirectionLabel: t('place.transit.unknownDirection'),
+    limit: 3,
+  }),
+)
 
 function formatCountdownShort(dep: TransitDeparture): string {
   const mins = getMinutesUntil(dep, currentTime.value)

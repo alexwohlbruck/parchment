@@ -18,7 +18,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Camera, X, Loader2, CircleCheck, CircleAlert } from 'lucide-vue-next'
+import { Camera, X, CircleCheck, CircleAlert } from 'lucide-vue-next'
+import { Spinner } from '@/components/ui/spinner'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -313,10 +314,7 @@ function removeAvatar() {
             :disabled="uploading"
             @input="onAliasInput"
           />
-          <Loader2
-            v-if="aliasChecking"
-            class="size-4 mr-3 text-muted-foreground animate-spin shrink-0"
-          />
+          <Spinner v-if="aliasChecking" size="icon" class="mr-3 text-muted-foreground shrink-0" />
           <CircleCheck
             v-else-if="aliasAvailable === true && isAliasValid"
             class="size-4 mr-3 text-forest-500 shrink-0"

@@ -28,7 +28,6 @@ import {
   MapPinIcon,
   TerminalIcon,
   XIcon,
-  LoaderIcon,
   SettingsIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
@@ -40,6 +39,7 @@ import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
 import { useSettingsIndex } from '@/composables/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
+import { Spinner } from '@/components/ui/spinner'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -548,7 +548,7 @@ const filterFunction = computed(() => {
           v-if="activeArgument && (!isSearch || query.length || (groupedArgumentOptions && groupedArgumentOptions.length > 0))"
         >
           <div v-if="loadingOptions" class="py-6 text-center">
-            <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
+            <Spinner size="icon" class="mx-auto opacity-50" />
             <p class="mt-2 text-sm text-muted-foreground">
               Loading suggestions...
             </p>

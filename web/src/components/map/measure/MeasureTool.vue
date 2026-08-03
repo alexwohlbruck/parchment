@@ -4,6 +4,10 @@ import { useMapService } from '@/services/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { mapEventBus } from '@/lib/eventBus'
 import { useHotkeys } from '@/composables/useHotkeys'
+import { useMeasureUnits } from '@/composables/useMeasureUnits'
+import MeasureToolPanel from './MeasureToolPanel.vue'
+import MeasureReadout from './MeasureReadout.vue'
+import UnitSystemToggle from './UnitSystemToggle.vue'
 import MeasureDot from './MeasureDot.vue'
 import {
   pathLengthMeters,
@@ -11,14 +15,6 @@ import {
   findSegmentToInsert,
   shouldCloseLoop,
   distancePx,
-  formatMeasureDistance,
-  formatMeasureArea,
-  formatMeasureDistanceInUnit,
-  formatMeasureAreaInUnit,
-  getSmartDistanceUnitIndex,
-  getSmartAreaUnitIndex,
-  DISTANCE_UNITS,
-  AREA_UNITS,
   INSERT_THRESHOLD_PX,
   CLOSE_LOOP_THRESHOLD_PX,
   VERTEX_NEAR_PX,
@@ -31,11 +27,6 @@ import { UnitSystem } from '@/types/map.types'
 import type { LngLat } from '@/types/map.types'
 import { useI18n } from 'vue-i18n'
 import { themeHslToHex, getThemeColorHex, adjustLightness } from '@/lib/utils'
-import { XIcon } from 'lucide-vue-next'
-import { Switch } from '@/components/ui/switch'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import {
   MEASURE_FILL_SOURCE_ID,
@@ -72,10 +63,6 @@ const effectiveMeasurePoints = computed(() => {
   return out
 })
 
-/** Measure panel unit: default to app unit system (settings > behavior), then user can toggle. */
-const measureUnitSystem = ref<MeasureUnitSystem>(
-  unitSystem.value === UnitSystem.IMPERIAL ? 'imperial' : 'metric',
-)
 const {
   pushMeasureState,
   measureUndo,
@@ -86,96 +73,27 @@ const {
 
 const isActive = computed(() => mapToolsStore.activeTool === 'measure')
 
-watch(isActive, active => {
-  if (active) {
-    measureUnitSystem.value =
-      unitSystem.value === UnitSystem.IMPERIAL ? 'imperial' : 'metric'
-    distanceDisplayUnitIndex.value = 0
-    areaDisplayUnitIndex.value = 0
-    distanceUnitCycled.value = false
-    areaUnitCycled.value = false
-  }
-})
+const {
+  system: measureUnitSystem,
+  formatDistance,
+  formatArea,
+  cycleDistance,
+  cycleArea,
+} = useMeasureUnits(isActive)
 
-watch(measureUnitSystem, () => {
-  distanceDisplayUnitIndex.value = 0
-  areaDisplayUnitIndex.value = 0
-  distanceUnitCycled.value = false
-  areaUnitCycled.value = false
-})
-
-/** Index into DISTANCE_UNITS[measureUnitSystem] for cycle-on-click */
-const distanceDisplayUnitIndex = ref(0)
-/** Index into AREA_UNITS[measureUnitSystem] for cycle-on-click */
-const areaDisplayUnitIndex = ref(0)
-/** When false, distance uses smart units; when true, uses cycled unit. */
-const distanceUnitCycled = ref(false)
-/** When false, area uses smart units; when true, uses cycled unit. */
-const areaUnitCycled = ref(false)
-
-// Total distance in meters (uses effective points so it updates during drag)
+/** Total path length; uses effective points so it updates mid-drag. */
 const totalDistanceMeters = computed(() =>
   pathLengthMeters(effectiveMeasurePoints.value),
 )
 
-const distanceUnits = computed(() => DISTANCE_UNITS[measureUnitSystem.value])
-const areaUnits = computed(() => AREA_UNITS[measureUnitSystem.value])
-
-/** Current distance string: smart units until user clicks to cycle. */
-const distanceHint = computed(() => {
-  const m = totalDistanceMeters.value
-  if (m === 0) return null
-  if (!distanceUnitCycled.value)
-    return formatMeasureDistance(m, measureUnitSystem.value, locale.value)
-  const units = distanceUnits.value
-  const idx = Math.min(distanceDisplayUnitIndex.value, units.length - 1)
-  return formatMeasureDistanceInUnit(m, units[idx], locale.value)
-})
-
-// Area when closed loop (uses effective points for live drag)
+/** Enclosed area, once the path is closed. */
 const areaSquareMeters = computed(() => {
-  if (!isMeasureClosed.value || effectiveMeasurePoints.value.length < 3)
-    return 0
+  if (!isMeasureClosed.value || effectiveMeasurePoints.value.length < 3) return 0
   return polygonAreaSquareMeters(effectiveMeasurePoints.value)
 })
 
-/** Current area string: smart units until user clicks to cycle. */
-const areaHint = computed(() => {
-  const a = areaSquareMeters.value
-  if (a === 0) return null
-  if (!areaUnitCycled.value)
-    return formatMeasureArea(a, measureUnitSystem.value, locale.value)
-  const units = areaUnits.value
-  const idx = Math.min(areaDisplayUnitIndex.value, units.length - 1)
-  return formatMeasureAreaInUnit(a, units[idx], locale.value)
-})
-
-function cycleDistanceUnit() {
-  const m = totalDistanceMeters.value
-  const units = distanceUnits.value
-  if (!distanceUnitCycled.value) {
-    distanceUnitCycled.value = true
-    distanceDisplayUnitIndex.value = getSmartDistanceUnitIndex(
-      m,
-      measureUnitSystem.value,
-    )
-  }
-  distanceDisplayUnitIndex.value =
-    (distanceDisplayUnitIndex.value + 1) % units.length
-}
-
-function cycleAreaUnit() {
-  const a = areaSquareMeters.value
-  const units = areaUnits.value
-  if (!areaUnitCycled.value) {
-    areaUnitCycled.value = true
-    areaDisplayUnitIndex.value = getSmartAreaUnitIndex(
-      a,
-      measureUnitSystem.value,
-    )
-  }
-  areaDisplayUnitIndex.value = (areaDisplayUnitIndex.value + 1) % units.length
-}
+const distanceHint = computed(() => formatDistance(totalDistanceMeters.value))
+const areaHint = computed(() => formatArea(areaSquareMeters.value))
 
 function setLineSourceData(coords: number[][]) {
   const map = mapService.mapStrategy?.mapInstance
@@ -564,87 +482,37 @@ function closeMeasure() {
 </script>
 
 <template>
-  <div v-if="isActive" class="pointer-events-auto max-w-96 shrink-0">
-    <Card
-      class="rounded-xl border-border/60 bg-background/90 backdrop-blur-sm shadow-sm"
-    >
-      <CardHeader
-        class="flex flex-row items-center justify-between px-3.5 py-2"
-      >
-        <CardTitle class="mb-0 text-[15px] font-semibold tracking-[-0.02em]">{{
-          t('measure.title')
-        }}</CardTitle>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7 shrink-0 -my-1 -mr-2"
-          :aria-label="t('measure.close')"
-          @click="closeMeasure"
-        >
-          <XIcon class="size-4" />
-        </Button>
-      </CardHeader>
-
-      <CardContent class="flex flex-col gap-3 px-3.5 pb-3 pt-0">
-        <template v-if="measurePoints.length >= 2">
-          <div class="flex flex-col gap-1.5">
-            <div class="flex items-baseline justify-between gap-4">
-              <Label
-                class="shrink-0 text-[11px] font-medium text-muted-foreground"
-                >{{
-                  t(isMeasureClosed ? 'measure.perimeter' : 'measure.distance')
-                }}</Label
-              >
-              <button
-                type="button"
-                class="cursor-pointer rounded -mx-1 bg-transparent px-1 text-right text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                :aria-label="t('measure.cycleUnit')"
-                @click="cycleDistanceUnit"
-              >
-                {{ distanceHint ?? '—' }}
-              </button>
-            </div>
-            <div
-              v-if="areaHint"
-              class="flex items-baseline justify-between gap-4"
-            >
-              <Label
-                class="shrink-0 text-[11px] font-medium text-muted-foreground"
-                >{{ t('measure.area') }}</Label
-              >
-              <button
-                type="button"
-                class="cursor-pointer rounded -mx-1 bg-transparent px-1 text-right text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                :aria-label="t('measure.cycleUnit')"
-                @click="cycleAreaUnit"
-              >
-                {{ areaHint }}
-              </button>
-            </div>
-          </div>
-          <div class="mt-1 flex items-center justify-between gap-3">
-            <Label class="text-[11px] font-medium text-muted-foreground">{{
-              t('measure.unitsMetric')
-            }}</Label>
-            <div class="flex flex-1 justify-center">
-              <Switch
-                :model-value="measureUnitSystem === 'imperial'"
-                @update:model-value="
-                  v => (measureUnitSystem = v ? 'imperial' : 'metric')
-                "
-                aria-label="Metric or Imperial units"
-              />
-            </div>
-            <Label
-              class="shrink-0 text-[11px] font-medium text-muted-foreground"
-              >{{ t('measure.unitsImperial') }}</Label
-            >
-          </div>
-        </template>
-        <p v-else class="m-0 text-[13px] leading-[1.4] text-muted-foreground">
-          {{ t('measure.empty') }}
-        </p>
-      </CardContent>
-    </Card>
-  </div>
+  <MeasureToolPanel
+    v-if="isActive"
+    :title="t('measure.title')"
+    :close-label="t('measure.close')"
+    @close="closeMeasure"
+  >
+    <template v-if="measurePoints.length >= 2">
+      <div class="flex flex-col gap-1.5">
+        <MeasureReadout
+          :label="t(isMeasureClosed ? 'measure.perimeter' : 'measure.distance')"
+          :value="distanceHint"
+          :cycle-label="t('measure.cycleUnit')"
+          @cycle="cycleDistance(totalDistanceMeters)"
+        />
+        <MeasureReadout
+          v-if="areaHint"
+          :label="t('measure.area')"
+          :value="areaHint"
+          :cycle-label="t('measure.cycleUnit')"
+          @cycle="cycleArea(areaSquareMeters)"
+        />
+      </div>
+      <UnitSystemToggle
+        v-model="measureUnitSystem"
+        :metric-label="t('measure.unitsMetric')"
+        :imperial-label="t('measure.unitsImperial')"
+      />
+    </template>
+    <p v-else class="m-0 text-[13px] leading-[1.4] text-muted-foreground">
+      {{ t('measure.empty') }}
+    </p>
+  </MeasureToolPanel>
 </template>
+

@@ -5,19 +5,15 @@ import { useMapService } from '@/services/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { mapEventBus } from '@/lib/eventBus'
 import { useHotkeys } from '@/composables/useHotkeys'
+import { useMeasureUnits } from '@/composables/useMeasureUnits'
+import MeasureToolPanel from './MeasureToolPanel.vue'
+import MeasureReadout from './MeasureReadout.vue'
+import UnitSystemToggle from './UnitSystemToggle.vue'
 import MeasureDot from './MeasureDot.vue'
 import {
   distanceMeters,
   circleCircumferenceMeters,
   circleAreaSquareMeters,
-  formatMeasureDistance,
-  formatMeasureArea,
-  formatMeasureDistanceInUnit,
-  formatMeasureAreaInUnit,
-  getSmartDistanceUnitIndex,
-  getSmartAreaUnitIndex,
-  DISTANCE_UNITS,
-  AREA_UNITS,
 } from '@/lib/measure.utils'
 import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure.utils'
 import { storeToRefs } from 'pinia'
@@ -27,11 +23,6 @@ import { UnitSystem } from '@/types/map.types'
 import type { LngLat } from '@/types/map.types'
 import { useI18n } from 'vue-i18n'
 import { themeHslToHex, getThemeColorHex, adjustLightness } from '@/lib/utils'
-import { XIcon } from 'lucide-vue-next'
-import { Switch } from '@/components/ui/switch'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import {
   RADIUS_SOURCE_ID,
   RADIUS_FILL_LAYER_ID,
@@ -64,102 +55,24 @@ const RADIUS_EDGE_MARKER_ID = 'radius-edge-dot'
 const isDraggingCenter = ref(false)
 const isDraggingEdge = ref(false)
 
-/** Unit system for the radius panel (metric/imperial). */
-const radiusUnitSystem = ref<MeasureUnitSystem>(
-  unitSystem.value === UnitSystem.IMPERIAL ? 'imperial' : 'metric',
-)
-const distanceDisplayUnitIndex = ref(0)
-const areaDisplayUnitIndex = ref(0)
-const distanceUnitCycled = ref(false)
-const areaUnitCycled = ref(false)
-
 const isActive = computed(() => mapToolsStore.activeTool === 'radius')
 
-watch(isActive, active => {
-  if (active) {
-    radiusUnitSystem.value =
-      unitSystem.value === UnitSystem.IMPERIAL ? 'imperial' : 'metric'
-    distanceDisplayUnitIndex.value = 0
-    areaDisplayUnitIndex.value = 0
-    distanceUnitCycled.value = false
-    areaUnitCycled.value = false
-  }
-})
-
-watch(radiusUnitSystem, () => {
-  distanceDisplayUnitIndex.value = 0
-  areaDisplayUnitIndex.value = 0
-  distanceUnitCycled.value = false
-  areaUnitCycled.value = false
-})
+const {
+  system: radiusUnitSystem,
+  formatDistance,
+  formatArea,
+  cycleDistance,
+  cycleArea,
+} = useMeasureUnits(isActive)
 
 const circumferenceMeters = computed(() =>
   circleCircumferenceMeters(radiusMeters.value),
 )
-const areaSquareMeters = computed(() =>
-  circleAreaSquareMeters(radiusMeters.value),
-)
+const areaSquareMeters = computed(() => circleAreaSquareMeters(radiusMeters.value))
 
-const distanceUnits = computed(() => DISTANCE_UNITS[radiusUnitSystem.value])
-const areaUnits = computed(() => AREA_UNITS[radiusUnitSystem.value])
-
-const radiusHint = computed(() => {
-  const m = radiusMeters.value
-  if (m === 0) return null
-  if (!distanceUnitCycled.value)
-    return formatMeasureDistance(m, radiusUnitSystem.value, locale.value)
-  const units = distanceUnits.value
-  const idx = Math.min(distanceDisplayUnitIndex.value, units.length - 1)
-  return formatMeasureDistanceInUnit(m, units[idx], locale.value)
-})
-
-const circumferenceHint = computed(() => {
-  const m = circumferenceMeters.value
-  if (m === 0) return null
-  if (!distanceUnitCycled.value)
-    return formatMeasureDistance(m, radiusUnitSystem.value, locale.value)
-  const units = distanceUnits.value
-  const idx = Math.min(distanceDisplayUnitIndex.value, units.length - 1)
-  return formatMeasureDistanceInUnit(m, units[idx], locale.value)
-})
-
-const areaHint = computed(() => {
-  const a = areaSquareMeters.value
-  if (a === 0) return null
-  if (!areaUnitCycled.value)
-    return formatMeasureArea(a, radiusUnitSystem.value, locale.value)
-  const units = areaUnits.value
-  const idx = Math.min(areaDisplayUnitIndex.value, units.length - 1)
-  return formatMeasureAreaInUnit(a, units[idx], locale.value)
-})
-
-function cycleDistanceUnit() {
-  const m = radiusMeters.value
-  const units = distanceUnits.value
-  if (!distanceUnitCycled.value) {
-    distanceUnitCycled.value = true
-    distanceDisplayUnitIndex.value = getSmartDistanceUnitIndex(
-      m,
-      radiusUnitSystem.value,
-    )
-  }
-  distanceDisplayUnitIndex.value =
-    (distanceDisplayUnitIndex.value + 1) % units.length
-}
-
-function cycleAreaUnit() {
-  const a = areaSquareMeters.value
-  const units = areaUnits.value
-  if (!areaUnitCycled.value) {
-    areaUnitCycled.value = true
-    areaDisplayUnitIndex.value = getSmartAreaUnitIndex(
-      a,
-      radiusUnitSystem.value,
-    )
-  }
-  areaDisplayUnitIndex.value =
-    (areaDisplayUnitIndex.value + 1) % units.length
-}
+const radiusHint = computed(() => formatDistance(radiusMeters.value))
+const circumferenceHint = computed(() => formatDistance(circumferenceMeters.value))
+const areaHint = computed(() => formatArea(areaSquareMeters.value))
 
 function getRadiusLineColor(): string {
   const hex = themeHslToHex(themeStore.themePrimary)
@@ -489,106 +402,43 @@ function closeRadius() {
 </script>
 
 <template>
-  <div v-if="isActive" class="pointer-events-auto max-w-96 shrink-0">
-    <Card
-      class="rounded-xl border-border/60 bg-background/90 backdrop-blur-sm shadow-sm"
-    >
-      <CardHeader
-        class="flex flex-row items-center justify-between px-3.5 py-2"
-      >
-        <CardTitle class="mb-0 text-[15px] font-semibold tracking-[-0.02em]">{{
-          t('measure.circle')
-        }}</CardTitle>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7 shrink-0 -my-1 -mr-2"
-          :aria-label="t('radius.close')"
-          @click="closeRadius"
-        >
-          <XIcon class="size-4" />
-        </Button>
-      </CardHeader>
-
-      <CardContent class="flex flex-col gap-3 px-3.5 pb-3 pt-0">
-        <template v-if="radiusCenter && radiusMeters > 0">
-          <div class="flex flex-col gap-1.5">
-            <div class="flex items-baseline justify-between gap-4">
-              <Label
-                class="shrink-0 text-[11px] font-medium text-muted-foreground"
-                >{{ t('radius.radius') }}</Label
-              >
-              <button
-                type="button"
-                class="cursor-pointer rounded -mx-1 bg-transparent px-1 text-right text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                :aria-label="t('measure.cycleUnit')"
-                @click="cycleDistanceUnit"
-              >
-                {{ radiusHint ?? '—' }}
-              </button>
-            </div>
-            <div class="flex items-baseline justify-between gap-4">
-              <Label
-                class="shrink-0 text-[11px] font-medium text-muted-foreground"
-                >{{ t('radius.circumference') }}</Label
-              >
-              <button
-                type="button"
-                class="cursor-pointer rounded -mx-1 bg-transparent px-1 text-right text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                :aria-label="t('measure.cycleUnit')"
-                @click="cycleDistanceUnit"
-              >
-                {{ circumferenceHint ?? '—' }}
-              </button>
-            </div>
-            <div
-              v-if="areaHint"
-              class="flex items-baseline justify-between gap-4"
-            >
-              <Label
-                class="shrink-0 text-[11px] font-medium text-muted-foreground"
-                >{{ t('measure.area') }}</Label
-              >
-              <button
-                type="button"
-                class="cursor-pointer rounded -mx-1 bg-transparent px-1 text-right text-[13px] font-medium tracking-[-0.02em] text-foreground tabular-nums transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                :aria-label="t('measure.cycleUnit')"
-                @click="cycleAreaUnit"
-              >
-                {{ areaHint }}
-              </button>
-            </div>
-          </div>
-          <div class="mt-1 flex items-center justify-between gap-3">
-            <Label class="text-[11px] font-medium text-muted-foreground">{{
-              t('measure.unitsMetric')
-            }}</Label>
-            <div class="flex flex-1 justify-center">
-              <Switch
-                :model-value="radiusUnitSystem === 'imperial'"
-                @update:model-value="
-                  v => (radiusUnitSystem = v ? 'imperial' : 'metric')
-                "
-                aria-label="Metric or Imperial units"
-              />
-            </div>
-            <Label
-              class="shrink-0 text-[11px] font-medium text-muted-foreground"
-              >{{ t('measure.unitsImperial') }}</Label
-            >
-          </div>
-        </template>
-        <p
-          v-else
-          class="m-0 text-[13px] leading-[1.4] text-muted-foreground"
-        >
-          {{
-            radiusCenter
-              ? t('radius.clickToConfirm')
-              : t('radius.empty')
-          }}
-        </p>
-      </CardContent>
-    </Card>
-  </div>
+  <MeasureToolPanel
+    v-if="isActive"
+    :title="t('measure.circle')"
+    :close-label="t('radius.close')"
+    @close="closeRadius"
+  >
+    <template v-if="radiusCenter && radiusMeters > 0">
+      <div class="flex flex-col gap-1.5">
+        <MeasureReadout
+          :label="t('radius.radius')"
+          :value="radiusHint"
+          :cycle-label="t('measure.cycleUnit')"
+          @cycle="cycleDistance(radiusMeters)"
+        />
+        <MeasureReadout
+          :label="t('radius.circumference')"
+          :value="circumferenceHint"
+          :cycle-label="t('measure.cycleUnit')"
+          @cycle="cycleDistance(circumferenceMeters)"
+        />
+        <MeasureReadout
+          v-if="areaHint"
+          :label="t('measure.area')"
+          :value="areaHint"
+          :cycle-label="t('measure.cycleUnit')"
+          @cycle="cycleArea(areaSquareMeters)"
+        />
+      </div>
+      <UnitSystemToggle
+        v-model="radiusUnitSystem"
+        :metric-label="t('measure.unitsMetric')"
+        :imperial-label="t('measure.unitsImperial')"
+      />
+    </template>
+    <p v-else class="m-0 text-[13px] leading-[1.4] text-muted-foreground">
+      {{ radiusCenter ? t('radius.clickToConfirm') : t('radius.empty') }}
+    </p>
+  </MeasureToolPanel>
 </template>
+

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.11] - 2026-08-03
+
 ### Added
 
 * Indoor maps — switch it on under Appearance and airports, malls and stadiums that Mapbox has mapped inside show their floor plans, with a floor selector on the edge of the map for moving between levels

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import { StarIcon, PhoneIcon, ClockIcon, MapPinIcon } from 'lucide-vue-next'
 import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
@@ -13,6 +12,7 @@ import {
 import { usePlaceService } from '@/services/place.service'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { ItemRow, ITEM_ROW_SIZES } from '@/components/ui/item-row'
 
 /**
  * The single surface for rendering a place anywhere in the app.
@@ -98,59 +98,7 @@ const item = computed<PlaceDisplay>(() => {
 
 // ── Scale ─────────────────────────────────────────────────────────────────
 
-/**
- * Icon sizes come in pairs because the icon should match the height of the text
- * beside it, not the `size` prop alone. A title-only row is roughly one line
- * tall, so it takes the smaller icon; add detail lines and the block grows and
- * the icon steps up to match. Sizing the icon off `size` alone is what made
- * one-line rows 56px tall with a 40px icon floating next to a 19px title.
- */
-const SIZES = {
-  xs: {
-    icon: 'xs',
-    iconWithDetails: 'sm',
-    title: 'text-xs font-medium',
-    detail: 'text-[11px]',
-    gap: 'gap-1.5',
-    padding: 'px-1.5 py-1.5',
-    chipPadding: 'pl-0.5 pr-2 py-0.5',
-    detailIcon: 'size-2.5',
-  },
-  sm: {
-    icon: 'sm',
-    iconWithDetails: 'sm',
-    title: 'text-sm font-semibold',
-    detail: 'text-xs',
-    gap: 'gap-2',
-    padding: 'px-2 py-2',
-    chipPadding: 'pl-1 pr-2.5 py-1',
-    detailIcon: 'size-3',
-  },
-  md: {
-    // A detailed `md` row is typically title + one line (~38px), which the
-    // 40px icon would overhang — so both cases anchor on 32.
-    icon: 'sm',
-    iconWithDetails: 'sm',
-    title: 'text-sm font-semibold',
-    detail: 'text-xs',
-    gap: 'gap-2.5',
-    padding: 'px-2.5 py-2',
-    chipPadding: 'pl-1 pr-3 py-1',
-    detailIcon: 'size-3',
-  },
-  lg: {
-    icon: 'md',
-    iconWithDetails: 'lg',
-    title: 'text-base font-semibold',
-    detail: 'text-sm',
-    gap: 'gap-3',
-    padding: 'p-3',
-    chipPadding: 'pl-1.5 pr-3.5 py-1.5',
-    detailIcon: 'size-3.5',
-  },
-} as const
-
-const scale = computed(() => SIZES[props.size])
+const scale = computed(() => ITEM_ROW_SIZES[props.size])
 
 // ── Which lines render ────────────────────────────────────────────────────
 
@@ -217,46 +165,6 @@ const isMultiline = computed(() =>
     : detailLines.value.filter(Boolean).length > 1,
 )
 
-// ── Surface ───────────────────────────────────────────────────────────────
-
-/**
- * `rounded-lg` is the app's card radius: the Tailwind scale is remapped onto
- * the user's `--radius` setting in style.css, and `-lg` is the step that maps
- * to it exactly — the same one `components/ui/card` uses. Nested surfaces drop
- * to `-md` so an inline card inside a card doesn't out-round its container.
- *
- * A bare `border` is deliberate: style.css defaults every element's
- * border-color to `--color-border`, so `border-border` isn't needed.
- *
- * `depth` is the app's card elevation — an inset top highlight plus a soft
- * drop shadow — and is what `components/ui/card` applies. Every free-standing
- * surface takes it. `inline` is the exception: it's a well nested inside
- * another card, and lighting it would read as a card floating on a card.
- */
-const SURFACES = {
-  row: 'w-full rounded-lg border bg-card depth',
-  tile: 'shrink-0 rounded-lg border bg-card depth',
-  inline: 'w-full rounded-md bg-muted/40',
-  chip: 'rounded-full border bg-card depth',
-} as const
-
-const isInteractive = computed(
-  () => props.navigate && !!item.value.route,
-)
-
-const hoverClass = computed(() => {
-  if (!isInteractive.value) return ''
-  return props.variant === 'inline'
-    ? 'hover:bg-muted/70 cursor-pointer'
-    : 'hover:bg-secondary/40 cursor-pointer'
-})
-
-/**
- * A real link when it navigates, so middle-click and copy-link behave — a
- * `router.push` handler would swallow both.
- */
-const rootTag = computed(() => (isInteractive.value ? RouterLink : props.as))
-
 function onClick() {
   // Seed the detail view with the record already in hand so it renders
   // immediately rather than blocking on a refetch. Essential for geocoder
@@ -267,144 +175,18 @@ function onClick() {
 </script>
 
 <template>
-  <component
-    :is="rootTag"
-    :to="isInteractive ? item.route : undefined"
-    :type="rootTag === 'button' ? 'button' : undefined"
-    class="transition-colors no-underline text-inherit text-left"
-    :class="[
-      SURFACES[variant],
-      hoverClass,
-      isChip ? `inline-flex items-center ${scale.chipPadding} ${scale.gap}` : `block ${scale.padding}`,
-    ]"
+  <ItemRow
+    :title="item.title"
+    :variant="variant"
+    :size="size"
+    :to="navigate ? item.route : null"
+    :as="as"
+    :has-details="!isTitleOnly"
+    :multiline="isMultiline"
+    :interactive="!navigate && !!$attrs.onClick"
     @click="onClick"
   >
-    <div
-      v-if="!isChip"
-      class="flex"
-      :class="[scale.gap, isMultiline ? 'items-start' : 'items-center']"
-    >
-      <slot name="icon">
-        <ItemIcon
-          v-if="showIcon"
-          :icon="item.icon"
-          :icon-pack="item.iconPack"
-          :color="item.color"
-          :custom-color="item.customColor"
-          :image-url="item.imageUrl ?? undefined"
-          :size="iconSize"
-          :variant="iconVariant"
-          :shape="iconShape"
-          class="shrink-0"
-          :class="isMultiline ? 'mt-0.5' : ''"
-        />
-      </slot>
-
-      <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-        <!-- Title, with the rating pinned opposite it -->
-        <div class="flex items-center justify-between gap-2">
-          <span
-            class="text-foreground leading-snug truncate"
-            :class="scale.title"
-          >
-            {{ item.title }}
-          </span>
-          <div v-if="showRating" class="flex items-center gap-1 shrink-0">
-            <StarIcon :class="scale.detailIcon" class="text-amber-500 fill-amber-500" />
-            <span class="text-xs font-medium text-foreground">{{ formattedRating }}</span>
-            <span v-if="item.reviewCount" class="text-xs text-muted-foreground">
-              ({{ item.reviewCount.toLocaleString() }})
-            </span>
-          </div>
-        </div>
-
-        <slot name="details">
-          <!-- An explicit subtitle stands in for every derived line -->
-          <div
-            v-if="subtitle !== undefined"
-            v-show="subtitle"
-            class="text-muted-foreground leading-snug truncate"
-            :class="scale.detail"
-          >
-            {{ subtitle }}
-          </div>
-
-          <template v-else>
-            <div
-              v-if="showPrimaryDetail"
-              class="text-muted-foreground leading-snug truncate"
-              :class="scale.detail"
-            >
-              {{ primaryDetail }}
-            </div>
-
-            <!-- Type and opening state share a line: both answer "what is this" -->
-            <div
-              v-if="showHoursRow"
-              class="flex items-center gap-2 text-muted-foreground"
-              :class="scale.detail"
-            >
-              <span v-if="item.placeType">{{ item.placeType }}</span>
-              <span
-                v-if="item.openState || item.hoursText"
-                class="flex items-center gap-1"
-                :class="
-                  item.openState === 'open'
-                    ? 'text-forest-600'
-                    : item.openState === 'closed'
-                      ? 'text-coral-500'
-                      : 'text-muted-foreground'
-                "
-              >
-                <ClockIcon :class="scale.detailIcon" class="shrink-0" />
-                <span v-if="item.openState === 'open'">{{ t('place.listItem.openNow') }}</span>
-                <span v-else-if="item.openState === 'closed'">{{ t('place.hours.closed') }}</span>
-                <span v-if="item.hoursText">{{ item.hoursText }}</span>
-              </span>
-            </div>
-
-            <div
-              v-if="showSummary"
-              class="text-muted-foreground leading-snug"
-              :class="scale.detail"
-            >
-              {{ item.summary }}
-            </div>
-
-            <!-- The pin only earns its space at `rich`, where the address has
-                 to be told apart from the summary and phone lines. On its own
-                 it is unambiguous, and the glyph just eats width the address
-                 needs. -->
-            <div
-              v-if="showAddress"
-              class="flex items-start gap-1.5 text-muted-foreground"
-              :class="scale.detail"
-            >
-              <MapPinIcon
-                v-if="density === 'rich'"
-                :class="scale.detailIcon"
-                class="shrink-0 mt-[1px]"
-              />
-              <span class="truncate">{{ item.address }}</span>
-            </div>
-
-            <div
-              v-if="showPhone"
-              class="flex items-center gap-1.5 text-muted-foreground"
-              :class="scale.detail"
-            >
-              <PhoneIcon :class="scale.detailIcon" class="shrink-0" />
-              <span>{{ item.phone }}</span>
-            </div>
-          </template>
-        </slot>
-      </div>
-
-      <slot name="trailing" />
-    </div>
-
-    <!-- Chip: icon and title only, on one line -->
-    <template v-else>
+    <template #icon="{ size: iconScale }">
       <ItemIcon
         v-if="showIcon"
         :icon="item.icon"
@@ -412,13 +194,102 @@ function onClick() {
         :color="item.color"
         :custom-color="item.customColor"
         :image-url="item.imageUrl ?? undefined"
-        :size="scale.icon"
+        :size="iconScale"
         :variant="iconVariant"
-        shape="circle"
-        class="shrink-0 shadow-sm"
+        :shape="iconShape"
+        class="shrink-0"
+        :class="isMultiline ? 'mt-0.5' : ''"
       />
-      <span class="whitespace-nowrap" :class="scale.title">{{ item.title }}</span>
+    </template>
+
+    <!-- Rating sits opposite the title rather than in the detail stack -->
+    <template v-if="showRating" #title-trailing>
+      <div class="flex items-center gap-1 shrink-0">
+        <StarIcon :class="scale.detailIcon" class="text-amber-500 fill-amber-500" />
+        <span class="text-xs font-medium text-foreground">{{ formattedRating }}</span>
+        <span v-if="item.reviewCount" class="text-xs text-muted-foreground">
+          ({{ item.reviewCount.toLocaleString() }})
+        </span>
+      </div>
+    </template>
+
+    <template #details>
+      <slot name="details">
+        <!-- An explicit subtitle stands in for every derived line -->
+        <div
+          v-if="subtitle !== undefined"
+          v-show="subtitle"
+          class="text-muted-foreground leading-snug truncate"
+          :class="scale.detail"
+        >
+          {{ subtitle }}
+        </div>
+
+        <template v-else>
+          <div
+            v-if="showPrimaryDetail"
+            class="text-muted-foreground leading-snug truncate"
+            :class="scale.detail"
+          >
+            {{ primaryDetail }}
+          </div>
+
+          <!-- Type and opening state share a line: both answer "what is this" -->
+          <div
+            v-if="showHoursRow"
+            class="flex items-center gap-2 text-muted-foreground"
+            :class="scale.detail"
+          >
+            <span v-if="item.placeType">{{ item.placeType }}</span>
+            <span
+              v-if="item.openState || item.hoursText"
+              class="flex items-center gap-1"
+              :class="
+                item.openState === 'open'
+                  ? 'text-forest-600'
+                  : item.openState === 'closed'
+                    ? 'text-coral-500'
+                    : 'text-muted-foreground'
+              "
+            >
+              <ClockIcon :class="scale.detailIcon" class="shrink-0" />
+              <span v-if="item.openState === 'open'">{{ t('place.listItem.openNow') }}</span>
+              <span v-else-if="item.openState === 'closed'">{{ t('place.hours.closed') }}</span>
+              <span v-if="item.hoursText">{{ item.hoursText }}</span>
+            </span>
+          </div>
+
+          <div
+            v-if="showSummary"
+            class="text-muted-foreground leading-snug"
+            :class="scale.detail"
+          >
+            {{ item.summary }}
+          </div>
+
+          <div
+            v-if="showAddress"
+            class="flex items-start gap-1.5 text-muted-foreground"
+            :class="scale.detail"
+          >
+            <MapPinIcon :class="scale.detailIcon" class="shrink-0 mt-[1px]" />
+            <span class="truncate">{{ item.address }}</span>
+          </div>
+
+          <div
+            v-if="showPhone"
+            class="flex items-center gap-1.5 text-muted-foreground"
+            :class="scale.detail"
+          >
+            <PhoneIcon :class="scale.detailIcon" class="shrink-0" />
+            <span>{{ item.phone }}</span>
+          </div>
+        </template>
+      </slot>
+    </template>
+
+    <template #trailing>
       <slot name="trailing" />
     </template>
-  </component>
+  </ItemRow>
 </template>

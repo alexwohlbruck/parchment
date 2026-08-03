@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Card, CardContent } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
 import { ClockIcon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
@@ -8,6 +7,7 @@ import { AppRoute } from '@/router'
 import type { Collection } from '@/types/library.types'
 import { type ThemeColor } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { ItemRow } from '@/components/ui/item-row'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import CollectionContextMenu from '@/components/library/CollectionContextMenu.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
@@ -64,21 +64,24 @@ function goToCollection() {
 </script>
 
 <template>
-  <Card
-    class="overflow-hidden hover:bg-secondary/40 transition-colors cursor-pointer"
+  <ItemRow
+    :title="displayName"
+    size="md"
+    interactive
+    :has-details="!!collection.description"
     @click="goToCollection"
   >
-    <CardContent class="p-2 flex items-center gap-3">
-      <!-- Icon with overlays:
-           - clock for the collection the user most recently saved to on
-             this device (the bookmark button's one-tap target)
-           - owner avatar badge for collections shared TO the user -->
-      <div class="relative">
+    <!-- Icon with overlays:
+         - clock for the collection the user most recently saved to on this
+           device (the bookmark button's one-tap target)
+         - owner avatar badge for collections shared TO the user -->
+    <template #icon="{ size }">
+      <div class="relative shrink-0">
         <ItemIcon
           :icon="collection.icon"
           :icon-pack="collection.iconPack ?? 'lucide'"
           :color="collection.iconColor as ThemeColor"
-          size="md"
+          :size="size"
         />
         <div
           v-if="isLastSaved"
@@ -96,28 +99,20 @@ function goToCollection() {
           <AvatarFallback class="text-[8px]">{{ owner.initials }}</AvatarFallback>
         </Avatar>
       </div>
+    </template>
 
-      <!-- Content -->
-      <div class="grow min-w-0">
-        <div class="flex items-center justify-between">
-          <div class="flex flex-col justify-center">
-            <div class="flex items-center gap-2">
-              <h3 class="font-sans font-semibold text-sm">{{ displayName }}</h3>
-            </div>
-
-            <!-- Display collection description if available -->
-            <div
-              v-if="collection.description"
-              class="text-xs text-muted-foreground line-clamp-2"
-            >
-              {{ collection.description }}
-            </div>
-          </div>
-
-          <!-- Actions dropdown -->
-          <CollectionContextMenu :collection="collection" />
-        </div>
+    <template #details="{ detailClass }">
+      <div
+        v-if="collection.description"
+        class="text-muted-foreground line-clamp-2"
+        :class="detailClass"
+      >
+        {{ collection.description }}
       </div>
-    </CardContent>
-  </Card>
+    </template>
+
+    <template #trailing>
+      <CollectionContextMenu :collection="collection" />
+    </template>
+  </ItemRow>
 </template>

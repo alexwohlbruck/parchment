@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Card, CardContent } from '@/components/ui/card'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { ItemRow } from '@/components/ui/item-row'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -76,55 +76,45 @@ async function remove() {
 </script>
 
 <template>
-  <Card
-    class="overflow-hidden hover:bg-secondary/40 transition-colors cursor-pointer"
+  <ItemRow
+    :title="displayName"
+    size="md"
+    interactive
+    has-details
     @click="open"
   >
-    <CardContent class="p-2 flex items-center gap-3">
-      <ItemIcon
-        :icon="MODE_ICON[route.mode]"
-        :color="MODE_COLOR[route.mode]"
-        size="md"
-      />
+    <template #icon="{ size }">
+      <ItemIcon :icon="MODE_ICON[route.mode]" :color="MODE_COLOR[route.mode]" :size="size" />
+    </template>
 
-      <div class="grow min-w-0">
-        <div class="flex items-center justify-between">
-          <div class="flex flex-col justify-center min-w-0">
-            <div class="flex items-center gap-1.5">
-              <h3 class="font-sans font-semibold text-sm truncate">
-                {{ displayName }}
-              </h3>
-              <LockIcon
-                v-if="isPrivate"
-                class="size-3 text-muted-foreground shrink-0"
-              />
-            </div>
-            <div class="text-xs text-muted-foreground truncate">
-              {{ meta }}
-            </div>
-          </div>
+    <template #title-trailing>
+      <LockIcon v-if="isPrivate" class="size-3 text-muted-foreground shrink-0" />
+    </template>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child @click.stop>
-              <Button variant="ghost" size="icon" class="shrink-0">
-                <MoreHorizontalIcon class="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" @click.stop>
-              <DropdownMenuItem @click="edit">
-                <PencilIcon class="size-4" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem v-if="!isPrivate" @click="share">
-                <Share2Icon class="size-4" /> Copy share link
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem class="text-destructive" @click="remove">
-                <Trash2Icon class="size-4" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
+    <template #details="{ detailClass }">
+      <div class="text-muted-foreground truncate" :class="detailClass">{{ meta }}</div>
+    </template>
+
+    <template #trailing>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child @click.stop>
+          <Button variant="ghost" size="icon" class="shrink-0">
+            <MoreHorizontalIcon class="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" @click.stop>
+          <DropdownMenuItem @click="edit">
+            <PencilIcon class="size-4" /> Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem v-if="!isPrivate" @click="share">
+            <Share2Icon class="size-4" /> Copy share link
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem class="text-destructive" @click="remove">
+            <Trash2Icon class="size-4" /> Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </template>
+  </ItemRow>
 </template>

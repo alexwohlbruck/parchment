@@ -13,7 +13,7 @@ import { api } from '@/lib/api'
 import { WidgetType } from '@/types/place.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SkeletonList } from '@/components/ui/skeleton'
 
 const { t } = useI18n()
 
@@ -120,9 +120,7 @@ const items = computed(() => {
 
       <!-- Loading skeletons -->
       <template v-if="isLoadingMore">
-        <div v-for="i in 3" :key="`skeleton-${i}`">
-          <Skeleton class="h-16 rounded-xl" />
-        </div>
+        <SkeletonList :count="3" />
       </template>
 
       <!-- Sentinel for infinite scroll -->

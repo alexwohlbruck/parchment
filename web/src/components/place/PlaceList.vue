@@ -2,6 +2,7 @@
 import PlaceListItem from './PlaceListItem.vue'
 import type { Place } from '@/types/place.types'
 import { PlaceCardSkeleton } from '@/components/place/card'
+import { SkeletonList } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SearchXIcon } from 'lucide-vue-next'
 
@@ -22,9 +23,9 @@ const emit = defineEmits<{
 <template>
   <div class="w-full">
     <!-- Skeleton loading cards -->
-    <div v-if="loading" class="space-y-2">
-      <PlaceCardSkeleton v-for="i in 6" :key="i" :seed="i" />
-    </div>
+    <SkeletonList v-if="loading" :count="6" v-slot="{ index }">
+      <PlaceCardSkeleton :seed="index" />
+    </SkeletonList>
 
     <EmptyState
       v-else-if="places.length === 0"

@@ -7,6 +7,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
+import { useRecentsStore } from '@/stores/recents.store'
 import { HotkeyId } from '@/stores/hotkey.store'
 import { AppRoute } from '@/router'
 import {
@@ -349,6 +350,20 @@ async function loadArgumentOptions(signal?: AbortSignal) {
     }
   }
 }
+
+// The idle search state renders before recents have been fetched and decrypted
+// (see the empty-query branch in command.store), so the list is rebuilt once
+// they arrive. Only while the input is empty: with a query typed, the options
+// come from a server search that shouldn't be re-issued for this.
+const recentsStore = useRecentsStore()
+watch(
+  () => [recentsStore.searches, recentsStore.places],
+  () => {
+    if (isSearch.value && !query.value && activeArgument.value) {
+      loadArgumentOptions()
+    }
+  },
+)
 
 // Watch for command/argument changes to load options
 watch(activeArgument, async newArg => {

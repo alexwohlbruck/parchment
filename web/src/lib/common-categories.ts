@@ -60,8 +60,15 @@ export const COMMON_CATEGORIES: CommonCategory[] = [
   { id: 'shop/mall', labelKey: key('shoppingMalls'), icon: 'ShoppingBag', category: 'store' },
   { id: 'shop/bakery', labelKey: key('bakeries'), icon: 'Croissant', category: 'food_and_drink' },
   { id: 'amenity/charging_station', labelKey: key('evCharging'), icon: 'BatteryCharging', category: 'commercial_services' },
-  { id: 'highway/bus_stop', labelKey: key('busStops'), icon: 'Bus', category: 'default' },
+  // `public_transport=platform` rather than `highway=bus_stop`: it's the modern
+  // tagging every mode shares, so one chip covers bus, tram and rail stops
+  // (bus stops carry both tags, so none are lost).
+  { id: 'public_transport/platform', labelKey: key('transitStops'), icon: 'Bus', category: 'commercial_services' },
+  { id: 'railway/station', labelKey: key('trainStations'), icon: 'TrainFront', category: 'commercial_services' },
   { id: 'leisure/fitness_centre', labelKey: key('gyms'), icon: 'Dumbbell', category: 'sport_and_leisure' },
+  { id: 'amenity/place_of_worship', labelKey: key('placesOfWorship'), icon: 'Church', category: 'default' },
+  { id: 'amenity/school', labelKey: key('schools'), icon: 'GraduationCap', category: 'education' },
+  { id: 'amenity/ice_cream', labelKey: key('iceCream'), icon: 'IceCreamCone', category: 'food_and_drink' },
 
   // ── Occasional ──────────────────────────────────────
   { id: 'shop/clothes', labelKey: key('clothing'), icon: 'Shirt', category: 'store' },
@@ -74,6 +81,21 @@ export const COMMON_CATEGORIES: CommonCategory[] = [
   { id: 'shop/hardware', labelKey: key('hardware'), icon: 'Hammer', category: 'store' },
   { id: 'amenity/bicycle_parking', labelKey: key('bikeParking'), icon: 'Bike', category: 'commercial_services' },
   { id: 'amenity/library', labelKey: key('libraries'), icon: 'Library', category: 'education' },
+  { id: 'amenity/dentist', labelKey: key('dentists'), icon: 'Smile', category: 'medical' },
+  { id: 'amenity/clinic', labelKey: key('urgentCare'), icon: 'BriefcaseMedical', category: 'medical' },
+  { id: 'shop/beauty', labelKey: key('beautySalons'), icon: 'Sparkles', category: 'commercial_services' },
+  { id: 'shop/laundry', labelKey: key('laundry'), icon: 'WashingMachine', category: 'commercial_services' },
+  { id: 'amenity/car_wash', labelKey: key('carWash'), icon: 'SprayCan', category: 'commercial_services' },
+  { id: 'amenity/car_rental', labelKey: key('carRental'), icon: 'Car', category: 'commercial_services' },
+  { id: 'aeroway/aerodrome', labelKey: key('airports'), icon: 'Plane', category: 'commercial_services' },
+  { id: 'leisure/dog_park', labelKey: key('dogParks'), icon: 'Dog', category: 'sport_and_leisure' },
+  { id: 'amenity/childcare', labelKey: key('childcare'), icon: 'Baby', category: 'education' },
+  { id: 'shop/pet', labelKey: key('petStores'), icon: 'Bone', category: 'store' },
+  { id: 'amenity/marketplace', labelKey: key('farmersMarkets'), icon: 'Carrot', category: 'store' },
+  // Not a place type — `internet_access=wlan` is an attribute of cafes,
+  // libraries, hotels … The server turns this preset into a tag filter so the
+  // chip browses everywhere with WiFi (see derivePresetFilter).
+  { id: 'internet_access/wlan', labelKey: key('wifi'), icon: 'Wifi', category: 'commercial_services' },
 
   // ── Situational ─────────────────────────────────────
   { id: 'tourism/museum', labelKey: key('museums'), icon: 'Amphora', category: 'arts_and_entertainment' },
@@ -87,7 +109,17 @@ export const COMMON_CATEGORIES: CommonCategory[] = [
   { id: 'amenity/recycling', labelKey: key('recycling'), icon: 'Recycle', category: 'default' },
   { id: 'amenity/waste_basket', labelKey: key('trashCans'), icon: 'Trash2', category: 'default' },
   { id: 'leisure/picnic_table', labelKey: key('picnicTables'), icon: 'Table', category: 'park' },
+  { id: 'tourism/picnic_site', labelKey: key('picnicAreas'), icon: 'ShoppingBasket', category: 'park' },
+  { id: 'amenity/fountain', labelKey: key('fountains'), icon: 'Droplets', category: 'park' },
+  { id: 'amenity/shower', labelKey: key('showers'), icon: 'ShowerHead', category: 'commercial_services' },
+  { id: 'amenity/public_bookcase', labelKey: key('publicBookcases'), icon: 'BookOpen', category: 'education' },
+  { id: 'leisure/fitness_station', labelKey: key('outdoorGyms'), icon: 'Weight', category: 'sport_and_leisure' },
+  { id: 'amenity/bicycle_repair_station', labelKey: key('bikeRepair'), icon: 'Bolt', category: 'sport_and_leisure' },
   { id: 'amenity/shelter', labelKey: key('shelters'), icon: 'TentTree', category: 'park' },
   { id: 'amenity/post_box', labelKey: key('postBoxes'), icon: 'Inbox', category: 'commercial_services' },
   { id: 'emergency/defibrillator', labelKey: key('defibrillators'), icon: 'HeartPulse', category: 'medical' },
+  { id: 'tourism/artwork', labelKey: key('publicArt'), icon: 'Palette', category: 'arts_and_entertainment' },
+  { id: 'tourism/viewpoint', labelKey: key('viewpoints'), icon: 'Binoculars', category: 'arts_and_entertainment' },
+  { id: 'leisure/nature_reserve', labelKey: key('natureReserves'), icon: 'TreePine', category: 'park' },
+  { id: 'natural/beach', labelKey: key('beaches'), icon: 'Umbrella', category: 'park' },
 ]

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+* A WiFi shortcut in the search palette. It isn't a kind of place — it browses everywhere carrying free wireless, so cafes, libraries and hotels all turn up
+* Twenty-five more browse shortcuts: train stations, airports, places of worship, schools, childcare, ice cream, dentists, urgent care, beauty salons, laundry, car wash, car rental, pet stores, farmers markets, dog parks, public art, viewpoints, nature reserves, beaches, picnic areas, fountains, showers, public bookcases, outdoor gyms and bike repair stations
+
+### Changed
+
+* The search palette opens instantly. It used to wait on your recent searches — which are encrypted, so they have to be fetched and unlocked first — before drawing anything at all, leaving the first open of a session on a spinner. Your shortcuts and frequent places now appear immediately and recents drop in as they arrive
+* "Bus Stops" is now "Transit", and covers tram and rail platforms alongside buses
+* Searching "wifi" finds the category under that name rather than "Wi-Fi Hotspot", and bike repair stands are called that instead of "Bicycle Repair Tool Stand" — both in search and on the place itself. Searching "bike repair stand", "repair stand", "outdoor gym" or "calisthenics" now finds the right category too
+
 ## [0.5.11] - 2026-08-03
 
 ### Added

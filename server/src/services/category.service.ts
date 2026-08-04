@@ -2,6 +2,7 @@ import { CategoryResult } from '../types/search.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import { getLanguageCode } from '../lib/i18n'
 import { getPlaceCategory, resolveIcon } from '../lib/place-categories'
+import { PRESET_NAME_OVERRIDES } from '../lib/osm-presets'
 import { logWarn } from '../lib/logger'
 
 /**
@@ -11,7 +12,7 @@ import { logWarn } from '../lib/logger'
 const CUSTOM_ALIASES: Record<string, string[]> = {
   // Cycling
   'amenity/bicycle_parking':  ['bike rack', 'bike racks', 'bike stand', 'bike lock', 'cycle rack', 'bicycle stand', 'bicycle rack', 'cycle parking'],
-  'amenity/bicycle_repair_station': ['bike repair', 'bike fix', 'bicycle fix', 'bike tool station', 'bike pump'],
+  'amenity/bicycle_repair_station': ['bike repair', 'bike fix', 'bicycle fix', 'bike tool station', 'bike pump', 'bike repair stand', 'bicycle repair stand', 'repair stand', 'bike tools'],
   'amenity/bicycle_rental':   ['bike hire', 'bike share', 'bikeshare', 'cycle hire'],
   'shop/bicycle':             ['bike shop', 'bike store', 'cycle shop', 'cycling store'],
 
@@ -78,6 +79,7 @@ const CUSTOM_ALIASES: Record<string, string[]> = {
   'leisure/fitness_centre':   ['gym', 'fitness club', 'health club', 'workout', 'CrossFit', 'exercise'],
   'leisure/sports_centre':    ['sports center', 'sports complex', 'recreation center', 'rec center'],
   'leisure/dog_park':         ['off leash area', 'dog run', 'off-leash park'],
+  'leisure/fitness_station':  ['outdoor gym', 'exercise station', 'workout station', 'calisthenics', 'pull up bar'],
   'leisure/picnic_table':     ['picnic area', 'picnic spot', 'picnic bench'],
   'leisure/golf_course':      ['golf club', 'golf links', 'driving range'],
   'leisure/stadium':          ['arena', 'sports stadium', 'ballpark', 'amphitheater'],
@@ -109,6 +111,7 @@ const CUSTOM_ALIASES: Record<string, string[]> = {
   'place/neighbourhood':      ['neighborhood', 'hood', 'district', 'area'],
   'office/government':        ['government office', 'government building', 'city hall', 'municipal'],
 }
+
 
 /**
  * Check if two strings are a fuzzy prefix match — one is a prefix of the other
@@ -234,6 +237,15 @@ export class CategoryService {
 
         // Build aliases from various sources
         const aliases: string[] = []
+
+        // Rename the presets whose schema wording doesn't suit a map UI,
+        // keeping the original as an alias so it stays searchable.
+        const nameOverride =
+          apiLang === 'en' ? PRESET_NAME_OVERRIDES[presetId] : undefined
+        if (nameOverride && nameOverride !== localizedName) {
+          aliases.push(localizedName)
+          localizedName = nameOverride
+        }
 
         // Add terms from translations if available
         const translationData = presetTranslations[presetId]

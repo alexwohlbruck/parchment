@@ -409,6 +409,32 @@ describe('search service', () => {
       expect(filterTags).toMatchObject({ cuisine: 'sushi', delivery: 'yes' })
     })
 
+    test('attribute preset: browses on tags with no category', async () => {
+      const cap = setupCapability()
+      mockGetCategoryById.mockReturnValue({ tags: { internet_access: 'wlan' } })
+
+      await searchByCategory('internet_access/wlan', { bounds })
+
+      expect(cap.searchByCategory).toHaveBeenCalledWith(
+        '',
+        bounds,
+        expect.objectContaining({ filterTags: { internet_access: 'wlan' } }),
+      )
+    })
+
+    test('attribute preset with only wildcard tags keeps the category path', async () => {
+      const cap = setupCapability()
+      mockGetCategoryById.mockReturnValue({ tags: { internet_access: '*' } })
+
+      await searchByCategory('internet_access', { bounds })
+
+      expect(cap.searchByCategory).toHaveBeenCalledWith(
+        'internet_access',
+        bounds,
+        expect.objectContaining({ filterTags: undefined }),
+      )
+    })
+
     test('returns empty array when no integration is configured', async () => {
       mockGetConfiguredIntegrations.mockReturnValue([])
       expect(await searchByCategory('amenity/cafe', { bounds })).toEqual([])

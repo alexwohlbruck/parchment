@@ -52,9 +52,11 @@ const categoryRules: Array<{ match: (presetId: string) => boolean; category: Pla
       id.startsWith('leisure/nature_reserve') ||
       id.startsWith('leisure/picnic_table') ||
       id.startsWith('leisure/firepit') ||
+      id.startsWith('tourism/picnic_site') ||
       id.startsWith('amenity/bench') ||
       id.startsWith('amenity/shelter') ||
       id.startsWith('amenity/drinking_water') ||
+      id.startsWith('amenity/fountain') ||
       id.startsWith('natural/'),
     category: 'park',
   },
@@ -80,7 +82,9 @@ const categoryRules: Array<{ match: (presetId: string) => boolean; category: Pla
       id.startsWith('amenity/university') ||
       id.startsWith('amenity/college') ||
       id.startsWith('amenity/library') ||
+      id.startsWith('amenity/public_bookcase') ||
       id.startsWith('amenity/kindergarten') ||
+      id.startsWith('amenity/childcare') ||
       id.startsWith('amenity/language_school') ||
       id.startsWith('amenity/music_school') ||
       id.startsWith('amenity/driving_school'),
@@ -124,7 +128,8 @@ const categoryRules: Array<{ match: (presetId: string) => boolean; category: Pla
   // Stores (food & drink stores + general shops)
   {
     match: (id) =>
-      id.startsWith('shop/'),
+      id.startsWith('shop/') ||
+      id.startsWith('amenity/marketplace'),
     category: 'store',
   },
 
@@ -153,6 +158,8 @@ const categoryRules: Array<{ match: (presetId: string) => boolean; category: Pla
       id.startsWith('amenity/charging_station') ||
       id.startsWith('amenity/parking') ||
       id.startsWith('amenity/toilets') ||
+      id.startsWith('amenity/shower') ||
+      id.startsWith('internet_access') ||
       id.startsWith('tourism/hotel') ||
       id.startsWith('tourism/motel') ||
       id.startsWith('tourism/hostel') ||

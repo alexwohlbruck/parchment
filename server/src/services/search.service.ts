@@ -469,6 +469,21 @@ export interface CategorySearchOptions {
 }
 
 /**
+ * OSM tag keys Barrelman turns into `geo_places.categories` entries — mirrors
+ * POI_KEYS in its `import/osm2pgsql-flex.lua`. A preset keyed on anything else
+ * describes an attribute a place *has* rather than a kind of place, so it can
+ * only be searched as a tag filter.
+ */
+const CATEGORY_TAG_KEYS = new Set([
+  'amenity', 'shop', 'tourism', 'leisure', 'office', 'craft',
+  'healthcare', 'social_facility', 'historic', 'man_made',
+  'aeroway', 'public_transport', 'emergency', 'place',
+  'building', 'natural', 'landuse', 'waterway', 'power',
+  'railway', 'highway', 'barrier', 'entrance', 'playground',
+  'club', 'gambling', 'advertising', 'cuisine',
+])
+
+/**
  * Derive the primary Barrelman category and extra OSM tag filters from a preset ID.
  *
  * The iD tagging schema uses hierarchical preset IDs like `amenity/restaurant/pizza`
@@ -476,6 +491,10 @@ export interface CategorySearchOptions {
  * stores the primary category (`amenity/restaurant`), so we must:
  *   1. Send the parent preset ID as the category filter
  *   2. Pass the additional discriminating tags (cuisine=pizza) as a secondary filter
+ *
+ * Attribute presets (`internet_access/wlan` — the "WiFi" shortcut) have no
+ * category at all: they come back with an empty `categoryId` and browse purely
+ * on tags, which finds every cafe, library or hotel carrying the tag.
  */
 function derivePresetFilter(presetId: string): {
   categoryId: string
@@ -483,6 +502,16 @@ function derivePresetFilter(presetId: string): {
 } {
   const preset = categoryService.getCategoryById(presetId)
   const presetTags = (preset?.tags || {}) as Record<string, string>
+
+  const tagKeys = Object.keys(presetTags)
+  if (tagKeys.length > 0 && !tagKeys.some(key => CATEGORY_TAG_KEYS.has(key))) {
+    // Wildcard values can't be matched by JSONB containment. If that's all the
+    // preset has, fall through rather than browsing with no filter at all.
+    const filterTags = Object.fromEntries(
+      Object.entries(presetTags).filter(([, value]) => value !== '*'),
+    )
+    if (Object.keys(filterTags).length > 0) return { categoryId: '', filterTags }
+  }
 
   const parts = presetId.split('/')
   if (parts.length <= 2) {

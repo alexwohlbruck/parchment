@@ -195,10 +195,17 @@ export const configSchemas: Record<
   }),
 
   barrelmanSchema: z.object({
+    // The hosted instance, as with the other services that offer one. The
+    // previous default assumed barrelman was something you ran yourself,
+    // which was true before it had a public host — it left every new
+    // integration pointing at a port that answers on a developer's laptop
+    // and nowhere else.
+    //
+    // Self-hosting is still first-class: overwrite this with your own origin.
     host: z
       .string()
       .url('Please enter a valid URL')
-      .default('http://localhost:5001'),
+      .default('https://api.barrelman.dev'),
     apiKey: z.string().optional(),
     tileKey: z.string().optional(),
   }),

@@ -56,9 +56,6 @@ const itemCount = computed(() => {
 
 const hasMore = computed(() => relatedData.value.hasMore ?? false)
 
-// Show up to 3 preview items in the compact view
-const previewChildren = computed(() => children.value.slice(0, 3))
-
 function parentToPlace(parent: RelatedParent): Place {
   return {
     id: parent.id,
@@ -71,6 +68,13 @@ function parentToPlace(parent: RelatedParent): Place {
     icon: parent.icon ?? null,
   } as unknown as Place
 }
+
+// Compact preview: up to 3 children, or every parent/admin ancestor
+const previewItems = computed<Place[]>(() =>
+  strategy.value === 'children'
+    ? children.value.slice(0, 3)
+    : parents.value.map(parentToPlace),
+)
 
 // Each related strategy (parent / children / admin) becomes its own tab so
 // multiple related sections don't collide.
@@ -118,38 +122,19 @@ function openFullList() {
       @select="openFullList"
     />
 
-    <!-- Children: horizontal scroll preview -->
-    <template v-if="strategy === 'children'">
-      <div class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] relative">
+    <!-- Horizontal scroll preview, bleeding to the panel edges -->
+    <div class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] relative">
+      <div
+        class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-3 scroll-px-3 scrollbar-hidden [&>*:first-child]:ml-3 [&>*:last-child]:mr-3"
+      >
         <div
-          class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-3 scroll-px-3 scrollbar-hidden [&>*:first-child>*:first-child]:ml-3 [&>*:last-child>*:last-child]:mr-3"
+          v-for="item in previewItems"
+          :key="item.id"
+          class="w-64 flex-none snap-start"
         >
-          <div
-            v-for="child in previewChildren"
-            :key="child.id"
-            class="w-64 flex-none snap-start"
-          >
-            <PlaceListItem :place="child" />
-          </div>
+          <PlaceListItem :place="item" />
         </div>
       </div>
-    </template>
-
-    <!-- Parent / Admin: compact list preview -->
-    <template v-else>
-      <div class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] relative">
-        <div
-          class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-3 scroll-px-3 scrollbar-hidden [&>*:first-child>*:first-child]:ml-3 [&>*:last-child>*:last-child]:mr-3"
-        >
-          <div
-            v-for="parent in parents"
-            :key="parent.id"
-            class="w-64 flex-none snap-start"
-          >
-            <PlaceListItem :place="parentToPlace(parent)" />
-          </div>
-        </div>
-      </div>
-    </template>
+    </div>
   </template>
 </template>

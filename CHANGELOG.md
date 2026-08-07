@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * "Bus Stops" is now "Transit", and covers tram and rail platforms alongside buses
 * Searching "wifi" finds the category under that name rather than "Wi-Fi Hotspot", and bike repair stands are called that instead of "Bicycle Repair Tool Stand" — both in search and on the place itself. Searching "bike repair stand", "repair stand", "outdoor gym" or "calisthenics" now finds the right category too
 
+### Fixed
+
+* The "Inside" and "Located in" rows on a place no longer run their first two cards together — every card in the row is evenly spaced
+
 ## [0.5.11] - 2026-08-03
 
 ### Added

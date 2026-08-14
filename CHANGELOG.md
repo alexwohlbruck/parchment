@@ -17,10 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The search palette opens instantly. It used to wait on your recent searches — which are encrypted, so they have to be fetched and unlocked first — before drawing anything at all, leaving the first open of a session on a spinner. Your shortcuts and frequent places now appear immediately and recents drop in as they arrive
 * "Bus Stops" is now "Transit", and covers tram and rail platforms alongside buses
 * Searching "wifi" finds the category under that name rather than "Wi-Fi Hotspot", and bike repair stands are called that instead of "Bicycle Repair Tool Stand" — both in search and on the place itself. Searching "bike repair stand", "repair stand", "outdoor gym" or "calisthenics" now finds the right category too
+* Recents on the Library home no longer stop at five — the list starts with ten and keeps loading more as you scroll
 
 ### Fixed
 
 * The "Inside" and "Located in" rows on a place no longer run their first two cards together — every card in the row is evenly spaced
+* The departure board no longer greys out trains you can plainly catch. It used to hold on to the walking time from when you planned the trip, so a seven-minute walk still read as seven minutes even once you were standing on the platform. The walk now counts down as you approach the stop — from your actual position when location is on, otherwise from the clock — and any departure on the board can be picked, whether it's already gone or looks like a stretch. Those still show as departed or a tight connection, but they're a hint now, not a lock
 
 ## [0.5.11] - 2026-08-03
 

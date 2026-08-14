@@ -6,6 +6,12 @@ import { applyDepartureChange } from '@/lib/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map.service'
+import { useGeolocationService } from '@/services/geolocation.service'
+import {
+  departureReachability,
+  remainingAccessWalkSec,
+  type DepartureReachability,
+} from '@/lib/transit-reachability'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -60,6 +66,9 @@ const directionsStore = useDirectionsStore()
 const directionsService = useDirectionsService()
 const mapService = useMapService()
 const themeStore = useThemeStore()
+// Live position, so the approach walk on the departure board decays as the
+// rider actually closes on the stop.
+const geo = useGeolocationService()
 const { formatDistance, formatElevation } = useUnits()
 
 // ── Upcoming departures per transit segment ─────────────────────────
@@ -88,7 +97,8 @@ const DEPARTURE_PAST_WINDOW_MS = 30 * 60_000
 // guards that to once per trip (refreshes/rebooks must not re-trigger it).
 const didAutoSelectDeparture = ref(false)
 
-// Clock driving missed/hurry chip states; departures re-fetch keeps the
+// Clock driving the departed/hurry chip states (and the decaying approach
+// walk behind them); departures re-fetch keeps the
 // realtime predictions fresh as vehicles move.
 const nowMs = ref(Date.now())
 const tickTimer = setInterval(() => { nowMs.value = Date.now() }, 10_000)
@@ -177,7 +187,7 @@ async function loadDepartures() {
         for (const d of pool) {
           const depMs = new Date(d.departureTime).getTime()
           // Keep already-departed runs (down to the past window) — they show as
-          // missed and give the rider useful "just missed it" context.
+          // departed and give the rider useful "just missed it" context.
           if (depMs < fetchFromMs) continue
           const prev = byMs.get(depMs)
           byMs.set(depMs, {
@@ -226,9 +236,10 @@ async function loadDepartures() {
   }
 }
 
-/** Default the first transit leg to its earliest catchable (not-missed) run —
- *  including a "hurry" one, so the rider lands on the soonest train they can
- *  still make. Runs once per trip; a no-op when that's already the planned run. */
+/** Default the first transit leg to its earliest catchable run — including a
+ *  "hurry" one, so the rider lands on the soonest train they can still make.
+ *  Runs once per trip; a no-op when that's already the planned run. (This is
+ *  only the default: the rider can still pick any run on the board.) */
 function selectFirstAvailableDeparture() {
   const t = trip.value
   if (!t) return
@@ -238,9 +249,10 @@ function selectFirstAvailableDeparture() {
     (s) => s.mode === 'transit' && s.departureStop?.location,
   )
   if (idx < 0) return
-  const firstCatchable = (segmentDepartures.value[idx] ?? []).find(
-    (d) => depState(idx, d) !== 'missed',
-  )
+  const firstCatchable = (segmentDepartures.value[idx] ?? []).find((d) => {
+    const state = depState(idx, d)
+    return state === 'ok' || state === 'hurry'
+  })
   if (firstCatchable && !isCurrentDeparture(segs[idx], firstCatchable.ms)) {
     void chooseDeparture(idx, firstCatchable.ms)
   }
@@ -370,14 +382,16 @@ async function chooseDeparture(segmentIndex: number, departureMs: number) {
 }
 
 // ── Departure chip states (Transit-app style) ────────────────────────
-// missed: the vehicle is gone (or, for the first boarding, you can no
-// longer walk there in time). hurry: catchable, but only just — the walk
+// departed: the vehicle is gone. unreachable: still upcoming, but not on
+// foot from where the rider is. hurry: catchable, but only just — the walk
 // leaves under 3 minutes of slack. live: time comes from GTFS-RT.
+// All of these are hints; none of them block a rebook.
 
-/** Walking seconds from the rider's position to this boarding, when this
- *  is the trip's first transit leg (0 otherwise — mid-trip positions
- *  depend on earlier legs, so only "departed" can be judged there). */
-function accessWalkSec(segmentIndex: number): number {
+/** Approach walk still ahead of the rider for this boarding, when it's the
+ *  trip's first transit leg (0 otherwise — mid-trip positions depend on
+ *  earlier legs, so only "departed" can be judged there). Decays as the rider
+ *  actually closes on the stop rather than staying pinned to the plan. */
+function remainingWalkSec(segmentIndex: number): number {
   const t = trip.value
   if (!t) return 0
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -385,27 +399,41 @@ function accessWalkSec(segmentIndex: number): number {
   const isFirst = !segs.slice(0, segmentIndex).some((s) => s.mode === 'transit')
   if (!isFirst) return 0
   const prev = segs[segmentIndex - 1]
-  return prev?.mode === 'walking' ? movingDuration(prev) : 0
+  if (prev?.mode !== 'walking') return 0
+  const planned = movingDuration(prev)
+  // Arrival at the stop excludes the platform wait folded into the walk leg.
+  const arrivalMs = asMs(prev.endTime) - (prev.waitSeconds ?? 0) * 1000
+  return remainingAccessWalkSec(
+    {
+      plannedSec: planned,
+      arrivalMs,
+      distanceM: prev.distance,
+      stop: segs[segmentIndex]?.departureStop?.location ?? null,
+      position: geo.lngLat.value,
+      accuracyM: geo.accuracy.value,
+    },
+    nowMs.value,
+  )
 }
 
-function depState(segmentIndex: number, dep: DepartureOption): 'missed' | 'hurry' | 'ok' {
-  const leadMs = dep.ms - nowMs.value
-  const walkMs = accessWalkSec(segmentIndex) * 1000
-  if (leadMs < walkMs) return 'missed'
-  if (walkMs > 0 && leadMs < walkMs + 180_000) return 'hurry'
-  return 'ok'
+function depState(segmentIndex: number, dep: DepartureOption): DepartureReachability {
+  return departureReachability(dep.ms, nowMs.value, remainingWalkSec(segmentIndex))
 }
 
 /** A board card's full visual state, derived once per render so the template
  *  stays declarative. The statuses are mutually legible at a glance:
- *   • planned  — the run the trip currently boards (line-coloured emphasis)
- *   • missed   — gone, or unreachable on foot in time (struck out, disabled)
- *   • hurry    — catchable only if you leave now (amber)
- *   • arriving — imminent, i.e. "now"
- *   • live     — the time is a GTFS-RT prediction rather than the schedule */
+ *   • planned     — the run the trip currently boards (line-coloured emphasis)
+ *   • departed    — already gone (struck out, muted)
+ *   • unreachable — upcoming, but probably not on foot in time (muted)
+ *   • hurry       — catchable only if you leave now (amber)
+ *   • arriving    — imminent, i.e. "now"
+ *   • live        — the time is a GTFS-RT prediction rather than the schedule
+ *  Every card stays selectable regardless — the rider may well know something
+ *  the estimate doesn't. */
 interface DepCard {
   planned: boolean
-  missed: boolean
+  departed: boolean
+  unreachable: boolean
   hurry: boolean
   arriving: boolean
   live: boolean
@@ -420,29 +448,34 @@ interface DepCard {
 function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepCard {
   const planned = isCurrentDeparture(segment, dep.ms)
   const state = depState(segmentIndex, dep)
-  const missed = !planned && state === 'missed'
-  // hurry stands even on the selected card — you still have to rush for it, so
-  // it isn't suppressed by `planned` the way `missed` is.
+  const departed = state === 'departed'
+  // The reachability hints stand even on the selected card — you still have to
+  // rush for (or have likely missed) it — so `planned` doesn't suppress them.
+  const unreachable = state === 'unreachable'
   const hurry = state === 'hurry'
   const { lead, sub } = depCountdown(dep.ms)
   const name = dep.route?.shortName ?? segment.lineName
+  const switchTo = `Switch to the ${name} at ${dep.label}`
   return {
     planned,
-    missed,
+    departed,
+    unreachable,
     hurry,
-    arriving: !missed && lead === 'now',
+    arriving: !departed && lead === 'now',
     live: dep.realTime,
-    clickable: !planned && !missed,
+    clickable: !planned,
     lead,
     sub,
     route: dep.route,
-    title: missed
-      ? 'Departed'
-      : planned
-        ? 'Planned departure'
-        : hurry
-          ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
-          : `Switch to the ${name} at ${dep.label}`,
+    title: planned
+      ? 'Planned departure'
+      : departed
+        ? `Departed at ${dep.label}`
+        : unreachable
+          ? `Tight — you may not reach the stop by ${dep.label}. ${switchTo}`
+          : hurry
+            ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
+            : switchTo,
   }
 }
 

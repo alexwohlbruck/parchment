@@ -465,16 +465,16 @@ function depState(segmentIndex: number, dep: DepartureOption): DepartureReachabi
  *  Under a minute is timetable noise, not news. */
 const DELAY_NOTICE_SEC = 60
 
-/** A board card's full visual state, derived once per render so the template
- *  stays declarative. The statuses are mutually legible at a glance:
- *   • planned     — the run the trip currently boards (line-coloured emphasis)
- *   • departed    — already gone (struck out, muted)
- *   • unreachable — upcoming, but probably not on foot in time (muted)
- *   • hurry       — you'd make it with less than your margin spare (amber)
+/** What is true about a run. Purely factual — how any of it *looks* is the
+ *  board's business, not this view's:
+ *   • planned     — the run the trip currently boards
+ *   • departed    — already gone
+ *   • unreachable — upcoming, but probably not on foot in time
+ *   • hurry       — you'd make it with less than your margin spare
  *   • arriving    — imminent, i.e. "now"
  *   • cancelled   — pulled by the operator
  *   • live        — the time is a GTFS-RT prediction rather than the schedule
- *   • late/early  — that prediction differs from the timetable
+ *   • delaySec    — how far that prediction sits off the timetable
  *  Every card stays selectable regardless — the rider may well know something
  *  the estimate doesn't. */
 interface DepCard {
@@ -488,34 +488,11 @@ interface DepCard {
   clickable: boolean
   lead: string
   sub: string
-  /** Timetabled time, shown struck beside `sub` when the run is off-schedule. */
+  /** Timetabled time, when a live prediction has superseded it. */
   scheduledSub?: string
-  /** The single colour the countdown takes. Resolved here rather than in the
-   *  template so two statuses can't both emit a text colour and race. */
-  leadClass: string
+  delaySec?: number
   route?: DepartureOption['route']
   title: string
-}
-
-/** Countdown colour, most actionable status first. Delay is informational —
- *  it loses to anything the rider has to act on. */
-function leadClassFor(s: {
-  departed: boolean
-  cancelled: boolean
-  hurry: boolean
-  arriving: boolean
-  unreachable: boolean
-  delaySec?: number
-}): string {
-  if (s.cancelled) return 'line-through text-muted-foreground/50'
-  if (s.departed) return 'line-through text-muted-foreground/50'
-  if (s.hurry) return 'text-amber-700 dark:text-amber-300'
-  if (s.arriving) return 'text-parchment-600 dark:text-parchment-400'
-  if (s.unreachable) return 'text-muted-foreground/70'
-  const delay = s.delaySec ?? 0
-  if (delay >= DELAY_NOTICE_SEC) return 'text-red-600 dark:text-red-400'
-  if (delay <= -DELAY_NOTICE_SEC) return 'text-sky-600 dark:text-sky-400'
-  return ''
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -561,8 +538,11 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
     lead,
     sub,
     scheduledSub,
-    leadClass: leadClassFor({ departed, cancelled, hurry, arriving, unreachable, delaySec }),
+    delaySec,
     route: dep.route,
+    // The tooltip spells out what each badge means the first time someone
+    // hovers one, and always says the run is still selectable — the badges
+    // are a read on your chances, not a refusal.
     title: cancelled
       ? `Cancelled — the ${name} at ${dep.label} isn't running`
       : planned
@@ -570,7 +550,7 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
         : departed
           ? `Departed at ${dep.label}`
           : unreachable
-            ? `Tight — you may not reach the stop by ${dep.label}. ${switchTo}`
+            ? `You may miss this one — the ${name} leaves at ${dep.label}, sooner than you can reach the stop. Pick it anyway if you're closer than we think`
             : hurry
               ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
               : joinStatus(switchTo, delayPhrase),

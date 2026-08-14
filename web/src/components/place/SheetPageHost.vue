@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from 'vue'
 import { provideSheetPage } from '@/composables/useSheetPage'
+import { findScrollAncestor } from '@/lib/scroll'
 
 // Stack lifecycle and route reconciliation (path-change clears, view-query
 // sync) are owned by the composable now — see `provideSheetPage`.
@@ -31,28 +32,10 @@ const hostRef = ref<HTMLElement | null>(null)
 let scrollAncestor: HTMLElement | null = null
 const scrollStack: number[] = []
 
-function findScrollAncestor(el: HTMLElement | null): HTMLElement | null {
-  if (!el) return null
-  // BottomSheet annotates its scrollContainer with `data-sheet-scroll` so
-  // we can target it explicitly. Falls back to walking up looking for any
-  // overflow-y-set ancestor — useful if a future host wraps us in a
-  // different scrollable container.
-  const tagged = el.closest('[data-sheet-scroll]') as HTMLElement | null
-  if (tagged) return tagged
-
-  let cur: HTMLElement | null = el.parentElement
-  while (cur) {
-    const overflow = getComputedStyle(cur).overflowY
-    if (overflow === 'auto' || overflow === 'scroll' || overflow === 'hidden') {
-      return cur
-    }
-    cur = cur.parentElement
-  }
-  return null
-}
-
 onMounted(() => {
-  scrollAncestor = findScrollAncestor(hostRef.value)
+  // includeHidden: this only ever sets scrollTop itself, and a collapsed
+  // sheet's container is overflow-hidden yet still scrolls programmatically.
+  scrollAncestor = findScrollAncestor(hostRef.value, { includeHidden: true })
 })
 
 watch(depth, (newDepth, oldDepth) => {

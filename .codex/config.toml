@@ -1,0 +1,2 @@
+[mcp_servers.superconductor]
+url = "http://localhost:31418/mcp?sc_token=c8e68b2dc9f5dff53c99870b8991a7eb&worktree=%2FUsers%2Falexwohlbruck%2FDocuments%2Fcode%2Fparchment%2F"

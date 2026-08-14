@@ -105,31 +105,56 @@ describe('remainingAccessWalkSec', () => {
 })
 
 describe('departureReachability', () => {
+  const GRACE = 180 // the default 3-minute margin, in seconds
+
   it('marks past runs departed', () => {
-    expect(departureReachability(NOW - MIN, NOW, 0)).toBe('departed')
-    expect(departureReachability(NOW - MIN, NOW, 420)).toBe('departed')
+    expect(departureReachability(NOW - MIN, NOW, 0, GRACE)).toBe('departed')
+    expect(departureReachability(NOW - MIN, NOW, 420, GRACE)).toBe('departed')
   })
 
   it('marks upcoming runs inside the remaining walk unreachable', () => {
-    expect(departureReachability(NOW + 2 * MIN, NOW, 420)).toBe('unreachable')
+    expect(departureReachability(NOW + 2 * MIN, NOW, 420, GRACE)).toBe('unreachable')
   })
 
-  it('flags a tight but catchable run as hurry', () => {
-    expect(departureReachability(NOW + 9 * MIN, NOW, 420)).toBe('hurry')
+  it('flags a run you would only just make as hurry', () => {
+    // 9 min out, 7 min walk → 2 min spare, under the 3 min margin.
+    expect(departureReachability(NOW + 9 * MIN, NOW, 420, GRACE)).toBe('hurry')
   })
 
-  it('is ok with comfortable slack', () => {
-    expect(departureReachability(NOW + 20 * MIN, NOW, 420)).toBe('ok')
+  it('is ok once the walk plus the margin fits', () => {
+    expect(departureReachability(NOW + 11 * MIN, NOW, 420, GRACE)).toBe('ok')
+    expect(departureReachability(NOW + 20 * MIN, NOW, 420, GRACE)).toBe('ok')
   })
 
-  it('never reports hurry without an approach walk', () => {
-    expect(departureReachability(NOW + 30_000, NOW, 0)).toBe('ok')
+  it('never nags when the rider asks for no margin', () => {
+    // Grace 0 means "stepping straight on is fine" — only a walk you truly
+    // cannot finish downgrades the run.
+    expect(departureReachability(NOW + 30_000, NOW, 0, 0)).toBe('ok')
+    expect(departureReachability(NOW + 8 * MIN, NOW, 420, 0)).toBe('ok')
+    expect(departureReachability(NOW + 6 * MIN, NOW, 420, 0)).toBe('unreachable')
+  })
+
+  it('widens the hurry band as the rider asks for more margin', () => {
+    const lead = NOW + 9 * MIN
+    expect(departureReachability(lead, NOW, 420, 60)).toBe('ok')
+    expect(departureReachability(lead, NOW, 420, 300)).toBe('hurry')
+  })
+
+  it('applies the margin even with no approach walk to judge', () => {
+    // Mid-trip transfer: we can't model the walk, but "leaves inside your
+    // margin" is still worth flagging.
+    expect(departureReachability(NOW + MIN, NOW, 0, GRACE)).toBe('hurry')
+    expect(departureReachability(NOW + 5 * MIN, NOW, 0, GRACE)).toBe('ok')
+  })
+
+  it('defaults to no margin when none is given', () => {
+    expect(departureReachability(NOW + 8 * MIN, NOW, 420)).toBe('ok')
   })
 
   it('reopens runs the rider has walked into reach of', () => {
     // A 5-minute-out train with 7 minutes of static walk reads unreachable...
-    expect(departureReachability(NOW + 5 * MIN, NOW, 420)).toBe('unreachable')
+    expect(departureReachability(NOW + 5 * MIN, NOW, 420, GRACE)).toBe('unreachable')
     // ...but is plainly catchable once the walk has decayed to a minute.
-    expect(departureReachability(NOW + 5 * MIN, NOW, 60)).toBe('ok')
+    expect(departureReachability(NOW + 5 * MIN, NOW, 60, GRACE)).toBe('ok')
   })
 })

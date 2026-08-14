@@ -13,11 +13,16 @@ export interface BoardCard {
   card: {
     lead: string
     sub?: string
+    /** Timetabled time, struck beside `sub` when the run is off-schedule. */
+    scheduledSub?: string
+    /** The countdown's colour, resolved by the caller so statuses can't race. */
+    leadClass?: string
     title?: string
     planned?: boolean
     departed?: boolean
     unreachable?: boolean
     hurry?: boolean
+    cancelled?: boolean
     live?: boolean
     arriving?: boolean
     clickable?: boolean
@@ -92,9 +97,9 @@ function onScrollerMount(el: unknown, cards: BoardCard[]) {
   })
 }
 
-/** Gone or a stretch to reach — same muted treatment either way. */
+/** Gone, cancelled, or a stretch to reach — same muted treatment for all. */
 function dimmed(card: BoardCard['card']) {
-  return Boolean(card.departed || card.unreachable)
+  return Boolean(card.departed || card.unreachable || card.cancelled)
 }
 
 function onScroll(e: Event) {
@@ -120,15 +125,17 @@ defineExpose({
         type="button"
         class="shrink-0 min-w-[80px] flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-xl border-2 text-center tabular-nums transition-colors cursor-pointer"
         :class="[
-          item.card.planned
-            ? (lineColor ? '' : 'border-parchment-500 bg-parchment-500/10')
-            : item.card.departed
-              ? 'border-transparent bg-muted/20 hover:bg-muted/40'
-              : item.card.unreachable
-                ? 'border-dashed border-border/70 bg-muted/20 hover:bg-muted/50 hover:border-foreground/30'
-                : item.card.hurry
-                  ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/40'
-                  : 'border-border bg-muted/30 hover:bg-muted/60 hover:border-foreground/30',
+          item.card.cancelled
+            ? 'border-transparent bg-muted/20 hover:bg-muted/40'
+            : item.card.planned
+              ? (lineColor ? '' : 'border-parchment-500 bg-parchment-500/10')
+              : item.card.departed
+                ? 'border-transparent bg-muted/20 hover:bg-muted/40'
+                : item.card.unreachable
+                  ? 'border-dashed border-border/70 bg-muted/20 hover:bg-muted/50 hover:border-foreground/30'
+                  : item.card.hurry
+                    ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/40'
+                    : 'border-border bg-muted/30 hover:bg-muted/60 hover:border-foreground/30',
           busy && 'opacity-50 pointer-events-none',
         ]"
         :style="item.card.planned && lineColor ? {
@@ -138,10 +145,12 @@ defineExpose({
         :title="item.card.title"
         @click="item.card.clickable && emit('choose', item.ms)"
       >
-        <!-- Route bullet + status cue. A tight connection shows a spelled-out
-             "hurry" (visible without the tooltip and kept even when this run is
-             selected); otherwise a live prediction adds a pulsing indicator;
-             scheduled is just the bullet. -->
+        <!-- Route bullet + status cue. A pulled run says "cancelled"; a tight
+             one says "hurry" (both spelled out, so they read without the
+             tooltip and survive being the selected card). The live indicator
+             sits alongside rather than instead of them — whether the time is a
+             prediction is orthogonal to whether you can make it. A scheduled,
+             comfortable run is just the bullet. -->
         <div
           class="flex items-center justify-center gap-1 leading-none"
           :class="dimmed(item.card) && 'opacity-50'"
@@ -154,36 +163,41 @@ defineExpose({
             :text-color="item.route ? item.route.textColor : lineTextColor"
           />
           <span
-            v-if="item.card.hurry"
+            v-if="item.card.cancelled"
+            class="text-[10px] font-semibold text-red-700 dark:text-red-300"
+          >cancelled</span>
+          <span
+            v-else-if="item.card.hurry"
             class="text-[10px] font-semibold text-amber-700 dark:text-amber-300"
           >hurry</span>
           <RealtimeIndicator
-            v-else-if="item.card.live"
+            v-if="item.card.live"
             :real-time="true"
             :class="!dimmed(item.card) && 'animate-pulse'"
           />
         </div>
-        <!-- Countdown — 'now' for an arriving train, else N min. Statuses use
-             theme-safe tokens (never the raw line colour as text): struck when
-             already departed, merely muted when it's a stretch to reach, amber
-             when hurry, the parchment accent for 'now'. -->
+        <!-- Countdown — 'now' for an arriving train, else N min. The colour is
+             resolved by the caller (theme-safe tokens only, never the raw line
+             colour as text) so two statuses can't both emit one and race. -->
         <div
           class="text-[13px] font-semibold leading-tight whitespace-nowrap"
-          :class="[
-            item.card.departed && 'line-through text-muted-foreground/50',
-            item.card.unreachable && 'text-muted-foreground/70',
-            item.card.hurry && 'text-amber-700 dark:text-amber-300',
-            item.card.arriving && !item.card.hurry && 'text-parchment-600 dark:text-parchment-400',
-          ]"
+          :class="item.card.leadClass"
         >{{ item.card.lead }}</div>
         <!-- Absolute clock time (always kept — even on a hurry or selected card
              the rider still needs the departure time; the "hurry" warning lives
-             in the cue row above). -->
+             in the cue row above). When a live prediction has moved the run off
+             its timetable, the scheduled time sits struck in front of it, so
+             "2:21 → 2:24" reads without any extra chrome. -->
         <div
           v-if="item.card.sub"
-          class="text-[10px] leading-none text-muted-foreground"
+          class="text-[10px] leading-none text-muted-foreground whitespace-nowrap"
           :class="dimmed(item.card) && 'opacity-60'"
-        >{{ item.card.sub }}</div>
+        >
+          <span
+            v-if="item.card.scheduledSub"
+            class="line-through opacity-60 mr-0.5"
+          >{{ item.card.scheduledSub }}</span>{{ item.card.sub }}
+        </div>
       </button>
     </div>
 

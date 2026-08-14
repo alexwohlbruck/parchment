@@ -110,7 +110,7 @@ export interface RoutingPreferences {
   // ── Transit ──
   maxWalkingDistance?: number // meters
   maxTransfers?: number
-  transitBufferMinutes?: number // 1-5, minutes to arrive early at stop
+  transitBufferMinutes?: number // 0-5, minutes to arrive early at stop
 
   // ── UI state (not sent to routing engine) ──
   useKnownVehicleLocations?: boolean

@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 * The "Inside" and "Located in" rows on a place no longer run their first two cards together — every card in the row is evenly spaced
+* Departures that are running late or early now say so. The agency has been publishing the delay all along and we were quietly throwing it away — a live departure now shows its timetabled time struck through beside the real one, so "2:21 → 2:24" reads at a glance, and the countdown is tinted when a vehicle is off schedule
+* Cancelled departures stay on the board, struck through and labelled, instead of silently disappearing. A train vanishing with no explanation was worse than seeing it was pulled. Parchment won't reroute your later connections onto a cancelled run, but you can still tap one if you know better
+* The realtime indicator no longer disappears from a departure you have to hurry for — whether a time is a live prediction and whether you can make it are two different things, and the board now shows both
+* "Arrive early" now goes down to zero for riders happy to step straight onto the train, and it finally applies to the departure board: the margin you set is what decides which departures get flagged as a tight connection. It used to be a fixed three minutes there regardless of your preference
 * The departure board no longer greys out trains you can plainly catch. It used to hold on to the walking time from when you planned the trip, so a seven-minute walk still read as seven minutes even once you were standing on the platform. The walk now counts down as you approach the stop — from your actual position when location is on, otherwise from the clock — and any departure on the board can be picked, whether it's already gone or looks like a stretch. Those still show as departed or a tight connection, but they're a hint now, not a lock
 
 ## [0.5.11] - 2026-08-03

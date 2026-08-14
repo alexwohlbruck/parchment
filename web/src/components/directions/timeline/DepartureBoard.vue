@@ -42,16 +42,19 @@ export interface BoardCard {
  * Each channel answers exactly one question, and never borrows another's:
  *
  *   ring      → is this the run you're taking?  (selection, nothing else)
- *   badge     → is something wrong with it?     (cancelled ▸ may miss ▸ hurry)
- *   dimming   → is it still an option at all?   (operator facts only)
- *   the number→ when does it go?                (time, and only time)
- *   meta line → what time is that on the clock? (plus the timetable it beat)
- *   live dot  → where did that time come from?  (prediction vs schedule)
+ *   colour    → how does this run stand for you? (one ramp, one resolver)
+ *   footnote  → the word for that, or the clock  (one line, one slot)
+ *   live dot  → where did that time come from?   (prediction vs schedule)
  *
- * The split that matters: an operator *fact* (departed, cancelled) dims the
- * whole card, because the run is genuinely not an option. Our own *estimate*
- * (hurry, may miss) only ever adds a badge — we are routinely wrong about
- * those, so they must never make a run look unavailable.
+ * The countdown is the hero, so the *countdown itself* takes the status
+ * colour. An earlier pass gave status its own filled badge, which made the
+ * metadata louder than the departure time it described and forced every chip
+ * to a different width. Colouring the number instead is both quieter and more
+ * visible, and it keeps the chips on one grid.
+ *
+ * Colour is resolved once, in `status()`, so the number and the word beneath
+ * it can never disagree — and so no two conditions can both emit a text colour
+ * and race on stylesheet order.
  *
  * Strikethrough means one thing only: this time is void or superseded. So a
  * cancelled run's countdown is struck, and a beaten timetable time is struck.
@@ -80,20 +83,18 @@ type Card = BoardCard['card']
 const DELAY_NOTICE_SEC = 60
 
 /**
- * The one badge this run earns, worst news first. A cancelled run has nothing
- * else worth saying; beyond that, "probably can't" outranks "only just".
+ * The single status a run carries, worst news first — a cancelled run has
+ * nothing else worth saying, and "probably can't" outranks "only just".
+ * Returns the colour too, so the countdown and the word below it are always
+ * resolved together and can never disagree.
  */
-function badge(card: Card): { label: string; class: string } | null {
-  if (card.cancelled) {
-    return { label: 'cancelled', class: 'bg-red-600 text-white dark:bg-red-500 dark:text-red-50' }
-  }
-  if (card.unreachable) {
-    return { label: 'may miss', class: 'bg-orange-500 text-white dark:bg-orange-500 dark:text-orange-50' }
-  }
-  if (card.hurry) {
-    return { label: 'hurry', class: 'bg-amber-400 text-amber-950 dark:bg-amber-400 dark:text-amber-950' }
-  }
-  return null
+function status(card: Card): { word: string | null; tone: string } {
+  if (card.cancelled) return { word: 'cancelled', tone: 'text-red-600 dark:text-red-400' }
+  if (card.departed) return { word: null, tone: 'text-muted-foreground/70' }
+  if (card.unreachable) return { word: 'may miss', tone: 'text-orange-600 dark:text-orange-400' }
+  if (card.hurry) return { word: 'hurry', tone: 'text-amber-600 dark:text-amber-400' }
+  if (card.arriving) return { word: null, tone: 'text-parchment-600 dark:text-parchment-400' }
+  return { word: null, tone: '' }
 }
 
 /** Gone or pulled — the operator's word, not our guess. Recedes as context. */
@@ -101,11 +102,15 @@ function isPast(card: Card) {
   return Boolean(card.departed || card.cancelled)
 }
 
-/** The countdown speaks only about time. Struck when the run is void. */
+/**
+ * The countdown is the loudest thing on the chip, so it carries the status
+ * colour itself rather than ceding the job to a badge that would out-shout it.
+ * Struck only when the run is void.
+ */
 function numberClass(card: Card): string {
-  if (card.cancelled) return 'line-through text-muted-foreground'
-  if (card.arriving) return 'text-parchment-600 dark:text-parchment-400'
-  return 'text-foreground'
+  const { tone } = status(card)
+  if (card.cancelled) return 'line-through text-muted-foreground/70'
+  return tone || 'text-foreground'
 }
 
 /** Running late reads warm, running early reads cool; on time stays quiet. */
@@ -178,44 +183,36 @@ defineExpose({
       class="dep-scroll px-3 flex items-stretch gap-1.5 overflow-x-auto"
       @scroll="onScroll"
     >
-      <!-- Every card is the same three rows — identity, time, clock — so the
-           eye can scan straight down one column across the whole board. The
-           border is transparent rather than absent so selecting a run doesn't
-           shift the row by 2px. -->
+      <!-- Every chip is the same fixed width and the same three rows —
+           identity, time, footnote — so the board reads as a rhythm and the
+           eye can scan straight down one column. The border is transparent
+           rather than absent so selecting a run doesn't shift the row by 2px. -->
       <button
         v-for="item in cards"
         :key="item.ms"
         type="button"
-        class="shrink-0 min-w-[80px] flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-xl border-2 border-transparent bg-muted/30 text-center tabular-nums transition-all cursor-pointer hover:bg-muted/60"
+        class="shrink-0 w-[78px] flex flex-col items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border-2 border-transparent bg-muted/40 text-center tabular-nums transition-colors cursor-pointer hover:bg-muted/70"
         :class="[
-          item.card.planned && !lineColor && 'border-parchment-500 bg-parchment-500/10',
-          isPast(item.card) && 'opacity-45 hover:opacity-80',
+          item.card.planned && !lineColor && 'border-parchment-500',
           busy && 'opacity-50 pointer-events-none',
         ]"
-        :style="item.card.planned && lineColor ? {
-          borderColor: `#${lineColor}`,
-          background: `#${lineColor}1f`,
-        } : {}"
+        :style="item.card.planned && lineColor ? { borderColor: `#${lineColor}` } : {}"
         :title="item.card.title"
         :aria-label="item.card.title"
         @click="item.card.clickable && emit('choose', item.ms)"
       >
-        <!-- Identity: which train this is, whether the time is live, and the
-             one badge it earned. The badge is filled so it carries the warning
-             on its own — the countdown below stays about time. -->
-        <div class="flex items-center justify-center gap-1 leading-none">
+        <!-- Identity: which train this is, and whether its time is live. Past
+             runs fade the bullet on its own rather than under a blanket card
+             opacity, which would desaturate the line colour into mud. -->
+        <div class="flex items-center justify-center gap-1 leading-none h-[22px]">
           <RouteBullet
             v-if="item.route?.shortName ?? lineName"
             size="sm"
             :label="item.route?.shortName ?? lineName"
             :color="item.route ? item.route.color : lineColor"
             :text-color="item.route ? item.route.textColor : lineTextColor"
+            :class="isPast(item.card) && 'opacity-45'"
           />
-          <span
-            v-if="badge(item.card)"
-            class="rounded-full px-1.5 py-px text-[10px] font-semibold leading-[1.3] whitespace-nowrap"
-            :class="badge(item.card)!.class"
-          >{{ badge(item.card)!.label }}</span>
           <RealtimeIndicator
             v-if="item.card.live"
             :real-time="true"
@@ -223,24 +220,31 @@ defineExpose({
           />
         </div>
 
-        <!-- When it goes. Nothing but time lives here. -->
+        <!-- When it goes — the hero, and the element that carries the status
+             colour. Nothing is allowed to be louder than this. -->
         <div
-          class="text-[13px] font-semibold leading-tight whitespace-nowrap"
+          data-testid="countdown"
+          class="text-[15px] font-semibold leading-none whitespace-nowrap"
           :class="numberClass(item.card)"
         >{{ item.card.lead }}</div>
 
-        <!-- The clock time, and the timetable it beat. "2:21 2:24" reads as
-             "was due 2:21, now running 2:24" without any extra chrome. -->
-        <div
-          v-if="item.card.sub"
-          class="text-[10px] leading-none whitespace-nowrap"
-        >
+        <!-- One footnote slot, in priority order: what's wrong with this run,
+             else the timetable it beat, else just the clock. Keeping it to a
+             single line is what lets every chip share one width. -->
+        <div data-testid="footnote" class="text-[10px] leading-none whitespace-nowrap">
           <span
-            v-if="item.card.scheduledSub"
-            class="line-through text-muted-foreground/60 mr-0.5"
-          >{{ item.card.scheduledSub }}</span><span
-            :class="clockClass(item.card)"
-          >{{ item.card.sub }}</span>
+            v-if="status(item.card).word"
+            class="font-semibold"
+            :class="status(item.card).tone"
+          >{{ status(item.card).word }}</span>
+          <template v-else-if="item.card.sub">
+            <span
+              v-if="item.card.scheduledSub"
+              class="line-through text-muted-foreground/50 mr-0.5"
+            >{{ item.card.scheduledSub }}</span><span
+              :class="clockClass(item.card)"
+            >{{ item.card.sub }}</span>
+          </template>
         </div>
       </button>
     </div>

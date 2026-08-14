@@ -300,7 +300,7 @@ function departuresFor(segmentIndex: number): DepartureOption[] {
  *  current minute); upcoming runs read "now" / "5 min" / "1h 4m". Both lines are
  *  always present so the cards stay uniform. Recomputes off the nowMs tick. */
 function depCountdown(ms: number): { lead: string; sub: string } {
-  const clock = formatTime(new Date(ms))
+  const clock = formatClockCompact(new Date(ms))
   const deltaMs = ms - nowMs.value
   // Already departed — detect by exact sign (not the rounded minute, which would
   // fold the last ~30s into "now") so a struck card never reads "now".
@@ -518,7 +518,7 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
     Math.abs(delaySec) >= DELAY_NOTICE_SEC &&
     dep.scheduledMs != null
   const scheduledSub = offSchedule
-    ? formatTime(new Date(dep.scheduledMs!))
+    ? formatClockCompact(new Date(dep.scheduledMs!))
     : undefined
   const delayPhrase = offSchedule
     ? delaySec! > 0
@@ -794,6 +794,19 @@ const formatTime = (date: Date): string => {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+/** Clock time without the AM/PM. Every departure chip is one fixed width, and
+ *  the countdown sitting right above already says which side of noon this is —
+ *  so the day period is the first thing to go. Locales that don't use one are
+ *  unaffected. */
+function formatClockCompact(date: Date): string {
+  return new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' })
+    .formatToParts(date)
+    .filter((p) => p.type !== 'dayPeriod')
+    .map((p) => p.value)
+    .join('')
+    .trim()
 }
 
 function onRouteProfileChange(

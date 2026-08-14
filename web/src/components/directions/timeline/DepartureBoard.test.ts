@@ -25,53 +25,111 @@ function chip(wrapper: ReturnType<typeof mountBoard>, i = 0) {
   return wrapper.findAll('button')[i]
 }
 
-describe('badges', () => {
-  it('shows nothing on a comfortable run', () => {
+/** The countdown — the hero line, and the one that carries status colour. */
+function countdown(wrapper: ReturnType<typeof mountBoard>, i = 0) {
+  return chip(wrapper, i).get('[data-testid="countdown"]')
+}
+
+/** The single footnote slot: status word, else timetable pair, else clock. */
+function footnote(wrapper: ReturnType<typeof mountBoard>, i = 0) {
+  return chip(wrapper, i).get('[data-testid="footnote"]')
+}
+
+function bullet(wrapper: ReturnType<typeof mountBoard>, i = 0) {
+  return chip(wrapper, i).get('.route-bullet')
+}
+
+describe('status wording', () => {
+  it('says nothing on a comfortable run — just the clock', () => {
     const w = mountBoard([card()])
-    expect(chip(w).text()).not.toMatch(/hurry|may miss|cancelled/)
+    expect(footnote(w).text()).toBe('2:24')
   })
 
   it('labels a tight run "hurry" and a likely-missed one "may miss"', () => {
     const w = mountBoard([card({ hurry: true }), card({ unreachable: true }, 2_000)])
-    expect(chip(w, 0).text()).toContain('hurry')
-    expect(chip(w, 1).text()).toContain('may miss')
+    expect(footnote(w, 0).text()).toBe('hurry')
+    expect(footnote(w, 1).text()).toBe('may miss')
   })
 
   it('shows only the worst news — cancelled outranks the rest', () => {
     const w = mountBoard([card({ cancelled: true, unreachable: true, hurry: true })])
-    const text = chip(w).text()
-    expect(text).toContain('cancelled')
-    expect(text).not.toContain('may miss')
-    expect(text).not.toContain('hurry')
+    expect(footnote(w).text()).toBe('cancelled')
   })
 
   it('ranks "may miss" above "hurry" when both somehow apply', () => {
     const w = mountBoard([card({ unreachable: true, hurry: true })])
-    expect(chip(w).text()).toContain('may miss')
-    expect(chip(w).text()).not.toContain('hurry')
+    expect(footnote(w).text()).toBe('may miss')
+  })
+
+  it('leaves a departed run wordless — "3m ago" already says it', () => {
+    const w = mountBoard([card({ departed: true, lead: '3m ago' })])
+    expect(footnote(w).text()).toBe('2:24')
   })
 })
 
-describe('dimming separates operator facts from our estimates', () => {
-  it('dims a departed or cancelled run — it genuinely is not an option', () => {
-    const w = mountBoard([card({ departed: true }), card({ cancelled: true }, 2_000)])
-    expect(chip(w, 0).classes()).toContain('opacity-45')
-    expect(chip(w, 1).classes()).toContain('opacity-45')
+describe('the countdown carries the status colour, so nothing out-shouts it', () => {
+  it('tints the countdown itself rather than adding a louder badge', () => {
+    const w = mountBoard([card({ hurry: true }), card({ unreachable: true }, 2_000)])
+    expect(countdown(w, 0).classes().join(' ')).toContain('amber')
+    expect(countdown(w, 1).classes().join(' ')).toContain('orange')
   })
 
-  it('never dims a run we merely estimated you would miss', () => {
+  it('resolves one colour at a time, never two competing', () => {
+    // Two text-colour classes on one element would race on stylesheet order.
+    const w = mountBoard([card({ unreachable: true, hurry: true, arriving: true })])
+    const colours = countdown(w)
+      .classes()
+      .filter(c => c.startsWith('text-') && !c.startsWith('text-['))
+    expect(colours).toHaveLength(1)
+  })
+})
+
+describe('receding separates operator facts from our estimates', () => {
+  it('mutes a departed or cancelled run — it genuinely is not an option', () => {
+    const w = mountBoard([card({ departed: true }), card({ cancelled: true }, 2_000)])
+    expect(countdown(w, 0).classes().join(' ')).toContain('muted-foreground')
+    expect(countdown(w, 1).classes().join(' ')).toContain('muted-foreground')
+    // The bullet fades on its own; a blanket card opacity would desaturate
+    // the line colour into mud.
+    expect(bullet(w, 0).classes()).toContain('opacity-45')
+    expect(bullet(w, 1).classes()).toContain('opacity-45')
+  })
+
+  it('never mutes a run we merely estimated you would miss', () => {
     // The whole point of the reachability work: our guess must not make a
     // run look unavailable, because the rider is often closer than we think.
     const w = mountBoard([card({ unreachable: true }), card({ hurry: true }, 2_000)])
-    expect(chip(w, 0).classes()).not.toContain('opacity-45')
-    expect(chip(w, 1).classes()).not.toContain('opacity-45')
+    for (const i of [0, 1]) {
+      expect(countdown(w, i).classes().join(' ')).not.toContain('muted-foreground')
+      expect(bullet(w, i).classes()).not.toContain('opacity-45')
+    }
+  })
+})
+
+describe('the board keeps one rhythm', () => {
+  it('gives every chip the same width, whatever its status', () => {
+    const w = mountBoard([
+      card(),
+      card({ hurry: true }, 2_000),
+      card({ unreachable: true }, 3_000),
+      card({ cancelled: true }, 4_000),
+      card({ departed: true, lead: '3m ago' }, 5_000),
+    ])
+    for (let i = 0; i < 5; i++) {
+      expect(chip(w, i).classes()).toContain('w-[78px]')
+    }
+  })
+
+  it('keeps the footnote to a single line — status replaces the clock', () => {
+    const w = mountBoard([card({ hurry: true, sub: '2:24', scheduledSub: '2:21' })])
+    expect(footnote(w).text()).toBe('hurry')
   })
 })
 
 describe('strikethrough means void or superseded, nothing else', () => {
   it('strikes a cancelled run\'s countdown', () => {
     const w = mountBoard([card({ cancelled: true })])
-    expect(chip(w).html()).toMatch(/line-through[^>]*>\s*5 min/)
+    expect(countdown(w).classes()).toContain('line-through')
   })
 
   it('does not strike a departed run — it happened, it is not void', () => {
@@ -81,9 +139,9 @@ describe('strikethrough means void or superseded, nothing else', () => {
 
   it('strikes only the timetable time it beat when running late', () => {
     const w = mountBoard([card({ scheduledSub: '2:21', sub: '2:24', delaySec: 180 })])
-    const html = chip(w).html()
-    expect(html).toMatch(/line-through[^>]*>2:21/)
-    expect(html).toContain('2:24')
+    expect(countdown(w).classes()).not.toContain('line-through')
+    expect(footnote(w).html()).toMatch(/line-through[^>]*>2:21/)
+    expect(footnote(w).text()).toContain('2:24')
   })
 })
 
@@ -100,11 +158,17 @@ describe('selection owns the border, and only the border', () => {
     }
   })
 
-  it('still rings, and still dims, a planned run that has departed', () => {
+  it('still rings, and still mutes, a planned run that has departed', () => {
     // The two channels are independent — neither suppresses the other.
-    const w = mountBoard([card({ planned: true, departed: true })])
+    const w = mountBoard([card({ planned: true, departed: true, lead: '1m ago' })])
     expect(chip(w).classes()).toContain('border-parchment-500')
-    expect(chip(w).classes()).toContain('opacity-45')
+    expect(countdown(w).classes().join(' ')).toContain('muted-foreground')
+  })
+
+  it('rings without tinting the fill, so a selected run never reads as an error', () => {
+    const w = mountBoard([card({ planned: true })])
+    expect(chip(w).classes()).toContain('bg-muted/40')
+    expect(chip(w).attributes('style') ?? '').not.toContain('background')
   })
 })
 

@@ -3,7 +3,10 @@ import { ref } from 'vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 
-/** One card on the board: the run, plus how it should read to the rider. */
+/** One card on the board: the run, plus how it should read to the rider.
+ *  `departed` and `unreachable` are cosmetic hints only — every run stays
+ *  selectable, because the rider knows their own situation better than the
+ *  walk estimate does. */
 export interface BoardCard {
   ms: number
   route?: { shortName?: string; color?: string; textColor?: string }
@@ -12,7 +15,8 @@ export interface BoardCard {
     sub?: string
     title?: string
     planned?: boolean
-    missed?: boolean
+    departed?: boolean
+    unreachable?: boolean
     hurry?: boolean
     live?: boolean
     arriving?: boolean
@@ -56,10 +60,15 @@ function updateEdges(el: HTMLElement) {
 
 /**
  * Put the first catchable run at the left edge, leaving a sliver of the past
- * as a scroll-back hint — the leading struck cards are noise on open.
+ * as a scroll-back hint — the leading struck cards are noise on open. They
+ * stay reachable by scrolling back; this only picks the resting position.
  */
 function scrollToFirstAvailable(el: HTMLElement, cards: BoardCard[]) {
-  const first = cards.findIndex(c => !c.card.missed)
+  // Prefer the first comfortably catchable run; when nothing is reachable
+  // (rider still far out) fall back to the first upcoming one, so the board
+  // never rests on a wall of departed cards.
+  let first = cards.findIndex(c => !c.card.departed && !c.card.unreachable)
+  if (first < 0) first = cards.findIndex(c => !c.card.departed)
   if (first <= 0) return
   const button = el.children[first] as HTMLElement | undefined
   if (!button) return
@@ -83,6 +92,11 @@ function onScrollerMount(el: unknown, cards: BoardCard[]) {
   })
 }
 
+/** Gone or a stretch to reach — same muted treatment either way. */
+function dimmed(card: BoardCard['card']) {
+  return Boolean(card.departed || card.unreachable)
+}
+
 function onScroll(e: Event) {
   if (e.target instanceof HTMLElement) updateEdges(e.target)
 }
@@ -104,15 +118,17 @@ defineExpose({
         v-for="item in cards"
         :key="item.ms"
         type="button"
-        class="shrink-0 min-w-[80px] flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-xl border-2 text-center tabular-nums transition-colors"
+        class="shrink-0 min-w-[80px] flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-xl border-2 text-center tabular-nums transition-colors cursor-pointer"
         :class="[
           item.card.planned
             ? (lineColor ? '' : 'border-parchment-500 bg-parchment-500/10')
-            : item.card.missed
-              ? 'border-transparent bg-muted/20 cursor-default'
-              : item.card.hurry
-                ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/40 cursor-pointer'
-                : 'border-border bg-muted/30 hover:bg-muted/60 hover:border-foreground/30 cursor-pointer',
+            : item.card.departed
+              ? 'border-transparent bg-muted/20 hover:bg-muted/40'
+              : item.card.unreachable
+                ? 'border-dashed border-border/70 bg-muted/20 hover:bg-muted/50 hover:border-foreground/30'
+                : item.card.hurry
+                  ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/40'
+                  : 'border-border bg-muted/30 hover:bg-muted/60 hover:border-foreground/30',
           busy && 'opacity-50 pointer-events-none',
         ]"
         :style="item.card.planned && lineColor ? {
@@ -120,7 +136,6 @@ defineExpose({
           background: `#${lineColor}1f`,
         } : {}"
         :title="item.card.title"
-        :disabled="item.card.missed"
         @click="item.card.clickable && emit('choose', item.ms)"
       >
         <!-- Route bullet + status cue. A tight connection shows a spelled-out
@@ -129,7 +144,7 @@ defineExpose({
              scheduled is just the bullet. -->
         <div
           class="flex items-center justify-center gap-1 leading-none"
-          :class="item.card.missed && 'opacity-50'"
+          :class="dimmed(item.card) && 'opacity-50'"
         >
           <RouteBullet
             v-if="item.route?.shortName ?? lineName"
@@ -145,16 +160,18 @@ defineExpose({
           <RealtimeIndicator
             v-else-if="item.card.live"
             :real-time="true"
-            :class="!item.card.missed && 'animate-pulse'"
+            :class="!dimmed(item.card) && 'animate-pulse'"
           />
         </div>
         <!-- Countdown — 'now' for an arriving train, else N min. Statuses use
-             theme-safe tokens (never the raw line colour as text): muted+struck
-             when missed, amber when hurry, the parchment accent for 'now'. -->
+             theme-safe tokens (never the raw line colour as text): struck when
+             already departed, merely muted when it's a stretch to reach, amber
+             when hurry, the parchment accent for 'now'. -->
         <div
           class="text-[13px] font-semibold leading-tight whitespace-nowrap"
           :class="[
-            item.card.missed && 'line-through text-muted-foreground/50',
+            item.card.departed && 'line-through text-muted-foreground/50',
+            item.card.unreachable && 'text-muted-foreground/70',
             item.card.hurry && 'text-amber-700 dark:text-amber-300',
             item.card.arriving && !item.card.hurry && 'text-parchment-600 dark:text-parchment-400',
           ]"
@@ -165,7 +182,7 @@ defineExpose({
         <div
           v-if="item.card.sub"
           class="text-[10px] leading-none text-muted-foreground"
-          :class="item.card.missed && 'opacity-60'"
+          :class="dimmed(item.card) && 'opacity-60'"
         >{{ item.card.sub }}</div>
       </button>
     </div>

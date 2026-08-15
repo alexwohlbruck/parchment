@@ -80,7 +80,12 @@ export function getGTFSRouteTypesFromTags(tags: Record<string, string> = {}): nu
   const types = new Set<number>()
   const add = (codes: readonly number[]) => codes.forEach((c) => types.add(c))
 
-  if (tags.aerialway) add(GTFS_ROUTE_TYPES.aerial)
+  // Aerial lifts are also published as plain trams — RIOC types the Roosevelt
+  // Island Tramway as 0 — so an aerialway station has to match both.
+  if (tags.aerialway) {
+    add(GTFS_ROUTE_TYPES.aerial)
+    add(GTFS_ROUTE_TYPES.tram)
+  }
   if (tags.amenity === 'ferry_terminal' || tags.ferry) add(GTFS_ROUTE_TYPES.ferry)
   if (tags.amenity === 'bus_station' || tags.highway === 'bus_stop' || tags.bus === 'yes') {
     add(GTFS_ROUTE_TYPES.bus)

@@ -7,7 +7,8 @@ import { integrationManager } from './integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { OverpassIntegration } from './integrations/overpass-integration'
 import { BarrelmanIntegration } from './integrations/barrelman-integration'
-import { isTransitStop } from '../lib/transit-utils'
+import { isTransitStop, getGTFSRouteTypesFromTags } from '../lib/transit-utils'
+import { getPlaceOsmTags } from '../lib/place-tags'
 import { matchTags } from '../lib/osm-presets'
 import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
@@ -24,14 +25,7 @@ function isPlaceTransitStopFromTags(place: Place): boolean {
   const placeType = typeof place.placeType === 'string'
     ? place.placeType
     : place.placeType?.value || ''
-  // amenities is Record<string, AttributedValue> — extract raw string values
-  const tags: Record<string, string> = {}
-  if (place.amenities && typeof place.amenities === 'object') {
-    for (const [key, attr] of Object.entries(place.amenities)) {
-      if (attr?.value != null) tags[key] = String(attr.value)
-    }
-  }
-  return isTransitStop(placeType, tags)
+  return isTransitStop(placeType, getPlaceOsmTags(place))
 }
 
 // ─── Integration helpers ─────────────────────────────────────────────────────
@@ -131,6 +125,10 @@ export function resolveWidgetDescriptors(
   if (hasTransitInfo || isTransitByTags) {
     const center = place.geometry?.value?.center
     if (center) {
+      // The mode the place's own tags claim, so the stop search prefers a stop
+      // of that mode over whatever happens to be closest.
+      const routeTypes = getGTFSRouteTypesFromTags(getPlaceOsmTags(place))
+
       descriptors.push({
         type: WidgetType.TRANSIT,
         dataType: WidgetDataType.ASYNC,
@@ -141,6 +139,7 @@ export function resolveWidgetDescriptors(
           lng: String(center.lng),
           ...(transitInfo?.feedId ? { feedId: transitInfo.feedId } : {}),
           ...(transitInfo?.stopId ? { stopId: transitInfo.stopId } : {}),
+          ...(routeTypes.length ? { routeTypes: routeTypes.join(',') } : {}),
           // Keep onestopIds for backwards compatibility with cached data
           ...(transitInfo?.onestopId ? { onestopIds: (transitInfo.onestopIds || [transitInfo.onestopId]).join(',') } : {}),
         },
@@ -338,7 +337,7 @@ export function resolveWidgetDescriptors(
  * enriches with route colors from the GTFS database.
  */
 async function fetchTransitDepartures(
-  params: { lat: number; lng: number; feedId?: string; stopId?: string },
+  params: { lat: number; lng: number; feedId?: string; stopId?: string; routeTypes?: string },
   options?: { limit?: number },
 ): Promise<{
   departures: TransitDeparture[]
@@ -366,6 +365,7 @@ async function fetchTransitDepartures(
     })
     if (params.feedId) queryParams.set('feedId', params.feedId)
     if (params.stopId) queryParams.set('stopId', params.stopId)
+    if (params.routeTypes) queryParams.set('routeTypes', params.routeTypes)
 
     const headers: Record<string, string> = {}
     if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
@@ -602,6 +602,7 @@ export async function fetchWidgetData(
           lng,
           feedId: params.feedId || undefined,
           stopId: params.stopId || undefined,
+          routeTypes: params.routeTypes || undefined,
         },
         { limit },
       )

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+* Aerial tramway, cable car and gondola stations are recognised as transit stations. The Roosevelt Island Tramway rendered as an ordinary building, with no departures and no lines served
+* Stations are now matched to the right stop rather than the closest one. A ferry terminal would pick up the bus stop across the street and show its departures under the ferry's name; the same happened at rail stations sitting metres from a bus shelter. The station's own mode is now preferred, and reached for further out — a ferry landing's stop sits at the end of the pier
+
 ## [0.5.11] - 2026-08-03
 
 ### Added

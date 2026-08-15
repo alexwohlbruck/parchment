@@ -6,7 +6,8 @@
  *
  *   - a transit stop is recognised either from stored transit info OR from its
  *     OSM tags, since Barrelman-sourced stops often have neither a feed nor a
- *     stop id yet;
+ *     stop id yet — and the tags may live in `tags` or in `amenities`
+ *     depending on which source produced the place;
  *   - a bikeshare dock is matched exactly via the `ref:gbfs` tag
  *     (`systemId:stationId`) and falls back to a proximity match, but a
  *     DOCKLESS rental area is excluded — it has no capacity to report, so the
@@ -73,9 +74,7 @@ describe('transit descriptor', () => {
   })
 
   test('is emitted for a stop recognised only from its OSM tags', () => {
-    // Barrelman-sourced stops frequently carry no feed or stop id. Note the
-    // tag-based check reads `place.amenities` (attributed values), NOT the raw
-    // `place.tags` map the other descriptors use.
+    // Barrelman-sourced stops frequently carry no feed or stop id.
     const types = descriptorTypes(
       place({
         amenities: { public_transport: { value: 'platform' } },
@@ -86,11 +85,52 @@ describe('transit descriptor', () => {
     expect(types).toContain(WidgetType.TRANSIT)
   })
 
-  test('raw tags alone do not trigger transit detection', () => {
-    // Documents the amenities/tags split above — a stop whose transit tags
-    // only landed in `tags` is not detected.
+  test('is emitted for a stop whose tags only landed in `tags`', () => {
+    // Barrelman puts raw OSM tags in `tags` and leaves `amenities` empty, so a
+    // stop is invisible to detection that only reads amenities.
     const types = descriptorTypes(
       place({ tags: { public_transport: 'platform' } }),
+    )
+
+    expect(types).toContain(WidgetType.TRANSIT)
+  })
+
+  test('is emitted for an aerialway station (PAR-288)', () => {
+    // The Roosevelt Island Tramway: an aerial lift terminal in the MTA-area
+    // GTFS feeds, tagged with no rail tag at all.
+    const types = descriptorTypes(
+      place({
+        tags: { aerialway: 'station', building: 'roof' },
+        placeType: { value: 'Aerialway Station' },
+      }),
+    )
+
+    expect(types).toContain(WidgetType.TRANSIT)
+  })
+
+  test('passes the mode implied by the tags so the right stop is matched', () => {
+    // Without this the nearest stop wins outright, and a ferry terminal is
+    // identified by the bus stop across the street.
+    const transit = findDescriptor(
+      place({ tags: { amenity: 'ferry_terminal' } }),
+      WidgetType.TRANSIT,
+    )
+
+    expect(transit!.params.routeTypes).toBe('4,1000,1200')
+  })
+
+  test('omits the mode hint when the tags name no mode', () => {
+    const transit = findDescriptor(
+      place({ tags: { public_transport: 'platform' } }),
+      WidgetType.TRANSIT,
+    )
+
+    expect(transit!.params.routeTypes).toBeUndefined()
+  })
+
+  test('is not emitted for the aerial lift line itself', () => {
+    const types = descriptorTypes(
+      place({ tags: { aerialway: 'cable_car' }, placeType: { value: 'Cable Car' } }),
     )
 
     expect(types).not.toContain(WidgetType.TRANSIT)

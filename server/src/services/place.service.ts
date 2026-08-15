@@ -15,6 +15,7 @@ import { WikipediaIntegration } from './integrations/wikipedia-integration'
 import { WikimediaIntegration } from './integrations/wikimedia-integration'
 import { dedupeWikiPhotos } from './integrations/wiki-utils'
 import { isTransitStop, extractAllOnestopIdsFromWikidata } from '../lib/transit-utils'
+import { getPlaceOsmTags } from '../lib/place-tags'
 import { reverseGeocode } from './geocoding.service'
 import { logError, logWarn, logger } from '../lib/logger'
 
@@ -23,31 +24,6 @@ function isAbortError(error: unknown): boolean {
   const code = (error as { code?: string })?.code
   const name = (error as { name?: string })?.name
   return code === 'ERR_CANCELED' || name === 'CanceledError' || name === 'AbortError'
-}
-
-/**
- * Extract OSM tags from place amenities
- */
-function extractOsmTags(place: Place): Record<string, string> {
-  const tags: Record<string, string> = {}
-  
-  if (!place.amenities) return tags
-  
-  // Convert amenities back to tag format
-  for (const [key, value] of Object.entries(place.amenities)) {
-    if (key.startsWith('type:')) continue // Skip type prefixed keys
-    
-    const tagValue = typeof value === 'object' && value?.value !== undefined ? value.value : value
-    if (typeof tagValue === 'string') {
-      tags[key] = tagValue
-    } else if (typeof tagValue === 'boolean') {
-      tags[key] = tagValue ? 'yes' : 'no'
-    } else if (typeof tagValue === 'number') {
-      tags[key] = tagValue.toString()
-    }
-  }
-  
-  return tags
 }
 
 /**
@@ -219,7 +195,7 @@ function shouldLookupParentRelations(place: Place): boolean {
  */
 function isPlaceTransitStop(place: Place): boolean {
   const placeType = place.placeType.value
-  const osmTags = extractOsmTags(place)
+  const osmTags = getPlaceOsmTags(place)
   return isTransitStop(placeType, osmTags)
 }
 

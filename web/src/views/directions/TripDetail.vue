@@ -81,6 +81,13 @@ interface DepartureOption {
   label: string
   /** True when the time comes from a GTFS-RT prediction, not the schedule. */
   realTime: boolean
+  /** Signed seconds against the timetable (+late, -early); realtime runs only. */
+  delaySec?: number
+  /** Timetabled departure, shown struck beside the live time when they differ. */
+  scheduledMs?: number
+  /** The operator has pulled this run. Kept on the board as an explanation
+   *  rather than silently vanishing. */
+  cancelled?: boolean
   /** Which route this departure is — shown on merged "4 or 5" boards so the
    *  rider knows whether each run is the 4 or the 5. */
   route?: { shortName?: string; color?: string; textColor?: string }
@@ -163,9 +170,9 @@ async function loadDepartures() {
         const routeNames: (string | undefined)[] = seg.routeOptions?.length
           ? seg.routeOptions.map((o: { shortName?: string }) => o.shortName)
           : [seg.lineName]
-        const sameLine = all.filter(
-          (d) => routeNames.includes(d.route?.shortName) && !d.cancelled,
-        )
+        // Cancelled runs stay in the pool — a train vanishing off the board
+        // with no explanation is worse than one struck through as cancelled.
+        const sameLine = all.filter((d) => routeNames.includes(d.route?.shortName))
         // Same direction: by GTFS direction_id when present (reliable across
         // the 4 and 5, which carry different headsigns), else by headsign.
         let pool: typeof sameLine
@@ -183,15 +190,31 @@ async function loadDepartures() {
         // Dedup by minute; a run is "live" when any source row carries a
         // GTFS-RT prediction for it. Keep the route so a merged board can show
         // which train each run is.
-        const byMs = new Map<number, { realTime: boolean; route?: DepartureOption['route'] }>()
+        const byMs = new Map<
+          number,
+          {
+            realTime: boolean
+            delaySec?: number
+            scheduledMs?: number
+            cancelled: boolean
+            route?: DepartureOption['route']
+          }
+        >()
         for (const d of pool) {
           const depMs = new Date(d.departureTime).getTime()
           // Keep already-departed runs (down to the past window) — they show as
           // departed and give the rider useful "just missed it" context.
           if (depMs < fetchFromMs) continue
           const prev = byMs.get(depMs)
+          const schedMs = d.scheduledDepartureTime
+            ? new Date(d.scheduledDepartureTime).getTime()
+            : undefined
           byMs.set(depMs, {
             realTime: (prev?.realTime ?? false) || d.realTime === true,
+            delaySec: prev?.delaySec ?? (typeof d.delay === 'number' ? d.delay : undefined),
+            scheduledMs: prev?.scheduledMs ?? schedMs,
+            // A run only counts as cancelled when no source still runs it.
+            cancelled: (prev?.cancelled ?? true) && d.cancelled === true,
             route:
               prev?.route ??
               (d.route
@@ -204,6 +227,9 @@ async function loadDepartures() {
           .map(([ms, info]) => ({
             ms,
             realTime: info.realTime,
+            delaySec: info.delaySec,
+            scheduledMs: info.scheduledMs,
+            cancelled: info.cancelled,
             route: info.route,
             label: formatTime(new Date(ms)),
           }))
@@ -250,6 +276,7 @@ function selectFirstAvailableDeparture() {
   )
   if (idx < 0) return
   const firstCatchable = (segmentDepartures.value[idx] ?? []).find((d) => {
+    if (d.cancelled) return false
     const state = depState(idx, d)
     return state === 'ok' || state === 'hurry'
   })
@@ -273,7 +300,7 @@ function departuresFor(segmentIndex: number): DepartureOption[] {
  *  current minute); upcoming runs read "now" / "5 min" / "1h 4m". Both lines are
  *  always present so the cards stay uniform. Recomputes off the nowMs tick. */
 function depCountdown(ms: number): { lead: string; sub: string } {
-  const clock = formatTime(new Date(ms))
+  const clock = formatClockCompact(new Date(ms))
   const deltaMs = ms - nowMs.value
   // Already departed — detect by exact sign (not the rounded minute, which would
   // fold the last ~30s into "now") so a struck card never reads "now".
@@ -313,7 +340,9 @@ async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number)
   // bumped (later) time, so rolling back to an earlier connection needs runs
   // ahead of the cached window — fall through to the API in that case.
   if (sched.length > 0 && sched[0].ms <= minMs) {
-    const cached = sched.find((d) => d.ms >= minMs)
+    // Never auto-roll a downstream connection onto a cancelled run — the rider
+    // may knowingly pick one on the board, but we won't choose it for them.
+    const cached = sched.find((d) => d.ms >= minMs && !d.cancelled)
     if (cached) return cached.ms
   }
   try {
@@ -416,18 +445,36 @@ function remainingWalkSec(segmentIndex: number): number {
   )
 }
 
+/** The rider's "arrive early" margin, in seconds. Read from the transit slice
+ *  directly rather than the merged `routingPreferences` — a multimodal trip
+ *  resolves those against the biking slice, which carries no transit keys. */
+const graceSec = computed(
+  () => (directionsStore.modePreferences.transit?.transitBufferMinutes ?? 2) * 60,
+)
+
 function depState(segmentIndex: number, dep: DepartureOption): DepartureReachability {
-  return departureReachability(dep.ms, nowMs.value, remainingWalkSec(segmentIndex))
+  return departureReachability(
+    dep.ms,
+    nowMs.value,
+    remainingWalkSec(segmentIndex),
+    graceSec.value,
+  )
 }
 
-/** A board card's full visual state, derived once per render so the template
- *  stays declarative. The statuses are mutually legible at a glance:
- *   • planned     — the run the trip currently boards (line-coloured emphasis)
- *   • departed    — already gone (struck out, muted)
- *   • unreachable — upcoming, but probably not on foot in time (muted)
- *   • hurry       — catchable only if you leave now (amber)
+/** Minutes late (positive) or early (negative) worth telling the rider about.
+ *  Under a minute is timetable noise, not news. */
+const DELAY_NOTICE_SEC = 60
+
+/** What is true about a run. Purely factual — how any of it *looks* is the
+ *  board's business, not this view's:
+ *   • planned     — the run the trip currently boards
+ *   • departed    — already gone
+ *   • unreachable — upcoming, but probably not on foot in time
+ *   • hurry       — you'd make it with less than your margin spare
  *   • arriving    — imminent, i.e. "now"
+ *   • cancelled   — pulled by the operator
  *   • live        — the time is a GTFS-RT prediction rather than the schedule
+ *   • delaySec    — how far that prediction sits off the timetable
  *  Every card stays selectable regardless — the rider may well know something
  *  the estimate doesn't. */
 interface DepCard {
@@ -436,10 +483,14 @@ interface DepCard {
   unreachable: boolean
   hurry: boolean
   arriving: boolean
+  cancelled: boolean
   live: boolean
   clickable: boolean
   lead: string
   sub: string
+  /** Timetabled time, when a live prediction has superseded it. */
+  scheduledSub?: string
+  delaySec?: number
   route?: DepartureOption['route']
   title: string
 }
@@ -453,30 +504,62 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
   // rush for (or have likely missed) it — so `planned` doesn't suppress them.
   const unreachable = state === 'unreachable'
   const hurry = state === 'hurry'
+  const cancelled = dep.cancelled === true
   const { lead, sub } = depCountdown(dep.ms)
+  const arriving = !departed && !cancelled && lead === 'now'
   const name = dep.route?.shortName ?? segment.lineName
   const switchTo = `Switch to the ${name} at ${dep.label}`
+
+  // Only worth showing the timetable alongside the prediction when they
+  // actually disagree — otherwise every live card grows a redundant second time.
+  const delaySec = dep.delaySec
+  const offSchedule =
+    delaySec != null &&
+    Math.abs(delaySec) >= DELAY_NOTICE_SEC &&
+    dep.scheduledMs != null
+  const scheduledSub = offSchedule
+    ? formatClockCompact(new Date(dep.scheduledMs!))
+    : undefined
+  const delayPhrase = offSchedule
+    ? delaySec! > 0
+      ? `${Math.round(delaySec! / 60)} min late`
+      : `${Math.round(-delaySec! / 60)} min early`
+    : null
+
   return {
     planned,
     departed,
     unreachable,
     hurry,
-    arriving: !departed && lead === 'now',
+    arriving,
+    cancelled,
     live: dep.realTime,
     clickable: !planned,
     lead,
     sub,
+    scheduledSub,
+    delaySec,
     route: dep.route,
-    title: planned
-      ? 'Planned departure'
-      : departed
-        ? `Departed at ${dep.label}`
-        : unreachable
-          ? `Tight — you may not reach the stop by ${dep.label}. ${switchTo}`
-          : hurry
-            ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
-            : switchTo,
+    // The tooltip spells out what each badge means the first time someone
+    // hovers one, and always says the run is still selectable — the badges
+    // are a read on your chances, not a refusal.
+    title: cancelled
+      ? `Cancelled — the ${name} at ${dep.label} isn't running`
+      : planned
+        ? joinStatus('Planned departure', delayPhrase)
+        : departed
+          ? `Departed at ${dep.label}`
+          : unreachable
+            ? `You may miss this one — the ${name} leaves at ${dep.label}, sooner than you can reach the stop. Pick it anyway if you're closer than we think`
+            : hurry
+              ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
+              : joinStatus(switchTo, delayPhrase),
   }
+}
+
+/** "Planned departure" + "3 min late" → "Planned departure — 3 min late". */
+function joinStatus(base: string, extra: string | null): string {
+  return extra ? `${base} — ${extra}` : base
 }
 
 /** Per-segment board cards, each enriched with its visual state. Recomputes off
@@ -711,6 +794,19 @@ const formatTime = (date: Date): string => {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+/** Clock time without the AM/PM. Every departure chip is one fixed width, and
+ *  the countdown sitting right above already says which side of noon this is —
+ *  so the day period is the first thing to go. Locales that don't use one are
+ *  unaffected. */
+function formatClockCompact(date: Date): string {
+  return new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' })
+    .formatToParts(date)
+    .filter((p) => p.type !== 'dayPeriod')
+    .map((p) => p.value)
+    .join('')
+    .trim()
 }
 
 function onRouteProfileChange(

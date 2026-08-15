@@ -568,19 +568,23 @@ const customModelError = computed(() => {
         <div class="space-y-2">
           <div class="flex items-center justify-between">
             <Label class="text-sm font-normal">Arrive early</Label>
-            <span class="text-xs text-muted-foreground"
-              >{{ preferences.transitBufferMinutes ?? 2 }} min</span
-            >
+            <span class="text-xs text-muted-foreground">{{
+              (preferences.transitBufferMinutes ?? 2) === 0
+                ? 'Cut it fine'
+                : `${preferences.transitBufferMinutes ?? 2} min`
+            }}</span>
           </div>
           <Slider
             :model-value="[preferences.transitBufferMinutes ?? 2]"
-            :min="1"
+            :min="0"
             :max="5"
             :step="1"
             @update:model-value="val => val && updatePreference('transitBufferMinutes', val[0])"
           />
           <p class="text-[11px] text-muted-foreground">
-            How early to arrive at the stop before departure
+            Margin to leave between reaching the stop and the vehicle leaving.
+            Trips are planned around it, and departures you'd only just make are
+            flagged on the board.
           </p>
         </div>
 

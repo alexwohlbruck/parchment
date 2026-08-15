@@ -25,8 +25,6 @@ const MAX_WALK_SPEED_MPS = 2.2
 const DETOUR_FACTOR = 1.3
 /** A fix this coarse can't tell "at the platform" from "a block away". */
 const MAX_USABLE_ACCURACY_M = 150
-/** Slack below which a catchable run still means running for it. */
-const HURRY_SLACK_MS = 180_000
 
 export interface AccessWalk {
   /** Moving seconds of the planned approach walk (excludes platform wait). */
@@ -79,8 +77,12 @@ export function remainingAccessWalkSec(walk: AccessWalk, nowMs: number): number 
  * How a run reads on the board:
  *   • departed     — already gone
  *   • unreachable  — still upcoming, but not on foot from where the rider is
- *   • hurry        — catchable only by leaving right now
+ *   • hurry        — you'd make it, but with less than your grace period spare
  *   • ok           — comfortable
+ *
+ * `graceSec` is the rider's own margin (the "arrive early" preference): how
+ * much slack they want between reaching the platform and the doors closing.
+ * At 0 they're happy to step straight on, and nothing ever reads as a hurry.
  *
  * All four are cosmetic. Rebooking is never gated on them: the rider knows
  * things we don't (they're on the platform, they'll run, they're being driven).
@@ -91,12 +93,15 @@ export function departureReachability(
   departureMs: number,
   nowMs: number,
   remainingWalkSec: number,
+  graceSec = 0,
 ): DepartureReachability {
   const leadMs = departureMs - nowMs
   if (leadMs < 0) return 'departed'
   const walkMs = Math.max(0, remainingWalkSec) * 1000
   if (leadMs < walkMs) return 'unreachable'
-  if (walkMs > 0 && leadMs < walkMs + HURRY_SLACK_MS) return 'hurry'
+  // Comfortable means the walk *plus* the rider's margin fits in the lead.
+  const comfortableMs = walkMs + Math.max(0, graceSec) * 1000
+  if (comfortableMs > 0 && leadMs < comfortableMs) return 'hurry'
   return 'ok'
 }
 

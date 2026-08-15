@@ -31,6 +31,21 @@ export default defineConfig({
     port: parseInt(process.env.VITE_PORT || '5173'),
     // host: host || false,
     // strictPort: true,
+    // Branch previews (scripts/preview.sh) are reached through `tailscale
+    // serve`, which terminates TLS on a tailnet hostname and proxies here.
+    // Vite rejects Host headers it wasn't told about, so the preview passes
+    // the hostname it publishes under.
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS?.split(',').filter(Boolean),
+    // Behind that proxy the HMR client would otherwise dial this origin port
+    // directly — which isn't reachable from a phone. Point it at the public
+    // origin the page was actually loaded from.
+    hmr: process.env.VITE_PUBLIC_HOST
+      ? {
+          protocol: process.env.VITE_PUBLIC_PROTOCOL === 'https' ? 'wss' : 'ws',
+          host: process.env.VITE_PUBLIC_HOST,
+          clientPort: parseInt(process.env.VITE_PUBLIC_PORT || '443'),
+        }
+      : undefined,
     watch: {
       ignored: ['**/src-tauri/target/**'],
     },

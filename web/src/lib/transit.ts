@@ -110,6 +110,46 @@ export function getRouteTypeIcon(routeType?: number): Component {
   }
 }
 
+/** GTFS route_type → the i18n key naming that mode. */
+export function getRouteTypeKey(routeType?: number): string {
+  // Extended (1000+) types share a leading digit range with their basic
+  // equivalent; only the handful of families we actually name are mapped.
+  if (routeType === 0 || routeType === 900) return 'tram'
+  if (routeType === 1 || (routeType! >= 400 && routeType! <= 405)) return 'subway'
+  if (routeType === 2 || (routeType! >= 100 && routeType! <= 117)) return 'rail'
+  if (routeType === 4 || routeType === 1000 || routeType === 1200) return 'ferry'
+  if (routeType === 3 || (routeType! >= 700 && routeType! <= 800)) return 'bus'
+  if (routeType === 5 || routeType === 6 || routeType === 7) return 'tram'
+  return 'vehicle'
+}
+
+/** Longest a route name can be before it stops working as a bullet. */
+const MAX_BULLET_LABEL = 6
+
+/**
+ * What to print on a route bullet.
+ *
+ * `route_short_name` is what a bullet is for — "6", "N", "M15". Plenty of feeds
+ * publish none (the Roosevelt Island Tramway is one), and falling through to the
+ * route id put a raw "10092" on the station header where a rider expects a line.
+ * A long name goes on the bullet only if it is genuinely bullet-sized; otherwise
+ * the mode carries it, which is what the other map apps show there too.
+ */
+export function getRouteBulletLabel(
+  route: { shortName?: string | null; longName?: string | null; type?: number },
+  t: (key: string, choice?: number) => string,
+): string {
+  const short = route.shortName?.trim()
+  if (short) return short
+
+  const long = route.longName?.trim()
+  if (long && long.length <= MAX_BULLET_LABEL) return long
+
+  // `vehicleType` entries are pluralised ("tram | trams") — take the singular.
+  const mode = t(`place.transit.vehicleType.${getRouteTypeKey(route.type)}`, 1)
+  return mode.charAt(0).toUpperCase() + mode.slice(1)
+}
+
 /** Hex color for the route badge background; falls back to the app primary. */
 export function getRouteColor(route: TransitDeparture['route']): string {
   if (route.color) return `#${route.color.replace('#', '')}`

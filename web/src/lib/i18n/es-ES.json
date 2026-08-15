@@ -965,7 +965,12 @@
       "live": "EN VIVO",
       "realTimeData": "Datos en tiempo real",
       "noUpcomingDepartures": "No hay próximas salidas disponibles",
-      "checkBackLater": "Vuelve más tarde o visita el sitio web del proveedor de tránsito"
+      "checkBackLater": "Vuelve más tarde o visita el sitio web del proveedor de tránsito",
+      "tonight": "Esta noche",
+      "tomorrow": "Mañana",
+      "noMoreToday": "No hay más servicio hoy",
+      "showLaterDepartures": "Ver salidas posteriores",
+      "loadingMore": "Cargando…"
     },
     "header": {
       "showMore": "Ver más",

@@ -1003,6 +1003,11 @@
       "realTimeData": "Real-time data",
       "noUpcomingDepartures": "No upcoming departures available",
       "checkBackLater": "Check back later or visit the transit provider's website",
+      "tonight": "Tonight",
+      "tomorrow": "Tomorrow",
+      "noMoreToday": "No more service today",
+      "showLaterDepartures": "Show later departures",
+      "loadingMore": "Loading…",
       "vehicleType": {
         "tram": "tram | trams",
         "subway": "train | trains",

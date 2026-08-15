@@ -7,7 +7,9 @@ import { integrationManager } from './integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { OverpassIntegration } from './integrations/overpass-integration'
 import { BarrelmanIntegration } from './integrations/barrelman-integration'
-import { isTransitStop } from '../lib/transit-utils'
+import { isTransitStop, getGTFSRouteTypesFromTags } from '../lib/transit-utils'
+import { getPlaceOsmTags } from '../lib/place-tags'
+import { resolveBoardWindow, shapeBoard } from '../lib/departure-board'
 import { matchTags } from '../lib/osm-presets'
 import { buildPlaceIcon } from '../lib/place-categories'
 import * as turf from '@turf/turf'
@@ -24,14 +26,7 @@ function isPlaceTransitStopFromTags(place: Place): boolean {
   const placeType = typeof place.placeType === 'string'
     ? place.placeType
     : place.placeType?.value || ''
-  // amenities is Record<string, AttributedValue> — extract raw string values
-  const tags: Record<string, string> = {}
-  if (place.amenities && typeof place.amenities === 'object') {
-    for (const [key, attr] of Object.entries(place.amenities)) {
-      if (attr?.value != null) tags[key] = String(attr.value)
-    }
-  }
-  return isTransitStop(placeType, tags)
+  return isTransitStop(placeType, getPlaceOsmTags(place))
 }
 
 // ─── Integration helpers ─────────────────────────────────────────────────────
@@ -131,6 +126,10 @@ export function resolveWidgetDescriptors(
   if (hasTransitInfo || isTransitByTags) {
     const center = place.geometry?.value?.center
     if (center) {
+      // The mode the place's own tags claim, so the stop search prefers a stop
+      // of that mode over whatever happens to be closest.
+      const routeTypes = getGTFSRouteTypesFromTags(getPlaceOsmTags(place))
+
       descriptors.push({
         type: WidgetType.TRANSIT,
         dataType: WidgetDataType.ASYNC,
@@ -141,6 +140,7 @@ export function resolveWidgetDescriptors(
           lng: String(center.lng),
           ...(transitInfo?.feedId ? { feedId: transitInfo.feedId } : {}),
           ...(transitInfo?.stopId ? { stopId: transitInfo.stopId } : {}),
+          ...(routeTypes.length ? { routeTypes: routeTypes.join(',') } : {}),
           // Keep onestopIds for backwards compatibility with cached data
           ...(transitInfo?.onestopId ? { onestopIds: (transitInfo.onestopIds || [transitInfo.onestopId]).join(',') } : {}),
         },
@@ -330,6 +330,71 @@ export function resolveWidgetDescriptors(
   return descriptors
 }
 
+/** How many runs to reach for when the window came back empty. */
+const NEXT_SERVICE_DEPARTURES = 5
+
+interface BarrelmanDeparture {
+  tripId: string
+  serviceDate?: string
+  route: { id: string; feedId: string; shortName?: string; longName?: string; type: number; color?: string; textColor?: string; agencyId?: string; agencyName?: string }
+  headsign?: string
+  directionId?: string
+  departureTime: string
+  arrivalTime: string
+  scheduledDepartureTime: string
+  scheduledArrivalTime: string
+  delay?: number
+  realTime: boolean
+  cancelled: boolean
+  mode: string
+  tripOrigin?: string
+  tripDestination?: string
+}
+
+interface BarrelmanStopDepartures {
+  stop: { stopId: string; feedId: string; name: string; code?: string; lat: number; lng: number; timezone: string; distance?: number }
+  departures: BarrelmanDeparture[]
+  hasMore?: boolean
+}
+
+/** Barrelman's departure shape → the client's. The stop's timezone rides along
+ *  on each run, since the board labels days in the stop's local time. */
+function adaptDeparture(dep: BarrelmanDeparture, timezone: string): TransitDeparture {
+  return {
+    departureTime: dep.departureTime,
+    arrivalTime: dep.arrivalTime,
+    departureAt: dep.departureTime,
+    arrivalAt: dep.arrivalTime,
+    scheduledDepartureTime: dep.scheduledDepartureTime,
+    scheduledArrivalTime: dep.scheduledArrivalTime,
+    serviceDate: dep.serviceDate,
+    timezone,
+    delay: dep.delay,
+    realTime: dep.realTime,
+    headsign: dep.headsign,
+    direction: dep.headsign,
+    trip: {
+      id: dep.tripId,
+      headsign: dep.headsign,
+      directionId: dep.directionId ? Number(dep.directionId) : undefined,
+      routeId: dep.route.id,
+    },
+    route: {
+      id: dep.route.id,
+      shortName: dep.route.shortName,
+      longName: dep.route.longName,
+      color: dep.route.color,
+      textColor: dep.route.textColor,
+      type: dep.route.type,
+      agencyId: dep.route.agencyId,
+    },
+    agency: dep.route.agencyName ? {
+      id: dep.route.agencyId || '',
+      name: dep.route.agencyName,
+    } : undefined,
+  }
+}
+
 /**
  * Fetch transit departure data from Barrelman (MOTIS stoptimes).
  *
@@ -338,15 +403,17 @@ export function resolveWidgetDescriptors(
  * enriches with route colors from the GTFS database.
  */
 async function fetchTransitDepartures(
-  params: { lat: number; lng: number; feedId?: string; stopId?: string },
-  options?: { limit?: number },
+  params: { lat: number; lng: number; feedId?: string; stopId?: string; routeTypes?: string },
+  options?: { limit?: number; windowMinutes?: number },
 ): Promise<{
   departures: TransitDeparture[]
   stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string }
   routes?: TransitStopInfo['routes']
+  hasMore: boolean
   sources: SourceReference[]
 }> {
-  const { limit = 50 } = options || {}
+  const board = resolveBoardWindow(options?.windowMinutes)
+  const limit = options?.limit ?? board.events
 
   const barrelmanRecord = integrationManager
     .getConfiguredIntegrations()
@@ -355,98 +422,57 @@ async function fetchTransitDepartures(
   const config = barrelmanRecord?.config as { host?: string; apiKey?: string } | undefined
   if (!config?.host) {
     logger.debug('[Widget/Transit] Barrelman not configured')
-    return { departures: [], sources: [] }
+    return { departures: [], hasMore: false, sources: [] }
   }
 
-  try {
+  const headers: Record<string, string> = {}
+  if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+
+  /** One call to Barrelman. `windowMinutes` omitted means "no time bound". */
+  async function requestStops(events: number, windowMinutes?: number) {
     const queryParams = new URLSearchParams({
       lat: String(params.lat),
       lng: String(params.lng),
-      n: String(limit),
+      n: String(events),
     })
     if (params.feedId) queryParams.set('feedId', params.feedId)
     if (params.stopId) queryParams.set('stopId', params.stopId)
+    if (params.routeTypes) queryParams.set('routeTypes', params.routeTypes)
+    if (windowMinutes) queryParams.set('windowMinutes', String(windowMinutes))
 
-    const headers: Record<string, string> = {}
-    if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
-
-    logger.debug(`[Widget/Transit] Fetching departures from Barrelman at (${params.lat}, ${params.lng})`)
-    const response = await fetch(`${config.host}/transit/departures?${queryParams}`, { headers })
-
+    const response = await fetch(`${config!.host}/transit/departures?${queryParams}`, { headers })
     if (!response.ok) {
       logError(`[Widget/Transit] Barrelman returned ${response.status}`)
-      return { departures: [], sources: [] }
+      return null
+    }
+    return await response.json() as BarrelmanStopDepartures[]
+  }
+
+  try {
+    logger.debug(`[Widget/Transit] Fetching departures from Barrelman at (${params.lat}, ${params.lng})`)
+    let stopResults = await requestStops(limit, board.windowMinutes)
+    if (!stopResults) return { departures: [], hasMore: false, sources: [] }
+
+    // Nothing at all in the window — the stop is shut for the night, or the
+    // service is seasonal. Reach past the window rather than render an empty
+    // board: "next departure tomorrow 6:00 AM" is the answer the rider wants.
+    // Only when EVERY stop is empty, so one dormant neighbour can't drop a run
+    // weeks out into a board that is otherwise busy.
+    if (stopResults.every((s) => !s.departures.length)) {
+      const beyond = await requestStops(NEXT_SERVICE_DEPARTURES)
+      if (beyond?.some((s) => s.departures.length)) stopResults = beyond
     }
 
-    const stopResults = await response.json() as Array<{
-      stop: { stopId: string; feedId: string; name: string; code?: string; lat: number; lng: number; timezone: string; distance?: number }
-      departures: Array<{
-        tripId: string
-        route: { id: string; feedId: string; shortName?: string; longName?: string; type: number; color?: string; textColor?: string; agencyId?: string; agencyName?: string }
-        headsign?: string
-        directionId?: string
-        departureTime: string
-        arrivalTime: string
-        scheduledDepartureTime: string
-        scheduledArrivalTime: string
-        delay?: number
-        realTime: boolean
-        cancelled: boolean
-        mode: string
-        tripOrigin?: string
-        tripDestination?: string
-      }>
-    }>
-
-    // Flatten all stops' departures into a single list
-    const allDepartures: TransitDeparture[] = []
-    let primaryStop: typeof stopResults[0]['stop'] | undefined
-
-    for (const stopResult of stopResults) {
-      if (!primaryStop) primaryStop = stopResult.stop
-
-      for (const dep of stopResult.departures) {
-        allDepartures.push({
-          departureTime: dep.departureTime,
-          arrivalTime: dep.arrivalTime,
-          departureAt: dep.departureTime,
-          arrivalAt: dep.arrivalTime,
-          scheduledDepartureTime: dep.scheduledDepartureTime,
-          scheduledArrivalTime: dep.scheduledArrivalTime,
-          timezone: stopResult.stop.timezone,
-          delay: dep.delay,
-          realTime: dep.realTime,
-          headsign: dep.headsign,
-          direction: dep.headsign,
-          trip: {
-            id: dep.tripId,
-            headsign: dep.headsign,
-            directionId: dep.directionId ? Number(dep.directionId) : undefined,
-            routeId: dep.route.id,
-          },
-          route: {
-            id: dep.route.id,
-            shortName: dep.route.shortName,
-            longName: dep.route.longName,
-            color: dep.route.color,
-            textColor: dep.route.textColor,
-            type: dep.route.type,
-            agencyId: dep.route.agencyId,
-          },
-          agency: dep.route.agencyName ? {
-            id: dep.route.agencyId || '',
-            name: dep.route.agencyName,
-          } : undefined,
-        })
-      }
-    }
-
-    // Sort by departure time
-    allDepartures.sort((a, b) => {
-      const timeA = a.departureAt || a.departureTime || ''
-      const timeB = b.departureAt || b.departureTime || ''
-      return timeA.localeCompare(timeB)
-    })
+    // Merge every nearby stop into one board — soonest first, capped per
+    // route + direction so a frequent line can't crowd out an hourly one.
+    const primaryStop = stopResults[0]?.stop
+    const { departures: allDepartures, hasMore } = shapeBoard(
+      stopResults.map((stopResult) => ({
+        hasMore: stopResult.hasMore,
+        departures: stopResult.departures.map((dep) => adaptDeparture(dep, stopResult.stop.timezone)),
+      })),
+      board,
+    )
 
     logger.debug(`[Widget/Transit] Got ${allDepartures.length} departures from ${stopResults.length} stop(s)`)
 
@@ -493,11 +519,12 @@ async function fetchTransitDepartures(
         timezone: primaryStop.timezone,
       } : undefined,
       routes,
+      hasMore,
       sources,
     }
   } catch (error) {
     logError('[Widget/Transit] Barrelman departure fetch failed', error)
-    return { departures: [], sources: [] }
+    return { departures: [], hasMore: false, sources: [] }
   }
 }
 
@@ -591,24 +618,30 @@ export async function fetchWidgetData(
       const lat = params.lat ? parseFloat(params.lat) : NaN
       const lng = params.lng ? parseFloat(params.lng) : NaN
       const limit = params.limit ? parseInt(params.limit, 10) : undefined
+      // How far ahead the board reaches, in minutes. The client sends the wider
+      // window when the rider asks for more than the opening view.
+      const windowMinutes = params.window ? parseInt(params.window, 10) : undefined
 
       if (isNaN(lat) || isNaN(lng)) {
         throw new Error('Missing lat/lng parameters for transit widget')
       }
 
-      const { departures, stopInfo, routes, sources } = await fetchTransitDepartures(
+      const { departures, stopInfo, routes, hasMore, sources } = await fetchTransitDepartures(
         {
           lat,
           lng,
           feedId: params.feedId || undefined,
           stopId: params.stopId || undefined,
+          routeTypes: params.routeTypes || undefined,
         },
-        { limit },
+        { limit, windowMinutes },
       )
 
       const transitInfo: TransitStopInfo = {
         departures,
         routes,
+        hasMore,
+        windowMinutes: resolveBoardWindow(windowMinutes).windowMinutes,
         name: stopInfo?.name,
         code: stopInfo?.code,
         feedId: stopInfo?.feedId,

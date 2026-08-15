@@ -1,24 +1,36 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { TransitDeparture, TransitStopInfo } from '@/types/place.types'
+import type { TransitDeparture, TransitStopInfo, WidgetResponse } from '@/types/place.types'
+import { WidgetType } from '@/types/place.types'
 import { ClockIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import { api } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
-import { groupDepartures } from '@/lib/transit-departures'
+import { groupDepartures, type BoardDeparture } from '@/lib/transit-departures'
 import {
   formatDepartureTime,
   getMinutesUntil,
+  getRouteBulletLabel,
 } from '@/lib/transit'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 
+/** Past this, a countdown stops being easier to read than a clock time. */
+const COUNTDOWN_MAX_MINUTES = 120
+
+/** Matches the server's expanded board window (24h). */
+const EXPANDED_WINDOW_MINUTES = 1440
+
 const props = defineProps<{
   transitInfo: TransitStopInfo
+  /** Params the transit widget was fetched with — reused to reach further
+   *  ahead when the rider asks for later departures. */
+  widgetParams?: Record<string, string>
   /** When rendered inside a place tab: drop the page chrome (header/padding). */
   embedded?: boolean
 }>()
@@ -28,21 +40,67 @@ const { openExternalLink } = useExternalLink()
 const router = useRouter()
 const currentTime = useTransitClock()
 
+/** Runs loaded on demand replace the widget's opening set. */
+const laterDepartures = ref<TransitDeparture[] | null>(null)
+const isLoadingMore = ref(false)
+
+watch(
+  () => props.transitInfo,
+  () => { laterDepartures.value = null },
+)
+
 const departures = computed((): TransitDeparture[] => {
-  return props.transitInfo?.departures || []
+  return laterDepartures.value || props.transitInfo?.departures || []
 })
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
     unknownDirectionLabel: t('place.transit.unknownDirection'),
+    dayLabels: {
+      tonight: t('place.transit.tonight'),
+      tomorrow: t('place.transit.tomorrow'),
+    },
   }),
 )
 
-function formatMin(dep: TransitDeparture): string {
+/** True when nothing on the board runs today — the stop is shut for the night
+ *  and every run shown belongs to a later day. */
+const isClosedForToday = computed(
+  () =>
+    routeGroups.value.length > 0 &&
+    routeGroups.value.every((group) =>
+      group.directions.every((dir) => dir.departures[0]?.dayLabel),
+    ),
+)
+
+const canLoadMore = computed(
+  () => Boolean(props.transitInfo?.hasMore) && !laterDepartures.value,
+)
+
+/** Refetch the same stops over a wider window. */
+async function loadLaterDepartures() {
+  if (isLoadingMore.value || !props.widgetParams) return
+  isLoadingMore.value = true
+  try {
+    const response = await api.get<WidgetResponse<TransitStopInfo>>(
+      `/places/widgets/${WidgetType.TRANSIT}`,
+      { params: { ...props.widgetParams, window: String(EXPANDED_WINDOW_MINUTES) } },
+    )
+    laterDepartures.value = response.data.data.value?.departures || []
+  } catch {
+    // Leave the opening board in place — it's still valid, just shorter.
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
+function formatMin(dep: BoardDeparture): string {
   const m = getMinutesUntil(dep, currentTime.value)
   if (m === null) return formatDepartureTime(dep)
+  if (dep.dayLabel) return `${dep.dayLabel} ${formatDepartureTime(dep)}`
   if (m <= 0) return 'Now'
   if (m < 60) return `${m} min`
+  if (m >= COUNTDOWN_MAX_MINUTES) return formatDepartureTime(dep)
   const h = Math.floor(m / 60)
   const r = m % 60
   return r > 0 ? `${h}h ${r}m` : `${h}h`
@@ -73,6 +131,14 @@ function openTransitlandLink() {
       Stop ID: {{ transitInfo.code }}
     </div>
 
+    <!-- Service has finished for the day; everything below is a later day -->
+    <div
+      v-if="isClosedForToday"
+      class="mb-4 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground"
+    >
+      {{ t('place.transit.noMoreToday') }}
+    </div>
+
     <div v-if="routeGroups.length > 0" class="space-y-5">
       <section v-for="group in routeGroups" :key="group.routeKey">
         <!-- Route badge + name -->
@@ -81,7 +147,7 @@ function openTransitlandLink() {
           @click="openRouteDetail(group.representative)"
         >
           <RouteBullet
-            :label="group.routeKey"
+            :label="getRouteBulletLabel(group.route, t)"
             :color="group.route.color"
             :text-color="group.route.textColor"
             class="group-hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
@@ -118,7 +184,12 @@ function openTransitlandLink() {
               class="col-span-2 flex items-center gap-1 flex-wrap"
             >
               <template v-for="(dep, i) in dir.departures.slice(2, 8)" :key="i">
-                <span v-if="i > 0" class="text-muted-foreground text-[10px]">,</span>
+                <!-- Day boundary: the times that follow are on a later day -->
+                <span
+                  v-if="dep.dayLabel"
+                  class="text-[10px] text-muted-foreground rounded bg-muted px-1.5 py-0.5"
+                >{{ dep.dayLabel }}</span>
+                <span v-else-if="i > 0" class="text-muted-foreground text-[10px]">,</span>
                 <span class="text-xs tabular-nums text-muted-foreground">{{ formatDepartureTime(dep) }}</span>
                 <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
               </template>
@@ -129,6 +200,17 @@ function openTransitlandLink() {
           </div>
         </div>
       </section>
+
+      <!-- The opening board covers a few hours; the rest of the day is a tap away -->
+      <button
+        v-if="canLoadMore && widgetParams"
+        type="button"
+        class="w-full rounded-md border py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-60"
+        :disabled="isLoadingMore"
+        @click="loadLaterDepartures"
+      >
+        {{ isLoadingMore ? t('place.transit.loadingMore') : t('place.transit.showLaterDepartures') }}
+      </button>
     </div>
 
     <!-- No departures -->

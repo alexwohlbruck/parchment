@@ -19,17 +19,23 @@ import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
   groupDepartures,
+  type BoardDeparture,
   type DirectionGroup,
   type RouteGroup,
 } from '@/lib/transit-departures'
-import { getMinutesUntil } from '@/lib/transit'
+import { formatDepartureTime, getMinutesUntil, getRouteBulletLabel } from '@/lib/transit'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 
+/** Past this, a countdown stops being easier to read than a clock time. */
+const COUNTDOWN_MAX_MINUTES = 120
+
 const props = defineProps<{
   place?: Partial<Place>
   transitInfo?: TransitStopInfo
+  /** Passed to the full board so it can reach further ahead on demand. */
+  widgetParams?: Record<string, string>
 }>()
 
 const { t } = useI18n()
@@ -63,17 +69,30 @@ const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
     unknownDirectionLabel: t('place.transit.unknownDirection'),
     limit: 3,
+    dayLabels: {
+      tonight: t('place.transit.tonight'),
+      tomorrow: t('place.transit.tomorrow'),
+    },
   }),
 )
 
-function formatCountdownShort(dep: TransitDeparture): string {
+/**
+ * A countdown is only useful while it's short. Past an hour or so a rider
+ * wants the clock time, and past today they want to know which day — "6:00 AM"
+ * alone reads as this morning when the tramway has been shut since 2am.
+ */
+function formatCountdownShort(dep: BoardDeparture): string {
   const mins = getMinutesUntil(dep, currentTime.value)
   if (mins === null) return ''
+  if (dep.dayLabel) return `${dep.dayLabel} ${formatDepartureTime(dep)}`
   if (mins <= 0) return 'Now'
   if (mins < 60) return `${mins} min`
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
+  if (mins < COUNTDOWN_MAX_MINUTES) {
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    return m > 0 ? `${h}h ${m}m` : `${h}h`
+  }
+  return formatDepartureTime(dep)
 }
 
 function directionCountdowns(dir: DirectionGroup): string {
@@ -97,7 +116,7 @@ watch(
         id: TAB_ID,
         label: t('place.transit.departures'),
         component: markRaw(PlaceTransitPage),
-        props: { transitInfo: transitInfo.value },
+        props: { transitInfo: transitInfo.value, widgetParams: props.widgetParams },
         order: 10,
       })
     } else {
@@ -153,7 +172,7 @@ function openRouteDetail(group: RouteGroup) {
             @click="openRouteDetail(group)"
           >
             <RouteBullet
-              :label="group.routeKey"
+              :label="getRouteBulletLabel(group.route, t)"
               :color="group.route.color"
               :text-color="group.route.textColor"
               class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"

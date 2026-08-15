@@ -21,7 +21,7 @@ import { Card } from '@/components/ui/card'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { AppRoute } from '@/router'
 import type { ThemeColor } from '@/lib/utils'
-import type { RecentPlaceEntry } from '@/lib/recents'
+import { recentPlaceIdentity, recentSearchIdentity } from '@/lib/recents'
 import { capitalize } from '@/filters/text.filters'
 import Palette from '@/components/palette/Palette.vue'
 import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
@@ -31,7 +31,11 @@ import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { PlaceCard } from '@/components/place/card'
 import { SectionHeader } from '@/components/ui/section-header'
-import { recentPlaceToDisplay } from '@/lib/place-display'
+import {
+  recentPlaceToDisplay,
+  recentSearchToDisplay,
+  type PlaceDisplay,
+} from '@/lib/place-display'
 
 dayjs.extend(relativeTime)
 
@@ -41,7 +45,7 @@ const isDark = useDark()
 const collectionsStore = useCollectionsStore()
 const layersStore = useLayersStore()
 const recentsStore = useRecentsStore()
-const { places: recentPlaces } = storeToRefs(recentsStore)
+const { places: recentPlaces, searches: recentSearches } = storeToRefs(recentsStore)
 const { isMobileScreen, isDesktopScreen } = useResponsive()
 
 const minimizeSheet = inject<() => void>('minimizeMobileSheet', () => {})
@@ -69,6 +73,7 @@ const handlePaletteFocus = () => {
 onMounted(() => {
   appEventBus.on('palette:focus', handlePaletteFocus)
   recentsStore.ensurePlacesHydrated()
+  recentsStore.ensureSearchesHydrated()
 })
 
 onUnmounted(() => {
@@ -90,11 +95,42 @@ onUnmounted(() => {
 const RECENTS_PAGE_SIZE = 10
 const RECENTS_LOAD_MARGIN = 200
 const visibleRecentsCount = ref(RECENTS_PAGE_SIZE)
+
+/** A row in the recents list — either kind, already adapted for rendering. */
+interface RecentItem {
+  key: string
+  display: PlaceDisplay
+  subtitle: string
+}
+
+/**
+ * Searches and viewed places in one list, newest first — the same merge the
+ * palette's Recents section does. The two surfaces read the same history, so
+ * showing places here and both kinds there made a category or query you just
+ * ran look like it was never recorded.
+ */
+const recentItems = computed<RecentItem[]>(() =>
+  [
+    ...recentPlaces.value.map(place => ({
+      key: recentPlaceIdentity(place),
+      at: place.at,
+      display: recentPlaceToDisplay(place, { isDark: isDark.value }),
+      subtitle: recentSubtitle(place.subtitle, place.at),
+    })),
+    ...recentSearches.value.map(search => ({
+      key: recentSearchIdentity(search),
+      at: search.at,
+      display: recentSearchToDisplay(search, { isDark: isDark.value }),
+      subtitle: recentSubtitle(null, search.at),
+    })),
+  ].sort((a, b) => b.at - a.at),
+)
+
 const visibleRecents = computed(() =>
-  recentPlaces.value.slice(0, visibleRecentsCount.value),
+  recentItems.value.slice(0, visibleRecentsCount.value),
 )
 const hasMoreRecents = computed(
-  () => visibleRecentsCount.value < recentPlaces.value.length,
+  () => visibleRecentsCount.value < recentItems.value.length,
 )
 
 const rootEl = ref<HTMLElement | null>(null)
@@ -129,8 +165,9 @@ onMounted(() => {
 
 onUnmounted(() => scrollEl?.removeEventListener('scroll', onSheetScroll))
 
-// Recents decrypt asynchronously, so the list usually lands after mount.
-watch(recentPlaces, fillUnscrollableSheet)
+// Recents decrypt asynchronously, so the list usually lands after mount — and
+// each kind lands on its own, so this watches the merged result.
+watch(recentItems, fillUnscrollableSheet)
 
 const libraryTabs = computed(() => [
   {
@@ -175,11 +212,9 @@ function navigateToRoute(routeName: AppRoute) {
   router.push({ name: routeName })
 }
 
-/** A recent's own subtitle, with how long ago it was viewed appended. */
-function recentSubtitle(place: RecentPlaceEntry): string {
-  return [place.subtitle, place.at && dayjs(place.at).fromNow()]
-    .filter(Boolean)
-    .join(' · ')
+/** A recent's own subtitle, with how long ago it happened appended. */
+function recentSubtitle(subtitle: string | null | undefined, at: number): string {
+  return [subtitle, at && dayjs(at).fromNow()].filter(Boolean).join(' · ')
 }
 </script>
 
@@ -267,18 +302,18 @@ function recentSubtitle(place: RecentPlaceEntry): string {
         </div>
       </div>
 
-      <!-- Recently viewed places -->
-      <div v-if="recentPlaces.length > 0">
+      <!-- Recent searches and viewed places, interleaved newest-first -->
+      <div v-if="recentItems.length > 0">
         <SectionHeader size="lg" :title="t('general.recents')" class="mb-1.5 px-1" />
         <div class="space-y-2">
           <PlaceCard
-            v-for="place in visibleRecents"
-            :key="place.id"
-            :display="recentPlaceToDisplay(place, { isDark })"
+            v-for="item in visibleRecents"
+            :key="item.key"
+            :display="item.display"
             variant="row"
             size="sm"
             icon-variant="ghost"
-            :subtitle="recentSubtitle(place)"
+            :subtitle="item.subtitle"
             @click="minimizeSheet()"
           />
         </div>

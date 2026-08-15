@@ -33,7 +33,12 @@ import { getCategoryColor } from '@/lib/place-colors'
 import type { PlaceCategory } from '@/types/place.types'
 import { useCategoryStore } from '@/stores/category.store'
 import { useRecentsStore } from '@/stores/recents.store'
-import type { RecentSearchEntry, RecentPlaceEntry } from '@/lib/recents'
+import {
+  recentPlaceIdentity,
+  recentSearchIdentity,
+  type RecentSearchEntry,
+  type RecentPlaceEntry,
+} from '@/lib/recents'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { getBookmarkPlaceId } from '@/lib/place.utils'
 import { frequentChipMeta } from '@/lib/frequents'
@@ -212,7 +217,7 @@ export const useCommandStore = defineStore('command', () => {
                 if (e.kind === 'category' && e.categoryId) {
                   return {
                     at: e.at,
-                    identity: `category:${e.categoryId}`,
+                    identity: recentSearchIdentity(e),
                     option: {
                       value: `category:${e.categoryId}`,
                       name: e.query,
@@ -229,7 +234,7 @@ export const useCommandStore = defineStore('command', () => {
                 if (e.kind === 'brand' && e.brandKey) {
                   return {
                     at: e.at,
-                    identity: `brand:${e.brandKey}`,
+                    identity: recentSearchIdentity(e),
                     option: {
                       value: `brand:${encodeURIComponent(
                         JSON.stringify({ key: e.brandKey, name: e.brandName || e.query }),
@@ -245,7 +250,7 @@ export const useCommandStore = defineStore('command', () => {
                 }
                 return {
                   at: e.at,
-                  identity: `text:${e.query.trim().toLowerCase()}`,
+                  identity: recentSearchIdentity(e),
                   option: {
                     value: `recent-search:${e.query}`,
                     name: e.query,
@@ -258,7 +263,7 @@ export const useCommandStore = defineStore('command', () => {
 
               const recentPlaceToEntry = (e: RecentPlaceEntry): RecentEntry => ({
                 at: e.at,
-                identity: `place:${e.id}`,
+                identity: recentPlaceIdentity(e),
                 option: {
                   value: e.id,
                   name: e.title,

@@ -10,20 +10,21 @@ import { api } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
 import { groupDepartures, type BoardDeparture } from '@/lib/transit-departures'
+import {
+  formatDepartureTime,
+  getMinutesUntil,
+  getRouteBulletLabel,
+} from '@/lib/transit'
+import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 
 /** Past this, a countdown stops being easier to read than a clock time. */
 const COUNTDOWN_MAX_MINUTES = 120
 
 /** Matches the server's expanded board window (24h). */
 const EXPANDED_WINDOW_MINUTES = 1440
-import {
-  formatDepartureTime,
-  getMinutesUntil,
-} from '@/lib/transit'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
-import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
-import { useRouter } from 'vue-router'
-import { AppRoute } from '@/router'
 
 const props = defineProps<{
   transitInfo: TransitStopInfo
@@ -146,7 +147,7 @@ function openTransitlandLink() {
           @click="openRouteDetail(group.representative)"
         >
           <RouteBullet
-            :label="group.routeKey"
+            :label="getRouteBulletLabel(group.route, t)"
             :color="group.route.color"
             :text-color="group.route.textColor"
             class="group-hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"

@@ -23,6 +23,7 @@ import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
 import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import { getRouteBulletLabel } from '@/lib/transit'
 import { formatClockTime } from '@/lib/time.utils'
 
 const props = defineProps<{
@@ -332,7 +333,7 @@ watch(
       <RouteBullet
         v-for="line in stationLines"
         :key="line.id"
-        :label="line.shortName || line.id"
+        :label="getRouteBulletLabel(line, t)"
         :color="line.color"
         :text-color="line.textColor"
         :title="line.longName || line.shortName"

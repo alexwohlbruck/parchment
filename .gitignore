@@ -19,3 +19,6 @@ server/emails/output/
 
 # Playwright saved sign-in state (contains a live session cookie)
 web/e2e/.auth/
+
+# Per-branch preview worktrees (scripts/preview.sh)
+.claude/worktrees/

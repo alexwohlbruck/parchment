@@ -148,13 +148,20 @@ export const useCommandStore = defineStore('command', () => {
 
             // Look up for optional enrichment (name, icon color), but navigate
             // regardless — categoryId alone is enough for Search.vue to work.
+            // The curated list is the second source because the registry is
+            // capped at 1000 presets and most everyday categories fall past it;
+            // without this a shortcut lands on a title derived from its preset
+            // id ("Wlan" for internet_access/wlan).
             const category = categoryStore.getCategoryById(categoryId)
+            const common = COMMON_CATEGORIES.find(c => c.id === categoryId)
+            const name = category?.name ?? (common ? t(common.labelKey) : undefined)
+            const iconCategory = category?.iconCategory ?? common?.category
             await router.push({
               name: AppRoute.SEARCH_RESULTS,
               query: {
                 categoryId,
-                ...(category?.name ? { categoryName: category.name } : {}),
-                ...(category?.iconCategory ? { categoryIconCategory: category.iconCategory } : {}),
+                ...(name ? { categoryName: name } : {}),
+                ...(iconCategory ? { categoryIconCategory: iconCategory } : {}),
               },
             })
           } else if (itemId.startsWith('brand:')) {
@@ -284,10 +291,14 @@ export const useCommandStore = defineStore('command', () => {
 
               // ── Empty query → frequents, common categories, recents. ──
               if (!q) {
-                await Promise.all([
-                  recentsStore.ensureSearchesHydrated(),
-                  recentsStore.ensurePlacesHydrated(),
-                ])
+                // Deliberately NOT awaited: recents live in an encrypted blob
+                // that has to be fetched and decrypted, and blocking on it made
+                // the first palette open sit on a spinner even though the
+                // frequents and category shortcuts are already in memory. The
+                // palette re-runs this once hydration lands, filling the
+                // Recents section in place.
+                void recentsStore.ensureSearchesHydrated()
+                void recentsStore.ensurePlacesHydrated()
 
                 // Frequents: Home / Work / School / custom, rendered as tiles.
                 const bookmarksStore = useBookmarksStore()

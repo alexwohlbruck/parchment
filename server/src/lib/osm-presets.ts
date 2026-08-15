@@ -408,12 +408,26 @@ export function matchTags(
   })
 }
 
+/**
+ * Display-name overrides for presets whose iD-schema name reads like tagging
+ * documentation rather than something a person would look for on a map. Applied
+ * wherever a preset is named for a user — the place-type line under a search
+ * result, and the browsable category registry (see `category.service`), which
+ * also keeps the original wording as a search alias.
+ *
+ * English only: other locales keep the schema's own translation.
+ */
+export const PRESET_NAME_OVERRIDES: Record<string, string> = {
+  'internet_access/wlan': 'WiFi',
+  'amenity/bicycle_repair_station': 'Bike Repair Stand',
+}
+
 export function getPresetName(
   preset: PresetDefinition,
   language: Language = 'en-US',
 ): string {
   if (getLanguageCode(language) === 'en') {
-    return preset.name
+    return PRESET_NAME_OVERRIDES[preset.id] ?? preset.name
   }
 
   const c = createCache()

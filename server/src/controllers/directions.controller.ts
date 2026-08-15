@@ -90,7 +90,7 @@ const RoutingPreferencesSchema = t.Object({
   // Transit
   maxWalkingDistance: t.Optional(t.Number({ minimum: 0 })),
   maxTransfers: t.Optional(t.Number({ minimum: 0 })),
-  transitBufferMinutes: t.Optional(t.Number({ minimum: 1, maximum: 5 })),
+  transitBufferMinutes: t.Optional(t.Number({ minimum: 0, maximum: 5 })),
 
   // UI state
   useKnownVehicleLocations: t.Optional(t.Boolean()),

@@ -3,17 +3,30 @@ import { ref } from 'vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 
-/** One card on the board: the run, plus how it should read to the rider. */
+/**
+ * One card on the board: the run, plus the plain facts about it. The caller
+ * describes *what is true*; this component decides how that looks. Nothing
+ * here is a gate — every run stays selectable, because the rider knows their
+ * own situation better than a walking estimate does.
+ */
 export interface BoardCard {
   ms: number
   route?: { shortName?: string; color?: string; textColor?: string }
   card: {
+    /** Countdown, e.g. "5 min" / "now" / "3m ago". */
     lead: string
+    /** Clock time of the run. */
     sub?: string
+    /** Timetabled time, when a live prediction has superseded it. */
+    scheduledSub?: string
+    /** Signed seconds off the timetable (+late / -early). */
+    delaySec?: number
     title?: string
     planned?: boolean
-    missed?: boolean
+    departed?: boolean
+    unreachable?: boolean
     hurry?: boolean
+    cancelled?: boolean
     live?: boolean
     arriving?: boolean
     clickable?: boolean
@@ -23,7 +36,29 @@ export interface BoardCard {
 /**
  * Glanceable countdown cards for the runs around the planned departure —
  * Transit-app style. Scrolls horizontally through roughly the next hour;
- * tapping a later run re-plans the trip around it.
+ * tapping a run re-plans the trip around it.
+ *
+ * ── The visual language ──────────────────────────────────────────────
+ * Each channel answers exactly one question, and never borrows another's:
+ *
+ *   ring      → is this the run you're taking?  (selection, nothing else)
+ *   colour    → how does this run stand for you? (one ramp, one resolver)
+ *   footnote  → the word for that, or the clock  (one line, one slot)
+ *   live dot  → where did that time come from?   (prediction vs schedule)
+ *
+ * The countdown is the hero, so the *countdown itself* takes the status
+ * colour. An earlier pass gave status its own filled badge, which made the
+ * metadata louder than the departure time it described and forced every chip
+ * to a different width. Colouring the number instead is both quieter and more
+ * visible, and it keeps the chips on one grid.
+ *
+ * Colour is resolved once, in `status()`, so the number and the word beneath
+ * it can never disagree — and so no two conditions can both emit a text colour
+ * and race on stylesheet order.
+ *
+ * Strikethrough means one thing only: this time is void or superseded. So a
+ * cancelled run's countdown is struck, and a beaten timetable time is struck.
+ * A departed run is not — it happened; "3m ago" already says so.
  *
  * The scroll-position bookkeeping lives here rather than in the trip view: it
  * is per-board DOM state (which edge fades to show, and the one-time scroll
@@ -42,6 +77,50 @@ defineProps<{
 
 const emit = defineEmits<{ choose: [ms: number] }>()
 
+type Card = BoardCard['card']
+
+/** Minutes off schedule worth colouring. Under a minute is timetable noise. */
+const DELAY_NOTICE_SEC = 60
+
+/**
+ * The single status a run carries, worst news first — a cancelled run has
+ * nothing else worth saying, and "probably can't" outranks "only just".
+ * Returns the colour too, so the countdown and the word below it are always
+ * resolved together and can never disagree.
+ */
+function status(card: Card): { word: string | null; tone: string } {
+  if (card.cancelled) return { word: 'cancelled', tone: 'text-red-600 dark:text-red-400' }
+  if (card.departed) return { word: null, tone: 'text-muted-foreground/70' }
+  if (card.unreachable) return { word: 'may miss', tone: 'text-orange-600 dark:text-orange-400' }
+  if (card.hurry) return { word: 'hurry', tone: 'text-amber-600 dark:text-amber-400' }
+  if (card.arriving) return { word: null, tone: 'text-parchment-600 dark:text-parchment-400' }
+  return { word: null, tone: '' }
+}
+
+/** Gone or pulled — the operator's word, not our guess. Recedes as context. */
+function isPast(card: Card) {
+  return Boolean(card.departed || card.cancelled)
+}
+
+/**
+ * The countdown is the loudest thing on the chip, so it carries the status
+ * colour itself rather than ceding the job to a badge that would out-shout it.
+ * Struck only when the run is void.
+ */
+function numberClass(card: Card): string {
+  const { tone } = status(card)
+  if (card.cancelled) return 'line-through text-muted-foreground/70'
+  return tone || 'text-foreground'
+}
+
+/** Running late reads warm, running early reads cool; on time stays quiet. */
+function clockClass(card: Card): string {
+  const delay = card.delaySec ?? 0
+  if (delay >= DELAY_NOTICE_SEC) return 'text-red-600 dark:text-red-400'
+  if (delay <= -DELAY_NOTICE_SEC) return 'text-sky-600 dark:text-sky-400'
+  return 'text-muted-foreground'
+}
+
 const scroller = ref<HTMLElement | null>(null)
 const edges = ref({ start: false, end: false })
 /** The scroll-past-departed nudge is one-shot; refreshes must not re-yank. */
@@ -55,11 +134,15 @@ function updateEdges(el: HTMLElement) {
 }
 
 /**
- * Put the first catchable run at the left edge, leaving a sliver of the past
- * as a scroll-back hint — the leading struck cards are noise on open.
+ * Put the first comfortably catchable run at the left edge, leaving a sliver
+ * of the past as a scroll-back hint. They stay reachable by scrolling; this
+ * only picks the resting position. When nothing is reachable (rider still far
+ * out) fall back to the first upcoming run, so the board never rests on a wall
+ * of departed cards.
  */
 function scrollToFirstAvailable(el: HTMLElement, cards: BoardCard[]) {
-  const first = cards.findIndex(c => !c.card.missed)
+  let first = cards.findIndex(c => !c.card.departed && !c.card.unreachable)
+  if (first < 0) first = cards.findIndex(c => !c.card.departed)
   if (first <= 0) return
   const button = el.children[first] as HTMLElement | undefined
   if (!button) return
@@ -100,73 +183,69 @@ defineExpose({
       class="dep-scroll px-3 flex items-stretch gap-1.5 overflow-x-auto"
       @scroll="onScroll"
     >
+      <!-- Every chip is the same fixed width and the same three rows —
+           identity, time, footnote — so the board reads as a rhythm and the
+           eye can scan straight down one column. The border is transparent
+           rather than absent so selecting a run doesn't shift the row by 2px. -->
       <button
         v-for="item in cards"
         :key="item.ms"
         type="button"
-        class="shrink-0 min-w-[80px] flex flex-col items-center justify-center gap-1 px-2.5 py-2 rounded-xl border-2 text-center tabular-nums transition-colors"
+        class="shrink-0 w-[78px] flex flex-col items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl border-2 border-transparent bg-muted/40 text-center tabular-nums transition-colors cursor-pointer hover:bg-muted/70"
         :class="[
-          item.card.planned
-            ? (lineColor ? '' : 'border-parchment-500 bg-parchment-500/10')
-            : item.card.missed
-              ? 'border-transparent bg-muted/20 cursor-default'
-              : item.card.hurry
-                ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/40 cursor-pointer'
-                : 'border-border bg-muted/30 hover:bg-muted/60 hover:border-foreground/30 cursor-pointer',
+          item.card.planned && !lineColor && 'border-parchment-500',
           busy && 'opacity-50 pointer-events-none',
         ]"
-        :style="item.card.planned && lineColor ? {
-          borderColor: `#${lineColor}`,
-          background: `#${lineColor}1f`,
-        } : {}"
+        :style="item.card.planned && lineColor ? { borderColor: `#${lineColor}` } : {}"
         :title="item.card.title"
-        :disabled="item.card.missed"
+        :aria-label="item.card.title"
         @click="item.card.clickable && emit('choose', item.ms)"
       >
-        <!-- Route bullet + status cue. A tight connection shows a spelled-out
-             "hurry" (visible without the tooltip and kept even when this run is
-             selected); otherwise a live prediction adds a pulsing indicator;
-             scheduled is just the bullet. -->
-        <div
-          class="flex items-center justify-center gap-1 leading-none"
-          :class="item.card.missed && 'opacity-50'"
-        >
+        <!-- Identity: which train this is, and whether its time is live. Past
+             runs fade the bullet on its own rather than under a blanket card
+             opacity, which would desaturate the line colour into mud. -->
+        <div class="flex items-center justify-center gap-1 leading-none h-[22px]">
           <RouteBullet
             v-if="item.route?.shortName ?? lineName"
             size="sm"
             :label="item.route?.shortName ?? lineName"
             :color="item.route ? item.route.color : lineColor"
             :text-color="item.route ? item.route.textColor : lineTextColor"
+            :class="isPast(item.card) && 'opacity-45'"
           />
-          <span
-            v-if="item.card.hurry"
-            class="text-[10px] font-semibold text-amber-700 dark:text-amber-300"
-          >hurry</span>
           <RealtimeIndicator
-            v-else-if="item.card.live"
+            v-if="item.card.live"
             :real-time="true"
-            :class="!item.card.missed && 'animate-pulse'"
+            :class="!isPast(item.card) && 'animate-pulse'"
           />
         </div>
-        <!-- Countdown — 'now' for an arriving train, else N min. Statuses use
-             theme-safe tokens (never the raw line colour as text): muted+struck
-             when missed, amber when hurry, the parchment accent for 'now'. -->
+
+        <!-- When it goes — the hero, and the element that carries the status
+             colour. Nothing is allowed to be louder than this. -->
         <div
-          class="text-[13px] font-semibold leading-tight whitespace-nowrap"
-          :class="[
-            item.card.missed && 'line-through text-muted-foreground/50',
-            item.card.hurry && 'text-amber-700 dark:text-amber-300',
-            item.card.arriving && !item.card.hurry && 'text-parchment-600 dark:text-parchment-400',
-          ]"
+          data-testid="countdown"
+          class="text-[15px] font-semibold leading-none whitespace-nowrap"
+          :class="numberClass(item.card)"
         >{{ item.card.lead }}</div>
-        <!-- Absolute clock time (always kept — even on a hurry or selected card
-             the rider still needs the departure time; the "hurry" warning lives
-             in the cue row above). -->
-        <div
-          v-if="item.card.sub"
-          class="text-[10px] leading-none text-muted-foreground"
-          :class="item.card.missed && 'opacity-60'"
-        >{{ item.card.sub }}</div>
+
+        <!-- One footnote slot, in priority order: what's wrong with this run,
+             else the timetable it beat, else just the clock. Keeping it to a
+             single line is what lets every chip share one width. -->
+        <div data-testid="footnote" class="text-[10px] leading-none whitespace-nowrap">
+          <span
+            v-if="status(item.card).word"
+            class="font-semibold"
+            :class="status(item.card).tone"
+          >{{ status(item.card).word }}</span>
+          <template v-else-if="item.card.sub">
+            <span
+              v-if="item.card.scheduledSub"
+              class="line-through text-muted-foreground/50 mr-0.5"
+            >{{ item.card.scheduledSub }}</span><span
+              :class="clockClass(item.card)"
+            >{{ item.card.sub }}</span>
+          </template>
+        </div>
       </button>
     </div>
 

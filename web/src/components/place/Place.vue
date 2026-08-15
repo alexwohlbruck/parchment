@@ -15,6 +15,7 @@ import { useDirectionsService } from '@/services/directions.service'
 import { getPrimaryPhoto, getLogoPhoto } from '@/types/place.types'
 import type { Place } from '@/types/place.types'
 import { useAppService } from '@/services/app.service'
+import { findScrollAncestor } from '@/lib/scroll'
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton'
 
 import PlaceHeader from './header/PlaceHeader.vue'
@@ -137,18 +138,6 @@ const stuck = ref(false)
 let scrollRootEl: HTMLElement | null = null
 let stuckRaf = 0
 
-function findScrollRoot(el: HTMLElement): HTMLElement | null {
-  const named = el.closest('[data-sheet-scroll]') as HTMLElement | null
-  if (named) return named
-  let node = el.parentElement
-  while (node) {
-    const oy = getComputedStyle(node).overflowY
-    if (oy === 'auto' || oy === 'scroll') return node
-    node = node.parentElement
-  }
-  return null
-}
-
 // Stuck exactly when the bar can rise no higher than its docked line — not
 // merely when scrolling begins.
 function measureStuck() {
@@ -166,7 +155,7 @@ function attachStuck() {
   detachStuck()
   const bar = tabBarRef.value
   if (!bar) return
-  scrollRootEl = findScrollRoot(bar)
+  scrollRootEl = findScrollAncestor(bar)
   scrollRootEl?.addEventListener('scroll', onRootScroll, { passive: true })
   measureStuck()
 }

@@ -1373,7 +1373,7 @@
                         "type": "number"
                       },
                       "transitBufferMinutes": {
-                        "minimum": 1,
+                        "minimum": 0,
                         "maximum": 5,
                         "type": "number"
                       },
@@ -1754,7 +1754,7 @@
                         "type": "number"
                       },
                       "transitBufferMinutes": {
-                        "minimum": 1,
+                        "minimum": 0,
                         "maximum": 5,
                         "type": "number"
                       },
@@ -2135,7 +2135,7 @@
                         "type": "number"
                       },
                       "transitBufferMinutes": {
-                        "minimum": 1,
+                        "minimum": 0,
                         "maximum": 5,
                         "type": "number"
                       },
@@ -2548,7 +2548,7 @@
                         "type": "number"
                       },
                       "transitBufferMinutes": {
-                        "minimum": 1,
+                        "minimum": 0,
                         "maximum": 5,
                         "type": "number"
                       },
@@ -2929,7 +2929,7 @@
                         "type": "number"
                       },
                       "transitBufferMinutes": {
-                        "minimum": 1,
+                        "minimum": 0,
                         "maximum": 5,
                         "type": "number"
                       },
@@ -3310,7 +3310,7 @@
                         "type": "number"
                       },
                       "transitBufferMinutes": {
-                        "minimum": 1,
+                        "minimum": 0,
                         "maximum": 5,
                         "type": "number"
                       },

@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, inject, ref, onMounted, onUnmounted } from 'vue'
+import {
+  computed,
+  inject,
+  ref,
+  watch,
+  nextTick,
+  onMounted,
+  onUnmounted,
+} from 'vue'
 import { storeToRefs } from 'pinia'
 import { useDark } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -18,6 +26,7 @@ import { capitalize } from '@/filters/text.filters'
 import Palette from '@/components/palette/Palette.vue'
 import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
 import { appEventBus } from '@/lib/eventBus'
+import { findScrollAncestor } from '@/lib/scroll'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { PlaceCard } from '@/components/place/card'
@@ -65,6 +74,63 @@ onMounted(() => {
 onUnmounted(() => {
   appEventBus.off('palette:focus', handlePaletteFocus)
 })
+
+/**
+ * Recents infinite scroll. The E2EE blob is fully decrypted in memory, so
+ * "loading more" is just revealing more of the array — pages exist only to
+ * keep the initial dashboard render short.
+ *
+ * The scroll surface belongs to the host sheet, and this listens to it
+ * directly — deliberately, because the two tidier-looking options both fail
+ * here. A sentinel at the end of the list only enters view on the sheet's very
+ * last pixel of scroll, and not at all once the list has trailing padding.
+ * `useInfiniteScroll` never binds to a scroll element that resolves after
+ * mount, so it sat silent through every scroll in Firefox.
+ */
+const RECENTS_PAGE_SIZE = 10
+const RECENTS_LOAD_MARGIN = 200
+const visibleRecentsCount = ref(RECENTS_PAGE_SIZE)
+const visibleRecents = computed(() =>
+  recentPlaces.value.slice(0, visibleRecentsCount.value),
+)
+const hasMoreRecents = computed(
+  () => visibleRecentsCount.value < recentPlaces.value.length,
+)
+
+const rootEl = ref<HTMLElement | null>(null)
+let scrollEl: HTMLElement | null = null
+
+/**
+ * Reveal the next page once the sheet is scrolled within `RECENTS_LOAD_MARGIN`
+ * of its end, then re-check: a page that doesn't make the sheet scrollable
+ * would otherwise leave no way to ask for the one after it.
+ *
+ * Paging a hidden list would page all of it — the palette covers this section,
+ * and a covered sheet has nothing to scroll, which reads as "at the end".
+ */
+function revealMore(margin: number) {
+  if (!scrollEl || paletteFocused.value || !hasMoreRecents.value) return
+  const remaining =
+    scrollEl.scrollHeight - scrollEl.clientHeight - scrollEl.scrollTop
+  if (remaining > margin) return
+  visibleRecentsCount.value += RECENTS_PAGE_SIZE
+  nextTick(() => revealMore(margin))
+}
+
+const onSheetScroll = () => revealMore(RECENTS_LOAD_MARGIN)
+/** Margin 0, so a sheet the user can already scroll keeps its first page. */
+const fillUnscrollableSheet = () => nextTick(() => revealMore(0))
+
+onMounted(() => {
+  scrollEl = findScrollAncestor(rootEl.value)
+  scrollEl?.addEventListener('scroll', onSheetScroll, { passive: true })
+  fillUnscrollableSheet()
+})
+
+onUnmounted(() => scrollEl?.removeEventListener('scroll', onSheetScroll))
+
+// Recents decrypt asynchronously, so the list usually lands after mount.
+watch(recentPlaces, fillUnscrollableSheet)
 
 const libraryTabs = computed(() => [
   {
@@ -118,7 +184,11 @@ function recentSubtitle(place: RecentPlaceEntry): string {
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
+  <!-- min-h-full + shrink-0, never h-full: the sheet is a flex column, so a
+       shrinkable child gets squeezed back to the sheet's height while the list
+       grows past it. The content then spills out of its own box and every
+       trailing padding lands above the last card instead of below it. -->
+  <div ref="rootEl" class="flex flex-col min-h-full shrink-0 pb-6">
     <div class="space-y-4 flex-1">
       <!-- Inline command palette -->
       <div class="relative rounded-xl bg-card">
@@ -202,7 +272,7 @@ function recentSubtitle(place: RecentPlaceEntry): string {
         <SectionHeader size="lg" :title="t('general.recents')" class="mb-1.5 px-1" />
         <div class="space-y-2">
           <PlaceCard
-            v-for="place in recentPlaces.slice(0, 5)"
+            v-for="place in visibleRecents"
             :key="place.id"
             :display="recentPlaceToDisplay(place, { isDark })"
             variant="row"

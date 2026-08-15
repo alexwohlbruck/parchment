@@ -16,6 +16,7 @@
 
 ### Fixed
 
+* Recents on the Library home now include your searches, not just the places you opened. A category or brand you browsed showed up in the search palette's recents but was missing from the home list — the two now show the same history, newest first, and tapping a search there runs it again
 * The "Inside" and "Located in" rows on a place no longer run their first two cards together — every card in the row is evenly spaced
 * Aerial tramway, cable car and gondola stations are recognised as transit stations. The Roosevelt Island Tramway rendered as an ordinary building, with no departures and no lines served
 * A station's departure board is now that station's departures. Opening the Roosevelt Island Tramway listed mostly Q32, M15 and Q60 buses bound for Penn Station, from stops across the street — a stop standing on the place now claims the board, and its platforms travel with it

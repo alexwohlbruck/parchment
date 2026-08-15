@@ -53,25 +53,35 @@ export interface RecentPlaceEntry {
 }
 
 /**
+ * Stable identity for a recent search, in one key space across all three kinds
+ * so they never collide even when they share a label ("Cafe" the category vs
+ * "cafe" the typed query). Used to dedupe the stored list, to dedupe recents
+ * against live palette results, and to key the dashboard's recents list.
+ */
+export function recentSearchIdentity(e: RecentSearchEntry): string {
+  if (e.kind === 'category' && e.categoryId) return `category:${e.categoryId}`
+  if (e.kind === 'brand' && e.brandKey) return `brand:${e.brandKey}`
+  return `text:${e.query.trim().toLowerCase()}`
+}
+
+/** Stable identity for a recently-viewed place — the same key space as above. */
+export function recentPlaceIdentity(e: RecentPlaceEntry): string {
+  return `place:${e.id}`
+}
+
+/**
  * Recent searches. Keeps the historical `search-history` blob type so existing
  * synced blobs and the K_m rotation orchestrator keep working unchanged.
  */
 export const recentSearches = createRecentsStore<RecentSearchEntry>({
   blobType: 'search-history',
   maxEntries: 100,
-  // Category, brand, and text searches never collide, even with the same label
-  // ("Cafe" the category vs "cafe" the typed query).
-  identityOf: e =>
-    e.kind === 'category' && e.categoryId
-      ? `category:${e.categoryId}`
-      : e.kind === 'brand' && e.brandKey
-        ? `brand:${e.brandKey}`
-        : `text:${e.query.trim().toLowerCase()}`,
+  identityOf: recentSearchIdentity,
 })
 
 /** Recently-viewed places. */
 export const recentPlaces = createRecentsStore<RecentPlaceEntry>({
   blobType: 'recent-places',
   maxEntries: 100,
-  identityOf: e => e.id,
+  identityOf: recentPlaceIdentity,
 })

@@ -128,3 +128,101 @@ describe('groupDepartures', () => {
     expect(departures).toEqual(before)
   })
 })
+
+/**
+ * Day labelling.
+ *
+ * Two calendar days is not two service days: GTFS files an 01:00 train under
+ * the previous day's service as a 25:00 stop time, so at a station running all
+ * night two departures minutes apart can carry different service dates. The
+ * boundary a rider reads is the calendar; the service date only chooses the
+ * wording. Both halves are easy to get backwards, and the result — tonight's
+ * last tram announced as "Tomorrow" — is worse than no label at all.
+ */
+describe('day labels', () => {
+  const DAY_LABELS = { tonight: 'Tonight', tomorrow: 'Tomorrow' }
+  const LABEL_OPTS = { ...OPTS, dayLabels: DAY_LABELS }
+
+  /** 20:00 on Thursday 2026-08-13, New York. */
+  const EVENING = new Date('2026-08-14T00:00:00Z')
+
+  /** A run at an absolute time, in the stop's zone. */
+  function at(iso: string, extra: Partial<TransitDeparture> = {}): TransitDeparture {
+    return {
+      route: { id: 'r-T', shortName: 'T' },
+      headsign: 'Roosevelt Island',
+      departureAt: iso,
+      timezone: 'America/New_York',
+      realTime: false,
+      ...extra,
+    } as unknown as TransitDeparture
+  }
+
+  function labels(departures: TransitDeparture[], now: Date = EVENING) {
+    return groupDepartures(departures, now, LABEL_OPTS)[0].directions[0].departures.map(
+      d => d.dayLabel,
+    )
+  }
+
+  it('leaves runs later the same day unlabelled', () => {
+    // 20:30 and 22:00 local, same evening.
+    expect(labels([at('2026-08-14T00:30:00Z'), at('2026-08-14T02:00:00Z')])).toEqual([
+      undefined,
+      undefined,
+    ])
+  })
+
+  it('calls an after-midnight run on today\'s timetable "Tonight"', () => {
+    // 01:45 local Friday, but still Thursday's service day.
+    expect(
+      labels([at('2026-08-14T05:45:00Z', { serviceDate: '2026-08-13' })]),
+    ).toEqual(['Tonight'])
+  })
+
+  it('calls the next service day "Tomorrow"', () => {
+    // 06:00 local Friday, filed under Friday's own service.
+    expect(
+      labels([at('2026-08-14T10:00:00Z', { serviceDate: '2026-08-14' })]),
+    ).toEqual(['Tomorrow'])
+  })
+
+  it('distinguishes tonight\'s last run from tomorrow\'s first', () => {
+    const board = labels([
+      at('2026-08-14T05:45:00Z', { serviceDate: '2026-08-13' }), // 01:45, still tonight
+      at('2026-08-14T10:00:00Z', { serviceDate: '2026-08-14' }), // 06:00, tomorrow
+    ])
+
+    expect(board).toEqual(['Tonight', 'Tomorrow'])
+  })
+
+  it('labels only the first run of each day', () => {
+    const board = labels([
+      at('2026-08-14T10:00:00Z', { serviceDate: '2026-08-14' }),
+      at('2026-08-14T10:15:00Z', { serviceDate: '2026-08-14' }),
+    ])
+
+    expect(board).toEqual(['Tomorrow', undefined])
+  })
+
+  it('names the weekday further out', () => {
+    // 2026-08-16 is a Sunday.
+    expect(labels([at('2026-08-16T16:00:00Z')])).toEqual(['Sun'])
+  })
+
+  it('uses the stop\'s timezone, not UTC', () => {
+    // 03:00 UTC on the 14th is 23:00 on the 13th in New York — still tonight
+    // for a rider at the stop, already tomorrow for anyone reading UTC.
+    expect(labels([at('2026-08-14T03:00:00Z')])).toEqual([undefined])
+  })
+
+  it('adds no labels when the caller does not ask for them', () => {
+    const groups = groupDepartures([at('2026-08-16T16:00:00Z')], EVENING, OPTS)
+    expect(groups[0].directions[0].departures[0].dayLabel).toBeUndefined()
+  })
+
+  it('leaves the source departures untouched', () => {
+    const source = at('2026-08-14T10:00:00Z', { serviceDate: '2026-08-14' })
+    groupDepartures([source], EVENING, LABEL_OPTS)
+    expect((source as { dayLabel?: string }).dayLabel).toBeUndefined()
+  })
+})

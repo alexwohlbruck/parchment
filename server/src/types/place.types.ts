@@ -166,6 +166,10 @@ export interface TransitStopInfo {
   timezone?: string
   wheelchairBoarding?: number
   departures?: TransitDeparture[]
+  /** How far ahead `departures` reaches, in minutes. */
+  windowMinutes?: number
+  /** More runs exist past the window — the board can offer to load them. */
+  hasMore?: boolean
   routes?: Array<{
     id: string
     shortName?: string

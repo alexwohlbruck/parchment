@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+* Departure boards now cover the next three hours, with a "Show later departures" button for the rest of the day. The board used to be sized by a fixed number of runs rather than by time, which meant it showed barely the next 45 minutes at a busy subway platform and five hours at a ferry landing — and at a stop that had shut for the night, nothing at all
+* Departures on another day now say which day. A run more than a couple of hours out shows its clock time instead of an ever-growing "10h 21m", and the first run of each new day is marked. A tram at 1:45 AM that still belongs to tonight's timetable reads "Tonight" rather than "Tomorrow" — the timetable's own service day decides, not the calendar. A stop closed for the night now says so above its next day's departures
+
 ### Fixed
 
 * Aerial tramway, cable car and gondola stations are recognised as transit stations. The Roosevelt Island Tramway rendered as an ordinary building, with no departures and no lines served
 * Stations are now matched to the right stop rather than the closest one. A ferry terminal would pick up the bus stop across the street and show its departures under the ferry's name; the same happened at rail stations sitting metres from a bus shelter. The station's own mode is now preferred, and reached for further out — a ferry landing's stop sits at the end of the pier
+* A departure weeks away no longer turns up on a board beside trains due in minutes. Where a station's board merges several nearby stops, one seldom-used neighbour could contribute a run from the far side of the timetable
 
 ## [0.5.11] - 2026-08-03
 

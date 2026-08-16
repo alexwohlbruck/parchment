@@ -8,12 +8,8 @@ import {
 } from 'lucide-vue-next'
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
-import { ItemIcon } from '@/components/ui/item-icon'
-import {
-  getSearchResultIconName,
-  getSearchResultIconPack,
-  getSearchResultCategory,
-} from '@/lib/search.utils'
+import PlaceCategoryIcon from '@/components/place/PlaceCategoryIcon.vue'
+import { getSearchResultCategory } from '@/lib/search.utils'
 import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { useRouter } from 'vue-router'
@@ -40,14 +36,7 @@ const router = useRouter()
 const geo = useGeolocationService()
 const { formatDistance } = useUnits()
 
-const placeIconName = computed(() =>
-  props.place ? getSearchResultIconName(props.place as Place) : 'MapPin',
-)
-const placeIconPack = computed(() =>
-  props.place
-    ? getSearchResultIconPack(props.place as Place)
-    : ('lucide' as const),
-)
+/** Colours the category label beside the icon; the icon tints itself. */
 const placeCategoryColor = computed(() => {
   const category = props.place
     ? getSearchResultCategory(props.place as Place)
@@ -251,15 +240,7 @@ watch(
         :class="place?.icon?.presetId ? 'cursor-pointer' : 'cursor-default'"
         @click="openCategorySearch"
       >
-        <ItemIcon
-          :icon="placeIconName"
-          :icon-pack="placeIconPack"
-          :custom-color="placeCategoryColor"
-          size="xs"
-          variant="solid"
-          shape="circle"
-          class="!size-5"
-        />
+        <PlaceCategoryIcon :place="place" />
         <span
           class="text-xs font-semibold"
           :style="{ color: placeCategoryColor }"

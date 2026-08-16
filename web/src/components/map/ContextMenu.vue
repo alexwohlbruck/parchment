@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, computed, watch, h } from 'vue'
+import {
+  onMounted,
+  onUnmounted,
+  ref,
+  computed,
+  watch,
+  h,
+  type Component,
+} from 'vue'
 import { useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -46,7 +54,9 @@ import {
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import PlaceCategoryIcon from '@/components/place/PlaceCategoryIcon.vue'
 import { formatAddress, getPlaceRouteFromExternalIds } from '@/lib/place.utils'
+import type { Place } from '@/types/place.types'
 import {
   findSegmentToInsert,
   distancePx,
@@ -81,7 +91,19 @@ const geocodedPlaceName = ref<string | null>(null)
 const geocodedAddress = ref<string | null>(null)
 /** Route to the geocoded place's detail page, when its ids resolve to one. */
 const geocodedRoute = ref<RouteLocationRaw | null>(null)
+/** The reverse-geocoded place itself — kept for its resolved POI icon. */
+const geocodedPlace = ref<Place | null>(null)
 const isGeocoding = ref(false)
+
+/**
+ * The place's own POI icon, styled exactly as it is on the place detail
+ * header, so the menu row reads as the place rather than a generic pin.
+ */
+const geocodedPlaceIcon = computed<Component>(() => {
+  const place = geocodedPlace.value
+  if (!place) return MapPinIcon
+  return () => h(PlaceCategoryIcon, { place })
+})
 
 onMounted(() => {
   mapEventBus.on('contextmenu', e => {
@@ -171,6 +193,7 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
     geocodedPlaceName.value = null
     geocodedAddress.value = null
     geocodedRoute.value = null
+    geocodedPlace.value = null
     isGeocoding.value = true
 
     try {
@@ -195,6 +218,7 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
         // Store place name and address separately
         geocodedPlaceName.value = place.name?.value || null
         geocodedAddress.value = formatAddress(place) || null
+        geocodedPlace.value = place
       }
     } catch (error) {
       console.error('Context menu geocoding failed:', error)
@@ -205,6 +229,7 @@ watch([showContextMenu, clickedLngLat], async ([isOpen, lngLat]) => {
     geocodedPlaceName.value = null
     geocodedAddress.value = null
     geocodedRoute.value = null
+    geocodedPlace.value = null
     isGeocoding.value = false
   }
 })
@@ -270,7 +295,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
       type: 'item',
       id: 'open-place',
       label: displayLabel,
-      icon: MapPinIcon,
+      icon: geocodedPlaceIcon.value,
       onSelect: openPlaceAtLocation,
     })
   } else if (isGeocoding.value) {

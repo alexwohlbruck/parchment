@@ -7,6 +7,7 @@
 
 ### Changed
 
+* Right-clicking the map shows the place's own icon, in its category colour, instead of a generic pin — a cafe reads as a cafe before you open it
 * The search palette opens instantly. It used to wait on your recent searches — which are encrypted, so they have to be fetched and unlocked first — before drawing anything at all, leaving the first open of a session on a spinner. Your shortcuts and frequent places now appear immediately and recents drop in as they arrive
 * "Bus Stops" is now "Transit", and covers tram and rail platforms alongside buses
 * Searching "wifi" finds the category under that name rather than "Wi-Fi Hotspot", and bike repair stands are called that instead of "Bicycle Repair Tool Stand" — both in search and on the place itself. Searching "bike repair stand", "repair stand", "outdoor gym" or "calisthenics" now finds the right category too

@@ -413,33 +413,46 @@ cmd_url() {
   else echo "http://$(ts_ip):$(web_port "$slot")"; fi
 }
 
-# Push the branch and put the preview link on the pull request, so reviewing
-# from a phone is: open PR notification → tap link → look at the running app.
-# The link is tailnet-only, so it is useless to anyone who isn't on the tailnet.
+# Push the branch and open (or update) its pull request.
+#
+# The preview URL is a hostname on a private network. That is a useless link to
+# anyone who isn't on it, but it still describes infrastructure — so it is only
+# written into the PR when the repository is private. On a public repository the
+# link is printed here instead, for the author to open directly.
 cmd_pr() {
   ensure_state; resolve_target "${1:-}"
-  local branch=$TARGET_BRANCH worktree=$TARGET_WORKTREE url
+  local branch=$TARGET_BRANCH worktree=$TARGET_WORKTREE url repo visibility
   url=$(cmd_url "$branch")
+  repo=$(git -C "$worktree" remote get-url origin | sed -E 's#.*[:/]([^/]+/[^/]+?)(\.git)?$#\1#')
 
   git -C "$worktree" push --quiet -u origin "$branch"
 
-  local marker="<!-- preview-link -->"
-  local body="$marker
+  visibility=$(gh repo view "$repo" --json visibility -q .visibility 2>/dev/null || echo PUBLIC)
+
+  local body
+  if [ "$visibility" = PRIVATE ]; then
+    body="<!-- preview-link -->
 **Preview:** $url
 
-Running from the \`$branch\` worktree on vega5 with a clone of the dev database.
+Running from the \`$branch\` worktree with a clone of the dev database.
 Hot-reloads on every push to this branch — no rebuild needed to see a change.
-Reachable from the tailnet only."
-
-  if gh pr view "$branch" --repo alexwohlbruck/parchment >/dev/null 2>&1; then
-    gh pr comment "$branch" --repo alexwohlbruck/parchment --body "$body" >/dev/null
-    log "commented preview link on the existing PR"
+Reachable from the private network only."
   else
-    gh pr create --repo alexwohlbruck/parchment --base dev --head "$branch" \
+    body="A live preview of this branch is running on the author's development
+machine, hot-reloading on every push. The link is on a private network and is
+deliberately not published here."
+  fi
+
+  if gh pr view "$branch" --repo "$repo" >/dev/null 2>&1; then
+    gh pr comment "$branch" --repo "$repo" --body "$body" >/dev/null
+    log "commented on the existing PR"
+  else
+    gh pr create --repo "$repo" --base dev --head "$branch" \
       --title "$(git -C "$worktree" log -1 --pretty=%s)" --body "$body" >/dev/null
     log "opened a PR"
   fi
-  gh pr view "$branch" --repo alexwohlbruck/parchment --json url -q .url
+  gh pr view "$branch" --repo "$repo" --json url -q .url
+  [ "$visibility" = PRIVATE ] || log "preview (not posted — public repo): $url"
 }
 
 cmd_logs() {

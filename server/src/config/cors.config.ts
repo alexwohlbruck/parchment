@@ -33,6 +33,13 @@ const devOriginMatchers =
         // Dev only: let the deployed frontend point at a local backend — e.g.
         // debugging the prod client (map.parchment.app) against localhost:5000.
         /^https:\/\/([a-z0-9-]+\.)*parchment\.app$/,
+        // Branch previews (scripts/preview.sh) serve each worktree from a
+        // tailnet host on its own port, so the client origin is a *.ts.net
+        // URL rather than localhost. Reachable only from the tailnet.
+        /^https?:\/\/([a-z0-9-]+\.)+ts\.net(:\d+)?$/,
+        // Same previews before tailnet HTTPS certificates are enabled, where
+        // the client is served straight off the box's 100.x tailnet address.
+        /^http:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
       ]
     : []
 

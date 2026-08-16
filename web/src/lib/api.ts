@@ -93,6 +93,27 @@ export async function getIsTauri(): Promise<boolean> {
 // Reactive server URL from localStorage, defaults to api.parchment.app
 const serverUrl = useStorage('parchment-selected-server', DEFAULT_SERVER_URL)
 
+// Which build-time default the stored selection came from. `useStorage` only
+// consults the default when the key is absent, so a deployment that later
+// declares a different API origin (a branch preview moving to its own host, a
+// self-hosted instance changing address) would be ignored forever in favour of
+// a stale value — the app keeps calling a server that isn't there, and sign-in
+// appears not to persist because the session cookie belongs to another origin.
+//
+// Adopt a changed default only when the user was still on the previous one:
+// an explicitly chosen server (via the sign-in screen's server picker) is a
+// deliberate choice and must survive.
+const defaultServerUrl = useStorage(
+  'parchment-default-server',
+  DEFAULT_SERVER_URL,
+)
+if (defaultServerUrl.value !== DEFAULT_SERVER_URL) {
+  if (serverUrl.value === defaultServerUrl.value) {
+    serverUrl.value = DEFAULT_SERVER_URL
+  }
+  defaultServerUrl.value = DEFAULT_SERVER_URL
+}
+
 /** Request timeout (ms). Prevents "loads forever" when the server doesn't respond. */
 const REQUEST_TIMEOUT_MS = 15000
 

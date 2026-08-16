@@ -280,12 +280,20 @@ EOF
 }
 
 write_unit_env() {
-  local slot=$1 worktree=$2 wport=$3 pub_host=$4 pub_scheme=$5 pub_web_port=$6
+  local slot=$1 worktree=$2 wport=$3 pub_host=$4 pub_scheme=$5 pub_web_port=$6 api_origin=$7
   mkdir -p "$STATE_DIR/$slot"
   cat > "$STATE_DIR/$slot/env" <<EOF
 PREVIEW_WORKTREE=$worktree
 PREVIEW_BUN=$BUN
 VITE_PORT=$wport
+# The client reads its API base from VITE_SERVER_ORIGIN at dev-server start.
+# It has to be in this process environment: Vite only loads .env/.env.local
+# from web/, so it never sees the .env.preview the server is started with.
+# Without it the client falls back to http://localhost:5000 — which, from a
+# phone, is the phone itself, and from a laptop is that laptop's own dev
+# server. Either way the session cookie lands on the wrong origin and sign-in
+# appears not to persist.
+VITE_SERVER_ORIGIN=$api_origin
 # Vite refuses Host headers it does not know, and its HMR client would dial the
 # origin port directly instead of the public one it was actually loaded from.
 VITE_ALLOWED_HOSTS=$pub_host,.ts.net,localhost
@@ -339,7 +347,7 @@ cmd_up() {
   fi
 
   write_env "$worktree" "$dbname" "$sport" "$wport" "$base_api" "$base_web"
-  write_unit_env "$slot" "$worktree" "$wport" "$host" "${scheme_web}" "$wpub"
+  write_unit_env "$slot" "$worktree" "$wport" "$host" "${scheme_web}" "$wpub" "$base_api"
 
   systemctl --user restart "parchment-preview-server@$slot" "parchment-preview-web@$slot"
   registry_put "$slot" "$branch" "$worktree" "${scheme_web}" "$host"

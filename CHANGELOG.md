@@ -13,6 +13,7 @@
 * Searching "wifi" finds the category under that name rather than "Wi-Fi Hotspot", and bike repair stands are called that instead of "Bicycle Repair Tool Stand" — both in search and on the place itself. Searching "bike repair stand", "repair stand", "outdoor gym" or "calisthenics" now finds the right category too
 * Recents on the Library home no longer stop at five — the list starts with ten and keeps loading more as you scroll
 * Departure boards now cover the next three hours, with a "Show later departures" button for the rest of the day. The board used to be sized by a fixed number of runs rather than by time, which meant it showed barely the next 45 minutes at a busy subway platform and five hours at a ferry landing — and at a stop that had shut for the night, nothing at all
+* A transit leg is now drawn on the trip's own timeline rather than in a card beside it. The line runs straight through the card — the stop you board at, every stop along the way and the stop you get off at are dots on the same line as the rest of the journey, instead of a second timeline nested inside the first
 * Departures on another day now say which day. A run more than a couple of hours out shows its clock time instead of an ever-growing "10h 21m", and the first run of each new day is marked. A tram at 1:45 AM that still belongs to tonight's timetable reads "Tonight" rather than "Tomorrow" — the timetable's own service day decides, not the calendar. A stop closed for the night now says so above its next day's departures
 
 ### Fixed

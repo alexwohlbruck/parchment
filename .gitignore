@@ -22,3 +22,6 @@ web/e2e/.auth/
 
 # Per-branch preview worktrees (scripts/preview.sh)
 .claude/worktrees/
+
+# Preview tooling writes this per worktree
+.env.preview

@@ -49,6 +49,7 @@ import { matchTags, type GeometryType } from '../../lib/osm-presets'
 import { buildPlaceIcon } from '../../lib/place-categories'
 import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
+import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
@@ -622,11 +623,13 @@ export class BarrelmanIntegration
     ]
     const website = allWebsites[0] || null
 
-    // Opening hours — parse the OSM opening_hours string into structured data
+    // Opening hours — parse the OSM opening_hours string into structured data.
+    // A permanently closed place earns an hours object even without an
+    // `opening_hours` tag, so the place page can say the place is gone.
     let openingHours: AttributedValue<OpeningHours> | null = null
-    if (r.hours) {
+    if (r.hours || isPermanentlyClosedByOsmTags(tags)) {
       openingHours = {
-        value: parseOsmHours({ ...tags, opening_hours: r.hours }),
+        value: parseOsmHours(r.hours ? { ...tags, opening_hours: r.hours } : tags),
         sourceId,
         timestamp,
       }

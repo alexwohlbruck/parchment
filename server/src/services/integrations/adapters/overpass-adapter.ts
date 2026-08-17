@@ -10,6 +10,7 @@ import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
 import { matchTags } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
 import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
+import { isPermanentlyClosedByOsmTags } from '../../../lib/osm-lifecycle'
 import { calculateOSMCenter } from '../../../util/geometry-conversion'
 import { extractTransitIdentifiers, isTransitStopType, createTransitInfo } from '../../../lib/transit-utils'
 import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
@@ -285,17 +286,26 @@ export class OverpassAdapter {
   private extractOpeningHours(
     tags?: Record<string, string>,
   ): AttributedValue<OpeningHours> | null {
-    if (!tags || !tags.opening_hours) return null
+    if (!tags) return null
+
+    const isPermanentlyClosed = isPermanentlyClosedByOsmTags(tags)
+
+    // A closed place is worth reporting even with no hours to show — otherwise
+    // the place page stays silent instead of saying the place is gone.
+    if (!tags.opening_hours && !isPermanentlyClosed) return null
 
     const openingHours = tags.opening_hours
-    const isOpen24_7 = openingHours.includes('24/7')
 
+    // Hours left over from when the place was alive would read as "Open now",
+    // so a permanently closed place reports the status and nothing else.
     return {
       value: {
-        regularHours: parseOpeningHoursForUnifiedFormat(openingHours) || [],
-        isOpen24_7,
-        isPermanentlyClosed: tags.disused === 'yes' || tags.abandoned === 'yes',
-        isTemporarilyClosed: tags.opening_hours === 'closed',
+        regularHours: isPermanentlyClosed
+          ? []
+          : parseOpeningHoursForUnifiedFormat(openingHours) || [],
+        isOpen24_7: !isPermanentlyClosed && !!openingHours?.includes('24/7'),
+        isPermanentlyClosed,
+        isTemporarilyClosed: !isPermanentlyClosed && openingHours === 'closed',
         rawText: openingHours,
       },
       sourceId: SOURCE.OSM,

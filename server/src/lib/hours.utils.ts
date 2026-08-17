@@ -1,4 +1,5 @@
 import type { OpeningHours, OpeningTime } from '../types/place.types'
+import { isPermanentlyClosedByOsmTags } from './osm-lifecycle'
 
 const DAYS = [
   'Sunday',
@@ -85,19 +86,16 @@ export function parseOsmHours(tags: Record<string, string>): OpeningHours {
     isTemporarilyClosed: false,
   }
 
-  // Check for 24/7
-  if (tags.opening_hours === '24/7') {
-    openingHours.isOpen24_7 = true
+  // Permanently closed wins over every other status: a retired place routinely
+  // keeps the opening_hours it had when it was alive, including "24/7".
+  if (isPermanentlyClosedByOsmTags(tags) || tags.opening_hours === 'closed') {
+    openingHours.isPermanentlyClosed = true
     return openingHours
   }
 
-  // Check for closed statuses
-  if (
-    tags.opening_hours === 'closed' ||
-    tags.disused === 'yes' ||
-    tags.abandoned === 'yes'
-  ) {
-    openingHours.isPermanentlyClosed = true
+  // Check for 24/7
+  if (tags.opening_hours === '24/7') {
+    openingHours.isOpen24_7 = true
     return openingHours
   }
 

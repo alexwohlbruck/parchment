@@ -1001,29 +1001,36 @@ function getRailStyle(entryIndex: number, position: 'above' | 'below'): Record<s
   return {}
 }
 
-// ── Stop rail helper ───────────────────────────────────────────────
+// ── Transit card rail ──────────────────────────────────────────────
 
 /**
- * Paint for one part of a transit card's stop rail — the single line running
- * from the boarding stop, through the intermediate stops, to the alighting
- * stop. Tinted with the line colour when the agency publishes one. Spread the
- * result onto the element with `v-bind`.
- *
- * `node` is a boarding / alighting stop, `stop` an intermediate one: the alpha
- * keeps the line and the intermediate nodes subordinate to the two stops the
- * rider actually acts on.
+ * A transit leg on a named line renders as a card that the trip rail runs
+ * *through* rather than beside: the card spans the whole row and carries the
+ * line in its own 28px gutter, so the boarding stop, the intermediate stops
+ * and the alighting stop are nodes on the journey's one timeline. Rows for
+ * these entries therefore skip the shared rail column.
  */
-function stopRail(
+function isTransitCard(entry: TimelineEntry): boolean {
+  return (
+    entry.kind === 'segment' &&
+    entry.segment.mode === 'transit' &&
+    !!entry.segment.lineName
+  )
+}
+
+/**
+ * Paint for the rail inside a transit card. It is the same line as the rail
+ * above and below the card, so it takes the segment's colour at full strength
+ * — nodes and line alike. Spread onto an element with `v-bind`.
+ */
+function segmentRail(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   segment: any,
-  part: 'line' | 'node' | 'stop',
 ): { class?: string; style?: Record<string, string> } {
-  if (!segment.lineColor) {
-    return {
-      class: { line: 'bg-border', node: 'bg-muted-foreground', stop: 'bg-muted-foreground/50' }[part],
-    }
+  if (segment.lineColor) return { style: { background: `#${segment.lineColor}` } }
+  return {
+    class: modeColors[segment.mode as keyof typeof modeColors] || 'bg-parchment-500',
   }
-  return { style: { background: `#${segment.lineColor}${{ line: '59', node: '', stop: 'a6' }[part]}` } }
 }
 
 // ── Segment helpers ────────────────────────────────────────────────
@@ -1139,8 +1146,12 @@ function showSegmentChart(segment: any): boolean {
           :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
           class="flex"
         >
-          <!-- Rail column — fixed width, relative for absolute lines -->
-          <div class="relative flex flex-col items-center w-7 shrink-0">
+          <!-- Rail column — fixed width, relative for absolute lines.
+               Transit cards draw the rail themselves, through the card. -->
+          <div
+            v-if="!isTransitCard(entry)"
+            class="relative flex flex-col items-center w-7 shrink-0"
+          >
 
             <!-- ── Waypoint rail ── -->
             <template v-if="entry.kind === 'waypoint'">
@@ -1240,7 +1251,9 @@ function showSegmentChart(segment: any): boolean {
           <!-- Content column -->
           <div
             class="flex-1 min-w-0"
-            :class="entry.kind === 'place-stop' ? 'pl-3 pb-4' : entry.kind === 'waypoint' ? 'pl-3 pb-4' : 'pl-2.5 pb-5'"
+            :class="isTransitCard(entry)
+              ? 'pb-5'
+              : entry.kind === 'segment' ? 'pl-2.5 pb-5' : 'pl-3 pb-4'"
           >
             <!-- ═══ Waypoint content ═══ -->
             <template v-if="entry.kind === 'waypoint'">
@@ -1325,14 +1338,55 @@ function showSegmentChart(segment: any): boolean {
             <!-- ═══ Segment content ═══ -->
             <template v-else-if="entry.kind === 'segment'">
               <!-- ── Transit segment card ── -->
+              <!--
+                The trip's rail runs *through* this card rather than beside it:
+                the card spans the full row and paints the line in its own 28px
+                gutter, at the same x as the rail on every other entry (half of
+                the w-7 rail column). So the mode icon, the boarding stop, the
+                intermediate stops and the alighting stop are all nodes on one
+                continuous line.
+
+                The line changes to this segment's colour at the mode icon, as
+                it does elsewhere on the timeline, so the header paints two
+                slices and the rest of the card one. Every slice overlaps 2px
+                into its neighbour to hide sub-pixel seams — including across
+                the card's own border.
+              -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
                 <div class="rounded-xl border bg-card overflow-hidden">
-                  <!-- Line header — tinted with the line colour -->
+                  <!-- Line header — tinted with the line colour, mode icon on the rail -->
                   <div
-                    class="px-3 py-2 flex items-center gap-2"
+                    class="flex items-stretch"
                     :class="!entry.segment.lineColor && 'bg-muted/40'"
                     :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
+                    <div class="relative flex flex-col items-center justify-center w-7 shrink-0">
+                      <!-- Above the icon: the colour of whatever came before -->
+                      <div
+                        class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[calc(50%+2px)]"
+                        :class="getRailColor(i, 'above')"
+                        :style="getRailStyle(i, 'above')"
+                      />
+                      <!-- Below the icon: this line's colour, on down the card -->
+                      <div
+                        class="absolute left-1/2 -translate-x-1/2 w-0.5 top-1/2 bottom-[-2px]"
+                        v-bind="segmentRail(entry.segment)"
+                      />
+                      <div
+                        class="relative z-10 size-7 rounded-full flex items-center justify-center text-white shrink-0"
+                        :class="!entry.segment.lineColor && (modeColors[entry.segment.mode as keyof typeof modeColors] || 'bg-parchment-500')"
+                        :style="entry.segment.lineColor ? {
+                          background: `#${entry.segment.lineColor}`,
+                          color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                        } : {}"
+                      >
+                        <component
+                          :is="getSegmentIcon(entry.segment.mode, entry.segment.routeType)"
+                          class="size-3.5"
+                        />
+                      </div>
+                    </div>
+                    <div class="flex-1 min-w-0 flex items-center gap-2 py-2 pr-3">
                     <!-- Interchangeable routes (4/5, N/Q/R/W) render as a tight
                          cluster of bullets — any of them works for this leg. -->
                     <div
@@ -1366,136 +1420,116 @@ function showSegmentChart(segment: any): boolean {
                       :color="entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined"
                       class="ml-auto shrink-0"
                     />
+                    </div>
                   </div>
 
-                  <div class="px-3 py-2.5 space-y-2">
-                    <!-- ── Stop timeline ──
-                         One rail from the boarding stop, past the intermediate
-                         stops, to the alighting stop. Same house pattern as the
-                         trip timeline: every row paints its own slice of the
-                         line and overlaps 2px into its neighbours, so expanding
-                         the stops extends the rail instead of starting a new one.
+                  <!-- Card body — the rail carries straight on behind every row,
+                       so each row only has to place its own node on it.
+                       Node centres, measured from each row's top:
+                         board / alight — 10px (5px mt + 5px half of size-2.5)
+                         intermediate   —  8px (5px mt + 3px half of size-1.5) -->
+                  <div class="relative py-2.5 space-y-2 pr-3">
+                    <div
+                      class="absolute left-[14px] -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
+                      v-bind="segmentRail(entry.segment)"
+                    />
 
-                         Node centres, measured from each row's top:
-                           board / alight — 10px (5px mt + 5px half of size-2.5)
-                           intermediate   —  8px (5px mt + 3px half of size-1.5) -->
-                    <div>
-                      <!-- Board -->
-                      <div v-if="entry.segment.departureStop" class="flex">
-                        <div class="relative flex flex-col items-center w-4 shrink-0">
-                          <div
-                            class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[10px] bottom-[-2px]"
-                            v-bind="stopRail(entry.segment, 'line')"
-                          />
-                          <div
-                            class="relative z-10 mt-[5px] size-2.5 rounded-full shrink-0"
-                            v-bind="stopRail(entry.segment, 'node')"
-                          />
+                    <!-- Board -->
+                    <div v-if="entry.segment.departureStop" class="relative flex">
+                      <div class="flex flex-col items-center w-7 shrink-0">
+                        <div
+                          class="mt-[5px] size-2.5 rounded-full shrink-0"
+                          v-bind="segmentRail(entry.segment)"
+                        />
+                      </div>
+                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium text-foreground leading-snug">
+                            {{ entry.segment.departureStop.name }}
+                          </div>
+                          <div class="text-[11px] text-muted-foreground mt-px">
+                            Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
+                          </div>
                         </div>
-                        <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2 pb-2">
-                          <div class="min-w-0">
-                            <div class="text-sm font-medium text-foreground leading-snug">
-                              {{ entry.segment.departureStop.name }}
-                            </div>
-                            <div class="text-[11px] text-muted-foreground mt-px">
-                              Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
-                            </div>
-                          </div>
-                          <div class="text-sm font-semibold tabular-nums shrink-0">
-                            {{ formatTime(entry.segment.startTime) }}
-                          </div>
+                        <div class="text-sm font-semibold tabular-nums shrink-0">
+                          {{ formatTime(entry.segment.startTime) }}
                         </div>
                       </div>
+                    </div>
 
-                      <!-- Other departures on this line — the rail runs past them -->
-                      <div v-if="departuresFor(entry.segmentIndex).length > 1" class="flex">
-                        <div class="relative flex flex-col items-center w-4 shrink-0">
-                          <div
-                            class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
-                            v-bind="stopRail(entry.segment, 'line')"
-                          />
-                        </div>
-                        <div class="flex-1 min-w-0 pl-2 pb-2">
-                          <DepartureBoard
-                            :key="`${trip.id}-${entry.segmentIndex}`"
-                            :cards="boardCards[entry.segmentIndex] ?? []"
-                            :line-color="entry.segment.lineColor"
-                            :line-text-color="entry.segment.lineTextColor"
-                            :line-name="entry.segment.lineName"
-                            :busy="rebooking"
-                            @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
-                          />
-                        </div>
+                    <!-- Other departures on this line -->
+                    <div v-if="departuresFor(entry.segmentIndex).length > 1" class="relative flex">
+                      <div class="w-7 shrink-0" />
+                      <div class="flex-1 min-w-0">
+                        <DepartureBoard
+                          :key="`${trip.id}-${entry.segmentIndex}`"
+                          :cards="boardCards[entry.segmentIndex] ?? []"
+                          :line-color="entry.segment.lineColor"
+                          :line-text-color="entry.segment.lineTextColor"
+                          :line-name="entry.segment.lineName"
+                          :busy="rebooking"
+                          @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
+                        />
                       </div>
+                    </div>
 
-                      <!-- Intermediate stops -->
-                      <Collapsible
-                        v-if="entry.segment.intermediateStops?.length"
-                        v-slot="{ open }"
-                      >
-                        <CollapsibleTrigger class="flex w-full text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-                          <div class="relative flex flex-col items-center w-4 shrink-0">
-                            <div
-                              class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
-                              v-bind="stopRail(entry.segment, 'line')"
-                            />
-                          </div>
-                          <span class="flex items-center gap-1 pl-2 pb-2">
-                            <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
-                            <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
-                          </span>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
+                    <!-- Intermediate stops — they open onto the same rail -->
+                    <Collapsible
+                      v-if="entry.segment.intermediateStops?.length"
+                      v-slot="{ open }"
+                      class="relative"
+                    >
+                      <CollapsibleTrigger class="flex w-full text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                        <div class="w-7 shrink-0" />
+                        <span class="flex items-center gap-1">
+                          <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
+                          <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
+                        </span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div class="pt-1.5 space-y-1">
                           <div
                             v-for="stop in entry.segment.intermediateStops"
                             :key="stop.id || stop.name"
                             class="flex"
                           >
-                            <div class="relative flex flex-col items-center w-4 shrink-0">
+                            <div class="flex flex-col items-center w-7 shrink-0">
                               <div
-                                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
-                                v-bind="stopRail(entry.segment, 'line')"
-                              />
-                              <div
-                                class="relative z-10 mt-[5px] size-1.5 rounded-full shrink-0"
-                                v-bind="stopRail(entry.segment, 'stop')"
+                                class="mt-[5px] size-1.5 rounded-full shrink-0"
+                                v-bind="segmentRail(entry.segment)"
                               />
                             </div>
-                            <div class="flex-1 min-w-0 flex items-center gap-2 pl-2 pb-1.5 text-xs text-muted-foreground">
+                            <div class="flex-1 min-w-0 flex items-center gap-2 text-xs text-muted-foreground">
                               <span class="flex-1 truncate">{{ stop.name }}</span>
                               <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
                                 {{ formatTime(new Date(stop.arrivalTime)) }}
                               </span>
                             </div>
                           </div>
-                        </CollapsibleContent>
-                      </Collapsible>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
 
-                      <!-- Alight -->
-                      <div v-if="entry.segment.arrivalStop" class="flex">
-                        <div class="relative flex flex-col items-center w-4 shrink-0">
-                          <div
-                            class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[12px]"
-                            v-bind="stopRail(entry.segment, 'line')"
-                          />
-                          <div
-                            class="relative z-10 mt-[5px] size-2.5 rounded-full shrink-0"
-                            v-bind="stopRail(entry.segment, 'node')"
-                          />
-                        </div>
-                        <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2">
-                          <div class="min-w-0">
-                            <div class="text-sm font-medium text-foreground leading-snug">
-                              {{ entry.segment.arrivalStop.name }}
-                            </div>
-                            <div class="text-[11px] text-muted-foreground mt-px">
-                              Alight<span v-if="entry.segment.arrivalStop.platformCode"> · Platform {{ entry.segment.arrivalStop.platformCode }}</span>
-                            </div>
+                    <!-- Alight -->
+                    <div v-if="entry.segment.arrivalStop" class="relative flex">
+                      <div class="flex flex-col items-center w-7 shrink-0">
+                        <div
+                          class="mt-[5px] size-2.5 rounded-full shrink-0"
+                          v-bind="segmentRail(entry.segment)"
+                        />
+                      </div>
+                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium text-foreground leading-snug">
+                            {{ entry.segment.arrivalStop.name }}
                           </div>
-                          <span class="text-sm font-semibold tabular-nums shrink-0">
-                            {{ formatTime(entry.segment.endTime) }}
-                          </span>
+                          <div class="text-[11px] text-muted-foreground mt-px">
+                            Alight<span v-if="entry.segment.arrivalStop.platformCode"> · Platform {{ entry.segment.arrivalStop.platformCode }}</span>
+                          </div>
                         </div>
+                        <span class="text-sm font-semibold tabular-nums shrink-0">
+                          {{ formatTime(entry.segment.endTime) }}
+                        </span>
                       </div>
                     </div>
 
@@ -1503,7 +1537,7 @@ function showSegmentChart(segment: any): boolean {
                     <div
                       v-for="(alert, ai) in entry.segment.transitDetails?.alerts ?? []"
                       :key="ai"
-                      class="flex gap-2 p-2 rounded-md text-xs"
+                      class="ml-7 flex gap-2 p-2 rounded-md text-xs"
                       :class="alert.severity === 'severe'
                         ? 'bg-destructive/10 text-destructive'
                         : alert.severity === 'warning'
@@ -1519,16 +1553,25 @@ function showSegmentChart(segment: any): boolean {
                   </div>
                 </div>
 
-                <!-- Meta under the card -->
-                <div class="mt-1.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
-                  <span class="tabular-nums">{{ formatDurationCompact(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
-                  <span v-if="entry.segment.agencyName">· {{ entry.segment.agencyName }}</span>
-                  <span
-                    v-if="entry.segment.carryingVehicle"
-                    class="inline-flex items-center gap-1 text-forest-600 dark:text-forest-400"
-                  >
-                    <BikeIcon class="size-3" /> Bring bike on board
-                  </span>
+                <!-- Meta under the card — the rail leaves the card here and
+                     carries on to the next entry, so this slice covers the gap
+                     below the card as well as the row's own bottom padding. -->
+                <div class="relative mt-1.5 pl-7">
+                  <div
+                    v-if="i < timelineEntries.length - 1"
+                    class="absolute left-[14px] -translate-x-1/2 w-0.5 top-[-8px] bottom-[-22px]"
+                    v-bind="segmentRail(entry.segment)"
+                  />
+                  <div class="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                    <span class="tabular-nums">{{ formatDurationCompact(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
+                    <span v-if="entry.segment.agencyName">· {{ entry.segment.agencyName }}</span>
+                    <span
+                      v-if="entry.segment.carryingVehicle"
+                      class="inline-flex items-center gap-1 text-forest-600 dark:text-forest-400"
+                    >
+                      <BikeIcon class="size-3" /> Bring bike on board
+                    </span>
+                  </div>
                 </div>
               </div>
 

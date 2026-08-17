@@ -1350,13 +1350,18 @@ function showSegmentChart(segment: any): boolean {
                 it does elsewhere on the timeline, so the header paints two
                 slices and the rest of the card one. Every slice overlaps 2px
                 into its neighbour to hide sub-pixel seams — including across
-                the card's own border.
+                the card's own border, which is why the card doesn't clip: the
+                mode icon fills the gutter and rides that border.
+
+                Rows inside the card keep the timeline's gutter — the w-7 rail
+                column plus pl-2.5 — so stop names line up with the text of the
+                walking legs above and below.
               -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
-                <div class="rounded-xl border bg-card overflow-hidden">
+                <div class="rounded-xl border bg-card">
                   <!-- Line header — tinted with the line colour, mode icon on the rail -->
                   <div
-                    class="flex items-stretch"
+                    class="flex items-stretch rounded-t-xl"
                     :class="!entry.segment.lineColor && 'bg-muted/40'"
                     :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
@@ -1386,7 +1391,7 @@ function showSegmentChart(segment: any): boolean {
                         />
                       </div>
                     </div>
-                    <div class="flex-1 min-w-0 flex items-center gap-2 py-2 pr-3">
+                    <div class="flex-1 min-w-0 flex items-center gap-2 py-2 pl-2.5 pr-3">
                     <!-- Interchangeable routes (4/5, N/Q/R/W) render as a tight
                          cluster of bullets — any of them works for this leg. -->
                     <div
@@ -1442,7 +1447,7 @@ function showSegmentChart(segment: any): boolean {
                           v-bind="segmentRail(entry.segment)"
                         />
                       </div>
-                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3">
+                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2.5">
                         <div class="min-w-0">
                           <div class="text-sm font-medium text-foreground leading-snug">
                             {{ entry.segment.departureStop.name }}
@@ -1460,7 +1465,7 @@ function showSegmentChart(segment: any): boolean {
                     <!-- Other departures on this line -->
                     <div v-if="departuresFor(entry.segmentIndex).length > 1" class="relative flex">
                       <div class="w-7 shrink-0" />
-                      <div class="flex-1 min-w-0">
+                      <div class="flex-1 min-w-0 pl-2.5">
                         <DepartureBoard
                           :key="`${trip.id}-${entry.segmentIndex}`"
                           :cards="boardCards[entry.segmentIndex] ?? []"
@@ -1481,7 +1486,7 @@ function showSegmentChart(segment: any): boolean {
                     >
                       <CollapsibleTrigger class="flex w-full text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
                         <div class="w-7 shrink-0" />
-                        <span class="flex items-center gap-1">
+                        <span class="flex items-center gap-1 pl-2.5">
                           <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
                           <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
                         </span>
@@ -1499,7 +1504,7 @@ function showSegmentChart(segment: any): boolean {
                                 v-bind="segmentRail(entry.segment)"
                               />
                             </div>
-                            <div class="flex-1 min-w-0 flex items-center gap-2 text-xs text-muted-foreground">
+                            <div class="flex-1 min-w-0 flex items-center gap-2 pl-2.5 text-xs text-muted-foreground">
                               <span class="flex-1 truncate">{{ stop.name }}</span>
                               <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
                                 {{ formatTime(new Date(stop.arrivalTime)) }}
@@ -1518,7 +1523,7 @@ function showSegmentChart(segment: any): boolean {
                           v-bind="segmentRail(entry.segment)"
                         />
                       </div>
-                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3">
+                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2.5">
                         <div class="min-w-0">
                           <div class="text-sm font-medium text-foreground leading-snug">
                             {{ entry.segment.arrivalStop.name }}
@@ -1537,7 +1542,7 @@ function showSegmentChart(segment: any): boolean {
                     <div
                       v-for="(alert, ai) in entry.segment.transitDetails?.alerts ?? []"
                       :key="ai"
-                      class="ml-7 flex gap-2 p-2 rounded-md text-xs"
+                      class="ml-[38px] flex gap-2 p-2 rounded-md text-xs"
                       :class="alert.severity === 'severe'
                         ? 'bg-destructive/10 text-destructive'
                         : alert.severity === 'warning'
@@ -1556,7 +1561,7 @@ function showSegmentChart(segment: any): boolean {
                 <!-- Meta under the card — the rail leaves the card here and
                      carries on to the next entry, so this slice covers the gap
                      below the card as well as the row's own bottom padding. -->
-                <div class="relative mt-1.5 pl-7">
+                <div class="relative mt-1.5 pl-[38px]">
                   <div
                     v-if="i < timelineEntries.length - 1"
                     class="absolute left-[14px] -translate-x-1/2 w-0.5 top-[-8px] bottom-[-22px]"

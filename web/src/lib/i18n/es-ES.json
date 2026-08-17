@@ -1018,7 +1018,8 @@
         "4": "Jueves",
         "5": "Viernes",
         "6": "Sábado"
-      }
+      },
+      "localTimeNotice": "{time} hora local ({zone})"
     },
     "listItem": {
       "openNow": "Abierto ahora"

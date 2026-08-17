@@ -14,7 +14,7 @@ import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { getLocalDayAndTime } from '@/lib/place-open.utils'
+import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place-open.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
 import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
@@ -30,7 +30,7 @@ const props = defineProps<{
  *  the transit departures widget once its data arrives. */
 const stationLines = usePlaceTransitLines(computed(() => props.place?.id))
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const themeStore = useThemeStore()
 const router = useRouter()
 const geo = useGeolocationService()
@@ -188,30 +188,40 @@ const openingStatus = computed(() => {
   if (hours.isOpen24_7) {
     return { statusText: t('place.hours.open247'), detail: null, isOpen: true }
   }
-  if (!hours.regularHours?.length) return null
 
-  const { day: currentDay, time: currentTime } = getLocalDayAndTime(props.place.timezone)
-  const todayHours = hours.regularHours.find((h: any) => h.day === currentDay)
+  const status = resolveOpeningStatus(hours, props.place.timezone)
+  if (!status) return null
 
-  if (!todayHours) {
-    return { statusText: t('place.hours.closedToday'), detail: null, isOpen: false }
-  }
-  if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
+  if (status.state === 'open') {
     return {
       statusText: t('place.hours.openNow'),
-      detail: t('place.hours.closesAt', { time: formatTime(todayHours.close) }),
+      detail: t('place.hours.closesAt', { time: formatTime(status.closesAt!) }),
       isOpen: true,
     }
   }
-  if (currentTime < todayHours.open) {
+  if (status.state === 'opensLater') {
     return {
-      statusText: t('place.hours.opensAt', { time: formatTime(todayHours.open) }),
+      statusText:
+        status.opensDay === undefined
+          ? t('place.hours.opensAt', { time: formatTime(status.opensAt!) })
+          : t('place.hours.opensDay', {
+              day: t(`place.hours.days.${status.opensDay}`),
+              time: formatTime(status.opensAt!),
+            }),
       detail: null,
       isOpen: false,
     }
   }
   return { statusText: t('place.hours.closed'), detail: null, isOpen: false }
 })
+
+// Someone reading about a place across the world sees "Open now" against their
+// own midnight; the place's clock is what makes that make sense.
+const timezoneNotice = computed(() =>
+  openingStatus.value && !openingStatus.value.isPermanentlyClosed
+    ? getTimezoneDifference(props.place?.timezone, locale.value)
+    : null,
+)
 
 const checkOverflow = async () => {
   if (!descriptionRef.value || !description.value) return
@@ -347,6 +357,11 @@ watch(
       <template v-if="distanceText">
         <span class="text-muted-foreground font-normal">· {{ distanceText }}</span>
       </template>
+    </div>
+
+    <!-- Whose clock these hours are on, when it isn't the reader's -->
+    <div v-if="timezoneNotice" class="text-xs text-muted-foreground -mt-1">
+      {{ t('place.hours.localTimeNotice', { time: timezoneNotice.localTime, zone: timezoneNotice.label }) }}
     </div>
 
     <!-- Description Section -->

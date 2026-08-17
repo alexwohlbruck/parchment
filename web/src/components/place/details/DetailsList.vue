@@ -16,12 +16,16 @@ import {
   ClockIcon,
 } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
-import PlaceHours from './PlaceHours.vue'
 import type { Place, DisplayChip } from '@/types/place.types'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
-import { isPlaceOpenNow, getLocalDayAndTime } from '@/lib/place-open.utils'
+import {
+  isPlaceOpenNow,
+  getLocalDayAndTime,
+  resolveOpeningStatus,
+  getTimezoneDifference,
+} from '@/lib/place-open.utils'
 import { resolveIconByName } from '@/lib/osm-tag-icons'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
@@ -36,7 +40,7 @@ const props = defineProps<{
   place: Partial<Place>
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const cuisines = computed(() => {
   if (!props.place) return null
@@ -181,45 +185,38 @@ function getOpeningStatus(hours: any) {
     return { status: t('place.hours.open247'), color: 'text-forest-500' }
   }
 
-  if (hours.regularHours.length === 0) {
+  const status = resolveOpeningStatus(hours, props.place.timezone)
+  if (!status) {
     return { status: '', color: '' }
   }
 
-  const { day: currentDay, time: currentTime } = getLocalDayAndTime(props.place.timezone)
-
-  const todayHours = hours.regularHours.find((h: any) => h.day === currentDay)
-  if (!todayHours) {
-    return { status: t('place.hours.closedToday'), color: 'text-coral-500' }
-  }
-
-  if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
+  if (status.state === 'open') {
     return {
-      status: t('place.hours.openUntil', { time: formatTime(todayHours.close) }),
+      status: t('place.hours.openUntil', { time: formatTime(status.closesAt!) }),
       color: 'text-forest-500',
     }
-  } else if (currentTime < todayHours.open) {
+  }
+
+  if (status.state === 'opensLater') {
     return {
-      status: t('place.hours.opensAt', { time: formatTime(todayHours.open) }),
+      status:
+        status.opensDay === undefined
+          ? t('place.hours.opensAt', { time: formatTime(status.opensAt!) })
+          : t('place.hours.opensDay', {
+              day: DAYS.value[status.opensDay],
+              time: formatTime(status.opensAt!),
+            }),
       color: 'text-compass-500',
     }
-  } else {
-    // Find next day's opening time
-    let nextDay = (currentDay + 1) % 7
-    let daysChecked = 0
-    while (daysChecked < 7) {
-      const nextDayHours = hours.regularHours.find((h: any) => h.day === nextDay)
-      if (nextDayHours) {
-        return {
-          status: t('place.hours.opensDay', { day: DAYS.value[nextDay], time: formatTime(nextDayHours.open) }),
-          color: 'text-compass-500',
-        }
-      }
-      nextDay = (nextDay + 1) % 7
-      daysChecked++
-    }
-    return { status: t('place.hours.closed'), color: 'text-coral-500' }
   }
+
+  return { status: t('place.hours.closed'), color: 'text-coral-500' }
 }
+
+// Which clock the hours below are kept on, when it isn't the reader's.
+const hoursTimezoneNotice = computed(() =>
+  getTimezoneDifference(props.place.timezone, locale.value),
+)
 
 function getAddressDisplay(address: any) {
   if (!address) return ''
@@ -444,6 +441,12 @@ function getFullAddress(address: any) {
                       </template>
                       <template v-else>{{ t('place.hours.closed') }}</template>
                     </span>
+                  </div>
+                  <div v-if="hoursTimezoneNotice" class="mt-2 text-xs text-muted-foreground">
+                    {{ t('place.hours.localTimeNotice', {
+                      time: hoursTimezoneNotice.localTime,
+                      zone: hoursTimezoneNotice.label,
+                    }) }}
                   </div>
                 </div>
               </div>

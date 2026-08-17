@@ -490,8 +490,8 @@ describe('mergePlaces — permanent closure survives the merge', () => {
       }),
     ])
 
-    expect(merged.openingHours.value.isPermanentlyClosed).toBe(true)
-    expect(merged.openingHours.value.regularHours).toEqual([])
+    expect(merged.openingHours!.value.isPermanentlyClosed).toBe(true)
+    expect(merged.openingHours!.value.regularHours).toEqual([])
   })
 
   test('a single unmerged place is closed by its own tags', () => {
@@ -504,7 +504,7 @@ describe('mergePlaces — permanent closure survives the merge', () => {
       }),
     ])
 
-    expect(merged.openingHours.value.isPermanentlyClosed).toBe(true)
+    expect(merged.openingHours!.value.isPermanentlyClosed).toBe(true)
   })
 
   test('a live place keeps its merged hours', () => {
@@ -518,7 +518,7 @@ describe('mergePlaces — permanent closure survives the merge', () => {
       }),
     ])
 
-    expect(merged.openingHours.value.isPermanentlyClosed).toBe(false)
-    expect(merged.openingHours.value.regularHours).toHaveLength(1)
+    expect(merged.openingHours!.value.isPermanentlyClosed).toBe(false)
+    expect(merged.openingHours!.value.regularHours).toHaveLength(1)
   })
 })

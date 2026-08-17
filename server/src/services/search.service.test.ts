@@ -239,7 +239,7 @@ describe('search service', () => {
         makePlace({ id: 'osm/node/closed', tags: { 'disused:amenity': 'cafe' } }),
         makePlace({ id: 'osm/node/live-1', tags: { amenity: 'cafe' } }),
         makePlace({ id: 'osm/node/live-2', tags: { amenity: 'cafe' } }),
-      ])
+      ] as never)
 
       const resp = (await search('user-1', {
         query: 'cafe',
@@ -259,7 +259,7 @@ describe('search service', () => {
       // wants to learn that it shut down.
       mockLookupPlaces.mockResolvedValue([
         makePlace({ id: 'osm/node/closed', tags: { 'disused:amenity': 'cafe' } }),
-      ])
+      ] as never)
 
       const resp = (await search('user-1', {
         query: 'cafe',

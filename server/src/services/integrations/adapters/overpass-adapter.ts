@@ -9,7 +9,7 @@ import { SOURCE } from '../../../lib/constants'
 import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
 import { matchTags } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
-import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
+import { parseOpeningHours } from '../../../lib/opening-hours'
 import { isPermanentlyClosedByOsmTags } from '../../../lib/osm-lifecycle'
 import { calculateOSMCenter } from '../../../util/geometry-conversion'
 import { extractTransitIdentifiers, isTransitStopType, createTransitInfo } from '../../../lib/transit-utils'
@@ -81,7 +81,7 @@ export class OverpassAdapter {
         photos: [], // OSM doesn't typically have photos
         address: this.extractOsmAddress(data.tags),
         contactInfo: this.extractContactInfo(data.tags),
-        openingHours: this.extractOpeningHours(data.tags),
+        openingHours: this.extractOpeningHours(data.tags, center),
         amenities: this.extractAmenities(data.tags),
         description: this.extractDescription(data.tags),
         ...this.getTransitField(data),
@@ -285,6 +285,7 @@ export class OverpassAdapter {
    */
   private extractOpeningHours(
     tags?: Record<string, string>,
+    center?: { lat: number; lng: number } | null,
   ): AttributedValue<OpeningHours> | null {
     if (!tags) return null
 
@@ -298,12 +299,19 @@ export class OverpassAdapter {
 
     // Hours left over from when the place was alive would read as "Open now",
     // so a permanently closed place reports the status and nothing else.
+    const parsed = isPermanentlyClosed
+      ? null
+      : parseOpeningHours(openingHours, {
+          lat: center?.lat,
+          lng: center?.lng,
+          countryCode: tags['addr:country'],
+          region: tags['addr:state'],
+        })
+
     return {
       value: {
-        regularHours: isPermanentlyClosed
-          ? []
-          : parseOpeningHoursForUnifiedFormat(openingHours) || [],
-        isOpen24_7: !isPermanentlyClosed && !!openingHours?.includes('24/7'),
+        regularHours: parsed?.regularHours ?? [],
+        isOpen24_7: parsed?.isOpen24_7 ?? false,
         isPermanentlyClosed,
         isTemporarilyClosed: !isPermanentlyClosed && openingHours === 'closed',
         rawText: openingHours,

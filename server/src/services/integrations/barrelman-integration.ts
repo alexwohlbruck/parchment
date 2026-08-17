@@ -629,7 +629,15 @@ export class BarrelmanIntegration
     let openingHours: AttributedValue<OpeningHours> | null = null
     if (r.hours || isPermanentlyClosedByOsmTags(tags)) {
       openingHours = {
-        value: parseOsmHours(r.hours ? { ...tags, opening_hours: r.hours } : tags),
+        value: parseOsmHours(
+          r.hours ? { ...tags, opening_hours: r.hours } : tags,
+          {
+            lat: geometry.center?.lat,
+            lng: geometry.center?.lng,
+            countryCode: r.address?.country,
+            region: r.address?.state,
+          },
+        ),
         sourceId,
         timestamp,
       }

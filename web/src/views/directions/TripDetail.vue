@@ -1001,6 +1001,31 @@ function getRailStyle(entryIndex: number, position: 'above' | 'below'): Record<s
   return {}
 }
 
+// ── Stop rail helper ───────────────────────────────────────────────
+
+/**
+ * Paint for one part of a transit card's stop rail — the single line running
+ * from the boarding stop, through the intermediate stops, to the alighting
+ * stop. Tinted with the line colour when the agency publishes one. Spread the
+ * result onto the element with `v-bind`.
+ *
+ * `node` is a boarding / alighting stop, `stop` an intermediate one: the alpha
+ * keeps the line and the intermediate nodes subordinate to the two stops the
+ * rider actually acts on.
+ */
+function stopRail(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  segment: any,
+  part: 'line' | 'node' | 'stop',
+): { class?: string; style?: Record<string, string> } {
+  if (!segment.lineColor) {
+    return {
+      class: { line: 'bg-border', node: 'bg-muted-foreground', stop: 'bg-muted-foreground/50' }[part],
+    }
+  }
+  return { style: { background: `#${segment.lineColor}${{ line: '59', node: '', stop: 'a6' }[part]}` } }
+}
+
 // ── Segment helpers ────────────────────────────────────────────────
 
 function showSegmentChart(segment: any): boolean {
@@ -1344,73 +1369,134 @@ function showSegmentChart(segment: any): boolean {
                   </div>
 
                   <div class="px-3 py-2.5 space-y-2">
-                    <!-- Board -->
-                    <div v-if="entry.segment.departureStop" class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <div class="text-sm font-medium text-foreground leading-snug">
-                          {{ entry.segment.departureStop.name }}
+                    <!-- ── Stop timeline ──
+                         One rail from the boarding stop, past the intermediate
+                         stops, to the alighting stop. Same house pattern as the
+                         trip timeline: every row paints its own slice of the
+                         line and overlaps 2px into its neighbours, so expanding
+                         the stops extends the rail instead of starting a new one.
+
+                         Node centres, measured from each row's top:
+                           board / alight — 10px (5px mt + 5px half of size-2.5)
+                           intermediate   —  8px (5px mt + 3px half of size-1.5) -->
+                    <div>
+                      <!-- Board -->
+                      <div v-if="entry.segment.departureStop" class="flex">
+                        <div class="relative flex flex-col items-center w-4 shrink-0">
+                          <div
+                            class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[10px] bottom-[-2px]"
+                            v-bind="stopRail(entry.segment, 'line')"
+                          />
+                          <div
+                            class="relative z-10 mt-[5px] size-2.5 rounded-full shrink-0"
+                            v-bind="stopRail(entry.segment, 'node')"
+                          />
                         </div>
-                        <div class="text-[11px] text-muted-foreground mt-px">
-                          Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
+                        <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2 pb-2">
+                          <div class="min-w-0">
+                            <div class="text-sm font-medium text-foreground leading-snug">
+                              {{ entry.segment.departureStop.name }}
+                            </div>
+                            <div class="text-[11px] text-muted-foreground mt-px">
+                              Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
+                            </div>
+                          </div>
+                          <div class="text-sm font-semibold tabular-nums shrink-0">
+                            {{ formatTime(entry.segment.startTime) }}
+                          </div>
                         </div>
                       </div>
-                      <div class="text-sm font-semibold tabular-nums shrink-0">
-                        {{ formatTime(entry.segment.startTime) }}
+
+                      <!-- Other departures on this line — the rail runs past them -->
+                      <div v-if="departuresFor(entry.segmentIndex).length > 1" class="flex">
+                        <div class="relative flex flex-col items-center w-4 shrink-0">
+                          <div
+                            class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
+                            v-bind="stopRail(entry.segment, 'line')"
+                          />
+                        </div>
+                        <div class="flex-1 min-w-0 pl-2 pb-2">
+                          <DepartureBoard
+                            :key="`${trip.id}-${entry.segmentIndex}`"
+                            :cards="boardCards[entry.segmentIndex] ?? []"
+                            :line-color="entry.segment.lineColor"
+                            :line-text-color="entry.segment.lineTextColor"
+                            :line-name="entry.segment.lineName"
+                            :busy="rebooking"
+                            @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
+                          />
+                        </div>
                       </div>
-                    </div>
 
-                    <DepartureBoard
-                      v-if="departuresFor(entry.segmentIndex).length > 1"
-                      :key="`${trip.id}-${entry.segmentIndex}`"
-                      :cards="boardCards[entry.segmentIndex] ?? []"
-                      :line-color="entry.segment.lineColor"
-                      :line-text-color="entry.segment.lineTextColor"
-                      :line-name="entry.segment.lineName"
-                      :busy="rebooking"
-                      @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
-                    />
-
-                    <!-- Intermediate stops -->
-                    <Collapsible
-                      v-if="entry.segment.intermediateStops?.length"
-                      v-slot="{ open }"
-                    >
-                      <CollapsibleTrigger class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-                        <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
-                        <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div
-                          class="ml-1.5 mt-1.5 pl-3 space-y-1 border-l-2"
-                          :style="entry.segment.lineColor ? { borderColor: `#${entry.segment.lineColor}66` } : {}"
-                        >
+                      <!-- Intermediate stops -->
+                      <Collapsible
+                        v-if="entry.segment.intermediateStops?.length"
+                        v-slot="{ open }"
+                      >
+                        <CollapsibleTrigger class="flex w-full text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                          <div class="relative flex flex-col items-center w-4 shrink-0">
+                            <div
+                              class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
+                              v-bind="stopRail(entry.segment, 'line')"
+                            />
+                          </div>
+                          <span class="flex items-center gap-1 pl-2 pb-2">
+                            <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
+                            <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
+                          </span>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
                           <div
                             v-for="stop in entry.segment.intermediateStops"
                             :key="stop.id || stop.name"
-                            class="flex items-center gap-2 text-xs text-muted-foreground"
+                            class="flex"
                           >
-                            <span class="flex-1 truncate">{{ stop.name }}</span>
-                            <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
-                              {{ formatTime(new Date(stop.arrivalTime)) }}
-                            </span>
+                            <div class="relative flex flex-col items-center w-4 shrink-0">
+                              <div
+                                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
+                                v-bind="stopRail(entry.segment, 'line')"
+                              />
+                              <div
+                                class="relative z-10 mt-[5px] size-1.5 rounded-full shrink-0"
+                                v-bind="stopRail(entry.segment, 'stop')"
+                              />
+                            </div>
+                            <div class="flex-1 min-w-0 flex items-center gap-2 pl-2 pb-1.5 text-xs text-muted-foreground">
+                              <span class="flex-1 truncate">{{ stop.name }}</span>
+                              <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
+                                {{ formatTime(new Date(stop.arrivalTime)) }}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                        </CollapsibleContent>
+                      </Collapsible>
 
-                    <!-- Alight -->
-                    <div v-if="entry.segment.arrivalStop" class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <div class="text-sm font-medium text-foreground leading-snug">
-                          {{ entry.segment.arrivalStop.name }}
+                      <!-- Alight -->
+                      <div v-if="entry.segment.arrivalStop" class="flex">
+                        <div class="relative flex flex-col items-center w-4 shrink-0">
+                          <div
+                            class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[12px]"
+                            v-bind="stopRail(entry.segment, 'line')"
+                          />
+                          <div
+                            class="relative z-10 mt-[5px] size-2.5 rounded-full shrink-0"
+                            v-bind="stopRail(entry.segment, 'node')"
+                          />
                         </div>
-                        <div class="text-[11px] text-muted-foreground mt-px">
-                          Alight<span v-if="entry.segment.arrivalStop.platformCode"> · Platform {{ entry.segment.arrivalStop.platformCode }}</span>
+                        <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2">
+                          <div class="min-w-0">
+                            <div class="text-sm font-medium text-foreground leading-snug">
+                              {{ entry.segment.arrivalStop.name }}
+                            </div>
+                            <div class="text-[11px] text-muted-foreground mt-px">
+                              Alight<span v-if="entry.segment.arrivalStop.platformCode"> · Platform {{ entry.segment.arrivalStop.platformCode }}</span>
+                            </div>
+                          </div>
+                          <span class="text-sm font-semibold tabular-nums shrink-0">
+                            {{ formatTime(entry.segment.endTime) }}
+                          </span>
                         </div>
                       </div>
-                      <span class="text-sm font-semibold tabular-nums shrink-0">
-                        {{ formatTime(entry.segment.endTime) }}
-                      </span>
                     </div>
 
                     <!-- Transit alerts -->

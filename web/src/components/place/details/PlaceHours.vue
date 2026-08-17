@@ -94,6 +94,12 @@ const openingStatus = computed(() => {
   }
 })
 
+// A permanently closed place's leftover weekly schedule describes a business
+// that no longer exists, so the status stands alone with nothing to expand.
+const canShowSchedule = computed(
+  () => props.hours.regularHours.length > 0 && !props.hours.isPermanentlyClosed,
+)
+
 const formatTime = (time: string) => formatClockTime(time)
 
 function formatOpeningHours(hours: OpeningHours) {
@@ -122,7 +128,7 @@ function formatOpeningHours(hours: OpeningHours) {
       <div v-if="openingStatus.status" class="flex items-center gap-2">
         <span :class="openingStatus.color">{{ openingStatus.status }}</span>
         <button
-          v-if="hours.regularHours.length > 0"
+          v-if="canShowSchedule"
           class="text-sm text-muted-foreground hover:text-foreground text-left"
           @click="showHours = !showHours"
         >

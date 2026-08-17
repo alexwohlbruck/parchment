@@ -139,6 +139,13 @@ const plusCode = computed(() => {
 const isAddressExpanded = ref(false)
 const isHoursExpanded = ref(false)
 
+// A permanently closed place's leftover weekly schedule describes a business
+// that no longer exists, so the status stands alone with nothing to expand.
+const canExpandHours = computed(() => {
+  const hours = props.place.openingHours?.value
+  return !!hours && hours.regularHours.length > 0 && !hours.isPermanentlyClosed
+})
+
 const DAYS = computed(() => [0, 1, 2, 3, 4, 5, 6].map(i => t(`place.hours.days.${i}`)))
 
 const formatTime = (time: string) => formatClockTime(time)
@@ -359,7 +366,7 @@ function getFullAddress(address: any) {
 
         <!-- Hours -->
         <div v-if="place.openingHours">
-          <Collapsible v-if="place.openingHours.value.regularHours.length > 0" v-model:open="isHoursExpanded">
+          <Collapsible v-if="canExpandHours" v-model:open="isHoursExpanded">
             <CollapsibleTrigger class="w-full cursor-pointer">
               <div class="flex items-center justify-between group">
                 <div class="flex gap-3 items-center group min-w-0 flex-1">

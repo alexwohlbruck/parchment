@@ -172,8 +172,15 @@ const openingStatus = computed(() => {
   const hours = props.place?.openingHours?.value
   if (!hours) return null
 
+  // Permanently closed is a property of the place, not of the current moment,
+  // so it drops the live open/closed dot rather than reusing the "closed now" one.
   if (hours.isPermanentlyClosed) {
-    return { statusText: t('place.hours.permanentlyClosed'), detail: null, isOpen: false }
+    return {
+      statusText: t('place.hours.permanentlyClosed'),
+      detail: null,
+      isOpen: false,
+      isPermanentlyClosed: true,
+    }
   }
   if (hours.isTemporarilyClosed) {
     return { statusText: t('place.hours.temporarilyClosed'), detail: null, isOpen: false }
@@ -324,10 +331,16 @@ watch(
     <!-- Open status -->
     <div v-if="openingStatus" class="flex items-center gap-1.5 text-sm">
       <span
+        v-if="!openingStatus.isPermanentlyClosed"
         class="inline-block size-[7px] rounded-full shrink-0"
         :class="openingStatus.isOpen ? 'bg-forest-500 shadow-[0_0_0_3px_rgba(90,126,71,0.18)]' : 'bg-coral-500 shadow-[0_0_0_3px_rgba(216,74,0,0.18)]'"
       />
-      <span :class="openingStatus.isOpen ? 'text-forest-600' : 'text-coral-500'" class="font-medium">{{ openingStatus.statusText }}</span>
+      <span
+        class="font-medium"
+        :class="openingStatus.isPermanentlyClosed
+          ? 'text-muted-foreground'
+          : openingStatus.isOpen ? 'text-forest-600' : 'text-coral-500'"
+      >{{ openingStatus.statusText }}</span>
       <template v-if="openingStatus.detail">
         <span class="text-muted-foreground font-normal">· {{ openingStatus.detail }}</span>
       </template>

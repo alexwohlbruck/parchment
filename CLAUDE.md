@@ -8,27 +8,6 @@
 - **Parchment DB**: Docker container `parchment-db`
 - **Barrelman DB**: Docker container `barrelman-db`, port 5434
 
-## Remote dev box (vega5)
-
-There are two environments. The laptop is as described above. **vega5** (`vega5.tailc47d6.ts.net`, `100.70.133.121`) is the always-on box used for working from the field, and it is set up differently — check which one you are on before assuming a command applies.
-
-On vega5:
-
-- Repos live in `~/Documents/code/`. Only `parchment-db` runs in Docker; the server and web run as systemd user services, not containers.
-- **Barrelman is not local.** Parchment's barrelman integration points at the production instance on vega2 (`100.110.246.86:5001`) over the tailnet. Do not run barrelman imports here, and do not point anything on vega5 at vega2's database — it is production.
-- Each branch gets its own preview stack via `preview` (`scripts/preview.sh`): its own worktree, its own clone of the dev database, its own ports, and its own tailnet URL.
-
-### Working on a feature branch on vega5
-
-Run `preview up` from inside the worktree (or `preview up <branch>` from anywhere) when starting feature work, and give the user the link it prints — that link is how they review the change from a phone. Then:
-
-- `preview ls` — what is running, and where
-- `preview pr` — push the branch and put the preview link on its PR
-- `preview logs` — server + web logs for the current worktree
-- `preview down` — stop it, drop its database, free the slot
-
-Previews hot-reload, so a change pushed to the branch is live on the link immediately; there is no rebuild or redeploy step to tell the user about.
-
 ## When to restart what
 
 - **Client code changes** (`web/src/`): Vite HMR picks them up automatically

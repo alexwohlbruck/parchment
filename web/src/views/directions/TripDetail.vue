@@ -1356,12 +1356,22 @@ function showSegmentChart(segment: any): boolean {
                 Rows inside the card keep the timeline's gutter — the w-7 rail
                 column plus pl-2.5 — so stop names line up with the text of the
                 walking legs above and below.
+
+                The card reaches 8px further left than the rest of the timeline
+                (-ml-2, with that 8px given back as pl-2 inside) so the mode icon
+                clears the card's edge instead of sitting on it. That makes the
+                corner radius 22px — the icon's own 14px radius plus the 8px gap
+                — so the corner runs concentric with the icon.
               -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
-                <div class="rounded-xl border bg-card">
+                <!-- The outline is a ring, not a border: a border would push the card's
+                     content — and so the rail running through it — 1px right of
+                     the rail on every other entry. The ring sits outside the box,
+                     so the header's tint can't cover it either. -->
+                <div class="-ml-2 rounded-[22px] ring-1 ring-border bg-card">
                   <!-- Line header — tinted with the line colour, mode icon on the rail -->
                   <div
-                    class="flex items-stretch rounded-t-xl"
+                    class="flex items-stretch rounded-t-[22px] pl-2"
                     :class="!entry.segment.lineColor && 'bg-muted/40'"
                     :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
                   >
@@ -1433,11 +1443,15 @@ function showSegmentChart(segment: any): boolean {
                        Node centres, measured from each row's top:
                          board / alight — 10px (5px mt + 5px half of size-2.5)
                          intermediate   —  8px (5px mt + 3px half of size-1.5) -->
-                  <div class="relative py-2.5 space-y-2 pr-3">
+                  <div class="relative py-2.5 pl-2 pr-3">
+                    <!-- The rail sits outside the spaced rows: `space-y` margins
+                         apply to every non-last child, and on an absolutely
+                         positioned element that margin shortens the line. -->
                     <div
-                      class="absolute left-[14px] -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
+                      class="absolute left-[22px] -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
                       v-bind="segmentRail(entry.segment)"
                     />
+                    <div class="space-y-2">
 
                     <!-- Board -->
                     <div v-if="entry.segment.departureStop" class="relative flex">
@@ -1554,6 +1568,7 @@ function showSegmentChart(segment: any): boolean {
                         <div v-if="alert.headerText" class="font-medium">{{ alert.headerText }}</div>
                         <div v-if="alert.descriptionText" class="mt-0.5 line-clamp-3">{{ alert.descriptionText }}</div>
                       </div>
+                    </div>
                     </div>
                   </div>
                 </div>

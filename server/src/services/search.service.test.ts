@@ -232,6 +232,44 @@ describe('search service', () => {
       expect(types.indexOf('category')).toBeLessThan(types.indexOf('place'))
     })
 
+    test('permanently closed places sort below every live place', async () => {
+      // Barrelman ranks the closed cafe first; it still has to land last, or a
+      // business that shut down takes the top slot (PAR-287).
+      mockLookupPlaces.mockResolvedValue([
+        makePlace({ id: 'osm/node/closed', tags: { 'disused:amenity': 'cafe' } }),
+        makePlace({ id: 'osm/node/live-1', tags: { amenity: 'cafe' } }),
+        makePlace({ id: 'osm/node/live-2', tags: { amenity: 'cafe' } }),
+      ])
+
+      const resp = (await search('user-1', {
+        query: 'cafe',
+        lat: 37.77,
+        lng: -122.41,
+      })) as any
+
+      expect(resp.results.map((r: any) => r.id)).toEqual([
+        'osm/node/live-1',
+        'osm/node/live-2',
+        'osm/node/closed',
+      ])
+    })
+
+    test('permanently closed places stay in the results', async () => {
+      // Demoted, not dropped — someone searching a place that shut down still
+      // wants to learn that it shut down.
+      mockLookupPlaces.mockResolvedValue([
+        makePlace({ id: 'osm/node/closed', tags: { 'disused:amenity': 'cafe' } }),
+      ])
+
+      const resp = (await search('user-1', {
+        query: 'cafe',
+        lat: 37.77,
+        lng: -122.41,
+      })) as any
+
+      expect(resp.results.map((r: any) => r.id)).toEqual(['osm/node/closed'])
+    })
+
     test('skips category search when query is empty', async () => {
       await search('user-1', { query: '' })
       expect(mockSearchCategoriesWithScores).not.toHaveBeenCalled()

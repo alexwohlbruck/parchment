@@ -21,6 +21,13 @@ import {
 import { integrationManager } from './integrations'
 import { getBrandSuggestions } from './brand.service'
 import { resolveIcon } from '../lib/place-categories'
+import { isPlacePermanentlyClosed } from '../lib/place-tags'
+
+/**
+ * Relevance subtracted from a permanently closed place, large enough to drop it
+ * below the whole live-place band (which spans 0.9 down) regardless of rank.
+ */
+const PERMANENTLY_CLOSED_PENALTY = 1
 
 
 function parseCoordinateQuery(query: string): { lat: number; lng: number } | null {
@@ -406,9 +413,16 @@ export async function search(
   for (let i = 0; i < places.length; i++) {
     // Places are pre-sorted by relevance from the integration;
     // assign decreasing score starting at 0.9 (slightly below exact category match)
+    const relevance = 0.9 - i * 0.02
+
+    // Permanently closed places stay searchable — someone looking for a place
+    // that shut down still wants to find out that it shut down — but they sort
+    // below everything still trading, so they never take a top slot.
     scoredResults.push({
       result: convertPlaceToSearchResult(places[i]),
-      relevance: 0.9 - i * 0.02,
+      relevance: isPlacePermanentlyClosed(places[i])
+        ? relevance - PERMANENTLY_CLOSED_PENALTY
+        : relevance,
     })
   }
 

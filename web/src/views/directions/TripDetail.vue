@@ -1145,6 +1145,7 @@ function showSegmentChart(segment: any): boolean {
           v-for="(entry, i) in timelineEntries"
           :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
           class="flex"
+          :class="!isTransitCard(entry) && 'pl-2'"
         >
           <!-- Rail column — fixed width, relative for absolute lines.
                Transit cards draw the rail themselves, through the card. -->
@@ -1357,18 +1358,19 @@ function showSegmentChart(segment: any): boolean {
                 column plus pl-2.5 — so stop names line up with the text of the
                 walking legs above and below.
 
-                The card reaches 8px further left than the rest of the timeline
-                (-ml-2, with that 8px given back as pl-2 inside) so the mode icon
-                clears the card's edge instead of sitting on it. That makes the
-                corner radius 22px — the icon's own 14px radius plus the 8px gap
-                — so the corner runs concentric with the icon.
+                The card runs the full width of the timeline while every other
+                row is indented 8px (pl-2), and the card gives that 8px back to
+                its own rows. So the rail still lands in the same place, and the
+                mode icon clears the card's edge by 8px — which sets the corner
+                radius at 22px (the icon's 14px radius plus that gap) so the
+                corner runs concentric with the icon.
               -->
               <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
                 <!-- The outline is a ring, not a border: a border would push the card's
                      content — and so the rail running through it — 1px right of
                      the rail on every other entry. The ring sits outside the box,
                      so the header's tint can't cover it either. -->
-                <div class="-ml-2 rounded-[22px] ring-1 ring-border bg-card">
+                <div class="rounded-[22px] ring-1 ring-border bg-card">
                   <!-- Line header — tinted with the line colour, mode icon on the rail -->
                   <div
                     class="flex items-stretch rounded-t-[22px] pl-2"
@@ -1576,10 +1578,10 @@ function showSegmentChart(segment: any): boolean {
                 <!-- Meta under the card — the rail leaves the card here and
                      carries on to the next entry, so this slice covers the gap
                      below the card as well as the row's own bottom padding. -->
-                <div class="relative mt-1.5 pl-[38px]">
+                <div class="relative mt-1.5 pl-[46px]">
                   <div
                     v-if="i < timelineEntries.length - 1"
-                    class="absolute left-[14px] -translate-x-1/2 w-0.5 top-[-8px] bottom-[-22px]"
+                    class="absolute left-[22px] -translate-x-1/2 w-0.5 top-[-8px] bottom-[-22px]"
                     v-bind="segmentRail(entry.segment)"
                   />
                   <div class="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">

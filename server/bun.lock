@@ -40,6 +40,7 @@
         "lucia": "^3.2.2",
         "md5": "^2.3.0",
         "nodemailer": "^6.9.13",
+        "opening_hours": "^3.14.0",
         "oslo": "^1.2.1",
         "pg": "^8.14.1",
         "pino": "^9.7.0",
@@ -47,6 +48,7 @@
         "postgres": "^3.4.5",
         "qs": "^6.14.0",
         "sharp": "^0.34.5",
+        "suncalc": "^2.0.1",
         "ua-parser-js": "^2.0.9",
         "ws": "^8.18.3",
       },
@@ -736,6 +738,8 @@
 
     "openapi-types": ["openapi-types@12.1.3", "", {}, ""],
 
+    "opening_hours": ["opening_hours@3.14.0", "", { "dependencies": { "i18next": "^26.3.6", "suncalc": "^2.0.0" } }, "sha512-pgddpSgUJlbbel2Kk9Y8uYv3cw//fiuM/BNUO7VhtdlHMpaUo3U8uG0jF5DJxsCzIpyeVygNjQJso6T6okiT8g=="],
+
     "oslo": ["oslo@1.2.1", "", { "dependencies": { "@node-rs/argon2": "1.7.0", "@node-rs/bcrypt": "1.9.0" } }, ""],
 
     "path-source": ["path-source@0.1.3", "", { "dependencies": { "array-source": "0.0", "file-source": "0.6" } }, "sha512-dWRHm5mIw5kw0cs3QZLNmpUWty48f5+5v9nWD2dw3Y0Hf+s01Ag8iJEWV0Sm0kocE8kK27DrIowha03e1YR+Qw=="],
@@ -872,6 +876,8 @@
 
     "strtok3": ["strtok3@10.3.4", "", { "dependencies": { "@tokenizer/token": "^0.3.0" } }, "sha512-KIy5nylvC5le1OdaaoCJ07L+8iQzJHGH6pWDuzS+d07Cu7n1MZ2x26P8ZKIWfbK02+XIL8Mp4RkWeqdUCrDMfg=="],
 
+    "suncalc": ["suncalc@2.0.1", "", {}, "sha512-wjujU+HpsP1TUvN3/9dFkVQQCsMZbk7PkdZsASRJR4jVPHCm9Qy0FVkFTqXfs70Ag2yheN7ZUavzCyOjhJDGxQ=="],
+
     "sweepline-intersections": ["sweepline-intersections@1.5.0", "", { "dependencies": { "tinyqueue": "^2.0.0" } }, ""],
 
     "text-encoding": ["text-encoding@0.6.4", "", {}, "sha512-hJnc6Qg3dWoOMkqP53F0dzRIgtmsAge09kxUIqGrEUS4qr5rWLckGYaQAVr+opBrIMRErGgy6f5aPnyPpyGRfg=="],
@@ -949,6 +955,8 @@
     "concaveman/robust-predicates": ["robust-predicates@2.0.4", "", {}, ""],
 
     "geojson-polygon-self-intersections/rbush": ["rbush@2.0.2", "", { "dependencies": { "quickselect": "^1.0.1" } }, ""],
+
+    "opening_hours/i18next": ["i18next@26.3.6", "", { "peerDependencies": { "typescript": "^5 || ^6 || ^7" }, "optionalPeers": ["typescript"] }, "sha512-Bu5Z2nAXgfVyM8xvW3jk9EKRIuX37PudsrBViThNFx7CR7aaYTpP01cxNB/E4c4UUzTDiAZRstEhsRfPOL/8xA=="],
 
     "pino/pino-abstract-transport": ["pino-abstract-transport@2.0.0", "", { "dependencies": { "split2": "^4.0.0" } }, "sha512-F63x5tizV6WCh4R6RHyi2Ml+M70DNRXt/+HANowMflpgGFMAym/VKm6G7ZOQRjqN7XbGxK1Lg9t6ZrtzOaivMw=="],
 

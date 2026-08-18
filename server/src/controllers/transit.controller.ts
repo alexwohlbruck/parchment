@@ -42,6 +42,11 @@ app.get('/departures', ({ query }) =>
   { detail: { tags: ['Transit'], summary: 'Upcoming departures at a stop' } },
 )
 
+app.get('/alerts', ({ query }) =>
+  requestBarrelman('/transit/alerts', query, { cacheControl: 'public, max-age=60' }),
+  { detail: { tags: ['Transit'], summary: 'GTFS-RT service alerts for routes, stops and trips' } },
+)
+
 app.get('/bikes-allowed', ({ query }) =>
   requestBarrelman('/transit/bikes-allowed', query, { cacheControl: 'public, max-age=3600' }),
   { detail: { tags: ['Transit'], summary: 'Batch check bikes_allowed for routes' } },

@@ -970,7 +970,32 @@
       "tomorrow": "Mañana",
       "noMoreToday": "No hay más servicio hoy",
       "showLaterDepartures": "Ver salidas posteriores",
-      "loadingMore": "Cargando…"
+      "loadingMore": "Cargando…",
+      "alerts": {
+        "title": "Aviso de servicio",
+        "onThisLine": "Avisos en esta línea",
+        "atThisStop": "Avisos en esta parada",
+        "onThisTrip": "Avisos en este viaje",
+        "upcoming": "Próximos avisos",
+        "showMore": "Ver más",
+        "showLess": "Ver menos",
+        "moreInfo": "Más información",
+        "inEffectSince": "En vigor desde el {date}",
+        "startsAt": "Comienza el {date}",
+        "until": "Hasta el {date}",
+        "effect": {
+          "NO_SERVICE": "Sin servicio",
+          "REDUCED_SERVICE": "Servicio reducido",
+          "SIGNIFICANT_DELAYS": "Retrasos",
+          "DETOUR": "Desvío",
+          "ADDITIONAL_SERVICE": "Servicio adicional",
+          "MODIFIED_SERVICE": "Cambio de servicio",
+          "STOP_MOVED": "Parada trasladada",
+          "ACCESSIBILITY_ISSUE": "Problema de accesibilidad",
+          "SEVERE": "Interrupción",
+          "WARNING": "Aviso"
+        }
+      }
     },
     "header": {
       "showMore": "Ver más",

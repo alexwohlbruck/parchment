@@ -1019,7 +1019,32 @@
       "activeVehicles": "{count} {type} active",
       "selectVehicle": "Select a {type}",
       "everyNMin": "Every {n} min",
-      "stops": "Stops"
+      "stops": "Stops",
+      "alerts": {
+        "title": "Service alert",
+        "onThisLine": "Alerts on this line",
+        "atThisStop": "Alerts at this stop",
+        "onThisTrip": "Alerts on this trip",
+        "upcoming": "Upcoming alerts",
+        "showMore": "Show more",
+        "showLess": "Show less",
+        "moreInfo": "More info",
+        "inEffectSince": "In effect since {date}",
+        "startsAt": "Starts {date}",
+        "until": "Until {date}",
+        "effect": {
+          "NO_SERVICE": "No service",
+          "REDUCED_SERVICE": "Reduced service",
+          "SIGNIFICANT_DELAYS": "Delays",
+          "DETOUR": "Detour",
+          "ADDITIONAL_SERVICE": "Extra service",
+          "MODIFIED_SERVICE": "Service change",
+          "STOP_MOVED": "Stop moved",
+          "ACCESSIBILITY_ISSUE": "Accessibility issue",
+          "SEVERE": "Disruption",
+          "WARNING": "Alert"
+        }
+      }
     },
     "header": {
       "showMore": "Show more",

@@ -3,6 +3,7 @@
 ### Added
 
 * A WiFi shortcut in the search palette. It isn't a kind of place — it browses everywhere carrying free wireless, so cafes, libraries and hotels all turn up
+* Service alerts from the transit agency, wherever they affect you: on a line, on a stop's departure board, and on the legs of a planned trip. A detour, a suspension or a lift out of service now shows up in the app instead of sending you to the agency's website — worst news first, with the long operational prose collapsed behind a tap
 * Twenty-five more browse shortcuts: train stations, airports, places of worship, schools, childcare, ice cream, dentists, urgent care, beauty salons, laundry, car wash, car rental, pet stores, farmers markets, dog parks, public art, viewpoints, nature reserves, beaches, picnic areas, fountains, showers, public bookcases, outdoor gyms and bike repair stations
 
 ### Changed

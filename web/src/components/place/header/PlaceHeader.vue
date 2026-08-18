@@ -14,7 +14,7 @@ import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { getLocalDayAndTime } from '@/lib/place-open.utils'
+import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place-open.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
 import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
@@ -30,7 +30,7 @@ const props = defineProps<{
  *  the transit departures widget once its data arrives. */
 const stationLines = usePlaceTransitLines(computed(() => props.place?.id))
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const themeStore = useThemeStore()
 const router = useRouter()
 const geo = useGeolocationService()
@@ -172,8 +172,15 @@ const openingStatus = computed(() => {
   const hours = props.place?.openingHours?.value
   if (!hours) return null
 
+  // Permanently closed is a property of the place, not of the current moment,
+  // so it drops the live open/closed dot rather than reusing the "closed now" one.
   if (hours.isPermanentlyClosed) {
-    return { statusText: t('place.hours.permanentlyClosed'), detail: null, isOpen: false }
+    return {
+      statusText: t('place.hours.permanentlyClosed'),
+      detail: null,
+      isOpen: false,
+      isPermanentlyClosed: true,
+    }
   }
   if (hours.isTemporarilyClosed) {
     return { statusText: t('place.hours.temporarilyClosed'), detail: null, isOpen: false }
@@ -181,30 +188,40 @@ const openingStatus = computed(() => {
   if (hours.isOpen24_7) {
     return { statusText: t('place.hours.open247'), detail: null, isOpen: true }
   }
-  if (!hours.regularHours?.length) return null
 
-  const { day: currentDay, time: currentTime } = getLocalDayAndTime(props.place.timezone)
-  const todayHours = hours.regularHours.find((h: any) => h.day === currentDay)
+  const status = resolveOpeningStatus(hours, props.place.timezone)
+  if (!status) return null
 
-  if (!todayHours) {
-    return { statusText: t('place.hours.closedToday'), detail: null, isOpen: false }
-  }
-  if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
+  if (status.state === 'open') {
     return {
       statusText: t('place.hours.openNow'),
-      detail: t('place.hours.closesAt', { time: formatTime(todayHours.close) }),
+      detail: t('place.hours.closesAt', { time: formatTime(status.closesAt!) }),
       isOpen: true,
     }
   }
-  if (currentTime < todayHours.open) {
+  if (status.state === 'opensLater') {
     return {
-      statusText: t('place.hours.opensAt', { time: formatTime(todayHours.open) }),
+      statusText:
+        status.opensDay === undefined
+          ? t('place.hours.opensAt', { time: formatTime(status.opensAt!) })
+          : t('place.hours.opensDay', {
+              day: t(`place.hours.days.${status.opensDay}`),
+              time: formatTime(status.opensAt!),
+            }),
       detail: null,
       isOpen: false,
     }
   }
   return { statusText: t('place.hours.closed'), detail: null, isOpen: false }
 })
+
+// Someone reading about a place across the world sees "Open now" against their
+// own midnight; the place's clock is what makes that make sense.
+const timezoneNotice = computed(() =>
+  openingStatus.value && !openingStatus.value.isPermanentlyClosed
+    ? getTimezoneDifference(props.place?.timezone, locale.value)
+    : null,
+)
 
 const checkOverflow = async () => {
   if (!descriptionRef.value || !description.value) return
@@ -324,16 +341,27 @@ watch(
     <!-- Open status -->
     <div v-if="openingStatus" class="flex items-center gap-1.5 text-sm">
       <span
+        v-if="!openingStatus.isPermanentlyClosed"
         class="inline-block size-[7px] rounded-full shrink-0"
         :class="openingStatus.isOpen ? 'bg-forest-500 shadow-[0_0_0_3px_rgba(90,126,71,0.18)]' : 'bg-coral-500 shadow-[0_0_0_3px_rgba(216,74,0,0.18)]'"
       />
-      <span :class="openingStatus.isOpen ? 'text-forest-600' : 'text-coral-500'" class="font-medium">{{ openingStatus.statusText }}</span>
+      <span
+        class="font-medium"
+        :class="openingStatus.isPermanentlyClosed
+          ? 'text-muted-foreground'
+          : openingStatus.isOpen ? 'text-forest-600' : 'text-coral-500'"
+      >{{ openingStatus.statusText }}</span>
       <template v-if="openingStatus.detail">
         <span class="text-muted-foreground font-normal">· {{ openingStatus.detail }}</span>
       </template>
       <template v-if="distanceText">
         <span class="text-muted-foreground font-normal">· {{ distanceText }}</span>
       </template>
+    </div>
+
+    <!-- Whose clock these hours are on, when it isn't the reader's -->
+    <div v-if="timezoneNotice" class="text-xs text-muted-foreground -mt-1">
+      {{ t('place.hours.localTimeNotice', { time: timezoneNotice.localTime, zone: timezoneNotice.label }) }}
     </div>
 
     <!-- Description Section -->

@@ -1,4 +1,5 @@
 import type { Place } from '../types/place.types'
+import { isPermanentlyClosedByOsmTags } from './osm-lifecycle'
 
 /**
  * The OSM tags for a place, however its source happened to record them.
@@ -27,4 +28,19 @@ export function getPlaceOsmTags(place: Pick<Place, 'tags' | 'amenities'>): Recor
 
   // Raw OSM tags win — they carry the tagging the classifiers were written for.
   return { ...tags, ...(place.tags || {}) }
+}
+
+/**
+ * Whether a place is permanently closed, from either the hours a source
+ * resolved or the place's own OSM lifecycle tags.
+ *
+ * Both halves matter: sources that carry no hours at all still tag the closure,
+ * and sources with their own closure signal (Google, Foursquare) carry no OSM
+ * tags to read.
+ */
+export function isPlacePermanentlyClosed(
+  place: Pick<Place, 'tags' | 'amenities' | 'openingHours'>,
+): boolean {
+  if (place.openingHours?.value?.isPermanentlyClosed) return true
+  return isPermanentlyClosedByOsmTags(getPlaceOsmTags(place))
 }

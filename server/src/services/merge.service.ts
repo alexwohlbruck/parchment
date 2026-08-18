@@ -5,6 +5,8 @@ import type { Place } from '../types/place.types'
 import { cloneDeep, groupBy } from 'lodash'
 import * as fuzz from 'fuzzball'
 import type { Feature, Point } from 'geojson'
+import { isPermanentlyClosedByOsmTags } from '../lib/osm-lifecycle'
+import { getPlaceOsmTags } from '../lib/place-tags'
 
 /**
  * Gets the priority of a data source
@@ -364,6 +366,38 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
 }
 
 /**
+ * Force the permanently-closed status when the place's own OSM tags retire it.
+ *
+ * Directories keep serving a shut-down business's old schedule long after the
+ * fact — PAR-287 is a `disused:amenity=cafe` node carrying no OSM hours at all,
+ * whose "Open now" came entirely from a third-party listing. Source priority
+ * happens to favour OSM today, but a closure is a fact about the place rather
+ * than a field for the highest-priority source to win, so it is applied after
+ * the merge instead of competing inside it.
+ */
+function applyPermanentClosure(place: Place): Place {
+  if (!isPermanentlyClosedByOsmTags(getPlaceOsmTags(place))) return place
+
+  const existing = place.openingHours
+
+  place.openingHours = {
+    ...existing,
+    value: {
+      ...existing?.value,
+      // Hours from when the place was trading are what render as "Open now".
+      regularHours: [],
+      isOpen24_7: false,
+      isTemporarilyClosed: false,
+      isPermanentlyClosed: true,
+    },
+    sourceId: existing?.sourceId ?? SOURCE.OSM,
+    timestamp: existing?.timestamp ?? new Date().toISOString(),
+  }
+
+  return place
+}
+
+/**
  * Merges multiple Place objects into one, prioritizing data based on source priorities
  */
 export function mergePlaces(
@@ -371,7 +405,9 @@ export function mergePlaces(
   ...additionalPlaces: (Place | null)[]
 ): Place {
   const validPlaces = additionalPlaces.filter((p): p is Place => p !== null)
-  if (validPlaces.length === 0) return cloneDeep(primaryPlace)
+  if (validPlaces.length === 0) {
+    return applyPermanentClosure(cloneDeep(primaryPlace))
+  }
 
   const result = cloneDeep(primaryPlace)
 
@@ -572,7 +608,7 @@ export function mergePlaces(
     }
   }
 
-  return result
+  return applyPermanentClosure(result)
 }
 
 // TODO: This can be optimized to never merge places from the same source
@@ -580,7 +616,13 @@ export function mergePlaces(
  * Merges and deduplicates places from multiple sources
  */
 export function mergePlacesCollection(places: Place[]): Place[] {
-  if (places.length <= 1) return places
+  // A lone place skips the merge, but not the closure check — every place
+  // leaving here has had its lifecycle tags honoured. Applied in place so the
+  // caller still gets its own array back; a live place is left untouched.
+  if (places.length <= 1) {
+    places.forEach(applyPermanentClosure)
+    return places
+  }
 
   const groups: Place[][] = []
 

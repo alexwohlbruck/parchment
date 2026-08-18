@@ -1,4 +1,6 @@
 import type { OpeningHours, OpeningTime } from '../types/place.types'
+import { parseOpeningHours, type OpeningHoursContext } from './opening-hours'
+import { isPermanentlyClosedByOsmTags } from './osm-lifecycle'
 
 const DAYS = [
   'Sunday',
@@ -75,9 +77,13 @@ export function parseGoogleHours(rawText: string): OpeningTime[] {
 /**
  * Parse OSM opening hours text
  * @param tags OSM tags object
+ * @param context Place location, used for solar times and holiday calendars
  * @returns OpeningHours object
  */
-export function parseOsmHours(tags: Record<string, string>): OpeningHours {
+export function parseOsmHours(
+  tags: Record<string, string>,
+  context: OpeningHoursContext = {},
+): OpeningHours {
   const openingHours: OpeningHours = {
     regularHours: [],
     isOpen24_7: false,
@@ -85,18 +91,9 @@ export function parseOsmHours(tags: Record<string, string>): OpeningHours {
     isTemporarilyClosed: false,
   }
 
-  // Check for 24/7
-  if (tags.opening_hours === '24/7') {
-    openingHours.isOpen24_7 = true
-    return openingHours
-  }
-
-  // Check for closed statuses
-  if (
-    tags.opening_hours === 'closed' ||
-    tags.disused === 'yes' ||
-    tags.abandoned === 'yes'
-  ) {
+  // Permanently closed wins over every other status: a retired place routinely
+  // keeps the opening_hours it had when it was alive, including "24/7".
+  if (isPermanentlyClosedByOsmTags(tags) || tags.opening_hours === 'closed') {
     openingHours.isPermanentlyClosed = true
     return openingHours
   }
@@ -109,117 +106,5 @@ export function parseOsmHours(tags: Record<string, string>): OpeningHours {
     return openingHours
   }
 
-  // Parse regular opening hours if available
-  if (tags.opening_hours) {
-    openingHours.rawText = tags.opening_hours
-
-    // Try to parse basic OSM opening hours format
-    // Example: "Mo-Fr 09:00-17:00; Sa 10:00-14:00"
-    const dayRangeRegex =
-      /(Mo|Tu|We|Th|Fr|Sa|Su)(?:-(Mo|Tu|We|Th|Fr|Sa|Su))?\s+(\d{1,2}:\d{2})-(\d{1,2}:\d{2})/g
-    const dayMap: Record<string, number> = {
-      Su: 0,
-      Mo: 1,
-      Tu: 2,
-      We: 3,
-      Th: 4,
-      Fr: 5,
-      Sa: 6,
-    }
-
-    let match
-    while ((match = dayRangeRegex.exec(tags.opening_hours)) !== null) {
-      const [_, startDay, endDay, openTime, closeTime] = match
-      const start = dayMap[startDay]
-      const end = endDay ? dayMap[endDay] : start
-
-      // Handle day ranges (e.g., Mo-Fr)
-      for (let day = start; day <= (end >= start ? end : 6); day++) {
-        openingHours.regularHours.push({
-          day,
-          open: parseTimeString(openTime),
-          close: parseTimeString(closeTime),
-        })
-      }
-      // If range wraps around to Sunday (e.g., Fr-Tu)
-      if (endDay && end < start) {
-        for (let day = 0; day <= end; day++) {
-          openingHours.regularHours.push({
-            day,
-            open: parseTimeString(openTime),
-            close: parseTimeString(closeTime),
-          })
-        }
-      }
-    }
-
-    // Sort hours by day
-    openingHours.regularHours.sort((a, b) => a.day - b.day)
-  }
-
-  return openingHours
-}
-
-/**
- * Check if a place is currently open
- * @param hours Array of OpeningTime objects
- * @returns Object containing open status and next change time
- */
-export function isPlaceOpen(hours: OpeningTime[], timezone?: string): {
-  isOpen: boolean
-  nextChange?: string // Time string in format "HH:mm"
-} {
-  if (!hours.length) return { isOpen: false }
-
-  let currentDay: number
-  let currentTime: string
-
-  if (timezone) {
-    const now = new Date()
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      weekday: 'short',
-    }).formatToParts(now)
-    const weekdayStr = parts.find(p => p.type === 'weekday')?.value ?? ''
-    const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
-    currentDay = dayMap[weekdayStr] ?? now.getDay()
-    const hour = parts.find(p => p.type === 'hour')?.value ?? '00'
-    const minute = parts.find(p => p.type === 'minute')?.value ?? '00'
-    currentTime = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
-  } else {
-    const now = new Date()
-    currentDay = now.getDay()
-    currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
-  }
-
-  // Find today's hours
-  const todayHours = hours.find((h) => h.day === currentDay)
-  if (!todayHours) return { isOpen: false }
-
-  const isOpen =
-    currentTime >= todayHours.open && currentTime <= todayHours.close
-
-  // Calculate next change time
-  let nextChange: string | undefined
-  if (isOpen) {
-    nextChange = todayHours.close
-  } else if (currentTime < todayHours.open) {
-    nextChange = todayHours.open
-  } else {
-    // Find next day's opening time
-    let nextDay = (currentDay + 1) % 7
-    while (nextDay !== currentDay) {
-      const nextDayHours = hours.find((h) => h.day === nextDay)
-      if (nextDayHours) {
-        nextChange = nextDayHours.open
-        break
-      }
-      nextDay = (nextDay + 1) % 7
-    }
-  }
-
-  return { isOpen, nextChange }
+  return parseOpeningHours(tags.opening_hours, context) ?? openingHours
 }

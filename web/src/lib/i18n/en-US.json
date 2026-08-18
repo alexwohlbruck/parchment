@@ -1062,6 +1062,7 @@
       "closed": "Closed",
       "seeHours": "See hours",
       "distanceAway": "{distance} away",
+      "localTimeNotice": "{time} local time ({zone})",
       "days": {
         "0": "Sunday",
         "1": "Monday",

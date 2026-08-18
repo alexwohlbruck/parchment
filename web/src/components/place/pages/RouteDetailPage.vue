@@ -4,6 +4,7 @@ import { useRouteDetailStore, type DepartureContext, type VehicleOnRoute } from 
 import { useRouter } from 'vue-router'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
 import { Separator } from '@/components/ui/separator'
 import {
   Select,
@@ -63,6 +64,13 @@ const bgColor = computed(() =>
 const textColor = computed(() =>
   route.value?.routeTextColor ? `#${route.value.routeTextColor}` : 'hsl(var(--background))',
 )
+
+/** Everything the agency has published about this line. */
+const alertQuery = computed(() => ({
+  feedId: props.feedId,
+  routeIds: [props.routeId],
+  includeUpcoming: true,
+}))
 
 const routeTypeIcon = computed(() => {
   switch (route.value?.routeType) {
@@ -207,6 +215,13 @@ onUnmounted(() => {
           <span v-if="activeDirection" class="text-sm text-muted-foreground">{{ activeDirection }}</span>
         </div>
       </div>
+
+      <!-- ── Service alerts ────────────────────────────── -->
+      <ServiceAlerts
+        :query="alertQuery"
+        :title="t('place.transit.alerts.onThisLine')"
+        class="px-4 mb-3"
+      />
 
       <!-- ── Direction selector ──────────────────────────── -->
       <div v-if="directions.length > 1" class="px-4 mb-3">

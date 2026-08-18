@@ -423,7 +423,11 @@ cmd_pr() {
   ensure_state; resolve_target "${1:-}"
   local branch=$TARGET_BRANCH worktree=$TARGET_WORKTREE url repo visibility
   url=$(cmd_url "$branch")
-  repo=$(git -C "$worktree" remote get-url origin | sed -E 's#.*[:/]([^/]+/[^/]+?)(\.git)?$#\1#')
+  # owner/name from the remote URL, whatever form it takes. The `.git` suffix
+  # is stripped first: sed's ERE has no lazy quantifiers, so folding it into the
+  # capture leaves it attached, and every `gh` call below then fails against a
+  # repository named "parchment.git".
+  repo=$(git -C "$worktree" remote get-url origin | sed -E 's#\.git$##; s#.*[:/]([^/]+/[^/]+)$#\1#')
 
   git -C "$worktree" push --quiet -u origin "$branch"
 

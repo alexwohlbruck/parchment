@@ -348,8 +348,18 @@ export function parseOpeningHours(
  * Whether a place is open at `instant`, per the raw value.
  *
  * Answers straight from the parsed value rather than the flattened weekly
- * schedule, so holiday and seasonal rules that the schedule can't express are
- * still honoured.
+ * schedule, so holiday and seasonal rules the schedule can't express are still
+ * honoured — `Nov Th[4] off` shuts on Thanksgiving here, which no seven-entry
+ * week can represent.
+ *
+ * No production path calls this, and that is deliberate rather than an
+ * oversight. The open/closed state a reader sees has to keep ticking after the
+ * response is sent, so it is derived on the client from `regularHours`. This is
+ * how that derivation gets checked: it is the spec-exact answer a flattened
+ * week can be measured against, and comparing the two across every real
+ * expression in a city is what turned up the overnight and prose-hours defects.
+ * The obvious production caller is a server-side "open now" search filter —
+ * today that filter can only ask whether a place has any hours at all.
  */
 export function isOpenAt(
   rawText: string | null | undefined,

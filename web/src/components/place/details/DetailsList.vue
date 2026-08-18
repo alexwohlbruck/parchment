@@ -16,15 +16,15 @@ import {
   ClockIcon,
 } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
-import type { Place, DisplayChip } from '@/types/place.types'
+import type { Place, DisplayChip, OpeningHours } from '@/types/place.types'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
 import {
-  isPlaceOpenNow,
   getLocalDayAndTime,
   resolveOpeningStatus,
   getTimezoneDifference,
+  formatRawHours,
 } from '@/lib/place-open.utils'
 import { resolveIconByName } from '@/lib/osm-tag-icons'
 import { SOURCE } from '@/lib/constants'
@@ -154,7 +154,7 @@ const DAYS = computed(() => [0, 1, 2, 3, 4, 5, 6].map(i => t(`place.hours.days.$
 
 const formatTime = (time: string) => formatClockTime(time)
 
-function formatOpeningHours(hours: any) {
+function formatOpeningHours(hours: OpeningHours) {
   if (!hours || !hours.rawText) return ''
 
   if (hours.isPermanentlyClosed) return t('place.hours.permanentlyClosed')
@@ -168,7 +168,8 @@ function formatOpeningHours(hours: any) {
   return hours.rawText.split(';').join('\n')
 }
 
-function getOpeningStatus(hours: any) {
+const openingStatus = computed(() => {
+  const hours = props.place.openingHours?.value
   if (!hours) {
     return { status: '', color: '' }
   }
@@ -187,7 +188,10 @@ function getOpeningStatus(hours: any) {
 
   const status = resolveOpeningStatus(hours, props.place.timezone)
   if (!status) {
-    return { status: '', color: '' }
+    // Nothing the schedule can be trusted to say — a seasonal rule, or a
+    // mapper who wrote prose. Their own words beat both a blank row and a
+    // made-up "Closed".
+    return { status: formatRawHours(hours), color: '' }
   }
 
   if (status.state === 'open') {
@@ -211,7 +215,7 @@ function getOpeningStatus(hours: any) {
   }
 
   return { status: t('place.hours.closed'), color: 'text-coral-500' }
-}
+})
 
 // Which clock the hours below are kept on, when it isn't the reader's.
 const hoursTimezoneNotice = computed(() =>
@@ -373,8 +377,8 @@ function getFullAddress(address: any) {
                   />
                   <div class="flex flex-col flex-1 min-w-0">
                     <div class="text-left text-sm font-medium">
-                      <span :class="getOpeningStatus(place.openingHours.value).color">
-                        {{ getOpeningStatus(place.openingHours.value).status }}
+                      <span :class="openingStatus.color">
+                        {{ openingStatus.status }}
                       </span>
                     </div>
                     <div class="text-xs text-muted-foreground mt-0.5 text-left">
@@ -454,15 +458,13 @@ function getFullAddress(address: any) {
           </Collapsible>
 
           <DetailItem
-            v-else
+            v-else-if="openingStatus.status"
             :icon="ClockIcon"
             :osmUrl="osmUrl"
             :copyValue="formatOpeningHours(place.openingHours.value)"
           >
             <div class="flex flex-col">
-              <span :class="getOpeningStatus(place.openingHours.value).color">
-                {{ getOpeningStatus(place.openingHours.value).status }}
-              </span>
+              <span :class="openingStatus.color">{{ openingStatus.status }}</span>
             </div>
           </DetailItem>
         </div>

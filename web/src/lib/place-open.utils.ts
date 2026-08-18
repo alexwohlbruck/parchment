@@ -151,6 +151,23 @@ export function isPlaceOpenNow(
   return status ? status.isOpen : null
 }
 
+/**
+ * The mapper's own expression, on one line, for a value we can't evaluate.
+ *
+ * A seasonal rule or a hand-written note ("by appointment") leaves no schedule
+ * to compute a status from. Their words are still the best thing to show —
+ * better than an empty row, and far better than a made-up "Closed".
+ */
+export function formatRawHours(hours: OpeningHours | null | undefined): string {
+  return (hours?.rawText ?? '')
+    .trim()
+    .replace(/^"(.*)"$/s, '$1')
+    .split(';')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .join(' · ')
+}
+
 export interface TimezoneDifference {
   /** The place's current wall clock, e.g. "3:24 PM". */
   localTime: string

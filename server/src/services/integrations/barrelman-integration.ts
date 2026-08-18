@@ -50,6 +50,7 @@ import { buildPlaceIcon } from '../../lib/place-categories'
 import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
 import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
+import { getTimezone } from '../../lib/timezone'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
@@ -623,6 +624,13 @@ export class BarrelmanIntegration
     ]
     const website = allWebsites[0] || null
 
+    // The place's own clock. Search results are judged open or closed on the
+    // client, which has only the reader's clock to fall back on — so a cafe in
+    // Lisbon read as shut to anyone browsing it from New York.
+    const timezone = geometry.center
+      ? getTimezone(geometry.center.lat, geometry.center.lng) ?? undefined
+      : undefined
+
     // Opening hours — parse the OSM opening_hours string into structured data.
     // A permanently closed place earns an hours object even without an
     // `opening_hours` tag, so the place page can say the place is gone.
@@ -632,6 +640,7 @@ export class BarrelmanIntegration
         value: parseOsmHours(
           r.hours ? { ...tags, opening_hours: r.hours } : tags,
           {
+            timezone,
             lat: geometry.center?.lat,
             lng: geometry.center?.lng,
             countryCode: r.address?.country,
@@ -708,6 +717,7 @@ export class BarrelmanIntegration
       },
 
       openingHours,
+      timezone,
       amenities: {},
 
       tags: r.tags || {},

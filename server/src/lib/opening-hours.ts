@@ -258,6 +258,16 @@ export function parseOpeningHours(
   const usesSolarEvents = hasCoordinates && SOLAR_PATTERN.test(value)
   SOLAR_PATTERN.lastIndex = 0
 
+  // Whether the value names a time at all. One that doesn't — `unknown`, or a
+  // bare comment like `"by appointment"` — still parses, into a week of
+  // *guessed* intervals. Taken at face value those read as round-the-clock, so
+  // a place whose hours say "Temporarily closed" would announce itself as open
+  // 24/7. Such a value states nothing, and nothing is what we report.
+  const statesTimes =
+    /\d{1,2}\s*:\s*\d{2}|24\s*\/\s*7|\b(?:sunrise|sunset|dawn|dusk)\b/i.test(
+      value.replace(/"[^"]*"/g, ' '),
+    )
+
   // Solar times are the one case where the place's own clock changes the
   // answer, and hours are parsed before the timezone is resolved centrally.
   // Deriving it from the coordinates here keeps the cost on the rare values
@@ -305,8 +315,9 @@ export function parseOpeningHours(
     // An open-ended value like `08:00+` produces nothing but guessed intervals,
     // and showing "opens at 08:00" beats showing nothing. A `||` fallback rule
     // also reads as unknown, but there the confirmed hours are the real answer
-    // and the fallback would otherwise blanket the whole week.
-    const usable = known.length > 0 ? known : intervals
+    // and the fallback would otherwise blanket the whole week. Guesses are only
+    // worth anything when the mapper wrote a time to guess from.
+    const usable = known.length > 0 ? known : statesTimes ? intervals : []
 
     for (const [start, end] of usable) {
       // Coverage is measured only over the reported window, so the padding

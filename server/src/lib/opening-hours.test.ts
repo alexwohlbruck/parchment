@@ -16,7 +16,7 @@
  */
 
 import { describe, test, expect } from 'bun:test'
-import { parseOpeningHours } from './opening-hours'
+import { parseOpeningHours, isOpenAt } from './opening-hours'
 
 /** Somewhere with a clock far from the server's UTC, to catch frame errors. */
 const NYC = {
@@ -237,5 +237,74 @@ describe('timezone frame', () => {
     expect(onDay('Mo 09:00-17:00', MON, { ...NYC, timezone: 'Not/AZone' })).toEqual([
       '09:00-17:00',
     ])
+  })
+})
+
+describe('values that name no hours', () => {
+  // Prose and `unknown` parse too — into a week of *guessed* intervals. Read at
+  // face value those cover every hour, so a shop whose opening_hours said
+  // "Temporarily closed" announced itself as open around the clock. A value
+  // that names no time states nothing, and nothing is what we report.
+  test.each([
+    '"Temporarily closed"',
+    '"by appointment"',
+    '"By appointment only"',
+    '"Closed until further notice"',
+    'unknown',
+    'Mo-Fr unknown',
+  ])('%s is reported as nothing, not as 24/7', value => {
+    const parsed = parseOpeningHours(value, NYC)
+
+    expect(parsed?.isOpen24_7).toBe(false)
+    expect(parsed?.regularHours).toEqual([])
+    // The mapper's own words are still worth showing in place of a badge.
+    expect(parsed?.rawText).toBe(value)
+  })
+
+  test('a comment alongside real hours leaves the hours standing', () => {
+    expect(onDay('Mo-Fr 10:00-18:00 "by appointment"', MON)).toEqual(['10:00-18:00'])
+  })
+
+  test('an open-ended time still counts as naming one', () => {
+    expect(onDay('Mo-Fr 08:00+', MON)).toEqual(['08:00-24:00'])
+  })
+})
+
+describe('real-world values', () => {
+  // Sampled from the opening_hours tags of ~10k mapped places in New York.
+  // Each shape here is one the previous hand-rolled parsers got wrong.
+  test.each([
+    ['Mo-Sa 10:00-20:00; Su 11:00-19:00', SUN, ['11:00-19:00']],
+    ['Mo-Sa 11:00-19:00, Su 12:00-18:00', SUN, ['12:00-18:00']],
+    ['Mo-Fr 09:00-17:00; Sa 09:00-14:00; Su closed', SUN, []],
+    ['Mo-Fr 09:00-17:00; Sa-Su,PH off', SAT, []],
+    ['Mo-Th 11:00-14:45, 17:00-21:45', MON, ['11:00-14:45', '17:00-21:45']],
+    ['Mo-Su 06:00-00:00', MON, ['06:00-24:00']],
+    ['Mo-Su 06:00-01:00', MON, ['06:00-01:00']],
+    ['Mo,Th 08:30-19:00; Tu,We,Fr 08:30-16:30', MON, ['08:30-19:00']],
+  ])('%s', (value, day, expected) => {
+    expect(onDay(value as string, day as number)).toEqual(expected as string[])
+  })
+})
+
+describe('the Roosevelt Island Tramway', () => {
+  /**
+   * The value that opened this ticket. It was reported closed at 20:12 on a
+   * Thursday while the tram was running: the overnight span was compared as two
+   * clock strings, and "20:12" <= "02:00" is false.
+   */
+  const TRAM = 'Su-Th 06:00-02:00; Fr,Sa 06:00-03:00'
+
+  test.each([
+    ['2026-08-14T00:12:00Z', 'Thursday 20:12', true],
+    ['2026-08-15T06:00:00Z', 'Saturday 02:00, on Friday\'s span', true],
+    ['2026-08-15T08:00:00Z', 'Saturday 04:00, after it closes', false],
+    ['2026-08-15T13:00:00Z', 'Saturday 09:00', true],
+  ])('%s — %s', (instant, _label, expected) => {
+    expect(isOpenAt(TRAM, NYC, new Date(instant as string))).toBe(expected)
+  })
+
+  test('every day of its week is accounted for', () => {
+    expect(daysCovered(TRAM).size).toBe(7)
   })
 })

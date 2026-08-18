@@ -58,20 +58,52 @@ export const useRecentsStore = defineStore('recents', () => {
   const currentUserId = () => authStore.me?.id ?? null
 
   /**
-   * Ensure the given kind has been loaded from the server at least once. The
-   * core short-circuits after the first successful hydrate, so this is cheap
-   * to call repeatedly (e.g. on every dashboard mount / palette open).
+   * Ensure the given kind has been loaded from the server at least once.
+   *
+   * Callers fire these on every palette open / dashboard mount, so the work is
+   * memoized per user: the first call owns the fetch+decrypt and every later
+   * one gets that same promise back without touching the refs again. Leaving
+   * the refs alone matters — a re-assignment is a new array identity, which
+   * would re-trigger any watcher that reloads a list from the store and loop.
+   *
+   * A failed hydrate (offline, locked keys) clears the memo so the next call
+   * retries, and never rejects: recents are an enhancement, and a caller that
+   * awaited a rejection would lose the rest of its list with them.
    */
-  async function ensureSearchesHydrated() {
-    const userId = currentUserId()
-    if (!userId) return
-    searches.value = await recentSearches.hydrate(userId)
+  type Hydration = { userId: string; promise: Promise<void> } | null
+  const hydrations: Record<'searches' | 'places', Hydration> = {
+    searches: null,
+    places: null,
   }
 
-  async function ensurePlacesHydrated() {
+  function hydrateOnce(
+    kind: 'searches' | 'places',
+    load: (userId: string) => Promise<void>,
+  ): Promise<void> {
     const userId = currentUserId()
-    if (!userId) return
-    places.value = await recentPlaces.hydrate(userId)
+    if (!userId) return Promise.resolve()
+
+    const inFlight = hydrations[kind]
+    if (inFlight?.userId === userId) return inFlight.promise
+
+    const promise = load(userId).catch(err => {
+      console.warn(`[recents:${kind}] hydrate failed, will retry:`, err)
+      hydrations[kind] = null
+    })
+    hydrations[kind] = { userId, promise }
+    return promise
+  }
+
+  function ensureSearchesHydrated(): Promise<void> {
+    return hydrateOnce('searches', async userId => {
+      searches.value = await recentSearches.hydrate(userId)
+    })
+  }
+
+  function ensurePlacesHydrated(): Promise<void> {
+    return hydrateOnce('places', async userId => {
+      places.value = await recentPlaces.hydrate(userId)
+    })
   }
 
   function recordSearch(query: string) {

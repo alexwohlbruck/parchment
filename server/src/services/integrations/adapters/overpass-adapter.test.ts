@@ -299,6 +299,50 @@ describe('opening hours', () => {
     expect(place.openingHours!.value.isPermanentlyClosed).toBe(true)
   })
 
+  test.each([
+    ['disused:amenity', 'cafe'],
+    ['abandoned:shop', 'bakery'],
+    ['demolished:building', 'yes'],
+    ['razed:leisure', 'fitness_centre'],
+    ['was:tourism', 'hotel'],
+  ])(
+    'flags %s=%s as permanently closed despite live hours',
+    (key, value) => {
+      // OSM retires a feature by prefixing its primary tag, not by setting
+      // `disused=yes`. The stale hours stay behind and read as "Open now".
+      const place = withTags({ opening_hours: 'Mo-Fr 09:00-17:00', [key]: value })
+
+      expect(place.openingHours!.value.isPermanentlyClosed).toBe(true)
+    },
+  )
+
+  test('drops the stale schedule of a permanently closed place', () => {
+    const place = withTags({
+      opening_hours: 'Mo-Fr 09:00-17:00',
+      'disused:amenity': 'cafe',
+    })
+
+    expect(place.openingHours!.value.regularHours).toEqual([])
+    expect(place.openingHours!.value.isOpen24_7).toBe(false)
+  })
+
+  test('reports a permanently closed place with no opening_hours at all', () => {
+    // Without this the page falls silent rather than saying the place is gone.
+    const place = withTags({ 'disused:amenity': 'cafe' })
+
+    expect(place.openingHours!.value.isPermanentlyClosed).toBe(true)
+  })
+
+  test('leaves a live place with a lifecycle-prefixed detail tag open', () => {
+    const place = withTags({
+      amenity: 'cafe',
+      opening_hours: 'Mo-Fr 09:00-17:00',
+      'demolished:date': '2019',
+    })
+
+    expect(place.openingHours!.value.isPermanentlyClosed).toBe(false)
+  })
+
   test('flags opening_hours=closed as temporarily closed', () => {
     const place = withTags({ opening_hours: 'closed' })
 

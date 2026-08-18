@@ -457,3 +457,68 @@ describe('mergePlacesCollection — primary selection', () => {
     expect(merged[0].id).toBe('osm')
   })
 })
+
+describe('mergePlaces — permanent closure survives the merge', () => {
+  /** Hours a third-party listing still serves for a business that has shut down. */
+  const liveHours = (sourceId: string) => ({
+    value: {
+      regularHours: [{ day: 1, open: '09:00', close: '17:00' }],
+      isOpen24_7: false,
+      isPermanentlyClosed: false,
+      isTemporarilyClosed: false,
+      rawText: 'Mo-Fr 09:00-17:00',
+    },
+    sourceId,
+    timestamp: '',
+  })
+
+  test('OSM lifecycle tags close a place whose hours came from elsewhere', () => {
+    // PAR-287 exactly: the node carries `disused:amenity=cafe` and no OSM hours,
+    // so every hour on the page arrives from a directory that never noticed.
+    const [merged] = mergePlacesCollection([
+      place({
+        id: 'osm',
+        name: "Larry's Ca Phe",
+        tags: { 'disused:amenity': 'cafe', name: "Larry's Ca Phe" },
+        sources: [{ id: SOURCE.OSM }],
+      }),
+      place({
+        id: 'fsq',
+        name: "Larry's Ca Phe",
+        openingHours: liveHours(SOURCE.FOURSQUARE),
+        sources: [{ id: SOURCE.FOURSQUARE }],
+      }),
+    ])
+
+    expect(merged.openingHours!.value.isPermanentlyClosed).toBe(true)
+    expect(merged.openingHours!.value.regularHours).toEqual([])
+  })
+
+  test('a single unmerged place is closed by its own tags', () => {
+    // mergePlaces short-circuits when there is nothing to merge against.
+    const [merged] = mergePlacesCollection([
+      place({
+        id: 'osm',
+        tags: { 'disused:amenity': 'cafe' },
+        openingHours: liveHours(SOURCE.OSM),
+      }),
+    ])
+
+    expect(merged.openingHours!.value.isPermanentlyClosed).toBe(true)
+  })
+
+  test('a live place keeps its merged hours', () => {
+    const [merged] = mergePlacesCollection([
+      place({ id: 'osm', name: 'Cafe', tags: { amenity: 'cafe' }, sources: [{ id: SOURCE.OSM }] }),
+      place({
+        id: 'fsq',
+        name: 'Cafe',
+        openingHours: liveHours(SOURCE.FOURSQUARE),
+        sources: [{ id: SOURCE.FOURSQUARE }],
+      }),
+    ])
+
+    expect(merged.openingHours!.value.isPermanentlyClosed).toBe(false)
+    expect(merged.openingHours!.value.regularHours).toHaveLength(1)
+  })
+})

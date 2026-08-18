@@ -10,6 +10,8 @@ import { matchTags } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { parseOsmHours } from '../../../lib/hours.utils'
+import type { OpeningHoursContext } from '../../../lib/opening-hours'
+import { isPermanentlyClosedByOsmTags } from '../../../lib/osm-lifecycle'
 import { logError } from '../../../lib/logger'
 import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 
@@ -176,14 +178,18 @@ export class PeliasAdapter {
    */
   private extractOpeningHours(
     osmData: Record<string, string>,
+    context: OpeningHoursContext = {},
   ): OpeningHours | null {
-    if (!osmData?.opening_hours) return null
+    // A closed place is worth reporting even with no hours to show — otherwise
+    // the place page stays silent instead of saying the place is gone.
+    if (!osmData?.opening_hours && !isPermanentlyClosedByOsmTags(osmData)) {
+      return null
+    }
 
     try {
-      // Use the OSM hours parser
-      return parseOsmHours({
-        opening_hours: osmData.opening_hours,
-      })
+      // Pass the whole tag map: the parser also reads the lifecycle tags that
+      // mark a place as permanently closed, not just `opening_hours`.
+      return parseOsmHours(osmData, context)
     } catch (error) {
       logError('Error processing Pelias opening hours', error)
       return null
@@ -278,6 +284,13 @@ export class PeliasAdapter {
         },
       }
 
+      const openingHours = this.extractOpeningHours(osmData, {
+        lat,
+        lng,
+        countryCode: props.country_code || props.country_a,
+        region: props.region,
+      })
+
       // Add bounding box if available
       if (feature.bbox) {
         geometry.bounds = {
@@ -317,11 +330,8 @@ export class PeliasAdapter {
             }
           : null,
         contactInfo: this.extractContactInfo(osmData),
-        openingHours: this.extractOpeningHours(osmData)
-          ? {
-              value: this.extractOpeningHours(osmData)!,
-              sourceId: actualSource,
-            }
+        openingHours: openingHours
+          ? { value: openingHours, sourceId: actualSource }
           : null,
         amenities: this.extractAmenities(props, osmData),
         sources: [

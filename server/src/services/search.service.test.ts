@@ -232,6 +232,44 @@ describe('search service', () => {
       expect(types.indexOf('category')).toBeLessThan(types.indexOf('place'))
     })
 
+    test('permanently closed places sort below every live place', async () => {
+      // Barrelman ranks the closed cafe first; it still has to land last, or a
+      // business that shut down takes the top slot (PAR-287).
+      mockLookupPlaces.mockResolvedValue([
+        makePlace({ id: 'osm/node/closed', tags: { 'disused:amenity': 'cafe' } }),
+        makePlace({ id: 'osm/node/live-1', tags: { amenity: 'cafe' } }),
+        makePlace({ id: 'osm/node/live-2', tags: { amenity: 'cafe' } }),
+      ] as never)
+
+      const resp = (await search('user-1', {
+        query: 'cafe',
+        lat: 37.77,
+        lng: -122.41,
+      })) as any
+
+      expect(resp.results.map((r: any) => r.id)).toEqual([
+        'osm/node/live-1',
+        'osm/node/live-2',
+        'osm/node/closed',
+      ])
+    })
+
+    test('permanently closed places stay in the results', async () => {
+      // Demoted, not dropped — someone searching a place that shut down still
+      // wants to learn that it shut down.
+      mockLookupPlaces.mockResolvedValue([
+        makePlace({ id: 'osm/node/closed', tags: { 'disused:amenity': 'cafe' } }),
+      ] as never)
+
+      const resp = (await search('user-1', {
+        query: 'cafe',
+        lat: 37.77,
+        lng: -122.41,
+      })) as any
+
+      expect(resp.results.map((r: any) => r.id)).toEqual(['osm/node/closed'])
+    })
+
     test('skips category search when query is empty', async () => {
       await search('user-1', { query: '' })
       expect(mockSearchCategoriesWithScores).not.toHaveBeenCalled()
@@ -407,6 +445,32 @@ describe('search service', () => {
 
       const filterTags = (cap.searchByCategory.mock.calls[0] as any)[2].filterTags
       expect(filterTags).toMatchObject({ cuisine: 'sushi', delivery: 'yes' })
+    })
+
+    test('attribute preset: browses on tags with no category', async () => {
+      const cap = setupCapability()
+      mockGetCategoryById.mockReturnValue({ tags: { internet_access: 'wlan' } })
+
+      await searchByCategory('internet_access/wlan', { bounds })
+
+      expect(cap.searchByCategory).toHaveBeenCalledWith(
+        '',
+        bounds,
+        expect.objectContaining({ filterTags: { internet_access: 'wlan' } }),
+      )
+    })
+
+    test('attribute preset with only wildcard tags keeps the category path', async () => {
+      const cap = setupCapability()
+      mockGetCategoryById.mockReturnValue({ tags: { internet_access: '*' } })
+
+      await searchByCategory('internet_access', { bounds })
+
+      expect(cap.searchByCategory).toHaveBeenCalledWith(
+        'internet_access',
+        bounds,
+        expect.objectContaining({ filterTags: undefined }),
+      )
     })
 
     test('returns empty array when no integration is configured', async () => {

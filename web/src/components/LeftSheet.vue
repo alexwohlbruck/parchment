@@ -159,6 +159,7 @@ useHotkeys([
     :style="{ transform: `translate3d(${offset}%, 0, 0)` }"
   >
     <Card
+      data-sheet-scroll
       class="bg-muted-light shadow-none overflow-y-auto pointer-events-auto w-full md:w-104 h-full flex flex-col rounded-l-none border-foreground/5 border-l-0 border-y-0 justify-start"
       style="--background: var(--card);"
     >

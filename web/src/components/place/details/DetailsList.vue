@@ -16,12 +16,16 @@ import {
   ClockIcon,
 } from 'lucide-vue-next'
 import DetailItem from './DetailItem.vue'
-import PlaceHours from './PlaceHours.vue'
-import type { Place, DisplayChip } from '@/types/place.types'
+import type { Place, DisplayChip, OpeningHours } from '@/types/place.types'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
-import { isPlaceOpenNow, getLocalDayAndTime } from '@/lib/place-open.utils'
+import {
+  getLocalDayAndTime,
+  resolveOpeningStatus,
+  getTimezoneDifference,
+  formatRawHours,
+} from '@/lib/place-open.utils'
 import { resolveIconByName } from '@/lib/osm-tag-icons'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
@@ -36,7 +40,7 @@ const props = defineProps<{
   place: Partial<Place>
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const cuisines = computed(() => {
   if (!props.place) return null
@@ -139,11 +143,18 @@ const plusCode = computed(() => {
 const isAddressExpanded = ref(false)
 const isHoursExpanded = ref(false)
 
+// A permanently closed place's leftover weekly schedule describes a business
+// that no longer exists, so the status stands alone with nothing to expand.
+const canExpandHours = computed(() => {
+  const hours = props.place.openingHours?.value
+  return !!hours && hours.regularHours.length > 0 && !hours.isPermanentlyClosed
+})
+
 const DAYS = computed(() => [0, 1, 2, 3, 4, 5, 6].map(i => t(`place.hours.days.${i}`)))
 
 const formatTime = (time: string) => formatClockTime(time)
 
-function formatOpeningHours(hours: any) {
+function formatOpeningHours(hours: OpeningHours) {
   if (!hours || !hours.rawText) return ''
 
   if (hours.isPermanentlyClosed) return t('place.hours.permanentlyClosed')
@@ -157,7 +168,8 @@ function formatOpeningHours(hours: any) {
   return hours.rawText.split(';').join('\n')
 }
 
-function getOpeningStatus(hours: any) {
+const openingStatus = computed(() => {
+  const hours = props.place.openingHours?.value
   if (!hours) {
     return { status: '', color: '' }
   }
@@ -174,45 +186,41 @@ function getOpeningStatus(hours: any) {
     return { status: t('place.hours.open247'), color: 'text-forest-500' }
   }
 
-  if (hours.regularHours.length === 0) {
-    return { status: '', color: '' }
+  const status = resolveOpeningStatus(hours, props.place.timezone)
+  if (!status) {
+    // Nothing the schedule can be trusted to say — a seasonal rule, or a
+    // mapper who wrote prose. Their own words beat both a blank row and a
+    // made-up "Closed".
+    return { status: formatRawHours(hours), color: '' }
   }
 
-  const { day: currentDay, time: currentTime } = getLocalDayAndTime(props.place.timezone)
-
-  const todayHours = hours.regularHours.find((h: any) => h.day === currentDay)
-  if (!todayHours) {
-    return { status: t('place.hours.closedToday'), color: 'text-coral-500' }
-  }
-
-  if (currentTime >= todayHours.open && currentTime <= todayHours.close) {
+  if (status.state === 'open') {
     return {
-      status: t('place.hours.openUntil', { time: formatTime(todayHours.close) }),
+      status: t('place.hours.openUntil', { time: formatTime(status.closesAt!) }),
       color: 'text-forest-500',
     }
-  } else if (currentTime < todayHours.open) {
+  }
+
+  if (status.state === 'opensLater') {
     return {
-      status: t('place.hours.opensAt', { time: formatTime(todayHours.open) }),
+      status:
+        status.opensDay === undefined
+          ? t('place.hours.opensAt', { time: formatTime(status.opensAt!) })
+          : t('place.hours.opensDay', {
+              day: DAYS.value[status.opensDay],
+              time: formatTime(status.opensAt!),
+            }),
       color: 'text-compass-500',
     }
-  } else {
-    // Find next day's opening time
-    let nextDay = (currentDay + 1) % 7
-    let daysChecked = 0
-    while (daysChecked < 7) {
-      const nextDayHours = hours.regularHours.find((h: any) => h.day === nextDay)
-      if (nextDayHours) {
-        return {
-          status: t('place.hours.opensDay', { day: DAYS.value[nextDay], time: formatTime(nextDayHours.open) }),
-          color: 'text-compass-500',
-        }
-      }
-      nextDay = (nextDay + 1) % 7
-      daysChecked++
-    }
-    return { status: t('place.hours.closed'), color: 'text-coral-500' }
   }
-}
+
+  return { status: t('place.hours.closed'), color: 'text-coral-500' }
+})
+
+// Which clock the hours below are kept on, when it isn't the reader's.
+const hoursTimezoneNotice = computed(() =>
+  getTimezoneDifference(props.place.timezone, locale.value),
+)
 
 function getAddressDisplay(address: any) {
   if (!address) return ''
@@ -359,7 +367,7 @@ function getFullAddress(address: any) {
 
         <!-- Hours -->
         <div v-if="place.openingHours">
-          <Collapsible v-if="place.openingHours.value.regularHours.length > 0" v-model:open="isHoursExpanded">
+          <Collapsible v-if="canExpandHours" v-model:open="isHoursExpanded">
             <CollapsibleTrigger class="w-full cursor-pointer">
               <div class="flex items-center justify-between group">
                 <div class="flex gap-3 items-center group min-w-0 flex-1">
@@ -369,8 +377,8 @@ function getFullAddress(address: any) {
                   />
                   <div class="flex flex-col flex-1 min-w-0">
                     <div class="text-left text-sm font-medium">
-                      <span :class="getOpeningStatus(place.openingHours.value).color">
-                        {{ getOpeningStatus(place.openingHours.value).status }}
+                      <span :class="openingStatus.color">
+                        {{ openingStatus.status }}
                       </span>
                     </div>
                     <div class="text-xs text-muted-foreground mt-0.5 text-left">
@@ -438,21 +446,25 @@ function getFullAddress(address: any) {
                       <template v-else>{{ t('place.hours.closed') }}</template>
                     </span>
                   </div>
+                  <div v-if="hoursTimezoneNotice" class="mt-2 text-xs text-muted-foreground">
+                    {{ t('place.hours.localTimeNotice', {
+                      time: hoursTimezoneNotice.localTime,
+                      zone: hoursTimezoneNotice.label,
+                    }) }}
+                  </div>
                 </div>
               </div>
             </CollapsibleContent>
           </Collapsible>
 
           <DetailItem
-            v-else
+            v-else-if="openingStatus.status"
             :icon="ClockIcon"
             :osmUrl="osmUrl"
             :copyValue="formatOpeningHours(place.openingHours.value)"
           >
             <div class="flex flex-col">
-              <span :class="getOpeningStatus(place.openingHours.value).color">
-                {{ getOpeningStatus(place.openingHours.value).status }}
-              </span>
+              <span :class="openingStatus.color">{{ openingStatus.status }}</span>
             </div>
           </DetailItem>
         </div>

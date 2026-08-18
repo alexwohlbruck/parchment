@@ -4,6 +4,8 @@ import {
   placeToDisplay,
   bookmarkToDisplay,
   recentPlaceToDisplay,
+  recentSearchToDisplay,
+  recentSearchRoute,
   makePlaceDisplay,
 } from './place-display'
 import type { Place } from '@/types/place.types'
@@ -164,5 +166,82 @@ describe('recentPlaceToDisplay', () => {
     expect(d.icon).toBe('MapPin')
     expect(d.address).toBe('Art museum')
     expect(d.route).not.toBeNull()
+  })
+})
+
+describe('recentSearchRoute', () => {
+  it('re-runs a category as a category browse, not a text search', () => {
+    const route = recentSearchRoute({
+      query: 'Coffee',
+      kind: 'category',
+      categoryId: 'amenity/cafe',
+      iconCategory: 'food_and_drink',
+      at: 1,
+    }) as { query: Record<string, string> }
+    expect(route.query).toEqual({
+      categoryId: 'amenity/cafe',
+      categoryName: 'Coffee',
+      categoryIconCategory: 'food_and_drink',
+    })
+  })
+
+  it('re-runs a brand browse by key, carrying the original-cased name', () => {
+    const route = recentSearchRoute({
+      query: "McDonald's",
+      kind: 'brand',
+      brandKey: 'Q38076',
+      brandName: "McDonald's",
+      at: 1,
+    }) as { query: Record<string, string> }
+    expect(route.query).toEqual({ brandKey: 'Q38076', brandName: "McDonald's" })
+  })
+
+  it('falls back to a text search, including for a category missing its id', () => {
+    expect((recentSearchRoute({ query: 'tacos', at: 1 }) as any).query).toEqual({
+      q: 'tacos',
+    })
+    // A half-formed category entry must not navigate to an empty browse.
+    expect(
+      (recentSearchRoute({ query: 'Cafe', kind: 'category', at: 1 }) as any).query,
+    ).toEqual({ q: 'Cafe' })
+  })
+})
+
+describe('recentSearchToDisplay', () => {
+  it('gives a text search the history glyph', () => {
+    const d = recentSearchToDisplay({ query: 'tacos', at: 1 }, { isDark: false })
+    expect(d.title).toBe('tacos')
+    expect(d.icon).toBe('History')
+  })
+
+  it('keeps the stored category icon so it matches the palette', () => {
+    const d = recentSearchToDisplay(
+      {
+        query: 'Bicycle Parking',
+        kind: 'category',
+        categoryId: 'amenity/bicycle_parking',
+        iconName: 'bicycle',
+        iconPack: 'maki',
+        at: 1,
+      },
+      { isDark: false },
+    )
+    expect(d.icon).toBe('bicycle')
+    expect(d.iconPack).toBe('maki')
+  })
+
+  it('renders a brand with its logo', () => {
+    const d = recentSearchToDisplay(
+      {
+        query: 'Target',
+        kind: 'brand',
+        brandKey: 'Q1046951',
+        brandLogoUrl: 'https://example.com/target.svg',
+        at: 1,
+      },
+      { isDark: false },
+    )
+    expect(d.imageUrl).toBe('https://example.com/target.svg')
+    expect(d.icon).toBe('Store')
   })
 })

@@ -89,8 +89,14 @@ describe('isTransitStopType', () => {
 })
 
 describe('getGTFSRouteTypesFromTags', () => {
-  test('maps an aerialway station to the aerial lift types', () => {
-    expect(getGTFSRouteTypesFromTags({ aerialway: 'station' })).toEqual([5, 6, 1300, 1400])
+  test('maps an aerialway station to the aerial lift types, and to tram', () => {
+    // Feeds publish aerial tramways as plain trams as often as as aerial lifts:
+    // RIOC types the Roosevelt Island Tramway 0.
+    const types = getGTFSRouteTypesFromTags({ aerialway: 'station' })
+
+    expect(types).toContain(5) // cable car
+    expect(types).toContain(6) // aerial lift
+    expect(types).toContain(0) // tram
   })
 
   test('maps a ferry terminal to the ferry types, including the extended range', () => {

@@ -21,6 +21,13 @@ import {
 import { integrationManager } from './integrations'
 import { getBrandSuggestions } from './brand.service'
 import { resolveIcon } from '../lib/place-categories'
+import { isPlacePermanentlyClosed } from '../lib/place-tags'
+
+/**
+ * Relevance subtracted from a permanently closed place, large enough to drop it
+ * below the whole live-place band (which spans 0.9 down) regardless of rank.
+ */
+const PERMANENTLY_CLOSED_PENALTY = 1
 
 
 function parseCoordinateQuery(query: string): { lat: number; lng: number } | null {
@@ -406,9 +413,16 @@ export async function search(
   for (let i = 0; i < places.length; i++) {
     // Places are pre-sorted by relevance from the integration;
     // assign decreasing score starting at 0.9 (slightly below exact category match)
+    const relevance = 0.9 - i * 0.02
+
+    // Permanently closed places stay searchable — someone looking for a place
+    // that shut down still wants to find out that it shut down — but they sort
+    // below everything still trading, so they never take a top slot.
     scoredResults.push({
       result: convertPlaceToSearchResult(places[i]),
-      relevance: 0.9 - i * 0.02,
+      relevance: isPlacePermanentlyClosed(places[i])
+        ? relevance - PERMANENTLY_CLOSED_PENALTY
+        : relevance,
     })
   }
 
@@ -469,6 +483,21 @@ export interface CategorySearchOptions {
 }
 
 /**
+ * OSM tag keys Barrelman turns into `geo_places.categories` entries — mirrors
+ * POI_KEYS in its `import/osm2pgsql-flex.lua`. A preset keyed on anything else
+ * describes an attribute a place *has* rather than a kind of place, so it can
+ * only be searched as a tag filter.
+ */
+const CATEGORY_TAG_KEYS = new Set([
+  'amenity', 'shop', 'tourism', 'leisure', 'office', 'craft',
+  'healthcare', 'social_facility', 'historic', 'man_made',
+  'aeroway', 'public_transport', 'emergency', 'place',
+  'building', 'natural', 'landuse', 'waterway', 'power',
+  'railway', 'highway', 'barrier', 'entrance', 'playground',
+  'club', 'gambling', 'advertising', 'cuisine',
+])
+
+/**
  * Derive the primary Barrelman category and extra OSM tag filters from a preset ID.
  *
  * The iD tagging schema uses hierarchical preset IDs like `amenity/restaurant/pizza`
@@ -476,6 +505,10 @@ export interface CategorySearchOptions {
  * stores the primary category (`amenity/restaurant`), so we must:
  *   1. Send the parent preset ID as the category filter
  *   2. Pass the additional discriminating tags (cuisine=pizza) as a secondary filter
+ *
+ * Attribute presets (`internet_access/wlan` — the "WiFi" shortcut) have no
+ * category at all: they come back with an empty `categoryId` and browse purely
+ * on tags, which finds every cafe, library or hotel carrying the tag.
  */
 function derivePresetFilter(presetId: string): {
   categoryId: string
@@ -483,6 +516,16 @@ function derivePresetFilter(presetId: string): {
 } {
   const preset = categoryService.getCategoryById(presetId)
   const presetTags = (preset?.tags || {}) as Record<string, string>
+
+  const tagKeys = Object.keys(presetTags)
+  if (tagKeys.length > 0 && !tagKeys.some(key => CATEGORY_TAG_KEYS.has(key))) {
+    // Wildcard values can't be matched by JSONB containment. If that's all the
+    // preset has, fall through rather than browsing with no filter at all.
+    const filterTags = Object.fromEntries(
+      Object.entries(presetTags).filter(([, value]) => value !== '*'),
+    )
+    if (Object.keys(filterTags).length > 0) return { categoryId: '', filterTags }
+  }
 
   const parts = presetId.split('/')
   if (parts.length <= 2) {

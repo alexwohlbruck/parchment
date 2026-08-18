@@ -9,7 +9,8 @@ import { SOURCE } from '../../../lib/constants'
 import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
 import { matchTags } from '../../../lib/osm-presets'
 import { buildPlaceIcon } from '../../../lib/place-categories'
-import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
+import { parseOpeningHours } from '../../../lib/opening-hours'
+import { isPermanentlyClosedByOsmTags } from '../../../lib/osm-lifecycle'
 import { calculateOSMCenter } from '../../../util/geometry-conversion'
 import { extractTransitIdentifiers, isTransitStopType, createTransitInfo } from '../../../lib/transit-utils'
 import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
@@ -80,7 +81,7 @@ export class OverpassAdapter {
         photos: [], // OSM doesn't typically have photos
         address: this.extractOsmAddress(data.tags),
         contactInfo: this.extractContactInfo(data.tags),
-        openingHours: this.extractOpeningHours(data.tags),
+        openingHours: this.extractOpeningHours(data.tags, center),
         amenities: this.extractAmenities(data.tags),
         description: this.extractDescription(data.tags),
         ...this.getTransitField(data),
@@ -284,18 +285,35 @@ export class OverpassAdapter {
    */
   private extractOpeningHours(
     tags?: Record<string, string>,
+    center?: { lat: number; lng: number } | null,
   ): AttributedValue<OpeningHours> | null {
-    if (!tags || !tags.opening_hours) return null
+    if (!tags) return null
+
+    const isPermanentlyClosed = isPermanentlyClosedByOsmTags(tags)
+
+    // A closed place is worth reporting even with no hours to show — otherwise
+    // the place page stays silent instead of saying the place is gone.
+    if (!tags.opening_hours && !isPermanentlyClosed) return null
 
     const openingHours = tags.opening_hours
-    const isOpen24_7 = openingHours.includes('24/7')
+
+    // Hours left over from when the place was alive would read as "Open now",
+    // so a permanently closed place reports the status and nothing else.
+    const parsed = isPermanentlyClosed
+      ? null
+      : parseOpeningHours(openingHours, {
+          lat: center?.lat,
+          lng: center?.lng,
+          countryCode: tags['addr:country'],
+          region: tags['addr:state'],
+        })
 
     return {
       value: {
-        regularHours: parseOpeningHoursForUnifiedFormat(openingHours) || [],
-        isOpen24_7,
-        isPermanentlyClosed: tags.disused === 'yes' || tags.abandoned === 'yes',
-        isTemporarilyClosed: tags.opening_hours === 'closed',
+        regularHours: parsed?.regularHours ?? [],
+        isOpen24_7: parsed?.isOpen24_7 ?? false,
+        isPermanentlyClosed,
+        isTemporarilyClosed: !isPermanentlyClosed && openingHours === 'closed',
         rawText: openingHours,
       },
       sourceId: SOURCE.OSM,

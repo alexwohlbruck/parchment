@@ -23,13 +23,13 @@ import {
   type DirectionGroup,
   type RouteGroup,
 } from '@/lib/transit-departures'
-import { formatDepartureTime, getMinutesUntil } from '@/lib/transit'
-
-/** Past this, a countdown stops being easier to read than a clock time. */
-const COUNTDOWN_MAX_MINUTES = 120
+import { formatDepartureTime, getMinutesUntil, getRouteBulletLabel } from '@/lib/transit'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
+
+/** Past this, a countdown stops being easier to read than a clock time. */
+const COUNTDOWN_MAX_MINUTES = 120
 
 const props = defineProps<{
   place?: Partial<Place>
@@ -172,7 +172,7 @@ function openRouteDetail(group: RouteGroup) {
             @click="openRouteDetail(group)"
           >
             <RouteBullet
-              :label="group.routeKey"
+              :label="getRouteBulletLabel(group.route, t)"
               :color="group.route.color"
               :text-color="group.route.textColor"
               class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"

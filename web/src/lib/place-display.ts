@@ -1,8 +1,9 @@
 import type { RouteLocationRaw } from 'vue-router'
-import type { Place } from '@/types/place.types'
+import type { Place, PlaceCategory } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
-import type { RecentPlaceEntry } from '@/lib/recents'
+import type { RecentPlaceEntry, RecentSearchEntry } from '@/lib/recents'
 import type { ThemeColor } from '@/lib/utils'
+import { AppRoute } from '@/router'
 import { getPlaceRoute, getPlaceRouteFromExternalIds, formatAddress } from '@/lib/place.utils'
 import { getCategoryColor } from '@/lib/place-colors'
 import { frequentChipMeta } from '@/lib/frequents'
@@ -186,6 +187,61 @@ export function recentPlaceToDisplay(
     hoursText: null,
     route: getPlaceRoute(entry.id),
   }
+}
+
+/**
+ * Where re-selecting a recent search goes. Mirrors the palette's search action:
+ * a category or brand recent re-runs that browse rather than searching for its
+ * label as text, which would return places named after the category.
+ */
+export function recentSearchRoute(entry: RecentSearchEntry): RouteLocationRaw {
+  if (entry.kind === 'category' && entry.categoryId) {
+    return {
+      name: AppRoute.SEARCH_RESULTS,
+      query: {
+        categoryId: entry.categoryId,
+        ...(entry.query ? { categoryName: entry.query } : {}),
+        ...(entry.iconCategory ? { categoryIconCategory: entry.iconCategory } : {}),
+      },
+    }
+  }
+  if (entry.kind === 'brand' && entry.brandKey) {
+    return {
+      name: AppRoute.SEARCH_RESULTS,
+      query: {
+        brandKey: entry.brandKey,
+        ...(entry.brandName ? { brandName: entry.brandName } : {}),
+      },
+    }
+  }
+  return { name: AppRoute.SEARCH_RESULTS, query: { q: entry.query } }
+}
+
+/**
+ * A recent search — a typed query, a POI category, or a brand browse. Adapted
+ * to the same display record as a recent place so both kinds render as one
+ * interleaved list; only the route differs (re-run a search vs open a place).
+ */
+export function recentSearchToDisplay(
+  entry: RecentSearchEntry,
+  { isDark }: Pick<PlaceDisplayOptions, 'isDark'>,
+): PlaceDisplay {
+  // Text searches have no icon of their own — they get the history glyph, the
+  // same one the palette gives them.
+  const fallbackIcon =
+    entry.kind === 'category' ? 'MapPin' : entry.kind === 'brand' ? 'Store' : 'History'
+
+  return makePlaceDisplay({
+    title: entry.query,
+    icon: entry.iconName || fallbackIcon,
+    iconPack: entry.iconPack ?? 'lucide',
+    customColor: getCategoryColor(
+      (entry.iconCategory || 'default') as PlaceCategory,
+      isDark,
+    ),
+    imageUrl: entry.brandLogoUrl ?? null,
+    route: recentSearchRoute(entry),
+  })
 }
 
 /**

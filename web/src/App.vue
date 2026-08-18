@@ -18,6 +18,7 @@ import { useExternalLink } from '@/composables/useExternalLink'
 import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
 import { useTrackerLocationsLayer } from '@/composables/useTrackerLocationsLayer'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import { useRecentsStore } from '@/stores/recents.store'
 import { PermissionId } from '@/types/auth.types'
 import {
   connect as realtimeConnect,
@@ -53,6 +54,7 @@ const appStore = useAppStore()
 const friendLocationsLayer = useFriendLocationsLayer()
 const trackerLocationsLayer = useTrackerLocationsLayer()
 const vehiclesStore = useVehiclesStore()
+const recentsStore = useRecentsStore()
 const { isMobileScreen } = useResponsive()
 const isDev = import.meta.env.DEV
 const { openExternalLink } = useExternalLink()
@@ -141,6 +143,11 @@ async function bootstrapAuthenticatedUser() {
   // Initialize categories and palette (returns from cache instantly if available)
   categoryStore.init()
   categoryPaletteStore.loadPalette()
+  // Recents fill the search palette's idle state. Fetching + decrypting them
+  // here means opening the palette renders from memory rather than waiting on
+  // the encrypted blob.
+  void recentsStore.ensureSearchesHydrated()
+  void recentsStore.ensurePlacesHydrated()
   // Initialize friend locations layer (watches visibility and polls accordingly)
   // Requires social permissions — skip for free users to avoid 403s
   if (authService.hasPermission(PermissionId.SOCIAL_READ)) {

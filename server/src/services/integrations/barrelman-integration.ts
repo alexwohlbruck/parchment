@@ -49,6 +49,8 @@ import { matchTags, type GeometryType } from '../../lib/osm-presets'
 import { buildPlaceIcon } from '../../lib/place-categories'
 import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
+import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
+import { getTimezone } from '../../lib/timezone'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
@@ -114,6 +116,13 @@ const BARRELMAN_INTERACTIVE_CONCURRENCY = 24
  * so that merely-slow requests still return results instead of erroring empty.
  */
 const SEARCH_BACKSTOP_TIMEOUT = 30_000
+
+/**
+ * Radius a sparse tag-only browse widens to (see `searchByCategory`). Metro
+ * scale rather than unbounded: the nearest-first walk has to test the tag on
+ * each candidate, so the radius is what stops it wandering across a continent.
+ */
+const TAG_BROWSE_WIDEN_RADIUS_M = 100_000
 
 /**
  * Build an axios instance whose in-flight requests are bounded by `limiter`.
@@ -615,11 +624,29 @@ export class BarrelmanIntegration
     ]
     const website = allWebsites[0] || null
 
-    // Opening hours — parse the OSM opening_hours string into structured data
+    // The place's own clock. Search results are judged open or closed on the
+    // client, which has only the reader's clock to fall back on — so a cafe in
+    // Lisbon read as shut to anyone browsing it from New York.
+    const timezone = geometry.center
+      ? getTimezone(geometry.center.lat, geometry.center.lng) ?? undefined
+      : undefined
+
+    // Opening hours — parse the OSM opening_hours string into structured data.
+    // A permanently closed place earns an hours object even without an
+    // `opening_hours` tag, so the place page can say the place is gone.
     let openingHours: AttributedValue<OpeningHours> | null = null
-    if (r.hours) {
+    if (r.hours || isPermanentlyClosedByOsmTags(tags)) {
       openingHours = {
-        value: parseOsmHours({ ...tags, opening_hours: r.hours }),
+        value: parseOsmHours(
+          r.hours ? { ...tags, opening_hours: r.hours } : tags,
+          {
+            timezone,
+            lat: geometry.center?.lat,
+            lng: geometry.center?.lng,
+            countryCode: r.address?.country,
+            region: r.address?.state,
+          },
+        ),
         sourceId,
         timestamp,
       }
@@ -690,6 +717,7 @@ export class BarrelmanIntegration
       },
 
       openingHours,
+      timezone,
       amenities: {},
 
       tags: r.tags || {},
@@ -776,6 +804,11 @@ export class BarrelmanIntegration
    * Supports `offset` for scroll pagination — a sparse viewport widens at every
    * offset, so pages stay consistent. No total count is computed (a COUNT over a
    * broad category is itself expensive); the client paginates until a short page.
+   *
+   * `presetId` is empty for an attribute browse (e.g. everywhere with WiFi),
+   * which filters on `filterTags` alone. That tier-2 widen keeps a radius: with
+   * no category to drive the GIN scan, dropping it would sort every tagged
+   * place on the planet by distance.
    */
   async searchByCategory(
     presetId: string,
@@ -801,7 +834,7 @@ export class BarrelmanIntegration
     const baseBody = {
       lat,
       lng,
-      categories: [presetId],
+      ...(presetId ? { categories: [presetId] } : {}),
       limit,
       ...(offset ? { offset } : {}),
       ...(options?.filterTags ? { tags: options.filterTags } : {}),
@@ -809,13 +842,17 @@ export class BarrelmanIntegration
       ...(options?.filter ? { filter: options.filter } : {}),
     }
 
+    if (!presetId && !options?.filterTags) return []
+
     // Tier 1: viewport-scoped (bounded radius → KNN).
     let rows: any[] = (await post({ ...baseBody, radius })).data || []
 
     // Tier 2: widen when the viewport is sparse — omit the radius so barrelman
-    // uses the category-index scan (fast even for a thin category).
+    // uses the category-index scan (fast even for a thin category), or grow it
+    // to metro scale for a tag-only browse, which has no such index to lean on.
     if (rows.length < minResults) {
-      rows = (await post(baseBody)).data || []
+      const widened = presetId ? baseBody : { ...baseBody, radius: TAG_BROWSE_WIDEN_RADIUS_M }
+      rows = (await post(widened)).data || []
     }
 
     return rows.map((r: any) => this.adaptPlace(r, options?.language))

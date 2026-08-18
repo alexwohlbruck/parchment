@@ -56,6 +56,10 @@ import SegmentDetails from '@/components/directions/timeline/SegmentDetails.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import DepartureBoard from '@/components/directions/timeline/DepartureBoard.vue'
+import ServiceAlertCard from '@/components/transit/ServiceAlertCard.vue'
+import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
+import { splitFeedId } from '@/lib/transit-alerts'
+import type { ServiceAlert } from '@/types/transit.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { useUnits } from '@/composables/useUnits'
 import { formatDurationCompact } from '@/lib/time.utils'
@@ -91,6 +95,8 @@ interface DepartureOption {
   /** Which route this departure is — shown on merged "4 or 5" boards so the
    *  rider knows whether each run is the 4 or the 5. */
   route?: { shortName?: string; color?: string; textColor?: string }
+  /** The run's GTFS trip, so a trip-scoped service alert can find its chip. */
+  tripId?: string
 }
 const segmentDepartures = ref<Record<number, DepartureOption[]>>({})
 // Full fetched schedule per segment (superset of the chips) — rebooking
@@ -114,6 +120,92 @@ onUnmounted(() => {
   clearInterval(tickTimer)
   clearInterval(refreshTimer)
 })
+
+// ── Service alerts per transit leg ──────────────────────────────────
+// What the agency has published about the line you're about to ride, on the
+// leg it affects. MOTIS hands us feed-prefixed ids ("mta-nyct_B48"); alerts
+// are keyed by the feed-local half, so every id is split before it's asked
+// about.
+const alertsStore = useTransitAlertsStore()
+const segmentAlerts = ref<Record<number, ServiceAlert[]>>({})
+
+/** What this leg is, in the terms an alert feed is keyed by. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function alertQueryForSegment(seg: any): {
+  feedId: string
+  routeIds: string[]
+  stopIds: string[]
+  tripIds: string[]
+} | null {
+  const td = seg.transitDetails
+  const routeId: string | undefined = td?.route?.id
+  if (!routeId) return null
+
+  const { feedId, localId } = splitFeedId(routeId)
+  if (!feedId) return null
+
+  const local = (id?: string) => (id ? splitFeedId(id).localId : null)
+
+  // Interchangeable lines (the 4 and the 5) are one leg to the rider, so an
+  // alert on either of them belongs on this card.
+  const routeIds = [
+    localId,
+    ...((td?.routeOptions ?? []) as Array<{ id?: string }>)
+      .map((r) => local(r.id))
+      .filter(Boolean) as string[],
+  ]
+
+  const stopIds = [td?.departureStop?.id, td?.arrivalStop?.id]
+    .map((id) => local(id))
+    .filter(Boolean) as string[]
+
+  const tripIds = [local(td?.trip?.id)].filter(Boolean) as string[]
+
+  return {
+    feedId,
+    routeIds: [...new Set(routeIds)],
+    stopIds: [...new Set(stopIds)],
+    tripIds,
+  }
+}
+
+async function loadAlerts() {
+  const t = trip.value
+  if (!t) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const next: Record<number, ServiceAlert[]> = {}
+
+  await Promise.all(
+    segs.map(async (seg, idx) => {
+      if (seg.mode !== 'transit') return
+      const query = alertQueryForSegment(seg)
+      if (!query) return
+      // Each run on the board carries its own trip; a trip-scoped alert only
+      // reaches a chip if we asked about that trip.
+      const boardTripIds = (segmentDepartures.value[idx] ?? [])
+        .map((d) => (d.tripId ? splitFeedId(d.tripId).localId : null))
+        .filter(Boolean) as string[]
+
+      const alerts = await alertsStore.fetchAlerts({
+        ...query,
+        tripIds: [...new Set([...query.tripIds, ...boardTripIds])],
+      })
+      if (alerts.length) next[idx] = alerts
+    }),
+  )
+
+  segmentAlerts.value = next
+}
+
+/** Alerts about the leg itself — the line or the stops, not one specific run.
+ *  Those are the ones worth a card on the trip; per-run ones badge their chip. */
+function legAlerts(segmentIndex: number): ServiceAlert[] {
+  const alerts = segmentAlerts.value[segmentIndex] ?? []
+  return alerts.filter((a) =>
+    a.informedEntities.some((e) => !e.tripId),
+  )
+}
 
 async function loadDepartures() {
   const t = trip.value
@@ -198,6 +290,7 @@ async function loadDepartures() {
             scheduledMs?: number
             cancelled: boolean
             route?: DepartureOption['route']
+            tripId?: string
           }
         >()
         for (const d of pool) {
@@ -220,6 +313,7 @@ async function loadDepartures() {
               (d.route
                 ? { shortName: d.route.shortName, color: d.route.color, textColor: d.route.textColor }
                 : undefined),
+            tripId: prev?.tripId ?? d.trip?.id,
           })
         }
         const runs: DepartureOption[] = [...byMs.entries()]
@@ -231,6 +325,7 @@ async function loadDepartures() {
             scheduledMs: info.scheduledMs,
             cancelled: info.cancelled,
             route: info.route,
+            tripId: info.tripId,
             label: formatTime(new Date(ms)),
           }))
         nextSched[idx] = runs
@@ -252,6 +347,11 @@ async function loadDepartures() {
   // Atomic swap — no flicker on the periodic refresh
   segmentDepartures.value = nextChips
   segmentSchedule.value = nextSched
+
+  // Alerts ride on the departures they annotate: a run-scoped alert can only
+  // find its chip once we know which trips are on the board. The store's TTL
+  // keeps the 30s refresh from re-asking the feed every time.
+  void loadAlerts()
 
   // On first entry, default the selection to the SOONEST catchable departure of
   // the first transit leg (which may be a tight "hurry" connection) — the
@@ -484,6 +584,8 @@ interface DepCard {
   hurry: boolean
   arriving: boolean
   cancelled: boolean
+  /** Published about this specific run, not the whole leg. */
+  alert?: ServiceAlert
   live: boolean
   clickable: boolean
   lead: string
@@ -526,6 +628,16 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
       : `${Math.round(-delaySec! / 60)} min early`
     : null
 
+  // Only alerts naming this exact run — the leg's own alerts already have a
+  // card above the board, and repeating them on twelve chips is noise.
+  const runAlert = dep.tripId
+    ? (segmentAlerts.value[segmentIndex] ?? []).find((a) =>
+        a.informedEntities.some(
+          (e) => e.tripId && e.tripId === splitFeedId(dep.tripId!).localId,
+        ),
+      )
+    : undefined
+
   return {
     planned,
     departed,
@@ -533,6 +645,7 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
     hurry,
     arriving,
     cancelled,
+    alert: runAlert,
     live: dep.realTime,
     clickable: !planned,
     lead,
@@ -1475,6 +1588,20 @@ function showSegmentChart(segment: any): boolean {
                         <div class="text-sm font-semibold tabular-nums shrink-0">
                           {{ formatTime(entry.segment.startTime) }}
                         </div>
+                      </div>
+                    </div>
+
+                    <!-- What the agency has published about this line, above
+                         the board of runs it applies to. Keeps the card's
+                         gutter so it lines up with the stops either side. -->
+                    <div v-if="legAlerts(entry.segmentIndex).length" class="relative flex">
+                      <div class="w-7 shrink-0" />
+                      <div class="flex-1 min-w-0 pl-2.5 space-y-2">
+                        <ServiceAlertCard
+                          v-for="alert in legAlerts(entry.segmentIndex)"
+                          :key="alert.id"
+                          :alert="alert"
+                        />
                       </div>
                     </div>
 

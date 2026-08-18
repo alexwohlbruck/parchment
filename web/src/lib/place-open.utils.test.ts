@@ -15,6 +15,7 @@ import {
   resolveOpeningStatus,
   isPlaceOpenNow,
   getTimezoneDifference,
+  formatRawHours,
 } from './place-open.utils'
 import type { OpeningHours, OpeningTime } from '@/types/place.types'
 
@@ -174,5 +175,24 @@ describe('timezone notice', () => {
     freeze('2026-08-17T12:00:00Z')
     expect(getTimezoneDifference(undefined)).toBeNull()
     expect(getTimezoneDifference('Not/AZone')).toBeNull()
+  })
+})
+
+describe('the raw expression, when nothing can be derived from it', () => {
+  it('reads the rules on one line', () => {
+    expect(formatRawHours(hours([], { rawText: 'Apr-Oct Mo-Su 09:00-18:00; Nov-Mar 10:00-16:00' })))
+      .toBe('Apr-Oct Mo-Su 09:00-18:00 · Nov-Mar 10:00-16:00')
+  })
+
+  it('unwraps a value that is nothing but a comment', () => {
+    // The quotes are syntax, not something the reader needs to see.
+    expect(formatRawHours(hours([], { rawText: '"Temporarily closed"' }))).toBe(
+      'Temporarily closed',
+    )
+  })
+
+  it('is empty when there is no original text to fall back on', () => {
+    expect(formatRawHours(hours([]))).toBe('')
+    expect(formatRawHours(null)).toBe('')
   })
 })

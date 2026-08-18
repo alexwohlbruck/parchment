@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-18
+
 ### Added
 
 * A WiFi shortcut in the search palette. It isn't a kind of place — it browses everywhere carrying free wireless, so cafes, libraries and hotels all turn up

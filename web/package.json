@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.5.11",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",

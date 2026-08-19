@@ -18,7 +18,7 @@
 
 import { logger } from '../../lib/logger'
 import { type Connection } from '../realtime/registry.service'
-import { IntegrationId } from '../../types/integration.enums'
+import { resolveBarrelmanConfig } from '../barrelman.service'
 
 /** How often we poll Barrelman (ms). */
 const MAX_SUBSCRIBERS = 100
@@ -166,14 +166,7 @@ function unionBounds(): Bounds | null {
 function getBarrelmanConfig(): { host: string; apiKey?: string } | null {
   if (!integrationManager) return null
 
-  const integration = integrationManager
-    .getConfiguredIntegrations()
-    .find((i: any) => i.integrationId === IntegrationId.BARRELMAN)
-
-  const config = integration?.config as
-    | { host?: string; apiKey?: string }
-    | undefined
-
+  const config = resolveBarrelmanConfig()
   if (!config?.host) return null
   return { host: config.host, apiKey: config.apiKey }
 }

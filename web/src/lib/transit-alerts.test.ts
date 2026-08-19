@@ -19,9 +19,10 @@ import type { ServiceAlert } from '@/types/transit.types'
  * Two things here are easy to get wrong and invisible when they are. Feeds are
  * inconsistent about `severityLevel` — plenty publish a full suspension with it
  * unset — so severity alone would draw a shutdown in the same grey as a
- * poster-on-a-wall notice. And an informed entity constrains on every field it
- * names, so the narrowing rule decides whether a stop-specific detour shows up
- * on a page about a different stop.
+ * poster-on-a-wall notice. And an informed entity constrains only on the
+ * dimensions the caller can answer for — MTA scopes nearly every subway alert
+ * to a route *and* a stop, so the narrowing rule decides both whether a route
+ * page sees them at all and whether a stop page sees another stop's detour.
  */
 
 const NOW = Date.UTC(2026, 7, 18, 12, 0, 0)
@@ -161,12 +162,27 @@ describe('alertsFor', () => {
   const oneRun = alert({ id: 'trip', informedEntities: [{ tripId: 'T9' }] })
   const all = [routeWide, atOneStop, agencyWide, oneRun]
 
-  it('keeps a line-wide alert on that line', () => {
-    expect(alertsFor(all, { routeId: 'B48' }).map(a => a.id)).toEqual(['route', 'agency'])
+  it('keeps every alert on that line, including ones scoped to a stop on it', () => {
+    // A route page has no stop to answer with, so a stop-scoped alert on this
+    // line still belongs there — "the N is skipping R09" is news about the N.
+    expect(alertsFor(all, { routeId: 'B48' }).map(a => a.id))
+      .toEqual(['route', 'stop', 'agency'])
   })
 
   it('drops it from a different line', () => {
     expect(alertsFor(all, { routeId: 'B62' }).map(a => a.id)).toEqual(['agency'])
+  })
+
+  it('lets a route match stand when the caller named no stop', () => {
+    // MTA scopes nearly every subway alert to a route *and* a stop. A route
+    // heading knows its route and nothing about stops; letting the
+    // unanswerable half veto stripped the badge off every line.
+    const routeAndStop = alert({
+      id: 'nyc',
+      informedEntities: [{ agencyId: 'MTASBWY', routeId: 'N', stopId: 'R09' }],
+    })
+
+    expect(alertsFor([routeAndStop], { routeId: 'N' }).map(a => a.id)).toEqual(['nyc'])
   })
 
   it('honours a stop constraint on a route-scoped alert', () => {

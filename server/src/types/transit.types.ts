@@ -55,6 +55,19 @@ export interface ServiceAlert {
   description?: string
   /** Agency page with more detail, when the feed supplies one. */
   url?: string
+  /**
+   * The agency's own category for this alert, verbatim — "Planned - Detour",
+   * "Station Notice". Only feeds carrying a vendor extension supply it, and it
+   * is the agency's wording rather than ours, so it stays untranslated: use it
+   * for a tooltip, not for a chip.
+   */
+  category?: string
+  /** The agency scheduled this rather than reacting to it. */
+  planned?: boolean
+  /** When the agency published the alert — the "Posted on" line riders know. */
+  postedAt?: string
+  /** When the agency last revised it. */
+  updatedAt?: string
   activePeriods: AlertActivePeriod[]
   informedEntities: InformedEntity[]
 }

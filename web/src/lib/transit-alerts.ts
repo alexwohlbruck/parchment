@@ -129,9 +129,13 @@ export function sortAlerts(alerts: ServiceAlert[]): ServiceAlert[] {
  *
  * The server answers a whole surface at once — every route on a stop board,
  * every leg of a trip — so this is what lets a single fetch drive per-route
- * badges without a request per bullet. Same rule the server applies: an
- * informed entity constrains on every field it names, and one that names
- * nothing checkable (agency-wide) applies everywhere.
+ * badges without a request per bullet.
+ *
+ * Same rule the server applies: an informed entity constrains only on the
+ * dimensions the caller can answer for. MTA scopes almost every subway alert
+ * to a route *and* a stop, so letting a stop the caller never named veto the
+ * match would empty a route heading of its badge. An entity naming nothing
+ * checkable (agency-wide) applies everywhere.
  */
 export function alertsFor(
   alerts: ServiceAlert[],
@@ -142,17 +146,22 @@ export function alertsFor(
 
   return alerts.filter(alert =>
     alert.informedEntities.some(entity => {
-      if (!entity.routeId && !entity.stopId && !entity.tripId) return true
+      const dimensions: Array<[string | undefined, string | undefined]> = [
+        [entity.routeId, routeId],
+        [entity.stopId, stopId],
+        [entity.tripId, tripId],
+      ]
 
-      if (entity.routeId && entity.routeId !== routeId) return false
-      if (entity.stopId && entity.stopId !== stopId) return false
-      if (entity.tripId && entity.tripId !== tripId) return false
+      if (dimensions.every(([named]) => !named)) return true
 
-      return Boolean(
-        (entity.routeId && routeId) ||
-        (entity.stopId && stopId) ||
-        (entity.tripId && tripId),
-      )
+      let checked = 0
+      for (const [named, asked] of dimensions) {
+        if (!named || !asked) continue
+        if (named !== asked) return false
+        checked++
+      }
+
+      return checked > 0
     }),
   )
 }

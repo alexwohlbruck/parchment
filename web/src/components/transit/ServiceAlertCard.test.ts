@@ -86,4 +86,26 @@ describe('ServiceAlertCard', () => {
 
     expect(w.text()).not.toContain('In effect since')
   })
+
+  it('prefers the agency posting time over the active window', () => {
+    // MTA posts a detour weeks before the roadworks start; "posted 3 weeks ago"
+    // and "in effect since tomorrow" say very different things about staleness.
+    const w = render(
+      alert({
+        postedAt: new Date(Date.now() - 21 * 86_400_000).toISOString(),
+        activePeriods: [{ start: new Date(Date.now() - 86_400_000).toISOString() }],
+      }),
+    )
+
+    expect(w.text()).toContain('Posted')
+    expect(w.text()).not.toContain('In effect since')
+  })
+
+  it('carries the agency\'s own category as a tooltip, untranslated', () => {
+    const w = render(
+      alert({ category: 'Planned - Detour', postedAt: new Date().toISOString() }),
+    )
+
+    expect(w.find('[title="Planned - Detour"]').exists()).toBe(true)
+  })
 })

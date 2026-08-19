@@ -53,8 +53,20 @@ function formatWhen(date: Date): string {
   })
 }
 
-/** When it started, or when it lifts — whichever the feed actually committed to. */
+/**
+ * When this happened, in whichever terms the feed actually committed to.
+ *
+ * The posting time leads when the agency gives one: an alert written three
+ * weeks ago and one written at 11pm tonight read completely differently, and
+ * agencies leave stale notices up. Failing that, fall back to the window —
+ * when it starts, or when it lifts.
+ */
 const timing = computed(() => {
+  const posted = props.alert.postedAt ? new Date(props.alert.postedAt) : null
+  if (posted && !Number.isNaN(posted.getTime())) {
+    return t('place.transit.alerts.postedAt', { date: formatWhen(posted) })
+  }
+
   const start = alertStart(props.alert)
   const end = alertEnd(props.alert)
   if (start && start.getTime() > Date.now()) {
@@ -92,7 +104,7 @@ const timing = computed(() => {
         </button>
 
         <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          <span v-if="timing">{{ timing }}</span>
+          <span v-if="timing" :title="alert.category || undefined">{{ timing }}</span>
           <button
             v-if="alert.url"
             type="button"

@@ -1029,6 +1029,7 @@
         "showMore": "Show more",
         "showLess": "Show less",
         "moreInfo": "More info",
+        "postedAt": "Posted {date}",
         "inEffectSince": "In effect since {date}",
         "startsAt": "Starts {date}",
         "until": "Until {date}",

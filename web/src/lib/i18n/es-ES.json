@@ -980,6 +980,7 @@
         "showMore": "Ver más",
         "showLess": "Ver menos",
         "moreInfo": "Más información",
+        "postedAt": "Publicado el {date}",
         "inEffectSince": "En vigor desde el {date}",
         "startsAt": "Comienza el {date}",
         "until": "Hasta el {date}",

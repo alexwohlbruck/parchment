@@ -108,11 +108,13 @@ describe('ServiceAlertCard', () => {
     expect(w.text()).not.toContain(String(new Date().getFullYear()))
   })
 
-  it('carries the agency\'s own category as a tooltip, untranslated', () => {
+  it("shows the agency's own category, which says whether they planned it", () => {
+    // "Detour" is our word for the effect; "Planned - Detour" is theirs, and
+    // the qualifier is the part our label cannot carry. It was tooltip-only.
     const w = render(
       alert({ category: 'Planned - Detour', postedAt: new Date().toISOString() }),
     )
 
-    expect(w.find('[title="Planned - Detour"]').exists()).toBe(true)
+    expect(w.text()).toContain('Planned - Detour')
   })
 })

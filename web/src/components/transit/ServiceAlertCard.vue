@@ -91,17 +91,19 @@ const timing = computed(() => {
           {{ alert.header }}
         </div>
 
-        <!-- Agency prose runs to eight paragraphs of stop lists and travel
-             alternatives. Bounded and scrolled rather than clamped behind a
-             second tap: the rider already tapped once to get here, and an
-             unbounded block pushes the stop list off the page. -->
+        <!-- Full contrast: the description is the information — which stops
+             are skipped, what to take instead — not metadata about it. Muting
+             it read as disabled. No inner scroll either; nesting a scroll area
+             inside a scrolling panel is miserable on a phone, and only one
+             alert is ever open. -->
         <p
           v-if="alert.description"
-          class="mt-1.5 max-h-44 overflow-y-auto leading-relaxed text-muted-foreground whitespace-pre-line"
+          class="mt-1.5 leading-relaxed text-foreground whitespace-pre-line"
         >{{ alert.description }}</p>
 
         <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          <span v-if="timing" :title="alert.category || undefined">{{ timing }}</span>
+          <span v-if="alert.category">{{ alert.category }}</span>
+          <span v-if="timing">{{ timing }}</span>
           <button
             v-if="alert.url"
             type="button"

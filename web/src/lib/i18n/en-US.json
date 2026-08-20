@@ -1029,7 +1029,7 @@
         "now": "Now",
         "tomorrow": "Tomorrow",
         "untilTime": "Until {time}",
-        "summary": "{now} now · {later} scheduled",
+        "scheduledCount": "{n} scheduled change | {n} scheduled changes",
         "showMore": "Show more",
         "showLess": "Show less",
         "moreInfo": "More info",

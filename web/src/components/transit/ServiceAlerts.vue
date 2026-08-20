@@ -6,20 +6,21 @@
  * a stop, a trip — rather than wiring up a store. Renders nothing at all when
  * there are no alerts, so it can sit unconditionally in a layout.
  *
- * ── Why a row and not a stack ────────────────────────────────────────
- * A New York line routinely carries a dozen alerts, nearly all of them
- * scheduled overnight work. Stacked full-width cards pushed the departures and
- * the stop list off the screen entirely, and the sheer wall of them read as
- * "this line is broken" when almost nothing was actually happening. So they
- * scroll sideways, one glanceable chip each, and only the one you tap opens.
+ * ── Two tiers, because they are not the same news ────────────────────
+ * A New York line routinely carries a dozen alerts and typically one or two
+ * are actually running; the rest is overnight work scheduled weeks out. Giving
+ * all of them the same weight made a page shout identically whether a rider's
+ * train was detoured right now or nothing at all was happening.
  *
- * Ordering is by relevance rather than severity alone: what is happening now
- * comes first, because a rider standing on the platform cannot act on next
- * Tuesday's closure. What starts later is counted in the header and reachable
- * by scrolling, not hidden — a closure tonight still matters at 5pm.
+ * So what is in effect gets full-width tinted rows — few, prominent, readable
+ * without a tap. Scheduled work collapses to one quiet line that opens into a
+ * row of small chips. A line with nothing running wrong shows no colour at
+ * all, just "10 scheduled changes", which is the honest summary.
  */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ChevronRightIcon } from 'lucide-vue-next'
+import ServiceAlertRow from './ServiceAlertRow.vue'
 import ServiceAlertChip from './ServiceAlertChip.vue'
 import ServiceAlertCard from './ServiceAlertCard.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
@@ -49,15 +50,24 @@ const now = useTransitClock()
 
 const { inEffect, upcoming } = useTransitAlerts(computed(() => props.query))
 
-/** In-effect first, then scheduled — the order the chips are laid out in. */
 const ordered = computed(() => [...inEffect.value, ...upcoming.value])
 
 const openId = ref<string | null>(null)
-const open = computed(() => ordered.value.find(a => a.id === openId.value) ?? null)
+/** Scheduled work stays folded away until asked for. */
+const showScheduled = ref(false)
+
+const openScheduled = computed(
+  () => upcoming.value.find(a => a.id === openId.value) ?? null,
+)
 
 // Navigating to another route must not leave the previous line's alert open.
 watch(ordered, (list) => {
   if (openId.value && !list.some(a => a.id === openId.value)) openId.value = null
+})
+
+// Folding the scheduled list away takes its open alert with it.
+watch(showScheduled, (shown) => {
+  if (!shown && openScheduled.value) openId.value = null
 })
 
 function toggle(alert: ServiceAlert) {
@@ -107,46 +117,66 @@ function calendarDaysApart(from: Date, to: Date): number {
 
 <template>
   <section v-if="ordered.length" class="space-y-2">
-    <div v-if="title" class="flex items-baseline justify-between gap-2">
-      <div class="text-sm font-semibold">{{ title }}</div>
-      <span v-if="upcoming.length" class="text-[11px] text-muted-foreground">
-        {{ t('place.transit.alerts.summary', {
-          now: inEffect.length,
-          later: upcoming.length,
-        }) }}
-      </span>
-    </div>
+    <div v-if="title" class="text-sm font-semibold">{{ title }}</div>
 
-    <!-- The row runs to the panel edges, so the chip cut off at the right is
-         visibly cut off rather than stranded inside a margin — that is what
-         says it scrolls.
-
-         The scroller's `py-1.5` is real space, not decoration: a scroll
-         container cannot have visible overflow on one axis only, so without it
-         the chips' shadows are clipped. Cancelling it with a negative margin
-         here also cancelled most of the section's gap, leaving the expanded
-         card jammed against the row — so it stays, and the section spaces off
-         the padded box. -->
-    <div class="edge-bleed relative">
-      <div
-        data-testid="alert-row"
-        class="scrollbar-hidden flex items-stretch gap-2 overflow-x-auto touch-pan-x snap-x py-1.5
-               [&>*:first-child]:ms-[var(--edge-bleed,0.75rem)]
-               [&>*:last-child]:me-[var(--edge-bleed,0.75rem)]"
-      >
-        <ServiceAlertChip
-          v-for="alert in ordered"
-          :key="alert.id"
+    <!-- In effect: few, full width, and the detail opens directly beneath the
+         row it belongs to rather than at the bottom of the section. -->
+    <div v-if="inEffect.length" class="space-y-1.5">
+      <template v-for="alert in inEffect" :key="alert.id">
+        <ServiceAlertRow
           :alert="alert"
           :when="when(alert)"
           :expanded="alert.id === openId"
           @toggle="toggle(alert)"
         />
-      </div>
+        <ServiceAlertCard v-if="alert.id === openId" :alert="alert" />
+      </template>
     </div>
 
-    <!-- The full text opens under the row rather than inside a chip, so chips
-         keep one height and the opened alert gets the width it needs to be read. -->
-    <ServiceAlertCard v-if="open" :key="open.id" :alert="open" />
+    <!-- Scheduled: one quiet line. On a clear day this is the whole section. -->
+    <div v-if="upcoming.length" class="space-y-2">
+      <button
+        type="button"
+        data-testid="scheduled-toggle"
+        class="flex items-center gap-1 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        :aria-expanded="showScheduled"
+        @click="showScheduled = !showScheduled"
+      >
+        <ChevronRightIcon
+          class="size-3.5 transition-transform"
+          :class="showScheduled && 'rotate-90'"
+        />
+        {{ t('place.transit.alerts.scheduledCount', upcoming.length) }}
+      </button>
+
+      <!-- The row runs to the panel edges, so the chip cut off at the right is
+           visibly cut off rather than stranded inside a margin — that is what
+           says it scrolls.
+
+           The scroller's `py-1.5` is real space, not decoration: a scroll
+           container cannot have visible overflow on one axis only, so without
+           it the chips' shadows are clipped. -->
+      <template v-if="showScheduled">
+        <div class="edge-bleed relative">
+          <div
+            data-testid="alert-row"
+            class="scrollbar-hidden flex items-stretch gap-2 overflow-x-auto touch-pan-x snap-x py-1.5
+                   [&>*:first-child]:ms-[var(--edge-bleed,0.75rem)]
+                   [&>*:last-child]:me-[var(--edge-bleed,0.75rem)]"
+          >
+            <ServiceAlertChip
+              v-for="alert in upcoming"
+              :key="alert.id"
+              :alert="alert"
+              :when="when(alert)"
+              :expanded="alert.id === openId"
+              @toggle="toggle(alert)"
+            />
+          </div>
+        </div>
+
+        <ServiceAlertCard v-if="openScheduled" :key="openScheduled.id" :alert="openScheduled" />
+      </template>
+    </div>
   </section>
 </template>

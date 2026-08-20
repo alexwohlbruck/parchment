@@ -72,38 +72,70 @@ beforeEach(() => {
 })
 
 describe('ServiceAlerts', () => {
+  /** The disclosure line, and the chips it hides. */
+  const disclosure = (w: any) => w.find('[data-testid="scheduled-toggle"]')
+  const chips = (w: any) => w.findAll('[data-testid="alert-row"] button')
+  const rows = (w: any) => w.findAll('[aria-expanded]').filter(
+    (b: any) => b.attributes('data-testid') !== 'scheduled-toggle',
+  )
+
   it('renders nothing at all when a line is clear', async () => {
     const w = await render()
 
     expect(w.find('section').exists()).toBe(false)
   })
 
-  it('puts what is happening now ahead of scheduled work', async () => {
-    alerts.push(scheduled('tonight'), live('now'))
+  it('shows no alert surfaces at all when only scheduled work exists', async () => {
+    // The common case on a working line: a dozen overnight closures and
+    // nothing running wrong. The page should not look alarmed.
+    alerts.push(scheduled('a'), scheduled('b'))
 
     const w = await render()
-    const chips = w.findAll('button')
 
-    expect(chips[0].text()).toContain('Headline for now')
-    expect(chips[1].text()).toContain('Headline for tonight')
+    expect(rows(w)).toHaveLength(0)
+    expect(disclosure(w).text()).toContain('2 scheduled changes')
+    // Folded away until asked for.
+    expect(chips(w)).toHaveLength(0)
   })
 
-  it('says which of them are live and which are scheduled', async () => {
-    alerts.push(live('a'), scheduled('b'), scheduled('c'))
+  it('gives what is in effect a full-width row, not a chip', async () => {
+    alerts.push(live('now'), scheduled('later'))
 
     const w = await render()
 
-    expect(w.text()).toContain('1 now · 2 scheduled')
+    expect(rows(w)).toHaveLength(1)
+    expect(rows(w)[0].text()).toContain('Headline for now')
+    expect(disclosure(w).text()).toContain('1 scheduled change')
+  })
+
+  it('counts one scheduled change in the singular', async () => {
+    alerts.push(scheduled('only'))
+
+    const w = await render()
+
+    expect(disclosure(w).text()).toContain('1 scheduled change')
+    expect(disclosure(w).text()).not.toContain('changes')
+  })
+
+  it('opens the scheduled chips on request, and folds them away again', async () => {
+    alerts.push(scheduled('a'), scheduled('b'))
+
+    const w = await render()
+    await disclosure(w).trigger('click')
+    expect(chips(w)).toHaveLength(2)
+
+    await disclosure(w).trigger('click')
+    expect(chips(w)).toHaveLength(0)
   })
 
   it('marks a live alert "Now" and a scheduled one with when it starts', async () => {
     alerts.push(live('a'), scheduled('b'))
 
     const w = await render()
-    const chips = w.findAll('button')
+    await disclosure(w).trigger('click')
 
-    expect(chips[0].text()).toContain('Now')
-    expect(chips[1].text()).not.toContain('Now')
+    expect(rows(w)[0].text()).toContain('Now')
+    expect(chips(w)[0].text()).not.toContain('Now')
   })
 
   it('says when something nearly over lifts, rather than "Now"', async () => {
@@ -117,20 +149,19 @@ describe('ServiceAlerts', () => {
 
     const w = await render()
 
-    expect(w.findAll('button')[0].text()).toContain('Until')
+    expect(rows(w)[0].text()).toContain('Until')
   })
 
-  it('opens only the alert that was tapped, and closes it again', async () => {
+  it('opens the detail directly under the row it belongs to', async () => {
     alerts.push(live('a'), live('b'))
 
     const w = await render()
-    // Nothing is expanded to start with — the row is the whole of it.
     expect(w.find('article').exists()).toBe(false)
 
-    await w.findAll('button')[0].trigger('click')
+    await rows(w)[0].trigger('click')
     expect(w.find('article').text()).toContain('Headline for a')
 
-    await w.findAll('button')[0].trigger('click')
+    await rows(w)[0].trigger('click')
     expect(w.find('article').exists()).toBe(false)
   })
 
@@ -138,23 +169,35 @@ describe('ServiceAlerts', () => {
     alerts.push(live('a'), live('b'))
 
     const w = await render()
-    await w.findAll('button')[0].trigger('click')
-    await w.findAll('button')[1].trigger('click')
+    await rows(w)[0].trigger('click')
+    await rows(w)[1].trigger('click')
 
     expect(w.findAll('article')).toHaveLength(1)
     expect(w.find('article').text()).toContain('Headline for b')
   })
 
-  it('scrolls horizontally rather than stacking down the page', async () => {
-    alerts.push(live('a'), live('b'), live('c'))
+  it('closes an open scheduled alert when its list is folded away', async () => {
+    alerts.push(scheduled('a'))
 
     const w = await render()
+    await disclosure(w).trigger('click')
+    await chips(w)[0].trigger('click')
+    expect(w.find('article').exists()).toBe(true)
+
+    await disclosure(w).trigger('click')
+    expect(w.find('article').exists()).toBe(false)
+  })
+
+  it('scrolls the scheduled chips horizontally rather than stacking them', async () => {
+    alerts.push(scheduled('a'), scheduled('b'), scheduled('c'))
+
+    const w = await render()
+    await disclosure(w).trigger('click')
     const row = w.find('[data-testid="alert-row"]')
 
-    expect(row.exists()).toBe(true)
     expect(row.classes()).toContain('overflow-x-auto')
     // Runs to the panel edge rather than sitting inside its padding.
     expect(w.find('.edge-bleed').exists()).toBe(true)
-    expect(w.findAll('button')).toHaveLength(3)
+    expect(chips(w)).toHaveLength(3)
   })
 })

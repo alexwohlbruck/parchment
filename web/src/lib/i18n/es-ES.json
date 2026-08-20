@@ -980,7 +980,7 @@
         "now": "Ahora",
         "tomorrow": "Mañana",
         "untilTime": "Hasta las {time}",
-        "summary": "{now} ahora · {later} programados",
+        "scheduledCount": "{n} cambio programado | {n} cambios programados",
         "showMore": "Ver más",
         "showLess": "Ver menos",
         "moreInfo": "Más información",

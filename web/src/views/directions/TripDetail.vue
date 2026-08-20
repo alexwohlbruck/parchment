@@ -56,6 +56,7 @@ import SegmentDetails from '@/components/directions/timeline/SegmentDetails.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import DepartureBoard from '@/components/directions/timeline/DepartureBoard.vue'
+import ServiceAlertRow from '@/components/transit/ServiceAlertRow.vue'
 import ServiceAlertCard from '@/components/transit/ServiceAlertCard.vue'
 import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
 import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit-alerts'
@@ -196,6 +197,13 @@ async function loadAlerts() {
   )
 
   segmentAlerts.value = next
+}
+
+/** The one leg alert whose full text is open, at most. */
+const openLegAlertId = ref<string | null>(null)
+
+function toggleLegAlert(alert: ServiceAlert) {
+  openLegAlertId.value = openLegAlertId.value === alert.id ? null : alert.id
 }
 
 /**
@@ -1602,12 +1610,22 @@ function showSegmentChart(segment: any): boolean {
                          gutter so it lines up with the stops either side. -->
                     <div v-if="legAlerts(entry.segmentIndex).length" class="relative flex">
                       <div class="w-7 shrink-0" />
-                      <div class="flex-1 min-w-0 pl-2.5 space-y-2">
-                        <ServiceAlertCard
+                      <div class="flex-1 min-w-0 pl-2.5 space-y-1.5">
+                        <template
                           v-for="alert in legAlerts(entry.segmentIndex)"
                           :key="alert.id"
-                          :alert="alert"
-                        />
+                        >
+                          <ServiceAlertRow
+                            :alert="alert"
+                            :when="null"
+                            :expanded="alert.id === openLegAlertId"
+                            @toggle="toggleLegAlert(alert)"
+                          />
+                          <ServiceAlertCard
+                            v-if="alert.id === openLegAlertId"
+                            :alert="alert"
+                          />
+                        </template>
                       </div>
                     </div>
 

@@ -119,10 +119,15 @@ function calendarDaysApart(from: Date, to: Date): number {
 
     <!-- The row runs to the panel edges, so the chip cut off at the right is
          visibly cut off rather than stranded inside a margin — that is what
-         says it scrolls. `-my-1.5` cancels the padding the scroller needs to
-         keep the chips' shadows from being clipped: a scroll container cannot
-         have visible overflow on one axis only, so the room has to be real. -->
-    <div class="edge-bleed relative -my-1.5">
+         says it scrolls.
+
+         The scroller's `py-1.5` is real space, not decoration: a scroll
+         container cannot have visible overflow on one axis only, so without it
+         the chips' shadows are clipped. Cancelling it with a negative margin
+         here also cancelled most of the section's gap, leaving the expanded
+         card jammed against the row — so it stays, and the section spaces off
+         the padded box. -->
+    <div class="edge-bleed relative">
       <div
         data-testid="alert-row"
         class="scrollbar-hidden flex items-stretch gap-2 overflow-x-auto touch-pan-x snap-x py-1.5

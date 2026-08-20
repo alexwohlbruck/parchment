@@ -190,7 +190,7 @@ onUnmounted(() => {
 <template>
   <PanelLayout>
     <!-- Header -->
-    <div class="flex items-center gap-2 px-3 py-2">
+    <div class="flex items-center gap-2 py-2">
       <button class="p-1 -ml-1 rounded-md hover:bg-muted" @click="router.back()">
         <ArrowLeftIcon class="h-4 w-4" />
       </button>
@@ -203,7 +203,7 @@ onUnmounted(() => {
 
     <div v-else-if="route" class="flex flex-col pb-6">
       <!-- ── Route header ──────────────────────────────── -->
-      <div class="flex items-start gap-3 px-4 mb-3">
+      <div class="flex items-start gap-3 mb-3">
         <div
           class="flex items-center justify-center min-w-10 h-10 px-2.5 rounded-lg font-bold text-lg shrink-0"
           :style="{ background: bgColor, color: textColor }"
@@ -220,12 +220,11 @@ onUnmounted(() => {
       <ServiceAlerts
         :query="alertQuery"
         :title="t('place.transit.alerts.onThisLine')"
-        class="px-4 mb-3"
-        style="--edge-bleed: 1rem"
+        class="mb-3"
       />
 
       <!-- ── Direction selector ──────────────────────────── -->
-      <div v-if="directions.length > 1" class="px-4 mb-3">
+      <div v-if="directions.length > 1" class="mb-3">
         <Select
           :modelValue="activeDirection ?? undefined"
           @update:modelValue="(v) => store.setDirection(String(v))"
@@ -242,7 +241,7 @@ onUnmounted(() => {
       </div>
 
       <!-- ── Departures ────────────────────────────────── -->
-      <div v-if="upcoming.length > 0" class="px-4 mb-3">
+      <div v-if="upcoming.length > 0" class="mb-3">
         <div class="flex items-center justify-between mb-1">
           <span class="text-sm font-semibold">Departures</span>
           <span v-if="headway" class="text-xs text-muted-foreground">{{ t('place.transit.everyNMin', { n: headway }) }}</span>
@@ -260,7 +259,7 @@ onUnmounted(() => {
       </div>
 
       <!-- ── Vehicle dropdown ──────────────────────────── -->
-      <div v-if="vehicles.length > 0" class="px-4 mb-3">
+      <div v-if="vehicles.length > 0" class="mb-3">
         <div class="text-sm font-semibold mb-1.5">
           {{ t('place.transit.activeVehicles', { count: vehicles.length, type: t(`place.transit.vehicleType.${vehicleTypeKey}`, vehicles.length) }) }}
         </div>
@@ -291,10 +290,10 @@ onUnmounted(() => {
         </Select>
       </div>
 
-      <Separator class="mx-4 mb-3" />
+      <Separator class="mb-3" />
 
       <!-- ── Stop timeline ─────────────────────────────── -->
-      <div class="px-4">
+      <div>
         <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
 
         <div class="relative" style="padding-left: 32px">

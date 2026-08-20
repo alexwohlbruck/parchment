@@ -108,7 +108,7 @@ function calendarDaysApart(from: Date, to: Date): number {
 <template>
   <section v-if="ordered.length" class="space-y-2">
     <div v-if="title" class="flex items-baseline justify-between gap-2">
-      <h2 class="text-sm font-semibold">{{ title }}</h2>
+      <div class="text-sm font-semibold">{{ title }}</div>
       <span v-if="upcoming.length" class="text-[11px] text-muted-foreground">
         {{ t('place.transit.alerts.summary', {
           now: inEffect.length,
@@ -117,17 +117,27 @@ function calendarDaysApart(from: Date, to: Date): number {
       </span>
     </div>
 
-    <!-- The row bleeds to the panel edges so a chip is visibly cut off at the
-         right, which is what tells you it scrolls. -->
-    <div class="alert-scroll -mx-4 px-4 flex items-stretch gap-2 overflow-x-auto">
-      <ServiceAlertChip
-        v-for="alert in ordered"
-        :key="alert.id"
-        :alert="alert"
-        :when="when(alert)"
-        :expanded="alert.id === openId"
-        @toggle="toggle(alert)"
-      />
+    <!-- The row runs to the panel edges, so the chip cut off at the right is
+         visibly cut off rather than stranded inside a margin — that is what
+         says it scrolls. `-my-1.5` cancels the padding the scroller needs to
+         keep the chips' shadows from being clipped: a scroll container cannot
+         have visible overflow on one axis only, so the room has to be real. -->
+    <div class="edge-bleed relative -my-1.5">
+      <div
+        data-testid="alert-row"
+        class="scrollbar-hidden flex items-stretch gap-2 overflow-x-auto touch-pan-x snap-x py-1.5
+               [&>*:first-child]:ms-[var(--edge-bleed,0.75rem)]
+               [&>*:last-child]:me-[var(--edge-bleed,0.75rem)]"
+      >
+        <ServiceAlertChip
+          v-for="alert in ordered"
+          :key="alert.id"
+          :alert="alert"
+          :when="when(alert)"
+          :expanded="alert.id === openId"
+          @toggle="toggle(alert)"
+        />
+      </div>
     </div>
 
     <!-- The full text opens under the row rather than inside a chip, so chips
@@ -135,14 +145,3 @@ function calendarDaysApart(from: Date, to: Date): number {
     <ServiceAlertCard v-if="open" :key="open.id" :alert="open" />
   </section>
 </template>
-
-<style scoped>
-/* Clean horizontal scroll, no visible scrollbar — same as the departure board. */
-.alert-scroll {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.alert-scroll::-webkit-scrollbar {
-  display: none;
-}
-</style>

@@ -43,7 +43,7 @@ describe('ServiceAlertCard', () => {
   it('leads with the header and colours it by severity', () => {
     const w = render(alert({ severity: 'SEVERE', effect: 'NO_SERVICE' }))
 
-    const heading = w.get('h3')
+    const heading = w.get('[data-testid="alert-header"]')
     expect(heading.text()).toBe('Southbound B48 buses are detoured')
     expect(heading.classes().join(' ')).toContain('text-red-600')
   })
@@ -51,7 +51,7 @@ describe('ServiceAlertCard', () => {
   it('draws an unrated suspension as loudly as a rated one', () => {
     const w = render(alert({ severity: 'UNKNOWN_SEVERITY', effect: 'NO_SERVICE' }))
 
-    expect(w.get('h3').classes().join(' ')).toContain('text-red-600')
+    expect(w.get('[data-testid="alert-header"]').classes().join(' ')).toContain('text-red-600')
   })
 
   it('shows the whole of the prose — this is the expansion', () => {

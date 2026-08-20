@@ -80,18 +80,24 @@ const timing = computed(() => {
 </script>
 
 <template>
-  <article class="rounded-lg border bg-card/50 px-3 py-2.5">
-    <div class="flex items-start gap-2.5">
-      <TriangleAlertIcon class="size-4 shrink-0 mt-0.5" :class="iconClass" />
+  <article class="rounded-lg border bg-card/50 px-3 py-2.5 text-xs">
+    <div class="flex items-start gap-2">
+      <TriangleAlertIcon class="size-3.5 shrink-0 mt-px" :class="iconClass" />
 
       <div class="min-w-0 flex-1">
-        <h3 class="text-sm font-semibold leading-snug" :class="headerClass">
+        <!-- A div, not a heading: h1-h3 carry the display serif globally, which
+             at this size shouted over the route the alert belongs to. -->
+        <div data-testid="alert-header" class="font-semibold leading-snug" :class="headerClass">
           {{ alert.header }}
-        </h3>
+        </div>
 
+        <!-- Agency prose runs to eight paragraphs of stop lists and travel
+             alternatives. Bounded and scrolled rather than clamped behind a
+             second tap: the rider already tapped once to get here, and an
+             unbounded block pushes the stop list off the page. -->
         <p
           v-if="alert.description"
-          class="mt-1 text-xs leading-relaxed text-muted-foreground whitespace-pre-line"
+          class="mt-1.5 max-h-44 overflow-y-auto leading-relaxed text-muted-foreground whitespace-pre-line"
         >{{ alert.description }}</p>
 
         <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">

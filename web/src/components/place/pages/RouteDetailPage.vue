@@ -221,6 +221,7 @@ onUnmounted(() => {
         :query="alertQuery"
         :title="t('place.transit.alerts.onThisLine')"
         class="px-4 mb-3"
+        style="--edge-bleed: 1rem"
       />
 
       <!-- ── Direction selector ──────────────────────────── -->

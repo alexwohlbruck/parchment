@@ -149,10 +149,12 @@ describe('ServiceAlerts', () => {
     alerts.push(live('a'), live('b'), live('c'))
 
     const w = await render()
-    const row = w.find('.alert-scroll')
+    const row = w.find('[data-testid="alert-row"]')
 
     expect(row.exists()).toBe(true)
     expect(row.classes()).toContain('overflow-x-auto')
+    // Runs to the panel edge rather than sitting inside its padding.
+    expect(w.find('.edge-bleed').exists()).toBe(true)
     expect(w.findAll('button')).toHaveLength(3)
   })
 })

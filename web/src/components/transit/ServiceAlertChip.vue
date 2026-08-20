@@ -28,7 +28,7 @@ const { t } = useI18n()
 
 const tone = computed(() => alertTone(props.alert))
 
-/** Selected state reads as a raised chip, not a colour change — colour is severity. */
+/** Colour is severity and nothing else; selection is carried by the border. */
 const toneClass = computed(() => ({
   severe: 'text-red-600 dark:text-red-400',
   warning: 'text-amber-600 dark:text-amber-400',
@@ -44,8 +44,8 @@ const label = computed(() => {
 <template>
   <button
     type="button"
-    class="shrink-0 w-[190px] flex flex-col gap-1 rounded-xl border-2 px-2.5 py-2 text-left bg-card transition-colors cursor-pointer hover:bg-muted/40"
-    :class="expanded ? 'border-foreground/25' : 'border-transparent ring-1 ring-border'"
+    class="shrink-0 w-[190px] flex flex-col gap-1 rounded-xl border px-2.5 py-2 text-left bg-card depth-raised transition-colors cursor-pointer hover:bg-muted/40"
+    :class="expanded ? 'border-foreground/30' : 'border-border'"
     :aria-expanded="expanded"
     @click="$emit('toggle')"
   >

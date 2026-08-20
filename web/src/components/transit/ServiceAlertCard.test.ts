@@ -54,22 +54,13 @@ describe('ServiceAlertCard', () => {
     expect(w.get('h3').classes().join(' ')).toContain('text-red-600')
   })
 
-  it('clamps long prose behind an expand, and expands on click', async () => {
-    const w = render(alert({ description: 'x'.repeat(400) }))
+  it('shows the whole of the prose — this is the expansion', () => {
+    // The chip clamped it to two lines; opening one is the rider asking for
+    // the rest, so nothing here is hidden behind a second tap.
+    const prose = 'x'.repeat(400)
+    const w = render(alert({ description: prose }))
 
-    expect(w.get('p').classes()).toContain('line-clamp-3')
-    const toggle = w.get('button')
-    expect(toggle.text()).toBe('Show more')
-
-    await toggle.trigger('click')
-
-    expect(w.get('p').classes()).not.toContain('line-clamp-3')
-    expect(w.get('button').text()).toBe('Show less')
-  })
-
-  it('leaves a short note alone — no expand to press', () => {
-    const w = render(alert({ description: 'Buses will not stop at Franklin Ave.' }))
-
+    expect(w.get('p').text()).toBe(prose)
     expect(w.get('p').classes()).not.toContain('line-clamp-3')
     expect(w.findAll('button')).toHaveLength(0)
   })
@@ -99,6 +90,22 @@ describe('ServiceAlertCard', () => {
 
     expect(w.text()).toContain('Posted')
     expect(w.text()).not.toContain('In effect since')
+  })
+
+  it('names the year on a date from a previous one', () => {
+    // MTA's long-running work carries posting dates from previous years, and
+    // a bare "Posted Dec 1" reads as a fortnight ago.
+    const lastYear = new Date()
+    lastYear.setFullYear(lastYear.getFullYear() - 1)
+    const w = render(alert({ postedAt: lastYear.toISOString() }))
+
+    expect(w.text()).toContain(String(lastYear.getFullYear()))
+  })
+
+  it('leaves the year off a date from this year', () => {
+    const w = render(alert({ postedAt: new Date().toISOString() }))
+
+    expect(w.text()).not.toContain(String(new Date().getFullYear()))
   })
 
   it('carries the agency\'s own category as a tooltip, untranslated', () => {

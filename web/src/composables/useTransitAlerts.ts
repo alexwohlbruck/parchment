@@ -1,6 +1,6 @@
 import { ref, watch, computed, type Ref, type ComputedRef } from 'vue'
 import { useTransitAlertsStore, alertQueryKey, type AlertQuery } from '@/stores/transit-alerts.store'
-import { worstAlert, isUpcoming } from '@/lib/transit-alerts'
+import { worstAlert, isInEffect, isUpcoming, sortByRelevance } from '@/lib/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 
 export interface TransitAlerts {
@@ -54,8 +54,9 @@ export function useTransitAlerts(
     { immediate: true },
   )
 
-  const inEffect = computed(() => alerts.value.filter(a => !isUpcoming(a)))
-  const upcoming = computed(() => alerts.value.filter(a => isUpcoming(a)))
+  // Ordered by relevance here, once, so every surface agrees.
+  const inEffect = computed(() => sortByRelevance(alerts.value.filter(a => isInEffect(a))))
+  const upcoming = computed(() => sortByRelevance(alerts.value.filter(a => isUpcoming(a))))
   const worst = computed(() => worstAlert(inEffect.value))
 
   return { alerts, inEffect, upcoming, worst, isLoading }

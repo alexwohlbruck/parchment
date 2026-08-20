@@ -78,30 +78,115 @@ export function alertEffectKey(alert: ServiceAlert): string | null {
   return null
 }
 
+/** Every period's parsed bounds, skipping anything the feed wrote unparseably. */
+function periods(alert: ServiceAlert): Array<{ start: number | null; end: number | null }> {
+  return alert.activePeriods.map(p => {
+    const start = p.start ? Date.parse(p.start) : NaN
+    const end = p.end ? Date.parse(p.end) : NaN
+    return {
+      start: Number.isFinite(start) ? start : null,
+      end: Number.isFinite(end) ? end : null,
+    }
+  })
+}
+
+/**
+ * Is this alert happening *right now*?
+ *
+ * It has to be asked period by period. Agencies publish recurring work as one
+ * alert carrying a window per night — MTA's "trains board from the other
+ * platform" alert on the 7 has 58 of them, and one on the Queens Blvd line has
+ * 254. Judging by the earliest start instead marks every one of those as in
+ * effect from the first night until the last, which is months of a route page
+ * insisting that nothing is running normally.
+ *
+ * No periods at all means "until further notice", which is in effect.
+ */
+export function isInEffect(alert: ServiceAlert, now = Date.now()): boolean {
+  const all = periods(alert)
+  if (all.length === 0) return true
+  return all.some(p => (p.start === null || p.start <= now) && (p.end === null || p.end >= now))
+}
+
+/** Not happening yet, but the agency has committed to a time. */
+export function isUpcoming(alert: ServiceAlert, now = Date.now()): boolean {
+  if (isInEffect(alert, now)) return false
+  return periods(alert).some(p => p.start !== null && p.start > now)
+}
+
+/** Nothing left to happen — every window has closed. */
+export function hasFinished(alert: ServiceAlert, now = Date.now()): boolean {
+  return !isInEffect(alert, now) && !isUpcoming(alert, now)
+}
+
+/** When the next window opens, for "starts tonight" and for ordering. */
+export function nextStart(alert: ServiceAlert, now = Date.now()): Date | null {
+  const starts = periods(alert)
+    .map(p => p.start)
+    .filter((v): v is number => v !== null && v > now)
+  return starts.length ? new Date(Math.min(...starts)) : null
+}
+
+/** When the window we are currently inside closes. */
+export function currentEnd(alert: ServiceAlert, now = Date.now()): Date | null {
+  const ends = periods(alert)
+    .filter(p => (p.start === null || p.start <= now) && (p.end === null || p.end >= now))
+    .map(p => p.end)
+    .filter((v): v is number => v !== null)
+  return ends.length ? new Date(Math.min(...ends)) : null
+}
+
 /**
  * When the alert took effect, for the "in effect since" footnote. The earliest
  * start across its periods; null when the feed left it open ("until further
  * notice"), which is not something worth printing a date for.
  */
 export function alertStart(alert: ServiceAlert): Date | null {
-  const starts = alert.activePeriods
-    .map(p => (p.start ? Date.parse(p.start) : NaN))
-    .filter(Number.isFinite)
+  const starts = periods(alert)
+    .map(p => p.start)
+    .filter((v): v is number => v !== null)
   return starts.length ? new Date(Math.min(...starts)) : null
 }
 
 /** When the alert lifts, if the feed commits to a time. */
 export function alertEnd(alert: ServiceAlert): Date | null {
-  const ends = alert.activePeriods
-    .map(p => (p.end ? Date.parse(p.end) : NaN))
-    .filter(Number.isFinite)
+  const ends = periods(alert)
+    .map(p => p.end)
+    .filter((v): v is number => v !== null)
   return ends.length ? new Date(Math.max(...ends)) : null
 }
 
-/** Has this alert's window not opened yet? Those are listed separately. */
-export function isUpcoming(alert: ServiceAlert, now = Date.now()): boolean {
-  const start = alertStart(alert)
-  return start !== null && start.getTime() > now
+/**
+ * How much this alert deserves a rider's attention, most first.
+ *
+ * What is happening now outranks everything scheduled, whatever its severity —
+ * a rider on the platform cannot act on Thursday's closure, and MTA publishes
+ * far more planned work than live disruption.
+ *
+ * The two groups then order on different things, because different things make
+ * them relevant. For something in effect it is severity: you are living it, so
+ * the worst news leads. For something scheduled it is imminence: tonight's
+ * boarding change matters today in a way that a bigger suspension two days out
+ * does not, so the soonest leads and severity only breaks ties.
+ */
+export function sortByRelevance(alerts: ServiceAlert[], now = Date.now()): ServiceAlert[] {
+  const posted = (a: ServiceAlert) =>
+    a.postedAt ? Date.parse(a.postedAt) : (alertStart(a)?.getTime() ?? 0)
+  const starts = (a: ServiceAlert) => nextStart(a, now)?.getTime() ?? Infinity
+
+  return [...alerts].sort((a, b) => {
+    const liveA = isInEffect(a, now)
+    const liveB = isInEffect(b, now)
+    if (liveA !== liveB) return liveA ? -1 : 1
+
+    if (liveA) {
+      const rank = alertRank(b) - alertRank(a)
+      return rank !== 0 ? rank : posted(b) - posted(a)
+    }
+
+    const soonest = starts(a) - starts(b)
+    return soonest !== 0 ? soonest : alertRank(b) - alertRank(a)
+  })
 }
 
 /**
@@ -113,15 +198,6 @@ export function splitFeedId(id: string): { feedId: string; localId: string } {
   const sep = id.indexOf('_')
   if (sep === -1) return { feedId: '', localId: id }
   return { feedId: id.slice(0, sep), localId: id.slice(sep + 1) }
-}
-
-/** Sort worst-first, then most recently in effect. Mutates nothing. */
-export function sortAlerts(alerts: ServiceAlert[]): ServiceAlert[] {
-  return [...alerts].sort((a, b) => {
-    const rank = alertRank(b) - alertRank(a)
-    if (rank !== 0) return rank
-    return (alertStart(b)?.getTime() ?? 0) - (alertStart(a)?.getTime() ?? 0)
-  })
 }
 
 /**

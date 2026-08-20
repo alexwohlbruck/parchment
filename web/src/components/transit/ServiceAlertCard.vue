@@ -1,18 +1,17 @@
 <script setup lang="ts">
 /**
- * One disruption, in the agency's own words.
+ * One disruption in full, in the agency's own words.
  *
- * The header is the line they wrote to be read at a glance, so it carries the
- * severity colour and nothing else competes with it. The description is often
- * several paragraphs of operational prose — stop lists, "listen to
- * announcements on board" — so it is clamped to a few lines with an expand
- * rather than pushing everything else off the page.
+ * This is what opens under the row when a chip is tapped, so it shows
+ * everything: the whole of the operational prose the chip clamped to two
+ * lines, and when it applies. No clamp here — the rider asked for this one.
  *
- * The footnote says when it took effect. That matters more than it looks: an
- * alert posted three weeks ago reads very differently from one posted at
- * 11pm tonight, and agencies leave stale notices up.
+ * The footnote says when it was posted and when it runs. That matters more
+ * than it looks: an alert posted last December reads very differently from one
+ * posted at 11pm tonight, and agencies leave long-running notices up for
+ * months.
  */
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TriangleAlertIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import { alertTone, alertStart, alertEnd } from '@/lib/transit-alerts'
@@ -23,8 +22,6 @@ const props = defineProps<{ alert: ServiceAlert }>()
 
 const { t } = useI18n()
 const { openExternalLink } = useExternalLink()
-
-const expanded = ref(false)
 
 const tone = computed(() => alertTone(props.alert))
 
@@ -40,14 +37,18 @@ const iconClass = computed(() => ({
   info: 'text-muted-foreground',
 }[tone.value]))
 
-/** Long prose gets a "show more"; a two-line note doesn't need one. */
-const CLAMP_CHARS = 180
-const isLong = computed(() => (props.alert.description?.length ?? 0) > CLAMP_CHARS)
-
+/**
+ * A date the rider can place. The year is included once it isn't this one:
+ * MTA's long-running work carries posting dates from previous years, and
+ * "Posted Dec 1" with no year reads as a fortnight ago rather than as
+ * something that has been sitting there since 2025.
+ */
 function formatWhen(date: Date): string {
+  const thisYear = date.getFullYear() === new Date().getFullYear()
   return date.toLocaleString([], {
     month: 'short',
     day: 'numeric',
+    year: thisYear ? undefined : 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   })
@@ -91,17 +92,7 @@ const timing = computed(() => {
         <p
           v-if="alert.description"
           class="mt-1 text-xs leading-relaxed text-muted-foreground whitespace-pre-line"
-          :class="!expanded && isLong && 'line-clamp-3'"
         >{{ alert.description }}</p>
-
-        <button
-          v-if="isLong"
-          type="button"
-          class="mt-1 text-xs text-primary hover:underline"
-          @click="expanded = !expanded"
-        >
-          {{ expanded ? t('place.transit.alerts.showLess') : t('place.transit.alerts.showMore') }}
-        </button>
 
         <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           <span v-if="timing" :title="alert.category || undefined">{{ timing }}</span>

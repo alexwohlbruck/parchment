@@ -15,7 +15,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
 import type { ServiceAlert, ServiceAlertsResponse } from '@/types/transit.types'
-import { sortAlerts } from '@/lib/transit-alerts'
+
 
 /** How long a cached answer stands before we ask again. */
 const TTL_MS = 60_000
@@ -83,7 +83,9 @@ export const useTransitAlertsStore = defineStore('transit-alerts', () => {
         if (query.includeUpcoming) params.includeUpcoming = 'true'
 
         const response = await api.get<ServiceAlertsResponse>('/transit/alerts', { params })
-        const alerts = sortAlerts(response.data?.alerts ?? [])
+        // Surfaces order by relevance against their own clock, so the store keeps
+        // whatever the server sent rather than imposing a second ordering.
+        const alerts = response.data?.alerts ?? []
         cache.value.set(key, { alerts, fetchedAt: Date.now() })
         return alerts
       } catch {

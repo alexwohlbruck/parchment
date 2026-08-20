@@ -7,7 +7,9 @@ import {
   alertEnd,
   isUpcoming,
   worstAlert,
-  sortAlerts,
+  sortByRelevance,
+  isInEffect,
+  nextStart,
   splitFeedId,
   alertsFor,
 } from './transit-alerts'
@@ -111,7 +113,7 @@ describe('active periods', () => {
   })
 })
 
-describe('worstAlert and sortAlerts', () => {
+describe('worstAlert', () => {
   const info = alert({ id: 'info', severity: 'INFO', effect: 'OTHER_EFFECT' })
   const detour = alert({ id: 'detour', severity: 'WARNING' })
   const suspended = alert({ id: 'suspended', severity: 'SEVERE', effect: 'NO_SERVICE' })
@@ -123,12 +125,104 @@ describe('worstAlert and sortAlerts', () => {
   it('has nothing to stand for in an empty set', () => {
     expect(worstAlert([])).toBeNull()
   })
+})
 
-  it('sorts worst first without mutating the input', () => {
-    const input = [info, detour, suspended]
+/**
+ * Recurring work is the case that matters here. MTA publishes "trains board
+ * from the other platform" as ONE alert carrying a window per night — 58 of
+ * them on the 7, 254 on the Queens Blvd line. Judging by the earliest start
+ * marks every one of those as in effect from the first night until the last,
+ * which is months of a route page insisting nothing runs normally. Three of
+ * the four alerts on the 7's page were exactly this.
+ */
+describe('isInEffect and isUpcoming', () => {
+  const iso = (ms: number) => new Date(ms).toISOString()
+  const HOUR = 3_600_000
 
-    expect(sortAlerts(input).map(a => a.id)).toEqual(['suspended', 'detour', 'info'])
-    expect(input.map(a => a.id)).toEqual(['info', 'detour', 'suspended'])
+  it('is in effect only while a window is actually open', () => {
+    const open = alert({ activePeriods: [{ start: iso(NOW - HOUR), end: iso(NOW + HOUR) }] })
+
+    expect(isInEffect(open, NOW)).toBe(true)
+    expect(isUpcoming(open, NOW)).toBe(false)
+  })
+
+  it('does not call recurring work "in effect" between its windows', () => {
+    const overnight = alert({
+      activePeriods: [
+        { start: iso(NOW - 48 * HOUR), end: iso(NOW - 44 * HOUR) }, // ran, finished
+        { start: iso(NOW + 4 * HOUR), end: iso(NOW + 8 * HOUR) },   // runs again tonight
+      ],
+    })
+
+    expect(isInEffect(overnight, NOW)).toBe(false)
+    expect(isUpcoming(overnight, NOW)).toBe(true)
+    expect(nextStart(overnight, NOW)?.getTime()).toBe(NOW + 4 * HOUR)
+  })
+
+  it('treats an alert with no window as in effect until further notice', () => {
+    expect(isInEffect(alert({ activePeriods: [] }), NOW)).toBe(true)
+  })
+
+  it('is neither in effect nor upcoming once every window has closed', () => {
+    const done = alert({ activePeriods: [{ start: iso(NOW - 4 * HOUR), end: iso(NOW - HOUR) }] })
+
+    expect(isInEffect(done, NOW)).toBe(false)
+    expect(isUpcoming(done, NOW)).toBe(false)
+  })
+})
+
+describe('sortByRelevance', () => {
+  const iso = (ms: number) => new Date(ms).toISOString()
+  const HOUR = 3_600_000
+
+  const liveMinor = alert({
+    id: 'live-minor',
+    severity: 'INFO',
+    effect: 'OTHER_EFFECT',
+    activePeriods: [{ start: iso(NOW - HOUR), end: iso(NOW + HOUR) }],
+  })
+  const liveSevere = alert({
+    id: 'live-severe',
+    severity: 'SEVERE',
+    effect: 'NO_SERVICE',
+    activePeriods: [{ start: iso(NOW - HOUR), end: iso(NOW + HOUR) }],
+  })
+  const laterSevere = alert({
+    id: 'later-severe',
+    severity: 'SEVERE',
+    effect: 'NO_SERVICE',
+    activePeriods: [{ start: iso(NOW + 48 * HOUR), end: iso(NOW + 52 * HOUR) }],
+  })
+  const laterTonight = alert({
+    id: 'later-tonight',
+    severity: 'WARNING',
+    activePeriods: [{ start: iso(NOW + 4 * HOUR), end: iso(NOW + 8 * HOUR) }],
+  })
+
+  it('puts what is happening now above worse news scheduled for later', () => {
+    // A rider on the platform cannot act on Thursday's suspension.
+    const order = sortByRelevance([laterSevere, liveMinor], NOW).map(a => a.id)
+
+    expect(order).toEqual(['live-minor', 'later-severe'])
+  })
+
+  it('ranks by severity within what is happening now', () => {
+    const order = sortByRelevance([liveMinor, liveSevere], NOW).map(a => a.id)
+
+    expect(order).toEqual(['live-severe', 'live-minor'])
+  })
+
+  it('orders scheduled work by how soon it starts', () => {
+    const order = sortByRelevance([laterSevere, laterTonight], NOW).map(a => a.id)
+
+    expect(order[0]).toBe('later-tonight')
+  })
+
+  it('does not mutate its input', () => {
+    const input = [laterSevere, liveMinor]
+    sortByRelevance(input, NOW)
+
+    expect(input.map(a => a.id)).toEqual(['later-severe', 'live-minor'])
   })
 })
 

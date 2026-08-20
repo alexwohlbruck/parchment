@@ -58,7 +58,7 @@ import RouteBullet from '@/components/transit/RouteBullet.vue'
 import DepartureBoard from '@/components/directions/timeline/DepartureBoard.vue'
 import ServiceAlertCard from '@/components/transit/ServiceAlertCard.vue'
 import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
-import { splitFeedId } from '@/lib/transit-alerts'
+import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import { useUnits } from '@/composables/useUnits'
@@ -198,12 +198,18 @@ async function loadAlerts() {
   segmentAlerts.value = next
 }
 
-/** Alerts about the leg itself — the line or the stops, not one specific run.
- *  Those are the ones worth a card on the trip; per-run ones badge their chip. */
+/**
+ * Alerts about the leg itself — the line or the stops, not one specific run.
+ * Those are the ones worth showing on the trip; per-run ones badge their chip.
+ *
+ * Only what is in effect for the ride: a line's scheduled overnight work is a
+ * wall of cards on a trip you are taking this afternoon, and the rider cannot
+ * act on it. The route page is where the full list lives.
+ */
 function legAlerts(segmentIndex: number): ServiceAlert[] {
   const alerts = segmentAlerts.value[segmentIndex] ?? []
-  return alerts.filter((a) =>
-    a.informedEntities.some((e) => !e.tripId),
+  return sortByRelevance(
+    alerts.filter((a) => a.informedEntities.some((e) => !e.tripId) && isInEffect(a)),
   )
 }
 

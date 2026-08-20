@@ -444,6 +444,24 @@
   }
 }
 
+/*
+ * Break a block out of its panel's horizontal padding so it runs edge to edge.
+ *
+ * A horizontally scrolling row has to reach the panel edge, or the cut-off
+ * card that tells you it scrolls sits stranded inside a margin and it reads as
+ * a truncated list instead. The width has to be restated because a negative
+ * margin alone leaves the box at its old width.
+ *
+ * Set `--edge-bleed` to the host's own padding; the default matches
+ * PanelLayout's `px-3`. Pair with matching margins on the first and last
+ * children so the content still starts and ends inset — padding on a scroll
+ * container is unreliable at the scrolled-to end.
+ */
+@utility edge-bleed {
+  margin-inline: calc(var(--edge-bleed, 0.75rem) * -1);
+  width: calc(100% + var(--edge-bleed, 0.75rem) * 2);
+}
+
 @utility scrollbar-hidden {
   scrollbar-width: none;
   &::-webkit-scrollbar {

@@ -7,6 +7,7 @@ import { integrationManager } from './integrations'
 import { IntegrationCapabilityId } from '../types/integration.types'
 import { OverpassIntegration } from './integrations/overpass-integration'
 import { BarrelmanIntegration } from './integrations/barrelman-integration'
+import { resolveBarrelmanConfig } from './barrelman.service'
 import { isTransitStop, getGTFSRouteTypesFromTags } from '../lib/transit-utils'
 import { getPlaceOsmTags } from '../lib/place-tags'
 import { resolveBoardWindow, shapeBoard } from '../lib/departure-board'
@@ -415,11 +416,7 @@ async function fetchTransitDepartures(
   const board = resolveBoardWindow(options?.windowMinutes)
   const limit = options?.limit ?? board.events
 
-  const barrelmanRecord = integrationManager
-    .getConfiguredIntegrations()
-    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-
-  const config = barrelmanRecord?.config as { host?: string; apiKey?: string } | undefined
+  const config = resolveBarrelmanConfig()
   if (!config?.host) {
     logger.debug('[Widget/Transit] Barrelman not configured')
     return { departures: [], hasMore: false, sources: [] }
@@ -538,11 +535,7 @@ async function fetchTransitDepartures(
 async function fetchBikeshareStatus(
   params: { systemId?: string; stationId?: string; lat?: number; lng?: number },
 ): Promise<{ status: BikeshareStatus | null; sources: SourceReference[] }> {
-  const barrelmanRecord = integrationManager
-    .getConfiguredIntegrations()
-    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-
-  const config = barrelmanRecord?.config as { host?: string; apiKey?: string } | undefined
+  const config = resolveBarrelmanConfig()
   if (!config?.host) {
     logger.debug('[Widget/Bikeshare] Barrelman not configured')
     return { status: null, sources: [] }

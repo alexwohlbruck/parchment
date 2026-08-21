@@ -1,0 +1,918 @@
+/**
+ * Portolan transit renderer.
+ *
+ * Streams portolan's MVT pyramids (served by barrelman, reached through
+ * the parchment server proxy at /proxy/portolan/*) and renders them the
+ * way portolan's own atlas viewer does. Structural port of the tile mode
+ * in portolan/web/src/views/MapView.vue — line references throughout.
+ *
+ * Requires the maplibre-gl transit fork (variable line-offset along
+ * line-progress, symbol-anchor-offset); on any other engine or an
+ * unpatched maplibre this module cleanly no-ops.
+ *
+ * OFF by default. Dev escape hatch until the layer-selector UI lands:
+ *
+ *     localStorage.setItem('parchment.portolan-transit', '1'); location.reload()
+ *
+ * Rendering architecture (MapView.vue:1288-1512):
+ *  - one vector source per feed pyramid, built from /proxy/portolan/index.json
+ *    alone (bounds + maxzoom ride in the index; the tile template is fixed);
+ *  - steady ribbons render straight off the vector tiles, one layer per
+ *    feed per zoom band (band_min filter — exactly one band per zoom or
+ *    every ribbon doubles);
+ *  - transitions/bridges CANNOT render off vector tiles: their offset
+ *    eases over ['line-progress'], which MapLibre only computes for
+ *    GeoJSON sources with lineMetrics. Loaded tile features are
+ *    HYDRATED into per-band GeoJSON sources drawn by twin layers;
+ *  - symbols (stations/markers/cat) hydrate into one GeoJSON source too:
+ *    cats carry JSON-encoded anchor vectors and stations need
+ *    client-computed icon/brow/nrows props;
+ *  - layer order bottom→top: steady clones < transition/bridge twins <
+ *    symbols;
+ *  - the service-time filter and class toggles ride layer filters on the
+ *    ribbons (acts bit test, scalar mode) and a JS gate on the hydrated
+ *    symbols — symbols must never see the layer filters or they gate twice.
+ */
+
+import { getVersion } from 'maplibre-gl'
+import { api } from '@/lib/api'
+import { useThemeStore } from '@/stores/theme.store'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapEngine } from '@/types/map.types'
+import type { PortolanIndexEntry, PortolanStyleSet } from '@/types/portolan.types'
+import {
+  BANDS,
+  KINDS,
+  RIBBON_COLOR,
+  STEADY_OFFSET,
+  type Expr,
+  actsFilterExpr,
+  activeRouteIdx,
+  bulletIdsOf,
+  classFilterExpr,
+  composeFilter,
+  modeExprs,
+  perFeedO,
+  perFeedW,
+  stationVisible,
+  widthExpr,
+} from './portolan-expressions'
+import { drawPortolanImage, estRows } from './portolan-images'
+
+const FLAG_KEY = 'parchment.portolan-transit'
+
+// ── ids ────────────────────────────────────────────────────────────────
+const SRC_STATIONS = 'portolan-stations'
+const srcTiles = (feed: string) => `portolan-tiles-${feed}`
+const srcBuild = (band: number) => `portolan-build-${band}`
+const twinId = (band: number, kind: string) => `portolan-ribbon-${band}-${kind}`
+const steadyId = (band: number, feed: string) => `portolan-ribbon-${band}-steady-${feed}`
+const SYMBOL_LAYERS = [
+  'portolan-station-markers',
+  'portolan-cats',
+  'portolan-cat-text',
+  'portolan-station-labels',
+  'portolan-station-labels-hi',
+]
+
+const EMPTY_FC = { type: 'FeatureCollection', features: [] } as any
+
+// The atlas labels with Montserrat from CARTO's glyph CDN; parchment's
+// basemap styles serve the Roboto stack, so labels ride the fonts the
+// style can actually shape.
+const LABEL_FONT = ['Roboto Medium']
+const LABEL_FONT_ITALIC = ['Roboto Condensed Italic']
+
+// ── module state (one map at a time, like the other layer services) ────
+let map: any = null
+let listenersBound = false
+let boundHandlers: { [event: string]: any } = {}
+let warnedOnce = false
+
+let regionsPromise: Promise<PortolanIndexEntry[]> | null = null
+const feedStyles = new Map<string, PortolanStyleSet | null>()
+
+let serviceTime: Date | null = null
+let classesOff = new Set<string>()
+
+// each ribbon layer's STRUCTURAL filter (band_min/kind), recorded at
+// creation: the time/class clauses combine with it via ['all', …] and
+// detach by restoring exactly this (MapView.vue:162-165)
+const structuralFilter = new Map<string, Expr>()
+
+// ── hydration state (MapView.vue:1588-1613) ────────────────────────────
+// querySourceFeatures only sees the tiles renderable at this instant, and
+// a zoom churns that set — so hydrated transitions are HELD until they
+// scroll a viewport away. A sweep can fail to refresh one, never erase it.
+type HeldFeat = { feat: any; box: [number, number, number, number]; fp: string }
+const heldTransitions = new Map<number, Map<string, HeldFeat>>(
+  BANDS.map(b => [b.key, new Map<string, HeldFeat>()]),
+)
+const hydratedSig = new Map<number, string>()
+let stationsRaw: any | null = null
+let hydrateQueued = 0
+
+function clearHydration() {
+  for (const m of heldTransitions.values()) m.clear()
+  hydratedSig.clear()
+  stationsRaw = null
+}
+
+// ── the public service ─────────────────────────────────────────────────
+
+export function usePortolanTransitService() {
+  return {
+    isPortolanTransitEnabled,
+    initializePortolanTransit,
+    teardownPortolanTransit,
+    setServiceTime,
+    setClassVisibility,
+  }
+}
+
+/** OFF by default; the follow-up layer-group UI owns the real toggle.
+ *  Dev escape hatch: localStorage.setItem('parchment.portolan-transit', '1') */
+function isPortolanTransitEnabled(): boolean {
+  try {
+    return localStorage.getItem(FLAG_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** Idempotent per style: call on every style.load (setStyle drops every
+ *  source, layer and image we added — same contract as the other layer
+ *  services re-registered from map.service's onStyleLoad). */
+function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
+  if (!mapStrategy?.mapInstance || !isPortolanTransitEnabled()) return
+  // the portolan layers REQUIRE the fork: on the mapbox strategy (or an
+  // unpatched maplibre) this feature is cleanly absent
+  if (mapStrategy.options.engine !== MapEngine.MAPLIBRE) {
+    warnOnce('portolan-transit: requires the MapLibre engine; skipping')
+    return
+  }
+  if (!getVersion().includes('transit')) {
+    warnOnce('portolan-transit: maplibre-gl is not the transit fork; skipping')
+    return
+  }
+  const m = mapStrategy.mapInstance
+  if (map !== m) {
+    // engine swap or first run: bind the once-per-map listeners
+    unbindListeners()
+    map = m
+    clearHydration()
+    bindListeners()
+  }
+  void sync()
+}
+
+function teardownPortolanTransit() {
+  unbindListeners()
+  if (map?.style && map.isStyleLoaded()) removeAll()
+  map = null
+  clearHydration()
+  structuralFilter.clear()
+}
+
+/** Filter every portolan layer to the service running at `date`
+ *  (feed-local time); null restores the all-service union map. */
+function setServiceTime(date: Date | null) {
+  serviceTime = date && !Number.isNaN(date.getTime()) ? date : null
+  applyTileFilters()
+  applyStations()
+}
+
+/** Toggle portolan mode classes (metro/tram/…/bus). Provided keys are
+ *  applied, absent keys keep their state; default is everything on. */
+function setClassVisibility(visibility: Record<string, boolean>) {
+  const next = new Set(classesOff)
+  for (const [cls, on] of Object.entries(visibility)) {
+    if (on) next.delete(cls)
+    else next.add(cls)
+  }
+  classesOff = next
+  applyTileFilters()
+  applyStations()
+}
+
+// ── wiring ─────────────────────────────────────────────────────────────
+
+function warnOnce(msg: string) {
+  if (warnedOnce) return
+  warnedOnce = true
+  console.info(msg)
+}
+
+function bindListeners() {
+  if (!map || listenersBound) return
+  listenersBound = true
+  boundHandlers = {
+    // marker dots, bundle pills and route bullets are canvas-drawn the
+    // first time a layer asks for them — any feed's colors and labels
+    // work with no sprite sheet (MapView.vue:1932-1936)
+    styleimagemissing: (e: any) => {
+      if (!e.id || map.hasImage(e.id)) return
+      const image = drawPortolanImage(e.id)
+      if (image) map.addImage(e.id, image, { pixelRatio: 2 })
+    },
+    // symbols and junction transitions re-materialize as tiles come and
+    // go; both hydrators dedupe (MapView.vue:1967-1975)
+    moveend: () => requestHydrate(),
+    sourcedata: (e: any) => {
+      if (
+        typeof e.sourceId === 'string' &&
+        e.sourceId.startsWith('portolan-tiles-') &&
+        e.isSourceLoaded
+      ) {
+        requestHydrate()
+      }
+    },
+  }
+  for (const [ev, fn] of Object.entries(boundHandlers)) map.on(ev, fn)
+}
+
+function unbindListeners() {
+  if (!map || !listenersBound) return
+  listenersBound = false
+  for (const [ev, fn] of Object.entries(boundHandlers)) map.off(ev, fn)
+  boundHandlers = {}
+  if (hydrateQueued) {
+    cancelAnimationFrame(hydrateQueued)
+    hydrateQueued = 0
+  }
+}
+
+const proxyBase = () => `${api.defaults.baseURL}/proxy/portolan`
+
+/** The feed list, probed once per session. A missing index (portolan not
+ *  yet deployed on this barrelman, or barrelman not configured) resolves
+ *  to [] and the feature is silently absent. */
+function ensureRegions(): Promise<PortolanIndexEntry[]> {
+  if (!regionsPromise) {
+    regionsPromise = fetch(`${proxyBase()}/index.json`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(list => (Array.isArray(list) ? list : []))
+      .catch(() => [])
+  }
+  return regionsPromise
+}
+
+/** Per-feed resolved style manifests, served next to the tiles. Missing
+ *  is fine — colors ride inline in the tiles; the manifest only carries
+ *  per-class width/opacity (MapView.vue:1354-1382). */
+async function ensureFeedStyles(regions: PortolanIndexEntry[]) {
+  await Promise.all(
+    regions.map(async r => {
+      if (feedStyles.has(r.feed)) return
+      const s = await fetch(`${proxyBase()}/${encodeURIComponent(r.feed)}/style.json`)
+        .then(res => (res.ok ? res.json() : null))
+        .catch(() => null)
+      feedStyles.set(r.feed, s)
+    }),
+  )
+}
+
+const styleForFeed = (feed: string) => feedStyles.get(feed) ?? null
+
+async function sync() {
+  const m = map
+  if (!m) return
+  const regions = await ensureRegions()
+  if (!regions.length || map !== m) return
+  await ensureFeedStyles(regions)
+  // the awaits may have crossed a setStyle; the next style.load re-runs us
+  if (map !== m || !m.isStyleLoaded()) return
+  addSourcesAndLayers(regions)
+  restoreHeldTransitions()
+  applyStations()
+  applyTileFilters()
+  requestHydrate()
+}
+
+// ── sources + layers (MapView.vue:985-1286 addLayers, 1442-1499 clones) ─
+
+function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
+  if (map.getSource(SRC_STATIONS)) return // this style is already built
+  structuralFilter.clear()
+
+  // one GeoJSON source per band for the hydrated transitions/bridges —
+  // lineMetrics is the whole point: without it there is no line-progress
+  for (const b of BANDS) {
+    map.addSource(srcBuild(b.key), { type: 'geojson', data: EMPTY_FC, lineMetrics: true })
+  }
+  map.addSource(SRC_STATIONS, { type: 'geojson', data: EMPTY_FC })
+
+  // transition/bridge twins. Steady is skipped: steady ribbons render
+  // straight off the vector tiles below. The twins' width/opacity
+  // coalesce the per-feature _w/_o baked at hydration (perFeedW/O).
+  const twin = modeExprs(null)
+  let anchor: string | undefined
+  for (const b of BANDS) {
+    for (const [kind, off] of KINDS) {
+      if (kind === 'steady') continue
+      const id = twinId(b.key, kind)
+      const filter: Expr = ['all', ['==', ['get', 'band_min'], b.key], ['==', ['get', 'kind'], kind]]
+      structuralFilter.set(id, filter)
+      map.addLayer({
+        id,
+        type: 'line',
+        source: srcBuild(b.key),
+        minzoom: b.min === 0 ? 0 : b.min,
+        maxzoom: b.max === 24 ? 24 : b.max,
+        filter,
+        // round caps: at a transition/steady seam the eased line arrives
+        // with lateral slope while the steady leaves flat — butt caps
+        // leave a wedge notch at every seam (MapView.vue:1000-1003)
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': RIBBON_COLOR,
+          'line-width': widthExpr(perFeedW(twin.w)),
+          'line-opacity': perFeedO(twin.o),
+          'line-offset': off,
+        },
+      })
+      anchor ??= id // bottom-most twin: steady clones insert below it
+    }
+  }
+
+  addSymbolLayers()
+
+  // per-region vector sources + steady band clones, below every twin: at
+  // a junction the hydrated transition's eased ramp must draw OVER the
+  // steady ribbons it crosses (MapView.vue:1446-1456)
+  for (const r of regions) {
+    const src = srcTiles(r.feed)
+    map.addSource(src, {
+      type: 'vector',
+      tiles: [`${proxyBase()}/${encodeURIComponent(r.feed)}/{z}/{x}/{y}.mvt`],
+      minzoom: 0,
+      maxzoom: r.maxzoom ?? 15, // the renderer overzooms above the pyramid top
+      ...(r.bounds?.length === 4 ? { bounds: r.bounds } : {}),
+    })
+    const { w, o } = modeExprs(styleForFeed(r.feed))
+    for (const b of BANDS) {
+      const id = steadyId(b.key, r.feed)
+      const filter: Expr = [
+        'all',
+        ['==', ['get', 'band_min'], b.key],
+        ['==', ['get', 'kind'], 'steady'],
+      ]
+      structuralFilter.set(id, filter)
+      map.addLayer(
+        {
+          id,
+          type: 'line',
+          source: src,
+          'source-layer': 'ribbons',
+          minzoom: b.min === 0 ? 0 : b.min,
+          maxzoom: b.max === 24 ? 24 : b.max,
+          filter,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color': RIBBON_COLOR,
+            'line-width': widthExpr(w),
+            'line-opacity': o,
+            'line-offset': STEADY_OFFSET,
+          },
+        },
+        anchor,
+      )
+    }
+  }
+}
+
+/** The symbol stack, above every ribbon (MapView.vue:1016-1254). Symbols
+ *  render from the hydrated stations source, never from the vector tiles
+ *  (cats carry JSON-encoded anchor vectors; stations need client-side
+ *  icon/brow/nrows). Filters here are STRUCTURAL only — time/class
+ *  gating happens in applyStations, in JS. */
+function addSymbolLayers() {
+  const themeStore = useThemeStore()
+  const isDark = themeStore.isDark
+  // station names draw OVER coloured ribbons in both themes: the halo
+  // does the separating work and inverts with the basemap
+  const labelPaint = isDark
+    ? { 'text-color': '#e8e8ee', 'text-halo-color': 'rgba(12,12,16,0.9)', 'text-halo-width': 1.4 }
+    : { 'text-color': '#1b1b22', 'text-halo-color': 'rgba(255,255,255,0.92)', 'text-halo-width': 1.4 }
+
+  const imp: Expr = ['coalesce', ['get', 'imp'], 0]
+  const isMarker: Expr = ['==', ['get', 'ftype'], 'marker']
+  const isStation: Expr = ['==', ['get', 'ftype'], 'station']
+
+  // EVERY dot appears at once — a half-drawn set of stops reads as
+  // missing data, not "the important ones". Labels are the scarce
+  // resource and get the ranking; dots are all-or-nothing.
+  map.addLayer({
+    id: 'portolan-station-markers',
+    type: 'symbol',
+    source: SRC_STATIONS,
+    minzoom: 11,
+    filter: isMarker,
+    layout: {
+      // icon id precomputed per feature (dots-…/pill-…), drawn on demand
+      // by styleimagemissing. A dot's slot offset is baked into its image
+      // so icon-rotate carries it to the correct side of the corridor.
+      'icon-image': ['get', 'icon'],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.38, 12, 0.5, 14, 1],
+      'icon-rotate': ['get', 'bearing'],
+      'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+  })
+
+  // caterpillars: inline route bullets riding the ribbons via the fork's
+  // symbol-anchor-offset. Each cat rides the band that DRAWS at its zoom
+  // so the bullet's lateral offset always matches the ribbon under it;
+  // veclo carries the z11-scaled vector and interpolating to vec at z14
+  // reproduces the ribbons' own zoomScaledOffset curve exactly.
+  const isCat: Expr = ['==', ['get', 'ftype'], 'cat']
+  const catBand = (b: number, text: boolean): Expr => [
+    'all',
+    isCat,
+    ['==', ['get', 'band'], b],
+    ['==', ['coalesce', ['get', 'text'], false], text],
+  ]
+  const catBandStep = (text: boolean): Expr => [
+    'step',
+    ['zoom'],
+    catBand(0, text),
+    13,
+    catBand(13, text),
+    14,
+    catBand(14, text),
+    15,
+    catBand(15, text),
+  ]
+  const catAnchorOffset: Expr = [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    11,
+    ['get', 'veclo'],
+    14,
+    ['get', 'vec'],
+  ]
+  map.addLayer({
+    id: 'portolan-cats',
+    type: 'symbol',
+    source: SRC_STATIONS,
+    minzoom: 12,
+    filter: catBandStep(false),
+    layout: {
+      'icon-image': [
+        'concat',
+        'blt-',
+        ['get', 'hex'],
+        '-',
+        ['coalesce', ['get', 'shape'], ''],
+        '-',
+        ['get', 'label'],
+      ],
+      // real collision, junior to everything: the station layers sit
+      // above, so stop labels always win; ignore-placement keeps bullets
+      // from ever suppressing anything else
+      'icon-allow-overlap': false,
+      'icon-ignore-placement': true,
+      'symbol-anchor-offset': catAnchorOffset,
+      'symbol-anchor-offset-alignment': 'map',
+    },
+  })
+
+  // WORD labels are not bullets: routes named "Orange Line" set as text
+  // running along the ribbon, the way a road map labels a highway
+  map.addLayer({
+    id: 'portolan-cat-text',
+    type: 'symbol',
+    source: SRC_STATIONS,
+    minzoom: 12,
+    filter: catBandStep(true),
+    layout: {
+      'text-field': ['get', 'label'],
+      // italic separates a line's identity from the upright station
+      // names around it at a glance
+      'text-font': LABEL_FONT_ITALIC,
+      'text-size': ['interpolate', ['linear'], ['zoom'], 12, 10, 16, 13],
+      'text-rotate': ['get', 'ang'],
+      'text-rotation-alignment': 'map',
+      'text-pitch-alignment': 'viewport',
+      'text-allow-overlap': false,
+      'text-ignore-placement': true,
+      'text-padding': 3,
+      'symbol-anchor-offset': catAnchorOffset,
+      'symbol-anchor-offset-alignment': 'map',
+    },
+    paint: {
+      // the line's own colour — the label IS the line's identity
+      'text-color': ['concat', '#', ['get', 'hex']],
+      'text-halo-color': isDark ? 'rgba(12,12,16,0.92)' : 'rgba(255,255,255,0.95)',
+      'text-halo-width': 1.6,
+    },
+  })
+
+  // ── station labels (MapView.vue:1139-1254) ───────────────────────────
+  // The bullet strip hangs below the LAST line of the name: its offset is
+  // the height of the shaped text block, measured in ems so it moves with
+  // text-size — i.e. with both zoom and rank tier.
+  const rankBump: Expr = ['case', ['>=', ['get', 'rank'], 8], 2.5, ['>=', ['get', 'rank'], 4], 1, 0]
+  const rk: Expr = ['get', 'rank']
+  const TEXT_TOP_EM = 0.5 // the layers' text-offset, in ems
+  const LINE_EM = 1.2 // MapLibre's default text-line-height
+  const GAP_EM = 0.3
+  const [Z_LO, Z_HI, SIZE_LO, SIZE_HI] = [11, 16, 10, 13]
+  const textSize: Expr = [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    Z_LO,
+    ['+', SIZE_LO, rankBump],
+    Z_HI,
+    ['+', SIZE_HI, rankBump],
+  ]
+  const stripY = (size: number, rows: number): Expr => [
+    'literal',
+    [0, Math.round(10 * size * (TEXT_TOP_EM + LINE_EM * rows + GAP_EM)) / 10],
+  ]
+  // ["zoom"] is only legal as input to a top-level interpolate/step, so
+  // the composite goes this way around and the stops interpolate as
+  // arrays — the offset tracks the text exactly, not just at the stops
+  const bulletOffsetAt = (base: number): Expr => {
+    const byRows = (size: number): Expr => [
+      'match',
+      ['get', 'nrows'],
+      2,
+      stripY(size, 2),
+      3,
+      stripY(size, 3),
+      4,
+      stripY(size, 4),
+      stripY(size, 1),
+    ]
+    return ['case', ['>=', rk, 8], byRows(base + 2.5), ['>=', rk, 4], byRows(base + 1), byRows(base)]
+  }
+  const bulletOffset: Expr = [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    Z_LO,
+    bulletOffsetAt(SIZE_LO),
+    Z_HI,
+    bulletOffsetAt(SIZE_HI),
+  ]
+  // Density is COLLISION's job, not the filter's: every station is a
+  // candidate at every zoom; text-padding is the dial (spatial thinning),
+  // and symbol-sort-key decides who WINS a contested spot. From z15 the
+  // merged complex label yields to the per-corridor labels below.
+  const solo: Expr = ['<', ['coalesce', ['get', 'nmarkers'], 1], 2]
+  const labelGate: Expr = ['step', ['zoom'], isStation, 15, ['all', isStation, solo]]
+  const labelPadding: Expr = ['interpolate', ['linear'], ['zoom'], 11, 34, 12, 22, 13, 13, 14, 6, 16, 2]
+  map.addLayer({
+    id: 'portolan-station-labels',
+    type: 'symbol',
+    source: SRC_STATIONS,
+    minzoom: 11,
+    filter: labelGate,
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-font': LABEL_FONT,
+      'symbol-sort-key': ['*', -1, imp],
+      // fixed top anchor: name under the marker, bullet strip under the
+      // name (variable anchors would detach the strip from the text)
+      'text-anchor': 'top',
+      'text-offset': [0, TEXT_TOP_EM],
+      'text-padding': labelPadding,
+      'text-size': textSize,
+      // the bullet strip appears once there is room for it; its distance
+      // below the anchor follows the name's estimated wrap count
+      'icon-image': ['step', ['zoom'], '', 13.5, ['coalesce', ['get', 'brow'], '']],
+      'icon-anchor': 'top',
+      'icon-offset': bulletOffset,
+      'icon-optional': true,
+    },
+    paint: labelPaint,
+  })
+  // per-corridor labels for complexes at z15+: this corridor's name and
+  // ITS bullets (Fulton St splits into A·C / J·Z / 2·3 / 4·5 labels)
+  map.addLayer({
+    id: 'portolan-station-labels-hi',
+    type: 'symbol',
+    source: SRC_STATIONS,
+    minzoom: 15,
+    filter: ['all', isMarker, ['>=', ['coalesce', ['get', 'nmarkers'], 1], 2]],
+    layout: {
+      'text-field': ['get', 'name'],
+      'text-font': LABEL_FONT,
+      'symbol-sort-key': ['*', -1, imp],
+      'text-anchor': 'top',
+      'text-offset': [0, TEXT_TOP_EM],
+      'text-padding': labelPadding,
+      'text-size': textSize,
+      'icon-image': ['coalesce', ['get', 'brow'], ''],
+      'icon-anchor': 'top',
+      'icon-offset': bulletOffset,
+      'icon-optional': true,
+    },
+    paint: labelPaint,
+  })
+}
+
+function removeAll() {
+  if (!map?.getStyle()) return
+  for (const layer of map.getStyle().layers ?? []) {
+    if (layer.id.startsWith('portolan-')) map.removeLayer(layer.id)
+  }
+  for (const src of Object.keys(map.getStyle().sources ?? {})) {
+    if (src.startsWith('portolan-')) map.removeSource(src)
+  }
+}
+
+// ── time + class filters (MapView.vue:1514-1586) ───────────────────────
+// Ribbons gate on the GPU: the acts bit test and the scalar mode ride as
+// layer filters combined with each layer's structural filter. What the
+// GPU cannot do is re-center a thinned bundle, so surviving ribbons keep
+// their union offsets — the honest trade for controls that work without
+// the whole document. Symbols are gated in applyStations instead; these
+// filters must NEVER touch a symbol layer or symbols gate twice.
+
+function applyTileFilters() {
+  if (!map?.isStyleLoaded?.()) return
+  const clauses: Expr[] = []
+  const acts = actsFilterExpr(serviceTime)
+  if (acts) clauses.push(acts)
+  const cls = classFilterExpr(classesOff)
+  if (cls) clauses.push(cls)
+  for (const [id, structural] of structuralFilter) {
+    if (!map.getLayer(id)) continue
+    map.setFilter(id, composeFilter(structural, clauses))
+  }
+}
+
+// ── transition hydration (MapView.vue:1616-1713) ───────────────────────
+
+/** lon/lat bounds of a hydrated line, and a cheap fingerprint standing in
+ *  for its geometry: vertex count plus the two endpoints. Two copies of
+ *  one transition off different zoom levels differ in both. */
+function heldShape(g: any): { box: [number, number, number, number]; fp: string } {
+  const parts: any[] = g?.type === 'MultiLineString' ? g.coordinates : [g?.coordinates ?? []]
+  let w = Infinity,
+    s = Infinity,
+    e = -Infinity,
+    n = -Infinity
+  let count = 0
+  let first: any = null
+  let last: any = null
+  for (const part of parts) {
+    for (const c of part) {
+      count++
+      if (!first) first = c
+      last = c
+      if (c[0] < w) w = c[0]
+      if (c[0] > e) e = c[0]
+      if (c[1] < s) s = c[1]
+      if (c[1] > n) n = c[1]
+    }
+  }
+  const at = (c: any) => (c ? `${c[0].toFixed(6)},${c[1].toFixed(6)}` : '')
+  return { box: [w, s, e, n], fp: `${count}:${at(first)}:${at(last)}` }
+}
+
+/** Materialize loaded transition/bridge tile features into the per-band
+ *  GeoJSON sources, where the twin layers draw them with full easing.
+ *  The tiler ships each transition WHOLE into every tile it touches (so
+ *  line-progress spans the true segment) — duplicates are a fact of
+ *  life, folded by segment identity. */
+function hydrateTransitions() {
+  if (!map?.isStyleLoaded?.()) return
+  const fresh = new Set<string>()
+  for (const sid of tileSourceIds()) {
+    if (!map.getSource(sid)) continue
+    const modes = styleForFeed(sid.slice('portolan-tiles-'.length))?.modes
+    for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
+      const p = f.properties
+      if (p.kind !== 'transition' && p.kind !== 'bridge') continue
+      // seg is only unique within one feed's pyramid, so the source id
+      // keys regions apart; band_min + routes guard against seg reuse
+      const key = `${sid}|${p.seg}|${p.band_min}|${p.routes}`
+      if (fresh.has(key)) continue
+      fresh.add(key)
+      const held = heldTransitions.get(+p.band_min)
+      if (!held) continue
+      const props: any = { ...p }
+      // the twins are shared across feeds, so the owning feed's resolved
+      // class width/opacity rides ON the feature (perFeedW/O coalesce)
+      const m = modes?.[p.mode]
+      if (m) {
+        props._w = m.width
+        props._o = m.opacity
+      }
+      // last write wins: a later sweep carries the current zoom level's
+      // vertex density
+      const { box, fp } = heldShape(f.geometry)
+      held.set(key, {
+        feat: { type: 'Feature', properties: props, geometry: f.geometry },
+        box,
+        fp,
+      })
+    }
+  }
+  // Eviction is by POSITION, not by absence from this sweep: one viewport
+  // of slack in every direction, so a transition just off screen survives
+  // the pan that is about to bring it back.
+  const b = map.getBounds()
+  const w = b.getWest(),
+    e = b.getEast(),
+    s = b.getSouth(),
+    n = b.getNorth()
+  const dx = e - w,
+    dy = n - s
+  // a wrapped or world-wide viewport has no meaningful outside; keep all
+  const bounded = dx > 0 && dx < 120 && dy > 0
+  for (const [band, held] of heldTransitions) {
+    if (bounded) {
+      for (const [key, h] of held) {
+        if (fresh.has(key)) continue
+        if (h.box[2] < w - dx || h.box[0] > e + dx || h.box[3] < s - dy || h.box[1] > n + dy) {
+          held.delete(key)
+        }
+      }
+    }
+    const keys = [...held.keys()].sort()
+    const sig = keys.map(k => `${k}@${held.get(k)!.fp}`).join(';')
+    if (hydratedSig.get(band) === sig) continue
+    hydratedSig.set(band, sig)
+    map.getSource(srcBuild(band))?.setData({
+      type: 'FeatureCollection',
+      features: keys.map(k => held.get(k)!.feat),
+    })
+  }
+}
+
+/** After a style reload the held features survive in memory but the fresh
+ *  sources start empty — push them back without waiting for a sweep. */
+function restoreHeldTransitions() {
+  hydratedSig.clear()
+  for (const [band, held] of heldTransitions) {
+    if (!held.size) continue
+    const keys = [...held.keys()].sort()
+    hydratedSig.set(band, keys.map(k => `${k}@${held.get(k)!.fp}`).join(';'))
+    map.getSource(srcBuild(band))?.setData({
+      type: 'FeatureCollection',
+      features: keys.map(k => held.get(k)!.feat),
+    })
+  }
+}
+
+function tileSourceIds(): string[] {
+  const style = map?.getStyle()
+  if (!style) return []
+  return Object.keys(style.sources ?? {}).filter(s => s.startsWith('portolan-tiles-'))
+}
+
+/** One sweep per frame, never one per event: every region source fires
+ *  its own load event, and each used to run the full cross-source sweep. */
+function requestHydrate() {
+  if (!map || hydrateQueued) return
+  hydrateQueued = requestAnimationFrame(() => {
+    hydrateQueued = 0
+    hydrateSymbols()
+    hydrateTransitions()
+  })
+}
+
+// ── symbol hydration (MapView.vue:1729-1781, prepareStations 585-634) ──
+
+/** ONE hydration for every tiled symbol kind. Symbols cannot render
+ *  straight off the vector source: cats carry vec/veclo anchor offsets
+ *  as JSON text (MVT values are scalar), and stations/markers need the
+ *  client-computed icon ids, bullet strips (brow) and wrap counts
+ *  (nrows). Re-run as tiles come and go; the tiler writes each symbol
+ *  into one owning tile per zoom, so the only duplicates to fold are
+ *  across cached zoom levels. */
+function hydrateSymbols() {
+  if (!map?.isStyleLoaded?.()) return
+  const seen = new Set<string>()
+  const feats: any[] = []
+  for (const sid of tileSourceIds()) {
+    if (!map.getSource(sid)) continue
+    for (const sl of ['stations', 'markers', 'cat']) {
+      for (const f of map.querySourceFeatures(sid, { sourceLayer: sl })) {
+        const p = { ...f.properties }
+        p._feed = sid.slice('portolan-tiles-'.length)
+        // Cats: the anchor is part of the identity — a route repeats the
+        // same vec at every single-bullet chain along its line.
+        // Stations/markers: name+routes at one coordinate IS the symbol.
+        const key =
+          sl === 'cat'
+            ? `${f.geometry?.coordinates}|${p.route}|${p.band}|${p.label}|${p.vec}`
+            : `${sl}|${f.geometry?.coordinates}|${p.name ?? ''}|${p.routes ?? ''}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        if (sl === 'cat') {
+          try {
+            if (typeof p.vec === 'string') p.vec = JSON.parse(p.vec)
+            if (typeof p.veclo === 'string') p.veclo = JSON.parse(p.veclo)
+          } catch {
+            continue // a bullet with no offset would sit on the centerline
+          }
+        }
+        feats.push({ type: 'Feature', properties: p, geometry: f.geometry })
+      }
+    }
+  }
+  prepareStations({ type: 'FeatureCollection', features: feats })
+}
+
+/** Normalize the hydrated symbols and make them the live stations data —
+ *  everything downstream (applyStations, time gating, class toggles,
+ *  styleimagemissing icons) runs from here. */
+function prepareStations(fc: any | null) {
+  if (fc?.features) {
+    for (const f of fc.features) {
+      const p = f.properties
+      if (p.ftype === 'cat') {
+        // caterpillar bullets: normalize singular route/mode into the
+        // aligned-array props so stationVisible and the class toggles
+        // treat a bullet exactly like a one-route station
+        p.routes = p.route
+        p.modes = p.mode
+        continue
+      }
+      if (p.ftype === 'marker') {
+        // marker rule: lines that fill the whole bundle → a white pill
+        // lying ACROSS it; anything less → one borderless dot per
+        // stopping line at its ribbon's slot offset
+        p.icon = p.dots ? `dots-${p.dots}` : `pill-${p.span_px || 0}`
+        // a complex's markers each get their OWN label at high zoom
+        // (this corridor's name + bullets) while the merged station
+        // label bows out — Apple's Fulton St behaviour
+        if (p.nmarkers > 1) {
+          const ids = bulletIdsOf(p)
+          if (ids.length) p.brow = 'row-' + ids.join('|')
+          p.nrows = estRows(String(p.name ?? ''))
+        }
+      } else {
+        // the whole bullet strip is ONE composed image rendered as the
+        // symbol's icon (never inside the text-field: mixing images into
+        // text corrupts the fork's per-tile glyph/image atlas)
+        const ids = bulletIdsOf(p)
+        if (ids.length) p.brow = 'row-' + ids.join('|')
+        p.nrows = estRows(String(p.name ?? ''))
+      }
+    }
+  }
+  stationsRaw = fc
+  applyStations()
+}
+
+// ── symbol gating (MapView.vue:910-974) ────────────────────────────────
+// Route-level activity masks are an atlas endpoint parchment does not
+// have, so `masks` is {} everywhere: feature-level acts decide, and a
+// symbol without acts renders always-active — the honest default.
+// Marker icons keep their union image under a time filter: re-deriving
+// them (markerIconAt) needs the band-15 ribbon bundles, which tile mode
+// never materializes — exactly the atlas's own tile-mode behaviour.
+const NO_MASKS: Record<string, string> = {}
+
+function applyStations() {
+  const src = map?.getSource?.(SRC_STATIONS)
+  if (!src) return
+  if (!stationsRaw) {
+    src.setData(EMPTY_FC)
+    return
+  }
+  const date = serviceTime
+  const off = classesOff
+  const feats =
+    date || off.size
+      ? stationsRaw.features
+          .filter((f: any) => stationVisible(f.properties, NO_MASKS, date, off))
+          .map((f: any) => timeFilteredBullets(f, date, off))
+      : stationsRaw.features
+  src.setData({ type: 'FeatureCollection', features: feats })
+}
+
+/** A surviving station's bullet strip shows only the routes awake at the
+ *  chosen time (and in enabled classes) — the 2am map must not advertise
+ *  lines that stopped at midnight. Pure: filtered features are copies,
+ *  the cached data stays the union. */
+function timeFilteredBullets(f: any, date: Date | null, off: Set<string>): any {
+  const p = f.properties
+  const labeled = p.ftype === 'station' || (p.ftype === 'marker' && p.nmarkers > 1)
+  if (!labeled) return f
+  const idx = activeRouteIdx(p, NO_MASKS, date, off)
+  if (!idx) return f
+  const pick = (s: string) => {
+    const all = String(s ?? '').split(',')
+    return idx.map(i => all[i]).join(',')
+  }
+  const ids = bulletIdsOf({
+    labels: pick(p.labels),
+    route_colors: pick(p.route_colors),
+    modes: pick(p.modes),
+    shapes: pick(p.shapes),
+  })
+  const props = { ...p }
+  if (ids.length) props.brow = 'row-' + ids.join('|')
+  else delete props.brow
+  return { ...f, properties: props }
+}

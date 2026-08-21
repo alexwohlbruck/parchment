@@ -28,6 +28,7 @@ import { useNotesLayerService } from '@/services/layers/features/notes-layer.ser
 import { useBookmarksLayerService } from '@/services/layers/features/bookmarks-layer.service'
 import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { useAppStore } from '../stores/app.store'
 import { calculateFitPadding, type Padding } from '@/lib/map-padding'
 import {
@@ -71,6 +72,7 @@ function mapService() {
   const bookmarksLayerService = useBookmarksLayerService()
   const environmentDataService = useEnvironmentDataService()
   const timelineLayerService = useTimelineLayerService()
+  const portolanTransitService = usePortolanTransitService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
@@ -506,6 +508,13 @@ function mapService() {
       // `fitBounds` so the route is framed inside the visible map area (not
       // under the LeftSheet drawer) and re-fits once the drawer settles.
       timelineLayerService.initializeTimelineLayer(mapStrategy, fitBounds)
+
+      // Portolan transit ribbons (streamed from Barrelman through the
+      // server proxy). Requires the maplibre-gl transit fork; the service
+      // no-ops on other engines. OFF by default until the layer-group UI
+      // lands — dev escape hatch:
+      //   localStorage.setItem('parchment.portolan-transit', '1')
+      portolanTransitService.initializePortolanTransit(mapStrategy)
 
       // Apply config properties AFTER all sources/layers are added,
       // because setConfigProperties modifies the map style (e.g. removeImport)
@@ -1149,6 +1158,9 @@ function mapService() {
       searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
       bookmarksLayerService.removeBookmarksLayer(mapStrategy)
     }
+
+    // Unbind the portolan renderer's map listeners and drop its layers
+    portolanTransitService.teardownPortolanTransit()
 
     // Remove every listener registered by bindMapEvents().
     unbindMapEvents()

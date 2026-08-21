@@ -261,7 +261,18 @@ export function cssFontFor(stack: string[], sizePx = 100): string {
 export function estRows(name: string, cssFont = MEASURE_FONT): number {
   const ctx = (measureCtx ||= document.createElement('canvas').getContext('2d')!)
   if (ctx.font !== cssFont) ctx.font = cssFont
-  const maxW = 10 * 100 // text-max-width, 10 em, measured at 1 em = 100 px
+  // text-max-width is 10 em, measured here at 1 em = 100 px.
+  //
+  // The slack matters. This canvas can only measure a face the BROWSER
+  // has, while the map shapes with glyphs from the tile server's endpoint
+  // — parchment loads no Roboto webfont, so a request for it measures as
+  // whatever the system substitutes, and substitutes are typically wider.
+  // Measuring wide means predicting a wrap that never happens, and the
+  // bullet strip — which hangs below the last row — then floats a whole
+  // line clear of a name that fitted. Erring the other way costs a few
+  // pixels of overlap on a genuinely borderline name, which is much the
+  // smaller sin, so only wrap when the name clears the limit decisively.
+  const maxW = 10 * 100 * 1.12
   const text = name.trim()
   if (!text) return 1
   let breaks = 0

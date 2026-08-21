@@ -116,10 +116,7 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     icon: 'TrainIcon',
     showInLayerSelector: true,
     visible: false,
-    // The portolan ribbons carry their own colour and sit under the
-    // basemap's labels, so they read without dimming the map beneath —
-    // and the streets they run along are context worth keeping.
-    fadeBasemap: false,
+    fadeBasemap: true,
     order: 2,
     parentGroupId: null,
   },

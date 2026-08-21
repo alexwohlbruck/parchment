@@ -841,46 +841,68 @@ function unmountFeed(feed: string) {
 
 
 /**
- * The paint the basemap letters its OWN labels with — text colour, halo
- * colour, halo width — so a station name is lettered the way the street
- * names beside it are.
- *
- * This is the whole answer to light vs dark: the basemap has already
- * solved it (Mapbox Standard adjusts its labels natively, osm-liberty
- * gets applyDarkTheme), so copying its answer means never inferring a
- * theme and never being wrong about one. Only when the basemap is not
- * readable — Mapbox Standard keeps its layers in an import, not in
- * `.layers` — does it fall back to the theme that built the style.
+ * Is the basemap dark? Asked of the map itself — the luminance of the
+ * background layer it is painting — rather than of any store, because the
+ * stores have now disagreed with the pixels in both directions.
+ */
+function basemapIsDark(): boolean {
+  for (const l of map?.getStyle?.()?.layers ?? []) {
+    if (l.type !== 'background' || l.id.startsWith('portolan-')) continue
+    const c = (l.paint as any)?.['background-color'] ?? map.getPaintProperty?.(l.id, 'background-color')
+    const lum = luminanceOf(c)
+    if (lum !== null) return lum < 0.5
+  }
+  return themeDark
+}
+
+/** 0..1 luminance of any CSS colour, or null if it is not a plain colour
+ *  (an expression, say). The canvas normalises the parsing for us. */
+function luminanceOf(color: unknown): number | null {
+  if (typeof color !== 'string' || !color) return null
+  const ctx = (lumCtx ||= document.createElement('canvas').getContext('2d'))
+  if (!ctx) return null
+  try {
+    ctx.fillStyle = '#000'
+    ctx.fillStyle = color
+    const hex = ctx.fillStyle as string
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
+    if (!m) return null
+    const [r, g, b] = [1, 2, 3].map(i => parseInt(m[i], 16) / 255)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  } catch {
+    return null
+  }
+}
+let lumCtx: CanvasRenderingContext2D | null = null
+
+/**
+ * How a station name is lettered. The halo comes from the basemap so it
+ * matches the separation its own labels use; the TEXT does not — a
+ * station name is a stronger thing than a street name and takes the
+ * strongest contrast the theme allows, rather than inheriting whatever
+ * grey the basemap chose for streets.
  */
 function basemapLabelPaint(): {
-  'text-color': any
+  'text-color': string
   'text-halo-color': any
   'text-halo-width': number
 } {
-  const layers = map?.getStyle?.()?.layers ?? []
-  let best: any
-  for (const l of layers) {
+  const dark = basemapIsDark()
+  let halo: any
+  let width: number | undefined
+  for (const l of map?.getStyle?.()?.layers ?? []) {
     if (l.type !== 'symbol' || l.id.startsWith('portolan-')) continue
-    const color = l.paint?.['text-color'] ?? map.getPaintProperty?.(l.id, 'text-color')
-    if (color === undefined) continue
-    const cand = {
-      'text-color': color,
-      'text-halo-color':
-        l.paint?.['text-halo-color'] ?? map.getPaintProperty?.(l.id, 'text-halo-color') ?? (themeDark ? 'rgba(12,12,16,0.9)' : 'rgba(255,255,255,0.92)'),
-      'text-halo-width': (l.paint?.['text-halo-width'] as number) ?? 1.4,
-    }
-    // a place label is the closest cousin of a station name; take the
-    // first one, and keep any label layer as the fallback
-    if (l.id.includes('place')) return cand
-    best ??= cand
+    const h = (l.paint as any)?.['text-halo-color'] ?? map.getPaintProperty?.(l.id, 'text-halo-color')
+    if (h === undefined) continue
+    halo = h
+    width = (l.paint as any)?.['text-halo-width']
+    if (l.id.includes('place')) break
   }
-  return (
-    best ?? {
-      'text-color': themeDark ? '#e8e8ee' : '#1b1b22',
-      'text-halo-color': themeDark ? 'rgba(12,12,16,0.9)' : 'rgba(255,255,255,0.92)',
-      'text-halo-width': 1.4,
-    }
-  )
+  return {
+    'text-color': dark ? '#f4f4f8' : '#16161c',
+    'text-halo-color': halo ?? (dark ? 'rgba(8,8,12,0.95)' : 'rgba(255,255,255,0.95)'),
+    'text-halo-width': width ?? 1.4,
+  }
 }
 
 /** True when the BASEMAP is dark — see themeDark. */
@@ -896,9 +918,14 @@ function measureFont(): string {
 }
 
 /**
- * The font the basemap letters its own labels with, so a station name
- * reads as part of the map rather than pasted over it. Prefers a place
- * label's stack; falls back to any label layer's, then to our own.
+ * The font to letter station names in.
+ *
+ * Prefers the basemap's own UPRIGHT face over a condensed or italic one.
+ * Two reasons: a station name in the italic reserved for POIs reads as a
+ * shop, and — less obviously — the row estimate has to measure this face
+ * on a canvas, so a face the browser does not have measures as whatever
+ * it falls back to. The plain face is the one both the glyph endpoint and
+ * the browser are most likely to actually have.
  */
 function basemapLabelFont(): string[] {
   let fallback: string[] | undefined
@@ -906,7 +933,8 @@ function basemapLabelFont(): string[] {
     if (l.type !== 'symbol' || l.id.startsWith('portolan-')) continue
     const f = (l.layout as any)?.['text-font']
     if (!Array.isArray(f) || !f.length) continue
-    if (l.id.includes('place')) return f as string[]
+    const plain = !/italic|oblique|condensed/i.test(String(f[0]))
+    if (plain) return f as string[]
     fallback ??= f as string[]
   }
   return fallback ?? LABEL_FONT
@@ -921,11 +949,9 @@ function addSymbolLayers() {
   // On Standard the symbols take the `top` slot — above POI labels, behind
   // place and transit labels — rather than being appended over the world.
   const slot = engine === MapEngine.MAPBOX ? { slot: 'top' } : {}
-  // Which theme the BASEMAP is wearing, not which theme the app chrome is.
   const labelFont = basemapLabelFont()
-  // Station names are lettered exactly as the basemap letters its own
-  // labels — same face, same colour, same halo — so they invert with it
-  // for free rather than by our guessing which way it went.
+  // The halo is the basemap's; the text colour is ours, and stronger —
+  // a station name outranks a street name.
   const labelPaint = { ...basemapLabelPaint(), ...emissive('text') }
 
   const imp: Expr = ['coalesce', ['get', 'imp'], 0]

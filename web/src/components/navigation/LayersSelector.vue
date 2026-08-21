@@ -28,6 +28,7 @@ import {
   type TransitClassGroup,
 } from '@/services/layers/features/portolan/portolan-ui'
 import LayerSelectorRow from './LayerSelectorRow.vue'
+import TransitServiceTimeControl from './TransitServiceTimeControl.vue'
 import type { SelectorNode } from './layer-selector.types'
 
 const layersStore = useLayersStore()
@@ -251,13 +252,23 @@ function findGroupNode(id: string, tree: any[]): any {
       </p>
 
       <div class="-mx-1">
-        <LayerSelectorRow
-          v-for="node in nodes"
-          :key="node.id"
-          :node="node"
-          :expanded="expanded"
-          @toggle-expanded="toggleExpanded"
-        />
+        <template v-for="node in nodes" :key="node.id">
+          <LayerSelectorRow
+            :node="node"
+            :expanded="expanded"
+            @toggle-expanded="toggleExpanded"
+          />
+          <!-- The service-time control belongs to the Transit group: it
+               filters the portolan map to what actually runs at an instant,
+               so it appears under the expanded, enabled group. -->
+          <TransitServiceTimeControl
+            v-if="
+              node.id === TRANSIT_GROUP_ID &&
+              node.visible &&
+              expanded.has(node.id)
+            "
+          />
+        </template>
       </div>
     </div>
   </div>

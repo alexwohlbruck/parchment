@@ -333,14 +333,33 @@ async function ensureFeedStyles(regions: PortolanIndexEntry[]) {
 
 const styleForFeed = (feed: string) => feedStyles.get(feed) ?? null
 
+/** Guards the one deferred re-run sync() schedules when the style is still
+ *  loading, so a burst of style.loads cannot stack listeners. */
+let resyncPending = false
+
 async function sync() {
   const m = map
   if (!m) return
   const regions = await ensureRegions()
   if (!regions.length || map !== m) return
   await ensureFeedStyles(regions)
-  // the awaits may have crossed a setStyle; the next style.load re-runs us
-  if (map !== m || !m.isStyleLoaded()) return
+  if (map !== m) return
+  // Those awaits take longer than the style does to load on a cold cache:
+  // the index plus one manifest per pyramid, ~90 requests before the first
+  // ribbon. Waiting on "the next style.load" is not enough — on a first
+  // paint there isn't one, and the whole feature stayed invisible until
+  // something else happened to reload the style. Finish the job ourselves
+  // when the map next goes idle.
+  if (!m.isStyleLoaded()) {
+    if (!resyncPending) {
+      resyncPending = true
+      m.once('idle', () => {
+        resyncPending = false
+        if (map === m) void sync()
+      })
+    }
+    return
+  }
   addSourcesAndLayers(regions)
   restoreHeldTransitions()
   applyStations()

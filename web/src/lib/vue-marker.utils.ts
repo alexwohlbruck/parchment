@@ -1,4 +1,5 @@
 import { createApp, Component, App } from 'vue'
+import { i18n } from '@/lib/i18n'
 
 /**
  * Convert a Vue component to a DOM element for use as a map marker
@@ -12,6 +13,14 @@ export function createVueMarkerElement(
 
   // Create a Vue app instance with the component
   const app: App = createApp(component, props)
+
+  // A marker is its own app, so it inherits nothing from the main one: any
+  // component calling useI18n() throws on mount, and the throw escapes into
+  // whatever was iterating markers. That killed every initializer queued
+  // after the marker layers in onStyleLoad — bookmarks, notes, timeline and
+  // the portolan ribbons all silently vanished for any account that owned a
+  // tracker. Markers need the same translations as the rest of the app.
+  app.use(i18n)
 
   // Mount the app to the container
   app.mount(container)

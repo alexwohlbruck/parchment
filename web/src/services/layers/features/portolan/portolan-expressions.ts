@@ -289,3 +289,95 @@ export function bulletIdsOf(p: any): string[] {
   })
   return out
 }
+
+
+// ── label colours (light map vs dark map) ──────────────────────────────
+
+/**
+ * 0..1 luminance of a CSS colour string, or null if it is not one.
+ *
+ * Parsed here rather than via a canvas: this has to be testable without a
+ * browser, and the answer decides whether every station name is legible.
+ */
+export function luminanceOf(color: unknown): number | null {
+  if (typeof color !== 'string') return null
+  const c = color.trim().toLowerCase()
+  let rgb: [number, number, number] | null = null
+
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(c)
+  if (hex) {
+    const h = hex[1]
+    const full = h.length === 3 ? h.split('').map(x => x + x).join('') : h
+    rgb = [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16) / 255) as [number, number, number]
+  }
+
+  const rgbm = /^rgba?\(([^)]+)\)$/.exec(c)
+  if (rgbm) {
+    const parts = rgbm[1].split(/[,\s/]+/).filter(Boolean).slice(0, 3)
+    if (parts.length === 3) {
+      rgb = parts.map(v => (v.endsWith('%') ? parseFloat(v) / 100 : parseFloat(v) / 255)) as [number, number, number]
+    }
+  }
+
+  const hslm = /^hsla?\(([^)]+)\)$/.exec(c)
+  if (hslm) {
+    const parts = hslm[1].split(/[,\s/]+/).filter(Boolean)
+    const h = parseFloat(parts[0]) / 360
+    const sat = parseFloat(parts[1]) / 100
+    const li = parseFloat(parts[2]) / 100
+    const f = (n: number) => {
+      const k = (n + h * 12) % 12
+      const a = sat * Math.min(li, 1 - li)
+      return li - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)))
+    }
+    rgb = [f(0), f(8), f(4)]
+  }
+
+  if (!rgb || rgb.some(v => Number.isNaN(v))) return null
+  return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+}
+
+/** Near-white on a dark map, near-black on a light one. */
+export const LABEL_TEXT_DARK_MAP = '#f4f4f8'
+export const LABEL_TEXT_LIGHT_MAP = '#16161c'
+
+/**
+ * Is this style's basemap dark? Answered from the background layer it
+ * actually paints, so it cannot disagree with the pixels the way a theme
+ * store can.
+ */
+export function styleIsDark(layers: any[], fallbackDark = false): boolean {
+  for (const l of layers ?? []) {
+    if (l?.type !== 'background' || String(l.id ?? '').startsWith('portolan-')) continue
+    const lum = luminanceOf(l.paint?.['background-color'])
+    if (lum !== null) return lum < 0.5
+  }
+  return fallbackDark
+}
+
+/**
+ * How to letter a station name over this style: our own high-contrast text
+ * (a station name outranks a street name), the basemap's halo so the
+ * separation matches its labels, and its halo width.
+ */
+export function labelPaintFor(
+  layers: any[],
+  fallbackDark = false,
+): { 'text-color': string; 'text-halo-color': any; 'text-halo-width': number } {
+  const dark = styleIsDark(layers, fallbackDark)
+  let halo: any
+  let width: number | undefined
+  for (const l of layers ?? []) {
+    if (l?.type !== 'symbol' || String(l.id ?? '').startsWith('portolan-')) continue
+    const h = l.paint?.['text-halo-color']
+    if (h === undefined) continue
+    halo = h
+    width = l.paint?.['text-halo-width']
+    if (String(l.id).includes('place')) break
+  }
+  return {
+    'text-color': dark ? LABEL_TEXT_DARK_MAP : LABEL_TEXT_LIGHT_MAP,
+    'text-halo-color': halo ?? (dark ? 'rgba(8,8,12,0.95)' : 'rgba(255,255,255,0.95)'),
+    'text-halo-width': width ?? 1.4,
+  }
+}

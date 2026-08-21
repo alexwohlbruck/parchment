@@ -55,6 +55,7 @@ import type { PortolanIndexEntry, PortolanStyleSet } from '@/types/portolan.type
 import {
   BANDS,
   KINDS,
+  labelPaintFor,
   RIBBON_COLOR,
   ribbonColorWithAlpha,
   STEADY_OFFSET,
@@ -840,69 +841,12 @@ function unmountFeed(feed: string) {
 
 
 
-/**
- * Is the basemap dark? Asked of the map itself — the luminance of the
- * background layer it is painting — rather than of any store, because the
- * stores have now disagreed with the pixels in both directions.
- */
-function basemapIsDark(): boolean {
-  for (const l of map?.getStyle?.()?.layers ?? []) {
-    if (l.type !== 'background' || l.id.startsWith('portolan-')) continue
-    const c = (l.paint as any)?.['background-color'] ?? map.getPaintProperty?.(l.id, 'background-color')
-    const lum = luminanceOf(c)
-    if (lum !== null) return lum < 0.5
-  }
-  return themeDark
-}
-
-/** 0..1 luminance of any CSS colour, or null if it is not a plain colour
- *  (an expression, say). The canvas normalises the parsing for us. */
-function luminanceOf(color: unknown): number | null {
-  if (typeof color !== 'string' || !color) return null
-  const ctx = (lumCtx ||= document.createElement('canvas').getContext('2d'))
-  if (!ctx) return null
-  try {
-    ctx.fillStyle = '#000'
-    ctx.fillStyle = color
-    const hex = ctx.fillStyle as string
-    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
-    if (!m) return null
-    const [r, g, b] = [1, 2, 3].map(i => parseInt(m[i], 16) / 255)
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-  } catch {
-    return null
-  }
-}
-let lumCtx: CanvasRenderingContext2D | null = null
-
-/**
- * How a station name is lettered. The halo comes from the basemap so it
- * matches the separation its own labels use; the TEXT does not — a
- * station name is a stronger thing than a street name and takes the
- * strongest contrast the theme allows, rather than inheriting whatever
- * grey the basemap chose for streets.
- */
-function basemapLabelPaint(): {
-  'text-color': string
-  'text-halo-color': any
-  'text-halo-width': number
-} {
-  const dark = basemapIsDark()
-  let halo: any
-  let width: number | undefined
-  for (const l of map?.getStyle?.()?.layers ?? []) {
-    if (l.type !== 'symbol' || l.id.startsWith('portolan-')) continue
-    const h = (l.paint as any)?.['text-halo-color'] ?? map.getPaintProperty?.(l.id, 'text-halo-color')
-    if (h === undefined) continue
-    halo = h
-    width = (l.paint as any)?.['text-halo-width']
-    if (l.id.includes('place')) break
-  }
-  return {
-    'text-color': dark ? '#f4f4f8' : '#16161c',
-    'text-halo-color': halo ?? (dark ? 'rgba(8,8,12,0.95)' : 'rgba(255,255,255,0.95)'),
-    'text-halo-width': width ?? 1.4,
-  }
+/** How to letter a station name over whatever the basemap is painting.
+ *  The logic is pure and lives in portolan-expressions, where it is
+ *  tested against the real styles in both themes — this got shipped
+ *  wrong twice while it was guesswork spread across two files. */
+function basemapLabelPaint() {
+  return labelPaintFor(map?.getStyle?.()?.layers ?? [], themeDark)
 }
 
 /** True when the BASEMAP is dark — see themeDark. */

@@ -103,6 +103,29 @@ export const perFeedO = (o: Expr): Expr => ['coalesce', ['get', '_o'], o]
 
 export const RIBBON_COLOR: Expr = ['concat', '#', ['get', 'route_color']]
 
+/**
+ * The ribbon colour with its per-class opacity folded into the alpha
+ * channel, so `line-opacity` can stay a constant.
+ *
+ * Mapbox refuses `line-occlusion-opacity` outright when `line-opacity`
+ * carries data-driven styling — and ours does, because a class's opacity
+ * comes from the feed's own style manifest. Moving that alpha into the
+ * colour buys back the constant `line-opacity` the occlusion needs, and
+ * paints exactly the same pixels.
+ */
+export const ribbonColorWithAlpha = (color: Expr, opacity: Expr): Expr => [
+  'let',
+  'c',
+  ['to-rgba', color],
+  [
+    'rgba',
+    ['at', 0, ['var', 'c']],
+    ['at', 1, ['var', 'c']],
+    ['at', 2, ['var', 'c']],
+    opacity,
+  ],
+]
+
 // ── service-time filter (MapView.vue:1526-1561) ────────────────────────
 // hex digits with bit b set — the bit test as a match label set
 export const HEX_BIT = [

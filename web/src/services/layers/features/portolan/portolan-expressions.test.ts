@@ -11,6 +11,7 @@
 
 import { describe, test, expect } from 'vitest'
 import { cssFontFor } from './portolan-images'
+import { ribbonColorWithAlpha } from './portolan-expressions'
 import {
   ACTS_MAX_ROUTES,
   BANDS,
@@ -267,5 +268,19 @@ describe('cssFontFor', () => {
     // the fallback NAME is "Roboto Medium", which parses the same way
     // everything else does: family Roboto, weight 500
     expect(cssFontFor([])).toBe('500 100px "Roboto", Roboto, system-ui, sans-serif')
+  })
+})
+
+describe('ribbonColorWithAlpha', () => {
+  // Mapbox drops line-occlusion-opacity the moment line-opacity is
+  // data-driven, so the class opacity has to ride in the colour instead.
+  test('folds the opacity expression into the alpha channel', () => {
+    const modeOpacity = ['match', ['get', 'mode'], 'aerial', 0.75, 1]
+    expect(ribbonColorWithAlpha(['get', 'c'], modeOpacity as any)).toEqual([
+      'let',
+      'c',
+      ['to-rgba', ['get', 'c']],
+      ['rgba', ['at', 0, ['var', 'c']], ['at', 1, ['var', 'c']], ['at', 2, ['var', 'c']], modeOpacity],
+    ])
   })
 })

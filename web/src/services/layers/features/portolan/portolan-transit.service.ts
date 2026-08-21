@@ -56,6 +56,7 @@ import {
   BANDS,
   KINDS,
   RIBBON_COLOR,
+  ribbonColorWithAlpha,
   STEADY_OFFSET,
   type Expr,
   actsFilterExpr,
@@ -513,20 +514,43 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
   const labels = firstLabelLayer()
   const buildings = buildingLayer()
   structuralFilter.set(spec.id, structural)
+
+  if (engine === MapEngine.MAPBOX) {
+    // Two things Mapbox needs that nothing else does.
+    //
+    // The Standard style keeps its basemap in a fragment, so there is no
+    // building layer to insert before and no label layer either — the
+    // whole beforeId dance finds nothing and the layer lands on top of
+    // the world. Slots are the documented handle: `middle` is defined as
+    // "above lines (roads, etc.) and behind 3D buildings", which is
+    // exactly where a route belongs.
+    //
+    // And line-occlusion-opacity is ignored outright when line-opacity is
+    // data-driven — ours is, since a class's opacity comes from the feed's
+    // style manifest. Folding that alpha into the colour buys back a
+    // constant line-opacity and paints the same pixels.
+    map.addLayer({
+      ...spec,
+      slot: 'middle',
+      paint: {
+        ...spec.paint,
+        'line-color': ribbonColorWithAlpha(spec.paint['line-color'], opacity),
+        'line-opacity': 1,
+        'line-occlusion-opacity': OCCLUDED_OPACITY,
+        ...emissive('line'),
+      },
+    })
+    return
+  }
+
   map.addLayer(
     {
       ...spec,
-      paint: {
-        ...spec.paint,
-        'line-opacity': opacity,
-        ...emissive('line'),
-        ...(engine === MapEngine.MAPBOX ? { 'line-occlusion-opacity': OCCLUDED_OPACITY } : {}),
-      },
+      paint: { ...spec.paint, 'line-opacity': opacity, ...emissive('line') },
     },
     buildings ?? ribbonAnchorOr(labels),
   )
-  // Mapbox drew the occluded run itself; there is nothing to fake.
-  if (!buildings || engine === MapEngine.MAPBOX) return
+  if (!buildings) return
   const gid = ghostId(spec.id)
   structuralFilter.set(gid, structural)
   map.addLayer(
@@ -840,6 +864,9 @@ function basemapLabelFont(): string[] {
  *  icon/brow/nrows). Filters here are STRUCTURAL only — time/class
  *  gating happens in applyStations, in JS. */
 function addSymbolLayers() {
+  // On Standard the symbols take the `top` slot — above POI labels, behind
+  // place and transit labels — rather than being appended over the world.
+  const slot = engine === MapEngine.MAPBOX ? { slot: 'top' } : {}
   // Which theme the BASEMAP is wearing, not which theme the app chrome is.
   // These read the same on most setups and diverge on the one that
   // matters: a dark UI over a light map, where taking the app's answer
@@ -864,6 +891,7 @@ function addSymbolLayers() {
   // resource and get the ranking; dots are all-or-nothing.
   map.addLayer({
     id: 'portolan-station-markers',
+    ...slot,
     type: 'symbol',
     source: SRC_STATIONS,
     minzoom: 11,
@@ -920,6 +948,7 @@ function addSymbolLayers() {
   ]
   map.addLayer({
     id: 'portolan-cats',
+    ...slot,
     type: 'symbol',
     source: SRC_STATIONS,
     minzoom: 12,
@@ -948,6 +977,7 @@ function addSymbolLayers() {
   // running along the ribbon, the way a road map labels a highway
   map.addLayer({
     id: 'portolan-cat-text',
+    ...slot,
     type: 'symbol',
     source: SRC_STATIONS,
     minzoom: 12,
@@ -1035,6 +1065,7 @@ function addSymbolLayers() {
   const labelPadding: Expr = ['interpolate', ['linear'], ['zoom'], 11, 34, 12, 22, 13, 13, 14, 6, 16, 2]
   map.addLayer({
     id: 'portolan-station-labels',
+    ...slot,
     type: 'symbol',
     source: SRC_STATIONS,
     minzoom: 11,
@@ -1062,6 +1093,7 @@ function addSymbolLayers() {
   // ITS bullets (Fulton St splits into A·C / J·Z / 2·3 / 4·5 labels)
   map.addLayer({
     id: 'portolan-station-labels-hi',
+    ...slot,
     type: 'symbol',
     source: SRC_STATIONS,
     minzoom: 15,

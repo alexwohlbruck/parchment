@@ -1,5 +1,15 @@
 ## [Unreleased]
 
+### Added
+
+* The Transit layer draws a real transit map now. Routes used to pile onto the same street as a tangle of overlapping lines; they now run as parallel coloured ribbons that share a corridor the way a printed network map draws them, with station markers, route bullets under the station names, and line names set along the track. The layer selector folds it into four switches — Rail, Bus, Ferry and Other — so the bus network can rest while you read the rails
+* A service-time control under the Transit layer. The map opens on what is running right now and follows the clock; drag the slider or pick a weekday to see another moment — the Sunday-night network, tomorrow's rush hour — and lines that are asleep at that hour leave the map, along with their bullets on the station labels. "Live" returns to now
+* Stations on the transit map open their stop page with a tap — departures, lines and alerts, the same page a stop found through search shows
+
+### Changed
+
+* Opening a line from a stop's departure board dims the whole transit map around it and draws that line alone, in its own colour and in the same ribbon style as the map it rose from
+
 ## [0.6.0] - 2026-08-18
 
 ### Added

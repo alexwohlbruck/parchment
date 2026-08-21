@@ -15,6 +15,7 @@
 import { Elysia } from 'elysia'
 import { integrationManager } from '../services/integrations'
 import { IntegrationId } from '../types/integration.types'
+import { resolveBarrelmanConfig } from '../services/barrelman.service'
 import { logError } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/proxy' })
@@ -215,6 +216,109 @@ app.get(
     detail: {
       tags: ['Proxy'],
       summary: 'Proxy Barrelman tile requests',
+    },
+  },
+)
+
+// Proxy portolan transit tiles from the Barrelman host.
+//
+// Barrelman serves portolan's MVT pyramids at /tiles/portolan/*:
+// index.json lists every feed with a cut pyramid (bounds + maxzoom),
+// each feed directory holds tiles.json, style.json and {z}/{x}/{y}.mvt.
+// Auth mirrors the two existing Barrelman patterns: the integration's
+// apiKey rides as a Bearer header (like requestBarrelman) and tileKey as
+// ?token= (like the Martin tile proxy) — whichever the host enforces.
+//
+// tiles.json templates are normalized to RELATIVE so a client resolving
+// them against this proxy's URL lands back on the proxy; in practice the
+// web client builds tile URLs from index.json alone (fixed template),
+// exactly as portolan's own global atlas view does.
+app.get(
+  '/portolan/*',
+  async ({ params }) => {
+    const rest = params['*']
+
+    // only pyramid content leaves this route, and never a path escape
+    if (rest.includes('..') || !/\.(json|mvt)$/.test(rest)) {
+      return new Response('Not found', { status: 404 })
+    }
+
+    try {
+      const config = resolveBarrelmanConfig()
+      if (!config?.host) {
+        return new Response('Barrelman not configured', { status: 501 })
+      }
+      const tileKey = (
+        integrationManager
+          .getConfiguredIntegrations()
+          .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+          ?.config as { tileKey?: string }
+      )?.tileKey
+
+      const targetUrl = new URL(`/tiles/portolan/${rest}`, config.host)
+      if (tileKey) targetUrl.searchParams.set('token', tileKey)
+
+      const headers: Record<string, string> = {}
+      if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+
+      const response = await fetch(targetUrl.toString(), {
+        headers,
+        signal: AbortSignal.timeout(10_000),
+      })
+
+      // an empty tile is a valid answer inside a pyramid: the cutter only
+      // writes tiles a feature touches
+      if (response.status === 204) return new Response(null, { status: 204 })
+
+      if (!response.ok) {
+        // a missing index.json means portolan isn't deployed on this
+        // Barrelman — the client treats 404 as "feature absent", so no log
+        if (response.status !== 404) {
+          logError(
+            `Portolan tile proxy: ${response.status} ${response.statusText}`,
+          )
+        }
+        return new Response('Upstream error', { status: response.status })
+      }
+
+      if (rest.endsWith('tiles.json')) {
+        const body = (await response.json()) as { tiles?: string[] }
+        if (Array.isArray(body.tiles)) {
+          // absolute templates pointing at Barrelman become relative to
+          // the feed directory; relative ones already are
+          body.tiles = body.tiles.map((t) =>
+            t.replace(/^https?:\/\/[^/]+\/tiles\/portolan\/[^/]+\//, ''),
+          )
+        }
+        return new Response(JSON.stringify(body), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+          },
+        })
+      }
+
+      const data = await response.arrayBuffer()
+      const isJson = rest.endsWith('.json')
+      return new Response(data, {
+        headers: {
+          'Content-Type': isJson
+            ? 'application/json'
+            : response.headers.get('content-type') || 'application/x-protobuf',
+          // pyramids rebuild on Barrelman's import cadence, so tiles get a
+          // moderate TTL while the JSON manifests stay revalidated
+          'Cache-Control': isJson ? 'no-cache' : 'public, max-age=3600',
+        },
+      })
+    } catch (error) {
+      logError('Portolan tile proxy error', error, { rest })
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy portolan transit tiles from Barrelman',
     },
   },
 )

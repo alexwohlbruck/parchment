@@ -243,6 +243,10 @@ function bindListeners() {
     // symbols and junction transitions re-materialize as tiles come and
     // go; both hydrators dedupe (MapView.vue:1967-1975)
     moveend: () => requestHydrate(),
+    // moveend fires while tiles are still arriving; idle is the settled
+    // signal, and without it a sweep that found nothing mid-flight was
+    // never retried.
+    idle: () => requestHydrate(),
     sourcedata: (e: any) => {
       if (
         typeof e.sourceId === 'string' &&
@@ -760,7 +764,7 @@ function heldShape(g: any): { box: [number, number, number, number]; fp: string 
  *  line-progress spans the true segment) — duplicates are a fact of
  *  life, folded by segment identity. */
 function hydrateTransitions() {
-  if (!map?.isStyleLoaded?.()) return
+  if (!hydrationReady()) return
   const fresh = new Set<string>()
   for (const sid of tileSourceIds()) {
     if (!map.getSource(sid)) continue
@@ -848,6 +852,25 @@ function tileSourceIds(): string[] {
 
 /** One sweep per frame, never one per event: every region source fires
  *  its own load event, and each used to run the full cross-source sweep. */
+/**
+ * Hydration used to wait on `isStyleLoaded()`, which is a claim about the
+ * WHOLE style: MapLibre reports false while any one source cache is still
+ * fetching. The atlas carries a handful of sources and so it settles; a
+ * parchment map carries the basemap, the overlays and one vector source
+ * per pyramid — 113 of them here — and is therefore almost never "loaded"
+ * while a user is moving around. Every sweep bailed at the front door, so
+ * the junction transitions and bridges never materialized and ribbons
+ * stopped dead at each junction.
+ *
+ * What a sweep actually needs is narrower: our own sources installed, so
+ * querySourceFeatures has something to read and setData has somewhere to
+ * write. Whether an unrelated wildfire overlay is mid-fetch is not our
+ * business.
+ */
+function hydrationReady(): boolean {
+  return !!map?.style && !!map.getSource(SRC_STATIONS)
+}
+
 function requestHydrate() {
   if (!map || hydrateQueued) return
   hydrateQueued = requestAnimationFrame(() => {
@@ -867,7 +890,7 @@ function requestHydrate() {
  *  into one owning tile per zoom, so the only duplicates to fold are
  *  across cached zoom levels. */
 function hydrateSymbols() {
-  if (!map?.isStyleLoaded?.()) return
+  if (!hydrationReady()) return
   const seen = new Set<string>()
   const feats: any[] = []
   for (const sid of tileSourceIds()) {

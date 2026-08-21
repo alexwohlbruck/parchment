@@ -149,6 +149,15 @@ const hydratedSig = new Map<number, string>()
 let stationsRaw: any | null = null
 let hydrateQueued = 0
 
+function clearMounts() {
+  mounted.clear()
+  ribbonAnchor = undefined
+  if (syncQueued) {
+    clearTimeout(syncQueued)
+    syncQueued = 0
+  }
+}
+
 function clearHydration() {
   for (const m of heldTransitions.values()) m.clear()
   hydratedSig.clear()
@@ -209,6 +218,7 @@ function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
     unbindListeners()
     map = m
     clearHydration()
+    clearMounts()
     bindListeners()
   }
   void sync()
@@ -219,6 +229,7 @@ function teardownPortolanTransit() {
   if (map?.style && map.isStyleLoaded()) removeAll()
   map = null
   clearHydration()
+  clearMounts()
   structuralFilter.clear()
 }
 
@@ -265,7 +276,10 @@ function bindListeners() {
     },
     // symbols and junction transitions re-materialize as tiles come and
     // go; both hydrators dedupe (MapView.vue:1967-1975)
-    moveend: () => requestHydrate(),
+    moveend: () => {
+      requestSync()
+      requestHydrate()
+    },
     // moveend fires while tiles are still arriving; idle is the settled
     // signal, and without it a sweep that found nothing mid-flight was
     // never retried.
@@ -347,18 +361,38 @@ function ensureRegions(): Promise<PortolanIndexEntry[]> {
  *  is fine — colors ride inline in the tiles; the manifest only carries
  *  per-class width/opacity (MapView.vue:1354-1382). */
 async function ensureFeedStyles(regions: PortolanIndexEntry[]) {
-  await Promise.all(
-    regions.map(async r => {
-      if (feedStyles.has(r.feed)) return
-      const s = await fetch(`${proxyBase()}/${encodeURIComponent(r.feed)}/style.json`)
-        .then(res => (res.ok ? res.json() : null))
-        .catch(() => null)
-      feedStyles.set(r.feed, s)
-    }),
-  )
+  await Promise.all(regions.map(r => ensureFeedStyle(r.feed)))
+}
+
+/** One feed's manifest, fetched the first time that feed is mounted.
+ *  Fetching all of them up front cost ~90 requests before a single
+ *  ribbon could be drawn. */
+function ensureFeedStyle(feed: string): Promise<void> {
+  const pending = stylePending.get(feed)
+  if (pending) return pending
+  if (feedStyles.has(feed)) return Promise.resolve()
+  const p = fetch(`${proxyBase()}/${encodeURIComponent(feed)}/style.json`)
+    .then(res => (res.ok ? res.json() : null))
+    .catch(() => null)
+    .then(s => {
+      feedStyles.set(feed, s)
+      stylePending.delete(feed)
+    })
+  stylePending.set(feed, p)
+  return p
 }
 
 const styleForFeed = (feed: string) => feedStyles.get(feed) ?? null
+
+/** In-flight per-feed manifest fetches, so a burst of reconciles asks once. */
+const stylePending = new Map<string, Promise<void>>()
+
+/** Feeds currently mounted on the map: source + its band layers. */
+const mounted = new Set<string>()
+
+/** Where a feed's ribbon layers are inserted: below the bottom-most twin,
+ *  so a hydrated junction ramp still draws over the steady ink it crosses. */
+let ribbonAnchor: string | undefined
 
 /** Guards the one deferred re-run sync() schedules when the style is still
  *  loading, so a burst of style.loads cannot stack listeners. */
@@ -369,8 +403,6 @@ async function sync() {
   if (!m) return
   const regions = await ensureRegions()
   if (!regions.length || map !== m) return
-  await ensureFeedStyles(regions)
-  if (map !== m) return
   // Those awaits take longer than the style does to load on a cold cache:
   // the index plus one manifest per pyramid, ~90 requests before the first
   // ribbon. Waiting on "the next style.load" is not enough — on a first
@@ -388,10 +420,85 @@ async function sync() {
     return
   }
   addSourcesAndLayers(regions)
+  await reconcileFeeds(regions)
+  if (map !== m) return
   restoreHeldTransitions()
   applyStations()
   applyTileFilters()
   requestHydrate()
+}
+
+
+// ── viewport culling (the chunking the sources never had) ──────────────
+
+/** Mount a pyramid once the viewport is within this fraction of its own
+ *  span of it; keep it until the viewport is this much further away.
+ *  The gap is hysteresis: a pan that skims a boundary must not thrash a
+ *  source in and out on every frame. */
+const MOUNT_PAD = 0.25
+const KEEP_PAD = 1.0
+
+/** A world view intersects every pyramid on earth, and mounting all of
+ *  them is the freeze this culling exists to prevent. Past this many, keep
+ *  the ones nearest the middle of the screen — that is where someone is
+ *  looking — and let the rest arrive as they pan. */
+const MAX_MOUNTED = 12
+
+function padded(b: any, pad: number) {
+  const w = b.getEast() - b.getWest()
+  const h = b.getNorth() - b.getSouth()
+  return {
+    w: b.getWest() - w * pad,
+    e: b.getEast() + w * pad,
+    s: b.getSouth() - h * pad,
+    n: b.getNorth() + h * pad,
+  }
+}
+
+const hits = (box: number[] | undefined, p: {w:number;e:number;s:number;n:number}) =>
+  !box || box.length !== 4
+    ? true // no bounds recorded: it could be anywhere, so never cull it
+    : box[0] <= p.e && box[2] >= p.w && box[1] <= p.n && box[3] >= p.s
+
+/** Reconcile the mounted set against the viewport. Cheap and idempotent:
+ *  when the desired set already matches, this touches nothing, which is
+ *  what lets it run on every moveend. */
+async function reconcileFeeds(regions: PortolanIndexEntry[]) {
+  if (!map?.getSource(SRC_STATIONS)) return
+  const b = map.getBounds()
+  const near = padded(b, MOUNT_PAD)
+  const far = padded(b, KEEP_PAD)
+  const cx = (b.getWest() + b.getEast()) / 2
+  const cy = (b.getSouth() + b.getNorth()) / 2
+
+  const want = regions
+    .filter(r => hits(r.bounds, near))
+    .map(r => {
+      const bx = r.bounds
+      const dx = !bx ? 0 : Math.max(bx[0] - cx, 0, cx - bx[2])
+      const dy = !bx ? 0 : Math.max(bx[1] - cy, 0, cy - bx[3])
+      return { r, d: dx * dx + dy * dy }
+    })
+    .sort((a, z) => a.d - z.d)
+    .slice(0, MAX_MOUNTED)
+    .map(x => x.r)
+
+  const wanted = new Set(want.map(r => r.feed))
+  for (const feed of [...mounted]) {
+    if (wanted.has(feed)) continue
+    const r = regions.find(x => x.feed === feed)
+    if (!r || !hits(r.bounds, far) || mounted.size > MAX_MOUNTED) unmountFeed(feed)
+  }
+
+  // A feed's own manifest carries its class widths; fetch it before the
+  // layers read it, but only for the handful actually being mounted.
+  const fresh = want.filter(r => !mounted.has(r.feed))
+  if (fresh.length) {
+    const m = map
+    await Promise.all(fresh.map(r => ensureFeedStyle(r.feed)))
+    if (map !== m) return
+  }
+  for (const r of want) mountFeed(r)
 }
 
 // ── sources + layers (MapView.vue:985-1286 addLayers, 1442-1499 clones) ─
@@ -447,68 +554,54 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
 
   addSymbolLayers()
 
-  // per-region vector sources + steady band clones, below every twin: at
-  // a junction the hydrated transition's eased ramp must draw OVER the
-  // steady ribbons it crosses (MapView.vue:1446-1456)
-  for (const r of regions) {
-    const src = srcTiles(r.feed)
-    map.addSource(src, {
-      type: 'vector',
-      tiles: [`${proxyBase()}/${encodeURIComponent(r.feed)}/{z}/{x}/{y}.mvt`],
-      minzoom: 0,
-      maxzoom: r.maxzoom ?? 15, // the renderer overzooms above the pyramid top
-      ...(r.bounds?.length === 4 ? { bounds: r.bounds } : {}),
-    })
-    const { w, o } = modeExprs(styleForFeed(r.feed))
+  ribbonAnchor = anchor
+  addSymbolLayers()
+}
 
-    // No fork: draw the junction ramps from the vector tiles beside the
-    // steady ribbons. A transition eases from off_from_px to off_to_px
-    // along its length, which needs line-progress; at a fixed offset the
-    // honest choice is the midpoint, so the ramp meets each neighbour
-    // half a slot out instead of leaving a hole where the junction was.
-    if (!forkOffsets) {
-      for (const b of BANDS) {
-        for (const kind of ['transition', 'bridge'] as const) {
-          const id = rampId(b.key, kind, r.feed)
-          const filter: Expr = [
-            'all',
-            ['==', ['get', 'band_min'], b.key],
-            ['==', ['get', 'kind'], kind],
-          ]
-          structuralFilter.set(id, filter)
-          map.addLayer({
-            id,
-            type: 'line',
-            source: src,
-            'source-layer': 'ribbons',
-            minzoom: b.min === 0 ? 0 : b.min,
-            maxzoom: b.max === 24 ? 24 : b.max,
-            filter,
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: {
-              'line-color': RIBBON_COLOR,
-              'line-width': widthExpr(w),
-              'line-opacity': o,
-              'line-offset':
-                kind === 'bridge'
-                  ? STEADY_OFFSET
-                  : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
-            },
-          })
-        }
-      }
-    }
+/**
+ * Put ONE feed's pyramid on the map: its vector source and the band
+ * layers that read it.
+ *
+ * Every pyramid used to be mounted at once — 89 sources and a few hundred
+ * layers added in a single synchronous burst, behind ~90 manifest fetches,
+ * and then 89 simultaneous z0 tile requests. That is a frozen tab for
+ * several seconds on first paint, and it scales with the size of the
+ * world rather than the size of the viewport. The tiles were always
+ * chunked; the sources were not. Now the viewport decides, the same way
+ * it decides which tiles to pull.
+ */
+function mountFeed(r: PortolanIndexEntry) {
+  if (mounted.has(r.feed) || !map?.getSource(SRC_STATIONS)) return
+  if (map.getSource(srcTiles(r.feed))) return
+  mounted.add(r.feed)
+  const anchor = ribbonAnchor && map.getLayer(ribbonAnchor) ? ribbonAnchor : undefined
 
+  const src = srcTiles(r.feed)
+  map.addSource(src, {
+    type: 'vector',
+    tiles: [`${proxyBase()}/${encodeURIComponent(r.feed)}/{z}/{x}/{y}.mvt`],
+    minzoom: 0,
+    maxzoom: r.maxzoom ?? 15, // the renderer overzooms above the pyramid top
+    ...(r.bounds?.length === 4 ? { bounds: r.bounds } : {}),
+  })
+  const { w, o } = modeExprs(styleForFeed(r.feed))
+
+  // No fork: draw the junction ramps from the vector tiles beside the
+  // steady ribbons. A transition eases from off_from_px to off_to_px
+  // along its length, which needs line-progress; at a fixed offset the
+  // honest choice is the midpoint, so the ramp meets each neighbour
+  // half a slot out instead of leaving a hole where the junction was.
+  if (!forkOffsets) {
     for (const b of BANDS) {
-      const id = steadyId(b.key, r.feed)
-      const filter: Expr = [
-        'all',
-        ['==', ['get', 'band_min'], b.key],
-        ['==', ['get', 'kind'], 'steady'],
-      ]
-      structuralFilter.set(id, filter)
-      map.addLayer(
-        {
+      for (const kind of ['transition', 'bridge'] as const) {
+        const id = rampId(b.key, kind, r.feed)
+        const filter: Expr = [
+          'all',
+          ['==', ['get', 'band_min'], b.key],
+          ['==', ['get', 'kind'], kind],
+        ]
+        structuralFilter.set(id, filter)
+        map.addLayer({
           id,
           type: 'line',
           source: src,
@@ -521,13 +614,59 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
             'line-color': RIBBON_COLOR,
             'line-width': widthExpr(w),
             'line-opacity': o,
-            'line-offset': STEADY_OFFSET,
+            'line-offset':
+              kind === 'bridge'
+                ? STEADY_OFFSET
+                : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
           },
-        },
-        anchor,
-      )
+        })
+      }
     }
   }
+
+  for (const b of BANDS) {
+    const id = steadyId(b.key, r.feed)
+    const filter: Expr = [
+      'all',
+      ['==', ['get', 'band_min'], b.key],
+      ['==', ['get', 'kind'], 'steady'],
+    ]
+    structuralFilter.set(id, filter)
+    map.addLayer(
+      {
+        id,
+        type: 'line',
+        source: src,
+        'source-layer': 'ribbons',
+        minzoom: b.min === 0 ? 0 : b.min,
+        maxzoom: b.max === 24 ? 24 : b.max,
+        filter,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': RIBBON_COLOR,
+          'line-width': widthExpr(w),
+          'line-opacity': o,
+          'line-offset': STEADY_OFFSET,
+        },
+      },
+      anchor,
+    )
+  }
+}
+
+/** Take a feed back off the map — its layers first, then its source. */
+function unmountFeed(feed: string) {
+  if (!mounted.has(feed)) return
+  mounted.delete(feed)
+  if (!map?.getStyle?.()) return
+  for (const l of map.getStyle().layers ?? []) {
+    const id: string = l.id
+    if (l.source === srcTiles(feed) || id.endsWith(`-${feed}`)) {
+      if (map.getLayer(id)) map.removeLayer(id)
+      structuralFilter.delete(id)
+    }
+  }
+  if (map.getSource(srcTiles(feed))) map.removeSource(srcTiles(feed))
 }
 
 /** The symbol stack, above every ribbon (MapView.vue:1016-1254). Symbols
@@ -945,6 +1084,18 @@ function tileSourceIds(): string[] {
  */
 function hydrationReady(): boolean {
   return !!map?.style && !!map.getSource(SRC_STATIONS)
+}
+
+/** Coalesce viewport reconciles: a drag ends in one moveend, but a
+ *  zoom animation can end in several, and each would otherwise walk the
+ *  index. */
+let syncQueued = 0
+function requestSync() {
+  if (!map || syncQueued) return
+  syncQueued = window.setTimeout(() => {
+    syncQueued = 0
+    void sync()
+  }, 150)
 }
 
 function requestHydrate() {

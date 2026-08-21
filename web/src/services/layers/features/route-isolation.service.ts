@@ -13,17 +13,21 @@
 import { watch, type WatchStopHandle } from 'vue'
 import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail.store'
 import { densifyLine } from '@/lib/geo-densify'
+import { widthExpr } from '@/services/layers/features/portolan/portolan-expressions'
 
 const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
-const ROUTE_OUTLINE_LAYER_ID = 'route-detail-outline'
 const STOPS_SOURCE_ID = 'route-detail-stops'
 const STOPS_LAYER_ID = 'route-detail-stops-circles'
 const STOPS_LABELS_LAYER_ID = 'route-detail-stops-labels'
 
-/** Layer IDs in the transit group that should be faded when isolating.
+/** Transitland layer IDs that should be faded when isolating (retired from
+ *  the default template — kept for user-cloned copies still on the map).
  *  Excludes `transitland-route-active` — it's a hover utility layer with
- *  a feature-state opacity expression that breaks if overridden flat. */
+ *  a feature-state opacity expression that breaks if overridden flat.
+ *  Portolan layers are NOT listed: they're enumerated live off the style
+ *  by their `portolan-` prefix, since the set (per-feed, per-band) is
+ *  dynamic. */
 const TRANSIT_LAYER_IDS = [
   'transitland-rail',
   'transitland-rail-outline',
@@ -45,6 +49,13 @@ const TRANSIT_LAYER_IDS = [
   'transitland-stops',
   'transitland-stops-labels',
 ]
+
+/** Which opacity paint props carry a layer type's fade. */
+const OPACITY_PROPS: Record<string, string[]> = {
+  line: ['line-opacity'],
+  circle: ['circle-opacity', 'circle-stroke-opacity'],
+  symbol: ['text-opacity', 'icon-opacity'],
+}
 
 export function useRouteIsolationService() {
   const routeDetailStore = useRouteDetailStore()
@@ -102,7 +113,6 @@ export function useRouteIsolationService() {
 
     // Remove route shape layers
     removeLayerIfExists(ROUTE_LAYER_ID)
-    removeLayerIfExists(ROUTE_OUTLINE_LAYER_ID)
     removeSourceIfExists(ROUTE_SOURCE_ID)
 
     // Remove station markers
@@ -146,50 +156,59 @@ export function useRouteIsolationService() {
     } catch { /* fitBounds can throw on degenerate bounds */ }
   }
 
+  /** Opacity paints recorded before fading, keyed `layerId|prop`. The
+   *  portolan ribbons carry opacity EXPRESSIONS (per-feed style manifests),
+   *  so restore must put back exactly what was there — resetting to null
+   *  would flatten them to the spec default. */
+  const savedOpacity = new Map<string, any>()
+
+  /** Every layer the isolation dims: the (retired) transitland ids that may
+   *  survive as user clones, plus every portolan layer in the current style,
+   *  enumerated by prefix — the set is per-feed and per-band, never fixed. */
+  function fadeTargetLayerIds(): string[] {
+    const ids = [...TRANSIT_LAYER_IDS]
+    try {
+      for (const layer of mapInstance?.getStyle()?.layers ?? []) {
+        if (layer.id.startsWith('portolan-')) ids.push(layer.id)
+      }
+    } catch {
+      // style not ready — the transitland list still applies
+    }
+    return ids
+  }
+
   function fadeTransitLayers(opacity: number | null) {
     if (!mapInstance) return
 
-    for (const layerId of TRANSIT_LAYER_IDS) {
+    for (const layerId of fadeTargetLayerIds()) {
       try {
-        if (!mapInstance.getLayer(layerId)) continue
+        const layer = mapInstance.getLayer(layerId)
+        if (!layer) continue
+        const props = OPACITY_PROPS[layer.type] ?? []
 
-        if (opacity === null) {
-          // Restore — remove the opacity override
-          const layer = mapInstance.getLayer(layerId)
-          const type = layer?.type
-          if (type === 'line') {
-            mapInstance.setPaintProperty(layerId, 'line-opacity', null)
-          } else if (type === 'circle') {
-            mapInstance.setPaintProperty(layerId, 'circle-opacity', null)
-            mapInstance.setPaintProperty(layerId, 'circle-stroke-opacity', null)
-          } else if (type === 'symbol') {
-            mapInstance.setPaintProperty(layerId, 'text-opacity', null)
-            mapInstance.setPaintProperty(layerId, 'icon-opacity', null)
-          }
-        } else {
-          const layer = mapInstance.getLayer(layerId)
-          const type = layer?.type
-          if (type === 'line') {
-            mapInstance.setPaintProperty(layerId, 'line-opacity', opacity)
-          } else if (type === 'circle') {
-            mapInstance.setPaintProperty(layerId, 'circle-opacity', opacity)
-            mapInstance.setPaintProperty(layerId, 'circle-stroke-opacity', opacity)
-          } else if (type === 'symbol') {
-            mapInstance.setPaintProperty(layerId, 'text-opacity', opacity)
-            mapInstance.setPaintProperty(layerId, 'icon-opacity', opacity)
+        for (const prop of props) {
+          const key = `${layerId}|${prop}`
+          if (opacity === null) {
+            // Restore the recorded paint (undefined → null clears cleanly)
+            mapInstance.setPaintProperty(layerId, prop, savedOpacity.get(key) ?? null)
+          } else {
+            if (!savedOpacity.has(key)) {
+              savedOpacity.set(key, mapInstance.getPaintProperty(layerId, prop))
+            }
+            mapInstance.setPaintProperty(layerId, prop, opacity)
           }
         }
       } catch {
         // Layer might not exist in current map style
       }
     }
+    if (opacity === null) savedOpacity.clear()
   }
 
   function addRouteShape(coordinates: [number, number][], color: string | null) {
     if (!mapInstance) return
 
     removeLayerIfExists(ROUTE_LAYER_ID)
-    removeLayerIfExists(ROUTE_OUTLINE_LAYER_ID)
     removeSourceIfExists(ROUTE_SOURCE_ID)
 
     const lineColor = color ? `#${color}` : '#007cbf'
@@ -213,20 +232,12 @@ export function useRouteIsolationService() {
       },
     })
 
-    // White outline
-    mapInstance.addLayer({
-      id: ROUTE_OUTLINE_LAYER_ID,
-      type: 'line',
-      source: ROUTE_SOURCE_ID,
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: {
-        'line-color': '#ffffff',
-        'line-width': 7,
-        'line-opacity': 1,
-      },
-    })
-
-    // Colored line
+    // One uncased line in the route's own colour, wearing the portolan
+    // steady-ribbon aesthetic (round caps/joins, the ribbons' zoom-scaled
+    // width curve at unit class width, full opacity) so the isolated route
+    // reads as a lifted ribbon rather than a different map. The corrected
+    // geometry itself arrives from /transit/shapes — barrelman re-imports
+    // portolan-corrected shapes, no client work needed.
     mapInstance.addLayer({
       id: ROUTE_LAYER_ID,
       type: 'line',
@@ -234,7 +245,7 @@ export function useRouteIsolationService() {
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': lineColor,
-        'line-width': 4,
+        'line-width': widthExpr(1),
         'line-opacity': 1,
       },
     })

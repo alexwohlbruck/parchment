@@ -10,7 +10,10 @@
  * line-progress, symbol-anchor-offset); on any other engine or an
  * unpatched maplibre this module cleanly no-ops.
  *
- * OFF by default. Dev escape hatch until the layer-selector UI lands:
+ * OFF by default. The product switch is the Transit layer group's master
+ * toggle (portolan.store watches it and drives init/teardown); the
+ * localStorage flag below survives as a dev escape hatch, OR'd in so a
+ * dev box can force the feature on without touching the group:
  *
  *     localStorage.setItem('parchment.portolan-transit', '1'); location.reload()
  *
@@ -36,6 +39,7 @@
 
 import { getVersion } from 'maplibre-gl'
 import { api } from '@/lib/api'
+import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { MapEngine } from '@/types/map.types'
@@ -58,6 +62,7 @@ import {
   widthExpr,
 } from './portolan-expressions'
 import { drawPortolanImage, estRows } from './portolan-images'
+import { TRANSIT_GROUP_ID } from './portolan-ui'
 
 const FLAG_KEY = 'parchment.portolan-transit'
 
@@ -130,13 +135,23 @@ export function usePortolanTransitService() {
   }
 }
 
-/** OFF by default; the follow-up layer-group UI owns the real toggle.
- *  Dev escape hatch: localStorage.setItem('parchment.portolan-transit', '1') */
+/** ON when the Transit layer group's master switch is (its visibility is
+ *  the product toggle — portolan.store watches it for init/teardown), OR
+ *  when the dev flag is set:
+ *  localStorage.setItem('parchment.portolan-transit', '1') */
 function isPortolanTransitEnabled(): boolean {
   try {
-    return localStorage.getItem(FLAG_KEY) === '1'
+    if (localStorage.getItem(FLAG_KEY) === '1') return true
   } catch {
-    return false
+    /* storage unavailable — fall through to the group switch */
+  }
+  try {
+    const layersStore = useLayersStore()
+    return layersStore.allLayerGroups.some(
+      g => g.id === TRANSIT_GROUP_ID && g.visible,
+    )
+  } catch {
+    return false // pinia not up yet (unit tests, early boot)
   }
 }
 

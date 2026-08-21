@@ -424,6 +424,14 @@
   },
   "layers": {
     "title": "Capas",
+    "transit": {
+      "rail": "Tren",
+      "bus": "Autobús",
+      "ferry": "Ferri",
+      "other": "Otros",
+      "serviceTime": "Hora de servicio",
+      "live": "En directo"
+    },
     "meta": {
       "title": "Información de la capa",
       "fields": {

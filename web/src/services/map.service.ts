@@ -29,6 +29,7 @@ import { useBookmarksLayerService } from '@/services/layers/features/bookmarks-l
 import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
+import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useAppStore } from '../stores/app.store'
 import { calculateFitPadding, type Padding } from '@/lib/map-padding'
 import {
@@ -511,10 +512,10 @@ function mapService() {
 
       // Portolan transit ribbons (streamed from Barrelman through the
       // server proxy). Requires the maplibre-gl transit fork; the service
-      // no-ops on other engines. OFF by default until the layer-group UI
-      // lands — dev escape hatch:
-      //   localStorage.setItem('parchment.portolan-transit', '1')
-      portolanTransitService.initializePortolanTransit(mapStrategy)
+      // no-ops on other engines. The Transit layer group's master switch
+      // owns the toggle; the store re-applies the service-time and class
+      // filters the style reload just dropped.
+      usePortolanTransitStore().handleStyleLoad(mapStrategy)
 
       // Apply config properties AFTER all sources/layers are added,
       // because setConfigProperties modifies the map style (e.g. removeImport)

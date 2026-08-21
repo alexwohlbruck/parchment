@@ -432,8 +432,8 @@ function buildingLayer(): string | undefined {
   return id && map?.getLayer?.(id) ? id : undefined
 }
 
-/** Opacity the ghost keeps where a building stands in front of it. */
-const GHOST_OPACITY = 0.28
+/** How much of a ribbon survives where a building stands in front of it. */
+const OCCLUDED_OPACITY = 0.28
 const ghostId = (id: string) => `${id}-ghost`
 
 /** Guards the one deferred re-run sync() schedules when the style is still
@@ -473,24 +473,36 @@ async function sync() {
 
 
 /**
- * Add one ribbon layer as a PAIR: the solid line beneath the basemap's
- * buildings, and a dimmed twin above them. Where nothing stands in the
- * way the two stack into the intended colour; where a building does, only
- * the ghost survives, so the route reads faintly through the block
- * instead of either vanishing or floating implausibly on top of it.
+ * Add one ribbon layer, placed under the basemap's buildings so a route
+ * that passes behind a tower is occluded by it rather than floating over
+ * the city.
  *
- * Without extruded buildings there is nothing to hide behind, so the pair
- * collapses to the single solid layer.
+ * How the occluded part stays faintly visible depends on the engine.
+ * Mapbox has `line-occlusion-opacity`, which is depth-aware and costs one
+ * layer: the hidden run of the line is drawn at that opacity and the rest
+ * is untouched. MapLibre has no equivalent, so there it takes two layers
+ * — the solid line below the buildings and a dimmed twin above them —
+ * which approximates the same reading, at the price of the ghost showing
+ * through everywhere rather than only where something stands in the way.
  */
 function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
   const labels = firstLabelLayer()
   const buildings = buildingLayer()
   structuralFilter.set(spec.id, structural)
   map.addLayer(
-    { ...spec, paint: { ...spec.paint, 'line-opacity': opacity, ...emissive('line') } },
+    {
+      ...spec,
+      paint: {
+        ...spec.paint,
+        'line-opacity': opacity,
+        ...emissive('line'),
+        ...(engine === MapEngine.MAPBOX ? { 'line-occlusion-opacity': OCCLUDED_OPACITY } : {}),
+      },
+    },
     buildings ?? ribbonAnchorOr(labels),
   )
-  if (!buildings) return
+  // Mapbox drew the occluded run itself; there is nothing to fake.
+  if (!buildings || engine === MapEngine.MAPBOX) return
   const gid = ghostId(spec.id)
   structuralFilter.set(gid, structural)
   map.addLayer(
@@ -499,8 +511,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
       id: gid,
       paint: {
         ...spec.paint,
-        'line-opacity': ['*', opacity, GHOST_OPACITY] as unknown as Expr,
-        ...emissive('line'),
+        'line-opacity': ['*', opacity, OCCLUDED_OPACITY] as unknown as Expr,
       },
     },
     ghostAnchorOr(labels),

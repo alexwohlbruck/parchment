@@ -69,7 +69,7 @@ import {
   stationVisible,
   widthExpr,
 } from './portolan-expressions'
-import { drawPortolanImage, estRows } from './portolan-images'
+import { cssFontFor, drawPortolanImage, estRows } from './portolan-images'
 import { TRANSIT_GROUP_ID, parseGtfsIds } from './portolan-ui'
 
 const FLAG_KEY = 'parchment.portolan-transit'
@@ -316,25 +316,49 @@ function bindListeners() {
   // like setupPoiHandlers they survive setStyle: bound once per map, they
   // go dormant while the layers are absent and wake when they re-appear.
   const gtfsIdsAt = (e: any) => parseGtfsIds(e.features?.[0]?.properties?.gtfs_ids)
+
+  /**
+   * Where a click on this station should go.
+   *
+   * `gtfs_ids` is the better answer: `<feed-onestop>:<stop_id>` is a valid
+   * transit.land stop_key, so the pair rides the existing transitland
+   * place route untranslated and lands on departures for that stop.
+   *
+   * It is not always there. A feed only carries pairs when its registry
+   * entry has an onestop id, which the hand-curated city entries do not,
+   * and older tiles predate the property entirely. Every station DOES
+   * carry the OSM stop it matched — `way/123`, `node/456` — which is
+   * exactly what parchment's own POI clicks open. So fall back to that
+   * rather than leaving the label dead: the stop page is the point, and
+   * an OSM stop page beats nothing.
+   */
+  const targetAt = (e: any): { name: string; params: Record<string, string> } | null => {
+    const pairs = gtfsIdsAt(e)
+    if (pairs.length) {
+      // TODO(portolan): a merged complex can carry several pairs — open a
+      // chooser once the place detail can't merge them; for now the first
+      // pair wins (the tiler orders by importance).
+      return {
+        name: AppRoute.PLACE_PROVIDER,
+        params: { provider: 'transitland', placeId: pairs[0].stopKey },
+      }
+    }
+    const osm = String(e.features?.[0]?.properties?.osm ?? '')
+    const [type, id] = osm.split('/')
+    if (!type || !id) return null
+    return { name: AppRoute.PLACE, params: { type, id } }
+  }
+
   const onStopEnter = (e: any) => {
-    // older tiles carry no gtfs_ids — no pairs, no pointer, no promise
-    if (gtfsIdsAt(e).length) map.getCanvas().style.cursor = 'pointer'
+    if (targetAt(e)) map.getCanvas().style.cursor = 'pointer'
   }
   const onStopLeave = () => {
     if (map) map.getCanvas().style.cursor = ''
   }
   const onStopClick = (e: any) => {
-    const pairs = gtfsIdsAt(e)
-    if (!pairs.length) return
-    // `<feed-onestop>:<stop_id>` is a valid transit.land stop_key, so the
-    // pair rides the existing transitland place route untranslated.
-    // TODO(portolan): a merged complex can carry several pairs — open a
-    // chooser once the place detail can't merge them; for now the first
-    // pair wins (the tiler orders by importance).
-    router.push({
-      name: AppRoute.PLACE_PROVIDER,
-      params: { provider: 'transitland', placeId: pairs[0].stopKey },
-    })
+    const target = targetAt(e)
+    if (!target) return
+    router.push(target as any)
   }
   boundLayerHandlers = STOP_CLICK_LAYERS.flatMap(layer => [
     { event: 'mouseenter', layer, fn: onStopEnter },
@@ -784,6 +808,13 @@ function mapIsDark(): boolean {
   } catch {
     return useThemeStore().isDark
   }
+}
+
+/** The CSS font matching what the label layers draw, so the row estimate
+ *  and the shaping agree. Recomputed per sweep: a basemap swap changes
+ *  the face under us. */
+function measureFont(): string {
+  return cssFontFor(basemapLabelFont())
 }
 
 /**
@@ -1321,7 +1352,7 @@ function prepareStations(fc: any | null) {
         if (p.nmarkers > 1) {
           const ids = bulletIdsOf(p)
           if (ids.length) p.brow = 'row-' + ids.join('|')
-          p.nrows = estRows(String(p.name ?? ''))
+          p.nrows = estRows(String(p.name ?? ''), measureFont())
         }
       } else {
         // the whole bullet strip is ONE composed image rendered as the
@@ -1329,7 +1360,7 @@ function prepareStations(fc: any | null) {
         // text corrupts the fork's per-tile glyph/image atlas)
         const ids = bulletIdsOf(p)
         if (ids.length) p.brow = 'row-' + ids.join('|')
-        p.nrows = estRows(String(p.name ?? ''))
+        p.nrows = estRows(String(p.name ?? ''), measureFont())
       }
     }
   }

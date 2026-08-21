@@ -217,13 +217,50 @@ const BREAKABLE_BEFORE = new Set([0x28]) // a break may precede "("
 const MAX_ROWS = 4 // as far as the bullet-offset table reaches
 let measureCtx: CanvasRenderingContext2D | null = null
 
-export function estRows(name: string): number {
-  if (!measureCtx) {
-    measureCtx = document.createElement('canvas').getContext('2d')!
-    // the atlas measures Montserrat; parchment's glyph endpoint serves
-    // Roboto, so the estimate measures what the map will draw
-    measureCtx.font = '500 100px Roboto, system-ui, sans-serif'
+/**
+ * Turn a MapLibre font stack into a CSS font the canvas can measure with.
+ * "Roboto Condensed Italic" is a family plus modifiers, not a CSS family,
+ * so the modifiers have to come off the end and become weight and style
+ * or the measurement runs in the wrong face entirely.
+ */
+/** What the atlas measured with, kept as the fallback when no basemap
+ *  font is available yet. */
+const MEASURE_FONT = '500 100px Roboto, system-ui, sans-serif'
+
+export function cssFontFor(stack: string[], sizePx = 100): string {
+  const name = stack[0] ?? 'Roboto Medium'
+  const words = name.split(/\s+/)
+  const WEIGHTS: Record<string, number> = {
+    Thin: 100, Light: 300, Regular: 400, Book: 400, Medium: 500,
+    SemiBold: 600, Semibold: 600, Bold: 700, Black: 900,
   }
+  let style = ''
+  let weight = 400
+  while (words.length > 1) {
+    const last = words[words.length - 1]
+    if (last === 'Italic' || last === 'Oblique') {
+      style = 'italic'
+      words.pop()
+    } else if (WEIGHTS[last] !== undefined) {
+      weight = WEIGHTS[last]
+      words.pop()
+    } else break
+  }
+  const family = words.join(' ')
+  return `${style} ${weight} ${sizePx}px "${family}", Roboto, system-ui, sans-serif`.trim()
+}
+
+/**
+ * How many rows MapLibre will shape this name into.
+ *
+ * It has to measure the face the map actually draws: predicting rows in
+ * a wider font than the one on screen reports a wrap that never happens,
+ * and the bullet strip — which hangs below the LAST row — drops a whole
+ * line clear of a name that fits on one.
+ */
+export function estRows(name: string, cssFont = MEASURE_FONT): number {
+  const ctx = (measureCtx ||= document.createElement('canvas').getContext('2d')!)
+  if (ctx.font !== cssFont) ctx.font = cssFont
   const maxW = 10 * 100 // text-max-width, 10 em, measured at 1 em = 100 px
   const text = name.trim()
   if (!text) return 1
@@ -232,6 +269,6 @@ export function estRows(name: string): number {
     if (BREAKABLE.has(text.charCodeAt(i)) || BREAKABLE_BEFORE.has(text.charCodeAt(i + 1))) breaks++
   }
   // MapLibre sums every glyph's advance, spaces included, then divides
-  const rows = Math.ceil(measureCtx.measureText(text).width / maxW)
+  const rows = Math.ceil(ctx.measureText(text).width / maxW)
   return Math.max(1, Math.min(MAX_ROWS, rows, breaks + 1))
 }

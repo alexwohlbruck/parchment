@@ -10,6 +10,7 @@
  */
 
 import { describe, test, expect } from 'vitest'
+import { cssFontFor } from './portolan-images'
 import {
   ACTS_MAX_ROUTES,
   BANDS,
@@ -240,5 +241,31 @@ describe('bulletIdsOf', () => {
     })
     // A dedupes, 6X folds into 6, LIRR is regional, 42 is bus
     expect(ids).toEqual(['blt-0039a6--A', 'blt-00933c--6'])
+  })
+})
+
+describe('cssFontFor', () => {
+  // A row estimate measured in the wrong face reports a wrap that never
+  // happens, and the bullet strip drops a line below a one-line name.
+  test('splits MapLibre font modifiers into CSS weight and style', () => {
+    expect(cssFontFor(['Roboto Condensed Italic'])).toBe(
+      'italic 400 100px "Roboto Condensed", Roboto, system-ui, sans-serif',
+    )
+    expect(cssFontFor(['Roboto Medium'])).toBe(
+      '500 100px "Roboto", Roboto, system-ui, sans-serif',
+    )
+    expect(cssFontFor(['Noto Sans Bold'])).toBe(
+      '700 100px "Noto Sans", Roboto, system-ui, sans-serif',
+    )
+  })
+
+  test('keeps a bare family intact and honours the size', () => {
+    expect(cssFontFor(['Inter'], 24)).toBe('400 24px "Inter", Roboto, system-ui, sans-serif')
+  })
+
+  test('falls back to the default face when the stack is empty', () => {
+    // the fallback NAME is "Roboto Medium", which parses the same way
+    // everything else does: family Roboto, weight 500
+    expect(cssFontFor([])).toBe('500 100px "Roboto", Roboto, system-ui, sans-serif')
   })
 })

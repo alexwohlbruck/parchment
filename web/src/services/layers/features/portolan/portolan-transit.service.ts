@@ -130,6 +130,20 @@ let forkOffsets = false
  *  such property and rejects it. */
 let engine: MapEngine = MapEngine.MAPLIBRE
 
+/**
+ * Whether the BASEMAP is dark, taken from the strategy option that built
+ * the style.
+ *
+ * Not `useThemeStore()`: that is the app chrome's theme, and a dark UI
+ * over a light map is a real configuration. Not
+ * `useMapStore().settings.theme` either — map.service spreads the settings
+ * and then OVERRIDES theme from the app's dark ref when it constructs the
+ * strategy, so the stored value is stale the moment they disagree. The
+ * strategy's own options.theme is the value handed to buildMapStyle, and
+ * setMapTheme keeps it current, so it is the one that matches the pixels.
+ */
+let themeDark = false
+
 /** Full emissive strength: the ribbons and their labels are ink on the
  *  map, not lit geometry — they must keep their colour under any light
  *  preset. Absent on MapLibre, which has no lighting model to answer to. */
@@ -218,6 +232,7 @@ function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
   if (!mapStrategy?.mapInstance || !isPortolanTransitEnabled()) return
   // Both engines render the network; only the fork renders it in full.
   engine = mapStrategy.options.engine
+  themeDark = mapStrategy.options.theme === MapTheme.DARK
   const fork =
     mapStrategy.options.engine === MapEngine.MAPLIBRE &&
     getVersion().includes('transit')
@@ -824,14 +839,53 @@ function unmountFeed(feed: string) {
 }
 
 
-/** True when the BASEMAP is dark. `useThemeStore().isDark` answers for the
- *  app's own chrome, which is a different question. */
-function mapIsDark(): boolean {
-  try {
-    return useMapStore().settings.theme === MapTheme.DARK
-  } catch {
-    return useThemeStore().isDark
+
+/**
+ * The paint the basemap letters its OWN labels with — text colour, halo
+ * colour, halo width — so a station name is lettered the way the street
+ * names beside it are.
+ *
+ * This is the whole answer to light vs dark: the basemap has already
+ * solved it (Mapbox Standard adjusts its labels natively, osm-liberty
+ * gets applyDarkTheme), so copying its answer means never inferring a
+ * theme and never being wrong about one. Only when the basemap is not
+ * readable — Mapbox Standard keeps its layers in an import, not in
+ * `.layers` — does it fall back to the theme that built the style.
+ */
+function basemapLabelPaint(): {
+  'text-color': any
+  'text-halo-color': any
+  'text-halo-width': number
+} {
+  const layers = map?.getStyle?.()?.layers ?? []
+  let best: any
+  for (const l of layers) {
+    if (l.type !== 'symbol' || l.id.startsWith('portolan-')) continue
+    const color = l.paint?.['text-color'] ?? map.getPaintProperty?.(l.id, 'text-color')
+    if (color === undefined) continue
+    const cand = {
+      'text-color': color,
+      'text-halo-color':
+        l.paint?.['text-halo-color'] ?? map.getPaintProperty?.(l.id, 'text-halo-color') ?? (themeDark ? 'rgba(12,12,16,0.9)' : 'rgba(255,255,255,0.92)'),
+      'text-halo-width': (l.paint?.['text-halo-width'] as number) ?? 1.4,
+    }
+    // a place label is the closest cousin of a station name; take the
+    // first one, and keep any label layer as the fallback
+    if (l.id.includes('place')) return cand
+    best ??= cand
   }
+  return (
+    best ?? {
+      'text-color': themeDark ? '#e8e8ee' : '#1b1b22',
+      'text-halo-color': themeDark ? 'rgba(12,12,16,0.9)' : 'rgba(255,255,255,0.92)',
+      'text-halo-width': 1.4,
+    }
+  )
+}
+
+/** True when the BASEMAP is dark — see themeDark. */
+function mapIsDark(): boolean {
+  return themeDark
 }
 
 /** The CSS font matching what the label layers draw, so the row estimate
@@ -868,19 +922,11 @@ function addSymbolLayers() {
   // place and transit labels — rather than being appended over the world.
   const slot = engine === MapEngine.MAPBOX ? { slot: 'top' } : {}
   // Which theme the BASEMAP is wearing, not which theme the app chrome is.
-  // These read the same on most setups and diverge on the one that
-  // matters: a dark UI over a light map, where taking the app's answer
-  // painted white station names with a dark halo onto a white map.
-  const isDark = mapIsDark()
   const labelFont = basemapLabelFont()
-  // station names draw OVER coloured ribbons in both themes: the halo
-  // does the separating work and inverts with the basemap
-  const labelPaint = {
-    ...(isDark
-      ? { 'text-color': '#e8e8ee', 'text-halo-color': 'rgba(12,12,16,0.9)', 'text-halo-width': 1.4 }
-      : { 'text-color': '#1b1b22', 'text-halo-color': 'rgba(255,255,255,0.92)', 'text-halo-width': 1.4 }),
-    ...emissive('text'),
-  }
+  // Station names are lettered exactly as the basemap letters its own
+  // labels — same face, same colour, same halo — so they invert with it
+  // for free rather than by our guessing which way it went.
+  const labelPaint = { ...basemapLabelPaint(), ...emissive('text') }
 
   const imp: Expr = ['coalesce', ['get', 'imp'], 0]
   const isMarker: Expr = ['==', ['get', 'ftype'], 'marker']
@@ -1000,7 +1046,7 @@ function addSymbolLayers() {
     paint: {
       // the line's own colour — the label IS the line's identity
       'text-color': ['concat', '#', ['get', 'hex']],
-      'text-halo-color': isDark ? 'rgba(12,12,16,0.92)' : 'rgba(255,255,255,0.95)',
+      'text-halo-color': basemapLabelPaint()['text-halo-color'],
       'text-halo-width': 1.6,
       ...emissive('text'),
     },

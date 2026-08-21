@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+* Saved places could go missing from the map entirely. A map marker that failed to draw — a tracked vehicle, most often — took the rest of the map's setup down with it, and the saved places layer was one of the things that never got built. Markers that can't draw are now contained to themselves
+
 ## [0.6.0] - 2026-08-18
 
 ### Added

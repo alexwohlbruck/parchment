@@ -48,7 +48,9 @@ import { api } from '@/lib/api'
 import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { MapEngine } from '@/types/map.types'
+import { MapEngine, MapTheme } from '@/types/map.types'
+import { useMapStore } from '@/stores/map.store'
+import { getStyleConfig } from '@/lib/basemap-style-config'
 import type { PortolanIndexEntry, PortolanStyleSet } from '@/types/portolan.types'
 import {
   BANDS,
@@ -121,6 +123,18 @@ let map: any = null
  * whole transit map down with them.
  */
 let forkOffsets = false
+
+/** The engine under us. Mapbox lights its 3D scene, so flat overlays need
+ *  an emissive strength or they read as shaded surfaces; MapLibre has no
+ *  such property and rejects it. */
+let engine: MapEngine = MapEngine.MAPLIBRE
+
+/** Full emissive strength: the ribbons and their labels are ink on the
+ *  map, not lit geometry — they must keep their colour under any light
+ *  preset. Absent on MapLibre, which has no lighting model to answer to. */
+function emissive(kind: 'line' | 'text' | 'icon'): Record<string, number> {
+  return engine === MapEngine.MAPBOX ? { [`${kind}-emissive-strength`]: 1 } : {}
+}
 let listenersBound = false
 let boundHandlers: { [event: string]: any } = {}
 let boundLayerHandlers: Array<{ event: string; layer: string; fn: any }> = []
@@ -202,6 +216,7 @@ function isPortolanTransitEnabled(): boolean {
 function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
   if (!mapStrategy?.mapInstance || !isPortolanTransitEnabled()) return
   // Both engines render the network; only the fork renders it in full.
+  engine = mapStrategy.options.engine
   const fork =
     mapStrategy.options.engine === MapEngine.MAPLIBRE &&
     getVersion().includes('transit')
@@ -394,6 +409,33 @@ const mounted = new Set<string>()
  *  so a hydrated junction ramp still draws over the steady ink it crosses. */
 let ribbonAnchor: string | undefined
 
+/**
+ * The basemap's first label layer. Ribbons go UNDER it: a route drawn over
+ * the street names and shop names it passes is ink on top of the map
+ * rather than part of it, and the label is the thing a reader needs.
+ */
+function firstLabelLayer(): string | undefined {
+  for (const l of map?.getStyle?.()?.layers ?? []) {
+    if (l.type === 'symbol' && !l.id.startsWith('portolan-')) return l.id
+  }
+  return undefined
+}
+
+/**
+ * The basemap's extruded buildings, when it has them. The solid ribbon
+ * goes under them so a building occludes the line it passes behind, and a
+ * dimmed GHOST copy goes over them so the route still reads through the
+ * block instead of disappearing into it.
+ */
+function buildingLayer(): string | undefined {
+  const id = getStyleConfig(useMapStore().settings.mapStyle).buildingLayerId
+  return id && map?.getLayer?.(id) ? id : undefined
+}
+
+/** Opacity the ghost keeps where a building stands in front of it. */
+const GHOST_OPACITY = 0.28
+const ghostId = (id: string) => `${id}-ghost`
+
 /** Guards the one deferred re-run sync() schedules when the style is still
  *  loading, so a burst of style.loads cannot stack listeners. */
 let resyncPending = false
@@ -428,6 +470,56 @@ async function sync() {
   requestHydrate()
 }
 
+
+
+/**
+ * Add one ribbon layer as a PAIR: the solid line beneath the basemap's
+ * buildings, and a dimmed twin above them. Where nothing stands in the
+ * way the two stack into the intended colour; where a building does, only
+ * the ghost survives, so the route reads faintly through the block
+ * instead of either vanishing or floating implausibly on top of it.
+ *
+ * Without extruded buildings there is nothing to hide behind, so the pair
+ * collapses to the single solid layer.
+ */
+function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
+  const labels = firstLabelLayer()
+  const buildings = buildingLayer()
+  structuralFilter.set(spec.id, structural)
+  map.addLayer(
+    { ...spec, paint: { ...spec.paint, 'line-opacity': opacity, ...emissive('line') } },
+    buildings ?? ribbonAnchorOr(labels),
+  )
+  if (!buildings) return
+  const gid = ghostId(spec.id)
+  structuralFilter.set(gid, structural)
+  map.addLayer(
+    {
+      ...spec,
+      id: gid,
+      paint: {
+        ...spec.paint,
+        'line-opacity': ['*', opacity, GHOST_OPACITY] as unknown as Expr,
+        ...emissive('line'),
+      },
+    },
+    ghostAnchorOr(labels),
+  )
+}
+
+/** The ghost stack mirrors the solid one: a ghost steady goes under the
+ *  ghost twins, so a junction ramp still reads over the ink it crosses
+ *  even in the dimmed copy. */
+function ghostAnchorOr(labels: string | undefined) {
+  const twin = ribbonAnchor && ghostId(ribbonAnchor)
+  return twin && map.getLayer(twin) ? twin : labels
+}
+
+/** Ribbons sit below the twins when there are twins, and below the
+ *  basemap's labels either way. */
+function ribbonAnchorOr(labels: string | undefined) {
+  return ribbonAnchor && map.getLayer(ribbonAnchor) ? ribbonAnchor : labels
+}
 
 // ── viewport culling (the chunking the sources never had) ──────────────
 
@@ -529,25 +621,27 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
       if (!forkOffsets) continue
       const id = twinId(b.key, kind)
       const filter: Expr = ['all', ['==', ['get', 'band_min'], b.key], ['==', ['get', 'kind'], kind]]
-      structuralFilter.set(id, filter)
-      map.addLayer({
-        id,
-        type: 'line',
-        source: srcBuild(b.key),
-        minzoom: b.min === 0 ? 0 : b.min,
-        maxzoom: b.max === 24 ? 24 : b.max,
-        filter,
-        // round caps: at a transition/steady seam the eased line arrives
-        // with lateral slope while the steady leaves flat — butt caps
-        // leave a wedge notch at every seam (MapView.vue:1000-1003)
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': RIBBON_COLOR,
-          'line-width': widthExpr(perFeedW(twin.w)),
-          'line-opacity': perFeedO(twin.o),
-          'line-offset': off,
+      addRibbonLayer(
+        {
+          id,
+          type: 'line',
+          source: srcBuild(b.key),
+          minzoom: b.min === 0 ? 0 : b.min,
+          maxzoom: b.max === 24 ? 24 : b.max,
+          filter,
+          // round caps: at a transition/steady seam the eased line arrives
+          // with lateral slope while the steady leaves flat — butt caps
+          // leave a wedge notch at every seam (MapView.vue:1000-1003)
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color': RIBBON_COLOR,
+            'line-width': widthExpr(perFeedW(twin.w)),
+            'line-offset': off,
+          },
         },
-      })
+        perFeedO(twin.o),
+        filter,
+      )
       anchor ??= id // bottom-most twin: steady clones insert below it
     }
   }
@@ -600,26 +694,28 @@ function mountFeed(r: PortolanIndexEntry) {
           ['==', ['get', 'band_min'], b.key],
           ['==', ['get', 'kind'], kind],
         ]
-        structuralFilter.set(id, filter)
-        map.addLayer({
-          id,
-          type: 'line',
-          source: src,
-          'source-layer': 'ribbons',
-          minzoom: b.min === 0 ? 0 : b.min,
-          maxzoom: b.max === 24 ? 24 : b.max,
-          filter,
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color': RIBBON_COLOR,
-            'line-width': widthExpr(w),
-            'line-opacity': o,
-            'line-offset':
-              kind === 'bridge'
-                ? STEADY_OFFSET
-                : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
+        addRibbonLayer(
+          {
+            id,
+            type: 'line',
+            source: src,
+            'source-layer': 'ribbons',
+            minzoom: b.min === 0 ? 0 : b.min,
+            maxzoom: b.max === 24 ? 24 : b.max,
+            filter,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': RIBBON_COLOR,
+              'line-width': widthExpr(w),
+              'line-offset':
+                kind === 'bridge'
+                  ? STEADY_OFFSET
+                  : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
+            },
           },
-        })
+          o,
+          filter,
+        )
       }
     }
   }
@@ -631,8 +727,7 @@ function mountFeed(r: PortolanIndexEntry) {
       ['==', ['get', 'band_min'], b.key],
       ['==', ['get', 'kind'], 'steady'],
     ]
-    structuralFilter.set(id, filter)
-    map.addLayer(
+    addRibbonLayer(
       {
         id,
         type: 'line',
@@ -645,11 +740,11 @@ function mountFeed(r: PortolanIndexEntry) {
         paint: {
           'line-color': RIBBON_COLOR,
           'line-width': widthExpr(w),
-          'line-opacity': o,
           'line-offset': STEADY_OFFSET,
         },
       },
-      anchor,
+      o,
+      filter,
     )
   }
 }
@@ -661,12 +756,40 @@ function unmountFeed(feed: string) {
   if (!map?.getStyle?.()) return
   for (const l of map.getStyle().layers ?? []) {
     const id: string = l.id
-    if (l.source === srcTiles(feed) || id.endsWith(`-${feed}`)) {
+    if (l.source === srcTiles(feed) || id.endsWith(`-${feed}`) || id.startsWith(`${srcTiles(feed)}-`)) {
       if (map.getLayer(id)) map.removeLayer(id)
       structuralFilter.delete(id)
     }
   }
   if (map.getSource(srcTiles(feed))) map.removeSource(srcTiles(feed))
+}
+
+
+/** True when the BASEMAP is dark. `useThemeStore().isDark` answers for the
+ *  app's own chrome, which is a different question. */
+function mapIsDark(): boolean {
+  try {
+    return useMapStore().settings.theme === MapTheme.DARK
+  } catch {
+    return useThemeStore().isDark
+  }
+}
+
+/**
+ * The font the basemap letters its own labels with, so a station name
+ * reads as part of the map rather than pasted over it. Prefers a place
+ * label's stack; falls back to any label layer's, then to our own.
+ */
+function basemapLabelFont(): string[] {
+  let fallback: string[] | undefined
+  for (const l of map?.getStyle?.()?.layers ?? []) {
+    if (l.type !== 'symbol' || l.id.startsWith('portolan-')) continue
+    const f = (l.layout as any)?.['text-font']
+    if (!Array.isArray(f) || !f.length) continue
+    if (l.id.includes('place')) return f as string[]
+    fallback ??= f as string[]
+  }
+  return fallback ?? LABEL_FONT
 }
 
 /** The symbol stack, above every ribbon (MapView.vue:1016-1254). Symbols
@@ -675,13 +798,20 @@ function unmountFeed(feed: string) {
  *  icon/brow/nrows). Filters here are STRUCTURAL only — time/class
  *  gating happens in applyStations, in JS. */
 function addSymbolLayers() {
-  const themeStore = useThemeStore()
-  const isDark = themeStore.isDark
+  // Which theme the BASEMAP is wearing, not which theme the app chrome is.
+  // These read the same on most setups and diverge on the one that
+  // matters: a dark UI over a light map, where taking the app's answer
+  // painted white station names with a dark halo onto a white map.
+  const isDark = mapIsDark()
+  const labelFont = basemapLabelFont()
   // station names draw OVER coloured ribbons in both themes: the halo
   // does the separating work and inverts with the basemap
-  const labelPaint = isDark
-    ? { 'text-color': '#e8e8ee', 'text-halo-color': 'rgba(12,12,16,0.9)', 'text-halo-width': 1.4 }
-    : { 'text-color': '#1b1b22', 'text-halo-color': 'rgba(255,255,255,0.92)', 'text-halo-width': 1.4 }
+  const labelPaint = {
+    ...(isDark
+      ? { 'text-color': '#e8e8ee', 'text-halo-color': 'rgba(12,12,16,0.9)', 'text-halo-width': 1.4 }
+      : { 'text-color': '#1b1b22', 'text-halo-color': 'rgba(255,255,255,0.92)', 'text-halo-width': 1.4 }),
+    ...emissive('text'),
+  }
 
   const imp: Expr = ['coalesce', ['get', 'imp'], 0]
   const isMarker: Expr = ['==', ['get', 'ftype'], 'marker']
@@ -696,6 +826,7 @@ function addSymbolLayers() {
     source: SRC_STATIONS,
     minzoom: 11,
     filter: isMarker,
+    paint: { ...emissive('icon') },
     layout: {
       // icon id precomputed per feature (dots-…/pill-…), drawn on demand
       // by styleimagemissing. A dot's slot offset is baked into its image
@@ -799,6 +930,7 @@ function addSymbolLayers() {
       'text-color': ['concat', '#', ['get', 'hex']],
       'text-halo-color': isDark ? 'rgba(12,12,16,0.92)' : 'rgba(255,255,255,0.95)',
       'text-halo-width': 1.6,
+      ...emissive('text'),
     },
   })
   }
@@ -867,7 +999,7 @@ function addSymbolLayers() {
     filter: labelGate,
     layout: {
       'text-field': ['get', 'name'],
-      'text-font': LABEL_FONT,
+      'text-font': labelFont,
       'symbol-sort-key': ['*', -1, imp],
       // fixed top anchor: name under the marker, bullet strip under the
       // name (variable anchors would detach the strip from the text)
@@ -894,7 +1026,7 @@ function addSymbolLayers() {
     filter: ['all', isMarker, ['>=', ['coalesce', ['get', 'nmarkers'], 1], 2]],
     layout: {
       'text-field': ['get', 'name'],
-      'text-font': LABEL_FONT,
+      'text-font': labelFont,
       'symbol-sort-key': ['*', -1, imp],
       'text-anchor': 'top',
       'text-offset': [0, TEXT_TOP_EM],

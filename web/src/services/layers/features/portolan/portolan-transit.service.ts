@@ -38,6 +38,7 @@
  */
 
 import { getVersion } from 'maplibre-gl'
+import router, { AppRoute } from '@/router'
 import { api } from '@/lib/api'
 import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
@@ -62,7 +63,7 @@ import {
   widthExpr,
 } from './portolan-expressions'
 import { drawPortolanImage, estRows } from './portolan-images'
-import { TRANSIT_GROUP_ID } from './portolan-ui'
+import { TRANSIT_GROUP_ID, parseGtfsIds } from './portolan-ui'
 
 const FLAG_KEY = 'parchment.portolan-transit'
 
@@ -80,6 +81,14 @@ const SYMBOL_LAYERS = [
   'portolan-station-labels-hi',
 ]
 
+// Layers whose features can open a stop detail (they carry gtfs_ids on
+// current tiles; older tiles lack it and simply offer no affordance).
+const STOP_CLICK_LAYERS = [
+  'portolan-station-markers',
+  'portolan-station-labels',
+  'portolan-station-labels-hi',
+]
+
 const EMPTY_FC = { type: 'FeatureCollection', features: [] } as any
 
 // The atlas labels with Montserrat from CARTO's glyph CDN; parchment's
@@ -92,6 +101,7 @@ const LABEL_FONT_ITALIC = ['Roboto Condensed Italic']
 let map: any = null
 let listenersBound = false
 let boundHandlers: { [event: string]: any } = {}
+let boundLayerHandlers: Array<{ event: string; layer: string; fn: any }> = []
 let warnedOnce = false
 
 let regionsPromise: Promise<PortolanIndexEntry[]> | null = null
@@ -244,6 +254,38 @@ function bindListeners() {
     },
   }
   for (const [ev, fn] of Object.entries(boundHandlers)) map.on(ev, fn)
+
+  // Stop clicks → the same stop detail the transitland stop layers open.
+  // Per-layer delegates internally re-check getLayer() on every event, so
+  // like setupPoiHandlers they survive setStyle: bound once per map, they
+  // go dormant while the layers are absent and wake when they re-appear.
+  const gtfsIdsAt = (e: any) => parseGtfsIds(e.features?.[0]?.properties?.gtfs_ids)
+  const onStopEnter = (e: any) => {
+    // older tiles carry no gtfs_ids — no pairs, no pointer, no promise
+    if (gtfsIdsAt(e).length) map.getCanvas().style.cursor = 'pointer'
+  }
+  const onStopLeave = () => {
+    if (map) map.getCanvas().style.cursor = ''
+  }
+  const onStopClick = (e: any) => {
+    const pairs = gtfsIdsAt(e)
+    if (!pairs.length) return
+    // `<feed-onestop>:<stop_id>` is a valid transit.land stop_key, so the
+    // pair rides the existing transitland place route untranslated.
+    // TODO(portolan): a merged complex can carry several pairs — open a
+    // chooser once the place detail can't merge them; for now the first
+    // pair wins (the tiler orders by importance).
+    router.push({
+      name: AppRoute.PLACE_PROVIDER,
+      params: { provider: 'transitland', placeId: pairs[0].stopKey },
+    })
+  }
+  boundLayerHandlers = STOP_CLICK_LAYERS.flatMap(layer => [
+    { event: 'mouseenter', layer, fn: onStopEnter },
+    { event: 'mouseleave', layer, fn: onStopLeave },
+    { event: 'click', layer, fn: onStopClick },
+  ])
+  for (const { event, layer, fn } of boundLayerHandlers) map.on(event, layer, fn)
 }
 
 function unbindListeners() {
@@ -251,6 +293,8 @@ function unbindListeners() {
   listenersBound = false
   for (const [ev, fn] of Object.entries(boundHandlers)) map.off(ev, fn)
   boundHandlers = {}
+  for (const { event, layer, fn } of boundLayerHandlers) map.off(event, layer, fn)
+  boundLayerHandlers = []
   if (hydrateQueued) {
     cancelAnimationFrame(hydrateQueued)
     hydrateQueued = 0

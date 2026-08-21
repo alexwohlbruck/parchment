@@ -6,9 +6,14 @@
  * way portolan's own atlas viewer does. Structural port of the tile mode
  * in portolan/web/src/views/MapView.vue — line references throughout.
  *
- * Requires the maplibre-gl transit fork (variable line-offset along
- * line-progress, symbol-anchor-offset); on any other engine or an
- * unpatched maplibre this module cleanly no-ops.
+ * Renders on both engines. The maplibre-gl transit fork adds two things
+ * nothing else has — `line-offset` eased along `['line-progress']`, and
+ * `symbol-anchor-offset` — and with them the junction ramps slide between
+ * slots and the caterpillars hang their bullets off the line. Mapbox (or
+ * an unpatched maplibre) still draws the whole network, because
+ * `line-offset` is data-driven there too: bundles ride their slots, the
+ * ramps hold a fixed midpoint offset instead of easing, and the
+ * caterpillars are omitted. Degraded, never absent.
  *
  * OFF by default. The product switch is the Transit layer group's master
  * toggle (portolan.store watches it and drives init/teardown); the
@@ -73,6 +78,9 @@ const srcTiles = (feed: string) => `portolan-tiles-${feed}`
 const srcBuild = (band: number) => `portolan-build-${band}`
 const twinId = (band: number, kind: string) => `portolan-ribbon-${band}-${kind}`
 const steadyId = (band: number, feed: string) => `portolan-ribbon-${band}-steady-${feed}`
+/** Fork-less junction ramps: per feed, straight off the vector source. */
+const rampId = (band: number, kind: string, feed: string) =>
+  `portolan-ribbon-${band}-${kind}-${feed}`
 const SYMBOL_LAYERS = [
   'portolan-station-markers',
   'portolan-cats',
@@ -99,6 +107,20 @@ const LABEL_FONT_ITALIC = ['Roboto Condensed Italic']
 
 // ── module state (one map at a time, like the other layer services) ────
 let map: any = null
+
+/**
+ * Whether the engine under us can ease `line-offset` along
+ * `['line-progress']` and place symbols with `symbol-anchor-offset` —
+ * the two things only the maplibre transit fork has.
+ *
+ * Mapbox draws the network perfectly well without them: `line-offset` is
+ * data-driven there too, so bundles still ride their slots. What it
+ * cannot do is ease that offset ALONG a line (the junction ramps) or
+ * hang bullets off an anchor vector (the caterpillars). Those degrade —
+ * ramps at a fixed offset, no caterpillars — rather than taking the
+ * whole transit map down with them.
+ */
+let forkOffsets = false
 let listenersBound = false
 let boundHandlers: { [event: string]: any } = {}
 let boundLayerHandlers: Array<{ event: string; layer: string; fn: any }> = []
@@ -170,18 +192,19 @@ function isPortolanTransitEnabled(): boolean {
  *  services re-registered from map.service's onStyleLoad). */
 function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
   if (!mapStrategy?.mapInstance || !isPortolanTransitEnabled()) return
-  // the portolan layers REQUIRE the fork: on the mapbox strategy (or an
-  // unpatched maplibre) this feature is cleanly absent
-  if (mapStrategy.options.engine !== MapEngine.MAPLIBRE) {
-    warnOnce('portolan-transit: requires the MapLibre engine; skipping')
-    return
-  }
-  if (!getVersion().includes('transit')) {
-    warnOnce('portolan-transit: maplibre-gl is not the transit fork; skipping')
-    return
+  // Both engines render the network; only the fork renders it in full.
+  const fork =
+    mapStrategy.options.engine === MapEngine.MAPLIBRE &&
+    getVersion().includes('transit')
+  if (!fork) {
+    warnOnce(
+      'portolan-transit: no variable line-offset on this engine — junction ' +
+        'ramps ride a fixed offset and caterpillars are omitted',
+    )
   }
   const m = mapStrategy.mapInstance
-  if (map !== m) {
+  if (map !== m || forkOffsets !== fork) {
+    forkOffsets = fork
     // engine swap or first run: bind the once-per-map listeners
     unbindListeners()
     map = m
@@ -378,9 +401,13 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
   structuralFilter.clear()
 
   // one GeoJSON source per band for the hydrated transitions/bridges —
-  // lineMetrics is the whole point: without it there is no line-progress
-  for (const b of BANDS) {
-    map.addSource(srcBuild(b.key), { type: 'geojson', data: EMPTY_FC, lineMetrics: true })
+  // lineMetrics is the whole point: without it there is no line-progress.
+  // Without the fork there is nothing to ease, so the whole hydration
+  // path is skipped and the ramps ride the vector tiles directly.
+  if (forkOffsets) {
+    for (const b of BANDS) {
+      map.addSource(srcBuild(b.key), { type: 'geojson', data: EMPTY_FC, lineMetrics: true })
+    }
   }
   map.addSource(SRC_STATIONS, { type: 'geojson', data: EMPTY_FC })
 
@@ -392,6 +419,7 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
   for (const b of BANDS) {
     for (const [kind, off] of KINDS) {
       if (kind === 'steady') continue
+      if (!forkOffsets) continue
       const id = twinId(b.key, kind)
       const filter: Expr = ['all', ['==', ['get', 'band_min'], b.key], ['==', ['get', 'kind'], kind]]
       structuralFilter.set(id, filter)
@@ -432,6 +460,45 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
       ...(r.bounds?.length === 4 ? { bounds: r.bounds } : {}),
     })
     const { w, o } = modeExprs(styleForFeed(r.feed))
+
+    // No fork: draw the junction ramps from the vector tiles beside the
+    // steady ribbons. A transition eases from off_from_px to off_to_px
+    // along its length, which needs line-progress; at a fixed offset the
+    // honest choice is the midpoint, so the ramp meets each neighbour
+    // half a slot out instead of leaving a hole where the junction was.
+    if (!forkOffsets) {
+      for (const b of BANDS) {
+        for (const kind of ['transition', 'bridge'] as const) {
+          const id = rampId(b.key, kind, r.feed)
+          const filter: Expr = [
+            'all',
+            ['==', ['get', 'band_min'], b.key],
+            ['==', ['get', 'kind'], kind],
+          ]
+          structuralFilter.set(id, filter)
+          map.addLayer({
+            id,
+            type: 'line',
+            source: src,
+            'source-layer': 'ribbons',
+            minzoom: b.min === 0 ? 0 : b.min,
+            maxzoom: b.max === 24 ? 24 : b.max,
+            filter,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': RIBBON_COLOR,
+              'line-width': widthExpr(w),
+              'line-opacity': o,
+              'line-offset':
+                kind === 'bridge'
+                  ? STEADY_OFFSET
+                  : ['/', ['+', ['get', 'off_from_px'], ['get', 'off_to_px']], 2],
+            },
+          })
+        }
+      }
+    }
+
     for (const b of BANDS) {
       const id = steadyId(b.key, r.feed)
       const filter: Expr = [
@@ -526,6 +593,10 @@ function addSymbolLayers() {
     15,
     catBand(15, text),
   ]
+  // Caterpillars hang each bullet off a map-aligned pixel vector, which
+  // is symbol-anchor-offset — fork only. Without it the whole chain would
+  // pile up on one anchor, so it is omitted rather than drawn wrong.
+  if (forkOffsets) {
   const catAnchorOffset: Expr = [
     'interpolate',
     ['linear'],
@@ -591,6 +662,7 @@ function addSymbolLayers() {
       'text-halo-width': 1.6,
     },
   })
+  }
 
   // ── station labels (MapView.vue:1139-1254) ───────────────────────────
   // The bullet strip hangs below the LAST line of the name: its offset is
@@ -717,7 +789,10 @@ function removeAll() {
 // filters must NEVER touch a symbol layer or symbols gate twice.
 
 function applyTileFilters() {
-  if (!map?.isStyleLoaded?.()) return
+  // Same reason hydration cannot wait on isStyleLoaded(): with a source
+  // per pyramid the style is almost never "loaded", and a class toggle
+  // or a nudge of the time slider would quietly do nothing.
+  if (!hydrationReady()) return
   const clauses: Expr[] = []
   const acts = actsFilterExpr(serviceTime)
   if (acts) clauses.push(acts)
@@ -764,7 +839,7 @@ function heldShape(g: any): { box: [number, number, number, number]; fp: string 
  *  line-progress spans the true segment) — duplicates are a fact of
  *  life, folded by segment identity. */
 function hydrateTransitions() {
-  if (!hydrationReady()) return
+  if (!forkOffsets || !hydrationReady()) return
   const fresh = new Set<string>()
   for (const sid of tileSourceIds()) {
     if (!map.getSource(sid)) continue
@@ -832,6 +907,7 @@ function hydrateTransitions() {
 /** After a style reload the held features survive in memory but the fresh
  *  sources start empty — push them back without waiting for a sweep. */
 function restoreHeldTransitions() {
+  if (!forkOffsets) return
   hydratedSig.clear()
   for (const [band, held] of heldTransitions) {
     if (!held.size) continue
@@ -895,7 +971,9 @@ function hydrateSymbols() {
   const feats: any[] = []
   for (const sid of tileSourceIds()) {
     if (!map.getSource(sid)) continue
-    for (const sl of ['stations', 'markers', 'cat']) {
+    for (const sl of forkOffsets
+      ? ['stations', 'markers', 'cat']
+      : ['stations', 'markers']) {
       for (const f of map.querySourceFeatures(sid, { sourceLayer: sl })) {
         const p = { ...f.properties }
         p._feed = sid.slice('portolan-tiles-'.length)

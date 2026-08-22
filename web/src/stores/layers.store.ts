@@ -25,36 +25,64 @@ import {
   EMPTY_SAVED_PLACES_VISIBILITY,
   SAVED_PLACES_GROUP_ID,
 } from '@/lib/saved-places-layers'
+import {
+  buildLayerStoreItems,
+  collectGroupLayerTemplateIds,
+  collectGroupSubtree,
+  isLayerTemplateAdded,
+  resolveAddedGroupIds,
+  type LayerStoreItem,
+} from '@/lib/layer-templates'
 import { i18n } from '@/lib/i18n'
 
 /**
- * Fields on a layer that, when modified, trigger a clone-on-modify of the
- * default template. Changing any other field (visibility, order, groupId,
- * enabled) is considered a "light override" and stored in the sidecar state
- * rather than creating a clone.
+ * What a user is allowed to change about a default template. The definition
+ * itself is read-only — it lives in `server/src/constants/default-layers` and
+ * many of them carry app behaviour (transit stop clicks, the day/night
+ * terminator, live friend positions) that hand-edited Mapbox layer JSON could
+ * not express. Everything here is a *preference*, and preferences live in the
+ * sidecar state rather than on the template.
  */
-const LAYER_CONTENT_FIELDS = new Set<keyof Layer>([
-  'name',
-  'icon',
-  'configuration',
-  'fadeBasemap',
-  'type',
-  'engine',
-  'isSubLayer',
+const DEFAULT_LAYER_STATE_FIELDS = [
+  'order',
+  'enabled',
+  'groupId',
   'showInLayerSelector',
-  'integrationId',
-])
+] as const
 
-const GROUP_CONTENT_FIELDS = new Set<keyof LayerGroup>([
-  'name',
-  'icon',
-  'fadeBasemap',
+const DEFAULT_GROUP_STATE_FIELDS = [
+  'order',
+  'parentGroupId',
   'showInLayerSelector',
-  'integrationId',
-])
+] as const
 
 function isTemplateId(id: string): boolean {
   return typeof id === 'string' && id.startsWith('default:')
+}
+
+/**
+ * Narrow an update aimed at a default template down to the sidecar fields,
+ * warning about anything the template won't accept.
+ *
+ * `visible` is dropped without a warning: visibility is ephemeral UI state and
+ * flows through the localStorage override maps, never the sidecar.
+ */
+function buildDefaultStatePatch(
+  updates: Record<string, any>,
+  allowedFields: readonly string[],
+  templateId: string,
+): DefaultStatePatch {
+  const patch: Record<string, any> = {}
+  for (const key of Object.keys(updates)) {
+    if (allowedFields.includes(key)) {
+      patch[key] = updates[key]
+    } else if (key !== 'visible') {
+      console.warn(
+        `Cannot edit "${key}" on system layer ${templateId} — templates are read-only`,
+      )
+    }
+  }
+  return patch as DefaultStatePatch
 }
 
 /**
@@ -64,13 +92,6 @@ function isTemplateId(id: string): boolean {
  * reactive, so labels still follow a locale change.
  */
 const translate = (i18n.global as any).t as (key: string) => string
-
-function hasContentChanges(
-  patch: Partial<Layer | LayerGroup>,
-  contentFields: Set<string>,
-): boolean {
-  return Object.keys(patch).some(k => contentFields.has(k))
-}
 
 export const useLayersStore = defineStore('layers', () => {
   const layersService = useLayersService()
@@ -139,7 +160,7 @@ export const useLayersStore = defineStore('layers', () => {
   // REACTIVE STATE
   // ==========================================================================
 
-  // User-owned DB rows (custom layers + clones of defaults). Never contains
+  // User-owned DB rows (the user's own custom layers). Never contains
   // template-backed defaults.
   const userOwnedLayers = ref<Layer[]>(
     Array.isArray(cachedUserLayers.value) ? cachedUserLayers.value : [],
@@ -156,7 +177,7 @@ export const useLayersStore = defineStore('layers', () => {
     cachedDefaultTemplates.value?.groups ?? [],
   )
 
-  // User's sidecar state for default templates (overrides + tombstones).
+  // User's sidecar state for default templates (preferences + tombstones).
   const defaultState = ref<DefaultUserStateRow[]>(
     Array.isArray(cachedDefaultState.value) ? cachedDefaultState.value : [],
   )
@@ -196,6 +217,30 @@ export const useLayersStore = defineStore('layers', () => {
   })
 
   // ==========================================================================
+  // LIBRARY MEMBERSHIP (which templates the user has added)
+  // ==========================================================================
+  //
+  // The rules themselves live in `@/lib/layer-templates`; this is just the
+  // reactive wiring around them.
+
+  const groupTemplateIds = computed(
+    () => new Set<string>(defaultGroupTemplates.value.map(t => t.templateId)),
+  )
+
+  const addedDefaultGroupIds = computed(() =>
+    resolveAddedGroupIds(defaultGroupTemplates.value, getDefaultGroupState),
+  )
+
+  function isDefaultLayerAdded(template: any): boolean {
+    return isLayerTemplateAdded(
+      template,
+      getDefaultLayerState,
+      addedDefaultGroupIds.value,
+      groupTemplateIds.value,
+    )
+  }
+
+  // ==========================================================================
   // MERGED COMPOSITION (templates + user state → visible defaults)
   // ==========================================================================
 
@@ -208,11 +253,11 @@ export const useLayersStore = defineStore('layers', () => {
 
   /**
    * Project a default layer template into a Layer object with user state
-   * applied. Returns null if the user has tombstoned the template (hidden).
+   * applied. Returns null when the template isn't in the user's library.
    */
   function projectDefaultLayer(template: any): Layer | null {
+    if (!isDefaultLayerAdded(template)) return null
     const state = getDefaultLayerState(template.templateId)
-    if (state?.hidden) return null
     const visibilityOverride = getLayerVisibilityOverride(template.templateId)
     return {
       id: template.templateId,
@@ -223,7 +268,8 @@ export const useLayersStore = defineStore('layers', () => {
       // must not normalize or downcast it to 'custom' here.
       type: template.type ?? LayerType.CUSTOM,
       engine: template.engine ?? [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
-      showInLayerSelector: template.showInLayerSelector,
+      showInLayerSelector:
+        state?.showInLayerSelector ?? template.showInLayerSelector,
       visible: visibilityOverride ?? state?.visible ?? template.visible,
       fadeBasemap: template.fadeBasemap ?? false,
       icon: template.icon ?? null,
@@ -243,13 +289,14 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   function projectDefaultGroup(template: any): LayerGroup | null {
+    if (!addedDefaultGroupIds.value.has(template.templateId)) return null
     const state = getDefaultGroupState(template.templateId)
-    if (state?.hidden) return null
     const visibilityOverride = getGroupVisibilityOverride(template.templateId)
     return {
       id: template.templateId,
       name: template.name,
-      showInLayerSelector: template.showInLayerSelector,
+      showInLayerSelector:
+        state?.showInLayerSelector ?? template.showInLayerSelector,
       visible: visibilityOverride ?? state?.visible ?? template.visible,
       fadeBasemap: template.fadeBasemap ?? false,
       icon: template.icon ?? undefined,
@@ -372,6 +419,20 @@ export const useLayersStore = defineStore('layers', () => {
       return set.has(g.integrationId.toLowerCase())
     })
   })
+
+  // ==========================================================================
+  // LAYER STORE (pre-defined bundles the user can add to their library)
+  // ==========================================================================
+
+  const layerStoreItems = computed<LayerStoreItem[]>(() =>
+    buildLayerStoreItems({
+      groupTemplates: defaultGroupTemplates.value,
+      layerTemplates: defaultLayerTemplates.value,
+      getGroupState: getDefaultGroupState,
+      getLayerState: getDefaultLayerState,
+      isIntegrationAvailable,
+    }),
+  )
 
   // Kept for backwards compatibility: alias used by many components.
   const layerGroups = allLayerGroups
@@ -532,30 +593,43 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   /**
-   * Restore defaults: clear all state sidecar rows (un-hide tombstones,
-   * reset visibility/order overrides). User-owned clones remain.
+   * Add a store bundle to the library.
    *
-   * Also clears the localStorage visibility override maps — otherwise a user
-   * who had toggled off a default layer would see the layer stay off even
-   * after restoring defaults, because the sidecar clear doesn't touch the
-   * ephemeral visibility cache.
+   * Membership cascades, so marking the bundle root as added is normally the
+   * whole job. The exception is a member the user had deleted on its own: it
+   * has no store entry to add it back from, so re-adding the bundle clears
+   * those tombstones too — and only those, to keep this to one request in the
+   * ordinary case rather than one per member.
    */
-  async function restoreDefaults() {
-    try {
-      const result = await crudService.restoreDefaults()
-      defaultState.value = []
-      cachedDefaultState.value = []
-      layerVisibilityOverrides.value = {}
-      groupVisibilityOverrides.value = {}
-      return {
-        success: true,
-        restoredLayers: result.cleared,
-        restoredGroups: 0,
-      }
-    } catch (error) {
-      console.error('Failed to restore defaults:', error)
-      return { success: false, restoredLayers: 0, restoredGroups: 0 }
+  async function addStoreItem(item: LayerStoreItem) {
+    if (item.type === 'layer') {
+      await patchDefaultLayerState(item.templateId, { hidden: false })
+      return
     }
+
+    const groupIds = collectGroupSubtree(
+      item.templateId,
+      defaultGroupTemplates.value,
+      getDefaultGroupState,
+    )
+    const layerIds = collectGroupLayerTemplateIds(
+      groupIds,
+      defaultLayerTemplates.value,
+      getDefaultLayerState,
+    )
+
+    await patchDefaultGroupState(item.templateId, { hidden: false })
+    await Promise.all([
+      ...groupIds
+        .filter(
+          id =>
+            id !== item.templateId && getDefaultGroupState(id)?.hidden === true,
+        )
+        .map(id => patchDefaultGroupState(id, { hidden: null })),
+      ...layerIds
+        .filter(id => getDefaultLayerState(id)?.hidden === true)
+        .map(id => patchDefaultLayerState(id, { hidden: null })),
+    ])
   }
 
   // ==========================================================================
@@ -606,10 +680,11 @@ export const useLayersStore = defineStore('layers', () => {
           userId: 'me',
           templateId,
           type,
-          hidden: patch.hidden ?? false,
+          hidden: patch.hidden ?? null,
           visible: patch.visible ?? null,
           order: patch.order ?? null,
           enabled: patch.enabled ?? null,
+          showInLayerSelector: patch.showInLayerSelector ?? null,
           groupId: patch.groupId ?? null,
           parentGroupId: patch.parentGroupId ?? null,
           createdAt: now,
@@ -671,26 +746,13 @@ export const useLayersStore = defineStore('layers', () => {
     }
 
     if (isTemplateId(id)) {
-      // Content edits → clone-on-modify
-      if (hasContentChanges(updates, LAYER_CONTENT_FIELDS)) {
-        const clone = await crudService.cloneDefaultLayer(id, updates)
-        userOwnedLayers.value.push(clone)
-        // Server created a hidden=true state row; reflect locally
-        upsertLocalState(id, 'layer', { hidden: true })
-        syncLayersToCache()
-        syncStateToCache()
-        return clone
-      }
-      // Light override → sidecar state.
-      // NB: `visible` is intentionally NOT forwarded here. Visibility is
-      // ephemeral UI state and flows exclusively through
-      // `updateLayerVisibility` (localStorage override map). Persisting it to
-      // the sidecar would double-write and re-introduce the cross-device
-      // "visibility sync" behavior we explicitly removed.
-      const patch: DefaultStatePatch = {}
-      if ('order' in updates) patch.order = updates.order
-      if ('enabled' in updates) patch.enabled = updates.enabled
-      if ('groupId' in updates) patch.groupId = updates.groupId
+      // System layers are read-only: only the user's preferences about one are
+      // writable, and those live in the sidecar.
+      const patch = buildDefaultStatePatch(
+        updates,
+        DEFAULT_LAYER_STATE_FIELDS,
+        id,
+      )
       if (Object.keys(patch).length === 0) return
       await patchDefaultLayerState(id, patch)
       return
@@ -744,19 +806,11 @@ export const useLayersStore = defineStore('layers', () => {
     // flows through the override maps instead.
     if (isVirtualLayerId(id)) return
     if (isTemplateId(id)) {
-      if (hasContentChanges(updates, GROUP_CONTENT_FIELDS)) {
-        const clone = await crudService.cloneDefaultGroup(id, updates)
-        userOwnedGroups.value.push(clone)
-        upsertLocalState(id, 'group', { hidden: true })
-        syncGroupsToCache()
-        syncStateToCache()
-        return clone
-      }
-      // `visible` is intentionally NOT forwarded here — see updateLayer for
-      // the rationale. Group visibility lives in the local override map.
-      const patch: DefaultStatePatch = {}
-      if ('order' in updates) patch.order = updates.order
-      if ('parentGroupId' in updates) patch.parentGroupId = updates.parentGroupId
+      const patch = buildDefaultStatePatch(
+        updates,
+        DEFAULT_GROUP_STATE_FIELDS,
+        id,
+      )
       if (Object.keys(patch).length === 0) return
       await patchDefaultGroupState(id, patch)
       return
@@ -775,28 +829,22 @@ export const useLayersStore = defineStore('layers', () => {
     // flows through the override maps instead.
     if (isVirtualLayerId(id)) return
     if (isTemplateId(id)) {
-      // Tombstone the default group itself, and also reassign any layers
-      // currently projected into this group out to the top level. Without
-      // this, layers whose template or state still points at `id` would
-      // effectively become invisible in the UI (the group is hidden so it
-      // has no row, but the layers still claim `groupId === id`).
-      const orphanedLayers = filteredMergedLayers.value.filter(
+      // Default members leave with the group — membership cascades down the
+      // template tree, and the store puts the whole bundle back in one go.
+      // User-owned children have no such safety net, so move them out to the
+      // top level rather than letting them disappear.
+      const orphanedLayers = userOwnedLayers.value.filter(
         l => l.groupId === id,
       )
       for (const layer of orphanedLayers) {
-        if (isTemplateId(layer.id)) {
-          await patchDefaultLayerState(layer.id, { groupId: null })
-        } else {
-          // User-owned clone or custom layer — move via normal CRUD path.
-          try {
-            const updated = await crudService.updateLayer(layer.id, {
-              groupId: null,
-            })
-            const idx = userOwnedLayers.value.findIndex(l => l.id === layer.id)
-            if (idx !== -1) userOwnedLayers.value[idx] = updated
-          } catch (error) {
-            console.error('Failed to reparent orphaned layer:', error)
-          }
+        try {
+          const updated = await crudService.updateLayer(layer.id, {
+            groupId: null,
+          })
+          const idx = userOwnedLayers.value.findIndex(l => l.id === layer.id)
+          if (idx !== -1) userOwnedLayers.value[idx] = updated
+        } catch (error) {
+          console.error('Failed to reparent orphaned layer:', error)
         }
       }
       // Also reparent any user-owned child groups out to the top level so
@@ -1186,9 +1234,12 @@ export const useLayersStore = defineStore('layers', () => {
     groupTree,
     getGroupTotalLayerCount,
 
+    // Layer store
+    layerStoreItems,
+    addStoreItem,
+
     // Data operations
     loadLayers,
-    restoreDefaults,
     addLayer,
     updateLayer,
     removeLayer,

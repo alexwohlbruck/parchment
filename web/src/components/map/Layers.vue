@@ -11,14 +11,9 @@ import LayerConfiguration from './layers/LayerConfiguration.vue'
 import LayerGroupConfiguration from './layers/LayerGroupConfiguration.vue'
 import LayerItemComponent from './layers/LayerItem.vue'
 import LayerGroupItem from './layers/LayerGroupItem.vue'
+import LayerStoreDialog from './layers/LayerStoreDialog.vue'
 import { Button } from '@/components/ui/button'
-import {
-  FolderIcon,
-  PlusIcon,
-  LayersIcon,
-  MoreHorizontalIcon,
-  RotateCcwIcon,
-} from 'lucide-vue-next'
+import { FolderIcon, PlusIcon, LayersIcon, StoreIcon } from 'lucide-vue-next'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,12 +52,7 @@ function openLayerGroupConfigDialog(groupId?: string) {
   })
 }
 
-async function restoreDefaults() {
-  const result = await layersStore.restoreDefaults()
-  appService.toast.success(
-    t('layers.restoreDefaults.success', { count: result.restoredLayers + result.restoredGroups }),
-  )
-}
+const storeOpen = ref(false)
 
 // Track expanded groups
 const expandedGroups = ref(new Set<string>())
@@ -169,20 +159,20 @@ async function handleMainChange(evt: any) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-    <DropdownMenu>
-      <DropdownMenuTrigger as-child>
-        <Button variant="ghost" size="icon" class="size-7">
-          <MoreHorizontalIcon class="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem @click="restoreDefaults">
-          <RotateCcwIcon class="size-4" />
-          {{ t('layers.actions.restoreDefaults') }}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <!-- Sits outside `TooltipProvider`, so this one labels itself natively. -->
+    <Button
+      variant="ghost"
+      size="icon"
+      class="size-7"
+      :aria-label="t('layers.store.title')"
+      :title="t('layers.store.title')"
+      @click="storeOpen = true"
+    >
+      <StoreIcon class="size-4" />
+    </Button>
   </Teleport>
+
+  <LayerStoreDialog v-model:open="storeOpen" />
 
   <TooltipProvider>
     <div class="h-full flex flex-col">

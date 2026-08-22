@@ -493,15 +493,10 @@
       "editGroup": "Editar Grupo",
       "deleteGroup": "Eliminar Grupo",
       "deleteLayer": "Eliminar Capa",
-      "ungroupLayer": "Desagrupar Capa",
-      "restoreDefaults": "Restaurar predeterminados"
+      "ungroupLayer": "Desagrupar Capa"
     },
     "empty": {
       "message": "No hay capas configuradas"
-    },
-    "restoreDefaults": {
-      "button": "Restaurar predeterminados",
-      "success": "Se restauraron {count} capas predeterminadas"
     },
     "badges": {
       "default": "Predeterminado",
@@ -512,6 +507,16 @@
       "uncategorized": "Sin archivar",
       "locked": "Colección bloqueada",
       "frequents": "Frecuentes"
+    },
+    "store": {
+      "title": "Tienda de capas",
+      "description": "Añade capas predefinidas a tu biblioteca.",
+      "add": "Añadir",
+      "added": "{name} añadida a tu biblioteca",
+      "inLibrary": "Añadida",
+      "layers": "1 capa | {count} capas",
+      "allAdded": "Todo esto ya está en tu biblioteca.",
+      "empty": "No hay capas disponibles."
     }
   },
   "directions": {
@@ -1796,7 +1801,6 @@
     "reopenError": "Error al reactivar la nota",
     "actionClosed": "resolvió esta nota",
     "actionReopened": "reactivó esta nota",
-    "layer": "Notas OSM",
     "addNote": "Agregar nota",
     "createNote": "Nueva Nota",
     "createDescription": "Arrastra el marcador para ajustar la ubicación. Describe el problema o sugerencia a continuación.",

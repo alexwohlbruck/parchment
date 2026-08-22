@@ -247,7 +247,19 @@ export enum LayerType {
   TRANSIT = 'transit',
   FRIENDS = 'friends',
   TRACKERS = 'trackers',
+  NOTES = 'notes',
 }
+
+/**
+ * Layer types the map engine never draws itself: their features are rendered
+ * as Vue markers by a dedicated service, which watches the layer's `visible`
+ * flag. Handing one to `addLayer` would just warn about a missing source.
+ */
+export const MARKER_RENDERED_LAYER_TYPES: ReadonlySet<LayerType> = new Set([
+  LayerType.FRIENDS,
+  LayerType.TRACKERS,
+  LayerType.NOTES,
+])
 
 /**
  * Origin describes where a layer/group's canonical definition lives.
@@ -295,8 +307,6 @@ export interface Layer {
   // Synthesized on the client when composing default templates + user state.
   // Never set for core layers or fresh custom layers.
   origin?: LayerOrigin
-  // Set on a DB row when it was created by cloning a default template.
-  clonedFromTemplateId?: string | null
   userId?: string
   createdAt?: string
   updatedAt?: string
@@ -313,7 +323,6 @@ export interface LayerGroup {
   parentGroupId?: string | null
   integrationId?: string | null
   origin?: LayerOrigin
-  clonedFromTemplateId?: string | null
   userId: string
   createdAt: string
   updatedAt: string

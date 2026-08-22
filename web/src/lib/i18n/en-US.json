@@ -484,8 +484,7 @@
       "editGroup": "Edit Group",
       "deleteGroup": "Delete Group",
       "deleteLayer": "Delete Layer",
-      "ungroupLayer": "Ungroup Layer",
-      "restoreDefaults": "Restore defaults"
+      "ungroupLayer": "Ungroup Layer"
     },
     "empty": {
       "message": "No layers configured"
@@ -518,10 +517,6 @@
         }
       }
     },
-    "restoreDefaults": {
-      "button": "Restore defaults",
-      "success": "Restored {count} default layers"
-    },
     "badges": {
       "default": "Default",
       "custom": "Custom"
@@ -531,6 +526,16 @@
       "uncategorized": "Unfiled",
       "locked": "Locked collection",
       "frequents": "Frequents"
+    },
+    "store": {
+      "title": "Layer store",
+      "description": "Add pre-made layers to your library.",
+      "add": "Add",
+      "added": "Added {name} to your library",
+      "inLibrary": "Added",
+      "layers": "1 layer | {count} layers",
+      "allAdded": "Everything here is already in your library.",
+      "empty": "No layers available."
     }
   },
   "directions": {
@@ -1916,7 +1921,6 @@
     "reopenError": "Failed to reactivate note",
     "actionClosed": "resolved this note",
     "actionReopened": "reactivated this note",
-    "layer": "OSM Notes",
     "addNote": "Add note",
     "createNote": "New Note",
     "createDescription": "Drag the marker to adjust the location. Describe the issue or suggestion below.",

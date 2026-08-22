@@ -13,7 +13,6 @@ import { useI18n } from 'vue-i18n'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
-import { useNotesStore } from '@/stores/notes.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map.service'
 import { basemaps } from '../map/map.data'
@@ -27,7 +26,6 @@ const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const notesStore = useNotesStore()
 const { t } = useI18n()
 
 const { layers, allLayerGroups, mainReorderableItems, groupTree, savedPlacesMeta } =
@@ -146,18 +144,6 @@ const nodes = computed<SelectorNode[]>(() => {
     if (!layer || layer.groupId || !layer.showInLayerSelector) continue
     result.push(layerNode(layer))
   }
-
-  // OSM notes aren't a `layers` row — they're their own store-backed overlay —
-  // but they belong in the same list as far as the user is concerned.
-  result.push({
-    id: 'osm-notes',
-    name: t('notes.layer'),
-    icon: 'MessageSquare',
-    visible: notesStore.isLayerVisible,
-    onToggle: (visible: boolean) => {
-      notesStore.isLayerVisible = visible
-    },
-  })
 
   return result
 })

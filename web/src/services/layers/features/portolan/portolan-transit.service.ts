@@ -73,7 +73,8 @@ import {
   stationVisible,
   widthExpr,
 } from './portolan-expressions'
-import { cssFontFor, drawPortolanImage, estRows } from './portolan-images'
+import { cssFontFor, drawPortolanImage, estRows, estRowsFromAdvances } from './portolan-images'
+import { glyphAdvances } from './portolan-glyphs'
 import { TRANSIT_GROUP_ID, parseGtfsIds } from './portolan-ui'
 
 const FLAG_KEY = 'parchment.portolan-transit'
@@ -151,6 +152,12 @@ let themeDark = false
  *  basemap — the value a theme change has to disagree with before
  *  anything is repainted. null until they are first lettered. */
 let inkDark: boolean | null = null
+
+/** Which measurement the cached `nrows` were made with (font stack plus
+ *  the glyph ranges loaded at the time). The first pass runs before the
+ *  map has fetched a single glyph, so it is a canvas estimate; this is
+ *  what lets the exact one replace it the moment it becomes possible. */
+let rowsKey = ''
 
 /** Full emissive strength: the ribbons and their labels are ink on the
  *  map, not lit geometry — they must keep their colour under any light
@@ -270,6 +277,7 @@ function teardownPortolanTransit() {
   clearHydration()
   clearMounts()
   inkDark = null
+  rowsKey = ''
   structuralFilter.clear()
 }
 
@@ -322,8 +330,12 @@ function bindListeners() {
     },
     // moveend fires while tiles are still arriving; idle is the settled
     // signal, and without it a sweep that found nothing mid-flight was
-    // never retried.
-    idle: () => requestHydrate(),
+    // never retried. It is also when the glyphs for the labels just drawn
+    // have certainly arrived, which is what an exact wrap count needs.
+    idle: () => {
+      requestHydrate()
+      remeasureRows()
+    },
     // A Mapbox theme switch is a config change on the basemap import: no
     // style.load, no rebuild, nothing that would otherwise re-letter our
     // names. styledata is where that change surfaces. Only a FLIP of the
@@ -525,6 +537,7 @@ async function sync() {
   if (map !== m) return
   restoreHeldTransitions()
   refreshLabelPaint()
+  remeasureRows()
   applyStations()
   applyTileFilters()
   requestHydrate()
@@ -930,16 +943,65 @@ function mapboxIsDark(): boolean | undefined {
   }
 }
 
-/** True when the BASEMAP is dark — see themeDark. */
-function mapIsDark(): boolean {
-  return themeDark
+/**
+ * How to count the rows a station name wraps to, best available first.
+ *
+ * The bullet strip hangs below the last row, so this number IS the strip's
+ * position — an error of one row is either a strip drawn across the name
+ * or a strip floating a line clear of it, which is the gap and the overlap
+ * both. The renderer's own glyph advances answer it exactly; a canvas
+ * measuring a substituted face only approximates it, and the 12% slack
+ * that approximation carries buys one failure to avoid the other.
+ *
+ * `key` names the measurement so a pass made before the glyphs arrived can
+ * be redone once they have.
+ */
+function rowMeasurer(): { key: string; rows: (name: string) => number } {
+  const font = basemapLabelFont()
+  const css = cssFontFor(font)
+  const exact = glyphAdvances(map, font)
+  if (!exact) return { key: `canvas:${css}`, rows: name => estRows(name, css) }
+  return {
+    key: `glyphs:${exact.key}`,
+    // a name reaching outside the ranges loaded so far still gets an
+    // answer, just not this one
+    rows: name => estRowsFromAdvances(name, exact.of) ?? estRows(name, css),
+  }
 }
 
-/** The CSS font matching what the label layers draw, so the row estimate
- *  and the shaping agree. Recomputed per sweep: a basemap swap changes
- *  the face under us. */
-function measureFont(): string {
-  return cssFontFor(basemapLabelFont())
+/**
+ * Re-count the wraps once a better measurement is available.
+ *
+ * prepareStations runs the moment the symbols land, which is before the
+ * engine has fetched the glyphs for a single one of them — so the first
+ * count is always the canvas estimate. By the time the map goes idle the
+ * glyphs for everything on screen are loaded, and the exact count can
+ * replace it. Cheap when nothing changed: same key, no work; same counts,
+ * no setData.
+ */
+function remeasureRows() {
+  if (!stationsRaw?.features) return
+  const measurer = rowMeasurer()
+  if (measurer.key === rowsKey) return
+  rowsKey = measurer.key
+  let moved = 0
+  for (const f of stationsRaw.features) {
+    const p = f.properties
+    if (!labelsItsOwnName(p)) continue
+    const rows = measurer.rows(String(p.name ?? ''))
+    if (rows === p.nrows) continue
+    p.nrows = rows
+    moved++
+  }
+  if (moved) applyStations()
+}
+
+/** Whether this symbol draws a name of its own, and so needs a wrap
+ *  count: every station, and a complex's markers once they letter their
+ *  own corridor. */
+function labelsItsOwnName(p: any): boolean {
+  if (p?.ftype === 'cat') return false
+  return p?.ftype !== 'marker' || p?.nmarkers > 1
 }
 
 /**
@@ -1460,6 +1522,8 @@ function hydrateSymbols() {
  *  styleimagemissing icons) runs from here. */
 function prepareStations(fc: any | null) {
   if (fc?.features) {
+    const measurer = rowMeasurer()
+    rowsKey = measurer.key
     for (const f of fc.features) {
       const p = f.properties
       if (p.ftype === 'cat') {
@@ -1481,7 +1545,7 @@ function prepareStations(fc: any | null) {
         if (p.nmarkers > 1) {
           const ids = bulletIdsOf(p)
           if (ids.length) p.brow = 'row-' + ids.join('|')
-          p.nrows = estRows(String(p.name ?? ''), measureFont())
+          p.nrows = measurer.rows(String(p.name ?? ''))
         }
       } else {
         // the whole bullet strip is ONE composed image rendered as the
@@ -1489,7 +1553,7 @@ function prepareStations(fc: any | null) {
         // text corrupts the fork's per-tile glyph/image atlas)
         const ids = bulletIdsOf(p)
         if (ids.length) p.brow = 'row-' + ids.join('|')
-        p.nrows = estRows(String(p.name ?? ''), measureFont())
+        p.nrows = measurer.rows(String(p.name ?? ''))
       }
     }
   }

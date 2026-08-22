@@ -258,6 +258,62 @@ export function cssFontFor(stack: string[], sizePx = 100): string {
  * and the bullet strip — which hangs below the LAST row — drops a whole
  * line clear of a name that fits on one.
  */
+/** Both engines shape with glyphs whose advance is given at a 24 px em —
+ *  the same unit `text-max-width` (10 em) is compared against. */
+export const ONE_EM = 24
+
+/** text-max-width, in ems: neither label layer overrides the default. */
+const MAX_EM = 10
+
+/** How many places this name may break at. An unbreakable name overruns
+ *  its max width on one line rather than splitting mid-word, so this
+ *  bounds the row count from above. */
+function breakOpportunities(text: string): number {
+  let breaks = 0
+  for (let i = 0; i < text.length - 1; i++) {
+    if (BREAKABLE.has(text.charCodeAt(i)) || BREAKABLE_BEFORE.has(text.charCodeAt(i + 1))) breaks++
+  }
+  return breaks
+}
+
+/**
+ * How many rows the renderer will shape this name into, measured with the
+ * renderer's OWN glyph advances.
+ *
+ * This is the answer, where estRows below is a guess. The map does not
+ * shape with a font the browser has; it shapes with SDF glyphs served by
+ * the style's glyph endpoint, and a canvas asked for "DIN Pro" or
+ * "Roboto Medium" measures whatever the system substitutes instead —
+ * wider or narrower by a few per cent, which is exactly enough to move a
+ * borderline name across the wrap threshold in either direction. Both
+ * directions show: undercount and the bullet strip draws ON the second
+ * line, overcount and it floats a line clear of a name that fitted.
+ *
+ * The advances handed in come from the glyphs the engine has already
+ * loaded for this very font stack, so the arithmetic here is the
+ * arithmetic MapLibre's determineLineBreaks does — no substitution, no
+ * slack, no tuning.
+ *
+ * null when any character of the name has no glyph loaded yet: a
+ * half-measured name is worse than an honest estimate, and the caller
+ * falls back to the canvas until the range arrives.
+ */
+export function estRowsFromAdvances(
+  name: string,
+  advanceOf: (code: number) => number | undefined,
+): number | null {
+  const text = name.trim()
+  if (!text) return 1
+  let width = 0
+  for (const ch of text) {
+    const advance = advanceOf(ch.codePointAt(0)!)
+    if (advance === undefined) return null
+    width += advance
+  }
+  const rows = Math.ceil(width / (MAX_EM * ONE_EM))
+  return Math.max(1, Math.min(MAX_ROWS, rows, breakOpportunities(text) + 1))
+}
+
 export function estRows(name: string, cssFont = MEASURE_FONT): number {
   const ctx = (measureCtx ||= document.createElement('canvas').getContext('2d')!)
   if (ctx.font !== cssFont) ctx.font = cssFont
@@ -272,14 +328,10 @@ export function estRows(name: string, cssFont = MEASURE_FONT): number {
   // line clear of a name that fitted. Erring the other way costs a few
   // pixels of overlap on a genuinely borderline name, which is much the
   // smaller sin, so only wrap when the name clears the limit decisively.
-  const maxW = 10 * 100 * 1.12
+  const maxW = MAX_EM * 100 * 1.12
   const text = name.trim()
   if (!text) return 1
-  let breaks = 0
-  for (let i = 0; i < text.length - 1; i++) {
-    if (BREAKABLE.has(text.charCodeAt(i)) || BREAKABLE_BEFORE.has(text.charCodeAt(i + 1))) breaks++
-  }
   // MapLibre sums every glyph's advance, spaces included, then divides
   const rows = Math.ceil(ctx.measureText(text).width / maxW)
-  return Math.max(1, Math.min(MAX_ROWS, rows, breaks + 1))
+  return Math.max(1, Math.min(MAX_ROWS, rows, breakOpportunities(text) + 1))
 }

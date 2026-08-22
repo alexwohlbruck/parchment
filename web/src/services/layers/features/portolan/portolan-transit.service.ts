@@ -506,6 +506,7 @@ async function sync() {
   await reconcileFeeds(regions)
   if (map !== m) return
   restoreHeldTransitions()
+  refreshLabelPaint()
   applyStations()
   applyTileFilters()
   requestHydrate()
@@ -672,6 +673,12 @@ async function reconcileFeeds(regions: PortolanIndexEntry[]) {
 
 function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
   if (map.getSource(SRC_STATIONS)) return // this style is already built
+  // setStyle({diff:false}) — a theme swap, a basemap swap — takes every
+  // layer we added with it while the map object stays the same. The
+  // mounted set would otherwise still name feeds that are no longer on
+  // the map, and reconcile would skip re-adding them: the network simply
+  // never came back after switching to dark.
+  clearMounts()
   structuralFilter.clear()
 
   // one GeoJSON source per band for the hydrated transitions/bridges —
@@ -840,6 +847,30 @@ function unmountFeed(feed: string) {
 }
 
 
+
+/**
+ * Re-letter the existing labels for whatever the basemap is painting now.
+ *
+ * Rebuilding the layers already picks up the current paint, but that only
+ * happens when the style is replaced. This runs on every sweep, so a
+ * theme change tracks even if the layers outlive it — the station names
+ * follow the street names, which is what the style does for its own.
+ */
+function refreshLabelPaint() {
+  if (!hydrationReady()) return
+  const paint = basemapLabelPaint()
+  for (const id of ['portolan-station-labels', 'portolan-station-labels-hi']) {
+    if (!map.getLayer(id)) continue
+    map.setPaintProperty(id, 'text-color', paint['text-color'])
+    map.setPaintProperty(id, 'text-halo-color', paint['text-halo-color'])
+    map.setPaintProperty(id, 'text-halo-width', paint['text-halo-width'])
+  }
+  // a caterpillar keeps the line's own colour; only its halo follows
+  for (const id of ['portolan-cats', 'portolan-cat-text']) {
+    if (!map.getLayer(id)) continue
+    map.setPaintProperty(id, 'text-halo-color', paint['text-halo-color'])
+  }
+}
 
 /** How to letter a station name over whatever the basemap is painting.
  *  The logic is pure and lives in portolan-expressions, where it is

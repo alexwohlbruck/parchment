@@ -12,10 +12,16 @@
  * opening whatever is underneath.
  */
 
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import type { Position } from 'geojson'
 import { mapEventBus } from '@/lib/eventBus'
 import { useMapStore } from '@/stores/map.store'
+import { useMapToolsStore } from '@/stores/map-tools.store'
+import {
+  RouteSnapAborted,
+  snapWaypointsToPath,
+} from '@/lib/route-snapping'
+import type { RouteMode } from '@/types/routes.types'
 import type { LngLat, MapEvents } from '@/types/map.types'
 import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
 import {
@@ -31,6 +37,7 @@ export function useCanvasAnnotations(options: {
   onCommit: (annotation: CanvasAnnotation) => void
 }) {
   const mapStore = useMapStore()
+  const mapToolsStore = useMapToolsStore()
 
   /**
    * Put the map into drawing mode, and take it back out again.
@@ -41,6 +48,11 @@ export function useCanvasAnnotations(options: {
    * a map that behaves differently should look like it does.
    */
   function setDrawingMode(active: boolean) {
+    // Take the click away from the basemap's POI interaction: it would win
+    // the click and re-emit it at the POI's centre, so a vertex dropped near
+    // a cafe would land on the cafe.
+    mapToolsStore.rawClickCapture = active
+
     const map = mapStore.getMapStrategy()?.mapInstance as
       | {
           doubleClickZoom?: { enable: () => void; disable: () => void }
@@ -59,6 +71,62 @@ export function useCanvasAnnotations(options: {
   /** Positions clicked for the annotation currently being drawn. */
   const positions = ref<Position[]>([])
 
+  // ── Route snapping ─────────────────────────────────────────────────────────
+  //
+  // The Route tool takes the same clicks as Line, then asks the routing engine
+  // to follow the network between them — the same call the route builder uses,
+  // via `lib/route-snapping`. The straight line shows until the path lands, so
+  // the shape never blinks out while a request is in flight.
+
+  const routeMode = ref<RouteMode>('walking')
+  const routed = ref<CanvasAnnotation['routed'] | null>(null)
+  const isSnapping = ref(false)
+  let snapRequest: AbortController | undefined
+
+  async function snapRoute() {
+    if (tool.value !== 'route' || positions.value.length < 2) {
+      routed.value = null
+      return
+    }
+
+    snapRequest?.abort()
+    const controller = new AbortController()
+    snapRequest = controller
+    isSnapping.value = true
+
+    try {
+      const path = await snapWaypointsToPath({
+        waypoints: positions.value.map(([lng, lat]) => ({ lat, lng })),
+        mode: routeMode.value,
+        signal: controller.signal,
+      })
+      // A miss leaves the last good path in place: the straight fallback is
+      // still drawn from the waypoints, so nothing is lost either way.
+      if (path) {
+        routed.value = {
+          geometry: path.geometry,
+          mode: routeMode.value,
+          distance: path.stats.distance,
+          duration: path.stats.duration,
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof RouteSnapAborted)) {
+        console.error('[canvas] failed to snap route', error)
+      }
+    } finally {
+      if (snapRequest === controller) {
+        isSnapping.value = false
+        snapRequest = undefined
+      }
+    }
+  }
+
+  // Re-snap on a new waypoint or a mode change, never on anything else.
+  watch([positions, routeMode], () => {
+    if (tool.value === 'route') void snapRoute()
+  })
+
   const isArmed = computed(() => tool.value !== null)
   const canFinish = computed(
     () => !!tool.value && isComplete(tool.value, positions.value.length),
@@ -76,15 +144,24 @@ export function useCanvasAnnotations(options: {
       tool: tool.value,
       positions: [...positions.value],
       color: color.value,
+      ...(tool.value === 'route' && routed.value
+        ? { routed: routed.value }
+        : {}),
     }
   })
 
   function commit() {
     if (!tool.value || !canFinish.value) return
     options.onCommit(
-      createAnnotation(tool.value, [...positions.value], color.value),
+      createAnnotation(
+        tool.value,
+        [...positions.value],
+        color.value,
+        routed.value ?? undefined,
+      ),
     )
     positions.value = []
+    routed.value = null
   }
 
   function onMapClick(event: MapEvents['click']) {
@@ -106,6 +183,7 @@ export function useCanvasAnnotations(options: {
   function arm(next: AnnotationTool | null) {
     if (tool.value === next || !next) return disarm()
     positions.value = []
+    routed.value = null
     if (!tool.value) mapEventBus.setOverride('click', onMapClick)
     tool.value = next
     setDrawingMode(true)
@@ -113,8 +191,10 @@ export function useCanvasAnnotations(options: {
 
   function disarm() {
     if (tool.value) mapEventBus.removeOverride('click', onMapClick)
+    snapRequest?.abort()
     tool.value = null
     positions.value = []
+    routed.value = null
     setDrawingMode(false)
   }
 
@@ -125,6 +205,7 @@ export function useCanvasAnnotations(options: {
 
   function undo() {
     positions.value = positions.value.slice(0, -1)
+    if (positions.value.length < 2) routed.value = null
   }
 
   onScopeDispose(disarm)
@@ -132,6 +213,8 @@ export function useCanvasAnnotations(options: {
   return {
     tool,
     color,
+    routeMode,
+    isSnapping,
     isArmed,
     canFinish,
     canUndo,

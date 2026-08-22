@@ -303,7 +303,10 @@ export class MapboxStrategy extends MapStrategy {
       handler: e => {
         // When measure tool is active, ignore POI clicks so the debounced map click
         // fires and the click is treated as a regular map click (add measure point).
-        if (useMapToolsStore().activeTool === 'measure') return
+        // Anything placing geometry needs the raw click, at the coordinates the
+        // user actually clicked — see `rawClickCapture`.
+        const mapTools = useMapToolsStore()
+        if (mapTools.activeTool === 'measure' || mapTools.rawClickCapture) return
         if (!e.feature?.id) return
 
         const { osmId, poiType } = parseMapboxToOsmId(e.feature.id)

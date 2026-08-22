@@ -10,6 +10,7 @@
  */
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useHotkeys } from '@/composables/useHotkeys'
+import { useUnits } from '@/composables/useUnits'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -75,6 +76,7 @@ const canvasesStore = useCanvasesStore()
 const canvasesService = useCanvasesService()
 const collectionsService = useCollectionsService()
 const routesService = useRoutesService()
+const { formatDistance } = useUnits()
 const appService = useAppService()
 const mapStore = useMapStore()
 const { canvases } = storeToRefs(canvasesStore)
@@ -137,6 +139,7 @@ useHotkeys([
   },
   { key: 'p', handler: () => annotations.arm('pin') },
   { key: 'l', handler: () => annotations.arm('line') },
+  { key: 'r', handler: () => annotations.arm('route') },
   { key: 'o', handler: () => annotations.arm('polygon') },
   { key: 'e', handler: () => annotations.arm('rectangle') },
   { key: 'i', handler: () => annotations.arm('circle') },
@@ -507,8 +510,19 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
             class="size-3 shrink-0 rounded-full border"
             :style="{ background: annotation.color }"
           />
-          <span class="min-w-0 flex-1 text-sm truncate">
-            {{ annotation.label || t(`canvases.toolbar.tools.${annotation.tool}`) }}
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm truncate">
+              {{ annotation.label || t(`canvases.toolbar.tools.${annotation.tool}`) }}
+            </span>
+            <span
+              v-if="annotation.routed"
+              class="block text-[11px] text-muted-foreground"
+            >
+              {{ t(`directions.modes.${annotation.routed.mode}`) }}
+              <template v-if="annotation.routed.distance">
+                · {{ formatDistance(annotation.routed.distance) }}
+              </template>
+            </span>
           </span>
           <Button
             variant="ghost"
@@ -555,8 +569,11 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           :can-finish="annotations.canFinish.value"
           :can-undo="annotations.canUndo.value"
           :vertex-count="annotations.vertexCount.value"
+          :route-mode="annotations.routeMode.value"
+          :is-snapping="annotations.isSnapping.value"
           @arm="annotations.arm"
           @update:color="value => (annotations.color.value = value)"
+          @update:route-mode="value => (annotations.routeMode.value = value)"
           @finish="annotations.finish"
           @undo="annotations.undo"
         />

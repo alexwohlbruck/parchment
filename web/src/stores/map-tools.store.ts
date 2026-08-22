@@ -13,6 +13,18 @@ export type MapToolId = 'none' | 'measure' | 'radius' | 'isochrone'
 export const useMapToolsStore = defineStore('map-tools', () => {
   const activeTool = ref<MapToolId>('none')
 
+  /**
+   * Set while something is capturing raw map clicks — the measure tool, or a
+   * canvas drawing tool.
+   *
+   * The basemap's POI interaction normally wins a click and re-emits it at the
+   * POI's own centre, which is right for "open this cafe" and wrong for
+   * "put a vertex here": the point would jump to the nearest label. Anything
+   * placing geometry sets this so the plain map click fires instead, with the
+   * coordinates actually clicked.
+   */
+  const rawClickCapture = ref(false)
+
   // Measure tool state: points in order, and history for undo/redo
   const measurePoints = ref<LngLat[]>([])
 
@@ -129,6 +141,7 @@ export const useMapToolsStore = defineStore('map-tools', () => {
 
   return {
     activeTool,
+    rawClickCapture,
     measurePoints,
     measureHistory,
     measureHistoryIndex,

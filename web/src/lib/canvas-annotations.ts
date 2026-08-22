@@ -20,6 +20,7 @@ import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
 export const TOOL_MINIMUM: Record<AnnotationTool, number> = {
   pin: 1,
   line: 2,
+  route: 2,
   polygon: 3,
   rectangle: 2,
   circle: 2,
@@ -33,6 +34,8 @@ export const TOOL_MINIMUM: Record<AnnotationTool, number> = {
 export const TOOL_AUTOCOMPLETES: Record<AnnotationTool, boolean> = {
   pin: true,
   line: false,
+  // A route keeps taking waypoints until you say you're done, like a line.
+  route: false,
   polygon: false,
   rectangle: true,
   circle: true,
@@ -94,6 +97,17 @@ export function annotationFeature(
         geometry: { type: 'LineString', coordinates: positions },
         properties,
       }
+    case 'route':
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          // Fall back to the straight line between waypoints while the engine
+          // is still thinking, so the shape never disappears mid-draw.
+          coordinates: annotation.routed?.geometry ?? positions,
+        },
+        properties: { ...properties, routed: !!annotation.routed },
+      }
     case 'polygon':
       return {
         type: 'Feature',
@@ -145,12 +159,14 @@ export function createAnnotation(
   tool: AnnotationTool,
   positions: Position[],
   color = DEFAULT_ANNOTATION_COLOR,
+  routed?: CanvasAnnotation['routed'],
 ): CanvasAnnotation {
   const annotation: CanvasAnnotation = {
     id: `an-${Math.random().toString(36).slice(2, 10)}`,
     tool,
     positions,
     color,
+    ...(tool === 'route' && routed ? { routed } : {}),
   }
   // A circle's radius is fixed when it's drawn: keeping it as a distance
   // means the shape survives its centre being moved later.

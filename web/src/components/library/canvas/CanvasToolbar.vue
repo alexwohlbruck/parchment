@@ -13,16 +13,22 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import ColorField from '@/components/map/layers/editor/ColorField.vue'
 import {
+  BikeIcon,
+  CarFrontIcon,
   CheckIcon,
   CircleIcon,
+  FootprintsIcon,
   MapPinIcon,
   MinusIcon,
   MousePointer2Icon,
   PentagonIcon,
   SquareIcon,
   UndoIcon,
+  WaypointsIcon,
 } from 'lucide-vue-next'
+import { Spinner } from '@/components/ui/spinner'
 import type { AnnotationTool } from '@/types/canvas.types'
+import type { RouteMode } from '@/types/routes.types'
 
 const props = defineProps<{
   tool: AnnotationTool | null
@@ -30,11 +36,16 @@ const props = defineProps<{
   canFinish: boolean
   canUndo: boolean
   vertexCount: number
+  /** Travel mode the Route tool snaps with. */
+  routeMode: RouteMode
+  /** True while the routing engine is working. */
+  isSnapping?: boolean
 }>()
 
 const emit = defineEmits<{
   arm: [tool: AnnotationTool | null]
   'update:color': [color: string]
+  'update:routeMode': [mode: RouteMode]
   finish: []
   undo: []
 }>()
@@ -45,9 +56,17 @@ const { t } = useI18n()
 const TOOLS: { id: AnnotationTool; icon: typeof MapPinIcon; key: string }[] = [
   { id: 'pin', icon: MapPinIcon, key: 'P' },
   { id: 'line', icon: MinusIcon, key: 'L' },
+  { id: 'route', icon: WaypointsIcon, key: 'R' },
   { id: 'polygon', icon: PentagonIcon, key: 'O' },
   { id: 'rectangle', icon: SquareIcon, key: 'E' },
   { id: 'circle', icon: CircleIcon, key: 'I' },
+]
+
+/** Travel modes the Route tool can snap with. */
+const ROUTE_MODES: { id: RouteMode; icon: typeof BikeIcon }[] = [
+  { id: 'walking', icon: FootprintsIcon },
+  { id: 'cycling', icon: BikeIcon },
+  { id: 'driving', icon: CarFrontIcon },
 ]
 
 /** Mid-draw only for the shapes that don't finish themselves. */
@@ -85,6 +104,25 @@ const isDrawing = computed(() => props.vertexCount > 0)
     >
       <component :is="item.icon" class="size-4" />
     </Button>
+
+    <!-- Which network the route follows. Only meaningful for that tool. -->
+    <template v-if="tool === 'route'">
+      <Separator orientation="vertical" class="h-5 mx-0.5" />
+      <Button
+        v-for="mode in ROUTE_MODES"
+        :key="mode.id"
+        variant="ghost"
+        size="icon"
+        class="size-8"
+        :class="routeMode === mode.id && 'bg-secondary text-foreground'"
+        :title="t(`directions.modes.${mode.id}`)"
+        :aria-label="t(`directions.modes.${mode.id}`)"
+        @click="emit('update:routeMode', mode.id)"
+      >
+        <component :is="mode.icon" class="size-4" />
+      </Button>
+      <Spinner v-if="isSnapping" class="size-3.5 mx-1 text-muted-foreground" />
+    </template>
 
     <template v-if="tool">
       <Separator orientation="vertical" class="h-5 mx-0.5" />

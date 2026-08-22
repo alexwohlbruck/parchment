@@ -106,6 +106,55 @@ describe('annotationsCollection', () => {
   })
 })
 
+describe('the route tool', () => {
+  it('draws the snapped path when the engine has returned one', () => {
+    const feature = annotationFeature(
+      annotation({
+        tool: 'route',
+        positions: [[0, 0], [1, 1]],
+        routed: {
+          geometry: [[0, 0], [0.4, 0.7], [1, 1]],
+          mode: 'walking',
+        },
+      }),
+    )
+
+    expect(
+      (feature?.geometry as never as { coordinates: number[][] }).coordinates,
+    ).toHaveLength(3)
+    expect(feature?.properties?.routed).toBe(true)
+  })
+
+  it('falls back to the straight line while the engine is still thinking', () => {
+    const feature = annotationFeature(
+      annotation({ tool: 'route', positions: [[0, 0], [1, 1]] }),
+    )
+
+    // The shape must never blink out mid-draw.
+    expect(
+      (feature?.geometry as never as { coordinates: number[][] }).coordinates,
+    ).toEqual([[0, 0], [1, 1]])
+    expect(feature?.properties?.routed).toBe(false)
+  })
+
+  it('keeps the waypoints alongside the path, so it can be re-snapped', () => {
+    const created = createAnnotation(
+      'route',
+      [[0, 0], [1, 1]],
+      '#000000',
+      { geometry: [[0, 0], [0.5, 0.5], [1, 1]], mode: 'cycling' },
+    )
+
+    expect(created.positions).toEqual([[0, 0], [1, 1]])
+    expect(created.routed?.mode).toBe('cycling')
+  })
+
+  it('waits for a second waypoint, like a line', () => {
+    expect(TOOL_MINIMUM.route).toBe(2)
+    expect(TOOL_AUTOCOMPLETES.route).toBe(false)
+  })
+})
+
 describe('tool rules', () => {
   it('finishes the tools that know when they are done, and no others', () => {
     expect(TOOL_AUTOCOMPLETES.pin).toBe(true)

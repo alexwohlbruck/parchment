@@ -949,7 +949,10 @@ export class MaplibreStrategy extends MapStrategy {
     }
 
     const handleClick = (layerEvent: any) => {
-      if (useMapToolsStore().activeTool === 'measure') return
+      // Anything placing geometry needs the raw click, at the coordinates the
+      // user actually clicked — see `rawClickCapture`.
+      const mapTools = useMapToolsStore()
+      if (mapTools.activeTool === 'measure' || mapTools.rawClickCapture) return
 
       const feature = layerEvent.features?.[0]
       if (!feature?.id) return

@@ -10,66 +10,17 @@ import { useDirectionsStore } from '@/stores/directions.store'
 import { useGeocodingService } from '@/services/geocoding.service'
 import { getSearchResultName } from '@/lib/search.utils'
 import type { Place } from '@/types/place.types'
+import {
+  backendMode,
+  RouteSnapAborted,
+  snapWaypointsToPath,
+} from '@/lib/route-snapping'
 import type {
   RouteBody,
   RouteMode,
   RouteScheme,
-  RouteSegment,
-  RouteStats,
   RouteWaypoint,
 } from '@/types/routes.types'
-
-/** Backend selectedMode token for a builder mode. */
-function backendMode(mode: RouteMode): string {
-  return mode === 'cycling' ? 'biking' : mode
-}
-
-/** Delay that resolves early if the request is superseded (aborted). */
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal.aborted) return resolve()
-    const t = setTimeout(resolve, ms)
-    signal.addEventListener('abort', () => {
-      clearTimeout(t)
-      resolve()
-    })
-  })
-}
-
-/**
- * Walk a raw directions response's segment tree and collect leaf legs with
- * geometry. Multimodal candidates nest sub-segments under
- * `details.multimodalSegments`; single-mode routes are already flat.
- */
-interface CollectedLeg extends RouteSegment {
-  /** Per-vertex elevation (meters), aligned to `geometry`; may be sparse. */
-  elevation: Array<number | undefined>
-}
-
-function collectLegs(segments: any[]): CollectedLeg[] {
-  const legs: CollectedLeg[] = []
-  for (const seg of segments ?? []) {
-    if (seg.details?.multimodalSegments) {
-      legs.push(...collectLegs(seg.details.multimodalSegments))
-      continue
-    }
-    const points = seg.geometry ?? []
-    const geometry: Array<[number, number]> = points.map(
-      (c: any) => [c.lng, c.lat] as [number, number],
-    )
-    const elevation: Array<number | undefined> = points.map((c: any) =>
-      typeof c.elevation === 'number' ? c.elevation : undefined,
-    )
-    legs.push({
-      mode: seg.mode,
-      geometry,
-      distance: seg.distance ?? 0,
-      duration: seg.duration ?? 0,
-      elevation,
-    })
-  }
-  return legs
-}
 
 function routeBuilderService() {
   const store = useRouteBuilderStore()
@@ -115,71 +66,27 @@ function routeBuilderService() {
     store.routeError = null
 
     try {
-      const request = {
-        waypoints: wps.map((wp, i) => ({
-          location: { lat: wp.lat, lng: wp.lng },
-          type:
-            i === 0 ? 'origin' : i === wps.length - 1 ? 'destination' : 'via',
-          label: wp.name ?? '',
-        })),
-        selectedMode: backendMode(mode.value),
-        availableVehicles: [],
-        routingPreferences: {},
-        requestId: `builder-${Date.now()}`,
-      }
+      const path = await snapWaypointsToPath({
+        waypoints: wps.map(wp => ({ lat: wp.lat, lng: wp.lng, name: wp.name })),
+        mode: mode.value,
+        signal: controller.signal,
+      })
 
-      // The routing engine intermittently returns zero candidates for a
-      // perfectly valid OD pair. Retry a few times before giving up so a
-      // transient miss doesn't read as "no route" (and, below, never wipes
-      // the user's existing path).
-      let trip: any = null
-      for (let attempt = 0; attempt < 4 && !trip; attempt++) {
-        if (controller.signal.aborted) return
-        if (attempt > 0) await sleep(250, controller.signal)
-        const { data } = await api.post('/directions/', request, {
-          signal: controller.signal,
-          timeout: 30_000,
-        })
-        trip = data.trips?.[0]?.trip ?? null
-      }
-
-      if (!trip) {
+      if (!path) {
         // Keep the last good geometry — a transient engine miss shouldn't
         // erase the route the user just built. Surface a soft error only.
         store.routeError = 'Couldn’t update the route — try nudging a point'
         return
       }
 
-      const legs = collectLegs(trip.segments)
-      const geometry: Array<[number, number]> = legs.flatMap((l) => l.geometry)
-      // Flatten elevation aligned to geometry; keep only if any value exists.
-      const elevationFlat = legs.flatMap((l) => l.elevation)
-      const hasElevation = elevationFlat.some((e) => e !== undefined)
-      const elevation = hasElevation
-        ? elevationFlat.map((e) => e ?? 0)
-        : undefined
-      // Strip the per-leg elevation helper before storing leg segments.
-      const cleanLegs: RouteSegment[] = legs.map(
-        ({ elevation: _e, ...rest }) => rest,
-      )
-      const elevationGain = (trip.segments ?? []).reduce(
-        (sum: number, s: any) => sum + (s.totalElevationGain ?? 0),
-        0,
-      )
-      const elevationLoss = (trip.segments ?? []).reduce(
-        (sum: number, s: any) => sum + (s.totalElevationLoss ?? 0),
-        0,
-      )
-      const stats: RouteStats = {
-        distance: trip.tripStats?.totalDistance ?? 0,
-        duration: trip.tripStats?.totalDuration ?? 0,
-        elevationGain: elevationGain || undefined,
-        elevationLoss: elevationLoss || undefined,
-      }
-
-      store.setRouted({ geometry, elevation, segments: cleanLegs, stats })
+      store.setRouted({
+        geometry: path.geometry,
+        elevation: path.elevation,
+        segments: path.segments,
+        stats: path.stats,
+      })
     } catch (error) {
-      if (axios.isCancel(error)) return
+      if (error instanceof RouteSnapAborted || axios.isCancel(error)) return
       console.error('[RouteBuilder] failed to connect waypoints:', error)
       // Preserve the last good geometry; surface a soft, retryable error.
       store.routeError = 'Routing failed — try again'

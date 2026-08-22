@@ -2290,7 +2290,8 @@
         "line": "Línea",
         "polygon": "Polígono",
         "rectangle": "Rectángulo",
-        "circle": "Círculo"
+        "circle": "Círculo",
+        "route": "Ruta"
       }
     },
     "annotations": {

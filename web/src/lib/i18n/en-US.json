@@ -2410,7 +2410,8 @@
         "line": "Line",
         "polygon": "Polygon",
         "rectangle": "Rectangle",
-        "circle": "Circle"
+        "circle": "Circle",
+        "route": "Route"
       }
     },
     "annotations": {

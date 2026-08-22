@@ -149,6 +149,7 @@ export interface CanvasCamera {
 export type AnnotationTool =
   | 'pin'
   | 'line'
+  | 'route'
   | 'polygon'
   | 'rectangle'
   | 'circle'
@@ -164,6 +165,17 @@ export interface CanvasAnnotation {
   positions: Position[]
   /** Circle only: metres from `positions[0]`. */
   radiusMeters?: number
+  /**
+   * Route only: the path the routing engine snapped through `positions`.
+   * Kept alongside the waypoints rather than replacing them, so the route can
+   * be re-snapped in another travel mode without losing what was clicked.
+   */
+  routed?: {
+    geometry: Position[]
+    mode: 'walking' | 'cycling' | 'driving'
+    distance?: number
+    duration?: number
+  }
   label?: string
   color?: string
   visible?: boolean

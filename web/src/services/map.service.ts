@@ -28,6 +28,8 @@ import { useNotesLayerService } from '@/services/layers/features/notes-layer.ser
 import { useBookmarksLayerService } from '@/services/layers/features/bookmarks-layer.service'
 import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
+import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useAppStore } from '../stores/app.store'
 import { calculateFitPadding, type Padding } from '@/lib/map-padding'
 import {
@@ -71,6 +73,7 @@ function mapService() {
   const bookmarksLayerService = useBookmarksLayerService()
   const environmentDataService = useEnvironmentDataService()
   const timelineLayerService = useTimelineLayerService()
+  const portolanTransitService = usePortolanTransitService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
@@ -478,34 +481,70 @@ function mapService() {
         searchResultsLayerService.createSearchResultsLayer(),
         ...layers.value,
       ]
-      layersService.initializeLayers(allLayers, mapStrategy)
+      // Each overlay initializes independently, so one that throws must not
+      // take the rest of the map with it. They used to run as a bare
+      // sequence: a marker component that threw on mount (a tracker whose
+      // own Vue app had no i18n) aborted the whole chain, and every feature
+      // queued behind it — notes, bookmarks, timeline, the portolan ribbons
+      // — was simply absent, with nothing in the UI to say why.
+      const initStep = (name: string, run: () => void) => {
+        try {
+          run()
+        } catch (error) {
+          console.error(`[map] ${name} failed to initialize`, error)
+        }
+      }
+
+      initStep('layers', () =>
+        layersService.initializeLayers(allLayers, mapStrategy),
+      )
 
       // Initialize place polygon layers
-      placePolygonLayerService.initializePlacePolygonLayers(mapStrategy)
-
-      // Update polygon colors to match current theme
-      placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
+      initStep('place polygons', () => {
+        placePolygonLayerService.initializePlacePolygonLayers(mapStrategy)
+        // Update polygon colors to match current theme
+        placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
+      })
 
       // Initialize marker layers - they will automatically sync with store state
-      markerLayersService.initializeMarkerLayers(mapStrategy)
+      initStep('markers', () =>
+        markerLayersService.initializeMarkerLayers(mapStrategy),
+      )
 
       // Initialize notes layer for OSM notes overlay
-      notesLayerService.initializeNotesLayer(mapStrategy)
+      initStep('notes', () =>
+        notesLayerService.initializeNotesLayer(mapStrategy),
+      )
 
       // Initialize the saved places overlay (bookmarks + decrypted E2EE
       // points). Runs on every style.load because setStyle drops the source,
       // the layers AND the registered icon images.
-      bookmarksLayerService.initializeBookmarksLayer(mapStrategy)
+      initStep('bookmarks', () =>
+        bookmarksLayerService.initializeBookmarksLayer(mapStrategy),
+      )
 
       // Fill the Environment vector layers (perimeters, smoke) with data —
       // the layers themselves are default-layer templates that render natively.
-      environmentDataService.initializeEnvironmentData(mapStrategy)
+      initStep('environment', () =>
+        environmentDataService.initializeEnvironmentData(mapStrategy),
+      )
 
       // Initialize timeline layer (stops + path lines) — rendered when the
       // /timeline page populates the timeline store. Pass the smart
       // `fitBounds` so the route is framed inside the visible map area (not
       // under the LeftSheet drawer) and re-fits once the drawer settles.
-      timelineLayerService.initializeTimelineLayer(mapStrategy, fitBounds)
+      initStep('timeline', () =>
+        timelineLayerService.initializeTimelineLayer(mapStrategy, fitBounds),
+      )
+
+      // Portolan transit ribbons (streamed from Barrelman through the
+      // server proxy). Requires the maplibre-gl transit fork; the service
+      // no-ops on other engines. The Transit layer group's master switch
+      // owns the toggle; the store re-applies the service-time and class
+      // filters the style reload just dropped.
+      initStep('portolan transit', () =>
+        usePortolanTransitStore().handleStyleLoad(mapStrategy),
+      )
 
       // Apply config properties AFTER all sources/layers are added,
       // because setConfigProperties modifies the map style (e.g. removeImport)
@@ -1149,6 +1188,9 @@ function mapService() {
       searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
       bookmarksLayerService.removeBookmarksLayer(mapStrategy)
     }
+
+    // Unbind the portolan renderer's map listeners and drop its layers
+    portolanTransitService.teardownPortolanTransit()
 
     // Remove every listener registered by bindMapEvents().
     unbindMapEvents()

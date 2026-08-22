@@ -430,6 +430,14 @@
   },
   "layers": {
     "title": "Layers",
+    "transit": {
+      "rail": "Rail",
+      "bus": "Bus",
+      "ferry": "Ferry",
+      "other": "Other",
+      "serviceTime": "Service time",
+      "live": "Live"
+    },
     "meta": {
       "title": "Layer Info",
       "fields": {
@@ -1049,7 +1057,10 @@
           "SEVERE": "Disruption",
           "WARNING": "Alert"
         }
-      }
+      },
+      "notInService": "Not running now",
+      "openRouteDetail": "Show {name}",
+      "notInServiceNamed": "{name} isn't running now"
     },
     "header": {
       "showMore": "Show more",

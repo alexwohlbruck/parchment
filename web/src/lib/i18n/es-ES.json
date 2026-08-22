@@ -424,6 +424,14 @@
   },
   "layers": {
     "title": "Capas",
+    "transit": {
+      "rail": "Tren",
+      "bus": "Autobús",
+      "ferry": "Ferri",
+      "other": "Otros",
+      "serviceTime": "Hora de servicio",
+      "live": "En directo"
+    },
     "meta": {
       "title": "Información de la capa",
       "fields": {
@@ -1000,7 +1008,10 @@
           "SEVERE": "Interrupción",
           "WARNING": "Aviso"
         }
-      }
+      },
+      "notInService": "No circula ahora",
+      "openRouteDetail": "Ver {name}",
+      "notInServiceNamed": "{name} no circula ahora"
     },
     "header": {
       "showMore": "Ver más",

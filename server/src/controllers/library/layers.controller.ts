@@ -11,7 +11,7 @@ const app = new Elysia().use(i18nPlugin)
 // middleware — Elysia's .use() leaks to all subsequent routes otherwise.
 
 // ============================================================================
-// USER-OWNED LAYERS (custom + clones)
+// USER-OWNED LAYERS (the user's own custom layers)
 // ============================================================================
 
 app.group('', (g) =>
@@ -120,7 +120,7 @@ app.group('', (g) =>
 )
 
 // ============================================================================
-// LAYER GROUPS (custom + clones)
+// LAYER GROUPS (the user's own custom groups)
 // ============================================================================
 
 app.group('', (g) =>
@@ -308,7 +308,7 @@ app.group('', (g) =>
 )
 
 // ============================================================================
-// DEFAULT TEMPLATES + USER STATE + CLONE/RESTORE
+// DEFAULT TEMPLATES + USER STATE
 // ============================================================================
 
 app.group('', (g) =>
@@ -379,10 +379,11 @@ app.group('', (g) =>
         body: t.Object({
           templateId: t.String(),
           type: t.Union([t.Literal('layer'), t.Literal('group')]),
-          hidden: t.Optional(t.Boolean()),
+          hidden: t.Optional(t.Union([t.Boolean(), t.Null()])),
           visible: t.Optional(t.Union([t.Boolean(), t.Null()])),
           order: t.Optional(t.Union([t.Number(), t.Null()])),
           enabled: t.Optional(t.Union([t.Boolean(), t.Null()])),
+          showInLayerSelector: t.Optional(t.Union([t.Boolean(), t.Null()])),
           groupId: t.Optional(t.Union([t.String(), t.Null()])),
           parentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
         }),
@@ -416,103 +417,6 @@ app.group('', (g) =>
         detail: {
           tags: ['Layers'],
           summary: 'Clear user state for a default template',
-        },
-      },
-    ),
-)
-
-app.group('', (g) =>
-  g
-    .use(requireAuth)
-    .use(permissions(PermissionId.LAYERS_WRITE))
-    .post(
-      '/layers/default-clone/layer',
-      async ({ user, body, set, t }) => {
-        const { DEFAULT_LAYER_TEMPLATES, resolveProxyUrls } = await import(
-          '../../constants/default-layers'
-        )
-        const template = DEFAULT_LAYER_TEMPLATES.find(
-          (t) => t.templateId === body.templateId,
-        )
-        if (!template) {
-          set.status = 404
-          return { error: t('errors.library.layerTemplateNotFound') }
-        }
-        const serverUrl =
-          process.env.SERVER_URL || process.env.SERVER_ORIGIN || 'http://localhost:5000'
-        const resolved = resolveProxyUrls(template.configuration, serverUrl)
-        const clone = await layersService.cloneDefaultLayer(
-          user.id,
-          template,
-          body.patch ?? {},
-          resolved,
-        )
-        return clone
-      },
-      {
-        body: t.Object({
-          templateId: t.String(),
-          patch: t.Optional(t.Any()),
-        }),
-        detail: {
-          tags: ['Layers'],
-          summary: 'Clone a default layer into a user-owned layer',
-        },
-      },
-    ),
-)
-
-app.group('', (g) =>
-  g
-    .use(requireAuth)
-    .use(permissions(PermissionId.LAYERS_WRITE))
-    .post(
-      '/layers/default-clone/group',
-      async ({ user, body, set, t }) => {
-        const { DEFAULT_GROUP_TEMPLATES } = await import(
-          '../../constants/default-layers'
-        )
-        const template = DEFAULT_GROUP_TEMPLATES.find(
-          (t) => t.templateId === body.templateId,
-        )
-        if (!template) {
-          set.status = 404
-          return { error: t('errors.library.layerGroupTemplateNotFound') }
-        }
-        const clone = await layersService.cloneDefaultGroup(
-          user.id,
-          template,
-          body.patch ?? {},
-        )
-        return clone
-      },
-      {
-        body: t.Object({
-          templateId: t.String(),
-          patch: t.Optional(t.Any()),
-        }),
-        detail: {
-          tags: ['Layers'],
-          summary: 'Clone a default group into a user-owned group',
-        },
-      },
-    ),
-)
-
-app.group('', (g) =>
-  g
-    .use(requireAuth)
-    .use(permissions(PermissionId.LAYERS_WRITE))
-    .post(
-      '/layers/restore-defaults',
-      async ({ user }) => {
-        const result = await layersService.restoreAllDefaults(user.id)
-        return { success: true, ...result }
-      },
-      {
-        detail: {
-          tags: ['Layers'],
-          summary: 'Restore default layers (clears state; clones remain)',
         },
       },
     ),

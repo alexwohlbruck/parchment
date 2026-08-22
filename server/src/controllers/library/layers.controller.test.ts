@@ -57,14 +57,6 @@ const upsertDefaultUserState = mock(
 const deleteDefaultUserState = mock(
   async (_userId: string, _templateId: string, _type: string) => undefined,
 )
-const cloneDefaultLayer = mock(
-  async (_userId: string, _template: any, _patch: any, _resolved: any) => layer,
-)
-const cloneDefaultGroup = mock(
-  async (_userId: string, _template: any, _patch: any) => group,
-)
-const restoreAllDefaults = mock(async (_userId: string) => ({ cleared: 3 }))
-
 mock.module('../../services/layers.service', () => ({
   getLayers,
   createLayer,
@@ -80,9 +72,6 @@ mock.module('../../services/layers.service', () => ({
   getDefaultUserState,
   upsertDefaultUserState,
   deleteDefaultUserState,
-  cloneDefaultLayer,
-  cloneDefaultGroup,
-  restoreAllDefaults,
 }))
 
 const resolveProxyUrls = mock((config: any, serverUrl: string) => ({
@@ -130,9 +119,6 @@ beforeEach(() => {
   getDefaultUserState.mockClear()
   upsertDefaultUserState.mockClear()
   deleteDefaultUserState.mockClear()
-  cloneDefaultLayer.mockClear()
-  cloneDefaultGroup.mockClear()
-  restoreAllDefaults.mockClear()
   resolveProxyUrls.mockClear()
 })
 
@@ -153,9 +139,6 @@ describe('permission gating', () => {
     ['get', '/layers/default-state'],
     ['put', '/layers/default-state'],
     ['delete', '/layers/default-state'],
-    ['post', '/layers/default-clone/layer'],
-    ['post', '/layers/default-clone/group'],
-    ['post', '/layers/restore-defaults'],
   ] as const
 
   for (const [method, path] of endpoints) {
@@ -460,6 +443,28 @@ describe('default-layer user state', () => {
     })
   })
 
+  test('a null hidden hands the template back to installedByDefault', async () => {
+    await req(app).put('/layers/default-state', {
+      body: { templateId: 'tpl-1', type: 'group', hidden: null },
+    })
+
+    expect(upsertDefaultUserState.mock.calls[0][3]).toEqual({ hidden: null })
+  })
+
+  test('upsert carries a selector override', async () => {
+    await req(app).put('/layers/default-state', {
+      body: {
+        templateId: 'tpl-1',
+        type: 'layer',
+        showInLayerSelector: false,
+      },
+    })
+
+    expect(upsertDefaultUserState.mock.calls[0][3]).toEqual({
+      showInLayerSelector: false,
+    })
+  })
+
   test('upsert 422s on an unknown type', async () => {
     const res = await req(app).put('/layers/default-state', {
       body: { templateId: 'tpl-1', type: 'widget' },
@@ -480,70 +485,5 @@ describe('default-layer user state', () => {
       'tpl-1',
       'layer',
     )
-  })
-})
-
-describe('cloning defaults', () => {
-  test('clones a default layer with resolved tile URLs', async () => {
-    const res = await req(app).post('/layers/default-clone/layer', {
-      body: { templateId: 'tpl-layer' },
-    })
-
-    expect(res.status).toBe(200)
-    expect(cloneDefaultLayer.mock.calls[0][0]).toBe(TEST_USER.id)
-    expect(cloneDefaultLayer.mock.calls[0][3]).toMatchObject({ kind: 'raster' })
-  })
-
-  test('applies the caller’s patch on top of the template', async () => {
-    await req(app).post('/layers/default-clone/layer', {
-      body: { templateId: 'tpl-layer', patch: { name: 'My Traffic' } },
-    })
-
-    expect(cloneDefaultLayer.mock.calls[0][2]).toEqual({ name: 'My Traffic' })
-  })
-
-  test('defaults the patch to an empty object', async () => {
-    await req(app).post('/layers/default-clone/layer', {
-      body: { templateId: 'tpl-layer' },
-    })
-
-    expect(cloneDefaultLayer.mock.calls[0][2]).toEqual({})
-  })
-
-  test('404s for an unknown layer template', async () => {
-    const res = await req(app).post('/layers/default-clone/layer', {
-      body: { templateId: 'nope' },
-    })
-
-    expect(res.status).toBe(404)
-    expect(cloneDefaultLayer).not.toHaveBeenCalled()
-  })
-
-  test('clones a default group', async () => {
-    const res = await req(app).post('/layers/default-clone/group', {
-      body: { templateId: 'tpl-group' },
-    })
-
-    expect(res.status).toBe(200)
-    expect(cloneDefaultGroup.mock.calls[0][0]).toBe(TEST_USER.id)
-  })
-
-  test('404s for an unknown group template', async () => {
-    const res = await req(app).post('/layers/default-clone/group', {
-      body: { templateId: 'nope' },
-    })
-
-    expect(res.status).toBe(404)
-    expect(cloneDefaultGroup).not.toHaveBeenCalled()
-  })
-})
-
-describe('POST /layers/restore-defaults', () => {
-  test('restores defaults and spreads the service result', async () => {
-    const res = await req(app).post('/layers/restore-defaults')
-
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ success: true, cleared: 3 })
-    expect(restoreAllDefaults).toHaveBeenCalledWith(TEST_USER.id)
   })
 })

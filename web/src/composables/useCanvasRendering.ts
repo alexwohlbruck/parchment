@@ -99,8 +99,12 @@ export function useCanvasRendering(
   }
 
   /**
-   * The map operations one canvas layer needs. Returned rather than applied
-   * so `render` can diff the whole set before touching the map.
+   * The layers and sources one canvas layer resolves to.
+   *
+   * Style and library layers carry their source inline, so `addLayer` creates
+   * it; a collection layer has to build its GeoJSON here and register it
+   * first, which is the one case where planning also writes. Either way the
+   * ids come back so `render` can diff the whole set afterwards.
    */
   function planLayer(
     strategy: MapStrategy,

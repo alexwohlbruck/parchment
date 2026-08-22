@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/lib/i18n/en-US.json'
@@ -91,6 +91,59 @@ describe('PlaceGallery', () => {
     const w = mountGallery([photo('/a.jpg'), photo('/b.jpg')])
     const thumbFor = w.findComponent(ImageLightboxStub).props('thumbFor')
     expect(thumbFor(1)).toBe(w.findAll('img')[1].element)
+  })
+
+  /** happy-dom lays nothing out, so the boxes the sync reads are supplied. */
+  function stubLayout(
+    w: ReturnType<typeof mountGallery>,
+    { stripLeft = 0, stripWidth = 300, thumbLeft = 0, thumbWidth = 100 } = {},
+  ) {
+    const strip = w.find('.snap-x').element as HTMLElement
+    const scrollBy = vi.fn()
+    strip.scrollBy = scrollBy
+    strip.getBoundingClientRect = () =>
+      ({ left: stripLeft, width: stripWidth }) as DOMRect
+    return { scrollBy, box: (el: Element) => {
+      el.getBoundingClientRect = () =>
+        ({ left: thumbLeft, width: thumbWidth }) as DOMRect
+    } }
+  }
+
+  it('scrolls the strip to centre the photo the lightbox opens', async () => {
+    const w = mountGallery([photo('/a.jpg'), photo('/b.jpg'), photo('/c.jpg')])
+    const { scrollBy, box } = stubLayout(w, { thumbLeft: 400, thumbWidth: 100 })
+    box(w.findAll('img')[2].element)
+
+    await w.findAll('button')[2].trigger('click')
+
+    // 400 from the strip's left edge, less the 100px needed to centre it.
+    expect(scrollBy).toHaveBeenCalledWith(
+      expect.objectContaining({ left: 300 }),
+    )
+  })
+
+  it('leaves the strip alone when the photo is already centred', async () => {
+    const w = mountGallery([photo('/a.jpg'), photo('/b.jpg')])
+    const { scrollBy, box } = stubLayout(w, { thumbLeft: 100, thumbWidth: 100 })
+    box(w.findAll('img')[1].element)
+
+    await w.findAll('button')[1].trigger('click')
+
+    expect(scrollBy).not.toHaveBeenCalled()
+  })
+
+  it('follows the lightbox when it swipes to another photo', async () => {
+    const w = mountGallery([photo('/a.jpg'), photo('/b.jpg'), photo('/c.jpg')])
+    const { scrollBy, box } = stubLayout(w, { thumbLeft: 700, thumbWidth: 100 })
+    box(w.findAll('img')[0].element)
+
+    // What the lightbox emits as the user swipes.
+    w.findComponent(ImageLightboxStub).vm.$emit('update:index', 0)
+    await w.vm.$nextTick()
+
+    expect(scrollBy).toHaveBeenCalledWith(
+      expect.objectContaining({ left: 600 }),
+    )
   })
 
   it('renders nothing when a place has no photos', () => {

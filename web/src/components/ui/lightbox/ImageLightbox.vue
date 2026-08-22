@@ -61,8 +61,6 @@ const ICON_NEXT = lucideIcon('<path d="m9 18 6-6-6-6"/>')
 /** Breathing room for the chrome above and below the photo. */
 const CHROME_PADDING = 56
 
-/** The app's gutter, so the photo's rounded corners have somewhere to sit. */
-const SIDE_PADDING = 12
 
 /**
  * PhotoSwipe takes its slide padding in pixels, so the notch and home
@@ -184,8 +182,8 @@ async function open(index: number) {
     padding: {
       top: CHROME_PADDING + insets.top,
       bottom: CHROME_PADDING + insets.bottom,
-      left: SIDE_PADDING,
-      right: SIDE_PADDING,
+      left: 0,
+      right: 0,
     },
     loop: false,
     // Trackpad pinch and plain wheel both zoom; ctrl is not discoverable.
@@ -305,9 +303,20 @@ onBeforeUnmount(close)
   --lightbox-chrome-bg: hsl(var(--background) / 0.8);
   --lightbox-chrome-border: 1px solid hsl(var(--border) / 0.6);
   --lightbox-chrome-blur: blur(12px) saturate(140%);
-  --lightbox-chrome-shadow: 0 1px 3px hsl(var(--foreground) / 0.08);
+  /* Matches the `depth` utility: the drop shadow stays black in both themes,
+     only the inset highlight dims. Deriving it from --foreground inverted it
+     into a white glow in dark mode. */
+  --lightbox-chrome-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 1px 3px rgb(0 0 0 / 0.08);
 
   z-index: 60;
+}
+
+.dark .pswp {
+  --lightbox-chrome-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 1px 3px rgb(0 0 0 / 0.08);
 }
 
 .pswp__bg {
@@ -315,19 +324,13 @@ onBeforeUnmount(close)
 }
 
 /*
- * The photo carries the app's card radius, so it reads as a surface rather
- * than a bleed. Dropped once zoomed, where the corners leave the viewport and
- * a rounded edge would only clip detail.
+ * No radius or shadow on the photo. PhotoSwipe opens and zooms by scaling this
+ * element, and a border-radius is scaled with it — a 12px corner renders at
+ * 12px x scale through the whole animation and only snaps to size at the end,
+ * which reads as the corners being clipped. Counter-scaling it would mean
+ * rewriting the radius every frame. The chrome below is not scaled, so it
+ * keeps the app's radius and depth.
  */
-.pswp__img {
-  border-radius: calc(var(--radius) + 0.25rem);
-  box-shadow: 0 8px 32px hsl(var(--foreground) / 0.16);
-  transition: border-radius 200ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.pswp--zoomed-in .pswp__img {
-  border-radius: 0;
-}
 
 /* The bar itself is only a layout row; the controls in it are the surfaces. */
 .pswp__top-bar {
@@ -459,7 +462,6 @@ onBeforeUnmount(close)
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pswp__img,
   .pswp__button,
   .pswp__top-bar,
   .pswp__button--arrow,

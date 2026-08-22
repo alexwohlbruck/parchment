@@ -42,7 +42,40 @@ const openIndex = ref<number | null>(null)
 const thumbs = ref<(HTMLImageElement | null)[]>([])
 const thumbFor = (index: number) => thumbs.value[index]
 
+/** The horizontal strip itself, so swiping the lightbox can keep pace with it. */
+const strip = ref<HTMLElement | null>(null)
+
 const failed = ref(new Set<number>())
+
+/**
+ * Keep the strip on whichever photo the lightbox is showing. Beyond keeping the
+ * two in step, it is what makes closing land: PhotoSwipe zooms back to the
+ * thumbnail's bounds, and after a few swipes that thumbnail would otherwise be
+ * scrolled out of sight, sending the photo shrinking off the edge of the screen.
+ */
+watch(openIndex, index => {
+  if (index === null) return
+  const thumb = thumbs.value[index]
+  const container = strip.value
+  if (!thumb || !container) return
+
+  // Measured rather than derived from offsetLeft: the thumbnail's offsetParent
+  // is its own button, so offsets are not in the scroller's coordinates.
+  // scrollBy on the strip also leaves every ancestor alone, which scrollIntoView
+  // would not — the sheet this sits in would scroll too.
+  const thumbBox = thumb.getBoundingClientRect()
+  const stripBox = container.getBoundingClientRect()
+  const delta
+    = thumbBox.left - stripBox.left - (stripBox.width - thumbBox.width) / 2
+
+  if (Math.abs(delta) < 1) return
+  // Instant, not smooth. The strip is behind a full-screen overlay while the
+  // lightbox is open, so nobody watches it move — and an animation still
+  // running would be racing the closing zoom, which reads these same bounds.
+  // Smooth is also unreliable here: a programmatic smooth scroll on a
+  // scroll-snap-mandatory container can be dropped outright.
+  container.scrollBy({ left: delta, behavior: 'auto' })
+})
 
 watch(galleryPhotos, () => {
   thumbs.value = []
@@ -75,6 +108,7 @@ function onError(index: number) {
       :class="cn('w-full relative', $attrs.class ?? '')"
     >
       <div
+        ref="strip"
         class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-2 scrollbar-hidden pb-2 -mb-2"
       >
         <button

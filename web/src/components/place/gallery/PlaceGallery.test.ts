@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import en from '@/lib/i18n/en-US.json'
@@ -93,57 +93,99 @@ describe('PlaceGallery', () => {
     expect(thumbFor(1)).toBe(w.findAll('img')[1].element)
   })
 
-  /** happy-dom lays nothing out, so the boxes the sync reads are supplied. */
+  /**
+   * happy-dom lays nothing out and does not emulate scrolling, so the boxes the
+   * sync reads are supplied and the scroll call itself is what gets asserted.
+   */
   function stubLayout(
     w: ReturnType<typeof mountGallery>,
-    { stripLeft = 0, stripWidth = 300, thumbLeft = 0, thumbWidth = 100 } = {},
+    { stripLeft = 0, stripWidth = 300, scrollLeft = 0, limit = 1000 } = {},
   ) {
     const strip = w.find('.snap-x').element as HTMLElement
-    const scrollBy = vi.fn()
-    strip.scrollBy = scrollBy
+    const scrollTo = vi.fn()
+    strip.scrollTo = scrollTo
+    strip.scrollLeft = scrollLeft
     strip.getBoundingClientRect = () =>
       ({ left: stripLeft, width: stripWidth }) as DOMRect
-    return { scrollBy, box: (el: Element) => {
-      el.getBoundingClientRect = () =>
-        ({ left: thumbLeft, width: thumbWidth }) as DOMRect
-    } }
+    Object.defineProperty(strip, 'scrollWidth', { value: limit + stripWidth })
+    Object.defineProperty(strip, 'clientWidth', { value: stripWidth })
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    return {
+      scrollTo,
+      box: (el: Element, left: number, width: number) => {
+        el.getBoundingClientRect = () => ({ left, width }) as DOMRect
+      },
+    }
   }
 
-  it('scrolls the strip to centre the photo the lightbox opens', async () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('glides the strip to centre the photo the lightbox opens', async () => {
     const w = mountGallery([photo('/a.jpg'), photo('/b.jpg'), photo('/c.jpg')])
-    const { scrollBy, box } = stubLayout(w, { thumbLeft: 400, thumbWidth: 100 })
-    box(w.findAll('img')[2].element)
+    const { scrollTo, box } = stubLayout(w)
+    box(w.findAll('img')[2].element, 400, 100)
 
     await w.findAll('button')[2].trigger('click')
 
     // 400 from the strip's left edge, less the 100px needed to centre it.
-    expect(scrollBy).toHaveBeenCalledWith(
-      expect.objectContaining({ left: 300 }),
-    )
+    expect(scrollTo).toHaveBeenCalledWith({ left: 300, behavior: 'smooth' })
+  })
+
+  it('jumps rather than glides when motion is reduced', async () => {
+    const w = mountGallery([photo('/a.jpg'), photo('/b.jpg')])
+    const { scrollTo, box } = stubLayout(w)
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    box(w.findAll('img')[1].element, 400, 100)
+
+    await w.findAll('button')[1].trigger('click')
+
+    expect(scrollTo).toHaveBeenCalledWith({ left: 300, behavior: 'auto' })
   })
 
   it('leaves the strip alone when the photo is already centred', async () => {
     const w = mountGallery([photo('/a.jpg'), photo('/b.jpg')])
-    const { scrollBy, box } = stubLayout(w, { thumbLeft: 100, thumbWidth: 100 })
-    box(w.findAll('img')[1].element)
+    const { scrollTo, box } = stubLayout(w, { scrollLeft: 42 })
+    box(w.findAll('img')[1].element, 100, 100)
 
     await w.findAll('button')[1].trigger('click')
 
-    expect(scrollBy).not.toHaveBeenCalled()
+    expect(scrollTo).not.toHaveBeenCalled()
   })
 
   it('follows the lightbox when it swipes to another photo', async () => {
     const w = mountGallery([photo('/a.jpg'), photo('/b.jpg'), photo('/c.jpg')])
-    const { scrollBy, box } = stubLayout(w, { thumbLeft: 700, thumbWidth: 100 })
-    box(w.findAll('img')[0].element)
+    const { scrollTo, box } = stubLayout(w)
+    box(w.findAll('img')[0].element, 700, 100)
 
     // What the lightbox emits as the user swipes.
     w.findComponent(ImageLightboxStub).vm.$emit('update:index', 0)
     await w.vm.$nextTick()
 
-    expect(scrollBy).toHaveBeenCalledWith(
-      expect.objectContaining({ left: 600 }),
-    )
+    expect(scrollTo).toHaveBeenCalledWith({ left: 600, behavior: 'smooth' })
+  })
+
+  it('never scrolls past the end of the strip', async () => {
+    const w = mountGallery([photo('/a.jpg'), photo('/b.jpg')])
+    const { scrollTo, box } = stubLayout(w, { limit: 120 })
+    box(w.findAll('img')[1].element, 700, 100)
+
+    await w.findAll('button')[1].trigger('click')
+
+    expect(scrollTo).toHaveBeenCalledWith({ left: 120, behavior: 'smooth' })
+  })
+
+  it('lands the glide before handing the lightbox a thumbnail to zoom to', async () => {
+    const w = mountGallery([photo('/a.jpg'), photo('/b.jpg')])
+    const { scrollTo, box } = stubLayout(w)
+    box(w.findAll('img')[1].element, 400, 100)
+
+    await w.findAll('button')[1].trigger('click')
+    scrollTo.mockClear()
+
+    // The lightbox reads bounds through thumbFor when it opens and closes.
+    w.findComponent(ImageLightboxStub).props('thumbFor')(1)
+
+    expect(scrollTo).toHaveBeenCalledWith({ left: 300, behavior: 'auto' })
   })
 
   it('renders nothing when a place has no photos', () => {

@@ -133,6 +133,18 @@ function onKeydown(event: KeyboardEvent) {
   pswp.close()
 }
 
+/**
+ * Hand focus back to the thumbnail the user ended on, rather than the one they
+ * opened — after three swipes the original is the wrong answer for a keyboard
+ * user as well as the wrong place to scroll to. preventScroll because the
+ * thumbnail strip has already been moved into position.
+ */
+function restoreFocus(index: number) {
+  const thumb = props.thumbFor?.(index)
+  const focusable = thumb?.closest<HTMLElement>('a[href], button, [tabindex]')
+  ;(focusable ?? thumb)?.focus({ preventScroll: true })
+}
+
 function buildCaption(pswpInstance: PhotoSwipe) {
   pswpInstance.on('uiRegister', () => {
     pswpInstance.ui?.registerElement({
@@ -197,6 +209,10 @@ async function open(index: number) {
     arrowNext: props.images.length > 1,
     // Handled by onKeydown, which also stops the press escaping to the page.
     escKey: false,
+    // PhotoSwipe restores focus to whatever was active when it opened — the
+    // thumbnail that was clicked — and a bare focus() scrolls that thumbnail
+    // back into view, undoing the strip sync. restoreFocus() does it instead.
+    returnFocus: false,
 
     closeTitle: t('general.close'),
     arrowPrevTitle: t('place.gallery.previousPhoto'),
@@ -244,7 +260,12 @@ async function open(index: number) {
     window.removeEventListener('keydown', onKeydown, true)
     pswp = null
     lightbox = null
-    if (props.index !== null) emit('close')
+    // Still set means PhotoSwipe closed itself — the user pressed Escape, hit
+    // close or flicked the photo away. A close driven from the outside has
+    // already cleared it, and should not pull focus back to the strip.
+    if (props.index === null) return
+    restoreFocus(props.index)
+    emit('close')
   })
 
   lightbox.init()

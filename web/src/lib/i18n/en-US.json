@@ -535,7 +535,9 @@
       "inLibrary": "Added",
       "layers": "1 layer | {count} layers",
       "allAdded": "Everything here is already in your library.",
-      "empty": "No layers available."
+      "empty": "No layers available.",
+      "back": "All layers",
+      "includes": "Includes 1 layer | Includes {count} layers"
     }
   },
   "directions": {

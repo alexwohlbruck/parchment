@@ -4,21 +4,22 @@
  *
  * Every system bundle is listed, added or not, so this doubles as the way back
  * from a deletion — there is no "restore defaults" any more, you just add the
- * bundle again.
+ * bundle again. The grid browses; a card opens that bundle's page, which spells
+ * out exactly which layers it brings.
  */
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
 import type { LayerStoreItem } from '@/lib/layer-templates'
 import { useAppService } from '@/services/app.service'
 import ResponsiveDialog from '@/components/responsive/ResponsiveDialog.vue'
-import { ItemRow } from '@/components/ui/item-row'
-import { ItemIcon } from '@/components/ui/item-icon'
+import LayerStoreCard from './LayerStoreCard.vue'
+import LayerStoreDetail from './LayerStoreDetail.vue'
 import { Button } from '@/components/ui/button'
-import { CheckIcon, PlusIcon } from 'lucide-vue-next'
+import { ChevronLeftIcon } from 'lucide-vue-next'
 
-defineProps<{ open?: boolean }>()
+const props = defineProps<{ open?: boolean }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
 const { t } = useI18n()
@@ -29,24 +30,27 @@ const { layerStoreItems } = storeToRefs(layersStore)
 // Which rows are mid-flight, so a double tap can't add a bundle twice.
 const adding = ref(new Set<string>())
 
+/** The bundle being viewed, or null for the grid. */
+const selectedId = ref<string | null>(null)
+
+// Track the id rather than the item so the detail view follows the store as it
+// changes — otherwise adding from the detail page would leave a stale snapshot
+// still offering an Add button.
+const selected = computed<LayerStoreItem | null>(
+  () =>
+    layerStoreItems.value.find(i => i.templateId === selectedId.value) ?? null,
+)
+
 const availableCount = computed(
   () => layerStoreItems.value.filter(item => !item.added).length,
 )
 
-/**
- * Each bundle with its one-line summary: the blurb, plus how many layers it
- * brings when that's more than the one the name already implies.
- */
-const rows = computed(() =>
-  layerStoreItems.value.map(item => ({
-    ...item,
-    detail: [
-      item.description,
-      item.layerCount > 1 ? t('layers.store.layers', item.layerCount) : '',
-    ]
-      .filter(Boolean)
-      .join(' · '),
-  })),
+// Reopening the store should land on the grid, not wherever it was left.
+watch(
+  () => props.open,
+  open => {
+    if (!open) selectedId.value = null
+  },
 )
 
 async function add(item: LayerStoreItem) {
@@ -67,64 +71,54 @@ async function add(item: LayerStoreItem) {
   <ResponsiveDialog
     :open="open"
     @update:open="value => emit('update:open', value)"
-    :title="t('layers.store.title')"
-    :description="t('layers.store.description')"
-    content-class="sm:max-w-lg"
+    :title="selected ? selected.name : t('layers.store.title')"
+    :description="selected ? undefined : t('layers.store.description')"
+    content-class="sm:max-w-2xl"
   >
     <template #content>
-      <div class="max-h-[60vh] overflow-y-auto -mx-2 px-2 space-y-0.5">
-        <ItemRow
-          v-for="item in rows"
-          :key="item.templateId"
-          :title="item.name"
-          size="md"
-          :has-details="!!item.detail"
+      <!-- Bundle page -->
+      <div v-if="selected" class="space-y-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="-ml-2 h-7 px-2 text-muted-foreground"
+          @click="selectedId = null"
         >
-          <template #icon="{ size }">
-            <ItemIcon
-              :icon="item.icon ?? 'Layers3Icon'"
-              :size="size"
-              variant="ghost"
-            />
-          </template>
+          <ChevronLeftIcon class="size-4" />
+          {{ t('layers.store.back') }}
+        </Button>
 
-          <template #details="{ detailClass }">
-            <p v-if="item.detail" :class="[detailClass, 'text-muted-foreground']">
-              {{ item.detail }}
-            </p>
-          </template>
+        <div class="max-h-[60vh] overflow-y-auto -mx-1 px-1">
+          <LayerStoreDetail
+            :item="selected"
+            :adding="adding.has(selected.templateId)"
+            @add="add(selected!)"
+          />
+        </div>
+      </div>
 
-          <template #trailing>
-            <span
-              v-if="item.added"
-              class="flex items-center gap-1 text-xs text-muted-foreground shrink-0"
-            >
-              <CheckIcon class="size-3.5" />
-              {{ t('layers.store.inLibrary') }}
-            </span>
-            <Button
-              v-else
-              size="sm"
-              variant="secondary"
-              class="shrink-0"
-              :disabled="adding.has(item.templateId)"
-              @click="add(item)"
-            >
-              <PlusIcon class="size-3.5" />
-              {{ t('layers.store.add') }}
-            </Button>
-          </template>
-        </ItemRow>
+      <!-- Grid -->
+      <div v-else class="max-h-[60vh] overflow-y-auto -mx-1 px-1">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <LayerStoreCard
+            v-for="item in layerStoreItems"
+            :key="item.templateId"
+            :item="item"
+            :adding="adding.has(item.templateId)"
+            @open="selectedId = item.templateId"
+            @add="add(item)"
+          />
+        </div>
 
         <p
-          v-if="!rows.length"
-          class="text-sm text-muted-foreground text-center py-8"
+          v-if="!layerStoreItems.length"
+          class="py-8 text-center text-sm text-muted-foreground"
         >
           {{ t('layers.store.empty') }}
         </p>
         <p
           v-else-if="!availableCount"
-          class="text-xs text-muted-foreground text-center pt-3"
+          class="pt-4 text-center text-xs text-muted-foreground"
         >
           {{ t('layers.store.allAdded') }}
         </p>

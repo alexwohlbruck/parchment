@@ -304,10 +304,31 @@ describe('buildLayerStoreItems', () => {
     expect(ids).not.toContain('l:aqi')
   })
 
-  test('counts every layer in the bundle, nested ones included', () => {
+  test('carries every layer in the bundle, nested ones included', () => {
     const terrain = build().find(i => i.templateId === 'g:terrain')
 
-    expect(terrain?.layerCount).toBe(3)
+    expect(terrain?.layers.map(l => l.templateId)).toEqual([
+      'l:hillshade',
+      'l:contour-lines',
+      'l:aqi',
+    ])
+  })
+
+  test('names the subgroup a layer sits in, but not the bundle root', () => {
+    const terrain = build().find(i => i.templateId === 'g:terrain')
+    const byId = (id: string) =>
+      terrain?.layers.find(l => l.templateId === id)
+
+    expect(byId('l:hillshade')?.groupName).toBeUndefined()
+    expect(byId('l:contour-lines')?.groupName).toBe('Contours')
+  })
+
+  test('a standalone layer bundle contains itself', () => {
+    const notes = build().find(i => i.templateId === 'l:notes')
+
+    expect(notes?.layers).toEqual([
+      { templateId: 'l:notes', name: 'OSM Notes', icon: undefined },
+    ])
   })
 
   test('omits bundles whose integration is not configured', () => {
@@ -334,8 +355,10 @@ describe('buildLayerStoreItems', () => {
     })
 
     expect(
-      withIntegrationLayer.find(i => i.templateId === 'g:terrain')?.layerCount,
-    ).toBe(3)
+      withIntegrationLayer
+        .find(i => i.templateId === 'g:terrain')
+        ?.layers.map(l => l.templateId),
+    ).not.toContain('l:firms')
   })
 
   test('a removed bundle comes back as available to add', () => {
@@ -368,7 +391,7 @@ describe('buildLayerStoreItems', () => {
       name: 'Terrain',
       description: 'Hillshading and contours.',
       icon: 'MountainSnowIcon',
-      layerCount: 0,
+      layers: [],
       added: false,
     })
   })

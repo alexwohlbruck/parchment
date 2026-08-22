@@ -516,7 +516,9 @@
       "inLibrary": "Añadida",
       "layers": "1 capa | {count} capas",
       "allAdded": "Todo esto ya está en tu biblioteca.",
-      "empty": "No hay capas disponibles."
+      "empty": "No hay capas disponibles.",
+      "back": "Todas las capas",
+      "includes": "Incluye 1 capa | Incluye {count} capas"
     }
   },
   "directions": {

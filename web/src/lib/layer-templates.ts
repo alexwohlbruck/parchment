@@ -41,8 +41,17 @@ export interface LayerTemplateLike extends DefaultTemplateLike {
 /** Look up the user's sidecar row for a template, or null if they have none. */
 export type StateLookup = (templateId: string) => DefaultUserStateRow | null
 
+/** A single layer a bundle puts in the library, for the store's detail view. */
+export interface LayerStoreItemLayer {
+  templateId: string
+  name: string
+  icon?: string | null
+  /** The subgroup it sits in, when the bundle nests below its root. */
+  groupName?: string
+}
+
 /**
- * One row in the layer store: a pre-defined bundle the user can add to their
+ * One entry in the layer store: a pre-defined bundle the user can add to their
  * library. A bundle is either a top-level default group (which brings its
  * subgroups and layers with it) or a standalone default layer.
  */
@@ -52,8 +61,8 @@ export interface LayerStoreItem {
   name: string
   description?: string
   icon?: string | null
-  /** How many layers the bundle puts in the library. */
-  layerCount: number
+  /** Everything the bundle puts in the library, in the order it will appear. */
+  layers: LayerStoreItemLayer[]
   added: boolean
 }
 
@@ -216,6 +225,7 @@ export function buildLayerStoreItems(input: {
   const addedGroupIds = resolveAddedGroupIds(groupTemplates, getGroupState)
   const groupTemplateIds = new Set(groupTemplates.map(t => t.templateId))
   const layersById = new Map(layerTemplates.map(t => [t.templateId, t]))
+  const groupsById = new Map(groupTemplates.map(t => [t.templateId, t]))
 
   const items: (LayerStoreItem & { order: number })[] = []
 
@@ -229,11 +239,14 @@ export function buildLayerStoreItems(input: {
       groupTemplates,
       getGroupState,
     )
-    const memberIds = collectGroupLayerTemplateIds(
+    const members = collectGroupLayerTemplateIds(
       subtree,
       layerTemplates,
       getLayerState,
     )
+      .map(id => layersById.get(id))
+      .filter((l): l is LayerTemplateLike => !!l)
+      .filter(l => isIntegrationAvailable(l.integrationId))
 
     items.push({
       templateId: template.templateId,
@@ -241,9 +254,21 @@ export function buildLayerStoreItems(input: {
       name: template.name,
       description: template.description,
       icon: template.icon,
-      layerCount: memberIds.filter(id =>
-        isIntegrationAvailable(layersById.get(id)?.integrationId),
-      ).length,
+      layers: members.map(layer => {
+        // Only name the subgroup: repeating the bundle's own name against
+        // every layer would be noise in the detail view.
+        const groupId = effectiveGroupId(layer, getLayerState(layer.templateId))
+        const group =
+          groupId && groupId !== template.templateId
+            ? groupsById.get(groupId)
+            : undefined
+        return {
+          templateId: layer.templateId,
+          name: layer.name,
+          icon: layer.icon,
+          groupName: group?.name,
+        }
+      }),
       added: addedGroupIds.has(template.templateId),
       order: state?.order ?? template.order ?? 0,
     })
@@ -260,7 +285,13 @@ export function buildLayerStoreItems(input: {
       name: template.name,
       description: template.description,
       icon: template.icon,
-      layerCount: 1,
+      layers: [
+        {
+          templateId: template.templateId,
+          name: template.name,
+          icon: template.icon,
+        },
+      ],
       added: isLayerTemplateAdded(
         template,
         getLayerState,

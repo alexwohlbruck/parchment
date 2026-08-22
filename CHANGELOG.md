@@ -3,6 +3,14 @@
 ### Added
 
 * Photos on a place open full size. Tapping one in the strip grows it out of the thumbnail into a full screen viewer you can pinch to zoom into, drag around and swipe between, and flick away to close. Until now the strip was all there was — you could scroll past a photo but never actually look at it
+* A layer store, reached from the Layers tab of your library. It holds every ready-made layer Parchment ships with, so anything you delete can be added back — there is no separate "restore defaults" any more. Terrain, Time Zones, Air Quality, Wildfires and OSM Notes now start out in the store rather than in your library, so a fresh library only carries what most people want on the map
+
+### Changed
+
+* Parchment's own layers are no longer editable. Many of them are more than a block of map styling — transit stops you can tap for departures, friends moving around live, the day and night terminator — and opening them in the layer editor exposed settings that could not describe what they actually do. They can still be reordered, regrouped, toggled and deleted; the store puts back anything you remove
+* Taking over one of Parchment's layers to make your own copy is gone, along with the copies-and-originals bookkeeping behind it. Layers you built yourself are untouched
+* Deleting one of Parchment's layer groups now takes the layers inside it too, instead of scattering them across the top of your library. Adding the group back from the store brings the whole set with it. Your own layers filed inside such a group are moved out rather than deleted
+* OSM notes are now a layer like any other: it sits in your library, reorders with everything else, and its place in the layer selector follows the order you set — rather than being pinned to the bottom of the list
 
 ## [0.6.0] - 2026-08-18
 

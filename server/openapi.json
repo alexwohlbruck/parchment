@@ -7782,7 +7782,14 @@
                     ]
                   },
                   "hidden": {
-                    "type": "boolean"
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "visible": {
                     "anyOf": [
@@ -7805,6 +7812,16 @@
                     ]
                   },
                   "enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "showInLayerSelector": {
                     "anyOf": [
                       {
                         "type": "boolean"
@@ -7861,7 +7878,14 @@
                     ]
                   },
                   "hidden": {
-                    "type": "boolean"
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "visible": {
                     "anyOf": [
@@ -7884,6 +7908,16 @@
                     ]
                   },
                   "enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "showInLayerSelector": {
                     "anyOf": [
                       {
                         "type": "boolean"
@@ -7940,7 +7974,14 @@
                     ]
                   },
                   "hidden": {
-                    "type": "boolean"
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "visible": {
                     "anyOf": [
@@ -7963,6 +8004,16 @@
                     ]
                   },
                   "enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "showInLayerSelector": {
                     "anyOf": [
                       {
                         "type": "boolean"
@@ -8095,138 +8146,6 @@
             }
           }
         },
-        "responses": {
-          "200": {}
-        }
-      }
-    },
-    "/library/layers/default-clone/layer": {
-      "post": {
-        "parameters": [],
-        "operationId": "postLibraryLayersDefault-cloneLayer",
-        "tags": [
-          "Layers"
-        ],
-        "summary": "Clone a default layer into a user-owned layer",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {}
-        }
-      }
-    },
-    "/library/layers/default-clone/group": {
-      "post": {
-        "parameters": [],
-        "operationId": "postLibraryLayersDefault-cloneGroup",
-        "tags": [
-          "Layers"
-        ],
-        "summary": "Clone a default group into a user-owned group",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {}
-        }
-      }
-    },
-    "/library/layers/restore-defaults": {
-      "post": {
-        "operationId": "postLibraryLayersRestore-defaults",
-        "tags": [
-          "Layers"
-        ],
-        "summary": "Restore default layers (clears state; clones remain)",
         "responses": {
           "200": {}
         }

@@ -9,6 +9,7 @@ import {
   slugify,
   parseGeoJson,
 } from './draft'
+import { inferLayerKind } from './spec'
 import { MapEngine, type Layer } from '@/types/map.types'
 
 /**
@@ -245,5 +246,57 @@ describe('parseGeoJson', () => {
     expect(parseGeoJson('')).toBeNull()
     expect(parseGeoJson('{')).toBeNull()
     expect(parseGeoJson('"a string"')).toBeNull()
+  })
+})
+
+describe('inferLayerKind', () => {
+  const point = { type: 'Point', coordinates: [0, 0] }
+  const line = { type: 'LineString', coordinates: [[0, 0], [1, 1]] }
+  const polygon = {
+    type: 'Polygon',
+    coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]],
+  }
+
+  function collection(...geometries: unknown[]) {
+    return {
+      type: 'FeatureCollection',
+      features: geometries.map(geometry => ({
+        type: 'Feature',
+        geometry,
+        properties: {},
+      })),
+    }
+  }
+
+  it('picks the renderer that will actually draw the data', () => {
+    expect(inferLayerKind(collection(point, point))).toBe('circle')
+    expect(inferLayerKind(collection(line))).toBe('line')
+    expect(inferLayerKind(collection(polygon))).toBe('fill')
+  })
+
+  it('handles a bare geometry and a bare feature', () => {
+    expect(inferLayerKind(point)).toBe('circle')
+    expect(inferLayerKind({ type: 'Feature', geometry: line, properties: {} })).toBe('line')
+  })
+
+  it('reads multi-geometries as their singular form', () => {
+    expect(inferLayerKind(collection({ type: 'MultiPolygon', coordinates: [] }))).toBe('fill')
+    expect(inferLayerKind(collection({ type: 'MultiPoint', coordinates: [] }))).toBe('circle')
+  })
+
+  it('takes the majority in a mixed document', () => {
+    expect(inferLayerKind(collection(point, polygon, polygon))).toBe('fill')
+  })
+
+  it('looks inside a geometry collection', () => {
+    expect(
+      inferLayerKind(collection({ type: 'GeometryCollection', geometries: [line, line] })),
+    ).toBe('line')
+  })
+
+  it('returns null when there is nothing to go on, leaving the default alone', () => {
+    expect(inferLayerKind(collection())).toBeNull()
+    expect(inferLayerKind(null)).toBeNull()
+    expect(inferLayerKind({ nonsense: true })).toBeNull()
   })
 })

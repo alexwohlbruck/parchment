@@ -502,7 +502,9 @@
       "ungroupLayer": "Desagrupar Capa"
     },
     "empty": {
-      "message": "No hay capas configuradas"
+      "message": "No hay capas configuradas",
+      "title": "Sin capas",
+      "description": "Añade capas ya hechas desde la tienda, o crea la tuya."
     },
     "badges": {
       "default": "Predeterminado",
@@ -577,14 +579,14 @@
         "geojsonHint": "Los datos pegados se guardan con la capa. La subida de archivos llegará más adelante.",
         "kinds": {
           "raster": "Teselas ráster",
-          "raster-dem": "Terreno",
+          "raster-dem": "Elevación",
           "vector": "Teselas vectoriales",
           "geojson": "GeoJSON",
           "image": "Imagen"
         },
         "hints": {
           "raster": "Teselas de imagen ya renderizadas: ortofotos, mapas escaneados, capas meteorológicas.",
-          "raster-dem": "Teselas de elevación, dibujadas como sombreado del relieve.",
+          "raster-dem": "Teselas de elevación, dibujadas como relieve sombreado. No es lo mismo que el terreno 3D del mapa.",
           "vector": "Teselas vectoriales de Mapbox. Cada capa interna se estiliza por separado.",
           "geojson": "Puntos, líneas y polígonos aportados directamente o desde una URL.",
           "image": "Una sola imagen fijada a cuatro coordenadas."
@@ -638,7 +640,8 @@
           "customFont": "Usa fuentes que quizá no existan en este mapa base",
           "missingSource": "Su origen no está en este documento",
           "unsupportedType": "Este tipo de capa no es compatible"
-        }
+        },
+        "prompt": "¿Ya tienes un estilo?"
       },
       "errors": {
         "nameRequired": "Ponle un nombre a la capa.",

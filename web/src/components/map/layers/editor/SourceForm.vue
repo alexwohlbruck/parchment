@@ -12,12 +12,14 @@ import { useI18n } from 'vue-i18n'
 import type { LayerDraft } from '@/lib/map-style/draft'
 import { SOURCE_MODES } from '@/lib/map-style/draft'
 import {
+  inferLayerKind,
   LAYER_KINDS_BY_SOURCE,
   requiresSourceLayer,
   STYLE_SOURCE_KINDS,
   type StyleLayerKind,
   type StyleSourceKind,
 } from '@/lib/map-style/spec'
+import { parseGeoJson } from '@/lib/map-style/draft'
 import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,7 +35,7 @@ import {
 } from '@/components/ui/select'
 import {
   ImageIcon,
-  MountainSnowIcon,
+  MountainIcon,
   ShapesIcon,
   BracesIcon,
   FrameIcon,
@@ -47,7 +49,7 @@ const { t } = useI18n()
 
 const SOURCE_ICONS: Record<StyleSourceKind, typeof ImageIcon> = {
   raster: ImageIcon,
-  'raster-dem': MountainSnowIcon,
+  'raster-dem': MountainIcon,
   vector: ShapesIcon,
   geojson: BracesIcon,
   image: FrameIcon,
@@ -89,6 +91,25 @@ function patchSource(patch: Partial<LayerDraft['source']>) {
   draft.value = { ...draft.value, source: { ...source.value, ...patch } }
 }
 
+/**
+ * Pasting GeoJSON tells us what it is, so pick the renderer that will draw
+ * it. Only while the style is untouched — once the user has set a property,
+ * the layer type is their decision, not ours.
+ */
+function setGeoJson(text: string) {
+  const parsed = parseGeoJson(text)
+  const inferred = parsed ? inferLayerKind(parsed) : null
+  const styleUntouched =
+    !Object.keys(draft.value.paint).length &&
+    !Object.keys(draft.value.layout).length
+
+  draft.value = {
+    ...draft.value,
+    kind: inferred && styleUntouched ? inferred : draft.value.kind,
+    source: { ...source.value, data: text },
+  }
+}
+
 function setTile(index: number, value: string) {
   const tiles = [...source.value.tiles]
   tiles[index] = value
@@ -117,26 +138,28 @@ function setZoom(field: 'minzoom' | 'maxzoom', value: string) {
       <Label class="text-xs text-muted-foreground">
         {{ t('layers.editor.source.type') }}
       </Label>
-      <div class="grid grid-cols-3 gap-1.5">
+      <div class="grid grid-cols-3 gap-1">
         <button
           v-for="kind in STYLE_SOURCE_KINDS"
           :key="kind"
           :class="[
             ITEM_ROW_SURFACES.tile,
-            'flex flex-col items-center gap-1.5 px-2 py-2.5 transition-colors',
+            'flex flex-col items-center justify-center gap-1 px-1.5 py-2 transition-colors',
             kind === source.kind
-              ? 'ring-2 ring-primary bg-secondary/50'
-              : 'hover:bg-secondary/40',
+              ? 'bg-secondary text-foreground ring-1 ring-inset ring-primary/50'
+              : 'text-muted-foreground hover:bg-secondary/40',
           ]"
           @click="selectSourceKind(kind)"
         >
-          <component :is="SOURCE_ICONS[kind]" class="size-4 text-muted-foreground" />
+          <component :is="SOURCE_ICONS[kind]" class="size-4" />
           <span class="text-[11px] leading-tight text-center">
             {{ t(`layers.editor.source.kinds.${kind}`) }}
           </span>
         </button>
       </div>
-      <p class="text-xs text-muted-foreground">
+      <!-- Fixed height: the hints run one or two lines, and letting the form
+           below jump as you compare source types reads as a glitch. -->
+      <p class="text-xs text-muted-foreground leading-snug min-h-8">
         {{ t(`layers.editor.source.hints.${source.kind}`) }}
       </p>
     </div>
@@ -153,7 +176,7 @@ function setZoom(field: 'minzoom' | 'maxzoom', value: string) {
           class="px-2.5 py-1 rounded-md text-xs transition-colors"
           :class="
             mode === source.mode
-              ? 'bg-secondary text-foreground'
+              ? 'bg-secondary text-foreground shadow-xs'
               : 'text-muted-foreground hover:text-foreground'
           "
           @click="patchSource({ mode })"
@@ -226,7 +249,7 @@ function setZoom(field: 'minzoom' | 'maxzoom', value: string) {
           spellcheck="false"
           class="font-mono text-xs leading-relaxed"
           placeholder='{ "type": "FeatureCollection", "features": [] }'
-          @update:model-value="v => patchSource({ data: String(v) })"
+          @update:model-value="v => setGeoJson(String(v))"
         />
         <p class="text-xs text-muted-foreground">
           {{ t('layers.editor.source.geojsonHint') }}
@@ -305,7 +328,7 @@ function setZoom(field: 'minzoom' | 'maxzoom', value: string) {
         <div class="flex items-center gap-1">
           <Input
             type="number"
-            class="h-7 w-16 text-xs"
+            class="h-7 w-14 text-xs no-spinner text-right"
             :model-value="source.minzoom ?? ''"
             placeholder="0"
             @update:model-value="v => setZoom('minzoom', String(v))"
@@ -313,7 +336,7 @@ function setZoom(field: 'minzoom' | 'maxzoom', value: string) {
           <span class="text-muted-foreground text-xs">–</span>
           <Input
             type="number"
-            class="h-7 w-16 text-xs"
+            class="h-7 w-14 text-xs no-spinner text-right"
             :model-value="source.maxzoom ?? ''"
             placeholder="22"
             @update:model-value="v => setZoom('maxzoom', String(v))"
@@ -346,8 +369,8 @@ function setZoom(field: 'minzoom' | 'maxzoom', value: string) {
           class="px-2.5 py-1 rounded-md border text-xs transition-colors"
           :class="
             kind === draft.kind
-              ? 'bg-secondary border-primary/40'
-              : 'text-muted-foreground hover:bg-secondary/40'
+              ? 'bg-secondary border-primary/50 text-foreground'
+              : 'text-muted-foreground border-transparent hover:bg-secondary/40'
           "
           @click="draft = { ...draft, kind, paint: {}, layout: {} }"
         >

@@ -8,7 +8,7 @@
  * Save; leaving with unsaved work asks first, which is also what the sheet's
  * close button ends up doing.
  */
-import { computed, onScopeDispose, ref, watch } from 'vue'
+import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -91,7 +91,7 @@ onScopeDispose(() => {
   canvasesStore.editingCanvasId = null
 })
 
-useCanvasRendering(
+const { fitToLayer } = useCanvasRendering(
   computed(() => (canvas.value ? [{ id: props.id, body: body.value }] : [])),
   { key: 'canvas-editor' },
 )
@@ -113,6 +113,9 @@ function patchLayer(id: string, patch: Partial<CanvasLayer>) {
 
 function addLayer(layer: CanvasLayer) {
   layers.value = [...layers.value, layer]
+  // Show what was just added. The render pass has to put it on the map first,
+  // so this waits a tick rather than racing it.
+  nextTick(() => fitToLayer(props.id, layer))
 }
 
 async function removeLayer(id: string) {

@@ -167,7 +167,7 @@ async function submit() {
                 ITEM_ROW_SURFACES.tile,
                 'flex flex-col items-start gap-1 p-3 text-left transition-colors',
                 option.value === scheme
-                  ? 'ring-2 ring-primary bg-secondary/50'
+                  ? 'bg-secondary ring-1 ring-inset ring-primary/50'
                   : 'hover:bg-secondary/40',
                 option.value === 'user-e2ee' &&
                   !hasIdentity &&

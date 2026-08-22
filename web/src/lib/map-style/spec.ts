@@ -58,13 +58,57 @@ export const LAYER_KINDS_BY_SOURCE: Record<
   raster: ['raster'],
   'raster-dem': ['hillshade'],
   vector: ['fill', 'line', 'symbol', 'circle', 'heatmap', 'fill-extrusion'],
-  geojson: ['fill', 'line', 'symbol', 'circle', 'heatmap', 'fill-extrusion'],
+  // Points lead here: hand-supplied GeoJSON is overwhelmingly a list of
+  // places, and a `fill` over points draws nothing at all — which reads as a
+  // layer that failed rather than one pointed at the wrong renderer.
+  geojson: ['circle', 'line', 'fill', 'symbol', 'heatmap', 'fill-extrusion'],
   image: ['raster'],
 }
 
 /** Source types whose layers need a `source-layer`. */
 export function requiresSourceLayer(kind: StyleSourceKind): boolean {
   return kind === 'vector'
+}
+
+/**
+ * The layer type that will actually draw a GeoJSON document.
+ *
+ * Guessing from the data beats making the user work out why their polygons
+ * are invisible under a circle layer. Mixed documents win on majority; an
+ * empty or unreadable one returns null and the default stands.
+ */
+export function inferLayerKind(document: unknown): StyleLayerKind | null {
+  const counts: Partial<Record<StyleLayerKind, number>> = {}
+
+  const tally = (geometry: unknown) => {
+    const type = (geometry as { type?: string } | null)?.type
+    if (!type) return
+    if (type === 'GeometryCollection') {
+      const parts = (geometry as { geometries?: unknown[] }).geometries ?? []
+      parts.forEach(tally)
+      return
+    }
+    const kind: StyleLayerKind | null = type.includes('Polygon')
+      ? 'fill'
+      : type.includes('LineString')
+        ? 'line'
+        : type.includes('Point')
+          ? 'circle'
+          : null
+    if (kind) counts[kind] = (counts[kind] ?? 0) + 1
+  }
+
+  const visit = (node: unknown) => {
+    const value = node as { type?: string; features?: unknown[]; geometry?: unknown }
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value.features)) value.features.forEach(visit)
+    else if (value.geometry) tally(value.geometry)
+    else tally(value)
+  }
+  visit(document)
+
+  const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1])
+  return ranked.length ? (ranked[0][0] as StyleLayerKind) : null
 }
 
 // ── Property catalogue ───────────────────────────────────────────────────────

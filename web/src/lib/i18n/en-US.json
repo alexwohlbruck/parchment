@@ -493,7 +493,9 @@
       "ungroupLayer": "Ungroup Layer"
     },
     "empty": {
-      "message": "No layers configured"
+      "message": "No layers configured",
+      "title": "No layers",
+      "description": "Add ready-made layers from the store, or build one of your own."
     },
     "configuration": {
       "title": "Layer Configuration",
@@ -596,14 +598,14 @@
         "geojsonHint": "Pasted data is stored with the layer. File uploads are coming later.",
         "kinds": {
           "raster": "Raster tiles",
-          "raster-dem": "Terrain",
+          "raster-dem": "Elevation",
           "vector": "Vector tiles",
           "geojson": "GeoJSON",
           "image": "Image"
         },
         "hints": {
           "raster": "Pre-rendered image tiles — aerial imagery, scanned maps, weather overlays.",
-          "raster-dem": "Elevation tiles, drawn as hillshading.",
+          "raster-dem": "Elevation tiles, drawn as shaded relief. Not the same as the map's 3D terrain.",
           "vector": "Mapbox vector tiles. Every layer inside them can be styled separately.",
           "geojson": "Points, lines and polygons supplied directly or fetched from a URL.",
           "image": "A single image pinned to four corner coordinates."
@@ -657,7 +659,8 @@
           "customFont": "Uses fonts that may not exist in this basemap",
           "missingSource": "Its source isn't in this document",
           "unsupportedType": "This layer type isn't supported"
-        }
+        },
+        "prompt": "Already have a style?"
       },
       "errors": {
         "nameRequired": "Give the layer a name.",

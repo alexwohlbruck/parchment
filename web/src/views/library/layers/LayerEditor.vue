@@ -304,16 +304,22 @@ const title = computed(() =>
         </TabsList>
 
         <TabsContent value="source" class="pt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            class="w-full mb-4"
-            @click="importOpen = true"
-          >
-            <DownloadIcon class="size-3.5" />
-            {{ t('layers.editor.import.trigger') }}
-          </Button>
           <SourceForm v-model="draft" />
+
+          <div class="mt-6 pt-4 border-t flex items-center justify-between gap-2">
+            <p class="text-xs text-muted-foreground">
+              {{ t('layers.editor.import.prompt') }}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-7 px-2 shrink-0 text-xs"
+              @click="importOpen = true"
+            >
+              <DownloadIcon class="size-3.5" />
+              {{ t('layers.editor.import.trigger') }}
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="style" class="pt-4">

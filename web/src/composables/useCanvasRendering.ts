@@ -9,6 +9,11 @@
  * Every id is namespaced by canvas so two canvases can borrow the same
  * library layer, or carry style layers that happen to share a source name,
  * without colliding with each other or with the library's own copy.
+ *
+ * Sources are added by hand rather than inlined into `addLayer`: the engine
+ * refuses to drop a source a layer still uses, so re-adding one every render
+ * pass both failed and refetched every tile. Each source's spec is cached, so
+ * a reorder or a visibility toggle touches only the layers.
  */
 
 import { onScopeDispose, watch, type ComputedRef } from 'vue'
@@ -28,6 +33,7 @@ import {
   type CollectionStyle,
 } from '@/lib/saved-places-features'
 import { ensureIconImages } from '@/lib/map-icon-images'
+import { resolveSpecBounds } from '@/lib/map-style/bounds'
 import { themeColorToHex } from '@/lib/utils'
 import {
   BOOKMARKS_CIRCLES_LAYER_CONFIG,
@@ -73,7 +79,8 @@ export function useCanvasRendering(
 
   /** Every map id this instance has put on the map, so it can take them off. */
   let mounted = new Set<string>()
-  let mountedSources = new Set<string>()
+  /** Source id → the spec currently on the map, so we only rebuild on change. */
+  let mountedSources = new Map<string, string>()
 
   function collectionPlaces(layer: CanvasLayer & { kind: 'collection' }) {
     const collection = collectionsStore.collections.find(
@@ -98,75 +105,70 @@ export function useCanvasRendering(
     })
   }
 
+  interface LayerPlan {
+    /** Style-spec sources this layer needs, keyed by the id they go in under. */
+    sources: Record<string, Record<string, unknown>>
+    /** Map layers, each already pointing at a source id rather than a spec. */
+    layers: Layer[]
+  }
+
+  const EMPTY_PLAN: LayerPlan = { sources: {}, layers: [] }
+
   /**
-   * The layers and sources one canvas layer resolves to.
-   *
-   * Style and library layers carry their source inline, so `addLayer` creates
-   * it; a collection layer has to build its GeoJSON here and register it
-   * first, which is the one case where planning also writes. Either way the
-   * ids come back so `render` can diff the whole set afterwards.
+   * What one canvas layer resolves to. Pure apart from registering sprite
+   * images, which have to be on the map before a symbol layer referencing
+   * them is added.
    */
   function planLayer(
     strategy: MapStrategy,
     canvasId: string,
     layer: CanvasLayer,
-  ): { layers: Layer[]; sources: string[] } {
-    if (layer.kind === 'style') {
-      const id = scopedId(canvasId, layer.id)
-      const configuration = { ...layer.configuration }
-      const source = configuration.source
-      if (source && typeof source === 'object') {
-        configuration.source = {
-          ...(source as Record<string, unknown>),
-          id: scopedId(canvasId, layer.id, '-source'),
-        }
-      }
-      return {
-        layers: [toLayer(id, configuration, layer.visible)],
-        sources: [scopedId(canvasId, layer.id, '-source')],
-      }
-    }
+  ): LayerPlan {
+    const layerId = scopedId(canvasId, layer.id)
+    const sourceId = scopedId(canvasId, layer.id, '-source')
 
-    if (layer.kind === 'library') {
-      const source = libraryLayers.value.find(l => l.id === layer.layerId)
-      // A borrowed layer that no longer exists, or one drawn as Vue markers
-      // rather than a style layer (friends, trackers, notes), has nothing to
-      // copy onto the canvas.
-      if (!source || MARKER_RENDERED_LAYER_TYPES.has(source.type)) {
-        return { layers: [], sources: [] }
-      }
-      const id = scopedId(canvasId, layer.id)
-      const configuration = { ...source.configuration } as Record<string, unknown>
-      const sourceSpec = configuration.source
-      const sourceId = scopedId(canvasId, layer.id, '-source')
-      if (sourceSpec && typeof sourceSpec === 'object') {
-        configuration.source = {
-          ...(sourceSpec as Record<string, unknown>),
-          id: sourceId,
-        }
+    if (layer.kind === 'style' || layer.kind === 'library') {
+      const configuration =
+        layer.kind === 'style'
+          ? ({ ...layer.configuration } as Record<string, unknown>)
+          : (() => {
+              const source = libraryLayers.value.find(
+                l => l.id === layer.layerId,
+              )
+              // A borrowed layer that no longer exists, or one drawn as Vue
+              // markers rather than a style layer (friends, trackers, notes),
+              // has nothing to copy onto the canvas.
+              if (!source || MARKER_RENDERED_LAYER_TYPES.has(source.type)) {
+                return null
+              }
+              return { ...source.configuration } as Record<string, unknown>
+            })()
+
+      if (!configuration) return EMPTY_PLAN
+
+      const spec = configuration.source
+      if (spec && typeof spec === 'object') {
+        const { id: _id, ...options } = spec as Record<string, unknown>
         return {
-          layers: [toLayer(id, configuration, layer.visible)],
-          sources: [sourceId],
+          sources: { [sourceId]: options },
+          layers: [toLayer(layerId, { ...configuration, source: sourceId }, layer.visible)],
         }
       }
-      // The library layer names a source the basemap style provides; reuse it
-      // rather than duplicating something we don't own.
-      return { layers: [toLayer(id, configuration, layer.visible)], sources: [] }
+      // The layer names a source the basemap style provides; reuse it rather
+      // than duplicating something we don't own.
+      return { sources: {}, layers: [toLayer(layerId, configuration, layer.visible)] }
     }
 
     // Collections: one GeoJSON source, a circle per place, and a glyph on top
     // once the dot is big enough — the same two-layer treatment saved places
     // already get on the main map.
-    const sourceId = scopedId(canvasId, layer.id, '-source')
     const places = collectionPlaces(layer)
     void ensureIconImages(strategy.mapInstance, savedPlaceIconSpecs(places))
 
-    strategy.addSource(sourceId, {
-      type: 'geojson',
-      data: buildSavedPlacesGeoJSON(places),
-    })
-
     return {
+      sources: {
+        [sourceId]: { type: 'geojson', data: buildSavedPlacesGeoJSON(places) },
+      },
       layers: [
         toLayer(
           scopedId(canvasId, layer.id, '-circles'),
@@ -179,7 +181,6 @@ export function useCanvasRendering(
           layer.visible,
         ),
       ],
-      sources: [sourceId],
     }
   }
 
@@ -188,26 +189,41 @@ export function useCanvasRendering(
     if (!strategy) return
 
     const nextLayers = new Set<string>()
-    const nextSources = new Set<string>()
+    const nextSources = new Map<string, string>()
+    const plans: { plan: LayerPlan; visible: boolean }[] = []
 
     for (const canvas of canvases.value) {
       // Bottom of the list draws first, matching how the layer library reads.
       for (const layer of canvas.body?.layers ?? []) {
         const plan = planLayer(strategy, canvas.id, layer)
-        for (const mapLayer of plan.layers) {
-          strategy.addLayer(mapLayer, true)
-          strategy.toggleLayerVisibility(mapLayer.id, layer.visible)
-          nextLayers.add(mapLayer.id)
+        plans.push({ plan, visible: layer.visible })
+        for (const [id, spec] of Object.entries(plan.sources)) {
+          nextSources.set(id, JSON.stringify(spec))
         }
-        plan.sources.forEach(id => nextSources.add(id))
+        plan.layers.forEach(l => nextLayers.add(l.id))
       }
     }
 
+    // Layers come off first: the engine refuses to drop a source anything is
+    // still drawing from. Then the stale sources, then everything back on.
     for (const id of mounted) {
       if (!nextLayers.has(id)) strategy.removeLayer(id)
     }
-    for (const id of mountedSources) {
-      if (!nextSources.has(id)) strategy.removeSource(id)
+    for (const [id, spec] of mountedSources) {
+      if (nextSources.get(id) !== spec) strategy.removeSource(id)
+    }
+
+    for (const { plan, visible } of plans) {
+      for (const [id, spec] of Object.entries(plan.sources)) {
+        // Unchanged sources stay put, so a reorder or a visibility toggle
+        // doesn't refetch every tile on the canvas.
+        if (mountedSources.get(id) === nextSources.get(id)) continue
+        strategy.addSource(id, spec)
+      }
+      for (const mapLayer of plan.layers) {
+        strategy.addLayer(mapLayer, true)
+        strategy.toggleLayerVisibility(mapLayer.id, visible)
+      }
     }
 
     mounted = nextLayers
@@ -218,9 +234,9 @@ export function useCanvasRendering(
     const strategy = mapStore.getMapStrategy()
     if (!strategy) return
     mounted.forEach(id => strategy.removeLayer(id))
-    mountedSources.forEach(id => strategy.removeSource(id))
+    mountedSources.forEach((_spec, id) => strategy.removeSource(id))
     mounted = new Set()
-    mountedSources = new Set()
+    mountedSources = new Map()
   }
 
   watch(canvases, render, { deep: true, immediate: true })
@@ -228,10 +244,31 @@ export function useCanvasRendering(
   // The basemap style change drops every layer we added, so put them back.
   mapStore.on('style.load', render)
 
+  /**
+   * Fly to a canvas layer's data.
+   *
+   * Called when a layer is first added: whatever you just picked is rarely
+   * under the current view, and an overlay you can't see reads as one that
+   * didn't work. A layer whose extent can't be determined — bare tile
+   * templates, an empty collection — leaves the camera alone.
+   */
+  async function fitToLayer(canvasId: string, layer: CanvasLayer) {
+    const strategy = mapStore.getMapStrategy()
+    if (!strategy) return
+
+    const plan = planLayer(strategy, canvasId, layer)
+    const specs = Object.values(plan.sources)
+    if (!specs.length) return
+
+    const bounds = await resolveSpecBounds(specs[0])
+    if (!bounds) return
+    strategy.fitBounds(bounds, { padding: 80, duration: 900 })
+  }
+
   onScopeDispose(() => {
     mapStore.off('style.load', render)
     teardown()
   })
 
-  return { render, teardown, key: options.key }
+  return { render, teardown, fitToLayer, key: options.key }
 }

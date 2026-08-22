@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import ColorField from './ColorField.vue'
-import { RotateCcwIcon, BracesIcon } from 'lucide-vue-next'
+import { RotateCcwIcon, BracesIcon, InfoIcon } from 'lucide-vue-next'
 
 const props = defineProps<{
   property: StyleProperty
@@ -110,16 +110,17 @@ const stacked = computed(() => props.property.control === 'range')
 <template>
   <div class="group py-1.5">
     <div class="flex items-center justify-between gap-2 min-h-7">
-      <div class="flex items-center gap-1 min-w-0">
-        <span
-          class="text-xs truncate"
-          :class="isSet ? 'text-foreground' : 'text-muted-foreground'"
-          :title="property.hint ?? property.key"
-        >
+      <div class="flex items-center gap-1.5 min-w-0">
+        <span class="text-xs truncate" :title="property.key">
           {{ property.label }}
         </span>
-        <span v-if="property.hint" class="text-muted-foreground/50 text-[10px]">
-          ⓘ
+        <span
+          v-if="property.hint"
+          class="shrink-0 leading-none"
+          :title="property.hint"
+          :aria-label="property.hint"
+        >
+          <InfoIcon class="size-3 text-muted-foreground/60" />
         </span>
       </div>
 
@@ -185,13 +186,13 @@ const stacked = computed(() => props.property.control === 'range')
           >
             <Input
               type="number"
-              class="h-7 w-16 text-xs"
+              class="h-7 w-16 text-xs no-spinner text-right"
               :model-value="pointValue[0]"
               @update:model-value="v => updatePoint(0, String(v))"
             />
             <Input
               type="number"
-              class="h-7 w-16 text-xs"
+              class="h-7 w-16 text-xs no-spinner text-right"
               :model-value="pointValue[1]"
               @update:model-value="v => updatePoint(1, String(v))"
             />
@@ -216,7 +217,7 @@ const stacked = computed(() => props.property.control === 'range')
           <Input
             v-else-if="property.control === 'number'"
             type="number"
-            class="h-7 w-24 text-xs"
+            class="h-7 w-20 text-xs no-spinner text-right"
             :model-value="(value as number | undefined) ?? ''"
             :placeholder="placeholder"
             @update:model-value="updateNumber"
@@ -233,7 +234,8 @@ const stacked = computed(() => props.property.control === 'range')
 
         <span
           v-else
-          class="text-xs tabular-nums text-muted-foreground w-12 text-right"
+          class="text-xs tabular-nums w-14 text-right"
+          :class="isSet ? 'text-foreground' : 'text-muted-foreground'"
         >
           {{ displayNumber }}{{ property.unit ?? '' }}
         </span>

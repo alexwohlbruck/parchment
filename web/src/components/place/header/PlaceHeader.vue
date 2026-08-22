@@ -377,7 +377,7 @@ watch(
         </p>
         <div
           v-if="showToggleButton"
-          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background md:from-muted to-transparent pointer-events-none"
+          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background md:from-muted-light to-transparent pointer-events-none"
         />
       </div>
 

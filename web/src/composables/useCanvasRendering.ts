@@ -6,9 +6,12 @@
  * copy, so reordering and toggling read immediately). Both hand over a list;
  * this reconciles it against what is currently on the map.
  *
- * Every id is namespaced by canvas so two canvases can borrow the same
- * library layer, or carry style layers that happen to share a source name,
- * without colliding with each other or with the library's own copy.
+ * Every id is namespaced by the *instance key* and then the canvas, because
+ * two renderers are routinely alive at once: the main map draws the canvases
+ * you have switched on, while the editor draws the working copy of the one
+ * you have open. Sharing ids between them meant each instance's bookkeeping
+ * described layers the other had already replaced, and the engine ended up
+ * asked to drop a source a live layer was still using.
  *
  * Sources are added by hand rather than inlined into `addLayer`: the engine
  * refuses to drop a source a layer still uses, so re-adding one every render
@@ -48,9 +51,17 @@ export interface RenderableCanvas {
   body: CanvasBody
 }
 
-/** `canvas-<canvasId>-<layerId>`, with a suffix for multi-layer kinds. */
-function scopedId(canvasId: string, layerId: string, suffix = '') {
-  return `canvas-${canvasId}-${layerId}${suffix}`
+/**
+ * `canvas-<key>-<canvasId>-<layerId>`, with a suffix for multi-layer kinds.
+ * The key is what keeps two live renderers off each other's layers.
+ */
+function scopedId(
+  key: string,
+  canvasId: string,
+  layerId: string,
+  suffix = '',
+) {
+  return `canvas-${key}-${canvasId}-${layerId}${suffix}`
 }
 
 function toLayer(
@@ -129,8 +140,8 @@ export function useCanvasRendering(
     canvasId: string,
     layer: CanvasLayer,
   ): LayerPlan {
-    const layerId = scopedId(canvasId, layer.id)
-    const sourceId = scopedId(canvasId, layer.id, '-source')
+    const layerId = scopedId(options.key, canvasId, layer.id)
+    const sourceId = scopedId(options.key, canvasId, layer.id, '-source')
 
     if (layer.kind === 'style' || layer.kind === 'library') {
       const configuration =
@@ -170,7 +181,7 @@ export function useCanvasRendering(
         sources: { [sourceId]: { type: 'geojson', data: layer.data } },
         layers: presetLayers(layer.render, sourceId, layer.style).map(preset =>
           toLayer(
-            scopedId(canvasId, layer.id, preset.suffix),
+            scopedId(options.key, canvasId, layer.id, preset.suffix),
             preset.configuration,
             layer.visible,
           ),
@@ -198,7 +209,7 @@ export function useCanvasRendering(
         },
         layers: [
           toLayer(
-            scopedId(canvasId, layer.id, '-case'),
+            scopedId(options.key, canvasId, layer.id, '-case'),
             {
               type: 'line',
               source: sourceId,
@@ -208,7 +219,7 @@ export function useCanvasRendering(
             layer.visible,
           ),
           toLayer(
-            scopedId(canvasId, layer.id, '-line'),
+            scopedId(options.key, canvasId, layer.id, '-line'),
             {
               type: 'line',
               source: sourceId,
@@ -228,7 +239,7 @@ export function useCanvasRendering(
         sources: { [sourceId]: { type: 'geojson', data: features } },
         layers: [
           toLayer(
-            scopedId(canvasId, layer.id, '-halo'),
+            scopedId(options.key, canvasId, layer.id, '-halo'),
             {
               type: 'circle',
               source: sourceId,
@@ -241,7 +252,7 @@ export function useCanvasRendering(
             layer.visible,
           ),
           toLayer(
-            scopedId(canvasId, layer.id, '-dot'),
+            scopedId(options.key, canvasId, layer.id, '-dot'),
             {
               type: 'circle',
               source: sourceId,
@@ -255,7 +266,7 @@ export function useCanvasRendering(
             layer.visible,
           ),
           toLayer(
-            scopedId(canvasId, layer.id, '-label'),
+            scopedId(options.key, canvasId, layer.id, '-label'),
             {
               type: 'symbol',
               source: sourceId,
@@ -290,12 +301,12 @@ export function useCanvasRendering(
       },
       layers: [
         toLayer(
-          scopedId(canvasId, layer.id, '-circles'),
+          scopedId(options.key, canvasId, layer.id, '-circles'),
           { ...BOOKMARKS_CIRCLES_LAYER_CONFIG.configuration, source: sourceId },
           layer.visible,
         ),
         toLayer(
-          scopedId(canvasId, layer.id, '-icons'),
+          scopedId(options.key, canvasId, layer.id, '-icons'),
           { ...BOOKMARKS_ICONS_LAYER_CONFIG.configuration, source: sourceId },
           layer.visible,
         ),
@@ -323,21 +334,36 @@ export function useCanvasRendering(
       }
     }
 
-    // Layers come off first: the engine refuses to drop a source anything is
-    // still drawing from. Then the stale sources, then everything back on.
+    /**
+     * Sources whose data actually changed. Everything else stays exactly as
+     * it is, so a reorder or a visibility toggle doesn't refetch a tile.
+     */
+    const rebuilding = new Set(
+      [...nextSources]
+        .filter(([id, spec]) => mountedSources.get(id) !== spec)
+        .map(([id]) => id),
+    )
+
+    // Nothing may reference a source we are about to drop — the engine
+    // refuses outright, and the failed drop used to leave the next addSource
+    // colliding with the source it thought it had removed. So layers come off
+    // first: the ones going away, and the ones sitting on a rebuilt source.
     for (const id of mounted) {
-      if (!nextLayers.has(id)) strategy.removeLayer(id)
+      const onRebuiltSource = plans.some(
+        ({ plan }) =>
+          plan.layers.some(l => l.id === id) &&
+          Object.keys(plan.sources).some(sourceId => rebuilding.has(sourceId)),
+      )
+      if (!nextLayers.has(id) || onRebuiltSource) strategy.removeLayer(id)
     }
-    for (const [id, spec] of mountedSources) {
-      if (nextSources.get(id) !== spec) strategy.removeSource(id)
+
+    for (const [id] of mountedSources) {
+      if (!nextSources.has(id) || rebuilding.has(id)) strategy.removeSource(id)
     }
 
     for (const { plan, visible } of plans) {
       for (const [id, spec] of Object.entries(plan.sources)) {
-        // Unchanged sources stay put, so a reorder or a visibility toggle
-        // doesn't refetch every tile on the canvas.
-        if (mountedSources.get(id) === nextSources.get(id)) continue
-        strategy.addSource(id, spec)
+        if (rebuilding.has(id)) strategy.addSource(id, spec)
       }
       for (const mapLayer of plan.layers) {
         strategy.addLayer(mapLayer, true)

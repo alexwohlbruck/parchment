@@ -102,7 +102,7 @@ async function remove() {
             <MoreHorizontalIcon class="size-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" @click.stop>
+        <DropdownMenuContent align="end">
           <DropdownMenuItem @click="emit('rename', canvas)">
             <PencilIcon class="size-4" /> {{ t('canvases.actions.rename') }}
           </DropdownMenuItem>

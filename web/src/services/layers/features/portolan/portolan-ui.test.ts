@@ -19,6 +19,7 @@ import {
   minutesOfDay,
   parseGtfsIds,
   portolanDay,
+  stopTargetFor,
 } from './portolan-ui'
 
 describe('class groups', () => {
@@ -103,5 +104,45 @@ describe('parseGtfsIds', () => {
     expect(parseGtfsIds('')).toEqual([])
     expect(parseGtfsIds(42)).toEqual([])
     expect(parseGtfsIds(':no-feed;no-stop:;plain')).toEqual([])
+  })
+})
+
+describe('which place a clicked station is', () => {
+  // the live case: one station, both ids, two candidate URLs
+  const CONEY = {
+    ftype: 'station',
+    name: 'Coney Island-Stillwell Av',
+    osm: 'node/1683730419',
+    gtfs_ids: 'f-dr5r-nyctsubway:D43',
+  }
+
+  test('the OSM object wins, so the transit label and the POI open one page', () => {
+    expect(stopTargetFor(CONEY)).toEqual({ kind: 'osm', type: 'node', id: '1683730419' })
+  })
+
+  test('ways and relations route as themselves', () => {
+    expect(stopTargetFor({ osm: 'way/123' })).toEqual({ kind: 'osm', type: 'way', id: '123' })
+    expect(stopTargetFor({ osm: 'relation/9' })).toEqual({ kind: 'osm', type: 'relation', id: '9' })
+  })
+
+  test('an unmatched station still opens its feed’s stop', () => {
+    const { osm, ...noMatch } = CONEY
+    expect(stopTargetFor(noMatch)).toEqual({ kind: 'transitland', stopKey: 'f-dr5r-nyctsubway:D43' })
+  })
+
+  test('a complex opens the first pair, which the tiler ranked first', () => {
+    const props = { gtfs_ids: 'f-dr5r-nyctsubway:635;f-dr5r-nyctsubway:418' }
+    expect(stopTargetFor(props)).toEqual({ kind: 'transitland', stopKey: 'f-dr5r-nyctsubway:635' })
+  })
+
+  test('a station with neither is not a link', () => {
+    expect(stopTargetFor({ ftype: 'station', name: 'Somewhere' })).toBe(null)
+    expect(stopTargetFor(undefined)).toBe(null)
+  })
+
+  test('a malformed osm value is not half-parsed into a dead URL', () => {
+    for (const osm of ['node', 'node/', '/1683730419', '']) {
+      expect(stopTargetFor({ osm })).toBe(null)
+    }
   })
 })

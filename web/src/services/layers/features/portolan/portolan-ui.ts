@@ -110,3 +110,42 @@ export function parseGtfsIds(raw: unknown): GtfsIdPair[] {
   }
   return out
 }
+
+/** Where a clicked station goes: an OSM object, or a transit.land stop
+ *  key, or nowhere. Route names are the caller's (AppRoute) — this module
+ *  stays free of the router. */
+export type StopTarget =
+  | { kind: 'osm'; type: string; id: string }
+  | { kind: 'transitland'; stopKey: string }
+
+/**
+ * Which place a click on this station feature identifies.
+ *
+ * The OSM object first, whenever there is one. Portolan matches every
+ * GTFS stop it draws against the OSM stop beside it — that match is where
+ * the drawn name comes from — and records it as `osm`. So a station
+ * clicked on the transit layer and the same station clicked as a basemap
+ * POI are the SAME object and must open the same URL, rather than two
+ * pages about one platform keyed by different vocabularies. It is also
+ * the precedence the rest of the app uses (place.utils: OSM first, then
+ * coords, then whatever provider is left).
+ *
+ * `gtfs_ids` is the fallback. A `<feed-onestop>:<stop_id>` pair is a valid
+ * transit.land stop_key and rides the provider route untranslated, which
+ * is worth having where OSM has no stop mapped — but it names a row in a
+ * feed, not a place in the world.
+ *
+ * null when neither is present: the label draws, and does not pretend to
+ * be a link.
+ */
+export function stopTargetFor(props: any): StopTarget | null {
+  const osm = String(props?.osm ?? '')
+  const slash = osm.indexOf('/')
+  if (slash > 0 && slash < osm.length - 1) {
+    return { kind: 'osm', type: osm.slice(0, slash), id: osm.slice(slash + 1) }
+  }
+  // a merged complex can carry several pairs; the tiler orders them by
+  // importance, so the first is the one to open
+  const pairs = parseGtfsIds(props?.gtfs_ids)
+  return pairs.length ? { kind: 'transitland', stopKey: pairs[0].stopKey } : null
+}

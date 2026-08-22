@@ -75,7 +75,7 @@ import {
 } from './portolan-expressions'
 import { cssFontFor, drawPortolanImage, estRows, estRowsFromAdvances } from './portolan-images'
 import { glyphAdvances } from './portolan-glyphs'
-import { TRANSIT_GROUP_ID, parseGtfsIds } from './portolan-ui'
+import { TRANSIT_GROUP_ID, stopTargetFor } from './portolan-ui'
 
 const FLAG_KEY = 'parchment.portolan-transit'
 
@@ -358,42 +358,21 @@ function bindListeners() {
   }
   for (const [ev, fn] of Object.entries(boundHandlers)) map.on(ev, fn)
 
-  // Stop clicks → the same stop detail the transitland stop layers open.
-  // Per-layer delegates internally re-check getLayer() on every event, so
-  // like setupPoiHandlers they survive setStyle: bound once per map, they
-  // go dormant while the layers are absent and wake when they re-appear.
-  const gtfsIdsAt = (e: any) => parseGtfsIds(e.features?.[0]?.properties?.gtfs_ids)
-
-  /**
-   * Where a click on this station should go.
-   *
-   * `gtfs_ids` is the better answer: `<feed-onestop>:<stop_id>` is a valid
-   * transit.land stop_key, so the pair rides the existing transitland
-   * place route untranslated and lands on departures for that stop.
-   *
-   * It is not always there. A feed only carries pairs when its registry
-   * entry has an onestop id, which the hand-curated city entries do not,
-   * and older tiles predate the property entirely. Every station DOES
-   * carry the OSM stop it matched — `way/123`, `node/456` — which is
-   * exactly what parchment's own POI clicks open. So fall back to that
-   * rather than leaving the label dead: the stop page is the point, and
-   * an OSM stop page beats nothing.
-   */
+  // Stop clicks → the same place detail every other click on the map
+  // opens. Per-layer delegates internally re-check getLayer() on every
+  // event, so like setupPoiHandlers they survive setStyle: bound once per
+  // map, they go dormant while the layers are absent and wake when they
+  // re-appear. Which place a feature identifies is decided in
+  // portolan-ui (pure, tested); this only turns it into a route.
   const targetAt = (e: any): { name: string; params: Record<string, string> } | null => {
-    const pairs = gtfsIdsAt(e)
-    if (pairs.length) {
-      // TODO(portolan): a merged complex can carry several pairs — open a
-      // chooser once the place detail can't merge them; for now the first
-      // pair wins (the tiler orders by importance).
-      return {
-        name: AppRoute.PLACE_PROVIDER,
-        params: { provider: 'transitland', placeId: pairs[0].stopKey },
-      }
-    }
-    const osm = String(e.features?.[0]?.properties?.osm ?? '')
-    const [type, id] = osm.split('/')
-    if (!type || !id) return null
-    return { name: AppRoute.PLACE, params: { type, id } }
+    const target = stopTargetFor(e.features?.[0]?.properties)
+    if (!target) return null
+    return target.kind === 'osm'
+      ? { name: AppRoute.PLACE, params: { type: target.type, id: target.id } }
+      : {
+          name: AppRoute.PLACE_PROVIDER,
+          params: { provider: 'transitland', placeId: target.stopKey },
+        }
   }
 
   const onStopEnter = (e: any) => {

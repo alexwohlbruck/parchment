@@ -54,18 +54,22 @@ function openLine(line: StationLine) {
 }
 
 /** Why a bullet is dimmed, in words — a dimmed chip with no explanation
- *  reads as a rendering bug. */
+ *  reads as a rendering bug.
+ *
+ *  It states the rider's fact, not the board's method: "the N isn't
+ *  running now". How far ahead the board looked to know that is our
+ *  business, and naming it ("no service in the next 180 minutes") turned
+ *  a plain answer into arithmetic the rider has to finish. */
 function lineTitle(line: StationLine): string {
   const name = line.longName || line.shortName || ''
-  if (line.inService) {
-    return stationLinesContext.value.feedId
-      ? t('place.transit.openRouteDetail', { name })
-      : name
+  if (!line.inService) {
+    return name
+      ? t('place.transit.notInServiceNamed', { name })
+      : t('place.transit.notInService')
   }
-  const minutes = stationLinesContext.value.windowMinutes
-  return minutes
-    ? t('place.transit.notInServiceWindow', { name, minutes })
-    : t('place.transit.notInServiceSoon', { name })
+  return stationLinesContext.value.feedId
+    ? t('place.transit.openRouteDetail', { name })
+    : name
 }
 
 const { t, locale } = useI18n()

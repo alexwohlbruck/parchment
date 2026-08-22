@@ -15,8 +15,6 @@ export type StationLine = StationRoute & {
 export interface StationLinesContext {
   /** Lets a bullet open its route detail; without it a bullet is inert. */
   feedId?: string
-  /** How far ahead the board looked, so "not running" can say how long. */
-  windowMinutes?: number
   /** Whether service could be judged at all — an empty board is not
    *  evidence that nothing runs. */
   known: boolean
@@ -45,7 +43,7 @@ const EMPTY_CTX: StationLinesContext = { known: false }
 export function setPlaceTransitLines(
   placeId: string | undefined,
   routes: StationRoute[] | undefined,
-  ctx?: { feedId?: string; windowMinutes?: number; runningRouteIds?: Iterable<string> },
+  ctx?: { feedId?: string; runningRouteIds?: Iterable<string> },
 ) {
   if (!placeId || !routes?.length) return
   const running = new Set(ctx?.runningRouteIds ?? [])
@@ -54,7 +52,6 @@ export function setPlaceTransitLines(
     running,
     ctx: {
       feedId: ctx?.feedId,
-      windowMinutes: ctx?.windowMinutes,
       // Nothing running at all means the board is empty or absent, and an
       // absent board says nothing about the schedule — dimming every
       // bullet on it would be an assertion we cannot make.

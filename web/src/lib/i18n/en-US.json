@@ -1059,9 +1059,8 @@
         }
       },
       "notInService": "Not running now",
-      "notInServiceWindow": "No {name} service in the next {minutes} minutes",
-      "notInServiceSoon": "No {name} service scheduled soon",
-      "openRouteDetail": "Show {name}"
+      "openRouteDetail": "Show {name}",
+      "notInServiceNamed": "{name} isn't running now"
     },
     "header": {
       "showMore": "Show more",

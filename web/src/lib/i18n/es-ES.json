@@ -1009,10 +1009,9 @@
           "WARNING": "Aviso"
         }
       },
-      "notInService": "Sin servicio ahora",
-      "notInServiceWindow": "No hay servicio de {name} en los próximos {minutes} minutos",
-      "notInServiceSoon": "No hay servicio de {name} programado próximamente",
-      "openRouteDetail": "Ver {name}"
+      "notInService": "No circula ahora",
+      "openRouteDetail": "Ver {name}",
+      "notInServiceNamed": "{name} no circula ahora"
     },
     "header": {
       "showMore": "Ver más",

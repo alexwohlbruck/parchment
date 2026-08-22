@@ -56,13 +56,9 @@ describe('the header’s line bullets', () => {
     expect(lines().every(l => l.inService)).toBe(true)
   })
 
-  test('carries the feed and window the board used', () => {
-    setPlaceTransitLines(place.value, LINES, {
-      feedId: 'f-mta',
-      windowMinutes: 90,
-      runningRouteIds: ['A'],
-    })
-    expect(ctx()).toEqual({ feedId: 'f-mta', windowMinutes: 90, known: true })
+  test('carries the feed the board used, so a bullet can open its route', () => {
+    setPlaceTransitLines(place.value, LINES, { feedId: 'f-mta', runningRouteIds: ['A'] })
+    expect(ctx()).toEqual({ feedId: 'f-mta', known: true })
   })
 
   test('an unknown place has no lines and no context', () => {

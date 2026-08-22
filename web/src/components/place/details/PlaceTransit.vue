@@ -83,7 +83,6 @@ watch(
   ([lines, running]) =>
     setPlaceTransitLines(props.place?.id, lines, {
       feedId: transitInfo.value?.feedId,
-      windowMinutes: transitInfo.value?.windowMinutes,
       runningRouteIds: running,
     }),
   { immediate: true },

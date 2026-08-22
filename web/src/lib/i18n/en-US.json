@@ -47,6 +47,12 @@
       "minutesAgo": "{n}m ago",
       "hoursAgo": "{n}h ago",
       "daysAgo": "{n}d ago"
+    },
+    "unsavedChanges": {
+      "title": "Discard unsaved changes?",
+      "description": "Your edits haven't been saved yet.",
+      "discard": "Discard",
+      "keepEditing": "Keep editing"
     }
   },
   "weather": {
@@ -538,6 +544,132 @@
       "empty": "No layers available.",
       "back": "All layers",
       "includes": "Includes 1 layer | Includes {count} layers"
+    },
+    "editor": {
+      "newTitle": "New layer",
+      "editTitle": "Edit layer",
+      "namePlaceholder": "Layer name",
+      "layerType": "Draw as",
+      "saved": "Saved {name}",
+      "created": "Added {name} to your library",
+      "saveFailed": "Could not save the layer.",
+      "previewOn": "Previewing on the map",
+      "previewOff": "Preview hidden",
+      "previewFailed": "The map could not draw this layer: {error}",
+      "resetProperty": "Reset to default",
+      "expression": "Expression",
+      "tabs": {
+        "source": "Source",
+        "style": "Style",
+        "options": "Options"
+      },
+      "sections": {
+        "fill": "Fill",
+        "stroke": "Stroke",
+        "shape": "Shape",
+        "circle": "Circle",
+        "icon": "Icon",
+        "text": "Label",
+        "placement": "Placement",
+        "position": "Position",
+        "heatmap": "Heatmap",
+        "extrusion": "Extrusion",
+        "raster": "Imagery",
+        "hillshade": "Hillshade",
+        "background": "Background"
+      },
+      "source": {
+        "type": "Data source",
+        "address": "Address by",
+        "tiles": "Tile URLs",
+        "addTile": "Add another URL",
+        "tileSize": "Tile size",
+        "encoding": "Elevation encoding",
+        "cluster": "Cluster points",
+        "clusterHint": "Groups nearby points into counted clusters.",
+        "sourceLayer": "Source layer",
+        "sourceLayerPlaceholder": "Layer name inside the vector tiles",
+        "zoomRange": "Zoom range",
+        "attribution": "Attribution",
+        "attributionPlaceholder": "© Data provider",
+        "geojsonData": "GeoJSON",
+        "geojsonHint": "Pasted data is stored with the layer. File uploads are coming later.",
+        "kinds": {
+          "raster": "Raster tiles",
+          "raster-dem": "Terrain",
+          "vector": "Vector tiles",
+          "geojson": "GeoJSON",
+          "image": "Image"
+        },
+        "hints": {
+          "raster": "Pre-rendered image tiles — aerial imagery, scanned maps, weather overlays.",
+          "raster-dem": "Elevation tiles, drawn as hillshading.",
+          "vector": "Mapbox vector tiles. Every layer inside them can be styled separately.",
+          "geojson": "Points, lines and polygons supplied directly or fetched from a URL.",
+          "image": "A single image pinned to four corner coordinates."
+        },
+        "modes": {
+          "tilejson": "TileJSON",
+          "tiles": "Tile URLs",
+          "url": "URL",
+          "inline": "Paste data"
+        },
+        "urlLabel": {
+          "raster": "TileJSON URL",
+          "raster-dem": "TileJSON URL",
+          "vector": "TileJSON URL",
+          "geojson": "GeoJSON URL",
+          "image": "Image URL"
+        },
+        "urlPlaceholder": {
+          "raster": "https://example.com/tiles.json",
+          "raster-dem": "https://example.com/terrain.json",
+          "vector": "https://example.com/tiles.json",
+          "geojson": "https://example.com/data.geojson",
+          "image": "https://example.com/overlay.png"
+        }
+      },
+      "options": {
+        "showInSelectorHint": "List this layer in the map's layer menu.",
+        "fadeBasemapHint": "Mute the basemap while this layer is on, so it reads clearly.",
+        "filter": "Filter",
+        "filterHint": "A style expression. Only features matching it are drawn.",
+        "rawLayer": "Paint and layout JSON",
+        "rawLayerHint": "Edit the style properties directly, including any this editor has no control for."
+      },
+      "import": {
+        "trigger": "Import from a style",
+        "title": "Import a layer",
+        "description": "Paste a style from Mapbox Studio or Maputnik and pick a layer from it.",
+        "placeholder": "Paste style JSON…",
+        "parse": "Read style",
+        "back": "Paste a different style",
+        "untitledStyle": "Untitled style",
+        "count": "{n} of {total} can be imported",
+        "errors": {
+          "invalidJson": "That isn't valid JSON.",
+          "notAStyle": "That isn't a style document or a layer.",
+          "noLayers": "This style has no layers to import."
+        },
+        "warnings": {
+          "mapboxProtocol": "Uses a mapbox:// source, which needs a Mapbox token",
+          "spriteImage": "References sprite images from its original style",
+          "customFont": "Uses fonts that may not exist in this basemap",
+          "missingSource": "Its source isn't in this document",
+          "unsupportedType": "This layer type isn't supported"
+        }
+      },
+      "errors": {
+        "nameRequired": "Give the layer a name.",
+        "urlRequired": "A URL is required.",
+        "tilesRequired": "Add at least one tile URL.",
+        "tileTemplate": "Tile URLs need {z}, {x} and {y} placeholders.",
+        "sourceLayerRequired": "Vector layers need a source layer.",
+        "invalidGeoJson": "That isn't valid GeoJSON.",
+        "cornersRequired": "An image needs four corner coordinates.",
+        "zoomRange": "The minimum zoom is above the maximum.",
+        "invalidJson": "Invalid JSON."
+      }
     }
   },
   "directions": {
@@ -652,10 +784,10 @@
           "plural": "layers"
         }
       },
-      "maps": {
+      "canvases": {
         "title": {
-          "singular": "map",
-          "plural": "maps"
+          "singular": "canvas",
+          "plural": "canvases"
         }
       }
     },
@@ -739,9 +871,6 @@
   },
   "offlineMaps": {
     "title": "Offline maps"
-  },
-  "customMaps": {
-    "title": "Custom maps"
   },
   "timeline": {
     "title": "Timeline",
@@ -2098,6 +2227,86 @@
       "sendFailed": "Failed to send invitation.",
       "sent": "Sent {count} invitation(s).",
       "sentSummary": "{count} invitation(s) sent"
+    }
+  },
+  "canvases": {
+    "title": "Canvases",
+    "layerCount": "No layers | 1 layer | {count} layers",
+    "showOnMap": "Show on the map",
+    "saved": "Canvas saved",
+    "cameraSaved": "This canvas will open at the current view",
+    "saveCamera": "Save the current view",
+    "notFound": "This canvas no longer exists.",
+    "noDescription": "No description",
+    "actions": {
+      "new": "New canvas",
+      "rename": "Rename"
+    },
+    "empty": {
+      "title": "No canvases yet",
+      "description": "A canvas is your own map — stack imagery, data and saved places, then switch it on over the basemap."
+    },
+    "dialog": {
+      "newTitle": "New canvas",
+      "editTitle": "Canvas details",
+      "description": "Give it a name and decide who can read it.",
+      "namePlaceholder": "Canvas name",
+      "descriptionPlaceholder": "What is this canvas for? (optional)",
+      "privacy": "Privacy"
+    },
+    "schemes": {
+      "server-key": {
+        "title": "Shareable",
+        "description": "Stored so it can be published with a link later."
+      },
+      "user-e2ee": {
+        "title": "Private",
+        "description": "End-to-end encrypted. Only your devices can read it."
+      }
+    },
+    "layers": {
+      "order": "Layers draw from the bottom up.",
+      "empty": "This canvas is empty",
+      "emptyHint": "Add imagery, data or a collection of saved places.",
+      "missing": "Missing layer",
+      "show": "Show",
+      "hide": "Hide",
+      "edit": "Edit layer",
+      "remove": "Remove from canvas",
+      "kinds": {
+        "style": "Custom layer",
+        "library": "From your library",
+        "collection": "Saved places"
+      }
+    },
+    "add": {
+      "trigger": "Add a layer",
+      "title": "Add a layer",
+      "description": "What would you like to put on this canvas?",
+      "noLayers": "No layers in your library yet.",
+      "noCollections": "No collections yet.",
+      "options": {
+        "style": {
+          "title": "Design a layer",
+          "description": "Imagery, vector tiles or GeoJSON, styled how you like."
+        },
+        "library": {
+          "title": "From your library",
+          "description": "Reuse a layer you already have."
+        },
+        "collection": {
+          "title": "Saved places",
+          "description": "Draw a collection's places as points."
+        }
+      }
+    },
+    "delete": {
+      "title": "Delete canvas?",
+      "description": "\"{name}\" and its layers will be removed. This can't be undone."
+    },
+    "close": {
+      "title": "Save this canvas?",
+      "description": "You have changes that haven't been saved yet."
     }
   }
 }

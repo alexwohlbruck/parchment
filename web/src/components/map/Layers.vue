@@ -2,12 +2,13 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { useLayersStore } from '@/stores/layers.store'
 import { useAppService } from '@/services/app.service'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import { useDragState } from '@/composables/useDragState'
 import type { Layer, LayerGroup } from '@/types/map.types'
-import LayerConfiguration from './layers/LayerConfiguration.vue'
 import LayerGroupConfiguration from './layers/LayerGroupConfiguration.vue'
 import LayerItemComponent from './layers/LayerItem.vue'
 import LayerGroupItem from './layers/LayerGroupItem.vue'
@@ -24,24 +25,25 @@ import draggable from 'vuedraggable'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const appService = useAppService()
+const router = useRouter()
 const layersStore = useLayersStore()
 const { mainReorderableItems, groupsWithLayers, groupTree } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
-
-const isProd = import.meta.env.PROD
 
 const hasTeleportTarget = ref(false)
 onMounted(() => {
   hasTeleportTarget.value = !!document.getElementById('library-tab-actions')
 })
 
-function openLayerConfigDialog(layerId?: string) {
-  appService.componentDialog({
-    component: LayerConfiguration,
-    continueText: t('general.save'),
-    props: { layerId },
-  })
+// The layer editor is a sheet view, not a dialog: it renders the draft on
+// the live map while you edit, which a modal over the map cannot do.
+function openLayerEditor(layerId?: string) {
+  router.push(
+    layerId
+      ? { name: AppRoute.LAYER_EDITOR, params: { id: layerId } }
+      : { name: AppRoute.LAYER_EDITOR_NEW },
+  )
 }
 
 function openLayerGroupConfigDialog(groupId?: string) {
@@ -144,12 +146,12 @@ async function handleMainChange(evt: any) {
   <Teleport v-if="hasTeleportTarget" to="#library-tab-actions">
     <DropdownMenu>
       <DropdownMenuTrigger as-child>
-        <Button variant="ghost" size="icon" class="size-7" :disabled="isProd">
+        <Button variant="ghost" size="icon" class="size-7">
           <PlusIcon class="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem @click="openLayerConfigDialog()">
+        <DropdownMenuItem @click="openLayerEditor()">
           <LayersIcon class="size-4" />
           {{ t('layers.actions.newLayer') }}
         </DropdownMenuItem>

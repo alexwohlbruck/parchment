@@ -46,6 +46,12 @@
       "minutesAgo": "hace {n} min",
       "hoursAgo": "hace {n} h",
       "daysAgo": "hace {n} d"
+    },
+    "unsavedChanges": {
+      "title": "¿Descartar los cambios sin guardar?",
+      "description": "Tus cambios todavía no se han guardado.",
+      "discard": "Descartar",
+      "keepEditing": "Seguir editando"
     }
   },
   "weather": {
@@ -519,6 +525,132 @@
       "empty": "No hay capas disponibles.",
       "back": "Todas las capas",
       "includes": "Incluye 1 capa | Incluye {count} capas"
+    },
+    "editor": {
+      "newTitle": "Nueva capa",
+      "editTitle": "Editar capa",
+      "namePlaceholder": "Nombre de la capa",
+      "layerType": "Dibujar como",
+      "saved": "Se guardó {name}",
+      "created": "Se añadió {name} a tu biblioteca",
+      "saveFailed": "No se pudo guardar la capa.",
+      "previewOn": "Vista previa en el mapa",
+      "previewOff": "Vista previa oculta",
+      "previewFailed": "El mapa no pudo dibujar esta capa: {error}",
+      "resetProperty": "Restablecer",
+      "expression": "Expresión",
+      "tabs": {
+        "source": "Origen",
+        "style": "Estilo",
+        "options": "Opciones"
+      },
+      "sections": {
+        "fill": "Relleno",
+        "stroke": "Trazo",
+        "shape": "Forma",
+        "circle": "Círculo",
+        "icon": "Icono",
+        "text": "Etiqueta",
+        "placement": "Colocación",
+        "position": "Posición",
+        "heatmap": "Mapa de calor",
+        "extrusion": "Extrusión",
+        "raster": "Imágenes",
+        "hillshade": "Sombreado",
+        "background": "Fondo"
+      },
+      "source": {
+        "type": "Origen de datos",
+        "address": "Dirección por",
+        "tiles": "URLs de teselas",
+        "addTile": "Añadir otra URL",
+        "tileSize": "Tamaño de tesela",
+        "encoding": "Codificación de elevación",
+        "cluster": "Agrupar puntos",
+        "clusterHint": "Agrupa los puntos cercanos en conjuntos numerados.",
+        "sourceLayer": "Capa de origen",
+        "sourceLayerPlaceholder": "Nombre de la capa dentro de las teselas vectoriales",
+        "zoomRange": "Rango de zoom",
+        "attribution": "Atribución",
+        "attributionPlaceholder": "© Proveedor de datos",
+        "geojsonData": "GeoJSON",
+        "geojsonHint": "Los datos pegados se guardan con la capa. La subida de archivos llegará más adelante.",
+        "kinds": {
+          "raster": "Teselas ráster",
+          "raster-dem": "Terreno",
+          "vector": "Teselas vectoriales",
+          "geojson": "GeoJSON",
+          "image": "Imagen"
+        },
+        "hints": {
+          "raster": "Teselas de imagen ya renderizadas: ortofotos, mapas escaneados, capas meteorológicas.",
+          "raster-dem": "Teselas de elevación, dibujadas como sombreado del relieve.",
+          "vector": "Teselas vectoriales de Mapbox. Cada capa interna se estiliza por separado.",
+          "geojson": "Puntos, líneas y polígonos aportados directamente o desde una URL.",
+          "image": "Una sola imagen fijada a cuatro coordenadas."
+        },
+        "modes": {
+          "tilejson": "TileJSON",
+          "tiles": "URLs de teselas",
+          "url": "URL",
+          "inline": "Pegar datos"
+        },
+        "urlLabel": {
+          "raster": "URL de TileJSON",
+          "raster-dem": "URL de TileJSON",
+          "vector": "URL de TileJSON",
+          "geojson": "URL de GeoJSON",
+          "image": "URL de la imagen"
+        },
+        "urlPlaceholder": {
+          "raster": "https://example.com/tiles.json",
+          "raster-dem": "https://example.com/terrain.json",
+          "vector": "https://example.com/tiles.json",
+          "geojson": "https://example.com/data.geojson",
+          "image": "https://example.com/overlay.png"
+        }
+      },
+      "options": {
+        "showInSelectorHint": "Mostrar esta capa en el menú de capas del mapa.",
+        "fadeBasemapHint": "Atenuar el mapa base mientras esta capa está activa.",
+        "filter": "Filtro",
+        "filterHint": "Una expresión de estilo. Solo se dibujan los elementos que coincidan.",
+        "rawLayer": "JSON de paint y layout",
+        "rawLayerHint": "Edita las propiedades de estilo directamente, incluidas las que este editor no cubre."
+      },
+      "import": {
+        "trigger": "Importar desde un estilo",
+        "title": "Importar una capa",
+        "description": "Pega un estilo de Mapbox Studio o Maputnik y elige una capa.",
+        "placeholder": "Pega el JSON del estilo…",
+        "parse": "Leer estilo",
+        "back": "Pegar otro estilo",
+        "untitledStyle": "Estilo sin título",
+        "count": "{n} de {total} se pueden importar",
+        "errors": {
+          "invalidJson": "Eso no es JSON válido.",
+          "notAStyle": "Eso no es un documento de estilo ni una capa.",
+          "noLayers": "Este estilo no tiene capas que importar."
+        },
+        "warnings": {
+          "mapboxProtocol": "Usa un origen mapbox://, que necesita un token de Mapbox",
+          "spriteImage": "Hace referencia a imágenes del sprite de su estilo original",
+          "customFont": "Usa fuentes que quizá no existan en este mapa base",
+          "missingSource": "Su origen no está en este documento",
+          "unsupportedType": "Este tipo de capa no es compatible"
+        }
+      },
+      "errors": {
+        "nameRequired": "Ponle un nombre a la capa.",
+        "urlRequired": "Se necesita una URL.",
+        "tilesRequired": "Añade al menos una URL de teselas.",
+        "tileTemplate": "Las URLs de teselas necesitan {z}, {x} e {y}.",
+        "sourceLayerRequired": "Las capas vectoriales necesitan una capa de origen.",
+        "invalidGeoJson": "Eso no es GeoJSON válido.",
+        "cornersRequired": "Una imagen necesita cuatro coordenadas de esquina.",
+        "zoomRange": "El zoom mínimo es mayor que el máximo.",
+        "invalidJson": "JSON no válido."
+      }
     }
   },
   "directions": {
@@ -614,10 +746,10 @@
           "plural": "capas"
         }
       },
-      "maps": {
+      "canvases": {
         "title": {
-          "singular": "mapa",
-          "plural": "mapas"
+          "singular": "lienzo",
+          "plural": "lienzos"
         }
       }
     },
@@ -703,9 +835,6 @@
   },
   "offlineMaps": {
     "title": "Mapas sin conexión"
-  },
-  "customMaps": {
-    "title": "Mapas personalizados"
   },
   "timeline": {
     "title": "Cronología",
@@ -1978,6 +2107,86 @@
       "sendFailed": "No se pudo enviar la invitación.",
       "sent": "{count} invitación(es) enviada(s).",
       "sentSummary": "{count} invitación(es) enviada(s)"
+    }
+  },
+  "canvases": {
+    "title": "Lienzos",
+    "layerCount": "Sin capas | 1 capa | {count} capas",
+    "showOnMap": "Mostrar en el mapa",
+    "saved": "Lienzo guardado",
+    "cameraSaved": "Este lienzo se abrirá en la vista actual",
+    "saveCamera": "Guardar la vista actual",
+    "notFound": "Este lienzo ya no existe.",
+    "noDescription": "Sin descripción",
+    "actions": {
+      "new": "Nuevo lienzo",
+      "rename": "Cambiar nombre"
+    },
+    "empty": {
+      "title": "Aún no hay lienzos",
+      "description": "Un lienzo es tu propio mapa: apila imágenes, datos y lugares guardados, y actívalo sobre el mapa base."
+    },
+    "dialog": {
+      "newTitle": "Nuevo lienzo",
+      "editTitle": "Detalles del lienzo",
+      "description": "Ponle un nombre y decide quién puede leerlo.",
+      "namePlaceholder": "Nombre del lienzo",
+      "descriptionPlaceholder": "¿Para qué es este lienzo? (opcional)",
+      "privacy": "Privacidad"
+    },
+    "schemes": {
+      "server-key": {
+        "title": "Compartible",
+        "description": "Se guarda de forma que pueda publicarse con un enlace más adelante."
+      },
+      "user-e2ee": {
+        "title": "Privado",
+        "description": "Cifrado de extremo a extremo. Solo tus dispositivos pueden leerlo."
+      }
+    },
+    "layers": {
+      "order": "Las capas se dibujan de abajo hacia arriba.",
+      "empty": "Este lienzo está vacío",
+      "emptyHint": "Añade imágenes, datos o una colección de lugares guardados.",
+      "missing": "Capa no encontrada",
+      "show": "Mostrar",
+      "hide": "Ocultar",
+      "edit": "Editar capa",
+      "remove": "Quitar del lienzo",
+      "kinds": {
+        "style": "Capa personalizada",
+        "library": "De tu biblioteca",
+        "collection": "Lugares guardados"
+      }
+    },
+    "add": {
+      "trigger": "Añadir una capa",
+      "title": "Añadir una capa",
+      "description": "¿Qué quieres poner en este lienzo?",
+      "noLayers": "Todavía no hay capas en tu biblioteca.",
+      "noCollections": "Todavía no hay colecciones.",
+      "options": {
+        "style": {
+          "title": "Diseñar una capa",
+          "description": "Imágenes, teselas vectoriales o GeoJSON, con el estilo que quieras."
+        },
+        "library": {
+          "title": "De tu biblioteca",
+          "description": "Reutiliza una capa que ya tienes."
+        },
+        "collection": {
+          "title": "Lugares guardados",
+          "description": "Dibuja los lugares de una colección como puntos."
+        }
+      }
+    },
+    "delete": {
+      "title": "¿Eliminar el lienzo?",
+      "description": "«{name}» y sus capas se eliminarán. Esto no se puede deshacer."
+    },
+    "close": {
+      "title": "¿Guardar este lienzo?",
+      "description": "Tienes cambios sin guardar."
     }
   }
 }

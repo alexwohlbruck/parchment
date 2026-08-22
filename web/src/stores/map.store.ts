@@ -71,6 +71,16 @@ export const useMapStore = defineStore('map', () => {
     mapStrategy = map
   }
 
+  /**
+   * The live map strategy, or undefined before the map has loaded. Kept out
+   * of reactive state deliberately — it wraps a mapbox/maplibre instance,
+   * and making that a Pinia ref would have Vue walk the whole map object on
+   * every change.
+   */
+  function getMapStrategy(): MapStrategy | undefined {
+    return mapStrategy
+  }
+
   const settings = useStorage<MapSettings>('map', defaultSettings)
   const controlSettings = useStorage<MapControlSettings>(
     'map-controls',
@@ -127,6 +137,7 @@ export const useMapStore = defineStore('map', () => {
 
   return {
     setMapStrategy,
+    getMapStrategy,
     settings,
     controlSettings,
     mapCamera,

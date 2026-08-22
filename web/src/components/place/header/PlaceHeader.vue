@@ -17,9 +17,19 @@ import { AppRoute } from '@/router'
 import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place-open.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
-import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
+import {
+  usePlaceTransitLines,
+  usePlaceTransitLinesContext,
+  type StationLine,
+} from '@/composables/usePlaceTransitLines'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { getRouteBulletLabel } from '@/lib/transit'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { formatClockTime } from '@/lib/time.utils'
 
 const props = defineProps<{
@@ -29,6 +39,34 @@ const props = defineProps<{
 /** Line bullets for transit stations (N Q R W S 1 2 3 7…), published by
  *  the transit departures widget once its data arrives. */
 const stationLines = usePlaceTransitLines(computed(() => props.place?.id))
+const stationLinesContext = usePlaceTransitLinesContext(computed(() => props.place?.id))
+
+/** A bullet opens its route, the way tapping one does on a transit map —
+ *  the same destination the departure board's route header goes to. Only
+ *  where the board named its feed: the route detail is keyed by both. */
+function openLine(line: StationLine) {
+  const feedId = stationLinesContext.value.feedId
+  if (!feedId || !line.id) return
+  router.push({
+    name: AppRoute.TRANSIT_ROUTE,
+    params: { feedId, routeId: line.id },
+  })
+}
+
+/** Why a bullet is dimmed, in words — a dimmed chip with no explanation
+ *  reads as a rendering bug. */
+function lineTitle(line: StationLine): string {
+  const name = line.longName || line.shortName || ''
+  if (line.inService) {
+    return stationLinesContext.value.feedId
+      ? t('place.transit.openRouteDetail', { name })
+      : name
+  }
+  const minutes = stationLinesContext.value.windowMinutes
+  return minutes
+    ? t('place.transit.notInServiceWindow', { name, minutes })
+    : t('place.transit.notInServiceSoon', { name })
+}
 
 const { t, locale } = useI18n()
 const themeStore = useThemeStore()
@@ -324,19 +362,39 @@ watch(
 
     <!-- Transit line bullets — every line serving this station across its
          transfer complex, right under the title like Apple Maps -->
-    <div
-      v-if="stationLines.length"
-      class="flex flex-wrap items-center gap-1"
-    >
-      <RouteBullet
-        v-for="line in stationLines"
-        :key="line.id"
-        :label="getRouteBulletLabel(line, t)"
-        :color="line.color"
-        :text-color="line.textColor"
-        :title="line.longName || line.shortName"
-      />
-    </div>
+    <TooltipProvider :delay-duration="200">
+      <div
+        v-if="stationLines.length"
+        class="flex flex-wrap items-center gap-1"
+      >
+        <Tooltip v-for="line in stationLines" :key="line.id">
+          <TooltipTrigger as-child>
+            <component
+              :is="stationLinesContext.feedId && line.id ? 'button' : 'span'"
+              class="inline-flex"
+              :type="stationLinesContext.feedId && line.id ? 'button' : undefined"
+              :class="stationLinesContext.feedId && line.id ? 'cursor-pointer' : ''"
+              @click="openLine(line)"
+            >
+              <RouteBullet
+                :label="getRouteBulletLabel(line, t)"
+                :color="line.color"
+                :text-color="line.textColor"
+                :title="lineTitle(line)"
+                class="transition-opacity"
+                :class="[
+                  line.inService ? '' : 'opacity-40 saturate-50',
+                  stationLinesContext.feedId && line.id
+                    ? 'hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow'
+                    : '',
+                ]"
+              />
+            </component>
+          </TooltipTrigger>
+          <TooltipContent>{{ lineTitle(line) }}</TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
 
     <!-- Open status -->
     <div v-if="openingStatus" class="flex items-center gap-1.5 text-sm">

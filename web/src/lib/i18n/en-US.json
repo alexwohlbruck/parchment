@@ -1057,7 +1057,11 @@
           "SEVERE": "Disruption",
           "WARNING": "Alert"
         }
-      }
+      },
+      "notInService": "Not running now",
+      "notInServiceWindow": "No {name} service in the next {minutes} minutes",
+      "notInServiceSoon": "No {name} service scheduled soon",
+      "openRouteDetail": "Show {name}"
     },
     "header": {
       "showMore": "Show more",

@@ -1008,7 +1008,11 @@
           "SEVERE": "Interrupción",
           "WARNING": "Aviso"
         }
-      }
+      },
+      "notInService": "Sin servicio ahora",
+      "notInServiceWindow": "No hay servicio de {name} en los próximos {minutes} minutos",
+      "notInServiceSoon": "No hay servicio de {name} programado próximamente",
+      "openRouteDetail": "Ver {name}"
     },
     "header": {
       "showMore": "Ver más",

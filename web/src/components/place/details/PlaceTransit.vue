@@ -59,9 +59,33 @@ const departures = computed((): TransitDeparture[] => {
  *  Rendered by the place header next to the title (Apple-Maps style) —
  *  published there as soon as the widget data arrives. */
 const stationLines = computed(() => transitInfo.value?.routes || [])
+
+/**
+ * Which of those lines have a run on the board.
+ *
+ * This is the honest reading of "in service": the board looked ahead
+ * `windowMinutes` and this line had nothing in it. Systems shorten and
+ * suspend lines by hour — the MTA's B stops at night, the 5 runs a
+ * fraction of its route — and a bullet that looks identical at 3am to
+ * one at 3pm is telling the rider something false.
+ *
+ * Published alongside the lines rather than computed in the header,
+ * because the departures live here.
+ */
+const runningRouteIds = computed(() => {
+  const ids = new Set<string>()
+  for (const d of departures.value) if (d.route?.id) ids.add(d.route.id)
+  return ids
+})
+
 watch(
-  stationLines,
-  (lines) => setPlaceTransitLines(props.place?.id, lines),
+  [stationLines, runningRouteIds],
+  ([lines, running]) =>
+    setPlaceTransitLines(props.place?.id, lines, {
+      feedId: transitInfo.value?.feedId,
+      windowMinutes: transitInfo.value?.windowMinutes,
+      runningRouteIds: running,
+    }),
   { immediate: true },
 )
 

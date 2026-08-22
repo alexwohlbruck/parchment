@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Added
+
+* Photos on a place open full size. Tapping one in the strip grows it out of the thumbnail into a full screen viewer you can pinch to zoom into, drag around and swipe between, and flick away to close. Until now the strip was all there was — you could scroll past a photo but never actually look at it
+
 ## [0.6.0] - 2026-08-18
 
 ### Added

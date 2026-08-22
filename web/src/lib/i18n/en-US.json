@@ -1252,6 +1252,12 @@
         "artist_name": "Artist",
         "heritage": "Heritage Listed"
       }
+    },
+    "gallery": {
+      "viewPhoto": "View photo {n} of {total}",
+      "previousPhoto": "Previous photo",
+      "nextPhoto": "Next photo",
+      "failedToLoad": "Failed to load image"
     }
   },
   "settings": {

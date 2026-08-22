@@ -121,6 +121,17 @@ async function resolveSize(index: number) {
 }
 
 /**
+ * Only the slides either side, and only as they come within reach. Measuring
+ * the whole set up front meant a place with a dozen photos fetched every one of
+ * them at full resolution the moment the lightbox opened — on a phone that is a
+ * burst of downloads and decodes for photos most people never swipe to.
+ */
+function resolveNeighbourSizes(index: number) {
+  resolveSize(index - 1)
+  resolveSize(index + 1)
+}
+
+/**
  * Escape is ours alone while the lightbox is open. PhotoSwipe binds keydown on
  * document and so does Mousetrap, which the bottom sheet uses to close the
  * place — so one press used to dismiss both. Claiming it in the capture phase
@@ -242,15 +253,14 @@ async function open(index: number) {
     pswp = lightbox?.pswp ?? null
     if (pswp) buildCaption(pswp)
     window.addEventListener('keydown', onKeydown, true)
-    // Neighbours first — they are the next thing the user can reach.
-    props.images.forEach((_, i) => {
-      if (i !== index) resolveSize(i)
-    })
+    resolveNeighbourSizes(index)
   })
 
   lightbox.on('change', () => {
     const current = lightbox?.pswp?.currIndex
-    if (current === undefined || current === props.index) return
+    if (current === undefined) return
+    resolveNeighbourSizes(current)
+    if (current === props.index) return
     syncing = true
     emit('update:index', current)
     syncing = false

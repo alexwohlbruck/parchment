@@ -135,28 +135,6 @@ export const collections = pgTable(
   ],
 )
 
-/**
- * Custom canvases — user-created map overlays (future collab feature).
- * Fully encrypted from day 1. Metadata (name, description, style) lives
- * in the envelope; body content lives in a separate encrypted_canvas_state
- * table (not in this PR).
- *
- * Multi-user collab (sealing the canvas key to collaborators' X25519 pubs
- * via ECIES) is tracked as a follow-up — see SECURITY.md §canvases.
- */
-export const canvases = pgTable('canvases', {
-  id: text('id').primaryKey().notNull(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  metadataEncrypted: text('metadata_encrypted').notNull(),
-  metadataKeyVersion: integer('metadata_key_version').notNull().default(1),
-  // Reserved for future Yjs / CRDT document format version; not in use yet.
-  futureCrdtFormatVersion: integer('future_crdt_format_version'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-})
-
 export const bookmarksCollections = pgTable(
   'bookmarks_collections',
   {
@@ -193,4 +171,3 @@ export type Bookmark = typeof bookmarks.$inferSelect
 export type Collection = typeof collections.$inferSelect
 export type BookmarkCollection = typeof bookmarksCollections.$inferSelect
 export type EncryptedPoint = typeof encryptedPoints.$inferSelect
-export type Canvas = typeof canvases.$inferSelect

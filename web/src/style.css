@@ -462,6 +462,22 @@
   width: calc(100% + var(--edge-bleed, 0.75rem) * 2);
 }
 
+/*
+ * Drop the native number spinner. A form of small numeric fields — a zoom
+ * range, a dash pattern, a miter limit — reads as a row of stepper arrows
+ * rather than as values, and the arrows are too small to be worth aiming at.
+ */
+@utility no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
 @utility scrollbar-hidden {
   scrollbar-width: none;
   &::-webkit-scrollbar {

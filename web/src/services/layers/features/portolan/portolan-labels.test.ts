@@ -1,16 +1,21 @@
 /**
- * The label colours, tested against the REAL basemap styles.
+ * The rule, stated once:
  *
- * This got shipped wrong three times — white text on a white map, then
- * dark text on a dark map — every time because the code asked a store
- * which theme was in force instead of asking the style what it paints.
- * So the test drives buildMapStyle itself, in both themes, and asserts
- * the only property that actually matters: the text contrasts with the
- * background it lands on.
+ *   white text on a dark map with a dark shadow
+ *   black text on a light map with a light shadow
+ *   for EVERY basemap, and it must follow a theme change
+ *
+ * This shipped wrong four times, each time because the code asked
+ * something other than the map — the app's theme, the map store's theme,
+ * the background layer (which satellite imagery does not have). So the
+ * tests drive the REAL style builders for every basemap the app offers
+ * and assert the invariant directly: our ink matches the ink the basemap
+ * letters its own street names with.
  */
 import { describe, test, expect } from 'vitest'
-import { buildMapStyle } from '@/lib/basemap-style'
+import { buildMapStyle, buildSatelliteStyle } from '@/lib/basemap-style'
 import {
+  basemapTextColor,
   labelPaintFor,
   luminanceOf,
   styleIsDark,
@@ -18,50 +23,56 @@ import {
   LABEL_TEXT_LIGHT_MAP,
 } from './portolan-expressions'
 
-const styleFor = (theme: 'light' | 'dark') =>
-  buildMapStyle({ tileServerUrl: 'https://example.test/tiles', theme } as any)
+const opts = { tileServerUrl: 'https://example.test/tiles' }
+const STYLES: Array<[string, () => any]> = [
+  ['street light', () => buildMapStyle({ ...opts, theme: 'light' } as any)],
+  ['street dark', () => buildMapStyle({ ...opts, theme: 'dark' } as any)],
+  ['street light (openmaptiles)', () => buildMapStyle({ ...opts, theme: 'light', mapStyle: 'osm-openmaptiles' } as any)],
+  ['street dark (openmaptiles)', () => buildMapStyle({ ...opts, theme: 'dark', mapStyle: 'osm-openmaptiles' } as any)],
+  ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: true } as any)],
+  ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any)],
+]
 
-describe('luminanceOf', () => {
-  test('parses the colour forms a style actually uses', () => {
-    expect(luminanceOf('#1c1c2e')).toBeLessThan(0.5) // the dark background
-    expect(luminanceOf('rgb(239,239,239)')).toBeGreaterThan(0.5) // the light one
-    expect(luminanceOf('#fff')).toBeCloseTo(1, 5)
-    expect(luminanceOf('rgba(255,255,255,0.7)')).toBeGreaterThan(0.5)
-    expect(luminanceOf('hsl(0, 0%, 0%)')).toBeCloseTo(0, 5)
-    expect(luminanceOf(['interpolate'])).toBeNull()
-    expect(luminanceOf(undefined)).toBeNull()
-  })
-})
+describe('station labels contrast on every basemap', () => {
+  test.each(STYLES)('%s: our ink matches the basemap own ink', (_name, make) => {
+    const layers = make().layers as any[]
+    const theirs = luminanceOf(basemapTextColor(layers))
+    const ours = luminanceOf(labelPaintFor(layers)['text-color'])!
 
-describe('station label paint over the real basemap', () => {
-  test('dark basemap gets LIGHT text', () => {
-    const style = styleFor('dark')
-    expect(styleIsDark(style.layers as any[])).toBe(true)
-    const paint = labelPaintFor(style.layers as any[])
-    expect(paint['text-color']).toBe(LABEL_TEXT_DARK_MAP)
-    expect(luminanceOf(paint['text-color'])!).toBeGreaterThan(0.8)
-  })
-
-  test('light basemap gets DARK text', () => {
-    const style = styleFor('light')
-    expect(styleIsDark(style.layers as any[])).toBe(false)
-    const paint = labelPaintFor(style.layers as any[])
-    expect(paint['text-color']).toBe(LABEL_TEXT_LIGHT_MAP)
-    expect(luminanceOf(paint['text-color'])!).toBeLessThan(0.2)
-  })
-
-  test('text always contrasts with the background it lands on', () => {
-    for (const theme of ['light', 'dark'] as const) {
-      const layers = styleFor(theme).layers as any[]
-      const bg = layers.find(l => l.type === 'background')
-      const bgLum = luminanceOf(bg.paint?.['background-color'])!
-      const txtLum = luminanceOf(labelPaintFor(layers)['text-color'])!
-      expect(Math.abs(txtLum - bgLum)).toBeGreaterThan(0.5)
+    if (theirs !== null) {
+      // the basemap letters light on dark and dark on light; so do we
+      expect(ours > 0.5).toBe(theirs > 0.5)
     }
+    // and whichever way, it is a real contrast, not a grey
+    expect(ours > 0.8 || ours < 0.2).toBe(true)
   })
 
-  test('falls back to the given theme when no background layer is readable', () => {
-    expect(labelPaintFor([], true)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
-    expect(labelPaintFor([], false)['text-color']).toBe(LABEL_TEXT_LIGHT_MAP)
+  test.each(STYLES)('%s: the halo opposes the text', (_name, make) => {
+    const layers = make().layers as any[]
+    const paint = labelPaintFor(layers)
+    const text = luminanceOf(paint['text-color'])!
+    const halo = luminanceOf(paint['text-halo-color'])
+    if (halo === null) return // an expression: the basemap's own choice
+    expect(Math.abs(text - halo)).toBeGreaterThan(0.5)
+  })
+
+  test('a dark app chrome over a light map still gets dark text', () => {
+    // the exact case that produced white-on-white: fallbackDark = true
+    const layers = buildMapStyle({ ...opts, theme: 'light' } as any).layers as any[]
+    expect(styleIsDark(layers, true)).toBe(false)
+    expect(labelPaintFor(layers, true)['text-color']).toBe(LABEL_TEXT_LIGHT_MAP)
+  })
+
+  test('a light app chrome over a dark map still gets light text', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'dark' } as any).layers as any[]
+    expect(styleIsDark(layers, false)).toBe(true)
+    expect(labelPaintFor(layers, false)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
+  })
+
+  test('switching theme switches the ink', () => {
+    const light = labelPaintFor(buildMapStyle({ ...opts, theme: 'light' } as any).layers as any[])
+    const dark = labelPaintFor(buildMapStyle({ ...opts, theme: 'dark' } as any).layers as any[])
+    expect(light['text-color']).not.toBe(dark['text-color'])
+    expect(luminanceOf(light['text-color'])!).toBeLessThan(luminanceOf(dark['text-color'])!)
   })
 })

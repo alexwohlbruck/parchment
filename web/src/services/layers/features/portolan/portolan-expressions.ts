@@ -342,11 +342,38 @@ export const LABEL_TEXT_DARK_MAP = '#f4f4f8'
 export const LABEL_TEXT_LIGHT_MAP = '#16161c'
 
 /**
- * Is this style's basemap dark? Answered from the background layer it
- * actually paints, so it cannot disagree with the pixels the way a theme
- * store can.
+ * The colour the basemap letters its OWN labels with — a road or place
+ * name, not a POI. This is the signal for everything below.
+ */
+export function basemapTextColor(layers: any[]): string | null {
+  let fallback: string | null = null
+  for (const l of layers ?? []) {
+    if (l?.type !== 'symbol') continue
+    const id = String(l.id ?? '')
+    if (id.startsWith('portolan-')) continue
+    const c = l.paint?.['text-color']
+    if (typeof c !== 'string') continue
+    if (/place|road|street|highway/i.test(id)) return c
+    fallback ??= c
+  }
+  return fallback
+}
+
+/**
+ * Is this style's basemap dark?
+ *
+ * Asked of the basemap's own labels first, because that is the same
+ * question they had to answer and they answer it for every style: a style
+ * that letters its streets in light ink is a dark style. The background
+ * colour is the second opinion, and the theme that built the style is the
+ * last resort — it is the one that has been wrong before, because a dark
+ * app chrome says nothing about the map, and satellite imagery carries no
+ * background layer to read at all.
  */
 export function styleIsDark(layers: any[], fallbackDark = false): boolean {
+  const theirs = luminanceOf(basemapTextColor(layers))
+  if (theirs !== null) return theirs > 0.5
+
   for (const l of layers ?? []) {
     if (l?.type !== 'background' || String(l.id ?? '').startsWith('portolan-')) continue
     const lum = luminanceOf(l.paint?.['background-color'])
@@ -356,28 +383,42 @@ export function styleIsDark(layers: any[], fallbackDark = false): boolean {
 }
 
 /**
- * How to letter a station name over this style: our own high-contrast text
- * (a station name outranks a street name), the basemap's halo so the
- * separation matches its labels, and its halo width.
+ * How to letter a station name over this style.
+ *
+ *   dark map  -> near-white text, dark halo
+ *   light map -> near-black text, light halo
+ *
+ * The halo is taken from the basemap when it opposes the text, so the
+ * separation matches what its own labels use. When it does not — some
+ * label layers carry a dark halo meant for light ink, and inheriting it
+ * put a dark shadow under dark text — ours is used instead. The rule
+ * outranks the inheritance.
  */
 export function labelPaintFor(
   layers: any[],
   fallbackDark = false,
 ): { 'text-color': string; 'text-halo-color': any; 'text-halo-width': number } {
   const dark = styleIsDark(layers, fallbackDark)
-  let halo: any
+  const text = dark ? LABEL_TEXT_DARK_MAP : LABEL_TEXT_LIGHT_MAP
+  const ownHalo = dark ? 'rgba(8,8,12,0.95)' : 'rgba(255,255,255,0.95)'
+
+  let halo: any = ownHalo
   let width: number | undefined
   for (const l of layers ?? []) {
     if (l?.type !== 'symbol' || String(l.id ?? '').startsWith('portolan-')) continue
     const h = l.paint?.['text-halo-color']
     if (h === undefined) continue
+    const lum = luminanceOf(h)
+    // only inherit a halo that stands against the ink it surrounds
+    if (lum !== null && lum > 0.5 === dark) continue
     halo = h
     width = l.paint?.['text-halo-width']
     if (String(l.id).includes('place')) break
   }
+
   return {
-    'text-color': dark ? LABEL_TEXT_DARK_MAP : LABEL_TEXT_LIGHT_MAP,
-    'text-halo-color': halo ?? (dark ? 'rgba(8,8,12,0.95)' : 'rgba(255,255,255,0.95)'),
+    'text-color': text,
+    'text-halo-color': halo,
     'text-halo-width': width ?? 1.4,
   }
 }

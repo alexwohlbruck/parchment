@@ -220,9 +220,22 @@ async function open(index: number) {
     arrowNext: props.images.length > 1,
     // Handled by onKeydown, which also stops the press escaping to the page.
     escKey: false,
-    // PhotoSwipe restores focus to whatever was active when it opened — the
-    // thumbnail that was clicked — and a bare focus() scrolls that thumbnail
-    // back into view, undoing the strip sync. restoreFocus() does it instead.
+    // Focus is ours to manage; PhotoSwipe's handling of it breaks the sheet
+    // this opens from.
+    //
+    // Its trap pulls focus onto its own root once the opening animation ends.
+    // That root is appended to the body, a sibling of the bottom sheet rather
+    // than a child, so the sheet's dismissable layer sees focus leave it and
+    // drops a fully expanded sheet back to half height about half a second
+    // after the photo opens. Its restore then hands focus back to whatever was
+    // active on open — the thumbnail that was clicked — and a bare focus()
+    // scrolls that thumbnail into view, undoing the strip sync.
+    //
+    // With both off, focus stays on the thumbnail while the photo is open.
+    // Escape is handled by onKeydown, the arrow keys by PhotoSwipe's own
+    // document listener, and restoreFocus() moves focus to the thumbnail the
+    // user actually ended on when it closes.
+    trapFocus: false,
     returnFocus: false,
 
     closeTitle: t('general.close'),

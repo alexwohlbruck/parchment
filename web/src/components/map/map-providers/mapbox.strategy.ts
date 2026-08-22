@@ -267,33 +267,46 @@ export class MapboxStrategy extends MapStrategy {
       type: 'mouseenter',
       target: { layerId: 'mapillary-image' },
       handler: () => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
+        this.setHoverCursor('pointer')
       },
     })
     this.mapInstance.addInteraction('mapillary-mouseleave', {
       type: 'mouseleave',
       target: { layerId: 'mapillary-image' },
       handler: () => {
-        this.mapInstance.getCanvas().style.cursor = ''
+        this.setHoverCursor('')
       },
     })
     this.listenPOIClick()
+  }
+
+  /**
+   * Hover cursors, ignored while a tool owns the pointer.
+   *
+   * A drawing tool sets its own cursor for the whole map; letting a POI
+   * hover flip it to a pointer — and letting the matching leave handler
+   * reset it to nothing — meant the crosshair vanished the moment you moved
+   * across a label, which is most of the time in a city.
+   */
+  private setHoverCursor(cursor: string) {
+    if (useMapToolsStore().rawClickCapture) return
+    this.mapInstance.getCanvas().style.cursor = cursor
   }
 
   listenPOIClick() {
     this.mapInstance.addInteraction('poi-mouseenter', {
       type: 'mouseenter',
       target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
+      handler: () => {
+        this.setHoverCursor('pointer')
       },
     })
 
     this.mapInstance.addInteraction('poi-mouseleave', {
       type: 'mouseleave',
       target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = ''
+      handler: () => {
+        this.setHoverCursor('')
       },
     })
 

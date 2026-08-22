@@ -2416,7 +2416,9 @@
     },
     "annotations": {
       "title": "Annotations",
-      "remove": "Delete annotation"
+      "remove": "Delete annotation",
+      "labelPlaceholder": "Add a label",
+      "icon": "Icon"
     },
     "sources": {
       "title": "Data sources",

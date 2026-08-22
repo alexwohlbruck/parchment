@@ -940,12 +940,19 @@ export class MaplibreStrategy extends MapStrategy {
     const canvas = this.mapInstance.getCanvas()
     let hoverCount = 0
 
+    // Hover cursors defer to a tool that owns the pointer: a drawing tool
+    // sets its own for the whole map, and letting a POI hover flip it meant
+    // the crosshair vanished whenever you crossed a label.
     const onEnter = () => {
-      if (hoverCount++ === 0) canvas.style.cursor = 'pointer'
+      if (hoverCount++ === 0 && !useMapToolsStore().rawClickCapture) {
+        canvas.style.cursor = 'pointer'
+      }
     }
     const onLeave = () => {
       hoverCount = Math.max(0, hoverCount - 1)
-      if (hoverCount === 0) canvas.style.cursor = ''
+      if (hoverCount === 0 && !useMapToolsStore().rawClickCapture) {
+        canvas.style.cursor = ''
+      }
     }
 
     const handleClick = (layerEvent: any) => {
@@ -990,7 +997,7 @@ export class MaplibreStrategy extends MapStrategy {
         this.mapInstance.off('mouseleave', id, onLeave)
         this.mapInstance.off('click', id, handleClick)
       }
-      canvas.style.cursor = ''
+      if (!useMapToolsStore().rawClickCapture) canvas.style.cursor = ''
     }
   }
 

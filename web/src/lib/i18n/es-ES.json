@@ -2296,7 +2296,9 @@
     },
     "annotations": {
       "title": "Anotaciones",
-      "remove": "Eliminar anotación"
+      "remove": "Eliminar anotación",
+      "labelPlaceholder": "Añade una etiqueta",
+      "icon": "Icono"
     },
     "sources": {
       "title": "Orígenes de datos",

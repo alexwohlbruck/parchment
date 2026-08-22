@@ -31,6 +31,7 @@ import AddCanvasLayerDialog from '@/components/library/canvas/AddCanvasLayerDial
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
 import CanvasDataLayerSettings from '@/components/library/canvas/CanvasDataLayerSettings.vue'
 import CanvasDataSourcesDialog from '@/components/library/canvas/CanvasDataSourcesDialog.vue'
+import CanvasAnnotationRow from '@/components/library/canvas/CanvasAnnotationRow.vue'
 import CanvasToolbar from '@/components/library/canvas/CanvasToolbar.vue'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import {
@@ -118,6 +119,9 @@ useUnsavedChanges(isDirty)
  * Marks made on the canvas rather than data brought to it. They live in their
  * own bucket, so drawing never asks the user to create a layer first.
  */
+/** The annotation whose properties are open for editing. */
+const selectedAnnotationId = ref<string | null>(null)
+
 const annotations = useCanvasAnnotations({
   onCommit(annotation: CanvasAnnotation) {
     body.value = {
@@ -145,7 +149,17 @@ useHotkeys([
   { key: 'i', handler: () => annotations.arm('circle') },
 ])
 
+function patchAnnotation(id: string, patch: Partial<CanvasAnnotation>) {
+  body.value = {
+    ...body.value,
+    annotations: (body.value.annotations ?? []).map(annotation =>
+      annotation.id === id ? { ...annotation, ...patch } : annotation,
+    ),
+  }
+}
+
 function removeAnnotation(id: string) {
+  if (selectedAnnotationId.value === id) selectedAnnotationId.value = null
   body.value = {
     ...body.value,
     annotations: (body.value.annotations ?? []).filter(a => a.id !== id),
@@ -163,7 +177,15 @@ onScopeDispose(() => {
 const { fitToLayer } = useCanvasRendering(
   computed(() =>
     canvas.value
-      ? [{ id: props.id, body: body.value, draft: annotations.draft.value }]
+      ? [
+          {
+            id: props.id,
+            body: body.value,
+            draft: annotations.draft.value,
+            guide: annotations.guide.value,
+            selectedAnnotationId: selectedAnnotationId.value,
+          },
+        ]
       : [],
   ),
   { key: 'canvas-editor' },
@@ -501,40 +523,18 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
         <p class="text-[11px] text-muted-foreground">
           {{ t('canvases.annotations.title') }}
         </p>
-        <div
+        <CanvasAnnotationRow
           v-for="annotation in body.annotations"
           :key="annotation.id"
-          class="group flex items-center gap-2 rounded-lg border px-2 py-1.5 bg-card"
-        >
-          <span
-            class="size-3 shrink-0 rounded-full border"
-            :style="{ background: annotation.color }"
-          />
-          <span class="min-w-0 flex-1">
-            <span class="block text-sm truncate">
-              {{ annotation.label || t(`canvases.toolbar.tools.${annotation.tool}`) }}
-            </span>
-            <span
-              v-if="annotation.routed"
-              class="block text-[11px] text-muted-foreground"
-            >
-              {{ t(`directions.modes.${annotation.routed.mode}`) }}
-              <template v-if="annotation.routed.distance">
-                · {{ formatDistance(annotation.routed.distance) }}
-              </template>
-            </span>
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="size-7 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-            :title="t('canvases.annotations.remove')"
-            :aria-label="t('canvases.annotations.remove')"
-            @click="removeAnnotation(annotation.id)"
-          >
-            <Trash2Icon class="size-3.5" />
-          </Button>
-        </div>
+          :annotation="annotation"
+          :expanded="selectedAnnotationId === annotation.id"
+          @toggle-expanded="
+            selectedAnnotationId =
+              selectedAnnotationId === annotation.id ? null : annotation.id
+          "
+          @update="patch => patchAnnotation(annotation.id, patch)"
+          @remove="removeAnnotation(annotation.id)"
+        />
       </div>
     </div>
 

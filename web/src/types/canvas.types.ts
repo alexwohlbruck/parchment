@@ -178,6 +178,11 @@ export interface CanvasAnnotation {
   }
   label?: string
   color?: string
+  /**
+   * Pin only: the glyph drawn in the marker. A lucide icon name, or absent
+   * for a plain dot.
+   */
+  icon?: string | null
   visible?: boolean
 }
 

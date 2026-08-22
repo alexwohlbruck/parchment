@@ -3,6 +3,7 @@ import {
   annotationFeature,
   annotationsCollection,
   createAnnotation,
+  guideFeature,
   isComplete,
   metersBetween,
   TOOL_AUTOCOMPLETES,
@@ -173,5 +174,53 @@ describe('tool rules', () => {
     // ~0.01° of longitude at the equator is a bit over a kilometre.
     expect(metersBetween([0, 0], [0.01, 0])).toBeGreaterThan(1000)
     expect(metersBetween([0, 0], [0.01, 0])).toBeLessThan(1200)
+  })
+})
+
+describe('guideFeature', () => {
+  const cursor = [5, 5]
+
+  it('rubber-bands from the last vertex to the cursor', () => {
+    const guide = guideFeature('line', [[0, 0], [1, 1]], cursor)
+
+    expect((guide?.geometry as never as { coordinates: number[][] }).coordinates)
+      .toEqual([[1, 1], cursor])
+    expect(guide?.properties?.guide).toBe(true)
+  })
+
+  it('shows both open edges of a polygon, so the ring reads as a ring', () => {
+    const guide = guideFeature('polygon', [[0, 0], [1, 0], [1, 1]], cursor)
+
+    expect((guide?.geometry as never as { coordinates: number[][] }).coordinates)
+      .toEqual([[1, 1], cursor, [0, 0]])
+  })
+
+  it('offers nothing for tools that preview as their real shape', () => {
+    expect(guideFeature('rectangle', [[0, 0]], cursor)).toBeNull()
+    expect(guideFeature('circle', [[0, 0]], cursor)).toBeNull()
+    expect(guideFeature('pin', [[0, 0]], cursor)).toBeNull()
+  })
+
+  it('offers nothing before the first click, or once the pointer leaves', () => {
+    expect(guideFeature('line', [], cursor)).toBeNull()
+    expect(guideFeature('line', [[0, 0]], null)).toBeNull()
+  })
+})
+
+describe('annotationsCollection with a draft', () => {
+  it('carries the in-progress shape and its guide alongside the committed ones', () => {
+    const collection = annotationsCollection(
+      [annotation({ id: 'a', tool: 'pin' })],
+      [guideFeature('line', [[0, 0]], [1, 1])],
+    )
+
+    expect(collection.features).toHaveLength(2)
+    expect(collection.features[1].properties?.guide).toBe(true)
+  })
+
+  it('drops a null guide rather than emitting a hole', () => {
+    expect(
+      annotationsCollection([annotation({ tool: 'pin' })], [null]).features,
+    ).toHaveLength(1)
   })
 })

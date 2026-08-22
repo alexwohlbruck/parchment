@@ -42,6 +42,7 @@ import {
 import { ensureIconImages } from '@/lib/map-icon-images'
 import { resolveSpecBounds } from '@/lib/map-style/bounds'
 import { annotationsCollection } from '@/lib/canvas-annotations'
+import type { Feature } from 'geojson'
 import { presetLayers } from '@/lib/map-style/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
@@ -59,6 +60,10 @@ export interface RenderableCanvas {
    * so a shape takes form under the cursor.
    */
   draft?: CanvasAnnotation | null
+  /** The rubber band from the last vertex to the cursor. */
+  guide?: Feature | null
+  /** Id of the annotation currently selected, drawn with a halo. */
+  selectedAnnotationId?: string | null
 }
 
 /**
@@ -338,7 +343,7 @@ export function useCanvasRendering(
       ...(canvas.body?.annotations ?? []),
       ...(canvas.draft ? [canvas.draft] : []),
     ]
-    if (!annotations.length) return EMPTY_PLAN
+    if (!annotations.length && !canvas.guide) return EMPTY_PLAN
 
     const sourceId = scopedId(options.key, canvas.id, 'annotations', '-source')
     const id = (suffix: string) =>
@@ -348,7 +353,7 @@ export function useCanvasRendering(
       sources: {
         [sourceId]: {
           type: 'geojson',
-          data: annotationsCollection(annotations),
+          data: annotationsCollection(annotations, [canvas.guide ?? null]),
         },
       },
       layers: [
@@ -367,9 +372,50 @@ export function useCanvasRendering(
           {
             type: 'line',
             source: sourceId,
-            filter: ['!=', ['geometry-type'], 'Point'],
+            filter: [
+              'all',
+              ['!=', ['geometry-type'], 'Point'],
+              ['!', ['to-boolean', ['get', 'guide']]],
+            ],
             layout: { 'line-cap': 'round', 'line-join': 'round' },
             paint: { 'line-color': ['get', 'color'], 'line-width': 3 },
+          },
+          true,
+        ),
+        // The rubber band: dashed and thinner, so what is committed and what
+        // is merely proposed are never confused.
+        toLayer(
+          id('-guide'),
+          {
+            type: 'line',
+            source: sourceId,
+            filter: ['to-boolean', ['get', 'guide']],
+            layout: { 'line-cap': 'round' },
+            paint: {
+              'line-color': '#6b7280',
+              'line-width': 2,
+              'line-dasharray': [2, 2],
+              'line-opacity': 0.9,
+            },
+          },
+          true,
+        ),
+        // A halo under the selected annotation, so clicking one shows.
+        toLayer(
+          id('-selected'),
+          {
+            type: 'circle',
+            source: sourceId,
+            filter: [
+              'all',
+              ['==', ['geometry-type'], 'Point'],
+              ['==', ['get', 'id'], canvas.selectedAnnotationId ?? '__none__'],
+            ],
+            paint: {
+              'circle-color': ['get', 'color'],
+              'circle-radius': 14,
+              'circle-opacity': 0.25,
+            },
           },
           true,
         ),
@@ -393,7 +439,11 @@ export function useCanvasRendering(
           {
             type: 'symbol',
             source: sourceId,
-            filter: ['all', ['==', ['geometry-type'], 'Point'], ['has', 'label']],
+            filter: [
+              'all',
+              ['==', ['geometry-type'], 'Point'],
+              ['!=', ['get', 'label'], ''],
+            ],
             layout: {
               'text-field': ['get', 'label'],
               'text-size': 12,

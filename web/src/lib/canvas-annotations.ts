@@ -43,6 +43,18 @@ export const TOOL_AUTOCOMPLETES: Record<AnnotationTool, boolean> = {
 
 export const DEFAULT_ANNOTATION_COLOR = '#e11d48'
 
+/** The palette offered when recolouring an annotation. */
+export const ANNOTATION_COLORS = [
+  '#e11d48',
+  '#ea580c',
+  '#ca8a04',
+  '#16a34a',
+  '#0891b2',
+  '#2563eb',
+  '#7c3aed',
+  '#111827',
+] as const
+
 /** Circle geometry is approximated by a ring; 64 steps reads as smooth. */
 const CIRCLE_STEPS = 64
 
@@ -82,6 +94,7 @@ export function annotationFeature(
     tool,
     color: annotation.color ?? DEFAULT_ANNOTATION_COLOR,
     label: annotation.label ?? '',
+    icon: annotation.icon ?? '',
   }
 
   switch (tool) {
@@ -141,16 +154,51 @@ export function annotationFeature(
   }
 }
 
-/** Everything drawn on a canvas, as one collection for one map source. */
+/**
+ * The rubber band from the last placed vertex to the cursor.
+ *
+ * Drawing without one is guesswork: you click, and nothing happens until the
+ * next click. For a polygon it also shows the edge that will close the ring,
+ * so the shape you are making is the shape you can see.
+ */
+export function guideFeature(
+  tool: AnnotationTool,
+  positions: Position[],
+  cursor: Position | null,
+): Feature | null {
+  if (!cursor || !positions.length) return null
+  if (tool === 'pin' || tool === 'rectangle' || tool === 'circle') return null
+
+  const last = positions[positions.length - 1]
+  const coordinates =
+    // A polygon shows both open edges, so the ring reads as a ring.
+    tool === 'polygon' && positions.length >= 2
+      ? [last, cursor, positions[0]]
+      : [last, cursor]
+
+  return {
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates },
+    properties: { guide: true },
+  }
+}
+
+/**
+ * Everything drawn on a canvas, as one collection for one map source.
+ * `extra` carries the in-progress annotation and its rubber band.
+ */
 export function annotationsCollection(
   annotations: CanvasAnnotation[] | undefined,
+  extra: (Feature | null)[] = [],
 ): FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: (annotations ?? [])
-      .filter(annotation => annotation.visible !== false)
-      .map(annotationFeature)
-      .filter((feature): feature is Feature => feature !== null),
+    features: [
+      ...(annotations ?? [])
+        .filter(annotation => annotation.visible !== false)
+        .map(annotationFeature),
+      ...extra,
+    ].filter((feature): feature is Feature => feature !== null),
   }
 }
 

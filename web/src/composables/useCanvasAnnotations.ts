@@ -26,6 +26,7 @@ import type { LngLat, MapEvents } from '@/types/map.types'
 import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
 import {
   createAnnotation,
+  guideFeature,
   isComplete,
   TOOL_AUTOCOMPLETES,
   TOOL_MINIMUM,
@@ -50,7 +51,8 @@ export function useCanvasAnnotations(options: {
   function setDrawingMode(active: boolean) {
     // Take the click away from the basemap's POI interaction: it would win
     // the click and re-emit it at the POI's centre, so a vertex dropped near
-    // a cafe would land on the cafe.
+    // a cafe would land on the cafe. It also stops POI hover stealing the
+    // cursor back — see the strategies' hover handlers.
     mapToolsStore.rawClickCapture = active
 
     const map = mapStore.getMapStrategy()?.mapInstance as
@@ -62,14 +64,84 @@ export function useCanvasAnnotations(options: {
     if (!map) return
     if (active) map.doubleClickZoom?.disable()
     else map.doubleClickZoom?.enable()
-    const canvas = map.getCanvas?.()
-    if (canvas) canvas.style.cursor = active ? 'crosshair' : ''
+    applyCursor()
+  }
+
+  /**
+   * The cursor says what the next click will do.
+   *
+   * `crosshair` for placing a point precisely, `copy` for the shapes that
+   * add to something already started — one cursor for every tool told the
+   * user nothing about which one they were in.
+   */
+  function applyCursor() {
+    const canvas = (
+      mapStore.getMapStrategy()?.mapInstance as
+        | { getCanvas?: () => HTMLCanvasElement }
+        | undefined
+    )?.getCanvas?.()
+    if (!canvas) return
+
+    if (!tool.value) {
+      canvas.style.cursor = ''
+      return
+    }
+    canvas.style.cursor =
+      positions.value.length && tool.value !== 'pin' ? 'copy' : 'crosshair'
   }
 
   const tool = ref<AnnotationTool | null>(null)
   const color = ref(DEFAULT_ANNOTATION_COLOR)
   /** Positions clicked for the annotation currently being drawn. */
   const positions = ref<Position[]>([])
+  /**
+   * Where the pointer is, while a tool is armed.
+   *
+   * Without this, drawing is blind between clicks: a rectangle is invisible
+   * until its second corner lands, and a polygon gives no sense of the edge
+   * you are about to commit. Tracked on the map instance rather than the
+   * shared event bus — nothing else needs it, and it fires constantly.
+   */
+  const cursor = ref<Position | null>(null)
+  let detachPointer: (() => void) | undefined
+
+  function trackPointer(active: boolean) {
+    const map = mapStore.getMapStrategy()?.mapInstance as
+      | {
+          on: (event: string, handler: (e: any) => void) => void
+          off: (event: string, handler: (e: any) => void) => void
+        }
+      | undefined
+    if (!map) return
+
+    detachPointer?.()
+    detachPointer = undefined
+    cursor.value = null
+    if (!active) return
+
+    // rAF-coalesced: mousemove fires far faster than the map can redraw.
+    let queued: Position | null = null
+    let frame = 0
+    const onMove = (event: { lngLat: { lng: number; lat: number } }) => {
+      queued = [event.lngLat.lng, event.lngLat.lat]
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        cursor.value = queued
+      })
+    }
+    const onOut = () => {
+      cursor.value = null
+    }
+
+    map.on('mousemove', onMove)
+    map.on('mouseout', onOut)
+    detachPointer = () => {
+      if (frame) cancelAnimationFrame(frame)
+      map.off('mousemove', onMove)
+      map.off('mouseout', onOut)
+    }
+  }
 
   // ── Route snapping ─────────────────────────────────────────────────────────
   //
@@ -127,6 +199,9 @@ export function useCanvasAnnotations(options: {
     if (tool.value === 'route') void snapRoute()
   })
 
+  // The cursor tracks how far into a shape you are.
+  watch(positions, applyCursor)
+
   const isArmed = computed(() => tool.value !== null)
   const canFinish = computed(
     () => !!tool.value && isComplete(tool.value, positions.value.length),
@@ -139,16 +214,31 @@ export function useCanvasAnnotations(options: {
    */
   const draft = computed<CanvasAnnotation | null>(() => {
     if (!tool.value || !positions.value.length) return null
+
+    // A rectangle and a circle are fully described by their first position
+    // plus the cursor, so they preview as the real shape rather than a guide.
+    const previewing =
+      (tool.value === 'rectangle' || tool.value === 'circle') &&
+      positions.value.length === 1 &&
+      cursor.value
+
     return {
       id: 'annotation-draft',
       tool: tool.value,
-      positions: [...positions.value],
+      positions: previewing
+        ? [positions.value[0], cursor.value!]
+        : [...positions.value],
       color: color.value,
       ...(tool.value === 'route' && routed.value
         ? { routed: routed.value }
         : {}),
     }
   })
+
+  /** The rubber band from the last vertex to the cursor. */
+  const guide = computed(() =>
+    tool.value ? guideFeature(tool.value, positions.value, cursor.value) : null,
+  )
 
   function commit() {
     if (!tool.value || !canFinish.value) return
@@ -187,6 +277,7 @@ export function useCanvasAnnotations(options: {
     if (!tool.value) mapEventBus.setOverride('click', onMapClick)
     tool.value = next
     setDrawingMode(true)
+    trackPointer(true)
   }
 
   function disarm() {
@@ -195,6 +286,7 @@ export function useCanvasAnnotations(options: {
     tool.value = null
     positions.value = []
     routed.value = null
+    trackPointer(false)
     setDrawingMode(false)
   }
 
@@ -213,6 +305,7 @@ export function useCanvasAnnotations(options: {
   return {
     tool,
     color,
+    guide,
     routeMode,
     isSnapping,
     isArmed,

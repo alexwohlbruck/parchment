@@ -113,3 +113,16 @@ export interface CreateCanvasParams {
 export function emptyCanvasBody(): CanvasBody {
   return { layers: [] }
 }
+
+/**
+ * A detached copy of a canvas body, for the editor to mutate freely.
+ *
+ * JSON rather than `structuredClone`: bodies come out of a Pinia store, so
+ * they arrive as Vue reactive proxies, and `structuredClone` refuses those
+ * outright (DataCloneError). A body is plain JSON by construction — it has to
+ * be, it round-trips through the API — so this loses nothing.
+ */
+export function cloneCanvasBody(body: CanvasBody | null | undefined): CanvasBody {
+  if (!body) return emptyCanvasBody()
+  return JSON.parse(JSON.stringify(body)) as CanvasBody
+}

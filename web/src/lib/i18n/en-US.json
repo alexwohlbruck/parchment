@@ -669,7 +669,8 @@
         "cornersRequired": "An image needs four corner coordinates.",
         "zoomRange": "The minimum zoom is above the maximum.",
         "invalidJson": "Invalid JSON."
-      }
+      },
+      "addedToCanvas": "Added {name} to this canvas"
     }
   },
   "directions": {
@@ -2303,10 +2304,6 @@
     "delete": {
       "title": "Delete canvas?",
       "description": "\"{name}\" and its layers will be removed. This can't be undone."
-    },
-    "close": {
-      "title": "Save this canvas?",
-      "description": "You have changes that haven't been saved yet."
     }
   }
 }

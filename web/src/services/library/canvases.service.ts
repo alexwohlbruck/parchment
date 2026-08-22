@@ -161,6 +161,11 @@ export const useCanvasesService = createSharedComposable(() => {
   ): Promise<Canvas | null> {
     try {
       const scheme = params.scheme ?? 'server-key'
+      // Check for an identity BEFORE minting anything. A device that can't
+      // encrypt the metadata can't finish the two-step create, and failing
+      // after the POST would leave an unnamed orphan row behind.
+      await requireIdentity()
+
       // 1. Mint the row — the id is what the per-canvas keys derive from.
       const { data: created } = await api.post('/library/canvases', { scheme })
       const canvas = created as Canvas
@@ -187,7 +192,11 @@ export const useCanvasesService = createSharedComposable(() => {
       return hydrated
     } catch (error) {
       console.error('Failed to create canvas', error)
-      toast.error('Failed to create canvas')
+      toast.error(
+        error instanceof Error && error.message.includes('seed')
+          ? 'This device has no identity key yet — import your recovery key first.'
+          : 'Failed to create canvas',
+      )
       return null
     }
   }

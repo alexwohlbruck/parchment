@@ -650,7 +650,8 @@
         "cornersRequired": "Una imagen necesita cuatro coordenadas de esquina.",
         "zoomRange": "El zoom mínimo es mayor que el máximo.",
         "invalidJson": "JSON no válido."
-      }
+      },
+      "addedToCanvas": "Se añadió {name} a este lienzo"
     }
   },
   "directions": {
@@ -2183,10 +2184,6 @@
     "delete": {
       "title": "¿Eliminar el lienzo?",
       "description": "«{name}» y sus capas se eliminarán. Esto no se puede deshacer."
-    },
-    "close": {
-      "title": "¿Guardar este lienzo?",
-      "description": "Tienes cambios sin guardar."
     }
   }
 }

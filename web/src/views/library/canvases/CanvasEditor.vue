@@ -31,6 +31,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { ThemeColor } from '@/lib/utils'
 import {
+  cloneCanvasBody,
   emptyCanvasBody,
   type CanvasBody,
   type CanvasLayer,
@@ -63,7 +64,7 @@ const loading = ref(true)
 const saving = ref(false)
 
 function load() {
-  body.value = structuredClone(canvas.value?.body ?? emptyCanvasBody())
+  body.value = cloneCanvasBody(canvas.value?.body)
   pristine.value = JSON.stringify(body.value)
 }
 
@@ -80,7 +81,7 @@ watch(canvas, load, { immediate: true })
 })()
 
 const isDirty = computed(() => JSON.stringify(body.value) !== pristine.value)
-const { allowLeave } = useUnsavedChanges(isDirty)
+useUnsavedChanges(isDirty)
 
 // Draw the working copy, so reordering and toggling read on the map at once.
 // Claiming the canvas keeps the main map from drawing its saved version
@@ -171,19 +172,12 @@ async function save() {
   }
 }
 
-async function close() {
-  // Saving before leaving is the common intent, so offer it rather than
-  // making Discard the only way out of the confirm.
-  if (isDirty.value) {
-    const shouldSave = await appService.confirm({
-      title: t('canvases.close.title'),
-      description: t('canvases.close.description'),
-      continueText: t('general.save'),
-      cancelText: t('general.unsavedChanges.discard'),
-    })
-    if (shouldSave) await save()
-  }
-  allowLeave()
+/**
+ * Leaving is deliberately just a navigation: `useUnsavedChanges` challenges
+ * it. That keeps every exit — this button, the sheet's close button, Esc,
+ * browser back — behaving identically instead of only the one we wired up.
+ */
+function close() {
   router.push({ name: AppRoute.LIBRARY_CANVASES })
 }
 

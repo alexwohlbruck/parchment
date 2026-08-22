@@ -165,9 +165,14 @@ async function save() {
     pristine.value = JSON.stringify(draft.value)
     allowLeave()
     appService.toast.success(
-      t(wasEditing ? 'layers.editor.saved' : 'layers.editor.created', {
-        name: fields.name,
-      }),
+      t(
+        wasEditing
+          ? 'layers.editor.saved'
+          : canvasId.value
+            ? 'layers.editor.addedToCanvas'
+            : 'layers.editor.created',
+        { name: fields.name },
+      ),
     )
     router.push(destination.value)
   } catch (e) {

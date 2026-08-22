@@ -5382,6 +5382,269 @@
         }
       }
     },
+    "/library/canvases/": {
+      "get": {
+        "operationId": "getLibraryCanvases",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Get all canvases",
+        "responses": {
+          "200": {}
+        }
+      },
+      "post": {
+        "parameters": [],
+        "operationId": "postLibraryCanvases",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Create a canvas",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "isPublic": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "isPublic": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "isPublic": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/library/canvases/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "getLibraryCanvasesById",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Get a canvas by ID",
+        "responses": {
+          "200": {}
+        }
+      },
+      "put": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "putLibraryCanvasesById",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Update a canvas",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isPublic": {
+                    "type": "boolean"
+                  },
+                  "metadataEncrypted": {
+                    "type": "string"
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isPublic": {
+                    "type": "boolean"
+                  },
+                  "metadataEncrypted": {
+                    "type": "string"
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isPublic": {
+                    "type": "boolean"
+                  },
+                  "metadataEncrypted": {
+                    "type": "string"
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "deleteLibraryCanvasesById",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Delete a canvas",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/library/collections/": {
       "get": {
         "operationId": "getLibraryCollections",
@@ -6639,7 +6902,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6705,7 +6975,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6771,7 +7048,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6864,7 +7148,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6925,7 +7216,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6986,7 +7284,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7086,7 +7391,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7135,7 +7447,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7184,7 +7503,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7260,7 +7586,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7305,7 +7638,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7350,7 +7690,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"

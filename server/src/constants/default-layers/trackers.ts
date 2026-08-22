@@ -4,6 +4,7 @@ import { LayerType } from '../../schema/layers.schema'
 export const TRACKERS_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:trackers-locations',
+    description: 'Positions reported by your GPS trackers.',
     name: 'Trackers',
     type: LayerType.TRACKERS,
     icon: 'TelescopeIcon',

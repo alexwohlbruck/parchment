@@ -4,6 +4,7 @@ import { LayerType } from '../../schema/layers.schema'
 export const FRIENDS_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   {
     templateId: 'default:friends-locations',
+    description: 'Live locations shared with you by friends.',
     name: 'Friends',
     type: LayerType.FRIENDS,
     icon: 'UsersIcon',

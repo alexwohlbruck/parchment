@@ -15,7 +15,7 @@
 import { describe, test, expect } from 'vitest'
 import { buildMapStyle, buildSatelliteStyle } from '@/lib/basemap-style'
 import {
-  basemapTextColor,
+  basemapTextColors,
   labelPaintFor,
   luminanceOf,
   styleIsDark,
@@ -34,15 +34,22 @@ const STYLES: Array<[string, () => any]> = [
 ]
 
 describe('station labels contrast on every basemap', () => {
-  test.each(STYLES)('%s: our ink matches the basemap own ink', (_name, make) => {
+  test.each(STYLES)('%s: our ink matches how the basemap inks its own names', (_name, make) => {
     const layers = make().layers as any[]
-    const theirs = luminanceOf(basemapTextColor(layers))
-    const ours = luminanceOf(labelPaintFor(layers)['text-color'])!
 
-    if (theirs !== null) {
-      // the basemap letters light on dark and dark on light; so do we
-      expect(ours > 0.5).toBe(theirs > 0.5)
+    // the majority, computed here independently of the implementation:
+    // a style that letters most of its names light is a dark style
+    let light = 0
+    let dark = 0
+    for (const c of basemapTextColors(layers)) {
+      const lum = luminanceOf(c)
+      if (lum === null) continue
+      if (lum > 0.6) light++
+      else if (lum < 0.45) dark++
     }
+
+    const ours = luminanceOf(labelPaintFor(layers)['text-color'])!
+    if (light !== dark) expect(ours > 0.5).toBe(light > dark)
     // and whichever way, it is a real contrast, not a grey
     expect(ours > 0.8 || ours < 0.2).toBe(true)
   })
@@ -74,5 +81,27 @@ describe('station labels contrast on every basemap', () => {
     const dark = labelPaintFor(buildMapStyle({ ...opts, theme: 'dark' } as any).layers as any[])
     expect(light['text-color']).not.toBe(dark['text-color'])
     expect(luminanceOf(light['text-color'])!).toBeLessThan(luminanceOf(dark['text-color'])!)
+  })
+})
+
+describe('the vote, and what happens without one', () => {
+  test('a light style votes dark-ink, a dark style votes light-ink', () => {
+    const light = buildMapStyle({ ...opts, theme: 'light' } as any).layers as any[]
+    const dark = buildMapStyle({ ...opts, theme: 'dark' } as any).layers as any[]
+    expect(styleIsDark(light)).toBe(false)
+    expect(styleIsDark(dark)).toBe(true)
+  })
+
+  test('one odd label cannot swing it', () => {
+    // a tan path name in an otherwise dark-inked (light) style
+    const layers = buildMapStyle({ ...opts, theme: 'light' } as any).layers as any[]
+    layers.unshift({ id: 'highway-name-path', type: 'symbol', paint: { 'text-color': 'hsl(30, 23%, 62%)' } })
+    expect(styleIsDark(layers)).toBe(false)
+  })
+
+  test('bare imagery gets light ink even with no labels to copy', () => {
+    const layers = buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any).layers as any[]
+    expect(styleIsDark(layers)).toBe(true)
+    expect(labelPaintFor(layers)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
   })
 })

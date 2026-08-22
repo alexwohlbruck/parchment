@@ -342,43 +342,56 @@ export const LABEL_TEXT_DARK_MAP = '#f4f4f8'
 export const LABEL_TEXT_LIGHT_MAP = '#16161c'
 
 /**
- * The colour the basemap letters its OWN labels with — a road or place
- * name, not a POI. This is the signal for everything below.
+ * Every colour the basemap letters its own labels with.
+ *
+ * Plural on purpose. Picking one "representative" layer is a coin toss: a
+ * style's first road-ish label can be a one-way ARROW glyph, or a path
+ * name in mid-tan that reads as neither light nor dark. The population is
+ * stable where any single member is not.
  */
-export function basemapTextColor(layers: any[]): string | null {
-  let fallback: string | null = null
+export function basemapTextColors(layers: any[]): string[] {
+  const out: string[] = []
   for (const l of layers ?? []) {
-    if (l?.type !== 'symbol') continue
-    const id = String(l.id ?? '')
-    if (id.startsWith('portolan-')) continue
+    if (l?.type !== 'symbol' || String(l.id ?? '').startsWith('portolan-')) continue
     const c = l.paint?.['text-color']
-    if (typeof c !== 'string') continue
-    if (/place|road|street|highway/i.test(id)) return c
-    fallback ??= c
+    if (typeof c === 'string') out.push(c)
   }
-  return fallback
+  return out
 }
 
 /**
  * Is this style's basemap dark?
  *
- * Asked of the basemap's own labels first, because that is the same
- * question they had to answer and they answer it for every style: a style
- * that letters its streets in light ink is a dark style. The background
- * colour is the second opinion, and the theme that built the style is the
- * last resort — it is the one that has been wrong before, because a dark
- * app chrome says nothing about the map, and satellite imagery carries no
- * background layer to read at all.
+ * By vote of the basemap's own labels: a style that letters most of its
+ * names in light ink is a dark style. They had to answer this same
+ * question, they answer it for every style including hybrid, and they are
+ * what a station name has to sit beside.
+ *
+ * Only when a style letters nothing — plain satellite imagery — does it
+ * fall to the background colour, and then to the theme that built the
+ * style. That last one is the answer that has been wrong before: a dark
+ * app chrome says nothing about the map under it.
  */
 export function styleIsDark(layers: any[], fallbackDark = false): boolean {
-  const theirs = luminanceOf(basemapTextColor(layers))
-  if (theirs !== null) return theirs > 0.5
+  let light = 0
+  let dark = 0
+  for (const c of basemapTextColors(layers)) {
+    const lum = luminanceOf(c)
+    if (lum === null) continue
+    // mid-tones vote for nobody: a tan path label is not evidence
+    if (lum > 0.6) light++
+    else if (lum < 0.45) dark++
+  }
+  if (light !== dark) return light > dark
 
   for (const l of layers ?? []) {
     if (l?.type !== 'background' || String(l.id ?? '').startsWith('portolan-')) continue
     const lum = luminanceOf(l.paint?.['background-color'])
     if (lum !== null) return lum < 0.5
   }
+  // Bare imagery letters nothing and paints no background. Aerial is dark
+  // and busy, which is why every map that draws over it uses light ink.
+  if ((layers ?? []).some(l => l?.type === 'raster')) return true
   return fallbackDark
 }
 

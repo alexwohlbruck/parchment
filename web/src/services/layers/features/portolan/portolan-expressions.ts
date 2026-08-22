@@ -362,21 +362,40 @@ export function basemapTextColors(layers: any[]): string[] {
 /**
  * Is this style's basemap dark?
  *
- * By vote of the basemap's own labels: a style that letters most of its
- * names in light ink is a dark style. They had to answer this same
- * question, they answer it for every style including hybrid, and they are
- * what a station name has to sit beside.
+ * The background colour decides, because it is the one piece of evidence
+ * that is unambiguous, always a plain colour, and belongs to the basemap
+ * rather than to anything drawn over it. A live map carries overlay layers
+ * this module knows nothing about — one of them lettered in slate outvoted
+ * an entire dark basemap and put black names on it.
  *
- * Only when a style letters nothing — plain satellite imagery — does it
- * fall to the background colour, and then to the theme that built the
- * style. That last one is the answer that has been wrong before: a dark
- * app chrome says nothing about the map under it.
+ * Only when there is no background — satellite, hybrid — does it fall to
+ * the labels, and there only to labels that belong to the BASEMAP's own
+ * source, so an overlay cannot vote. Bare imagery has neither, and reads
+ * as dark: aerial is dark and busy, which is why maps draw light ink over
+ * it. The theme that built the style is the last resort, and the one that
+ * has been wrong before.
  */
 export function styleIsDark(layers: any[], fallbackDark = false): boolean {
+  for (const l of layers ?? []) {
+    if (l?.type !== 'background' || String(l.id ?? '').startsWith('portolan-')) continue
+    const lum = luminanceOf(l.paint?.['background-color'])
+    if (lum !== null) return lum < 0.5
+  }
+
+  // the basemap's own vector source: whatever its fills and lines read
+  const basemapSource = (layers ?? []).find(
+    l => (l?.type === 'fill' || l?.type === 'line') && !String(l.id ?? '').startsWith('portolan-'),
+  )?.source
+
+  // No fills or lines means nothing identifies the basemap's own source,
+  // and an unattributable label is not evidence about the map under it —
+  // that is how one slate-lettered overlay spoke for a whole style.
   let light = 0
   let dark = 0
-  for (const c of basemapTextColors(layers)) {
-    const lum = luminanceOf(c)
+  for (const l of basemapSource ? (layers ?? []) : []) {
+    if (l?.type !== 'symbol' || String(l.id ?? '').startsWith('portolan-')) continue
+    if (l.source !== basemapSource) continue
+    const lum = luminanceOf(l.paint?.['text-color'])
     if (lum === null) continue
     // mid-tones vote for nobody: a tan path label is not evidence
     if (lum > 0.6) light++
@@ -384,13 +403,6 @@ export function styleIsDark(layers: any[], fallbackDark = false): boolean {
   }
   if (light !== dark) return light > dark
 
-  for (const l of layers ?? []) {
-    if (l?.type !== 'background' || String(l.id ?? '').startsWith('portolan-')) continue
-    const lum = luminanceOf(l.paint?.['background-color'])
-    if (lum !== null) return lum < 0.5
-  }
-  // Bare imagery letters nothing and paints no background. Aerial is dark
-  // and busy, which is why every map that draws over it uses light ink.
   if ((layers ?? []).some(l => l?.type === 'raster')) return true
   return fallbackDark
 }

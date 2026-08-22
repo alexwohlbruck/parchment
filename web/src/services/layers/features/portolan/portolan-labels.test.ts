@@ -105,3 +105,32 @@ describe('the vote, and what happens without one', () => {
     expect(labelPaintFor(layers)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
   })
 })
+
+describe('overlays drawn over the basemap cannot vote', () => {
+  // Taken from the live map: the only symbol layer exposing a plain
+  // text-color was a parchment overlay lettered in slate — a dark ink,
+  // which outvoted an entire dark basemap and put black names on it.
+  const OVERLAY = {
+    id: 'bookmarks-labels-internal',
+    type: 'symbol',
+    source: 'bookmarks-source-internal',
+    paint: { 'text-color': '#334155' },
+  }
+
+  test.each(STYLES)('%s: verdict survives a slate-lettered overlay', (_name, make) => {
+    const clean = make().layers as any[]
+    const polluted = [...clean, OVERLAY]
+    expect(styleIsDark(polluted)).toBe(styleIsDark(clean))
+    expect(labelPaintFor(polluted)['text-color']).toBe(labelPaintFor(clean)['text-color'])
+  })
+
+  test('the exact live case: dark basemap plus slate overlay stays light-inked', () => {
+    const layers = [...(buildMapStyle({ ...opts, theme: 'dark' } as any).layers as any[]), OVERLAY]
+    expect(labelPaintFor(layers)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
+  })
+
+  test('imagery with an overlay still reads as dark', () => {
+    const layers = [...(buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any).layers as any[]), OVERLAY]
+    expect(labelPaintFor(layers)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
+  })
+})

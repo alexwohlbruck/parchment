@@ -13,7 +13,7 @@
  * it, and the renderer, the editor and the storage layer all switch on `kind`.
  */
 
-import type { FeatureCollection } from 'geojson'
+import type { FeatureCollection, Position } from 'geojson'
 import type { MapEngine } from '@/types/map.types'
 
 export type CanvasScheme = 'server-key' | 'user-e2ee'
@@ -89,7 +89,13 @@ export interface CanvasDataLayer {
   name: string
   visible: boolean
   render: CanvasDataRender
+  /**
+   * Inline features. Empty when `url` is set — a curated dataset can be tens
+   * of megabytes, and a canvas is saved whole.
+   */
   data: FeatureCollection
+  /** Fetched by the map instead of being inlined. */
+  url?: string
   origin?: CanvasDataOrigin
   style?: CanvasDataStyle
 }
@@ -134,8 +140,39 @@ export interface CanvasCamera {
   pitch?: number
 }
 
+/**
+ * The drawing tools. Annotations are not layers: marking up a map is the
+ * quickest thing you do on a canvas, and making you create a layer first put
+ * a piece of filing between you and a pin. They live in their own bucket and
+ * always draw above the layers.
+ */
+export type AnnotationTool =
+  | 'pin'
+  | 'line'
+  | 'polygon'
+  | 'rectangle'
+  | 'circle'
+
+export interface CanvasAnnotation {
+  id: string
+  tool: AnnotationTool
+  /**
+   * The positions the user clicked, in order. Geometry is derived from these
+   * at render time rather than stored — it keeps the document small, and it
+   * leaves a rectangle still a rectangle if we ever let one be reshaped.
+   */
+  positions: Position[]
+  /** Circle only: metres from `positions[0]`. */
+  radiusMeters?: number
+  label?: string
+  color?: string
+  visible?: boolean
+}
+
 export interface CanvasBody {
   layers: CanvasLayer[]
+  /** Pins, lines and shapes drawn straight onto the canvas. */
+  annotations?: CanvasAnnotation[]
   camera?: CanvasCamera
 }
 
@@ -184,7 +221,7 @@ export interface CreateCanvasParams {
 
 /** An empty body, so callers never have to null-check the layer list. */
 export function emptyCanvasBody(): CanvasBody {
-  return { layers: [] }
+  return { layers: [], annotations: [] }
 }
 
 /**
@@ -197,5 +234,8 @@ export function emptyCanvasBody(): CanvasBody {
  */
 export function cloneCanvasBody(body: CanvasBody | null | undefined): CanvasBody {
   if (!body) return emptyCanvasBody()
-  return JSON.parse(JSON.stringify(body)) as CanvasBody
+  const clone = JSON.parse(JSON.stringify(body)) as CanvasBody
+  // Canvases written before annotations existed have no bucket for them.
+  if (!clone.annotations) clone.annotations = []
+  return clone
 }

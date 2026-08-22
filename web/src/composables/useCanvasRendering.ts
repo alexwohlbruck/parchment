@@ -28,7 +28,11 @@ import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { MARKER_RENDERED_LAYER_TYPES, type Layer } from '@/types/map.types'
-import type { CanvasBody, CanvasLayer } from '@/types/canvas.types'
+import type {
+  CanvasAnnotation,
+  CanvasBody,
+  CanvasLayer,
+} from '@/types/canvas.types'
 import {
   selectSavedPlaces,
   buildSavedPlacesGeoJSON,
@@ -37,6 +41,7 @@ import {
 } from '@/lib/saved-places-features'
 import { ensureIconImages } from '@/lib/map-icon-images'
 import { resolveSpecBounds } from '@/lib/map-style/bounds'
+import { annotationsCollection } from '@/lib/canvas-annotations'
 import { presetLayers } from '@/lib/map-style/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
@@ -49,6 +54,11 @@ import {
 export interface RenderableCanvas {
   id: string
   body: CanvasBody
+  /**
+   * An annotation being drawn right now, shown alongside the committed ones
+   * so a shape takes form under the cursor.
+   */
+  draft?: CanvasAnnotation | null
 }
 
 /**
@@ -176,9 +186,13 @@ export function useCanvasRendering(
     }
 
     if (layer.kind === 'data') {
-      // One source, however many layers the render mode needs.
+      // One source, however many layers the render mode needs. A remote
+      // dataset is handed to the engine as a URL so the canvas never carries
+      // its bytes.
       return {
-        sources: { [sourceId]: { type: 'geojson', data: layer.data } },
+        sources: {
+          [sourceId]: { type: 'geojson', data: layer.url ?? layer.data },
+        },
         layers: presetLayers(layer.render, sourceId, layer.style).map(preset =>
           toLayer(
             scopedId(options.key, canvasId, layer.id, preset.suffix),
@@ -314,6 +328,91 @@ export function useCanvasRendering(
     }
   }
 
+  /**
+   * Annotations draw as one bucket per canvas — a fill, its outline, a dot for
+   * pins and a label — rather than a layer each. They are always added last,
+   * so marks you made sit above the data you brought.
+   */
+  function planAnnotations(canvas: RenderableCanvas): LayerPlan {
+    const annotations = [
+      ...(canvas.body?.annotations ?? []),
+      ...(canvas.draft ? [canvas.draft] : []),
+    ]
+    if (!annotations.length) return EMPTY_PLAN
+
+    const sourceId = scopedId(options.key, canvas.id, 'annotations', '-source')
+    const id = (suffix: string) =>
+      scopedId(options.key, canvas.id, 'annotations', suffix)
+
+    return {
+      sources: {
+        [sourceId]: {
+          type: 'geojson',
+          data: annotationsCollection(annotations),
+        },
+      },
+      layers: [
+        toLayer(
+          id('-fill'),
+          {
+            type: 'fill',
+            source: sourceId,
+            filter: ['==', ['geometry-type'], 'Polygon'],
+            paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.18 },
+          },
+          true,
+        ),
+        toLayer(
+          id('-stroke'),
+          {
+            type: 'line',
+            source: sourceId,
+            filter: ['!=', ['geometry-type'], 'Point'],
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': ['get', 'color'], 'line-width': 3 },
+          },
+          true,
+        ),
+        toLayer(
+          id('-pins'),
+          {
+            type: 'circle',
+            source: sourceId,
+            filter: ['==', ['geometry-type'], 'Point'],
+            paint: {
+              'circle-color': ['get', 'color'],
+              'circle-radius': 7,
+              'circle-stroke-width': 2.5,
+              'circle-stroke-color': '#ffffff',
+            },
+          },
+          true,
+        ),
+        toLayer(
+          id('-labels'),
+          {
+            type: 'symbol',
+            source: sourceId,
+            filter: ['all', ['==', ['geometry-type'], 'Point'], ['has', 'label']],
+            layout: {
+              'text-field': ['get', 'label'],
+              'text-size': 12,
+              'text-anchor': 'top',
+              'text-offset': [0, 1.1],
+              'text-optional': true,
+            },
+            paint: {
+              'text-color': '#111827',
+              'text-halo-color': '#ffffff',
+              'text-halo-width': 1.2,
+            },
+          },
+          true,
+        ),
+      ],
+    }
+  }
+
   function render() {
     const strategy = mapStore.getMapStrategy()
     if (!strategy) return
@@ -331,6 +430,16 @@ export function useCanvasRendering(
           nextSources.set(id, JSON.stringify(spec))
         }
         plan.layers.forEach(l => nextLayers.add(l.id))
+      }
+
+      // Annotations last, so they draw over the canvas's own layers.
+      const annotations = planAnnotations(canvas)
+      if (annotations.layers.length) {
+        plans.push({ plan: annotations, visible: true })
+        for (const [id, spec] of Object.entries(annotations.sources)) {
+          nextSources.set(id, JSON.stringify(spec))
+        }
+        annotations.layers.forEach(l => nextLayers.add(l.id))
       }
     }
 

@@ -2180,13 +2180,13 @@
       "noLayers": "Todavía no hay capas en tu biblioteca.",
       "noCollections": "Todavía no hay colecciones.",
       "options": {
-        "import": {
-          "title": "Importar un archivo",
-          "description": "GeoJSON, KML, GPX o un CSV con columnas de latitud y longitud."
+        "sources": {
+          "title": "Orígenes de datos",
+          "description": "Conjuntos curados, tus archivos o una conexión en vivo."
         },
-        "draw": {
-          "title": "Dibujar en el mapa",
-          "description": "Coloca marcadores, traza una línea o delimita un área."
+        "style": {
+          "title": "Diseñar una capa",
+          "description": "Imágenes, teselas vectoriales o GeoJSON, con el estilo que quieras."
         },
         "collection": {
           "title": "Lugares guardados",
@@ -2196,20 +2196,24 @@
           "title": "Una ruta guardada",
           "description": "Pon una de tus rutas en este lienzo."
         },
-        "people": {
-          "title": "Personas",
-          "description": "Amigos que comparten su ubicación contigo, en vivo."
-        },
         "library": {
           "title": "De tu biblioteca",
           "description": "Reutiliza una capa que ya tienes."
         },
-        "style": {
-          "title": "Diseñar una capa",
-          "description": "Imágenes, teselas vectoriales o GeoJSON, con el estilo que quieras."
+        "people": {
+          "title": "Personas",
+          "description": "Amigos que comparten su ubicación contigo, en vivo."
+        },
+        "import": {
+          "title": "Subir un archivo",
+          "description": "GeoJSON, KML, GPX o un CSV con columnas de latitud y longitud."
         }
       },
-      "noRoutes": "Todavía no hay rutas."
+      "noRoutes": "Todavía no hay rutas.",
+      "groups": {
+        "data": "Datos",
+        "yours": "De Parchment"
+      }
     },
     "delete": {
       "title": "¿Eliminar el lienzo?",
@@ -2233,35 +2237,6 @@
         }
       }
     },
-    "draw": {
-      "vertices": "Nada dibujado aún | 1 punto | {count} puntos",
-      "modes": {
-        "points": {
-          "title": "Marcadores",
-          "description": "Un punto por clic.",
-          "hint": "Haz clic en el mapa para colocar un marcador.",
-          "layerName": "Marcadores"
-        },
-        "lines": {
-          "title": "Una línea",
-          "description": "Traza un camino o un límite.",
-          "hint": "Haz clic a lo largo del camino. Pulsa Hecho al terminar.",
-          "layerName": "Línea"
-        },
-        "shapes": {
-          "title": "Un área",
-          "description": "Delimita una región; se cierra sola.",
-          "hint": "Haz clic alrededor del área. Se cierra al terminar.",
-          "layerName": "Área"
-        },
-        "heatmap": {
-          "title": "Mapa de calor",
-          "description": "Densidad a partir de un conjunto de puntos.",
-          "hint": "Haz clic en el mapa para añadir puntos.",
-          "layerName": "Mapa de calor"
-        }
-      }
-    },
     "import": {
       "errors": {
         "unsupportedFormat": "Ese tipo de archivo no es compatible. Prueba con GeoJSON, KML, GPX o CSV.",
@@ -2273,7 +2248,8 @@
         "csvNoRows": "Ninguna fila de ese CSV tenía coordenadas utilizables.",
         "noFeatures": "No había nada que cartografiar en ese archivo.",
         "tooLarge": "Ese archivo es demasiado grande para un lienzo. Simplifícalo o divídelo.",
-        "failed": "No se pudo importar ese archivo."
+        "failed": "No se pudo importar ese archivo.",
+        "fetchFailed": "No se pudo leer esa URL."
       }
     },
     "dataSettings": {
@@ -2304,6 +2280,36 @@
       "gone": {
         "title": "Este enlace ya no funciona",
         "description": "Puede que se haya revocado, o que el lienzo se haya hecho privado."
+      }
+    },
+    "toolbar": {
+      "select": "Seleccionar",
+      "undo": "Deshacer el último punto",
+      "tools": {
+        "pin": "Marcador",
+        "line": "Línea",
+        "polygon": "Polígono",
+        "rectangle": "Rectángulo",
+        "circle": "Círculo"
+      }
+    },
+    "annotations": {
+      "title": "Anotaciones",
+      "remove": "Eliminar anotación"
+    },
+    "sources": {
+      "title": "Orígenes de datos",
+      "description": "Elige un conjunto de datos para crear una capa, o aporta el tuyo.",
+      "search": "Buscar orígenes de datos",
+      "noResults": "No hay coincidencias.",
+      "uploadDirectly": "Subir directamente",
+      "connectToSource": "Conectar a un origen",
+      "connectorSoon": "Los orígenes de datos en vivo aún no están disponibles.",
+      "urlPlaceholder": "https://example.com/data.geojson",
+      "formats": "GeoJSON, KML, GPX y CSV. Se leen en tu dispositivo; no se sube nada.",
+      "sections": {
+        "library": "Biblioteca",
+        "new": "Tus datos"
       }
     }
   }

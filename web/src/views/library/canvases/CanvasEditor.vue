@@ -9,6 +9,7 @@
  * close button ends up doing.
  */
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
+import { useHotkeys } from '@/composables/useHotkeys'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -21,14 +22,22 @@ import { useAppService } from '@/services/app.service'
 import { useMapStore } from '@/stores/map.store'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
-import { useCanvasDrawing } from '@/composables/useCanvasDrawing'
+import { useCanvasAnnotations } from '@/composables/useCanvasAnnotations'
 import { useRoutesService } from '@/services/library/routes.service'
-import { defaultStyleFor } from '@/lib/map-style/data-presets'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
 import CanvasLayerRow from '@/components/library/canvas/CanvasLayerRow.vue'
 import AddCanvasLayerDialog from '@/components/library/canvas/AddCanvasLayerDialog.vue'
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
 import CanvasDataLayerSettings from '@/components/library/canvas/CanvasDataLayerSettings.vue'
+import CanvasDataSourcesDialog from '@/components/library/canvas/CanvasDataSourcesDialog.vue'
+import CanvasToolbar from '@/components/library/canvas/CanvasToolbar.vue'
+import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
+import {
+  countGeometries,
+  defaultStyleFor,
+  inferRender,
+} from '@/lib/map-style/data-presets'
+import type { DataSourceDefinition } from '@/lib/data-sources/catalogue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -37,20 +46,25 @@ import type { ThemeColor } from '@/lib/utils'
 import {
   cloneCanvasBody,
   emptyCanvasBody,
+  type CanvasAnnotation,
   type CanvasBody,
   type CanvasDataLayer,
-  type CanvasDataRender,
+  type CanvasDataOrigin,
   type CanvasLayer,
 } from '@/types/canvas.types'
 import {
-  CheckIcon,
+  BookmarkIcon,
   CrosshairIcon,
+  DatabaseIcon,
+  Layers3Icon,
   LayersIcon,
   LockIcon,
+  PenLineIcon,
   PencilIcon,
   PlusIcon,
-  UndoIcon,
-  XIcon,
+  RouteIcon,
+  Trash2Icon,
+  UsersIcon,
 } from 'lucide-vue-next'
 
 const props = defineProps<{ id: string }>()
@@ -96,6 +110,45 @@ watch(canvas, load, { immediate: true })
 const isDirty = computed(() => JSON.stringify(body.value) !== pristine.value)
 useUnsavedChanges(isDirty)
 
+// ── Annotations ──────────────────────────────────────────────────────────────
+
+/**
+ * Marks made on the canvas rather than data brought to it. They live in their
+ * own bucket, so drawing never asks the user to create a layer first.
+ */
+const annotations = useCanvasAnnotations({
+  onCommit(annotation: CanvasAnnotation) {
+    body.value = {
+      ...body.value,
+      annotations: [...(body.value.annotations ?? []), annotation],
+    }
+  },
+})
+
+// Esc drops the armed tool before it does anything else — the reflex when a
+// tool is live is "get me out of this", not "leave this view".
+useHotkeys([
+  {
+    key: 'esc',
+    preventDefault: false,
+    handler: () => {
+      if (annotations.isArmed.value) annotations.disarm()
+    },
+  },
+  { key: 'p', handler: () => annotations.arm('pin') },
+  { key: 'l', handler: () => annotations.arm('line') },
+  { key: 'o', handler: () => annotations.arm('polygon') },
+  { key: 'e', handler: () => annotations.arm('rectangle') },
+  { key: 'i', handler: () => annotations.arm('circle') },
+])
+
+function removeAnnotation(id: string) {
+  body.value = {
+    ...body.value,
+    annotations: (body.value.annotations ?? []).filter(a => a.id !== id),
+  }
+}
+
 // Draw the working copy, so reordering and toggling read on the map at once.
 // Claiming the canvas keeps the main map from drawing its saved version
 // underneath the copy being edited.
@@ -105,7 +158,11 @@ onScopeDispose(() => {
 })
 
 const { fitToLayer } = useCanvasRendering(
-  computed(() => (canvas.value ? [{ id: props.id, body: body.value }] : [])),
+  computed(() =>
+    canvas.value
+      ? [{ id: props.id, body: body.value, draft: annotations.draft.value }]
+      : [],
+  ),
   { key: 'canvas-editor' },
 )
 
@@ -171,35 +228,125 @@ function patchDataLayer(patch: Partial<CanvasDataLayer>) {
   patchLayer(editingDataLayerId.value, patch as Partial<CanvasLayer>)
 }
 
-// ── Drawing ──────────────────────────────────────────────────────────────────
 
-const drawing = useCanvasDrawing()
+// ── Adding layers ────────────────────────────────────────────────────────────
 
-function startDrawing(render: CanvasDataRender) {
-  drawing.start(render)
-}
+const sourcesOpen = ref(false)
+const addOpen = ref(false)
+const pickerStep = ref<'library' | 'collection' | 'route' | null>(null)
 
-function finishDrawing() {
-  const result = drawing.finish()
-  if (!result) return
-  addLayer({
-    id: `cl-${Math.random().toString(36).slice(2, 10)}`,
-    kind: 'data',
-    name: t(`canvases.draw.modes.${result.render}.layerName`),
-    visible: true,
-    render: result.render,
-    data: result.data,
-    origin: { format: 'drawn' },
-    style: defaultStyleFor(result.render),
-  })
+function newLayerId() {
+  return `cl-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function createStyleLayer() {
-  router.push({
-    name: AppRoute.LAYER_EDITOR_NEW,
-    query: { canvas: props.id },
+  router.push({ name: AppRoute.LAYER_EDITOR_NEW, query: { canvas: props.id } })
+}
+
+/**
+ * A source from the global library becomes a layer on this canvas: tiled
+ * sources as a style layer, GeoJSON as a data layer pointed at the URL rather
+ * than inlining it — some of these datasets are tens of megabytes.
+ */
+function addLibrarySource(source: DataSourceDefinition) {
+  if (source.layer.type === 'style') {
+    addLayer({
+      id: newLayerId(),
+      kind: 'style',
+      name: source.name,
+      visible: true,
+      configuration: { ...source.layer.configuration },
+    })
+    return
+  }
+
+  addLayer({
+    id: newLayerId(),
+    kind: 'data',
+    name: source.name,
+    visible: true,
+    render: source.layer.render,
+    url: source.layer.url,
+    data: { type: 'FeatureCollection', features: [] },
+    origin: { format: 'geojson', filename: source.provider },
+    style: defaultStyleFor(source.layer.render),
   })
 }
+
+/** A file or URL the sources browser already read and parsed. */
+function addImportedData(result: {
+  name: string
+  collection: unknown
+  format: string
+}) {
+  const collection = result.collection as CanvasDataLayer['data']
+  const render = inferRender(countGeometries(collection))
+  addLayer({
+    id: newLayerId(),
+    kind: 'data',
+    name: result.name,
+    visible: true,
+    render,
+    data: collection,
+    origin: { format: result.format as CanvasDataOrigin['format'] },
+    style: defaultStyleFor(render),
+  })
+}
+
+function openPicker(step: 'library' | 'collection' | 'route') {
+  pickerStep.value = step
+  addOpen.value = true
+}
+
+/** The add-layer menu: a list of routes in, so a dropdown rather than a dialog. */
+const addMenuItems = computed(() => [
+  { type: 'label' as const, label: t('canvases.add.groups.data') },
+  {
+    type: 'item' as const,
+    id: 'sources',
+    label: t('canvases.add.options.sources.title'),
+    icon: DatabaseIcon,
+    onSelect: () => (sourcesOpen.value = true),
+  },
+  {
+    type: 'item' as const,
+    id: 'style',
+    label: t('canvases.add.options.style.title'),
+    icon: PenLineIcon,
+    onSelect: createStyleLayer,
+  },
+  { type: 'separator' as const },
+  { type: 'label' as const, label: t('canvases.add.groups.yours') },
+  {
+    type: 'item' as const,
+    id: 'collection',
+    label: t('canvases.add.options.collection.title'),
+    icon: BookmarkIcon,
+    onSelect: () => openPicker('collection'),
+  },
+  {
+    type: 'item' as const,
+    id: 'route',
+    label: t('canvases.add.options.route.title'),
+    icon: RouteIcon,
+    onSelect: () => openPicker('route'),
+  },
+  {
+    type: 'item' as const,
+    id: 'library',
+    label: t('canvases.add.options.library.title'),
+    icon: Layers3Icon,
+    onSelect: () => openPicker('library'),
+  },
+  {
+    type: 'item' as const,
+    id: 'people',
+    label: t('canvases.add.options.people.title'),
+    icon: UsersIcon,
+    onSelect: () =>
+      addLayer({ id: newLayerId(), kind: 'people', visible: true }),
+  },
+])
 
 // ── Camera ───────────────────────────────────────────────────────────────────
 
@@ -221,7 +368,6 @@ function saveCamera() {
 
 // ── Save ─────────────────────────────────────────────────────────────────────
 
-const addOpen = ref(false)
 const renameOpen = ref(false)
 
 async function save() {
@@ -305,51 +451,14 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
         </p>
       </div>
 
-      <div
-        v-if="drawing.isDrawing.value"
-        class="rounded-lg border border-primary/40 bg-secondary/50 p-2.5 space-y-2"
-      >
-        <p class="text-xs">
-          {{ t(`canvases.draw.modes.${drawing.mode.value}.hint`) }}
-        </p>
-        <div class="flex items-center gap-1.5">
-          <span class="text-[11px] text-muted-foreground tabular-nums flex-1">
-            {{ t('canvases.draw.vertices', drawing.vertexCount.value) }}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 px-2"
-            :disabled="!drawing.canUndo.value"
-            @click="drawing.undo()"
-          >
-            <UndoIcon class="size-3.5" />
+      <ResponsiveDropdown :items="addMenuItems" align="start">
+        <template #trigger>
+          <Button variant="outline" size="sm" class="w-full">
+            <PlusIcon class="size-3.5" />
+            {{ t('canvases.add.trigger') }}
           </Button>
-          <Button variant="ghost" size="sm" class="h-7 px-2" @click="drawing.cancel()">
-            <XIcon class="size-3.5" />
-          </Button>
-          <Button
-            size="sm"
-            class="h-7 px-2.5"
-            :disabled="!drawing.canFinish.value"
-            @click="finishDrawing"
-          >
-            <CheckIcon class="size-3.5" />
-            {{ t('general.done') }}
-          </Button>
-        </div>
-      </div>
-
-      <Button
-        v-else
-        variant="outline"
-        size="sm"
-        class="w-full"
-        @click="addOpen = true"
-      >
-        <PlusIcon class="size-3.5" />
-        {{ t('canvases.add.trigger') }}
-      </Button>
+        </template>
+      </ResponsiveDropdown>
 
       <!-- Bottom of the list is the top of the map, matching how the layer
            library already reads. -->
@@ -375,20 +484,55 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
         </template>
       </draggable>
 
+      <!-- Annotations count as content: a canvas with three pins on it is
+           not empty, whatever its layer list says. -->
       <EmptyState
-        v-else
+        v-else-if="!body.annotations?.length"
         :icon="LayersIcon"
         :title="t('canvases.layers.empty')"
         :description="t('canvases.layers.emptyHint')"
         class="py-8"
       />
+
+      <div v-if="body.annotations?.length" class="pt-2 space-y-1.5">
+        <p class="text-[11px] text-muted-foreground">
+          {{ t('canvases.annotations.title') }}
+        </p>
+        <div
+          v-for="annotation in body.annotations"
+          :key="annotation.id"
+          class="group flex items-center gap-2 rounded-lg border px-2 py-1.5 bg-card"
+        >
+          <span
+            class="size-3 shrink-0 rounded-full border"
+            :style="{ background: annotation.color }"
+          />
+          <span class="min-w-0 flex-1 text-sm truncate">
+            {{ annotation.label || t(`canvases.toolbar.tools.${annotation.tool}`) }}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-7 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+            :title="t('canvases.annotations.remove')"
+            :aria-label="t('canvases.annotations.remove')"
+            @click="removeAnnotation(annotation.id)"
+          >
+            <Trash2Icon class="size-3.5" />
+          </Button>
+        </div>
+      </div>
     </div>
 
     <AddCanvasLayerDialog
       v-model:open="addOpen"
+      :step="pickerStep"
       @add="addLayer"
-      @create-style="createStyleLayer"
-      @draw="startDrawing"
+    />
+    <CanvasDataSourcesDialog
+      v-model:open="sourcesOpen"
+      @add-library="addLibrarySource"
+      @add-file="addImportedData"
     />
     <CanvasDialog v-model:open="renameOpen" :canvas="canvas" />
     <CanvasDataLayerSettings
@@ -396,5 +540,27 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
       :layer="editingDataLayer"
       @update="patchDataLayer"
     />
+
+    <!-- Over the map, not in the panel: drawing is what you do most here. -->
+    <Teleport v-if="canvas" to="body">
+      <!-- Centred over the *map*, not the viewport: on desktop the sheet
+           takes the left 26rem, and a toolbar centred on the window sits
+           half-over it and collides with the sheet's own controls. -->
+      <div
+        class="fixed z-40 top-3 inset-x-0 md:left-104 pointer-events-none flex justify-center px-3"
+      >
+        <CanvasToolbar
+          :tool="annotations.tool.value"
+          :color="annotations.color.value"
+          :can-finish="annotations.canFinish.value"
+          :can-undo="annotations.canUndo.value"
+          :vertex-count="annotations.vertexCount.value"
+          @arm="annotations.arm"
+          @update:color="value => (annotations.color.value = value)"
+          @finish="annotations.finish"
+          @undo="annotations.undo"
+        />
+      </div>
+    </Teleport>
   </DetailPanelLayout>
 </template>

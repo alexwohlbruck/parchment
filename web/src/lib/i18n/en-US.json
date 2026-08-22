@@ -2300,13 +2300,13 @@
       "noLayers": "No layers in your library yet.",
       "noCollections": "No collections yet.",
       "options": {
-        "import": {
-          "title": "Import a file",
-          "description": "GeoJSON, KML, GPX or a CSV with latitude and longitude columns."
+        "sources": {
+          "title": "Data sources",
+          "description": "Curated datasets, your files, or a live connection."
         },
-        "draw": {
-          "title": "Draw on the map",
-          "description": "Drop pins, trace a line, or outline an area."
+        "style": {
+          "title": "Design a layer",
+          "description": "Imagery, vector tiles or GeoJSON, styled how you like."
         },
         "collection": {
           "title": "Saved places",
@@ -2316,20 +2316,24 @@
           "title": "A saved route",
           "description": "Put one of your routes on this canvas."
         },
-        "people": {
-          "title": "People",
-          "description": "Friends sharing their location with you, live."
-        },
         "library": {
           "title": "From your library",
           "description": "Reuse a layer you already have."
         },
-        "style": {
-          "title": "Design a layer",
-          "description": "Imagery, vector tiles or GeoJSON, styled how you like."
+        "people": {
+          "title": "People",
+          "description": "Friends sharing their location with you, live."
+        },
+        "import": {
+          "title": "Upload a file",
+          "description": "GeoJSON, KML, GPX or a CSV with latitude and longitude columns."
         }
       },
-      "noRoutes": "No routes yet."
+      "noRoutes": "No routes yet.",
+      "groups": {
+        "data": "Data",
+        "yours": "From Parchment"
+      }
     },
     "delete": {
       "title": "Delete canvas?",
@@ -2353,35 +2357,6 @@
         }
       }
     },
-    "draw": {
-      "vertices": "Nothing drawn yet | 1 point | {count} points",
-      "modes": {
-        "points": {
-          "title": "Pins",
-          "description": "One point per click.",
-          "hint": "Click the map to drop a pin.",
-          "layerName": "Pins"
-        },
-        "lines": {
-          "title": "A line",
-          "description": "Trace a path or a boundary.",
-          "hint": "Click along the path. Done when you're finished.",
-          "layerName": "Line"
-        },
-        "shapes": {
-          "title": "An area",
-          "description": "Outline a region; it closes itself.",
-          "hint": "Click around the area. It closes when you're done.",
-          "layerName": "Area"
-        },
-        "heatmap": {
-          "title": "Heatmap",
-          "description": "Density from a set of points.",
-          "hint": "Click the map to add points.",
-          "layerName": "Heatmap"
-        }
-      }
-    },
     "import": {
       "errors": {
         "unsupportedFormat": "That file type isn't supported. Try GeoJSON, KML, GPX or CSV.",
@@ -2393,7 +2368,8 @@
         "csvNoRows": "No rows in that CSV had usable coordinates.",
         "noFeatures": "There was nothing to map in that file.",
         "tooLarge": "That file is too big for a canvas. Try simplifying or splitting it.",
-        "failed": "That file couldn't be imported."
+        "failed": "That file couldn't be imported.",
+        "fetchFailed": "That URL couldn't be read."
       }
     },
     "dataSettings": {
@@ -2424,6 +2400,36 @@
       "gone": {
         "title": "This link no longer works",
         "description": "It may have been revoked, or the canvas made private."
+      }
+    },
+    "toolbar": {
+      "select": "Select",
+      "undo": "Undo last point",
+      "tools": {
+        "pin": "Pin",
+        "line": "Line",
+        "polygon": "Polygon",
+        "rectangle": "Rectangle",
+        "circle": "Circle"
+      }
+    },
+    "annotations": {
+      "title": "Annotations",
+      "remove": "Delete annotation"
+    },
+    "sources": {
+      "title": "Data sources",
+      "description": "Pick a dataset to make a layer from, or bring your own.",
+      "search": "Search data sources",
+      "noResults": "Nothing matches that.",
+      "uploadDirectly": "Upload directly",
+      "connectToSource": "Connect to a source",
+      "connectorSoon": "Live database sources aren't available yet.",
+      "urlPlaceholder": "https://example.com/data.geojson",
+      "formats": "GeoJSON, KML, GPX and CSV. Read on your device — nothing is uploaded.",
+      "sections": {
+        "library": "Library",
+        "new": "Your data"
       }
     }
   }

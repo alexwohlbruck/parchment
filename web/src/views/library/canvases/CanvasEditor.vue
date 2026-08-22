@@ -21,10 +21,14 @@ import { useAppService } from '@/services/app.service'
 import { useMapStore } from '@/stores/map.store'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
+import { useCanvasDrawing } from '@/composables/useCanvasDrawing'
+import { useRoutesService } from '@/services/library/routes.service'
+import { defaultStyleFor } from '@/lib/map-style/data-presets'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
 import CanvasLayerRow from '@/components/library/canvas/CanvasLayerRow.vue'
 import AddCanvasLayerDialog from '@/components/library/canvas/AddCanvasLayerDialog.vue'
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
+import CanvasDataLayerSettings from '@/components/library/canvas/CanvasDataLayerSettings.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -34,14 +38,19 @@ import {
   cloneCanvasBody,
   emptyCanvasBody,
   type CanvasBody,
+  type CanvasDataLayer,
+  type CanvasDataRender,
   type CanvasLayer,
 } from '@/types/canvas.types'
 import {
+  CheckIcon,
   CrosshairIcon,
   LayersIcon,
   LockIcon,
   PencilIcon,
   PlusIcon,
+  UndoIcon,
+  XIcon,
 } from 'lucide-vue-next'
 
 const props = defineProps<{ id: string }>()
@@ -51,6 +60,7 @@ const { t } = useI18n()
 const canvasesStore = useCanvasesStore()
 const canvasesService = useCanvasesService()
 const collectionsService = useCollectionsService()
+const routesService = useRoutesService()
 const appService = useAppService()
 const mapStore = useMapStore()
 const { canvases } = storeToRefs(canvasesStore)
@@ -73,9 +83,12 @@ watch(canvas, load, { immediate: true })
 // A cold load (opened from a link, or after a reload) has neither the canvas
 // nor the collections it references.
 ;(async () => {
+  // A canvas can reference collections and routes, and a cold load has
+  // neither — a row with no name is worse than a moment's spinner.
   await Promise.all([
     canvasesService.fetchCanvasById(props.id),
     collectionsService.fetchCollections(),
+    routesService.fetchRoutes(),
   ])
   loading.value = false
 })()
@@ -122,12 +135,62 @@ async function removeLayer(id: string) {
   layers.value = layers.value.filter(l => l.id !== id)
 }
 
-function editStyleLayer(layer: CanvasLayer) {
-  if (layer.kind !== 'style') return
-  router.push({
-    name: AppRoute.LAYER_EDITOR,
-    params: { id: layer.id },
-    query: { canvas: props.id },
+/** Style layers open the layer editor; data layers open their own settings. */
+function editLayer(layer: CanvasLayer) {
+  if (layer.kind === 'style') {
+    router.push({
+      name: AppRoute.LAYER_EDITOR,
+      params: { id: layer.id },
+      query: { canvas: props.id },
+    })
+    return
+  }
+  if (layer.kind === 'data') {
+    editingDataLayerId.value = layer.id
+  }
+}
+
+// ── Data layer settings ──────────────────────────────────────────────────────
+
+const editingDataLayerId = ref<string | null>(null)
+
+const editingDataLayer = computed<CanvasDataLayer | null>(() => {
+  const found = layers.value.find(l => l.id === editingDataLayerId.value)
+  return found?.kind === 'data' ? found : null
+})
+
+const dataSettingsOpen = computed({
+  get: () => editingDataLayer.value !== null,
+  set: (value: boolean) => {
+    if (!value) editingDataLayerId.value = null
+  },
+})
+
+function patchDataLayer(patch: Partial<CanvasDataLayer>) {
+  if (!editingDataLayerId.value) return
+  patchLayer(editingDataLayerId.value, patch as Partial<CanvasLayer>)
+}
+
+// ── Drawing ──────────────────────────────────────────────────────────────────
+
+const drawing = useCanvasDrawing()
+
+function startDrawing(render: CanvasDataRender) {
+  drawing.start(render)
+}
+
+function finishDrawing() {
+  const result = drawing.finish()
+  if (!result) return
+  addLayer({
+    id: `cl-${Math.random().toString(36).slice(2, 10)}`,
+    kind: 'data',
+    name: t(`canvases.draw.modes.${result.render}.layerName`),
+    visible: true,
+    render: result.render,
+    data: result.data,
+    origin: { format: 'drawn' },
+    style: defaultStyleFor(result.render),
   })
 }
 
@@ -242,7 +305,48 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
         </p>
       </div>
 
-      <Button variant="outline" size="sm" class="w-full" @click="addOpen = true">
+      <div
+        v-if="drawing.isDrawing.value"
+        class="rounded-lg border border-primary/40 bg-secondary/50 p-2.5 space-y-2"
+      >
+        <p class="text-xs">
+          {{ t(`canvases.draw.modes.${drawing.mode.value}.hint`) }}
+        </p>
+        <div class="flex items-center gap-1.5">
+          <span class="text-[11px] text-muted-foreground tabular-nums flex-1">
+            {{ t('canvases.draw.vertices', drawing.vertexCount.value) }}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2"
+            :disabled="!drawing.canUndo.value"
+            @click="drawing.undo()"
+          >
+            <UndoIcon class="size-3.5" />
+          </Button>
+          <Button variant="ghost" size="sm" class="h-7 px-2" @click="drawing.cancel()">
+            <XIcon class="size-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            class="h-7 px-2.5"
+            :disabled="!drawing.canFinish.value"
+            @click="finishDrawing"
+          >
+            <CheckIcon class="size-3.5" />
+            {{ t('general.done') }}
+          </Button>
+        </div>
+      </div>
+
+      <Button
+        v-else
+        variant="outline"
+        size="sm"
+        class="w-full"
+        @click="addOpen = true"
+      >
         <PlusIcon class="size-3.5" />
         {{ t('canvases.add.trigger') }}
       </Button>
@@ -265,7 +369,7 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           <CanvasLayerRow
             :layer="element"
             @toggle="visible => patchLayer(element.id, { visible })"
-            @edit="editStyleLayer(element)"
+            @edit="editLayer(element)"
             @remove="removeLayer(element.id)"
           />
         </template>
@@ -284,7 +388,13 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
       v-model:open="addOpen"
       @add="addLayer"
       @create-style="createStyleLayer"
+      @draw="startDrawing"
     />
     <CanvasDialog v-model:open="renameOpen" :canvas="canvas" />
+    <CanvasDataLayerSettings
+      v-model:open="dataSettingsOpen"
+      :layer="editingDataLayer"
+      @update="patchDataLayer"
+    />
   </DetailPanelLayout>
 </template>

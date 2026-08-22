@@ -2160,8 +2160,18 @@
       "kinds": {
         "style": "Capa personalizada",
         "library": "De tu biblioteca",
-        "collection": "Lugares guardados"
-      }
+        "collection": "Lugares guardados",
+        "data": "Tus datos",
+        "route": "Ruta",
+        "people": "Personas"
+      },
+      "renders": {
+        "points": "Puntos",
+        "lines": "Líneas",
+        "shapes": "Formas",
+        "heatmap": "Mapa de calor"
+      },
+      "featureCount": "Sin elementos | 1 elemento | {count} elementos"
     },
     "add": {
       "trigger": "Añadir una capa",
@@ -2170,19 +2180,36 @@
       "noLayers": "Todavía no hay capas en tu biblioteca.",
       "noCollections": "Todavía no hay colecciones.",
       "options": {
-        "style": {
-          "title": "Diseñar una capa",
-          "description": "Imágenes, teselas vectoriales o GeoJSON, con el estilo que quieras."
+        "import": {
+          "title": "Importar un archivo",
+          "description": "GeoJSON, KML, GPX o un CSV con columnas de latitud y longitud."
+        },
+        "draw": {
+          "title": "Dibujar en el mapa",
+          "description": "Coloca marcadores, traza una línea o delimita un área."
+        },
+        "collection": {
+          "title": "Lugares guardados",
+          "description": "Dibuja los lugares de una colección como puntos."
+        },
+        "route": {
+          "title": "Una ruta guardada",
+          "description": "Pon una de tus rutas en este lienzo."
+        },
+        "people": {
+          "title": "Personas",
+          "description": "Amigos que comparten su ubicación contigo, en vivo."
         },
         "library": {
           "title": "De tu biblioteca",
           "description": "Reutiliza una capa que ya tienes."
         },
-        "collection": {
-          "title": "Lugares guardados",
-          "description": "Dibuja los lugares de una colección como puntos."
+        "style": {
+          "title": "Diseñar una capa",
+          "description": "Imágenes, teselas vectoriales o GeoJSON, con el estilo que quieras."
         }
-      }
+      },
+      "noRoutes": "Todavía no hay rutas."
     },
     "delete": {
       "title": "¿Eliminar el lienzo?",
@@ -2204,6 +2231,79 @@
           "title": "¿Hacer privado este lienzo?",
           "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
         }
+      }
+    },
+    "draw": {
+      "vertices": "Nada dibujado aún | 1 punto | {count} puntos",
+      "modes": {
+        "points": {
+          "title": "Marcadores",
+          "description": "Un punto por clic.",
+          "hint": "Haz clic en el mapa para colocar un marcador.",
+          "layerName": "Marcadores"
+        },
+        "lines": {
+          "title": "Una línea",
+          "description": "Traza un camino o un límite.",
+          "hint": "Haz clic a lo largo del camino. Pulsa Hecho al terminar.",
+          "layerName": "Línea"
+        },
+        "shapes": {
+          "title": "Un área",
+          "description": "Delimita una región; se cierra sola.",
+          "hint": "Haz clic alrededor del área. Se cierra al terminar.",
+          "layerName": "Área"
+        },
+        "heatmap": {
+          "title": "Mapa de calor",
+          "description": "Densidad a partir de un conjunto de puntos.",
+          "hint": "Haz clic en el mapa para añadir puntos.",
+          "layerName": "Mapa de calor"
+        }
+      }
+    },
+    "import": {
+      "errors": {
+        "unsupportedFormat": "Ese tipo de archivo no es compatible. Prueba con GeoJSON, KML, GPX o CSV.",
+        "notGeoJson": "Ese archivo no es GeoJSON válido.",
+        "badKml": "No se pudo leer ese archivo KML.",
+        "badGpx": "No se pudo leer ese archivo GPX.",
+        "csvEmpty": "Ese CSV no tiene filas.",
+        "csvNoCoordinates": "Ese CSV necesita columnas de latitud y longitud.",
+        "csvNoRows": "Ninguna fila de ese CSV tenía coordenadas utilizables.",
+        "noFeatures": "No había nada que cartografiar en ese archivo.",
+        "tooLarge": "Ese archivo es demasiado grande para un lienzo. Simplifícalo o divídelo.",
+        "failed": "No se pudo importar ese archivo."
+      }
+    },
+    "dataSettings": {
+      "title": "Ajustes de la capa",
+      "render": "Dibujar como",
+      "color": "Color",
+      "opacity": "Opacidad",
+      "label": "Etiquetar con",
+      "size": {
+        "points": "Tamaño del punto",
+        "lines": "Grosor de línea",
+        "shapes": "Grosor del contorno",
+        "heatmap": "Radio"
+      }
+    },
+    "share": {
+      "create": "Crear un enlace para compartir",
+      "copy": "Copiar enlace",
+      "copied": "Enlace copiado",
+      "revoke": "Revocar este enlace",
+      "revokeConfirm": {
+        "title": "¿Revocar este enlace?",
+        "description": "Quien lo tenga dejará de poder abrir este lienzo."
+      }
+    },
+    "public": {
+      "subtitle": "Compartido contigo",
+      "gone": {
+        "title": "Este enlace ya no funciona",
+        "description": "Puede que se haya revocado, o que el lienzo se haya hecho privado."
       }
     }
   }

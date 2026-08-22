@@ -2280,8 +2280,18 @@
       "kinds": {
         "style": "Custom layer",
         "library": "From your library",
-        "collection": "Saved places"
-      }
+        "collection": "Saved places",
+        "data": "Your data",
+        "route": "Route",
+        "people": "People"
+      },
+      "renders": {
+        "points": "Points",
+        "lines": "Lines",
+        "shapes": "Shapes",
+        "heatmap": "Heatmap"
+      },
+      "featureCount": "No features | 1 feature | {count} features"
     },
     "add": {
       "trigger": "Add a layer",
@@ -2290,19 +2300,36 @@
       "noLayers": "No layers in your library yet.",
       "noCollections": "No collections yet.",
       "options": {
-        "style": {
-          "title": "Design a layer",
-          "description": "Imagery, vector tiles or GeoJSON, styled how you like."
+        "import": {
+          "title": "Import a file",
+          "description": "GeoJSON, KML, GPX or a CSV with latitude and longitude columns."
+        },
+        "draw": {
+          "title": "Draw on the map",
+          "description": "Drop pins, trace a line, or outline an area."
+        },
+        "collection": {
+          "title": "Saved places",
+          "description": "Draw a collection's places as points."
+        },
+        "route": {
+          "title": "A saved route",
+          "description": "Put one of your routes on this canvas."
+        },
+        "people": {
+          "title": "People",
+          "description": "Friends sharing their location with you, live."
         },
         "library": {
           "title": "From your library",
           "description": "Reuse a layer you already have."
         },
-        "collection": {
-          "title": "Saved places",
-          "description": "Draw a collection's places as points."
+        "style": {
+          "title": "Design a layer",
+          "description": "Imagery, vector tiles or GeoJSON, styled how you like."
         }
-      }
+      },
+      "noRoutes": "No routes yet."
     },
     "delete": {
       "title": "Delete canvas?",
@@ -2324,6 +2351,79 @@
           "title": "Make this canvas private?",
           "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
         }
+      }
+    },
+    "draw": {
+      "vertices": "Nothing drawn yet | 1 point | {count} points",
+      "modes": {
+        "points": {
+          "title": "Pins",
+          "description": "One point per click.",
+          "hint": "Click the map to drop a pin.",
+          "layerName": "Pins"
+        },
+        "lines": {
+          "title": "A line",
+          "description": "Trace a path or a boundary.",
+          "hint": "Click along the path. Done when you're finished.",
+          "layerName": "Line"
+        },
+        "shapes": {
+          "title": "An area",
+          "description": "Outline a region; it closes itself.",
+          "hint": "Click around the area. It closes when you're done.",
+          "layerName": "Area"
+        },
+        "heatmap": {
+          "title": "Heatmap",
+          "description": "Density from a set of points.",
+          "hint": "Click the map to add points.",
+          "layerName": "Heatmap"
+        }
+      }
+    },
+    "import": {
+      "errors": {
+        "unsupportedFormat": "That file type isn't supported. Try GeoJSON, KML, GPX or CSV.",
+        "notGeoJson": "That file isn't valid GeoJSON.",
+        "badKml": "That KML file couldn't be read.",
+        "badGpx": "That GPX file couldn't be read.",
+        "csvEmpty": "That CSV has no rows.",
+        "csvNoCoordinates": "That CSV needs latitude and longitude columns.",
+        "csvNoRows": "No rows in that CSV had usable coordinates.",
+        "noFeatures": "There was nothing to map in that file.",
+        "tooLarge": "That file is too big for a canvas. Try simplifying or splitting it.",
+        "failed": "That file couldn't be imported."
+      }
+    },
+    "dataSettings": {
+      "title": "Layer settings",
+      "render": "Draw as",
+      "color": "Colour",
+      "opacity": "Opacity",
+      "label": "Label with",
+      "size": {
+        "points": "Dot size",
+        "lines": "Line width",
+        "shapes": "Outline width",
+        "heatmap": "Radius"
+      }
+    },
+    "share": {
+      "create": "Create a share link",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "revoke": "Revoke this link",
+      "revokeConfirm": {
+        "title": "Revoke this link?",
+        "description": "Anyone holding it will stop being able to open this canvas."
+      }
+    },
+    "public": {
+      "subtitle": "Shared with you",
+      "gone": {
+        "title": "This link no longer works",
+        "description": "It may have been revoked, or the canvas made private."
       }
     }
   }

@@ -8,11 +8,12 @@
  * client works with the same shape — `name`, `description`, `body` — and the
  * service decides what actually goes on the wire.
  *
- * A canvas is an ordered stack of layers, drawn bottom-first. Three kinds
- * cover what a canvas can hold today; the union is the extension point for
- * drawings, routes and file uploads later.
+ * A canvas is an ordered stack of layers, drawn bottom-first. The union below
+ * is the extension point: every kind of thing a canvas can hold is one arm of
+ * it, and the renderer, the editor and the storage layer all switch on `kind`.
  */
 
+import type { FeatureCollection } from 'geojson'
 import type { MapEngine } from '@/types/map.types'
 
 export type CanvasScheme = 'server-key' | 'user-e2ee'
@@ -51,10 +52,78 @@ export interface CanvasCollectionLayer {
   iconColor?: string | null
 }
 
+/**
+ * How a data layer draws. One imported file can reasonably be points, a
+ * heatmap of the same points, or shapes — so the renderer is a property of
+ * the layer rather than baked into the data when it lands.
+ */
+export type CanvasDataRender = 'points' | 'lines' | 'shapes' | 'heatmap'
+
+export interface CanvasDataStyle {
+  /** A CSS colour. Applied to fills, strokes and dots alike. */
+  color?: string
+  /** Circle radius / line width / heatmap radius, depending on `render`. */
+  size?: number
+  opacity?: number
+  /** Feature property to label each feature with. Points only. */
+  labelProperty?: string | null
+}
+
+/** Where a data layer's features came from, for the row's subtitle. */
+export interface CanvasDataOrigin {
+  format: 'geojson' | 'kml' | 'gpx' | 'csv' | 'drawn'
+  filename?: string
+}
+
+/**
+ * Geometry the user brought or drew, held inline on the canvas.
+ *
+ * There is no file store: an imported KML becomes GeoJSON in the canvas
+ * document, which is what lets a private canvas hold imported data without
+ * the server ever seeing it. It also caps how much you can import — see
+ * `MAX_IMPORT_BYTES` in `lib/geo-import`.
+ */
+export interface CanvasDataLayer {
+  id: string
+  kind: 'data'
+  name: string
+  visible: boolean
+  render: CanvasDataRender
+  data: FeatureCollection
+  origin?: CanvasDataOrigin
+  style?: CanvasDataStyle
+}
+
+/** A saved route, drawn as its path. */
+export interface CanvasRouteLayer {
+  id: string
+  kind: 'route'
+  routeId: string
+  visible: boolean
+  color?: string | null
+}
+
+/**
+ * Friends' live positions on this canvas.
+ *
+ * Positions are never stored on the canvas — they are read live from the
+ * friends store, which decrypts them per device. The layer only records whose
+ * positions to draw, and an empty list means everyone sharing with you.
+ */
+export interface CanvasPeopleLayer {
+  id: string
+  kind: 'people'
+  visible: boolean
+  friendHandles?: string[]
+}
+
 export type CanvasLayer =
   | CanvasStyleLayer
   | CanvasLibraryLayer
   | CanvasCollectionLayer
+  | CanvasDataLayer
+  | CanvasRouteLayer
+  | CanvasPeopleLayer
 
 export type CanvasLayerKind = CanvasLayer['kind']
 

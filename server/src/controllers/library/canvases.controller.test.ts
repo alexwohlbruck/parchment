@@ -37,6 +37,16 @@ const deleteCanvas = mock(async (_id: string, _userId: string) => true)
 /** Thrown by the service when a switch targets the scheme already in use. */
 class SchemeAlreadySetError extends Error {}
 
+class PublicLinkNotAllowedOnE2eeError extends Error {}
+
+const createPublicLink = mock(
+  async (_id: string, _userId: string) =>
+    ({ publicToken: 'tok', publicRole: 'viewer' }) as
+      | { publicToken: string; publicRole: string }
+      | null,
+)
+const revokePublicLink = mock(async (_id: string, _userId: string) => true)
+
 const changeCanvasScheme = mock(
   async (params: any) =>
     ({ ...canvasRow, scheme: params.targetScheme }) as typeof canvasRow | null,
@@ -48,8 +58,11 @@ mock.module('../../services/library/canvases.service', () => ({
   getCanvasById,
   updateCanvas,
   changeCanvasScheme,
+  createPublicLink,
+  revokePublicLink,
   deleteCanvas,
   SchemeAlreadySetError,
+  PublicLinkNotAllowedOnE2eeError,
 }))
 
 mock.module('../../middleware/auth.middleware.js', () => authMockModule())
@@ -76,6 +89,13 @@ beforeEach(() => {
     ...canvasRow,
     scheme: params.targetScheme,
   }))
+  createPublicLink.mockClear()
+  createPublicLink.mockImplementation(async () => ({
+    publicToken: 'tok',
+    publicRole: 'viewer',
+  }))
+  revokePublicLink.mockClear()
+  revokePublicLink.mockImplementation(async () => true)
 })
 
 describe('gating', () => {
@@ -85,6 +105,8 @@ describe('gating', () => {
     ['get', '/canvases/canvas-1'],
     ['put', '/canvases/canvas-1'],
     ['post', '/canvases/canvas-1/change-scheme'],
+    ['post', '/canvases/canvas-1/public-link'],
+    ['delete', '/canvases/canvas-1/public-link'],
     ['delete', '/canvases/canvas-1'],
   ] as const
 
@@ -274,6 +296,41 @@ describe('POST /canvases/:id/change-scheme', () => {
     })
 
     expect(res.status).toBe(404)
+  })
+})
+
+describe('public links', () => {
+  test('mints a link for the caller’s canvas', async () => {
+    const res = await req(app).post('/canvases/canvas-1/public-link')
+
+    expect(res.status).toBe(200)
+    expect(res.body.publicToken).toBe('tok')
+    expect(createPublicLink).toHaveBeenCalledWith('canvas-1', TEST_USER.id)
+  })
+
+  test('reports a refused private canvas as a bad request', async () => {
+    createPublicLink.mockImplementation(async () => {
+      throw new PublicLinkNotAllowedOnE2eeError('nope')
+    })
+
+    const res = await req(app).post('/canvases/canvas-1/public-link')
+
+    expect(res.status).toBe(400)
+  })
+
+  test('404s when the canvas is not the caller’s', async () => {
+    createPublicLink.mockImplementation(async () => null)
+
+    const res = await req(app).post('/canvases/canvas-1/public-link')
+
+    expect(res.status).toBe(404)
+  })
+
+  test('revokes a link', async () => {
+    const res = await req(app).delete('/canvases/canvas-1/public-link')
+
+    expect(res.status).toBe(200)
+    expect(revokePublicLink).toHaveBeenCalledWith('canvas-1', TEST_USER.id)
   })
 })
 

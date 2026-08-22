@@ -135,6 +135,53 @@ const canvasesRouter = new Elysia({ prefix: '/canvases' })
     },
   )
 
+  // Public links. Server-key only — see the service.
+  .post(
+    '/:id/public-link',
+    async ({ params: { id }, user, set, t }) => {
+      try {
+        const link = await canvasesService.createPublicLink(id, user.id)
+        if (!link) {
+          set.status = 404
+          return { error: t('errors.library.canvasNotFound') }
+        }
+        return link
+      } catch (err) {
+        if (err instanceof canvasesService.PublicLinkNotAllowedOnE2eeError) {
+          set.status = 400
+          return { error: err.message }
+        }
+        throw err
+      }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Create a public link for a canvas',
+      },
+    },
+  )
+
+  .delete(
+    '/:id/public-link',
+    async ({ params: { id }, user, set, t }) => {
+      const revoked = await canvasesService.revokePublicLink(id, user.id)
+      if (!revoked) {
+        set.status = 404
+        return { error: t('errors.library.canvasNotFound') }
+      }
+      return { success: true }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      detail: {
+        tags: ['Library'],
+        summary: 'Revoke a canvas public link',
+      },
+    },
+  )
+
   .delete(
     '/:id',
     async ({ params: { id }, user, set, t }) => {

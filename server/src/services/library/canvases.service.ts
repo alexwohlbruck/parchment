@@ -8,6 +8,7 @@ import {
 import type { CollectionScheme } from '../../schema/library.schema'
 import { and, eq, desc } from 'drizzle-orm'
 import { generateId } from '../../util'
+import { randomBytes } from 'node:crypto'
 
 /**
  * Canvases service — persistence for user-built maps.
@@ -164,6 +165,82 @@ export async function changeCanvasScheme(
     .returning()
 
   return updated
+}
+
+export class PublicLinkNotAllowedOnE2eeError extends Error {
+  constructor() {
+    super('Public links are only allowed on shareable canvases')
+    this.name = 'PublicLinkNotAllowedOnE2eeError'
+  }
+}
+
+/**
+ * Mint a public-link token. Owner-only, server-key only — a link the server
+ * can't render is a broken promise. Idempotent: an existing token comes back
+ * unchanged, so re-opening the share sheet doesn't rotate the URL someone
+ * has already been sent.
+ */
+export async function createPublicLink(
+  id: string,
+  userId: string,
+): Promise<{ publicToken: string; publicRole: 'viewer' } | null> {
+  const canvas = await getCanvasById(id, userId)
+  if (!canvas) return null
+  if (canvas.scheme !== 'server-key') {
+    throw new PublicLinkNotAllowedOnE2eeError()
+  }
+  if (canvas.publicToken) {
+    return { publicToken: canvas.publicToken, publicRole: 'viewer' }
+  }
+
+  const token = randomBytes(32).toString('base64url')
+  const [updated] = await db
+    .update(canvases)
+    .set({
+      publicToken: token,
+      publicRole: 'viewer',
+      isPublic: true,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(canvases.id, id), eq(canvases.userId, userId)))
+    .returning()
+  if (!updated) return null
+  return { publicToken: token, publicRole: 'viewer' }
+}
+
+export async function revokePublicLink(
+  id: string,
+  userId: string,
+): Promise<boolean> {
+  const [updated] = await db
+    .update(canvases)
+    .set({
+      publicToken: null,
+      publicRole: null,
+      isPublic: false,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(canvases.id, id), eq(canvases.userId, userId)))
+    .returning()
+  return !!updated
+}
+
+/**
+ * Resolve a public-link token to its canvas. Server-key only: the cleartext
+ * name and body are what the shared view renders. Returns null → 404, which
+ * is also what a revoked token gets.
+ */
+export async function getPublicCanvasByToken(
+  token: string,
+): Promise<Canvas | null> {
+  const [canvas] = await db
+    .select()
+    .from(canvases)
+    .where(eq(canvases.publicToken, token))
+    .limit(1)
+  if (!canvas) return null
+  if (canvas.scheme !== 'server-key') return null
+  return canvas
 }
 
 export async function deleteCanvas(

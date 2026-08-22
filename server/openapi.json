@@ -6092,6 +6092,48 @@
         }
       }
     },
+    "/library/canvases/{id}/public-link": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "postLibraryCanvasesByIdPublic-link",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Create a public link for a canvas",
+        "responses": {
+          "200": {}
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "deleteLibraryCanvasesByIdPublic-link",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Revoke a canvas public link",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/library/collections/": {
       "get": {
         "operationId": "getLibraryCollections",
@@ -10848,6 +10890,28 @@
           "Public"
         ],
         "summary": "Resolve a public-link token to a custom route",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/public/canvases/{token}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "token",
+            "required": true
+          }
+        ],
+        "operationId": "getPublicCanvasesByToken",
+        "tags": [
+          "Public"
+        ],
+        "summary": "Resolve a public-link token to a canvas",
         "responses": {
           "200": {}
         }

@@ -16,9 +16,13 @@ import { generateId } from '../../util'
 import {
   changeCanvasScheme,
   createCanvas,
+  createPublicLink,
   deleteCanvas,
   getCanvasById,
+  getPublicCanvasByToken,
+  revokePublicLink,
   updateCanvas,
+  PublicLinkNotAllowedOnE2eeError,
   SchemeAlreadySetError,
 } from './canvases.service'
 
@@ -28,7 +32,7 @@ beforeAll(async () => {
   await db.insert(users).values({
     id: userId,
     email: `${userId}@example.test`,
-    name: 'Canvas Test',
+    firstName: 'Canvas',
   })
 })
 
@@ -142,6 +146,77 @@ describe('changeCanvasScheme', () => {
 
     expect(result).toBeUndefined()
     expect((await getCanvasById(id, userId))?.scheme).toBe('server-key')
+
+    await deleteCanvas(id, userId)
+  })
+})
+
+describe('public links', () => {
+  test('mints a token on a shareable canvas and resolves it back', async () => {
+    const id = await seedServerKey()
+
+    const link = await createPublicLink(id, userId)
+    expect(link?.publicRole).toBe('viewer')
+
+    const resolved = await getPublicCanvasByToken(link!.publicToken)
+    expect(resolved?.id).toBe(id)
+    expect(resolved?.name).toBe('Weekend ride')
+
+    await deleteCanvas(id, userId)
+  })
+
+  test('is idempotent, so re-opening the dialog does not rotate the URL', async () => {
+    const id = await seedServerKey()
+
+    const first = await createPublicLink(id, userId)
+    const second = await createPublicLink(id, userId)
+
+    expect(second?.publicToken).toBe(first!.publicToken)
+
+    await deleteCanvas(id, userId)
+  })
+
+  test('refuses a private canvas, which the server could not render', async () => {
+    const canvas = await createCanvas({ userId, scheme: 'user-e2ee' })
+
+    await expect(createPublicLink(canvas.id, userId)).rejects.toBeInstanceOf(
+      PublicLinkNotAllowedOnE2eeError,
+    )
+
+    await deleteCanvas(canvas.id, userId)
+  })
+
+  test('a revoked token stops resolving', async () => {
+    const id = await seedServerKey()
+    const link = await createPublicLink(id, userId)
+
+    expect(await revokePublicLink(id, userId)).toBe(true)
+    expect(await getPublicCanvasByToken(link!.publicToken)).toBeNull()
+
+    await deleteCanvas(id, userId)
+  })
+
+  test('a token stops resolving once the canvas is made private', async () => {
+    const id = await seedServerKey()
+    const link = await createPublicLink(id, userId)
+
+    await changeCanvasScheme({
+      canvasId: id,
+      userId,
+      targetScheme: 'user-e2ee',
+      metadataEncrypted: 'envelope',
+      bodyEncrypted: 'envelope',
+    })
+
+    expect(await getPublicCanvasByToken(link!.publicToken)).toBeNull()
+
+    await deleteCanvas(id, userId)
+  })
+
+  test('will not mint a link on someone else’s canvas', async () => {
+    const id = await seedServerKey()
+
+    expect(await createPublicLink(id, 'someone-else')).toBeNull()
 
     await deleteCanvas(id, userId)
   })

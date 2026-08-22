@@ -34,6 +34,9 @@ import {
 } from '@/lib/saved-places-features'
 import { ensureIconImages } from '@/lib/map-icon-images'
 import { resolveSpecBounds } from '@/lib/map-style/bounds'
+import { presetLayers } from '@/lib/map-style/data-presets'
+import { useRoutesStore } from '@/stores/library/routes.store'
+import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
 import { themeColorToHex } from '@/lib/utils'
 import {
   BOOKMARKS_CIRCLES_LAYER_CONFIG,
@@ -73,6 +76,8 @@ export function useCanvasRendering(
   const mapStore = useMapStore()
   const layersStore = useLayersStore()
   const collectionsStore = useCollectionsStore()
+  const routesStore = useRoutesStore()
+  const { peopleFeatures } = useFriendLocationFeatures()
   const bookmarksStore = useBookmarksStore()
   const pointsStore = useEncryptedPointsStore()
   const { layers: libraryLayers } = storeToRefs(layersStore)
@@ -82,7 +87,7 @@ export function useCanvasRendering(
   /** Source id → the spec currently on the map, so we only rebuild on change. */
   let mountedSources = new Map<string, string>()
 
-  function collectionPlaces(layer: CanvasLayer & { kind: 'collection' }) {
+  function collectionPlaces(layer: Extract<CanvasLayer, { kind: 'collection' }>) {
     const collection = collectionsStore.collections.find(
       c => c.id === layer.collectionId,
     )
@@ -157,6 +162,120 @@ export function useCanvasRendering(
       // The layer names a source the basemap style provides; reuse it rather
       // than duplicating something we don't own.
       return { sources: {}, layers: [toLayer(layerId, configuration, layer.visible)] }
+    }
+
+    if (layer.kind === 'data') {
+      // One source, however many layers the render mode needs.
+      return {
+        sources: { [sourceId]: { type: 'geojson', data: layer.data } },
+        layers: presetLayers(layer.render, sourceId, layer.style).map(preset =>
+          toLayer(
+            scopedId(canvasId, layer.id, preset.suffix),
+            preset.configuration,
+            layer.visible,
+          ),
+        ),
+      }
+    }
+
+    if (layer.kind === 'route') {
+      const route = routesStore.getRouteById(layer.routeId)
+      const geometry = route?.body?.geometry
+      // A route whose body hasn't decrypted on this device yet has nothing to
+      // draw; it comes back on its own once the seed lands.
+      if (!geometry?.length) return EMPTY_PLAN
+      const color = layer.color ?? '#2563eb'
+      return {
+        sources: {
+          [sourceId]: {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              geometry: { type: 'LineString', coordinates: geometry },
+              properties: {},
+            },
+          },
+        },
+        layers: [
+          toLayer(
+            scopedId(canvasId, layer.id, '-case'),
+            {
+              type: 'line',
+              source: sourceId,
+              layout: { 'line-cap': 'round', 'line-join': 'round' },
+              paint: { 'line-color': '#ffffff', 'line-width': 8, 'line-opacity': 0.8 },
+            },
+            layer.visible,
+          ),
+          toLayer(
+            scopedId(canvasId, layer.id, '-line'),
+            {
+              type: 'line',
+              source: sourceId,
+              layout: { 'line-cap': 'round', 'line-join': 'round' },
+              paint: { 'line-color': color, 'line-width': 4 },
+            },
+            layer.visible,
+          ),
+        ],
+      }
+    }
+
+    if (layer.kind === 'people') {
+      const features = peopleFeatures(layer.friendHandles)
+      if (!features.features.length) return EMPTY_PLAN
+      return {
+        sources: { [sourceId]: { type: 'geojson', data: features } },
+        layers: [
+          toLayer(
+            scopedId(canvasId, layer.id, '-halo'),
+            {
+              type: 'circle',
+              source: sourceId,
+              paint: {
+                'circle-color': ['get', 'color'],
+                'circle-radius': 11,
+                'circle-opacity': 0.25,
+              },
+            },
+            layer.visible,
+          ),
+          toLayer(
+            scopedId(canvasId, layer.id, '-dot'),
+            {
+              type: 'circle',
+              source: sourceId,
+              paint: {
+                'circle-color': ['get', 'color'],
+                'circle-radius': 6,
+                'circle-stroke-width': 2,
+                'circle-stroke-color': '#ffffff',
+              },
+            },
+            layer.visible,
+          ),
+          toLayer(
+            scopedId(canvasId, layer.id, '-label'),
+            {
+              type: 'symbol',
+              source: sourceId,
+              layout: {
+                'text-field': ['get', 'name'],
+                'text-size': 12,
+                'text-anchor': 'top',
+                'text-offset': [0, 1],
+                'text-optional': true,
+              },
+              paint: {
+                'text-color': '#111827',
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 1.2,
+              },
+            },
+            layer.visible,
+          ),
+        ],
+      }
     }
 
     // Collections: one GeoJSON source, a circle per place, and a glyph on top

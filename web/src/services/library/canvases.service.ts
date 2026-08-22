@@ -334,6 +334,57 @@ export const useCanvasesService = createSharedComposable(() => {
     }
   }
 
+  /**
+   * Mint a public share link. Shareable canvases only — a private one has
+   * nothing the server could render to a visitor. Idempotent server-side, so
+   * re-opening the dialog returns the URL already handed out.
+   */
+  async function createShareLink(canvas: Canvas): Promise<string | null> {
+    try {
+      const { data } = await api.post(
+        `/library/canvases/${canvas.id}/public-link`,
+      )
+      const token = data.publicToken as string
+      canvasesStore.upsertCanvas({ ...canvas, publicToken: token, isPublic: true })
+      return `${window.location.origin}/c/${token}`
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status
+      toast.error(
+        status === 400
+          ? 'Private canvases can’t be shared by link'
+          : 'Could not create a share link',
+      )
+      return null
+    }
+  }
+
+  async function revokeShareLink(canvas: Canvas): Promise<boolean> {
+    try {
+      await api.delete(`/library/canvases/${canvas.id}/public-link`)
+      canvasesStore.upsertCanvas({
+        ...canvas,
+        publicToken: null,
+        isPublic: false,
+      })
+      return true
+    } catch {
+      toast.error('Could not revoke the share link')
+      return false
+    }
+  }
+
+  /** Fetch a canvas by public-link token. No authentication required. */
+  async function fetchPublicCanvas(token: string): Promise<Canvas | null> {
+    try {
+      const { data } = await api.get(`/public/canvases/${token}`)
+      const canvas = data.canvas as Canvas
+      if (!canvas.body) canvas.body = emptyCanvasBody()
+      return canvas
+    } catch {
+      return null
+    }
+  }
+
   async function deleteCanvas(id: string): Promise<boolean> {
     try {
       await api.delete(`/library/canvases/${id}`)
@@ -353,6 +404,9 @@ export const useCanvasesService = createSharedComposable(() => {
     updateMetadata,
     saveBody,
     changeScheme,
+    createShareLink,
+    revokeShareLink,
+    fetchPublicCanvas,
     deleteCanvas,
   }
 })

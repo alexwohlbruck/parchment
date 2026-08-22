@@ -45,6 +45,7 @@ export enum AppRoute {
   LAYER_EDITOR_NEW = 'layer-editor-new',
   LAYER_EDITOR = 'layer-editor',
   CANVAS_EDITOR = 'canvas-editor',
+  CANVAS_PUBLIC = 'canvas-public',
   COLLECTION = 'collection',
   ROUTE_BUILDER = 'route-builder',
   ROUTE_BUILDER_EDIT = 'route-builder-edit',
@@ -236,6 +237,17 @@ const router = createRouter({
             // A canvas is a workspace, not a passing detail view: on mobile
             // the sheet stays put until it is closed deliberately.
             sheet: { dismissable: false, snapPoints: ['160px', 0.6, 1] },
+          },
+        },
+        {
+          path: '/c/:token',
+          name: AppRoute.CANVAS_PUBLIC,
+          component: () => import('@/views/library/canvases/PublicCanvas.vue'),
+          props: true,
+          meta: {
+            // A public link has to open for someone who isn't signed in —
+            // overrides the map subtree's own `auth: true`.
+            auth: false,
           },
         },
         {

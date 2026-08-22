@@ -25,10 +25,22 @@ import {
 } from 'lucide-vue-next'
 import { useLayersStore } from '@/stores/layers.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useRoutesStore } from '@/stores/library/routes.store'
 import type { ThemeColor } from '@/lib/utils'
 import type { CanvasLayer } from '@/types/canvas.types'
 
-const props = defineProps<{ layer: CanvasLayer }>()
+const RENDER_ICONS: Record<string, string> = {
+  points: 'CircleDotIcon',
+  lines: 'SplineIcon',
+  shapes: 'PentagonIcon',
+  heatmap: 'FlameIcon',
+}
+
+const props = defineProps<{
+  layer: CanvasLayer
+  /** Shared view: show what's on the canvas, offer nothing to change it. */
+  readonly?: boolean
+}>()
 
 const emit = defineEmits<{
   toggle: [visible: boolean]
@@ -39,6 +51,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const layersStore = useLayersStore()
 const collectionsStore = useCollectionsStore()
+const routesStore = useRoutesStore()
 const { layers } = storeToRefs(layersStore)
 const { collections } = storeToRefs(collectionsStore)
 
@@ -65,6 +78,31 @@ const resolved = computed(() => {
       missing: !source,
     }
   }
+  if (layer.kind === 'route') {
+    const route = routesStore.getRouteById(layer.routeId)
+    return {
+      name: route?.name || t('canvases.layers.missing'),
+      icon: 'RouteIcon',
+      color: 'forest' as ThemeColor,
+      missing: !route,
+    }
+  }
+  if (layer.kind === 'people') {
+    return {
+      name: t('canvases.layers.kinds.people'),
+      icon: 'UsersIcon',
+      color: 'coral' as ThemeColor,
+      missing: false,
+    }
+  }
+  if (layer.kind === 'data') {
+    return {
+      name: layer.name,
+      icon: RENDER_ICONS[layer.render] ?? 'ShapesIcon',
+      color: 'teal' as ThemeColor,
+      missing: false,
+    }
+  }
   return {
     name: layer.name,
     icon: layer.icon ?? 'Layers3Icon',
@@ -73,7 +111,26 @@ const resolved = computed(() => {
   }
 })
 
-const kindLabel = computed(() => t(`canvases.layers.kinds.${props.layer.kind}`))
+/**
+ * The second line. A data layer says what it is and where it came from — an
+ * imported file is worth naming, and a drawn one is worth distinguishing from
+ * one that arrived as a file.
+ */
+/** Style layers open the layer editor; data layers open their own settings. */
+const isEditable = computed(
+  () => props.layer.kind === 'style' || props.layer.kind === 'data',
+)
+
+const subtitle = computed(() => {
+  const layer = props.layer
+  if (layer.kind !== 'data') return t(`canvases.layers.kinds.${layer.kind}`)
+  const parts = [t(`canvases.layers.renders.${layer.render}`)]
+  const count = layer.data?.features?.length ?? 0
+  parts.push(t('canvases.layers.featureCount', count))
+  return parts.join(' · ')
+})
+
+
 </script>
 
 <template>
@@ -82,6 +139,7 @@ const kindLabel = computed(() => t(`canvases.layers.kinds.${props.layer.kind}`))
     :class="!layer.visible && 'opacity-60'"
   >
     <GripVerticalIcon
+      v-if="!readonly"
       class="size-3.5 shrink-0 text-muted-foreground/60 cursor-grab canvas-layer-handle"
     />
 
@@ -96,10 +154,11 @@ const kindLabel = computed(() => t(`canvases.layers.kinds.${props.layer.kind}`))
       <p class="text-sm truncate" :class="resolved.missing && 'italic text-muted-foreground'">
         {{ resolved.name }}
       </p>
-      <p class="text-[11px] text-muted-foreground">{{ kindLabel }}</p>
+      <p class="text-[11px] text-muted-foreground truncate">{{ subtitle }}</p>
     </div>
 
     <Button
+      v-if="!readonly"
       variant="ghost"
       size="icon"
       class="size-7 shrink-0"
@@ -111,14 +170,14 @@ const kindLabel = computed(() => t(`canvases.layers.kinds.${props.layer.kind}`))
       <EyeOffIcon v-else class="size-3.5 text-muted-foreground" />
     </Button>
 
-    <DropdownMenu>
+    <DropdownMenu v-if="!readonly">
       <DropdownMenuTrigger as-child>
         <Button variant="ghost" size="icon" class="size-7 shrink-0">
           <MoreHorizontalIcon class="size-3.5" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem v-if="layer.kind === 'style'" @click="emit('edit')">
+        <DropdownMenuItem v-if="isEditable" @click="emit('edit')">
           <PencilIcon class="size-3.5" />
           {{ t('canvases.layers.edit') }}
         </DropdownMenuItem>

@@ -94,6 +94,56 @@ async function switchScheme(target: CanvasScheme) {
   }
 }
 
+// ── Link sharing ─────────────────────────────────────────────────────────────
+
+const shareUrl = computed(() =>
+  props.canvas?.publicToken
+    ? `${window.location.origin}/c/${props.canvas.publicToken}`
+    : null,
+)
+
+async function createShareLink() {
+  if (!props.canvas || saving.value) return
+  saving.value = true
+  try {
+    const url = await canvasesService.createShareLink(props.canvas)
+    if (url) await copy(url)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function revokeShareLink() {
+  if (!props.canvas || saving.value) return
+  const confirmed = await appService.confirm({
+    title: t('canvases.share.revokeConfirm.title'),
+    description: t('canvases.share.revokeConfirm.description'),
+    continueText: t('canvases.share.revoke'),
+    destructive: true,
+  })
+  if (!confirmed) return
+
+  saving.value = true
+  try {
+    await canvasesService.revokeShareLink(props.canvas)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function copy(url: string) {
+  try {
+    await navigator.clipboard.writeText(url)
+    appService.toast.success(t('canvases.share.copied'))
+  } catch {
+    // Clipboard access can be refused; the URL is on screen to select.
+  }
+}
+
+function copyShareLink() {
+  if (shareUrl.value) void copy(shareUrl.value)
+}
+
 async function submit() {
   if (!name.value.trim() || saving.value) return
   saving.value = true
@@ -194,8 +244,12 @@ async function submit() {
           v-else-if="canvas"
           :scheme="canvas.scheme"
           :has-identity="hasIdentity"
+          :share-url="shareUrl"
           :disabled="saving"
           @switch="switchScheme"
+          @share="createShareLink"
+          @revoke-share="revokeShareLink"
+          @copy-share="copyShareLink"
         />
 
         <Button class="w-full" :disabled="!name.trim() || saving" @click="submit">

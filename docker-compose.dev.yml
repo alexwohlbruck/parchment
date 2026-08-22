@@ -33,6 +33,12 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # kartoza/postgis keeps its cluster at /var/lib/postgresql/<major>, not
+      # the stock postgres /var/lib/postgresql/data — without pinning DATADIR
+      # onto the mounted volume, every container recreate silently wipes all
+      # databases (the volume stays empty while data lives in the container
+      # layer).
+      DATADIR: /var/lib/postgresql/data
     volumes:
       - server-db:/var/lib/postgresql/data
     ports:

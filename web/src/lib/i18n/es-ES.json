@@ -1211,6 +1211,12 @@
         "artist_name": "Artista",
         "heritage": "Patrimonio histórico"
       }
+    },
+    "gallery": {
+      "viewPhoto": "Ver foto {n} de {total}",
+      "previousPhoto": "Foto anterior",
+      "nextPhoto": "Foto siguiente",
+      "failedToLoad": "No se pudo cargar la imagen"
     }
   },
   "settings": {

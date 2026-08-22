@@ -76,6 +76,7 @@
     "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v4.7.1-transit.1",
     "mitt": "^3.0.1",
     "mousetrap": "^1.6.5",
+    "photoswipe": "^5.4.4",
     "pinia": "^2.1.7",
     "pinia-orm": "^1.10.2",
     "pluscodes": "^2.6.0",

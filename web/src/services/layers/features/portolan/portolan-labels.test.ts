@@ -16,6 +16,7 @@ import { describe, test, expect } from 'vitest'
 import { buildMapStyle, buildSatelliteStyle } from '@/lib/basemap-style'
 import {
   basemapTextColors,
+  darkFromLightPreset,
   labelPaintFor,
   luminanceOf,
   styleIsDark,
@@ -132,5 +133,67 @@ describe('overlays drawn over the basemap cannot vote', () => {
   test('imagery with an overlay still reads as dark', () => {
     const layers = [...(buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any).layers as any[]), OVERLAY]
     expect(labelPaintFor(layers)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
+  })
+})
+
+/**
+ * Mapbox Standard is the case no amount of reading the style can solve:
+ * its basemap is an import, so `getStyle().layers` holds no background,
+ * no street labels, nothing of the map at all — only what the app itself
+ * added. Every layer a reader CAN see there is an overlay. So the engine
+ * is asked outright, via the same `lightPreset` the theme switch sets.
+ */
+describe('a style whose basemap is an import', () => {
+  // what mapbox-gl actually reports on Standard: our own layers, plus
+  // parchment's overlays. No background. No basemap symbol.
+  const STANDARD_LAYERS = [
+    { id: 'portolan-ribbon-15', type: 'line', source: 'portolan-tiles-mta' },
+    { id: 'bookmarks-labels-internal', type: 'symbol', source: 'bookmarks-source-internal', paint: { 'text-color': '#334155' } },
+  ]
+
+  test('night and dusk letter light; day and dawn letter dark', () => {
+    expect(darkFromLightPreset('night')).toBe(true)
+    expect(darkFromLightPreset('dusk')).toBe(true)
+    expect(darkFromLightPreset('day')).toBe(false)
+    expect(darkFromLightPreset('dawn')).toBe(false)
+  })
+
+  test('an unknown or absent preset is no answer, not "light"', () => {
+    expect(darkFromLightPreset(undefined)).toBe(null)
+    expect(darkFromLightPreset('')).toBe(null)
+    expect(darkFromLightPreset('twilight')).toBe(null)
+  })
+
+  test('night gets light ink even though the style looks empty and slate', () => {
+    const dark = darkFromLightPreset('night')!
+    expect(labelPaintFor(STANDARD_LAYERS, false, dark)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
+  })
+
+  test('day gets dark ink even when the app chrome is dark', () => {
+    const dark = darkFromLightPreset('day')!
+    expect(labelPaintFor(STANDARD_LAYERS, true, dark)['text-color']).toBe(LABEL_TEXT_LIGHT_MAP)
+  })
+
+  test('the preset switching switches the ink', () => {
+    const at = (preset: string) =>
+      labelPaintFor(STANDARD_LAYERS, false, darkFromLightPreset(preset)!)['text-color']
+    expect(at('day')).not.toBe(at('night'))
+  })
+
+  test('with no preset to read, the style still decides', () => {
+    // satellite on Mapbox: no basemap import, so undefined — and the
+    // reader falls through to the raster rule rather than the chrome
+    const layers = buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any).layers as any[]
+    expect(labelPaintFor(layers, false, undefined)['text-color']).toBe(LABEL_TEXT_DARK_MAP)
+  })
+
+  test('the halo still opposes the ink under an override', () => {
+    for (const preset of ['day', 'night']) {
+      const paint = labelPaintFor(STANDARD_LAYERS, false, darkFromLightPreset(preset)!)
+      const text = luminanceOf(paint['text-color'])!
+      const halo = luminanceOf(paint['text-halo-color'])
+      if (halo === null) continue
+      expect(Math.abs(text - halo)).toBeGreaterThan(0.5)
+    }
   })
 })

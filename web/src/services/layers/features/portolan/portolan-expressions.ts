@@ -360,6 +360,46 @@ export function basemapTextColors(layers: any[]): string[] {
 }
 
 /**
+ * The source the basemap draws its own geometry from.
+ *
+ * Its fills and lines are the ground: whatever source paints those is the
+ * basemap, and a symbol layer on any OTHER source is something drawn over
+ * the map — an app's own overlay — whose colours say nothing about it.
+ */
+export function basemapSourceOf(layers: any[]): string | undefined {
+  return (layers ?? []).find(
+    l => (l?.type === 'fill' || l?.type === 'line') && !String(l.id ?? '').startsWith('portolan-'),
+  )?.source
+}
+
+/**
+ * What Mapbox Standard says about its own theme.
+ *
+ * Its basemap is an IMPORT: the layers that letter the streets are inside
+ * the fragment and never appear in `getStyle().layers`, so there is no
+ * background to read and no basemap label to poll — the style looks empty
+ * to anything inspecting it from outside. What it does expose is the
+ * `lightPreset` config the theme switch sets, which is the same dial its
+ * own street names change colour on. Day and dawn letter dark; dusk and
+ * night letter light.
+ *
+ * null when the value is not one of the four — an unknown preset must not
+ * be read as "light" by falling through a boolean.
+ */
+export function darkFromLightPreset(preset: unknown): boolean | null {
+  switch (String(preset ?? '').toLowerCase()) {
+    case 'night':
+    case 'dusk':
+      return true
+    case 'day':
+    case 'dawn':
+      return false
+    default:
+      return null
+  }
+}
+
+/**
  * Is this style's basemap dark?
  *
  * The background colour decides, because it is the one piece of evidence
@@ -382,10 +422,7 @@ export function styleIsDark(layers: any[], fallbackDark = false): boolean {
     if (lum !== null) return lum < 0.5
   }
 
-  // the basemap's own vector source: whatever its fills and lines read
-  const basemapSource = (layers ?? []).find(
-    l => (l?.type === 'fill' || l?.type === 'line') && !String(l.id ?? '').startsWith('portolan-'),
-  )?.source
+  const basemapSource = basemapSourceOf(layers)
 
   // No fills or lines means nothing identifies the basemap's own source,
   // and an unattributable label is not evidence about the map under it —
@@ -422,8 +459,12 @@ export function styleIsDark(layers: any[], fallbackDark = false): boolean {
 export function labelPaintFor(
   layers: any[],
   fallbackDark = false,
+  darkOverride?: boolean,
 ): { 'text-color': string; 'text-halo-color': any; 'text-halo-width': number } {
-  const dark = styleIsDark(layers, fallbackDark)
+  // An engine that states its theme outright (Mapbox Standard's
+  // lightPreset) outranks reading the style, which cannot see inside an
+  // import at all.
+  const dark = darkOverride ?? styleIsDark(layers, fallbackDark)
   const text = dark ? LABEL_TEXT_DARK_MAP : LABEL_TEXT_LIGHT_MAP
   const ownHalo = dark ? 'rgba(8,8,12,0.95)' : 'rgba(255,255,255,0.95)'
 

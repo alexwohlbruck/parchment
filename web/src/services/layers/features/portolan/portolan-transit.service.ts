@@ -55,6 +55,8 @@ import type { PortolanIndexEntry, PortolanStyleSet } from '@/types/portolan.type
 import {
   BANDS,
   KINDS,
+  darkFromLightPreset,
+  LABEL_TEXT_DARK_MAP,
   labelPaintFor,
   RIBBON_COLOR,
   ribbonColorWithAlpha,
@@ -144,6 +146,11 @@ let engine: MapEngine = MapEngine.MAPLIBRE
  * setMapTheme keeps it current, so it is the one that matches the pixels.
  */
 let themeDark = false
+
+/** Whether the labels currently ON the map are lettered for a dark
+ *  basemap — the value a theme change has to disagree with before
+ *  anything is repainted. null until they are first lettered. */
+let inkDark: boolean | null = null
 
 /** Full emissive strength: the ribbons and their labels are ink on the
  *  map, not lit geometry — they must keep their colour under any light
@@ -262,6 +269,7 @@ function teardownPortolanTransit() {
   map = null
   clearHydration()
   clearMounts()
+  inkDark = null
   structuralFilter.clear()
 }
 
@@ -316,6 +324,16 @@ function bindListeners() {
     // signal, and without it a sweep that found nothing mid-flight was
     // never retried.
     idle: () => requestHydrate(),
+    // A Mapbox theme switch is a config change on the basemap import: no
+    // style.load, no rebuild, nothing that would otherwise re-letter our
+    // names. styledata is where that change surfaces. Only a FLIP of the
+    // verdict repaints, and on this engine the verdict is one property
+    // read — MapLibre swaps the whole style, so it never needs this.
+    styledata: () => {
+      if (engine !== MapEngine.MAPBOX) return
+      const dark = basemapLabelPaint()['text-color'] === LABEL_TEXT_DARK_MAP
+      if (dark !== inkDark) refreshLabelPaint()
+    },
     sourcedata: (e: any) => {
       if (
         typeof e.sourceId === 'string' &&
@@ -859,6 +877,7 @@ function unmountFeed(feed: string) {
 function refreshLabelPaint() {
   if (!hydrationReady()) return
   const paint = basemapLabelPaint()
+  inkDark = paint['text-color'] === LABEL_TEXT_DARK_MAP
   for (const id of ['portolan-station-labels', 'portolan-station-labels-hi']) {
     if (!map.getLayer(id)) continue
     map.setPaintProperty(id, 'text-color', paint['text-color'])
@@ -877,7 +896,38 @@ function refreshLabelPaint() {
  *  tested against the real styles in both themes — this got shipped
  *  wrong twice while it was guesswork spread across two files. */
 function basemapLabelPaint() {
-  return labelPaintFor(map?.getStyle?.()?.layers ?? [], themeDark)
+  return labelPaintFor(map?.getStyle?.()?.layers ?? [], themeDark, mapboxIsDark())
+}
+
+/**
+ * Mapbox Standard's own answer about its theme, or undefined on any style
+ * that has no answer to give.
+ *
+ * Standard keeps its basemap in an IMPORT. None of the layers that letter
+ * the streets are in `getStyle().layers`, and there is no background layer
+ * either — inspecting the style from outside sees a map with no basemap in
+ * it at all, and the only text-colours on offer belong to parchment's own
+ * overlays. That is why the names stayed black through a theme switch on
+ * this engine while MapLibre's followed: MapLibre rebuilds the whole style
+ * (so the layers came back re-lettered), and Mapbox just reconfigures the
+ * import in place, leaving nothing for a reader to notice.
+ *
+ * `lightPreset` is what the theme switch actually sets — see
+ * mapbox.strategy's setMapTheme — and it is the same dial Standard's own
+ * street labels change colour on. Reading it is not inference.
+ */
+function mapboxIsDark(): boolean | undefined {
+  if (engine !== MapEngine.MAPBOX || !map) return undefined
+  try {
+    // satellite and hybrid import no basemap fragment; asking them for a
+    // config property throws
+    const fragments = (map.style as any)?.fragments
+    if (!fragments?.some?.((f: any) => f.id === 'basemap')) return undefined
+    const preset = (map as any).getConfigProperty?.('basemap', 'lightPreset')
+    return darkFromLightPreset(preset) ?? undefined
+  } catch {
+    return undefined
+  }
 }
 
 /** True when the BASEMAP is dark — see themeDark. */

@@ -114,25 +114,37 @@ increment_version() {
     esac
 }
 
+# In-place sed that works on both GNU and BSD.
+#
+# `sed -i ''` is the BSD form and the only one this script had, so on Linux
+# GNU sed read the '' as the backup suffix and then took the EXPRESSION as a
+# filename: every version file silently failed to update while the changelog
+# was stamped and staged, leaving a half-cut release. The `-i.bak` + delete
+# form is the one both accept.
+sed_inplace() {
+    local expr=$1 file=$2
+    sed -i.bak "$expr" "$file" && rm -f "$file.bak"
+}
+
 # Function to update version in package.json
 update_package_json() {
     local version=$1
     local file=$2
-    sed -i '' "s/\"version\": \".*\"/\"version\": \"$version\"/" "$file"
+    sed_inplace "s/\"version\": \".*\"/\"version\": \"$version\"/" "$file"
 }
 
 # Function to update version in tauri.conf.json
 update_tauri_conf() {
     local version=$1
     local file="web/src-tauri/tauri.conf.json"
-    sed -i '' "s/\"version\": \".*\"/\"version\": \"$version\"/" "$file"
+    sed_inplace "s/\"version\": \".*\"/\"version\": \"$version\"/" "$file"
 }
 
 # Function to update version in Cargo.toml
 update_cargo_toml() {
     local version=$1
     local file="web/src-tauri/Cargo.toml"
-    sed -i '' '/^\[package\]/,/^\[/ s/^version = ".*"/version = "'$version'"/' "$file"
+    sed_inplace '/^\[package\]/,/^\[/ s/^version = ".*"/version = "'$version'"/' "$file"
 }
 
 # Compute Android versionCode from version (must increase every Play Store upload)
@@ -164,7 +176,7 @@ update_tauri_android_version_code() {
     else
         code=$(( current + 1 ))
     fi
-    sed -i '' 's/"versionCode": [0-9]*/"versionCode": '"$code"'/' "$file"
+    sed_inplace 's/"versionCode": [0-9]*/"versionCode": '"$code"'/' "$file"
     echo "Android versionCode set to $code (from version $version)"
 }
 

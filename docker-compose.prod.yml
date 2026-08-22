@@ -13,6 +13,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # kartoza/postgis keeps its cluster at /var/lib/postgresql/<major>, not
+      # the stock postgres /var/lib/postgresql/data — without pinning DATADIR
+      # onto the mounted volume, every container recreate silently wipes all
+      # databases. On an EXISTING deployment, dump the database BEFORE
+      # recreating with this change: the live cluster is in the old
+      # container's writable layer, not the volume.
+      DATADIR: /var/lib/postgresql/data
     volumes:
       - server-db:/var/lib/postgresql/data
       - ./server/scripts/init-postgis.sh:/docker-entrypoint-initdb.d/init-postgis.sh

@@ -34,6 +34,35 @@ export interface BarrelmanRequestOptions {
 }
 
 /**
+ * Where Barrelman lives, and the key to reach it with.
+ *
+ * Normally the integration record, configured through Settings. `BARRELMAN_HOST`
+ * overrides it so a branch can be pointed at its own Barrelman without editing
+ * the database an instance shares — a preview clones the integration config
+ * along with everything else, so without this every preview inherits whichever
+ * Barrelman the source instance was using.
+ */
+export function resolveBarrelmanConfig(): { host?: string; apiKey?: string } | undefined {
+  const systemIntegration = integrationManager
+    .getConfiguredIntegrations()
+    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+
+  const config = systemIntegration?.config as
+    | { host?: string; apiKey?: string }
+    | undefined
+
+  const host = process.env.BARRELMAN_HOST
+  if (!host) return config
+
+  return {
+    host,
+    // A host override usually comes with its own key; fall back to the
+    // configured one so pointing at a local instance needs one variable.
+    apiKey: process.env.BARRELMAN_API_KEY || config?.apiKey,
+  }
+}
+
+/**
  * Call a Barrelman endpoint and return its JSON response.
  *
  * Handles integration config lookup, the auth header, error response wrapping
@@ -50,13 +79,7 @@ export async function requestBarrelman(
     forwardErrorBody = false,
   } = options
 
-  const systemIntegration = integrationManager
-    .getConfiguredIntegrations()
-    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-
-  const config = systemIntegration?.config as
-    | { host?: string; apiKey?: string }
-    | undefined
+  const config = resolveBarrelmanConfig()
   if (!config?.host) {
     return new Response(JSON.stringify({ error: 'Barrelman not configured' }), {
       status: 501,

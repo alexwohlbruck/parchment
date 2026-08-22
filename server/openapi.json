@@ -11819,6 +11819,18 @@
         }
       }
     },
+    "/transit/alerts": {
+      "get": {
+        "operationId": "getTransitAlerts",
+        "tags": [
+          "Transit"
+        ],
+        "summary": "GTFS-RT service alerts for routes, stops and trips",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/transit/bikes-allowed": {
       "get": {
         "operationId": "getTransitBikes-allowed",

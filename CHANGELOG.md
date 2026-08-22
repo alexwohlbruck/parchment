@@ -1,10 +1,26 @@
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-22
+
+### Added
+
+* Photos on a place open full size. Tapping one in the strip grows it out of the thumbnail into a full screen viewer you can pinch to zoom into, drag around and swipe between, and flick away to close. Until now the strip was all there was — you could scroll past a photo but never actually look at it
+* The Transit layer draws a real transit map now. Routes used to pile onto the same street as a tangle of overlapping lines; they now run as parallel coloured ribbons that share a corridor the way a printed network map draws them, with station markers, route bullets under the station names, and line names set along the track. The layer selector folds it into four switches — Rail, Bus, Ferry and Other — so the bus network can rest while you read the rails
+* A service-time control under the Transit layer. The map opens on what is running right now and follows the clock; drag the slider or pick a weekday to see another moment — the Sunday-night network, tomorrow's rush hour — and lines that are asleep at that hour leave the map, along with their bullets on the station labels. "Live" returns to now
+* Stations on the transit map open their stop page with a tap — departures, lines and alerts, the same page a stop found through search shows. It is also the same page the station opens as an ordinary map pin, rather than a second page about the same platform
+* Route bullets on a station's header say whether the line is running. One with nothing coming is dimmed and says so, and tapping any of them opens that line
+
+### Changed
+
+* Opening a line from a stop's departure board shows that line alone — and shows it as it runs at this hour. Lines are shortened, rerouted or suspended through the day, and the stretch a line isn't covering right now leaves the map along with its stops, instead of drawing the longest version of the route at three in the morning
+* Route bullets everywhere in the app are drawn the way the map draws them. They read in the order the operator uses — Columbus Circle lists A·C, B·D, 1·2 by trunk colour rather than alphabetically — they wear the shape the local system gives them, so a Mexico City line sits in its rounded square instead of a circle, and a pale bullet takes dark lettering instead of white on yellow
+
 ## [0.6.0] - 2026-08-18
 
 ### Added
 
 * A WiFi shortcut in the search palette. It isn't a kind of place — it browses everywhere carrying free wireless, so cafes, libraries and hotels all turn up
+* Service alerts from the transit agency, wherever they affect you: on a line, on a stop's departure board, and on the legs of a planned trip. A detour, a suspension or a lift out of service now shows up in the app instead of sending you to the agency's website. They read as a row of small cards you swipe through rather than a wall of text — what is actually happening now comes first, scheduled overnight work is counted off to the side, and tapping one opens the agency's full wording
 * Twenty-five more browse shortcuts: train stations, airports, places of worship, schools, childcare, ice cream, dentists, urgent care, beauty salons, laundry, car wash, car rental, pet stores, farmers markets, dog parks, public art, viewpoints, nature reserves, beaches, picnic areas, fountains, showers, public bookcases, outdoor gyms and bike repair stations
 
 ### Changed

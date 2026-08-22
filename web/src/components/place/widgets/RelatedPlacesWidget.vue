@@ -123,7 +123,7 @@ function openFullList() {
     />
 
     <!-- Horizontal scroll preview, bleeding to the panel edges -->
-    <div class="ml-[-0.75rem] mr-[-0.75rem] w-[calc(100%+1.5rem)] relative">
+    <div class="edge-bleed relative">
       <div
         class="w-full overflow-x-auto touch-pan-x snap-x snap-mandatory flex gap-3 scroll-px-3 scrollbar-hidden [&>*:first-child]:ml-3 [&>*:last-child]:mr-3"
       >

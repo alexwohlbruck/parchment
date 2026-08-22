@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import ServiceAlertBadge from '@/components/transit/ServiceAlertBadge.vue'
+import type { ServiceAlert } from '@/types/transit.types'
 
 /**
  * One card on the board: the run, plus the plain facts about it. The caller
@@ -30,6 +32,10 @@ export interface BoardCard {
     live?: boolean
     arriving?: boolean
     clickable?: boolean
+    /** The agency has published something about this specific run — a
+     *  cancellation note, a detour it's caught in. Leg-wide alerts belong on
+     *  the leg, not on twelve identical chips. */
+    alert?: ServiceAlert
   }
 }
 
@@ -217,6 +223,11 @@ defineExpose({
             v-if="item.card.live"
             :real-time="true"
             :class="!isPast(item.card) && 'animate-pulse'"
+          />
+          <ServiceAlertBadge
+            v-if="item.card.alert"
+            :alert="item.card.alert"
+            :class="isPast(item.card) && 'opacity-45'"
           />
         </div>
 

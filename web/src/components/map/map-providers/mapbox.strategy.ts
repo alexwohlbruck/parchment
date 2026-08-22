@@ -170,6 +170,10 @@ export class MapboxStrategy extends MapStrategy {
       testMode: isTestEnvironment,
     })
 
+    // Dev only: the map is otherwise unreachable from the console, which
+    // makes every rendering question a guess instead of a check.
+    if (import.meta.env.DEV) (window as any).__parchmentMap = this.mapInstance
+
     this.addControls()
     this.configureEventListeners()
 

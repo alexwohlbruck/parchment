@@ -17,9 +17,20 @@ import { AppRoute } from '@/router'
 import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place-open.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
-import { usePlaceTransitLines } from '@/composables/usePlaceTransitLines'
+import {
+  usePlaceTransitLines,
+  usePlaceTransitLinesContext,
+  type StationLine,
+} from '@/composables/usePlaceTransitLines'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { getRouteBulletLabel } from '@/lib/transit'
+import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { formatClockTime } from '@/lib/time.utils'
 
 const props = defineProps<{
@@ -29,6 +40,61 @@ const props = defineProps<{
 /** Line bullets for transit stations (N Q R W S 1 2 3 7…), published by
  *  the transit departures widget once its data arrives. */
 const stationLines = usePlaceTransitLines(computed(() => props.place?.id))
+const stationLinesContext = usePlaceTransitLinesContext(computed(() => props.place?.id))
+
+/** A bullet opens its route, the way tapping one does on a transit map —
+ *  the same destination the departure board's route header goes to. Only
+ *  where the board named its feed: the route detail is keyed by both. */
+function openLine(line: StationLine) {
+  const feedId = stationLinesContext.value.feedId
+  if (!feedId || !line.id) return
+  router.push({
+    name: AppRoute.TRANSIT_ROUTE,
+    params: { feedId, routeId: line.id },
+  })
+}
+
+/**
+ * The bullets the MAP draws for this station's lines.
+ *
+ * Portolan curates them — a Mexico City numeral sits in a notched square,
+ * a line can be recoloured or renamed away from what its feed says — and
+ * resolves that while it builds. The panel cannot redo the resolution, so
+ * the pyramid publishes it and this reads it, keyed by the place's own
+ * coordinates: a station in Brooklyn asks NYC, not Vienna.
+ *
+ * Absent for anything portolan does not draw, which is most of the world;
+ * a bullet with no curated style stays a circle in the feed's colours.
+ */
+watch(
+  () => props.place?.geometry?.value?.center,
+  (center) => void ensureBulletsAt(center?.lat, center?.lng),
+  { immediate: true },
+)
+
+function styleOf(line: StationLine) {
+  const center = props.place?.geometry?.value?.center
+  return bulletFor(line.id, center?.lat, center?.lng)
+}
+
+/** Why a bullet is dimmed, in words — a dimmed chip with no explanation
+ *  reads as a rendering bug.
+ *
+ *  It states the rider's fact, not the board's method: "the N isn't
+ *  running now". How far ahead the board looked to know that is our
+ *  business, and naming it ("no service in the next 180 minutes") turned
+ *  a plain answer into arithmetic the rider has to finish. */
+function lineTitle(line: StationLine): string {
+  const name = line.longName || line.shortName || ''
+  if (!line.inService) {
+    return name
+      ? t('place.transit.notInServiceNamed', { name })
+      : t('place.transit.notInService')
+  }
+  return stationLinesContext.value.feedId
+    ? t('place.transit.openRouteDetail', { name })
+    : name
+}
 
 const { t, locale } = useI18n()
 const themeStore = useThemeStore()
@@ -324,19 +390,40 @@ watch(
 
     <!-- Transit line bullets — every line serving this station across its
          transfer complex, right under the title like Apple Maps -->
-    <div
-      v-if="stationLines.length"
-      class="flex flex-wrap items-center gap-1"
-    >
-      <RouteBullet
-        v-for="line in stationLines"
-        :key="line.id"
-        :label="getRouteBulletLabel(line, t)"
-        :color="line.color"
-        :text-color="line.textColor"
-        :title="line.longName || line.shortName"
-      />
-    </div>
+    <TooltipProvider :delay-duration="200">
+      <div
+        v-if="stationLines.length"
+        class="flex flex-wrap items-center gap-1"
+      >
+        <Tooltip v-for="line in stationLines" :key="line.id">
+          <TooltipTrigger as-child>
+            <component
+              :is="stationLinesContext.feedId && line.id ? 'button' : 'span'"
+              class="inline-flex"
+              :type="stationLinesContext.feedId && line.id ? 'button' : undefined"
+              :class="stationLinesContext.feedId && line.id ? 'cursor-pointer' : ''"
+              @click="openLine(line)"
+            >
+              <RouteBullet
+                :label="styleOf(line)?.label || getRouteBulletLabel(line, t)"
+                :color="styleOf(line)?.color || line.color"
+                :shape="styleOf(line)?.shape"
+                :text-color="styleOf(line)?.color ? null : line.textColor"
+                :title="lineTitle(line)"
+                class="transition-opacity"
+                :class="[
+                  line.inService ? '' : 'opacity-40 saturate-50',
+                  stationLinesContext.feedId && line.id
+                    ? 'hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow'
+                    : '',
+                ]"
+              />
+            </component>
+          </TooltipTrigger>
+          <TooltipContent>{{ lineTitle(line) }}</TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
 
     <!-- Open status -->
     <div v-if="openingStatus" class="flex items-center gap-1.5 text-sm">
@@ -377,7 +464,7 @@ watch(
         </p>
         <div
           v-if="showToggleButton"
-          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background md:from-muted to-transparent pointer-events-none"
+          class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background md:from-muted-light to-transparent pointer-events-none"
         />
       </div>
 

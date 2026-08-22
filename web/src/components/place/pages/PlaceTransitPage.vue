@@ -6,6 +6,11 @@ import { WidgetType } from '@/types/place.types'
 import { ClockIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
+import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
+import ServiceAlertBadge from '@/components/transit/ServiceAlertBadge.vue'
+import { useTransitAlerts } from '@/composables/useTransitAlerts'
+import { alertsFor, worstAlert } from '@/lib/transit-alerts'
 import { api } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
@@ -53,6 +58,15 @@ const departures = computed((): TransitDeparture[] => {
   return laterDepartures.value || props.transitInfo?.departures || []
 })
 
+/** Same curated bullets as the card this page expands. */
+watch(
+  () => [props.transitInfo?.lat, props.transitInfo?.lng],
+  () => void ensureBulletsAt(props.transitInfo?.lat, props.transitInfo?.lng),
+  { immediate: true },
+)
+const styleOfRoute = (route: { id: string }) =>
+  bulletFor(route.id, props.transitInfo?.lat, props.transitInfo?.lng)
+
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
     unknownDirectionLabel: t('place.transit.unknownDirection'),
@@ -62,6 +76,29 @@ const routeGroups = computed(() =>
     },
   }),
 )
+
+// ── Service alerts ──────────────────────────────────────────
+// One query covers the whole board: the stop itself plus every line calling
+// at it, so each route heading can carry its own badge off a single fetch.
+
+const alertQuery = computed(() => {
+  const feedId = props.transitInfo?.feedId
+  const stopId = props.transitInfo?.stopId
+  if (!feedId || !stopId) return null
+  return {
+    feedId,
+    stopIds: [stopId],
+    routeIds: [...new Set(departures.value.map((d) => d.route?.id).filter(Boolean) as string[])],
+    includeUpcoming: true,
+  }
+})
+
+const { inEffect: stopAlerts } = useTransitAlerts(alertQuery)
+
+/** The one alert a route heading's badge stands for, if any. */
+function routeAlert(routeId: string) {
+  return worstAlert(alertsFor(stopAlerts.value, { routeId }))
+}
 
 /** True when nothing on the board runs today — the stop is shut for the night
  *  and every run shown belongs to a later day. */
@@ -139,6 +176,12 @@ function openTransitlandLink() {
       {{ t('place.transit.noMoreToday') }}
     </div>
 
+    <ServiceAlerts
+      :query="alertQuery"
+      :title="t('place.transit.alerts.atThisStop')"
+      class="mb-4"
+    />
+
     <div v-if="routeGroups.length > 0" class="space-y-5">
       <section v-for="group in routeGroups" :key="group.routeKey">
         <!-- Route badge + name -->
@@ -147,14 +190,19 @@ function openTransitlandLink() {
           @click="openRouteDetail(group.representative)"
         >
           <RouteBullet
-            :label="getRouteBulletLabel(group.route, t)"
-            :color="group.route.color"
-            :text-color="group.route.textColor"
+            :label="styleOfRoute(group.route)?.label || getRouteBulletLabel(group.route, t)"
+            :color="styleOfRoute(group.route)?.color || group.route.color"
+            :shape="styleOfRoute(group.route)?.shape"
+            :text-color="styleOfRoute(group.route)?.color ? null : group.route.textColor"
             class="group-hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
           />
           <span class="text-sm text-muted-foreground truncate group-hover:text-foreground transition-colors">
             {{ group.route.longName || group.route.shortName }}
           </span>
+          <ServiceAlertBadge
+            v-if="routeAlert(group.route.id)"
+            :alert="routeAlert(group.route.id)!"
+          />
         </button>
 
         <!-- Departure table: one row per direction -->

@@ -24,6 +24,7 @@ import {
 } from '@/composables/usePlaceTransitLines'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { getRouteBulletLabel } from '@/lib/transit'
+import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   Tooltip,
   TooltipContent,
@@ -51,6 +52,29 @@ function openLine(line: StationLine) {
     name: AppRoute.TRANSIT_ROUTE,
     params: { feedId, routeId: line.id },
   })
+}
+
+/**
+ * The bullets the MAP draws for this station's lines.
+ *
+ * Portolan curates them — a Mexico City numeral sits in a notched square,
+ * a line can be recoloured or renamed away from what its feed says — and
+ * resolves that while it builds. The panel cannot redo the resolution, so
+ * the pyramid publishes it and this reads it, keyed by the place's own
+ * coordinates: a station in Brooklyn asks NYC, not Vienna.
+ *
+ * Absent for anything portolan does not draw, which is most of the world;
+ * a bullet with no curated style stays a circle in the feed's colours.
+ */
+watch(
+  () => props.place?.geometry?.value?.center,
+  (center) => void ensureBulletsAt(center?.lat, center?.lng),
+  { immediate: true },
+)
+
+function styleOf(line: StationLine) {
+  const center = props.place?.geometry?.value?.center
+  return bulletFor(line.id, center?.lat, center?.lng)
 }
 
 /** Why a bullet is dimmed, in words — a dimmed chip with no explanation
@@ -381,9 +405,10 @@ watch(
               @click="openLine(line)"
             >
               <RouteBullet
-                :label="getRouteBulletLabel(line, t)"
-                :color="line.color"
-                :text-color="line.textColor"
+                :label="styleOf(line)?.label || getRouteBulletLabel(line, t)"
+                :color="styleOf(line)?.color || line.color"
+                :shape="styleOf(line)?.shape"
+                :text-color="styleOf(line)?.color ? null : line.textColor"
                 :title="lineTitle(line)"
                 class="transition-opacity"
                 :class="[

@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronRightIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
@@ -87,6 +88,16 @@ watch(
     }),
   { immediate: true },
 )
+
+/** The bullets the map draws for these routes: portolan's curated shape,
+ *  colour and label, resolved against the stop's own coordinates. */
+watch(
+  () => [transitInfo.value?.lat, transitInfo.value?.lng],
+  () => void ensureBulletsAt(transitInfo.value?.lat, transitInfo.value?.lng),
+  { immediate: true },
+)
+const styleOfRoute = (route: { id: string }) =>
+  bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng)
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
@@ -195,9 +206,10 @@ function openRouteDetail(group: RouteGroup) {
             @click="openRouteDetail(group)"
           >
             <RouteBullet
-              :label="getRouteBulletLabel(group.route, t)"
-              :color="group.route.color"
-              :text-color="group.route.textColor"
+              :label="styleOfRoute(group.route)?.label || getRouteBulletLabel(group.route, t)"
+              :color="styleOfRoute(group.route)?.color || group.route.color"
+              :shape="styleOfRoute(group.route)?.shape"
+              :text-color="styleOfRoute(group.route)?.color ? null : group.route.textColor"
               class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
             />
             <span class="text-sm text-muted-foreground truncate group-hover/route:text-foreground transition-colors">

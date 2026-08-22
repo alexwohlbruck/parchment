@@ -91,6 +91,35 @@ describe('annotationFeature', () => {
   })
 })
 
+describe('the label toggle', () => {
+  it('draws a label when there is one', () => {
+    const feature = annotationFeature(
+      annotation({ tool: 'pin', label: 'Camp' }),
+    )
+
+    expect(feature?.properties?.label).toBe('Camp')
+  })
+
+  it('withholds it when the toggle is off, keeping the name for the list', () => {
+    const withheld = annotation({
+      tool: 'pin',
+      label: 'Camp',
+      labelVisible: false,
+    })
+
+    // The style layer draws nothing, but the annotation still knows its name.
+    expect(annotationFeature(withheld)?.properties?.label).toBe('')
+    expect(withheld.label).toBe('Camp')
+  })
+
+  it('treats an unset toggle as visible, so old marks keep their labels', () => {
+    expect(
+      annotationFeature(annotation({ tool: 'pin', label: 'Camp' }))?.properties
+        ?.label,
+    ).toBe('Camp')
+  })
+})
+
 describe('annotationsCollection', () => {
   it('skips hidden annotations and incomplete ones', () => {
     const collection = annotationsCollection([

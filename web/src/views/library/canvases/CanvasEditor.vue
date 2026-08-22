@@ -23,7 +23,9 @@ import { useAppService } from '@/services/app.service'
 import { useMapStore } from '@/stores/map.store'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
+import * as turf from '@turf/turf'
 import { useCanvasAnnotations } from '@/composables/useCanvasAnnotations'
+import { annotationFeature } from '@/lib/canvas-annotations'
 import { useRoutesService } from '@/services/library/routes.service'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
 import CanvasLayerRow from '@/components/library/canvas/CanvasLayerRow.vue'
@@ -128,6 +130,9 @@ const annotations = useCanvasAnnotations({
       ...body.value,
       annotations: [...(body.value.annotations ?? []), annotation],
     }
+    // Open the new mark straight away: naming is nearly always the next
+    // thing, and hunting for the row you just created is friction.
+    selectedAnnotationId.value = annotation.id
   },
 })
 
@@ -156,6 +161,19 @@ function patchAnnotation(id: string, patch: Partial<CanvasAnnotation>) {
       annotation.id === id ? { ...annotation, ...patch } : annotation,
     ),
   }
+}
+
+/** Fly to a mark. A canvas outgrows one screen quickly. */
+function zoomToAnnotation(annotation: CanvasAnnotation) {
+  const feature = annotationFeature(annotation)
+  if (!feature) return
+  const [minLng, minLat, maxLng, maxLat] = turf.bbox(feature as never)
+  const strategy = mapStore.getMapStrategy()
+  if (minLng === maxLng && minLat === maxLat) {
+    strategy?.flyTo({ center: [minLng, minLat], zoom: 16 })
+    return
+  }
+  strategy?.fitBounds({ minLng, minLat, maxLng, maxLat }, { padding: 96 })
 }
 
 function removeAnnotation(id: string) {
@@ -534,6 +552,7 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           "
           @update="patch => patchAnnotation(annotation.id, patch)"
           @remove="removeAnnotation(annotation.id)"
+          @zoom-to="zoomToAnnotation(annotation)"
         />
       </div>
     </div>

@@ -2418,7 +2418,9 @@
       "title": "Annotations",
       "remove": "Delete annotation",
       "labelPlaceholder": "Add a label",
-      "icon": "Icon"
+      "icon": "Icon",
+      "zoomTo": "Zoom to",
+      "showLabel": "Show label on the map"
     },
     "sources": {
       "title": "Data sources",

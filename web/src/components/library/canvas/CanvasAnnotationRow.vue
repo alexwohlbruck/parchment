@@ -7,14 +7,17 @@
  * pin, the glyph inside it. Editing happens in place rather than in a dialog,
  * because you are looking at the map while you do it.
  */
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { IconPicker } from '@/components/ui/icon-picker'
 import {
   ChevronRightIcon,
   CircleIcon,
+  CrosshairIcon,
   MapPinIcon,
   MinusIcon,
   PentagonIcon,
@@ -37,6 +40,7 @@ const emit = defineEmits<{
   update: [patch: Partial<CanvasAnnotation>]
   remove: []
   toggleExpanded: []
+  zoomTo: []
 }>()
 
 const { t } = useI18n()
@@ -55,6 +59,27 @@ const color = computed(
 )
 
 const label = ref(props.annotation.label ?? '')
+const labelInput = ref<InstanceType<typeof Input> | null>(null)
+
+/**
+ * A mark that has just been made is almost always about to be named, so the
+ * field takes focus the moment its row opens — the same reflex Felt has when
+ * it drops a pin. Selecting existing text means a rename is one keystroke.
+ */
+watch(
+  () => props.expanded,
+  async expanded => {
+    if (!expanded) return
+    label.value = props.annotation.label ?? ''
+    await nextTick()
+    const el = (labelInput.value?.$el ?? labelInput.value) as
+      | HTMLInputElement
+      | undefined
+    el?.focus?.()
+    el?.select?.()
+  },
+  { immediate: true },
+)
 
 function commitLabel() {
   const next = label.value.trim()
@@ -106,6 +131,16 @@ const fallbackName = computed(() =>
         variant="ghost"
         size="icon"
         class="size-7 shrink-0"
+        :title="t('canvases.annotations.zoomTo')"
+        :aria-label="t('canvases.annotations.zoomTo')"
+        @click="emit('zoomTo')"
+      >
+        <CrosshairIcon class="size-3.5" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="size-7 shrink-0"
         :title="t('canvases.annotations.remove')"
         :aria-label="t('canvases.annotations.remove')"
         @click="emit('remove')"
@@ -116,12 +151,24 @@ const fallbackName = computed(() =>
 
     <div v-if="expanded" class="border-t px-2.5 py-2.5 space-y-2.5">
       <Input
+        ref="labelInput"
         v-model="label"
         class="h-8 text-xs"
         :placeholder="t('canvases.annotations.labelPlaceholder')"
         @blur="commitLabel"
         @keydown.enter="commitLabel"
       />
+
+      <!-- Naming a shape and labelling the map are different acts. -->
+      <div v-if="annotation.label" class="flex items-center justify-between gap-2">
+        <Label class="text-xs text-muted-foreground">
+          {{ t('canvases.annotations.showLabel') }}
+        </Label>
+        <Switch
+          :model-value="annotation.labelVisible !== false"
+          @update:model-value="v => emit('update', { labelVisible: v })"
+        />
+      </div>
 
       <div class="flex items-center gap-1">
         <button

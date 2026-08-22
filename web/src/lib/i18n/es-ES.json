@@ -2298,7 +2298,9 @@
       "title": "Anotaciones",
       "remove": "Eliminar anotación",
       "labelPlaceholder": "Añade una etiqueta",
-      "icon": "Icono"
+      "icon": "Icono",
+      "zoomTo": "Ir a",
+      "showLabel": "Mostrar la etiqueta en el mapa"
     },
     "sources": {
       "title": "Orígenes de datos",

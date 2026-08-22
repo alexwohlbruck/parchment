@@ -134,12 +134,25 @@ export function useCanvasAnnotations(options: {
       cursor.value = null
     }
 
+    const onDoubleClick = () => {
+      if (!tool.value || TOOL_AUTOCOMPLETES[tool.value]) return
+      // The second click of the double already added a vertex on top of the
+      // one before it; drop the duplicate rather than committing a spur.
+      const [a, b] = positions.value.slice(-2)
+      if (a && b && a[0] === b[0] && a[1] === b[1]) {
+        positions.value = positions.value.slice(0, -1)
+      }
+      if (canFinish.value) commit()
+    }
+
     map.on('mousemove', onMove)
     map.on('mouseout', onOut)
+    map.on('dblclick', onDoubleClick)
     detachPointer = () => {
       if (frame) cancelAnimationFrame(frame)
       map.off('mousemove', onMove)
       map.off('mouseout', onOut)
+      map.off('dblclick', onDoubleClick)
     }
   }
 
@@ -253,6 +266,7 @@ export function useCanvasAnnotations(options: {
     positions.value = []
     routed.value = null
   }
+
 
   function onMapClick(event: MapEvents['click']) {
     if (!tool.value) return

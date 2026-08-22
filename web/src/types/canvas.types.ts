@@ -183,6 +183,12 @@ export interface CanvasAnnotation {
    * for a plain dot.
    */
   icon?: string | null
+  /**
+   * Whether the label is drawn on the map. Separate from having one: naming a
+   * shape so you can find it in the list is a different act from labelling it
+   * for a reader, and conflating them means every named thing shouts.
+   */
+  labelVisible?: boolean
   visible?: boolean
 }
 

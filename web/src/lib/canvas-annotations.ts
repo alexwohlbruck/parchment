@@ -93,7 +93,10 @@ export function annotationFeature(
     id: annotation.id,
     tool,
     color: annotation.color ?? DEFAULT_ANNOTATION_COLOR,
-    label: annotation.label ?? '',
+    // An empty label draws nothing, which is also how the label toggle is
+    // expressed to the style layer.
+    label:
+      annotation.labelVisible === false ? '' : (annotation.label ?? ''),
     icon: annotation.icon ?? '',
   }
 

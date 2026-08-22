@@ -70,6 +70,8 @@ import {
   modeExprs,
   perFeedO,
   perFeedW,
+  routeFilterExpr,
+  stationServesRoute,
   stationVisible,
   widthExpr,
 } from './portolan-expressions'
@@ -176,6 +178,19 @@ const feedStyles = new Map<string, PortolanStyleSet | null>()
 let serviceTime: Date | null = null
 let classesOff = new Set<string>()
 
+/**
+ * The one route the map is showing, or null for the whole network.
+ *
+ * Isolation is a FILTER here, not a second drawing of the line: the
+ * ribbons, bullets, stations and labels already on the map are the ones
+ * portolan drew, so narrowing them to a single route keeps its geometry,
+ * its colour and its stops exactly as the network view had them. It also
+ * makes the path TRUE for the hour — the per-route mask drops the
+ * stretches this line does not run at this time, and the stations along
+ * them go with it, because a stop nobody stops at is not a stop.
+ */
+let isolatedRoute: string | null = null
+
 // each ribbon layer's STRUCTURAL filter (band_min/kind), recorded at
 // creation: the time/class clauses combine with it via ['all', …] and
 // detach by restoring exactly this (MapView.vue:162-165)
@@ -217,7 +232,53 @@ export function usePortolanTransitService() {
     teardownPortolanTransit,
     setServiceTime,
     setClassVisibility,
+    setIsolatedRoute,
+    portolanDrawsRoute,
+    portolanTransitActive,
   }
+}
+
+/**
+ * Show one route, or the whole network again.
+ *
+ * The route id is the source feed's own GTFS `route_id`, which is what
+ * the tiles carry and what the departure board asks the route detail for
+ * — the two vocabularies happen to be one vocabulary, because both come
+ * off the same feed.
+ */
+function setIsolatedRoute(routeId: string | null) {
+  const next = routeId || null
+  if (isolatedRoute === next) return
+  isolatedRoute = next
+  applyTileFilters()
+  applyStations()
+}
+
+/** Whether the portolan layers are on the map at all — the cheap check,
+ *  before the one that walks tiles. */
+function portolanTransitActive(): boolean {
+  return !!map && hydrationReady()
+}
+
+/**
+ * Whether portolan actually draws this route around here.
+ *
+ * Asked before isolating, because the answer decides which renderer runs:
+ * portolan has the rail-ish feeds it has built, and a bus route in a city
+ * with no pyramid must still get the old shape-and-circles view rather
+ * than an empty map. It reads the tiles already loaded — after the map
+ * has fitted the route's own bounds, those are the tiles the route is in.
+ */
+function portolanDrawsRoute(routeId: string): boolean {
+  if (!routeId || !map || !hydrationReady()) return false
+  const wanted = `,${routeId},`
+  for (const sid of tileSourceIds()) {
+    if (!map.getSource(sid)) continue
+    for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
+      if (`,${f.properties?.routes ?? ''},`.includes(wanted)) return true
+    }
+  }
+  return false
 }
 
 /** ON when the Transit layer group's master switch is (its visibility is
@@ -274,6 +335,7 @@ function teardownPortolanTransit() {
   unbindListeners()
   if (map?.style && map.isStyleLoaded()) removeAll()
   map = null
+  isolatedRoute = null
   clearHydration()
   clearMounts()
   inkDark = null
@@ -1271,14 +1333,33 @@ function removeAll() {
 // the whole document. Symbols are gated in applyStations instead; these
 // filters must NEVER touch a symbol layer or symbols gate twice.
 
+/**
+ * The instant an isolated route is drawn for.
+ *
+ * The slider wins when the rider has moved it — they are asking about
+ * that hour — and otherwise it is now, because "show me this line" means
+ * the line as it runs. Only isolation defaults to a time: the network
+ * view with no slider set draws every hour's railway at once, which is
+ * the right answer for a map of a system.
+ */
+function isolationTime(): Date {
+  return serviceTime ?? new Date()
+}
+
 function applyTileFilters() {
   // Same reason hydration cannot wait on isStyleLoaded(): with a source
   // per pyramid the style is almost never "loaded", and a class toggle
   // or a nudge of the time slider would quietly do nothing.
   if (!hydrationReady()) return
   const clauses: Expr[] = []
-  const acts = actsFilterExpr(serviceTime)
-  if (acts) clauses.push(acts)
+  if (isolatedRoute) {
+    // this clause subsumes the network's own acts test: it asks whether
+    // THIS route is awake here, where the other asks whether any is
+    clauses.push(routeFilterExpr(isolatedRoute, isolationTime()))
+  } else {
+    const acts = actsFilterExpr(serviceTime)
+    if (acts) clauses.push(acts)
+  }
   const cls = classFilterExpr(classesOff)
   if (cls) clauses.push(cls)
   for (const [id, structural] of structuralFilter) {
@@ -1554,6 +1635,17 @@ function applyStations() {
   if (!src) return
   if (!stationsRaw) {
     src.setData(EMPTY_FC)
+    return
+  }
+  // Isolation asks the stations the same question it asks the track: is
+  // THIS route awake here, now. A stop the line does not reach at this
+  // hour is not drawn, and its label goes with it.
+  if (isolatedRoute) {
+    const at = isolationTime()
+    const feats = stationsRaw.features
+      .filter((f: any) => stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, at))
+      .map((f: any) => timeFilteredBullets(f, at, classesOff))
+    src.setData({ type: 'FeatureCollection', features: feats })
     return
   }
   const date = serviceTime

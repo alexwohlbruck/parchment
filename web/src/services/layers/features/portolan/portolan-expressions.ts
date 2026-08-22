@@ -167,6 +167,70 @@ export function actsFilterExpr(date: Date | null): Expr | null {
   return ['case', ['==', acts, ''], true, ['any', ...tests]]
 }
 
+/**
+ * Filter clause for ONE route: this segment carries it, and — when a time
+ * is given — it is that route's own hours that are awake here.
+ *
+ * The distinction is the whole point. `actsFilterExpr` asks whether ANY
+ * route on a segment is running, which is right for the network view and
+ * wrong for an isolated line: the 2 and the 3 share their track, so at an
+ * hour when only the 2 runs, a "some route is awake" test draws the 3
+ * down the full length of a line that is not running there.
+ *
+ * Reading one route's mask needs its slot in `acts`. The masks ride at a
+ * fixed stride, so slicing is easy once the slot is known — but an
+ * expression cannot count the commas in `routes`, and route ids are not
+ * fixed width. The tile publishes the slot instead: `ridx` is
+ * "A=00;C=01;E=02", searched with a leading ';' so "C=01" cannot match
+ * inside "AC=07".
+ *
+ * Tiles predating `ridx` keep the union test rather than vanishing: an
+ * old pyramid should draw a slightly generous route, not an empty map.
+ */
+export function routeFilterExpr(routeId: string, date: Date | null): Expr {
+  // exact token match: ",A," inside ",A,C,E," never matches ",AC,"
+  const carries: Expr = [
+    'in',
+    `,${routeId},`,
+    ['concat', ',', ['coalesce', ['get', 'routes'], ''], ','],
+  ]
+  if (!date || Number.isNaN(date.getTime())) return carries
+
+  const { digit, hexDigits } = actsSlot(date)
+  const acts: Expr = ['coalesce', ['get', 'acts'], '']
+  const ridx: Expr = ['concat', ';', ['coalesce', ['get', 'ridx'], '']]
+  const needle = `;${routeId}=`
+  const at: Expr = ['index-of', needle, ridx]
+  // the two digits that follow the id name its slot; stride 43 = a
+  // 42-char mask plus the ';' between masks
+  const slot: Expr = [
+    'to-number',
+    ['slice', ridx, ['+', at, needle.length], ['+', at, needle.length + 2]],
+  ]
+  const digitAt: Expr = ['+', ['*', slot, 43], digit]
+  const awake: Expr = [
+    'match',
+    ['slice', acts, digitAt, ['+', digitAt, 1]],
+    hexDigits,
+    true,
+    false,
+  ]
+  return [
+    'all',
+    carries,
+    [
+      'case',
+      // no calendar at all, or a tile that predates the index: fall back
+      // to "any route here is awake", which is what the network draws
+      ['==', acts, ''],
+      true,
+      ['<', at, 0],
+      actsFilterExpr(date) ?? true,
+      awake,
+    ],
+  ]
+}
+
 /** Filter clause hiding the disabled classes, or null when all are on. */
 export function classFilterExpr(classesOff: Set<string>): Expr | null {
   if (!classesOff.size) return null
@@ -254,6 +318,38 @@ export function activeRouteIdx(
     idx.push(i)
   })
   return idx.length === routes.length ? null : idx
+}
+
+/**
+ * Is this station still a stop, with only one route left on the map?
+ *
+ * A station survives isolation when the isolated route is among the ones
+ * awake there — the same per-route test the ribbons use, applied to the
+ * masks the station itself carries. That is what takes the stops and
+ * their labels off the parts of a line that is not running at this hour:
+ * the segment goes, and the stations along it go with it, rather than a
+ * row of labels floating over blank ground.
+ *
+ * A station that names the route but carries no usable mask for it stays
+ * — absence of a calendar is not absence of service.
+ */
+export function stationServesRoute(
+  props: Record<string, any>,
+  routeId: string,
+  masks: Record<string, string>,
+  date: Date | null,
+): boolean {
+  const routes = routesOf(props)
+  const i = routes.indexOf(routeId)
+  if (i < 0) return false
+  if (!date) return true
+  const acts = String(props.acts ?? '').split(';')
+  const day = (date.getDay() + 6) % 7
+  const hour = date.getHours()
+  const own = acts[i]
+  if (own && own.length === 42) return maskActive(own, day, hour)
+  const m = masks[routeId]
+  return !m || maskActive(m, day, hour)
 }
 
 // ── bullet strips (dynamic.ts:133-171) ─────────────────────────────────

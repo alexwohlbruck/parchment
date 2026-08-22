@@ -14,6 +14,7 @@ import { watch, type WatchStopHandle } from 'vue'
 import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail.store'
 import { densifyLine } from '@/lib/geo-densify'
 import { widthExpr } from '@/services/layers/features/portolan/portolan-expressions'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 
 const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
@@ -59,9 +60,17 @@ const OPACITY_PROPS: Record<string, string[]> = {
 
 export function useRouteIsolationService() {
   const routeDetailStore = useRouteDetailStore()
+  const portolan = usePortolanTransitService()
   let mapInstance: any = null
   let watchStop: WatchStopHandle | null = null
   let isIsolated = false
+  /** True while portolan's own layers are carrying the isolation, so the
+   *  teardown knows to widen them again rather than un-fade them. */
+  let portolanIsolated = false
+  /** Bumps on every isolate/restore, so a deferred confirmation that
+   *  belongs to a route the rider has already navigated away from does
+   *  nothing at all. */
+  let isolationGeneration = 0
 
   function initialize(map: any) {
     mapInstance = map
@@ -79,7 +88,23 @@ export function useRouteIsolationService() {
     )
   }
 
+  /**
+   * Isolate by NARROWING portolan rather than drawing over it.
+   *
+   * Where portolan draws the route, its own ribbons already have the
+   * geometry, the colour, the stations and the labels — and, uniquely,
+   * the hours: a per-route mask on every segment, which is the only thing
+   * on this map that knows the 5 runs a fraction of its route at night or
+   * that the B stops running at all. Filtering those layers to one route
+   * at one instant therefore shows the path as it IS, not the canonical
+   * full-length shape, and the stops on the parts that are not running
+   * disappear with the track rather than floating over blank ground.
+   *
+   * Where portolan does not draw it — a bus in a city with no pyramid —
+   * the shape-and-circles view is still the only view there is.
+   */
   function applyIsolation(route: {
+    routeId?: string
     routeColor: string | null
     coordinates: [number, number][] | null
     stops: RouteDetailStop[]
@@ -88,6 +113,38 @@ export function useRouteIsolationService() {
 
     // Fit map to route bounds
     fitToRoute(route)
+
+    // Try portolan first, and confirm rather than pre-check: the tiles
+    // this route lives in may not be loaded at the instant the panel
+    // opens — the fit above is an 800ms animation — so asking now would
+    // answer "no" for a route portolan draws perfectly well. Narrowing
+    // the layers is harmless while we wait: at worst they show one route
+    // that turns out to be nothing, for one frame.
+    const generation = ++isolationGeneration
+    if (route.routeId && portolan.portolanTransitActive()) {
+      portolanIsolated = true
+      portolan.setIsolatedRoute(route.routeId)
+      // everything that is not portolan still steps back
+      fadeTransitLayers(0.15, { skipPortolan: true })
+      isIsolated = true
+      mapInstance.once('idle', () => {
+        if (generation !== isolationGeneration || !portolanIsolated) return
+        if (portolan.portolanDrawsRoute(route.routeId!)) return
+        // portolan has no such route here — a bus in a city with no
+        // pyramid. Hand it back to the shape-and-circles view.
+        portolan.setIsolatedRoute(null)
+        portolanIsolated = false
+        fadeTransitLayers(null)
+        fadeTransitLayers(0.15)
+        if (route.coordinates && route.coordinates.length >= 2) {
+          addRouteShape(route.coordinates, route.routeColor)
+        }
+        if (route.stops.length > 0) {
+          addStationMarkers(route.stops, route.routeColor)
+        }
+      })
+      return
+    }
 
     // Fade existing transit layers
     fadeTransitLayers(0.15)
@@ -107,6 +164,12 @@ export function useRouteIsolationService() {
 
   function removeIsolation() {
     if (!mapInstance || !isIsolated) return
+    isolationGeneration++
+
+    if (portolanIsolated) {
+      portolan.setIsolatedRoute(null)
+      portolanIsolated = false
+    }
 
     // Restore transit layer opacity
     fadeTransitLayers(null)
@@ -177,10 +240,16 @@ export function useRouteIsolationService() {
     return ids
   }
 
-  function fadeTransitLayers(opacity: number | null) {
+  function fadeTransitLayers(
+    opacity: number | null,
+    { skipPortolan = false }: { skipPortolan?: boolean } = {},
+  ) {
     if (!mapInstance) return
 
     for (const layerId of fadeTargetLayerIds()) {
+      // when portolan IS the isolation, dimming it would dim the very
+      // line being shown
+      if (skipPortolan && layerId.startsWith('portolan-')) continue
       try {
         const layer = mapInstance.getLayer(layerId)
         if (!layer) continue

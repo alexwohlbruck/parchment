@@ -1,10 +1,12 @@
 /**
  * Canvases — user-built maps (client types).
  *
- * Mirrors routes and collections: `scheme` governs how the body is stored;
- * metadata (name / description / icon / colour) is always E2EE. Decrypted
- * display fields and the decrypted `body` are populated client-side after
- * fetch and are never sent back in cleartext for a user-e2ee canvas.
+ * `scheme` governs the whole record. A `server-key` canvas stores its name and
+ * layer stack in cleartext columns, so it can be made on a device with no
+ * identity key and shared by link later; a `user-e2ee` canvas stores both in
+ * envelopes only the owner's devices can open. Whichever side is in use, the
+ * client works with the same shape — `name`, `description`, `body` — and the
+ * service decides what actually goes on the wire.
  *
  * A canvas is an ordered stack of layers, drawn bottom-first. Three kinds
  * cover what a canvas can hold today; the union is the extension point for
@@ -76,23 +78,25 @@ export interface Canvas {
   publicToken?: string | null
   publicRole?: 'viewer' | null
 
+  /** Encrypted e2ee envelopes. Null for a server-key canvas. */
   metadataEncrypted?: string | null
   metadataKeyVersion?: number
-
-  /** Cleartext server-key body (null on the wire for e2ee canvases). */
-  body?: CanvasBody | null
-  /** Encrypted e2ee body envelope. */
   bodyEncrypted?: string | null
 
   createdAt: string
   updatedAt: string
 
-  // ── Decrypted client-side, never sent back ────────────────────────────
+  /**
+   * Display fields and the layer stack. Read straight off the row for a
+   * server-key canvas, decrypted into place for a user-e2ee one — so
+   * everything downstream reads the same properties either way.
+   */
   name?: string
   description?: string
   icon?: string | null
   iconPack?: 'lucide' | 'maki'
   iconColor?: string | null
+  body?: CanvasBody | null
   /**
    * True when the metadata envelope wouldn't open — a canvas from another
    * device before the seed synced, say. Renders with a placeholder title

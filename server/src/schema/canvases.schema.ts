@@ -19,17 +19,21 @@ import type { CollectionScheme, ResharingPolicy } from './library.schema'
  * saved place collections drawn as points. Canvases can be toggled onto the
  * main map or opened on their own.
  *
- * Storage mirrors routes and collections exactly:
+ * `scheme` governs the whole record — metadata as well as body, which is
+ * where canvases deliberately differ from routes and collections:
  *
- *   - `metadataEncrypted` — name / description / icon / colour in a per-canvas
- *     AES envelope (key = HKDF(seed, 'canvas:'+id)). ALWAYS encrypted, both
- *     schemes. The server never sees a canvas's name.
+ *   'server-key' — name / description / icon / colour in the cleartext
+ *     columns, layer stack in `body`. The server can read it, which is what
+ *     makes public links possible later. It also means a canvas can be made
+ *     on a device that has no identity key yet, which matters because a
+ *     shareable canvas is often the first thing a new user makes.
  *
- *   - `scheme` governs the *body* (the layer stack + saved camera):
- *       'server-key' — body stored cleartext in `body`. The server can read
- *         it, which is what makes public links possible.
- *       'user-e2ee'  — body stored in `bodyEncrypted` under the per-canvas
- *         content key. Server is blind; public links are refused.
+ *   'user-e2ee'  — metadata in a per-canvas AES envelope
+ *     (key = HKDF(seed, 'canvas:'+id)), layer stack in `bodyEncrypted` under
+ *     a separate content key. Server is blind; public links are refused.
+ *
+ * Exactly one side is populated at a time. `changeCanvasScheme` moves a
+ * canvas between them in one transaction, clearing whichever side it left.
  *
  * Note what a canvas body does and does not contain: a collection layer holds
  * only the collection's id, never its places. Those stay under the
@@ -63,12 +67,16 @@ export const canvases = pgTable(
     publicToken: text('public_token'),
     publicRole: text('public_role').$type<ShareRole>(),
 
+    // ── server-key: cleartext metadata + body ───────────────────────────
+    name: text('name'),
+    description: text('description'),
+    icon: text('icon'),
+    iconColor: text('icon_color'),
+    body: jsonb('body'),
+
+    // ── user-e2ee: encrypted metadata + body ────────────────────────────
     metadataEncrypted: text('metadata_encrypted'),
     metadataKeyVersion: integer('metadata_key_version').notNull().default(1),
-
-    // ── server-key body (cleartext) ─────────────────────────────────────
-    body: jsonb('body'),
-    // ── user-e2ee body (encrypted) ──────────────────────────────────────
     bodyEncrypted: text('body_encrypted'),
 
     // Reserved for a future Yjs / CRDT document format; not in use yet.

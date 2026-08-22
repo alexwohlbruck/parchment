@@ -34,12 +34,22 @@ const updateCanvas = mock(
 )
 const deleteCanvas = mock(async (_id: string, _userId: string) => true)
 
+/** Thrown by the service when a switch targets the scheme already in use. */
+class SchemeAlreadySetError extends Error {}
+
+const changeCanvasScheme = mock(
+  async (params: any) =>
+    ({ ...canvasRow, scheme: params.targetScheme }) as typeof canvasRow | null,
+)
+
 mock.module('../../services/library/canvases.service', () => ({
   getCanvases,
   createCanvas,
   getCanvasById,
   updateCanvas,
+  changeCanvasScheme,
   deleteCanvas,
+  SchemeAlreadySetError,
 }))
 
 mock.module('../../middleware/auth.middleware.js', () => authMockModule())
@@ -61,6 +71,11 @@ beforeEach(() => {
   }))
   deleteCanvas.mockClear()
   deleteCanvas.mockImplementation(async () => true)
+  changeCanvasScheme.mockClear()
+  changeCanvasScheme.mockImplementation(async (params: any) => ({
+    ...canvasRow,
+    scheme: params.targetScheme,
+  }))
 })
 
 describe('gating', () => {
@@ -69,6 +84,7 @@ describe('gating', () => {
     ['post', '/canvases'],
     ['get', '/canvases/canvas-1'],
     ['put', '/canvases/canvas-1'],
+    ['post', '/canvases/canvas-1/change-scheme'],
     ['delete', '/canvases/canvas-1'],
   ] as const
 
@@ -141,17 +157,31 @@ describe('GET /canvases/:id', () => {
 })
 
 describe('PUT /canvases/:id', () => {
-  test('writes the encrypted metadata and the body together', async () => {
+  test('writes cleartext metadata and the body together', async () => {
     const body = { layers: [{ id: 'a', kind: 'library', layerId: 'l', visible: true }] }
 
     const res = await req(app).put('/canvases/canvas-1', {
-      body: { metadataEncrypted: 'envelope', body },
+      body: { name: 'Weekend ride', body, metadataEncrypted: null },
     })
 
     expect(res.status).toBe(200)
     expect(updateCanvas).toHaveBeenCalledWith('canvas-1', TEST_USER.id, {
-      metadataEncrypted: 'envelope',
+      name: 'Weekend ride',
       body,
+      metadataEncrypted: null,
+    })
+  })
+
+  test('accepts an explicit null name, so a switch can clear it', async () => {
+    const res = await req(app).put('/canvases/canvas-1', {
+      body: { name: null, description: null, metadataEncrypted: 'envelope' },
+    })
+
+    expect(res.status).toBe(200)
+    expect(updateCanvas).toHaveBeenCalledWith('canvas-1', TEST_USER.id, {
+      name: null,
+      description: null,
+      metadataEncrypted: 'envelope',
     })
   })
 
@@ -171,6 +201,77 @@ describe('PUT /canvases/:id', () => {
     updateCanvas.mockImplementation(async () => null)
 
     const res = await req(app).put('/canvases/canvas-1', { body: {} })
+
+    expect(res.status).toBe(404)
+  })
+})
+
+describe('POST /canvases/:id/change-scheme', () => {
+  test('hands the re-packaged record to the service', async () => {
+    const res = await req(app).post('/canvases/canvas-1/change-scheme', {
+      body: {
+        targetScheme: 'user-e2ee',
+        metadataEncrypted: 'envelope',
+        bodyEncrypted: 'body-envelope',
+        name: null,
+        body: null,
+      },
+    })
+
+    expect(res.status).toBe(200)
+    expect(changeCanvasScheme).toHaveBeenCalledWith({
+      canvasId: 'canvas-1',
+      userId: TEST_USER.id,
+      targetScheme: 'user-e2ee',
+      metadataEncrypted: 'envelope',
+      bodyEncrypted: 'body-envelope',
+      name: null,
+      body: null,
+    })
+    expect(res.body.scheme).toBe('user-e2ee')
+  })
+
+  test('accepts the cleartext direction too', async () => {
+    const res = await req(app).post('/canvases/canvas-1/change-scheme', {
+      body: {
+        targetScheme: 'server-key',
+        name: 'Weekend ride',
+        body: { layers: [] },
+        metadataEncrypted: null,
+        bodyEncrypted: null,
+      },
+    })
+
+    expect(res.status).toBe(200)
+    expect(res.body.scheme).toBe('server-key')
+  })
+
+  test('rejects a scheme that is neither of the two', async () => {
+    const res = await req(app).post('/canvases/canvas-1/change-scheme', {
+      body: { targetScheme: 'plaintext' },
+    })
+
+    expect(res.status).toBe(422)
+  })
+
+  test('reports switching to the scheme already in use as a bad request', async () => {
+    changeCanvasScheme.mockImplementation(async () => {
+      throw new SchemeAlreadySetError('already server-key')
+    })
+
+    const res = await req(app).post('/canvases/canvas-1/change-scheme', {
+      body: { targetScheme: 'server-key' },
+    })
+
+    expect(res.status).toBe(400)
+  })
+
+  test('404s when the canvas is not the caller’s', async () => {
+    changeCanvasScheme.mockImplementation(async () => null)
+
+    const res = await req(app).post('/canvases/canvas-1/change-scheme', {
+      body: { targetScheme: 'user-e2ee' },
+    })
 
     expect(res.status).toBe(404)
   })

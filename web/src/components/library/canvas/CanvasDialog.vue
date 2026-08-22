@@ -2,10 +2,10 @@
 /**
  * Create or rename a canvas.
  *
- * The privacy choice only appears when creating: the scheme decides where the
- * body is stored, and changing it after the fact means rewriting content the
- * server may or may not be able to read. That's a deliberate migration, not a
- * toggle, so it isn't offered here.
+ * Creating offers the two schemes side by side; editing shows the one in use
+ * with a way to switch. They're different affordances because they're
+ * different acts — picking at the start is free, changing later re-packages
+ * the whole canvas under the other scheme and confirms first.
  */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -18,6 +18,9 @@ import { IconPicker } from '@/components/ui/icon-picker'
 import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import { Spinner } from '@/components/ui/spinner'
 import { useCanvasesService } from '@/services/library/canvases.service'
+import { useAppService } from '@/services/app.service'
+import { useIdentityStore } from '@/stores/identity.store'
+import CanvasPrivacySection from './CanvasPrivacySection.vue'
 import type { ThemeColor } from '@/lib/utils'
 import type { Canvas, CanvasScheme } from '@/types/canvas.types'
 import { GlobeIcon, LockIcon } from 'lucide-vue-next'
@@ -33,6 +36,12 @@ const emit = defineEmits<{ created: [canvas: Canvas] }>()
 
 const { t } = useI18n()
 const canvasesService = useCanvasesService()
+const appService = useAppService()
+const identityStore = useIdentityStore()
+
+/** Encrypting a canvas needs a key; a device without one can still make a
+ *  shareable canvas, so the option is disabled rather than the whole dialog. */
+const hasIdentity = computed(() => identityStore.isSetupComplete)
 
 const name = ref('')
 const description = ref('')
@@ -56,6 +65,34 @@ const SCHEMES: { value: CanvasScheme; icon: typeof GlobeIcon }[] = [
   { value: 'server-key', icon: GlobeIcon },
   { value: 'user-e2ee', icon: LockIcon },
 ]
+
+/**
+ * Both directions rewrite the whole canvas, so both confirm — the one that
+ * hands contents to the server more loudly than the one that takes them back.
+ */
+async function switchScheme(target: CanvasScheme) {
+  if (!props.canvas || saving.value) return
+  const goingPrivate = target === 'user-e2ee'
+
+  const confirmed = await appService.confirm({
+    title: t(`canvases.privacy.confirm.${target}.title`),
+    description: t(`canvases.privacy.confirm.${target}.description`),
+    continueText: t(`canvases.privacy.switchTo.${target}`),
+    destructive: !goingPrivate,
+  })
+  if (!confirmed) return
+
+  saving.value = true
+  try {
+    const updated = await canvasesService.changeScheme(props.canvas, target)
+    if (updated) {
+      appService.toast.success(t('canvases.privacy.switched'))
+      open.value = false
+    }
+  } finally {
+    saving.value = false
+  }
+}
 
 async function submit() {
   if (!name.value.trim() || saving.value) return
@@ -125,12 +162,16 @@ async function submit() {
             <button
               v-for="option in SCHEMES"
               :key="option.value"
+              :disabled="option.value === 'user-e2ee' && !hasIdentity"
               :class="[
                 ITEM_ROW_SURFACES.tile,
                 'flex flex-col items-start gap-1 p-3 text-left transition-colors',
                 option.value === scheme
                   ? 'ring-2 ring-primary bg-secondary/50'
                   : 'hover:bg-secondary/40',
+                option.value === 'user-e2ee' &&
+                  !hasIdentity &&
+                  'opacity-50 cursor-not-allowed hover:bg-transparent',
               ]"
               @click="scheme = option.value"
             >
@@ -139,11 +180,23 @@ async function submit() {
                 {{ t(`canvases.schemes.${option.value}.title`) }}
               </span>
               <span class="text-[11px] text-muted-foreground leading-snug">
-                {{ t(`canvases.schemes.${option.value}.description`) }}
+                {{
+                  option.value === 'user-e2ee' && !hasIdentity
+                    ? t('canvases.privacy.needsIdentity')
+                    : t(`canvases.schemes.${option.value}.description`)
+                }}
               </span>
             </button>
           </div>
         </div>
+
+        <CanvasPrivacySection
+          v-else-if="canvas"
+          :scheme="canvas.scheme"
+          :has-identity="hasIdentity"
+          :disabled="saving"
+          @switch="switchScheme"
+        />
 
         <Button class="w-full" :disabled="!name.trim() || saving" @click="submit">
           <Spinner v-if="saving" class="size-3.5" />

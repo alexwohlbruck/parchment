@@ -2304,6 +2304,24 @@
     "delete": {
       "title": "Delete canvas?",
       "description": "\"{name}\" and its layers will be removed. This can't be undone."
+    },
+    "privacy": {
+      "needsIdentity": "Needs your recovery key on this device.",
+      "switched": "Canvas privacy updated",
+      "switchTo": {
+        "server-key": "Make it shareable",
+        "user-e2ee": "Make it private"
+      },
+      "confirm": {
+        "server-key": {
+          "title": "Make this canvas shareable?",
+          "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+        },
+        "user-e2ee": {
+          "title": "Make this canvas private?",
+          "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+        }
+      }
     }
   }
 }

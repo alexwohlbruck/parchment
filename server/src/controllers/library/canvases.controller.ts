@@ -8,9 +8,10 @@ import { i18nPlugin } from '../../lib/i18n/plugin'
  * Canvases — user-built maps made of stacked layers.
  *
  * Shaped like the routes controller: create mints an empty row so the client
- * can derive its per-canvas encryption keys, then PUT writes the encrypted
- * metadata and the body (cleartext for `server-key`, an envelope string for
- * `user-e2ee`).
+ * can derive its per-canvas encryption keys, then PUT writes the record. What
+ * that record looks like depends on the scheme — cleartext columns for
+ * `server-key`, envelopes for `user-e2ee` — and `change-scheme` moves a canvas
+ * between the two atomically.
  */
 const canvasesRouter = new Elysia({ prefix: '/canvases' })
   .use(i18nPlugin)
@@ -72,15 +73,65 @@ const canvasesRouter = new Elysia({ prefix: '/canvases' })
       params: t.Object({ id: t.String() }),
       body: t.Object({
         isPublic: t.Optional(t.Boolean()),
-        metadataEncrypted: t.Optional(t.String()),
-        metadataKeyVersion: t.Optional(t.Number()),
+        // server-key metadata. Nullable so a scheme switch can clear it.
+        name: t.Optional(t.Union([t.String(), t.Null()])),
+        description: t.Optional(t.Union([t.String(), t.Null()])),
+        icon: t.Optional(t.Union([t.String(), t.Null()])),
+        iconColor: t.Optional(t.Union([t.String(), t.Null()])),
         // The body is a document, not a queried structure — see the schema
         // header. Validating its shape here would only duplicate the client's
         // own types and go stale the first time a layer kind is added.
         body: t.Optional(t.Union([t.Any(), t.Null()])),
+        metadataEncrypted: t.Optional(t.Union([t.String(), t.Null()])),
+        metadataKeyVersion: t.Optional(t.Number()),
         bodyEncrypted: t.Optional(t.Union([t.String(), t.Null()])),
       }),
       detail: { tags: ['Library'], summary: 'Update a canvas' },
+    },
+  )
+
+  // Move a canvas between encryption schemes. The client re-packages the
+  // whole record under the target scheme — it holds the only keys — and the
+  // server swaps it in atomically. Owner only.
+  .post(
+    '/:id/change-scheme',
+    async ({ params: { id }, body, user, set, t }) => {
+      try {
+        const updated = await canvasesService.changeCanvasScheme({
+          canvasId: id,
+          userId: user.id,
+          ...body,
+        })
+        if (!updated) {
+          set.status = 404
+          return { error: t('errors.library.canvasNotFound') }
+        }
+        return updated
+      } catch (err) {
+        if (err instanceof canvasesService.SchemeAlreadySetError) {
+          set.status = 400
+          return { error: err.message }
+        }
+        throw err
+      }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        targetScheme: t.Union([
+          t.Literal('server-key'),
+          t.Literal('user-e2ee'),
+        ]),
+        name: t.Optional(t.Union([t.String(), t.Null()])),
+        description: t.Optional(t.Union([t.String(), t.Null()])),
+        icon: t.Optional(t.Union([t.String(), t.Null()])),
+        iconColor: t.Optional(t.Union([t.String(), t.Null()])),
+        body: t.Optional(t.Union([t.Any(), t.Null()])),
+        metadataEncrypted: t.Optional(t.Union([t.String(), t.Null()])),
+        metadataKeyVersion: t.Optional(t.Number()),
+        bodyEncrypted: t.Optional(t.Union([t.String(), t.Null()])),
+      }),
+      detail: { tags: ['Library'], summary: 'Change a canvas encryption scheme' },
     },
   )
 

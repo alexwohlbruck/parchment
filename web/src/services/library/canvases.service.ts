@@ -22,12 +22,19 @@ import {
 /**
  * Canvases service — fetch, decrypt, and persist user-built maps.
  *
- * Shaped exactly like the routes service, because the storage model is the
- * same: metadata always travels encrypted, and the body is cleartext for
- * `server-key` canvases and an envelope for `user-e2ee` ones. Creation is two
- * steps — mint the row to learn its id, then write the encrypted payload
- * derived from that id.
+ * The scheme decides what goes on the wire. A `server-key` canvas sends its
+ * name and layer stack as they are; a `user-e2ee` one sends two envelopes and
+ * explicitly nulls the cleartext columns, so a switch can never leave readable
+ * leftovers behind. Callers upstream see one shape either way.
+ *
+ * Creation is two steps — mint the row to learn its id, then write the payload
+ * derived from that id. Only the e2ee path actually needs the id first, but
+ * one path is worth more than the round trip saved.
  */
+
+/** Shown when an e2ee action is attempted on a device with no identity key. */
+const IDENTITY_REQUIRED =
+  'This device has no identity key yet — import your recovery key first.'
 
 function stampMetadata(canvas: Canvas, metadata: CanvasMetadata): void {
   if (metadata.name !== undefined) canvas.name = metadata.name
@@ -38,18 +45,26 @@ function stampMetadata(canvas: Canvas, metadata: CanvasMetadata): void {
 }
 
 /**
- * Decrypt a canvas's metadata envelope (always) and, for user-e2ee canvases,
- * its body. Mutates and returns the canvas. A canvas that won't decrypt still
- * flows into the store, flagged, so it renders with a placeholder rather than
- * vanishing.
+ * Fill in a canvas's display fields and body.
+ *
+ * A server-key canvas already carries them, so this is a no-op; a user-e2ee
+ * one has to be decrypted. One that won't decrypt still flows into the store,
+ * flagged, so it renders with a placeholder rather than vanishing.
  */
 async function hydrateCanvas(
   canvas: Canvas,
   userId: string | undefined,
 ): Promise<Canvas> {
+  if (canvas.scheme === 'server-key') {
+    if (!canvas.body) canvas.body = emptyCanvasBody()
+    return canvas
+  }
   if (!userId) return canvas
   const seed = await getSeed()
-  if (!seed) return canvas
+  if (!seed) {
+    canvas.undecryptable = true
+    return canvas
+  }
 
   if (canvas.metadataEncrypted) {
     try {
@@ -67,7 +82,7 @@ async function hydrateCanvas(
     }
   }
 
-  if (canvas.scheme === 'user-e2ee' && canvas.bodyEncrypted) {
+  if (canvas.bodyEncrypted) {
     try {
       canvas.body = decryptCanvasBody<CanvasBody>({
         envelope: canvas.bodyEncrypted,
@@ -101,19 +116,40 @@ export const useCanvasesService = createSharedComposable(() => {
     return { seed, userId }
   }
 
-  async function buildMetadataEnvelope(
+  /**
+   * The wire form of a canvas's display fields. Nulls the side it isn't
+   * using, so a scheme switch can't leave a readable name behind.
+   */
+  async function buildMetadataPayload(
     canvasId: string,
+    scheme: CanvasScheme,
     metadata: CanvasMetadata,
-  ): Promise<string> {
-    const { seed, userId } = await requireIdentity()
-    return encryptCanvasMetadata({ metadata, seed, userId, canvasId })
+  ): Promise<Record<string, unknown>> {
+    if (scheme === 'user-e2ee') {
+      const { seed, userId } = await requireIdentity()
+      return {
+        metadataEncrypted: encryptCanvasMetadata({
+          metadata,
+          seed,
+          userId,
+          canvasId,
+        }),
+        name: null,
+        description: null,
+        icon: null,
+        iconColor: null,
+      }
+    }
+    return {
+      name: metadata.name ?? null,
+      description: metadata.description ?? null,
+      icon: metadata.icon ?? null,
+      iconColor: metadata.iconColor ?? null,
+      metadataEncrypted: null,
+    }
   }
 
-  /**
-   * The PUT payload carrying a canvas's content. e2ee canvases send an
-   * envelope and explicitly null the cleartext column, so a scheme flip can
-   * never leave readable leftovers behind.
-   */
+  /** The wire form of a canvas's layer stack. */
   async function buildContentPayload(
     canvasId: string,
     scheme: CanvasScheme,
@@ -161,17 +197,16 @@ export const useCanvasesService = createSharedComposable(() => {
   ): Promise<Canvas | null> {
     try {
       const scheme = params.scheme ?? 'server-key'
-      // Check for an identity BEFORE minting anything. A device that can't
-      // encrypt the metadata can't finish the two-step create, and failing
-      // after the POST would leave an unnamed orphan row behind.
-      await requireIdentity()
+      // An e2ee canvas can't be finished without a key, and failing after the
+      // POST would leave an unnamed orphan row behind — so check first.
+      if (scheme === 'user-e2ee') await requireIdentity()
 
       // 1. Mint the row — the id is what the per-canvas keys derive from.
       const { data: created } = await api.post('/library/canvases', { scheme })
       const canvas = created as Canvas
 
-      // 2. Fill it with the encrypted metadata and an empty body.
-      const metadataEncrypted = await buildMetadataEnvelope(canvas.id, {
+      // 2. Fill it with the metadata and an empty body.
+      const metadata = await buildMetadataPayload(canvas.id, scheme, {
         name: params.name,
         description: params.description,
         icon: params.icon,
@@ -184,7 +219,7 @@ export const useCanvasesService = createSharedComposable(() => {
       )
       const { data: filled } = await api.put(
         `/library/canvases/${canvas.id}`,
-        { metadataEncrypted, ...content },
+        { ...metadata, ...content },
       )
 
       const hydrated = await hydrateCanvas(filled as Canvas, authStore.me?.id)
@@ -194,7 +229,7 @@ export const useCanvasesService = createSharedComposable(() => {
       console.error('Failed to create canvas', error)
       toast.error(
         error instanceof Error && error.message.includes('seed')
-          ? 'This device has no identity key yet — import your recovery key first.'
+          ? IDENTITY_REQUIRED
           : 'Failed to create canvas',
       )
       return null
@@ -214,10 +249,12 @@ export const useCanvasesService = createSharedComposable(() => {
         iconColor: canvas.iconColor ?? undefined,
         ...metadata,
       }
-      const metadataEncrypted = await buildMetadataEnvelope(canvas.id, merged)
-      const { data } = await api.put(`/library/canvases/${canvas.id}`, {
-        metadataEncrypted,
-      })
+      const payload = await buildMetadataPayload(
+        canvas.id,
+        canvas.scheme,
+        merged,
+      )
+      const { data } = await api.put(`/library/canvases/${canvas.id}`, payload)
       const hydrated = await hydrateCanvas(data as Canvas, authStore.me?.id)
       // The server sends back only what it stores, so the decrypted body we
       // already hold has to be carried across.
@@ -251,6 +288,52 @@ export const useCanvasesService = createSharedComposable(() => {
     }
   }
 
+  /**
+   * Move a canvas between schemes.
+   *
+   * The client re-packages the whole record — it holds the only keys — and
+   * the server swaps it in atomically. The body comes from the copy already
+   * in memory, which is the decrypted one either way, so nothing has to be
+   * fetched and re-decrypted first.
+   */
+  async function changeScheme(
+    canvas: Canvas,
+    targetScheme: CanvasScheme,
+  ): Promise<Canvas | null> {
+    if (canvas.scheme === targetScheme) return canvas
+    try {
+      if (targetScheme === 'user-e2ee') await requireIdentity()
+
+      const metadata = await buildMetadataPayload(canvas.id, targetScheme, {
+        name: canvas.name,
+        description: canvas.description,
+        icon: canvas.icon ?? undefined,
+        iconColor: canvas.iconColor ?? undefined,
+      })
+      const content = await buildContentPayload(
+        canvas.id,
+        targetScheme,
+        canvas.body ?? emptyCanvasBody(),
+      )
+
+      const { data } = await api.post(
+        `/library/canvases/${canvas.id}/change-scheme`,
+        { targetScheme, ...metadata, ...content },
+      )
+      const hydrated = await hydrateCanvas(data as Canvas, authStore.me?.id)
+      canvasesStore.upsertCanvas(hydrated)
+      return hydrated
+    } catch (error) {
+      console.error('Failed to change canvas scheme', error)
+      toast.error(
+        error instanceof Error && error.message.includes('seed')
+          ? IDENTITY_REQUIRED
+          : 'Could not change the privacy of this canvas',
+      )
+      return null
+    }
+  }
+
   async function deleteCanvas(id: string): Promise<boolean> {
     try {
       await api.delete(`/library/canvases/${id}`)
@@ -269,6 +352,7 @@ export const useCanvasesService = createSharedComposable(() => {
     createCanvas,
     updateMetadata,
     saveBody,
+    changeScheme,
     deleteCanvas,
   }
 })

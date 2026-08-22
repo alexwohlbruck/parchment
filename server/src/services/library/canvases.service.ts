@@ -12,11 +12,15 @@ import { generateId } from '../../util'
 /**
  * Canvases service — persistence for user-built maps.
  *
- * Storage mirrors routes (see canvases.schema.ts header): metadata is always
- * E2EE; the body is cleartext for `server-key` and an encrypted blob for
- * `user-e2ee`. Creation is two-step, like collections and routes — the row is
- * minted first so the client knows the id to derive its per-canvas keys from,
- * then the encrypted metadata and body are PUT.
+ * Storage follows the scheme (see canvases.schema.ts header): a `server-key`
+ * canvas keeps its metadata and layer stack in cleartext columns; a
+ * `user-e2ee` one keeps both in envelopes the server can't open.
+ *
+ * Creation stays two-step, like collections and routes — the row is minted
+ * first so the client knows the id its per-canvas keys derive from, then the
+ * metadata and body are PUT. A server-key canvas doesn't strictly need the
+ * round trip, but keeping one path means the scheme can change later without
+ * the client learning a second way to create things.
  */
 
 export interface CreateCanvasParams {
@@ -27,11 +31,38 @@ export interface CreateCanvasParams {
 
 export interface UpdateCanvasParams {
   isPublic?: boolean
-  metadataEncrypted?: string
-  metadataKeyVersion?: number
   /** server-key content (cleartext). */
+  name?: string | null
+  description?: string | null
+  icon?: string | null
+  iconColor?: string | null
   body?: CanvasBody | null
-  /** user-e2ee content (encrypted blob). */
+  /** user-e2ee content (encrypted blobs). */
+  metadataEncrypted?: string | null
+  metadataKeyVersion?: number
+  bodyEncrypted?: string | null
+}
+
+/** Raised when a scheme switch targets the scheme the canvas already has. */
+export class SchemeAlreadySetError extends Error {
+  constructor(scheme: CollectionScheme) {
+    super(`Canvas is already using the ${scheme} scheme`)
+  }
+}
+
+export interface ChangeCanvasSchemeParams {
+  canvasId: string
+  userId: string
+  targetScheme: CollectionScheme
+  /** Populated for a switch to `server-key`. */
+  name?: string | null
+  description?: string | null
+  icon?: string | null
+  iconColor?: string | null
+  body?: CanvasBody | null
+  /** Populated for a switch to `user-e2ee`. */
+  metadataEncrypted?: string | null
+  metadataKeyVersion?: number
   bodyEncrypted?: string | null
 }
 
@@ -85,6 +116,53 @@ export async function updateCanvas(
     .set(set)
     .where(and(eq(canvases.id, id), eq(canvases.userId, userId)))
     .returning()
+  return updated
+}
+
+/**
+ * Move a canvas between schemes, clearing whichever side it left.
+ *
+ * The client does the cryptography — it is the only party that can — and
+ * hands over a complete record in the target scheme. This just swaps it in,
+ * atomically, so a canvas is never briefly readable in both forms or neither.
+ *
+ * A switch to `user-e2ee` also drops any public link: the server would no
+ * longer be able to render what that link promises.
+ */
+export async function changeCanvasScheme(
+  params: ChangeCanvasSchemeParams,
+): Promise<Canvas | undefined> {
+  const existing = await getCanvasById(params.canvasId, params.userId)
+  if (!existing) return undefined
+  if (existing.scheme === params.targetScheme) {
+    throw new SchemeAlreadySetError(params.targetScheme)
+  }
+
+  const toE2ee = params.targetScheme === 'user-e2ee'
+
+  const [updated] = await db
+    .update(canvases)
+    .set({
+      scheme: params.targetScheme,
+      updatedAt: new Date(),
+      // Cleartext side.
+      name: toE2ee ? null : (params.name ?? null),
+      description: toE2ee ? null : (params.description ?? null),
+      icon: toE2ee ? null : (params.icon ?? null),
+      iconColor: toE2ee ? null : (params.iconColor ?? null),
+      body: toE2ee ? null : (params.body ?? null),
+      // Encrypted side.
+      metadataEncrypted: toE2ee ? (params.metadataEncrypted ?? null) : null,
+      metadataKeyVersion: params.metadataKeyVersion ?? existing.metadataKeyVersion,
+      bodyEncrypted: toE2ee ? (params.bodyEncrypted ?? null) : null,
+      // A link the server can no longer honour is revoked with the switch.
+      ...(toE2ee
+        ? { isPublic: false, publicToken: null, publicRole: null }
+        : {}),
+    })
+    .where(and(eq(canvases.id, params.canvasId), eq(canvases.userId, params.userId)))
+    .returning()
+
   return updated
 }
 

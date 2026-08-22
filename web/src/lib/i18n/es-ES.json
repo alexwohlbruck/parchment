@@ -2184,6 +2184,24 @@
     "delete": {
       "title": "¿Eliminar el lienzo?",
       "description": "«{name}» y sus capas se eliminarán. Esto no se puede deshacer."
+    },
+    "privacy": {
+      "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
+      "switched": "Se actualizó la privacidad del lienzo",
+      "switchTo": {
+        "server-key": "Hacerlo compartible",
+        "user-e2ee": "Hacerlo privado"
+      },
+      "confirm": {
+        "server-key": {
+          "title": "¿Hacer compartible este lienzo?",
+          "description": "Su nombre y sus capas se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
+        },
+        "user-e2ee": {
+          "title": "¿Hacer privado este lienzo?",
+          "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
+        }
+      }
     }
   }
 }

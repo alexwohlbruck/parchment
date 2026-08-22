@@ -123,13 +123,20 @@ export function useRouteIsolationService() {
     const generation = ++isolationGeneration
     if (route.routeId && portolan.portolanTransitActive()) {
       portolanIsolated = true
-      portolan.setIsolatedRoute(route.routeId)
+      // the id as portolan knows it: a group pyramid prefixes every feed
+      // after the first, so the 2 is `f3:2` there and plain `2` alone
+      portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId) ?? route.routeId)
       // everything that is not portolan still steps back
       fadeTransitLayers(0.15, { skipPortolan: true })
       isIsolated = true
       mapInstance.once('idle', () => {
         if (generation !== isolationGeneration || !portolanIsolated) return
-        if (portolan.portolanDrawsRoute(route.routeId!)) return
+        const token = portolan.portolanRouteToken(route.routeId!)
+        if (token) {
+          // the tiles that answer may only have arrived with the fit
+          portolan.setIsolatedRoute(token)
+          return
+        }
         // portolan has no such route here — a bus in a city with no
         // pyramid. Hand it back to the shape-and-circles view.
         portolan.setIsolatedRoute(null)

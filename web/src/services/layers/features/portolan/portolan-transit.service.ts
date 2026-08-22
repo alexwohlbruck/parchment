@@ -233,7 +233,7 @@ export function usePortolanTransitService() {
     setServiceTime,
     setClassVisibility,
     setIsolatedRoute,
-    portolanDrawsRoute,
+    portolanRouteToken,
     portolanTransitActive,
   }
 }
@@ -261,24 +261,38 @@ function portolanTransitActive(): boolean {
 }
 
 /**
- * Whether portolan actually draws this route around here.
+ * What portolan calls this route around here, or null if it does not draw
+ * it.
  *
  * Asked before isolating, because the answer decides which renderer runs:
  * portolan has the rail-ish feeds it has built, and a bus route in a city
  * with no pyramid must still get the old shape-and-circles view rather
- * than an empty map. It reads the tiles already loaded — after the map
- * has fitted the route's own bounds, those are the tiles the route is in.
+ * than an empty map. It reads the tiles already loaded — after the map has
+ * fitted the route's own bounds, those are the tiles the route is in.
+ *
+ * It returns the TOKEN rather than a yes, because a group pyramid does not
+ * use the feed's own route ids. A build that merges eleven feeds cannot let
+ * "2" mean the IRT Seventh Avenue line and a Metro-North branch at once, so
+ * every feed after the first is prefixed: the 2 is `f3:2` in
+ * northeast-corridor and plain `2` in mta-subway. Matching the bare id
+ * found nothing in the group, which is why the 2 fell back to the
+ * shape-and-circles view and drew every stop it has ever called at,
+ * Livonia Av included.
  */
-function portolanDrawsRoute(routeId: string): boolean {
-  if (!routeId || !map || !hydrationReady()) return false
-  const wanted = `,${routeId},`
+function portolanRouteToken(routeId: string): string | null {
+  if (!routeId || !map || !hydrationReady()) return null
+  const suffix = `:${routeId}`
   for (const sid of tileSourceIds()) {
     if (!map.getSource(sid)) continue
     for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
-      if (`,${f.properties?.routes ?? ''},`.includes(wanted)) return true
+      for (const token of String(f.properties?.routes ?? '').split(',')) {
+        // exact first: a feed's own ids win over another's prefixed ones
+        if (token === routeId) return token
+        if (token.endsWith(suffix)) return token
+      }
     }
   }
-  return false
+  return null
 }
 
 /** ON when the Transit layer group's master switch is (its visibility is

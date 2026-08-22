@@ -158,3 +158,37 @@ describe('stations under isolation', () => {
     expect(stationServesRoute(FULTON, 'J', {}, null)).toBe(true)
   })
 })
+
+/**
+ * A group pyramid does not use the feed's own route ids. Eleven feeds
+ * cannot all own "2", so every feed after the first is prefixed — and the
+ * filter has to be built from the token the TILE uses, not the one the
+ * departure board sends.
+ */
+describe('prefixed route ids in a group build', () => {
+  const GROUP = {
+    routes: 'f3:2,f3:3',
+    ridx: 'f3:2=00;f3:3=01',
+    acts: [ALWAYS, DAYTIME].join(';'),
+  }
+
+  test('the tile token filters exactly, prefix and all', () => {
+    expect(evaluate(routeFilterExpr('f3:2', MONDAY_3AM), GROUP)).toBe(true)
+    expect(evaluate(routeFilterExpr('f3:3', MONDAY_3AM), GROUP)).toBe(false)
+  })
+
+  test('the bare id matches nothing — which is why it had to be resolved', () => {
+    expect(evaluate(routeFilterExpr('2', MONDAY_NOON), GROUP)).toBe(false)
+  })
+
+  test('one feed’s prefix cannot borrow another’s route', () => {
+    expect(evaluate(routeFilterExpr('f4:2', MONDAY_NOON), GROUP)).toBe(false)
+  })
+
+  test('a prefixed station answers the same way', () => {
+    const station = { routes: 'f3:2,f3:3', acts: [ALWAYS, NEVER].join(';') }
+    expect(stationServesRoute(station, 'f3:2', {}, MONDAY_NOON)).toBe(true)
+    expect(stationServesRoute(station, 'f3:3', {}, MONDAY_NOON)).toBe(false)
+    expect(stationServesRoute(station, '2', {}, MONDAY_NOON)).toBe(false)
+  })
+})

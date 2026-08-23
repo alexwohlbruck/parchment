@@ -14,6 +14,7 @@
 
 import { Elysia } from 'elysia'
 import { integrationManager } from '../services/integrations'
+import { portolanTileCache, type CachedResponse } from '../lib/tile-cache'
 import { IntegrationId } from '../types/integration.types'
 import { resolveBarrelmanConfig } from '../services/barrelman.service'
 import { logError } from '../lib/logger'
@@ -220,6 +221,50 @@ app.get(
   },
 )
 
+/** The body a cached 404 replays. Matching what the live path returns
+ *  keeps a hit and a miss indistinguishable to the client. */
+const MISSING_BODY = new TextEncoder().encode('Upstream error').buffer as ArrayBuffer
+
+/**
+ * Turn a cached answer back into a response.
+ *
+ * The headers are rebuilt rather than stored: they are a pure function of
+ * the path and the status, and a stored header set would be one more thing
+ * that can go stale. `X-Cache` is there so a HIT is visible in a browser's
+ * network panel without instrumenting anything.
+ */
+function cachedResponse(rest: string, hit: CachedResponse, state: 'HIT' | 'MISS'): Response {
+  if (hit.status === 204) {
+    return new Response(null, { status: 204, headers: { 'X-Cache': state } })
+  }
+  if (hit.status !== 200) {
+    // BodyInit rejects a nullable Uint8Array; a non-200 always has a body
+    return new Response(hit.body ?? null, {
+      status: hit.status,
+      headers: { 'X-Cache': state },
+    })
+  }
+  const isJson = rest.endsWith('.json')
+  return new Response(hit.body ?? null, {
+    headers: {
+      'Content-Type': isJson
+        ? 'application/json'
+        : hit.contentType || 'application/x-protobuf',
+      // pyramids rebuild on Barrelman's import cadence, so tiles get a
+      // moderate TTL while the JSON manifests stay revalidated
+      'Cache-Control': isJson ? 'no-cache' : 'public, max-age=3600',
+      'X-Cache': state,
+    },
+  })
+}
+
+/** Remember an answer, then serve it. Every exit from the portolan route
+ *  goes through here, so what is cached and what is sent cannot drift. */
+function store(rest: string, value: CachedResponse): Response {
+  portolanTileCache.set(rest, value)
+  return cachedResponse(rest, value, 'MISS')
+}
+
 // Proxy portolan transit tiles from the Barrelman host.
 //
 // Barrelman serves portolan's MVT pyramids at /tiles/portolan/*:
@@ -242,6 +287,12 @@ app.get(
     if (rest.includes('..') || !/\.(json|mvt)$/.test(rest)) {
       return new Response('Not found', { status: 404 })
     }
+
+    // Served from memory when we have it. The cache holds the answer the
+    // client would have got, misses included — see lib/tile-cache.ts for
+    // why the empties matter more than the hits.
+    const cached = portolanTileCache.get(rest)
+    if (cached) return cachedResponse(rest, cached, 'HIT')
 
     try {
       const config = resolveBarrelmanConfig()
@@ -268,7 +319,9 @@ app.get(
 
       // an empty tile is a valid answer inside a pyramid: the cutter only
       // writes tiles a feature touches
-      if (response.status === 204) return new Response(null, { status: 204 })
+      if (response.status === 204) {
+        return store(rest, { status: 204, body: null, contentType: null })
+      }
 
       if (!response.ok) {
         // a missing index.json means portolan isn't deployed on this
@@ -277,6 +330,13 @@ app.get(
           logError(
             `Portolan tile proxy: ${response.status} ${response.statusText}`,
           )
+        }
+        // A 404 is a stable answer — this pyramid has no such file, and the
+        // client asks again on every load (the bus-only feeds have no
+        // routes.json at all). Anything else is a fault upstream and must
+        // not be remembered.
+        if (response.status === 404) {
+          return store(rest, { status: 404, body: MISSING_BODY, contentType: 'text/plain' })
         }
         return new Response('Upstream error', { status: response.status })
       }
@@ -290,25 +350,18 @@ app.get(
             t.replace(/^https?:\/\/[^/]+\/tiles\/portolan\/[^/]+\//, ''),
           )
         }
-        return new Response(JSON.stringify(body), {
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-          },
+        return store(rest, {
+          status: 200,
+          body: new TextEncoder().encode(JSON.stringify(body)).buffer as ArrayBuffer,
+          contentType: 'application/json',
         })
       }
 
       const data = await response.arrayBuffer()
-      const isJson = rest.endsWith('.json')
-      return new Response(data, {
-        headers: {
-          'Content-Type': isJson
-            ? 'application/json'
-            : response.headers.get('content-type') || 'application/x-protobuf',
-          // pyramids rebuild on Barrelman's import cadence, so tiles get a
-          // moderate TTL while the JSON manifests stay revalidated
-          'Cache-Control': isJson ? 'no-cache' : 'public, max-age=3600',
-        },
+      return store(rest, {
+        status: 200,
+        body: data,
+        contentType: response.headers.get('content-type'),
       })
     } catch (error) {
       logError('Portolan tile proxy error', error, { rest })

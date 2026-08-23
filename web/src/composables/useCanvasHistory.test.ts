@@ -9,11 +9,31 @@ import type { CanvasBody } from '@/types/canvas.types'
  * body, wait for the step to be recorded, then step back and forth.
  */
 
+/**
+ * The editor's state is a body plus whatever is half-drawn, and the stack
+ * covers both — so these drive both and check that stepping back crosses
+ * between them without noticing.
+ */
+interface Drawing {
+  positions: number[][]
+}
+
 function history(initial: CanvasBody = { layers: [], annotations: [] }) {
   const body = ref<CanvasBody>(initial)
+  const drawing = ref<Drawing>({ positions: [] })
+  const busy = ref(false)
   const scope = effectScope()
-  const api = scope.run(() => useCanvasHistory(body))!
-  return { ...api, body, dispose: () => scope.stop() }
+  const api = scope.run(() =>
+    useCanvasHistory({
+      snapshot: () => ({ body: body.value, drawing: drawing.value }),
+      restore: snapshot => {
+        body.value = snapshot.body
+        drawing.value = snapshot.drawing
+      },
+      busy,
+    }),
+  )!
+  return { ...api, body, drawing, busy, dispose: () => scope.stop() }
 }
 
 /** Let the debounced record run, as the editor's idle moment would. */
@@ -160,6 +180,105 @@ describe('useCanvasHistory', () => {
 
     expect(editor.canUndo.value).toBe(false)
     expect(editor.canRedo.value).toBe(false)
+    editor.dispose()
+  })
+})
+
+describe('useCanvasHistory across the whole editor', () => {
+  it('steps back over a finished shape, then over the points that made it', async () => {
+    const editor = history()
+
+    // Two points placed, then the shape committed — the shape moves from the
+    // drawing state into the body, which used to be where undo gave up.
+    editor.drawing.value = { positions: [[0, 0]] }
+    await settle()
+    await pause()
+    editor.drawing.value = { positions: [[0, 0], [1, 1]] }
+    await settle()
+    await pause()
+    editor.body.value = withPin(editor.body.value, 'shape')
+    editor.drawing.value = { positions: [] }
+    await settle()
+
+    editor.undo()
+    expect(editor.body.value.annotations).toEqual([])
+    expect(editor.drawing.value.positions).toHaveLength(2)
+
+    // And straight on into the points, without changing stack.
+    editor.undo()
+    expect(editor.drawing.value.positions).toHaveLength(1)
+    editor.undo()
+    expect(editor.drawing.value.positions).toEqual([])
+    editor.dispose()
+  })
+
+  it('redoes back across the same boundary', async () => {
+    const editor = history()
+    editor.drawing.value = { positions: [[0, 0], [1, 1]] }
+    await settle()
+    await pause()
+    editor.body.value = withPin(editor.body.value, 'shape')
+    editor.drawing.value = { positions: [] }
+    await settle()
+
+    editor.undo()
+    editor.redo()
+
+    expect(editor.body.value.annotations).toHaveLength(1)
+    expect(editor.drawing.value.positions).toEqual([])
+    editor.dispose()
+  })
+
+  it('keeps deliberate clicks apart however fast they come', async () => {
+    const editor = history()
+    // 300ms apart: quick, but two decisions rather than one gesture.
+    for (const positions of [[[0, 0]], [[0, 0], [1, 1]], [[0, 0], [1, 1], [2, 2]]]) {
+      editor.drawing.value = { positions }
+      await settle()
+      await vi.advanceTimersByTimeAsync(300)
+    }
+
+    editor.undo()
+    expect(editor.drawing.value.positions).toHaveLength(2)
+    editor.undo()
+    expect(editor.drawing.value.positions).toHaveLength(1)
+    editor.dispose()
+  })
+
+  it('collapses a continuous gesture into one step', async () => {
+    const editor = history()
+    // A slider at sixty frames a second, for a second.
+    for (let i = 1; i <= 60; i++) {
+      editor.body.value = { ...editor.body.value, camera: { zoom: i } as never }
+      await settle()
+      await vi.advanceTimersByTimeAsync(16)
+    }
+
+    editor.undo()
+
+    expect(editor.body.value.camera).toBeUndefined()
+    expect(editor.canUndo.value).toBe(false)
+    editor.dispose()
+  })
+
+  it('records nothing while a stroke is still being drawn', async () => {
+    const editor = history()
+    editor.busy.value = true
+    for (let i = 1; i <= 50; i++) {
+      editor.drawing.value = { positions: Array.from({ length: i }, () => [0, 0]) }
+      await settle()
+      await vi.advanceTimersByTimeAsync(16)
+    }
+    expect(editor.canUndo.value).toBe(false)
+
+    // The stroke lands as one thing when the pointer lifts.
+    editor.busy.value = false
+    editor.body.value = withPin(editor.body.value, 'stroke')
+    editor.drawing.value = { positions: [] }
+    await settle()
+
+    editor.undo()
+    expect(editor.body.value.annotations).toEqual([])
     editor.dispose()
   })
 })

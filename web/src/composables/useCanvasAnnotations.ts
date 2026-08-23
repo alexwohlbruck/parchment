@@ -618,6 +618,43 @@ export function useCanvasAnnotations(options: {
     if (positions.value.length < 2) routed.value = null
   }
 
+  /**
+   * The half-drawn state, for the editor's undo stack.
+   *
+   * A shape being drawn is as much a thing you can take back as a shape you
+   * finished, so it belongs in the same history — see `useCanvasHistory`.
+   * The tool comes along because positions without the tool that made them
+   * describe nothing.
+   */
+  interface DrawingSnapshot {
+    tool: AnnotationTool | null
+    positions: Position[]
+    routed: CanvasAnnotation['routed'] | null
+    isochrone: CanvasAnnotation['isochrone'] | null
+  }
+
+  function snapshot(): DrawingSnapshot {
+    return {
+      tool: tool.value,
+      positions: positions.value,
+      routed: routed.value ?? null,
+      isochrone: isochrone.value ?? null,
+    }
+  }
+
+  function restore(next: DrawingSnapshot) {
+    // Arming does the map's side of the work — cursors, the click override,
+    // the gestures that have to stand down — and clears positions, so the
+    // state goes back on afterwards.
+    if (next.tool !== tool.value) {
+      if (next.tool) arm(next.tool)
+      else disarm()
+    }
+    positions.value = next.positions
+    routed.value = next.routed
+    isochrone.value = next.isochrone
+  }
+
   onScopeDispose(disarm)
 
   return {
@@ -629,6 +666,10 @@ export function useCanvasAnnotations(options: {
     canFinish,
     canUndo,
     canRoute,
+    snapshot,
+    restore,
+    // A stroke lays down a point per frame; history waits for it to finish.
+    isBusy: isDoodling,
     doodleWidth,
     isochroneMode,
     isochroneMinutes,

@@ -94,8 +94,6 @@ const pristine = ref('')
 const loading = ref(true)
 const saving = ref(false)
 
-const history = useCanvasHistory(body)
-
 function load() {
   body.value = cloneCanvasBody(canvas.value?.body)
   pristine.value = JSON.stringify(body.value)
@@ -103,13 +101,7 @@ function load() {
   history.reset()
 }
 
-/**
- * Only a different canvas reloads the working copy.
- *
- * Saving upserts the canvas into the store, so watching the record itself
- * would reload — and reset the undo history — after every autosave.
- */
-watch(() => canvas.value?.id, id => id && load(), { immediate: true })
+
 
 // A cold load (opened from a link, or after a reload) has neither the canvas
 // nor the collections it references.
@@ -153,6 +145,30 @@ const annotations = useCanvasAnnotations({
 })
 
 /**
+ * One undo stack over the whole editor — the canvas and whatever is
+ * half-drawn on it. See `useCanvasHistory` for why they can't be separate.
+ */
+const history = useCanvasHistory({
+  snapshot: () => ({
+    body: body.value,
+    drawing: annotations.snapshot(),
+  }),
+  restore: snapshot => {
+    body.value = snapshot.body
+    annotations.restore(snapshot.drawing)
+  },
+  busy: annotations.isBusy,
+})
+
+/**
+ * Only a different canvas reloads the working copy.
+ *
+ * Saving upserts the canvas into the store, so watching the record itself
+ * would reload — and reset the undo history — after every autosave.
+ */
+watch(() => canvas.value?.id, id => id && load(), { immediate: true })
+
+/**
  * Reshaping a committed mark. Off while a tool is armed: a click then belongs
  * to the tool, not to whatever it happens to land on.
  */
@@ -177,15 +193,7 @@ useHotkeys([
       if (annotations.isArmed.value) annotations.disarm()
     },
   },
-  {
-    key: 'mod+z',
-    handler: () => {
-      // Mid-shape, the reflex is to take back the last point rather than the
-      // last thing added to the canvas.
-      if (annotations.canUndo.value) annotations.undo()
-      else history.undo()
-    },
-  },
+  { key: 'mod+z', handler: () => history.undo() },
   { key: 'mod+shift+z', handler: () => history.redo() },
   // What Windows reaches for, and harmless everywhere else.
   { key: 'mod+y', handler: () => history.redo() },
@@ -670,7 +678,7 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           :tool="annotations.tool.value"
           :color="annotations.color.value"
           :can-finish="annotations.canFinish.value"
-          :can-undo="annotations.canUndo.value"
+          :can-undo="history.canUndo.value"
           :can-route="annotations.canRoute.value"
           :doodle-width="annotations.doodleWidth.value"
           @update:doodle-width="v => (annotations.doodleWidth.value = v)"
@@ -683,7 +691,7 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           @update:color="value => (annotations.color.value = value)"
           @update:route-mode="value => (annotations.routeMode.value = value)"
           @finish="annotations.finish"
-          @undo="annotations.undo"
+          @undo="history.undo"
           @undo-edit="history.undo"
           @redo-edit="history.redo"
         />

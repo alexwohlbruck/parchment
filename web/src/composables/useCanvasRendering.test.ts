@@ -57,6 +57,11 @@ function fakeStrategy() {
       layers.delete(id)
       calls.push(`removeLayer:${id}`)
     },
+    setSourceData(id: string, _data: unknown) {
+      // Mirrors the engine: there has to be a live source to hand data to.
+      if (!sources.has(id)) throw new Error(`source ${id} does not exist`)
+      calls.push(`setSourceData:${id}`)
+    },
     toggleLayerVisibility() {},
     fitBounds() {},
   }
@@ -81,6 +86,21 @@ function dataLayer(overrides: Partial<CanvasLayer> = {}): CanvasLayer {
     },
     ...overrides,
   } as CanvasLayer
+}
+
+/** A layer whose source spec can change in ways `setData` cannot express. */
+function styleLayer(tiles: string): CanvasLayer {
+  return {
+    id: 'cl-2',
+    kind: 'style',
+    name: 'Tiles',
+    visible: true,
+    configuration: {
+      id: 'cl-2',
+      type: 'raster',
+      source: { id: 'src', type: 'raster', tiles: [tiles] },
+    },
+  } as unknown as CanvasLayer
 }
 
 let strategy: ReturnType<typeof fakeStrategy>
@@ -127,6 +147,24 @@ describe('useCanvasRendering', () => {
   })
 
   it('takes layers off before rebuilding the source they draw from', () => {
+    const body = { layers: [styleLayer('https://a/{z}/{x}/{y}.png')] }
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    body.layers = [styleLayer('https://b/{z}/{x}/{y}.png')]
+    instance.render()
+
+    const removeLayer = strategy.calls.indexOf(
+      'removeLayer:canvas-map-canvas-1-cl-2',
+    )
+    const removeSource = strategy.calls.indexOf(
+      'removeSource:canvas-map-canvas-1-cl-2-source',
+    )
+    expect(removeLayer).toBeGreaterThanOrEqual(0)
+    expect(removeSource).toBeGreaterThan(removeLayer)
+  })
+
+  it('hands changed GeoJSON to the live source instead of rebuilding it', () => {
     const body = { layers: [dataLayer()] }
     const instance = render('map', body)
 
@@ -147,10 +185,21 @@ describe('useCanvasRendering', () => {
     ]
     instance.render()
 
-    const removeLayer = strategy.calls.indexOf('removeLayer:canvas-map-canvas-1-cl-1-points')
-    const removeSource = strategy.calls.indexOf('removeSource:canvas-map-canvas-1-cl-1-source')
-    expect(removeLayer).toBeGreaterThanOrEqual(0)
-    expect(removeSource).toBeGreaterThan(removeLayer)
+    // Rebuilding would mean dropping every layer drawn from the source and
+    // adding them back — the thing that made drawing lag.
+    expect(strategy.calls).toEqual([
+      'setSourceData:canvas-map-canvas-1-cl-1-source',
+    ])
+  })
+
+  it('leaves an unchanged canvas entirely alone', () => {
+    const body = { layers: [dataLayer()] }
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    instance.render()
+
+    expect(strategy.calls).toEqual([])
   })
 
   it('leaves the source alone when only the styling changed', () => {

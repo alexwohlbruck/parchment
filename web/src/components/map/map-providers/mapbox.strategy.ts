@@ -670,6 +670,14 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
+  setSourceData(sourceId: string, data: any) {
+    // Only a GeoJSON source can take data in place; anything else is a no-op.
+    const source = this.mapInstance.getSource(sourceId) as
+      | { setData?: (data: any) => void }
+      | undefined
+    source?.setData?.(data)
+  }
+
   addSource(sourceId: string, source: any) {
     try {
       // Remove existing source if it exists to prevent conflicts

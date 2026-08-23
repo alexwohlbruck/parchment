@@ -145,6 +145,11 @@ export class MapStrategy {
   }
   addSource(sourceId: string, source: any) {}
   removeSource(sourceId: string) {}
+  /**
+   * Replace a live GeoJSON source's data without touching the layers drawn
+   * from it — the cheap path for content that changes while you work.
+   */
+  setSourceData(sourceId: string, data: any) {}
   addLayer(layer: Layer, overwrite: boolean = false) {}
   removeLayer(layerId: Layer['configuration']['id']) {}
   updateLayer(layerId: Layer['configuration']['id'], updates: Partial<Layer>) {}

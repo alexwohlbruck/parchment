@@ -17,6 +17,7 @@ import type { Position } from 'geojson'
 import { mapEventBus } from '@/lib/eventBus'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
+import { useDrawOverlay } from '@/composables/useDrawOverlay'
 import {
   RouteSnapAborted,
   snapWaypointsToPath,
@@ -253,6 +254,10 @@ export function useCanvasAnnotations(options: {
     tool.value ? guideFeature(tool.value, positions.value, cursor.value) : null,
   )
 
+  // Work in progress is painted on a canvas over the map instead of being
+  // pushed through the style — see `useDrawOverlay` for why.
+  useDrawOverlay({ draft, guide, positions, color })
+
   function commit() {
     if (!tool.value || !canFinish.value) return
     options.onCommit(
@@ -319,13 +324,11 @@ export function useCanvasAnnotations(options: {
   return {
     tool,
     color,
-    guide,
     routeMode,
     isSnapping,
     isArmed,
     canFinish,
     canUndo,
-    draft,
     vertexCount: computed(() => positions.value.length),
     arm,
     disarm,

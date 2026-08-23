@@ -15,8 +15,12 @@
  *
  * Sources are added by hand rather than inlined into `addLayer`: the engine
  * refuses to drop a source a layer still uses, so re-adding one every render
- * pass both failed and refetched every tile. Each source's spec is cached, so
- * a reorder or a visibility toggle touches only the layers.
+ * pass both failed and refetched every tile. Both sources and layers are
+ * cached against what is already on the map, and a pass only touches what
+ * genuinely changed — a reorder moves layers, a visibility toggle flips one
+ * flag, and new GeoJSON goes straight into the live source. This is what
+ * keeps editing responsive: rebuilding a source drops every layer drawn from
+ * it, so a render pass that rebuilds everything is one the user can feel.
  */
 
 import { onScopeDispose, watch, type ComputedRef } from 'vue'
@@ -28,11 +32,7 @@ import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { MARKER_RENDERED_LAYER_TYPES, type Layer } from '@/types/map.types'
-import type {
-  CanvasAnnotation,
-  CanvasBody,
-  CanvasLayer,
-} from '@/types/canvas.types'
+import type { CanvasBody, CanvasLayer } from '@/types/canvas.types'
 import {
   selectSavedPlaces,
   buildSavedPlacesGeoJSON,
@@ -42,7 +42,6 @@ import {
 import { ensureIconImages } from '@/lib/map-icon-images'
 import { resolveSpecBounds } from '@/lib/map-style/bounds'
 import { annotationsCollection } from '@/lib/canvas-annotations'
-import type { Feature } from 'geojson'
 import { presetLayers } from '@/lib/map-style/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
@@ -55,13 +54,6 @@ import {
 export interface RenderableCanvas {
   id: string
   body: CanvasBody
-  /**
-   * An annotation being drawn right now, shown alongside the committed ones
-   * so a shape takes form under the cursor.
-   */
-  draft?: CanvasAnnotation | null
-  /** The rubber band from the last vertex to the cursor. */
-  guide?: Feature | null
   /** Id of the annotation currently selected, drawn with a halo. */
   selectedAnnotationId?: string | null
 }
@@ -108,8 +100,8 @@ export function useCanvasRendering(
   const pointsStore = useEncryptedPointsStore()
   const { layers: libraryLayers } = storeToRefs(layersStore)
 
-  /** Every map id this instance has put on the map, so it can take them off. */
-  let mounted = new Set<string>()
+  /** Layer id → the configuration on the map, so an unchanged layer is left alone. */
+  let mountedLayers = new Map<string, string>()
   /** Source id → the spec currently on the map, so we only rebuild on change. */
   let mountedSources = new Map<string, string>()
 
@@ -337,13 +329,13 @@ export function useCanvasRendering(
    * Annotations draw as one bucket per canvas — a fill, its outline, a dot for
    * pins and a label — rather than a layer each. They are always added last,
    * so marks you made sit above the data you brought.
+   *
+   * Committed marks only. Whatever is being drawn right now is painted on the
+   * overlay canvas instead, so the pointer never drives a style change.
    */
   function planAnnotations(canvas: RenderableCanvas): LayerPlan {
-    const annotations = [
-      ...(canvas.body?.annotations ?? []),
-      ...(canvas.draft ? [canvas.draft] : []),
-    ]
-    if (!annotations.length && !canvas.guide) return EMPTY_PLAN
+    const annotations = canvas.body?.annotations ?? []
+    if (!annotations.length) return EMPTY_PLAN
 
     const sourceId = scopedId(options.key, canvas.id, 'annotations', '-source')
     const id = (suffix: string) =>
@@ -353,7 +345,10 @@ export function useCanvasRendering(
       sources: {
         [sourceId]: {
           type: 'geojson',
-          data: annotationsCollection(annotations, [canvas.guide ?? null]),
+          data: annotationsCollection(
+            annotations,
+            canvas.selectedAnnotationId ?? null,
+          ),
         },
       },
       layers: [
@@ -372,31 +367,9 @@ export function useCanvasRendering(
           {
             type: 'line',
             source: sourceId,
-            filter: [
-              'all',
-              ['!=', ['geometry-type'], 'Point'],
-              ['!', ['to-boolean', ['get', 'guide']]],
-            ],
+            filter: ['!=', ['geometry-type'], 'Point'],
             layout: { 'line-cap': 'round', 'line-join': 'round' },
             paint: { 'line-color': ['get', 'color'], 'line-width': 3 },
-          },
-          true,
-        ),
-        // The rubber band: dashed and thinner, so what is committed and what
-        // is merely proposed are never confused.
-        toLayer(
-          id('-guide'),
-          {
-            type: 'line',
-            source: sourceId,
-            filter: ['to-boolean', ['get', 'guide']],
-            layout: { 'line-cap': 'round' },
-            paint: {
-              'line-color': '#6b7280',
-              'line-width': 2,
-              'line-dasharray': [2, 2],
-              'line-opacity': 0.9,
-            },
           },
           true,
         ),
@@ -409,7 +382,7 @@ export function useCanvasRendering(
             filter: [
               'all',
               ['==', ['geometry-type'], 'Point'],
-              ['==', ['get', 'id'], canvas.selectedAnnotationId ?? '__none__'],
+              ['to-boolean', ['get', 'selected']],
             ],
             paint: {
               'circle-color': ['get', 'color'],
@@ -463,83 +436,138 @@ export function useCanvasRendering(
     }
   }
 
+  /**
+   * The data of a GeoJSON source whose spec changed in no other way, or
+   * undefined if the source has to be rebuilt.
+   *
+   * Worth telling apart: rebuilding a source means dropping every layer drawn
+   * from it and adding them all back. That is slow, and it is visible — the
+   * annotation bucket would flash on every mark committed.
+   */
+  function inlineDataChange(
+    previousSpec: string,
+    spec: Record<string, unknown>,
+  ): unknown | undefined {
+    if (spec.type !== 'geojson' || spec.data === undefined) return undefined
+    let previous: Record<string, unknown>
+    try {
+      previous = JSON.parse(previousSpec)
+    } catch {
+      return undefined
+    }
+    if (previous.type !== 'geojson') return undefined
+
+    const withoutData = (source: Record<string, unknown>) =>
+      JSON.stringify(
+        Object.keys(source)
+          .filter(key => key !== 'data')
+          .sort()
+          .map(key => [key, source[key]]),
+      )
+    return withoutData(previous) === withoutData(spec) ? spec.data : undefined
+  }
+
   function render() {
     const strategy = mapStore.getMapStrategy()
     if (!strategy) return
 
-    const nextLayers = new Set<string>()
+    /** Source id → its serialised spec, and the spec itself to hand over. */
     const nextSources = new Map<string, string>()
+    const specs = new Map<string, Record<string, unknown>>()
+    /** Layer id → serialised configuration, the key for "has this changed". */
+    const nextLayers = new Map<string, string>()
     const plans: { plan: LayerPlan; visible: boolean }[] = []
+
+    function collect(plan: LayerPlan, visible: boolean) {
+      plans.push({ plan, visible })
+      for (const [id, spec] of Object.entries(plan.sources)) {
+        nextSources.set(id, JSON.stringify(spec))
+        specs.set(id, spec)
+      }
+      for (const layer of plan.layers) {
+        nextLayers.set(layer.id, JSON.stringify([layer.configuration, visible]))
+      }
+    }
 
     for (const canvas of canvases.value) {
       // Bottom of the list draws first, matching how the layer library reads.
       for (const layer of canvas.body?.layers ?? []) {
-        const plan = planLayer(strategy, canvas.id, layer)
-        plans.push({ plan, visible: layer.visible })
-        for (const [id, spec] of Object.entries(plan.sources)) {
-          nextSources.set(id, JSON.stringify(spec))
-        }
-        plan.layers.forEach(l => nextLayers.add(l.id))
+        collect(planLayer(strategy, canvas.id, layer), layer.visible)
       }
-
       // Annotations last, so they draw over the canvas's own layers.
       const annotations = planAnnotations(canvas)
-      if (annotations.layers.length) {
-        plans.push({ plan: annotations, visible: true })
-        for (const [id, spec] of Object.entries(annotations.sources)) {
-          nextSources.set(id, JSON.stringify(spec))
-        }
-        annotations.layers.forEach(l => nextLayers.add(l.id))
-      }
+      if (annotations.layers.length) collect(annotations, true)
     }
 
     /**
-     * Sources whose data actually changed. Everything else stays exactly as
-     * it is, so a reorder or a visibility toggle doesn't refetch a tile.
+     * Changed sources, split by what the change costs: data a live source can
+     * take in place, and everything else, which has to come down and go back
+     * up with every layer drawn from it.
      */
-    const rebuilding = new Set(
-      [...nextSources]
-        .filter(([id, spec]) => mountedSources.get(id) !== spec)
-        .map(([id]) => id),
+    const updating = new Map<string, unknown>()
+    const rebuilding = new Set<string>()
+    for (const [id, spec] of nextSources) {
+      const previous = mountedSources.get(id)
+      if (previous === spec) continue
+      const data =
+        previous === undefined
+          ? undefined
+          : inlineDataChange(previous, specs.get(id)!)
+      if (data === undefined) rebuilding.add(id)
+      else updating.set(id, data)
+    }
+
+    const onRebuiltSource = new Set(
+      plans
+        .filter(({ plan }) =>
+          Object.keys(plan.sources).some(id => rebuilding.has(id)),
+        )
+        .flatMap(({ plan }) => plan.layers.map(layer => layer.id)),
     )
 
     // Nothing may reference a source we are about to drop — the engine
     // refuses outright, and the failed drop used to leave the next addSource
     // colliding with the source it thought it had removed. So layers come off
     // first: the ones going away, and the ones sitting on a rebuilt source.
-    for (const id of mounted) {
-      const onRebuiltSource = plans.some(
-        ({ plan }) =>
-          plan.layers.some(l => l.id === id) &&
-          Object.keys(plan.sources).some(sourceId => rebuilding.has(sourceId)),
-      )
-      if (!nextLayers.has(id) || onRebuiltSource) strategy.removeLayer(id)
+    for (const id of [...mountedLayers.keys()]) {
+      if (!nextLayers.has(id) || onRebuiltSource.has(id)) {
+        strategy.removeLayer(id)
+        mountedLayers.delete(id)
+      }
     }
 
-    for (const [id] of mountedSources) {
+    for (const id of mountedSources.keys()) {
       if (!nextSources.has(id) || rebuilding.has(id)) strategy.removeSource(id)
     }
+
+    for (const [id, data] of updating) strategy.setSourceData(id, data)
 
     for (const { plan, visible } of plans) {
       for (const [id, spec] of Object.entries(plan.sources)) {
         if (rebuilding.has(id)) strategy.addSource(id, spec)
       }
       for (const mapLayer of plan.layers) {
+        // Re-adding an unchanged layer rebuilds the style for nothing, and
+        // this used to run for every layer on every pass — which is why
+        // moving the pointer rebuilt the whole canvas, sixty times a second.
+        if (mountedLayers.get(mapLayer.id) === nextLayers.get(mapLayer.id)) {
+          continue
+        }
         strategy.addLayer(mapLayer, true)
         strategy.toggleLayerVisibility(mapLayer.id, visible)
       }
     }
 
-    mounted = nextLayers
+    mountedLayers = nextLayers
     mountedSources = nextSources
   }
 
   function teardown() {
     const strategy = mapStore.getMapStrategy()
     if (!strategy) return
-    mounted.forEach(id => strategy.removeLayer(id))
+    mountedLayers.forEach((_configuration, id) => strategy.removeLayer(id))
     mountedSources.forEach((_spec, id) => strategy.removeSource(id))
-    mounted = new Set()
+    mountedLayers = new Map()
     mountedSources = new Map()
   }
 

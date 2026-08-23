@@ -236,20 +236,21 @@ describe('guideFeature', () => {
   })
 })
 
-describe('annotationsCollection with a draft', () => {
-  it('carries the in-progress shape and its guide alongside the committed ones', () => {
+describe('annotationsCollection selection', () => {
+  it('marks the selected mark on its feature rather than in a layer filter', () => {
     const collection = annotationsCollection(
-      [annotation({ id: 'a', tool: 'pin' })],
-      [guideFeature('line', [[0, 0]], [1, 1])],
+      [annotation({ id: 'a', tool: 'pin' }), annotation({ id: 'b', tool: 'pin' })],
+      'b',
     )
 
-    expect(collection.features).toHaveLength(2)
-    expect(collection.features[1].properties?.guide).toBe(true)
+    // A filter lives in the layer configuration, so selecting a mark by
+    // filter means taking the layer off the map and putting it back.
+    expect(collection.features[0].properties?.selected).toBeUndefined()
+    expect(collection.features[1].properties?.selected).toBe(true)
   })
 
-  it('drops a null guide rather than emitting a hole', () => {
-    expect(
-      annotationsCollection([annotation({ tool: 'pin' })], [null]).features,
-    ).toHaveLength(1)
+  it('marks nothing when there is no selection', () => {
+    const collection = annotationsCollection([annotation({ tool: 'pin' })])
+    expect(collection.features[0].properties?.selected).toBeUndefined()
   })
 })

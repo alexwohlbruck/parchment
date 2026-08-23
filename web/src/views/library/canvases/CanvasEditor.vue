@@ -199,8 +199,6 @@ const { fitToLayer } = useCanvasRendering(
           {
             id: props.id,
             body: body.value,
-            draft: annotations.draft.value,
-            guide: annotations.guide.value,
             selectedAnnotationId: selectedAnnotationId.value,
           },
         ]

@@ -192,16 +192,26 @@ export function guideFeature(
  */
 export function annotationsCollection(
   annotations: CanvasAnnotation[] | undefined,
-  extra: (Feature | null)[] = [],
+  /**
+   * Which mark is selected, carried on the feature rather than matched by a
+   * layer filter. A filter lives in the layer's configuration, so changing it
+   * means taking the layer off the map and putting it back; a property rides
+   * along with the data the source is already being given.
+   */
+  selectedId: string | null = null,
 ): FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: [
-      ...(annotations ?? [])
-        .filter(annotation => annotation.visible !== false)
-        .map(annotationFeature),
-      ...extra,
-    ].filter((feature): feature is Feature => feature !== null),
+    features: (annotations ?? [])
+      .filter(annotation => annotation.visible !== false)
+      .map(annotation => {
+        const feature = annotationFeature(annotation)
+        if (feature && annotation.id === selectedId) {
+          feature.properties = { ...feature.properties, selected: true }
+        }
+        return feature
+      })
+      .filter((feature): feature is Feature => feature !== null),
   }
 }
 

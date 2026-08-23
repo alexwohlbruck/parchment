@@ -15,6 +15,13 @@ import { Switch } from '@/components/ui/switch'
 import { IconPicker } from '@/components/ui/icon-picker'
 import { ColorPicker } from '@/components/ui/color-picker'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   ChevronRightIcon,
   CircleIcon,
   CrosshairIcon,
@@ -72,18 +79,12 @@ const labelPosition = computed(
   () => props.annotation.labelPosition ?? DEFAULT_LABEL_POSITION,
 )
 
-/** Where each position sits in the 3x3 pad, so the control reads as a map. */
-const POSITION_CELLS: (AnnotationLabelPosition | null)[] = [
-  null,
-  'top',
-  null,
-  'left',
-  'center',
-  'right',
-  null,
-  'bottom',
-  null,
-]
+const labelPositions = computed(() =>
+  ANNOTATION_LABEL_POSITIONS.map(position => ({
+    value: position,
+    label: t(`canvases.annotations.positions.${position}`),
+  })),
+)
 
 const { formatDistance, formatArea } = useMeasureUnits(
   computed(() => !!props.expanded),
@@ -198,87 +199,93 @@ const fallbackName = computed(() =>
       </Button>
     </div>
 
-    <div v-if="expanded" class="border-t px-3 py-3 space-y-3">
-      <Input
-        ref="labelInput"
-        v-model="label"
-        class="h-8"
-        :placeholder="t('canvases.annotations.labelPlaceholder')"
-        @blur="commitLabel"
-        @keydown.enter="commitLabel"
-      />
+    <!-- Properties read down the left and are set down the right, the way
+         every other inspector in the app does. -->
+    <div v-if="expanded" class="border-t px-3 py-1.5">
+      <div class="flex items-center justify-between gap-3 py-1.5 min-h-7">
+        <span class="text-xs shrink-0">
+          {{ t('canvases.annotations.name') }}
+        </span>
+        <Input
+          ref="labelInput"
+          v-model="label"
+          class="h-7 w-40 text-xs"
+          :placeholder="t('canvases.annotations.labelPlaceholder')"
+          @blur="commitLabel"
+          @keydown.enter="commitLabel"
+        />
+      </div>
 
-      <!-- Two things every mark has, side by side rather than stacked: they
-           are the ones people reach for, and they are both one control. -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="space-y-1.5">
-          <span class="text-xs text-muted-foreground">
-            {{ t('canvases.annotations.color') }}
-          </span>
-          <ColorPicker
-            :model-value="annotation.color ?? DEFAULT_ANNOTATION_COLOR"
-            @update:model-value="v => emit('update', { color: v })"
-          />
-        </div>
+      <div class="flex items-center justify-between gap-3 py-1.5 min-h-7">
+        <span class="text-xs shrink-0">
+          {{ t('canvases.annotations.color') }}
+        </span>
+        <ColorPicker
+          :model-value="annotation.color ?? DEFAULT_ANNOTATION_COLOR"
+          @update:model-value="v => emit('update', { color: v })"
+        />
+      </div>
 
-        <div v-if="annotation.tool === 'pin'" class="space-y-1.5">
-          <span class="text-xs text-muted-foreground">
-            {{ t('canvases.annotations.icon') }}
-          </span>
-          <IconPicker
-            :model-value="{
-              icon: annotation.icon ?? 'MapPinIcon',
-              color: 'cobalt',
-            }"
-            @update:model-value="v => emit('update', { icon: v.icon })"
-          />
-        </div>
+      <!-- Only a pin has room for a glyph; the rest are outlines. -->
+      <div
+        v-if="annotation.tool === 'pin'"
+        class="flex items-center justify-between gap-3 py-1.5 min-h-7"
+      >
+        <span class="text-xs shrink-0">
+          {{ t('canvases.annotations.icon') }}
+        </span>
+        <IconPicker
+          compact
+          :model-value="{
+            icon: annotation.icon ?? 'MapPinIcon',
+            color: 'cobalt',
+          }"
+          @update:model-value="v => emit('update', { icon: v.icon })"
+        />
       </div>
 
       <!-- Naming a mark and printing that name on the map are different
-           decisions, so the label's own settings sit behind its switch. -->
-      <div v-if="annotation.label" class="rounded-md border bg-muted/30 p-2.5 space-y-2.5">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-xs">
-            {{ t('canvases.annotations.showLabel') }}
-          </span>
-          <Switch
-            :model-value="annotation.labelVisible !== false"
-            @update:model-value="v => emit('update', { labelVisible: v })"
-          />
-        </div>
+           decisions, so where it goes only appears once it goes anywhere. -->
+      <div
+        v-if="annotation.label"
+        class="flex items-center justify-between gap-3 py-1.5 min-h-7"
+      >
+        <span class="text-xs shrink-0">
+          {{ t('canvases.annotations.showLabel') }}
+        </span>
+        <Switch
+          :model-value="annotation.labelVisible !== false"
+          @update:model-value="v => emit('update', { labelVisible: v })"
+        />
+      </div>
 
-        <div
-          v-if="annotation.labelVisible !== false"
-          class="flex items-center justify-between gap-3"
+      <div
+        v-if="annotation.label && annotation.labelVisible !== false"
+        class="flex items-center justify-between gap-3 py-1.5 min-h-7"
+      >
+        <span class="text-xs shrink-0">
+          {{ t('canvases.annotations.labelPosition') }}
+        </span>
+        <Select
+          :model-value="labelPosition"
+          @update:model-value="
+            v => emit('update', { labelPosition: v as AnnotationLabelPosition })
+          "
         >
-          <span class="text-xs text-muted-foreground">
-            {{ t('canvases.annotations.labelPosition') }}
-          </span>
-          <!-- A 3x3 pad, because the choice is about where on the map the
-               text goes — a dropdown of compass words reads as a puzzle. -->
-          <div class="grid grid-cols-3 gap-0.5" role="group">
-            <template v-for="(cell, index) in POSITION_CELLS" :key="index">
-              <span v-if="!cell" class="size-6" />
-              <button
-                v-else
-                type="button"
-                class="size-6 rounded-sm border text-[10px] leading-none transition-colors hover:bg-accent"
-                :class="
-                  labelPosition === cell
-                    ? 'bg-primary border-primary text-primary-foreground'
-                    : 'border-transparent bg-background'
-                "
-                :title="t(`canvases.annotations.positions.${cell}`)"
-                :aria-label="t(`canvases.annotations.positions.${cell}`)"
-                :aria-pressed="labelPosition === cell"
-                @click="emit('update', { labelPosition: cell })"
-              >
-                <span class="block size-1.5 rounded-full bg-current mx-auto" />
-              </button>
-            </template>
-          </div>
-        </div>
+          <SelectTrigger class="h-7 w-36 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="position in labelPositions"
+              :key="position.value"
+              :value="position.value"
+              class="text-xs"
+            >
+              {{ position.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
     </div>
   </div>

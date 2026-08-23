@@ -2375,7 +2375,7 @@
     "dataSettings": {
       "title": "Layer settings",
       "render": "Draw as",
-      "color": "Colour",
+      "color": "Color",
       "opacity": "Opacity",
       "label": "Label with",
       "size": {
@@ -2431,7 +2431,7 @@
       "icon": "Icon",
       "zoomTo": "Zoom to",
       "showLabel": "Show label on the map",
-      "color": "Colour",
+      "color": "Color",
       "labelPosition": "Label position",
       "positions": {
         "top": "Above",
@@ -2439,7 +2439,8 @@
         "left": "Left",
         "right": "Right",
         "center": "On the mark"
-      }
+      },
+      "name": "Name"
     },
     "sources": {
       "title": "Data sources",
@@ -2458,8 +2459,9 @@
     }
   },
   "colorPicker": {
-    "label": "Colour",
-    "custom": "Custom colour",
+    "label": "Color",
+    "custom": "Custom color",
+    "sample": "Pick a color from the screen",
     "apply": "Apply"
   },
   "colors": {

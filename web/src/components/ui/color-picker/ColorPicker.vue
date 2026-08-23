@@ -70,6 +70,40 @@ function choose(color: string) {
   emit('update:modelValue', color)
   open.value = false
 }
+
+/**
+ * Sampling a colour from anywhere on screen.
+ *
+ * The browser does this itself now — the EyeDropper API takes over the
+ * screen, so it can read pixels the page has no business seeing, including
+ * outside the window. Chromium has it; Firefox and Safari don't, so the
+ * button is only offered where it will work rather than failing on click.
+ */
+interface EyeDropperResult {
+  sRGBHex: string
+}
+type EyeDropperConstructor = new () => {
+  open: (options?: { signal?: AbortSignal }) => Promise<EyeDropperResult>
+}
+
+const eyeDropper = computed(() =>
+  typeof window === 'undefined'
+    ? undefined
+    : (window as unknown as { EyeDropper?: EyeDropperConstructor }).EyeDropper,
+)
+
+async function sampleFromScreen() {
+  const Dropper = eyeDropper.value
+  if (!Dropper) return
+  try {
+    const { sRGBHex } = await new Dropper().open()
+    choose(sRGBHex)
+  } catch {
+    // Dismissing the picker rejects rather than resolving — not an error.
+  }
+}
+
+defineExpose({ eyeDropper, sampleFromScreen })
 </script>
 
 <template>
@@ -135,6 +169,17 @@ function choose(color: string) {
               @keydown.enter="choose(custom)"
             />
             <Button
+              v-if="eyeDropper"
+              variant="ghost"
+              size="icon"
+              class="size-7 shrink-0"
+              :title="t('colorPicker.sample')"
+              :aria-label="t('colorPicker.sample')"
+              @click="sampleFromScreen"
+            >
+              <PipetteIcon class="size-3.5" />
+            </Button>
+            <Button
               variant="ghost"
               size="icon"
               class="size-7 shrink-0"
@@ -142,7 +187,7 @@ function choose(color: string) {
               :aria-label="t('colorPicker.apply')"
               @click="choose(custom)"
             >
-              <PipetteIcon class="size-3.5" />
+              <CheckIcon class="size-3.5" />
             </Button>
           </div>
         </template>

@@ -2292,6 +2292,16 @@
         "rectangle": "Rectángulo",
         "circle": "Círculo",
         "route": "Ruta"
+      },
+      "advanced": "Más herramientas",
+      "undoEdit": "Deshacer",
+      "redoEdit": "Rehacer",
+      "hints": {
+        "straight": "Mantén Mayús para fijar el ángulo",
+        "close": "Haz clic en el primer punto para cerrar",
+        "square": "Tres clics para cualquier ángulo, Mayús para un cuadrado",
+        "radius": "Mantén Mayús para un radio redondo",
+        "routeUnavailable": "Las rutas necesitan una integración de rutas — configura una en Ajustes"
       }
     },
     "annotations": {
@@ -2300,7 +2310,17 @@
       "labelPlaceholder": "Añade una etiqueta",
       "icon": "Icono",
       "zoomTo": "Ir a",
-      "showLabel": "Mostrar la etiqueta en el mapa"
+      "showLabel": "Mostrar la etiqueta en el mapa",
+      "color": "Color",
+      "name": "Nombre",
+      "labelPosition": "Posición de la etiqueta",
+      "positions": {
+        "top": "Arriba",
+        "bottom": "Abajo",
+        "left": "Izquierda",
+        "right": "Derecha",
+        "center": "Sobre la marca"
+      }
     },
     "sources": {
       "title": "Orígenes de datos",
@@ -2317,5 +2337,36 @@
         "new": "Tus datos"
       }
     }
+  },
+  "colorPicker": {
+    "label": "Color",
+    "custom": "Color personalizado",
+    "sample": "Elegir un color de la pantalla",
+    "apply": "Aplicar"
+  },
+  "colors": {
+    "compass": "Brújula",
+    "coral": "Coral",
+    "amber": "Ámbar",
+    "peach": "Melocotón",
+    "citrine": "Citrino",
+    "olive": "Oliva",
+    "forest": "Bosque",
+    "moss": "Musgo",
+    "teal": "Verde azulado",
+    "sky": "Cielo",
+    "cobalt": "Cobalto",
+    "periwinkle": "Vincapervinca",
+    "indigo": "Índigo",
+    "violet": "Violeta",
+    "iris": "Iris",
+    "magenta": "Magenta",
+    "ink": "Tinta",
+    "parchment": "Pergamino"
+  },
+  "mapTools": {
+    "measure": "Medir distancia",
+    "radius": "Medir radio",
+    "isochrone": "Tiempo de viaje"
   }
 }

@@ -49,10 +49,15 @@ for (const [kebab, terms] of Object.entries(
   lucideAliasMap[pascal] = terms
 }
 
-const props = defineProps<{
-  modelValue: ModelValue
-  placeholder?: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: ModelValue
+    placeholder?: string
+    /** A tile by default; compact fits a property row, where a tile shouts. */
+    compact?: boolean
+  }>(),
+  { compact: false },
+)
 
 const { t } = useI18n()
 
@@ -195,8 +200,9 @@ const makiVirtualizer = useVirtualizer(
     <PopoverTrigger as-child>
       <Button
         variant="outline"
-        class="p-4 flex items-center justify-center"
-        size="icon-xl"
+        class="flex items-center justify-center"
+        :class="props.compact ? 'size-7' : 'p-4'"
+        :size="props.compact ? 'icon' : 'icon-xl'"
       >
         <ItemIcon
           :icon="modelValue.icon"

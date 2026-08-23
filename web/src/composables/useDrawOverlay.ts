@@ -1,9 +1,10 @@
 /**
  * The drawing surface.
  *
- * Everything not yet committed — the shape taking form, the rubber band to
- * the cursor, the vertex handles — is painted on a 2D canvas over the map
- * rather than pushed into the map's style.
+ * Everything not committed to the canvas — the shape taking form under the
+ * cursor, the rubber band to the next point, the handles a finished mark is
+ * reshaped by — is painted on a 2D canvas over the map rather than pushed
+ * into the map's style.
  *
  * The style is the wrong place for work in progress. Changing a GeoJSON
  * source is a round trip to the worker: serialise, re-index, re-tile, hand
@@ -14,15 +15,16 @@
  * under labels, clickable, and surviving a basemap change. A rubber band
  * needs none of that; it needs to be on the glass, now.
  *
- * Geometry still comes from `canvas-annotations`, so the shape you drag out
- * is built by the same code that will store it. Only the painting is local.
+ * This paints a scene and nothing else. Geometry comes from
+ * `canvas-annotations`, so the shape you drag out is built by the same code
+ * that will store it, and who is drawing — a tool, or a drag on a handle —
+ * is the caller's business.
  */
 
-import { onScopeDispose, watch, type Ref } from 'vue'
+import { onScopeDispose, watch, type ComputedRef } from 'vue'
 import type { Feature, Position } from 'geojson'
 import { useMapStore } from '@/stores/map.store'
-import { annotationFeature } from '@/lib/canvas-annotations'
-import type { CanvasAnnotation } from '@/types/canvas.types'
+import { mercatorLerp } from '@/lib/canvas-annotations'
 
 /** Matches the committed styling in `useCanvasRendering`, so nothing jumps on commit. */
 const FILL_OPACITY = 0.18
@@ -30,7 +32,37 @@ const STROKE_WIDTH = 3
 const GUIDE_COLOR = '#6b7280'
 const GUIDE_WIDTH = 2
 const GUIDE_DASH = [6, 5]
-const HANDLE_RADIUS = 4.5
+const VERTEX_RADIUS = 4.5
+const MIDPOINT_RADIUS = 3
+const ACTIVE_RADIUS = 7
+/**
+ * How long a painted segment gets before it is split, in pixels. The map
+ * draws an edge as a line that is straight in Web Mercator, which is a curve
+ * on screen under a globe projection — so a long edge is walked rather than
+ * jumped, or the preview would cut the corner the committed shape takes.
+ */
+const SEGMENT_PX = 24
+const MAX_SEGMENTS = 48
+
+export interface OverlayHandle {
+  position: Position
+  /**
+   * A vertex is a point the shape is built from; a midpoint is where one
+   * could be added; a radius sets how wide a circle is.
+   */
+  kind: 'vertex' | 'midpoint' | 'radius'
+  /** Drawn larger with a ring, to say the next click will land here. */
+  active?: boolean
+}
+
+export interface OverlayScene {
+  /** The shape being drawn or reshaped. */
+  shape: Feature | null
+  color: string
+  /** The rubber band from the last point to the cursor. */
+  guide: Feature | null
+  handles: OverlayHandle[]
+}
 
 interface OverlayMap {
   project: (position: Position) => { x: number; y: number }
@@ -40,15 +72,7 @@ interface OverlayMap {
   off: (event: string, handler: () => void) => void
 }
 
-export function useDrawOverlay(state: {
-  /** The annotation being drawn, already resolved to its final geometry. */
-  draft: Ref<CanvasAnnotation | null>
-  /** The rubber band from the last vertex to the cursor. */
-  guide: Ref<Feature | null>
-  /** Committed vertices, drawn as handles so the shape reads as editable. */
-  positions: Ref<Position[]>
-  color: Ref<string>
-}) {
+export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
   const mapStore = useMapStore()
 
   let element: HTMLCanvasElement | undefined
@@ -65,11 +89,30 @@ export function useDrawOverlay(state: {
     coordinates: Position[],
   ) {
     context.beginPath()
-    coordinates.forEach((coordinate, index) => {
-      const { x, y } = map.project(coordinate)
-      if (index) context.lineTo(x, y)
-      else context.moveTo(x, y)
-    })
+    let previous: Position | undefined
+    for (const coordinate of coordinates) {
+      const point = map.project(coordinate)
+      if (!previous) {
+        context.moveTo(point.x, point.y)
+        previous = coordinate
+        continue
+      }
+
+      const from = map.project(previous)
+      const span = Math.hypot(point.x - from.x, point.y - from.y)
+      const steps = Math.min(
+        MAX_SEGMENTS,
+        Math.max(1, Math.ceil(span / SEGMENT_PX)),
+      )
+      for (let step = 1; step < steps; step++) {
+        const between = map.project(
+          mercatorLerp(previous, coordinate, step / steps),
+        )
+        context.lineTo(between.x, between.y)
+      }
+      context.lineTo(point.x, point.y)
+      previous = coordinate
+    }
   }
 
   function paintFeature(
@@ -112,24 +155,43 @@ export function useDrawOverlay(state: {
     context.restore()
   }
 
-  /** A dot per placed vertex — the shape's joints, and where undo will bite. */
+  /**
+   * The shape's joints. A midpoint is drawn smaller and faded because it is
+   * an offer rather than a part of the shape — drag it and it becomes one.
+   */
   function paintHandles(
     context: CanvasRenderingContext2D,
     map: OverlayMap,
-    positions: Position[],
+    handles: OverlayHandle[],
     color: string,
   ) {
     context.save()
     context.setLineDash([])
-    context.lineWidth = 2
-    context.strokeStyle = color
-    context.fillStyle = '#ffffff'
-    for (const position of positions) {
-      const { x, y } = map.project(position)
+    for (const handle of handles) {
+      const { x, y } = map.project(handle.position)
+      const radius = handle.active
+        ? ACTIVE_RADIUS
+        : handle.kind === 'midpoint'
+          ? MIDPOINT_RADIUS
+          : VERTEX_RADIUS
+
+      context.globalAlpha = handle.kind === 'midpoint' && !handle.active ? 0.55 : 1
+      context.lineWidth = 2
+      context.strokeStyle = color
+      context.fillStyle = '#ffffff'
       context.beginPath()
-      context.arc(x, y, HANDLE_RADIUS, 0, Math.PI * 2)
+      context.arc(x, y, radius, 0, Math.PI * 2)
       context.fill()
       context.stroke()
+
+      // A ring says the click is already caught, before it happens.
+      if (handle.active) {
+        context.globalAlpha = 0.35
+        context.beginPath()
+        context.arc(x, y, radius + 4, 0, Math.PI * 2)
+        context.stroke()
+      }
+      context.globalAlpha = 1
     }
     context.restore()
   }
@@ -137,7 +199,8 @@ export function useDrawOverlay(state: {
   function paint() {
     frame = 0
     const map = attached
-    if (!map || !element) return
+    const current = scene.value
+    if (!map || !element || !current) return
     const context = element.getContext('2d')
     if (!context) return
 
@@ -163,24 +226,21 @@ export function useDrawOverlay(state: {
     context.setTransform(ratio, 0, 0, ratio, 0, 0)
     context.clearRect(0, 0, width, height)
 
-    const feature = state.draft.value
-      ? annotationFeature(state.draft.value)
-      : null
-    if (feature) {
-      paintFeature(context, map, feature, {
-        color: state.color.value,
+    if (current.shape) {
+      paintFeature(context, map, current.shape, {
+        color: current.color,
         width: STROKE_WIDTH,
         fill: true,
       })
     }
-    if (state.guide.value) {
-      paintFeature(context, map, state.guide.value, {
+    if (current.guide) {
+      paintFeature(context, map, current.guide, {
         color: GUIDE_COLOR,
         width: GUIDE_WIDTH,
         dash: GUIDE_DASH,
       })
     }
-    paintHandles(context, map, state.positions.value, state.color.value)
+    paintHandles(context, map, current.handles, current.color)
   }
 
   /**
@@ -224,18 +284,15 @@ export function useDrawOverlay(state: {
     element = undefined
   }
 
-  // Mounted only while a tool is drawing, so an idle canvas costs nothing.
+  // Mounted only while there is something to draw, so an idle canvas costs
+  // nothing at all.
   watch(
-    () => !!state.draft.value || !!state.guide.value || !!state.positions.value.length,
+    () => !!scene.value,
     active => (active ? mount() : unmount()),
     { immediate: true },
   )
 
-  watch(
-    [state.draft, state.guide, state.positions, state.color],
-    schedule,
-    { deep: true },
-  )
+  watch(scene, schedule, { deep: true })
 
   onScopeDispose(unmount)
 

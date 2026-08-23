@@ -25,6 +25,16 @@ export const useMapToolsStore = defineStore('map-tools', () => {
    */
   const rawClickCapture = ref(false)
 
+  /**
+   * Set while a map tool wants Escape for itself.
+   *
+   * Escape is bound in several places at once — the drawing tools, the left
+   * sheet, the bottom sheet — and every binding fires. Without this, one
+   * press both disarms the tool and closes the view behind it, which is never
+   * what was meant: mid-shape, Escape means "get me out of this tool".
+   */
+  const escapeCapture = ref(false)
+
   // Measure tool state: points in order, and history for undo/redo
   const measurePoints = ref<LngLat[]>([])
 
@@ -142,6 +152,7 @@ export const useMapToolsStore = defineStore('map-tools', () => {
   return {
     activeTool,
     rawClickCapture,
+    escapeCapture,
     measurePoints,
     measureHistory,
     measureHistoryIndex,

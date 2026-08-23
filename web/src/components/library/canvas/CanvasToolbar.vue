@@ -22,6 +22,7 @@ import {
   MinusIcon,
   MousePointer2Icon,
   PentagonIcon,
+  RedoIcon,
   SquareIcon,
   UndoIcon,
   WaypointsIcon,
@@ -40,6 +41,9 @@ const props = defineProps<{
   routeMode: RouteMode
   /** True while the routing engine is working. */
   isSnapping?: boolean
+  /** Whether the canvas itself has anything to step back to, or forward to. */
+  canUndoEdit: boolean
+  canRedoEdit: boolean
 }>()
 
 const emit = defineEmits<{
@@ -48,19 +52,37 @@ const emit = defineEmits<{
   'update:routeMode': [mode: RouteMode]
   finish: []
   undo: []
+  undoEdit: []
+  redoEdit: []
 }>()
 
 const { t } = useI18n()
 
-/** Each tool's glyph and its single-key shortcut, Felt-style. */
-const TOOLS: { id: AnnotationTool; icon: typeof MapPinIcon; key: string }[] = [
+/**
+ * Each tool's glyph and its single-key shortcut, Felt-style. A hint carries
+ * what the tool can do beyond clicking — held keys and the like — where it
+ * can be found without taking up room on the bar.
+ */
+const TOOLS: {
+  id: AnnotationTool
+  icon: typeof MapPinIcon
+  key: string
+  hint?: string
+}[] = [
   { id: 'pin', icon: MapPinIcon, key: 'P' },
-  { id: 'line', icon: MinusIcon, key: 'L' },
+  { id: 'line', icon: MinusIcon, key: 'L', hint: 'straight' },
   { id: 'route', icon: WaypointsIcon, key: 'R' },
-  { id: 'polygon', icon: PentagonIcon, key: 'O' },
-  { id: 'rectangle', icon: SquareIcon, key: 'E' },
-  { id: 'circle', icon: CircleIcon, key: 'I' },
+  { id: 'polygon', icon: PentagonIcon, key: 'O', hint: 'close' },
+  { id: 'rectangle', icon: SquareIcon, key: 'E', hint: 'square' },
+  { id: 'circle', icon: CircleIcon, key: 'I', hint: 'radius' },
 ]
+
+function toolTitle(item: (typeof TOOLS)[number]) {
+  const name = `${t(`canvases.toolbar.tools.${item.id}`)} (${item.key})`
+  return item.hint
+    ? `${name} · ${t(`canvases.toolbar.hints.${item.hint}`)}`
+    : name
+}
 
 /** Travel modes the Route tool can snap with. */
 const ROUTE_MODES: { id: RouteMode; icon: typeof BikeIcon }[] = [
@@ -98,7 +120,7 @@ const isDrawing = computed(() => props.vertexCount > 0)
       size="icon"
       class="size-8"
       :class="tool === item.id && 'bg-secondary text-foreground'"
-      :title="`${t(`canvases.toolbar.tools.${item.id}`)} (${item.key})`"
+      :title="toolTitle(item)"
       :aria-label="t(`canvases.toolbar.tools.${item.id}`)"
       @click="emit('arm', item.id)"
     >
@@ -130,6 +152,34 @@ const isDrawing = computed(() => props.vertexCount > 0)
         :model-value="color"
         @update:model-value="value => emit('update:color', value)"
       />
+    </template>
+
+    <!-- Stepping the canvas itself back and forth. Hidden mid-draw, where
+         Undo means the last point rather than the last thing done. -->
+    <template v-if="!isDrawing">
+      <Separator orientation="vertical" class="h-5 mx-0.5" />
+      <Button
+        variant="ghost"
+        size="icon"
+        class="size-8"
+        :disabled="!canUndoEdit"
+        :title="`${t('canvases.toolbar.undoEdit')} (⌘Z)`"
+        :aria-label="t('canvases.toolbar.undoEdit')"
+        @click="emit('undoEdit')"
+      >
+        <UndoIcon class="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="size-8"
+        :disabled="!canRedoEdit"
+        :title="`${t('canvases.toolbar.redoEdit')} (⌘⇧Z)`"
+        :aria-label="t('canvases.toolbar.redoEdit')"
+        @click="emit('redoEdit')"
+      >
+        <RedoIcon class="size-4" />
+      </Button>
     </template>
 
     <!-- Only the open-ended shapes need finishing; a pin or a circle is done

@@ -56,6 +56,11 @@ export interface RenderableCanvas {
   body: CanvasBody
   /** Id of the annotation currently selected, drawn with a halo. */
   selectedAnnotationId?: string | null
+  /**
+   * A mark the overlay is drawing instead — one being reshaped. Held out of
+   * the style so it isn't painted twice, slightly out of step with itself.
+   */
+  suppressedAnnotationId?: string | null
 }
 
 /**
@@ -334,7 +339,9 @@ export function useCanvasRendering(
    * overlay canvas instead, so the pointer never drives a style change.
    */
   function planAnnotations(canvas: RenderableCanvas): LayerPlan {
-    const annotations = canvas.body?.annotations ?? []
+    const annotations = (canvas.body?.annotations ?? []).filter(
+      annotation => annotation.id !== canvas.suppressedAnnotationId,
+    )
     if (!annotations.length) return EMPTY_PLAN
 
     const sourceId = scopedId(options.key, canvas.id, 'annotations', '-source')

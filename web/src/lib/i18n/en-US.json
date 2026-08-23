@@ -2412,6 +2412,14 @@
         "rectangle": "Rectangle",
         "circle": "Circle",
         "route": "Route"
+      },
+      "undoEdit": "Undo",
+      "redoEdit": "Redo",
+      "hints": {
+        "straight": "Hold Shift to hold the angle",
+        "close": "Click the first point to close",
+        "square": "Three clicks for any angle, Shift for a square",
+        "radius": "Hold Shift for a round radius"
       }
     },
     "annotations": {

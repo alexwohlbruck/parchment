@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { effectScope, nextTick, ref } from 'vue'
+import { computed, effectScope, nextTick, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Position } from 'geojson'
 import { useMapStore } from '@/stores/map.store'
-import { useDrawOverlay } from './useDrawOverlay'
+import { useDrawOverlay, type OverlayScene } from './useDrawOverlay'
+import { annotationFeature, guideFeature } from '@/lib/canvas-annotations'
 import type { CanvasAnnotation } from '@/types/canvas.types'
-import { guideFeature } from '@/lib/canvas-annotations'
 
 /**
  * The overlay exists so that drawing never touches the map's style — pushing
@@ -90,20 +90,15 @@ beforeEach(() => {
   )
 })
 
-function overlay(state: {
-  draft?: CanvasAnnotation | null
-  guide?: ReturnType<typeof guideFeature>
-  positions?: Position[]
-}) {
-  const refs = {
-    draft: ref(state.draft ?? null),
-    guide: ref(state.guide ?? null),
-    positions: ref(state.positions ?? []),
-    color: ref('#e11d48'),
-  }
+function overlay(scene: Partial<OverlayScene> | null) {
+  const current = ref(
+    scene === null
+      ? null
+      : { shape: null, color: '#e11d48', guide: null, handles: [], ...scene },
+  )
   const scope = effectScope()
-  const api = scope.run(() => useDrawOverlay(refs as never))!
-  return { ...api, ...refs, dispose: () => scope.stop() }
+  const api = scope.run(() => useDrawOverlay(computed(() => current.value)))!
+  return { ...api, current, dispose: () => scope.stop() }
 }
 
 const element = () =>
@@ -111,32 +106,33 @@ const element = () =>
 
 describe('useDrawOverlay', () => {
   it('stays off the map until there is something to draw', () => {
-    const surface = overlay({})
+    const surface = overlay(null)
     expect(element()).toBeNull()
     surface.dispose()
   })
 
   it('never takes a click away from the map', () => {
-    const surface = overlay({ positions: [[1, 1]] })
+    const surface = overlay({ handles: [{ position: [1, 1], kind: 'vertex' }] })
     expect(element()!.style.pointerEvents).toBe('none')
     surface.dispose()
   })
 
   it('draws the shape and its rubber band through the map projection', () => {
     const surface = overlay({
-      draft: {
+      shape: annotationFeature({
         id: 'annotation-draft',
         tool: 'rectangle',
         positions: [
           [0, 0],
           [2, 2],
+          [3, 1],
         ],
         color: '#e11d48',
-      } as CanvasAnnotation,
+      } as CanvasAnnotation),
       guide: guideFeature('polygon', [[0, 0], [2, 2]], [3, 3]),
-      positions: [
-        [0, 0],
-        [2, 2],
+      handles: [
+        { position: [0, 0], kind: 'vertex' },
+        { position: [2, 2], kind: 'vertex' },
       ],
     })
 
@@ -147,8 +143,36 @@ describe('useDrawOverlay', () => {
     surface.dispose()
   })
 
+  it('walks a long edge along the projection instead of cutting across it', () => {
+    // A projection that bends, the way a globe does. Painting corner to
+    // corner would leave the preview off the shape the map drew.
+    map.project = (position: Position) => ({
+      x: position[0] * 10,
+      y: -position[1] * 10 + Math.abs(position[0]) * 4,
+    })
+
+    const surface = overlay({
+      guide: {
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: [[-60, 0], [60, 0]] },
+        properties: {},
+      },
+      handles: [],
+    })
+
+    const drawn = context.calls.filter(call => call.startsWith('lineTo'))
+    expect(drawn.length).toBeGreaterThan(1)
+
+    // Both ends project to y 240, so a straight screen line would hold that
+    // the whole way. The painted path has to bow, the way the map's does.
+    const ys = drawn.map(call => JSON.parse(call.slice('lineTo:'.length))[1])
+    expect(ys[ys.length - 1]).toBe(240)
+    expect(Math.min(...ys)).toBeLessThan(60)
+    surface.dispose()
+  })
+
   it('matches the map canvas, not its collapsed container', () => {
-    const surface = overlay({ positions: [[1, 1]] })
+    const surface = overlay({ handles: [{ position: [1, 1], kind: 'vertex' }] })
 
     // Device pixels for the backing store, CSS pixels for the box.
     const ratio = window.devicePixelRatio || 1
@@ -159,7 +183,7 @@ describe('useDrawOverlay', () => {
   })
 
   it('repaints when the camera moves, so it cannot lag behind the basemap', () => {
-    const surface = overlay({ positions: [[1, 1]] })
+    const surface = overlay({ handles: [{ position: [1, 1], kind: 'vertex' }] })
 
     context.calls.length = 0
     map.emit('render')
@@ -168,11 +192,11 @@ describe('useDrawOverlay', () => {
     surface.dispose()
   })
 
-  it('comes off the map when drawing stops', async () => {
-    const surface = overlay({ positions: [[1, 1]] })
+  it('comes off the map when there is nothing left to paint', async () => {
+    const surface = overlay({ handles: [{ position: [1, 1], kind: 'vertex' }] })
     expect(element()).not.toBeNull()
 
-    surface.positions.value = []
+    surface.current.value = null
     await nextTick()
 
     expect(element()).toBeNull()
@@ -180,7 +204,7 @@ describe('useDrawOverlay', () => {
   })
 
   it('leaves nothing behind when the editor closes', () => {
-    const surface = overlay({ positions: [[1, 1]] })
+    const surface = overlay({ handles: [{ position: [1, 1], kind: 'vertex' }] })
 
     surface.dispose()
 

@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-vue-next'
 import { handleVaulRelease } from '@/lib/vaulChromeWorkaround'
+import { useMapToolsStore } from '@/stores/map-tools.store'
 
 const props = withDefaults(
   defineProps<{
@@ -514,11 +515,15 @@ function onSnapPointChange(point: SnapPoint | null) {
 
 // Handle ESC key. preventDefault: false so esc still reaches Reka UI
 // dialogs above when this sheet isn't dismissable (or otherwise inert).
+const mapToolsStore = useMapToolsStore()
+
 useHotkeys([
   {
     key: 'esc',
     preventDefault: false,
     handler: () => {
+      // A map tool mid-shape owns Escape — see the map tools store.
+      if (mapToolsStore.escapeCapture) return
       if (props.dismissable) emit('update:open', false)
     },
   },

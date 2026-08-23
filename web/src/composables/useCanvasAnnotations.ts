@@ -17,7 +17,7 @@ import type { Position } from 'geojson'
 import { mapEventBus } from '@/lib/eventBus'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
-import { useDrawOverlay } from '@/composables/useDrawOverlay'
+import type { OverlayScene } from '@/composables/useDrawOverlay'
 import {
   RouteSnapAborted,
   snapWaypointsToPath,
@@ -26,6 +26,8 @@ import type { RouteMode } from '@/types/routes.types'
 import type { LngLat, MapEvents } from '@/types/map.types'
 import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
 import {
+  annotationFeature,
+  constrainPosition,
   createAnnotation,
   guideFeature,
   isComplete,
@@ -33,6 +35,15 @@ import {
   TOOL_MINIMUM,
   DEFAULT_ANNOTATION_COLOR,
 } from '@/lib/canvas-annotations'
+
+/** How close to the first vertex closing a shape starts to pull, in pixels. */
+const SNAP_PX = 12
+
+/** How many clicks a tool needs before the cursor completes its shape. */
+const PREVIEW_AT: Partial<Record<AnnotationTool, number>> = {
+  rectangle: 2,
+  circle: 1,
+}
 
 export function useCanvasAnnotations(options: {
   /** Called with each finished annotation. */
@@ -55,6 +66,8 @@ export function useCanvasAnnotations(options: {
     // a cafe would land on the cafe. It also stops POI hover stealing the
     // cursor back — see the strategies' hover handlers.
     mapToolsStore.rawClickCapture = active
+    // Escape belongs to the tool while one is armed — see the store.
+    mapToolsStore.escapeCapture = active
 
     const map = mapStore.getMapStrategy()?.mapInstance as
       | {
@@ -66,29 +79,6 @@ export function useCanvasAnnotations(options: {
     if (active) map.doubleClickZoom?.disable()
     else map.doubleClickZoom?.enable()
     applyCursor()
-  }
-
-  /**
-   * The cursor says what the next click will do.
-   *
-   * `crosshair` for placing a point precisely, `copy` for the shapes that
-   * add to something already started — one cursor for every tool told the
-   * user nothing about which one they were in.
-   */
-  function applyCursor() {
-    const canvas = (
-      mapStore.getMapStrategy()?.mapInstance as
-        | { getCanvas?: () => HTMLCanvasElement }
-        | undefined
-    )?.getCanvas?.()
-    if (!canvas) return
-
-    if (!tool.value) {
-      canvas.style.cursor = ''
-      return
-    }
-    canvas.style.cursor =
-      positions.value.length && tool.value !== 'pin' ? 'copy' : 'crosshair'
   }
 
   const tool = ref<AnnotationTool | null>(null)
@@ -104,6 +94,12 @@ export function useCanvasAnnotations(options: {
    * shared event bus — nothing else needs it, and it fires constantly.
    */
   const cursor = ref<Position | null>(null)
+  /**
+   * Whether shift is down. Held keys constrain what the next click does —
+   * a square rather than a rectangle, a round radius, an edge at a round
+   * angle — so the preview has to follow the key, not just the pointer.
+   */
+  const shift = ref(false)
   let detachPointer: (() => void) | undefined
 
   function trackPointer(active: boolean) {
@@ -123,8 +119,14 @@ export function useCanvasAnnotations(options: {
     // rAF-coalesced: mousemove fires far faster than the map can redraw.
     let queued: Position | null = null
     let frame = 0
-    const onMove = (event: { lngLat: { lng: number; lat: number } }) => {
+    const onMove = (event: {
+      lngLat: { lng: number; lat: number }
+      originalEvent?: { shiftKey?: boolean }
+    }) => {
       queued = [event.lngLat.lng, event.lngLat.lat]
+      // The pointer's own view of the modifier, in case a keyup landed
+      // somewhere else while the window was unfocused.
+      if (event.originalEvent) shift.value = !!event.originalEvent.shiftKey
       if (frame) return
       frame = requestAnimationFrame(() => {
         frame = 0
@@ -146,14 +148,23 @@ export function useCanvasAnnotations(options: {
       if (canFinish.value) commit()
     }
 
+    const onKey = (event: KeyboardEvent) => {
+      shift.value = event.shiftKey
+    }
+
     map.on('mousemove', onMove)
     map.on('mouseout', onOut)
     map.on('dblclick', onDoubleClick)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('keyup', onKey)
     detachPointer = () => {
       if (frame) cancelAnimationFrame(frame)
       map.off('mousemove', onMove)
       map.off('mouseout', onOut)
       map.off('dblclick', onDoubleClick)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keyup', onKey)
+      shift.value = false
     }
   }
 
@@ -213,8 +224,76 @@ export function useCanvasAnnotations(options: {
     if (tool.value === 'route') void snapRoute()
   })
 
-  // The cursor tracks how far into a shape you are.
-  watch(positions, applyCursor)
+  /**
+   * Screen distance between two positions, or null if the map can't say.
+   * Snapping has to be judged in pixels: two points a metre apart are the
+   * same click at one zoom and far apart at another.
+   */
+  function screenDistance(a: Position, b: Position): number | null {
+    const map = mapStore.getMapStrategy()?.mapInstance as
+      | { project?: (position: Position) => { x: number; y: number } }
+      | undefined
+    if (!map?.project) return null
+    const from = map.project(a)
+    const to = map.project(b)
+    return Math.hypot(from.x - to.x, from.y - to.y)
+  }
+
+  /**
+   * Whether the cursor is close enough to the first vertex to close the shape.
+   *
+   * Clicking back on the start is how everyone expects to finish a polygon,
+   * and it is more discoverable than a double-click — which still works.
+   */
+  const snapToStart = computed(() => {
+    if (tool.value !== 'polygon' || !cursor.value) return false
+    if (positions.value.length < TOOL_MINIMUM.polygon) return false
+    const distance = screenDistance(cursor.value, positions.value[0])
+    return distance !== null && distance <= SNAP_PX
+  })
+
+  /**
+   * Where the next click would actually land — after snapping to the start,
+   * and after shift has constrained it.
+   */
+  const effectiveCursor = computed<Position | null>(() => {
+    if (!tool.value || !cursor.value) return cursor.value
+    if (snapToStart.value) return positions.value[0]
+    if (!shift.value) return cursor.value
+    return constrainPosition(tool.value, positions.value, cursor.value)
+  })
+
+  /**
+   * The cursor says what the next click will do.
+   *
+   * `crosshair` for placing a point precisely, `copy` for the shapes that
+   * add to something already started — one cursor for every tool told the
+   * user nothing about which one they were in.
+   */
+  function applyCursor() {
+    const canvas = (
+      mapStore.getMapStrategy()?.mapInstance as
+        | { getCanvas?: () => HTMLCanvasElement }
+        | undefined
+    )?.getCanvas?.()
+    if (!canvas) return
+
+    if (!tool.value) {
+      canvas.style.cursor = ''
+      return
+    }
+    // Over the vertex that would close the shape, say so: this click finishes
+    // rather than adds.
+    canvas.style.cursor = snapToStart.value
+      ? 'pointer'
+      : positions.value.length && tool.value !== 'pin'
+        ? 'copy'
+        : 'crosshair'
+  }
+
+  // The cursor tracks how far into a shape you are, and whether the next
+  // click would close it.
+  watch([positions, snapToStart], applyCursor)
 
   const isArmed = computed(() => tool.value !== null)
   const canFinish = computed(
@@ -229,18 +308,17 @@ export function useCanvasAnnotations(options: {
   const draft = computed<CanvasAnnotation | null>(() => {
     if (!tool.value || !positions.value.length) return null
 
-    // A rectangle and a circle are fully described by their first position
-    // plus the cursor, so they preview as the real shape rather than a guide.
+    // A rectangle's depth and a circle's radius are the last thing set, so
+    // once the rest is clicked the cursor completes the real shape rather
+    // than a guide standing in for it.
     const previewing =
-      (tool.value === 'rectangle' || tool.value === 'circle') &&
-      positions.value.length === 1 &&
-      cursor.value
+      PREVIEW_AT[tool.value] === positions.value.length && effectiveCursor.value
 
     return {
       id: 'annotation-draft',
       tool: tool.value,
       positions: previewing
-        ? [positions.value[0], cursor.value!]
+        ? [...positions.value, effectiveCursor.value!]
         : [...positions.value],
       color: color.value,
       ...(tool.value === 'route' && routed.value
@@ -249,14 +327,31 @@ export function useCanvasAnnotations(options: {
     }
   })
 
-  /** The rubber band from the last vertex to the cursor. */
+  /** The rubber band from the last vertex to where the click would land. */
   const guide = computed(() =>
-    tool.value ? guideFeature(tool.value, positions.value, cursor.value) : null,
+    tool.value
+      ? guideFeature(tool.value, positions.value, effectiveCursor.value)
+      : null,
   )
 
-  // Work in progress is painted on a canvas over the map instead of being
-  // pushed through the style — see `useDrawOverlay` for why.
-  useDrawOverlay({ draft, guide, positions, color })
+  /**
+   * What the overlay paints while a tool is armed. Null when nothing is, so
+   * the overlay takes itself off the map.
+   */
+  const scene = computed<OverlayScene | null>(() => {
+    if (!tool.value) return null
+    return {
+      shape: draft.value ? annotationFeature(draft.value) : null,
+      color: color.value,
+      guide: guide.value,
+      handles: positions.value.map((position, index) => ({
+        position,
+        kind: 'vertex' as const,
+        // The vertex a click would close the shape on, ringed to say so.
+        active: snapToStart.value && index === 0,
+      })),
+    }
+  })
 
   function commit() {
     if (!tool.value || !canFinish.value) return
@@ -275,8 +370,18 @@ export function useCanvasAnnotations(options: {
 
   function onMapClick(event: MapEvents['click']) {
     if (!tool.value) return
+
+    // Back on the first vertex: that closes the shape rather than adding to it.
+    if (snapToStart.value) {
+      commit()
+      return
+    }
+
     const lngLat = event.lngLat as LngLat
-    positions.value = [...positions.value, [lngLat.lng, lngLat.lat]]
+    const at: Position = shift.value
+      ? constrainPosition(tool.value, positions.value, [lngLat.lng, lngLat.lat])
+      : [lngLat.lng, lngLat.lat]
+    positions.value = [...positions.value, at]
 
     // Pins, rectangles and circles are finished the moment they have their
     // positions — there is nothing more to add, so committing keeps the tool
@@ -329,6 +434,7 @@ export function useCanvasAnnotations(options: {
     isArmed,
     canFinish,
     canUndo,
+    scene,
     vertexCount: computed(() => positions.value.length),
     arm,
     disarm,

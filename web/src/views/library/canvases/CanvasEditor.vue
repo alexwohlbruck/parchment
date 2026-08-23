@@ -25,6 +25,9 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
 import * as turf from '@turf/turf'
 import { useCanvasAnnotations } from '@/composables/useCanvasAnnotations'
+import { useAnnotationEditing } from '@/composables/useAnnotationEditing'
+import { useCanvasHistory } from '@/composables/useCanvasHistory'
+import { useDrawOverlay } from '@/composables/useDrawOverlay'
 import { annotationFeature } from '@/lib/canvas-annotations'
 import { useRoutesService } from '@/services/library/routes.service'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
@@ -92,9 +95,13 @@ const pristine = ref('')
 const loading = ref(true)
 const saving = ref(false)
 
+const history = useCanvasHistory(body)
+
 function load() {
   body.value = cloneCanvasBody(canvas.value?.body)
   pristine.value = JSON.stringify(body.value)
+  // Nothing before the canvas was opened is undoable.
+  history.reset()
 }
 
 watch(canvas, load, { immediate: true })
@@ -136,6 +143,21 @@ const annotations = useCanvasAnnotations({
   },
 })
 
+/**
+ * Reshaping a committed mark. Off while a tool is armed: a click then belongs
+ * to the tool, not to whatever it happens to land on.
+ */
+const editing = useAnnotationEditing({
+  annotations: computed(() => body.value.annotations ?? []),
+  selectedId: selectedAnnotationId,
+  enabled: computed(() => !annotations.isArmed.value),
+  onChange: (id, patch) => patchAnnotation(id, patch),
+})
+
+// One surface, whichever is drawing on it. Reshaping wins while it is
+// happening, since a tool cannot be armed at the same time.
+useDrawOverlay(computed(() => editing.scene.value ?? annotations.scene.value))
+
 // Esc drops the armed tool before it does anything else — the reflex when a
 // tool is live is "get me out of this", not "leave this view".
 useHotkeys([
@@ -146,6 +168,18 @@ useHotkeys([
       if (annotations.isArmed.value) annotations.disarm()
     },
   },
+  {
+    key: 'mod+z',
+    handler: () => {
+      // Mid-shape, the reflex is to take back the last point rather than the
+      // last thing added to the canvas.
+      if (annotations.canUndo.value) annotations.undo()
+      else history.undo()
+    },
+  },
+  { key: 'mod+shift+z', handler: () => history.redo() },
+  // What Windows reaches for, and harmless everywhere else.
+  { key: 'mod+y', handler: () => history.redo() },
   { key: 'p', handler: () => annotations.arm('pin') },
   { key: 'l', handler: () => annotations.arm('line') },
   { key: 'r', handler: () => annotations.arm('route') },
@@ -200,6 +234,7 @@ const { fitToLayer } = useCanvasRendering(
             id: props.id,
             body: body.value,
             selectedAnnotationId: selectedAnnotationId.value,
+            suppressedAnnotationId: editing.suppressedId.value,
           },
         ]
       : [],
@@ -585,6 +620,8 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           :color="annotations.color.value"
           :can-finish="annotations.canFinish.value"
           :can-undo="annotations.canUndo.value"
+          :can-undo-edit="history.canUndo.value"
+          :can-redo-edit="history.canRedo.value"
           :vertex-count="annotations.vertexCount.value"
           :route-mode="annotations.routeMode.value"
           :is-snapping="annotations.isSnapping.value"
@@ -593,6 +630,8 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           @update:route-mode="value => (annotations.routeMode.value = value)"
           @finish="annotations.finish"
           @undo="annotations.undo"
+          @undo-edit="history.undo"
+          @redo-edit="history.redo"
         />
       </div>
     </Teleport>

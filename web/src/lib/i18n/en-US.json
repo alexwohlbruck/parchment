@@ -2411,7 +2411,8 @@
         "polygon": "Polygon",
         "rectangle": "Rectangle",
         "circle": "Circle",
-        "route": "Route"
+        "route": "Route",
+        "isochrone": "Travel time"
       },
       "undoEdit": "Undo",
       "redoEdit": "Redo",
@@ -2420,7 +2421,8 @@
         "close": "Click the first point to close",
         "square": "Three clicks for any angle, Shift for a square",
         "radius": "Hold Shift for a round radius",
-        "routeUnavailable": "Route needs a routing integration — set one up in Settings"
+        "isochrone": "Click a point to see how far you can get",
+        "routingUnavailable": "Travel time needs a routing integration — set one up in Settings"
       },
       "advanced": "More tools"
     },
@@ -2440,7 +2442,14 @@
         "right": "Right",
         "center": "On the mark"
       },
-      "name": "Name"
+      "name": "Name",
+      "metrics": {
+        "length": "Length",
+        "perimeter": "Perimeter",
+        "area": "Area",
+        "radius": "Radius",
+        "circumference": "Circumference"
+      }
     },
     "sources": {
       "title": "Data sources",
@@ -2457,12 +2466,6 @@
         "new": "Your data"
       }
     }
-  },
-  "colorPicker": {
-    "label": "Color",
-    "custom": "Custom color",
-    "sample": "Pick a color from the screen",
-    "apply": "Apply"
   },
   "colors": {
     "compass": "Compass",
@@ -2484,9 +2487,15 @@
     "ink": "Ink",
     "parchment": "Parchment"
   },
-  "mapTools": {
-    "measure": "Measure distance",
-    "radius": "Measure radius",
-    "isochrone": "Travel time"
+  "iconPicker": {
+    "trigger": "Choose an icon or color",
+    "customColor": "Custom color",
+    "sampleColor": "Pick a color from the screen",
+    "applyColor": "Apply color",
+    "tabs": {
+      "lucide": "Lucide",
+      "maki": "Maki",
+      "color": "Color"
+    }
   }
 }

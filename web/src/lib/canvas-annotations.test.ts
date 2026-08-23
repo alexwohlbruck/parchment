@@ -4,6 +4,7 @@ import type { Feature, Polygon, Position } from 'geojson'
 import {
   annotationFeature,
   annotationMeasurement,
+  annotationMetrics,
   annotationMidpoints,
   annotationNodes,
   annotationsCollection,
@@ -505,5 +506,57 @@ describe('annotationMeasurement', () => {
 
   it('has nothing to say about a pin', () => {
     expect(annotationMeasurement(annotation({ tool: 'pin' }))).toBeNull()
+  })
+})
+
+describe('annotationMetrics', () => {
+  it('gives a shape its area and its perimeter, not one or the other', () => {
+    const metrics = annotationMetrics(
+      annotation({ tool: 'polygon', positions: [[0, 0], [0, 1], [1, 1]] }),
+    )
+    expect(metrics.map(m => m.key)).toEqual(['area', 'perimeter'])
+  })
+
+  it('describes a circle three ways', () => {
+    const metrics = annotationMetrics(
+      annotation({ tool: 'circle', positions: [[0, 0]], radiusMeters: 1000 }),
+    )
+    expect(metrics.map(m => m.key)).toEqual(['radius', 'circumference', 'area'])
+    expect(metrics[1].value).toBeCloseTo(2 * Math.PI * 1000, -1)
+  })
+
+  it('measures an isochrone by the ground it covers', () => {
+    const metrics = annotationMetrics(
+      annotation({
+        tool: 'isochrone',
+        positions: [[0, 0]],
+        isochrone: {
+          geometry: [[[0, 0], [0, 1], [1, 1], [0, 0]]],
+          mode: 'walk',
+          minutes: 15,
+        },
+      }),
+    )
+    expect(metrics.map(m => m.key)).toEqual(['area', 'perimeter'])
+    expect(metrics[0].value).toBeGreaterThan(0)
+  })
+
+  it('leads with the area where a shape has one, and the length otherwise', () => {
+    expect(
+      annotationMeasurement(
+        annotation({ tool: 'polygon', positions: [[0, 0], [0, 1], [1, 1]] }),
+      )?.key,
+    ).toBe('area')
+    expect(
+      annotationMeasurement(annotation({ tool: 'line', positions: [[0, 0], [0, 1]] }))
+        ?.key,
+    ).toBe('length')
+  })
+
+  it('draws an isochrone only once the engine has answered', () => {
+    // A point is not a reachable area; better to draw nothing than a dot.
+    expect(
+      annotationFeature(annotation({ tool: 'isochrone', positions: [[0, 0]] })),
+    ).toBeNull()
   })
 })

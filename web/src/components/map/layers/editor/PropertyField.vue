@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ColorPicker } from '@/components/ui/color-picker'
+import { IconPicker } from '@/components/ui/icon-picker'
 import { RotateCcwIcon, BracesIcon, InfoIcon } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -148,12 +148,29 @@ const stacked = computed(() => props.property.control === 'range')
         </button>
 
         <template v-else-if="!stacked">
-          <ColorPicker with-input
-            v-if="property.control === 'color'"
-            :model-value="(value as string | undefined)"
-            :placeholder="(property.default as string | undefined)"
-            @update:model-value="v => emit('update', v)"
-          />
+          <!-- Style values a swatch cannot show — rgba() with alpha,
+               transparent — stay editable as text beside the picker. -->
+          <div v-if="property.control === 'color'" class="flex items-center gap-1.5">
+            <IconPicker
+              compact
+              color-only
+              allow-custom-color
+              :model-value="{
+                icon: '',
+                color:
+                  (value as string | undefined) ??
+                  (property.default as string | undefined) ??
+                  'transparent',
+              }"
+              @update:model-value="v => emit('update', v.color)"
+            />
+            <Input
+              :model-value="(value as string | undefined) ?? ''"
+              :placeholder="(property.default as string | undefined)"
+              class="h-7 w-24 font-mono text-xs"
+              @update:model-value="v => emit('update', String(v))"
+            />
+          </div>
 
           <Switch
             v-else-if="property.control === 'boolean'"

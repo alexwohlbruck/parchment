@@ -25,6 +25,9 @@ import {
   snapWaypointsToPath,
 } from '@/lib/route-snapping'
 import type { RouteMode } from '@/types/routes.types'
+import type { IsochroneMode } from '@server/types/isochrone.types'
+import { fetchIsochroneBands } from '@/lib/isochrone-request'
+import { contourDurations } from '@/lib/isochrone.utils'
 import type { LngLat, MapEvents } from '@/types/map.types'
 import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
 import {
@@ -234,6 +237,69 @@ export function useCanvasAnnotations(options: {
     }
   }
 
+  // ── Isochrones ─────────────────────────────────────────────────────────────
+  //
+  // One click sets an origin; the engine supplies the shape. The mark isn't
+  // committed until it has one, so a canvas never holds an isochrone that is
+  // only a point — the same reason a route keeps its waypoints.
+
+  const isochroneMode = ref<IsochroneMode>('walk')
+  const isochroneMinutes = ref(15)
+  const isochrone = ref<CanvasAnnotation['isochrone'] | null>(null)
+  const isFetchingIsochrone = ref(false)
+  let isochroneRequest: AbortController | undefined
+
+  async function requestIsochrone() {
+    const origin = positions.value[0]
+    if (tool.value !== 'isochrone' || !origin) return
+
+    isochroneRequest?.abort()
+    const controller = new AbortController()
+    isochroneRequest = controller
+    isFetchingIsochrone.value = true
+
+    try {
+      const { bands } = await fetchIsochroneBands({
+        origin: { lng: origin[0], lat: origin[1] },
+        mode: isochroneMode.value,
+        // One contour: a mark is one shape, and bands would be several.
+        durations: contourDurations(isochroneMinutes.value, 1),
+        signal: controller.signal,
+      })
+      // The outermost band is the whole reachable area.
+      const band = bands[bands.length - 1]
+      const geometry = band?.geometry
+      if (!geometry) return
+
+      isochrone.value = {
+        geometry:
+          geometry.type === 'Polygon'
+            ? geometry.coordinates
+            : geometry.coordinates.flat(),
+        mode: isochroneMode.value,
+        minutes: isochroneMinutes.value,
+      }
+      commit()
+    } catch (error) {
+      if (!(error as Error)?.name?.includes('Abort')) {
+        console.error('[canvas] failed to fetch an isochrone', error)
+      }
+      positions.value = []
+    } finally {
+      if (isochroneRequest === controller) {
+        isFetchingIsochrone.value = false
+        isochroneRequest = undefined
+      }
+    }
+  }
+
+  // A new origin, or a change of reach, asks the engine again.
+  watch([positions, isochroneMode, isochroneMinutes], () => {
+    if (tool.value === 'isochrone' && positions.value.length) {
+      void requestIsochrone()
+    }
+  })
+
   // Re-snap on a new waypoint or a mode change, never on anything else.
   watch([positions, routeMode], () => {
     if (tool.value === 'route') void snapRoute()
@@ -361,7 +427,7 @@ export function useCanvasAnnotations(options: {
         : null,
       color: themeColorToHex(color.value),
       guide: guide.value,
-      pending: isSnapping.value,
+      pending: isSnapping.value || isFetchingIsochrone.value,
       handles: positions.value.map((position, index) => ({
         position,
         kind: 'vertex' as const,
@@ -373,16 +439,21 @@ export function useCanvasAnnotations(options: {
 
   function commit() {
     if (!tool.value || !canFinish.value) return
-    options.onCommit(
-      createAnnotation(
-        tool.value,
-        [...positions.value],
-        color.value,
-        routed.value ?? undefined,
-      ),
+    // An isochrone is only a mark once the engine has answered for it.
+    if (tool.value === 'isochrone' && !isochrone.value) return
+
+    const annotation = createAnnotation(
+      tool.value,
+      [...positions.value],
+      color.value,
+      routed.value ?? undefined,
     )
+    if (isochrone.value) annotation.isochrone = isochrone.value
+    options.onCommit(annotation)
+
     positions.value = []
     routed.value = null
+    isochrone.value = null
   }
 
 
@@ -414,7 +485,8 @@ export function useCanvasAnnotations(options: {
 
   function arm(next: AnnotationTool | null) {
     if (tool.value === next || !next) return disarm()
-    if (next === 'route' && !canRoute.value) return
+    // Both lean on the routing engine; neither works without one.
+    if ((next === 'route' || next === 'isochrone') && !canRoute.value) return
     positions.value = []
     routed.value = null
     if (!tool.value) mapEventBus.setOverride('click', onMapClick)
@@ -426,9 +498,11 @@ export function useCanvasAnnotations(options: {
   function disarm() {
     if (tool.value) mapEventBus.removeOverride('click', onMapClick)
     snapRequest?.abort()
+    isochroneRequest?.abort()
     tool.value = null
     positions.value = []
     routed.value = null
+    isochrone.value = null
     trackPointer(false)
     setDrawingMode(false)
   }
@@ -454,6 +528,9 @@ export function useCanvasAnnotations(options: {
     canFinish,
     canUndo,
     canRoute,
+    isochroneMode,
+    isochroneMinutes,
+    isFetchingIsochrone,
     scene,
     vertexCount: computed(() => positions.value.length),
     arm,

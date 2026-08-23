@@ -15,6 +15,7 @@
 import * as turf from '@turf/turf'
 import {
   circleAreaSquareMeters,
+  circleCircumferenceMeters,
   pathLengthMeters,
   polygonAreaSquareMeters,
 } from '@/lib/measure.utils'
@@ -34,6 +35,8 @@ export const TOOL_MINIMUM: Record<AnnotationTool, number> = {
   // A baseline and then its depth, so a rectangle can sit at any angle.
   rectangle: 3,
   circle: 2,
+  // One click sets the origin; the engine supplies the shape.
+  isochrone: 1,
 }
 
 /**
@@ -49,6 +52,8 @@ export const TOOL_AUTOCOMPLETES: Record<AnnotationTool, boolean> = {
   polygon: false,
   rectangle: true,
   circle: true,
+  // Committed once the engine answers, not when the origin is clicked.
+  isochrone: false,
 }
 
 /**
@@ -222,7 +227,9 @@ export function annotationFeature(
   // A committed circle keeps its centre and a radius, so it needs one
   // position where drawing one needs two.
   const needed =
-    tool === 'circle' && annotation.radiusMeters
+    tool === 'isochrone'
+      ? 1
+      : tool === 'circle' && annotation.radiusMeters
       ? 1
       : // Two opposite corners still draw: that is what rectangles made
         // before they could be angled hold.
@@ -287,6 +294,20 @@ export function annotationFeature(
         },
         properties,
       }
+    case 'isochrone': {
+      const rings = annotation.isochrone?.geometry
+      if (!rings?.length) return null
+      return {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: rings },
+        properties: {
+          ...properties,
+          minutes: annotation.isochrone!.minutes,
+          mode: annotation.isochrone!.mode,
+        },
+      }
+    }
+
     case 'circle': {
       const radius =
         annotation.radiusMeters ?? metersBetween(positions[0], positions[1])
@@ -514,42 +535,83 @@ export function removeNode(
 }
 
 /**
- * How long a mark is, or how large — whichever its shape implies.
+ * Everything the measure tool could tell you about a mark.
  *
- * Measured with the same helpers as the measure tool, so a line drawn on a
- * canvas and a distance measured on the map can never disagree about how
- * long the same path is.
+ * Measured with its helpers, so a line drawn on a canvas and a distance
+ * measured on the map can never disagree about the same path. A shape has
+ * more than one number worth knowing — an area is rarely interesting without
+ * its perimeter — so this returns the set rather than picking one.
  */
-export function annotationMeasurement(
+export interface AnnotationMetric {
+  /** Which unit formatter reads it. */
+  kind: 'length' | 'area'
+  /** Translation key under `canvases.annotations.metrics`. */
+  key: 'length' | 'perimeter' | 'area' | 'radius' | 'circumference'
+  value: number
+}
+
+export function annotationMetrics(
   annotation: CanvasAnnotation,
-): { kind: 'length' | 'area'; value: number } | null {
+): AnnotationMetric[] {
   const points = (positions: Position[]) =>
     positions.map(([lng, lat]) => ({ lng, lat }))
 
   switch (annotation.tool) {
     case 'pin':
-      return null
+      return []
+
     case 'line':
-      return { kind: 'length', value: pathLengthMeters(points(annotation.positions)) }
+      return [
+        {
+          kind: 'length',
+          key: 'length',
+          value: pathLengthMeters(points(annotation.positions)),
+        },
+      ]
+
     case 'route':
-      return {
-        kind: 'length',
-        value: pathLengthMeters(
-          points(annotation.routed?.geometry ?? annotation.positions),
-        ),
-      }
-    case 'circle':
-      return annotation.radiusMeters
-        ? { kind: 'area', value: circleAreaSquareMeters(annotation.radiusMeters) }
-        : null
+      return [
+        {
+          kind: 'length',
+          key: 'length',
+          value: pathLengthMeters(
+            points(annotation.routed?.geometry ?? annotation.positions),
+          ),
+        },
+      ]
+
+    case 'circle': {
+      const radius = annotation.radiusMeters
+      if (!radius) return []
+      return [
+        { kind: 'length', key: 'radius', value: radius },
+        {
+          kind: 'length',
+          key: 'circumference',
+          value: circleCircumferenceMeters(radius),
+        },
+        { kind: 'area', key: 'area', value: circleAreaSquareMeters(radius) },
+      ]
+    }
+
+    case 'isochrone':
     case 'polygon':
     case 'rectangle': {
       const feature = annotationFeature(annotation)
-      if (feature?.geometry.type !== 'Polygon') return null
-      return {
-        kind: 'area',
-        value: polygonAreaSquareMeters(points(feature.geometry.coordinates[0])),
-      }
+      if (feature?.geometry.type !== 'Polygon') return []
+      const ring = points(feature.geometry.coordinates[0])
+      return [
+        { kind: 'area', key: 'area', value: polygonAreaSquareMeters(ring) },
+        { kind: 'length', key: 'perimeter', value: pathLengthMeters(ring) },
+      ]
     }
   }
+}
+
+/** The one number worth putting in a list, where there is room for one. */
+export function annotationMeasurement(
+  annotation: CanvasAnnotation,
+): AnnotationMetric | null {
+  const metrics = annotationMetrics(annotation)
+  return metrics.find(m => m.key === 'area') ?? metrics[0] ?? null
 }

@@ -2291,7 +2291,8 @@
         "polygon": "Polígono",
         "rectangle": "Rectángulo",
         "circle": "Círculo",
-        "route": "Ruta"
+        "route": "Ruta",
+        "isochrone": "Tiempo de viaje"
       },
       "advanced": "Más herramientas",
       "undoEdit": "Deshacer",
@@ -2301,7 +2302,8 @@
         "close": "Haz clic en el primer punto para cerrar",
         "square": "Tres clics para cualquier ángulo, Mayús para un cuadrado",
         "radius": "Mantén Mayús para un radio redondo",
-        "routeUnavailable": "Las rutas necesitan una integración de rutas — configura una en Ajustes"
+        "isochrone": "Haz clic en un punto para ver hasta dónde llegas",
+        "routingUnavailable": "El tiempo de viaje necesita una integración de rutas — configura una en Ajustes"
       }
     },
     "annotations": {
@@ -2320,6 +2322,13 @@
         "left": "Izquierda",
         "right": "Derecha",
         "center": "Sobre la marca"
+      },
+      "metrics": {
+        "length": "Longitud",
+        "perimeter": "Perímetro",
+        "area": "Área",
+        "radius": "Radio",
+        "circumference": "Circunferencia"
       }
     },
     "sources": {
@@ -2337,12 +2346,6 @@
         "new": "Tus datos"
       }
     }
-  },
-  "colorPicker": {
-    "label": "Color",
-    "custom": "Color personalizado",
-    "sample": "Elegir un color de la pantalla",
-    "apply": "Aplicar"
   },
   "colors": {
     "compass": "Brújula",
@@ -2364,9 +2367,15 @@
     "ink": "Tinta",
     "parchment": "Pergamino"
   },
-  "mapTools": {
-    "measure": "Medir distancia",
-    "radius": "Medir radio",
-    "isochrone": "Tiempo de viaje"
+  "iconPicker": {
+    "trigger": "Elegir un icono o color",
+    "customColor": "Color personalizado",
+    "sampleColor": "Elegir un color de la pantalla",
+    "applyColor": "Aplicar color",
+    "tabs": {
+      "lucide": "Lucide",
+      "maki": "Maki",
+      "color": "Color"
+    }
   }
 }

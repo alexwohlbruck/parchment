@@ -11,7 +11,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { ColorPicker } from '@/components/ui/color-picker'
+import { IconPicker } from '@/components/ui/icon-picker'
 import {
   BikeIcon,
   CarFrontIcon,
@@ -22,18 +22,13 @@ import {
   MinusIcon,
   MousePointer2Icon,
   PentagonIcon,
-  RadiusIcon,
   RedoIcon,
-  RulerIcon,
   SquareIcon,
   TimerIcon,
-  Wand2Icon,
   UndoIcon,
   WaypointsIcon,
 } from 'lucide-vue-next'
 import { Spinner } from '@/components/ui/spinner'
-import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
-import { useMapToolsStore } from '@/stores/map-tools.store'
 import type { AnnotationTool } from '@/types/canvas.types'
 import type { RouteMode } from '@/types/routes.types'
 
@@ -65,46 +60,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const mapToolsStore = useMapToolsStore()
-
-/**
- * The map's own tools, offered from here too.
- *
- * Measuring, ringing a radius and drawing an isochrone are the same jobs on a
- * canvas as on the map, and they already exist — so this arms the map tool
- * rather than growing a second copy of each inside the canvas editor.
- */
-const advancedTools = computed(() => [
-  {
-    type: 'item' as const,
-    id: 'measure',
-    label: t('mapTools.measure'),
-    icon: RulerIcon,
-    onSelect: () => arm('measure'),
-  },
-  {
-    type: 'item' as const,
-    id: 'radius',
-    label: t('mapTools.radius'),
-    icon: RadiusIcon,
-    onSelect: () => arm('radius'),
-  },
-  {
-    type: 'item' as const,
-    id: 'isochrone',
-    label: t('mapTools.isochrone'),
-    icon: TimerIcon,
-    onSelect: () => arm('isochrone'),
-  },
-])
-
-/** Arming a map tool drops the drawing tool: both want the map's clicks. */
-function arm(tool: 'measure' | 'radius' | 'isochrone') {
-  emit('arm', null)
-  mapToolsStore.setActiveTool(
-    mapToolsStore.activeTool === tool ? 'none' : tool,
-  )
-}
 
 /**
  * Each tool's glyph and its single-key shortcut, Felt-style. A hint carries
@@ -123,15 +78,17 @@ const TOOLS: {
   { id: 'polygon', icon: PentagonIcon, key: 'O', hint: 'close' },
   { id: 'rectangle', icon: SquareIcon, key: 'E', hint: 'square' },
   { id: 'circle', icon: CircleIcon, key: 'I', hint: 'radius' },
+  { id: 'isochrone', icon: TimerIcon, key: 'T', hint: 'isochrone' },
 ]
 
 function isDisabled(item: (typeof TOOLS)[number]) {
-  return item.id === 'route' && !props.canRoute
+  // Both lean on the routing engine; neither works without one.
+  return (item.id === 'route' || item.id === 'isochrone') && !props.canRoute
 }
 
 function toolTitle(item: (typeof TOOLS)[number]) {
   const name = `${t(`canvases.toolbar.tools.${item.id}`)} (${item.key})`
-  if (isDisabled(item)) return t('canvases.toolbar.hints.routeUnavailable')
+  if (isDisabled(item)) return t('canvases.toolbar.hints.routingUnavailable')
   return item.hint
     ? `${name} · ${t(`canvases.toolbar.hints.${item.hint}`)}`
     : name
@@ -181,25 +138,6 @@ const isDrawing = computed(() => props.vertexCount > 0)
       <component :is="item.icon" class="size-4" />
     </Button>
 
-    <Separator orientation="vertical" class="h-5 mx-0.5" />
-    <ResponsiveDropdown :items="advancedTools" align="start">
-      <template #trigger>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-8"
-          :class="
-            mapToolsStore.activeTool !== 'none' &&
-            'bg-secondary text-foreground'
-          "
-          :title="t('canvases.toolbar.advanced')"
-          :aria-label="t('canvases.toolbar.advanced')"
-        >
-          <Wand2Icon class="size-4" />
-        </Button>
-      </template>
-    </ResponsiveDropdown>
-
     <!-- Which network the route follows. Only meaningful for that tool. -->
     <template v-if="tool === 'route'">
       <Separator orientation="vertical" class="h-5 mx-0.5" />
@@ -221,9 +159,12 @@ const isDrawing = computed(() => props.vertexCount > 0)
 
     <template v-if="tool">
       <Separator orientation="vertical" class="h-5 mx-0.5" />
-      <ColorPicker
-        :model-value="color"
-        @update:model-value="value => emit('update:color', value)"
+      <IconPicker
+        compact
+        color-only
+        allow-custom-color
+        :model-value="{ icon: '', color }"
+        @update:model-value="value => emit('update:color', value.color)"
       />
     </template>
 

@@ -46,10 +46,27 @@ import { presetLayers } from '@/lib/map-style/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
 import { themeColorToHex } from '@/lib/utils'
+import { useThemeStore } from '@/stores/theme.store'
 import {
   BOOKMARKS_CIRCLES_LAYER_CONFIG,
   BOOKMARKS_ICONS_LAYER_CONFIG,
 } from '@/constants/layers'
+
+/**
+ * Label colours follow the basemap's lighting, the way the basemap's own
+ * labels do: dark text inside a light halo by day, light text inside a dark
+ * one at night. A label that doesn't turn with the map is illegible half the
+ * time — white-on-white by day, or a dark smear at night.
+ *
+ * The app's dark mode is what drives the lighting today: it is the only
+ * thing that sets Mapbox's `lightPreset` or reloads MapLibre's style. If the
+ * preset ever becomes settable on its own, this should read it instead.
+ */
+const LABEL_COLORS = {
+  day: { text: '#1f2937', halo: '#ffffff', haloWidth: 1.2 },
+  // A dark halo needs a little more of itself to read against bright ground.
+  night: { text: '#f9fafb', halo: '#0b1220', haloWidth: 1.5 },
+} as const
 
 export interface RenderableCanvas {
   id: string
@@ -97,6 +114,7 @@ export function useCanvasRendering(
   options: { key: string },
 ) {
   const mapStore = useMapStore()
+  const themeStore = useThemeStore()
   const layersStore = useLayersStore()
   const collectionsStore = useCollectionsStore()
   const routesStore = useRoutesStore()
@@ -347,6 +365,7 @@ export function useCanvasRendering(
     const sourceId = scopedId(options.key, canvas.id, 'annotations', '-source')
     const id = (suffix: string) =>
       scopedId(options.key, canvas.id, 'annotations', suffix)
+    const labels = themeStore.isDark ? LABEL_COLORS.night : LABEL_COLORS.day
 
     return {
       sources: {
@@ -455,9 +474,9 @@ export function useCanvasRendering(
               'text-optional': true,
             },
             paint: {
-              'text-color': '#111827',
-              'text-halo-color': '#ffffff',
-              'text-halo-width': 1.2,
+              'text-color': labels.text,
+              'text-halo-color': labels.halo,
+              'text-halo-width': labels.haloWidth,
             },
           },
           true,
@@ -602,6 +621,10 @@ export function useCanvasRendering(
   }
 
   watch(canvases, render, { deep: true, immediate: true })
+
+  // Turning the map to night changes what a label has to be to stay readable,
+  // and nothing else would prompt a redraw for it.
+  watch(() => themeStore.isDark, render)
 
   // The basemap style change drops every layer we added, so put them back.
   mapStore.on('style.load', render)

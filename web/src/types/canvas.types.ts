@@ -153,6 +153,7 @@ export type AnnotationTool =
   | 'polygon'
   | 'rectangle'
   | 'circle'
+  | 'isochrone'
 
 export const ANNOTATION_LABEL_POSITIONS = [
   'top',
@@ -186,6 +187,17 @@ export interface CanvasAnnotation {
     mode: 'walking' | 'cycling' | 'driving'
     distance?: number
     duration?: number
+  }
+  /**
+   * Isochrone only: the reachable area the engine returned for the origin in
+   * `positions[0]`. Kept alongside the origin rather than replacing it, so
+   * the shape can be asked for again in another mode or reach.
+   */
+  isochrone?: {
+    /** Polygon rings — outer first, holes after. */
+    geometry: Position[][]
+    mode: string
+    minutes: number
   }
   label?: string
   /**

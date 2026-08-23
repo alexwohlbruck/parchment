@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { computed, effectScope } from 'vue'
+import { computed, effectScope, nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useMapStore } from '@/stores/map.store'
+import { useThemeStore } from '@/stores/theme.store'
 import { useCanvasRendering } from './useCanvasRendering'
 import type { CanvasBody, CanvasLayer } from '@/types/canvas.types'
 
@@ -28,11 +29,13 @@ function fakeStrategy() {
   const calls: string[] = []
   const sources = new Set<string>()
   const layers = new Set<string>()
+  const configurations = new Map<string, Record<string, unknown>>()
 
   return {
     calls,
     sources,
     layers,
+    configurations,
     mapInstance: { getSource: () => undefined, hasImage: () => true },
     addSource(id: string) {
       // Mirrors the engine: adding over a live source is an error.
@@ -49,8 +52,9 @@ function fakeStrategy() {
       sources.delete(id)
       calls.push(`removeSource:${id}`)
     },
-    addLayer(layer: { id: string }) {
+    addLayer(layer: { id: string; configuration?: Record<string, unknown> }) {
       layers.add(layer.id)
+      configurations.set(layer.id, layer.configuration ?? {})
       calls.push(`addLayer:${layer.id}`)
     },
     removeLayer(id: string) {
@@ -241,5 +245,45 @@ describe('useCanvasRendering', () => {
     })
 
     expect([...strategy.layers]).toEqual([])
+  })
+})
+
+describe('labels under the map\'s lighting', () => {
+  const annotated: CanvasBody = {
+    layers: [],
+    annotations: [
+      {
+        id: 'an-1',
+        tool: 'pin',
+        positions: [[0, 0]],
+        label: 'Home',
+      },
+    ],
+  }
+
+  const labelPaint = () =>
+    strategy.configurations.get(
+      'canvas-map-canvas-1-annotations-labels',
+    ) as { paint: Record<string, unknown> } | undefined
+
+  it('writes dark text on a light halo by day', () => {
+    useThemeStore().isDark = false
+    render('map', annotated)
+
+    expect(labelPaint()?.paint['text-color']).toBe('#1f2937')
+    expect(labelPaint()?.paint['text-halo-color']).toBe('#ffffff')
+  })
+
+  it('turns the label over when the map turns to night', async () => {
+    const theme = useThemeStore()
+    theme.isDark = false
+    render('map', annotated)
+
+    theme.isDark = true
+    await nextTick()
+
+    // Left alone, a dark label on a night basemap is a smear.
+    expect(labelPaint()?.paint['text-color']).toBe('#f9fafb')
+    expect(labelPaint()?.paint['text-halo-color']).toBe('#0b1220')
   })
 })

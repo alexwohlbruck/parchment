@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { IconPicker } from '@/components/ui/icon-picker'
-import { ColorPicker } from '@/components/ui/color-picker'
 import {
   Select,
   SelectContent,
@@ -29,11 +28,13 @@ import {
   MinusIcon,
   PentagonIcon,
   SquareIcon,
+  TimerIcon,
   Trash2Icon,
   WaypointsIcon,
 } from 'lucide-vue-next'
 import {
   annotationMeasurement,
+  annotationMetrics,
   DEFAULT_ANNOTATION_COLOR,
   DEFAULT_LABEL_POSITION,
 } from '@/lib/canvas-annotations'
@@ -67,6 +68,7 @@ const TOOL_ICONS: Record<AnnotationTool, typeof MapPinIcon> = {
   polygon: PentagonIcon,
   rectangle: SquareIcon,
   circle: CircleIcon,
+  isochrone: TimerIcon,
 }
 
 const color = computed(
@@ -95,13 +97,28 @@ const { formatDistance, formatArea } = useMeasureUnits(
  * question behind it — how far is that, how big is this — and the answer is
  * already implied by the geometry.
  */
+function formatMetric(metric: { kind: 'length' | 'area'; value: number }) {
+  return metric.kind === 'area'
+    ? formatArea(metric.value)
+    : formatDistance(metric.value)
+}
+
+/** The headline number, for the collapsed row where there is room for one. */
 const measurement = computed(() => {
   const measure = annotationMeasurement(props.annotation)
-  if (!measure) return null
-  return measure.kind === 'area'
-    ? formatArea(measure.value)
-    : formatDistance(measure.value)
+  return measure ? formatMetric(measure) : null
 })
+
+/** Everything the measure tool could say about it, for the open row. */
+const metrics = computed(() =>
+  annotationMetrics(props.annotation)
+    .map(metric => ({
+      key: metric.key,
+      label: t(`canvases.annotations.metrics.${metric.key}`),
+      value: formatMetric(metric),
+    }))
+    .filter(metric => metric.value),
+)
 
 const label = ref(props.annotation.label ?? '')
 const labelInput = ref<InstanceType<typeof Input> | null>(null)
@@ -216,13 +233,31 @@ const fallbackName = computed(() =>
         />
       </div>
 
+      <!-- What the shape measures, the way the measure tool would put it. -->
+      <div
+        v-for="metric in metrics"
+        :key="metric.key"
+        class="flex items-center justify-between gap-3 py-1.5 min-h-7"
+      >
+        <span class="text-xs shrink-0 text-muted-foreground">
+          {{ metric.label }}
+        </span>
+        <span class="text-xs tabular-nums">{{ metric.value }}</span>
+      </div>
+
       <div class="flex items-center justify-between gap-3 py-1.5 min-h-7">
         <span class="text-xs shrink-0">
           {{ t('canvases.annotations.color') }}
         </span>
-        <ColorPicker
-          :model-value="annotation.color ?? DEFAULT_ANNOTATION_COLOR"
-          @update:model-value="v => emit('update', { color: v })"
+        <IconPicker
+          compact
+          color-only
+          allow-custom-color
+          :model-value="{
+            icon: '',
+            color: annotation.color ?? DEFAULT_ANNOTATION_COLOR,
+          }"
+          @update:model-value="v => emit('update', { color: v.color })"
         />
       </div>
 

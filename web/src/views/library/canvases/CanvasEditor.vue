@@ -186,6 +186,7 @@ useHotkeys([
   { key: 'o', handler: () => annotations.arm('polygon') },
   { key: 'e', handler: () => annotations.arm('rectangle') },
   { key: 'i', handler: () => annotations.arm('circle') },
+  { key: 't', handler: () => annotations.arm('isochrone') },
 ])
 
 function patchAnnotation(id: string, patch: Partial<CanvasAnnotation>) {

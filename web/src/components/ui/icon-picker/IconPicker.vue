@@ -13,7 +13,7 @@ import * as LucideIcons from 'lucide-vue-next'
 import type { LucideIcon } from 'lucide-vue-next'
 import lucideTags from 'lucide-static/tags.json'
 import { useVirtualizer } from '@tanstack/vue-virtual'
-import { fuzzyFilter, getThemeColorClasses, type ThemeColor } from '@/lib/utils'
+import { fuzzyFilter, getThemeColorClasses, type ThemeColor, THEME_COLORS } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
 import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
 import { useI18n } from 'vue-i18n'
@@ -117,27 +117,8 @@ const filteredMakiIcons = computed(() => {
 // Ordered to roughly walk the spectrum (warm → cool → magenta) and
 // keep the two retained neutrals at the end. Default is `blue`; see
 // `ThemeColor` in lib/utils.ts for the rationale on the trimmed set.
-const themeColors: ThemeColor[] = [
-  'compass',
-  'coral',
-  'amber',
-  'peach',
-  'olive',
-  'forest',
-  'moss',
-  'teal',
-  'teal',
-  'sky',
-  'cobalt',
-  'indigo',
-  'violet',
-  'iris',
-  'iris',
-  'magenta',
-  'magenta',
-  'parchment',
-  'parchment',
-]
+// One palette for the whole app — see THEME_COLORS.
+const themeColors = THEME_COLORS
 
 function selectLucide(iconName: string) {
   emit('update:modelValue', {

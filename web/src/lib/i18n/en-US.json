@@ -2419,8 +2419,10 @@
         "straight": "Hold Shift to hold the angle",
         "close": "Click the first point to close",
         "square": "Three clicks for any angle, Shift for a square",
-        "radius": "Hold Shift for a round radius"
-      }
+        "radius": "Hold Shift for a round radius",
+        "routeUnavailable": "Route needs a routing integration — set one up in Settings"
+      },
+      "advanced": "More tools"
     },
     "annotations": {
       "title": "Annotations",
@@ -2428,7 +2430,16 @@
       "labelPlaceholder": "Add a label",
       "icon": "Icon",
       "zoomTo": "Zoom to",
-      "showLabel": "Show label on the map"
+      "showLabel": "Show label on the map",
+      "color": "Colour",
+      "labelPosition": "Label position",
+      "positions": {
+        "top": "Above",
+        "bottom": "Below",
+        "left": "Left",
+        "right": "Right",
+        "center": "On the mark"
+      }
     },
     "sources": {
       "title": "Data sources",
@@ -2445,5 +2456,35 @@
         "new": "Your data"
       }
     }
+  },
+  "colorPicker": {
+    "label": "Colour",
+    "custom": "Custom colour",
+    "apply": "Apply"
+  },
+  "colors": {
+    "compass": "Compass",
+    "coral": "Coral",
+    "amber": "Amber",
+    "peach": "Peach",
+    "citrine": "Citrine",
+    "olive": "Olive",
+    "forest": "Forest",
+    "moss": "Moss",
+    "teal": "Teal",
+    "sky": "Sky",
+    "cobalt": "Cobalt",
+    "periwinkle": "Periwinkle",
+    "indigo": "Indigo",
+    "violet": "Violet",
+    "iris": "Iris",
+    "magenta": "Magenta",
+    "ink": "Ink",
+    "parchment": "Parchment"
+  },
+  "mapTools": {
+    "measure": "Measure distance",
+    "radius": "Measure radius",
+    "isochrone": "Travel time"
   }
 }

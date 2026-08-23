@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import ColorField from './ColorField.vue'
+import { ColorPicker } from '@/components/ui/color-picker'
 import { RotateCcwIcon, BracesIcon, InfoIcon } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -148,7 +148,7 @@ const stacked = computed(() => props.property.control === 'range')
         </button>
 
         <template v-else-if="!stacked">
-          <ColorField
+          <ColorPicker with-input
             v-if="property.control === 'color'"
             :model-value="(value as string | undefined)"
             :placeholder="(property.default as string | undefined)"

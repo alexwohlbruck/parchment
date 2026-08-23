@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import ColorField from '@/components/map/layers/editor/ColorField.vue'
+import { ColorPicker } from '@/components/ui/color-picker'
 import { DATA_RENDERS, defaultStyleFor } from '@/lib/map-style/data-presets'
 import { collectPropertyNames } from '@/lib/geo-import'
 import type { CanvasDataLayer, CanvasDataRender } from '@/types/canvas.types'
@@ -132,7 +132,7 @@ const featureCount = computed(() => props.layer?.data?.features?.length ?? 0)
 
         <div class="flex items-center justify-between gap-2">
           <Label class="text-sm">{{ t('canvases.dataSettings.color') }}</Label>
-          <ColorField
+          <ColorPicker
             :model-value="style.color"
             @update:model-value="v => patchStyle({ color: v })"
           />

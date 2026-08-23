@@ -620,6 +620,7 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           :color="annotations.color.value"
           :can-finish="annotations.canFinish.value"
           :can-undo="annotations.canUndo.value"
+          :can-route="annotations.canRoute.value"
           :can-undo-edit="history.canUndo.value"
           :can-redo-edit="history.canRedo.value"
           :vertex-count="annotations.vertexCount.value"

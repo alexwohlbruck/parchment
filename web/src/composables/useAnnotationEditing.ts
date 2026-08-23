@@ -22,6 +22,11 @@ import {
 import type { CanvasAnnotation } from '@/types/canvas.types'
 import type { OverlayHandle, OverlayScene } from '@/composables/useDrawOverlay'
 import {
+  distancePx,
+  INSERT_THRESHOLD_PX,
+  VERTEX_NEAR_PX,
+} from '@/lib/measure.utils'
+import {
   annotationFeature,
   annotationMidpoints,
   annotationNodes,
@@ -32,8 +37,13 @@ import {
   type AnnotationNode,
 } from '@/lib/canvas-annotations'
 
-/** How close the pointer has to be to catch a handle, in pixels. */
-const GRAB_PX = 11
+/**
+ * How close the pointer has to be to catch a handle. Shared with the measure
+ * tool, so picking up a vertex feels the same wherever you do it — and a
+ * midpoint is given a little more room, since it is a smaller target.
+ */
+const GRAB_PX = VERTEX_NEAR_PX
+const MIDPOINT_GRAB_PX = INSERT_THRESHOLD_PX
 
 interface EditableMap {
   project: (position: Position) => { x: number; y: number }
@@ -141,10 +151,8 @@ export function useAnnotationEditing(options: {
    * Vertices are tried before midpoints, since a midpoint is only an offer.
    */
   function hitTest(map: EditableMap, x: number, y: number): Hit | null {
-    const distance = (position: Position) => {
-      const point = map.project(position)
-      return Math.hypot(point.x - x, point.y - y)
-    }
+    const distance = (position: Position) =>
+      distancePx(map.project(position), { x, y })
 
     let closest: { index: number; away: number } | null = null
     nodes.value.forEach((node, index) => {
@@ -159,7 +167,7 @@ export function useAnnotationEditing(options: {
     }
 
     const midpoint = midpoints.value.find(
-      candidate => distance(candidate.position) <= GRAB_PX,
+      candidate => distance(candidate.position) <= MIDPOINT_GRAB_PX,
     )
     if (midpoint) return { kind: 'midpoint', midpoint }
     return null

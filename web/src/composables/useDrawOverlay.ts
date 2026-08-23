@@ -43,6 +43,13 @@ const ACTIVE_RADIUS = 7
  */
 const SEGMENT_PX = 24
 const MAX_SEGMENTS = 48
+/**
+ * The shape crawls while something is being worked out for it — a route
+ * being asked of the server. Marching ants say "still going" without moving
+ * the geometry, which would read as the answer arriving.
+ */
+const PENDING_DASH = [9, 7]
+const PENDING_PIXELS_PER_SECOND = 26
 
 export interface OverlayHandle {
   position: Position
@@ -62,6 +69,8 @@ export interface OverlayScene {
   /** The rubber band from the last point to the cursor. */
   guide: Feature | null
   handles: OverlayHandle[]
+  /** Something is still being computed for this shape — crawl its outline. */
+  pending?: boolean
 }
 
 interface OverlayMap {
@@ -119,7 +128,13 @@ export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
     context: CanvasRenderingContext2D,
     map: OverlayMap,
     feature: Feature,
-    style: { color: string; width: number; dash?: number[]; fill?: boolean },
+    style: {
+      color: string
+      width: number
+      dash?: number[]
+      dashOffset?: number
+      fill?: boolean
+    },
   ) {
     const { geometry } = feature
     context.save()
@@ -128,6 +143,7 @@ export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
     context.lineJoin = 'round'
     context.lineCap = 'round'
     context.setLineDash(style.dash ?? [])
+    context.lineDashOffset = style.dashOffset ?? 0
 
     if (geometry.type === 'Point') {
       const { x, y } = map.project(geometry.coordinates)
@@ -231,6 +247,10 @@ export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
         color: current.color,
         width: STROKE_WIDTH,
         fill: true,
+        dash: current.pending ? PENDING_DASH : undefined,
+        dashOffset: current.pending
+          ? -((performance.now() / 1000) * PENDING_PIXELS_PER_SECOND)
+          : 0,
       })
     }
     if (current.guide) {
@@ -241,6 +261,10 @@ export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
       })
     }
     paintHandles(context, map, current.handles, current.color)
+
+    // Keep the ants marching. Nothing else drives a repaint while the map
+    // sits still and the pointer isn't moving.
+    if (current.pending) schedule()
   }
 
   /**

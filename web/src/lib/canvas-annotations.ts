@@ -13,8 +13,17 @@
  */
 
 import * as turf from '@turf/turf'
+import {
+  circleAreaSquareMeters,
+  pathLengthMeters,
+  polygonAreaSquareMeters,
+} from '@/lib/measure.utils'
 import type { Feature, FeatureCollection, Position } from 'geojson'
-import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
+import type {
+  AnnotationLabelPosition,
+  AnnotationTool,
+  CanvasAnnotation,
+} from '@/types/canvas.types'
 
 /** How many clicks a tool needs before it can be committed. */
 export const TOOL_MINIMUM: Record<AnnotationTool, number> = {
@@ -42,19 +51,16 @@ export const TOOL_AUTOCOMPLETES: Record<AnnotationTool, boolean> = {
   circle: true,
 }
 
-export const DEFAULT_ANNOTATION_COLOR = '#e11d48'
+/**
+ * Marks are coloured from the app's palette, like everything else that can
+ * be recoloured — see `THEME_COLORS`. A canvas made before that holds a hex,
+ * which still works: a colour is resolved on the way to the map, and a CSS
+ * value passes straight through.
+ */
+export const DEFAULT_ANNOTATION_COLOR = 'compass'
 
-/** The palette offered when recolouring an annotation. */
-export const ANNOTATION_COLORS = [
-  '#e11d48',
-  '#ea580c',
-  '#ca8a04',
-  '#16a34a',
-  '#0891b2',
-  '#2563eb',
-  '#7c3aed',
-  '#111827',
-] as const
+/** Where a label sits when nothing has been chosen. */
+export const DEFAULT_LABEL_POSITION: AnnotationLabelPosition = 'bottom'
 
 /** Circle geometry is approximated by a ring; 64 steps reads as smooth. */
 const CIRCLE_STEPS = 64
@@ -206,6 +212,11 @@ export function constrainPosition(
  */
 export function annotationFeature(
   annotation: CanvasAnnotation,
+  /**
+   * Turns a colour name into something the map can paint. Left alone by
+   * default so the geometry here stays testable without a document.
+   */
+  resolveColor: (color: string) => string = color => color,
 ): Feature | null {
   const { tool, positions } = annotation
   // A committed circle keeps its centre and a radius, so it needs one
@@ -223,7 +234,8 @@ export function annotationFeature(
   const properties = {
     id: annotation.id,
     tool,
-    color: annotation.color ?? DEFAULT_ANNOTATION_COLOR,
+    color: resolveColor(annotation.color ?? DEFAULT_ANNOTATION_COLOR),
+    labelPosition: annotation.labelPosition ?? DEFAULT_LABEL_POSITION,
     // An empty label draws nothing, which is also how the label toggle is
     // expressed to the style layer.
     label:
@@ -341,13 +353,14 @@ export function annotationsCollection(
    * along with the data the source is already being given.
    */
   selectedId: string | null = null,
+  resolveColor: (color: string) => string = color => color,
 ): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: (annotations ?? [])
       .filter(annotation => annotation.visible !== false)
       .map(annotation => {
-        const feature = annotationFeature(annotation)
+        const feature = annotationFeature(annotation, resolveColor)
         if (feature && annotation.id === selectedId) {
           feature.properties = { ...feature.properties, selected: true }
         }
@@ -497,5 +510,46 @@ export function removeNode(
   if (annotation.positions.length <= TOOL_MINIMUM[annotation.tool]) return null
   return {
     positions: annotation.positions.filter((_unused, i) => i !== index),
+  }
+}
+
+/**
+ * How long a mark is, or how large — whichever its shape implies.
+ *
+ * Measured with the same helpers as the measure tool, so a line drawn on a
+ * canvas and a distance measured on the map can never disagree about how
+ * long the same path is.
+ */
+export function annotationMeasurement(
+  annotation: CanvasAnnotation,
+): { kind: 'length' | 'area'; value: number } | null {
+  const points = (positions: Position[]) =>
+    positions.map(([lng, lat]) => ({ lng, lat }))
+
+  switch (annotation.tool) {
+    case 'pin':
+      return null
+    case 'line':
+      return { kind: 'length', value: pathLengthMeters(points(annotation.positions)) }
+    case 'route':
+      return {
+        kind: 'length',
+        value: pathLengthMeters(
+          points(annotation.routed?.geometry ?? annotation.positions),
+        ),
+      }
+    case 'circle':
+      return annotation.radiusMeters
+        ? { kind: 'area', value: circleAreaSquareMeters(annotation.radiusMeters) }
+        : null
+    case 'polygon':
+    case 'rectangle': {
+      const feature = annotationFeature(annotation)
+      if (feature?.geometry.type !== 'Polygon') return null
+      return {
+        kind: 'area',
+        value: polygonAreaSquareMeters(points(feature.geometry.coordinates[0])),
+      }
+    }
   }
 }

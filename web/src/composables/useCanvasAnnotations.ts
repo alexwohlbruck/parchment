@@ -17,6 +17,8 @@ import type { Position } from 'geojson'
 import { mapEventBus } from '@/lib/eventBus'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { themeColorToHex } from '@/lib/utils'
 import type { OverlayScene } from '@/composables/useDrawOverlay'
 import {
   RouteSnapAborted,
@@ -51,6 +53,10 @@ export function useCanvasAnnotations(options: {
 }) {
   const mapStore = useMapStore()
   const mapToolsStore = useMapToolsStore()
+  const integrationsStore = useIntegrationsStore()
+
+  /** The Route tool needs a routing engine; without one it isn't offered. */
+  const canRoute = computed(() => integrationsStore.isRoutingActive)
 
   /**
    * Put the map into drawing mode, and take it back out again.
@@ -72,12 +78,21 @@ export function useCanvasAnnotations(options: {
     const map = mapStore.getMapStrategy()?.mapInstance as
       | {
           doubleClickZoom?: { enable: () => void; disable: () => void }
+          boxZoom?: { enable: () => void; disable: () => void }
           getCanvas?: () => HTMLCanvasElement
         }
       | undefined
     if (!map) return
-    if (active) map.doubleClickZoom?.disable()
-    else map.doubleClickZoom?.enable()
+    if (active) {
+      map.doubleClickZoom?.disable()
+      // Shift+click is the engine's box zoom, and it swallows the click
+      // outright — so holding shift to constrain a shape placed nothing at
+      // all. The tool needs the modifier more than the map does.
+      map.boxZoom?.disable()
+    } else {
+      map.doubleClickZoom?.enable()
+      map.boxZoom?.enable()
+    }
     applyCursor()
   }
 
@@ -341,9 +356,12 @@ export function useCanvasAnnotations(options: {
   const scene = computed<OverlayScene | null>(() => {
     if (!tool.value) return null
     return {
-      shape: draft.value ? annotationFeature(draft.value) : null,
-      color: color.value,
+      shape: draft.value
+        ? annotationFeature(draft.value, themeColorToHex)
+        : null,
+      color: themeColorToHex(color.value),
       guide: guide.value,
+      pending: isSnapping.value,
       handles: positions.value.map((position, index) => ({
         position,
         kind: 'vertex' as const,
@@ -396,6 +414,7 @@ export function useCanvasAnnotations(options: {
 
   function arm(next: AnnotationTool | null) {
     if (tool.value === next || !next) return disarm()
+    if (next === 'route' && !canRoute.value) return
     positions.value = []
     routed.value = null
     if (!tool.value) mapEventBus.setOverride('click', onMapClick)
@@ -434,6 +453,7 @@ export function useCanvasAnnotations(options: {
     isArmed,
     canFinish,
     canUndo,
+    canRoute,
     scene,
     vertexCount: computed(() => positions.value.length),
     arm,

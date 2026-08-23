@@ -355,6 +355,7 @@ export function useCanvasRendering(
           data: annotationsCollection(
             annotations,
             canvas.selectedAnnotationId ?? null,
+            themeColorToHex,
           ),
         },
       },
@@ -419,16 +420,38 @@ export function useCanvasRendering(
           {
             type: 'symbol',
             source: sourceId,
-            filter: [
-              'all',
-              ['==', ['geometry-type'], 'Point'],
-              ['!=', ['get', 'label'], ''],
-            ],
+            filter: ['!=', ['get', 'label'], ''],
             layout: {
               'text-field': ['get', 'label'],
               'text-size': 12,
-              'text-anchor': 'top',
-              'text-offset': [0, 1.1],
+              // A label above the mark anchors by its own bottom edge, and so
+              // on round — the anchor is the opposite of where the text goes.
+              'text-anchor': [
+                'match',
+                ['get', 'labelPosition'],
+                'top',
+                'bottom',
+                'bottom',
+                'top',
+                'left',
+                'right',
+                'right',
+                'left',
+                'center',
+              ],
+              'text-offset': [
+                'match',
+                ['get', 'labelPosition'],
+                'top',
+                ['literal', [0, -1.1]],
+                'bottom',
+                ['literal', [0, 1.1]],
+                'left',
+                ['literal', [-1.1, 0]],
+                'right',
+                ['literal', [1.1, 0]],
+                ['literal', [0, 0]],
+              ],
               'text-optional': true,
             },
             paint: {

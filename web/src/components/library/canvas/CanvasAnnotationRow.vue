@@ -12,8 +12,8 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { IconPicker } from '@/components/ui/icon-picker'
+import { ColorPicker } from '@/components/ui/color-picker'
 import {
   ChevronRightIcon,
   CircleIcon,
@@ -26,10 +26,18 @@ import {
   WaypointsIcon,
 } from 'lucide-vue-next'
 import {
-  ANNOTATION_COLORS,
+  annotationMeasurement,
   DEFAULT_ANNOTATION_COLOR,
+  DEFAULT_LABEL_POSITION,
 } from '@/lib/canvas-annotations'
-import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
+import { themeColorToHex } from '@/lib/utils'
+import {
+  ANNOTATION_LABEL_POSITIONS,
+  type AnnotationLabelPosition,
+  type AnnotationTool,
+  type CanvasAnnotation,
+} from '@/types/canvas.types'
+import { useMeasureUnits } from '@/composables/useMeasureUnits'
 
 const props = defineProps<{
   annotation: CanvasAnnotation
@@ -57,6 +65,42 @@ const TOOL_ICONS: Record<AnnotationTool, typeof MapPinIcon> = {
 const color = computed(
   () => props.annotation.color ?? DEFAULT_ANNOTATION_COLOR,
 )
+/** The swatch has to paint a real colour, not the name of one. */
+const swatch = computed(() => themeColorToHex(color.value))
+
+const labelPosition = computed(
+  () => props.annotation.labelPosition ?? DEFAULT_LABEL_POSITION,
+)
+
+/** Where each position sits in the 3x3 pad, so the control reads as a map. */
+const POSITION_CELLS: (AnnotationLabelPosition | null)[] = [
+  null,
+  'top',
+  null,
+  'left',
+  'center',
+  'right',
+  null,
+  'bottom',
+  null,
+]
+
+const { formatDistance, formatArea } = useMeasureUnits(
+  computed(() => !!props.expanded),
+)
+
+/**
+ * How long or how large the mark is. A drawn shape almost always has a
+ * question behind it — how far is that, how big is this — and the answer is
+ * already implied by the geometry.
+ */
+const measurement = computed(() => {
+  const measure = annotationMeasurement(props.annotation)
+  if (!measure) return null
+  return measure.kind === 'area'
+    ? formatArea(measure.value)
+    : formatDistance(measure.value)
+})
 
 const label = ref(props.annotation.label ?? '')
 const labelInput = ref<InstanceType<typeof Input> | null>(null)
@@ -107,7 +151,7 @@ const fallbackName = computed(() =>
         />
         <span
           class="size-4 shrink-0 rounded-full flex items-center justify-center"
-          :style="{ background: color }"
+          :style="{ background: swatch }"
         >
           <component
             :is="TOOL_ICONS[annotation.tool]"
@@ -118,11 +162,16 @@ const fallbackName = computed(() =>
           <span class="block text-sm truncate">
             {{ annotation.label || fallbackName }}
           </span>
+          <!-- What the mark is, and how big — the question behind drawing it. -->
           <span
-            v-if="annotation.routed"
-            class="block text-[11px] text-muted-foreground"
+            v-if="annotation.routed || measurement"
+            class="block text-[11px] text-muted-foreground truncate"
           >
-            {{ t(`directions.modes.${annotation.routed.mode}`) }}
+            <template v-if="annotation.routed">
+              {{ t(`directions.modes.${annotation.routed.mode}`) }}
+            </template>
+            <template v-if="annotation.routed && measurement"> · </template>
+            <template v-if="measurement">{{ measurement }}</template>
           </span>
         </span>
       </button>
@@ -149,49 +198,87 @@ const fallbackName = computed(() =>
       </Button>
     </div>
 
-    <div v-if="expanded" class="border-t px-2.5 py-2.5 space-y-2.5">
+    <div v-if="expanded" class="border-t px-3 py-3 space-y-3">
       <Input
         ref="labelInput"
         v-model="label"
-        class="h-8 text-xs"
+        class="h-8"
         :placeholder="t('canvases.annotations.labelPlaceholder')"
         @blur="commitLabel"
         @keydown.enter="commitLabel"
       />
 
-      <!-- Naming a shape and labelling the map are different acts. -->
-      <div v-if="annotation.label" class="flex items-center justify-between gap-2">
-        <Label class="text-xs text-muted-foreground">
-          {{ t('canvases.annotations.showLabel') }}
-        </Label>
-        <Switch
-          :model-value="annotation.labelVisible !== false"
-          @update:model-value="v => emit('update', { labelVisible: v })"
-        />
+      <!-- Two things every mark has, side by side rather than stacked: they
+           are the ones people reach for, and they are both one control. -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <span class="text-xs text-muted-foreground">
+            {{ t('canvases.annotations.color') }}
+          </span>
+          <ColorPicker
+            :model-value="annotation.color ?? DEFAULT_ANNOTATION_COLOR"
+            @update:model-value="v => emit('update', { color: v })"
+          />
+        </div>
+
+        <div v-if="annotation.tool === 'pin'" class="space-y-1.5">
+          <span class="text-xs text-muted-foreground">
+            {{ t('canvases.annotations.icon') }}
+          </span>
+          <IconPicker
+            :model-value="{
+              icon: annotation.icon ?? 'MapPinIcon',
+              color: 'cobalt',
+            }"
+            @update:model-value="v => emit('update', { icon: v.icon })"
+          />
+        </div>
       </div>
 
-      <div class="flex items-center gap-1">
-        <button
-          v-for="swatch in ANNOTATION_COLORS"
-          :key="swatch"
-          class="size-5 rounded-full border transition-transform hover:scale-110"
-          :class="swatch === color && 'ring-2 ring-offset-1 ring-foreground/40'"
-          :style="{ background: swatch }"
-          :title="swatch"
-          :aria-label="swatch"
-          @click="emit('update', { color: swatch })"
-        />
-      </div>
+      <!-- Naming a mark and printing that name on the map are different
+           decisions, so the label's own settings sit behind its switch. -->
+      <div v-if="annotation.label" class="rounded-md border bg-muted/30 p-2.5 space-y-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs">
+            {{ t('canvases.annotations.showLabel') }}
+          </span>
+          <Switch
+            :model-value="annotation.labelVisible !== false"
+            @update:model-value="v => emit('update', { labelVisible: v })"
+          />
+        </div>
 
-      <!-- Only a pin has room for a glyph; the rest are outlines. -->
-      <div v-if="annotation.tool === 'pin'" class="flex items-center gap-2">
-        <span class="text-xs text-muted-foreground">
-          {{ t('canvases.annotations.icon') }}
-        </span>
-        <IconPicker
-          :model-value="{ icon: annotation.icon ?? 'MapPinIcon', color: 'cobalt' }"
-          @update:model-value="v => emit('update', { icon: v.icon })"
-        />
+        <div
+          v-if="annotation.labelVisible !== false"
+          class="flex items-center justify-between gap-3"
+        >
+          <span class="text-xs text-muted-foreground">
+            {{ t('canvases.annotations.labelPosition') }}
+          </span>
+          <!-- A 3x3 pad, because the choice is about where on the map the
+               text goes — a dropdown of compass words reads as a puzzle. -->
+          <div class="grid grid-cols-3 gap-0.5" role="group">
+            <template v-for="(cell, index) in POSITION_CELLS" :key="index">
+              <span v-if="!cell" class="size-6" />
+              <button
+                v-else
+                type="button"
+                class="size-6 rounded-sm border text-[10px] leading-none transition-colors hover:bg-accent"
+                :class="
+                  labelPosition === cell
+                    ? 'bg-primary border-primary text-primary-foreground'
+                    : 'border-transparent bg-background'
+                "
+                :title="t(`canvases.annotations.positions.${cell}`)"
+                :aria-label="t(`canvases.annotations.positions.${cell}`)"
+                :aria-pressed="labelPosition === cell"
+                @click="emit('update', { labelPosition: cell })"
+              >
+                <span class="block size-1.5 rounded-full bg-current mx-auto" />
+              </button>
+            </template>
+          </div>
+        </div>
       </div>
     </div>
   </div>

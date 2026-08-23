@@ -3,6 +3,7 @@ import * as turf from '@turf/turf'
 import type { Feature, Polygon, Position } from 'geojson'
 import {
   annotationFeature,
+  annotationMeasurement,
   annotationMidpoints,
   annotationNodes,
   annotationsCollection,
@@ -432,5 +433,77 @@ describe('reshaping a mark', () => {
       positions: [[0, 0], [2, 0], [2, 2], [0, 2]],
     })
     expect(removeNode(quad, 1)?.positions).toHaveLength(3)
+  })
+})
+
+describe('label and colour on the feature', () => {
+  it('resolves a colour name into something the map can paint', () => {
+    const feature = annotationFeature(
+      annotation({ tool: 'pin', color: 'teal' }),
+      color => (color === 'teal' ? '#0d9488' : color),
+    )
+    expect(feature?.properties?.color).toBe('#0d9488')
+  })
+
+  it('leaves a custom colour exactly as it was given', () => {
+    const feature = annotationFeature(
+      annotation({ tool: 'pin', color: '#123456' }),
+      color => color,
+    )
+    expect(feature?.properties?.color).toBe('#123456')
+  })
+
+  it('carries the label position, defaulting to below the mark', () => {
+    expect(
+      annotationFeature(annotation({ tool: 'pin' }))?.properties?.labelPosition,
+    ).toBe('bottom')
+    expect(
+      annotationFeature(annotation({ tool: 'pin', labelPosition: 'left' }))
+        ?.properties?.labelPosition,
+    ).toBe('left')
+  })
+})
+
+describe('annotationMeasurement', () => {
+  it('measures a line along its path', () => {
+    const measure = annotationMeasurement(
+      annotation({ tool: 'line', positions: [[0, 0], [0, 1]] }),
+    )
+    expect(measure?.kind).toBe('length')
+    // A degree of latitude is about 111 km anywhere.
+    expect(measure!.value).toBeGreaterThan(110_000)
+    expect(measure!.value).toBeLessThan(112_000)
+  })
+
+  it('measures a route along the path it snapped to, not its waypoints', () => {
+    const straight = annotationMeasurement(
+      annotation({ tool: 'route', positions: [[0, 0], [0, 1]] }),
+    )!
+    const snapped = annotationMeasurement(
+      annotation({
+        tool: 'route',
+        positions: [[0, 0], [0, 1]],
+        routed: { geometry: [[0, 0], [0, 0.5], [0, 2]], mode: 'walking' },
+      }),
+    )!
+    expect(snapped.value).toBeGreaterThan(straight.value)
+  })
+
+  it('measures the shapes that enclose something by area', () => {
+    const polygon = annotationMeasurement(
+      annotation({ tool: 'polygon', positions: [[0, 0], [0, 1], [1, 1]] }),
+    )
+    const circle = annotationMeasurement(
+      annotation({ tool: 'circle', positions: [[0, 0]], radiusMeters: 1000 }),
+    )
+
+    expect(polygon?.kind).toBe('area')
+    expect(circle?.kind).toBe('area')
+    // pi r squared, near enough.
+    expect(circle!.value).toBeCloseTo(Math.PI * 1000 * 1000, -4)
+  })
+
+  it('has nothing to say about a pin', () => {
+    expect(annotationMeasurement(annotation({ tool: 'pin' }))).toBeNull()
   })
 })

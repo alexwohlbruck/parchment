@@ -154,6 +154,17 @@ export type AnnotationTool =
   | 'rectangle'
   | 'circle'
 
+export const ANNOTATION_LABEL_POSITIONS = [
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'center',
+] as const
+
+export type AnnotationLabelPosition =
+  (typeof ANNOTATION_LABEL_POSITIONS)[number]
+
 export interface CanvasAnnotation {
   id: string
   tool: AnnotationTool
@@ -177,6 +188,13 @@ export interface CanvasAnnotation {
     duration?: number
   }
   label?: string
+  /**
+   * Where the label sits relative to the mark. Naming a shape and placing
+   * that name on the map are different decisions — a label below a pin
+   * covers the thing you dropped it on as often as not.
+   */
+  labelPosition?: AnnotationLabelPosition
+  /** One of the app's colour names, or a CSS colour for anything custom. */
   color?: string
   /**
    * Pin only: the glyph drawn in the marker. A lucide icon name, or absent

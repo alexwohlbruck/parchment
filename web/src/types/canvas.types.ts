@@ -225,11 +225,43 @@ export interface CanvasAnnotation {
   visible?: boolean
 }
 
+/**
+ * The map appearance a canvas asks for while it is open.
+ *
+ * A canvas is a composed view: a hiking map wants terrain and no transit
+ * labels, a transit map wants the opposite, and neither should mean changing
+ * the settings you keep for everything else. These override the app's own
+ * while the canvas is being looked at, and are handed back on the way out.
+ */
+export interface CanvasMapSettings {
+  objects3d: boolean
+  terrain3d: boolean
+  hdRoads: boolean
+  indoorMaps: boolean
+  poiLabels: boolean
+  roadLabels: boolean
+  transitLabels: boolean
+  placeLabels: boolean
+}
+
+export const CANVAS_MAP_SETTING_KEYS = [
+  'objects3d',
+  'terrain3d',
+  'hdRoads',
+  'indoorMaps',
+  'poiLabels',
+  'roadLabels',
+  'transitLabels',
+  'placeLabels',
+] as const satisfies readonly (keyof CanvasMapSettings)[]
+
 export interface CanvasBody {
   layers: CanvasLayer[]
   /** Pins, lines and shapes drawn straight onto the canvas. */
   annotations?: CanvasAnnotation[]
   camera?: CanvasCamera
+  /** Absent means the canvas follows whatever the app is set to. */
+  mapSettings?: CanvasMapSettings
 }
 
 export interface Canvas {

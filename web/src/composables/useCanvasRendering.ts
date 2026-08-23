@@ -54,6 +54,10 @@ import { MapEngine } from '@/types/map.types'
 import {
   BOOKMARKS_CIRCLES_LAYER_CONFIG,
   BOOKMARKS_ICONS_LAYER_CONFIG,
+  MARKER_CIRCLE_RADIUS,
+  MARKER_CIRCLE_STROKE_WIDTH,
+  MARKER_CONTRAST_COLOR,
+  MARKER_ICON_SIZE,
 } from '@/constants/layers'
 
 /**
@@ -464,24 +468,40 @@ export function useCanvasRendering(
           },
           true,
         ),
-        // A pin on a canvas is the same kind of thing as a pin in your
-        // library, so it is drawn by the same two layers — the dot, then the
-        // glyph inside it — rather than a lookalike that drifts from them.
+        // A pin is drawn the way a search result is — the dot, then the glyph
+        // inside it — at full size whatever the zoom. Saved places shrink and
+        // fade on the way out because the low-zoom question is "where have I
+        // saved things"; a pin someone placed on a canvas is answering a
+        // different one and has to stay where and what it was put down as.
         toLayer(
           id('-pins'),
           {
-            ...BOOKMARKS_CIRCLES_LAYER_CONFIG.configuration,
+            type: 'circle',
             source: sourceId,
             filter: ['==', ['get', 'tool'], 'pin'],
+            paint: {
+              'circle-color': ['get', 'iconColor'],
+              'circle-radius': MARKER_CIRCLE_RADIUS,
+              'circle-stroke-width': MARKER_CIRCLE_STROKE_WIDTH,
+              'circle-stroke-color': MARKER_CONTRAST_COLOR,
+            },
           },
           true,
         ),
         toLayer(
           id('-pin-icons'),
           {
-            ...BOOKMARKS_ICONS_LAYER_CONFIG.configuration,
+            type: 'symbol',
             source: sourceId,
             filter: ['==', ['get', 'tool'], 'pin'],
+            layout: {
+              // The same glyph placement rules — pinned to the viewport, never
+              // culled — so a canvas pin behaves like every other marker.
+              ...((BOOKMARKS_ICONS_LAYER_CONFIG.configuration.layout ??
+                {}) as Record<string, unknown>),
+              'icon-size': MARKER_ICON_SIZE,
+            },
+            paint: { 'icon-opacity': 1 },
           },
           true,
         ),

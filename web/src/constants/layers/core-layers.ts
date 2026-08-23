@@ -236,6 +236,19 @@ const glyphSize = (radius: number) =>
 export const BOOKMARKS_ICON_MINZOOM = DOT.zoom.collapsed
 
 /**
+ * A marker held at full size at every zoom.
+ *
+ * Saved places shrink and fade on the way out because the low-zoom question
+ * is "where have I saved things", which reads as dots. A mark someone placed
+ * deliberately — a search result, a pin on a canvas — is answering a
+ * different question and has to stay the size it was put down at, the way the
+ * basemap's own POI sprites do.
+ */
+export const MARKER_CIRCLE_RADIUS = DOT.radius.full
+export const MARKER_CIRCLE_STROKE_WIDTH = 1.5
+export const MARKER_ICON_SIZE = glyphSize(DOT.radius.full)
+
+/**
  * NB: a `['zoom']` interpolate has to be the OUTERMOST expression of a paint
  * property. Wrapping this in arithmetic (as an earlier revision did, to add a
  * hover bump) makes both engines reject the layer outright, which shows up as
@@ -314,7 +327,7 @@ const BOOKMARK_ICON_OPACITY = [
  * Halo/stroke color that flips with the map's light preset — dark at night,
  * white by day. Same treatment the search-result labels use.
  */
-const BOOKMARK_CONTRAST_COLOR = [
+export const MARKER_CONTRAST_COLOR = [
   'interpolate',
   ['linear'],
   ['measure-light', 'brightness'],
@@ -350,7 +363,7 @@ export const BOOKMARKS_CIRCLES_LAYER_CONFIG: Omit<
       'circle-stroke-width': BOOKMARK_CIRCLE_STROKE_WIDTH,
       'circle-opacity': BOOKMARK_CIRCLE_OPACITY,
       'circle-stroke-opacity': BOOKMARK_CIRCLE_OPACITY,
-      'circle-stroke-color': BOOKMARK_CONTRAST_COLOR,
+      'circle-stroke-color': MARKER_CONTRAST_COLOR,
       // Both 'viewport' so a saved place behaves like the basemap's POI
       // symbols under a tilted camera: `map` alignment lays the circle flat on
       // the ground plane, where pitch foreshortens it into an ellipse, and

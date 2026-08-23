@@ -2469,7 +2469,12 @@
         "new": "Your data"
       }
     },
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "mapSettings": {
+      "title": "Map appearance",
+      "override": "Give this canvas its own",
+      "followingApp": "Following your app settings."
+    }
   },
   "colors": {
     "compass": "Compass",

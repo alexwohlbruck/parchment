@@ -26,6 +26,9 @@ import * as turf from '@turf/turf'
 import { useCanvasAnnotations } from '@/composables/useCanvasAnnotations'
 import { useAnnotationEditing } from '@/composables/useAnnotationEditing'
 import { useCanvasHistory } from '@/composables/useCanvasHistory'
+import { useCanvasMapSettings } from '@/composables/useCanvasMapSettings'
+import type { CanvasMapSettings } from '@/types/canvas.types'
+import CanvasMapSettingsPanel from '@/components/library/canvas/CanvasMapSettings.vue'
 import { useDrawOverlay } from '@/composables/useDrawOverlay'
 import { annotationFeature } from '@/lib/canvas-annotations'
 import { useRoutesService } from '@/services/library/routes.service'
@@ -443,6 +446,23 @@ const addMenuItems = computed(() => [
   },
 ])
 
+/**
+ * The canvas's own map appearance, in force while it is open. Absent means it
+ * follows whatever the app is set to.
+ */
+const mapSettings = useCanvasMapSettings(
+  computed(() => body.value.mapSettings),
+)
+
+function setMapSettings(next: CanvasMapSettings | undefined) {
+  body.value = { ...body.value, mapSettings: next }
+}
+
+/** Starting a canvas's own set from what the app is showing right now. */
+function adoptMapSettings() {
+  setMapSettings(mapSettings.currentSettings())
+}
+
 // ── Camera ───────────────────────────────────────────────────────────────────
 
 /** Pin the canvas to the view it should open at. */
@@ -628,6 +648,17 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
         :description="t('canvases.layers.emptyHint')"
         class="py-8"
       />
+
+      <div class="pt-3 space-y-1.5">
+        <p class="text-[11px] text-muted-foreground">
+          {{ t('canvases.mapSettings.title') }}
+        </p>
+        <CanvasMapSettingsPanel
+          :model-value="body.mapSettings"
+          @update:model-value="setMapSettings"
+          @adopt="adoptMapSettings"
+        />
+      </div>
 
       <div v-if="body.annotations?.length" class="pt-2 space-y-1.5">
         <p class="text-[11px] text-muted-foreground">

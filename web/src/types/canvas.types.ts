@@ -156,6 +156,27 @@ export type AnnotationTool =
   | 'isochrone'
   | 'doodle'
 
+/**
+ * Dash patterns a mark's outline can take.
+ *
+ * Not data-driven in either engine — `line-dasharray` is one of the few paint
+ * properties that cannot read a feature — so each style is drawn by its own
+ * layer. Keeping the list short keeps that cost to three layers.
+ */
+export const ANNOTATION_STROKE_STYLES = ['solid', 'dashed', 'dotted'] as const
+
+export type AnnotationStrokeStyle = (typeof ANNOTATION_STROKE_STYLES)[number]
+
+/** What a mark is drawn as when it has not been told otherwise. */
+export const ANNOTATION_STYLE_DEFAULTS = {
+  strokeWidth: 3,
+  strokeOpacity: 1,
+  strokeStyle: 'solid' as AnnotationStrokeStyle,
+  fillOpacity: 0.18,
+  markerSize: 9.5,
+  labelSize: 12,
+} as const
+
 export const ANNOTATION_LABEL_POSITIONS = [
   'top',
   'bottom',
@@ -209,8 +230,20 @@ export interface CanvasAnnotation {
   labelPosition?: AnnotationLabelPosition
   /** One of the app's colour names, or a CSS colour for anything custom. */
   color?: string
-  /** Doodle only: how thick the stroke is drawn, in pixels. */
-  width?: number
+  /**
+   * How the mark is drawn, over and above its colour. Every field is
+   * optional and falls back to `ANNOTATION_STYLE_DEFAULTS`, so a mark made
+   * before any of this existed still draws exactly as it did.
+   */
+  strokeWidth?: number
+  strokeOpacity?: number
+  strokeStyle?: AnnotationStrokeStyle
+  /** Areas only. Defaults to the mark's own colour. */
+  fillColor?: string
+  fillOpacity?: number
+  /** Pins only: the dot's radius, in pixels. */
+  markerSize?: number
+  labelSize?: number
   /**
    * Pin only: the glyph drawn in the marker. A lucide icon name, or absent
    * for a plain dot.

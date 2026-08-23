@@ -2452,6 +2452,18 @@
         "area": "Area",
         "radius": "Radius",
         "circumference": "Circumference"
+      },
+      "strokeWidth": "Border width",
+      "strokeStyle": "Border style",
+      "strokeOpacity": "Border opacity",
+      "fillColor": "Fill color",
+      "fillOpacity": "Fill opacity",
+      "markerSize": "Pin size",
+      "labelSize": "Label size",
+      "strokeStyles": {
+        "solid": "Solid",
+        "dashed": "Dashed",
+        "dotted": "Dotted"
       }
     },
     "sources": {

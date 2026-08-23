@@ -20,10 +20,11 @@ import {
   polygonAreaSquareMeters,
 } from '@/lib/measure.utils'
 import type { Feature, FeatureCollection, Position } from 'geojson'
-import type {
-  AnnotationLabelPosition,
-  AnnotationTool,
-  CanvasAnnotation,
+import {
+  ANNOTATION_STYLE_DEFAULTS,
+  type AnnotationLabelPosition,
+  type AnnotationTool,
+  type CanvasAnnotation,
 } from '@/types/canvas.types'
 
 /** How many clicks a tool needs before it can be committed. */
@@ -77,6 +78,35 @@ const CIRCLE_STEPS = 64
 /** Stroke widths a doodle can be drawn at, in pixels. */
 export const DOODLE_WIDTHS = [2, 4, 8, 14] as const
 export const DEFAULT_DOODLE_WIDTH = 4
+
+/**
+ * The style properties the paint expressions read, defaults filled in.
+ *
+ * A dash pattern can't be read from a feature by either engine, so it is
+ * carried as a name and matched by a layer per style — see the renderer.
+ */
+export function annotationStyle(
+  annotation: CanvasAnnotation,
+  resolveColor: (color: string) => string = color => color,
+) {
+  const color = annotation.color ?? DEFAULT_ANNOTATION_COLOR
+  return {
+    strokeWidth:
+      annotation.strokeWidth ??
+      (annotation.tool === 'doodle'
+        ? DEFAULT_DOODLE_WIDTH
+        : ANNOTATION_STYLE_DEFAULTS.strokeWidth),
+    strokeOpacity:
+      annotation.strokeOpacity ?? ANNOTATION_STYLE_DEFAULTS.strokeOpacity,
+    strokeStyle:
+      annotation.strokeStyle ?? ANNOTATION_STYLE_DEFAULTS.strokeStyle,
+    fillColor: resolveColor(annotation.fillColor ?? color),
+    fillOpacity:
+      annotation.fillOpacity ?? ANNOTATION_STYLE_DEFAULTS.fillOpacity,
+    markerSize: annotation.markerSize ?? ANNOTATION_STYLE_DEFAULTS.markerSize,
+    labelSize: annotation.labelSize ?? ANNOTATION_STYLE_DEFAULTS.labelSize,
+  }
+}
 
 /**
  * How far a point may be moved to simplify a stroke, in degrees. Small
@@ -267,7 +297,9 @@ export function annotationFeature(
     // the same kind of thing as a pin in your library, so it draws the same.
     iconPack: 'lucide',
     iconColor: resolveColor(annotation.color ?? DEFAULT_ANNOTATION_COLOR),
-    width: annotation.width ?? DEFAULT_DOODLE_WIDTH,
+    // Everything the paint expressions read. Resolved here rather than in the
+    // layers so one place decides what a mark looks like unstyled.
+    ...annotationStyle(annotation, resolveColor),
   }
 
   switch (tool) {

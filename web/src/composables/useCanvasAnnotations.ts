@@ -546,7 +546,7 @@ export function useCanvasAnnotations(options: {
       routed.value ?? undefined,
     )
     if (isochrone.value) annotation.isochrone = isochrone.value
-    if (tool.value === 'doodle') annotation.width = doodleWidth.value
+    if (tool.value === 'doodle') annotation.strokeWidth = doodleWidth.value
     options.onCommit(annotation)
 
     positions.value = []

@@ -3,6 +3,7 @@ import * as turf from '@turf/turf'
 import type { Feature, Polygon, Position } from 'geojson'
 import {
   annotationFeature,
+  annotationStyle,
   smoothStroke,
   annotationMeasurement,
   annotationMetrics,
@@ -617,8 +618,60 @@ describe('doodles', () => {
 
   it('carries its own thickness, so one layer can draw every stroke', () => {
     const feature = annotationFeature(
-      annotation({ tool: 'doodle', positions: [[0, 0], [1, 1]], width: 14 }),
+      annotation({ tool: 'doodle', positions: [[0, 0], [1, 1]], strokeWidth: 14 }),
     )
-    expect(feature?.properties?.width).toBe(14)
+    expect(feature?.properties?.strokeWidth).toBe(14)
+  })
+})
+
+describe('annotationStyle', () => {
+  it('draws a mark that was never styled exactly as it always was', () => {
+    const style = annotationStyle(annotation({ tool: 'polygon' }))
+    expect(style).toMatchObject({
+      strokeWidth: 3,
+      strokeOpacity: 1,
+      strokeStyle: 'solid',
+      fillOpacity: 0.18,
+    })
+  })
+
+  it('gives a doodle the thickness it was drawn at', () => {
+    expect(annotationStyle(annotation({ tool: 'doodle' })).strokeWidth).toBe(4)
+    expect(
+      annotationStyle(annotation({ tool: 'doodle', strokeWidth: 12 })).strokeWidth,
+    ).toBe(12)
+  })
+
+  it('fills with the mark\'s own colour until told otherwise', () => {
+    expect(annotationStyle(annotation({ tool: 'polygon', color: 'teal' })).fillColor).toBe('teal')
+    expect(
+      annotationStyle(
+        annotation({ tool: 'polygon', color: 'teal', fillColor: 'sky' }),
+      ).fillColor,
+    ).toBe('sky')
+  })
+
+  it('resolves both colours through the same resolver', () => {
+    const style = annotationStyle(
+      annotation({ tool: 'polygon', fillColor: 'teal' }),
+      color => (color === 'teal' ? '#0d9488' : color),
+    )
+    expect(style.fillColor).toBe('#0d9488')
+  })
+
+  it('puts every style property on the feature for the paint to read', () => {
+    const feature = annotationFeature(
+      annotation({
+        tool: 'polygon',
+        positions: [[0, 0], [0, 1], [1, 1]],
+        strokeStyle: 'dashed',
+        fillOpacity: 0.5,
+      }),
+    )
+    expect(feature?.properties).toMatchObject({
+      strokeStyle: 'dashed',
+      fillOpacity: 0.5,
+      strokeWidth: 3,
+    })
   })
 })

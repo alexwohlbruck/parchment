@@ -45,6 +45,7 @@ import {
   annotationIconSpecs,
   annotationsCollection,
 } from '@/lib/canvas-annotations'
+import { ANNOTATION_STROKE_STYLES } from '@/types/canvas.types'
 import { presetLayers } from '@/lib/map-style/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
@@ -86,6 +87,18 @@ const LABEL_COLORS = {
  * such property and rejects the layer outright, so this only goes on where
  * the engine understands it.
  */
+/**
+ * Dash patterns, in multiples of the line's own width so they hold their
+ * proportions as a stroke thickens. `line-dasharray` is one of the few paint
+ * properties neither engine will read from a feature, so each pattern gets
+ * its own layer and the features are filtered between them.
+ */
+const STROKE_DASHES: Record<string, number[] | undefined> = {
+  solid: undefined,
+  dashed: [2, 1.5],
+  dotted: [0.2, 1.8],
+}
+
 const EMISSIVE_KEYS: Record<string, string> = {
   fill: 'fill-emissive-strength',
   line: 'line-emissive-strength',
@@ -425,29 +438,42 @@ export function useCanvasRendering(
             type: 'fill',
             source: sourceId,
             filter: ['==', ['geometry-type'], 'Polygon'],
-            paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.18 },
-          },
-          true,
-        ),
-        toLayer(
-          id('-stroke'),
-          {
-            type: 'line',
-            source: sourceId,
-            filter: ['!=', ['geometry-type'], 'Point'],
-            layout: { 'line-cap': 'round', 'line-join': 'round' },
             paint: {
-              'line-color': ['get', 'color'],
-              // A doodle carries its own thickness; everything else is 3.
-              'line-width': [
-                'case',
-                ['==', ['get', 'tool'], 'doodle'],
-                ['get', 'width'],
-                3,
-              ],
+              'fill-color': ['get', 'fillColor'],
+              'fill-opacity': ['get', 'fillOpacity'],
             },
           },
           true,
+        ),
+        // One layer per dash pattern, since a dash array cannot be read from
+        // a feature. Everything else about a stroke can, so these differ only
+        // in their filter and their dashes.
+        ...ANNOTATION_STROKE_STYLES.map(style =>
+          toLayer(
+            id(`-stroke-${style}`),
+            {
+              type: 'line',
+              source: sourceId,
+              filter: [
+                'all',
+                ['!=', ['geometry-type'], 'Point'],
+                ['==', ['get', 'strokeStyle'], style],
+              ],
+              layout: {
+                'line-cap': style === 'dotted' ? 'round' : 'butt',
+                'line-join': 'round',
+              },
+              paint: {
+                'line-color': ['get', 'color'],
+                'line-width': ['get', 'strokeWidth'],
+                'line-opacity': ['get', 'strokeOpacity'],
+                ...(STROKE_DASHES[style]
+                  ? { 'line-dasharray': STROKE_DASHES[style] }
+                  : {}),
+              },
+            },
+            true,
+          ),
         ),
         // A halo under the selected annotation, so clicking one shows.
         toLayer(
@@ -481,7 +507,7 @@ export function useCanvasRendering(
             filter: ['==', ['get', 'tool'], 'pin'],
             paint: {
               'circle-color': ['get', 'iconColor'],
-              'circle-radius': MARKER_CIRCLE_RADIUS,
+              'circle-radius': ['get', 'markerSize'],
               'circle-stroke-width': MARKER_CIRCLE_STROKE_WIDTH,
               'circle-stroke-color': MARKER_CONTRAST_COLOR,
             },
@@ -499,7 +525,13 @@ export function useCanvasRendering(
               // culled — so a canvas pin behaves like every other marker.
               ...((BOOKMARKS_ICONS_LAYER_CONFIG.configuration.layout ??
                 {}) as Record<string, unknown>),
-              'icon-size': MARKER_ICON_SIZE,
+              // Tracks the dot, so a bigger pin gets a bigger glyph rather
+              // than the same one floating in more space.
+              'icon-size': [
+                '*',
+                MARKER_ICON_SIZE,
+                ['/', ['get', 'markerSize'], MARKER_CIRCLE_RADIUS],
+              ],
             },
             paint: { 'icon-opacity': 1 },
           },
@@ -513,7 +545,7 @@ export function useCanvasRendering(
             filter: ['!=', ['get', 'label'], ''],
             layout: {
               'text-field': ['get', 'label'],
-              'text-size': 12,
+              'text-size': ['get', 'labelSize'],
               // A label above the mark anchors by its own bottom edge, and so
               // on round — the anchor is the opposite of where the text goes.
               'text-anchor': [

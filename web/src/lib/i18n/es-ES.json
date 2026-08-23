@@ -2332,6 +2332,18 @@
         "area": "Área",
         "radius": "Radio",
         "circumference": "Circunferencia"
+      },
+      "strokeWidth": "Grosor del borde",
+      "strokeStyle": "Estilo del borde",
+      "strokeOpacity": "Opacidad del borde",
+      "fillColor": "Color de relleno",
+      "fillOpacity": "Opacidad del relleno",
+      "markerSize": "Tamaño del pin",
+      "labelSize": "Tamaño de la etiqueta",
+      "strokeStyles": {
+        "solid": "Sólido",
+        "dashed": "Discontinuo",
+        "dotted": "Punteado"
       }
     },
     "sources": {

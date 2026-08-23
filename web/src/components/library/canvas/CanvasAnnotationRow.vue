@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { IconPicker } from '@/components/ui/icon-picker'
+import CanvasAnnotationStyle from './CanvasAnnotationStyle.vue'
 import {
   Select,
   SelectContent,
@@ -280,6 +281,11 @@ const fallbackName = computed(() =>
           @update:model-value="v => emit('update', { icon: v.icon })"
         />
       </div>
+
+      <CanvasAnnotationStyle
+        :annotation="annotation"
+        @update="patch => emit('update', patch)"
+      />
 
       <!-- Naming a mark and printing that name on the map are different
            decisions, so where it goes only appears once it goes anywhere. -->

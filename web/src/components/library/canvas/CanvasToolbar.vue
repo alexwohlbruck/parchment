@@ -21,6 +21,7 @@ import {
   MapPinIcon,
   MinusIcon,
   MousePointer2Icon,
+  PencilIcon,
   PentagonIcon,
   RedoIcon,
   SquareIcon,
@@ -30,6 +31,7 @@ import {
 } from 'lucide-vue-next'
 import { Spinner } from '@/components/ui/spinner'
 import type { AnnotationTool } from '@/types/canvas.types'
+import { DOODLE_WIDTHS } from '@/lib/canvas-annotations'
 import type { RouteMode } from '@/types/routes.types'
 
 const props = defineProps<{
@@ -47,12 +49,15 @@ const props = defineProps<{
   canRedoEdit: boolean
   /** False when nothing is configured that can plan a route. */
   canRoute: boolean
+  /** Doodle only: how thick the stroke is drawn. */
+  doodleWidth: number
 }>()
 
 const emit = defineEmits<{
   arm: [tool: AnnotationTool | null]
   'update:color': [color: string]
   'update:routeMode': [mode: RouteMode]
+  'update:doodleWidth': [width: number]
   finish: []
   undo: []
   undoEdit: []
@@ -79,6 +84,7 @@ const TOOLS: {
   { id: 'rectangle', icon: SquareIcon, key: 'E', hint: 'square' },
   { id: 'circle', icon: CircleIcon, key: 'I', hint: 'radius' },
   { id: 'isochrone', icon: TimerIcon, key: 'T', hint: 'isochrone' },
+  { id: 'doodle', icon: PencilIcon, key: 'D', hint: 'doodle' },
 ]
 
 function isDisabled(item: (typeof TOOLS)[number]) {
@@ -155,6 +161,27 @@ const isDrawing = computed(() => props.vertexCount > 0)
         <component :is="mode.icon" class="size-4" />
       </Button>
       <Spinner v-if="isSnapping" class="size-3.5 mx-1 text-muted-foreground" />
+    </template>
+
+    <!-- How thick the stroke goes down. Only the freehand tool has one. -->
+    <template v-if="tool === 'doodle'">
+      <Separator orientation="vertical" class="h-5 mx-0.5" />
+      <Button
+        v-for="width in DOODLE_WIDTHS"
+        :key="width"
+        variant="ghost"
+        size="icon"
+        class="size-8"
+        :class="doodleWidth === width && 'bg-secondary'"
+        :title="t('canvases.toolbar.strokeWidth', { width })"
+        :aria-label="t('canvases.toolbar.strokeWidth', { width })"
+        @click="emit('update:doodleWidth', width)"
+      >
+        <span
+          class="rounded-full bg-foreground"
+          :style="{ width: `${width}px`, height: `${width}px` }"
+        />
+      </Button>
     </template>
 
     <template v-if="tool">

@@ -71,6 +71,8 @@ export interface OverlayScene {
   handles: OverlayHandle[]
   /** Something is still being computed for this shape — crawl its outline. */
   pending?: boolean
+  /** A freehand stroke's thickness, where it differs from the default. */
+  width?: number
 }
 
 interface OverlayMap {
@@ -245,7 +247,7 @@ export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
     if (current.shape) {
       paintFeature(context, map, current.shape, {
         color: current.color,
-        width: STROKE_WIDTH,
+        width: current.width ?? STROKE_WIDTH,
         fill: true,
         dash: current.pending ? PENDING_DASH : undefined,
         dashOffset: current.pending

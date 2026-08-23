@@ -154,6 +154,7 @@ export type AnnotationTool =
   | 'rectangle'
   | 'circle'
   | 'isochrone'
+  | 'doodle'
 
 export const ANNOTATION_LABEL_POSITIONS = [
   'top',
@@ -208,6 +209,8 @@ export interface CanvasAnnotation {
   labelPosition?: AnnotationLabelPosition
   /** One of the app's colour names, or a CSS colour for anything custom. */
   color?: string
+  /** Doodle only: how thick the stroke is drawn, in pixels. */
+  width?: number
   /**
    * Pin only: the glyph drawn in the marker. A lucide icon name, or absent
    * for a plain dot.

@@ -2117,7 +2117,7 @@
     "title": "Lienzos",
     "layerCount": "Sin capas | 1 capa | {count} capas",
     "showOnMap": "Mostrar en el mapa",
-    "saved": "Lienzo guardado",
+    "saved": "Guardado",
     "cameraSaved": "Este lienzo se abrirá en la vista actual",
     "saveCamera": "Guardar la vista actual",
     "notFound": "Este lienzo ya no existe.",
@@ -2292,7 +2292,8 @@
         "rectangle": "Rectángulo",
         "circle": "Círculo",
         "route": "Ruta",
-        "isochrone": "Tiempo de viaje"
+        "isochrone": "Tiempo de viaje",
+        "doodle": "Dibujo"
       },
       "advanced": "Más herramientas",
       "undoEdit": "Deshacer",
@@ -2303,8 +2304,10 @@
         "square": "Tres clics para cualquier ángulo, Mayús para un cuadrado",
         "radius": "Mantén Mayús para un radio redondo",
         "isochrone": "Haz clic en un punto para ver hasta dónde llegas",
-        "routingUnavailable": "El tiempo de viaje necesita una integración de rutas — configura una en Ajustes"
-      }
+        "routingUnavailable": "El tiempo de viaje necesita una integración de rutas — configura una en Ajustes",
+        "doodle": "Arrastra para dibujar a mano alzada"
+      },
+      "strokeWidth": "Grosor del trazo {width}"
     },
     "annotations": {
       "title": "Anotaciones",
@@ -2345,7 +2348,8 @@
         "library": "Biblioteca",
         "new": "Tus datos"
       }
-    }
+    },
+    "saving": "Guardando…"
   },
   "colors": {
     "compass": "Brújula",

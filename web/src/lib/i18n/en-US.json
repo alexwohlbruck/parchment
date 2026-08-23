@@ -2237,7 +2237,7 @@
     "title": "Canvases",
     "layerCount": "No layers | 1 layer | {count} layers",
     "showOnMap": "Show on the map",
-    "saved": "Canvas saved",
+    "saved": "Saved",
     "cameraSaved": "This canvas will open at the current view",
     "saveCamera": "Save the current view",
     "notFound": "This canvas no longer exists.",
@@ -2412,7 +2412,8 @@
         "rectangle": "Rectangle",
         "circle": "Circle",
         "route": "Route",
-        "isochrone": "Travel time"
+        "isochrone": "Travel time",
+        "doodle": "Doodle"
       },
       "undoEdit": "Undo",
       "redoEdit": "Redo",
@@ -2422,9 +2423,11 @@
         "square": "Three clicks for any angle, Shift for a square",
         "radius": "Hold Shift for a round radius",
         "isochrone": "Click a point to see how far you can get",
-        "routingUnavailable": "Travel time needs a routing integration — set one up in Settings"
+        "routingUnavailable": "Travel time needs a routing integration — set one up in Settings",
+        "doodle": "Drag to draw freehand"
       },
-      "advanced": "More tools"
+      "advanced": "More tools",
+      "strokeWidth": "Stroke width {width}"
     },
     "annotations": {
       "title": "Annotations",
@@ -2465,7 +2468,8 @@
         "library": "Library",
         "new": "Your data"
       }
-    }
+    },
+    "saving": "Saving…"
   },
   "colors": {
     "compass": "Compass",

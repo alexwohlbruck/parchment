@@ -18,6 +18,11 @@ vi.mock('@/lib/route-snapping', () => ({
   snapWaypointsToPath: vi.fn(async () => null),
 }))
 
+const fetchIsochroneBands = vi.fn(async () => ({ bands: [], meta: null }))
+vi.mock('@/lib/isochrone-request', () => ({
+  fetchIsochroneBands: (...args: unknown[]) => fetchIsochroneBands(...(args as [])),
+}))
+
 /** A projection with a metre roughly a pixel, so hit tests are easy to reason about. */
 const SCALE = 100
 
@@ -272,6 +277,35 @@ describe('useAnnotationEditing', () => {
 
     expect(session.suppressedId.value).toBeNull()
     expect(map.dragPan.enable).toHaveBeenCalled()
+    session.dispose()
+  })
+
+  it('carries an isochrone along under the pointer while it is moved', async () => {
+    const session = editor({
+      id: 'an-i',
+      tool: 'isochrone',
+      positions: [[0, 0]],
+      isochrone: {
+        geometry: [[[0, 0], [0, 1], [1, 1], [0, 0]]],
+        mode: 'walk',
+        minutes: 15,
+      },
+    })
+    await nextTick()
+
+    map.canvas.dispatchEvent(pointer('pointerdown', 0, 0))
+    window.dispatchEvent(pointer('pointermove', 100, 0))
+
+    // The engine has not answered yet; the old shape follows the origin
+    // rather than blanking or staying behind.
+    const ring = (session.scene.value?.shape as { geometry: { coordinates: number[][][] } })
+      .geometry.coordinates[0]
+    expect(ring[0][0]).toBeCloseTo(1, 5)
+
+    window.dispatchEvent(pointer('pointerup', 100, 0))
+    await nextTick()
+    // And then it asks what is actually reachable from there.
+    expect(fetchIsochroneBands).toHaveBeenCalled()
     session.dispose()
   })
 

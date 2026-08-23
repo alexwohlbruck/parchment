@@ -21,7 +21,6 @@ import { useCanvasesService } from '@/services/library/canvases.service'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
 import { useMapStore } from '@/stores/map.store'
-import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
 import * as turf from '@turf/turf'
 import { useCanvasAnnotations } from '@/composables/useCanvasAnnotations'
@@ -104,23 +103,33 @@ function load() {
   history.reset()
 }
 
-watch(canvas, load, { immediate: true })
+/**
+ * Only a different canvas reloads the working copy.
+ *
+ * Saving upserts the canvas into the store, so watching the record itself
+ * would reload — and reset the undo history — after every autosave.
+ */
+watch(() => canvas.value?.id, id => id && load(), { immediate: true })
 
 // A cold load (opened from a link, or after a reload) has neither the canvas
 // nor the collections it references.
 ;(async () => {
   // A canvas can reference collections and routes, and a cold load has
-  // neither — a row with no name is worse than a moment's spinner.
-  await Promise.all([
-    canvasesService.fetchCanvasById(props.id),
-    collectionsService.fetchCollections(),
-    routesService.fetchRoutes(),
-  ])
-  loading.value = false
+  // neither — a row with no name is worse than a moment's spinner. One of
+  // them failing must still let go of the spinner: a canvas whose routes
+  // didn't load is worth editing, and this gate is what lets it save.
+  try {
+    await Promise.all([
+      canvasesService.fetchCanvasById(props.id),
+      collectionsService.fetchCollections(),
+      routesService.fetchRoutes(),
+    ])
+  } finally {
+    loading.value = false
+  }
 })()
 
 const isDirty = computed(() => JSON.stringify(body.value) !== pristine.value)
-useUnsavedChanges(isDirty)
 
 // ── Annotations ──────────────────────────────────────────────────────────────
 
@@ -187,6 +196,7 @@ useHotkeys([
   { key: 'e', handler: () => annotations.arm('rectangle') },
   { key: 'i', handler: () => annotations.arm('circle') },
   { key: 't', handler: () => annotations.arm('isochrone') },
+  { key: 'd', handler: () => annotations.arm('doodle') },
 ])
 
 function patchAnnotation(id: string, patch: Partial<CanvasAnnotation>) {
@@ -447,25 +457,61 @@ function saveCamera() {
 
 const renameOpen = ref(false)
 
+/**
+ * A canvas saves itself.
+ *
+ * Nothing here is a document you finish and file — it is a map you arrange
+ * while looking at it, and a Save button in front of that is a chance to
+ * lose work rather than a safeguard. Writes are debounced so a drag is one
+ * save rather than sixty, and a change made mid-save queues the next one.
+ */
+const SAVE_DEBOUNCE_MS = 900
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+/** A change arrived while a save was in flight; go round again after it. */
+let saveAgain = false
+
 async function save() {
-  if (!canvas.value || saving.value) return
+  if (!canvas.value) return
+  if (saving.value) {
+    saveAgain = true
+    return
+  }
+
+  clearTimeout(saveTimer)
+  saveTimer = undefined
+  const attempted = JSON.stringify(body.value)
   saving.value = true
   try {
     const saved = await canvasesService.saveBody(canvas.value, body.value)
-    if (saved) {
-      pristine.value = JSON.stringify(body.value)
-      appService.toast.success(t('canvases.saved'))
-    }
+    // `pristine` records what actually reached the server, not what the
+    // working copy holds now — it may have moved on while this was away.
+    if (saved) pristine.value = attempted
   } finally {
     saving.value = false
+    if (saveAgain) {
+      saveAgain = false
+      if (isDirty.value) void save()
+    }
   }
 }
 
-/**
- * Leaving is deliberately just a navigation: `useUnsavedChanges` challenges
- * it. That keeps every exit — this button, the sheet's close button, Esc,
- * browser back — behaving identically instead of only the one we wired up.
- */
+watch(
+  body,
+  () => {
+    if (!canvas.value || !isDirty.value) return
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => void save(), SAVE_DEBOUNCE_MS)
+  },
+  { deep: true },
+)
+
+// Closing the editor shouldn't drop the last second of work.
+onScopeDispose(() => {
+  clearTimeout(saveTimer)
+  if (isDirty.value) void save()
+})
+
+/** Leaving is just a navigation now: whatever was open is already saved. */
 function close() {
   router.push({ name: AppRoute.LIBRARY_CANVASES })
 }
@@ -502,10 +548,14 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
       >
         <CrosshairIcon class="size-4" />
       </Button>
-      <Button size="sm" :disabled="!isDirty || saving" @click="save">
-        <Spinner v-if="saving" class="size-3.5" />
-        {{ t('general.save') }}
-      </Button>
+      <!-- A canvas saves itself; this only says where that got to. -->
+      <span
+        class="flex items-center gap-1.5 text-xs text-muted-foreground"
+        aria-live="polite"
+      >
+        <Spinner v-if="saving" class="size-3" />
+        {{ saving ? t('canvases.saving') : isDirty ? '' : t('canvases.saved') }}
+      </span>
     </template>
 
     <div v-if="loading && !canvas" class="py-12 flex justify-center">
@@ -622,6 +672,8 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
           :can-finish="annotations.canFinish.value"
           :can-undo="annotations.canUndo.value"
           :can-route="annotations.canRoute.value"
+          :doodle-width="annotations.doodleWidth.value"
+          @update:doodle-width="v => (annotations.doodleWidth.value = v)"
           :can-undo-edit="history.canUndo.value"
           :can-redo-edit="history.canRedo.value"
           :vertex-count="annotations.vertexCount.value"

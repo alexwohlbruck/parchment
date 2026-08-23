@@ -37,6 +37,8 @@ export const TOOL_MINIMUM: Record<AnnotationTool, number> = {
   circle: 2,
   // One click sets the origin; the engine supplies the shape.
   isochrone: 1,
+  // A stroke, not a series of clicks — two points is the shortest mark.
+  doodle: 2,
 }
 
 /**
@@ -54,6 +56,8 @@ export const TOOL_AUTOCOMPLETES: Record<AnnotationTool, boolean> = {
   circle: true,
   // Committed once the engine answers, not when the origin is clicked.
   isochrone: false,
+  // Committed when the pointer lifts.
+  doodle: false,
 }
 
 /**
@@ -69,6 +73,17 @@ export const DEFAULT_LABEL_POSITION: AnnotationLabelPosition = 'bottom'
 
 /** Circle geometry is approximated by a ring; 64 steps reads as smooth. */
 const CIRCLE_STEPS = 64
+
+/** Stroke widths a doodle can be drawn at, in pixels. */
+export const DOODLE_WIDTHS = [2, 4, 8, 14] as const
+export const DEFAULT_DOODLE_WIDTH = 4
+
+/**
+ * How far a point may be moved to simplify a stroke, in degrees. Small
+ * enough to keep the shape, large enough to drop the jitter a hand leaves
+ * at speed.
+ */
+const DOODLE_TOLERANCE = 0.00002
 
 export function metersBetween(a: Position, b: Position): number {
   return turf.distance(turf.point(a), turf.point(b), { units: 'meters' })
@@ -247,7 +262,12 @@ export function annotationFeature(
     // expressed to the style layer.
     label:
       annotation.labelVisible === false ? '' : (annotation.label ?? ''),
-    icon: annotation.icon ?? '',
+    icon: annotation.icon ?? 'MapPin',
+    // The saved-place marker layers read these names; a pin on a canvas is
+    // the same kind of thing as a pin in your library, so it draws the same.
+    iconPack: 'lucide',
+    iconColor: resolveColor(annotation.color ?? DEFAULT_ANNOTATION_COLOR),
+    width: annotation.width ?? DEFAULT_DOODLE_WIDTH,
   }
 
   switch (tool) {
@@ -258,6 +278,7 @@ export function annotationFeature(
         properties,
       }
     case 'line':
+    case 'doodle':
       return {
         type: 'Feature',
         geometry: { type: 'LineString', coordinates: positions },
@@ -334,7 +355,10 @@ export function guideFeature(
   cursor: Position | null,
 ): Feature | null {
   if (!cursor || !positions.length) return null
+  // A doodle is already under the pointer, and an isochrone has nothing to
+  // reach towards — a band to either is just a line across the map.
   if (tool === 'pin' || tool === 'circle') return null
+  if (tool === 'doodle' || tool === 'isochrone') return null
   // A rectangle's first click only sets a baseline; there is no shape to
   // preview until the second, so show the line being laid down.
   if (tool === 'rectangle') {
@@ -561,6 +585,7 @@ export function annotationMetrics(
       return []
 
     case 'line':
+    case 'doodle':
       return [
         {
           kind: 'length',
@@ -614,4 +639,56 @@ export function annotationMeasurement(
 ): AnnotationMetric | null {
   const metrics = annotationMetrics(annotation)
   return metrics.find(m => m.key === 'area') ?? metrics[0] ?? null
+}
+
+/**
+ * A freehand stroke, tidied.
+ *
+ * A hand drawing on a trackpad produces both too many points and shaky ones.
+ * Simplifying first drops the redundancy, then one pass of Chaikin's corner
+ * cutting rounds what's left — which is what makes a drawn line read as
+ * deliberate rather than nervous. Doing it in that order matters: smoothing
+ * a dense noisy path just makes a dense smooth-looking noisy path.
+ */
+export function smoothStroke(positions: Position[]): Position[] {
+  if (positions.length < 3) return positions
+
+  const simplified = turf.simplify(turf.lineString(positions), {
+    tolerance: DOODLE_TOLERANCE,
+    highQuality: true,
+  }).geometry.coordinates
+
+  if (simplified.length < 3) return simplified
+
+  // Chaikin: replace each corner with two points a quarter in from either
+  // side, so the path bends where it used to turn.
+  const smoothed: Position[] = [simplified[0]]
+  for (let i = 0; i < simplified.length - 1; i++) {
+    const [ax, ay] = simplified[i]
+    const [bx, by] = simplified[i + 1]
+    smoothed.push([ax + (bx - ax) * 0.25, ay + (by - ay) * 0.25])
+    smoothed.push([ax + (bx - ax) * 0.75, ay + (by - ay) * 0.75])
+  }
+  smoothed.push(simplified[simplified.length - 1])
+
+  // Chaikin doubles the points, and most of the new ones sit on straight runs
+  // where they buy nothing. A canvas is saved whole and encrypted whole, so a
+  // stroke that keeps every one of them is paid for on every save.
+  if (smoothed.length < 3) return smoothed
+  return turf.simplify(turf.lineString(smoothed), {
+    tolerance: DOODLE_TOLERANCE / 2,
+    highQuality: true,
+  }).geometry.coordinates
+}
+
+/** The glyphs a canvas's pins need registered before they can be drawn. */
+export function annotationIconSpecs(
+  annotations: CanvasAnnotation[] | undefined,
+): { pack: 'lucide'; name: string }[] {
+  return (annotations ?? [])
+    .filter(annotation => annotation.tool === 'pin')
+    .map(annotation => ({
+      pack: 'lucide' as const,
+      name: annotation.icon ?? 'MapPin',
+    }))
 }

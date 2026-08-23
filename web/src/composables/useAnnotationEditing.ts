@@ -19,6 +19,9 @@ import {
   RouteSnapAborted,
   snapWaypointsToPath,
 } from '@/lib/route-snapping'
+import { fetchIsochroneBands } from '@/lib/isochrone-request'
+import { contourDurations } from '@/lib/isochrone.utils'
+import type { IsochroneMode } from '@server/types/isochrone.types'
 import type { CanvasAnnotation } from '@/types/canvas.types'
 import type { OverlayHandle, OverlayScene } from '@/composables/useDrawOverlay'
 import {
@@ -85,7 +88,25 @@ export function useAnnotationEditing(options: {
     if (!annotation) return null
     const grab = dragging.value
     if (!grab || !dragPosition.value) return annotation
-    return { ...annotation, ...moveNode(annotation, grab, dragPosition.value) }
+    const moved = { ...annotation, ...moveNode(annotation, grab, dragPosition.value) }
+
+    // An isochrone's shape comes from the engine, so a moved origin has no
+    // new shape until it answers. Carrying the old one along under the
+    // pointer is the honest preview: the right size, in the right place.
+    if (moved.tool === 'isochrone' && moved.isochrone && annotation.positions[0]) {
+      const [fromLng, fromLat] = annotation.positions[0]
+      const [toLng, toLat] = dragPosition.value
+      moved.isochrone = {
+        ...moved.isochrone,
+        geometry: moved.isochrone.geometry.map(ring =>
+          ring.map(([lng, lat]) => [
+            lng + (toLng - fromLng),
+            lat + (toLat - fromLat),
+          ]),
+        ),
+      }
+    }
+    return moved
   })
 
   const nodes = computed<AnnotationNode[]>(() =>
@@ -290,9 +311,55 @@ export function useAnnotationEditing(options: {
     const patch = moveNode(annotation, grab, to)
     options.onChange(annotation.id, patch)
 
-    // A route's path has to be asked for again once a waypoint has moved.
+    // A route's path and an isochrone's reach both come from the engine, so
+    // both have to be asked for again once their origin has moved.
     if (annotation.tool === 'route' && patch.positions) {
       await resnap({ ...annotation, ...patch })
+    }
+    if (annotation.tool === 'isochrone' && patch.positions) {
+      await refetchIsochrone({ ...annotation, ...patch })
+    }
+  }
+
+  /**
+   * The reachable area for a moved origin.
+   *
+   * Until it lands the mark keeps the shape it had, which is wrong for the
+   * new origin but better than blanking — the same reason a route holds its
+   * old path while a new one is on the way.
+   */
+  async function refetchIsochrone(annotation: CanvasAnnotation) {
+    const origin = annotation.positions[0]
+    const previous = annotation.isochrone
+    if (!origin || !previous) return
+
+    snapRequest?.abort()
+    const controller = new AbortController()
+    snapRequest = controller
+    try {
+      const { bands } = await fetchIsochroneBands({
+        origin: { lng: origin[0], lat: origin[1] },
+        mode: previous.mode as IsochroneMode,
+        durations: contourDurations(previous.minutes, 1),
+        signal: controller.signal,
+      })
+      const geometry = bands[bands.length - 1]?.geometry
+      if (!geometry) return
+      options.onChange(annotation.id, {
+        isochrone: {
+          ...previous,
+          geometry:
+            geometry.type === 'Polygon'
+              ? geometry.coordinates
+              : geometry.coordinates.flat(),
+        },
+      })
+    } catch (error) {
+      if (!(error as Error)?.name?.includes('Abort')) {
+        console.error('[canvas] failed to move an isochrone', error)
+      }
+    } finally {
+      if (snapRequest === controller) snapRequest = undefined
     }
   }
 

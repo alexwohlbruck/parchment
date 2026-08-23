@@ -41,12 +41,16 @@ import {
 } from '@/lib/saved-places-features'
 import { ensureIconImages } from '@/lib/map-icon-images'
 import { resolveSpecBounds } from '@/lib/map-style/bounds'
-import { annotationsCollection } from '@/lib/canvas-annotations'
+import {
+  annotationIconSpecs,
+  annotationsCollection,
+} from '@/lib/canvas-annotations'
 import { presetLayers } from '@/lib/map-style/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
 import { themeColorToHex } from '@/lib/utils'
 import { useThemeStore } from '@/stores/theme.store'
+import { MapEngine } from '@/types/map.types'
 import {
   BOOKMARKS_CIRCLES_LAYER_CONFIG,
   BOOKMARKS_ICONS_LAYER_CONFIG,
@@ -67,6 +71,23 @@ const LABEL_COLORS = {
   // A dark halo needs a little more of itself to read against bright ground.
   night: { text: '#f9fafb', halo: '#0b1220', haloWidth: 1.5 },
 } as const
+
+/**
+ * Paint keys that take an emissive strength, by layer type.
+ *
+ * Mapbox Standard lights the map: at night everything is dimmed as though
+ * the sun had gone down, which is right for buildings and wrong for a mark
+ * someone drew. Emissive strength says "this makes its own light", so a
+ * canvas keeps the colour it was given whatever the hour. MapLibre has no
+ * such property and rejects the layer outright, so this only goes on where
+ * the engine understands it.
+ */
+const EMISSIVE_KEYS: Record<string, string> = {
+  fill: 'fill-emissive-strength',
+  line: 'line-emissive-strength',
+  circle: 'circle-emissive-strength',
+  symbol: 'text-emissive-strength',
+}
 
 export interface RenderableCanvas {
   id: string
@@ -115,6 +136,16 @@ export function useCanvasRendering(
 ) {
   const mapStore = useMapStore()
   const themeStore = useThemeStore()
+
+  /** Only Mapbox lights the map, and only Mapbox knows how to be told not to. */
+  function withEmissive(configuration: Record<string, unknown>) {
+    if (mapStore.settings.engine !== MapEngine.MAPBOX) return configuration
+    const key = EMISSIVE_KEYS[configuration.type as string]
+    if (!key) return configuration
+    const paint = (configuration.paint ?? {}) as Record<string, unknown>
+    if (key in paint) return configuration
+    return { ...configuration, paint: { ...paint, [key]: 1 } }
+  }
   const layersStore = useLayersStore()
   const collectionsStore = useCollectionsStore()
   const routesStore = useRoutesStore()
@@ -356,7 +387,10 @@ export function useCanvasRendering(
    * Committed marks only. Whatever is being drawn right now is painted on the
    * overlay canvas instead, so the pointer never drives a style change.
    */
-  function planAnnotations(canvas: RenderableCanvas): LayerPlan {
+  function planAnnotations(
+    strategy: MapStrategy,
+    canvas: RenderableCanvas,
+  ): LayerPlan {
     const annotations = (canvas.body?.annotations ?? []).filter(
       annotation => annotation.id !== canvas.suppressedAnnotationId,
     )
@@ -366,6 +400,8 @@ export function useCanvasRendering(
     const id = (suffix: string) =>
       scopedId(options.key, canvas.id, 'annotations', suffix)
     const labels = themeStore.isDark ? LABEL_COLORS.night : LABEL_COLORS.day
+    // A pin's glyph has to be on the map before the layer that names it.
+    void ensureIconImages(strategy.mapInstance, annotationIconSpecs(annotations))
 
     return {
       sources: {
@@ -396,7 +432,16 @@ export function useCanvasRendering(
             source: sourceId,
             filter: ['!=', ['geometry-type'], 'Point'],
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-color': ['get', 'color'], 'line-width': 3 },
+            paint: {
+              'line-color': ['get', 'color'],
+              // A doodle carries its own thickness; everything else is 3.
+              'line-width': [
+                'case',
+                ['==', ['get', 'tool'], 'doodle'],
+                ['get', 'width'],
+                3,
+              ],
+            },
           },
           true,
         ),
@@ -419,18 +464,24 @@ export function useCanvasRendering(
           },
           true,
         ),
+        // A pin on a canvas is the same kind of thing as a pin in your
+        // library, so it is drawn by the same two layers — the dot, then the
+        // glyph inside it — rather than a lookalike that drifts from them.
         toLayer(
           id('-pins'),
           {
-            type: 'circle',
+            ...BOOKMARKS_CIRCLES_LAYER_CONFIG.configuration,
             source: sourceId,
-            filter: ['==', ['geometry-type'], 'Point'],
-            paint: {
-              'circle-color': ['get', 'color'],
-              'circle-radius': 7,
-              'circle-stroke-width': 2.5,
-              'circle-stroke-color': '#ffffff',
-            },
+            filter: ['==', ['get', 'tool'], 'pin'],
+          },
+          true,
+        ),
+        toLayer(
+          id('-pin-icons'),
+          {
+            ...BOOKMARKS_ICONS_LAYER_CONFIG.configuration,
+            source: sourceId,
+            filter: ['==', ['get', 'tool'], 'pin'],
           },
           true,
         ),
@@ -534,6 +585,9 @@ export function useCanvasRendering(
         specs.set(id, spec)
       }
       for (const layer of plan.layers) {
+        layer.configuration = withEmissive(
+          layer.configuration as Record<string, unknown>,
+        ) as typeof layer.configuration
         nextLayers.set(layer.id, JSON.stringify([layer.configuration, visible]))
       }
     }
@@ -544,7 +598,7 @@ export function useCanvasRendering(
         collect(planLayer(strategy, canvas.id, layer), layer.visible)
       }
       // Annotations last, so they draw over the canvas's own layers.
-      const annotations = planAnnotations(canvas)
+      const annotations = planAnnotations(strategy, canvas)
       if (annotations.layers.length) collect(annotations, true)
     }
 

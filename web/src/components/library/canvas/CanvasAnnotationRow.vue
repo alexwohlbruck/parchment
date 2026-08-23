@@ -26,6 +26,7 @@ import {
   CrosshairIcon,
   MapPinIcon,
   MinusIcon,
+  PencilIcon,
   PentagonIcon,
   SquareIcon,
   TimerIcon,
@@ -69,6 +70,7 @@ const TOOL_ICONS: Record<AnnotationTool, typeof MapPinIcon> = {
   rectangle: SquareIcon,
   circle: CircleIcon,
   isochrone: TimerIcon,
+  doodle: PencilIcon,
 }
 
 const color = computed(
@@ -272,7 +274,7 @@ const fallbackName = computed(() =>
         <IconPicker
           compact
           :model-value="{
-            icon: annotation.icon ?? 'MapPinIcon',
+            icon: annotation.icon ?? 'MapPin',
             color: 'cobalt',
           }"
           @update:model-value="v => emit('update', { icon: v.icon })"

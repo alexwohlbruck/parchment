@@ -3,6 +3,7 @@ import * as turf from '@turf/turf'
 import type { Feature, Polygon, Position } from 'geojson'
 import {
   annotationFeature,
+  smoothStroke,
   annotationMeasurement,
   annotationMetrics,
   annotationMidpoints,
@@ -558,5 +559,66 @@ describe('annotationMetrics', () => {
     expect(
       annotationFeature(annotation({ tool: 'isochrone', positions: [[0, 0]] })),
     ).toBeNull()
+  })
+})
+
+describe('smoothStroke', () => {
+  /** A shaky hand: a straight run with jitter on every other point. */
+  const shaky: Position[] = Array.from({ length: 40 }, (_unused, i) => [
+    i * 0.0001,
+    (i % 2 ? 1 : -1) * 0.000004,
+  ])
+
+  it('drops the points a hand leaves that the shape does not need', () => {
+    expect(smoothStroke(shaky).length).toBeLessThan(shaky.length)
+  })
+
+  it('never hands back more points than it was given', () => {
+    // A canvas is saved whole and encrypted whole, so a stroke that grew
+    // while being tidied would be paid for on every save.
+    const wavy: Position[] = Array.from({ length: 60 }, (_unused, i) => [
+      i * 0.0002,
+      Math.sin(i / 4) * 0.0004,
+    ])
+    expect(smoothStroke(wavy).length).toBeLessThanOrEqual(wavy.length)
+  })
+
+  it('rounds what is left, so the line reads as deliberate', () => {
+    const smoothed = smoothStroke([
+      [0, 0],
+      [1, 0],
+      [1, 1],
+    ])
+    // Chaikin cuts the corner, so the turn is no longer on the original point.
+    expect(smoothed).not.toContainEqual([1, 0])
+    expect(smoothed[0]).toEqual([0, 0])
+    expect(smoothed[smoothed.length - 1]).toEqual([1, 1])
+  })
+
+  it('leaves a stroke too short to smooth alone', () => {
+    expect(smoothStroke([[0, 0], [1, 1]])).toEqual([[0, 0], [1, 1]])
+  })
+
+  it('keeps the stroke roughly where it was drawn', () => {
+    const smoothed = smoothStroke(shaky)
+    const xs = smoothed.map(p => p[0])
+    expect(Math.min(...xs)).toBeCloseTo(0, 5)
+    expect(Math.max(...xs)).toBeCloseTo(0.0039, 3)
+  })
+})
+
+describe('doodles', () => {
+  it('draws as the line it was drawn as', () => {
+    const feature = annotationFeature(
+      annotation({ tool: 'doodle', positions: [[0, 0], [1, 1], [2, 0]] }),
+    )
+    expect(feature?.geometry.type).toBe('LineString')
+  })
+
+  it('carries its own thickness, so one layer can draw every stroke', () => {
+    const feature = annotationFeature(
+      annotation({ tool: 'doodle', positions: [[0, 0], [1, 1]], width: 14 }),
+    )
+    expect(feature?.properties?.width).toBe(14)
   })
 })

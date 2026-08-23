@@ -33,6 +33,8 @@ import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
 import {
   annotationFeature,
   constrainPosition,
+  DEFAULT_DOODLE_WIDTH,
+  smoothStroke,
   createAnnotation,
   guideFeature,
   isComplete,
@@ -237,6 +239,100 @@ export function useCanvasAnnotations(options: {
     }
   }
 
+  // ── Doodles ────────────────────────────────────────────────────────────────
+  //
+  // The only tool that draws by dragging rather than clicking, so it takes
+  // the pointer directly instead of going through the map's click. The map's
+  // own pan has to stand down for the length of the stroke, the way it does
+  // for a handle being dragged.
+
+  const doodleWidth = ref(DEFAULT_DOODLE_WIDTH)
+  const isDoodling = ref(false)
+
+  function doodlePosition(event: PointerEvent): Position | null {
+    const map = mapStore.getMapStrategy()?.mapInstance as
+      | {
+          unproject?: (point: [number, number]) => { lng: number; lat: number }
+          getCanvas?: () => HTMLCanvasElement
+        }
+      | undefined
+    const canvas = map?.getCanvas?.()
+    if (!map?.unproject || !canvas) return null
+    const rect = canvas.getBoundingClientRect()
+    const { lng, lat } = map.unproject([
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+    ])
+    return [lng, lat]
+  }
+
+  function onDoodleDown(event: PointerEvent) {
+    if (tool.value !== 'doodle' || event.button !== 0) return
+    const at = doodlePosition(event)
+    if (!at) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    isDoodling.value = true
+    positions.value = [at]
+    setPanning(false)
+
+    const canvas = (
+      mapStore.getMapStrategy()?.mapInstance as
+        | { getCanvas?: () => HTMLCanvasElement }
+        | undefined
+    )?.getCanvas?.()
+    try {
+      canvas?.setPointerCapture(event.pointerId)
+    } catch {
+      // Capture is a nicety; the window listeners are the guarantee.
+    }
+    window.addEventListener('pointermove', onDoodleMove)
+    window.addEventListener('pointerup', onDoodleUp)
+    window.addEventListener('pointercancel', onDoodleUp)
+  }
+
+  function onDoodleMove(event: PointerEvent) {
+    if (!isDoodling.value) return
+    const at = doodlePosition(event)
+    if (at) positions.value = [...positions.value, at]
+  }
+
+  function onDoodleUp() {
+    if (!isDoodling.value) return
+    window.removeEventListener('pointermove', onDoodleMove)
+    window.removeEventListener('pointerup', onDoodleUp)
+    window.removeEventListener('pointercancel', onDoodleUp)
+    isDoodling.value = false
+    setPanning(true)
+
+    // Tidy the stroke before it is kept: a hand leaves far more points than
+    // the shape needs, and shakier ones than it meant.
+    positions.value = smoothStroke(positions.value)
+    if (canFinish.value) commit()
+    else positions.value = []
+  }
+
+  /** The map's own drag has to stand down for the length of a stroke. */
+  function setPanning(enabled: boolean) {
+    const map = mapStore.getMapStrategy()?.mapInstance as
+      | { dragPan?: { enable: () => void; disable: () => void } }
+      | undefined
+    if (enabled) map?.dragPan?.enable()
+    else map?.dragPan?.disable()
+  }
+
+  function trackDoodle(active: boolean) {
+    const canvas = (
+      mapStore.getMapStrategy()?.mapInstance as
+        | { getCanvas?: () => HTMLCanvasElement }
+        | undefined
+    )?.getCanvas?.()
+    if (!canvas) return
+    canvas.removeEventListener('pointerdown', onDoodleDown, true)
+    if (active) canvas.addEventListener('pointerdown', onDoodleDown, true)
+  }
+
   // ── Isochrones ─────────────────────────────────────────────────────────────
   //
   // One click sets an origin; the engine supplies the shape. The mark isn't
@@ -428,7 +524,8 @@ export function useCanvasAnnotations(options: {
       color: themeColorToHex(color.value),
       guide: guide.value,
       pending: isSnapping.value || isFetchingIsochrone.value,
-      handles: positions.value.map((position, index) => ({
+      width: tool.value === 'doodle' ? doodleWidth.value : undefined,
+      handles: (tool.value === 'doodle' ? [] : positions.value).map((position, index) => ({
         position,
         kind: 'vertex' as const,
         // The vertex a click would close the shape on, ringed to say so.
@@ -449,6 +546,7 @@ export function useCanvasAnnotations(options: {
       routed.value ?? undefined,
     )
     if (isochrone.value) annotation.isochrone = isochrone.value
+    if (tool.value === 'doodle') annotation.width = doodleWidth.value
     options.onCommit(annotation)
 
     positions.value = []
@@ -493,12 +591,15 @@ export function useCanvasAnnotations(options: {
     tool.value = next
     setDrawingMode(true)
     trackPointer(true)
+    trackDoodle(next === 'doodle')
   }
 
   function disarm() {
     if (tool.value) mapEventBus.removeOverride('click', onMapClick)
     snapRequest?.abort()
     isochroneRequest?.abort()
+    trackDoodle(false)
+    onDoodleUp()
     tool.value = null
     positions.value = []
     routed.value = null
@@ -528,6 +629,7 @@ export function useCanvasAnnotations(options: {
     canFinish,
     canUndo,
     canRoute,
+    doodleWidth,
     isochroneMode,
     isochroneMinutes,
     isFetchingIsochrone,

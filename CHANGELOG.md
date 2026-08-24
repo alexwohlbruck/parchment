@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+* Settings open with ⌘, (Ctrl+, on Windows and Linux), the shortcut every other app uses, instead of a bare comma. Keyboard hints throughout the app now name the right key for the machine you're on rather than always showing ⌘
+
 ## [0.7.0] - 2026-08-22
 
 ### Added

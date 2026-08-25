@@ -27,7 +27,7 @@ const defaultSettings: MapSettings = {
   engine: MapEngine.MAPBOX,
   projection: MapProjection.GLOBE,
   basemap: 'standard',
-  mapStyle: 'osm-liberty',
+  mapStyle: 'parchment',
   terrain3d: false,
   objects3d: true,
   poiLabels: true,

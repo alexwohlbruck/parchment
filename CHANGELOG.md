@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+### Changed
+
+* The map has a basemap of its own. The dark map used to be the light one with its colours mathematically darkened, which flattened everything into one field of purple-grey — a motorway and a driveway differed only in shade, parks read as mud and every label sat at the same weight. Roads are now drawn as the brightest thing on the map, against warm cream in daylight and neutral charcoal at night, with motorways, trunks and primaries carrying a colour of their own so the arterial network separates from the side streets at a glance. Streets widen as you zoom rather than freezing, and each kind of road arrives by fading in instead of appearing between one zoom and the next
+* Places on the map wear proper icons. Cafés, pharmacies, stations, hotels and the rest are drawn from the open Maki icon set and tinted by what they are, so a row of shops no longer reads as a row of identical dots
+* A Minimal basemap sits alongside the standard one in Appearance settings, dropping shops, house numbers and buildings for a quieter map to lay routes and the transit network over
+
 ## [0.7.0] - 2026-08-22
 
 ### Added

@@ -50,7 +50,7 @@ import { useThemeStore } from '@/stores/theme.store'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { MapEngine, MapTheme } from '@/types/map.types'
 import { useMapStore } from '@/stores/map.store'
-import { getStyleConfig } from '@/lib/basemap-style-config'
+import { layerGroups } from '@/lib/map-style'
 import type { PortolanIndexEntry, PortolanStyleSet } from '@/types/portolan.types'
 import {
   BANDS,
@@ -554,8 +554,8 @@ function firstLabelLayer(): string | undefined {
  * block instead of disappearing into it.
  */
 function buildingLayer(): string | undefined {
-  const id = getStyleConfig(useMapStore().settings.mapStyle).buildingLayerId
-  return id && map?.getLayer?.(id) ? id : undefined
+  const id = layerGroups.building3d
+  return map?.getLayer?.(id) ? id : undefined
 }
 
 /** How much of a ribbon survives where a building stands in front of it. */

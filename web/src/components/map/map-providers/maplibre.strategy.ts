@@ -47,12 +47,13 @@ import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { calculateFitPadding } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
-import { buildMapStyle, buildSatelliteStyle } from '@/lib/basemap-style'
 import {
-  type BasemapStyleConfig,
-  getStyleConfig,
-  styleConfigs,
-} from '@/lib/basemap-style-config'
+  buildMapStyle,
+  buildSatelliteStyle,
+  layerGroups,
+  BUILDING_HEIGHT_PROPERTY,
+  BUILDING_MIN_HEIGHT_PROPERTY,
+} from '@/lib/map-style'
 import {
   rgbToHex,
   adjustLightness,
@@ -111,7 +112,6 @@ export class MaplibreStrategy extends MapStrategy {
   private currentBasemap: Basemap = 'standard'
   private clickDebounceTimer: number | null = null
   private poiHandlerCleanup: (() => void) | null = null
-  private styleConfig: BasemapStyleConfig
 
   constructor(
     container: string | HTMLElement,
@@ -123,8 +123,6 @@ export class MaplibreStrategy extends MapStrategy {
     super(container, options, accessToken)
     this.tileServerUrl = tileServerUrl
     this.tileKey = tileKey
-    // Resolve the style config for the persisted map style
-    this.styleConfig = getStyleConfig(options.mapStyle ?? 'osm-liberty')
     // Seed currentBasemap from the persisted map settings so that engine
     // swaps preserve satellite/hybrid mode. Without this, a fresh strategy
     // instance always started on 'standard' and only picked up the real
@@ -208,7 +206,6 @@ export class MaplibreStrategy extends MapStrategy {
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
     this.mapInstance.on('style.load', () => {
-      this.styleConfig = getStyleConfig(this.options.mapStyle ?? 'osm-liberty')
       this.setupPoiHandlers()
       mapEventBus.emit('style.load', this.mapInstance)
     })
@@ -459,19 +456,19 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setPoiLabels(value: boolean) {
-    this.setLayerGroupVisibility(this.styleConfig.poiLayerIds, value)
+    this.setLayerGroupVisibility(layerGroups.poi, value)
   }
 
   setRoadLabels(value: boolean) {
-    this.setLayerGroupVisibility(this.styleConfig.roadLabelLayerIds, value)
+    this.setLayerGroupVisibility(layerGroups.roadLabels, value)
   }
 
   setTransitLabels(value: boolean) {
-    this.setLayerGroupVisibility(this.styleConfig.transitLayerIds, value)
+    this.setLayerGroupVisibility(layerGroups.transit, value)
   }
 
   setPlaceLabels(value: boolean) {
-    this.setLayerGroupVisibility(this.styleConfig.placeLabelLayerIds, value)
+    this.setLayerGroupVisibility(layerGroups.placeLabels, value)
   }
 
   setMap3dTerrain(_value: boolean) {
@@ -479,12 +476,10 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   setMap3dObjects(value: boolean) {
-    const {
-      buildingLayerId,
-      buildingHeightProperty,
-      buildingMinHeightProperty,
-    } = this.styleConfig
-    if (!buildingLayerId || !this.mapInstance.getLayer(buildingLayerId)) return
+    const buildingLayerId = layerGroups.building3d
+    const buildingHeightProperty = BUILDING_HEIGHT_PROPERTY
+    const buildingMinHeightProperty = BUILDING_MIN_HEIGHT_PROPERTY
+    if (!this.mapInstance.getLayer(buildingLayerId)) return
 
     if (value) {
       this.mapInstance.setPaintProperty(
@@ -549,7 +544,6 @@ export class MaplibreStrategy extends MapStrategy {
 
   setMapStyle(styleId: MapStyleId) {
     this.options.mapStyle = styleId
-    this.styleConfig = getStyleConfig(styleId)
     this.reloadStyle()
   }
 
@@ -933,13 +927,9 @@ export class MaplibreStrategy extends MapStrategy {
     if (this.poiHandlerCleanup) return
     if (!this.tileServerUrl) return
 
-    // Collect all POI layer IDs from all style configs so delegates
-    // work regardless of which style is active.
-    const allPoiLayerIds = [
-      ...new Set(
-        Object.values(styleConfigs).flatMap(c => c.poiLayerIds),
-      ),
-    ]
+    // The minimal variant omits some of these; getLayer() returns nothing for
+    // the absent ones and the delegate simply never fires.
+    const allPoiLayerIds = layerGroups.poi
 
     const canvas = this.mapInstance.getCanvas()
     let hoverCount = 0

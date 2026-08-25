@@ -304,9 +304,9 @@ const handleColorChange = (value: any) => {
             <SelectItem v-if="!isMaplibre" value="mapbox-standard">
               Mapbox Standard
             </SelectItem>
-            <SelectItem value="osm-liberty">OSM Liberty</SelectItem>
-            <SelectItem value="osm-openmaptiles">
-              OSM OpenMapTiles
+            <SelectItem value="parchment">Parchment</SelectItem>
+            <SelectItem value="parchment-minimal">
+              Parchment Minimal
             </SelectItem>
           </SelectContent>
         </Select>

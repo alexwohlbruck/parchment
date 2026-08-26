@@ -116,6 +116,9 @@ const ORTHO_FOV = 0.5
 const BUILDING_FLAT_PITCH = 1
 const BUILDING_FULL_PITCH = 10
 
+/** Fallback for the building layer's own minzoom, if it ever loses one. */
+const BUILDING_MIN_ZOOM = 15
+
 /** Height scale is snapped to this, to cut the number of re-evaluations. */
 const BUILDING_SCALE_STEP = 0.2
 
@@ -705,10 +708,28 @@ export class MaplibreStrategy extends MapStrategy {
     // Flat is written as a plain `0` rather than a scaled expression: a
     // constant needs no per-feature evaluation at all, which makes the last
     // step of the ramp the cheapest one instead of the most expensive.
-    const height = k === 0 ? 0 : k === 1 ? BUILDING_HEIGHT : ['*', BUILDING_HEIGHT, k]
-    const base = k === 0 ? 0 : k === 1 ? BUILDING_BASE : ['*', BUILDING_BASE, k]
-    this.mapInstance.setPaintProperty(id, 'fill-extrusion-height', height)
-    this.mapInstance.setPaintProperty(id, 'fill-extrusion-base', base)
+    const minzoom = (this.mapInstance.getLayer(id) as any).minzoom ?? BUILDING_MIN_ZOOM
+    this.mapInstance.setPaintProperty(id, 'fill-extrusion-height', this.grow(BUILDING_HEIGHT, k, minzoom))
+    this.mapInstance.setPaintProperty(id, 'fill-extrusion-base', this.grow(BUILDING_BASE, k, minzoom))
+  }
+
+  /**
+   * A property scaled by the pitch ramp, then grown in over the layer's first
+   * zoom level so buildings rise out of the ground instead of appearing at
+   * full height the instant the layer switches on.
+   *
+   * The zoom half lives in the expression rather than in JS. Unlike pitch,
+   * zoom IS available to expressions, so MapLibre interpolates it on the GPU —
+   * genuinely smooth, and free of the per-step re-evaluation the pitch ramp
+   * has to pay for. `["zoom"]` is legal only as the direct input of a
+   * top-level `interpolate`, hence the ramp on the outside with the
+   * data-driven value as its upper stop rather than a tidier multiply.
+   */
+  private grow(value: unknown, k: number, minzoom: number): unknown {
+    // Flat is a plain `0`: a constant needs no per-feature evaluation at all.
+    if (k === 0) return 0
+    const scaled = k === 1 ? value : ['*', value, k]
+    return ['interpolate', ['linear'], ['zoom'], minzoom, 0, minzoom + 1, scaled]
   }
 
   private defaultFov?: number

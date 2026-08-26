@@ -6,6 +6,7 @@
 * Places on the map wear proper icons, coloured by what they are — and by the same palette the app already uses for search results, so a café you find by searching and the same café drawn on the map finally match
 * Map labels are set in Roboto, served from Parchment itself rather than fetched from someone else's font server on every pan
 * Looking straight down, the map is drawn without perspective. A flat-on view used to keep a vanishing point — building walls splayed outward from the middle of the screen and roofs sat offset from their own footprints — so a plan view never quite read as a plan. Buildings settle down into their footprints as the map comes flat and rise again as you tilt, and tilting at all brings the perspective camera straight back
+* Buildings rise out of the ground as you zoom past the level they appear at, rather than springing up at full height the moment they switch on
 * Buildings are solid rather than translucent, so a tower reads as a building instead of letting the streets and land underneath show through it — and a transit route crossing in front of one now blends with the building rather than with the ground beneath it
 * Two ways to draw places on the map, switchable under Appearance. The default gives each place a coloured badge matching its category — the same marker a search result wears. The alternative drops the badge and draws the icon alone in MapTiler Streets' own palette, for a quieter map that leans on the cartography rather than on markers. Both are drawn for day and night separately
 

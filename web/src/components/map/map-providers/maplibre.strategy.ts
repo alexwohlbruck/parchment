@@ -207,7 +207,6 @@ export class MaplibreStrategy extends MapStrategy {
   configureEventListeners() {
     this.mapInstance.on('load', () => {
       mapEventBus.emit('load', this.mapInstance)
-      this.updateCameraProjection()
     })
     this.mapInstance.on('pitch', () => this.updateCameraProjection())
     // Style load fires on the initial style load AND on every subsequent
@@ -220,6 +219,7 @@ export class MaplibreStrategy extends MapStrategy {
     // getLayer() on each event and automatically adapt to style changes.
     this.mapInstance.on('style.load', () => {
       this.setupPoiHandlers()
+      this.updateCameraProjection()
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {
@@ -597,14 +597,6 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
-   * Draw the top-down view orthographically instead of in perspective.
-   *
-   * Looking straight down, a perspective camera still converges: building
-   * walls splay outward from the centre of the screen and a roof sits offset
-   * from its own footprint. Flat on, a plan view should have no vanishing
-   * point at all — which is what Mapbox does with `camera-projection:
-   * orthographic`, and what the Mapbox strategy sets directly.
-   *
    * MapLibre 4 has no orthographic camera (`setVerticalFieldOfView` is v5, and
    * even that is the same trick behind a nicer name), so this narrows the
    * field of view instead. A perspective frustum approaches an orthographic
@@ -616,7 +608,7 @@ export class MaplibreStrategy extends MapStrategy {
    * Restored above `ORTHO_MAX_PITCH` so tilting still gives real depth. The
    * threshold matches the one Mapbox uses internally for the same switch.
    */
-  private updateCameraProjection() {
+  override updateCameraProjection() {
     const transform = this.mapInstance.transform as { fov: number }
     if (this.defaultFov === undefined) this.defaultFov = transform.fov
 

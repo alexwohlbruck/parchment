@@ -203,7 +203,7 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
-      this.useOrthographicTopDown()
+      this.updateCameraProjection()
     })
     this.mapInstance.on('move', () => {
       mapEventBus.emit('move', {
@@ -548,23 +548,16 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   /**
-   * Draw the top-down view orthographically instead of in perspective.
+   * Mapbox has a real orthographic camera, and decides for itself when to use
+   * it: `camera-projection: orthographic` means "orthographic below 15° of
+   * pitch", falling back to perspective above that. So there is nothing to do
+   * on pitch — but it is a STYLE property rather than a map option, so a
+   * basemap or theme switch drops it and it has to be set again.
    *
-   * Looking straight down, a perspective camera still converges: buildings
-   * near the edges lean outward and parallel streets are not parallel on
-   * screen. Orthographic removes the vanishing point, so a plan view reads as
-   * a plan — which is how Mapbox's own maps behave.
-   *
-   * The engine decides when to use it: `camera-projection: orthographic` means
-   * "orthographic below 15° of pitch", and it falls back to perspective above
-   * that on its own, so tilting still gives real depth. Nothing here needs to
-   * watch the pitch.
-   *
-   * A style property, not a map option, so it has to be re-applied on every
-   * `style.load` — a basemap or theme switch would otherwise silently drop it.
+   * Not supported under the globe projection, where the engine keeps
+   * perspective regardless of this setting.
    */
-  private useOrthographicTopDown() {
-    // Not supported under globe, where the engine keeps perspective regardless.
+  override updateCameraProjection() {
     this.mapInstance.setCamera({ 'camera-projection': 'orthographic' })
   }
 

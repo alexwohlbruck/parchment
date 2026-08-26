@@ -132,6 +132,20 @@ export class MapStrategy {
   setPlaceLabels(value: boolean) {}
   setLandmarkIcons(value: boolean) {}
   setMapProjection(projection: MapProjection) {}
+  /**
+   * Draw the top-down view orthographically rather than in perspective, so a
+   * flat-on view has no vanishing point: building walls stop splaying outward
+   * from the middle of the screen and a roof sits over its own footprint.
+   * Perspective comes back once the camera is tilted.
+   *
+   * Each strategy subscribes to whatever it actually needs, because the two
+   * engines need different upkeep: Mapbox has a real orthographic camera and
+   * switches on pitch itself, but exposes it as a style property that a style
+   * swap resets — so it re-applies on style load only. MapLibre 4 has no
+   * orthographic camera and approximates one by narrowing the field of view,
+   * which it has to undo when the map is tilted — so it also tracks pitch.
+   */
+  updateCameraProjection() {}
   setMap3dTerrain(value: boolean) {}
   setMap3dObjects(value: boolean) {}
   setMapTheme(theme: MapTheme) {}

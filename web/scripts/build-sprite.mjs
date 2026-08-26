@@ -43,7 +43,30 @@ const INF = 1e20
  *
  * These are the classes Maki genuinely names something else.
  */
+/**
+ * Route shields. The style asks for `road_{ref_length}` / `exit_{ref_length}`,
+ * so the sheet needs one background per ref width. Maki has no shield art, and
+ * MapTiler's is in their sprite, so we draw plain rounded rectangles: solid
+ * SDFs the style tints per flavor, with the route number set over them by the
+ * layer's own text-color. Widths are in the 15-unit grid Maki icons use.
+ */
+const SHIELD_WIDTHS = { 1: 13, 2: 15, 3: 19, 4: 23, 5: 27, 6: 31 }
+
+function shieldSvg(width) {
+  const h = 13
+  return Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${h}" viewBox="0 0 ${width} ${h}">` +
+      `<rect x="0.5" y="0.5" width="${width - 1}" height="${h - 1}" rx="2.5" ry="2.5" fill="#000"/>` +
+      `</svg>`,
+  )
+}
+
 const ALIASES = {
+  // Names the style uses that Maki spells differently, or does not have
+  dot: 'circle',
+  oneway: 'arrow',
+  international: 'airport',
+
   // poi.class values Maki names differently
   railway: 'rail',
   atm: 'bank',
@@ -187,6 +210,10 @@ async function collectIcons() {
       icons.set(file.replace(/\.svg$/, ''), join(dir, file))
     }
   }
+  for (const [refLength, width] of Object.entries(SHIELD_WIDTHS)) {
+    icons.set(`road_${refLength}`, shieldSvg(width))
+    icons.set(`exit_${refLength}`, shieldSvg(width))
+  }
   return [...icons.entries()].sort(([a], [b]) => a.localeCompare(b))
 }
 
@@ -194,8 +221,9 @@ async function buildSheet(icons, ratio) {
   const buffer = BUFFER * ratio
   const rendered = []
 
-  for (const [name, path] of icons) {
-    const svg = await readFile(path)
+  for (const [name, source] of icons) {
+    // Shields arrive as inline SVG buffers; everything else as a file path.
+    const svg = Buffer.isBuffer(source) ? source : await readFile(source)
     const base = sharp(svg, { density: 72 * ratio })
     const meta = await base.metadata()
     const width = Math.round((meta.width ?? 15) * ratio)

@@ -47,6 +47,7 @@ import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { calculateFitPadding } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
+import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import {
   buildMapStyle,
   buildSatelliteStyle,
@@ -529,6 +530,7 @@ export class MaplibreStrategy extends MapStrategy {
       theme,
       tileKey: this.tileKey,
       mapStyle: this.options.mapStyle,
+      categoryColors: this.categoryColors(theme),
     })
   }
 
@@ -559,6 +561,19 @@ export class MaplibreStrategy extends MapStrategy {
    * With `diff: false` a brand-new Style is created, which reliably fires
    * `style.load` and lets our re-registration pipeline run.
    */
+  /**
+   * POI tints for the basemap, taken from the same server-synced palette the
+   * search results use — so a café pinned by a search and the same café drawn
+   * by the basemap are the same colour.
+   */
+  private categoryColors(theme: 'light' | 'dark') {
+    const store = useCategoryPaletteStore()
+    const isDark = theme === 'dark'
+    return Object.fromEntries(
+      store.palette.map(c => [c.id, isDark ? c.colors.dark : c.colors.light]),
+    )
+  }
+
   private reloadStyle() {
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })
   }
@@ -573,6 +588,7 @@ export class MaplibreStrategy extends MapStrategy {
       theme: theme as 'light' | 'dark',
       tileKey: this.tileKey,
       mapStyle: this.options.mapStyle,
+      categoryColors: this.categoryColors(theme),
     }
 
     switch (this.currentBasemap) {

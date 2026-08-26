@@ -1,117 +1,55 @@
 /**
- * The style system's invariants.
+ * The basemap's invariants.
  *
- * These are the things that, when they broke, produced a map that still
- * rendered and still looked "styled" — which is why they need asserting
- * rather than eyeballing. The previous dark basemap shipped for months as a
- * flat purple field because nothing checked that road classes were actually
- * distinguishable from one another.
+ * The spec and both token maps are generated from MapTiler's styles by
+ * `scripts/convert-basemap-style.mjs`, so these assert the things a
+ * regeneration could quietly break — an unresolved token, a font stack we
+ * have no glyphs for, an icon the sprite lacks. Each of those still renders
+ * *something*, which is exactly why they need asserting rather than eyeballing.
  */
 import { describe, test, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, existsSync } from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter } from '@maplibre/maplibre-gl-style-spec'
-import { buildMapStyle, buildSatelliteStyle } from './build'
-import { buildLayers, layerGroups, ICON_SUBCLASSES } from './layers'
-import { flavors, LIGHT, DARK, type Flavor } from './flavors'
+import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups } from './build'
+import spec from './spec.json'
+import lightTokens from './tokens.light.json'
+import darkTokens from './tokens.dark.json'
 
 const opts = { tileServerUrl: 'https://example.test/tiles' } as any
+const HERE = resolvePath(__dirname)
+const WEB = resolvePath(HERE, '../../..')
+
+const layers = (spec as any).layers as any[]
+const light = lightTokens as Record<string, string>
+const dark = darkTokens as Record<string, string>
 
 /** Source-layers present in our OpenMapTiles basemap.pmtiles. */
 const OMT_SOURCE_LAYERS = new Set([
-  'aerodrome_label',
-  'aeroway',
-  'boundary',
-  'building',
-  'housenumber',
-  'landcover',
-  'landuse',
-  'mountain_peak',
-  'park',
-  'place',
-  'poi',
-  'transportation',
-  'transportation_name',
-  'water',
-  'water_name',
-  'waterway',
+  'aerodrome_label', 'aeroway', 'boundary', 'building', 'housenumber',
+  'landcover', 'landuse', 'mountain_peak', 'park', 'place', 'poi',
+  'transportation', 'transportation_name', 'water', 'water_name', 'waterway',
 ])
 
-function hexChroma(hex: string): number {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex)
-  if (!m) return NaN
-  const [r, g, b] = [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16))
-  return (Math.max(r, g, b) - Math.min(r, g, b)) / 255
+function collectStrings(value: unknown, out: string[] = []): string[] {
+  if (typeof value === 'string') out.push(value)
+  else if (Array.isArray(value)) value.forEach(v => collectStrings(v, out))
+  else if (value && typeof value === 'object') Object.values(value).forEach(v => collectStrings(v, out))
+  return out
 }
 
-/** Evaluate an `["interpolate", ..., ["zoom"], z0, v0, ...]` ramp at `zoom`. */
-function rampAt(expr: any, zoom: number): number {
-  const stops: Array<[number, number]> = []
-  for (let i = 3; i < expr.length; i += 2) stops.push([expr[i], expr[i + 1]])
-  let last = stops[0][1]
-  for (const [z, v] of stops) {
-    if (zoom < z) break
-    last = v
-  }
-  return last
-}
-
-describe('flavors', () => {
-  test('every flavor defines every token', () => {
-    const keys = Object.keys(LIGHT).sort()
-    for (const [id, flavor] of Object.entries(flavors)) {
-      expect(Object.keys(flavor).sort(), `flavor "${id}"`).toEqual(keys)
-      for (const [token, value] of Object.entries(flavor)) {
-        expect(value, `${id}.${token}`).toBeDefined()
-      }
-    }
-  })
-
-  test('every POI family has a tint in every flavor', () => {
-    const families = Object.keys(LIGHT.pois).sort()
-    for (const flavor of Object.values(flavors)) {
-      expect(Object.keys(flavor.pois).sort()).toEqual(families)
-    }
-  })
-
-  /**
-   * The rule the old runtime dark transform broke: hierarchy is carried by
-   * hue, not by lightness alone. Motorway/trunk/primary must be chromatic;
-   * secondary and below must be near-neutral so the arterials stand out.
-   */
-  test.each(Object.entries(flavors))(
-    '%s: arterials are chromatic, minor roads are not',
-    (_id, flavor: Flavor) => {
-      for (const token of ['motorway', 'trunk', 'primary'] as const) {
-        expect(hexChroma(flavor[token]), token).toBeGreaterThan(0.15)
-      }
-      for (const token of ['secondary', 'tertiary', 'minor', 'service'] as const) {
-        expect(hexChroma(flavor[token]), token).toBeLessThan(0.08)
-      }
-    },
-  )
-
-  test('roads are lighter than the ground they sit on in the light flavor', () => {
-    // Roads read as figure only when they are the brightest surface.
-    expect(hexChroma(LIGHT.minor)).toBe(0)
-    expect(LIGHT.minor).toBe('#FFFFFF')
-    expect(LIGHT.background).not.toBe('#FFFFFF')
-  })
-
-  test('the dark ground is neutral, so gold and blue overlays do not fight it', () => {
-    expect(hexChroma(DARK.background)).toBeLessThan(0.05)
-  })
-})
-
-describe('layer spec', () => {
-  const layers = buildLayers({ flavor: LIGHT })
-
+describe('converted spec', () => {
   test('every layer targets a source-layer our tiles actually carry', () => {
-    for (const l of layers as any[]) {
+    for (const l of layers) {
       if (!l['source-layer']) continue
-      expect(OMT_SOURCE_LAYERS, `${l.id} → ${l['source-layer']}`).toContain(
-        l['source-layer'],
-      )
+      expect(OMT_SOURCE_LAYERS, `${l.id} → ${l['source-layer']}`).toContain(l['source-layer'])
+    }
+  })
+
+  test('every layer reads our tile source', () => {
+    for (const l of layers) {
+      if (!l.source) continue
+      expect(l.source, l.id).toBe('openmaptiles')
     }
   })
 
@@ -120,161 +58,59 @@ describe('layer spec', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  test('a casing is always drawn before, and wider than, its fill', () => {
-    const ids = layers.map(l => l.id)
-    for (const l of layers as any[]) {
-      if (!l.id.endsWith('-casing')) continue
-      const fillId = l.id.replace(/-casing$/, '')
-      const fill = layers.find(x => x.id === fillId) as any
-      expect(fill, `${l.id} has no fill`).toBeTruthy()
-      expect(ids.indexOf(l.id)).toBeLessThan(ids.indexOf(fillId))
-
-      // At the ribbon zoom the casing must bracket the fill on both sides.
-      const casingW = rampAt(l.paint['line-width'], 16)
-      const fillW = rampAt(fill.paint['line-width'], 16)
-      expect(casingW, `${l.id} @z16`).toBeGreaterThan(fillW)
-    }
-  })
-
-  test('road importance is monotonic in width', () => {
-    const order = ['service', 'minor', 'tertiary', 'secondary', 'primary', 'trunk', 'motorway']
-    const widths = order.map(key => {
-      const l = layers.find(x => x.id === `road-surface-${key}`) as any
-      return rampAt(l.paint['line-width'], 16)
-    })
-    for (let i = 1; i < widths.length; i++) {
-      expect(widths[i], `${order[i]} vs ${order[i - 1]}`).toBeGreaterThan(widths[i - 1])
-    }
-  })
-
-  test('the ribbon break makes roads jump, not creep, at z14', () => {
-    const l = layers.find(x => x.id === 'road-surface-minor') as any
-    const before = rampAt(l.paint['line-width'], 14)
-    const after = rampAt(l.paint['line-width'], 14.01)
-    expect(after).toBeGreaterThan(before * 2)
-  })
-
-  test('no road class pops in — every one fades from transparent', () => {
-    for (const l of layers as any[]) {
-      if (!l.id.startsWith('road-') || l.type !== 'line') continue
-      const color = JSON.stringify(l.paint['line-color'])
-      expect(color, l.id).toContain('rgba(0, 0, 0, 0)')
-    }
-  })
-
-  test('selection is baked into every road fill', () => {
-    const fills = (layers as any[]).filter(
-      l => l.id.startsWith('road-') && l.type === 'line' && !l.id.endsWith('-casing'),
-    )
-    expect(fills.length).toBeGreaterThan(0)
-    for (const l of fills) {
-      expect(JSON.stringify(l.paint['line-color']), l.id).toContain('selected')
-    }
-  })
-
-  test('minimal drops POIs, house numbers and buildings', () => {
-    const minimal = buildLayers({ flavor: LIGHT, detail: 'minimal' }).map(l => l.id)
-    for (const id of ['poi', 'housenumber', 'building', 'building-3d']) {
-      expect(minimal).not.toContain(id)
-    }
-    // …but keeps the network and the place names.
-    expect(minimal).toContain('road-surface-motorway')
-    expect(minimal).toContain('place-city')
-  })
-
-  test('every id the strategy toggles exists in the full spec', () => {
-    const ids = new Set(layers.map(l => l.id))
-    const toggled = [
-      ...layerGroups.poi,
-      ...layerGroups.roadLabels,
-      ...layerGroups.transit,
-      ...layerGroups.placeLabels,
-      layerGroups.building3d,
-    ]
-    for (const id of toggled) expect(ids, id).toContain(id)
-  })
-
   /**
-   * MapLibre joins a font stack into one request path, and the glyph server
-   * serves single-font stacks only — so `['Noto Sans Bold', 'Noto Sans
-   * Regular']` requests a stack that 404s and the label never draws. Only
-   * fonts the server actually has may be named, one per stack.
+   * An unresolved `"@token"` reaches MapLibre as a literal string, which is
+   * not a colour — the layer is rejected and silently never draws.
    */
-  test('font stacks name exactly one available font', () => {
-    const AVAILABLE = ['Noto Sans Regular', 'Noto Sans Bold', 'Noto Sans Italic']
-    for (const l of layers as any[]) {
-      const stack = l.layout?.['text-font']
-      if (!stack) continue
-      expect(stack, l.id).toHaveLength(1)
-      expect(AVAILABLE, l.id).toContain(stack[0])
+  test('every token the spec references resolves in both flavors', () => {
+    const referenced = new Set(
+      collectStrings(layers).filter(s => s.startsWith('@')).map(s => s.slice(1)),
+    )
+    expect(referenced.size).toBeGreaterThan(50)
+    const missingLight = [...referenced].filter(t => !(t in light))
+    const missingDark = [...referenced].filter(t => !(t in dark))
+    expect(missingLight).toEqual([])
+    expect(missingDark).toEqual([])
+  })
+
+  test('the two flavors define exactly the same tokens', () => {
+    expect(Object.keys(dark).sort()).toEqual(Object.keys(light).sort())
+  })
+})
+
+describe('flavors', () => {
+  /**
+   * Dark is read out of MapTiler's own Streets Dark rather than derived, so
+   * the ground genuinely differs. If a regeneration ever fell back to light
+   * values wholesale this would catch it.
+   */
+  test('dark is not a copy of light', () => {
+    const differing = Object.keys(light).filter(t => light[t] !== dark[t])
+    expect(differing.length).toBeGreaterThan(Object.keys(light).length * 0.6)
+  })
+
+  test('the ground inverts between flavors', () => {
+    const bg = Object.keys(light).filter(k => k.startsWith('background_'))
+    expect(bg.length).toBeGreaterThan(0)
+    for (const token of bg) {
+      // Light grounds are pale, dark grounds are not. hsl lightness is the
+      // third component of every value MapTiler writes.
+      const l = Number(/,\s*([\d.]+)%\)/.exec(light[token])?.[1])
+      const d = Number(/,\s*([\d.]+)%\)/.exec(dark[token])?.[1])
+      expect(l, `light ${token}`).toBeGreaterThan(60)
+      expect(d, `dark ${token}`).toBeLessThan(40)
     }
   })
 
-  test('label language preference is honoured when set', () => {
-    const [en] = buildLayers({ flavor: LIGHT, lang: 'en' }).filter(
-      l => l.id === 'place-city',
-    ) as any[]
-    expect(JSON.stringify(en.layout['text-field'])).toContain('name:en')
-
-    const [local] = buildLayers({ flavor: LIGHT }).filter(
-      l => l.id === 'place-city',
-    ) as any[]
-    expect(JSON.stringify(local.layout['text-field'])).not.toContain('name:')
+  test('POI tints come from the app category palette, not a literal', () => {
+    const categories = Object.keys(light).filter(k => k.startsWith('poi_'))
+    expect(categories).toContain('poi_food_and_drink')
+    expect(categories).toContain('poi_default')
+    for (const c of categories) expect(light[c]).toMatch(/^@@category:/)
   })
 })
 
 describe('assembled styles', () => {
-  test('street styles carry one vector source and a background', () => {
-    for (const theme of ['light', 'dark'] as const) {
-      const style = buildMapStyle({ ...opts, theme })
-      expect(Object.keys(style.sources)).toEqual(['openmaptiles'])
-      expect(style.layers[0].type).toBe('background')
-      expect(style.sprite).toContain('/sprites/parchment')
-      expect(style.glyphs).toContain('{fontstack}')
-    }
-  })
-
-  test('the tile URL carries the auth token when we have one', () => {
-    const withKey = buildMapStyle({ ...opts, theme: 'light', tileKey: 'abc' })
-    const url = (withKey.sources.openmaptiles as any).tiles[0]
-    expect(url).toContain('token=abc')
-
-    const without = buildMapStyle({ ...opts, theme: 'light' })
-    expect((without.sources.openmaptiles as any).tiles[0]).not.toContain('token=')
-  })
-
-  test('attribution credits both OSM and the CC-BY design lineage', () => {
-    const style = buildMapStyle({ ...opts, theme: 'light' })
-    const attr = (style.sources.openmaptiles as any).attribution
-    expect(attr).toContain('OpenStreetMap')
-    expect(attr).toContain('CC BY 3.0')
-  })
-
-  test('hybrid keeps labels and arterials over the imagery, nothing else', () => {
-    const style = buildSatelliteStyle({ ...opts, theme: 'light', hybrid: true })
-    const ids = style.layers.map(l => l.id)
-    expect(ids[0]).toBe('satellite-raster')
-    expect(ids).toContain('place-city')
-    expect(ids).toContain('road-surface-motorway')
-    expect(ids).not.toContain('road-surface-minor')
-    expect(ids).not.toContain('background')
-  })
-
-  test('plain satellite is imagery only', () => {
-    const style = buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false })
-    expect(style.layers).toHaveLength(1)
-    expect(Object.keys(style.sources)).toEqual(['satellite-raster'])
-  })
-})
-
-/**
- * MapLibre rejects an invalid layer outright rather than degrading, so a
- * malformed expression means that layer silently never draws. Two real bugs
- * were caught here and nowhere else: `match` cannot branch on a boolean, and
- * `["zoom"]` is only legal as the direct input of a top-level
- * `step`/`interpolate` — so a zoom fade may not be nested inside a `case`.
- */
-describe('spec compliance', () => {
   const cases: Array<[string, () => any]> = [
     ['light', () => buildMapStyle({ ...opts, theme: 'light' })],
     ['dark', () => buildMapStyle({ ...opts, theme: 'dark' })],
@@ -284,82 +120,123 @@ describe('spec compliance', () => {
   ]
 
   test.each(cases)('%s validates against the MapLibre style spec', (_name, make) => {
-    const errors = validateStyleMin(make()).map(e => `${e.message}`)
-    expect(errors).toEqual([])
+    expect(validateStyleMin(make()).map(e => e.message)).toEqual([])
+  })
+
+  test.each(cases)('%s leaves no unresolved token behind', (_name, make) => {
+    const stray = collectStrings(make().layers).filter(s => /^@/.test(s))
+    expect(stray).toEqual([])
   })
 
   test('every filter compiles and evaluates', () => {
-    for (const l of buildLayers({ flavor: DARK }) as any[]) {
+    for (const l of buildLayers({ flavor: 'dark' }) as any[]) {
       if (!l.filter) continue
       const f = featureFilter(l.filter)
-      const run = () =>
-        f.filter({ zoom: 15 } as any, { type: 1, properties: {} } as any, {} as any)
+      const run = () => f.filter({ zoom: 15 } as any, { type: 1, properties: {} } as any, {} as any)
       expect(run, l.id).not.toThrow()
     }
   })
 
-  /** POI density is gated on OpenMapTiles' own `rank`, stepped by zoom. */
-  test('poi density opens up as you zoom in', () => {
-    const poi = (buildLayers({ flavor: DARK }) as any[]).find(l => l.id === 'poi')
-    const f = featureFilter(poi.filter)
-    const minor = { type: 1, properties: { rank: 10, class: 'cafe' } } as any
-    expect(f.filter({ zoom: 14 } as any, minor, {} as any)).toBe(false)
-    expect(f.filter({ zoom: 15 } as any, minor, {} as any)).toBe(true)
+  test('the tile URL carries the auth token when we have one', () => {
+    const withKey = buildMapStyle({ ...opts, theme: 'light', tileKey: 'abc' })
+    expect((withKey.sources.openmaptiles as any).tiles[0]).toContain('token=abc')
+    const without = buildMapStyle({ ...opts, theme: 'light' })
+    expect((without.sources.openmaptiles as any).tiles[0]).not.toContain('token=')
+  })
 
-    const major = { type: 1, properties: { rank: 3, class: 'cafe' } } as any
-    expect(f.filter({ zoom: 14 } as any, major, {} as any)).toBe(true)
+  test('a live category palette overrides the fallback tints', () => {
+    const style = buildMapStyle({
+      ...opts,
+      theme: 'light',
+      categoryColors: { food_and_drink: '#123456' },
+    })
+    expect(JSON.stringify(style.layers)).toContain('#123456')
+  })
+
+  test('minimal drops POIs, house numbers and buildings', () => {
+    const ids = buildLayers({ flavor: 'light', mapStyle: 'parchment-minimal' }).map(l => l.id)
+    const full = buildLayers({ flavor: 'light' })
+    const dropped = full.filter(l => !ids.includes(l.id))
+    expect(dropped.length).toBeGreaterThan(5)
+    for (const l of dropped as any[]) {
+      expect(['poi', 'housenumber', 'building'], l.id).toContain(
+        l['source-layer'] ?? 'building',
+      )
+    }
+  })
+
+  test('hybrid keeps labels and arterials over the imagery, nothing else', () => {
+    const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })
+    const ids = style.layers.map(l => l.id)
+    expect(ids[0]).toBe('satellite-raster')
+    expect(style.layers.filter(l => l.type === 'symbol').length).toBeGreaterThan(5)
+    expect(ids).not.toContain('Background')
+  })
+
+  test('every id the strategy toggles exists in the spec', () => {
+    const ids = new Set(layers.map(l => l.id))
+    for (const group of ['poi', 'roadLabels', 'transit', 'placeLabels'] as const) {
+      expect(layerGroups[group].length, group).toBeGreaterThan(0)
+      for (const id of layerGroups[group]) expect(ids, id).toContain(id)
+    }
+    expect(ids).toContain(layerGroups.building3d)
   })
 })
 
-describe('sprite', () => {
-  const manifest = JSON.parse(
-    readFileSync(resolve(__dirname, '../../../public/sprites/parchment.json'), 'utf8'),
+describe('assets the spec depends on', () => {
+  const sprite = JSON.parse(
+    readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'),
   )
 
-  test('icons are SDFs, so icon-color can tint them per family and theme', () => {
-    for (const [name, icon] of Object.entries<any>(manifest)) {
-      expect(icon.sdf, name).toBe(true)
-    }
-  })
-
-  test('carries the fallback marker and the icons the spec names directly', () => {
-    for (const name of ['marker', 'mountain', 'airport']) {
-      expect(manifest, name).toHaveProperty(name)
-    }
-  })
-
   /**
-   * `icon-image: ["get", "class"]` only works because OpenMapTiles' poi
-   * taxonomy came from Maki — but the two spell names differently (Maki
-   * `fast-food`, OpenMapTiles `fast_food`), and a handful are genuinely
-   * renamed. The sprite build publishes aliases to close that gap; without
-   * them 9 of these 37 fell through to a generic dot, which still *renders*
-   * and so would never have been noticed by eye.
-   *
-   * Source: openmaptiles/layers/poi/poi.yaml, `class` field values.
+   * MapLibre concatenates a font stack into one request path, so the glyph
+   * directory has to be named for the whole stack. A stack we did not
+   * generate 404s and its labels never draw.
    */
-  const OMT_POI_CLASSES = [
-    'aerialway', 'alcohol_shop', 'art_gallery', 'atm', 'attraction', 'bar',
-    'beer', 'bus', 'cafe', 'campsite', 'car', 'castle', 'cemetery',
-    'clothing_store', 'college', 'entrance', 'fast_food', 'fuel', 'golf',
-    'grocery', 'harbor', 'hospital', 'ice_cream', 'laundry', 'library',
-    'lodging', 'music', 'office', 'park', 'post', 'railway', 'school',
-    'shop', 'stadium', 'swimming', 'town_hall', 'zoo',
-  ]
+  test('every font stack has generated glyphs', () => {
+    const stacks = new Set<string>()
+    for (const l of layers) {
+      const f = l.layout?.['text-font']
+      if (Array.isArray(f) && f.every((x: unknown) => typeof x === 'string')) {
+        stacks.add(f.join(','))
+      }
+    }
+    expect(stacks.size).toBeGreaterThan(0)
+    for (const stack of stacks) {
+      const dir = resolvePath(WEB, 'public/fonts', stack, '0-255.pbf')
+      expect(existsSync(dir), stack).toBe(true)
+    }
+  })
 
-  test('every OpenMapTiles poi class resolves to a real icon', () => {
-    const missing = OMT_POI_CLASSES.filter(c => !(c in manifest))
+  /** Icon names the spec can emit, excluding data-driven class/subclass. */
+  test('every literal icon the spec names exists in the sprite', () => {
+    const literals = new Set<string>()
+    for (const l of layers) {
+      const icon = l.layout?.['icon-image']
+      if (icon === undefined) continue
+      if (typeof icon === 'string') literals.add(icon)
+      else if (Array.isArray(icon) && icon[0] === 'concat') {
+        // Shields: `road_` + ref_length, generated for widths 1..6.
+        const prefix = icon[1]
+        for (let n = 1; n <= 6; n++) literals.add(`${prefix}${icon[2]}${n}`)
+      }
+    }
+    const missing = [...literals].filter(n => !(n in sprite))
     expect(missing).toEqual([])
   })
 
   /**
-   * The style asks for a subclass icon only for names in this list, so every
-   * one of them has to exist — an entry the sheet lacks is a warning logged
-   * per feature per tile, which is how the first render produced hundreds of
-   * "Image could not be loaded" lines while still drawing correctly.
+   * The POI icon expression walks subclass → class → dot. Every gated
+   * subclass and every OpenMapTiles class has to resolve, or the icon falls
+   * through to a generic dot while still rendering — invisible by eye.
    */
-  test('every gated subclass resolves to a real icon', () => {
-    const missing = ICON_SUBCLASSES.filter(c => !(c in manifest))
-    expect(missing).toEqual([])
+  test('every gated POI icon name resolves', () => {
+    const poi = layers.find(l => l['source-layer'] === 'poi' && l.layout?.['icon-image'])
+    expect(poi).toBeTruthy()
+    const names = collectStrings(poi.layout['icon-image']).filter(
+      s => !['coalesce', 'image', 'match', 'get', 'subclass', 'class', 'dot'].includes(s),
+    )
+    expect(names.length).toBeGreaterThan(40)
+    expect(names.filter(n => !(n in sprite))).toEqual([])
   })
 })

@@ -1,17 +1,23 @@
 /**
- * Parchment's basemap style system.
+ * Parchment's basemap style.
  *
- * `flavors.ts` holds colour tokens, `layers.ts` the single OpenMapTiles layer
- * spec that reads them, and `build.ts` assembles a MapLibre style from the
- * two. Adding a theme means adding a flavor and nothing else.
+ * `spec.json` is MapTiler Streets v2's layer spec — same filters, ramps and
+ * draw order — with colours lifted into `"@token"` references.
+ * `tokens.light.json` and `tokens.dark.json` resolve them, both taken from
+ * MapTiler's own Streets and Streets Dark. `build.ts` assembles the two into a
+ * MapLibre style. Regenerate all three with `bun run build:style`.
  */
-export { buildMapStyle, buildSatelliteStyle } from './build'
-export type { BasemapStyleOptions } from './build'
-export { flavors, getFlavor, LIGHT, DARK } from './flavors'
-export type { Flavor } from './flavors'
-export { buildLayers, layerGroups, SOURCE } from './layers'
-export type { Detail } from './layers'
-
-/** OpenMapTiles property names for building extrusion height. */
-export const BUILDING_HEIGHT_PROPERTY = 'render_height'
-export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
+export {
+  buildMapStyle,
+  buildSatelliteStyle,
+  buildLayers,
+  layerGroups,
+  SOURCE,
+  BUILDING_HEIGHT_PROPERTY,
+  BUILDING_MIN_HEIGHT_PROPERTY,
+} from './build'
+export type {
+  BasemapStyleOptions,
+  FlavorId,
+  PlaceCategoryId,
+} from './build'

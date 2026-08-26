@@ -1,14 +1,58 @@
-import type { StyleSpecification } from 'maplibre-gl'
+import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import type { MapStyleId } from '@/types/map.types'
-import { getFlavor, type Flavor } from './flavors'
-import { buildLayers, layerGroups, SOURCE, type Detail } from './layers'
+import spec from './spec.json'
+import lightTokens from './tokens.light.json'
+import darkTokens from './tokens.dark.json'
 
 /**
- * Assembles a complete MapLibre style from a flavor and a tile server.
+ * Assembles the basemap style from the converted layer spec and a flavor's
+ * colour tokens.
  *
- * Everything visual lives in `flavors.ts` and `layers.ts`; this module only
- * wires in the source URLs, sprite, glyphs and attribution.
+ * `spec.json` holds MapTiler Streets v2's layers — same filters, ramps and
+ * draw order — with every colour replaced by an `"@token"` reference.
+ * `tokens.light.json` / `tokens.dark.json` hold what those tokens resolve to;
+ * both come from MapTiler's own Streets and Streets Dark, so dark is real
+ * cartography rather than light run through a transform. Regenerate all three
+ * with `bun run build:style`.
  */
+
+export type FlavorId = 'light' | 'dark'
+
+/** Place categories, matching `server/src/lib/place-categories.ts`. */
+export type PlaceCategoryId =
+  | 'food_and_drink' | 'education' | 'medical' | 'sport_and_leisure'
+  | 'store' | 'arts_and_entertainment' | 'commercial_services' | 'park'
+  | 'default'
+
+/**
+ * Fallback POI tints, used until the category palette loads. Mirrors the
+ * fallback in `category-palette.store.ts`; callers should pass the live
+ * palette so the basemap tracks whatever the server serves.
+ */
+const FALLBACK_CATEGORY_COLORS: Record<FlavorId, Record<PlaceCategoryId, string>> = {
+  light: {
+    food_and_drink: '#FF9933',
+    education: 'hsl(30, 50%, 38%)',
+    medical: 'hsl(0, 90%, 60%)',
+    sport_and_leisure: 'hsl(190, 75%, 38%)',
+    store: 'hsl(210, 75%, 53%)',
+    arts_and_entertainment: 'hsl(320, 85%, 60%)',
+    commercial_services: 'hsl(250, 75%, 60%)',
+    park: 'hsl(110, 70%, 28%)',
+    default: 'hsl(210, 20%, 43%)',
+  },
+  dark: {
+    food_and_drink: '#FBCB6A',
+    education: 'hsl(30, 50%, 70%)',
+    medical: 'hsl(0, 70%, 70%)',
+    sport_and_leisure: 'hsl(190, 60%, 70%)',
+    store: 'hsl(210, 70%, 75%)',
+    arts_and_entertainment: 'hsl(320, 70%, 75%)',
+    commercial_services: 'hsl(260, 70%, 75%)',
+    park: 'hsl(110, 55%, 65%)',
+    default: 'hsl(210, 20%, 70%)',
+  },
+}
 
 /**
  * Session-stable cache-buster: changes on each page load to bypass stale
@@ -17,26 +61,14 @@ import { buildLayers, layerGroups, SOURCE, type Detail } from './layers'
  */
 const cacheBuster = String(Date.now())
 
-/**
- * Glyphs are served from OpenFreeMap's public font CDN, which carries the
- * Noto Sans Regular/Bold/Italic stacks this style uses. Point this at our own
- * origin to self-host — the style needs no other change.
- */
-const GLYPHS = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf'
+export const SOURCE = 'openmaptiles'
 
-/** Maki sprite, built by `web/scripts/build-sprite.sh` into `public/sprites`. */
+/** Self-hosted; see `scripts/build-glyphs.mjs` and `scripts/build-sprite.mjs`. */
+const GLYPHS_PATH = '/fonts/{fontstack}/{range}.pbf'
 const SPRITE_PATH = '/sprites/parchment'
 
 const OSM_ATTRIBUTION =
   '<a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap</a>'
-
-/**
- * Road ramps and label sizing are ported from Mapbox Streets v12, whose
- * visual design is licensed CC-BY 3.0. The licence asks only that attribution
- * be reachable from the map, which the attribution control satisfies.
- */
-const DESIGN_ATTRIBUTION =
-  'Cartography after <a href="https://github.com/mapbox/mapbox-gl-styles" target="_blank">Mapbox Open Styles</a> (CC BY 3.0)'
 
 export interface BasemapStyleOptions {
   /** Base URL of the tile server (e.g. "http://localhost:5001") */
@@ -49,36 +81,97 @@ export interface BasemapStyleOptions {
   lang?: string
   /** Auth token for tile requests (appended as query parameter) */
   tileKey?: string
+  /** Live category palette, so basemap POIs match search-result markers. */
+  categoryColors?: Partial<Record<PlaceCategoryId, string>>
 }
 
-/** Detail tier per style variant. */
-const DETAIL: Record<MapStyleId, Detail> = {
-  parchment: 'full',
-  'parchment-minimal': 'minimal',
-}
+// ---------------------------------------------------------------------------
+// Token resolution
+// ---------------------------------------------------------------------------
 
-function detailFor(mapStyle?: MapStyleId): Detail {
-  return (mapStyle && DETAIL[mapStyle]) || 'full'
+const CATEGORY_PREFIX = '@@category:'
+
+function tokenMap(flavor: FlavorId): Record<string, string> {
+  return (flavor === 'dark' ? darkTokens : lightTokens) as Record<string, string>
 }
 
 /**
- * Build a tile URL template for the server-side Barrelman proxy.
- * The proxy route handles auth + caching server-side.
+ * Replace every `"@token"` in a value with the flavor's colour.
+ *
+ * Category tokens resolve one step further, to the live palette, so a POI on
+ * the basemap is the same colour as the same place in search results.
  */
-function buildTileUrl(
-  tileServerUrl: string,
-  tileKey?: string,
-  source = 'basemap',
-): string {
+function resolve(value: unknown, tokens: Record<string, string>, categories: Record<string, string>): any {
+  if (typeof value === 'string') {
+    if (!value.startsWith('@')) return value
+    const resolved = tokens[value.slice(1)]
+    if (resolved === undefined) return value
+    if (resolved.startsWith(CATEGORY_PREFIX)) {
+      const category = resolved.slice(CATEGORY_PREFIX.length)
+      return categories[category] ?? categories.default
+    }
+    return resolved
+  }
+  if (Array.isArray(value)) return value.map(v => resolve(v, tokens, categories))
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value)) out[k] = resolve(v, tokens, categories)
+    return out
+  }
+  return value
+}
+
+const specLayers = (spec as { layers: any[] }).layers
+
+/**
+ * Layer groups the map strategy toggles, derived from the spec rather than
+ * hand-listed, so a regenerated spec cannot silently drop one out of a toggle.
+ */
+function idsWhere(pred: (l: any) => boolean): string[] {
+  return specLayers.filter(pred).map(l => l.id)
+}
+
+export const layerGroups = {
+  poi: idsWhere(
+    l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
+  ),
+  roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
+  transit: idsWhere(l => /rail|transit|subway|tram|funicular/i.test(l.id)),
+  placeLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'place'),
+  building3d: specLayers.find(l => l.type === 'fill-extrusion')?.id ?? 'Building 3D',
+}
+
+/** OpenMapTiles property names for building extrusion height. */
+export const BUILDING_HEIGHT_PROPERTY = 'render_height'
+export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
+
+// ---------------------------------------------------------------------------
+// Assembly
+// ---------------------------------------------------------------------------
+
+/**
+ * `parchment-minimal` drops the busiest layers for a quieter map under dense
+ * overlays — the transit network and route lines need room to read.
+ */
+function isMinimalHidden(layer: any): boolean {
+  const sl = layer['source-layer']
+  return (
+    sl === 'poi' ||
+    sl === 'housenumber' ||
+    layer.type === 'fill-extrusion' ||
+    sl === 'building'
+  )
+}
+
+function buildTileUrl(tileServerUrl: string, tileKey?: string, source = 'basemap'): string {
   const params = new URLSearchParams()
   if (tileKey) params.set('token', tileKey)
   params.set('v', cacheBuster)
   return `${tileServerUrl}/${source}/{z}/{x}/{y}?${params.toString()}`
 }
 
-function spriteUrl(): string {
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${origin}${SPRITE_PATH}`
+function origin(): string {
+  return typeof window !== 'undefined' ? window.location.origin : ''
 }
 
 function vectorSource(tileServerUrl: string, tileKey?: string) {
@@ -86,41 +179,71 @@ function vectorSource(tileServerUrl: string, tileKey?: string) {
     type: 'vector' as const,
     tiles: [buildTileUrl(tileServerUrl, tileKey)],
     maxzoom: 14,
-    attribution: `${OSM_ATTRIBUTION} | ${DESIGN_ATTRIBUTION}`,
+    attribution: OSM_ATTRIBUTION,
   }
 }
 
+/**
+ * Rewrite the label field to a language preference, leaving the spec's own
+ * `{name:latin}` style fallbacks alone when no language is asked for.
+ */
+function localize(layer: any, lang?: string): any {
+  if (!lang || lang === 'local' || layer.type !== 'symbol') return layer
+  const field = layer.layout?.['text-field']
+  if (!field) return layer
+  return {
+    ...layer,
+    layout: {
+      ...layer.layout,
+      'text-field': ['coalesce', ['get', `name:${lang}`], ['get', 'name']],
+    },
+  }
+}
+
+export function buildLayers(options: {
+  flavor: FlavorId
+  mapStyle?: MapStyleId
+  categoryColors?: Partial<Record<PlaceCategoryId, string>>
+  lang?: string
+}): LayerSpecification[] {
+  const { flavor, mapStyle, categoryColors, lang } = options
+  const tokens = tokenMap(flavor)
+  const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
+  const minimal = mapStyle === 'parchment-minimal'
+
+  return specLayers
+    .filter(l => !(minimal && isMinimalHidden(l)))
+    .map(l => resolve(l, tokens, categories))
+    .map(l => localize(l, lang)) as LayerSpecification[]
+}
+
 /** The full street basemap. */
-export function buildMapStyle(
-  options: BasemapStyleOptions,
-): StyleSpecification {
-  const { tileServerUrl, theme, tileKey, mapStyle, lang } = options
-  const flavor = getFlavor(theme)
+export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification {
+  const { tileServerUrl, theme, tileKey, mapStyle, lang, categoryColors } = options
+  const flavor: FlavorId = theme === 'dark' ? 'dark' : 'light'
 
   return {
     version: 8,
-    name: `Parchment ${flavor.id}`,
-    glyphs: GLYPHS,
-    sprite: spriteUrl(),
-    sources: {
-      [SOURCE]: vectorSource(tileServerUrl, tileKey),
-    },
-    layers: buildLayers({ flavor, detail: detailFor(mapStyle), lang }),
+    name: `Parchment ${flavor}`,
+    glyphs: `${origin()}${GLYPHS_PATH}`,
+    sprite: `${origin()}${SPRITE_PATH}`,
+    sources: { [SOURCE]: vectorSource(tileServerUrl, tileKey) },
+    layers: buildLayers({ flavor, mapStyle, categoryColors, lang }),
   } as StyleSpecification
 }
 
 /**
- * Satellite / hybrid: ESRI World Imagery, with the vector label and road
- * layers laid over it in hybrid mode.
+ * Satellite / hybrid: ESRI World Imagery, with the basemap's labels and
+ * arterial network over it in hybrid mode.
  *
- * Hybrid reuses the dark flavor's label tokens regardless of app theme,
- * because the ground here is imagery — always busy and mid-to-dark — not the
- * flavor's own background.
+ * Hybrid always uses the dark flavor's labels regardless of app theme: the
+ * ground here is imagery, always busy and mid-to-dark, not a flavor's own
+ * background.
  */
 export function buildSatelliteStyle(
   options: BasemapStyleOptions & { hybrid?: boolean },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, tileKey, mapStyle, lang } = options
+  const { tileServerUrl, hybrid = false, tileKey, mapStyle, lang, categoryColors } = options
 
   const sources: StyleSpecification['sources'] = {
     'satellite-raster': {
@@ -141,31 +264,26 @@ export function buildSatelliteStyle(
 
   if (hybrid) {
     sources[SOURCE] = vectorSource(tileServerUrl, tileKey)
-
-    const flavor = getFlavor('dark')
     const overlay = buildLayers({
-      flavor,
-      detail: detailFor(mapStyle),
+      flavor: 'dark',
+      mapStyle,
+      categoryColors,
       lang,
     }).filter(
       l =>
         l.type === 'symbol' ||
-        // Keep the arterial network visible so the imagery stays navigable.
-        /^road-surface-(motorway|trunk|primary)$/.test(l.id),
+        // Keep the arterial network so the imagery stays navigable.
+        /^(Highway|Major road)$/.test(l.id),
     )
-
     layers.push(...overlay)
   }
 
   return {
     version: 8,
     name: hybrid ? 'Parchment hybrid' : 'Parchment satellite',
-    glyphs: GLYPHS,
-    sprite: spriteUrl(),
+    glyphs: `${origin()}${GLYPHS_PATH}`,
+    sprite: `${origin()}${SPRITE_PATH}`,
     sources,
     layers,
   } as StyleSpecification
 }
-
-export { layerGroups, getFlavor, SOURCE }
-export type { Flavor, Detail }

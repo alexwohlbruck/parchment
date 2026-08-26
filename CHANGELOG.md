@@ -2,9 +2,10 @@
 
 ### Changed
 
-* The map has a basemap of its own. The dark map used to be the light one with its colours mathematically darkened, which flattened everything into one field of purple-grey — a motorway and a driveway differed only in shade, parks read as mud and every label sat at the same weight. Roads are now drawn as the brightest thing on the map, against warm cream in daylight and neutral charcoal at night, with motorways, trunks and primaries carrying a colour of their own so the arterial network separates from the side streets at a glance. Streets widen as you zoom rather than freezing, and each kind of road arrives by fading in instead of appearing between one zoom and the next
-* Places on the map wear proper icons. Cafés, pharmacies, stations, hotels and the rest are drawn from the open Maki icon set and tinted by what they are, so a row of shops no longer reads as a row of identical dots
+* The map has a new basemap, in daylight and at night. Streets, land, water and labels are drawn the way a professional cartographer set them rather than by darkening the light map with maths — which is what the old night map did, and why it collapsed into one flat field of purple where a motorway and a driveway differed only in shade. Roads now carry a real hierarchy at every zoom, parks and water read as themselves, and labels sit at the weights they should
+* Places on the map wear proper icons, coloured by what they are — and by the same palette the app already uses for search results, so a café you find by searching and the same café drawn on the map finally match
 * A Minimal basemap sits alongside the standard one in Appearance settings, dropping shops, house numbers and buildings for a quieter map to lay routes and the transit network over
+* Map labels are set in Roboto, served from Parchment itself rather than fetched from someone else's font server on every pan
 
 ## [0.7.0] - 2026-08-22
 

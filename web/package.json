@@ -27,7 +27,9 @@
     "tauri:clean": "cd src-tauri && cargo clean",
     "preview": "vite preview",
     "docker:dev": "docker-compose up --build",
-    "docker:prod": "docker build -t parchment-frontend . && docker run -d -p 8080:80 parchment-frontend"
+    "docker:prod": "docker build -t parchment-frontend . && docker run -d -p 8080:80 parchment-frontend",
+    "build:style": "node scripts/convert-basemap-style.mjs",
+    "build:glyphs": "node scripts/build-glyphs.mjs"
   },
   "trustedDependencies": [
     "@morev/vue-transitions"
@@ -101,6 +103,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@fontsource/roboto": "^5.3.0",
     "@mapbox/shelf-pack": "^3.2.0",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.12",
@@ -114,6 +117,7 @@
     "@vitest/ui": "^4.0.18",
     "@vue/test-utils": "^2.4.6",
     "drizzle-orm": "^0.44.2",
+    "fontnik": "^0.7.7",
     "happy-dom": "^20.1.0",
     "i18next": "^25.3.6",
     "postcss": "^8.4.38",
@@ -125,6 +129,7 @@
     "vite": "^7.3.1",
     "vite-svg-loader": "^5.1.1",
     "vitest": "^4.0.18",
-    "vue-tsc": "^3.2.5"
+    "vue-tsc": "^3.2.5",
+    "wawoff2": "^2.0.1"
   }
 }

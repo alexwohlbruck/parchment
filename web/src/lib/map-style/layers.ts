@@ -286,17 +286,52 @@ function roadLayers(
 // ---------------------------------------------------------------------------
 
 /**
+ * Subclasses the sprite carries an icon for, via aliases emitted by
+ * `scripts/build-sprite.mjs`. A subclass gives a more specific icon than the
+ * class when we have one — `pub` rather than the generic `beer`, `bus_stop`
+ * rather than `bus`.
+ *
+ * The list is explicit and gated on, rather than simply attempting the
+ * lookup, because `coalesce` around a missing `image` still *works* but logs
+ * a warning per feature per tile. Asking for `interior_decoration` on every
+ * shop-dense tile produced hundreds of console warnings for icons that were
+ * only ever going to fall through.
+ */
+const ICON_SUBCLASSES = [
+  'artwork', 'bakery', 'bed', 'bicycle_parking', 'books', 'bus_station',
+  'bus_stop', 'butcher', 'camp_site', 'car_repair', 'christian', 'cinema',
+  'clinic', 'clothes', 'coffee', 'community_centre', 'convenience', 'deli',
+  'department_store', 'doctors', 'doityourself', 'dry_cleaning', 'financial',
+  'florist', 'food_court', 'furniture', 'garden_centre', 'golf_course',
+  'guest_house', 'hairdresser', 'hostel', 'hotel', 'interior_decoration',
+  'jewelry', 'kindergarten', 'marketplace', 'miniature_golf', 'mobile_phone',
+  'motel', 'museum', 'nightclub', 'optician', 'pet', 'pharmacy', 'post_box',
+  'post_office', 'pub', 'shoes', 'sports_centre', 'station', 'supermarket',
+  'swimming_pool', 'theatre', 'toilets', 'tram_stop', 'university',
+  'veterinary', 'viewpoint', 'water_park', 'wine',
+]
+
+/**
  * OpenMapTiles' `poi.class` taxonomy was derived from Maki icon names, so
- * `icon-image` can read the feature's own class directly. `coalesce` walks
- * subclass → class → generic marker and skips any image the sprite lacks,
- * which means an unmapped POI degrades to a dot instead of vanishing.
+ * `icon-image` can read the feature's own class directly; `match` returns its
+ * default for a null input, so a POI with neither property still resolves.
  */
 const POI_ICON: Expr = [
   'coalesce',
-  ['image', ['get', 'subclass']],
-  ['image', ['get', 'class']],
+  [
+    'image',
+    [
+      'match',
+      ['get', 'subclass'],
+      ICON_SUBCLASSES,
+      ['get', 'subclass'],
+      ['coalesce', ['get', 'class'], 'marker'],
+    ],
+  ],
   ['image', 'marker'],
 ]
+
+export { ICON_SUBCLASSES }
 
 const POI_FAMILIES: Array<[keyof Flavor['pois'], string[]]> = [
   ['food', ['restaurant', 'fast_food', 'cafe', 'bar', 'beer', 'bakery', 'ice_cream', 'alcohol_shop']],

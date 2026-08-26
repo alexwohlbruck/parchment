@@ -44,15 +44,64 @@ const INF = 1e20
  * These are the classes Maki genuinely names something else.
  */
 const ALIASES = {
+  // poi.class values Maki names differently
   railway: 'rail',
   atm: 'bank',
   office: 'commercial',
-  subway: 'rail-metro',
+
+  // poi.subclass values, which give a more specific icon than the class when
+  // the sheet has one. Everything listed here MUST resolve — `layers.ts`
+  // gates its subclass lookup on this exact set so MapLibre is never asked
+  // for an image that does not exist.
+  artwork: 'art-gallery',
+  bed: 'furniture',
+  bicycle_parking: 'bicycle',
+  books: 'library',
+  bus_station: 'bus',
+  bus_stop: 'bus',
+  butcher: 'slaughterhouse',
+  camp_site: 'campsite',
+  car_repair: 'car-repair',
+  christian: 'religious-christian',
+  clinic: 'doctor',
+  clothes: 'clothing-store',
+  coffee: 'cafe',
+  community_centre: 'town-hall',
+  convenience: 'grocery',
+  deli: 'grocery',
+  department_store: 'shop',
+  doctors: 'doctor',
+  doityourself: 'hardware',
+  dry_cleaning: 'laundry',
+  financial: 'bank',
+  food_court: 'restaurant',
+  golf_course: 'golf',
+  guest_house: 'lodging',
+  hostel: 'lodging',
   hotel: 'lodging',
-  university: 'college',
-  supermarket: 'grocery',
-  pub: 'beer',
+  interior_decoration: 'furniture',
+  jewelry: 'jewelry-store',
+  kindergarten: 'school',
+  marketplace: 'grocery',
+  miniature_golf: 'golf',
+  motel: 'lodging',
   nightclub: 'bar',
+  pet: 'dog-park',
+  post_box: 'post',
+  post_office: 'post',
+  pub: 'beer',
+  shoes: 'shoe',
+  sports_centre: 'fitness-centre',
+  station: 'rail',
+  subway: 'rail-metro',
+  supermarket: 'grocery',
+  swimming_pool: 'swimming',
+  toilets: 'toilet',
+  tram_stop: 'rail-light',
+  university: 'college',
+  viewpoint: 'attraction',
+  water_park: 'swimming',
+  wine: 'alcohol-shop',
 }
 
 // --- Exact Euclidean distance transform (Felzenszwalb & Huttenlocher) ------

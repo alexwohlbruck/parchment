@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { validateStyleMin, featureFilter } from '@maplibre/maplibre-gl-style-spec'
 import { buildMapStyle, buildSatelliteStyle } from './build'
-import { buildLayers, layerGroups } from './layers'
+import { buildLayers, layerGroups, ICON_SUBCLASSES } from './layers'
 import { flavors, LIGHT, DARK, type Flavor } from './flavors'
 
 const opts = { tileServerUrl: 'https://example.test/tiles' } as any
@@ -349,6 +349,17 @@ describe('sprite', () => {
 
   test('every OpenMapTiles poi class resolves to a real icon', () => {
     const missing = OMT_POI_CLASSES.filter(c => !(c in manifest))
+    expect(missing).toEqual([])
+  })
+
+  /**
+   * The style asks for a subclass icon only for names in this list, so every
+   * one of them has to exist — an entry the sheet lacks is a warning logged
+   * per feature per tile, which is how the first render produced hundreds of
+   * "Image could not be loaded" lines while still drawing correctly.
+   */
+  test('every gated subclass resolves to a real icon', () => {
+    const missing = ICON_SUBCLASSES.filter(c => !(c in manifest))
     expect(missing).toEqual([])
   })
 })

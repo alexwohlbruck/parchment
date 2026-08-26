@@ -1743,9 +1743,193 @@
     "pixelRatio": 2,
     "sdf": true
   },
-  "subway": {
+  "artwork": {
+    "x": 72,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "bed": {
+    "x": 1008,
+    "y": 72,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "bicycle_parking": {
     "x": 360,
+    "y": 72,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "books": {
+    "x": 864,
+    "y": 360,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "bus_station": {
+    "x": 288,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "bus_stop": {
+    "x": 288,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "butcher": {
+    "x": 1080,
+    "y": 720,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "camp_site": {
+    "x": 432,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "car_repair": {
+    "x": 72,
+    "y": 288,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "christian": {
+    "x": 648,
     "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "clinic": {
+    "x": 288,
+    "y": 504,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "clothes": {
+    "x": 360,
+    "y": 360,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "coffee": {
+    "x": 360,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "community_centre": {
+    "x": 288,
+    "y": 864,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "deli": {
+    "x": 1008,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "department_store": {
+    "x": 864,
+    "y": 720,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "doctors": {
+    "x": 288,
+    "y": 504,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "doityourself": {
+    "x": 648,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "dry_cleaning": {
+    "x": 792,
+    "y": 360,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "financial": {
+    "x": 0,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "food_court": {
+    "x": 1008,
+    "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "golf_course": {
+    "x": 936,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "guest_house": {
+    "x": 576,
+    "y": 432,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "hostel": {
+    "x": 576,
+    "y": 432,
     "width": 72,
     "height": 72,
     "pixelRatio": 2,
@@ -1759,9 +1943,113 @@
     "pixelRatio": 2,
     "sdf": true
   },
-  "university": {
-    "x": 432,
-    "y": 360,
+  "interior_decoration": {
+    "x": 1008,
+    "y": 72,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "jewelry": {
+    "x": 1008,
+    "y": 288,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "kindergarten": {
+    "x": 504,
+    "y": 720,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "marketplace": {
+    "x": 1008,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "miniature_golf": {
+    "x": 936,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "motel": {
+    "x": 576,
+    "y": 432,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "pet": {
+    "x": 360,
+    "y": 504,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "post_box": {
+    "x": 864,
+    "y": 576,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "post_office": {
+    "x": 864,
+    "y": 576,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "pub": {
+    "x": 288,
+    "y": 72,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "shoes": {
+    "x": 792,
+    "y": 720,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "sports_centre": {
+    "x": 792,
+    "y": 72,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "station": {
+    "x": 216,
+    "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "subway": {
+    "x": 360,
+    "y": 648,
     "width": 72,
     "height": 72,
     "pixelRatio": 2,
@@ -1775,8 +2063,48 @@
     "pixelRatio": 2,
     "sdf": true
   },
-  "pub": {
+  "swimming_pool": {
+    "x": 648,
+    "y": 792,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "toilets": {
+    "x": 72,
+    "y": 864,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "tram_stop": {
     "x": 288,
+    "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "university": {
+    "x": 432,
+    "y": 360,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "water_park": {
+    "x": 648,
+    "y": 792,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "wine": {
+    "x": 72,
     "y": 72,
     "width": 72,
     "height": 72,
@@ -1865,14 +2193,6 @@
   },
   "car_rental": {
     "x": 0,
-    "y": 288,
-    "width": 72,
-    "height": 72,
-    "pixelRatio": 2,
-    "sdf": true
-  },
-  "car_repair": {
-    "x": 72,
     "y": 288,
     "width": 72,
     "height": 72,

@@ -2,8 +2,14 @@
  * VENDORED — github.com/wallabyway/maplibre-building-shadows @ f4336f5 (MIT).
  *
  * Kept as close to upstream as possible so it stays updatable; every Parchment
- * change is marked `PARCHMENT:`. There are two, both back-porting v5 APIs to the
- * MapLibre 4.7.1 fork we pin for variable line-offset — see `building-shade.ts`.
+ * change is marked `PARCHMENT:` and they fall into two groups:
+ *
+ *   - back-porting two v5 APIs to the MapLibre 4.7.1 fork we pin for variable
+ *     line-offset (`_tileMatrix`, `_lightUniforms`)
+ *   - the roofline edge, an addition rather than a fix — see the note above
+ *     `BUILD_FS`
+ *
+ * See `building-shade.ts` for how it is configured and wired up.
  *
  * ---
  *
@@ -55,6 +61,11 @@ const BUILD_VS = `
   ${HEIGHT_ATTRS}
   varying vec3 v_color;
   varying float v_dark;
+  uniform vec2 u_viewport;   // PARCHMENT
+  uniform float u_edgeWidth; // PARCHMENT
+  varying float v_ratio;     // PARCHMENT: height up the wall, for the roofline edge
+  varying float v_border;    // PARCHMENT: that edge's width, in wall-height units
+  varying float v_fade;      // PARCHMENT: 0 where the wall is too short to hold it
   void main() {
     float t = mod(a_normal_ed.x, 2.0);
     float isWall = a_normal_ed.z < 8192.0 ? 1.0 : 0.0;
@@ -68,6 +79,27 @@ const BUILD_VS = `
                : (exp(-3.0 * wallRatio / u_band) - 0.0498) * 1.0524;
     v_dark = u_strength * dark;
 
+    // PARCHMENT: how wide the roofline band is, as a fraction of this wall's
+    // height. Project the column this vertex stands on twice — once at its base
+    // and once at its roof — and the screen distance between them is how many
+    // pixels tall the wall is here, which turns a width in pixels into the
+    // 0-1 units the fragment shader compares against. Guard the near plane: a
+    // wall clipped behind the camera projects to nonsense.
+    //
+    // A wall too short to hold the border gets a fainter one rather than a
+    // squashed one. Without this, zooming out turns every building into a
+    // mostly-dark box — the band is a fixed width but the wall keeps shrinking
+    // under it — so it fades out as the wall approaches the border's own size
+    // and the far side of a view stays clean.
+    v_ratio = wallRatio;
+    vec4 pTop = u_matrix * vec4(a_pos, h, 1.0);
+    vec4 pBot = u_matrix * vec4(a_pos, base, 1.0);
+    float wallPx = (pTop.w > 0.001 && pBot.w > 0.001)
+      ? length((pTop.xy / pTop.w - pBot.xy / pBot.w) * 0.5 * u_viewport)
+      : 0.0;
+    v_border = min(u_edgeWidth / max(wallPx, 1.0), 0.25);
+    v_fade = smoothstep(1.5, 4.0, wallPx / max(u_edgeWidth, 0.001));
+
     vec2 pk = u_ct < -0.5 ? a_color : mix(a_color4.xy, a_color4.zw, u_ct);
     vec4 color = vec4(floor(pk / 256.0), mod(pk, 256.0)).xzyw / 255.0;
     float colorvalue = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -79,12 +111,36 @@ const BUILD_VS = `
     gl_Position = u_matrix * vec4(a_pos, elev, 1.0);
   }`;
 
+// PARCHMENT: the roofline edge.
+//
+// MapLibre has no outline for fill-extrusion at any version, and a line layer
+// on the footprint draws the wrong thing — the base of the building, not the
+// edge you can see. But the top of a wall IS the roofline, and `v_ratio` says
+// how far up a wall a fragment sits, so darkening where it approaches 1 draws
+// the edge on the geometry itself.
+//
+// The band has to be a fixed width in *pixels*, or it reads as a gradient on a
+// tower and swallows a townhouse whole. `v_border` carries the conversion,
+// measured in the vertex shader (see the note there) rather than with `fwidth`
+// — derivatives are not available to an ESSL1 shader under WebGL2, and this is
+// both cheaper and exact rather than a one-pixel finite difference.
+//
+// Only the horizontal edges come out of this. The vertical corners where two
+// walls meet are already read by the flat shading — adjacent faces take
+// different light — and drawing them properly would need a separate line index
+// buffer, which is not worth its own geometry pass.
 const BUILD_FS = `
   precision highp float;
+  uniform float u_edge;
   varying vec3 v_color;
   varying float v_dark;
+  varying float v_ratio;
+  varying float v_border;
+  varying float v_fade;
   void main() {
-    gl_FragColor = vec4(v_color * (1.0 - v_dark), 1.0);
+    float edge = v_ratio < 0.0 ? 0.0
+               : v_fade * (1.0 - smoothstep(0.0, v_border, 1.0 - v_ratio));
+    gl_FragColor = vec4(v_color * (1.0 - v_dark) * (1.0 - u_edge * edge), 1.0);
   }`;
 
 // ── Ground shadow mask (plan D): shear each vertex by its real elevation ──
@@ -302,6 +358,9 @@ export class WallShadowLayer {
     // wall shading
     this.strength = opts.strength ?? 0.5;
     this.band = opts.band ?? 1.0;
+    // PARCHMENT: roofline edge — how dark, and how many pixels wide.
+    this.edge = opts.edge ?? 0;
+    this.edgeWidth = opts.edgeWidth ?? 1.5;
     this._height = opts.height ?? 40;
     this._base = opts.base ?? 0;
 
@@ -325,7 +384,8 @@ export class WallShadowLayer {
 
     this._buildProg = linkProgram(gl, BUILD_VS, BUILD_FS);
     this._uBuild = uniformLocs(gl, this._buildProg,
-      ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity']);
+      ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
+        'u_edge', 'u_edgeWidth', 'u_viewport']); // PARCHMENT
 
     this._shadProg = linkProgram(gl, SHAD_VS, SHAD_FS);
     this._uShad = uniformLocs(gl, this._shadProg, ['u_matrix', 'u_shadowOff', 'u_heightScale', 'u_ht', 'u_bt']);
@@ -632,6 +692,9 @@ export class WallShadowLayer {
     gl.useProgram(this._buildProg);
     gl.uniform1f(U.u_band, Math.max(0.01, this.band));
     gl.uniform1f(U.u_strength, this.strength);
+    gl.uniform1f(U.u_edge, this.edge); // PARCHMENT
+    gl.uniform1f(U.u_edgeWidth, this.edgeWidth); // PARCHMENT
+    gl.uniform2f(U.u_viewport, gl.drawingBufferWidth, gl.drawingBufferHeight); // PARCHMENT
     const light = this._lightUniforms();
     gl.uniform3fv(U.u_lightpos, light.pos);
     gl.uniform1f(U.u_lightintensity, light.intensity);

@@ -23,6 +23,8 @@ export interface WallShadowLayerOptions {
   aoRadiusMax?: number
   aoIntensity?: number
   aoOffset?: [number, number, number]
+  edge?: number
+  edgeWidth?: number
 }
 
 export class WallShadowLayer {

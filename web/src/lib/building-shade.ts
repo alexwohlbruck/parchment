@@ -34,9 +34,21 @@ export const SHADOW_OFFSET: [number, number] = [-0.5, 0.5]
  * in the dark flavor, where every roof is a near-identical blue; a hard cast
  * shadow, on the other hand, implies a sun that is not up.
  */
-const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number }> = {
-  light: { shadowAlpha: 0.33, aoIntensity: 0.8, strength: 0.5 },
-  dark: { shadowAlpha: 0.14, aoIntensity: 0.6, strength: 0.42 },
+const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
+  light: { shadowAlpha: 0.33, aoIntensity: 0.8, strength: 0.5, edge: 0.6 },
+  dark: { shadowAlpha: 0.14, aoIntensity: 0.6, strength: 0.42, edge: 0.68 },
+}
+
+/**
+ * How wide the roofline edge is, in CSS pixels.
+ *
+ * The shader measures in drawing-buffer pixels, which are device pixels, so
+ * this is scaled up to match — otherwise the edge would come out half as thick
+ * on a retina display as on an ordinary one, which is the opposite of what a
+ * border should do.
+ */
+function edgeWidth(): number {
+  return 1.4 * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
 }
 
 /**
@@ -57,6 +69,7 @@ export function createBuildingShade(buildingsLayerId: string, flavor: FlavorId) 
     buildingsLayerId,
     shadowOffset: SHADOW_OFFSET,
     sdfResolution: sdfResolution(),
+    edgeWidth: edgeWidth(),
     ...TUNING[flavor],
   })
 }

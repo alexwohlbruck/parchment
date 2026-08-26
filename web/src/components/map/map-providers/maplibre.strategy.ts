@@ -119,6 +119,9 @@ const BUILDING_FULL_PITCH = 10
 /** Height scale is snapped to this, to cut the number of re-evaluations. */
 const BUILDING_SCALE_STEP = 0.2
 
+/** The layer's own height, before the pitch ramp scales it. */
+const BUILDING_HEIGHT = ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0]
+
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
@@ -229,7 +232,6 @@ export class MaplibreStrategy extends MapStrategy {
     // getLayer() on each event and automatically adapt to style changes.
     this.mapInstance.on('style.load', () => {
       this.setupPoiHandlers()
-      this.lastHeightPitch = undefined
       this.lastHeightScale = undefined
       this.updateBuildingHeights()
       this.updateCameraProjection()
@@ -509,14 +511,13 @@ export class MaplibreStrategy extends MapStrategy {
     if (value) {
       // Through the ramp, not straight to full height: switching 3D back on
       // while the map is flat should leave the buildings flat, not stand a
-      // city up under a top-down camera. `lastHeightPitch` is cleared so the
-      // throttle cannot swallow this one.
+      // city up under a top-down camera. The remembered scale is cleared so
+      // the update cannot be mistaken for a repeat and skipped.
       this.mapInstance.setPaintProperty(
         buildingLayerId,
         'fill-extrusion-base',
         ['coalesce', ['get', buildingMinHeightProperty], 0],
       )
-      this.lastHeightPitch = undefined
       this.lastHeightScale = undefined
       this.updateBuildingHeights()
     } else {
@@ -678,49 +679,38 @@ export class MaplibreStrategy extends MapStrategy {
   /**
    * Re-scale the building heights for the current pitch.
    *
-   * Throttled, because re-setting a data-driven paint property re-evaluates it
-   * across every visible feature and `pitch` fires on every frame of a
-   * gesture. Coming down is the expensive direction — the buildings are
-   * shrinking into a view that is about to show more of them — so it updates
-   * on coarser steps that way, and always near the bottom of the ramp where
-   * the change is most visible.
+   * The quantised scale is its own throttle: across the whole ramp there are
+   * only six distinct values, so the expensive part — re-setting a data-driven
+   * paint property, which re-evaluates it across every feature in every loaded
+   * tile — runs at most six times however slowly the map is tilted. That check
+   * comes first because it rejects nearly every call.
+   *
+   * An earlier revision also throttled on how far the pitch had moved, which
+   * could only ever delay a step the scale had already earned — it left the
+   * buildings a notch too tall at the bottom of the ramp.
    */
   private updateBuildingHeights() {
+    const k = this.buildingHeightScale(this.mapInstance.getPitch())
+    if (k === this.lastHeightScale) return
+
     const id = layerGroups.building3d
     if (!this.mapInstance.getLayer(id)) return
-    // Nothing to rescale where the layer does not draw.
-    if (this.mapInstance.getZoom() < (this.mapInstance.getLayer(id) as any).minzoom) return
-    // 3D buildings switched off pins the height flat; leave it alone.
+    // 3D buildings switched off pins the height flat; leave it alone. Checked
+    // without recording the scale, so the ramp resumes when they come back.
     if (!useMapStore().settings.objects3d) return
 
-    const pitch = this.mapInstance.getPitch()
-    const last = this.lastHeightPitch
-    if (last !== undefined) {
-      const moved = Math.abs(pitch - last)
-      const settling = pitch < last
-      const enough = settling
-        ? moved > 1 || pitch < BUILDING_FLAT_PITCH
-        : moved > 1.5 || pitch < BUILDING_FLAT_PITCH * 2
-      if (!enough) return
-    }
-    this.lastHeightPitch = pitch
-
-    const k = this.buildingHeightScale(pitch)
-    if (k === this.lastHeightScale) return
     this.lastHeightScale = k
-    const height = ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0]
     this.mapInstance.setPaintProperty(
       id,
       'fill-extrusion-height',
-      k === 1 ? height : ['*', height, k],
+      k === 1 ? BUILDING_HEIGHT : ['*', BUILDING_HEIGHT, k],
     )
   }
 
   private defaultFov?: number
-  /** Pitch the building heights were last scaled for; drives the throttle. */
-  private lastHeightPitch?: number
-  /** Last scale actually applied, so a repeat step costs nothing. */
+  /** Last scale actually applied; a pitch that does not change it costs nothing. */
   private lastHeightScale?: number
+  /** Pending coalesced height update, cancelled on destroy. */
   private heightFrame?: number
 
   private reloadStyle() {
@@ -885,6 +875,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   destroy() {
     try {
+      if (this.heightFrame !== undefined) cancelAnimationFrame(this.heightFrame)
       this.poiHandlerCleanup?.()
       this.poiHandlerCleanup = null
       this.unwatchTheme?.()

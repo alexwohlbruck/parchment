@@ -112,8 +112,9 @@ const TOP_DOWN_EPSILON = 0.001
 /** Narrow enough to be indistinguishable from a true orthographic camera. */
 const ORTHO_FOV = 0.5
 
-/** How long the buildings take to sink or rise around the camera switch. */
-const BUILDING_COLLAPSE_MS = 260
+/** Below this pitch the buildings are flat; above `FULL`, at full height. */
+const BUILDING_FLAT_PITCH = 1
+const BUILDING_FULL_PITCH = 10
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
@@ -211,7 +212,10 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('load', () => {
       mapEventBus.emit('load', this.mapInstance)
     })
-    this.mapInstance.on('pitch', () => this.updateCameraProjection())
+    this.mapInstance.on('pitch', () => {
+      this.updateBuildingHeights()
+      this.updateCameraProjection()
+    })
     // Style load fires on the initial style load AND on every subsequent
     // setStyle() call (theme change, basemap change, map style change). We
     // use this single listener to re-emit to the mapEventBus so that
@@ -222,6 +226,8 @@ export class MaplibreStrategy extends MapStrategy {
     // getLayer() on each event and automatically adapt to style changes.
     this.mapInstance.on('style.load', () => {
       this.setupPoiHandlers()
+      this.lastHeightPitch = undefined
+      this.updateBuildingHeights()
       this.updateCameraProjection()
       mapEventBus.emit('style.load', this.mapInstance)
     })
@@ -493,21 +499,21 @@ export class MaplibreStrategy extends MapStrategy {
 
   setMap3dObjects(value: boolean) {
     const buildingLayerId = layerGroups.building3d
-    const buildingHeightProperty = BUILDING_HEIGHT_PROPERTY
     const buildingMinHeightProperty = BUILDING_MIN_HEIGHT_PROPERTY
     if (!this.mapInstance.getLayer(buildingLayerId)) return
 
     if (value) {
-      this.mapInstance.setPaintProperty(
-        buildingLayerId,
-        'fill-extrusion-height',
-        ['coalesce', ['get', buildingHeightProperty], 0],
-      )
+      // Through the ramp, not straight to full height: switching 3D back on
+      // while the map is flat should leave the buildings flat, not stand a
+      // city up under a top-down camera. `lastHeightPitch` is cleared so the
+      // throttle cannot swallow this one.
       this.mapInstance.setPaintProperty(
         buildingLayerId,
         'fill-extrusion-base',
         ['coalesce', ['get', buildingMinHeightProperty], 0],
       )
+      this.lastHeightPitch = undefined
+      this.updateBuildingHeights()
     } else {
       this.mapInstance.setPaintProperty(
         buildingLayerId,
@@ -622,98 +628,68 @@ export class MaplibreStrategy extends MapStrategy {
     const topDown = Math.abs(this.mapInstance.getPitch()) < TOP_DOWN_EPSILON
     const wanted = topDown ? ORTHO_FOV : this.defaultFov
     // `pitch` fires continuously through a gesture; setting the field of view
-    // recomputes every matrix, so only touch it when the answer changes. The
-    // second test covers the window where the collapse is still running and
-    // the new field of view has not been applied yet — without it every frame
-    // of a pitch gesture would cancel and restart the collapse, so it would
-    // never reach the end and never make the switch.
+    // recomputes every matrix, so only touch it when the answer changes.
     if (Math.abs(transform.fov - wanted) < 0.001) return
-    if (this.pendingFov === wanted) return
-    this.pendingFov = wanted
-
-    // Swapping the field of view makes every building wall appear or vanish
-    // between one frame and the next. Collapsing the buildings first turns
-    // that into the buildings sinking, and the swap happens while they are
-    // flat — where it cannot be seen. Heights are meaningless under the
-    // orthographic camera anyway: looking straight down with no perspective,
-    // a roof projects exactly onto its own footprint.
-    if (topDown) {
-      this.animateBuildingHeights(1, 0, () => {
-        transform.fov = wanted
-        this.setBuildingHeightScale(1)
-        this.pendingFov = undefined
-      })
-    } else {
-      this.setBuildingHeightScale(0)
-      transform.fov = wanted
-      this.pendingFov = undefined
-      this.animateBuildingHeights(0, 1)
-    }
-  }
-
-  /** The layer's own height expression, scaled by `k`. */
-  private setBuildingHeightScale(k: number) {
-    const id = layerGroups.building3d
-    if (!this.mapInstance.getLayer(id)) return
-    this.mapInstance.setPaintProperty(
-      id,
-      'fill-extrusion-height',
-      k === 1
-        ? ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0]
-        : ['*', ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0], k],
-    )
+    transform.fov = wanted
   }
 
   /**
-   * Tween the buildings between full height and flat.
+   * How tall the buildings stand at a given pitch: flat below
+   * `BUILDING_FLAT_PITCH`, full height above `BUILDING_FULL_PITCH`, ramped in
+   * between.
    *
-   * Driven frame by frame rather than by a paint transition: MapLibre snaps
-   * rather than interpolates when a data-driven property is retargeted, so
-   * `fill-extrusion-height-transition` does nothing here. Re-setting the
-   * expression each frame re-evaluates it across every visible feature, which
-   * is why this is kept short.
-   *
-   * Skipped entirely when 3D buildings are switched off — they are already
-   * flat, and there is nothing to hide.
+   * This is what keeps the camera switch invisible. The buildings are already
+   * flat a degree before the map reaches top-down, so by the time the field of
+   * view narrows there are no walls left to pop out of existence — no
+   * sequencing, no animation timer, and the collapse follows the gesture
+   * instead of playing back at its own pace.
    */
-  private animateBuildingHeights(from: number, to: number, done?: () => void) {
-    this.buildingTween?.()
+  private buildingHeightScale(pitch: number): number {
+    if (pitch < BUILDING_FLAT_PITCH) return 0
+    if (pitch > BUILDING_FULL_PITCH) return 1
+    return pitch / BUILDING_FULL_PITCH
+  }
+
+  /**
+   * Re-scale the building heights for the current pitch.
+   *
+   * Throttled, because re-setting a data-driven paint property re-evaluates it
+   * across every visible feature and `pitch` fires on every frame of a
+   * gesture. Coming down is the expensive direction — the buildings are
+   * shrinking into a view that is about to show more of them — so it updates
+   * on coarser steps that way, and always near the bottom of the ramp where
+   * the change is most visible.
+   */
+  private updateBuildingHeights() {
     const id = layerGroups.building3d
-    const off =
-      !this.mapInstance.getLayer(id) ||
-      this.mapInstance.getPaintProperty(id, 'fill-extrusion-height') === 0
-    if (off) {
-      done?.()
-      return
-    }
+    if (!this.mapInstance.getLayer(id)) return
+    // 3D buildings switched off pins the height flat; leave it alone.
+    if (!useMapStore().settings.objects3d) return
 
-    const start = performance.now()
-    let frame = 0
-    let cancelled = false
-    this.buildingTween = () => {
-      cancelled = true
-      cancelAnimationFrame(frame)
+    const pitch = this.mapInstance.getPitch()
+    const last = this.lastHeightPitch
+    if (last !== undefined) {
+      const moved = Math.abs(pitch - last)
+      const settling = pitch < last
+      const enough = settling
+        ? moved > 1 || pitch < BUILDING_FLAT_PITCH
+        : moved > 1.5 || pitch < BUILDING_FLAT_PITCH * 2
+      if (!enough) return
     }
+    this.lastHeightPitch = pitch
 
-    const step = () => {
-      if (cancelled) return
-      const t = Math.min(1, (performance.now() - start) / BUILDING_COLLAPSE_MS)
-      // Ease out, so the buildings settle rather than stopping dead.
-      this.setBuildingHeightScale(from + (to - from) * (1 - (1 - t) ** 3))
-      if (t < 1) frame = requestAnimationFrame(step)
-      else {
-        this.buildingTween = undefined
-        done?.()
-      }
-    }
-    step()
+    const k = this.buildingHeightScale(pitch)
+    const height = ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0]
+    this.mapInstance.setPaintProperty(
+      id,
+      'fill-extrusion-height',
+      k === 1 ? height : ['*', height, k],
+    )
   }
 
   private defaultFov?: number
-  /** Cancels the in-flight building tween, if there is one. */
-  private buildingTween?: () => void
-  /** The field of view a running collapse is on its way to applying. */
-  private pendingFov?: number
+  /** Pitch the building heights were last scaled for; drives the throttle. */
+  private lastHeightPitch?: number
 
   private reloadStyle() {
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })

@@ -22,11 +22,7 @@ import { SettingsSection, SettingsItem } from '@/components/settings'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import {
-  liveBuildingShade,
-  shadeLight,
-  buildingShadeDefaults,
-} from '@/lib/building-shade'
+import { liveBuildingShade, buildingShadeDefaults } from '@/lib/building-shade'
 import { buildingColor } from '@/lib/map-style/building-color.mjs'
 import { layerGroups } from '@/lib/map-style'
 import { mapEventBus } from '@/lib/eventBus'
@@ -59,14 +55,17 @@ const GROUPS: Array<{ title: string; toggle?: { key: string; label: string }; le
     ],
   },
   {
+    // Direction and length are not levers any more: they come from the real
+    // sun over the map's centre, and any value set here would be overwritten
+    // on the next camera move. Only the qualities the sun does not decide are
+    // adjustable.
     title: 'Cast shadow',
     toggle: { key: 'groundFx', label: 'Ground effects' },
     levers: [
-      { key: 'shadowX', label: 'Sun X', min: -2, max: 2, step: 0.05, format: NUM },
-      { key: 'shadowY', label: 'Sun Y', min: -2, max: 2, step: 0.05, format: NUM },
-      { key: 'heightScale', label: 'Length', min: 0, max: 1.5, step: 0.01, format: PERCENT },
-      { key: 'shadowAlpha', label: 'Darkness', min: 0, max: 1, step: 0.01, format: PERCENT },
+      { key: 'shadowAlpha', label: 'Darkness at noon', min: 0, max: 1, step: 0.01, format: PERCENT },
       { key: 'shadowBlur', label: 'Softness', min: 0, max: 20, step: 0.5, format: NUM },
+      { key: 'fadeZoom', label: 'Fade-in zooms', min: 0.1, max: 4, step: 0.1, format: NUM },
+      { key: 'topDownOpacity', label: 'Top-down opacity', min: 0, max: 1, step: 0.01, format: PERCENT },
     ],
   },
   {
@@ -103,10 +102,9 @@ function loadFrom(source: any) {
     band: pick('band', d.band),
     edge: pick('edge', d.edge),
     edgeWidth: pick('edgeWidth', d.edgeWidth),
-    shadowX: source?.shadowOffset?.[0] ?? d.shadowOffset[0],
-    shadowY: source?.shadowOffset?.[1] ?? d.shadowOffset[1],
-    heightScale: pick('_heightScale', d.heightScale),
     shadowAlpha: pick('shadowAlpha', d.shadowAlpha),
+    fadeZoom: pick('fadeZoom', d.fadeZoom),
+    topDownOpacity: pick('topDownOpacity', d.topDownOpacity),
     shadowBlur: pick('shadowBlur', d.shadowBlur),
     aoIntensity: pick('aoIntensity', d.aoIntensity),
     aoRadiusMin: pick('aoRadiusMin', d.aoRadiusMin),
@@ -131,16 +129,11 @@ function apply() {
   layer.aoIntensity = state.aoIntensity
   layer.aoRadiusMin = state.aoRadiusMin
   layer.aoRadiusMax = state.aoRadiusMax
-  // Underscored on the layer because upstream treats them as construction-time
-  // options; they are still read every frame, so assigning works.
-  layer._heightScale = state.heightScale
-  layer.shadowOffset = [state.shadowX, state.shadowY]
+  layer.fadeZoom = state.fadeZoom
+  layer.topDownOpacity = state.topDownOpacity
   layer.aoOffset = [0, state.aoZ / 2, state.aoZ]
 
   if (map.value) {
-    // Wall shading comes from the style light, not the layer, so the sun has to
-    // be moved in both places or the two disagree.
-    map.value.setLight(shadeLight([state.shadowX, state.shadowY]))
     if (map.value.getLayer?.(layerGroups.building3d)) {
       map.value.setPaintProperty(
         layerGroups.building3d,
@@ -196,11 +189,11 @@ function copyDefaults() {
       + `strength: ${n(state.strength)}, edge: ${n(state.edge)} },`,
     '',
     '// shared across flavors — SHAPE and the constants beside it',
-    `SHADOW_OFFSET = [${n(state.shadowX)}, ${n(state.shadowY)}]`,
     `EDGE_WIDTH_CSS_PX = ${n(state.edgeWidth / (devicePixelRatio || 1))}`,
     `band = ${n(state.band)}`,
-    `heightScale = ${n(state.heightScale)}`,
     `shadowBlur = ${n(state.shadowBlur)}`,
+    `fadeZoom = ${n(state.fadeZoom)}`,
+    `topDownOpacity = ${n(state.topDownOpacity)}`,
     `aoRadiusMin = ${n(state.aoRadiusMin)}`,
     `aoRadiusMax = ${n(state.aoRadiusMax)}`,
     `aoOffset = [0, ${n(state.aoZ / 2)}, ${n(state.aoZ)}]`,

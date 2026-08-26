@@ -62,7 +62,9 @@ import {
 } from '@/lib/utils'
 import {
   createBuildingShade,
+  liveBuildingShade,
   shadeLight,
+  sunShadow,
   BUILDING_SHADE_LAYER_ID,
 } from '@/lib/building-shade'
 function getPrimaryThemeHex(): string {
@@ -218,6 +220,9 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('pitch', () => this.updateCameraProjection())
+    // A quarter of a degree a minute: five is far finer than the eye needs and
+    // costs one trig evaluation.
+    this.sunTimer = setInterval(() => this.updateSunShadow(), 5 * 60 * 1000)
     // Style load fires on the initial style load AND on every subsequent
     // setStyle() call (theme change, basemap change, map style change). We
     // use this single listener to re-emit to the mapEventBus so that
@@ -243,6 +248,7 @@ export class MaplibreStrategy extends MapStrategy {
       })
     })
     this.mapInstance.on('moveend', () => {
+      this.updateSunShadow()
       mapEventBus.emit('moveend', {
         center: this.mapInstance.getCenter(),
         zoom: this.mapInstance.getZoom(),
@@ -570,6 +576,8 @@ export class MaplibreStrategy extends MapStrategy {
         createBuildingShade(buildingLayerId, flavor) as any,
         this.layerAfter(buildingLayerId),
       )
+      this.shadowAlphaAtNoon = undefined
+      this.updateSunShadow()
     } else if (!active && present) {
       this.mapInstance.removeLayer(BUILDING_SHADE_LAYER_ID)
     }
@@ -579,6 +587,44 @@ export class MaplibreStrategy extends MapStrategy {
       active ? 0 : 1,
     )
   }
+
+  /**
+   * Point the shadows where the real sun is, for wherever the map is looking.
+   *
+   * Direction and length both come from the sun's actual position, so a map of
+   * Manhattan in the afternoon throws its shadows east and long, and the same
+   * view at noon throws them short — and a city in the other hemisphere throws
+   * them the other way entirely. `daylight` folds in the sunrise and sunset
+   * ramp, taking the cast shadow to nothing overnight while the ambient
+   * occlusion that separates one building from the next stays put.
+   *
+   * Recomputed on `moveend` rather than per frame: the sun moves a quarter of a
+   * degree a minute, and the answer only depends on where the map is and what
+   * time it is. The interval covers a map left open, which is the only way the
+   * time can change without the camera moving.
+   */
+  private updateSunShadow() {
+    const layer = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID)
+      ? (liveBuildingShade() as any)
+      : null
+    if (!layer) return
+
+    const { lng, lat } = this.mapInstance.getCenter()
+    const sun = sunShadow(new Date(), lat, lng)
+
+    layer.shadowOffset = sun.offset
+    layer._heightScale = sun.heightScale
+    // Hold the tuned darkness as the daylight maximum rather than overwriting
+    // it, so the settings panel and the flavor still have the final say.
+    this.shadowAlphaAtNoon ??= layer.shadowAlpha as number
+    layer.shadowAlpha = this.shadowAlphaAtNoon * sun.daylight
+
+    this.mapInstance.setLight(shadeLight(sun.offset))
+    this.mapInstance.triggerRepaint()
+  }
+
+  private shadowAlphaAtNoon?: number
+  private sunTimer?: ReturnType<typeof setInterval>
 
   /** The id of the layer drawn directly above `layerId`, if any. */
   private layerAfter(layerId: string): string | undefined {
@@ -678,8 +724,8 @@ export class MaplibreStrategy extends MapStrategy {
    * depth that makes the tilt worth having.
    */
   override updateCameraProjection() {
-    const transform = this.mapInstance.transform as { fov: number }
-    if (this.defaultFov === undefined) this.defaultFov = transform.fov
+    const current = this.mapInstance.getVerticalFieldOfView()
+    if (this.defaultFov === undefined) this.defaultFov = current
 
     // Not `=== 0`: an eased pitch animation can settle a hair off zero, and
     // the view is still flat on at a thousandth of a degree.
@@ -687,8 +733,8 @@ export class MaplibreStrategy extends MapStrategy {
     const wanted = topDown ? ORTHO_FOV : this.defaultFov
     // `pitch` fires continuously through a gesture; setting the field of view
     // recomputes every matrix, so only touch it when the answer changes.
-    if (Math.abs(transform.fov - wanted) < 0.001) return
-    transform.fov = wanted
+    if (Math.abs(current - wanted) < 0.001) return
+    this.mapInstance.setVerticalFieldOfView(wanted)
   }
 
   private defaultFov?: number
@@ -858,6 +904,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.poiHandlerCleanup?.()
       this.poiHandlerCleanup = null
       this.unwatchTheme?.()
+      if (this.sunTimer) clearInterval(this.sunTimer)
 
       // Remove the map instance
       if (this.mapInstance) {

@@ -320,6 +320,7 @@ describe('assembled styles', () => {
       const layer = (buildLayers({ flavor }) as any[]).find(l => l.id === layerGroups.building3d)
       const parsed = expression.createPropertyExpression(
         layer.paint['fill-extrusion-color'],
+        `${layer.id}.paint.fill-extrusion-color`,
         (latest as any)['paint_fill-extrusion']['fill-extrusion-color'],
       )
       expect(parsed.result).toBe('success')
@@ -377,7 +378,7 @@ describe('assembled styles', () => {
   test('every filter compiles and evaluates', () => {
     for (const l of buildLayers({ flavor: 'dark' }) as any[]) {
       if (!l.filter) continue
-      const f = featureFilter(l.filter)
+      const f = featureFilter(l.filter, `${l.id}.filter`)
       const run = () => f.filter({ zoom: 15 } as any, { type: 1, properties: {} } as any, {} as any)
       expect(run, l.id).not.toThrow()
     }

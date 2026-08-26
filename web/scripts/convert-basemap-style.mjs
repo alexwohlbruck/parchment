@@ -602,6 +602,12 @@ async function main() {
         'fill-extrusion-height': grow(out.paint['fill-extrusion-height']),
         'fill-extrusion-base': grow(out.paint['fill-extrusion-base']),
       }
+      // Round off the building corners. A layout property, so it reshapes the
+      // extrusion geometry itself rather than shading it — MapLibre 6.2+ only,
+      // which is why we carry a v6 fork. Measured in metres along each adjacent
+      // edge, clamped internally to 20% of the shorter one so a narrow building
+      // cannot collapse, and corners under 5 degrees are left alone.
+      out.layout = { ...out.layout, 'fill-extrusion-rounded-corner-distance': 1.5 }
       buildingLayerId = out.id
     }
 

@@ -370,6 +370,11 @@ export class WallShadowLayer {
     this.shadowOffset = opts.shadowOffset ?? [-0.5, 0.5];
     this.shadowBlur = opts.shadowBlur ?? 2.0;
 
+    // PARCHMENT: how the ground effects fade in and out — see `groundOpacity`.
+    this.fadeZoom = opts.fadeZoom ?? 1.2;
+    this.topDownOpacity = opts.topDownOpacity ?? 0.5;
+    this.topDownPitch = opts.topDownPitch ?? 25;
+
     // ground AO
     this._sdfRes = opts.sdfResolution ?? 1024;
     this.aoRadiusMin = opts.aoRadiusMin ?? 30;
@@ -562,6 +567,29 @@ export class WallShadowLayer {
       if (ctx[k]) ctx[k].dirty = true;
   }
 
+  /**
+   * PARCHMENT: how strongly the ground shadow and occlusion draw right now.
+   *
+   * Two things dim them. Zoom: the layer switches on at `_minZoom`, and without
+   * this the shadows arrive at full strength in a single frame while the
+   * buildings casting them are still growing out of the ground — so they ramp
+   * over `fadeZoom` levels instead, smoothstepped so neither end has a corner.
+   *
+   * Pitch: looking straight down there is no visible wall for a shadow to
+   * belong to, so a full-strength one reads as a stain on the ground rather
+   * than as depth. It eases back to `topDownOpacity` as the camera flattens.
+   */
+  groundOpacity() {
+    const zoom = this._map.getZoom();
+    const zt = Math.min(Math.max((zoom - this._minZoom) / Math.max(this.fadeZoom, 0.001), 0), 1);
+    const zoomFade = zt * zt * (3 - 2 * zt);
+
+    const pt = Math.min(Math.max(this._map.getPitch() / Math.max(this.topDownPitch, 0.001), 0), 1);
+    const pitchFade = this.topDownOpacity + (1 - this.topDownOpacity) * (pt * pt * (3 - 2 * pt));
+
+    return zoomFade * pitchFade;
+  }
+
   /* ── 1. shadow mask → FBO[2] with stencil (no overlap) ── */
 
   _shadowPass(gl, tiles) {
@@ -647,8 +675,9 @@ export class WallShadowLayer {
     const t = Math.min(Math.max((zoom - this._minZoom) / (this._maxZoom - this._minZoom), 0), 1);
     const radiusPx = this.aoRadiusMin + t * (this.aoRadiusMax - this.aoRadiusMin);
     gl.uniform1f(U.u_radius, Math.min(radiusPx / Math.max(vw, vh), 0.2));
-    gl.uniform1f(U.u_intensity, this.aoIntensity);
-    gl.uniform1f(U.u_shadowAlpha, this.shadowAlpha);
+    const opacity = this.groundOpacity(); // PARCHMENT
+    gl.uniform1f(U.u_intensity, this.aoIntensity * opacity);
+    gl.uniform1f(U.u_shadowAlpha, this.shadowAlpha * opacity);
 
     const blurStep = this.shadowBlur / this._sdfRes;
     gl.uniform2f(U.u_blurStep, blurStep, blurStep);

@@ -20,6 +20,10 @@
 import { WallShadowLayer } from './vendor/ao-shadow.mjs'
 import type { FlavorId } from './map-style/build'
 import { BUILDING_CHROMA } from './map-style/building-color.mjs'
+import { sunPosition } from './sun-position'
+
+const RAD_PER_DEG = Math.PI / 180
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi)
 
 /**
  * Where the sun is, as a ground-plane offset for the cast shadows. Fixed rather
@@ -36,9 +40,11 @@ export const SHADOW_OFFSET: [number, number] = [0.6, -0.6]
 const SHAPE = {
   /** How far up the wall the contact shading reaches, as a fraction of it. */
   band: 0.24,
-  /** Shadow length as a fraction of building height. */
-  heightScale: 0.68,
   shadowBlur: 2,
+  /** Zoom levels the ground effects ramp over, so they arrive with the buildings. */
+  fadeZoom: 1.2,
+  /** What the cast shadow drops to looking straight down, where it reads as a stain. */
+  topDownOpacity: 0.5,
   aoRadiusMin: 26,
   aoRadiusMax: 58,
   aoOffset: [0, -0.5, -1] as [number, number, number],
@@ -119,6 +125,63 @@ export function shadeLight(offset: readonly [number, number] = SHADOW_OFFSET) {
   const [x, y] = offset
   const azimuth = ((Math.atan2(-x, -y) * 180) / Math.PI + 360) % 360
   return { anchor: 'map' as const, position: [1.2, azimuth, 30] as [number, number, number], intensity: 0.5 }
+}
+
+// ---------------------------------------------------------------------------
+// Real sun
+// ---------------------------------------------------------------------------
+
+/**
+ * Below this the sun is too low to cast a shadow worth drawing: the length runs
+ * away toward infinity and the light is doing nothing but grazing. Civil
+ * twilight is -6°, but shadows stop reading well long before that.
+ */
+const MIN_SUN_ALTITUDE = 4 * RAD_PER_DEG
+
+/**
+ * How long a shadow may get, as a multiple of building height. Geometry says
+ * `1 / tan(altitude)`, which is 14 at 4° and unbounded at the horizon — long
+ * enough to smear across the whole viewport and swamp the map.
+ */
+const MAX_SHADOW_LENGTH = 2.2
+
+/** Ambient occlusion holds steady; only the cast shadow follows the sun. */
+export type SunShadow = {
+  /** Ground-plane direction the shadow falls, +x east and +y south. */
+  offset: [number, number]
+  /** Shadow length as a multiple of building height. */
+  heightScale: number
+  /** 0 when the sun is down, easing in as it clears the horizon. */
+  daylight: number
+}
+
+/**
+ * Where this place's shadows actually fall, right now.
+ *
+ * The sun's compass bearing gives the direction — a shadow points away from the
+ * sun — and its altitude gives the length, long at dawn and short at noon, so a
+ * morning map and an afternoon map no longer look identical.
+ *
+ * The layer wants a ground-plane vector with +y pointing *south*, where a
+ * compass bearing has north at 0 going clockwise. A sun at bearing `a` sits at
+ * `(sin a, -cos a)`; the shadow is the negative of that.
+ */
+export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
+  const { azimuth, altitude } = sunPosition(date, lat, lng)
+
+  // Ease in over the few degrees above the cutoff rather than snapping on, so
+  // sunrise arrives as a fade instead of a jump.
+  const daylight = clamp((altitude - MIN_SUN_ALTITUDE) / (6 * RAD_PER_DEG), 0, 1)
+
+  const length = altitude > MIN_SUN_ALTITUDE
+    ? Math.min(1 / Math.tan(altitude), MAX_SHADOW_LENGTH)
+    : MAX_SHADOW_LENGTH
+
+  return {
+    offset: [-Math.sin(azimuth), Math.cos(azimuth)],
+    heightScale: length,
+    daylight,
+  }
 }
 
 /** The tuned defaults, for the settings panel to open on and reset to. */

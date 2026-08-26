@@ -3074,7 +3074,8 @@
    "source-layer": "building",
    "minzoom": 15,
    "layout": {
-    "visibility": "visible"
+    "visibility": "visible",
+    "fill-extrusion-rounded-corner-distance": 1.5
    },
    "paint": {
     "fill-extrusion-base": [

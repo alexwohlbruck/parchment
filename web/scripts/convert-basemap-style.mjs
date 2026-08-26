@@ -280,14 +280,27 @@ const BADGE_RADIUS_FULL = 9.5
 const BADGE_RADIUS_DOT = 2.5
 
 /**
- * Glyph size inside the badge. Maki draws on a 15-unit grid, and Mapbox holds
- * its glyph at ~57% of the disc's diameter — so a 19px disc wants an ~10.8px
- * glyph, i.e. 0.72 of Maki's natural size.
+ * Glyph size inside the badge — the same `1.14r / 24` the search-result and
+ * saved-place markers use (`glyphSize()` in `core-layers.ts`), which holds the
+ * glyph at ~57% of the disc's diameter.
+ *
+ * Do NOT re-derive this from Maki's 15-unit grid. An earlier revision did, got
+ * 0.72, and drew a glyph LARGER than the disc it sits in: the icon spilled past
+ * the ring, so a badge read as a white blob with a coloured crescent behind it
+ * rather than as a marker — which in dark mode looked like the POIs had been
+ * turned white. The sprite's own box is padded for the distance field, so the
+ * grid unit is not what `icon-size` scales against.
  */
-const BADGE_GLYPH_SIZE = Math.round(((BADGE_RADIUS_FULL * 2 * 0.57) / 15) * 100) / 100
+const BADGE_GLYPH_SIZE = Math.round(((BADGE_RADIUS_FULL * 1.14) / 24) * 1000) / 1000
 
 const POI_LAYOUT = {
   'icon-size': BADGE_GLYPH_SIZE,
+  // The glyph belongs to its badge, not to the label collision system. Circle
+  // layers do not collide, so a culled glyph leaves its disc behind as an
+  // empty coloured blob next to the badges that survived. Same reasoning, and
+  // the same two flags, as the saved-place glyphs in `core-layers.ts`.
+  'icon-allow-overlap': true,
+  'icon-ignore-placement': true,
   'text-size': 13,
   // Clears the taller glyph — offset is in ems of text-size, so 1.1em ≈ 14px
   // below the icon's centre.

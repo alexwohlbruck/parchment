@@ -5881,7 +5881,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -5914,7 +5914,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -6369,7 +6371,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -6402,7 +6404,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -6828,7 +6832,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -6861,7 +6865,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -7287,7 +7293,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -7320,7 +7326,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -7769,7 +7777,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -7802,7 +7810,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -8282,7 +8292,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -8315,7 +8325,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -8785,7 +8797,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -8818,7 +8830,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -9276,7 +9290,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -9309,7 +9323,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -9851,7 +9867,9 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-size": 0.72
+    "icon-size": 0.451,
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -10262,7 +10280,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -10295,7 +10313,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",
@@ -10898,7 +10918,7 @@
       ]
      ]
     ],
-    "icon-size": 0.72,
+    "icon-size": 0.451,
     "symbol-sort-key": [
      "to-number",
      [
@@ -10932,7 +10952,9 @@
      4
     ],
     "text-size": 13,
-    "visibility": "visible"
+    "visibility": "visible",
+    "icon-allow-overlap": true,
+    "icon-ignore-placement": true
    },
    "paint": {
     "icon-color": "@poi_ink",

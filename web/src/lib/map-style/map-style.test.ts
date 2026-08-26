@@ -161,6 +161,30 @@ describe('Mapbox POI treatment', () => {
     expect(l.layout['text-optional']).toBe(true)
   })
 
+  /**
+   * `1.14r / 24` at r=9.5 — the same figure `glyphSize()` in `core-layers.ts`
+   * gives the search-result markers.
+   *
+   * Guarded because an earlier revision re-derived this from Maki's 15-unit
+   * grid instead, got 0.72, and drew glyphs wider than the discs under them:
+   * the icon covered its own badge and spilled past the ring, so in dark mode
+   * every POI read as a white blob.
+   */
+  test.each(poi.map(l => [l.id, l]))('%s: glyph fits inside its badge', (_id, l: any) => {
+    expect(l.layout['icon-size']).toBeCloseTo(0.451, 3)
+  })
+
+  /**
+   * Circle layers do not take part in collision, so a glyph that loses one
+   * leaves its disc behind as an empty coloured blob. Both flags together are
+   * what keeps a badge and its glyph a single object — same as the saved-place
+   * glyphs in `core-layers.ts`.
+   */
+  test.each(poi.map(l => [l.id, l]))('%s: glyph cannot be culled off its badge', (_id, l: any) => {
+    expect(l.layout['icon-allow-overlap']).toBe(true)
+    expect(l.layout['icon-ignore-placement']).toBe(true)
+  })
+
   test.each(poi.map(l => [l.id, l]))('%s: halo is on the text, not the glyph', (_id, l: any) => {
     expect(l.paint['text-halo-width']).toBe(1)
     expect(l.paint['text-halo-color']).toBe('@poi_halo')

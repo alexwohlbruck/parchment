@@ -612,6 +612,35 @@ async function main() {
     layers.push(out)
   }
 
+  // A real edge on the buildings.
+  //
+  // MapTiler's own is `fill-outline-color` on the flat `Building` layer, which
+  // cannot show here: light paints it LIGHTER than the fill (79% against 73%)
+  // and then dims it with `fill-opacity: 0.3`, dark paints it the exact same
+  // colour as the fill, and either way the flat layer sits under `Building 3D`
+  // — opaque since we stopped drawing buildings at 0.4 — so from z15 up it is
+  // covered outright. A line layer above the extrusion is visible whatever the
+  // camera is doing: at top-down it traces the roof edge, since an
+  // orthographic roof lands exactly on its own footprint.
+  const building3d = layers.findIndex(l => l.type === 'fill-extrusion')
+  if (building3d >= 0) {
+    layers.splice(building3d + 1, 0, {
+      id: 'Building outline',
+      type: 'line',
+      source: SOURCE,
+      'source-layer': 'building',
+      minzoom: layers[building3d].minzoom ?? 15,
+      layout: { 'line-join': 'round' },
+      paint: {
+        'line-color': '@building_outline',
+        // Hairline where the buildings first appear, firmer as they fill the
+        // screen — a constant width reads as a heavy sketch at high zoom.
+        'line-width': ['interpolate', ['linear'], ['zoom'], 15, 0.4, 18, 1],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.4, 1],
+      },
+    })
+  }
+
   // Rewriting the POI layers strands MapTiler's 11 family colours, which
   // nothing references any more. Drop them so the dark flavor only has to
   // answer for tokens the map actually draws with.
@@ -664,6 +693,11 @@ async function main() {
   }
   tokens.light.poi_v4_halo = 'hsl(0, 0%, 100%)'
   tokens.dark.poi_v4_halo = 'hsl(0, 0%, 0%)'
+
+  // Darker than the roof it edges in both flavors, which is the whole point —
+  // MapTiler's is lighter in one and identical in the other.
+  tokens.light.building_outline = 'hsl(35, 10%, 58%)'
+  tokens.dark.building_outline = 'hsl(217, 45%, 34%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when
   // the glyph-only style is selected. Emitted rather than duplicating every

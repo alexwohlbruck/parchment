@@ -3132,6 +3132,45 @@
    ]
   },
   {
+   "id": "Building outline",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "building",
+   "minzoom": 15,
+   "layout": {
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "@building_outline",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     15,
+     0.4,
+     18,
+     1
+    ],
+    "line-opacity": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     15,
+     0,
+     15.4,
+     1
+    ]
+   }
+  },
+  {
    "id": "Aqueduct outline",
    "type": "line",
    "source": "openmaptiles",

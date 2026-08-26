@@ -75,6 +75,47 @@ const ALIASES = {
   atm: 'bank',
   office: 'commercial',
 
+  // poi.class values MapTiler's POI layers admit that Maki has no art for at
+  // all. Without these the layer draws no icon, and an unnamed feature then
+  // draws no symbol whatsoever — leaving the badge circle underneath standing
+  // on its own. `apartment` and `first_aid` alone accounted for most of the
+  // empty discs over Manhattan.
+  apartment: 'building',
+  archeological_site: 'monument',
+  archery: 'pitch',
+  athletics: 'pitch',
+  biergarten: 'beer',
+  book: 'library',
+  caravan_site: 'campsite',
+  chalet: 'lodging',
+  chemist: 'pharmacy',
+  childcare: 'school',
+  climbing: 'mountain',
+  courthouse: 'town-hall',
+  dancing_school: 'theatre',
+  driving_school: 'car',
+  equestrian: 'horse-riding',
+  first_aid: 'doctor',
+  fitness: 'fitness-centre',
+  fountain: 'drinking-water',
+  gallery: 'art-gallery',
+  mall: 'shop',
+  monastery: 'religious-christian',
+  motor: 'car',
+  multi: 'pitch',
+  opera: 'theatre',
+  planetarium: 'museum',
+  reservoir: 'water',
+  ruins: 'monument',
+  running: 'pitch',
+  sauna: 'swimming',
+  shower: 'toilet',
+  sport: 'pitch',
+  sports_hall: 'fitness-centre',
+  swimming_area: 'swimming',
+  theme_park: 'amusement-park',
+  townhall: 'town-hall',
+
   // poi.subclass values, which give a more specific icon than the class when
   // the sheet has one. Everything listed here MUST resolve — `layers.ts`
   // gates its subclass lookup on this exact set so MapLibre is never asked

@@ -347,57 +347,32 @@ const POI_PAINT_DROP = ['icon-halo-color', 'icon-halo-blur']
  * substituting a dot.
  */
 function poiBadgeLayer(poiLayers) {
-  /** The `class` values a layer's filter admits. */
-  const classesIn = filter => {
-    const found = new Set()
-    const walk = node => {
-      if (!Array.isArray(node)) return
-      // Legacy `["in", "class", "a", "b", …]` and modern `["match", ["get",
-      // "class"], [...], …]` both appear across their filters.
-      if (node[0] === 'in' && node[1] === 'class') {
-        node.slice(2).forEach(c => typeof c === 'string' && found.add(c))
-      }
-      if (node[0] === '==' && node[1] === 'class' && typeof node[2] === 'string') {
-        found.add(node[2])
-      }
-      // Modern form: ["match", ["get", "class"], [...], true, false]
-      if (
-        node[0] === 'match' &&
-        Array.isArray(node[1]) &&
-        node[1][0] === 'get' &&
-        node[1][1] === 'class' &&
-        Array.isArray(node[2])
-      ) {
-        node[2].forEach(c => typeof c === 'string' && found.add(c))
-      }
-      node.forEach(walk)
-    }
-    walk(filter)
-    return found
-  }
-
-  const glyphLayers = poiLayers.map(l => ({
-    minzoom: l.minzoom ?? 0,
-    classes: classesIn(l.filter),
-  }))
-
   /**
-   * MapTiler staggers its POI layers: Transport and Food from z14, Education
-   * from 15, Public and Sport not until 16. A badge that appeared before its
-   * glyph layer did drew an empty coloured disc for one or two whole zoom
-   * levels — the scatter of purple circles over car parks, ATMs and toilets,
-   * which are all in Public.
+   * A glyph layer's own conditions, with the rank gate stripped back off.
    *
-   * So the gate is per zoom band, not global: at each band a class counts as
-   * glyphed only once the layer that draws it has actually switched on.
+   * Every POI layer leaves here as `["all", <MapTiler's filter>, RANK_GATE]`,
+   * and the rank half is zoom-dependent, so it cannot be reused inside a paint
+   * expression. The MapTiler half can be, verbatim — which is the point: the
+   * badge stops approximating what a glyph layer accepts and starts asking the
+   * layer itself. Anything the filter tests for free — `has name`, the
+   * subclass exclusions, geometry type — comes along.
    */
-  const classesAt = zoom => {
-    const out = new Set()
-    for (const l of glyphLayers) {
-      if (l.minzoom <= zoom) l.classes.forEach(c => out.add(c))
-    }
-    return [...out]
+  const ownFilter = f => {
+    if (!Array.isArray(f)) return true
+    const isRankGate = n => Array.isArray(n) && n[0] === 'step'
+    if (f[0] === 'all' && f.length === 3 && isRankGate(f[2])) return f[1]
+    return isRankGate(f) ? true : f
   }
+
+  const glyphLayers = poiLayers.map(l => {
+    const own = ownFilter(l.filter)
+    // `["zoom"]` is legal only as the direct input of a top-level step, so a
+    // layer whose own filter reads zoom cannot be folded into the badge's.
+    if (JSON.stringify(own).includes('["zoom"]')) {
+      throw new Error(`POI layer ${l.id} reads zoom outside its rank gate`)
+    }
+    return { id: l.id, minzoom: l.minzoom ?? 0, own }
+  })
 
   const rankLimitAt = zoom => {
     let limit = RANK_STEPS[0][1]
@@ -405,7 +380,7 @@ function poiBadgeLayer(poiLayers) {
     return limit
   }
 
-  // Every zoom at which either side of the gate changes.
+  // Every zoom at which either half of the gate changes.
   const firstZoom = Math.min(...glyphLayers.map(l => l.minzoom))
   const bands = [...new Set([
     firstZoom,
@@ -413,23 +388,44 @@ function poiBadgeLayer(poiLayers) {
     ...RANK_STEPS.slice(1).map(([z]) => z),
   ])].filter(z => z >= firstZoom).sort((a, b) => a - b)
 
+  /**
+   * A badge is drawn exactly where some glyph layer that is live at this zoom
+   * would draw over it — the layers' own filters OR'd together, under the same
+   * rank limit their own gates use at that zoom.
+   *
+   * Gating on a union of `class` values instead is what put empty discs on the
+   * map: `Transport` admits a car park only if the geometry is a point, and
+   * `Shopping` only if the feature is named, but a class union let every car
+   * park and every unnamed shop through and left the disc standing on its own.
+   */
   const earnsGlyph = zoom => {
-    const classes = classesAt(zoom)
-    if (!classes.length) return false
-    const classCovered = ['match', ['get', 'class'], classes, true, false]
+    const live = glyphLayers.filter(l => l.minzoom <= zoom)
+    if (!live.length) return false
+    const owns = live.map(l => l.own)
+    const any = owns.includes(true) ? true : owns.length === 1 ? owns[0] : ['any', ...owns]
     const limit = rankLimitAt(zoom)
-    return limit === Infinity ? classCovered : ['all', classCovered, ['<=', RANK, limit]]
+    if (limit === Infinity) return any
+    const rank = ['<=', RANK, limit]
+    return any === true ? rank : ['all', any, rank]
   }
 
-  // Collapsing to zero rather than filtering: a filter cannot read `zoom`, and
-  // both halves of the gate are zoom-dependent, so the switch lives in paint.
-  const onlyIfGlyphed = value => {
-    const branch = zoom => {
-      const gate = earnsGlyph(zoom)
-      return gate === false ? 0 : gate === true ? value : ['case', gate, value, 0]
-    }
-    const out = ['step', ['zoom'], branch(bands[0])]
-    for (const zoom of bands.slice(1)) out.push(zoom, branch(zoom))
+  /**
+   * The gate goes in the FILTER, not in paint.
+   *
+   * A filter that reads `zoom` is evaluated once, when the tile is parsed into
+   * buckets, at the tile's own zoom — a paint property is re-evaluated every
+   * frame at the map's. The glyph layers carry their rank gate in their
+   * filters, so a badge gated in paint was reading a different zoom from the
+   * glyph it belonged to: the disc turned up a zoom level or two before its
+   * icon, which is the empty circle over a car park that never filled in until
+   * you zoomed further. Same expression, same place, same answer.
+   *
+   * `["zoom"]` is legal only as the direct input of a top-level `step`, so the
+   * step is outermost and every branch is zoom-free.
+   */
+  const gateFilter = () => {
+    const out = ['step', ['zoom'], earnsGlyph(bands[0])]
+    for (const zoom of bands.slice(1)) out.push(zoom, earnsGlyph(zoom))
     return out
   }
 
@@ -439,14 +435,14 @@ function poiBadgeLayer(poiLayers) {
     source: SOURCE,
     'source-layer': 'poi',
     minzoom: firstZoom,
-    filter: ['==', ['geometry-type'], 'Point'],
+    filter: ['all', ['==', ['geometry-type'], 'Point'], gateFilter()],
     paint: {
       'circle-color': poiColorExpression(),
-      'circle-radius': onlyIfGlyphed(BADGE_RADIUS_FULL),
+      'circle-radius': BADGE_RADIUS_FULL,
       // A hairline ring in the halo colour keeps touching badges apart without
       // reading as an outline.
       'circle-stroke-color': '@poi_halo',
-      'circle-stroke-width': onlyIfGlyphed(1.5),
+      'circle-stroke-width': 1.5,
     },
   }
 }

@@ -1887,6 +1887,286 @@
     "pixelRatio": 2,
     "sdf": true
   },
+  "apartment": {
+    "x": 432,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "archeological_site": {
+    "x": 1080,
+    "y": 504,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "archery": {
+    "x": 0,
+    "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "athletics": {
+    "x": 0,
+    "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "biergarten": {
+    "x": 288,
+    "y": 72,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "book": {
+    "x": 936,
+    "y": 432,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "caravan_site": {
+    "x": 432,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "chalet": {
+    "x": 648,
+    "y": 504,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "chemist": {
+    "x": 1008,
+    "y": 576,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "childcare": {
+    "x": 216,
+    "y": 856,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "climbing": {
+    "x": 72,
+    "y": 576,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "courthouse": {
+    "x": 0,
+    "y": 1000,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "dancing_school": {
+    "x": 864,
+    "y": 928,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "driving_school": {
+    "x": 504,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "equestrian": {
+    "x": 576,
+    "y": 360,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "first_aid": {
+    "x": 288,
+    "y": 504,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "fitness": {
+    "x": 864,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "fountain": {
+    "x": 432,
+    "y": 504,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "gallery": {
+    "x": 72,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "mall": {
+    "x": 576,
+    "y": 856,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "monastery": {
+    "x": 144,
+    "y": 720,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "motor": {
+    "x": 504,
+    "y": 216,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "multi": {
+    "x": 0,
+    "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "opera": {
+    "x": 864,
+    "y": 928,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "planetarium": {
+    "x": 144,
+    "y": 576,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "reservoir": {
+    "x": 864,
+    "y": 1000,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "ruins": {
+    "x": 1080,
+    "y": 504,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "running": {
+    "x": 0,
+    "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "sauna": {
+    "x": 360,
+    "y": 928,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "shower": {
+    "x": 936,
+    "y": 928,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "sport": {
+    "x": 0,
+    "y": 648,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "sports_hall": {
+    "x": 864,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "swimming_area": {
+    "x": 360,
+    "y": 928,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "theme_park": {
+    "x": 216,
+    "y": 0,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "townhall": {
+    "x": 0,
+    "y": 1000,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
   "artwork": {
     "x": 72,
     "y": 144,

@@ -207,20 +207,20 @@ describe('Mapbox POI treatment', () => {
    * inert coloured specks all over the map, so both radius and ring now
    * collapse to zero instead.
    */
-  test('a POI with no glyph draws nothing at all', () => {
+  /**
+   * The gate belongs in the filter, not in paint.
+   *
+   * A filter that reads `zoom` is evaluated once per tile, at the tile's zoom;
+   * a paint property is re-evaluated each frame at the map's. The glyph layers
+   * carry their rank gate in their filters, so a badge gated in paint answered
+   * a different zoom from the glyph it belonged to — the disc arrived a zoom
+   * level or two ahead of its icon.
+   */
+  test('the badge is gated in the filter, alongside its glyph layers', () => {
     const badge = layers.find(l => l.id === 'POI badge')
-    for (const prop of ['circle-radius', 'circle-stroke-width']) {
-      // ["step", ["zoom"], branch, zoom, branch, …] — every branch a
-      // ["case", earnsGlyph, value, fallback].
-      const step = badge.paint[prop]
-      expect(step[0], `${prop} is not a zoom step`).toBe('step')
-      const branches = step.slice(2).filter((_: any, i: number) => i % 2 === 0)
-      expect(branches.length, `${prop} has no branches`).toBeGreaterThan(0)
-      for (const b of branches) {
-        expect(b[0], `${prop} branch is not a case`).toBe('case')
-        expect(b.at(-1), `${prop} draws something for an unglyphed POI`).toBe(0)
-      }
-    }
+    expect(badge.paint['circle-radius'], 'radius is conditional').toBe(9.5)
+    expect(badge.paint['circle-stroke-width'], 'ring is conditional').toBe(1.5)
+    expect(JSON.stringify(badge.filter)).toContain('["zoom"]')
   })
 
   test('badges draw beneath the glyphs they sit under', () => {
@@ -231,51 +231,39 @@ describe('Mapbox POI treatment', () => {
 
   /**
    * MapTiler staggers its POI layers — Transport and Food from z14, Education
-   * from 15, Public and Sport from 16 — so a badge gated on the union of every
-   * class drew car parks, ATMs and toilets as empty coloured discs for the two
-   * zoom levels before `Public` switched on.
+   * from 15, Public and Sport from 16 — and each layer carries conditions of
+   * its own beyond `class`: Transport wants a point geometry, Shopping wants a
+   * name. Gating the badge on a union of class values let every unnamed shop
+   * and every car-park polygon through and left the disc standing alone.
    *
-   * The badge has to admit a class exactly when some layer that draws it is
-   * live, which is checked here zoom by zoom rather than by comparing step
-   * thresholds: the badge legitimately steps more often than any one filter,
-   * because it steps on layer minzooms as well as on rank.
+   * So the badge ORs the glyph layers' own filters verbatim. This checks, zoom
+   * by zoom, that it ORs exactly the layers that are live there.
    */
-  describe('a badge never appears before its glyph', () => {
+  describe('a badge admits exactly what its glyph layers admit', () => {
     const badge = layers.find(l => l.id === 'POI badge')
 
-    /** The `class` values a POI filter admits. */
-    const classesIn = (filter: any): Set<string> => {
-      const found = new Set<string>()
-      const walk = (n: any) => {
-        if (!Array.isArray(n)) return
-        if (n[0] === 'in' && n[1] === 'class') n.slice(2).forEach((c: any) => typeof c === 'string' && found.add(c))
-        if (n[0] === '==' && n[1] === 'class' && typeof n[2] === 'string') found.add(n[2])
-        if (n[0] === 'match' && Array.isArray(n[1]) && n[1][0] === 'get' && n[1][1] === 'class' && Array.isArray(n[2])) {
-          n[2].forEach((c: any) => typeof c === 'string' && found.add(c))
-        }
-        n.forEach(walk)
-      }
-      walk(filter)
-      return found
-    }
+    /** A layer's filter with the shared rank gate stripped back off. */
+    const own = (f: any) =>
+      Array.isArray(f) && f[0] === 'all' && f.length === 3 && f[2]?.[0] === 'step' ? f[1] : f
 
-    /** Classes the badge draws at `zoom`, read out of its radius step. */
-    const badgeClassesAt = (zoom: number): Set<string> => {
-      const step = badge.paint['circle-radius']
+    /** The clauses the badge ORs at `zoom`, out of its filter's zoom step. */
+    const badgeOrsAt = (zoom: number): string[] => {
+      const step = badge.filter[2]
       let branch = step[2]
       for (let i = 3; i < step.length; i += 2) if (zoom >= step[i]) branch = step[i + 1]
-      if (branch === 0) return new Set()
-      const gate = branch[1]
-      const match = gate[0] === 'all' ? gate[1] : gate
-      return new Set(match[2])
+      if (branch === false) return []
+      // ["all", <any>, <rank>] once a rank limit applies, bare <any> at z18+.
+      const any = branch[0] === 'all' && branch[2]?.[0] === '<=' ? branch[1] : branch
+      const clauses = any[0] === 'any' ? any.slice(1) : [any]
+      return clauses.map((c: any) => JSON.stringify(c)).sort()
     }
 
     test.each([12, 13, 14, 15, 16, 17, 18, 19])('z%i', zoom => {
-      const live = new Set<string>()
-      for (const l of poi) {
-        if ((l.minzoom ?? 0) <= zoom) classesIn(l.filter).forEach(c => live.add(c))
-      }
-      expect([...badgeClassesAt(zoom)].sort()).toEqual([...live].sort())
+      const live = poi
+        .filter(l => (l.minzoom ?? 0) <= zoom)
+        .map(l => JSON.stringify(own(l.filter)))
+        .sort()
+      expect(badgeOrsAt(zoom)).toEqual(live)
     })
 
     test('the layer starts no earlier than its first glyph layer', () => {

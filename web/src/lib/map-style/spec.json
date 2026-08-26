@@ -3086,7 +3086,7 @@
      "property": "render_height",
      "type": "identity"
     },
-    "fill-extrusion-opacity": 0.4
+    "fill-extrusion-opacity": 1
    },
    "filter": [
     "!has",

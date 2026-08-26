@@ -565,6 +565,14 @@ async function main() {
       out.paint = { ...out.paint, ...POI_PAINT, 'text-color': tint }
     }
 
+    // Buildings are solid. MapTiler draws them at 0.4, which lets the streets
+    // and land under a tower show through it — readable on their flat-shaded
+    // map, muddy on ours, and it makes anything drawn over a building blend
+    // with the ground beneath rather than with the building.
+    if (out.type === 'fill-extrusion') {
+      out.paint = { ...out.paint, 'fill-extrusion-opacity': 1 }
+    }
+
     // Every shield falls back to the generic rectangle, tinted per flavor.
     if (SHIELD_LAYERS.has(layer.id)) {
       const prefix = layer.id === 'Highway junction' ? 'exit' : 'road'

@@ -214,7 +214,16 @@ const RANK_STEPS = [
   [18, Infinity],
 ]
 
-const RANK = ['coalesce', ['to-number', ['get', 'rank']], 999]
+/**
+ * A POI's importance, with "unranked" meaning least important.
+ *
+ * Explicitly `has`-guarded rather than `["coalesce", ["to-number", …], 999]`:
+ * `to-number` converts null to 0, so coalesce never reached its fallback and
+ * every POI with no `rank` at all scored 0 — the most important rank there is.
+ * That let bins, gates, benches and drinking fountains through every gate,
+ * which is where the scatter of empty badges came from.
+ */
+const RANK = ['case', ['has', 'rank'], ['to-number', ['get', 'rank']], 999]
 
 /**
  * `step` must be the OUTERMOST expression wherever these are used: `["zoom"]`
@@ -272,12 +281,9 @@ function toExpressionFilter(f) {
 /**
  * Badge geometry, matching the saved-place markers in
  * `constants/layers/core-layers.ts`: 9.5px radius reads as the ~22px disc a
- * native Mapbox POI marker occupies, and a POI that has not earned a glyph
- * collapses to the same disc at dot size rather than becoming a different
- * kind of object.
+ * native Mapbox POI marker occupies.
  */
 const BADGE_RADIUS_FULL = 9.5
-const BADGE_RADIUS_DOT = 2.5
 
 /**
  * Glyph size inside the badge — the same `1.14r / 24` the search-result and
@@ -325,29 +331,34 @@ const POI_PAINT = {
 const POI_PAINT_DROP = ['icon-halo-color', 'icon-halo-blur']
 
 /**
- * The coloured disc every POI sits on.
+ * The coloured disc a glyphed POI sits on.
  *
  * This is the part that makes a Mapbox POI look like a Mapbox POI: the
  * category colour is carried by a filled circle with the glyph knocked out of
  * it, not by tinting a bare glyph. Same construction as the saved-place
  * markers in `constants/layers/core-layers.ts`.
  *
- * One layer serves both states. A POI important enough for a glyph gets the
- * full badge; everything else collapses to the same disc at dot size, which
- * is the scatter of small dots around the named places on a Mapbox map.
+ * Only POIs a glyph layer draws over get a badge. An earlier revision gave the
+ * rest a small dot instead, which put a scatter of coloured specks on the map
+ * that carried no icon and answered no click — the POI click delegates in
+ * `maplibre.strategy.ts` are bound to the symbol layers, not to this one, so a
+ * dot with no glyph over it is inert. Mapbox Standard does the same: its
+ * `poi-label` drops `icon-opacity` to 0 below the size rank rather than
+ * substituting a dot.
  */
 function poiBadgeLayer(poiLayers) {
-  const covered = new Set()
-  for (const layer of poiLayers) {
+  /** The `class` values a layer's filter admits. */
+  const classesIn = filter => {
+    const found = new Set()
     const walk = node => {
       if (!Array.isArray(node)) return
       // Legacy `["in", "class", "a", "b", …]` and modern `["match", ["get",
       // "class"], [...], …]` both appear across their filters.
       if (node[0] === 'in' && node[1] === 'class') {
-        node.slice(2).forEach(c => typeof c === 'string' && covered.add(c))
+        node.slice(2).forEach(c => typeof c === 'string' && found.add(c))
       }
       if (node[0] === '==' && node[1] === 'class' && typeof node[2] === 'string') {
-        covered.add(node[2])
+        found.add(node[2])
       }
       // Modern form: ["match", ["get", "class"], [...], true, false]
       if (
@@ -357,42 +368,85 @@ function poiBadgeLayer(poiLayers) {
         node[1][1] === 'class' &&
         Array.isArray(node[2])
       ) {
-        node[2].forEach(c => typeof c === 'string' && covered.add(c))
+        node[2].forEach(c => typeof c === 'string' && found.add(c))
       }
       node.forEach(walk)
     }
-    walk(layer.filter)
+    walk(filter)
+    return found
   }
 
-  // A POI draws the full badge when a glyph layer will draw over it, and
-  // collapses to a bare dot otherwise — same object, two sizes. Zoom-free, so
-  // it can sit inside a `step` branch.
-  const earnsGlyph = limit => [
-    'all',
-    ['match', ['get', 'class'], [...covered], true, false],
-    ['<=', RANK, limit],
-  ]
+  const glyphLayers = poiLayers.map(l => ({
+    minzoom: l.minzoom ?? 0,
+    classes: classesIn(l.filter),
+  }))
+
+  /**
+   * MapTiler staggers its POI layers: Transport and Food from z14, Education
+   * from 15, Public and Sport not until 16. A badge that appeared before its
+   * glyph layer did drew an empty coloured disc for one or two whole zoom
+   * levels — the scatter of purple circles over car parks, ATMs and toilets,
+   * which are all in Public.
+   *
+   * So the gate is per zoom band, not global: at each band a class counts as
+   * glyphed only once the layer that draws it has actually switched on.
+   */
+  const classesAt = zoom => {
+    const out = new Set()
+    for (const l of glyphLayers) {
+      if (l.minzoom <= zoom) l.classes.forEach(c => out.add(c))
+    }
+    return [...out]
+  }
+
+  const rankLimitAt = zoom => {
+    let limit = RANK_STEPS[0][1]
+    for (const [at, l] of RANK_STEPS.slice(1)) if (zoom >= at) limit = l
+    return limit
+  }
+
+  // Every zoom at which either side of the gate changes.
+  const firstZoom = Math.min(...glyphLayers.map(l => l.minzoom))
+  const bands = [...new Set([
+    firstZoom,
+    ...glyphLayers.map(l => l.minzoom),
+    ...RANK_STEPS.slice(1).map(([z]) => z),
+  ])].filter(z => z >= firstZoom).sort((a, b) => a - b)
+
+  const earnsGlyph = zoom => {
+    const classes = classesAt(zoom)
+    if (!classes.length) return false
+    const classCovered = ['match', ['get', 'class'], classes, true, false]
+    const limit = rankLimitAt(zoom)
+    return limit === Infinity ? classCovered : ['all', classCovered, ['<=', RANK, limit]]
+  }
+
+  // Collapsing to zero rather than filtering: a filter cannot read `zoom`, and
+  // both halves of the gate are zoom-dependent, so the switch lives in paint.
+  const onlyIfGlyphed = value => {
+    const branch = zoom => {
+      const gate = earnsGlyph(zoom)
+      return gate === false ? 0 : gate === true ? value : ['case', gate, value, 0]
+    }
+    const out = ['step', ['zoom'], branch(bands[0])]
+    for (const zoom of bands.slice(1)) out.push(zoom, branch(zoom))
+    return out
+  }
 
   return {
     id: 'POI badge',
     type: 'circle',
     source: SOURCE,
     'source-layer': 'poi',
-    minzoom: 14,
+    minzoom: firstZoom,
     filter: ['==', ['geometry-type'], 'Point'],
     paint: {
       'circle-color': poiColorExpression(),
-      'circle-radius': rankStep(limit =>
-        limit === Infinity
-          ? BADGE_RADIUS_FULL
-          : ['case', earnsGlyph(limit), BADGE_RADIUS_FULL, BADGE_RADIUS_DOT],
-      ),
+      'circle-radius': onlyIfGlyphed(BADGE_RADIUS_FULL),
       // A hairline ring in the halo colour keeps touching badges apart without
-      // reading as an outline. Dots get none — they are not badges.
+      // reading as an outline.
       'circle-stroke-color': '@poi_halo',
-      'circle-stroke-width': rankStep(limit =>
-        limit === Infinity ? 1.5 : ['case', earnsGlyph(limit), 1.5, 0],
-      ),
+      'circle-stroke-width': onlyIfGlyphed(1.5),
     },
   }
 }

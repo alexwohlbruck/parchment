@@ -191,16 +191,36 @@ describe('Mapbox POI treatment', () => {
     expect(l.paint['icon-halo-color']).toBeUndefined()
   })
 
-  /** The scatter of bare dots around the named places on a Mapbox map. */
-  test('every POI sits on a category-coloured badge', () => {
-    const dot = layers.find(l => l.id === 'POI badge')
-    expect(dot).toBeTruthy()
-    expect(dot.type).toBe('circle')
-    expect(dot['source-layer']).toBe('poi')
-    expect(JSON.stringify(dot.paint['circle-color'])).toContain('@poi_food_and_drink')
-    // A glyphed POI gets the full ~22px disc; everything else collapses to a dot.
-    expect(JSON.stringify(dot.paint['circle-radius'])).toContain('9.5')
-    expect(JSON.stringify(dot.paint['circle-radius'])).toContain('2.5')
+  test('a glyphed POI sits on a category-coloured badge', () => {
+    const badge = layers.find(l => l.id === 'POI badge')
+    expect(badge).toBeTruthy()
+    expect(badge.type).toBe('circle')
+    expect(badge['source-layer']).toBe('poi')
+    expect(JSON.stringify(badge.paint['circle-color'])).toContain('@poi_food_and_drink')
+    expect(JSON.stringify(badge.paint['circle-radius'])).toContain('9.5')
+  })
+
+  /**
+   * A POI with no glyph over it is also not clickable — the POI click
+   * delegates in `maplibre.strategy.ts` bind to the symbol layers, never to
+   * this circle layer. An earlier revision drew those as small dots, which put
+   * inert coloured specks all over the map, so both radius and ring now
+   * collapse to zero instead.
+   */
+  test('a POI with no glyph draws nothing at all', () => {
+    const badge = layers.find(l => l.id === 'POI badge')
+    for (const prop of ['circle-radius', 'circle-stroke-width']) {
+      // ["step", ["zoom"], branch, zoom, branch, …] — every branch a
+      // ["case", earnsGlyph, value, fallback].
+      const step = badge.paint[prop]
+      expect(step[0], `${prop} is not a zoom step`).toBe('step')
+      const branches = step.slice(2).filter((_: any, i: number) => i % 2 === 0)
+      expect(branches.length, `${prop} has no branches`).toBeGreaterThan(0)
+      for (const b of branches) {
+        expect(b[0], `${prop} branch is not a case`).toBe('case')
+        expect(b.at(-1), `${prop} draws something for an unglyphed POI`).toBe(0)
+      }
+    }
   })
 
   test('badges draw beneath the glyphs they sit under', () => {
@@ -210,29 +230,58 @@ describe('Mapbox POI treatment', () => {
   })
 
   /**
-   * Only a handful of POIs earn a glyph at any zoom; the rest fall through to
-   * a dot. Both sides gate on the same `rank` step, and the dot layer negates
-   * the conjunction of that gate with the classes the glyph layers claim — so
-   * a POI is drawn exactly once, either way.
+   * MapTiler staggers its POI layers — Transport and Food from z14, Education
+   * from 15, Public and Sport from 16 — so a badge gated on the union of every
+   * class drew car parks, ATMs and toilets as empty coloured discs for the two
+   * zoom levels before `Public` switched on.
+   *
+   * The badge has to admit a class exactly when some layer that draws it is
+   * live, which is checked here zoom by zoom rather than by comparing step
+   * thresholds: the badge legitimately steps more often than any one filter,
+   * because it steps on layer minzooms as well as on rank.
    */
-  test('glyphs and badges step on the same rank thresholds', () => {
+  describe('a badge never appears before its glyph', () => {
     const badge = layers.find(l => l.id === 'POI badge')
-    // The two express the gate differently — the filter compares rank, the
-    // badge switches radius on it — but they must agree on where the steps
-    // fall, or a POI gets a glyph with no disc under it (or vice versa).
-    const thresholds = (f: any) => {
-      const json = JSON.stringify(f)
-      const at = json.indexOf('["step",["zoom"]')
-      if (at < 0) return ''
-      return (json.slice(at).match(/,(1[4-9]|2[0-2]),/g) ?? []).join()
-    }
-    const want = thresholds(badge.paint['circle-radius'])
-    expect(want, 'badge has no zoom step').toBeTruthy()
-    for (const l of poi) {
-      expect(thresholds(l.filter), l.id + ' disagrees').toBe(want)
-    }
-  })
 
+    /** The `class` values a POI filter admits. */
+    const classesIn = (filter: any): Set<string> => {
+      const found = new Set<string>()
+      const walk = (n: any) => {
+        if (!Array.isArray(n)) return
+        if (n[0] === 'in' && n[1] === 'class') n.slice(2).forEach((c: any) => typeof c === 'string' && found.add(c))
+        if (n[0] === '==' && n[1] === 'class' && typeof n[2] === 'string') found.add(n[2])
+        if (n[0] === 'match' && Array.isArray(n[1]) && n[1][0] === 'get' && n[1][1] === 'class' && Array.isArray(n[2])) {
+          n[2].forEach((c: any) => typeof c === 'string' && found.add(c))
+        }
+        n.forEach(walk)
+      }
+      walk(filter)
+      return found
+    }
+
+    /** Classes the badge draws at `zoom`, read out of its radius step. */
+    const badgeClassesAt = (zoom: number): Set<string> => {
+      const step = badge.paint['circle-radius']
+      let branch = step[2]
+      for (let i = 3; i < step.length; i += 2) if (zoom >= step[i]) branch = step[i + 1]
+      if (branch === 0) return new Set()
+      const gate = branch[1]
+      const match = gate[0] === 'all' ? gate[1] : gate
+      return new Set(match[2])
+    }
+
+    test.each([12, 13, 14, 15, 16, 17, 18, 19])('z%i', zoom => {
+      const live = new Set<string>()
+      for (const l of poi) {
+        if ((l.minzoom ?? 0) <= zoom) classesIn(l.filter).forEach(c => live.add(c))
+      }
+      expect([...badgeClassesAt(zoom)].sort()).toEqual([...live].sort())
+    })
+
+    test('the layer starts no earlier than its first glyph layer', () => {
+      expect(badge.minzoom).toBe(Math.min(...poi.map(l => l.minzoom ?? 0)))
+    })
+  })
 })
 
 describe('assembled styles', () => {

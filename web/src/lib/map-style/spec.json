@@ -4257,7 +4257,7 @@
    "type": "circle",
    "source": "openmaptiles",
    "source-layer": "poi",
-   "minzoom": 14,
+   "minzoom": 12,
    "filter": [
     "==",
     [
@@ -4414,139 +4414,6 @@
          "class"
         ],
         [
-         "atm",
-         "bank",
-         "bbq",
-         "cemetery",
-         "courthouse",
-         "drinking_water",
-         "fire_station",
-         "fountain",
-         "hairdresser",
-         "office",
-         "post",
-         "prison",
-         "recycling",
-         "shower",
-         "telephone",
-         "toilets",
-         "townhall",
-         "town_hall",
-         "american_football",
-         "athletics",
-         "archery",
-         "baseball",
-         "basketball",
-         "climbing",
-         "equestrian",
-         "fitness",
-         "fitness_centre",
-         "golf",
-         "motor",
-         "multi",
-         "playground",
-         "pitch",
-         "running",
-         "sauna",
-         "soccer",
-         "sport",
-         "stadium",
-         "sports_centre",
-         "sports_hall",
-         "swimming",
-         "swimming_area",
-         "swimming_pool",
-         "tennis",
-         "volleyball",
-         "water_park",
-         "college",
-         "childcare",
-         "dancing_school",
-         "driving_school",
-         "kindergarten",
-         "school",
-         "university",
-         "apartment",
-         "aquarium",
-         "attraction",
-         "campsite",
-         "camp_site",
-         "caravan_site",
-         "castle",
-         "chalet",
-         "guest_house",
-         "hotel",
-         "hostel",
-         "information",
-         "lodging",
-         "motel",
-         "reservoir",
-         "ruins",
-         "theme_park",
-         "zoo",
-         "art_gallery",
-         "archeological_site",
-         "cinema",
-         "community_centre",
-         "gallery",
-         "library",
-         "monastery",
-         "monument",
-         "museum",
-         "opera",
-         "place_of_worship",
-         "planetarium",
-         "theatre",
-         "alcohol_shop",
-         "bakery",
-         "book",
-         "books",
-         "butcher",
-         "chemist",
-         "clothing_store",
-         "convenience",
-         "gift",
-         "grocery",
-         "laundry",
-         "mall",
-         "music",
-         "shop",
-         "supermarket",
-         "bar",
-         "beer",
-         "biergarten",
-         "cafe",
-         "fast_food",
-         "food_court",
-         "ice_cream",
-         "pub",
-         "restaurant",
-         "bicycle",
-         "bicycle_parking",
-         "bicycle_rental",
-         "car",
-         "car_rental",
-         "car_repair",
-         "charging_station",
-         "ferry_terminal",
-         "fuel",
-         "harbor",
-         "heliport",
-         "highway_rest_area",
-         "motorcycle_parking",
-         "parking",
-         "parking_garage",
-         "parking_paid",
-         "scooter",
-         "terminal",
-         "toll",
-         "clinic",
-         "dentist",
-         "doctors",
-         "first_aid",
-         "hospital",
-         "pharmacy",
-         "veterinary",
          "bus",
          "railway"
         ],
@@ -4556,7 +4423,11 @@
        [
         "<=",
         [
-         "coalesce",
+         "case",
+         [
+          "has",
+          "rank"
+         ],
          [
           "to-number",
           [
@@ -4570,7 +4441,129 @@
        ]
       ],
       9.5,
-      2.5
+      0
+     ],
+     14,
+     [
+      "case",
+      [
+       "all",
+       [
+        "match",
+        [
+         "get",
+         "class"
+        ],
+        [
+         "apartment",
+         "aquarium",
+         "attraction",
+         "campsite",
+         "camp_site",
+         "caravan_site",
+         "castle",
+         "chalet",
+         "guest_house",
+         "hotel",
+         "hostel",
+         "information",
+         "lodging",
+         "motel",
+         "reservoir",
+         "ruins",
+         "theme_park",
+         "zoo",
+         "art_gallery",
+         "archeological_site",
+         "cinema",
+         "community_centre",
+         "gallery",
+         "library",
+         "monastery",
+         "monument",
+         "museum",
+         "opera",
+         "place_of_worship",
+         "planetarium",
+         "theatre",
+         "alcohol_shop",
+         "bakery",
+         "book",
+         "books",
+         "butcher",
+         "chemist",
+         "clothing_store",
+         "convenience",
+         "gift",
+         "grocery",
+         "laundry",
+         "mall",
+         "music",
+         "shop",
+         "supermarket",
+         "bar",
+         "beer",
+         "biergarten",
+         "cafe",
+         "fast_food",
+         "food_court",
+         "ice_cream",
+         "pub",
+         "restaurant",
+         "bicycle",
+         "bicycle_parking",
+         "bicycle_rental",
+         "car",
+         "car_rental",
+         "car_repair",
+         "charging_station",
+         "ferry_terminal",
+         "fuel",
+         "harbor",
+         "heliport",
+         "highway_rest_area",
+         "motorcycle_parking",
+         "parking",
+         "parking_garage",
+         "parking_paid",
+         "scooter",
+         "terminal",
+         "toll",
+         "clinic",
+         "dentist",
+         "doctors",
+         "first_aid",
+         "hospital",
+         "pharmacy",
+         "veterinary",
+         "bus",
+         "railway"
+        ],
+        true,
+        false
+       ],
+       [
+        "<=",
+        [
+         "case",
+         [
+          "has",
+          "rank"
+         ],
+         [
+          "to-number",
+          [
+           "get",
+           "rank"
+          ]
+         ],
+         999
+        ],
+        4
+       ]
+      ],
+      9.5,
+      0
      ],
      15,
      [
@@ -4584,51 +4577,6 @@
          "class"
         ],
         [
-         "atm",
-         "bank",
-         "bbq",
-         "cemetery",
-         "courthouse",
-         "drinking_water",
-         "fire_station",
-         "fountain",
-         "hairdresser",
-         "office",
-         "post",
-         "prison",
-         "recycling",
-         "shower",
-         "telephone",
-         "toilets",
-         "townhall",
-         "town_hall",
-         "american_football",
-         "athletics",
-         "archery",
-         "baseball",
-         "basketball",
-         "climbing",
-         "equestrian",
-         "fitness",
-         "fitness_centre",
-         "golf",
-         "motor",
-         "multi",
-         "playground",
-         "pitch",
-         "running",
-         "sauna",
-         "soccer",
-         "sport",
-         "stadium",
-         "sports_centre",
-         "sports_hall",
-         "swimming",
-         "swimming_area",
-         "swimming_pool",
-         "tennis",
-         "volleyball",
-         "water_park",
          "college",
          "childcare",
          "dancing_school",
@@ -4726,7 +4674,11 @@
        [
         "<=",
         [
-         "coalesce",
+         "case",
+         [
+          "has",
+          "rank"
+         ],
          [
           "to-number",
           [
@@ -4740,7 +4692,7 @@
        ]
       ],
       9.5,
-      2.5
+      0
      ],
      16,
      [
@@ -4896,7 +4848,11 @@
        [
         "<=",
         [
-         "coalesce",
+         "case",
+         [
+          "has",
+          "rank"
+         ],
          [
           "to-number",
           [
@@ -4910,7 +4866,7 @@
        ]
       ],
       9.5,
-      2.5
+      0
      ],
      17,
      [
@@ -5066,7 +5022,11 @@
        [
         "<=",
         [
-         "coalesce",
+         "case",
+         [
+          "has",
+          "rank"
+         ],
          [
           "to-number",
           [
@@ -5080,10 +5040,160 @@
        ]
       ],
       9.5,
-      2.5
+      0
      ],
      18,
-     9.5
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "atm",
+        "bank",
+        "bbq",
+        "cemetery",
+        "courthouse",
+        "drinking_water",
+        "fire_station",
+        "fountain",
+        "hairdresser",
+        "office",
+        "post",
+        "prison",
+        "recycling",
+        "shower",
+        "telephone",
+        "toilets",
+        "townhall",
+        "town_hall",
+        "american_football",
+        "athletics",
+        "archery",
+        "baseball",
+        "basketball",
+        "climbing",
+        "equestrian",
+        "fitness",
+        "fitness_centre",
+        "golf",
+        "motor",
+        "multi",
+        "playground",
+        "pitch",
+        "running",
+        "sauna",
+        "soccer",
+        "sport",
+        "stadium",
+        "sports_centre",
+        "sports_hall",
+        "swimming",
+        "swimming_area",
+        "swimming_pool",
+        "tennis",
+        "volleyball",
+        "water_park",
+        "college",
+        "childcare",
+        "dancing_school",
+        "driving_school",
+        "kindergarten",
+        "school",
+        "university",
+        "apartment",
+        "aquarium",
+        "attraction",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "castle",
+        "chalet",
+        "guest_house",
+        "hotel",
+        "hostel",
+        "information",
+        "lodging",
+        "motel",
+        "reservoir",
+        "ruins",
+        "theme_park",
+        "zoo",
+        "art_gallery",
+        "archeological_site",
+        "cinema",
+        "community_centre",
+        "gallery",
+        "library",
+        "monastery",
+        "monument",
+        "museum",
+        "opera",
+        "place_of_worship",
+        "planetarium",
+        "theatre",
+        "alcohol_shop",
+        "bakery",
+        "book",
+        "books",
+        "butcher",
+        "chemist",
+        "clothing_store",
+        "convenience",
+        "gift",
+        "grocery",
+        "laundry",
+        "mall",
+        "music",
+        "shop",
+        "supermarket",
+        "bar",
+        "beer",
+        "biergarten",
+        "cafe",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "pub",
+        "restaurant",
+        "bicycle",
+        "bicycle_parking",
+        "bicycle_rental",
+        "car",
+        "car_rental",
+        "car_repair",
+        "charging_station",
+        "ferry_terminal",
+        "fuel",
+        "harbor",
+        "heliport",
+        "highway_rest_area",
+        "motorcycle_parking",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "scooter",
+        "terminal",
+        "toll",
+        "clinic",
+        "dentist",
+        "doctors",
+        "first_aid",
+        "hospital",
+        "pharmacy",
+        "veterinary",
+        "bus",
+        "railway"
+       ],
+       true,
+       false
+      ],
+      9.5,
+      0
+     ]
     ],
     "circle-stroke-color": "@poi_halo",
     "circle-stroke-width": [
@@ -5102,58 +5212,47 @@
          "class"
         ],
         [
-         "atm",
-         "bank",
-         "bbq",
-         "cemetery",
-         "courthouse",
-         "drinking_water",
-         "fire_station",
-         "fountain",
-         "hairdresser",
-         "office",
-         "post",
-         "prison",
-         "recycling",
-         "shower",
-         "telephone",
-         "toilets",
-         "townhall",
-         "town_hall",
-         "american_football",
-         "athletics",
-         "archery",
-         "baseball",
-         "basketball",
-         "climbing",
-         "equestrian",
-         "fitness",
-         "fitness_centre",
-         "golf",
-         "motor",
-         "multi",
-         "playground",
-         "pitch",
-         "running",
-         "sauna",
-         "soccer",
-         "sport",
-         "stadium",
-         "sports_centre",
-         "sports_hall",
-         "swimming",
-         "swimming_area",
-         "swimming_pool",
-         "tennis",
-         "volleyball",
-         "water_park",
-         "college",
-         "childcare",
-         "dancing_school",
-         "driving_school",
-         "kindergarten",
-         "school",
-         "university",
+         "bus",
+         "railway"
+        ],
+        true,
+        false
+       ],
+       [
+        "<=",
+        [
+         "case",
+         [
+          "has",
+          "rank"
+         ],
+         [
+          "to-number",
+          [
+           "get",
+           "rank"
+          ]
+         ],
+         999
+        ],
+        4
+       ]
+      ],
+      1.5,
+      0
+     ],
+     14,
+     [
+      "case",
+      [
+       "all",
+       [
+        "match",
+        [
+         "get",
+         "class"
+        ],
+        [
          "apartment",
          "aquarium",
          "attraction",
@@ -5244,7 +5343,11 @@
        [
         "<=",
         [
-         "coalesce",
+         "case",
+         [
+          "has",
+          "rank"
+         ],
          [
           "to-number",
           [
@@ -5272,51 +5375,6 @@
          "class"
         ],
         [
-         "atm",
-         "bank",
-         "bbq",
-         "cemetery",
-         "courthouse",
-         "drinking_water",
-         "fire_station",
-         "fountain",
-         "hairdresser",
-         "office",
-         "post",
-         "prison",
-         "recycling",
-         "shower",
-         "telephone",
-         "toilets",
-         "townhall",
-         "town_hall",
-         "american_football",
-         "athletics",
-         "archery",
-         "baseball",
-         "basketball",
-         "climbing",
-         "equestrian",
-         "fitness",
-         "fitness_centre",
-         "golf",
-         "motor",
-         "multi",
-         "playground",
-         "pitch",
-         "running",
-         "sauna",
-         "soccer",
-         "sport",
-         "stadium",
-         "sports_centre",
-         "sports_hall",
-         "swimming",
-         "swimming_area",
-         "swimming_pool",
-         "tennis",
-         "volleyball",
-         "water_park",
          "college",
          "childcare",
          "dancing_school",
@@ -5414,7 +5472,11 @@
        [
         "<=",
         [
-         "coalesce",
+         "case",
+         [
+          "has",
+          "rank"
+         ],
          [
           "to-number",
           [
@@ -5584,7 +5646,11 @@
        [
         "<=",
         [
-         "coalesce",
+         "case",
+         [
+          "has",
+          "rank"
+         ],
          [
           "to-number",
           [
@@ -5754,7 +5820,11 @@
        [
         "<=",
         [
-         "coalesce",
+         "case",
+         [
+          "has",
+          "rank"
+         ],
          [
           "to-number",
           [
@@ -5771,7 +5841,157 @@
       0
      ],
      18,
-     1.5
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "atm",
+        "bank",
+        "bbq",
+        "cemetery",
+        "courthouse",
+        "drinking_water",
+        "fire_station",
+        "fountain",
+        "hairdresser",
+        "office",
+        "post",
+        "prison",
+        "recycling",
+        "shower",
+        "telephone",
+        "toilets",
+        "townhall",
+        "town_hall",
+        "american_football",
+        "athletics",
+        "archery",
+        "baseball",
+        "basketball",
+        "climbing",
+        "equestrian",
+        "fitness",
+        "fitness_centre",
+        "golf",
+        "motor",
+        "multi",
+        "playground",
+        "pitch",
+        "running",
+        "sauna",
+        "soccer",
+        "sport",
+        "stadium",
+        "sports_centre",
+        "sports_hall",
+        "swimming",
+        "swimming_area",
+        "swimming_pool",
+        "tennis",
+        "volleyball",
+        "water_park",
+        "college",
+        "childcare",
+        "dancing_school",
+        "driving_school",
+        "kindergarten",
+        "school",
+        "university",
+        "apartment",
+        "aquarium",
+        "attraction",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "castle",
+        "chalet",
+        "guest_house",
+        "hotel",
+        "hostel",
+        "information",
+        "lodging",
+        "motel",
+        "reservoir",
+        "ruins",
+        "theme_park",
+        "zoo",
+        "art_gallery",
+        "archeological_site",
+        "cinema",
+        "community_centre",
+        "gallery",
+        "library",
+        "monastery",
+        "monument",
+        "museum",
+        "opera",
+        "place_of_worship",
+        "planetarium",
+        "theatre",
+        "alcohol_shop",
+        "bakery",
+        "book",
+        "books",
+        "butcher",
+        "chemist",
+        "clothing_store",
+        "convenience",
+        "gift",
+        "grocery",
+        "laundry",
+        "mall",
+        "music",
+        "shop",
+        "supermarket",
+        "bar",
+        "beer",
+        "biergarten",
+        "cafe",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "pub",
+        "restaurant",
+        "bicycle",
+        "bicycle_parking",
+        "bicycle_rental",
+        "car",
+        "car_rental",
+        "car_repair",
+        "charging_station",
+        "ferry_terminal",
+        "fuel",
+        "harbor",
+        "heliport",
+        "highway_rest_area",
+        "motorcycle_parking",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "scooter",
+        "terminal",
+        "toll",
+        "clinic",
+        "dentist",
+        "doctors",
+        "first_aid",
+        "hospital",
+        "pharmacy",
+        "veterinary",
+        "bus",
+        "railway"
+       ],
+       true,
+       false
+      ],
+      1.5,
+      0
+     ]
     ]
    }
   },
@@ -6200,7 +6420,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -6216,7 +6440,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -6232,7 +6460,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -6248,7 +6480,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -6661,7 +6897,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -6677,7 +6917,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -6693,7 +6937,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -6709,7 +6957,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -7122,7 +7374,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -7138,7 +7394,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -7154,7 +7414,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -7170,7 +7434,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -7606,7 +7874,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -7622,7 +7894,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -7638,7 +7914,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -7654,7 +7934,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -8121,7 +8405,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -8137,7 +8425,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -8153,7 +8445,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -8169,7 +8465,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -8625,7 +8925,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -8641,7 +8945,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -8657,7 +8965,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -8673,7 +8985,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -9119,7 +9435,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -9135,7 +9455,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -9151,7 +9475,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -9167,7 +9495,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -9662,7 +9994,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -9678,7 +10014,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -9694,7 +10034,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -9710,7 +10054,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -10109,7 +10457,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -10125,7 +10477,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -10141,7 +10497,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -10157,7 +10517,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -10570,7 +10934,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -10586,7 +10954,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -10602,7 +10974,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -10618,7 +10994,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -11231,7 +11611,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -11247,7 +11631,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -11263,7 +11651,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [
@@ -11279,7 +11671,11 @@
      [
       "<=",
       [
-       "coalesce",
+       "case",
+       [
+        "has",
+        "rank"
+       ],
        [
         "to-number",
         [

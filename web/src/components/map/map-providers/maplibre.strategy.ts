@@ -114,7 +114,14 @@ const ORTHO_FOV = 0.5
 
 /** Below this pitch the buildings are flat; above `FULL`, at full height. */
 const BUILDING_FLAT_PITCH = 1
-const BUILDING_FULL_PITCH = 10
+const BUILDING_FULL_PITCH = 25
+
+/**
+ * How much zoom the buildings take to grow in, past the layer's own minzoom.
+ * Short, so they are at full height almost as soon as they appear rather than
+ * spending a whole level looking stunted.
+ */
+const BUILDING_GROW_ZOOM = 0.4
 
 /** Fallback for the building layer's own minzoom, if it ever loses one. */
 const BUILDING_MIN_ZOOM = 15
@@ -714,9 +721,9 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
-   * A property scaled by the pitch ramp, then grown in over the layer's first
-   * zoom level so buildings rise out of the ground instead of appearing at
-   * full height the instant the layer switches on.
+   * A property scaled by the pitch ramp, then grown in just past the layer's
+   * minzoom so buildings rise out of the ground instead of appearing at full
+   * height the instant the layer switches on.
    *
    * The zoom half lives in the expression rather than in JS. Unlike pitch,
    * zoom IS available to expressions, so MapLibre interpolates it on the GPU —
@@ -729,7 +736,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Flat is a plain `0`: a constant needs no per-feature evaluation at all.
     if (k === 0) return 0
     const scaled = k === 1 ? value : ['*', value, k]
-    return ['interpolate', ['linear'], ['zoom'], minzoom, 0, minzoom + 1, scaled]
+    return ['interpolate', ['linear'], ['zoom'], minzoom, 0, minzoom + BUILDING_GROW_ZOOM, scaled]
   }
 
   private defaultFov?: number

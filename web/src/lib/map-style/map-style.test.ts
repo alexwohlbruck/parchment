@@ -103,10 +103,101 @@ describe('flavors', () => {
   })
 
   test('POI tints come from the app category palette, not a literal', () => {
-    const categories = Object.keys(light).filter(k => k.startsWith('poi_'))
+    // `poi_halo` is a real colour, not a category — it is the label halo.
+    const categories = Object.keys(light).filter(
+      k => k.startsWith('poi_') && k !== 'poi_halo',
+    )
     expect(categories).toContain('poi_food_and_drink')
     expect(categories).toContain('poi_default')
     for (const c of categories) expect(light[c]).toMatch(/^@@category:/)
+  })
+
+  /**
+   * Mapbox Standard letters a POI name in the same colour as its glyph, over a
+   * halo that inverts with the theme. The app's search-result markers already
+   * do this; the basemap has to agree or the two disagree on screen.
+   */
+  test('the POI label halo inverts between flavors', () => {
+    expect(light.poi_halo).toBe('#FFFFFF')
+    expect(dark.poi_halo).toBe('#0D0D0D')
+  })
+})
+
+describe('Mapbox POI treatment', () => {
+  const poi = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
+
+  test('there are POI layers to style', () => {
+    expect(poi.length).toBeGreaterThan(5)
+  })
+
+  test.each(poi.map(l => [l.id, l]))('%s: label matches its glyph colour', (_id, l: any) => {
+    expect(l.paint['text-color']).toEqual(l.paint['icon-color'])
+  })
+
+  test.each(poi.map(l => [l.id, l]))('%s: name sits under the glyph', (_id, l: any) => {
+    expect(l.layout['text-anchor']).toBe('top')
+    expect(l.layout['text-offset']).toEqual([0, 1])
+    expect(l.layout['text-size']).toBe(13)
+    // The glyph outlives its label in a collision, so a dense block keeps its
+    // icons instead of going blank.
+    expect(l.layout['text-optional']).toBe(true)
+  })
+
+  test.each(poi.map(l => [l.id, l]))('%s: halo is on the text, not the glyph', (_id, l: any) => {
+    expect(l.paint['text-halo-width']).toBe(1)
+    expect(l.paint['text-halo-color']).toBe('@poi_halo')
+    expect(l.paint['icon-halo-width']).toBe(0)
+    expect(l.paint['icon-halo-color']).toBeUndefined()
+  })
+
+  /** The scatter of bare dots around the named places on a Mapbox map. */
+  test('minor POIs draw as a bare category-coloured dot', () => {
+    const dot = layers.find(l => l.id === 'POI dot')
+    expect(dot).toBeTruthy()
+    expect(dot.type).toBe('circle')
+    expect(dot['source-layer']).toBe('poi')
+    expect(JSON.stringify(dot.paint['circle-color'])).toContain('@poi_food_and_drink')
+  })
+
+  test('dots draw beneath the glyphs, so an icon always wins the pixel', () => {
+    const ids = layers.map(l => l.id)
+    const firstGlyph = Math.min(...poi.map(l => ids.indexOf(l.id)))
+    expect(ids.indexOf('POI dot')).toBeLessThan(firstGlyph)
+  })
+
+  /**
+   * A dot under a glyph would double-draw, so the dot layer negates every
+   * class the glyph layers claim. Any class they draw that the dot filter
+   * forgot to exclude shows up as a coloured blob behind its own icon.
+   */
+  test('every class that gets a glyph is excluded from the dots', () => {
+    const dot = layers.find(l => l.id === 'POI dot')
+    const excluded = new Set<string>(
+      JSON.parse(JSON.stringify(dot.filter))
+        .flat(Infinity)
+        .filter((x: unknown) => typeof x === 'string'),
+    )
+    // Only `class`-scoped clauses count. Scraping every string out of a
+    // filter also catches subclass values (`artwork`, `board`), which the dot
+    // layer has no reason to name — it excludes by class, and those features
+    // carry a class that is already covered.
+    const glyphed = new Set<string>()
+    const walk = (node: any) => {
+      if (!Array.isArray(node)) return
+      if (node[0] === 'in' && node[1] === 'class') {
+        node.slice(2).forEach((c: unknown) => typeof c === 'string' && glyphed.add(c))
+      }
+      if (node[0] === '==' && node[1] === 'class' && typeof node[2] === 'string') {
+        glyphed.add(node[2])
+      }
+      if (node[0] === 'match' && Array.isArray(node[1]) && node[1][1] === 'class' && Array.isArray(node[2])) {
+        node[2].forEach((c: unknown) => typeof c === 'string' && glyphed.add(c))
+      }
+      node.forEach(walk)
+    }
+    poi.forEach(l => walk(l.filter))
+    expect(glyphed.size).toBeGreaterThan(20)
+    expect([...glyphed].filter(c => !excluded.has(c))).toEqual([])
   })
 })
 

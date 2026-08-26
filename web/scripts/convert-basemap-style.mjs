@@ -150,6 +150,94 @@ function poiColorExpression() {
   return ['match', ['get', 'class'], ...branches, '@poi_default']
 }
 
+/**
+ * Mapbox Standard's POI treatment, which is what the app already draws search
+ * results with (`SEARCH_RESULTS_LAYER_CONFIG` in `constants/layers`): a flat
+ * category-coloured glyph with the name in the same colour directly beneath
+ * it, no icon halo, and a thin halo on the text only.
+ *
+ * Values are taken from Standard's own `poi-label` layer, vendored at
+ * `src/components/map/styles/standard.json`. Its light/dark switch is
+ * `measure-light`, which is Mapbox-only — we resolve the same two colours per
+ * flavor at build time instead, so the result matches without the expression.
+ */
+const POI_LAYOUT = {
+  'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 1, 17, 1.3],
+  'text-size': 13,
+  'text-offset': [0, 1],
+  'text-anchor': 'top',
+  'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
+  'text-max-width': 8,
+  // Keep the glyph when the name would collide — Standard does the same, and
+  // it is what stops a dense block from losing its icons along with its labels.
+  'text-optional': true,
+}
+
+const POI_PAINT = {
+  'text-halo-width': 1,
+  'text-halo-blur': 0,
+  'text-halo-color': '@poi_halo',
+  // Standard puts no halo on the glyph itself; MapTiler's 2px one reads as a
+  // pale outline that makes every icon look stickered on.
+  'icon-halo-width': 0,
+}
+const POI_PAINT_DROP = ['icon-halo-color', 'icon-halo-blur']
+
+/**
+ * Minor POIs draw as a bare coloured dot with no glyph and no name — the
+ * scatter of small dots around the labelled places on a Mapbox map.
+ *
+ * MapTiler's eleven POI layers between them only name a subset of classes;
+ * anything they leave out currently renders nothing at all. This picks those
+ * up, so a block reads as busy rather than empty.
+ */
+function poiDotLayer(poiLayers) {
+  const covered = new Set()
+  for (const layer of poiLayers) {
+    const walk = node => {
+      if (!Array.isArray(node)) return
+      // Legacy `["in", "class", "a", "b", …]` and modern `["match", ["get",
+      // "class"], [...], …]` both appear across their filters.
+      if (node[0] === 'in' && node[1] === 'class') {
+        node.slice(2).forEach(c => typeof c === 'string' && covered.add(c))
+      }
+      if (node[0] === '==' && node[1] === 'class' && typeof node[2] === 'string') {
+        covered.add(node[2])
+      }
+      // Modern form: ["match", ["get", "class"], [...], true, false]
+      if (
+        node[0] === 'match' &&
+        Array.isArray(node[1]) &&
+        node[1][0] === 'get' &&
+        node[1][1] === 'class' &&
+        Array.isArray(node[2])
+      ) {
+        node[2].forEach(c => typeof c === 'string' && covered.add(c))
+      }
+      node.forEach(walk)
+    }
+    walk(layer.filter)
+  }
+
+  return {
+    id: 'POI dot',
+    type: 'circle',
+    source: SOURCE,
+    'source-layer': 'poi',
+    minzoom: 15,
+    filter: [
+      'all',
+      ['==', ['geometry-type'], 'Point'],
+      ['!', ['match', ['get', 'class'], [...covered], true, false]],
+    ],
+    paint: {
+      'circle-color': poiColorExpression(),
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 1.8, 18, 3],
+      'circle-opacity': 0.9,
+    },
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Colour tokens
 // ---------------------------------------------------------------------------
@@ -296,8 +384,9 @@ async function main() {
     // — only keyed to our categories rather than their families.
     if (sl === 'poi' && out.type === 'symbol') {
       const tint = poiColorExpression()
-      out.layout = { ...out.layout, 'icon-image': POI_ICON }
-      out.paint = { ...out.paint, 'icon-color': tint, 'text-color': tint }
+      out.layout = { ...out.layout, ...POI_LAYOUT, 'icon-image': POI_ICON }
+      out.paint = { ...out.paint, ...POI_PAINT, 'icon-color': tint, 'text-color': tint }
+      for (const prop of POI_PAINT_DROP) delete out.paint[prop]
     }
 
     // Every shield falls back to the generic rectangle, tinted per flavor.
@@ -312,6 +401,11 @@ async function main() {
 
     layers.push(out)
   }
+
+  // Dots go under the labelled POIs so a glyph always wins the pixel.
+  const poiLayers = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
+  const firstPoi = layers.findIndex(l => l['source-layer'] === 'poi' && l.type === 'symbol')
+  if (firstPoi >= 0) layers.splice(firstPoi, 0, poiDotLayer(poiLayers))
 
   // Rewriting the POI layers strands MapTiler's 11 family colours, which
   // nothing references any more. Drop them so the dark flavor only has to
@@ -328,6 +422,11 @@ async function main() {
     delete tokens.light[t]
     delete tokens.dark[t]
   }
+
+  // POI label halo. Standard switches these two with `measure-light`; we bake
+  // the same pair per flavor. Identical values to SEARCH_RESULTS_LAYER_CONFIG.
+  tokens.light.poi_halo = '#FFFFFF'
+  tokens.dark.poi_halo = '#0D0D0D'
 
   // Shield fill is ours, not MapTiler's — their shields are sprite art.
   tokens.light.shield_fill = 'hsl(0, 0%, 100%)'

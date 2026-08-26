@@ -4265,6 +4265,321 @@
    ]
   },
   {
+   "id": "POI dot",
+   "type": "circle",
+   "source": "openmaptiles",
+   "source-layer": "poi",
+   "minzoom": 15,
+   "filter": [
+    "all",
+    [
+     "==",
+     [
+      "geometry-type"
+     ],
+     "Point"
+    ],
+    [
+     "!",
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "atm",
+       "bank",
+       "bbq",
+       "cemetery",
+       "courthouse",
+       "drinking_water",
+       "fire_station",
+       "fountain",
+       "hairdresser",
+       "office",
+       "post",
+       "prison",
+       "recycling",
+       "shower",
+       "telephone",
+       "toilets",
+       "townhall",
+       "town_hall",
+       "american_football",
+       "athletics",
+       "archery",
+       "baseball",
+       "basketball",
+       "climbing",
+       "equestrian",
+       "fitness",
+       "fitness_centre",
+       "golf",
+       "motor",
+       "multi",
+       "playground",
+       "pitch",
+       "running",
+       "sauna",
+       "soccer",
+       "sport",
+       "stadium",
+       "sports_centre",
+       "sports_hall",
+       "swimming",
+       "swimming_area",
+       "swimming_pool",
+       "tennis",
+       "volleyball",
+       "water_park",
+       "college",
+       "childcare",
+       "dancing_school",
+       "driving_school",
+       "kindergarten",
+       "school",
+       "university",
+       "apartment",
+       "aquarium",
+       "attraction",
+       "campsite",
+       "camp_site",
+       "caravan_site",
+       "castle",
+       "chalet",
+       "guest_house",
+       "hotel",
+       "hostel",
+       "information",
+       "lodging",
+       "motel",
+       "reservoir",
+       "ruins",
+       "theme_park",
+       "zoo",
+       "art_gallery",
+       "archeological_site",
+       "cinema",
+       "community_centre",
+       "gallery",
+       "library",
+       "monastery",
+       "monument",
+       "museum",
+       "opera",
+       "place_of_worship",
+       "planetarium",
+       "theatre",
+       "alcohol_shop",
+       "bakery",
+       "book",
+       "books",
+       "butcher",
+       "chemist",
+       "clothing_store",
+       "convenience",
+       "gift",
+       "grocery",
+       "laundry",
+       "mall",
+       "music",
+       "shop",
+       "supermarket",
+       "bar",
+       "beer",
+       "biergarten",
+       "cafe",
+       "fast_food",
+       "food_court",
+       "ice_cream",
+       "pub",
+       "restaurant",
+       "bicycle",
+       "bicycle_parking",
+       "bicycle_rental",
+       "car",
+       "car_rental",
+       "car_repair",
+       "charging_station",
+       "ferry_terminal",
+       "fuel",
+       "harbor",
+       "heliport",
+       "highway_rest_area",
+       "motorcycle_parking",
+       "parking",
+       "parking_garage",
+       "parking_paid",
+       "scooter",
+       "terminal",
+       "toll",
+       "park",
+       "clinic",
+       "dentist",
+       "doctors",
+       "first_aid",
+       "hospital",
+       "pharmacy",
+       "veterinary",
+       "bus",
+       "railway"
+      ],
+      true,
+      false
+     ]
+    ]
+   ],
+   "paint": {
+    "circle-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "circle-radius": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     15,
+     1.8,
+     18,
+     3
+    ],
+    "circle-opacity": 0.9
+   }
+  },
+  {
    "id": "Public",
    "type": "symbol",
    "source": "openmaptiles",
@@ -4374,7 +4689,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -4391,26 +4718,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -4546,23 +4870,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -4742,23 +5050,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -4948,7 +5242,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -4965,26 +5271,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -5120,23 +5423,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -5295,23 +5582,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -5493,7 +5766,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -5510,26 +5795,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -5665,23 +5947,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -5850,23 +6116,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -6038,7 +6290,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -6055,26 +6319,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -6210,23 +6471,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -6397,23 +6642,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -6603,7 +6834,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -6620,26 +6863,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -6775,23 +7015,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -6980,23 +7204,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -7199,7 +7409,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -7216,26 +7438,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -7371,23 +7590,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -7572,23 +7775,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -7788,7 +7977,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -7805,26 +8006,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -7960,23 +8158,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -8160,23 +8342,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -8365,7 +8533,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -8382,26 +8562,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -8537,23 +8714,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -8759,23 +8920,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -9009,27 +9156,37 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
-    "visibility": "visible"
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
+    "visibility": "visible",
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ]
    },
    "paint": {
     "icon-color": [
@@ -9164,9 +9321,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": 0,
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -9337,8 +9492,8 @@
      "@poi_default"
     ],
     "text-halo-blur": 0,
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -9500,7 +9655,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -9517,26 +9684,23 @@
     "text-max-width": 8,
     "text-offset": [
      0,
-     0.8
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       12,
-       10
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       14
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -9672,23 +9836,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -9857,23 +10005,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [
@@ -10223,7 +10357,19 @@
       "dot"
      ]
     ],
-    "icon-size": 1,
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1,
+     17,
+     1.3
+    ],
     "symbol-sort-key": [
      "to-number",
      [
@@ -10238,29 +10384,26 @@
      "Noto Sans Regular"
     ],
     "text-line-height": 0.9,
-    "text-max-width": 9,
+    "text-max-width": 8,
     "text-offset": [
      0,
-     0.9
+     1
     ],
     "text-optional": true,
-    "text-padding": 2,
-    "text-size": {
-     "stops": [
-      [
-       13,
-       11
-      ],
-      [
-       16,
-       12
-      ],
-      [
-       22,
-       16
-      ]
-     ]
-    },
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
     "visibility": "visible"
    },
    "paint": {
@@ -10396,23 +10539,7 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "icon-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.8,
-     16,
-     0
-    ],
-    "icon-halo-color": "@highway_shield_icon_color",
-    "icon-halo-width": 2,
+    "icon-halo-width": 0,
     "icon-opacity": [
      "step",
      [
@@ -10598,23 +10725,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "text-halo-blur": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     12,
-     1,
-     14,
-     0.5,
-     16,
-     0
-    ],
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 2,
+    "text-halo-blur": 0,
+    "text-halo-color": "@poi_halo",
+    "text-halo-width": 1,
     "text-opacity": [
      "step",
      [

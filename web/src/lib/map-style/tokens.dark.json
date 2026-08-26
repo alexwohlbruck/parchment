@@ -72,6 +72,7 @@
  "town_labels_text_color_2": "hsl(0, 0%, 100%)",
  "country_labels_text_color": "hsl(0, 0%, 100%)",
  "continent_labels_text_color": "hsl(0, 0%, 100%)",
+ "poi_halo": "#0D0D0D",
  "shield_fill": "hsl(0, 0%, 24%)",
  "poi_food_and_drink": "@@category:food_and_drink",
  "poi_education": "@@category:education",

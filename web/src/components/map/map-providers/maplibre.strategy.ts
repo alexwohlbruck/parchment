@@ -104,10 +104,10 @@ function applyThemedStreetViewStyling(layer: Layer): Layer {
 }
 
 /**
- * Below this pitch the camera goes orthographic; above it, back to
- * perspective. 15° is the threshold Mapbox uses for the same switch.
+ * How close to flat still counts as top-down. Small enough that any pitch a
+ * user can perceive falls outside it.
  */
-const ORTHO_MAX_PITCH = 15
+const TOP_DOWN_EPSILON = 0.001
 
 /** Narrow enough to be indistinguishable from a true orthographic camera. */
 const ORTHO_FOV = 0.5
@@ -605,15 +605,19 @@ export class MaplibreStrategy extends MapStrategy {
    * and flattens the walls away entirely. It is an approximation, not a true
    * orthographic matrix, but at this angle the two are indistinguishable.
    *
-   * Restored above `ORTHO_MAX_PITCH` so tilting still gives real depth. The
-   * threshold matches the one Mapbox uses internally for the same switch.
+   * Applied only when the map is perfectly flat on. Any pitch at all, however
+   * slight, gets the real perspective camera back — the flattening is meant
+   * for the plan view, and a near-zero FOV on a tilted map would rob it of the
+   * depth that makes the tilt worth having.
    */
   override updateCameraProjection() {
     const transform = this.mapInstance.transform as { fov: number }
     if (this.defaultFov === undefined) this.defaultFov = transform.fov
 
-    const wanted =
-      this.mapInstance.getPitch() < ORTHO_MAX_PITCH ? ORTHO_FOV : this.defaultFov
+    // Not `=== 0`: an eased pitch animation can settle a hair off zero, and
+    // the view is still flat on at a thousandth of a degree.
+    const topDown = Math.abs(this.mapInstance.getPitch()) < TOP_DOWN_EPSILON
+    const wanted = topDown ? ORTHO_FOV : this.defaultFov
     // `pitch` fires continuously through a gesture; setting the field of view
     // recomputes every matrix, so only touch it when the answer changes.
     if (Math.abs(transform.fov - wanted) < 0.001) return

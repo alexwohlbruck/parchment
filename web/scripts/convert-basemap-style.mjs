@@ -204,21 +204,32 @@ function singleFont(node) {
  * bare dot, which is what a Mapbox map actually looks like: a handful of named
  * places among a scatter of dots.
  */
-const RANK_GATE = (() => {
-  const rank = ['coalesce', ['to-number', ['get', 'rank']], 999]
-  // `step` has to be the OUTERMOST expression: `["zoom"]` is only legal as the
-  // direct input of a top-level step/interpolate, so a zoom-varying threshold
-  // cannot sit inside the comparison — the whole layer is rejected.
-  return [
-    'step',
-    ['zoom'],
-    ['<=', rank, 4],
-    15, ['<=', rank, 8],
-    16, ['<=', rank, 16],
-    17, ['<=', rank, 40],
-    18, true,
-  ]
-})()
+const RANK_STEPS = [
+  [null, 4],
+  [15, 8],
+  [16, 16],
+  [17, 40],
+  [18, Infinity],
+]
+
+const RANK = ['coalesce', ['to-number', ['get', 'rank']], 999]
+
+/**
+ * `step` must be the OUTERMOST expression wherever these are used: `["zoom"]`
+ * is only legal as the direct input of a top-level step/interpolate, so a
+ * zoom-varying threshold can neither sit inside a comparison nor inside a
+ * `case`. Both the layer filters and the badge geometry are therefore built
+ * as zoom steps whose branches are already zoom-free.
+ */
+function rankStep(atThreshold) {
+  const out = ['step', ['zoom'], atThreshold(RANK_STEPS[0][1])]
+  for (const [zoom, limit] of RANK_STEPS.slice(1)) out.push(zoom, atThreshold(limit))
+  return out
+}
+
+const RANK_GATE = rankStep(limit =>
+  limit === Infinity ? true : ['<=', RANK, limit],
+)
 
 /**
  * Translate a legacy filter into expression syntax.
@@ -256,10 +267,25 @@ function toExpressionFilter(f) {
   }
 }
 
+/**
+ * Badge geometry, matching the saved-place markers in
+ * `constants/layers/core-layers.ts`: 9.5px radius reads as the ~22px disc a
+ * native Mapbox POI marker occupies, and a POI that has not earned a glyph
+ * collapses to the same disc at dot size rather than becoming a different
+ * kind of object.
+ */
+const BADGE_RADIUS_FULL = 9.5
+const BADGE_RADIUS_DOT = 2.5
+
+/**
+ * Glyph size inside the badge. Maki draws on a 15-unit grid, and Mapbox holds
+ * its glyph at ~57% of the disc's diameter — so a 19px disc wants an ~10.8px
+ * glyph, i.e. 0.72 of Maki's natural size.
+ */
+const BADGE_GLYPH_SIZE = Math.round(((BADGE_RADIUS_FULL * 2 * 0.57) / 15) * 100) / 100
+
 const POI_LAYOUT = {
-  // Maki draws on a 15px grid; Mapbox's POI markers read at roughly 24px, so
-  // the glyphs need scaling up to sit at the same visual weight.
-  'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 1.35, 17, 1.7],
+  'icon-size': BADGE_GLYPH_SIZE,
   'text-size': 13,
   // Clears the taller glyph — offset is in ems of text-size, so 1.1em ≈ 14px
   // below the icon's centre.
@@ -276,21 +302,26 @@ const POI_PAINT = {
   'text-halo-width': 1,
   'text-halo-blur': 0,
   'text-halo-color': '@poi_halo',
-  // Standard puts no halo on the glyph itself; MapTiler's 2px one reads as a
-  // pale outline that makes every icon look stickered on.
+  // The glyph is knocked out of the coloured disc drawn beneath it, so it is
+  // inked, not tinted — the category colour is carried by the badge.
+  'icon-color': '@poi_ink',
   'icon-halo-width': 0,
 }
 const POI_PAINT_DROP = ['icon-halo-color', 'icon-halo-blur']
 
 /**
- * Minor POIs draw as a bare coloured dot with no glyph and no name — the
- * scatter of small dots around the labelled places on a Mapbox map.
+ * The coloured disc every POI sits on.
  *
- * MapTiler's eleven POI layers between them only name a subset of classes;
- * anything they leave out currently renders nothing at all. This picks those
- * up, so a block reads as busy rather than empty.
+ * This is the part that makes a Mapbox POI look like a Mapbox POI: the
+ * category colour is carried by a filled circle with the glyph knocked out of
+ * it, not by tinting a bare glyph. Same construction as the saved-place
+ * markers in `constants/layers/core-layers.ts`.
+ *
+ * One layer serves both states. A POI important enough for a glyph gets the
+ * full badge; everything else collapses to the same disc at dot size, which
+ * is the scatter of small dots around the named places on a Mapbox map.
  */
-function poiDotLayer(poiLayers) {
+function poiBadgeLayer(poiLayers) {
   const covered = new Set()
   for (const layer of poiLayers) {
     const walk = node => {
@@ -318,29 +349,35 @@ function poiDotLayer(poiLayers) {
     walk(layer.filter)
   }
 
+  // A POI draws the full badge when a glyph layer will draw over it, and
+  // collapses to a bare dot otherwise — same object, two sizes. Zoom-free, so
+  // it can sit inside a `step` branch.
+  const earnsGlyph = limit => [
+    'all',
+    ['match', ['get', 'class'], [...covered], true, false],
+    ['<=', RANK, limit],
+  ]
+
   return {
-    id: 'POI dot',
+    id: 'POI badge',
     type: 'circle',
     source: SOURCE,
     'source-layer': 'poi',
-    minzoom: 15,
-    filter: [
-      'all',
-      ['==', ['geometry-type'], 'Point'],
-      // Not (a class the glyphs claim AND important enough to be drawn as one).
-      [
-        '!',
-        [
-          'all',
-          ['match', ['get', 'class'], [...covered], true, false],
-          RANK_GATE,
-        ],
-      ],
-    ],
+    minzoom: 14,
+    filter: ['==', ['geometry-type'], 'Point'],
     paint: {
       'circle-color': poiColorExpression(),
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 15, 1.8, 18, 3],
-      'circle-opacity': 0.9,
+      'circle-radius': rankStep(limit =>
+        limit === Infinity
+          ? BADGE_RADIUS_FULL
+          : ['case', earnsGlyph(limit), BADGE_RADIUS_FULL, BADGE_RADIUS_DOT],
+      ),
+      // A hairline ring in the halo colour keeps touching badges apart without
+      // reading as an outline. Dots get none — they are not badges.
+      'circle-stroke-color': '@poi_halo',
+      'circle-stroke-width': rankStep(limit =>
+        limit === Infinity ? 1.5 : ['case', earnsGlyph(limit), 1.5, 0],
+      ),
     },
   }
 }
@@ -499,7 +536,7 @@ async function main() {
         ? ['all', toExpressionFilter(out.filter), RANK_GATE]
         : RANK_GATE
       out.layout = { ...out.layout, ...POI_LAYOUT, 'icon-image': POI_ICON }
-      out.paint = { ...out.paint, ...POI_PAINT, 'icon-color': tint, 'text-color': tint }
+      out.paint = { ...out.paint, ...POI_PAINT, 'text-color': tint }
       for (const prop of POI_PAINT_DROP) delete out.paint[prop]
     }
 
@@ -519,7 +556,7 @@ async function main() {
   // Dots go under the labelled POIs so a glyph always wins the pixel.
   const poiLayers = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
   const firstPoi = layers.findIndex(l => l['source-layer'] === 'poi' && l.type === 'symbol')
-  if (firstPoi >= 0) layers.splice(firstPoi, 0, poiDotLayer(poiLayers))
+  if (firstPoi >= 0) layers.splice(firstPoi, 0, poiBadgeLayer(poiLayers))
 
   // Rewriting the POI layers strands MapTiler's 11 family colours, which
   // nothing references any more. Drop them so the dark flavor only has to
@@ -541,6 +578,12 @@ async function main() {
   // the same pair per flavor. Identical values to SEARCH_RESULTS_LAYER_CONFIG.
   tokens.light.poi_halo = '#FFFFFF'
   tokens.dark.poi_halo = '#0D0D0D'
+
+  // Glyph ink, knocked out of the badge. Light-flavor category colours are
+  // saturated and mid-dark, so white reads; the dark flavor's are pale, so
+  // they take dark ink — which is what Mapbox's night map does.
+  tokens.light.poi_ink = '#FFFFFF'
+  tokens.dark.poi_ink = '#1A1D21'
 
   // Shield fill is ours, not MapTiler's — their shields are sprite art.
   tokens.light.shield_fill = 'hsl(0, 0%, 100%)'

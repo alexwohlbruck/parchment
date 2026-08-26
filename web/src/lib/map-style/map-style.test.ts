@@ -105,7 +105,7 @@ describe('flavors', () => {
   test('POI tints come from the app category palette, not a literal', () => {
     // `poi_halo` is a real colour, not a category — it is the label halo.
     const categories = Object.keys(light).filter(
-      k => k.startsWith('poi_') && k !== 'poi_halo',
+      k => k.startsWith('poi_') && !['poi_halo', 'poi_ink'].includes(k),
     )
     expect(categories).toContain('poi_food_and_drink')
     expect(categories).toContain('poi_default')
@@ -121,6 +121,17 @@ describe('flavors', () => {
     expect(light.poi_halo).toBe('#FFFFFF')
     expect(dark.poi_halo).toBe('#0D0D0D')
   })
+
+  /**
+   * The glyph is knocked out of the badge, so its ink has to contrast with
+   * the category colours the badge is filled with. Light-flavor categories
+   * are saturated and mid-dark, dark-flavor ones are pale — so the ink
+   * inverts too.
+   */
+  test('badge ink inverts between flavors', () => {
+    expect(light.poi_ink).toBe('#FFFFFF')
+    expect(dark.poi_ink).not.toBe(light.poi_ink)
+  })
 })
 
 describe('Mapbox POI treatment', () => {
@@ -130,8 +141,11 @@ describe('Mapbox POI treatment', () => {
     expect(poi.length).toBeGreaterThan(5)
   })
 
-  test.each(poi.map(l => [l.id, l]))('%s: label matches its glyph colour', (_id, l: any) => {
-    expect(l.paint['text-color']).toEqual(l.paint['icon-color'])
+  test.each(poi.map(l => [l.id, l]))('%s: glyph is ink, label is category colour', (_id, l: any) => {
+    // The badge carries the category colour; the glyph is ink knocked out of
+    // it, so the two deliberately differ.
+    expect(l.paint['icon-color']).toBe('@poi_ink')
+    expect(JSON.stringify(l.paint['text-color'])).toContain('@poi_')
   })
 
   test.each(poi.map(l => [l.id, l]))('%s: name sits under the glyph', (_id, l: any) => {
@@ -151,18 +165,21 @@ describe('Mapbox POI treatment', () => {
   })
 
   /** The scatter of bare dots around the named places on a Mapbox map. */
-  test('minor POIs draw as a bare category-coloured dot', () => {
-    const dot = layers.find(l => l.id === 'POI dot')
+  test('every POI sits on a category-coloured badge', () => {
+    const dot = layers.find(l => l.id === 'POI badge')
     expect(dot).toBeTruthy()
     expect(dot.type).toBe('circle')
     expect(dot['source-layer']).toBe('poi')
     expect(JSON.stringify(dot.paint['circle-color'])).toContain('@poi_food_and_drink')
+    // A glyphed POI gets the full ~22px disc; everything else collapses to a dot.
+    expect(JSON.stringify(dot.paint['circle-radius'])).toContain('9.5')
+    expect(JSON.stringify(dot.paint['circle-radius'])).toContain('2.5')
   })
 
-  test('dots draw beneath the glyphs, so an icon always wins the pixel', () => {
+  test('badges draw beneath the glyphs they sit under', () => {
     const ids = layers.map(l => l.id)
     const firstGlyph = Math.min(...poi.map(l => ids.indexOf(l.id)))
-    expect(ids.indexOf('POI dot')).toBeLessThan(firstGlyph)
+    expect(ids.indexOf('POI badge')).toBeLessThan(firstGlyph)
   })
 
   /**
@@ -171,45 +188,24 @@ describe('Mapbox POI treatment', () => {
    * the conjunction of that gate with the classes the glyph layers claim — so
    * a POI is drawn exactly once, either way.
    */
-  test('glyphs and dots gate on the same rank step', () => {
-    const dot = layers.find(l => l.id === 'POI dot')
-    const gateOf = (f: any) => JSON.stringify(f).match(/\["step",\["zoom"\].*?18,true\]/)?.[0]
-    const dotGate = gateOf(dot.filter)
-    expect(dotGate, 'dot layer has no rank gate').toBeTruthy()
+  test('glyphs and badges step on the same rank thresholds', () => {
+    const badge = layers.find(l => l.id === 'POI badge')
+    // The two express the gate differently — the filter compares rank, the
+    // badge switches radius on it — but they must agree on where the steps
+    // fall, or a POI gets a glyph with no disc under it (or vice versa).
+    const thresholds = (f: any) => {
+      const json = JSON.stringify(f)
+      const at = json.indexOf('["step",["zoom"]')
+      if (at < 0) return ''
+      return (json.slice(at).match(/,(1[4-9]|2[0-2]),/g) ?? []).join()
+    }
+    const want = thresholds(badge.paint['circle-radius'])
+    expect(want, 'badge has no zoom step').toBeTruthy()
     for (const l of poi) {
-      expect(gateOf(l.filter), `${l.id} has no rank gate`).toBe(dotGate)
+      expect(thresholds(l.filter), l.id + ' disagrees').toBe(want)
     }
   })
 
-  test('every class that gets a glyph is excluded from the dots', () => {
-    const dot = layers.find(l => l.id === 'POI dot')
-    const excluded = new Set<string>(
-      JSON.parse(JSON.stringify(dot.filter))
-        .flat(Infinity)
-        .filter((x: unknown) => typeof x === 'string'),
-    )
-    // Only `class`-scoped clauses count. Scraping every string out of a
-    // filter also catches subclass values (`artwork`, `board`), which the dot
-    // layer has no reason to name — it excludes by class, and those features
-    // carry a class that is already covered.
-    const glyphed = new Set<string>()
-    const walk = (node: any) => {
-      if (!Array.isArray(node)) return
-      if (node[0] === 'in' && node[1] === 'class') {
-        node.slice(2).forEach((c: unknown) => typeof c === 'string' && glyphed.add(c))
-      }
-      if (node[0] === '==' && node[1] === 'class' && typeof node[2] === 'string') {
-        glyphed.add(node[2])
-      }
-      if (node[0] === 'match' && Array.isArray(node[1]) && node[1][1] === 'class' && Array.isArray(node[2])) {
-        node[2].forEach((c: unknown) => typeof c === 'string' && glyphed.add(c))
-      }
-      node.forEach(walk)
-    }
-    poi.forEach(l => walk(l.filter))
-    expect(glyphed.size).toBeGreaterThan(20)
-    expect([...glyphed].filter(c => !excluded.has(c))).toEqual([])
-  })
 })
 
 describe('assembled styles', () => {

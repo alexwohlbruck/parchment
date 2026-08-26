@@ -103,6 +103,15 @@ function applyThemedStreetViewStyling(layer: Layer): Layer {
   return cloned
 }
 
+/**
+ * Below this pitch the camera goes orthographic; above it, back to
+ * perspective. 15° is the threshold Mapbox uses for the same switch.
+ */
+const ORTHO_MAX_PITCH = 15
+
+/** Narrow enough to be indistinguishable from a true orthographic camera. */
+const ORTHO_FOV = 0.5
+
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
@@ -198,7 +207,9 @@ export class MaplibreStrategy extends MapStrategy {
   configureEventListeners() {
     this.mapInstance.on('load', () => {
       mapEventBus.emit('load', this.mapInstance)
+      this.updateCameraProjection()
     })
+    this.mapInstance.on('pitch', () => this.updateCameraProjection())
     // Style load fires on the initial style load AND on every subsequent
     // setStyle() call (theme change, basemap change, map style change). We
     // use this single listener to re-emit to the mapEventBus so that
@@ -584,6 +595,40 @@ export class MaplibreStrategy extends MapStrategy {
   private poiStyle(): PoiStyleId {
     return useMapStore().settings.poiStyle ?? 'badge'
   }
+
+  /**
+   * Draw the top-down view orthographically instead of in perspective.
+   *
+   * Looking straight down, a perspective camera still converges: building
+   * walls splay outward from the centre of the screen and a roof sits offset
+   * from its own footprint. Flat on, a plan view should have no vanishing
+   * point at all — which is what Mapbox does with `camera-projection:
+   * orthographic`, and what the Mapbox strategy sets directly.
+   *
+   * MapLibre 4 has no orthographic camera (`setVerticalFieldOfView` is v5, and
+   * even that is the same trick behind a nicer name), so this narrows the
+   * field of view instead. A perspective frustum approaches an orthographic
+   * box as the FOV approaches zero and the camera retreats to compensate,
+   * which MapLibre does implicitly — 0.5° puts the camera ~80,000 units out
+   * and flattens the walls away entirely. It is an approximation, not a true
+   * orthographic matrix, but at this angle the two are indistinguishable.
+   *
+   * Restored above `ORTHO_MAX_PITCH` so tilting still gives real depth. The
+   * threshold matches the one Mapbox uses internally for the same switch.
+   */
+  private updateCameraProjection() {
+    const transform = this.mapInstance.transform as { fov: number }
+    if (this.defaultFov === undefined) this.defaultFov = transform.fov
+
+    const wanted =
+      this.mapInstance.getPitch() < ORTHO_MAX_PITCH ? ORTHO_FOV : this.defaultFov
+    // `pitch` fires continuously through a gesture; setting the field of view
+    // recomputes every matrix, so only touch it when the answer changes.
+    if (Math.abs(transform.fov - wanted) < 0.001) return
+    transform.fov = wanted
+  }
+
+  private defaultFov?: number
 
   private reloadStyle() {
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })

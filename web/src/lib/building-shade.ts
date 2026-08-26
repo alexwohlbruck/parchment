@@ -66,6 +66,37 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
 }
 
 /**
+ * How hard the sun is, per flavor — and the single biggest reason a wall looks
+ * dark.
+ *
+ * The building shader's ambient floor is `1 - intensity`: a face the sun does
+ * not reach is drawn at exactly that fraction of its lit colour. MapLibre
+ * defaults to 0.5, which puts every shaded wall at *half* the roof's
+ * brightness — far heavier than a real overcast bounce, and it reads as black
+ * against our pale roofs. 0.28 leaves a 72% floor, so a wall stays plainly a
+ * wall while the lit faces still separate from it.
+ *
+ * Night runs softer still: with no sun there is nothing to justify a hard
+ * light-and-shade split.
+ */
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.28, dark: 0.2 }
+
+/** How near the horizon the *shading* light may fall; see `shadeLight`. */
+const MAX_LIGHT_POLAR = 58
+
+/**
+ * The live intensity, so the tuning panel can move it without rebuilding the
+ * layer. `shadeLight` reads it on every sun update.
+ */
+let lightIntensity = LIGHT_INTENSITY.light
+export function setShadeLightIntensity(value: number) {
+  lightIntensity = value
+}
+export function shadeLightIntensity(flavor: FlavorId) {
+  return LIGHT_INTENSITY[flavor]
+}
+
+/**
  * How wide the roofline edge is, in CSS pixels.
  *
  * The shader measures in drawing-buffer pixels, which are device pixels, so
@@ -103,6 +134,7 @@ export function liveBuildingShade(): WallShadowLayer | null {
 }
 
 export function createBuildingShade(buildingsLayerId: string, flavor: FlavorId) {
+  lightIntensity = LIGHT_INTENSITY[flavor]
   live = new WallShadowLayer({
     id: BUILDING_SHADE_LAYER_ID,
     buildingsLayerId,
@@ -129,15 +161,23 @@ export function shadeLight(
   const azimuth = ((Math.atan2(-x, -y) * 180) / Math.PI + 360) % 360
   // MapLibre's polar angle is measured from straight overhead, so it is the
   // sun's altitude subtracted from 90 — a sun high in the sky is a small polar
-  // angle. Clamped away from the horizon: a light at 90 lies flat in the ground
-  // plane and every roof goes unlit.
+  // angle.
+  //
+  // The upper clamp is the important one, and it is a cartographic choice
+  // rather than a physical one. A real sun near the horizon lights the *walls*
+  // facing it more strongly than the roofs, because a roof's normal points
+  // straight up and away from a low sun. That is correct, and it reads wrong:
+  // a map wants the roof to be the top surface, so a dusk view flattens into
+  // one grey mass. Holding the light no lower than this keeps roofs the
+  // brightest face at every hour, while direction and shadow length still
+  // follow the real sun.
   const polar = altitude === undefined
     ? 30
-    : clamp(90 - (altitude * 180) / Math.PI, 12, 72)
+    : clamp(90 - (altitude * 180) / Math.PI, 12, MAX_LIGHT_POLAR)
   return {
     anchor: 'map' as const,
     position: [1.2, azimuth, polar] as [number, number, number],
-    intensity: 0.5,
+    intensity: lightIntensity,
   }
 }
 
@@ -172,6 +212,21 @@ export type SunShadow = {
 }
 
 /**
+ * A hand-set sun, replacing the computed one. Dev tuning only: the real sun is
+ * whatever time it happens to be, which makes it useless for judging how the
+ * lighting reads at noon or at dusk without waiting for the day to turn.
+ */
+let sunOverride: { azimuth: number; altitude: number } | null = null
+
+export function setSunOverride(sun: { azimuth: number; altitude: number } | null) {
+  sunOverride = sun
+}
+
+export function isSunOverridden(): boolean {
+  return sunOverride !== null
+}
+
+/**
  * Where this place's shadows actually fall, right now.
  *
  * The sun's compass bearing gives the direction — a shadow points away from the
@@ -183,7 +238,7 @@ export type SunShadow = {
  * `(sin a, -cos a)`; the shadow is the negative of that.
  */
 export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
-  const { azimuth, altitude } = sunPosition(date, lat, lng)
+  const { azimuth, altitude } = sunOverride ?? sunPosition(date, lat, lng)
 
   // Ease in over the few degrees above the cutoff rather than snapping on, so
   // sunrise arrives as a fade instead of a jump.
@@ -209,5 +264,6 @@ export function buildingShadeDefaults(flavor: FlavorId) {
     edgeWidth: edgeWidth(),
     shadowOffset: [...SHADOW_OFFSET] as [number, number],
     chroma: BUILDING_CHROMA[flavor],
+    intensity: LIGHT_INTENSITY[flavor],
   }
 }

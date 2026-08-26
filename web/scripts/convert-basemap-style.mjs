@@ -677,12 +677,24 @@ async function main() {
   tokens.light.poi_v4_halo = 'hsl(0, 0%, 100%)'
   tokens.dark.poi_v4_halo = 'hsl(0, 0%, 0%)'
 
-  // Buildings sit a little lighter than MapTiler paints them. Theirs is tuned
-  // for a translucent 3D layer over a visible ground; ours is opaque, so the
-  // same value reads heavier — and now that the roofs carry a tint from the
-  // tile data, a lighter base gives that tint somewhere to show.
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(44, 16%, 84%)'
-  tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 45%, 55%)'
+  // Buildings sit just above their own ground, in both flavors.
+  //
+  // The roof is the brightest face a building has and every wall is a fraction
+  // of it, so the roof colour sets where the whole block lands. MapTiler's
+  // values are tuned for a translucent layer over a visible ground and are no
+  // guide here: light started 10 points *below* its land, which sank the
+  // buildings into the midtones, and dark started 31 points *above* its land,
+  // which made them glow like lit boxes at night.
+  //
+  // A few points above the ground is enough. The shading supplies the rest of
+  // the separation — walls fall to roughly 72% of the roof, which in the dark
+  // flavor puts them just under the land they stand on.
+  //
+  //                       ground             roof
+  //   light   hsl(47, 79%, 94%)   hsl(45, 52%, 97%)
+  //   dark    hsl(216, 37%, 24%)  hsl(217, 32%, 32%)
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(45, 52%, 97%)'
+  tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when
   // the glyph-only style is selected. Emitted rather than duplicating every

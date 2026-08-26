@@ -1,229 +1,32 @@
 <!--
   Building lighting — DEV ONLY, rendered by the Developer settings page.
 
-  Tunes the 3D building shading live: cast shadows, ground occlusion, the wall
-  contact band, the roofline edge, and how much colour the tiles contribute.
-  Every value writes straight onto the layer, whose options are plain fields
-  read once per frame, so the map behind the settings dialog updates as you drag.
-
-  MapLibre only — the Mapbox strategy lights its buildings natively and ignores
-  all of this, so the section says so rather than appearing broken.
-
-  "Copy defaults" puts the current values on the clipboard already shaped for
-  `TUNING` in `@/lib/building-shade` and `BUILDING_CHROMA` in
-  `@/lib/map-style/building-color`, so a tuning session ends by pasting rather
-  than by transcribing fifteen numbers.
+  The controls themselves live in `useBuildingShadeTuner`, shared with the
+  floating popover, because the settings dialog covers the map: you cannot see
+  what a slider is doing from in here. "Tune over the map" closes settings and
+  reopens the same levers as a small panel beside the live map.
 -->
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch, onMounted } from 'vue'
-import { BuildingIcon, CopyIcon, RotateCcwIcon } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { BuildingIcon, CopyIcon, RotateCcwIcon, PictureInPictureIcon } from 'lucide-vue-next'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { liveBuildingShade, buildingShadeDefaults } from '@/lib/building-shade'
-import { buildingColor } from '@/lib/map-style/building-color.mjs'
-import { layerGroups } from '@/lib/map-style'
-import { mapEventBus } from '@/lib/eventBus'
-import { useThemeStore } from '@/stores/theme.store'
-import { useMapStore } from '@/stores/map.store'
-import { MapEngine } from '@/types/map.types'
+import {
+  useBuildingShadeTuner,
+  SHADE_GROUPS,
+  SHADE_POPOVER_KEY,
+} from '@/composables/useBuildingShadeTuner'
 
-type Lever = {
-  key: string
-  label: string
-  min: number
-  max: number
-  step: number
-  format?: (v: number) => string
+const router = useRouter()
+const { state, toggles, isMaplibre, copied, setLever, reset, copyDefaults } = useBuildingShadeTuner()
+
+function tuneOverMap() {
+  sessionStorage.setItem(SHADE_POPOVER_KEY, '1')
+  router.push('/')
 }
-
-const PERCENT = (v: number) => `${Math.round(v * 100)}%`
-const PX = (v: number) => `${v.toFixed(2)}px`
-const NUM = (v: number) => v.toFixed(2)
-
-const GROUPS: Array<{ title: string; toggle?: { key: string; label: string }; levers: Lever[] }> = [
-  {
-    title: 'Walls',
-    toggle: { key: 'wallShade', label: 'Wall shading' },
-    levers: [
-      { key: 'strength', label: 'Contact strength', min: 0, max: 1, step: 0.01, format: PERCENT },
-      { key: 'band', label: 'Contact height', min: 0.05, max: 1, step: 0.01, format: PERCENT },
-      { key: 'edge', label: 'Roofline edge', min: 0, max: 1, step: 0.01, format: PERCENT },
-      { key: 'edgeWidth', label: 'Edge width', min: 0, max: 8, step: 0.05, format: PX },
-    ],
-  },
-  {
-    // Direction and length are not levers any more: they come from the real
-    // sun over the map's centre, and any value set here would be overwritten
-    // on the next camera move. Only the qualities the sun does not decide are
-    // adjustable.
-    title: 'Cast shadow',
-    toggle: { key: 'groundFx', label: 'Ground effects' },
-    levers: [
-      { key: 'shadowAlpha', label: 'Darkness at noon', min: 0, max: 1, step: 0.01, format: PERCENT },
-      { key: 'shadowBlur', label: 'Softness', min: 0, max: 20, step: 0.5, format: NUM },
-      { key: 'fadeZoom', label: 'Fade-in zooms', min: 0.1, max: 4, step: 0.1, format: NUM },
-      { key: 'topDownOpacity', label: 'Top-down opacity', min: 0, max: 1, step: 0.01, format: PERCENT },
-    ],
-  },
-  {
-    title: 'Ground occlusion',
-    levers: [
-      { key: 'aoIntensity', label: 'Intensity', min: 0, max: 2, step: 0.01, format: NUM },
-      { key: 'aoRadiusMin', label: 'Radius min', min: 0, max: 200, step: 1 },
-      { key: 'aoRadiusMax', label: 'Radius max', min: 0, max: 400, step: 1 },
-      { key: 'aoZ', label: 'Falloff', min: -20, max: 20, step: 0.5, format: NUM },
-    ],
-  },
-  {
-    title: 'Colour',
-    levers: [{ key: 'chroma', label: 'Tile colour strength', min: 0, max: 1.5, step: 0.01, format: NUM }],
-  },
-]
-
-const themeStore = useThemeStore()
-const mapStore = useMapStore()
-const flavor = computed<'light' | 'dark'>(() => (themeStore.isDark ? 'dark' : 'light'))
-const isMaplibre = computed(() => mapStore.settings.engine === MapEngine.MAPLIBRE)
-
-const copied = ref(false)
-const map = ref<any>(null)
-const state = reactive<Record<string, number>>({})
-const toggles = reactive<Record<string, boolean>>({ enabled: true, wallShade: true, groundFx: true })
-
-/** Flatten the layer's nested options into the flat scalars the sliders bind to. */
-function loadFrom(source: any) {
-  const d = buildingShadeDefaults(flavor.value)
-  const pick = (k: string, fallback: number) => (typeof source?.[k] === 'number' ? source[k] : fallback)
-  Object.assign(state, {
-    strength: pick('strength', d.strength),
-    band: pick('band', d.band),
-    edge: pick('edge', d.edge),
-    edgeWidth: pick('edgeWidth', d.edgeWidth),
-    shadowAlpha: pick('shadowAlpha', d.shadowAlpha),
-    fadeZoom: pick('fadeZoom', d.fadeZoom),
-    topDownOpacity: pick('topDownOpacity', d.topDownOpacity),
-    shadowBlur: pick('shadowBlur', d.shadowBlur),
-    aoIntensity: pick('aoIntensity', d.aoIntensity),
-    aoRadiusMin: pick('aoRadiusMin', d.aoRadiusMin),
-    aoRadiusMax: pick('aoRadiusMax', d.aoRadiusMax),
-    aoZ: source?.aoOffset?.[2] ?? d.aoOffset[2],
-    chroma: d.chroma,
-  })
-}
-
-function apply() {
-  const layer = liveBuildingShade() as any
-  if (!layer) return
-  layer.enabled = toggles.enabled
-  layer.wallShade = toggles.wallShade
-  layer.groundFx = toggles.groundFx
-  layer.strength = state.strength
-  layer.band = state.band
-  layer.edge = state.edge
-  layer.edgeWidth = state.edgeWidth
-  layer.shadowAlpha = state.shadowAlpha
-  layer.shadowBlur = state.shadowBlur
-  layer.aoIntensity = state.aoIntensity
-  layer.aoRadiusMin = state.aoRadiusMin
-  layer.aoRadiusMax = state.aoRadiusMax
-  layer.fadeZoom = state.fadeZoom
-  layer.topDownOpacity = state.topDownOpacity
-  layer.aoOffset = [0, state.aoZ / 2, state.aoZ]
-
-  if (map.value) {
-    if (map.value.getLayer?.(layerGroups.building3d)) {
-      map.value.setPaintProperty(
-        layerGroups.building3d,
-        'fill-extrusion-color',
-        resolveTokens(buildingColor(state.chroma)),
-      )
-    }
-    map.value.triggerRepaint()
-  }
-}
-
-/**
- * The shared builder emits `@token` placeholders, which the style assembler
- * normally resolves at build time. Here the style is already on the map, so
- * read the flavor's colour back off the layer instead.
- */
-function resolveTokens(expression: unknown): any {
-  const current = map.value?.getPaintProperty(layerGroups.building3d, 'fill-extrusion-color')
-  const fallback = findColorLiteral(current) ?? '#ded9c9'
-  const walk = (v: any): any =>
-    typeof v === 'string' && v.startsWith('@') ? fallback : Array.isArray(v) ? v.map(walk) : v
-  return walk(expression)
-}
-
-/** The last literal colour string in an expression — our token's resolved value. */
-function findColorLiteral(v: any): string | null {
-  if (typeof v === 'string') return /^(#|rgb|hsl)/.test(v) ? v : null
-  if (!Array.isArray(v)) return null
-  for (let i = v.length - 1; i >= 0; i--) {
-    const found = findColorLiteral(v[i])
-    if (found) return found
-  }
-  return null
-}
-
-function setLever(key: string, value: number[] | undefined) {
-  if (!value?.length) return
-  state[key] = value[0]
-}
-
-function reset() {
-  loadFrom(buildingShadeDefaults(flavor.value))
-  Object.assign(toggles, { enabled: true, wallShade: true, groundFx: true })
-  apply()
-}
-
-function copyDefaults() {
-  const f = flavor.value
-  const n = (v: number) => Number(v.toFixed(3))
-  const snippet = [
-    `// ${f} flavor — paste into TUNING in src/lib/building-shade.ts`,
-    `${f}: { shadowAlpha: ${n(state.shadowAlpha)}, aoIntensity: ${n(state.aoIntensity)}, `
-      + `strength: ${n(state.strength)}, edge: ${n(state.edge)} },`,
-    '',
-    '// shared across flavors — SHAPE and the constants beside it',
-    `EDGE_WIDTH_CSS_PX = ${n(state.edgeWidth / (devicePixelRatio || 1))}`,
-    `band = ${n(state.band)}`,
-    `shadowBlur = ${n(state.shadowBlur)}`,
-    `fadeZoom = ${n(state.fadeZoom)}`,
-    `topDownOpacity = ${n(state.topDownOpacity)}`,
-    `aoRadiusMin = ${n(state.aoRadiusMin)}`,
-    `aoRadiusMax = ${n(state.aoRadiusMax)}`,
-    `aoOffset = [0, ${n(state.aoZ / 2)}, ${n(state.aoZ)}]`,
-    '',
-    '// BUILDING_CHROMA in src/lib/map-style/building-color.mjs',
-    `${f}: ${n(state.chroma)}`,
-  ].join('\n')
-  navigator.clipboard.writeText(snippet)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1500)
-  console.log(snippet)
-}
-
-// Synchronously, not in onMounted: the template formats every value on its
-// first render, which happens before mount, and a missing number throws there.
-loadFrom(liveBuildingShade())
-
-onMounted(() => {
-  mapEventBus.on('load', (m: any) => (map.value = m))
-  mapEventBus.on('style.load', (m: any) => {
-    map.value = m
-    // A style swap builds a fresh layer on the baked defaults; push these values
-    // back onto it so a theme change does not quietly undo the session.
-    setTimeout(apply, 0)
-  })
-})
-
-watch(state, apply, { deep: true })
-watch(toggles, apply, { deep: true })
-watch(flavor, () => loadFrom(liveBuildingShade()))
 </script>
 
 <template>
@@ -241,6 +44,14 @@ watch(flavor, () => loadFrom(liveBuildingShade()))
 
     <template v-else>
       <SettingsItem
+        title="Tune over the map"
+        description="Reopens these controls as a small panel beside the live map, since this dialog covers it."
+        :icon="PictureInPictureIcon"
+      >
+        <Button size="sm" @click="tuneOverMap">Open preview</Button>
+      </SettingsItem>
+
+      <SettingsItem
         title="Enabled"
         description="Turn the whole effect off to compare against plain extrusions."
         :icon="BuildingIcon"
@@ -248,7 +59,7 @@ watch(flavor, () => loadFrom(liveBuildingShade()))
         <Switch :model-value="toggles.enabled" @update:model-value="toggles.enabled = $event" />
       </SettingsItem>
 
-      <template v-for="group in GROUPS" :key="group.title">
+      <template v-for="group in SHADE_GROUPS" :key="group.title">
         <SettingsItem v-if="group.toggle" :title="group.toggle.label">
           <Switch
             :model-value="toggles[group.toggle.key]"

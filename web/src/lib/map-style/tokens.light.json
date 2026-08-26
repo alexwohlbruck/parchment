@@ -40,7 +40,7 @@
  "building_fill_color": "hsl(30,6%,73%)",
  "building_fill_outline_color": "hsla(35, 6%, 79%, 0.3)",
  "building_fill_outline_color_2": "hsl(35, 6%, 79%)",
- "building_3d_fill_extrusion_color": "hsl(44, 16%, 84%)",
+ "building_3d_fill_extrusion_color": "hsl(45, 52%, 97%)",
  "aqueduct_outline_line_color": "hsl(0,0%,51%)",
  "cablecar_dash_line_color": "hsl(0,0%,64%)",
  "other_border_line_color": "hsl(0, 0%, 70%)",

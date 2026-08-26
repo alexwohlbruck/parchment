@@ -178,6 +178,13 @@ export class MaplibreStrategy extends MapStrategy {
       // Disable the engine's built-in north snap — we do north + grid snapping
       // ourselves in map.service (snapRotation) so both settings toggle live.
       bearingSnap: 0,
+      // MapLibre 6 made rotation "orbital" by default: the bearing is computed
+      // from the cursor's angle about the centre of the screen, so dragging
+      // right reverses direction depending on whether you are above or below
+      // the middle, like spinning a globe. v4 was linear — horizontal movement
+      // mapped straight to bearing wherever the cursor was — which is what this
+      // map has always felt like, and what Mapbox does.
+      aroundCenter: false,
       transformRequest: (url, resourceType) => {
         // Add auth header for tile requests to the barrelman tile proxy
         if (

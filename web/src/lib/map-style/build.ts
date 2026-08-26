@@ -18,6 +18,19 @@ import darkTokens from './tokens.dark.json'
 
 export type FlavorId = 'light' | 'dark'
 
+/**
+ * How POIs are drawn.
+ *
+ * `badge` — a category-coloured disc with the glyph knocked out of it, the
+ * same marker search results and saved places use.
+ * `glyph` — a tinted glyph on a halo and nothing else, replicating MapTiler
+ * Streets v4. Colours come from their family palette rather than Parchment's
+ * categories, so it reads as their map does.
+ */
+export type PoiStyleId = 'badge' | 'glyph'
+
+export const POI_STYLES: PoiStyleId[] = ['badge', 'glyph']
+
 /** Place categories, matching `server/src/lib/place-categories.ts`. */
 export type PlaceCategoryId =
   | 'food_and_drink' | 'education' | 'medical' | 'sport_and_leisure'
@@ -67,8 +80,14 @@ export const SOURCE = 'openmaptiles'
 const GLYPHS_PATH = '/fonts/{fontstack}/{range}.pbf'
 const SPRITE_PATH = '/sprites/parchment'
 
+/**
+ * OpenStreetMap for the data, MapTiler for the cartography: the layer spec is
+ * derived from their Streets v2, and the glyph-only POI treatment from their
+ * Streets v4. Both are credited whichever POI style is showing.
+ */
 const OSM_ATTRIBUTION =
-  '<a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap</a>'
+  '<a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap</a> ' +
+  '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a>'
 
 export interface BasemapStyleOptions {
   /** Base URL of the tile server (e.g. "http://localhost:5001") */
@@ -83,6 +102,8 @@ export interface BasemapStyleOptions {
   tileKey?: string
   /** Live category palette, so basemap POIs match search-result markers. */
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
+  /** How POIs are drawn; defaults to the category badge. */
+  poiStyle?: PoiStyleId
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +143,13 @@ function resolve(value: unknown, tokens: Record<string, string>, categories: Rec
 }
 
 const specLayers = (spec as { layers: any[] }).layers
+const poiStyles = (spec as any).poiStyles as Record<
+  'glyph',
+  Record<string, { layout?: Record<string, unknown>; paint?: Record<string, unknown> }>
+>
+
+/** The circle layer the badge treatment draws its glyphs on. */
+export const POI_BADGE_LAYER = 'POI badge'
 
 /**
  * Layer groups the map strategy toggles, derived from the spec rather than
@@ -186,23 +214,48 @@ function localize(layer: any, lang?: string): any {
   }
 }
 
+/**
+ * Swap the POI layers over to the glyph-only treatment.
+ *
+ * `spec.poiStyles.glyph` holds per-layer paint/layout overrides rather than a
+ * second set of layers, so filters and draw order stay defined once. The badge
+ * circle goes with them: it exists only to sit under a badge-style glyph, and
+ * left in place it would show through as a disc with a bare icon on top.
+ */
+function applyGlyphPoiStyle(layers: any[]): any[] {
+  const overrides = poiStyles.glyph
+  return layers
+    .filter(l => l.id !== POI_BADGE_LAYER)
+    .map(l => {
+      const o = overrides[l.id]
+      if (!o) return l
+      return {
+        ...l,
+        layout: { ...l.layout, ...o.layout },
+        paint: { ...l.paint, ...o.paint },
+      }
+    })
+}
+
 export function buildLayers(options: {
   flavor: FlavorId
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
   lang?: string
+  poiStyle?: PoiStyleId
 }): LayerSpecification[] {
-  const { flavor, categoryColors, lang } = options
+  const { flavor, categoryColors, lang, poiStyle = 'badge' } = options
   const tokens = tokenMap(flavor)
   const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
 
-  return specLayers
+  const base = poiStyle === 'glyph' ? applyGlyphPoiStyle(specLayers) : specLayers
+  return base
     .map(l => resolve(l, tokens, categories))
     .map(l => localize(l, lang)) as LayerSpecification[]
 }
 
 /** The full street basemap. */
 export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification {
-  const { tileServerUrl, theme, tileKey, mapStyle, lang, categoryColors } = options
+  const { tileServerUrl, theme, tileKey, mapStyle, lang, categoryColors, poiStyle } = options
   const flavor: FlavorId = theme === 'dark' ? 'dark' : 'light'
 
   return {
@@ -211,7 +264,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: { [SOURCE]: vectorSource(tileServerUrl, tileKey) },
-    layers: buildLayers({ flavor, categoryColors, lang }),
+    layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),
   } as StyleSpecification
 }
 
@@ -226,7 +279,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
 export function buildSatelliteStyle(
   options: BasemapStyleOptions & { hybrid?: boolean },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, tileKey, mapStyle, lang, categoryColors } = options
+  const { tileServerUrl, hybrid = false, tileKey, mapStyle, lang, categoryColors, poiStyle } = options
 
   const sources: StyleSpecification['sources'] = {
     'satellite-raster': {
@@ -251,6 +304,7 @@ export function buildSatelliteStyle(
       flavor: 'dark',
       categoryColors,
       lang,
+      poiStyle,
     }).filter(
       l =>
         l.type === 'symbol' ||

@@ -448,6 +448,85 @@ function poiBadgeLayer(poiLayers) {
 }
 
 // ---------------------------------------------------------------------------
+// Glyph-only POI treatment (MapTiler Streets v4)
+// ---------------------------------------------------------------------------
+
+/**
+ * The second POI treatment: a tinted glyph on a halo, no disc under it.
+ *
+ * Transcribed from MapTiler Streets v4 (vendored alongside v2, key stripped).
+ * Their v4 tiles split POIs across `poi_food`, `poi_shopping`, … source-layers
+ * that our OpenMapTiles basemap does not have, so their layers cannot be
+ * dropped in as-is. What ports is the treatment — family colour, halo, sizes,
+ * offsets — applied to the family layers we already derive from v2, whose
+ * filters do match our tiles. Icon art stays ours: `build-sprite.mjs` keeps
+ * generating it, so nothing here reaches for a MapTiler sprite server.
+ *
+ * Their family colours, per flavor. `Station` is the one deviation: v4 paints
+ * dark-mode stations `hsl(0, 0%, 0%)` because its dark sprite carries its own
+ * coloured station art, and a black SDF glyph on our dark map would vanish, so
+ * it takes the Transport blue instead.
+ */
+const V4_FAMILY = {
+  Food: { light: 'hsl(18, 44%, 54%)', dark: 'hsl(28, 57%, 72%)' },
+  Shopping: { light: 'hsl(18, 2%, 53%)', dark: 'hsl(0, 0%, 70%)' },
+  Transport: { light: 'hsl(215, 81%, 35%)', dark: 'hsl(215, 90%, 65%)' },
+  Healthcare: { light: 'hsl(6, 96%, 35%)', dark: 'hsl(6, 80%, 70%)' },
+  Public: { light: 'hsl(51, 10%, 40%)', dark: 'hsl(52, 10%, 70%)' },
+  Tourism: { light: 'hsl(283, 55%, 35%)', dark: 'hsl(283, 55%, 80%)' },
+  Culture: { light: 'hsl(315, 35%, 50%)', dark: 'hsl(315, 46%, 81%)' },
+  Park: { light: 'hsl(82, 83%, 25%)', dark: 'hsl(82, 75%, 40%)' },
+  Education: { light: 'hsl(204, 23%, 50%)', dark: 'hsl(204, 40%, 64%)' },
+  Sport: { light: 'hsl(129, 37%, 45%)', dark: 'hsl(129, 65%, 53%)' },
+  Station: { light: 'hsl(215, 83%, 48%)', dark: 'hsl(215, 90%, 65%)' },
+}
+
+/** v4 fades its halo out as the map zooms in, rather than holding it flat. */
+const V4_HALO_BLUR = ['interpolate', ['linear'], ['zoom'], 12, 1, 14, 0.5, 16, 0]
+
+/**
+ * v4 keeps a `dot` fallback, which is right for a glyph-only map: an
+ * unrecognised POI shows as a small mark rather than disappearing. The badge
+ * treatment deliberately has none — there a fallback stamps a filled circle
+ * over the disc it is supposed to sit in.
+ */
+const V4_ICON = [...POI_ICON, ['image', 'dot']]
+
+function poiGlyphTreatment(layerId) {
+  const family = V4_FAMILY[layerId] ? `@poi_v4_${slug(layerId)}` : '@poi_v4_public'
+  return {
+    layout: {
+      'icon-image': V4_ICON,
+      'icon-anchor': 'center',
+      // Held at natural size until z18, then grown gently. v4's own ramp.
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 18, 1, 22, 1.4],
+      // Glyph-only, so nothing is left behind when one loses a collision —
+      // which is why this treatment can let the collision system do its job
+      // instead of forcing every icon to draw.
+      'icon-allow-overlap': false,
+      'icon-ignore-placement': false,
+      'symbol-sort-key': RANK,
+      'text-anchor': 'top',
+      'text-offset': [0, 0.8],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 12, 10, 16, 12, 22, 14],
+      'text-max-width': 8,
+      'text-padding': 2,
+      'text-optional': true,
+    },
+    paint: {
+      'icon-color': family,
+      'icon-halo-color': '@poi_v4_halo',
+      'icon-halo-width': 2,
+      'icon-halo-blur': V4_HALO_BLUR,
+      'text-color': family,
+      'text-halo-color': '@poi_v4_halo',
+      'text-halo-width': 2,
+      'text-halo-blur': V4_HALO_BLUR,
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Colour tokens
 // ---------------------------------------------------------------------------
 
@@ -666,7 +745,29 @@ async function main() {
     tokens.dark[`poi_${category}`] = `@@category:${category}`
   }
 
-  await writeFile(OUT_SPEC, `${JSON.stringify({ layers }, null, 1)}\n`)
+  // MapTiler Streets v4's own family palette, for the glyph-only treatment.
+  // Kept separate from the category tokens above: that palette is Parchment's
+  // and follows the app, this one is a faithful copy of someone else's map.
+  for (const [layerId, colors] of Object.entries(V4_FAMILY)) {
+    tokens.light[`poi_v4_${slug(layerId)}`] = colors.light
+    tokens.dark[`poi_v4_${slug(layerId)}`] = colors.dark
+  }
+  tokens.light.poi_v4_halo = 'hsl(0, 0%, 100%)'
+  tokens.dark.poi_v4_halo = 'hsl(0, 0%, 0%)'
+
+  // The second POI treatment, as per-layer overrides `build.ts` merges in when
+  // the glyph-only style is selected. Emitted rather than duplicating every
+  // POI layer, so the filters and draw order stay defined in exactly one place.
+  const poiStyles = {
+    glyph: Object.fromEntries(
+      layers
+        .filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
+        .map(l => [l.id, poiGlyphTreatment(l.id)]),
+    ),
+  }
+  console.log(`glyph-only POI treatment: ${Object.keys(poiStyles.glyph).length} layers`)
+
+  await writeFile(OUT_SPEC, `${JSON.stringify({ layers, poiStyles }, null, 1)}\n`)
   await writeFile(OUT_TOKENS, `${JSON.stringify(tokens.light, null, 1)}\n`)
   await writeFile(OUT_TOKENS_DARK, `${JSON.stringify(tokens.dark, null, 1)}\n`)
 

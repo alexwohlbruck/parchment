@@ -83,5 +83,17 @@
  "poi_park": "@@category:park",
  "poi_commercial_services": "@@category:commercial_services",
  "poi_arts_and_entertainment": "@@category:arts_and_entertainment",
- "poi_default": "@@category:default"
+ "poi_default": "@@category:default",
+ "poi_v4_food": "hsl(18, 44%, 54%)",
+ "poi_v4_shopping": "hsl(18, 2%, 53%)",
+ "poi_v4_transport": "hsl(215, 81%, 35%)",
+ "poi_v4_healthcare": "hsl(6, 96%, 35%)",
+ "poi_v4_public": "hsl(51, 10%, 40%)",
+ "poi_v4_tourism": "hsl(283, 55%, 35%)",
+ "poi_v4_culture": "hsl(315, 35%, 50%)",
+ "poi_v4_park": "hsl(82, 83%, 25%)",
+ "poi_v4_education": "hsl(204, 23%, 50%)",
+ "poi_v4_sport": "hsl(129, 37%, 45%)",
+ "poi_v4_station": "hsl(215, 83%, 48%)",
+ "poi_v4_halo": "hsl(0, 0%, 100%)"
 }

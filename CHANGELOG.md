@@ -5,6 +5,7 @@
 * The map has a new basemap, in daylight and at night. Streets, land, water and labels are drawn the way a professional cartographer set them rather than by darkening the light map with maths — which is what the old night map did, and why it collapsed into one flat field of purple where a motorway and a driveway differed only in shade. Roads now carry a real hierarchy at every zoom, parks and water read as themselves, and labels sit at the weights they should
 * Places on the map wear proper icons, coloured by what they are — and by the same palette the app already uses for search results, so a café you find by searching and the same café drawn on the map finally match
 * Map labels are set in Roboto, served from Parchment itself rather than fetched from someone else's font server on every pan
+* Two ways to draw places on the map, switchable under Appearance. The default gives each place a coloured badge matching its category — the same marker a search result wears. The alternative drops the badge and draws the icon alone in MapTiler Streets' own palette, for a quieter map that leans on the cartography rather than on markers. Both are drawn for day and night separately
 
 ## [0.7.0] - 2026-08-22
 

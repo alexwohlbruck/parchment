@@ -61,9 +61,23 @@ function shieldSvg(width) {
   )
 }
 
+/**
+ * The `dot` an unrecognised POI falls back to in the glyph-only treatment.
+ *
+ * Drawn rather than aliased to Maki's `circle`, which is a filled disc on the
+ * full 15-unit grid — at the icon sizes the POI layers use that reads as a
+ * blob, not as a dot.
+ */
+function dotSvg() {
+  return Buffer.from(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 15 15">' +
+      '<circle cx="7.5" cy="7.5" r="2.75" fill="#000"/>' +
+      '</svg>',
+  )
+}
+
 const ALIASES = {
   // Names the style uses that Maki spells differently, or does not have
-  dot: 'circle',
   oneway: 'arrow',
   international: 'airport',
 
@@ -258,6 +272,7 @@ async function collectIcons() {
     icons.set(`road_${refLength}`, shieldSvg(width))
     icons.set(`exit_${refLength}`, shieldSvg(width))
   }
+  icons.set('dot', dotSvg())
   return [...icons.entries()].sort(([a], [b]) => a.localeCompare(b))
 }
 

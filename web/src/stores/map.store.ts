@@ -9,6 +9,7 @@ import {
   MapCamera,
   MapTheme,
   MapStyleId,
+  PoiStyleId,
   Pegman,
   MapProjection,
   MapControlSettings,
@@ -28,6 +29,7 @@ const defaultSettings: MapSettings = {
   projection: MapProjection.GLOBE,
   basemap: 'standard',
   mapStyle: 'parchment',
+  poiStyle: 'badge',
   terrain3d: false,
   objects3d: true,
   poiLabels: true,
@@ -96,6 +98,10 @@ export const useMapStore = defineStore('map', () => {
     settings.value.mapStyle = styleId
   }
 
+  function setPoiStyle(poiStyle: PoiStyleId) {
+    settings.value.poiStyle = poiStyle
+  }
+
   // Event methods
   function on<K extends keyof MapEvents>(
     event: K,
@@ -133,6 +139,7 @@ export const useMapStore = defineStore('map', () => {
     setMapCamera,
     setBasemap,
     setMapStyle,
+    setPoiStyle,
     on,
     off,
     emit,

@@ -27,7 +27,7 @@ import {
 import { useThemeStore, allColors } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
-import { MapEngine, type MapStyleId } from '@/types/map.types'
+import { MapEngine, type MapStyleId, type PoiStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
@@ -305,6 +305,30 @@ const handleColorChange = (value: any) => {
               Mapbox Standard
             </SelectItem>
             <SelectItem value="parchment">Parchment</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="isMaplibre"
+        :title="$t('settings.mapSettings.style.poiStyle')"
+        :description="$t('settings.mapSettings.style.poiStyleDescription')"
+        :icon="MapPinIcon"
+      >
+        <Select
+          :model-value="settings.poiStyle"
+          @update:model-value="v => mapStore.setPoiStyle(v as PoiStyleId)"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="badge">
+              {{ $t('settings.mapSettings.style.poiStyleBadge') }}
+            </SelectItem>
+            <SelectItem value="glyph">
+              {{ $t('settings.mapSettings.style.poiStyleGlyph') }}
+            </SelectItem>
           </SelectContent>
         </Select>
       </SettingsItem>

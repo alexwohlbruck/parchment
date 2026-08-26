@@ -11,7 +11,7 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter } from '@maplibre/maplibre-gl-style-spec'
-import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups } from './build'
+import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups, POI_BADGE_LAYER } from './build'
 import spec from './spec.json'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -103,9 +103,12 @@ describe('flavors', () => {
   })
 
   test('POI tints come from the app category palette, not a literal', () => {
-    // `poi_halo` is a real colour, not a category — it is the label halo.
+    // `poi_halo`/`poi_ink` are real colours, not categories — they are the
+    // label halo and the glyph knockout. `poi_v4_*` are real colours too, but
+    // deliberately so: they are MapTiler's own family palette, copied for the
+    // glyph-only treatment rather than tracking ours.
     const categories = Object.keys(light).filter(
-      k => k.startsWith('poi_') && !['poi_halo', 'poi_ink'].includes(k),
+      k => k.startsWith('poi_') && !k.startsWith('poi_v4_') && !['poi_halo', 'poi_ink'].includes(k),
     )
     expect(categories).toContain('poi_food_and_drink')
     expect(categories).toContain('poi_default')
@@ -272,12 +275,91 @@ describe('Mapbox POI treatment', () => {
   })
 })
 
+/**
+ * The second POI treatment: a tinted glyph on a halo, no disc, transcribed
+ * from MapTiler Streets v4. Their v4 tiles split POIs across `poi_food`,
+ * `poi_shopping`, … source-layers our OpenMapTiles basemap does not carry, so
+ * what ports is the treatment, applied to the family layers we already derive
+ * from v2.
+ */
+describe('glyph-only POI style', () => {
+  const badge = buildLayers({ flavor: 'dark' }) as any[]
+  const glyph = buildLayers({ flavor: 'dark', poiStyle: 'glyph' }) as any[]
+  const glyphLight = buildLayers({ flavor: 'light', poiStyle: 'glyph' }) as any[]
+  const poiIds = spec.layers
+    .filter((l: any) => l['source-layer'] === 'poi' && l.type === 'symbol')
+    .map((l: any) => l.id)
+
+  test('the badge circle goes away with it', () => {
+    expect(badge.some(l => l.id === POI_BADGE_LAYER)).toBe(true)
+    expect(glyph.some(l => l.id === POI_BADGE_LAYER)).toBe(false)
+  })
+
+  test('every POI layer survives the swap', () => {
+    for (const id of poiIds) expect(glyph.some(l => l.id === id), id).toBe(true)
+  })
+
+  test('draw order is untouched', () => {
+    expect(glyph.map(l => l.id)).toEqual(badge.filter(l => l.id !== POI_BADGE_LAYER).map(l => l.id))
+  })
+
+  test.each(poiIds)('%s is a haloed glyph, not a knockout', id => {
+    const l = glyph.find(x => x.id === id)
+    expect(l.paint['icon-halo-width']).toBe(2)
+    // The badge treatment inks the glyph to the surface; this one tints it.
+    expect(l.paint['icon-color']).not.toBe(darkTokens.poi_ink)
+    expect(l.paint['icon-color']).toBe(l.paint['text-color'])
+  })
+
+  /**
+   * The whole point of a second treatment is that it is MapTiler's palette,
+   * not ours — so it must not resolve to the category colours the badge uses.
+   */
+  test('it uses the v4 family palette, not the app categories', () => {
+    const food = glyph.find(l => l.id === 'Food')
+    expect(food.paint['icon-color']).toBe(darkTokens.poi_v4_food)
+    expect(food.paint['icon-color']).not.toBe(darkTokens.poi_food_and_drink)
+  })
+
+  test('light and dark differ, in both ink and halo', () => {
+    for (const id of poiIds) {
+      const d = glyph.find(x => x.id === id)
+      const l = glyphLight.find(x => x.id === id)
+      expect(d.paint['icon-color'], id).not.toBe(l.paint['icon-color'])
+    }
+    expect(lightTokens.poi_v4_halo).toBe('hsl(0, 0%, 100%)')
+    expect(darkTokens.poi_v4_halo).toBe('hsl(0, 0%, 0%)')
+  })
+
+  /**
+   * With no disc underneath, a culled glyph leaves nothing behind — so this
+   * treatment can let the collision system place icons normally, where the
+   * badge treatment has to force them.
+   */
+  test('collision is left to the engine', () => {
+    for (const id of poiIds) {
+      const l = glyph.find(x => x.id === id)
+      expect(l.layout['icon-allow-overlap'], id).toBe(false)
+      expect(l.layout['icon-ignore-placement'], id).toBe(false)
+    }
+  })
+
+  test('the dot fallback exists, and is a dot rather than Maki\'s disc', () => {
+    const sprite = JSON.parse(readFileSync(resolvePath(__dirname, '../../../public/sprites/parchment.json'), 'utf8'))
+    expect(sprite.dot).toBeTruthy()
+    // Aliasing `dot` to `circle` would give them identical boxes.
+    expect(sprite.dot.x === sprite.circle?.x && sprite.dot.y === sprite.circle?.y).toBe(false)
+  })
+})
+
 describe('assembled styles', () => {
   const cases: Array<[string, () => any]> = [
     ['light', () => buildMapStyle({ ...opts, theme: 'light' })],
     ['dark', () => buildMapStyle({ ...opts, theme: 'dark' })],
     ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })],
     ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: false })],
+    ['light glyph POIs', () => buildMapStyle({ ...opts, theme: 'light', poiStyle: 'glyph' })],
+    ['dark glyph POIs', () => buildMapStyle({ ...opts, theme: 'dark', poiStyle: 'glyph' })],
   ]
 
   test.each(cases)('%s validates against the MapLibre style spec', (_name, make) => {

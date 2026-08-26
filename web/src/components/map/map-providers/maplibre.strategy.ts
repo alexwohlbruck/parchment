@@ -17,6 +17,7 @@ import {
   Basemap,
   MapTheme,
   MapStyleId,
+  PoiStyleId,
   MapSettings,
   Layer,
   MapCamera,
@@ -530,6 +531,7 @@ export class MaplibreStrategy extends MapStrategy {
       theme,
       tileKey: this.tileKey,
       mapStyle: this.options.mapStyle,
+      poiStyle: this.poiStyle(),
       categoryColors: this.categoryColors(theme),
     })
   }
@@ -574,6 +576,15 @@ export class MaplibreStrategy extends MapStrategy {
     )
   }
 
+  /**
+   * Which POI treatment to draw. Read at style-build time rather than held on
+   * `options`, so a change to the setting takes effect on the next reload
+   * without having to be threaded through the strategy's constructor.
+   */
+  private poiStyle(): PoiStyleId {
+    return useMapStore().settings.poiStyle ?? 'badge'
+  }
+
   private reloadStyle() {
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })
   }
@@ -588,6 +599,7 @@ export class MaplibreStrategy extends MapStrategy {
       theme: theme as 'light' | 'dark',
       tileKey: this.tileKey,
       mapStyle: this.options.mapStyle,
+      poiStyle: this.poiStyle(),
       categoryColors: this.categoryColors(theme),
     }
 

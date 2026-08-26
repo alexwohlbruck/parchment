@@ -1678,6 +1678,10 @@
       "style": {
         "title": "Style",
         "mapStyle": "Map style",
+        "poiStyle": "Place icons",
+        "poiStyleDescription": "How points of interest are drawn on the map.",
+        "poiStyleBadge": "Coloured badges",
+        "poiStyleGlyph": "Icons only",
         "descriptionMaplibre": "Visual style for the map",
         "descriptionMapbox": "Mapbox uses its own standard style",
         "placeholder": "Choose a style"

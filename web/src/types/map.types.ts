@@ -11,6 +11,16 @@ export type Basemap = 'standard' | 'satellite' | 'hybrid'
 /** Basemap style. Light/dark is driven by the app theme, not by this. */
 export type MapStyleId = 'parchment'
 
+/**
+ * How points of interest are drawn on the basemap.
+ *
+ * `badge` — a category-coloured disc with the glyph knocked out, matching the
+ * markers search results and saved places use.
+ * `glyph` — a tinted glyph on a halo and nothing else, in MapTiler Streets'
+ * own family palette.
+ */
+export type PoiStyleId = 'badge' | 'glyph'
+
 export enum MapEngine {
   MAPBOX = 'mapbox',
   MAPLIBRE = 'maplibre',
@@ -69,6 +79,7 @@ export interface MapSettings {
   engine: MapEngine
   basemap: Basemap
   mapStyle: MapStyleId
+  poiStyle: PoiStyleId
   camera?: MapCamera
   projection: MapProjection
   terrain3d: boolean

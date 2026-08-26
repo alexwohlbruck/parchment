@@ -41,14 +41,22 @@ const composite = promisify(fontnik.composite)
 const LAST_RANGE = 0x2fff
 
 /**
- * The stacks the style actually names. Primary is Roboto, in the
- * @fontsource weight/style that matches; fallback is Noto Sans, which covers
- * the scripts Roboto does not.
+ * The stacks the style names — each ONE font name, with Noto Sans composited
+ * in underneath as the fallback for scripts Roboto does not cover.
+ *
+ * The name must not contain a comma. MapLibre builds the glyph URL with
+ * `encodeURIComponent(fontstack)`, which turns `,` into `%2C`, and static file
+ * servers do not decode that back into a directory name — the request falls
+ * through to the SPA's index.html, and MapLibre then tries to parse HTML as
+ * protobuf ("Unimplemented type: 4") and every label silently disappears.
+ * Curling the same path with a literal comma succeeds, which makes this look
+ * like a corrupt-font problem when it is a URL-encoding one.
  */
 const STACKS = [
-  { name: 'Roboto Regular,Noto Sans Regular', weight: '400-normal', fallback: 'NotoSans-Regular.ttf' },
-  { name: 'Roboto Medium,Noto Sans Regular', weight: '500-normal', fallback: 'NotoSans-Regular.ttf' },
-  { name: 'Roboto Italic,Noto Sans Italic', weight: '400-italic', fallback: 'NotoSans-Italic.ttf' },
+  { name: 'Roboto Regular', weight: '400-normal', fallback: 'NotoSans-Regular.ttf' },
+  { name: 'Roboto Medium', weight: '500-normal', fallback: 'NotoSans-Regular.ttf' },
+  { name: 'Roboto Bold', weight: '700-normal', fallback: 'NotoSans-Regular.ttf' },
+  { name: 'Roboto Italic', weight: '400-italic', fallback: 'NotoSans-Italic.ttf' },
 ]
 
 /** @fontsource splits each weight across these subsets. */

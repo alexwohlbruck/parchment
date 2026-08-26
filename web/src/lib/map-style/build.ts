@@ -149,20 +149,6 @@ export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
 // Assembly
 // ---------------------------------------------------------------------------
 
-/**
- * `parchment-minimal` drops the busiest layers for a quieter map under dense
- * overlays — the transit network and route lines need room to read.
- */
-function isMinimalHidden(layer: any): boolean {
-  const sl = layer['source-layer']
-  return (
-    sl === 'poi' ||
-    sl === 'housenumber' ||
-    layer.type === 'fill-extrusion' ||
-    sl === 'building'
-  )
-}
-
 function buildTileUrl(tileServerUrl: string, tileKey?: string, source = 'basemap'): string {
   const params = new URLSearchParams()
   if (tileKey) params.set('token', tileKey)
@@ -202,17 +188,14 @@ function localize(layer: any, lang?: string): any {
 
 export function buildLayers(options: {
   flavor: FlavorId
-  mapStyle?: MapStyleId
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
   lang?: string
 }): LayerSpecification[] {
-  const { flavor, mapStyle, categoryColors, lang } = options
+  const { flavor, categoryColors, lang } = options
   const tokens = tokenMap(flavor)
   const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
-  const minimal = mapStyle === 'parchment-minimal'
 
   return specLayers
-    .filter(l => !(minimal && isMinimalHidden(l)))
     .map(l => resolve(l, tokens, categories))
     .map(l => localize(l, lang)) as LayerSpecification[]
 }
@@ -228,7 +211,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: { [SOURCE]: vectorSource(tileServerUrl, tileKey) },
-    layers: buildLayers({ flavor, mapStyle, categoryColors, lang }),
+    layers: buildLayers({ flavor, categoryColors, lang }),
   } as StyleSpecification
 }
 
@@ -266,7 +249,6 @@ export function buildSatelliteStyle(
     sources[SOURCE] = vectorSource(tileServerUrl, tileKey)
     const overlay = buildLayers({
       flavor: 'dark',
-      mapStyle,
       categoryColors,
       lang,
     }).filter(

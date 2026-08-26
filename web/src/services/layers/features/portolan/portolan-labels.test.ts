@@ -28,8 +28,6 @@ const opts = { tileServerUrl: 'https://example.test/tiles' }
 const STYLES: Array<[string, () => any]> = [
   ['street light', () => buildMapStyle({ ...opts, theme: 'light' } as any)],
   ['street dark', () => buildMapStyle({ ...opts, theme: 'dark' } as any)],
-  ['street light (minimal)', () => buildMapStyle({ ...opts, theme: 'light', mapStyle: 'parchment-minimal' } as any)],
-  ['street dark (minimal)', () => buildMapStyle({ ...opts, theme: 'dark', mapStyle: 'parchment-minimal' } as any)],
   ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: true } as any)],
   ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any)],
 ]

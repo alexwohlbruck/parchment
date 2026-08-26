@@ -1847,6 +1847,30 @@
     "pixelRatio": 2,
     "sdf": true
   },
+  "bicycle_rental": {
+    "x": 432,
+    "y": 72,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "motorcycle_parking": {
+    "x": 360,
+    "y": 856,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
+  "ferry_terminal": {
+    "x": 576,
+    "y": 144,
+    "width": 72,
+    "height": 72,
+    "pixelRatio": 2,
+    "sdf": true
+  },
   "atm": {
     "x": 0,
     "y": 216,

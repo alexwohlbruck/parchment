@@ -136,7 +136,7 @@ describe('Mapbox POI treatment', () => {
 
   test.each(poi.map(l => [l.id, l]))('%s: name sits under the glyph', (_id, l: any) => {
     expect(l.layout['text-anchor']).toBe('top')
-    expect(l.layout['text-offset']).toEqual([0, 1])
+    expect(l.layout['text-offset']).toEqual([0, 1.1])
     expect(l.layout['text-size']).toBe(13)
     // The glyph outlives its label in a collision, so a dense block keeps its
     // icons instead of going blank.
@@ -166,10 +166,21 @@ describe('Mapbox POI treatment', () => {
   })
 
   /**
-   * A dot under a glyph would double-draw, so the dot layer negates every
-   * class the glyph layers claim. Any class they draw that the dot filter
-   * forgot to exclude shows up as a coloured blob behind its own icon.
+   * Only a handful of POIs earn a glyph at any zoom; the rest fall through to
+   * a dot. Both sides gate on the same `rank` step, and the dot layer negates
+   * the conjunction of that gate with the classes the glyph layers claim — so
+   * a POI is drawn exactly once, either way.
    */
+  test('glyphs and dots gate on the same rank step', () => {
+    const dot = layers.find(l => l.id === 'POI dot')
+    const gateOf = (f: any) => JSON.stringify(f).match(/\["step",\["zoom"\].*?18,true\]/)?.[0]
+    const dotGate = gateOf(dot.filter)
+    expect(dotGate, 'dot layer has no rank gate').toBeTruthy()
+    for (const l of poi) {
+      expect(gateOf(l.filter), `${l.id} has no rank gate`).toBe(dotGate)
+    }
+  })
+
   test('every class that gets a glyph is excluded from the dots', () => {
     const dot = layers.find(l => l.id === 'POI dot')
     const excluded = new Set<string>(
@@ -205,7 +216,6 @@ describe('assembled styles', () => {
   const cases: Array<[string, () => any]> = [
     ['light', () => buildMapStyle({ ...opts, theme: 'light' })],
     ['dark', () => buildMapStyle({ ...opts, theme: 'dark' })],
-    ['minimal', () => buildMapStyle({ ...opts, theme: 'dark', mapStyle: 'parchment-minimal' })],
     ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })],
     ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: false })],
   ]
@@ -244,17 +254,6 @@ describe('assembled styles', () => {
     expect(JSON.stringify(style.layers)).toContain('#123456')
   })
 
-  test('minimal drops POIs, house numbers and buildings', () => {
-    const ids = buildLayers({ flavor: 'light', mapStyle: 'parchment-minimal' }).map(l => l.id)
-    const full = buildLayers({ flavor: 'light' })
-    const dropped = full.filter(l => !ids.includes(l.id))
-    expect(dropped.length).toBeGreaterThan(5)
-    for (const l of dropped as any[]) {
-      expect(['poi', 'housenumber', 'building'], l.id).toContain(
-        l['source-layer'] ?? 'building',
-      )
-    }
-  })
 
   test('hybrid keeps labels and arterials over the imagery, nothing else', () => {
     const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })
@@ -284,18 +283,40 @@ describe('assets the spec depends on', () => {
    * directory has to be named for the whole stack. A stack we did not
    * generate 404s and its labels never draw.
    */
-  test('every font stack has generated glyphs', () => {
-    const stacks = new Set<string>()
-    for (const l of layers) {
-      const f = l.layout?.['text-font']
-      if (Array.isArray(f) && f.every((x: unknown) => typeof x === 'string')) {
-        stacks.add(f.join(','))
+  /** Font lists anywhere in a `text-font`, including inside expressions. */
+  const fontLists = (() => {
+    const EXPR = new Set(['match', 'case', 'step', 'literal', 'get', 'coalesce', 'concat', 'interpolate'])
+    const found = new Set<string>()
+    const walk = (n: any) => {
+      if (!Array.isArray(n)) return
+      if (n.length && n.every((x: unknown) => typeof x === 'string') && !EXPR.has(n[0])) {
+        found.add(n.join(','))
+        return
       }
+      n.forEach(walk)
     }
-    expect(stacks.size).toBeGreaterThan(0)
-    for (const stack of stacks) {
-      const dir = resolvePath(WEB, 'public/fonts', stack, '0-255.pbf')
-      expect(existsSync(dir), stack).toBe(true)
+    for (const l of layers) if (l.layout?.['text-font']) walk(l.layout['text-font'])
+    return found
+  })()
+
+  test('every font stack has generated glyphs', () => {
+    expect(fontLists.size).toBeGreaterThan(0)
+    for (const stack of fontLists) {
+      expect(existsSync(resolvePath(WEB, 'public/fonts', stack, '0-255.pbf')), stack).toBe(true)
+    }
+  })
+
+  /**
+   * MapLibre requests glyphs at `encodeURIComponent(fontstack)`, which turns a
+   * multi-font stack's separator into `%2C`. Static file servers do not decode
+   * that back into a directory name, so the request falls through to the SPA's
+   * index.html and MapLibre parses HTML as protobuf — "Unimplemented type: 4",
+   * and every label on the map silently disappears. Curling the same path with
+   * a literal comma works, which is what made this look like a corrupt font.
+   */
+  test('no font stack names more than one font', () => {
+    for (const stack of fontLists) {
+      expect(stack, `"${stack}" would be requested as %2C-encoded`).not.toContain(',')
     }
   })
 

@@ -8,12 +8,8 @@ import { Place } from '@/types/place.types'
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
 
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
-/**
- * Basemap variants. Both are the same Parchment layer spec — `minimal` drops
- * POIs, house numbers and buildings for a quieter map under dense overlays.
- * Light/dark is driven by the app theme, not by this.
- */
-export type MapStyleId = 'parchment' | 'parchment-minimal'
+/** Basemap style. Light/dark is driven by the app theme, not by this. */
+export type MapStyleId = 'parchment'
 
 export enum MapEngine {
   MAPBOX = 'mapbox',

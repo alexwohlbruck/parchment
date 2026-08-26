@@ -161,10 +161,109 @@ function poiColorExpression() {
  * `measure-light`, which is Mapbox-only — we resolve the same two colours per
  * flavor at build time instead, so the result matches without the expression.
  */
+/**
+ * MapTiler names two-font stacks (`["Roboto Medium", "Noto Sans Regular"]`).
+ * MapLibre joins those into one `encodeURIComponent`d path segment, turning
+ * the separator into `%2C`, which no static file server decodes back into a
+ * directory name — the request falls through to index.html and every label
+ * vanishes. `build-glyphs.mjs` composites the fallback into single-named
+ * stacks instead, so the style only ever names one font.
+ */
+const EXPRESSION_OPS = new Set([
+  'match', 'case', 'step', 'coalesce', 'concat', 'literal', 'get', 'interpolate',
+])
+
+/** True for a plain font list like ["Roboto Medium", "Noto Sans Regular"]. */
+function isFontList(node) {
+  return (
+    Array.isArray(node) &&
+    node.length > 0 &&
+    node.every(x => typeof x === 'string') &&
+    !EXPRESSION_OPS.has(node[0])
+  )
+}
+
+/**
+ * Reduce every font list to its primary, wherever it appears — the shield
+ * layers wrap theirs in `["match", …, ["literal", [...]], …]`, so a naive
+ * `stack[0]` would turn the whole expression into the font "match".
+ */
+function singleFont(node) {
+  if (isFontList(node)) return [node[0]]
+  if (Array.isArray(node)) return node.map(singleFont)
+  return node
+}
+
+/**
+ * How many POIs earn a glyph and a name at each zoom, keyed on OpenMapTiles'
+ * own `rank` (1 = most important in the tile).
+ *
+ * Mapbox thins its POIs with `filterrank`, which its tileset carries and ours
+ * does not — without an equivalent, every POI in a downtown block gets a name
+ * and the map turns to soup. Everything filtered out here still draws, as a
+ * bare dot, which is what a Mapbox map actually looks like: a handful of named
+ * places among a scatter of dots.
+ */
+const RANK_GATE = (() => {
+  const rank = ['coalesce', ['to-number', ['get', 'rank']], 999]
+  // `step` has to be the OUTERMOST expression: `["zoom"]` is only legal as the
+  // direct input of a top-level step/interpolate, so a zoom-varying threshold
+  // cannot sit inside the comparison — the whole layer is rejected.
+  return [
+    'step',
+    ['zoom'],
+    ['<=', rank, 4],
+    15, ['<=', rank, 8],
+    16, ['<=', rank, 16],
+    17, ['<=', rank, 40],
+    18, true,
+  ]
+})()
+
+/**
+ * Translate a legacy filter into expression syntax.
+ *
+ * MapTiler still writes filters the old way (`["in", "class", "bar", …]`).
+ * The two syntaxes cannot be mixed — wrapping a legacy filter in an
+ * expression `all` makes the validator read the whole thing as legacy and
+ * reject `step` as an unknown operator — so adding a zoom-varying clause
+ * means converting what is already there first.
+ */
+function toExpressionFilter(f) {
+  if (!Array.isArray(f)) return f
+  const [op, ...rest] = f
+  const key = k => (k === '$type' ? ['geometry-type'] : k === '$id' ? ['id'] : ['get', k])
+
+  switch (op) {
+    case 'all':
+    case 'any':
+      return [op, ...rest.map(toExpressionFilter)]
+    case 'none':
+      return ['!', ['any', ...rest.map(toExpressionFilter)]]
+    case '==': case '!=': case '<': case '<=': case '>': case '>=':
+      // Already an expression when the operand is itself one.
+      return Array.isArray(rest[0]) ? f : [op, key(rest[0]), rest[1]]
+    case 'in':
+      return Array.isArray(rest[0]) ? f : ['match', key(rest[0]), rest.slice(1), true, false]
+    case '!in':
+      return ['!', ['match', key(rest[0]), rest.slice(1), true, false]]
+    case 'has':
+      return typeof rest[0] === 'string' ? ['has', rest[0]] : f
+    case '!has':
+      return ['!', ['has', rest[0]]]
+    default:
+      return f
+  }
+}
+
 const POI_LAYOUT = {
-  'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 1, 17, 1.3],
+  // Maki draws on a 15px grid; Mapbox's POI markers read at roughly 24px, so
+  // the glyphs need scaling up to sit at the same visual weight.
+  'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 1.35, 17, 1.7],
   'text-size': 13,
-  'text-offset': [0, 1],
+  // Clears the taller glyph — offset is in ems of text-size, so 1.1em ≈ 14px
+  // below the icon's centre.
+  'text-offset': [0, 1.1],
   'text-anchor': 'top',
   'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
   'text-max-width': 8,
@@ -228,7 +327,15 @@ function poiDotLayer(poiLayers) {
     filter: [
       'all',
       ['==', ['geometry-type'], 'Point'],
-      ['!', ['match', ['get', 'class'], [...covered], true, false]],
+      // Not (a class the glyphs claim AND important enough to be drawn as one).
+      [
+        '!',
+        [
+          'all',
+          ['match', ['get', 'class'], [...covered], true, false],
+          RANK_GATE,
+        ],
+      ],
     ],
     paint: {
       'circle-color': poiColorExpression(),
@@ -372,6 +479,10 @@ async function main() {
     if (out.source) out.source = SOURCE
     delete out.metadata
 
+    if (out.layout?.['text-font']) {
+      out.layout = { ...out.layout, 'text-font': singleFont(out.layout['text-font']) }
+    }
+
     const hint = slug(layer.id)
     // Layer-wide fallback so a dark layer that colours nothing at all still
     // yields something darker than the light value.
@@ -384,6 +495,9 @@ async function main() {
     // — only keyed to our categories rather than their families.
     if (sl === 'poi' && out.type === 'symbol') {
       const tint = poiColorExpression()
+      out.filter = out.filter
+        ? ['all', toExpressionFilter(out.filter), RANK_GATE]
+        : RANK_GATE
       out.layout = { ...out.layout, ...POI_LAYOUT, 'icon-image': POI_ICON }
       out.paint = { ...out.paint, ...POI_PAINT, 'icon-color': tint, 'text-color': tint }
       for (const prop of POI_PAINT_DROP) delete out.paint[prop]

@@ -69,6 +69,9 @@ const ALIASES = {
 
   // poi.class values Maki names differently
   railway: 'rail',
+  bicycle_rental: 'bicycle-share',
+  motorcycle_parking: 'scooter',
+  ferry_terminal: 'ferry',
   atm: 'bank',
   office: 'commercial',
 

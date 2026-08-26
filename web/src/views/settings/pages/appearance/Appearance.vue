@@ -305,9 +305,6 @@ const handleColorChange = (value: any) => {
               Mapbox Standard
             </SelectItem>
             <SelectItem value="parchment">Parchment</SelectItem>
-            <SelectItem value="parchment-minimal">
-              Parchment Minimal
-            </SelectItem>
           </SelectContent>
         </Select>
       </SettingsItem>

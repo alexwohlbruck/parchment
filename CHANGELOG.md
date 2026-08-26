@@ -4,7 +4,6 @@
 
 * The map has a new basemap, in daylight and at night. Streets, land, water and labels are drawn the way a professional cartographer set them rather than by darkening the light map with maths — which is what the old night map did, and why it collapsed into one flat field of purple where a motorway and a driveway differed only in shade. Roads now carry a real hierarchy at every zoom, parks and water read as themselves, and labels sit at the weights they should
 * Places on the map wear proper icons, coloured by what they are — and by the same palette the app already uses for search results, so a café you find by searching and the same café drawn on the map finally match
-* A Minimal basemap sits alongside the standard one in Appearance settings, dropping shops, house numbers and buildings for a quieter map to lay routes and the transit network over
 * Map labels are set in Roboto, served from Parchment itself rather than fetched from someone else's font server on every pan
 
 ## [0.7.0] - 2026-08-22

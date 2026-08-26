@@ -3443,8 +3443,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Italic",
-     "Noto Sans Italic"
+     "Roboto Italic"
     ],
     "text-letter-spacing": 0.2,
     "text-max-width": 5,
@@ -3500,8 +3499,7 @@
     "symbol-placement": "point",
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Italic",
-     "Noto Sans Italic"
+     "Roboto Italic"
     ],
     "text-max-width": 5,
     "text-size": [
@@ -3660,8 +3658,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Italic",
-     "Noto Sans Italic"
+     "Roboto Italic"
     ],
     "text-letter-spacing": 0.1,
     "text-max-width": 5,
@@ -3711,8 +3708,7 @@
    "layout": {
     "text-field": "{housenumber}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-size": 10,
     "visibility": "visible"
@@ -3745,8 +3741,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Italic",
-     "Noto Sans Italic"
+     "Roboto Italic"
     ],
     "text-offset": [
      0.8,
@@ -3809,8 +3804,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Italic",
-     "Noto Sans Italic"
+     "Roboto Italic"
     ],
     "text-offset": [
      0.8,
@@ -3878,8 +3872,7 @@
     "symbol-placement": "line",
     "symbol-spacing": 75,
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "visibility": "visible"
    },
@@ -3940,8 +3933,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-ignore-placement": false,
     "text-justify": "center",
@@ -4023,8 +4015,7 @@
     "symbol-z-order": "auto",
     "text-field": "{ref}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-offset": [
      0,
@@ -4105,8 +4096,7 @@
      [
       "literal",
       [
-       "Roboto Bold",
-       "Noto Sans Bold"
+       "Roboto Bold"
       ]
      ],
      [
@@ -4211,15 +4201,13 @@
      [
       "literal",
       [
-       "Roboto Bold",
-       "Noto Sans Bold"
+       "Roboto Bold"
       ]
      ],
      [
       "literal",
       [
-       "Roboto Regular",
-       "Noto Sans Regular"
+       "Roboto Regular"
       ]
      ]
     ],
@@ -4282,151 +4270,224 @@
     [
      "!",
      [
-      "match",
+      "all",
       [
-       "get",
-       "class"
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "atm",
+        "bank",
+        "bbq",
+        "cemetery",
+        "courthouse",
+        "drinking_water",
+        "fire_station",
+        "fountain",
+        "hairdresser",
+        "office",
+        "post",
+        "prison",
+        "recycling",
+        "shower",
+        "telephone",
+        "toilets",
+        "townhall",
+        "town_hall",
+        "american_football",
+        "athletics",
+        "archery",
+        "baseball",
+        "basketball",
+        "climbing",
+        "equestrian",
+        "fitness",
+        "fitness_centre",
+        "golf",
+        "motor",
+        "multi",
+        "playground",
+        "pitch",
+        "running",
+        "sauna",
+        "soccer",
+        "sport",
+        "stadium",
+        "sports_centre",
+        "sports_hall",
+        "swimming",
+        "swimming_area",
+        "swimming_pool",
+        "tennis",
+        "volleyball",
+        "water_park",
+        "college",
+        "childcare",
+        "dancing_school",
+        "driving_school",
+        "kindergarten",
+        "school",
+        "university",
+        "apartment",
+        "aquarium",
+        "attraction",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "castle",
+        "chalet",
+        "guest_house",
+        "hotel",
+        "hostel",
+        "information",
+        "lodging",
+        "motel",
+        "reservoir",
+        "ruins",
+        "theme_park",
+        "zoo",
+        "art_gallery",
+        "archeological_site",
+        "cinema",
+        "community_centre",
+        "gallery",
+        "library",
+        "monastery",
+        "monument",
+        "museum",
+        "opera",
+        "place_of_worship",
+        "planetarium",
+        "theatre",
+        "alcohol_shop",
+        "bakery",
+        "book",
+        "books",
+        "butcher",
+        "chemist",
+        "clothing_store",
+        "convenience",
+        "gift",
+        "grocery",
+        "laundry",
+        "mall",
+        "music",
+        "shop",
+        "supermarket",
+        "bar",
+        "beer",
+        "biergarten",
+        "cafe",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "pub",
+        "restaurant",
+        "bicycle",
+        "bicycle_parking",
+        "bicycle_rental",
+        "car",
+        "car_rental",
+        "car_repair",
+        "charging_station",
+        "ferry_terminal",
+        "fuel",
+        "harbor",
+        "heliport",
+        "highway_rest_area",
+        "motorcycle_parking",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "scooter",
+        "terminal",
+        "toll",
+        "clinic",
+        "dentist",
+        "doctors",
+        "first_aid",
+        "hospital",
+        "pharmacy",
+        "veterinary",
+        "bus",
+        "railway"
+       ],
+       true,
+       false
       ],
       [
-       "atm",
-       "bank",
-       "bbq",
-       "cemetery",
-       "courthouse",
-       "drinking_water",
-       "fire_station",
-       "fountain",
-       "hairdresser",
-       "office",
-       "post",
-       "prison",
-       "recycling",
-       "shower",
-       "telephone",
-       "toilets",
-       "townhall",
-       "town_hall",
-       "american_football",
-       "athletics",
-       "archery",
-       "baseball",
-       "basketball",
-       "climbing",
-       "equestrian",
-       "fitness",
-       "fitness_centre",
-       "golf",
-       "motor",
-       "multi",
-       "playground",
-       "pitch",
-       "running",
-       "sauna",
-       "soccer",
-       "sport",
-       "stadium",
-       "sports_centre",
-       "sports_hall",
-       "swimming",
-       "swimming_area",
-       "swimming_pool",
-       "tennis",
-       "volleyball",
-       "water_park",
-       "college",
-       "childcare",
-       "dancing_school",
-       "driving_school",
-       "kindergarten",
-       "school",
-       "university",
-       "apartment",
-       "aquarium",
-       "attraction",
-       "campsite",
-       "camp_site",
-       "caravan_site",
-       "castle",
-       "chalet",
-       "guest_house",
-       "hotel",
-       "hostel",
-       "information",
-       "lodging",
-       "motel",
-       "reservoir",
-       "ruins",
-       "theme_park",
-       "zoo",
-       "art_gallery",
-       "archeological_site",
-       "cinema",
-       "community_centre",
-       "gallery",
-       "library",
-       "monastery",
-       "monument",
-       "museum",
-       "opera",
-       "place_of_worship",
-       "planetarium",
-       "theatre",
-       "alcohol_shop",
-       "bakery",
-       "book",
-       "books",
-       "butcher",
-       "chemist",
-       "clothing_store",
-       "convenience",
-       "gift",
-       "grocery",
-       "laundry",
-       "mall",
-       "music",
-       "shop",
-       "supermarket",
-       "bar",
-       "beer",
-       "biergarten",
-       "cafe",
-       "fast_food",
-       "food_court",
-       "ice_cream",
-       "pub",
-       "restaurant",
-       "bicycle",
-       "bicycle_parking",
-       "bicycle_rental",
-       "car",
-       "car_rental",
-       "car_repair",
-       "charging_station",
-       "ferry_terminal",
-       "fuel",
-       "harbor",
-       "heliport",
-       "highway_rest_area",
-       "motorcycle_parking",
-       "parking",
-       "parking_garage",
-       "parking_paid",
-       "scooter",
-       "terminal",
-       "toll",
-       "park",
-       "clinic",
-       "dentist",
-       "doctors",
-       "first_aid",
-       "hospital",
-       "pharmacy",
-       "veterinary",
-       "bus",
-       "railway"
-      ],
-      true,
-      false
+       "step",
+       [
+        "zoom"
+       ],
+       [
+        "<=",
+        [
+         "coalesce",
+         [
+          "to-number",
+          [
+           "get",
+           "rank"
+          ]
+         ],
+         999
+        ],
+        4
+       ],
+       15,
+       [
+        "<=",
+        [
+         "coalesce",
+         [
+          "to-number",
+          [
+           "get",
+           "rank"
+          ]
+         ],
+         999
+        ],
+        8
+       ],
+       16,
+       [
+        "<=",
+        [
+         "coalesce",
+         [
+          "to-number",
+          [
+           "get",
+           "rank"
+          ]
+         ],
+         999
+        ],
+        16
+       ],
+       17,
+       [
+        "<=",
+        [
+         "coalesce",
+         [
+          "to-number",
+          [
+           "get",
+           "rank"
+          ]
+         ],
+         999
+        ],
+        40
+       ],
+       18,
+       true
+      ]
      ]
     ]
    ],
@@ -4698,9 +4759,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -4712,13 +4773,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -5104,31 +5164,114 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
+     "all",
+     [
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "atm",
+       "bank",
+       "bbq",
+       "cemetery",
+       "courthouse",
+       "drinking_water",
+       "fire_station",
+       "fountain",
+       "hairdresser",
+       "office",
+       "post",
+       "prison",
+       "recycling",
+       "shower",
+       "telephone",
+       "toilets",
+       "townhall",
+       "town_hall"
+      ],
+      true,
+      false
+     ]
     ],
     [
-     "in",
-     "class",
-     "atm",
-     "bank",
-     "bbq",
-     "cemetery",
-     "courthouse",
-     "drinking_water",
-     "fire_station",
-     "fountain",
-     "hairdresser",
-     "office",
-     "post",
-     "prison",
-     "recycling",
-     "shower",
-     "telephone",
-     "toilets",
-     "townhall",
-     "town_hall"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -5251,9 +5394,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -5265,13 +5408,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -5615,44 +5757,127 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
+     "all",
+     [
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "american_football",
+       "athletics",
+       "archery",
+       "baseball",
+       "basketball",
+       "climbing",
+       "equestrian",
+       "fitness",
+       "fitness_centre",
+       "golf",
+       "motor",
+       "multi",
+       "playground",
+       "pitch",
+       "running",
+       "sauna",
+       "soccer",
+       "sport",
+       "stadium",
+       "sports_centre",
+       "sports_hall",
+       "swimming",
+       "swimming_area",
+       "swimming_pool",
+       "tennis",
+       "volleyball",
+       "water_park"
+      ],
+      true,
+      false
+     ],
+     [
+      "has",
+      "name"
+     ]
     ],
     [
-     "in",
-     "class",
-     "american_football",
-     "athletics",
-     "archery",
-     "baseball",
-     "basketball",
-     "climbing",
-     "equestrian",
-     "fitness",
-     "fitness_centre",
-     "golf",
-     "motor",
-     "multi",
-     "playground",
-     "pitch",
-     "running",
-     "sauna",
-     "soccer",
-     "sport",
-     "stadium",
-     "sports_centre",
-     "sports_hall",
-     "swimming",
-     "swimming_area",
-     "swimming_pool",
-     "tennis",
-     "volleyball",
-     "water_park"
-    ],
-    [
-     "has",
-     "name"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -5775,9 +6000,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -5789,13 +6014,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -6159,24 +6383,107 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
+     "all",
+     [
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "college",
+       "childcare",
+       "dancing_school",
+       "driving_school",
+       "kindergarten",
+       "school",
+       "university"
+      ],
+      true,
+      false
+     ],
+     [
+      "has",
+      "name"
+     ]
     ],
     [
-     "in",
-     "class",
-     "college",
-     "childcare",
-     "dancing_school",
-     "driving_school",
-     "kindergarten",
-     "school",
-     "university"
-    ],
-    [
-     "has",
-     "name"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -6299,9 +6606,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -6313,13 +6620,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -6687,40 +6993,126 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
+     "all",
+     [
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "apartment",
+       "aquarium",
+       "attraction",
+       "campsite",
+       "camp_site",
+       "caravan_site",
+       "castle",
+       "chalet",
+       "guest_house",
+       "hotel",
+       "hostel",
+       "information",
+       "lodging",
+       "motel",
+       "reservoir",
+       "ruins",
+       "theme_park",
+       "zoo"
+      ],
+      true,
+      false
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "board"
+     ],
+     [
+      "has",
+      "name"
+     ]
     ],
     [
-     "in",
-     "class",
-     "apartment",
-     "aquarium",
-     "attraction",
-     "campsite",
-     "camp_site",
-     "caravan_site",
-     "castle",
-     "chalet",
-     "guest_house",
-     "hotel",
-     "hostel",
-     "information",
-     "lodging",
-     "motel",
-     "reservoir",
-     "ruins",
-     "theme_park",
-     "zoo"
-    ],
-    [
-     "!=",
-     "subclass",
-     "board"
-    ],
-    [
-     "has",
-     "name"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -6843,9 +7235,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -6857,13 +7249,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -7267,35 +7658,121 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
+     "all",
+     [
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "art_gallery",
+       "archeological_site",
+       "cinema",
+       "community_centre",
+       "gallery",
+       "library",
+       "monastery",
+       "monument",
+       "museum",
+       "opera",
+       "place_of_worship",
+       "planetarium",
+       "theatre"
+      ],
+      true,
+      false
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "artwork"
+     ],
+     [
+      "has",
+      "name"
+     ]
     ],
     [
-     "in",
-     "class",
-     "art_gallery",
-     "archeological_site",
-     "cinema",
-     "community_centre",
-     "gallery",
-     "library",
-     "monastery",
-     "monument",
-     "museum",
-     "opera",
-     "place_of_worship",
-     "planetarium",
-     "theatre"
-    ],
-    [
-     "!=",
-     "subclass",
-     "artwork"
-    ],
-    [
-     "has",
-     "name"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -7418,9 +7895,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -7432,13 +7909,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -7834,35 +8310,118 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
-    ],
-    [
      "all",
      [
-      "in",
-      "class",
-      "alcohol_shop",
-      "bakery",
-      "book",
-      "books",
-      "butcher",
-      "chemist",
-      "clothing_store",
-      "convenience",
-      "gift",
-      "grocery",
-      "laundry",
-      "mall",
-      "music",
-      "shop",
-      "supermarket"
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
      ],
      [
-      "has",
-      "name"
+      "all",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "alcohol_shop",
+        "bakery",
+        "book",
+        "books",
+        "butcher",
+        "chemist",
+        "clothing_store",
+        "convenience",
+        "gift",
+        "grocery",
+        "laundry",
+        "mall",
+        "music",
+        "shop",
+        "supermarket"
+       ],
+       true,
+       false
+      ],
+      [
+       "has",
+       "name"
+      ]
      ]
+    ],
+    [
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -7986,9 +8545,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -8000,13 +8559,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -8400,26 +8958,109 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
+     "all",
+     [
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "bar",
+       "beer",
+       "biergarten",
+       "cafe",
+       "fast_food",
+       "food_court",
+       "ice_cream",
+       "pub",
+       "restaurant"
+      ],
+      true,
+      false
+     ],
+     [
+      "has",
+      "name"
+     ]
     ],
     [
-     "in",
-     "class",
-     "bar",
-     "beer",
-     "biergarten",
-     "cafe",
-     "fast_food",
-     "food_court",
-     "ice_cream",
-     "pub",
-     "restaurant"
-    ],
-    [
-     "has",
-     "name"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -8542,9 +9183,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -8556,13 +9197,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -9000,32 +9640,115 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
+     "all",
+     [
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "bicycle",
+       "bicycle_parking",
+       "bicycle_rental",
+       "car",
+       "car_rental",
+       "car_repair",
+       "charging_station",
+       "ferry_terminal",
+       "fuel",
+       "harbor",
+       "heliport",
+       "highway_rest_area",
+       "motorcycle_parking",
+       "parking",
+       "parking_garage",
+       "parking_paid",
+       "scooter",
+       "terminal",
+       "toll"
+      ],
+      true,
+      false
+     ]
     ],
     [
-     "in",
-     "class",
-     "bicycle",
-     "bicycle_parking",
-     "bicycle_rental",
-     "car",
-     "car_rental",
-     "car_repair",
-     "charging_station",
-     "ferry_terminal",
-     "fuel",
-     "harbor",
-     "heliport",
-     "highway_rest_area",
-     "motorcycle_parking",
-     "parking",
-     "parking_garage",
-     "parking_paid",
-     "scooter",
-     "terminal",
-     "toll"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -9150,13 +9873,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -9183,9 +9905,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ]
    },
    "paint": {
@@ -9535,13 +10257,90 @@
    "filter": [
     "all",
     [
-     "==",
-     "class",
-     "park"
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "park"
+     ],
+     [
+      "has",
+      "name"
+     ]
     ],
     [
-     "has",
-     "name"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -9664,9 +10463,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -9678,13 +10477,12 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -10048,24 +10846,107 @@
    "filter": [
     "all",
     [
-     "==",
-     "$type",
-     "Point"
+     "all",
+     [
+      "==",
+      [
+       "geometry-type"
+      ],
+      "Point"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "clinic",
+       "dentist",
+       "doctors",
+       "first_aid",
+       "hospital",
+       "pharmacy",
+       "veterinary"
+      ],
+      true,
+      false
+     ],
+     [
+      "has",
+      "name"
+     ]
     ],
     [
-     "in",
-     "class",
-     "clinic",
-     "dentist",
-     "doctors",
-     "first_aid",
-     "hospital",
-     "pharmacy",
-     "veterinary"
-    ],
-    [
-     "has",
-     "name"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -10086,8 +10967,7 @@
     "text-anchor": "center",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-letter-spacing": [
      "match",
@@ -10366,9 +11246,9 @@
       "zoom"
      ],
      14,
-     1,
+     1.35,
      17,
-     1.3
+     1.7
     ],
     "symbol-sort-key": [
      "to-number",
@@ -10380,14 +11260,13 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Medium",
-     "Noto Sans Regular"
+     "Roboto Medium"
     ],
     "text-line-height": 0.9,
     "text-max-width": 8,
     "text-offset": [
      0,
-     1
+     1.1
     ],
     "text-optional": true,
     "text-padding": [
@@ -10785,14 +11664,95 @@
    "filter": [
     "all",
     [
-     "in",
-     "class",
-     "bus",
-     "railway"
+     "all",
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "bus",
+       "railway"
+      ],
+      true,
+      false
+     ],
+     [
+      "has",
+      "name"
+     ]
     ],
     [
-     "has",
-     "name"
+     "step",
+     [
+      "zoom"
+     ],
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      4
+     ],
+     15,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      8
+     ],
+     16,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      16
+     ],
+     17,
+     [
+      "<=",
+      [
+       "coalesce",
+       [
+        "to-number",
+        [
+         "get",
+         "rank"
+        ]
+       ],
+       999
+      ],
+      40
+     ],
+     18,
+     true
     ]
    ]
   },
@@ -10805,8 +11765,7 @@
    "layout": {
     "text-field": "{ref}",
     "text-font": [
-     "Roboto Medium",
-     "Noto Sans Regular"
+     "Roboto Medium"
     ],
     "text-size": {
      "stops": [
@@ -10902,8 +11861,7 @@
      ]
     },
     "text-font": [
-     "Roboto Medium",
-     "Noto Sans Regular"
+     "Roboto Medium"
     ],
     "text-line-height": 1.2,
     "text-max-width": 9,
@@ -11051,8 +12009,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Medium",
-     "Noto Sans Regular"
+     "Roboto Medium"
     ],
     "text-letter-spacing": 0.1,
     "text-max-width": 8,
@@ -11187,8 +12144,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Regular",
-     "Noto Sans Regular"
+     "Roboto Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -11306,8 +12262,7 @@
     "text-anchor": "bottom",
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Medium",
-     "Noto Sans Regular"
+     "Roboto Medium"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -11451,8 +12406,7 @@
     "text-anchor": "bottom",
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Medium",
-     "Noto Sans Regular"
+     "Roboto Medium"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -11521,8 +12475,7 @@
     "text-allow-overlap": false,
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Medium",
-     "Noto Sans Regular"
+     "Roboto Medium"
     ],
     "text-letter-spacing": 0.07,
     "text-max-width": {
@@ -11668,8 +12621,7 @@
    "layout": {
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Medium",
-     "Noto Sans Regular"
+     "Roboto Medium"
     ],
     "text-justify": "center",
     "text-size": {

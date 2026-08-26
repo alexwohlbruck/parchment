@@ -119,8 +119,9 @@ const BUILDING_FULL_PITCH = 10
 /** Height scale is snapped to this, to cut the number of re-evaluations. */
 const BUILDING_SCALE_STEP = 0.2
 
-/** The layer's own height, before the pitch ramp scales it. */
+/** The layer's own height and base, before the pitch ramp scales them. */
 const BUILDING_HEIGHT = ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0]
+const BUILDING_BASE = ['coalesce', ['get', BUILDING_MIN_HEIGHT_PROPERTY], 0]
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
@@ -505,7 +506,6 @@ export class MaplibreStrategy extends MapStrategy {
 
   setMap3dObjects(value: boolean) {
     const buildingLayerId = layerGroups.building3d
-    const buildingMinHeightProperty = BUILDING_MIN_HEIGHT_PROPERTY
     if (!this.mapInstance.getLayer(buildingLayerId)) return
 
     if (value) {
@@ -513,11 +513,6 @@ export class MaplibreStrategy extends MapStrategy {
       // while the map is flat should leave the buildings flat, not stand a
       // city up under a top-down camera. The remembered scale is cleared so
       // the update cannot be mistaken for a repeat and skipped.
-      this.mapInstance.setPaintProperty(
-        buildingLayerId,
-        'fill-extrusion-base',
-        ['coalesce', ['get', buildingMinHeightProperty], 0],
-      )
       this.lastHeightScale = undefined
       this.updateBuildingHeights()
     } else {
@@ -700,11 +695,20 @@ export class MaplibreStrategy extends MapStrategy {
     if (!useMapStore().settings.objects3d) return
 
     this.lastHeightScale = k
-    this.mapInstance.setPaintProperty(
-      id,
-      'fill-extrusion-height',
-      k === 1 ? BUILDING_HEIGHT : ['*', BUILDING_HEIGHT, k],
-    )
+    // Base scales with height, or the two come apart. A tall building is not
+    // one box: it is a stack of parts, and the upper ones sit on a non-zero
+    // `render_min_height`. Scaling only the height leaves those parts floating
+    // at their original base while the rest sink, and once the scaled height
+    // drops below the base the extrusion turns inside out — the offset shells
+    // and torn roofs over places like Brookfield Place.
+    //
+    // Flat is written as a plain `0` rather than a scaled expression: a
+    // constant needs no per-feature evaluation at all, which makes the last
+    // step of the ramp the cheapest one instead of the most expensive.
+    const height = k === 0 ? 0 : k === 1 ? BUILDING_HEIGHT : ['*', BUILDING_HEIGHT, k]
+    const base = k === 0 ? 0 : k === 1 ? BUILDING_BASE : ['*', BUILDING_BASE, k]
+    this.mapInstance.setPaintProperty(id, 'fill-extrusion-height', height)
+    this.mapInstance.setPaintProperty(id, 'fill-extrusion-base', base)
   }
 
   private defaultFov?: number

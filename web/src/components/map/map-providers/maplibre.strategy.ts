@@ -112,6 +112,9 @@ const TOP_DOWN_EPSILON = 0.001
 /** Narrow enough to be indistinguishable from a true orthographic camera. */
 const ORTHO_FOV = 0.5
 
+/** How long the buildings take to sink or rise around the camera switch. */
+const BUILDING_COLLAPSE_MS = 260
+
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
@@ -619,12 +622,98 @@ export class MaplibreStrategy extends MapStrategy {
     const topDown = Math.abs(this.mapInstance.getPitch()) < TOP_DOWN_EPSILON
     const wanted = topDown ? ORTHO_FOV : this.defaultFov
     // `pitch` fires continuously through a gesture; setting the field of view
-    // recomputes every matrix, so only touch it when the answer changes.
+    // recomputes every matrix, so only touch it when the answer changes. The
+    // second test covers the window where the collapse is still running and
+    // the new field of view has not been applied yet — without it every frame
+    // of a pitch gesture would cancel and restart the collapse, so it would
+    // never reach the end and never make the switch.
     if (Math.abs(transform.fov - wanted) < 0.001) return
-    transform.fov = wanted
+    if (this.pendingFov === wanted) return
+    this.pendingFov = wanted
+
+    // Swapping the field of view makes every building wall appear or vanish
+    // between one frame and the next. Collapsing the buildings first turns
+    // that into the buildings sinking, and the swap happens while they are
+    // flat — where it cannot be seen. Heights are meaningless under the
+    // orthographic camera anyway: looking straight down with no perspective,
+    // a roof projects exactly onto its own footprint.
+    if (topDown) {
+      this.animateBuildingHeights(1, 0, () => {
+        transform.fov = wanted
+        this.setBuildingHeightScale(1)
+        this.pendingFov = undefined
+      })
+    } else {
+      this.setBuildingHeightScale(0)
+      transform.fov = wanted
+      this.pendingFov = undefined
+      this.animateBuildingHeights(0, 1)
+    }
+  }
+
+  /** The layer's own height expression, scaled by `k`. */
+  private setBuildingHeightScale(k: number) {
+    const id = layerGroups.building3d
+    if (!this.mapInstance.getLayer(id)) return
+    this.mapInstance.setPaintProperty(
+      id,
+      'fill-extrusion-height',
+      k === 1
+        ? ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0]
+        : ['*', ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0], k],
+    )
+  }
+
+  /**
+   * Tween the buildings between full height and flat.
+   *
+   * Driven frame by frame rather than by a paint transition: MapLibre snaps
+   * rather than interpolates when a data-driven property is retargeted, so
+   * `fill-extrusion-height-transition` does nothing here. Re-setting the
+   * expression each frame re-evaluates it across every visible feature, which
+   * is why this is kept short.
+   *
+   * Skipped entirely when 3D buildings are switched off — they are already
+   * flat, and there is nothing to hide.
+   */
+  private animateBuildingHeights(from: number, to: number, done?: () => void) {
+    this.buildingTween?.()
+    const id = layerGroups.building3d
+    const off =
+      !this.mapInstance.getLayer(id) ||
+      this.mapInstance.getPaintProperty(id, 'fill-extrusion-height') === 0
+    if (off) {
+      done?.()
+      return
+    }
+
+    const start = performance.now()
+    let frame = 0
+    let cancelled = false
+    this.buildingTween = () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+    }
+
+    const step = () => {
+      if (cancelled) return
+      const t = Math.min(1, (performance.now() - start) / BUILDING_COLLAPSE_MS)
+      // Ease out, so the buildings settle rather than stopping dead.
+      this.setBuildingHeightScale(from + (to - from) * (1 - (1 - t) ** 3))
+      if (t < 1) frame = requestAnimationFrame(step)
+      else {
+        this.buildingTween = undefined
+        done?.()
+      }
+    }
+    step()
   }
 
   private defaultFov?: number
+  /** Cancels the in-flight building tween, if there is one. */
+  private buildingTween?: () => void
+  /** The field of view a running collapse is on its way to applying. */
+  private pendingFov?: number
 
   private reloadStyle() {
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })

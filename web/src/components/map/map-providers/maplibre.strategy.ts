@@ -116,6 +116,9 @@ const ORTHO_FOV = 0.5
 const BUILDING_FLAT_PITCH = 1
 const BUILDING_FULL_PITCH = 10
 
+/** Height scale is snapped to this, to cut the number of re-evaluations. */
+const BUILDING_SCALE_STEP = 0.2
+
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
@@ -213,7 +216,7 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('pitch', () => {
-      this.updateBuildingHeights()
+      this.scheduleBuildingHeights()
       this.updateCameraProjection()
     })
     // Style load fires on the initial style load AND on every subsequent
@@ -227,6 +230,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       this.setupPoiHandlers()
       this.lastHeightPitch = undefined
+      this.lastHeightScale = undefined
       this.updateBuildingHeights()
       this.updateCameraProjection()
       mapEventBus.emit('style.load', this.mapInstance)
@@ -513,6 +517,7 @@ export class MaplibreStrategy extends MapStrategy {
         ['coalesce', ['get', buildingMinHeightProperty], 0],
       )
       this.lastHeightPitch = undefined
+      this.lastHeightScale = undefined
       this.updateBuildingHeights()
     } else {
       this.mapInstance.setPaintProperty(
@@ -647,7 +652,27 @@ export class MaplibreStrategy extends MapStrategy {
   private buildingHeightScale(pitch: number): number {
     if (pitch < BUILDING_FLAT_PITCH) return 0
     if (pitch > BUILDING_FULL_PITCH) return 1
-    return pitch / BUILDING_FULL_PITCH
+    // Quantised, because each distinct value costs a re-evaluation of the
+    // height across every feature in every loaded tile. Five steps up the ramp
+    // is as smooth as the eye needs and a third of the work of a continuous
+    // one.
+    return Math.round((pitch / BUILDING_FULL_PITCH) / BUILDING_SCALE_STEP) * BUILDING_SCALE_STEP
+  }
+
+  /**
+   * Coalesce height updates to at most one per frame.
+   *
+   * `pitch` can fire more than once between paints, and each rescale is only
+   * paid for at the next render — so firing straight from the handler queues
+   * work that is thrown away. Latching to a frame is what the game gets for
+   * free by routing the value through React state, which batches it.
+   */
+  private scheduleBuildingHeights() {
+    if (this.heightFrame !== undefined) return
+    this.heightFrame = requestAnimationFrame(() => {
+      this.heightFrame = undefined
+      this.updateBuildingHeights()
+    })
   }
 
   /**
@@ -663,6 +688,8 @@ export class MaplibreStrategy extends MapStrategy {
   private updateBuildingHeights() {
     const id = layerGroups.building3d
     if (!this.mapInstance.getLayer(id)) return
+    // Nothing to rescale where the layer does not draw.
+    if (this.mapInstance.getZoom() < (this.mapInstance.getLayer(id) as any).minzoom) return
     // 3D buildings switched off pins the height flat; leave it alone.
     if (!useMapStore().settings.objects3d) return
 
@@ -679,6 +706,8 @@ export class MaplibreStrategy extends MapStrategy {
     this.lastHeightPitch = pitch
 
     const k = this.buildingHeightScale(pitch)
+    if (k === this.lastHeightScale) return
+    this.lastHeightScale = k
     const height = ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0]
     this.mapInstance.setPaintProperty(
       id,
@@ -690,6 +719,9 @@ export class MaplibreStrategy extends MapStrategy {
   private defaultFov?: number
   /** Pitch the building heights were last scaled for; drives the throttle. */
   private lastHeightPitch?: number
+  /** Last scale actually applied, so a repeat step costs nothing. */
+  private lastHeightScale?: number
+  private heightFrame?: number
 
   private reloadStyle() {
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })

@@ -1,0 +1,363 @@
+#!/usr/bin/env node
+/**
+ * Converts the vendored MapTiler Streets v2 style into Parchment's basemap
+ * spec: the same layers, filters, zoom ramps and draw order, with every
+ * colour literal lifted out into a named token.
+ *
+ * The point of the token lift is that light and dark then share ONE layer
+ * spec. The previous dark map was the light one run through a colour
+ * transform at runtime, which is why it collapsed into a single flat hue.
+ *
+ * Four things cannot carry over as-is:
+ *
+ *   sources     `maptiler_planet` becomes our `openmaptiles`. The four
+ *               `globallandcover` layers are dropped — that is a MapTiler
+ *               extension our OpenMapTiles tiles do not carry, and a layer
+ *               pointed at a missing source-layer draws nothing anyway.
+ *
+ *   fonts       kept verbatim. `build-glyphs.mjs` generates the exact
+ *               composite stacks the style names.
+ *
+ *   POI icons   MapTiler splits POIs into 11 families, each a flat colour
+ *               from their palette. Parchment already assigns every place a
+ *               category and colour (server `place-categories.ts`, surfaced
+ *               through the category palette) and draws search results with
+ *               it. Basemap POIs use that same mapping so a café on the map
+ *               and the same café in search results are the same colour.
+ *
+ *   shields     Their sprite carries per-width shield images we do not have.
+ *               `build-sprite.mjs` generates equivalents.
+ *
+ * Output (committed):
+ *   src/lib/map-style/spec.json          layers, colours as "@token"
+ *   src/lib/map-style/tokens.light.json  token -> colour
+ *
+ * Run with: bun run build:style
+ */
+import { readFile, writeFile } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const WEB = resolve(HERE, '..')
+const SRC = resolve(WEB, 'scripts/vendor/maptiler-streets-v2.json')
+const SRC_DARK = resolve(WEB, 'scripts/vendor/maptiler-streets-v2-dark.json')
+const OUT_SPEC = resolve(WEB, 'src/lib/map-style/spec.json')
+const OUT_TOKENS = resolve(WEB, 'src/lib/map-style/tokens.light.json')
+const OUT_TOKENS_DARK = resolve(WEB, 'src/lib/map-style/tokens.dark.json')
+
+const SOURCE = 'openmaptiles'
+
+/** Source-layers our OpenMapTiles basemap.pmtiles actually carries. */
+const AVAILABLE = new Set([
+  'aerodrome_label', 'aeroway', 'boundary', 'building', 'housenumber',
+  'landcover', 'landuse', 'mountain_peak', 'park', 'place', 'poi',
+  'transportation', 'transportation_name', 'water', 'water_name', 'waterway',
+])
+
+/**
+ * OpenMapTiles `poi.class` → Parchment place category.
+ *
+ * Mirrors the preset rules in `server/src/lib/place-categories.ts`, including
+ * its ordering quirks: bicycle infrastructure counts as sport before the
+ * general shop rule, and lodging / transport both land in commercial_services
+ * rather than getting categories of their own.
+ */
+const POI_CATEGORY = {
+  food_and_drink: ['restaurant', 'cafe', 'bar', 'beer', 'fast_food', 'food_court', 'ice_cream', 'biergarten', 'pub', 'bakery'],
+  education: ['school', 'university', 'college', 'library', 'kindergarten', 'childcare', 'driving_school', 'dancing_school'],
+  medical: ['hospital', 'pharmacy', 'clinic', 'doctors', 'doctor', 'dentist', 'veterinary', 'first_aid'],
+  sport_and_leisure: ['bicycle', 'bicycle_parking', 'swimming', 'pitch', 'golf', 'stadium', 'playground', 'sport'],
+  store: ['shop', 'grocery', 'clothing_store', 'alcohol_shop', 'jewelry_store', 'furniture', 'florist', 'shoe', 'hairdresser', 'laundry', 'books', 'marketplace'],
+  park: ['park', 'garden', 'picnic_site', 'dog_park'],
+  commercial_services: [
+    'railway', 'bus', 'aerialway', 'harbor', 'airport', 'subway', 'tram_stop',
+    'ferry_terminal', 'station', 'bus_stop', 'bus_station',
+    'office', 'bank', 'atm', 'car', 'car_rental', 'car_repair', 'fuel',
+    'charging_station', 'parking', 'parking_garage', 'parking_paid', 'toilets',
+    'shower', 'lodging', 'hotel', 'motel', 'hostel', 'guest_house', 'apartment',
+    'chalet', 'campsite', 'camp_site', 'caravan_site', 'information', 'post',
+  ],
+  arts_and_entertainment: [
+    'art_gallery', 'museum', 'theatre', 'cinema', 'attraction', 'castle',
+    'monument', 'ruins', 'theme_park', 'aquarium', 'music', 'nightclub',
+    'community_centre', 'zoo',
+  ],
+}
+
+/** Icon names the sprite carries for a POI subclass; see build-sprite.mjs. */
+const ICON_SUBCLASSES = [
+  'artwork', 'bakery', 'bed', 'bicycle_parking', 'books', 'bus_station',
+  'bus_stop', 'butcher', 'camp_site', 'car_repair', 'christian', 'cinema',
+  'clinic', 'clothes', 'coffee', 'community_centre', 'convenience', 'deli',
+  'department_store', 'doctors', 'doityourself', 'dry_cleaning', 'financial',
+  'florist', 'food_court', 'furniture', 'garden_centre', 'golf_course',
+  'guest_house', 'hairdresser', 'hostel', 'hotel', 'interior_decoration',
+  'jewelry', 'kindergarten', 'marketplace', 'miniature_golf', 'mobile_phone',
+  'motel', 'museum', 'nightclub', 'optician', 'pet', 'pharmacy', 'post_box',
+  'post_office', 'pub', 'shoes', 'sports_centre', 'station', 'subway',
+  'supermarket', 'swimming_pool', 'theatre', 'toilets', 'tram_stop',
+  'university', 'veterinary', 'viewpoint', 'water_park', 'wine',
+]
+
+/**
+ * Resolve a POI icon: prefer the subclass when the sprite has one, else the
+ * class, else a dot. `match` returns its default for a null input, so a POI
+ * carrying neither property still resolves rather than erroring.
+ *
+ * Gated on an explicit list rather than attempting the lookup: `coalesce`
+ * around a missing image still draws, but logs a warning per feature per
+ * tile, which buried the console on the first render.
+ */
+const POI_ICON = [
+  'coalesce',
+  ['image', ['match', ['get', 'subclass'], ICON_SUBCLASSES, ['get', 'subclass'], ['coalesce', ['get', 'class'], 'dot']]],
+  ['image', ['coalesce', ['get', 'class'], 'dot']],
+  ['image', 'dot'],
+]
+
+/**
+ * Hand corrections where MapTiler's dark style has no counterpart to read.
+ * Their dark Oneway layer drops `icon-color` entirely and leans on its own
+ * sprite art, which would otherwise leave a light-grey arrow on a dark road.
+ */
+const DARK_OVERRIDES = {
+  oneway_icon_color: 'hsl(0, 0%, 42%)',
+  shield_fill: 'hsl(0, 0%, 100%)',
+  shield_fill_2: 'hsl(0, 0%, 24%)',
+}
+
+/**
+ * Route shields. MapTiler's sprite carries per-network shield art (US
+ * interstate, US highway, …) that we have no equivalent for, so every shield
+ * layer falls back to the generic `road_{ref_length}` rectangle the sprite
+ * builder generates, tinted per flavor. The two interstate-specific overlay
+ * layers are dropped — without their art they would only double-draw.
+ */
+const SHIELD_LAYERS = new Set([
+  'Highway shield', 'Highway shield (US)', 'Highway junction',
+])
+const DROP_LAYERS = new Set([
+  'Highway shield interstate top (US)', 'Highway shield interstate (US)',
+])
+
+/** Tint a POI by Parchment's category palette rather than MapTiler's families. */
+function poiColorExpression() {
+  const branches = []
+  for (const [category, classes] of Object.entries(POI_CATEGORY)) {
+    branches.push(classes, `@poi_${category}`)
+  }
+  return ['match', ['get', 'class'], ...branches, '@poi_default']
+}
+
+// ---------------------------------------------------------------------------
+// Colour tokens
+// ---------------------------------------------------------------------------
+
+const COLOR_RE = /^(#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\()/
+
+function isColor(v) {
+  return typeof v === 'string' && COLOR_RE.test(v.trim())
+}
+
+function slug(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+class Tokens {
+  constructor() {
+    this.byColor = new Map()
+    this.light = {}
+    this.dark = {}
+    this.unmatched = []
+  }
+  /**
+   * Reuse a token whenever the light style repeats a colour, so the two
+   * flavors stay small enough to reason about. The dark value is read from
+   * the same position in MapTiler's own Streets Dark, whose layer sequence is
+   * identical — so dark is their cartography too, not a transform of light.
+   */
+  ref(color, darkColor, hint) {
+    const key = color.trim()
+    if (this.byColor.has(key)) return `@${this.byColor.get(key)}`
+    let name = hint
+    let n = 2
+    while (name in this.light) name = `${hint}_${n++}`
+    this.byColor.set(key, name)
+    this.light[name] = key
+    if (isColor(darkColor)) {
+      this.dark[name] = darkColor.trim()
+    } else {
+      // No colour at the matching position — dark keeps the light value and
+      // gets reported, so a silent light-on-dark patch cannot slip through.
+      this.dark[name] = key
+      this.unmatched.push(name)
+    }
+    return `@${name}`
+  }
+}
+
+/** Every colour literal inside a value, in document order. */
+function colorsIn(value, out = []) {
+  if (isColor(value)) out.push(value.trim())
+  else if (Array.isArray(value)) value.forEach(v => colorsIn(v, out))
+  else if (value && typeof value === 'object') Object.values(value).forEach(v => colorsIn(v, out))
+  return out
+}
+
+/**
+ * Tokenize one paint/layout property, pairing its colours with the dark
+ * style's by position within the same property rather than by JSON path.
+ *
+ * Path matching does not survive the two styles expressing the same ramp
+ * differently — light writes `{stops: [[6, a], [14, b]]}` where dark writes
+ * `["interpolate", ["exponential", 1], ["zoom"], 6, a, 14, b]`. Both still
+ * hold two colours in the same order, so ordinal pairing lines them up.
+ */
+function tokenizeProperty(value, darkValue, tokens, hint, fallbackDark) {
+  const darkColors = colorsIn(darkValue)
+  let i = 0
+  const walk = v => {
+    if (isColor(v)) {
+      // Ran past the end (dark expresses fewer stops) — reuse its last colour
+      // rather than leaving a light value on a dark map.
+      const dark = darkColors[i] ?? darkColors[darkColors.length - 1] ?? fallbackDark
+      i++
+      return tokens.ref(v, dark, hint)
+    }
+    if (Array.isArray(v)) return v.map(walk)
+    if (v && typeof v === 'object') {
+      const out = {}
+      for (const [k, x] of Object.entries(v)) out[k] = walk(x)
+      return out
+    }
+    return v
+  }
+  return walk(value)
+}
+
+/** Tokenize a whole paint or layout block, property by property. */
+function tokenizeSection(section, darkSection, tokens, hint) {
+  if (!section) return section
+  // When dark drops a property entirely — it has no `Oneway` icon-color, no
+  // `Building` outline — anything coloured in that layer is a better guess
+  // than the light value.
+  const fallbackDark = colorsIn(darkSection)[0]
+  const out = {}
+  for (const [prop, value] of Object.entries(section)) {
+    out[prop] = tokenizeProperty(value, darkSection?.[prop], tokens, `${hint}_${slug(prop)}`, fallbackDark)
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+
+async function main() {
+  const style = JSON.parse(await readFile(SRC, 'utf8'))
+  const darkStyle = JSON.parse(await readFile(SRC_DARK, 'utf8'))
+  const darkById = new Map(darkStyle.layers.map(l => [l.id, l]))
+  const tokens = new Tokens()
+  const layers = []
+  const dropped = []
+
+  for (const layer of style.layers) {
+    const sl = layer['source-layer']
+    const dark = darkById.get(layer.id)
+
+    if (layer.source === 'maptiler_attribution') {
+      dropped.push([layer.id, 'attribution source'])
+      continue
+    }
+    if (sl && !AVAILABLE.has(sl)) {
+      dropped.push([layer.id, `source-layer "${sl}" not in our tiles`])
+      continue
+    }
+    if (DROP_LAYERS.has(layer.id)) {
+      dropped.push([layer.id, 'network-specific shield art we do not have'])
+      continue
+    }
+
+    const out = { ...layer }
+    if (out.source) out.source = SOURCE
+    delete out.metadata
+
+    const hint = slug(layer.id)
+    // Layer-wide fallback so a dark layer that colours nothing at all still
+    // yields something darker than the light value.
+    const layerDark = colorsIn(dark?.paint)[0] ?? colorsIn(dark?.layout)[0]
+    if (out.paint) out.paint = tokenizeSection(out.paint, dark?.paint ?? { _: layerDark }, tokens, hint)
+    if (out.layout) out.layout = tokenizeSection(out.layout, dark?.layout ?? { _: layerDark }, tokens, hint)
+
+    // POI icon + tint come from Parchment's own category system. The label
+    // takes the same colour as the icon, which is how MapTiler letters theirs
+    // — only keyed to our categories rather than their families.
+    if (sl === 'poi' && out.type === 'symbol') {
+      const tint = poiColorExpression()
+      out.layout = { ...out.layout, 'icon-image': POI_ICON }
+      out.paint = { ...out.paint, 'icon-color': tint, 'text-color': tint }
+    }
+
+    // Every shield falls back to the generic rectangle, tinted per flavor.
+    if (SHIELD_LAYERS.has(layer.id)) {
+      const prefix = layer.id === 'Highway junction' ? 'exit' : 'road'
+      out.layout = {
+        ...out.layout,
+        'icon-image': ['concat', prefix, '_', ['to-string', ['get', 'ref_length']]],
+      }
+      out.paint = { ...out.paint, 'icon-color': '@shield_fill' }
+    }
+
+    layers.push(out)
+  }
+
+  // Rewriting the POI layers strands MapTiler's 11 family colours, which
+  // nothing references any more. Drop them so the dark flavor only has to
+  // answer for tokens the map actually draws with.
+  const used = new Set()
+  const collect = v => {
+    if (typeof v === 'string' && v.startsWith('@')) used.add(v.slice(1))
+    else if (Array.isArray(v)) v.forEach(collect)
+    else if (v && typeof v === 'object') Object.values(v).forEach(collect)
+  }
+  layers.forEach(collect)
+  const orphaned = Object.keys(tokens.light).filter(t => !used.has(t))
+  for (const t of orphaned) {
+    delete tokens.light[t]
+    delete tokens.dark[t]
+  }
+
+  // Shield fill is ours, not MapTiler's — their shields are sprite art.
+  tokens.light.shield_fill = 'hsl(0, 0%, 100%)'
+  tokens.dark.shield_fill = DARK_OVERRIDES.shield_fill_2
+
+  for (const [name, color] of Object.entries(DARK_OVERRIDES)) {
+    if (name in tokens.dark && !name.startsWith('shield_')) tokens.dark[name] = color
+  }
+
+  // Category palette tokens, resolved at runtime from the app's own palette
+  // so basemap POIs match the colours search results already use.
+  for (const category of [...Object.keys(POI_CATEGORY), 'default']) {
+    tokens.light[`poi_${category}`] = `@@category:${category}`
+    tokens.dark[`poi_${category}`] = `@@category:${category}`
+  }
+
+  await writeFile(OUT_SPEC, `${JSON.stringify({ layers }, null, 1)}\n`)
+  await writeFile(OUT_TOKENS, `${JSON.stringify(tokens.light, null, 1)}\n`)
+  await writeFile(OUT_TOKENS_DARK, `${JSON.stringify(tokens.dark, null, 1)}\n`)
+
+  console.log(`layers: ${layers.length} kept, ${dropped.length} dropped`)
+  for (const [id, why] of dropped) console.log(`   drop ${id} — ${why}`)
+  console.log(`colour tokens: ${Object.keys(tokens.light).length - 9} + 9 category`)
+  const stillUnmatched = tokens.unmatched.filter(t => !orphaned.includes(t))
+  if (stillUnmatched.length)
+    console.log(`no dark counterpart (kept light): ${stillUnmatched.join(', ')}`)
+  if (orphaned.length) console.log(`pruned unused: ${orphaned.join(", ")}`)
+}
+
+main().catch(err => {
+  console.error(err)
+  process.exit(1)
+})

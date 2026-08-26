@@ -128,9 +128,13 @@ describe('flavors', () => {
    * are saturated and mid-dark, dark-flavor ones are pale — so the ink
    * inverts too.
    */
-  test('badge ink inverts between flavors', () => {
+  test('badge ink is white in both flavors', () => {
+    // The disc carries the category colour, so the glyph knocked out of it is
+    // always white — the same rule `map-icon-images.ts` states for the
+    // saved-place and search-result glyphs. Inverting it per theme put
+    // near-black glyphs on dark badges.
     expect(light.poi_ink).toBe('#FFFFFF')
-    expect(dark.poi_ink).not.toBe(light.poi_ink)
+    expect(dark.poi_ink).toBe('#FFFFFF')
   })
 })
 
@@ -338,11 +342,24 @@ describe('assets the spec depends on', () => {
    * subclass and every OpenMapTiles class has to resolve, or the icon falls
    * through to a generic dot while still rendering — invisible by eye.
    */
+  /**
+   * There is no fallback image: a POI with no glyph shows its bare badge. A
+   * `dot` fallback stamped a filled circle over the disc and turned it black.
+   */
+  test('an unmapped POI falls through to no image, not a filled circle', () => {
+    const poi = layers.find(l => l['source-layer'] === 'poi' && l.layout?.['icon-image'])
+    const json = JSON.stringify(poi.layout['icon-image'])
+    expect(json).not.toContain('"dot"')
+    expect(json).toContain('""')
+  })
+
   test('every gated POI icon name resolves', () => {
     const poi = layers.find(l => l['source-layer'] === 'poi' && l.layout?.['icon-image'])
     expect(poi).toBeTruthy()
     const names = collectStrings(poi.layout['icon-image']).filter(
-      s => !['coalesce', 'image', 'match', 'get', 'subclass', 'class', 'dot'].includes(s),
+      s =>
+        s !== '' &&
+        !['coalesce', 'image', 'match', 'get', 'subclass', 'class'].includes(s),
     )
     expect(names.length).toBeGreaterThan(40)
     expect(names.filter(n => !(n in sprite))).toEqual([])

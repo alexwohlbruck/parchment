@@ -101,9 +101,12 @@ const ICON_SUBCLASSES = [
 ]
 
 /**
- * Resolve a POI icon: prefer the subclass when the sprite has one, else the
- * class, else a dot. `match` returns its default for a null input, so a POI
- * carrying neither property still resolves rather than erroring.
+ * Resolve a POI icon: the subclass when the sprite has one, else the class.
+ *
+ * There is deliberately no fallback image. A POI we have no glyph for shows
+ * its bare coloured badge, which reads correctly; falling back to the `dot`
+ * image stamped a filled circle on top of the badge and turned it into a
+ * black disc.
  *
  * Gated on an explicit list rather than attempting the lookup: `coalesce`
  * around a missing image still draws, but logs a warning per feature per
@@ -111,9 +114,8 @@ const ICON_SUBCLASSES = [
  */
 const POI_ICON = [
   'coalesce',
-  ['image', ['match', ['get', 'subclass'], ICON_SUBCLASSES, ['get', 'subclass'], ['coalesce', ['get', 'class'], 'dot']]],
-  ['image', ['coalesce', ['get', 'class'], 'dot']],
-  ['image', 'dot'],
+  ['image', ['match', ['get', 'subclass'], ICON_SUBCLASSES, ['get', 'subclass'], ['coalesce', ['get', 'class'], '']]],
+  ['image', ['coalesce', ['get', 'class'], '']],
 ]
 
 /**
@@ -579,11 +581,13 @@ async function main() {
   tokens.light.poi_halo = '#FFFFFF'
   tokens.dark.poi_halo = '#0D0D0D'
 
-  // Glyph ink, knocked out of the badge. Light-flavor category colours are
-  // saturated and mid-dark, so white reads; the dark flavor's are pale, so
-  // they take dark ink — which is what Mapbox's night map does.
+  // Glyph ink. White in BOTH flavors, because the glyph is knocked out of a
+  // category-coloured disc — exactly how `map-icon-images.ts` registers the
+  // saved-place and search-result glyphs: "always white on a colored circle,
+  // so there is nothing to tint". Inverting it per theme put near-black
+  // glyphs on dark badges.
   tokens.light.poi_ink = '#FFFFFF'
-  tokens.dark.poi_ink = '#1A1D21'
+  tokens.dark.poi_ink = '#FFFFFF'
 
   // Shield fill is ours, not MapTiler's — their shields are sprite art.
   tokens.light.shield_fill = 'hsl(0, 0%, 100%)'

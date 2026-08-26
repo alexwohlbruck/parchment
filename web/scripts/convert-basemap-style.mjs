@@ -594,13 +594,12 @@ async function main() {
   tokens.light.poi_halo = '#FFFFFF'
   tokens.dark.poi_halo = '#0D0D0D'
 
-  // Glyph ink. White in BOTH flavors, because the glyph is knocked out of a
-  // category-coloured disc — exactly how `map-icon-images.ts` registers the
-  // saved-place and search-result glyphs: "always white on a colored circle,
-  // so there is nothing to tint". Inverting it per theme put near-black
-  // glyphs on dark badges.
+  // Glyph ink — the surface the glyph is knocked out to, so it tracks the map
+  // beneath rather than staying white. The dark flavor fills badges with the
+  // palette's night tints, which are pale; a white glyph on those washes out,
+  // where a dark one reads the way Mapbox's own `{maki}-dark` badge art does.
   tokens.light.poi_ink = '#FFFFFF'
-  tokens.dark.poi_ink = '#FFFFFF'
+  tokens.dark.poi_ink = '#0D0D0D'
 
   // Shield fill is ours, not MapTiler's — their shields are sprite art.
   tokens.light.shield_fill = 'hsl(0, 0%, 100%)'

@@ -123,18 +123,17 @@ describe('flavors', () => {
   })
 
   /**
-   * The glyph is knocked out of the badge, so its ink has to contrast with
-   * the category colours the badge is filled with. Light-flavor categories
-   * are saturated and mid-dark, dark-flavor ones are pale — so the ink
-   * inverts too.
+   * The glyph is knocked out of the badge to the surface behind it, so the ink
+   * follows the flavor. Light-flavor categories are saturated and mid-dark,
+   * dark-flavor ones are pale — a white glyph washes out on the latter.
    */
-  test('badge ink is white in both flavors', () => {
-    // The disc carries the category colour, so the glyph knocked out of it is
-    // always white — the same rule `map-icon-images.ts` states for the
-    // saved-place and search-result glyphs. Inverting it per theme put
-    // near-black glyphs on dark badges.
+  test('badge ink follows the flavor, matching the halo', () => {
     expect(light.poi_ink).toBe('#FFFFFF')
-    expect(dark.poi_ink).toBe('#FFFFFF')
+    expect(dark.poi_ink).toBe('#0D0D0D')
+    // Knockout and halo are the same surface; drifting apart means the glyph
+    // stops matching the map it is cut out of.
+    expect(light.poi_ink).toBe(light.poi_halo)
+    expect(dark.poi_ink).toBe(dark.poi_halo)
   })
 })
 

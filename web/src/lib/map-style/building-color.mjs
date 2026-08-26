@@ -21,7 +21,7 @@
  *
  * Dark keeps less: at low lightness the same chroma reads as far more saturated.
  */
-export const BUILDING_CHROMA = { light: 0.62, dark: 0.4 }
+export const BUILDING_CHROMA = { light: 0.26, dark: 0.17 }
 
 /**
  * A building's colour, taking the tile's `building:colour` as a *tint* on the

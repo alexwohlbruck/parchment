@@ -1540,6 +1540,10 @@
         "description": "This page is only visible in development mode.",
         "modeTitle": "Development build",
         "modeDescription": "Development-only tooling lives here. None of it ships to production."
+      },
+      "buildingShading": {
+        "title": "Building lighting",
+        "description": "Tune the shadows, occlusion and edges on the 3D buildings. Changes apply to the map live and are not saved."
       }
     },
     "behavior": {

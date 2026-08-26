@@ -671,6 +671,13 @@ async function main() {
   tokens.light.poi_v4_halo = 'hsl(0, 0%, 100%)'
   tokens.dark.poi_v4_halo = 'hsl(0, 0%, 0%)'
 
+  // Buildings sit a little lighter than MapTiler paints them. Theirs is tuned
+  // for a translucent 3D layer over a visible ground; ours is opaque, so the
+  // same value reads heavier — and now that the roofs carry a tint from the
+  // tile data, a lighter base gives that tint somewhere to show.
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(44, 16%, 84%)'
+  tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 45%, 55%)'
+
   // The second POI treatment, as per-layer overrides `build.ts` merges in when
   // the glyph-only style is selected. Emitted rather than duplicating every
   // POI layer, so the filters and draw order stay defined in exactly one place.

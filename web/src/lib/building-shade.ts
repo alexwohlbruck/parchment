@@ -27,17 +27,36 @@ import { BUILDING_CHROMA } from './map-style/building-color.mjs'
  * dawn and cast none at all at night, and the point of the effect is to read
  * building shape, not to tell the time.
  */
-export const SHADOW_OFFSET: [number, number] = [-0.5, 0.5]
+export const SHADOW_OFFSET: [number, number] = [0.6, -0.6]
+
+/**
+ * The levers that read the same in daylight and at night — shape rather than
+ * weight. Tuned by eye in the settings panel; see `BuildingShadeTuner.vue`.
+ */
+const SHAPE = {
+  /** How far up the wall the contact shading reaches, as a fraction of it. */
+  band: 0.24,
+  /** Shadow length as a fraction of building height. */
+  heightScale: 0.68,
+  shadowBlur: 2,
+  aoRadiusMin: 26,
+  aoRadiusMax: 58,
+  aoOffset: [0, -0.5, -1] as [number, number, number],
+}
 
 /**
  * Night keeps the contact shading but nearly drops the cast shadow. Ambient
  * occlusion is what separates one building from the next, and it matters more
  * in the dark flavor, where every roof is a near-identical blue; a hard cast
  * shadow, on the other hand, implies a sun that is not up.
+ *
+ * Only light was tuned by eye. Dark holds the same ratios against it that it
+ * had before, so the night map keeps its weaker shadow and firmer edge rather
+ * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.33, aoIntensity: 0.8, strength: 0.5, edge: 0.6 },
-  dark: { shadowAlpha: 0.14, aoIntensity: 0.6, strength: 0.42, edge: 0.68 },
+  light: { shadowAlpha: 0.32, aoIntensity: 0.47, strength: 0.04, edge: 0.18 },
+  dark: { shadowAlpha: 0.135, aoIntensity: 0.35, strength: 0.035, edge: 0.2 },
 }
 
 /**
@@ -48,8 +67,9 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * on a retina display as on an ordinary one, which is the opposite of what a
  * border should do.
  */
+const EDGE_WIDTH_CSS_PX = 1.55
 function edgeWidth(): number {
-  return 1.4 * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
+  return EDGE_WIDTH_CSS_PX * (typeof devicePixelRatio === 'number' ? devicePixelRatio : 1)
 }
 
 /**
@@ -83,6 +103,7 @@ export function createBuildingShade(buildingsLayerId: string, flavor: FlavorId) 
     shadowOffset: [...SHADOW_OFFSET],
     sdfResolution: sdfResolution(),
     edgeWidth: edgeWidth(),
+    ...SHAPE,
     ...TUNING[flavor],
   })
   return live
@@ -100,18 +121,13 @@ export function shadeLight(offset: readonly [number, number] = SHADOW_OFFSET) {
   return { anchor: 'map' as const, position: [1.2, azimuth, 30] as [number, number, number], intensity: 0.5 }
 }
 
-/** The tuned defaults, for the dev panel to open on and reset to. */
+/** The tuned defaults, for the settings panel to open on and reset to. */
 export function buildingShadeDefaults(flavor: FlavorId) {
   return {
+    ...SHAPE,
     ...TUNING[flavor],
     edgeWidth: edgeWidth(),
     shadowOffset: [...SHADOW_OFFSET] as [number, number],
-    band: 1.0,
-    heightScale: 0.38,
-    shadowBlur: 2.0,
-    aoRadiusMin: 30,
-    aoRadiusMax: 120,
-    aoOffset: [0, -2, -4] as [number, number, number],
     chroma: BUILDING_CHROMA[flavor],
   }
 }

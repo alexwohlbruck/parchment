@@ -121,10 +121,24 @@ export function createBuildingShade(buildingsLayerId: string, flavor: FlavorId) 
  * style rather than taking it as an option, which is what keeps the two in step
  * — so moving the sun means setting this again, not just the layer's offset.
  */
-export function shadeLight(offset: readonly [number, number] = SHADOW_OFFSET) {
+export function shadeLight(
+  offset: readonly [number, number] = SHADOW_OFFSET,
+  altitude?: number,
+) {
   const [x, y] = offset
   const azimuth = ((Math.atan2(-x, -y) * 180) / Math.PI + 360) % 360
-  return { anchor: 'map' as const, position: [1.2, azimuth, 30] as [number, number, number], intensity: 0.5 }
+  // MapLibre's polar angle is measured from straight overhead, so it is the
+  // sun's altitude subtracted from 90 — a sun high in the sky is a small polar
+  // angle. Clamped away from the horizon: a light at 90 lies flat in the ground
+  // plane and every roof goes unlit.
+  const polar = altitude === undefined
+    ? 30
+    : clamp(90 - (altitude * 180) / Math.PI, 12, 72)
+  return {
+    anchor: 'map' as const,
+    position: [1.2, azimuth, polar] as [number, number, number],
+    intensity: 0.5,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +163,8 @@ const MAX_SHADOW_LENGTH = 2.2
 export type SunShadow = {
   /** Ground-plane direction the shadow falls, +x east and +y south. */
   offset: [number, number]
+  /** Radians above the horizon, for the style light's polar angle. */
+  altitude: number
   /** Shadow length as a multiple of building height. */
   heightScale: number
   /** 0 when the sun is down, easing in as it clears the horizon. */
@@ -179,6 +195,7 @@ export function sunShadow(date: Date, lat: number, lng: number): SunShadow {
 
   return {
     offset: [-Math.sin(azimuth), Math.cos(azimuth)],
+    altitude,
     heightScale: length,
     daylight,
   }

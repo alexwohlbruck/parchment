@@ -440,8 +440,18 @@ export class WallShadowLayer {
     return style.tileManagers?.[this._sourceId] || style.sourceCaches?.[this._sourceId] || null;
   }
 
+  /**
+   * PARCHMENT: MapLibre 6 removed the public `map.transform`. The painter still
+   * holds the one it is currently drawing with, which is the right one to ask
+   * anyway — it is the transform this frame is being rendered against.
+   */
+  _transform() {
+    return this._map.painter?.transform ?? this._map.transform;
+  }
+
   _tileMatrix(coord) {
-    const xf = this._map.transform;
+    const xf = this._transform();
+    if (!xf) return null;
     try { return xf.getProjectionData({ overscaledTileID: coord, applyTerrainMatrix: true })?.mainMatrix; }
     catch { }
     // PARCHMENT: v4 has no `getProjectionData`, and its `calculatePosMatrix`
@@ -454,14 +464,19 @@ export class WallShadowLayer {
   }
 
   _lightUniforms() {
-    const L = this._map.style.light?.properties;
+    const light = this._map.style.light;
+    const L = light?.properties;
     if (!L) return { pos: [0.5, -0.6, 0.62], intensity: 0.5 };
-    const p = L.get('position');
-    let [x, y, z] = [p.x, p.y, p.z];
+    // PARCHMENT: MapLibre 6 stores the light position in spherical coordinates
+    // and converts on the way out, where v4 handed back cartesian directly.
+    // Reading `.x/.y/.z` off the spherical value yields three undefineds, which
+    // reach the shader as NaN and multiply every building to black.
+    const p = light.getCartesianPosition?.() ?? L.get('position');
+    let [x, y, z] = Array.isArray(p) ? p : [p.x, p.y, p.z];
     if (L.get('anchor') === 'viewport') {
       // PARCHMENT: `bearingInRadians` is v5; v4 exposes degrees only.
-      const th = this._map.transform.bearingInRadians
-        ?? (this._map.transform.bearing * Math.PI) / 180;
+      const xf = this._transform();
+      const th = xf?.bearingInRadians ?? ((xf?.bearing ?? 0) * Math.PI) / 180;
       [x, y] = [x * Math.cos(th) - y * Math.sin(th), x * Math.sin(th) + y * Math.cos(th)];
     }
     return { pos: [x, y, z], intensity: L.get('intensity') };

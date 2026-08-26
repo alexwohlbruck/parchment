@@ -634,7 +634,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.shadowAlphaAtNoon ??= layer.shadowAlpha as number
     layer.shadowAlpha = this.shadowAlphaAtNoon * sun.daylight
 
-    this.mapInstance.setLight(shadeLight(sun.offset))
+    this.mapInstance.setLight(shadeLight(sun.offset, sun.altitude))
     this.mapInstance.triggerRepaint()
   }
 

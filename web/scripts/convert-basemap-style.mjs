@@ -103,20 +103,26 @@ const ICON_SUBCLASSES = [
 /**
  * Resolve a POI icon: the subclass when the sprite has one, else the class.
  *
- * There is deliberately no fallback image. A POI we have no glyph for shows
- * its bare coloured badge, which reads correctly; falling back to the `dot`
- * image stamped a filled circle on top of the badge and turned it into a
- * black disc.
- *
  * Gated on an explicit list rather than attempting the lookup: `coalesce`
  * around a missing image still draws, but logs a warning per feature per
  * tile, which buried the console on the first render.
+ *
+ * `prefix` picks the form: bare glyphs for the glyph-only treatment, and
+ * `badge-` for the badge treatment, whose sprite carries the disc and the
+ * knocked-out glyph as one image (see `build-sprite.mjs`).
  */
-const POI_ICON = [
-  'coalesce',
-  ['image', ['match', ['get', 'subclass'], ICON_SUBCLASSES, ['get', 'subclass'], ['coalesce', ['get', 'class'], '']]],
-  ['image', ['coalesce', ['get', 'class'], '']],
-]
+function poiIcon(prefix = '') {
+  const named = name => (prefix ? ['concat', prefix, name] : name)
+  return [
+    'coalesce',
+    ['image', named(['match', ['get', 'subclass'], ICON_SUBCLASSES, ['get', 'subclass'], ['coalesce', ['get', 'class'], '']])],
+    ['image', named(['coalesce', ['get', 'class'], ''])],
+  ]
+}
+
+const POI_ICON = poiIcon()
+/** The badge form: one image, so it collides as a single object. */
+const POI_BADGE_ICON = poiIcon('badge-')
 
 /**
  * Hand corrections where MapTiler's dark style has no counterpart to read.
@@ -279,42 +285,29 @@ function toExpressionFilter(f) {
 }
 
 /**
- * Badge geometry, matching the saved-place markers in
- * `constants/layers/core-layers.ts`: 9.5px radius reads as the ~22px disc a
- * native Mapbox POI marker occupies.
- */
-const BADGE_RADIUS_FULL = 9.5
-
-/**
- * Glyph size inside the badge — the same `1.14r / 24` the search-result and
- * saved-place markers use (`glyphSize()` in `core-layers.ts`), which holds the
- * glyph at ~57% of the disc's diameter.
+ * The badge is one image now, drawn at its natural size.
  *
- * Do NOT re-derive this from Maki's 15-unit grid. An earlier revision did, got
- * 0.72, and drew a glyph LARGER than the disc it sits in: the icon spilled past
- * the ring, so a badge read as a white blob with a coloured crescent behind it
- * rather than as a marker — which in dark mode looked like the POIs had been
- * turned white. The sprite's own box is padded for the distance field, so the
- * grid unit is not what `icon-size` scales against.
+ * It used to be a circle layer with a glyph layer over it, and the two could
+ * not be kept together: circle layers take no part in collision, so either a
+ * culled glyph left an empty disc behind, or `icon-allow-overlap` kept every
+ * glyph and the badges piled up on each other. `build-sprite.mjs` now bakes
+ * the disc with the glyph knocked out of it into a single SDF, so a badge is
+ * an ordinary icon and MapLibre places it like one — which is what lets both
+ * overlap flags go back to false.
  */
-const BADGE_GLYPH_SIZE = Math.round(((BADGE_RADIUS_FULL * 1.14) / 24) * 1000) / 1000
-
 const POI_LAYOUT = {
-  'icon-size': BADGE_GLYPH_SIZE,
-  // The glyph belongs to its badge, not to the label collision system. Circle
-  // layers do not collide, so a culled glyph leaves its disc behind as an
-  // empty coloured blob next to the badges that survived. Same reasoning, and
-  // the same two flags, as the saved-place glyphs in `core-layers.ts`.
-  'icon-allow-overlap': true,
-  'icon-ignore-placement': true,
+  'icon-image': POI_BADGE_ICON,
+  'icon-size': 1,
+  'icon-allow-overlap': false,
+  'icon-ignore-placement': false,
   'text-size': 13,
-  // Clears the taller glyph — offset is in ems of text-size, so 1.1em ≈ 14px
-  // below the icon's centre.
+  // Clears the badge — offset is in ems of text-size, so 1.1em ≈ 14px below
+  // the icon's centre.
   'text-offset': [0, 1.1],
   'text-anchor': 'top',
   'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
   'text-max-width': 8,
-  // Keep the glyph when the name would collide — Standard does the same, and
+  // Keep the badge when the name would collide — Standard does the same, and
   // it is what stops a dense block from losing its icons along with its labels.
   'text-optional': true,
 }
@@ -323,128 +316,13 @@ const POI_PAINT = {
   'text-halo-width': 1,
   'text-halo-blur': 0,
   'text-halo-color': '@poi_halo',
-  // The glyph is knocked out of the coloured disc drawn beneath it, so it is
-  // inked, not tinted — the category colour is carried by the badge.
-  'icon-color': '@poi_ink',
-  'icon-halo-width': 0,
-}
-const POI_PAINT_DROP = ['icon-halo-color', 'icon-halo-blur']
-
-/**
- * The coloured disc a glyphed POI sits on.
- *
- * This is the part that makes a Mapbox POI look like a Mapbox POI: the
- * category colour is carried by a filled circle with the glyph knocked out of
- * it, not by tinting a bare glyph. Same construction as the saved-place
- * markers in `constants/layers/core-layers.ts`.
- *
- * Only POIs a glyph layer draws over get a badge. An earlier revision gave the
- * rest a small dot instead, which put a scatter of coloured specks on the map
- * that carried no icon and answered no click — the POI click delegates in
- * `maplibre.strategy.ts` are bound to the symbol layers, not to this one, so a
- * dot with no glyph over it is inert. Mapbox Standard does the same: its
- * `poi-label` drops `icon-opacity` to 0 below the size rank rather than
- * substituting a dot.
- */
-function poiBadgeLayer(poiLayers) {
-  /**
-   * A glyph layer's own conditions, with the rank gate stripped back off.
-   *
-   * Every POI layer leaves here as `["all", <MapTiler's filter>, RANK_GATE]`,
-   * and the rank half is zoom-dependent, so it cannot be reused inside a paint
-   * expression. The MapTiler half can be, verbatim — which is the point: the
-   * badge stops approximating what a glyph layer accepts and starts asking the
-   * layer itself. Anything the filter tests for free — `has name`, the
-   * subclass exclusions, geometry type — comes along.
-   */
-  const ownFilter = f => {
-    if (!Array.isArray(f)) return true
-    const isRankGate = n => Array.isArray(n) && n[0] === 'step'
-    if (f[0] === 'all' && f.length === 3 && isRankGate(f[2])) return f[1]
-    return isRankGate(f) ? true : f
-  }
-
-  const glyphLayers = poiLayers.map(l => {
-    const own = ownFilter(l.filter)
-    // `["zoom"]` is legal only as the direct input of a top-level step, so a
-    // layer whose own filter reads zoom cannot be folded into the badge's.
-    if (JSON.stringify(own).includes('["zoom"]')) {
-      throw new Error(`POI layer ${l.id} reads zoom outside its rank gate`)
-    }
-    return { id: l.id, minzoom: l.minzoom ?? 0, own }
-  })
-
-  const rankLimitAt = zoom => {
-    let limit = RANK_STEPS[0][1]
-    for (const [at, l] of RANK_STEPS.slice(1)) if (zoom >= at) limit = l
-    return limit
-  }
-
-  // Every zoom at which either half of the gate changes.
-  const firstZoom = Math.min(...glyphLayers.map(l => l.minzoom))
-  const bands = [...new Set([
-    firstZoom,
-    ...glyphLayers.map(l => l.minzoom),
-    ...RANK_STEPS.slice(1).map(([z]) => z),
-  ])].filter(z => z >= firstZoom).sort((a, b) => a - b)
-
-  /**
-   * A badge is drawn exactly where some glyph layer that is live at this zoom
-   * would draw over it — the layers' own filters OR'd together, under the same
-   * rank limit their own gates use at that zoom.
-   *
-   * Gating on a union of `class` values instead is what put empty discs on the
-   * map: `Transport` admits a car park only if the geometry is a point, and
-   * `Shopping` only if the feature is named, but a class union let every car
-   * park and every unnamed shop through and left the disc standing on its own.
-   */
-  const earnsGlyph = zoom => {
-    const live = glyphLayers.filter(l => l.minzoom <= zoom)
-    if (!live.length) return false
-    const owns = live.map(l => l.own)
-    const any = owns.includes(true) ? true : owns.length === 1 ? owns[0] : ['any', ...owns]
-    const limit = rankLimitAt(zoom)
-    if (limit === Infinity) return any
-    const rank = ['<=', RANK, limit]
-    return any === true ? rank : ['all', any, rank]
-  }
-
-  /**
-   * The gate goes in the FILTER, not in paint.
-   *
-   * A filter that reads `zoom` is evaluated once, when the tile is parsed into
-   * buckets, at the tile's own zoom — a paint property is re-evaluated every
-   * frame at the map's. The glyph layers carry their rank gate in their
-   * filters, so a badge gated in paint was reading a different zoom from the
-   * glyph it belonged to: the disc turned up a zoom level or two before its
-   * icon, which is the empty circle over a car park that never filled in until
-   * you zoomed further. Same expression, same place, same answer.
-   *
-   * `["zoom"]` is legal only as the direct input of a top-level `step`, so the
-   * step is outermost and every branch is zoom-free.
-   */
-  const gateFilter = () => {
-    const out = ['step', ['zoom'], earnsGlyph(bands[0])]
-    for (const zoom of bands.slice(1)) out.push(zoom, earnsGlyph(zoom))
-    return out
-  }
-
-  return {
-    id: 'POI badge',
-    type: 'circle',
-    source: SOURCE,
-    'source-layer': 'poi',
-    minzoom: firstZoom,
-    filter: ['all', ['==', ['geometry-type'], 'Point'], gateFilter()],
-    paint: {
-      'circle-color': poiColorExpression(),
-      'circle-radius': BADGE_RADIUS_FULL,
-      // A hairline ring in the halo colour keeps touching badges apart without
-      // reading as an outline.
-      'circle-stroke-color': '@poi_halo',
-      'circle-stroke-width': 1.5,
-    },
-  }
+  // The disc carries the category colour and the glyph is a hole in it, so
+  // tinting the image tints the badge.
+  'icon-color': poiColorExpression(),
+  // The ring, drawn rather than baked, so it can be the flavor's own surface.
+  'icon-halo-color': '@poi_halo',
+  'icon-halo-width': 1.5,
+  'icon-halo-blur': 0,
 }
 
 // ---------------------------------------------------------------------------
@@ -498,8 +376,10 @@ function poiGlyphTreatment(layerId) {
     layout: {
       'icon-image': V4_ICON,
       'icon-anchor': 'center',
-      // Held at natural size until z18, then grown gently. v4's own ramp.
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 18, 1, 22, 1.4],
+      // v4 holds these at natural size (a full 15px of Maki art) until z18.
+      // Against our label sizes that reads as oversized, so the whole ramp is
+      // scaled down — same shape, roughly three quarters the size.
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 15, 0.65, 18, 0.75, 22, 1],
       // Glyph-only, so nothing is left behind when one loses a collision —
       // which is why this treatment can let the collision system do its job
       // instead of forcing every icon to draw.
@@ -515,12 +395,14 @@ function poiGlyphTreatment(layerId) {
     },
     paint: {
       'icon-color': family,
+      // With no disc behind it, the halo is the only thing separating a glyph
+      // from the map under it, so it carries more weight here than v4's 2px.
       'icon-halo-color': '@poi_v4_halo',
-      'icon-halo-width': 2,
+      'icon-halo-width': 3.5,
       'icon-halo-blur': V4_HALO_BLUR,
       'text-color': family,
       'text-halo-color': '@poi_v4_halo',
-      'text-halo-width': 2,
+      'text-halo-width': 2.5,
       'text-halo-blur': V4_HALO_BLUR,
     },
   }
@@ -679,9 +561,8 @@ async function main() {
       out.filter = out.filter
         ? ['all', toExpressionFilter(out.filter), RANK_GATE]
         : RANK_GATE
-      out.layout = { ...out.layout, ...POI_LAYOUT, 'icon-image': POI_ICON }
+      out.layout = { ...out.layout, ...POI_LAYOUT }
       out.paint = { ...out.paint, ...POI_PAINT, 'text-color': tint }
-      for (const prop of POI_PAINT_DROP) delete out.paint[prop]
     }
 
     // Every shield falls back to the generic rectangle, tinted per flavor.
@@ -696,11 +577,6 @@ async function main() {
 
     layers.push(out)
   }
-
-  // Dots go under the labelled POIs so a glyph always wins the pixel.
-  const poiLayers = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
-  const firstPoi = layers.findIndex(l => l['source-layer'] === 'poi' && l.type === 'symbol')
-  if (firstPoi >= 0) layers.splice(firstPoi, 0, poiBadgeLayer(poiLayers))
 
   // Rewriting the POI layers strands MapTiler's 11 family colours, which
   // nothing references any more. Drop them so the dark flavor only has to

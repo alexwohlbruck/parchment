@@ -11,7 +11,7 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter } from '@maplibre/maplibre-gl-style-spec'
-import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups, POI_BADGE_LAYER } from './build'
+import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups } from './build'
 import spec from './spec.json'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -140,138 +140,80 @@ describe('flavors', () => {
   })
 })
 
-describe('Mapbox POI treatment', () => {
+/**
+ * The badge treatment: a category-coloured disc with the glyph knocked out of
+ * it, the marker search results and saved places already use.
+ *
+ * It is ONE symbol layer. It began as a circle layer with a glyph layer over
+ * it, and the two could never be kept together — circle layers take no part in
+ * collision, so either a culled glyph left an empty disc behind or
+ * `icon-allow-overlap` kept every glyph and the badges piled up. The disc is
+ * baked into the sprite image now (`build-sprite.mjs`), so a badge is an
+ * ordinary icon that MapLibre places like any other.
+ */
+describe('badge POI treatment', () => {
   const poi = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
 
   test('there are POI layers to style', () => {
     expect(poi.length).toBeGreaterThan(5)
   })
 
-  test.each(poi.map(l => [l.id, l]))('%s: glyph is ink, label is category colour', (_id, l: any) => {
-    // The badge carries the category colour; the glyph is ink knocked out of
-    // it, so the two deliberately differ.
-    expect(l.paint['icon-color']).toBe('@poi_ink')
+  test('no circle layer survives — the badge is its own image', () => {
+    expect(layers.some(l => l.type === 'circle' && l['source-layer'] === 'poi')).toBe(false)
+  })
+
+  test.each(poi.map(l => [l.id, l]))('%s: draws the badge form of its icon', (_id, l: any) => {
+    expect(JSON.stringify(l.layout['icon-image'])).toContain('badge-')
+    // Baked at its final size; scaling it would scale the disc too.
+    expect(l.layout['icon-size']).toBe(1)
+  })
+
+  test.each(poi.map(l => [l.id, l]))('%s: the disc carries the category colour', (_id, l: any) => {
+    // The glyph is a hole in the disc, so tinting the image tints the badge.
+    expect(JSON.stringify(l.paint['icon-color'])).toContain('@poi_')
     expect(JSON.stringify(l.paint['text-color'])).toContain('@poi_')
   })
 
-  test.each(poi.map(l => [l.id, l]))('%s: name sits under the glyph', (_id, l: any) => {
+  test.each(poi.map(l => [l.id, l]))('%s: the ring is drawn, not baked', (_id, l: any) => {
+    // Left to the style so it can be the flavor's own surface colour.
+    expect(l.paint['icon-halo-color']).toBe('@poi_halo')
+    expect(l.paint['icon-halo-width']).toBe(1.5)
+  })
+
+  /**
+   * The whole reason for baking the disc into the image. Forcing icons to
+   * draw is what piled badges on top of each other; now that a badge is one
+   * object, collision can do its job.
+   */
+  test.each(poi.map(l => [l.id, l]))('%s: collision is left to the engine', (_id, l: any) => {
+    expect(l.layout['icon-allow-overlap']).toBe(false)
+    expect(l.layout['icon-ignore-placement']).toBe(false)
+  })
+
+  test.each(poi.map(l => [l.id, l]))('%s: name sits under the badge', (_id, l: any) => {
     expect(l.layout['text-anchor']).toBe('top')
     expect(l.layout['text-offset']).toEqual([0, 1.1])
     expect(l.layout['text-size']).toBe(13)
-    // The glyph outlives its label in a collision, so a dense block keeps its
+    // The badge outlives its label in a collision, so a dense block keeps its
     // icons instead of going blank.
     expect(l.layout['text-optional']).toBe(true)
   })
 
   /**
-   * `1.14r / 24` at r=9.5 — the same figure `glyphSize()` in `core-layers.ts`
-   * gives the search-result markers.
-   *
-   * Guarded because an earlier revision re-derived this from Maki's 15-unit
-   * grid instead, got 0.72, and drew glyphs wider than the discs under them:
-   * the icon covered its own badge and spilled past the ring, so in dark mode
-   * every POI read as a white blob.
+   * Every icon a POI layer can ask for needs a badge form in the sheet, or the
+   * `coalesce` falls through and the POI draws nothing at all.
    */
-  test.each(poi.map(l => [l.id, l]))('%s: glyph fits inside its badge', (_id, l: any) => {
-    expect(l.layout['icon-size']).toBeCloseTo(0.451, 3)
-  })
-
-  /**
-   * Circle layers do not take part in collision, so a glyph that loses one
-   * leaves its disc behind as an empty coloured blob. Both flags together are
-   * what keeps a badge and its glyph a single object — same as the saved-place
-   * glyphs in `core-layers.ts`.
-   */
-  test.each(poi.map(l => [l.id, l]))('%s: glyph cannot be culled off its badge', (_id, l: any) => {
-    expect(l.layout['icon-allow-overlap']).toBe(true)
-    expect(l.layout['icon-ignore-placement']).toBe(true)
-  })
-
-  test.each(poi.map(l => [l.id, l]))('%s: halo is on the text, not the glyph', (_id, l: any) => {
-    expect(l.paint['text-halo-width']).toBe(1)
-    expect(l.paint['text-halo-color']).toBe('@poi_halo')
-    expect(l.paint['icon-halo-width']).toBe(0)
-    expect(l.paint['icon-halo-color']).toBeUndefined()
-  })
-
-  test('a glyphed POI sits on a category-coloured badge', () => {
-    const badge = layers.find(l => l.id === 'POI badge')
-    expect(badge).toBeTruthy()
-    expect(badge.type).toBe('circle')
-    expect(badge['source-layer']).toBe('poi')
-    expect(JSON.stringify(badge.paint['circle-color'])).toContain('@poi_food_and_drink')
-    expect(JSON.stringify(badge.paint['circle-radius'])).toContain('9.5')
-  })
-
-  /**
-   * A POI with no glyph over it is also not clickable — the POI click
-   * delegates in `maplibre.strategy.ts` bind to the symbol layers, never to
-   * this circle layer. An earlier revision drew those as small dots, which put
-   * inert coloured specks all over the map, so both radius and ring now
-   * collapse to zero instead.
-   */
-  /**
-   * The gate belongs in the filter, not in paint.
-   *
-   * A filter that reads `zoom` is evaluated once per tile, at the tile's zoom;
-   * a paint property is re-evaluated each frame at the map's. The glyph layers
-   * carry their rank gate in their filters, so a badge gated in paint answered
-   * a different zoom from the glyph it belonged to — the disc arrived a zoom
-   * level or two ahead of its icon.
-   */
-  test('the badge is gated in the filter, alongside its glyph layers', () => {
-    const badge = layers.find(l => l.id === 'POI badge')
-    expect(badge.paint['circle-radius'], 'radius is conditional').toBe(9.5)
-    expect(badge.paint['circle-stroke-width'], 'ring is conditional').toBe(1.5)
-    expect(JSON.stringify(badge.filter)).toContain('["zoom"]')
-  })
-
-  test('badges draw beneath the glyphs they sit under', () => {
-    const ids = layers.map(l => l.id)
-    const firstGlyph = Math.min(...poi.map(l => ids.indexOf(l.id)))
-    expect(ids.indexOf('POI badge')).toBeLessThan(firstGlyph)
-  })
-
-  /**
-   * MapTiler staggers its POI layers — Transport and Food from z14, Education
-   * from 15, Public and Sport from 16 — and each layer carries conditions of
-   * its own beyond `class`: Transport wants a point geometry, Shopping wants a
-   * name. Gating the badge on a union of class values let every unnamed shop
-   * and every car-park polygon through and left the disc standing alone.
-   *
-   * So the badge ORs the glyph layers' own filters verbatim. This checks, zoom
-   * by zoom, that it ORs exactly the layers that are live there.
-   */
-  describe('a badge admits exactly what its glyph layers admit', () => {
-    const badge = layers.find(l => l.id === 'POI badge')
-
-    /** A layer's filter with the shared rank gate stripped back off. */
-    const own = (f: any) =>
-      Array.isArray(f) && f[0] === 'all' && f.length === 3 && f[2]?.[0] === 'step' ? f[1] : f
-
-    /** The clauses the badge ORs at `zoom`, out of its filter's zoom step. */
-    const badgeOrsAt = (zoom: number): string[] => {
-      const step = badge.filter[2]
-      let branch = step[2]
-      for (let i = 3; i < step.length; i += 2) if (zoom >= step[i]) branch = step[i + 1]
-      if (branch === false) return []
-      // ["all", <any>, <rank>] once a rank limit applies, bare <any> at z18+.
-      const any = branch[0] === 'all' && branch[2]?.[0] === '<=' ? branch[1] : branch
-      const clauses = any[0] === 'any' ? any.slice(1) : [any]
-      return clauses.map((c: any) => JSON.stringify(c)).sort()
+  test('every badge image the style asks for exists in the sprite', () => {
+    const sprite = JSON.parse(
+      readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'),
+    )
+    const badges = Object.keys(sprite).filter(k => k.startsWith('badge-'))
+    expect(badges.length).toBeGreaterThan(200)
+    for (const name of Object.keys(sprite)) {
+      if (name.startsWith('badge-') || /^(road|exit)_\d$/.test(name)) continue
+      if (name === 'dot' || name === 'oneway') continue
+      expect(sprite[`badge-${name}`], `badge-${name}`).toBeTruthy()
     }
-
-    test.each([12, 13, 14, 15, 16, 17, 18, 19])('z%i', zoom => {
-      const live = poi
-        .filter(l => (l.minzoom ?? 0) <= zoom)
-        .map(l => JSON.stringify(own(l.filter)))
-        .sort()
-      expect(badgeOrsAt(zoom)).toEqual(live)
-    })
-
-    test('the layer starts no earlier than its first glyph layer', () => {
-      expect(badge.minzoom).toBe(Math.min(...poi.map(l => l.minzoom ?? 0)))
-    })
   })
 })
 
@@ -290,22 +232,17 @@ describe('glyph-only POI style', () => {
     .filter((l: any) => l['source-layer'] === 'poi' && l.type === 'symbol')
     .map((l: any) => l.id)
 
-  test('the badge circle goes away with it', () => {
-    expect(badge.some(l => l.id === POI_BADGE_LAYER)).toBe(true)
-    expect(glyph.some(l => l.id === POI_BADGE_LAYER)).toBe(false)
-  })
-
   test('every POI layer survives the swap', () => {
     for (const id of poiIds) expect(glyph.some(l => l.id === id), id).toBe(true)
   })
 
   test('draw order is untouched', () => {
-    expect(glyph.map(l => l.id)).toEqual(badge.filter(l => l.id !== POI_BADGE_LAYER).map(l => l.id))
+    expect(glyph.map(l => l.id)).toEqual(badge.map(l => l.id))
   })
 
   test.each(poiIds)('%s is a haloed glyph, not a knockout', id => {
     const l = glyph.find(x => x.id === id)
-    expect(l.paint['icon-halo-width']).toBe(2)
+    expect(l.paint['icon-halo-width']).toBe(3.5)
     // The badge treatment inks the glyph to the surface; this one tints it.
     expect(l.paint['icon-color']).not.toBe(darkTokens.poi_ink)
     expect(l.paint['icon-color']).toBe(l.paint['text-color'])
@@ -469,8 +406,9 @@ describe('assets the spec depends on', () => {
       const icon = l.layout?.['icon-image']
       if (icon === undefined) continue
       if (typeof icon === 'string') literals.add(icon)
-      else if (Array.isArray(icon) && icon[0] === 'concat') {
-        // Shields: `road_` + ref_length, generated for widths 1..6.
+      else if (Array.isArray(icon) && icon[0] === 'concat' && typeof icon[2] === 'string') {
+        // Shields: `road_` + ref_length, generated for widths 1..6. The POI
+        // `concat` is data-driven and covered by its own test below.
         const prefix = icon[1]
         for (let n = 1; n <= 6; n++) literals.add(`${prefix}${icon[2]}${n}`)
       }
@@ -480,30 +418,22 @@ describe('assets the spec depends on', () => {
   })
 
   /**
-   * The POI icon expression walks subclass → class → dot. Every gated
-   * subclass and every OpenMapTiles class has to resolve, or the icon falls
-   * through to a generic dot while still rendering — invisible by eye.
+   * The POI icon expression walks subclass → class. Every gated subclass and
+   * every OpenMapTiles class has to resolve in BOTH forms — bare for the
+   * glyph-only treatment, `badge-` prefixed for the badge one — or the
+   * `coalesce` falls through and the POI draws nothing at all.
    */
-  /**
-   * There is no fallback image: a POI with no glyph shows its bare badge. A
-   * `dot` fallback stamped a filled circle over the disc and turned it black.
-   */
-  test('an unmapped POI falls through to no image, not a filled circle', () => {
-    const poi = layers.find(l => l['source-layer'] === 'poi' && l.layout?.['icon-image'])
-    const json = JSON.stringify(poi.layout['icon-image'])
-    expect(json).not.toContain('"dot"')
-    expect(json).toContain('""')
-  })
-
-  test('every gated POI icon name resolves', () => {
+  test('every gated POI icon name resolves, bare and as a badge', () => {
     const poi = layers.find(l => l['source-layer'] === 'poi' && l.layout?.['icon-image'])
     expect(poi).toBeTruthy()
     const names = collectStrings(poi.layout['icon-image']).filter(
       s =>
         s !== '' &&
-        !['coalesce', 'image', 'match', 'get', 'subclass', 'class'].includes(s),
+        s !== 'badge-' &&
+        !['coalesce', 'image', 'match', 'concat', 'get', 'subclass', 'class'].includes(s),
     )
     expect(names.length).toBeGreaterThan(40)
     expect(names.filter(n => !(n in sprite))).toEqual([])
+    expect(names.filter(n => !(`badge-${n}` in sprite))).toEqual([])
   })
 })

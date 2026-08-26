@@ -148,9 +148,6 @@ const poiStyles = (spec as any).poiStyles as Record<
   Record<string, { layout?: Record<string, unknown>; paint?: Record<string, unknown> }>
 >
 
-/** The circle layer the badge treatment draws its glyphs on. */
-export const POI_BADGE_LAYER = 'POI badge'
-
 /**
  * Layer groups the map strategy toggles, derived from the spec rather than
  * hand-listed, so a regenerated spec cannot silently drop one out of a toggle.
@@ -218,14 +215,13 @@ function localize(layer: any, lang?: string): any {
  * Swap the POI layers over to the glyph-only treatment.
  *
  * `spec.poiStyles.glyph` holds per-layer paint/layout overrides rather than a
- * second set of layers, so filters and draw order stay defined once. The badge
- * circle goes with them: it exists only to sit under a badge-style glyph, and
- * left in place it would show through as a disc with a bare icon on top.
+ * second set of layers, so filters and draw order stay defined once. Both
+ * treatments are a single symbol layer per POI family — the badge's disc is
+ * baked into its sprite image — so switching is purely a matter of overrides.
  */
 function applyGlyphPoiStyle(layers: any[]): any[] {
   const overrides = poiStyles.glyph
   return layers
-    .filter(l => l.id !== POI_BADGE_LAYER)
     .map(l => {
       const o = overrides[l.id]
       if (!o) return l

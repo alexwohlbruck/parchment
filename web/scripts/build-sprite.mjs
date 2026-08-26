@@ -256,6 +256,72 @@ function alphaToSdf(alpha, width, height) {
   return out
 }
 
+// --- Badges ---------------------------------------------------------------
+
+/**
+ * Badge geometry, in the same units `core-layers.ts` uses for the saved-place
+ * markers: a 19px disc with the glyph held at 57% of its diameter. The ring
+ * is not drawn here — the style adds it with `icon-halo-width`, so it can be
+ * the flavor's own surface colour rather than baked into the art.
+ */
+const BADGE_DIAMETER = 19
+const BADGE_GLYPH_RATIO = 0.57
+
+/** Prefix for the badge form of an icon: `restaurant` → `badge-restaurant`. */
+export const BADGE_PREFIX = 'badge-'
+
+/**
+ * The glyph knocked out of a filled disc, as ONE shape.
+ *
+ * This is what lets a badge take part in collision. Drawn as a circle layer
+ * under a symbol layer, the disc and its glyph are separate objects: circle
+ * layers do not collide, so either the glyph got culled and left an empty disc
+ * behind, or `icon-allow-overlap` kept every glyph and the badges piled on top
+ * of each other. Baked into a single SDF image there is only one object, and
+ * MapLibre places it the way it places any other icon.
+ *
+ * The knockout is a hole, not ink — whatever the map draws underneath shows
+ * through it, which is what the badge treatment wants in both flavors.
+ */
+async function badgeAlpha(svg, ratio) {
+  const size = Math.round(BADGE_DIAMETER * ratio)
+  const glyphSize = Math.round(size * BADGE_GLYPH_RATIO)
+  const inset = Math.round((size - glyphSize) / 2)
+
+  const rawAlpha = async input => {
+    const { data, info } = await input.ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    const out = Buffer.alloc(info.width * info.height)
+    for (let i = 0; i < out.length; i++) out[i] = data[i * info.channels + info.channels - 1]
+    return out
+  }
+
+  const disc = await rawAlpha(
+    sharp(
+      Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
+          `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#000"/></svg>`,
+      ),
+      { density: 72 },
+    ).resize(size, size, { fit: 'fill' }),
+  )
+
+  const glyph = await rawAlpha(
+    sharp(svg, { density: 72 * ratio })
+      .resize(glyphSize, glyphSize, { fit: 'fill' })
+      .extend({
+        top: inset,
+        bottom: size - glyphSize - inset,
+        left: inset,
+        right: size - glyphSize - inset,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      }),
+  )
+
+  const cut = Buffer.alloc(size * size)
+  for (let i = 0; i < cut.length; i++) cut[i] = Math.max(0, disc[i] - glyph[i])
+  return { alpha: cut, size }
+}
+
 // --- Sheet ----------------------------------------------------------------
 
 async function collectIcons() {
@@ -308,6 +374,24 @@ async function buildSheet(icons, ratio) {
     for (let i = 0; i < w * h; i++) alpha[i] = padded.data[i * channels + channels - 1]
 
     rendered.push({ name, width: w, height: h, sdf: alphaToSdf(alpha, w, h) })
+
+    // Shields and the dot are never worn as badges — they are not POI glyphs.
+    if (!/^(road|exit)_\d$/.test(name) && name !== 'dot' && name !== 'oneway') {
+      const badge = await badgeAlpha(svg, ratio)
+      const bw = badge.size + buffer * 2
+      const padded = Buffer.alloc(bw * bw)
+      for (let y = 0; y < badge.size; y++) {
+        for (let x = 0; x < badge.size; x++) {
+          padded[(y + buffer) * bw + (x + buffer)] = badge.alpha[y * badge.size + x]
+        }
+      }
+      rendered.push({
+        name: `${BADGE_PREFIX}${name}`,
+        width: bw,
+        height: bw,
+        sdf: alphaToSdf(padded, bw, bw),
+      })
+    }
   }
 
   // Pack. shelf-pack grows the sheet as needed; a power-of-two width keeps
@@ -353,10 +437,18 @@ async function buildSheet(icons, ratio) {
   // Aliases point at an existing box rather than packing the icon twice.
   for (const [alias, target] of Object.entries(ALIASES)) {
     if (manifest[target] && !manifest[alias]) manifest[alias] = { ...manifest[target] }
+    // Badges alias exactly as their glyphs do, or a class that reaches its
+    // icon through an alias would have no badge form.
+    const [ba, bt] = [BADGE_PREFIX + alias, BADGE_PREFIX + target]
+    if (manifest[bt] && !manifest[ba]) manifest[ba] = { ...manifest[bt] }
   }
   for (const name of Object.keys(manifest)) {
-    if (!name.includes('-')) continue
-    const underscored = name.replace(/-/g, '_')
+    // Maki hyphenates (`fast-food`), OpenMapTiles underscores (`fast_food`).
+    // Only the icon's own name is rewritten, never the `badge-` prefix.
+    const stem = name.startsWith(BADGE_PREFIX) ? name.slice(BADGE_PREFIX.length) : name
+    if (!stem.includes('-')) continue
+    const underscored =
+      (name.startsWith(BADGE_PREFIX) ? BADGE_PREFIX : '') + stem.replace(/-/g, '_')
     if (!manifest[underscored]) manifest[underscored] = { ...manifest[name] }
   }
 

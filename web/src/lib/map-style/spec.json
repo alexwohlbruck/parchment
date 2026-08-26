@@ -4253,1985 +4253,158 @@
    ]
   },
   {
-   "id": "POI badge",
-   "type": "circle",
+   "id": "Public",
+   "type": "symbol",
    "source": "openmaptiles",
    "source-layer": "poi",
-   "minzoom": 12,
-   "filter": [
-    "all",
-    [
-     "==",
+   "minzoom": 16,
+   "layout": {
+    "icon-image": [
+     "coalesce",
      [
-      "geometry-type"
-     ],
-     "Point"
-    ],
-    [
-     "step",
-     [
-      "zoom"
-     ],
-     [
-      "all",
+      "image",
       [
-       "all",
+       "concat",
+       "badge-",
        [
         "match",
-        [
-         "get",
-         "class"
-        ],
-        [
-         "bus",
-         "railway"
-        ],
-        true,
-        false
-       ],
-       [
-        "has",
-        "name"
-       ]
-      ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "rank"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "rank"
-         ]
-        ],
-        999
-       ],
-       4
-      ]
-     ],
-     14,
-     [
-      "all",
-      [
-       "any",
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "apartment",
-          "aquarium",
-          "attraction",
-          "campsite",
-          "camp_site",
-          "caravan_site",
-          "castle",
-          "chalet",
-          "guest_house",
-          "hotel",
-          "hostel",
-          "information",
-          "lodging",
-          "motel",
-          "reservoir",
-          "ruins",
-          "theme_park",
-          "zoo"
-         ],
-         true,
-         false
-        ],
-        [
-         "!=",
-         [
-          "get",
-          "subclass"
-         ],
-         "board"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "art_gallery",
-          "archeological_site",
-          "cinema",
-          "community_centre",
-          "gallery",
-          "library",
-          "monastery",
-          "monument",
-          "museum",
-          "opera",
-          "place_of_worship",
-          "planetarium",
-          "theatre"
-         ],
-         true,
-         false
-        ],
-        [
-         "!=",
-         [
-          "get",
-          "subclass"
-         ],
-         "artwork"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "all",
-         [
-          "match",
-          [
-           "get",
-           "class"
-          ],
-          [
-           "alcohol_shop",
-           "bakery",
-           "book",
-           "books",
-           "butcher",
-           "chemist",
-           "clothing_store",
-           "convenience",
-           "gift",
-           "grocery",
-           "laundry",
-           "mall",
-           "music",
-           "shop",
-           "supermarket"
-          ],
-          true,
-          false
-         ],
-         [
-          "has",
-          "name"
-         ]
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bar",
-          "beer",
-          "biergarten",
-          "cafe",
-          "fast_food",
-          "food_court",
-          "ice_cream",
-          "pub",
-          "restaurant"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bicycle",
-          "bicycle_parking",
-          "bicycle_rental",
-          "car",
-          "car_rental",
-          "car_repair",
-          "charging_station",
-          "ferry_terminal",
-          "fuel",
-          "harbor",
-          "heliport",
-          "highway_rest_area",
-          "motorcycle_parking",
-          "parking",
-          "parking_garage",
-          "parking_paid",
-          "scooter",
-          "terminal",
-          "toll"
-         ],
-         true,
-         false
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "get",
-          "class"
-         ],
-         "park"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "clinic",
-          "dentist",
-          "doctors",
-          "first_aid",
-          "hospital",
-          "pharmacy",
-          "veterinary"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bus",
-          "railway"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ]
-      ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "rank"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "rank"
-         ]
-        ],
-        999
-       ],
-       4
-      ]
-     ],
-     15,
-     [
-      "all",
-      [
-       "any",
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "college",
-          "childcare",
-          "dancing_school",
-          "driving_school",
-          "kindergarten",
-          "school",
-          "university"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "apartment",
-          "aquarium",
-          "attraction",
-          "campsite",
-          "camp_site",
-          "caravan_site",
-          "castle",
-          "chalet",
-          "guest_house",
-          "hotel",
-          "hostel",
-          "information",
-          "lodging",
-          "motel",
-          "reservoir",
-          "ruins",
-          "theme_park",
-          "zoo"
-         ],
-         true,
-         false
-        ],
-        [
-         "!=",
-         [
-          "get",
-          "subclass"
-         ],
-         "board"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "art_gallery",
-          "archeological_site",
-          "cinema",
-          "community_centre",
-          "gallery",
-          "library",
-          "monastery",
-          "monument",
-          "museum",
-          "opera",
-          "place_of_worship",
-          "planetarium",
-          "theatre"
-         ],
-         true,
-         false
-        ],
-        [
-         "!=",
-         [
-          "get",
-          "subclass"
-         ],
-         "artwork"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "all",
-         [
-          "match",
-          [
-           "get",
-           "class"
-          ],
-          [
-           "alcohol_shop",
-           "bakery",
-           "book",
-           "books",
-           "butcher",
-           "chemist",
-           "clothing_store",
-           "convenience",
-           "gift",
-           "grocery",
-           "laundry",
-           "mall",
-           "music",
-           "shop",
-           "supermarket"
-          ],
-          true,
-          false
-         ],
-         [
-          "has",
-          "name"
-         ]
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bar",
-          "beer",
-          "biergarten",
-          "cafe",
-          "fast_food",
-          "food_court",
-          "ice_cream",
-          "pub",
-          "restaurant"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bicycle",
-          "bicycle_parking",
-          "bicycle_rental",
-          "car",
-          "car_rental",
-          "car_repair",
-          "charging_station",
-          "ferry_terminal",
-          "fuel",
-          "harbor",
-          "heliport",
-          "highway_rest_area",
-          "motorcycle_parking",
-          "parking",
-          "parking_garage",
-          "parking_paid",
-          "scooter",
-          "terminal",
-          "toll"
-         ],
-         true,
-         false
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "get",
-          "class"
-         ],
-         "park"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "clinic",
-          "dentist",
-          "doctors",
-          "first_aid",
-          "hospital",
-          "pharmacy",
-          "veterinary"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bus",
-          "railway"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ]
-      ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "rank"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "rank"
-         ]
-        ],
-        999
-       ],
-       8
-      ]
-     ],
-     16,
-     [
-      "all",
-      [
-       "any",
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "atm",
-          "bank",
-          "bbq",
-          "cemetery",
-          "courthouse",
-          "drinking_water",
-          "fire_station",
-          "fountain",
-          "hairdresser",
-          "office",
-          "post",
-          "prison",
-          "recycling",
-          "shower",
-          "telephone",
-          "toilets",
-          "townhall",
-          "town_hall"
-         ],
-         true,
-         false
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "american_football",
-          "athletics",
-          "archery",
-          "baseball",
-          "basketball",
-          "climbing",
-          "equestrian",
-          "fitness",
-          "fitness_centre",
-          "golf",
-          "motor",
-          "multi",
-          "playground",
-          "pitch",
-          "running",
-          "sauna",
-          "soccer",
-          "sport",
-          "stadium",
-          "sports_centre",
-          "sports_hall",
-          "swimming",
-          "swimming_area",
-          "swimming_pool",
-          "tennis",
-          "volleyball",
-          "water_park"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "college",
-          "childcare",
-          "dancing_school",
-          "driving_school",
-          "kindergarten",
-          "school",
-          "university"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "apartment",
-          "aquarium",
-          "attraction",
-          "campsite",
-          "camp_site",
-          "caravan_site",
-          "castle",
-          "chalet",
-          "guest_house",
-          "hotel",
-          "hostel",
-          "information",
-          "lodging",
-          "motel",
-          "reservoir",
-          "ruins",
-          "theme_park",
-          "zoo"
-         ],
-         true,
-         false
-        ],
-        [
-         "!=",
-         [
-          "get",
-          "subclass"
-         ],
-         "board"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "art_gallery",
-          "archeological_site",
-          "cinema",
-          "community_centre",
-          "gallery",
-          "library",
-          "monastery",
-          "monument",
-          "museum",
-          "opera",
-          "place_of_worship",
-          "planetarium",
-          "theatre"
-         ],
-         true,
-         false
-        ],
-        [
-         "!=",
-         [
-          "get",
-          "subclass"
-         ],
-         "artwork"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "all",
-         [
-          "match",
-          [
-           "get",
-           "class"
-          ],
-          [
-           "alcohol_shop",
-           "bakery",
-           "book",
-           "books",
-           "butcher",
-           "chemist",
-           "clothing_store",
-           "convenience",
-           "gift",
-           "grocery",
-           "laundry",
-           "mall",
-           "music",
-           "shop",
-           "supermarket"
-          ],
-          true,
-          false
-         ],
-         [
-          "has",
-          "name"
-         ]
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bar",
-          "beer",
-          "biergarten",
-          "cafe",
-          "fast_food",
-          "food_court",
-          "ice_cream",
-          "pub",
-          "restaurant"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bicycle",
-          "bicycle_parking",
-          "bicycle_rental",
-          "car",
-          "car_rental",
-          "car_repair",
-          "charging_station",
-          "ferry_terminal",
-          "fuel",
-          "harbor",
-          "heliport",
-          "highway_rest_area",
-          "motorcycle_parking",
-          "parking",
-          "parking_garage",
-          "parking_paid",
-          "scooter",
-          "terminal",
-          "toll"
-         ],
-         true,
-         false
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "get",
-          "class"
-         ],
-         "park"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "clinic",
-          "dentist",
-          "doctors",
-          "first_aid",
-          "hospital",
-          "pharmacy",
-          "veterinary"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bus",
-          "railway"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ]
-      ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "rank"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "rank"
-         ]
-        ],
-        999
-       ],
-       16
-      ]
-     ],
-     17,
-     [
-      "all",
-      [
-       "any",
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "atm",
-          "bank",
-          "bbq",
-          "cemetery",
-          "courthouse",
-          "drinking_water",
-          "fire_station",
-          "fountain",
-          "hairdresser",
-          "office",
-          "post",
-          "prison",
-          "recycling",
-          "shower",
-          "telephone",
-          "toilets",
-          "townhall",
-          "town_hall"
-         ],
-         true,
-         false
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "american_football",
-          "athletics",
-          "archery",
-          "baseball",
-          "basketball",
-          "climbing",
-          "equestrian",
-          "fitness",
-          "fitness_centre",
-          "golf",
-          "motor",
-          "multi",
-          "playground",
-          "pitch",
-          "running",
-          "sauna",
-          "soccer",
-          "sport",
-          "stadium",
-          "sports_centre",
-          "sports_hall",
-          "swimming",
-          "swimming_area",
-          "swimming_pool",
-          "tennis",
-          "volleyball",
-          "water_park"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "college",
-          "childcare",
-          "dancing_school",
-          "driving_school",
-          "kindergarten",
-          "school",
-          "university"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "apartment",
-          "aquarium",
-          "attraction",
-          "campsite",
-          "camp_site",
-          "caravan_site",
-          "castle",
-          "chalet",
-          "guest_house",
-          "hotel",
-          "hostel",
-          "information",
-          "lodging",
-          "motel",
-          "reservoir",
-          "ruins",
-          "theme_park",
-          "zoo"
-         ],
-         true,
-         false
-        ],
-        [
-         "!=",
-         [
-          "get",
-          "subclass"
-         ],
-         "board"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "art_gallery",
-          "archeological_site",
-          "cinema",
-          "community_centre",
-          "gallery",
-          "library",
-          "monastery",
-          "monument",
-          "museum",
-          "opera",
-          "place_of_worship",
-          "planetarium",
-          "theatre"
-         ],
-         true,
-         false
-        ],
-        [
-         "!=",
-         [
-          "get",
-          "subclass"
-         ],
-         "artwork"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "all",
-         [
-          "match",
-          [
-           "get",
-           "class"
-          ],
-          [
-           "alcohol_shop",
-           "bakery",
-           "book",
-           "books",
-           "butcher",
-           "chemist",
-           "clothing_store",
-           "convenience",
-           "gift",
-           "grocery",
-           "laundry",
-           "mall",
-           "music",
-           "shop",
-           "supermarket"
-          ],
-          true,
-          false
-         ],
-         [
-          "has",
-          "name"
-         ]
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bar",
-          "beer",
-          "biergarten",
-          "cafe",
-          "fast_food",
-          "food_court",
-          "ice_cream",
-          "pub",
-          "restaurant"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bicycle",
-          "bicycle_parking",
-          "bicycle_rental",
-          "car",
-          "car_rental",
-          "car_repair",
-          "charging_station",
-          "ferry_terminal",
-          "fuel",
-          "harbor",
-          "heliport",
-          "highway_rest_area",
-          "motorcycle_parking",
-          "parking",
-          "parking_garage",
-          "parking_paid",
-          "scooter",
-          "terminal",
-          "toll"
-         ],
-         true,
-         false
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "get",
-          "class"
-         ],
-         "park"
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "==",
-         [
-          "geometry-type"
-         ],
-         "Point"
-        ],
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "clinic",
-          "dentist",
-          "doctors",
-          "first_aid",
-          "hospital",
-          "pharmacy",
-          "veterinary"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ],
-       [
-        "all",
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "bus",
-          "railway"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ]
-      ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "rank"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "rank"
-         ]
-        ],
-        999
-       ],
-       40
-      ]
-     ],
-     18,
-     [
-      "any",
-      [
-       "all",
-       [
-        "==",
-        [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "match",
-        [
-         "get",
-         "class"
-        ],
-        [
-         "atm",
-         "bank",
-         "bbq",
-         "cemetery",
-         "courthouse",
-         "drinking_water",
-         "fire_station",
-         "fountain",
-         "hairdresser",
-         "office",
-         "post",
-         "prison",
-         "recycling",
-         "shower",
-         "telephone",
-         "toilets",
-         "townhall",
-         "town_hall"
-        ],
-        true,
-        false
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
-        [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "match",
-        [
-         "get",
-         "class"
-        ],
-        [
-         "american_football",
-         "athletics",
-         "archery",
-         "baseball",
-         "basketball",
-         "climbing",
-         "equestrian",
-         "fitness",
-         "fitness_centre",
-         "golf",
-         "motor",
-         "multi",
-         "playground",
-         "pitch",
-         "running",
-         "sauna",
-         "soccer",
-         "sport",
-         "stadium",
-         "sports_centre",
-         "sports_hall",
-         "swimming",
-         "swimming_area",
-         "swimming_pool",
-         "tennis",
-         "volleyball",
-         "water_park"
-        ],
-        true,
-        false
-       ],
-       [
-        "has",
-        "name"
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
-        [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "match",
-        [
-         "get",
-         "class"
-        ],
-        [
-         "college",
-         "childcare",
-         "dancing_school",
-         "driving_school",
-         "kindergarten",
-         "school",
-         "university"
-        ],
-        true,
-        false
-       ],
-       [
-        "has",
-        "name"
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
-        [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "match",
-        [
-         "get",
-         "class"
-        ],
-        [
-         "apartment",
-         "aquarium",
-         "attraction",
-         "campsite",
-         "camp_site",
-         "caravan_site",
-         "castle",
-         "chalet",
-         "guest_house",
-         "hotel",
-         "hostel",
-         "information",
-         "lodging",
-         "motel",
-         "reservoir",
-         "ruins",
-         "theme_park",
-         "zoo"
-        ],
-        true,
-        false
-       ],
-       [
-        "!=",
         [
          "get",
          "subclass"
         ],
-        "board"
-       ],
-       [
-        "has",
-        "name"
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
         [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "match",
-        [
-         "get",
-         "class"
-        ],
-        [
-         "art_gallery",
-         "archeological_site",
-         "cinema",
-         "community_centre",
-         "gallery",
-         "library",
-         "monastery",
-         "monument",
-         "museum",
-         "opera",
-         "place_of_worship",
-         "planetarium",
-         "theatre"
-        ],
-        true,
-        false
-       ],
-       [
-        "!=",
-        [
-         "get",
-         "subclass"
-        ],
-        "artwork"
-       ],
-       [
-        "has",
-        "name"
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
-        [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "all",
-        [
-         "match",
-         [
-          "get",
-          "class"
-         ],
-         [
-          "alcohol_shop",
-          "bakery",
-          "book",
-          "books",
-          "butcher",
-          "chemist",
-          "clothing_store",
-          "convenience",
-          "gift",
-          "grocery",
-          "laundry",
-          "mall",
-          "music",
-          "shop",
-          "supermarket"
-         ],
-         true,
-         false
-        ],
-        [
-         "has",
-         "name"
-        ]
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
-        [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "match",
-        [
-         "get",
-         "class"
-        ],
-        [
-         "bar",
-         "beer",
-         "biergarten",
-         "cafe",
-         "fast_food",
-         "food_court",
-         "ice_cream",
-         "pub",
-         "restaurant"
-        ],
-        true,
-        false
-       ],
-       [
-        "has",
-        "name"
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
-        [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "match",
-        [
-         "get",
-         "class"
-        ],
-        [
-         "bicycle",
+         "artwork",
+         "bakery",
+         "bed",
          "bicycle_parking",
-         "bicycle_rental",
-         "car",
-         "car_rental",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
          "car_repair",
-         "charging_station",
-         "ferry_terminal",
-         "fuel",
-         "harbor",
-         "heliport",
-         "highway_rest_area",
-         "motorcycle_parking",
-         "parking",
-         "parking_garage",
-         "parking_paid",
-         "scooter",
-         "terminal",
-         "toll"
-        ],
-        true,
-        false
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
-        [
-         "get",
-         "class"
-        ],
-        "park"
-       ],
-       [
-        "has",
-        "name"
-       ]
-      ],
-      [
-       "all",
-       [
-        "==",
-        [
-         "geometry-type"
-        ],
-        "Point"
-       ],
-       [
-        "match",
-        [
-         "get",
-         "class"
-        ],
-        [
+         "christian",
+         "cinema",
          "clinic",
-         "dentist",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
          "doctors",
-         "first_aid",
-         "hospital",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
          "pharmacy",
-         "veterinary"
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
         ],
-        true,
-        false
-       ],
-       [
-        "has",
-        "name"
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
        ]
-      ],
+      ]
+     ],
+     [
+      "image",
       [
-       "all",
+       "concat",
+       "badge-",
        [
-        "match",
+        "coalesce",
         [
          "get",
          "class"
         ],
-        [
-         "bus",
-         "railway"
-        ],
-        true,
-        false
-       ],
-       [
-        "has",
-        "name"
+        ""
        ]
       ]
      ]
-    ]
-   ],
+    ],
+    "icon-size": 1,
+    "symbol-sort-key": [
+     "to-number",
+     [
+      "get",
+      "rank"
+     ]
+    ],
+    "text-anchor": "top",
+    "text-field": "{name}",
+    "text-font": [
+     "Roboto Regular"
+    ],
+    "text-max-width": 8,
+    "text-offset": [
+     0,
+     1.1
+    ],
+    "text-optional": true,
+    "text-padding": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     6,
+     17,
+     4
+    ],
+    "text-size": 13,
+    "visibility": "visible",
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
+   },
    "paint": {
-    "circle-color": [
+    "icon-color": [
      "match",
      [
       "get",
@@ -6363,157 +4536,9 @@
      "@poi_arts_and_entertainment",
      "@poi_default"
     ],
-    "circle-radius": 9.5,
-    "circle-stroke-color": "@poi_halo",
-    "circle-stroke-width": 1.5
-   }
-  },
-  {
-   "id": "Public",
-   "type": "symbol",
-   "source": "openmaptiles",
-   "source-layer": "poi",
-   "minzoom": 16,
-   "layout": {
-    "icon-image": [
-     "coalesce",
-     [
-      "image",
-      [
-       "match",
-       [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
-       [
-        "coalesce",
-        [
-         "get",
-         "class"
-        ],
-        ""
-       ]
-      ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
-     ]
-    ],
-    "icon-size": 0.451,
-    "symbol-sort-key": [
-     "to-number",
-     [
-      "get",
-      "rank"
-     ]
-    ],
-    "text-anchor": "top",
-    "text-field": "{name}",
-    "text-font": [
-     "Roboto Regular"
-    ],
-    "text-max-width": 8,
-    "text-offset": [
-     0,
-     1.1
-    ],
-    "text-optional": true,
-    "text-padding": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     16,
-     6,
-     17,
-     4
-    ],
-    "text-size": 13,
-    "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
-   },
-   "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -6886,78 +4911,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -6967,20 +5011,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -7014,12 +5047,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -7363,78 +5529,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -7444,20 +5629,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -7491,12 +5665,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -7840,78 +6147,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -7921,20 +6247,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -7968,12 +6283,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -8340,78 +6788,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -8421,20 +6888,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -8468,12 +6924,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -8871,78 +7460,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -8952,20 +7560,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -8999,12 +7596,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -9392,78 +8122,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -9473,20 +8222,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -9520,12 +8258,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -9901,78 +8772,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -9982,20 +8872,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -10029,12 +8908,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -10461,78 +9473,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -10541,17 +9572,6 @@
         ],
         ""
        ]
-      ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
       ]
      ]
     ],
@@ -10588,13 +9608,146 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-size": 0.451,
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-size": 1,
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -10923,78 +10076,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -11004,20 +10176,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -11051,12 +10212,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -11577,78 +10871,97 @@
      [
       "image",
       [
-       "match",
+       "concat",
+       "badge-",
        [
-        "get",
-        "subclass"
-       ],
-       [
-        "artwork",
-        "bakery",
-        "bed",
-        "bicycle_parking",
-        "books",
-        "bus_station",
-        "bus_stop",
-        "butcher",
-        "camp_site",
-        "car_repair",
-        "christian",
-        "cinema",
-        "clinic",
-        "clothes",
-        "coffee",
-        "community_centre",
-        "convenience",
-        "deli",
-        "department_store",
-        "doctors",
-        "doityourself",
-        "dry_cleaning",
-        "financial",
-        "florist",
-        "food_court",
-        "furniture",
-        "garden_centre",
-        "golf_course",
-        "guest_house",
-        "hairdresser",
-        "hostel",
-        "hotel",
-        "interior_decoration",
-        "jewelry",
-        "kindergarten",
-        "marketplace",
-        "miniature_golf",
-        "mobile_phone",
-        "motel",
-        "museum",
-        "nightclub",
-        "optician",
-        "pet",
-        "pharmacy",
-        "post_box",
-        "post_office",
-        "pub",
-        "shoes",
-        "sports_centre",
-        "station",
-        "subway",
-        "supermarket",
-        "swimming_pool",
-        "theatre",
-        "toilets",
-        "tram_stop",
-        "university",
-        "veterinary",
-        "viewpoint",
-        "water_park",
-        "wine"
-       ],
-       [
-        "get",
-        "subclass"
-       ],
+        "match",
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "artwork",
+         "bakery",
+         "bed",
+         "bicycle_parking",
+         "books",
+         "bus_station",
+         "bus_stop",
+         "butcher",
+         "camp_site",
+         "car_repair",
+         "christian",
+         "cinema",
+         "clinic",
+         "clothes",
+         "coffee",
+         "community_centre",
+         "convenience",
+         "deli",
+         "department_store",
+         "doctors",
+         "doityourself",
+         "dry_cleaning",
+         "financial",
+         "florist",
+         "food_court",
+         "furniture",
+         "garden_centre",
+         "golf_course",
+         "guest_house",
+         "hairdresser",
+         "hostel",
+         "hotel",
+         "interior_decoration",
+         "jewelry",
+         "kindergarten",
+         "marketplace",
+         "miniature_golf",
+         "mobile_phone",
+         "motel",
+         "museum",
+         "nightclub",
+         "optician",
+         "pet",
+         "pharmacy",
+         "post_box",
+         "post_office",
+         "pub",
+         "shoes",
+         "sports_centre",
+         "station",
+         "subway",
+         "supermarket",
+         "swimming_pool",
+         "theatre",
+         "toilets",
+         "tram_stop",
+         "university",
+         "veterinary",
+         "viewpoint",
+         "water_park",
+         "wine"
+        ],
+        [
+         "get",
+         "subclass"
+        ],
+        [
+         "coalesce",
+         [
+          "get",
+          "class"
+         ],
+         ""
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "badge-",
        [
         "coalesce",
         [
@@ -11658,20 +10971,9 @@
         ""
        ]
       ]
-     ],
-     [
-      "image",
-      [
-       "coalesce",
-       [
-        "get",
-        "class"
-       ],
-       ""
-      ]
      ]
     ],
-    "icon-size": 0.451,
+    "icon-size": 1,
     "symbol-sort-key": [
      "to-number",
      [
@@ -11706,12 +11008,145 @@
     ],
     "text-size": 13,
     "visibility": "visible",
-    "icon-allow-overlap": true,
-    "icon-ignore-placement": true
+    "icon-allow-overlap": false,
+    "icon-ignore-placement": false
    },
    "paint": {
-    "icon-color": "@poi_ink",
-    "icon-halo-width": 0,
+    "icon-color": [
+     "match",
+     [
+      "get",
+      "class"
+     ],
+     [
+      "restaurant",
+      "cafe",
+      "bar",
+      "beer",
+      "fast_food",
+      "food_court",
+      "ice_cream",
+      "biergarten",
+      "pub",
+      "bakery"
+     ],
+     "@poi_food_and_drink",
+     [
+      "school",
+      "university",
+      "college",
+      "library",
+      "kindergarten",
+      "childcare",
+      "driving_school",
+      "dancing_school"
+     ],
+     "@poi_education",
+     [
+      "hospital",
+      "pharmacy",
+      "clinic",
+      "doctors",
+      "doctor",
+      "dentist",
+      "veterinary",
+      "first_aid"
+     ],
+     "@poi_medical",
+     [
+      "bicycle",
+      "bicycle_parking",
+      "swimming",
+      "pitch",
+      "golf",
+      "stadium",
+      "playground",
+      "sport"
+     ],
+     "@poi_sport_and_leisure",
+     [
+      "shop",
+      "grocery",
+      "clothing_store",
+      "alcohol_shop",
+      "jewelry_store",
+      "furniture",
+      "florist",
+      "shoe",
+      "hairdresser",
+      "laundry",
+      "books",
+      "marketplace"
+     ],
+     "@poi_store",
+     [
+      "park",
+      "garden",
+      "picnic_site",
+      "dog_park"
+     ],
+     "@poi_park",
+     [
+      "railway",
+      "bus",
+      "aerialway",
+      "harbor",
+      "airport",
+      "subway",
+      "tram_stop",
+      "ferry_terminal",
+      "station",
+      "bus_stop",
+      "bus_station",
+      "office",
+      "bank",
+      "atm",
+      "car",
+      "car_rental",
+      "car_repair",
+      "fuel",
+      "charging_station",
+      "parking",
+      "parking_garage",
+      "parking_paid",
+      "toilets",
+      "shower",
+      "lodging",
+      "hotel",
+      "motel",
+      "hostel",
+      "guest_house",
+      "apartment",
+      "chalet",
+      "campsite",
+      "camp_site",
+      "caravan_site",
+      "information",
+      "post"
+     ],
+     "@poi_commercial_services",
+     [
+      "art_gallery",
+      "museum",
+      "theatre",
+      "cinema",
+      "attraction",
+      "castle",
+      "monument",
+      "ruins",
+      "theme_park",
+      "aquarium",
+      "music",
+      "nightclub",
+      "community_centre",
+      "zoo"
+     ],
+     "@poi_arts_and_entertainment",
+     "@poi_default"
+    ],
+    "icon-halo-blur": 0,
+    "icon-halo-color": "@poi_halo",
+    "icon-halo-width": 1.5,
     "icon-opacity": [
      "step",
      [
@@ -13077,10 +12512,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -13126,7 +12563,7 @@
     "paint": {
      "icon-color": "@poi_v4_public",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -13144,7 +12581,7 @@
      ],
      "text-color": "@poi_v4_public",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -13276,10 +12713,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -13325,7 +12764,7 @@
     "paint": {
      "icon-color": "@poi_v4_sport",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -13343,7 +12782,7 @@
      ],
      "text-color": "@poi_v4_sport",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -13475,10 +12914,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -13524,7 +12965,7 @@
     "paint": {
      "icon-color": "@poi_v4_education",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -13542,7 +12983,7 @@
      ],
      "text-color": "@poi_v4_education",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -13674,10 +13115,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -13723,7 +13166,7 @@
     "paint": {
      "icon-color": "@poi_v4_tourism",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -13741,7 +13184,7 @@
      ],
      "text-color": "@poi_v4_tourism",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -13873,10 +13316,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -13922,7 +13367,7 @@
     "paint": {
      "icon-color": "@poi_v4_culture",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -13940,7 +13385,7 @@
      ],
      "text-color": "@poi_v4_culture",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -14072,10 +13517,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -14121,7 +13568,7 @@
     "paint": {
      "icon-color": "@poi_v4_shopping",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -14139,7 +13586,7 @@
      ],
      "text-color": "@poi_v4_shopping",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -14271,10 +13718,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -14320,7 +13769,7 @@
     "paint": {
      "icon-color": "@poi_v4_food",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -14338,7 +13787,7 @@
      ],
      "text-color": "@poi_v4_food",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -14470,10 +13919,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -14519,7 +13970,7 @@
     "paint": {
      "icon-color": "@poi_v4_transport",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -14537,7 +13988,7 @@
      ],
      "text-color": "@poi_v4_transport",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -14669,10 +14120,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -14718,7 +14171,7 @@
     "paint": {
      "icon-color": "@poi_v4_park",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -14736,7 +14189,7 @@
      ],
      "text-color": "@poi_v4_park",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -14868,10 +14321,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -14917,7 +14372,7 @@
     "paint": {
      "icon-color": "@poi_v4_healthcare",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -14935,7 +14390,7 @@
      ],
      "text-color": "@poi_v4_healthcare",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [
@@ -15067,10 +14522,12 @@
       [
        "zoom"
       ],
+      15,
+      0.65,
       18,
-      1,
+      0.75,
       22,
-      1.4
+      1
      ],
      "icon-allow-overlap": false,
      "icon-ignore-placement": false,
@@ -15116,7 +14573,7 @@
     "paint": {
      "icon-color": "@poi_v4_station",
      "icon-halo-color": "@poi_v4_halo",
-     "icon-halo-width": 2,
+     "icon-halo-width": 3.5,
      "icon-halo-blur": [
       "interpolate",
       [
@@ -15134,7 +14591,7 @@
      ],
      "text-color": "@poi_v4_station",
      "text-halo-color": "@poi_v4_halo",
-     "text-halo-width": 2,
+     "text-halo-width": 2.5,
      "text-halo-blur": [
       "interpolate",
       [

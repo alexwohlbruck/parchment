@@ -1,0 +1,659 @@
+/**
+ * VENDORED — github.com/wallabyway/maplibre-building-shadows @ f4336f5 (MIT).
+ *
+ * Kept as close to upstream as possible so it stays updatable; every Parchment
+ * change is marked `PARCHMENT:`. There are two, both back-porting v5 APIs to the
+ * MapLibre 4.7.1 fork we pin for variable line-offset — see `building-shade.ts`.
+ *
+ * ---
+ *
+ * WallShadowLayer — merged plan D (heightfix ground shadow + SDF AO) and
+ * plan E (wallshade per-vertex building AO) in a single custom layer.
+ *
+ * One tile walk, one set of cached VAOs, one GL-state sandbox per frame:
+ *   1. shadow mask  → FBO[2] (stencil-projected ground shadows)
+ *   2. seed + JFA   → FBO[0]/[1] ping-pong (SDF for ground contact AO)
+ *   3. composite    → screen (blurred shadow + AO overlay, drawn FIRST)
+ *   4. buildings    → screen (replaces MapLibre's fill-extrusion draw;
+ *                     depth-tested over the overlay)
+ *
+ * All programs share fixed attribute locations (bindAttribLocation), so the
+ * per-segment VAOs built for the building draw are reused by the shadow and
+ * seed passes verbatim. Compatible with MapLibre GL JS v5.x.
+ */
+
+// Fixed attribute locations shared by every program, so one VAO serves all.
+const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7 };
+const LAYOUT_STRIDE = 12; // bytes per vertex in MapLibre fill-extrusion layout
+
+// u_ht/u_bt/u_ct < 0 selects the flat attribute, else interpolates the vec2 pair.
+// Light color is hardcoded to white (the default in the styles we target).
+const FE = `
+  #define FE(f, v, t) ((t) < 0.0 ? (f) : mix((v).x, (v).y, t))`;
+
+const HEIGHT_ATTRS = `
+  attribute float a_height_f;
+  attribute vec2 a_height_v;
+  uniform float u_ht;
+  attribute float a_base_f;
+  attribute vec2 a_base_v;
+  uniform float u_bt;
+  ${FE}`;
+
+// ── Buildings (plan E): geometry AO + directional lighting ─────────
+const BUILD_VS = `
+  uniform mat4 u_matrix;
+  uniform vec3 u_lightpos;
+  uniform float u_lightintensity;
+  uniform float u_strength;
+  uniform float u_band;
+  attribute vec2 a_pos;
+  attribute vec4 a_normal_ed;
+  attribute vec2 a_color;
+  attribute vec4 a_color4;
+  uniform float u_ct;
+  ${HEIGHT_ATTRS}
+  varying vec3 v_color;
+  varying float v_dark;
+  void main() {
+    float t = mod(a_normal_ed.x, 2.0);
+    float isWall = a_normal_ed.z < 8192.0 ? 1.0 : 0.0;
+    float base = max(FE(a_base_f, a_base_v, u_bt), 0.0);
+    float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
+    float elev = mix(base, h, t);
+    float wallRatio = isWall > 0.5 ? max(0.0, elev - base) / max(h - base, 0.001) : -1.0;
+
+    // exp(-3) = 0.0498, 1 / (1 - exp(-3)) = 1.0524
+    float dark = (wallRatio < 0.0 || wallRatio >= u_band) ? 0.0
+               : (exp(-3.0 * wallRatio / u_band) - 0.0498) * 1.0524;
+    v_dark = u_strength * dark;
+
+    vec2 pk = u_ct < -0.5 ? a_color : mix(a_color4.xy, a_color4.zw, u_ct);
+    vec4 color = vec4(floor(pk / 256.0), mod(pk, 256.0)).xzyw / 255.0;
+    float colorvalue = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+    color.rgb += vec3(0.03);
+    vec3 n = a_normal_ed.xyz / 16384.0;
+    float directional = clamp(dot(n, u_lightpos), 0.0, 1.0);
+    directional = mix(1.0 - u_lightintensity, max(1.0 - colorvalue + u_lightintensity, 1.0), directional);
+    v_color = clamp(color.rgb * directional, 0.0, 1.0);
+    gl_Position = u_matrix * vec4(a_pos, elev, 1.0);
+  }`;
+
+const BUILD_FS = `
+  precision highp float;
+  varying vec3 v_color;
+  varying float v_dark;
+  void main() {
+    gl_FragColor = vec4(v_color * (1.0 - v_dark), 1.0);
+  }`;
+
+// ── Ground shadow mask (plan D): shear each vertex by its real elevation ──
+const SHAD_VS = `
+  uniform mat4 u_matrix;
+  uniform vec2 u_shadowOff;
+  uniform float u_heightScale;
+  attribute vec2 a_pos;
+  attribute vec4 a_normal_ed;
+  ${HEIGHT_ATTRS}
+  void main() {
+    float t = mod(a_normal_ed.x, 2.0);
+    // Roof (t=1) shears by height, wall bottoms (t=0) by fill-extrusion-base,
+    // so floating slabs (render_min_height) don't cast full-height shadows.
+    float h = mix(FE(a_base_f, a_base_v, u_bt), FE(a_height_f, a_height_v, u_ht), t) * u_heightScale;
+    gl_Position = u_matrix * vec4(a_pos + u_shadowOff * h, 0.0, 1.0);
+  }`;
+const SHAD_FS = `
+  precision highp float;
+  void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }`;
+
+// ── AO seed: rasterise footprints → store screen coords ────────────
+const SEED_VS = `
+  uniform mat4 u_matrix;
+  attribute vec2 a_pos;
+  void main() { gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0); }`;
+const SEED_FS = `
+  precision highp float;
+  uniform vec2 u_res;
+  void main() { gl_FragColor = vec4(gl_FragCoord.xy / u_res, 0.0, 1.0); }`;
+
+// ── JFA: Jump Flood Algorithm ──────────────────────────────────────
+const JFA_VS = `
+  attribute vec2 a_pos;
+  varying vec2 v_uv;
+  void main() { v_uv = a_pos * 0.5 + 0.5; gl_Position = vec4(a_pos, 0.0, 1.0); }`;
+const JFA_FS = `
+  precision highp float;
+  uniform sampler2D u_tex;
+  uniform float u_stride;
+  uniform vec2 u_texel;
+  varying vec2 v_uv;
+  void main() {
+    vec2 best = vec2(0.0);
+    float bestD = 1e10, found = 0.0;
+    for (int dy = -1; dy <= 1; dy++)
+      for (int dx = -1; dx <= 1; dx++) {
+        vec2 uv = v_uv + vec2(float(dx), float(dy)) * u_stride * u_texel;
+        if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+          vec4 s = texture2D(u_tex, uv);
+          if (s.a > 0.5) {
+            float d = distance(v_uv, s.rg);
+            if (d < bestD) { bestD = d; best = s.rg; found = 1.0; }
+          }
+        }
+      }
+    gl_FragColor = found > 0.5 ? vec4(best, 0.0, 1.0) : vec4(0.0);
+  }`;
+
+// ── Combined composite: blurred shadow mask + AO from SDF ──────────
+const COMP_FS = `
+  precision highp float;
+  uniform sampler2D u_sdf, u_shadow;
+  uniform float u_radius, u_intensity, u_shadowAlpha;
+  uniform vec2 u_offset, u_blurStep;
+  varying vec2 v_uv;
+
+  void main() {
+    float sh = 0.0, sw = 0.0;
+    for (int dy = -2; dy <= 2; dy++)
+      for (int dx = -2; dx <= 2; dx++) {
+        float d2 = float(dx * dx + dy * dy);
+        float w = exp(-0.5 * d2);
+        sh += texture2D(u_shadow, v_uv + vec2(float(dx), float(dy)) * u_blurStep).a * w;
+        sw += w;
+      }
+    float shadow = (sh / sw) * u_shadowAlpha;
+
+    vec2 uv = v_uv - u_offset;
+    vec4 s = texture2D(u_sdf, uv);
+    float ao = 0.0;
+    if (s.a > 0.5) {
+      float d = distance(uv, s.rg);
+      if (d < u_radius)
+        ao = exp(-3.0 * d / u_radius) * u_intensity;
+    }
+    float combined = 1.0 - (1.0 - shadow) * (1.0 - ao);
+    if (combined < 0.001) discard;
+    gl_FragColor = vec4(0.0, 0.0, 0.0, combined);
+  }`;
+
+// ── GL helpers ──────────────────────────────────────────────────────
+function compileShader(gl, type, src) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+    console.error('[wallshadow]', gl.getShaderInfoLog(shader));
+  return shader;
+}
+
+// Links with every shared attribute pinned to its fixed location; names the
+// shader doesn't declare are ignored by the GL.
+function linkProgram(gl, vSrc, fSrc) {
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compileShader(gl, gl.VERTEX_SHADER, vSrc));
+  gl.attachShader(prog, compileShader(gl, gl.FRAGMENT_SHADER, fSrc));
+  for (const [name, loc] of Object.entries(LOC)) gl.bindAttribLocation(prog, loc, name);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+    console.error('[wallshadow] link:', gl.getProgramInfoLog(prog));
+  return prog;
+}
+
+function uniformLocs(gl, prog, names) {
+  return Object.fromEntries(names.map(n => [n, gl.getUniformLocation(prog, n)]));
+}
+
+function createTexture(gl, size, useFloat, filter = gl.NEAREST) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  const [ifmt, type] = useFloat ? [gl.RGBA32F, gl.FLOAT] : [gl.RGBA, gl.UNSIGNED_BYTE];
+  gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, size, size, 0, gl.RGBA, type, null);
+  for (const [p, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
+                        [gl.TEXTURE_MIN_FILTER, filter], [gl.TEXTURE_MAG_FILTER, filter]])
+    gl.texParameteri(gl.TEXTURE_2D, p, v);
+  return tex;
+}
+
+function beginPass(gl, fbo, size, { stencil = false } = {}) {
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.viewport(0, 0, size, size);
+  gl.disable(gl.DEPTH_TEST);
+  gl.depthMask(false);
+  gl.disable(gl.BLEND);
+  gl.clearColor(0, 0, 0, 0);
+  if (stencil) {
+    gl.enable(gl.STENCIL_TEST);
+    gl.stencilMask(0xFF);
+    gl.clearStencil(0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
+  } else {
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+}
+
+function drawQuad(gl, quadBuf) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+  gl.enableVertexAttribArray(LOC.a_pos);
+  gl.vertexAttribPointer(LOC.a_pos, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function saveGlState(gl) {
+  const G = gl;
+  return {
+    fbo: G.getParameter(G.FRAMEBUFFER_BINDING),
+    vp: G.getParameter(G.VIEWPORT),
+    depth: G.isEnabled(G.DEPTH_TEST),
+    depthFunc: G.getParameter(G.DEPTH_FUNC),
+    depthMask: G.getParameter(G.DEPTH_WRITEMASK),
+    depthRange: G.getParameter(G.DEPTH_RANGE),
+    stencil: G.isEnabled(G.STENCIL_TEST),
+    stencilFunc: G.getParameter(G.STENCIL_FUNC),
+    stencilRef: G.getParameter(G.STENCIL_REF),
+    stencilValueMask: G.getParameter(G.STENCIL_VALUE_MASK),
+    stencilWriteMask: G.getParameter(G.STENCIL_WRITEMASK),
+    stencilOp: [G.getParameter(G.STENCIL_FAIL), G.getParameter(G.STENCIL_PASS_DEPTH_FAIL), G.getParameter(G.STENCIL_PASS_DEPTH_PASS)],
+    blend: G.isEnabled(G.BLEND),
+    cull: G.isEnabled(G.CULL_FACE),
+    cullFace: G.getParameter(G.CULL_FACE_MODE),
+    frontFace: G.getParameter(G.FRONT_FACE),
+    vao: G.getParameter(G.VERTEX_ARRAY_BINDING),
+  };
+}
+
+function restoreGlState(gl, s) {
+  const en = (cap, on) => gl[on ? 'enable' : 'disable'](cap);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, s.fbo);
+  gl.viewport(s.vp[0], s.vp[1], s.vp[2], s.vp[3]);
+  gl.depthFunc(s.depthFunc);
+  gl.depthMask(s.depthMask);
+  gl.depthRange(s.depthRange[0], s.depthRange[1]);
+  gl.stencilFunc(s.stencilFunc, s.stencilRef, s.stencilValueMask);
+  gl.stencilMask(s.stencilWriteMask);
+  gl.stencilOp(...s.stencilOp);
+  en(gl.DEPTH_TEST, s.depth); en(gl.STENCIL_TEST, s.stencil);
+  en(gl.BLEND, s.blend); en(gl.CULL_FACE, s.cull);
+  gl.cullFace(s.cullFace);
+  gl.frontFace(s.frontFace);
+}
+
+// Composite buffers store (value@overscaledZ, value@overscaledZ+1) — matching
+// MapLibre's own bucket creation which keys paint evaluation off overscaledZ.
+function zoomFactor(map, coord) {
+  const z = coord.overscaledZ ?? coord.canonical?.z;
+  return Math.min(1, Math.max(0, map.getZoom() - z));
+}
+
+// ── Layer ───────────────────────────────────────────────────────────
+export class WallShadowLayer {
+  constructor(opts = {}) {
+    this.id = opts.id || 'wallshadow';
+    this.type = 'custom';
+    this.renderingMode = '2d';
+    this._layerId = opts.buildingsLayerId;
+    this._sourceId = opts.sourceId || null;
+    this._minZoom = opts.minZoom ?? 15;
+    this._maxZoom = opts.maxZoom ?? 20;
+
+    this.enabled = opts.enabled ?? true;
+    this.wallShade = opts.wallShade ?? true;  // buildings (plan E)
+    this.groundFx = opts.groundFx ?? true;    // ground shadow + AO (plan D)
+
+    // wall shading
+    this.strength = opts.strength ?? 0.5;
+    this.band = opts.band ?? 1.0;
+    this._height = opts.height ?? 40;
+    this._base = opts.base ?? 0;
+
+    // ground shadow
+    this.shadowAlpha = opts.shadowAlpha ?? 0.35;
+    this._heightScale = opts.heightScale ?? 0.38;
+    this.shadowOffset = opts.shadowOffset ?? [-0.5, 0.5];
+    this.shadowBlur = opts.shadowBlur ?? 2.0;
+
+    // ground AO
+    this._sdfRes = opts.sdfResolution ?? 1024;
+    this.aoRadiusMin = opts.aoRadiusMin ?? 30;
+    this.aoRadiusMax = opts.aoRadiusMax ?? 120;
+    this.aoIntensity = opts.aoIntensity ?? 0.80;
+    this.aoOffset = opts.aoOffset ?? [0, -2, -4];
+  }
+
+  onAdd(map, gl) {
+    this._map = map;
+    this._vao = { create: () => gl.createVertexArray(), bind: v => gl.bindVertexArray(v) };
+
+    this._buildProg = linkProgram(gl, BUILD_VS, BUILD_FS);
+    this._uBuild = uniformLocs(gl, this._buildProg,
+      ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity']);
+
+    this._shadProg = linkProgram(gl, SHAD_VS, SHAD_FS);
+    this._uShad = uniformLocs(gl, this._shadProg, ['u_matrix', 'u_shadowOff', 'u_heightScale', 'u_ht', 'u_bt']);
+
+    this._seedProg = linkProgram(gl, SEED_VS, SEED_FS);
+    this._uSeed = uniformLocs(gl, this._seedProg, ['u_matrix', 'u_res']);
+
+    this._jfaProg = linkProgram(gl, JFA_VS, JFA_FS);
+    this._uJfa = uniformLocs(gl, this._jfaProg, ['u_tex', 'u_stride', 'u_texel']);
+
+    this._compProg = linkProgram(gl, JFA_VS, COMP_FS);
+    this._uComp = uniformLocs(gl, this._compProg,
+      ['u_sdf', 'u_shadow', 'u_radius', 'u_intensity', 'u_shadowAlpha', 'u_offset', 'u_blurStep']);
+
+    // textures: [0],[1] JFA ping-pong, [2] shadow mask
+    const N = this._sdfRes;
+    this._useFloat = !!gl.getExtension('EXT_color_buffer_float');
+    this._tex = [createTexture(gl, N, this._useFloat), createTexture(gl, N, this._useFloat),
+                 createTexture(gl, N, false, gl.LINEAR)];
+
+    // FBOs: [0],[1] JFA, [2] shadow mask + stencil
+    this._fbo = Array.from({ length: 3 }, () => gl.createFramebuffer());
+    for (let i = 0; i < 3; i++) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._fbo[i]);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this._tex[i], 0);
+    }
+    this._stencilRB = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, this._stencilRB);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH24_STENCIL8, N, N);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this._fbo[2]);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, this._stencilRB);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    this._quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this._quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  }
+
+  /* ── shared tile access ── */
+
+  _resolveSource() {
+    if (!this._sourceId) {
+      const layer = this._map.getLayer(this._layerId);
+      if (layer) this._sourceId = layer.source || layer.sourceLayer;
+    }
+    const style = this._map.style;
+    return style.tileManagers?.[this._sourceId] || style.sourceCaches?.[this._sourceId] || null;
+  }
+
+  _tileMatrix(coord) {
+    const xf = this._map.transform;
+    try { return xf.getProjectionData({ overscaledTileID: coord, applyTerrainMatrix: true })?.mainMatrix; }
+    catch { }
+    // PARCHMENT: v4 has no `getProjectionData`, and its `calculatePosMatrix`
+    // wants an UnwrappedTileID rather than the OverscaledTileID we hold. It has
+    // already done the work, though — `getVisibleCoordinates` stamps each coord
+    // with its own `posMatrix` on the way past — so read that first.
+    if (coord.posMatrix) return coord.posMatrix;
+    try { return xf.calculatePosMatrix(coord.toUnwrapped ? coord.toUnwrapped() : coord); }
+    catch { return null; }
+  }
+
+  _lightUniforms() {
+    const L = this._map.style.light?.properties;
+    if (!L) return { pos: [0.5, -0.6, 0.62], intensity: 0.5 };
+    const p = L.get('position');
+    let [x, y, z] = [p.x, p.y, p.z];
+    if (L.get('anchor') === 'viewport') {
+      // PARCHMENT: `bearingInRadians` is v5; v4 exposes degrees only.
+      const th = this._map.transform.bearingInRadians
+        ?? (this._map.transform.bearing * Math.PI) / 180;
+      [x, y] = [x * Math.cos(th) - y * Math.sin(th), x * Math.sin(th) + y * Math.cos(th)];
+    }
+    return { pos: [x, y, z], intensity: L.get('intensity') };
+  }
+
+  // Per-bucket VAO cache, shared by the shadow, seed and building programs
+  // (fixed attribute locations make this possible).
+  _segVaos(gl, bucket) {
+    const key = '_wshVao';
+    if (bucket[key]) return bucket[key];
+    const cfg = bucket.programConfigurations?.programConfigurations?.[this._layerId];
+    const findBuf = name => cfg?._buffers?.find(b => b.attributes?.some(a => a.name === name)) ?? null;
+    // Resolve a data-driven attribute: flat loc at the default component count,
+    // vec loc for the interpolated variant; comp 0 when the buffer is absent.
+    const dyn = (name, fLoc, vLoc, defComp) => {
+      const buf = findBuf(name);
+      const comp = buf ? (buf.attributes?.find(a => a.name === name)?.components || defComp) : 0;
+      return { buf: buf?.buffer, loc: comp === defComp ? fLoc : vLoc, comp };
+    };
+    const hD = dyn('a_height', LOC.a_height_f, LOC.a_height_v, 1);
+    const bD = dyn('a_base', LOC.a_base_f, LOC.a_base_v, 1);
+    const cD = dyn('a_color', LOC.a_color, LOC.a_color4, 2);
+    const point = (loc, glBuf, comp, type, stride, off) => {
+      if (!glBuf) return;
+      gl.bindBuffer(gl.ARRAY_BUFFER, glBuf);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, comp, type, false, stride, off);
+    };
+    const list = [];
+    for (const seg of bucket.segments.get()) {
+      const vao = this._vao.create();
+      this._vao.bind(vao);
+      point(LOC.a_pos, bucket.layoutVertexBuffer.buffer, 2, gl.SHORT, LAYOUT_STRIDE, seg.vertexOffset * LAYOUT_STRIDE);
+      point(LOC.a_normal_ed, bucket.layoutVertexBuffer.buffer, 4, gl.SHORT, LAYOUT_STRIDE, seg.vertexOffset * LAYOUT_STRIDE + 4);
+      for (const d of [hD, bD, cD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bucket.indexBuffer.buffer);
+      list.push({ vao, pO: seg.primitiveOffset, pL: seg.primitiveLength });
+    }
+    this._vao.bind(null);
+    return (bucket[key] = { list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp });
+  }
+
+  _drawSegs(gl, sg) {
+    for (const s of sg.list) {
+      this._vao.bind(s.vao);
+      gl.drawElements(gl.TRIANGLES, s.pL * 3, gl.UNSIGNED_SHORT, s.pO * 6);
+    }
+  }
+
+  /* ── render orchestrator ── */
+
+  render(gl) {
+    if (!this.enabled || this._map.getZoom() < this._minZoom) return;
+    const source = this._resolveSource();
+    const layer = this._map.getLayer(this._layerId);
+    if (!source || !layer) return;
+
+    let coords;
+    try { coords = source.getVisibleCoordinates().reverse(); } catch { return; }
+    if (!coords.length) return;
+
+    // One tile walk feeds every pass.
+    const tiles = [];
+    for (const coord of coords) {
+      let tile, bucket, m;
+      try {
+        tile = source.getTile(coord);
+        bucket = tile?.getBucket(layer);
+        m = this._tileMatrix(coord);
+      } catch { continue; }
+      if (!bucket || !m) continue;
+      tiles.push({ coord, tile, bucket, matrix: m instanceof Float32Array ? m : new Float32Array(m), zf: zoomFactor(this._map, coord) });
+    }
+    if (!tiles.length) return;
+
+    const saved = saveGlState(gl);
+    gl.disable(gl.RASTERIZER_DISCARD);
+
+    // Pinned defaults for attribute slots a tile may not supply (data-driven
+    // off). Attribute constants are context-global, not VAO state.
+    const H = this._height, B = this._base, W = 65535;
+    gl.vertexAttrib1f(LOC.a_height_f, H); gl.vertexAttrib2f(LOC.a_height_v, H, H);
+    gl.vertexAttrib1f(LOC.a_base_f, B); gl.vertexAttrib2f(LOC.a_base_v, B, B);
+    gl.vertexAttrib2f(LOC.a_color, W, W);
+    gl.vertexAttrib4f(LOC.a_color4, W, W, W, W);
+
+    if (this.groundFx) {
+      this._shadowPass(gl, tiles);
+      this._seedPass(gl, tiles);
+      this._jfaPass(gl);
+      this._compPass(gl, saved);
+    }
+    if (this.wallShade) this._buildingPass(gl, tiles);
+
+    restoreGlState(gl, saved);
+    this._vao.bind(saved.vao);
+
+    // MapLibre's painter caches GL state; invalidate everything we touched.
+    const ctx = this._map.painter?.context;
+    if (ctx) for (const k of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
+      'depthMask', 'depthFunc', 'depthRange', 'activeTexture', 'bindTexture',
+      'stencilFunc', 'stencilOp', 'blend', 'blendFunc', 'cullFace'])
+      if (ctx[k]) ctx[k].dirty = true;
+  }
+
+  /* ── 1. shadow mask → FBO[2] with stencil (no overlap) ── */
+
+  _shadowPass(gl, tiles) {
+    const U = this._uShad;
+    beginPass(gl, this._fbo[2], this._sdfRes, { stencil: true });
+    gl.stencilFunc(gl.EQUAL, 0, 0xFF);
+    gl.stencilOp(gl.KEEP, gl.KEEP, gl.INCR);
+
+    gl.useProgram(this._shadProg);
+    gl.uniform1f(U.u_heightScale, this._heightScale);
+
+    for (const { coord, tile, bucket, matrix, zf } of tiles) {
+      const sg = this._segVaos(gl, bucket);
+      if (!sg) continue;
+      gl.uniformMatrix4fv(U.u_matrix, false, matrix);
+      const s = Math.pow(2, coord.overscaledZ) / tile.tileSize / 8;
+      gl.uniform2f(U.u_shadowOff, this.shadowOffset[0] * s, -this.shadowOffset[1] * s);
+      gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
+      gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
+      this._drawSegs(gl, sg);
+    }
+    this._vao.bind(null);
+    gl.disable(gl.STENCIL_TEST);
+  }
+
+  /* ── 2. seed footprints → FBO[0] ── */
+
+  _seedPass(gl, tiles) {
+    const U = this._uSeed;
+    beginPass(gl, this._fbo[0], this._sdfRes);
+    gl.useProgram(this._seedProg);
+    gl.uniform2f(U.u_res, this._sdfRes, this._sdfRes);
+
+    for (const { bucket, matrix } of tiles) {
+      const sg = this._segVaos(gl, bucket);
+      if (!sg) continue;
+      gl.uniformMatrix4fv(U.u_matrix, false, matrix);
+      this._drawSegs(gl, sg);
+    }
+    this._vao.bind(null);
+    this._readIdx = 0;
+  }
+
+  /* ── 3. JFA passes → FBO ping-pong ── */
+
+  _jfaPass(gl) {
+    const N = this._sdfRes;
+    const U = this._uJfa;
+    this._vao.bind(null);
+
+    gl.useProgram(this._jfaProg);
+    gl.uniform2f(U.u_texel, 1 / N, 1 / N);
+    gl.uniform1i(U.u_tex, 0);
+
+    let read = 0;
+    for (let stride = N >> 1; stride >= 1; stride >>= 1) {
+      const write = 1 - read;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._fbo[write]);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this._tex[read]);
+      gl.uniform1f(U.u_stride, stride);
+      drawQuad(gl, this._quadBuf);
+      read = write;
+    }
+    this._readIdx = read;
+  }
+
+  /* ── 4. combined shadow + AO composite → screen (under buildings) ── */
+
+  _compPass(gl, saved) {
+    const U = this._uComp;
+    const vp = saved.vp;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, saved.fbo);
+    gl.viewport(vp[0], vp[1], vp[2], vp[3]);
+    this._vao.bind(null);
+    gl.useProgram(this._compProg);
+
+    const vw = vp[2], vh = vp[3];
+    const zoom = this._map.getZoom();
+    const t = Math.min(Math.max((zoom - this._minZoom) / (this._maxZoom - this._minZoom), 0), 1);
+    const radiusPx = this.aoRadiusMin + t * (this.aoRadiusMax - this.aoRadiusMin);
+    gl.uniform1f(U.u_radius, Math.min(radiusPx / Math.max(vw, vh), 0.2));
+    gl.uniform1f(U.u_intensity, this.aoIntensity);
+    gl.uniform1f(U.u_shadowAlpha, this.shadowAlpha);
+
+    const blurStep = this.shadowBlur / this._sdfRes;
+    gl.uniform2f(U.u_blurStep, blurStep, blurStep);
+
+    const bearing = this._map.getBearing() * Math.PI / 180;
+    const c = Math.cos(bearing), s = Math.sin(bearing);
+    const [ox, oy, oz] = this.aoOffset;
+    gl.uniform2f(U.u_offset, (ox * c - oy * s) / vw, ((ox * s + oy * c) + (oz ?? 0)) / vh);
+
+    gl.uniform1i(U.u_sdf, 0);
+    gl.uniform1i(U.u_shadow, 1);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this._tex[this._readIdx]);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this._tex[2]);
+
+    gl.disable(gl.DEPTH_TEST);
+    gl.depthMask(false);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    drawQuad(gl, this._quadBuf);
+  }
+
+  /* ── 5. buildings → screen (plan E draw, depth-tested over the overlay) ── */
+
+  _buildingPass(gl, tiles) {
+    const U = this._uBuild;
+
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.depthMask(true);
+    const dr = this._map.painter?.depthRangeFor3D;
+    if (dr) gl.depthRange(dr[0], dr[1]);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.STENCIL_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.frontFace(gl.CCW);
+
+    gl.useProgram(this._buildProg);
+    gl.uniform1f(U.u_band, Math.max(0.01, this.band));
+    gl.uniform1f(U.u_strength, this.strength);
+    const light = this._lightUniforms();
+    gl.uniform3fv(U.u_lightpos, light.pos);
+    gl.uniform1f(U.u_lightintensity, light.intensity);
+
+    for (const { bucket, matrix, zf } of tiles) {
+      const sg = this._segVaos(gl, bucket);
+      if (!sg) continue;
+      gl.uniformMatrix4fv(U.u_matrix, false, matrix);
+      gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
+      gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
+      gl.uniform1f(U.u_ct, sg.cComp === 4 ? zf : -1);
+      this._drawSegs(gl, sg);
+    }
+    this._vao.bind(null);
+  }
+
+  onRemove(_map, gl) {
+    for (const p of [this._buildProg, this._shadProg, this._seedProg, this._jfaProg, this._compProg])
+      gl.deleteProgram(p);
+    this._fbo.forEach(f => gl.deleteFramebuffer(f));
+    this._tex.forEach(t => gl.deleteTexture(t));
+    gl.deleteRenderbuffer(this._stencilRB);
+    gl.deleteBuffer(this._quadBuf);
+  }
+}

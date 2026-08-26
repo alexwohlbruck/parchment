@@ -148,6 +148,19 @@ export class MapStrategy {
   updateCameraProjection() {}
   setMap3dTerrain(value: boolean) {}
   setMap3dObjects(value: boolean) {}
+  /**
+   * Light the 3D buildings — cast shadows on the ground, ambient occlusion in
+   * the crease where a wall meets it, and a darkening band up the base of each
+   * wall, so a block reads as separate buildings rather than one mass.
+   *
+   * Only MapLibre implements this. Mapbox Standard lights its buildings itself
+   * and exposes `fill-extrusion-ambient-occlusion-*` for the rest; MapLibre has
+   * no lighting model past a flat directional tint, so it draws the buildings
+   * through a custom WebGL layer instead. Because the two arrive at the same
+   * result by unrelated means, this stays a strategy method rather than
+   * anything the style or the caller has to know about.
+   */
+  setBuildingShade(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}

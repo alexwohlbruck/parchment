@@ -60,6 +60,11 @@ import {
   rgbToHex,
   adjustLightness,
 } from '@/lib/utils'
+import {
+  createBuildingShade,
+  shadeLight,
+  BUILDING_SHADE_LAYER_ID,
+} from '@/lib/building-shade'
 function getPrimaryThemeHex(): string {
   try {
     const span = document.createElement('span')
@@ -124,6 +129,9 @@ export class MaplibreStrategy extends MapStrategy {
   private currentBasemap: Basemap = 'standard'
   private clickDebounceTimer: number | null = null
   private poiHandlerCleanup: (() => void) | null = null
+  /** The two switches gating the building lighting; see `applyBuildingShade`. */
+  private buildingShade = true
+  private map3dObjects = true
 
   constructor(
     container: string | HTMLElement,
@@ -221,6 +229,9 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       this.setupPoiHandlers()
       this.updateCameraProjection()
+      // A style swap drops the custom layer and restores the extrusion's own
+      // opacity, so the shading has to be re-added rather than merely left be.
+      this.applyBuildingShade()
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {
@@ -518,6 +529,61 @@ export class MaplibreStrategy extends MapStrategy {
         0,
       )
     }
+    this.map3dObjects = value
+    this.applyBuildingShade()
+  }
+
+  override setBuildingShade(value: boolean) {
+    this.buildingShade = value
+    this.applyBuildingShade()
+  }
+
+  /**
+   * Reconcile the lighting layer with the two switches that gate it.
+   *
+   * Kept apart from the setters because both of them feed it and each has to
+   * leave the other's preference alone — turning 3D buildings off and back on
+   * must not silently clear the shading, which is what happens if the two share
+   * a single flag. Flat buildings get no shading: there is nothing to light, and
+   * the layer walks the same buckets either way, so it would spend the whole
+   * per-frame cost on zero-height geometry.
+   *
+   * The layer takes over drawing the buildings, so the style's own extrusion is
+   * muted rather than removed: at opacity 0 MapLibre skips the draw but still
+   * builds and keeps the tiles and buckets, which is exactly the geometry the
+   * layer borrows. Dropping the layer restores the opacity and the built-in
+   * draw resumes, with no other state to unwind.
+   */
+  private applyBuildingShade() {
+    const buildingLayerId = layerGroups.building3d
+    if (!this.mapInstance.getLayer(buildingLayerId)) return
+
+    const active = this.buildingShade && this.map3dObjects
+    const present = !!this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID)
+    if (active && !present) {
+      const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+      // Directional shading and cast shadows have to agree on where the sun is;
+      // the layer reads its direction from the style light rather than from its
+      // own options, so this has to be set before it draws.
+      this.mapInstance.setLight(shadeLight())
+      this.mapInstance.addLayer(
+        createBuildingShade(buildingLayerId, flavor) as any,
+        this.layerAfter(buildingLayerId),
+      )
+    } else if (!active && present) {
+      this.mapInstance.removeLayer(BUILDING_SHADE_LAYER_ID)
+    }
+    this.mapInstance.setPaintProperty(
+      buildingLayerId,
+      'fill-extrusion-opacity',
+      active ? 0 : 1,
+    )
+  }
+
+  /** The id of the layer drawn directly above `layerId`, if any. */
+  private layerAfter(layerId: string): string | undefined {
+    const ids = this.mapInstance.getStyle().layers.map((l: any) => l.id)
+    return ids[ids.indexOf(layerId) + 1]
   }
 
   private setLayerGroupVisibility(layerIds: string[], visible: boolean) {

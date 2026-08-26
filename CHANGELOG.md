@@ -7,7 +7,7 @@
 * Map labels are set in Roboto, served from Parchment itself rather than fetched from someone else's font server on every pan
 * Looking straight down, the map is drawn without perspective. A flat-on view used to keep a vanishing point — building walls splayed outward from the middle of the screen and roofs sat offset from their own footprints — so a plan view never quite read as a plan. Tilting at all brings the perspective camera straight back
 * Buildings rise out of the ground as you zoom past the level they appear at, rather than springing up at full height the moment they switch on
-* Buildings have a proper edge, so a block reads as separate buildings rather than one continuous mass
+* Buildings are painted their real colours where OpenStreetMap knows them, which in a well-mapped city is most of them — so a red brick block, a glass tower and a limestone facade no longer come out as the same beige. Only the hue is taken, not the brightness: a building someone tagged plain "black" or "white" would otherwise land as a hole punched in the map, and how light a building sits is the map's decision, not the paint's
 * Buildings are solid rather than translucent, so a tower reads as a building instead of letting the streets and land underneath show through it — and a transit route crossing in front of one now blends with the building rather than with the ground beneath it
 * Two ways to draw places on the map, switchable under Appearance. The default gives each place a coloured badge matching its category — the same marker a search result wears. The alternative drops the badge and draws the icon alone in MapTiler Streets' own palette, for a quieter map that leans on the cartography rather than on markers. Both are drawn for day and night separately
 

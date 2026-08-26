@@ -51,6 +51,25 @@ const SOURCE = 'openmaptiles'
 /** How much zoom the buildings take to grow in, past the layer's minzoom. */
 const BUILDING_GROW_ZOOM = 0.4
 
+/**
+ * How much of a building's own colour survives, per flavor.
+ *
+ * OpenMapTiles carries `building:colour` from OSM, and in a mapped-out city it
+ * is on most buildings — 67-91% across central Manhattan — so this drives the
+ * look of the whole 3D layer rather than being a rare accent.
+ *
+ * Only the *chroma* is taken; lightness comes from the flavor. Sampling a 7x7
+ * grid of z14 tiles over Manhattan, 8501 buildings carry a colour and 155 of
+ * them are literally `black` with another 52 `white` — real facade paint, and
+ * holes punched in the map if drawn as given. Since the values are photographic
+ * they carry no information about a building's place in the map's value
+ * structure, so discarding their lightness loses nothing and costs a whole
+ * class of blown-out and pitch-black outliers.
+ *
+ * Dark keeps less: at low lightness the same chroma reads as far more saturated.
+ */
+const BUILDING_CHROMA = { light: 0.62, dark: 0.4 }
+
 /** Source-layers our OpenMapTiles basemap.pmtiles actually carries. */
 const AVAILABLE = new Set([
   'aerodrome_label', 'aeroway', 'boundary', 'building', 'housenumber',
@@ -514,6 +533,45 @@ function tokenizeSection(section, darkSection, tokens, hint) {
   return out
 }
 
+/**
+ * A building's colour, taking the tile's `building:colour` as a *tint* on the
+ * flavor's building colour rather than as the colour itself.
+ *
+ *     out = flavor + chroma * (tile - luminance(tile))
+ *
+ * Subtracting the tile colour's own luminance leaves only how far each channel
+ * departs from neutral, so hue and saturation come from OSM while lightness
+ * stays entirely the map's to decide. A grey building of any lightness — black,
+ * white, `lightgray` — has no departure to contribute and comes out as a plain
+ * building, which is what makes the extremes safe without special-casing them.
+ *
+ * The grey second argument to `to-color` is what makes bad data safe. About
+ * 0.06% of tagged buildings carry something unparseable — `brick`, `light_grey`,
+ * a hex string with a digit too many — and `to-color` throws on those rather
+ * than returning null, so `coalesce` cannot catch it and the layer falls back to
+ * the property default, which is black. Given a second argument it converts that
+ * instead, and a neutral grey contributes no hue, so the building renders plain.
+ *
+ * `let` binds the tile colour once — it is read four times, and `rgb` rejects a
+ * channel outside 0-255 outright, so each one is clamped rather than trusted.
+ */
+function buildingColor(chroma) {
+  const c = i => ['at', i, ['var', 'tile']]
+  const channel = i => [
+    'max', 0, ['min', 255,
+      ['+', ['at', i, ['to-rgba', ['to-color', '@building_3d_fill_extrusion_color']]],
+        ['*', chroma, ['-', c(i), ['var', 'luma']]]]],
+  ]
+  return [
+    'case',
+    ['has', 'colour'],
+    ['let', 'tile', ['to-rgba', ['to-color', ['get', 'colour'], '#808080']],
+      ['let', 'luma', ['+', ['*', 0.2126, c(0)], ['*', 0.7152, c(1)], ['*', 0.0722, c(2)]],
+        ['rgb', channel(0), channel(1), channel(2)]]],
+    '@building_3d_fill_extrusion_color',
+  ]
+}
+
 // ---------------------------------------------------------------------------
 
 async function main() {
@@ -523,6 +581,7 @@ async function main() {
   const tokens = new Tokens()
   const layers = []
   const dropped = []
+  let buildingLayerId = null
 
   for (const layer of style.layers) {
     const sl = layer['source-layer']
@@ -597,6 +656,7 @@ async function main() {
         'fill-extrusion-height': grow(out.paint['fill-extrusion-height']),
         'fill-extrusion-base': grow(out.paint['fill-extrusion-base']),
       }
+      buildingLayerId = out.id
     }
 
     // Every shield falls back to the generic rectangle, tinted per flavor.
@@ -610,35 +670,6 @@ async function main() {
     }
 
     layers.push(out)
-  }
-
-  // A real edge on the buildings.
-  //
-  // MapTiler's own is `fill-outline-color` on the flat `Building` layer, which
-  // cannot show here: light paints it LIGHTER than the fill (79% against 73%)
-  // and then dims it with `fill-opacity: 0.3`, dark paints it the exact same
-  // colour as the fill, and either way the flat layer sits under `Building 3D`
-  // — opaque since we stopped drawing buildings at 0.4 — so from z15 up it is
-  // covered outright. A line layer above the extrusion is visible whatever the
-  // camera is doing: at top-down it traces the roof edge, since an
-  // orthographic roof lands exactly on its own footprint.
-  const building3d = layers.findIndex(l => l.type === 'fill-extrusion')
-  if (building3d >= 0) {
-    layers.splice(building3d + 1, 0, {
-      id: 'Building outline',
-      type: 'line',
-      source: SOURCE,
-      'source-layer': 'building',
-      minzoom: layers[building3d].minzoom ?? 15,
-      layout: { 'line-join': 'round' },
-      paint: {
-        'line-color': '@building_outline',
-        // Hairline where the buildings first appear, firmer as they fill the
-        // screen — a constant width reads as a heavy sketch at high zoom.
-        'line-width': ['interpolate', ['linear'], ['zoom'], 15, 0.4, 18, 1],
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 15.4, 1],
-      },
-    })
   }
 
   // Rewriting the POI layers strands MapTiler's 11 family colours, which
@@ -694,11 +725,6 @@ async function main() {
   tokens.light.poi_v4_halo = 'hsl(0, 0%, 100%)'
   tokens.dark.poi_v4_halo = 'hsl(0, 0%, 0%)'
 
-  // Darker than the roof it edges in both flavors, which is the whole point —
-  // MapTiler's is lighter in one and identical in the other.
-  tokens.light.building_outline = 'hsl(35, 10%, 58%)'
-  tokens.dark.building_outline = 'hsl(217, 45%, 34%)'
-
   // The second POI treatment, as per-layer overrides `build.ts` merges in when
   // the glyph-only style is selected. Emitted rather than duplicating every
   // POI layer, so the filters and draw order stay defined in exactly one place.
@@ -711,7 +737,20 @@ async function main() {
   }
   console.log(`glyph-only POI treatment: ${Object.keys(poiStyles.glyph).length} layers`)
 
-  await writeFile(OUT_SPEC, `${JSON.stringify({ layers, poiStyles }, null, 1)}\n`)
+  // Per-flavor layer overrides, for the handful of places where day and night
+  // need a different *expression* rather than a different colour. Tokens cover
+  // the ordinary case; this covers the rest. Same shape as `poiStyles`, and
+  // merged by `build.ts` the same way.
+  const flavorStyles = Object.fromEntries(
+    Object.entries(BUILDING_CHROMA).map(([flavor, chroma]) => [
+      flavor,
+      buildingLayerId && {
+        [buildingLayerId]: { paint: { 'fill-extrusion-color': buildingColor(chroma) } },
+      },
+    ]),
+  )
+
+  await writeFile(OUT_SPEC, `${JSON.stringify({ layers, poiStyles, flavorStyles }, null, 1)}\n`)
   await writeFile(OUT_TOKENS, `${JSON.stringify(tokens.light, null, 1)}\n`)
   await writeFile(OUT_TOKENS_DARK, `${JSON.stringify(tokens.dark, null, 1)}\n`)
 

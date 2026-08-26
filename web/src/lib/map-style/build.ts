@@ -143,10 +143,12 @@ function resolve(value: unknown, tokens: Record<string, string>, categories: Rec
 }
 
 const specLayers = (spec as { layers: any[] }).layers
-const poiStyles = (spec as any).poiStyles as Record<
-  'glyph',
-  Record<string, { layout?: Record<string, unknown>; paint?: Record<string, unknown> }>
+type LayerOverrides = Record<
+  string,
+  { layout?: Record<string, unknown>; paint?: Record<string, unknown> }
 >
+const poiStyles = (spec as any).poiStyles as Record<'glyph', LayerOverrides>
+const flavorStyles = (spec as any).flavorStyles as Record<FlavorId, LayerOverrides>
 
 /**
  * Layer groups the map strategy toggles, derived from the spec rather than
@@ -221,25 +223,26 @@ function localize(layer: any, lang?: string): any {
 }
 
 /**
- * Swap the POI layers over to the glyph-only treatment.
+ * Merge a set of per-layer paint/layout overrides into the layer list.
  *
- * `spec.poiStyles.glyph` holds per-layer paint/layout overrides rather than a
- * second set of layers, so filters and draw order stay defined once. Both
- * treatments are a single symbol layer per POI family — the badge's disc is
- * baked into its sprite image — so switching is purely a matter of overrides.
+ * Both variant mechanisms in the spec — the glyph-only POI treatment and the
+ * per-flavor tweaks — are keyed by layer id and hold only the properties that
+ * differ, rather than a second copy of the layer. Filters and draw order stay
+ * defined exactly once, in the layer list itself.
  */
-function applyGlyphPoiStyle(layers: any[]): any[] {
-  const overrides = poiStyles.glyph
-  return layers
-    .map(l => {
-      const o = overrides[l.id]
-      if (!o) return l
-      return {
-        ...l,
-        layout: { ...l.layout, ...o.layout },
-        paint: { ...l.paint, ...o.paint },
-      }
-    })
+function applyOverrides(
+  layers: any[],
+  overrides: Record<string, { layout?: Record<string, unknown>; paint?: Record<string, unknown> }>,
+): any[] {
+  return layers.map(l => {
+    const o = overrides?.[l.id]
+    if (!o) return l
+    return {
+      ...l,
+      layout: { ...l.layout, ...o.layout },
+      paint: { ...l.paint, ...o.paint },
+    }
+  })
 }
 
 export function buildLayers(options: {
@@ -252,7 +255,10 @@ export function buildLayers(options: {
   const tokens = tokenMap(flavor)
   const categories = { ...FALLBACK_CATEGORY_COLORS[flavor], ...categoryColors }
 
-  const base = poiStyle === 'glyph' ? applyGlyphPoiStyle(specLayers) : specLayers
+  let base = specLayers
+  if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
+  base = applyOverrides(base, flavorStyles[flavor])
+
   return base
     .map(l => resolve(l, tokens, categories))
     .map(l => localize(l, lang)) as LayerSpecification[]

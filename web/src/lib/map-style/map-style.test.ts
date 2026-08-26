@@ -10,7 +10,7 @@
 import { describe, test, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
-import { validateStyleMin, featureFilter } from '@maplibre/maplibre-gl-style-spec'
+import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/maplibre-gl-style-spec'
 import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups } from './build'
 import spec from './spec.json'
 import lightTokens from './tokens.light.json'
@@ -306,6 +306,72 @@ describe('assembled styles', () => {
   test.each(cases)('%s leaves no unresolved token behind', (_name, make) => {
     const stray = collectStrings(make().layers).filter(s => /^@/.test(s))
     expect(stray).toEqual([])
+  })
+
+  /**
+   * Buildings take their colour from the tile's own `building:colour` where OSM
+   * has one, blended toward the flavor's anchor. Most buildings in a well-mapped
+   * city carry one, so this drives the look of the whole 3D layer — and the
+   * values are untrusted OSM strings, so the fallback path matters as much as
+   * the happy one.
+   */
+  describe('building colour', () => {
+    const evaluate = (flavor: 'light' | 'dark', properties: Record<string, unknown>) => {
+      const layer = (buildLayers({ flavor }) as any[]).find(l => l.id === layerGroups.building3d)
+      const parsed = expression.createPropertyExpression(
+        layer.paint['fill-extrusion-color'],
+        (latest as any)['paint_fill-extrusion']['fill-extrusion-color'],
+      )
+      expect(parsed.result).toBe('success')
+      const c = (parsed as any).value.evaluate({ zoom: 16 }, { properties })
+      return [c.r, c.g, c.b].map(v => Math.round(v * 255))
+    }
+
+    const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    test.each(['light', 'dark'] as const)('%s: a painted building takes its hue', flavor => {
+      const plain = evaluate(flavor, {})
+      const red = evaluate(flavor, { colour: '#ff0000' })
+      expect(red).not.toEqual(plain)
+      expect(red[0] - red[2]).toBeGreaterThan(plain[0] - plain[2])
+    })
+
+    /**
+     * The whole point of subtracting the tile colour's luminance: a grey of any
+     * lightness contributes no hue, so it cannot punch a hole in the map. 155
+     * buildings in a 7x7 z14 grid over Manhattan are tagged literally `black`
+     * and 52 `white`, so this is the common case, not a contrived one.
+     */
+    test.each(['light', 'dark'] as const)('%s: greys render as plain buildings', flavor => {
+      const plain = evaluate(flavor, {})
+      for (const colour of ['black', 'white', '#808080', 'lightgray']) {
+        expect(evaluate(flavor, { colour }), colour).toEqual(plain)
+      }
+    })
+
+    test('an unparseable colour renders plain rather than black', () => {
+      // `to-color` yields black instead of throwing, which the luminance
+      // subtraction then treats as any other neutral.
+      for (const colour of ['brick', 'light_grey', '#70c2dcb']) {
+        expect(evaluate('light', { colour }), colour).toEqual(evaluate('light', {}))
+      }
+    })
+
+    test.each(['light', 'dark'] as const)('%s: lightness is the flavor’s, not the tile’s', flavor => {
+      // A near-black and a near-white facade must not differ in weight.
+      const dim = luma(evaluate(flavor, { colour: '#1e1006' }))
+      const bright = luma(evaluate(flavor, { colour: '#fffffb' }))
+      expect(Math.abs(dim - bright)).toBeLessThan(6)
+    })
+
+    test('dark keeps less of the tile colour than light does', () => {
+      const spread = (f: 'light' | 'dark') => {
+        const [r, g, b] = evaluate(f, { colour: '#cdaa7d' })
+        const [pr, pg, pb] = evaluate(f, {})
+        return Math.abs(r - pr) + Math.abs(g - pg) + Math.abs(b - pb)
+      }
+      expect(spread('dark')).toBeLessThan(spread('light'))
+    })
   })
 
   test('every filter compiles and evaluates', () => {

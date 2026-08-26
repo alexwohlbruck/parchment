@@ -95,6 +95,5 @@
  "poi_v4_education": "hsl(204, 40%, 64%)",
  "poi_v4_sport": "hsl(129, 65%, 53%)",
  "poi_v4_station": "hsl(215, 90%, 65%)",
- "poi_v4_halo": "hsl(0, 0%, 0%)",
- "building_outline": "hsl(217, 45%, 34%)"
+ "poi_v4_halo": "hsl(0, 0%, 0%)"
 }

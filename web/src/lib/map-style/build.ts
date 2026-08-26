@@ -166,6 +166,15 @@ export const layerGroups = {
   building3d: specLayers.find(l => l.type === 'fill-extrusion')?.id ?? 'Building 3D',
 }
 
+/**
+ * The building layer's height and base as the spec defines them, zoom ramp and
+ * all — so anything that switches 3D buildings back on restores exactly what
+ * the style had rather than a hand-rolled copy that can drift from it.
+ */
+const buildingLayer = specLayers.find(l => l.type === 'fill-extrusion')
+export const BUILDING_HEIGHT_EXPRESSION = buildingLayer?.paint?.['fill-extrusion-height']
+export const BUILDING_BASE_EXPRESSION = buildingLayer?.paint?.['fill-extrusion-base']
+
 /** OpenMapTiles property names for building extrusion height. */
 export const BUILDING_HEIGHT_PROPERTY = 'render_height'
 export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'

@@ -48,6 +48,9 @@ const OUT_TOKENS_DARK = resolve(WEB, 'src/lib/map-style/tokens.dark.json')
 
 const SOURCE = 'openmaptiles'
 
+/** How much zoom the buildings take to grow in, past the layer's minzoom. */
+const BUILDING_GROW_ZOOM = 0.4
+
 /** Source-layers our OpenMapTiles basemap.pmtiles actually carries. */
 const AVAILABLE = new Set([
   'aerodrome_label', 'aeroway', 'boundary', 'building', 'housenumber',
@@ -570,7 +573,30 @@ async function main() {
     // map, muddy on ours, and it makes anything drawn over a building blend
     // with the ground beneath rather than with the building.
     if (out.type === 'fill-extrusion') {
-      out.paint = { ...out.paint, 'fill-extrusion-opacity': 1 }
+      // Buildings grow in over the first stretch of zoom past the layer's own
+      // minzoom, rather than springing up at full height the instant it
+      // switches on. This lives in the style, not in JS: `zoom` is one of the
+      // few things an expression can read, so MapLibre interpolates it on the
+      // GPU for free. `["zoom"]` is legal only as the direct input of a
+      // top-level interpolate, hence the ramp wrapping the value rather than
+      // multiplying it.
+      // MapTiler writes these as legacy identity functions, which are not
+      // expressions and cannot sit inside one. Translate first.
+      const asExpression = value =>
+        value && typeof value === 'object' && !Array.isArray(value) && value.property
+          ? ['coalesce', ['to-number', ['get', value.property]], 0]
+          : value
+      const grow = value => [
+        'interpolate', ['linear'], ['zoom'],
+        out.minzoom, 0,
+        out.minzoom + BUILDING_GROW_ZOOM, asExpression(value),
+      ]
+      out.paint = {
+        ...out.paint,
+        'fill-extrusion-opacity': 1,
+        'fill-extrusion-height': grow(out.paint['fill-extrusion-height']),
+        'fill-extrusion-base': grow(out.paint['fill-extrusion-base']),
+      }
     }
 
     // Every shield falls back to the generic rectangle, tinted per flavor.

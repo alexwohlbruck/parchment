@@ -53,8 +53,8 @@ import {
   buildMapStyle,
   buildSatelliteStyle,
   layerGroups,
-  BUILDING_HEIGHT_PROPERTY,
-  BUILDING_MIN_HEIGHT_PROPERTY,
+  BUILDING_HEIGHT_EXPRESSION,
+  BUILDING_BASE_EXPRESSION,
 } from '@/lib/map-style'
 import {
   rgbToHex,
@@ -112,26 +112,6 @@ const TOP_DOWN_EPSILON = 0.001
 /** Narrow enough to be indistinguishable from a true orthographic camera. */
 const ORTHO_FOV = 0.5
 
-/** Below this pitch the buildings are flat; above `FULL`, at full height. */
-const BUILDING_FLAT_PITCH = 1
-const BUILDING_FULL_PITCH = 25
-
-/**
- * How much zoom the buildings take to grow in, past the layer's own minzoom.
- * Short, so they are at full height almost as soon as they appear rather than
- * spending a whole level looking stunted.
- */
-const BUILDING_GROW_ZOOM = 0.4
-
-/** Fallback for the building layer's own minzoom, if it ever loses one. */
-const BUILDING_MIN_ZOOM = 15
-
-/** Height scale is snapped to this, to cut the number of re-evaluations. */
-const BUILDING_SCALE_STEP = 0.2
-
-/** The layer's own height and base, before the pitch ramp scales them. */
-const BUILDING_HEIGHT = ['coalesce', ['get', BUILDING_HEIGHT_PROPERTY], 0]
-const BUILDING_BASE = ['coalesce', ['get', BUILDING_MIN_HEIGHT_PROPERTY], 0]
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
@@ -229,10 +209,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.on('load', () => {
       mapEventBus.emit('load', this.mapInstance)
     })
-    this.mapInstance.on('pitch', () => {
-      this.scheduleBuildingHeights()
-      this.updateCameraProjection()
-    })
+    this.mapInstance.on('pitch', () => this.updateCameraProjection())
     // Style load fires on the initial style load AND on every subsequent
     // setStyle() call (theme change, basemap change, map style change). We
     // use this single listener to re-emit to the mapEventBus so that
@@ -243,8 +220,6 @@ export class MaplibreStrategy extends MapStrategy {
     // getLayer() on each event and automatically adapt to style changes.
     this.mapInstance.on('style.load', () => {
       this.setupPoiHandlers()
-      this.lastHeightScale = undefined
-      this.updateBuildingHeights()
       this.updateCameraProjection()
       mapEventBus.emit('style.load', this.mapInstance)
     })
@@ -519,12 +494,18 @@ export class MaplibreStrategy extends MapStrategy {
     if (!this.mapInstance.getLayer(buildingLayerId)) return
 
     if (value) {
-      // Through the ramp, not straight to full height: switching 3D back on
-      // while the map is flat should leave the buildings flat, not stand a
-      // city up under a top-down camera. The remembered scale is cleared so
-      // the update cannot be mistaken for a repeat and skipped.
-      this.lastHeightScale = undefined
-      this.updateBuildingHeights()
+      // Restore exactly what the style defines, zoom ramp included, rather
+      // than a literal height that would skip the grow-in.
+      this.mapInstance.setPaintProperty(
+        buildingLayerId,
+        'fill-extrusion-height',
+        BUILDING_HEIGHT_EXPRESSION,
+      )
+      this.mapInstance.setPaintProperty(
+        buildingLayerId,
+        'fill-extrusion-base',
+        BUILDING_BASE_EXPRESSION,
+      )
     } else {
       this.mapInstance.setPaintProperty(
         buildingLayerId,
@@ -644,106 +625,7 @@ export class MaplibreStrategy extends MapStrategy {
     transform.fov = wanted
   }
 
-  /**
-   * How tall the buildings stand at a given pitch: flat below
-   * `BUILDING_FLAT_PITCH`, full height above `BUILDING_FULL_PITCH`, ramped in
-   * between.
-   *
-   * This is what keeps the camera switch invisible. The buildings are already
-   * flat a degree before the map reaches top-down, so by the time the field of
-   * view narrows there are no walls left to pop out of existence — no
-   * sequencing, no animation timer, and the collapse follows the gesture
-   * instead of playing back at its own pace.
-   */
-  private buildingHeightScale(pitch: number): number {
-    if (pitch < BUILDING_FLAT_PITCH) return 0
-    if (pitch > BUILDING_FULL_PITCH) return 1
-    // Quantised, because each distinct value costs a re-evaluation of the
-    // height across every feature in every loaded tile. Five steps up the ramp
-    // is as smooth as the eye needs and a third of the work of a continuous
-    // one.
-    return Math.round((pitch / BUILDING_FULL_PITCH) / BUILDING_SCALE_STEP) * BUILDING_SCALE_STEP
-  }
-
-  /**
-   * Coalesce height updates to at most one per frame.
-   *
-   * `pitch` can fire more than once between paints, and each rescale is only
-   * paid for at the next render — so firing straight from the handler queues
-   * work that is thrown away. Latching to a frame is what the game gets for
-   * free by routing the value through React state, which batches it.
-   */
-  private scheduleBuildingHeights() {
-    if (this.heightFrame !== undefined) return
-    this.heightFrame = requestAnimationFrame(() => {
-      this.heightFrame = undefined
-      this.updateBuildingHeights()
-    })
-  }
-
-  /**
-   * Re-scale the building heights for the current pitch.
-   *
-   * The quantised scale is its own throttle: across the whole ramp there are
-   * only six distinct values, so the expensive part — re-setting a data-driven
-   * paint property, which re-evaluates it across every feature in every loaded
-   * tile — runs at most six times however slowly the map is tilted. That check
-   * comes first because it rejects nearly every call.
-   *
-   * An earlier revision also throttled on how far the pitch had moved, which
-   * could only ever delay a step the scale had already earned — it left the
-   * buildings a notch too tall at the bottom of the ramp.
-   */
-  private updateBuildingHeights() {
-    const k = this.buildingHeightScale(this.mapInstance.getPitch())
-    if (k === this.lastHeightScale) return
-
-    const id = layerGroups.building3d
-    if (!this.mapInstance.getLayer(id)) return
-    // 3D buildings switched off pins the height flat; leave it alone. Checked
-    // without recording the scale, so the ramp resumes when they come back.
-    if (!useMapStore().settings.objects3d) return
-
-    this.lastHeightScale = k
-    // Base scales with height, or the two come apart. A tall building is not
-    // one box: it is a stack of parts, and the upper ones sit on a non-zero
-    // `render_min_height`. Scaling only the height leaves those parts floating
-    // at their original base while the rest sink, and once the scaled height
-    // drops below the base the extrusion turns inside out — the offset shells
-    // and torn roofs over places like Brookfield Place.
-    //
-    // Flat is written as a plain `0` rather than a scaled expression: a
-    // constant needs no per-feature evaluation at all, which makes the last
-    // step of the ramp the cheapest one instead of the most expensive.
-    const minzoom = (this.mapInstance.getLayer(id) as any).minzoom ?? BUILDING_MIN_ZOOM
-    this.mapInstance.setPaintProperty(id, 'fill-extrusion-height', this.grow(BUILDING_HEIGHT, k, minzoom))
-    this.mapInstance.setPaintProperty(id, 'fill-extrusion-base', this.grow(BUILDING_BASE, k, minzoom))
-  }
-
-  /**
-   * A property scaled by the pitch ramp, then grown in just past the layer's
-   * minzoom so buildings rise out of the ground instead of appearing at full
-   * height the instant the layer switches on.
-   *
-   * The zoom half lives in the expression rather than in JS. Unlike pitch,
-   * zoom IS available to expressions, so MapLibre interpolates it on the GPU —
-   * genuinely smooth, and free of the per-step re-evaluation the pitch ramp
-   * has to pay for. `["zoom"]` is legal only as the direct input of a
-   * top-level `interpolate`, hence the ramp on the outside with the
-   * data-driven value as its upper stop rather than a tidier multiply.
-   */
-  private grow(value: unknown, k: number, minzoom: number): unknown {
-    // Flat is a plain `0`: a constant needs no per-feature evaluation at all.
-    if (k === 0) return 0
-    const scaled = k === 1 ? value : ['*', value, k]
-    return ['interpolate', ['linear'], ['zoom'], minzoom, 0, minzoom + BUILDING_GROW_ZOOM, scaled]
-  }
-
   private defaultFov?: number
-  /** Last scale actually applied; a pitch that does not change it costs nothing. */
-  private lastHeightScale?: number
-  /** Pending coalesced height update, cancelled on destroy. */
-  private heightFrame?: number
 
   private reloadStyle() {
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })
@@ -907,7 +789,6 @@ export class MaplibreStrategy extends MapStrategy {
 
   destroy() {
     try {
-      if (this.heightFrame !== undefined) cancelAnimationFrame(this.heightFrame)
       this.poiHandlerCleanup?.()
       this.poiHandlerCleanup = null
       this.unwatchTheme?.()

@@ -3077,15 +3077,53 @@
     "visibility": "visible"
    },
    "paint": {
-    "fill-extrusion-base": {
-     "property": "render_min_height",
-     "type": "identity"
-    },
+    "fill-extrusion-base": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     15,
+     0,
+     15.4,
+     [
+      "coalesce",
+      [
+       "to-number",
+       [
+        "get",
+        "render_min_height"
+       ]
+      ],
+      0
+     ]
+    ],
     "fill-extrusion-color": "@building_3d_fill_extrusion_color",
-    "fill-extrusion-height": {
-     "property": "render_height",
-     "type": "identity"
-    },
+    "fill-extrusion-height": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     15,
+     0,
+     15.4,
+     [
+      "coalesce",
+      [
+       "to-number",
+       [
+        "get",
+        "render_height"
+       ]
+      ],
+      0
+     ]
+    ],
     "fill-extrusion-opacity": 1
    },
    "filter": [

@@ -19,6 +19,7 @@
  */
 import { WallShadowLayer } from './vendor/ao-shadow.mjs'
 import type { FlavorId } from './map-style/build'
+import { BUILDING_CHROMA } from './map-style/building-color.mjs'
 
 /**
  * Where the sun is, as a ground-plane offset for the cast shadows. Fixed rather
@@ -63,24 +64,54 @@ function sdfResolution(): number {
 
 export const BUILDING_SHADE_LAYER_ID = 'building-shade'
 
+/**
+ * The layer currently on the map, for the dev tuning panel to drive.
+ *
+ * Every lever is a plain mutable field the layer reads each frame, so tuning is
+ * a matter of assigning to them — there is no setter and nothing to invalidate.
+ * A style swap builds a new layer and reassigns this.
+ */
+let live: WallShadowLayer | null = null
+export function liveBuildingShade(): WallShadowLayer | null {
+  return live
+}
+
 export function createBuildingShade(buildingsLayerId: string, flavor: FlavorId) {
-  return new WallShadowLayer({
+  live = new WallShadowLayer({
     id: BUILDING_SHADE_LAYER_ID,
     buildingsLayerId,
-    shadowOffset: SHADOW_OFFSET,
+    shadowOffset: [...SHADOW_OFFSET],
     sdfResolution: sdfResolution(),
     edgeWidth: edgeWidth(),
     ...TUNING[flavor],
   })
+  return live
 }
 
 /**
- * The map light that matches {@link SHADOW_OFFSET}, so the shading up a wall
+ * The map light that matches a shadow direction, so the shading up a wall
  * agrees with the direction its shadow falls. The layer reads the light off the
- * style rather than taking it as an option, which is what keeps the two in step.
+ * style rather than taking it as an option, which is what keeps the two in step
+ * — so moving the sun means setting this again, not just the layer's offset.
  */
-export function shadeLight() {
-  const [x, y] = SHADOW_OFFSET
+export function shadeLight(offset: readonly [number, number] = SHADOW_OFFSET) {
+  const [x, y] = offset
   const azimuth = ((Math.atan2(-x, -y) * 180) / Math.PI + 360) % 360
   return { anchor: 'map' as const, position: [1.2, azimuth, 30] as [number, number, number], intensity: 0.5 }
+}
+
+/** The tuned defaults, for the dev panel to open on and reset to. */
+export function buildingShadeDefaults(flavor: FlavorId) {
+  return {
+    ...TUNING[flavor],
+    edgeWidth: edgeWidth(),
+    shadowOffset: [...SHADOW_OFFSET] as [number, number],
+    band: 1.0,
+    heightScale: 0.38,
+    shadowBlur: 2.0,
+    aoRadiusMin: 30,
+    aoRadiusMax: 120,
+    aoOffset: [0, -2, -4] as [number, number, number],
+    chroma: BUILDING_CHROMA[flavor],
+  }
 }

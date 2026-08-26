@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -57,6 +57,31 @@ const vehiclesStore = useVehiclesStore()
 const recentsStore = useRecentsStore()
 const { isMobileScreen } = useResponsive()
 const isDev = import.meta.env.DEV
+
+// TEMPORARY: `?tune=shade` opens the building-lighting panel, `?tune=off` closes
+// it. Held in sessionStorage rather than read from the route, because the query
+// is lost through the sign-in redirect and on any navigation after it.
+//
+// Imported through `defineAsyncComponent` behind the dev check rather than at
+// the top of the file: a static import lands in the production bundle whether
+// or not anything renders it, where this way the chunk is never even requested.
+const BuildingShadeTuner = isDev
+  ? defineAsyncComponent(() => import('@/components/map/dev/BuildingShadeTuner.vue'))
+  : null
+const shadeTunerKey = 'dev:tune-shade'
+const shadeTunerOn = ref(
+  isDev && sessionStorage.getItem(shadeTunerKey) === '1',
+)
+watch(
+  () => route.query.tune,
+  tune => {
+    if (!isDev || tune === undefined) return
+    shadeTunerOn.value = tune === 'shade'
+    sessionStorage.setItem(shadeTunerKey, shadeTunerOn.value ? '1' : '0')
+  },
+  { immediate: true },
+)
+const showShadeTuner = computed(() => isDev && shadeTunerOn.value)
 const { openExternalLink } = useExternalLink()
 
 const { dialogs } = appStore
@@ -228,6 +253,7 @@ function beforeNavTransition(value: boolean) {
   <HotkeysMenu />
   <DialogView></DialogView>
   <ImpersonationBanner v-if="isDev" />
+  <component :is="BuildingShadeTuner" v-if="showShadeTuner" />
   <OnboardingDialog v-if="authStore.needsOnboarding" />
   <KeyRestoreDialog v-else-if="authStore.me" />
 

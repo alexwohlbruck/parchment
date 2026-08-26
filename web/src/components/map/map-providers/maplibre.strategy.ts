@@ -11,8 +11,23 @@ import {
   GeoJSONSource,
   LngLat as MaplibreLngLat,
   CameraOptions,
+  setWorkerUrl,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+// MapLibre 6 is ESM-only and loads its worker from a URL it computes at
+// runtime, relative to its own `import.meta.url`. A bundler cannot see that as
+// a worker reference, so the file is never emitted next to the bundle and the
+// request comes back empty — the map then fails to start with "Loading Worker
+// ... blocked because of a disallowed MIME type". Worse, when `import.meta.url`
+// is not an http URL the library gives up and returns an empty string, which
+// resolves against the page root and trips a file:// security error.
+//
+// `?url` makes Vite emit the worker as a real asset and hand back its final
+// URL, in dev and in a production build alike, and `setWorkerUrl` is the
+// library's supported way to say where it went.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
+
+setWorkerUrl(maplibreWorkerUrl)
 import {
   Basemap,
   MapTheme,

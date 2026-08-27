@@ -59,14 +59,17 @@ describe('models', () => {
   })
 
   /**
-   * A trunk is a trunk, not a plinth.
+   * A trunk is a trunk: not a plinth, and not a wire either.
    *
    * The vendored models are drawn to read at arm's length in a game, where a
-   * chunky trunk is part of the look — one of them is nearly as wide as its own
-   * crown. Seen from above on a map that is a brown post with a bush balanced
-   * on it, so the build script slims every one to a fraction of its crown. This
-   * holds it there: re-vendoring a model, or a change to the normalisation that
-   * ran before the slimming, would otherwise quietly bring the plinths back.
+   * chunky trunk is part of the look — one is nearly as wide as its own crown,
+   * which seen from above is a brown post with a bush balanced on it. So the
+   * build script puts a ceiling on it. Both bounds are here because only having
+   * the upper one is how the first attempt went too far the other way and left
+   * every crown floating on a stick.
+   *
+   * Measured at the widest point, which on these models is the flare where the
+   * trunk meets the ground; the shaft above it comes out around half this.
    */
   test.each(Object.keys(TREE_MODELS))('%s stands on a trunk, not a plinth', name => {
     const model = load(name)
@@ -91,8 +94,10 @@ describe('models', () => {
     // behind the foliage they hold up.
     const trunk = reach('bark', crownBottom)
     expect(crown).toBeGreaterThan(0)
-    expect(trunk / crown, `${name} trunk is ${((trunk / crown) * 100).toFixed(0)}% of its crown`)
-      .toBeLessThanOrEqual(0.16)
+    const ratio = trunk / crown
+    const label = `${name} trunk is ${(ratio * 100).toFixed(0)}% of its crown`
+    expect(ratio, label).toBeLessThanOrEqual(0.32)
+    expect(ratio, label).toBeGreaterThan(0.12)
   })
 
   /**

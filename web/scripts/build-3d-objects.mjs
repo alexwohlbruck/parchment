@@ -601,16 +601,22 @@ function capHoles(part) {
 /**
  * How thick a trunk may be, as a fraction of the crown's radius.
  *
+ * A ceiling on the widest point of the trunk, which on most of these models is
+ * the flare where it meets the ground. That matters for reading the number:
+ * the shaft above the flare comes out around half of it, so this is roughly
+ * twice as generous as it sounds.
+ *
  * Kenney's trees are modelled to read at arm's length in a game, where a chunky
  * trunk is part of the style — theirs run from 15% of the crown up to 68%, and
- * one of them is very nearly as wide as the tree. On a map seen from above that
- * is not a stylistic choice, it is a brown post with a bush balanced on it.
+ * one is very nearly as wide as the tree. Seen from above that is a brown post
+ * with a bush balanced on it. But a real street tree is nearer 5%, and cutting
+ * to anywhere near that turns the trunk into a wire and leaves the crown
+ * looking like it is floating on a stick — which is what 14% did.
  *
- * A real street tree is nearer 5%. This is deliberately above that: at the size
- * these draw, a trunk thinner than a couple of pixels stops being a trunk and
- * the crown starts to look like it is floating.
+ * So: enough to bring the worst offenders down by half or more, and little
+ * enough to leave the already-reasonable ones alone entirely.
  */
-const TRUNK_RATIO = 0.14
+const TRUNK_RATIO = 0.3
 
 /**
  * Slim every trunk to `TRUNK_RATIO` of its own crown.

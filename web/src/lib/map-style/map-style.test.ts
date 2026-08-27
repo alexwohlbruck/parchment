@@ -469,12 +469,14 @@ describe('glyph-only POI style', () => {
     expect(glyph.map(l => l.id)).toEqual(badge.map(l => l.id))
   })
 
-  test.each(poiIds)('%s is a haloed glyph, not a knockout', id => {
+  test.each(poiIds)('%s is a haloed glyph, not a plate', id => {
     const l = glyph.find(x => x.id === id)
     expect(l.paint['icon-halo-width']).toBe(3.5)
-    // The badge treatment inks the glyph to the surface; this one tints it.
-    expect(l.paint['icon-color']).not.toBe(darkTokens.poi_ink)
+    // The badge treatment composites its own image and tints nothing at draw
+    // time; this one is a plain sprite glyph the layer tints, in the same
+    // colour as its label.
     expect(l.paint['icon-color']).toBe(l.paint['text-color'])
+    expect(JSON.stringify(l.layout['icon-image'])).not.toContain('poi|')
   })
 
   /**
@@ -484,7 +486,7 @@ describe('glyph-only POI style', () => {
   test('it uses the v4 family palette, not the app categories', () => {
     const food = glyph.find(l => l.id === 'Food')
     expect(food.paint['icon-color']).toBe(darkTokens.poi_v4_food)
-    expect(food.paint['icon-color']).not.toBe(darkTokens.poi_food_and_drink)
+    expect(food.paint['icon-color']).not.toBe(darkTokens.poi_ink_food_and_drink)
   })
 
   test('light and dark differ, in both ink and halo', () => {

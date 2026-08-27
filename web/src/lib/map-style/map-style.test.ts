@@ -220,6 +220,31 @@ describe('badge POI treatment', () => {
   })
 
   /**
+   * A path crossing a plaza is one pavement. Every casing has to be drawn
+   * before every surface, so a plaza's fill covers the casings of the paths
+   * inside it and the two read as one surface rather than as a channel scored
+   * across the square.
+   */
+  test('pedestrian casings all draw beneath pedestrian surfaces', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    const casings = [at('Pedestrian area outline'), at('Path outline')]
+    const surfaces = [at('Pedestrian'), at('Path')]
+    for (const c of casings) expect(c).toBeGreaterThan(-1)
+    for (const s of surfaces) expect(s).toBeGreaterThan(-1)
+    expect(Math.max(...casings)).toBeLessThan(Math.min(...surfaces))
+  })
+
+  /** The surface is continuous pavement; dashing it reads as a trail. */
+  test('the path surface is solid and matches the plaza fill', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const path = layers.find(l => l.id === 'Path')!
+    const plaza = layers.find(l => l.id === 'Pedestrian')!
+    expect(path.paint!['line-dasharray']).toBeUndefined()
+    expect(path.paint!['line-color']).toBe(plaza.paint!['fill-color'])
+  })
+
+  /**
    * A campus or hospital boundary must not paint over what is physically on
    * the ground inside it. NYU's university polygon covers Washington Square
    * Park, and drawn on top it turned the whole park into a pale blue slab.

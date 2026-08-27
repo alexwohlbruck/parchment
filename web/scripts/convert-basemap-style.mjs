@@ -170,10 +170,14 @@ const DARK_OVERRIDES = {
  */
 const SHIELD_LAYER = 'Highway shield'
 const JUNCTION_LAYER = 'Highway junction'
-const DROP_LAYERS = new Set([
-  'Highway shield (US)',
-  'Highway shield interstate top (US)',
-  'Highway shield interstate (US)',
+const DROP_LAYERS = new Map([
+  // MapTiler filters this on `class in ("path_pedestrian")`, which is not a
+  // class any feature carries — the layer has never drawn anything, and what
+  // it would have drawn is what `Path` already does.
+  ['Path minor', 'filters on a class no feature has'],
+  ['Highway shield (US)', `folded into "${'Highway shield'}"`],
+  ['Highway shield interstate top (US)', `folded into "${'Highway shield'}"`],
+  ['Highway shield interstate (US)', `folded into "${'Highway shield'}"`],
 ])
 
 /**
@@ -207,6 +211,73 @@ async function shieldImages() {
  * reads on the built-up parts of a campus, where there is no cover to hide it.
  */
 const INSTITUTIONAL_LANDUSE = ['Cemetery', 'Hospital', 'Stadium', 'School']
+
+// ---------------------------------------------------------------------------
+// Pedestrian paths and areas
+// ---------------------------------------------------------------------------
+
+/**
+ * Sidewalks, footpaths and plazas, on Mapbox Standard's treatment — see
+ * `road-path`, `road-path-case` and `road-pedestrian-polygon-fill` in
+ * `styles/standard.json`.
+ *
+ * MapTiler draws these the other way round: a wide *white* band with a thin
+ * grey dashed line on top of it, which reads as a dotted trail rather than as
+ * something paved. Standard draws a near-white surface with a fine grey
+ * casing, so a sidewalk reads as a narrow version of the road next to it. That
+ * is what these rebuild.
+ *
+ * The casing is `line-width` around a `line-gap-width`, which is how you draw
+ * an outline around a line rather than under it: the gap is the surface, and
+ * the stroke straddles its two edges.
+ */
+const PATH_CASING_LAYER = 'Path outline'
+const PATH_LAYER = 'Path'
+const PEDESTRIAN_AREA_LAYER = 'Pedestrian'
+const PEDESTRIAN_AREA_CASING_LAYER = 'Pedestrian area outline'
+
+/** The paved surface's width. Standard's ramp, which is exponential, not linear. */
+const PATH_SURFACE_WIDTH = [
+  'interpolate', ['exponential', 1.5], ['zoom'], 12, 0, 18, 6, 22, 80,
+]
+/** The casing straddling its edges — under a pixel until the path is wide. */
+const PATH_CASING_WIDTH = [
+  'interpolate', ['exponential', 1.5], ['zoom'], 14, 0.5, 18, 1, 22, 2,
+]
+
+/**
+ * Draw every casing, then every surface — the ordering the whole effect rests
+ * on, and the reason these four layers have to sit together.
+ *
+ * A path running across a plaza is one continuous pavement in life. Drawn
+ * naively, the path's casing is painted over the plaza and the path shows up as
+ * a channel scored across it. Putting all the casings underneath all the
+ * surfaces means the plaza's own fill covers the casing of every path inside
+ * it, while a path leaving the plaza keeps its casing the moment it is over
+ * open ground — and the path's surface covers the plaza's outline where the two
+ * meet, so there is no seam at the join either.
+ *
+ * The block lands where the paths already were, after the roads. That is also
+ * where Standard puts its pedestrian polygon, and it costs the one case where a
+ * road crosses a square: the square is drawn over it. Pedestrian areas are
+ * car-free by definition, so that is the cheaper of the two errors.
+ */
+function orderPedestrianSurfaces(layers) {
+  const take = id => {
+    const at = layers.findIndex(l => l.id === id)
+    return at < 0 ? null : layers.splice(at, 1)[0]
+  }
+  const area = take(PEDESTRIAN_AREA_LAYER)
+  const areaCasing = take(PEDESTRIAN_AREA_CASING_LAYER)
+  const pathCasing = take(PATH_CASING_LAYER)
+  const path = take(PATH_LAYER)
+  const block = [areaCasing, pathCasing, area, path].filter(Boolean)
+  if (!block.length) return
+
+  // Anchor on the road labels, the first thing drawn above the road surfaces.
+  const anchor = layers.findIndex(l => l['source-layer'] === 'transportation_name')
+  layers.splice(anchor < 0 ? layers.length : anchor, 0, ...block)
+}
 
 function sinkInstitutionalLanduse(layers) {
   const moved = INSTITUTIONAL_LANDUSE.map(id => {
@@ -702,7 +773,7 @@ async function main() {
       continue
     }
     if (DROP_LAYERS.has(layer.id)) {
-      dropped.push([layer.id, `folded into "${SHIELD_LAYER}"`])
+      dropped.push([layer.id, DROP_LAYERS.get(layer.id)])
       continue
     }
 
@@ -789,10 +860,50 @@ async function main() {
     if (layer.id === SHIELD_LAYER) Object.assign(out, routeShieldLayer(out, shieldArt))
     if (layer.id === JUNCTION_LAYER) Object.assign(out, exitShieldLayer(out))
 
+    // MapTiler's white-band-plus-dashed-line path becomes Standard's paved
+    // surface with a fine casing; see `orderPedestrianSurfaces`.
+    if (layer.id === PATH_CASING_LAYER) {
+      out.paint = {
+        'line-color': '@path_casing',
+        'line-width': PATH_CASING_WIDTH,
+        'line-gap-width': PATH_SURFACE_WIDTH,
+      }
+      out.layout = { ...out.layout, 'line-join': 'round', 'line-cap': 'round' }
+    }
+    if (layer.id === PATH_LAYER) {
+      // No dasharray: a sidewalk is continuous pavement, and dashing it is what
+      // made these read as trails rather than as something you walk on.
+      out.paint = { 'line-color': '@path_surface', 'line-width': PATH_SURFACE_WIDTH }
+      out.layout = { ...out.layout, 'line-join': 'round', 'line-cap': 'round' }
+    }
+    if (layer.id === PEDESTRIAN_AREA_LAYER) {
+      // Opaque, where MapTiler had it at 0.7. A plaza has to be the same colour
+      // as the paths running into it or the joins show as a change of tone.
+      out.paint = { 'fill-color': '@path_surface' }
+    }
+
     layers.push(out)
   }
 
   sinkInstitutionalLanduse(layers)
+
+  // The plaza's own outline, which MapTiler has no equivalent of — without it a
+  // pedestrian area ends in a hard colour change against the ground, where
+  // every path running into it is neatly cased.
+  const area = layers.find(l => l.id === PEDESTRIAN_AREA_LAYER)
+  if (area) {
+    layers.splice(layers.indexOf(area) + 1, 0, {
+      id: PEDESTRIAN_AREA_CASING_LAYER,
+      type: 'line',
+      source: SOURCE,
+      'source-layer': area['source-layer'],
+      minzoom: area.minzoom ?? 14,
+      filter: area.filter,
+      layout: { 'line-join': 'round' },
+      paint: { 'line-color': '@path_casing', 'line-width': PATH_CASING_WIDTH },
+    })
+  }
+  orderPedestrianSurfaces(layers)
 
   // The roofline edge, for the plan view.
   //
@@ -863,6 +974,16 @@ async function main() {
     flavor.shield_ink = 'hsl(0, 0%, 12%)'
     flavor.shield_ink_reversed = 'hsl(0, 0%, 100%)'
   }
+
+  // Pedestrian surfaces. Light follows Standard: a near-white pavement with a
+  // grey casing. Dark cannot — Standard's values are for a light map — so it
+  // sits a few points above the night ground the way the pavement sits above
+  // the earth in daylight, with a casing darker than the surface rather than
+  // lighter, since at night the surface is the bright thing.
+  tokens.light.path_surface = 'hsl(295, 10%, 95%)'
+  tokens.light.path_casing = 'hsl(0, 10%, 80%)'
+  tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
+  tokens.dark.path_casing = 'hsl(216, 20%, 20%)'
 
   for (const [name, color] of Object.entries(DARK_OVERRIDES)) {
     if (name in tokens.dark) tokens.dark[name] = color

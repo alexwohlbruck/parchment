@@ -363,43 +363,6 @@
    ]
   },
   {
-   "id": "Pedestrian",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "transportation",
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-color": "@pedestrian_fill_color",
-    "fill-opacity": 0.7
-   },
-   "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "Polygon"
-    ],
-    [
-     "!has",
-     "brunnel"
-    ],
-    [
-     "!in",
-     "class",
-     "bridge",
-     "pier"
-    ],
-    [
-     "in",
-     "subclass",
-     "pedestrian",
-     "platform"
-    ]
-   ]
-  },
-  {
    "id": "River tunnel",
    "type": "line",
    "source": "openmaptiles",
@@ -2647,206 +2610,6 @@
    ]
   },
   {
-   "id": "Path outline",
-   "type": "line",
-   "source": "openmaptiles",
-   "source-layer": "transportation",
-   "minzoom": 12,
-   "layout": {
-    "line-cap": "round",
-    "line-join": "miter",
-    "visibility": "visible"
-   },
-   "paint": {
-    "line-color": "@glacier_fill_color",
-    "line-width": {
-     "base": 1.2,
-     "stops": [
-      [
-       14,
-       0
-      ],
-      [
-       16,
-       0
-      ],
-      [
-       18,
-       4
-      ],
-      [
-       22,
-       8
-      ]
-     ]
-    }
-   },
-   "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "LineString"
-    ],
-    [
-     "in",
-     "class",
-     "path",
-     "pedestrian"
-    ],
-    [
-     "!=",
-     "brunnel",
-     "tunnel"
-    ]
-   ]
-  },
-  {
-   "id": "Path minor",
-   "type": "line",
-   "source": "openmaptiles",
-   "source-layer": "transportation",
-   "minzoom": 12,
-   "layout": {
-    "line-cap": "butt",
-    "line-join": "round",
-    "visibility": "visible"
-   },
-   "paint": {
-    "line-color": "@path_minor_line_color",
-    "line-dasharray": {
-     "stops": [
-      [
-       14,
-       [
-        1,
-        0.5
-       ]
-      ],
-      [
-       18,
-       [
-        1,
-        0.25
-       ]
-      ]
-     ]
-    },
-    "line-width": {
-     "base": 1.2,
-     "stops": [
-      [
-       14,
-       0.5
-      ],
-      [
-       16,
-       1
-      ],
-      [
-       18,
-       2
-      ],
-      [
-       22,
-       5
-      ]
-     ]
-    }
-   },
-   "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "LineString"
-    ],
-    [
-     "in",
-     "class",
-     "path_pedestrian"
-    ],
-    [
-     "!=",
-     "brunnel",
-     "tunnel"
-    ]
-   ]
-  },
-  {
-   "id": "Path",
-   "type": "line",
-   "source": "openmaptiles",
-   "source-layer": "transportation",
-   "minzoom": 12,
-   "layout": {
-    "line-cap": "butt",
-    "line-join": "round",
-    "visibility": "visible"
-   },
-   "paint": {
-    "line-color": "@path_minor_line_color",
-    "line-dasharray": {
-     "stops": [
-      [
-       14,
-       [
-        1,
-        0.5
-       ]
-      ],
-      [
-       18,
-       [
-        1,
-        0.25
-       ]
-      ]
-     ]
-    },
-    "line-width": {
-     "base": 1.2,
-     "stops": [
-      [
-       14,
-       0.5
-      ],
-      [
-       16,
-       1
-      ],
-      [
-       18,
-       2
-      ],
-      [
-       22,
-       5
-      ]
-     ]
-    }
-   },
-   "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "LineString"
-    ],
-    [
-     "in",
-     "class",
-     "path",
-     "pedestrian"
-    ],
-    [
-     "!=",
-     "brunnel",
-     "tunnel"
-    ]
-   ]
-  },
-  {
    "id": "Major rail",
    "type": "line",
    "source": "openmaptiles",
@@ -3785,6 +3548,211 @@
     "text-halo-color": "@housenumber_text_halo_color",
     "text-halo-width": 1
    }
+  },
+  {
+   "id": "Pedestrian area outline",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 14,
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Polygon"
+    ],
+    [
+     "!has",
+     "brunnel"
+    ],
+    [
+     "!in",
+     "class",
+     "bridge",
+     "pier"
+    ],
+    [
+     "in",
+     "subclass",
+     "pedestrian",
+     "platform"
+    ]
+   ],
+   "layout": {
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "@path_casing",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     0.5,
+     18,
+     1,
+     22,
+     2
+    ]
+   }
+  },
+  {
+   "id": "Path outline",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@path_casing",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     0.5,
+     18,
+     1,
+     22,
+     2
+    ],
+    "line-gap-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     0,
+     18,
+     6,
+     22,
+     80
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "LineString"
+    ],
+    [
+     "in",
+     "class",
+     "path",
+     "pedestrian"
+    ],
+    [
+     "!=",
+     "brunnel",
+     "tunnel"
+    ]
+   ]
+  },
+  {
+   "id": "Pedestrian",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-color": "@path_surface"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Polygon"
+    ],
+    [
+     "!has",
+     "brunnel"
+    ],
+    [
+     "!in",
+     "class",
+     "bridge",
+     "pier"
+    ],
+    [
+     "in",
+     "subclass",
+     "pedestrian",
+     "platform"
+    ]
+   ]
+  },
+  {
+   "id": "Path",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@path_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     0,
+     18,
+     6,
+     22,
+     80
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "LineString"
+    ],
+    [
+     "in",
+     "class",
+     "path",
+     "pedestrian"
+    ],
+    [
+     "!=",
+     "brunnel",
+     "tunnel"
+    ]
+   ]
   },
   {
    "id": "Gondola",

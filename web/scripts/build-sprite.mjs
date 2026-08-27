@@ -66,7 +66,9 @@ const INF = 1e20
  * interstate, M1-4 for the US route. Both are public-domain designs, so this is
  * a redraw from the same source rather than a copy of their sprite.
  */
-const SHIELD_HEIGHT = 15
+const SHIELD_HEIGHT = 18
+/** Plaques are shorter than shields, as a rectangular route marker is. */
+const PLAQUE_HEIGHT = 14
 
 /**
  * Border weight, in design pixels. A marker is only 15px tall, so this is the
@@ -81,26 +83,44 @@ const BORDER = 0.9
  * by the layer rather than baked in, so these have to clear `text-size` 9 bold
  * at `text-letter-spacing` 0.05 — roughly 6px per character — plus the border.
  *
- * Plaques are free to grow with the ref, and do. The two pointed markers are
- * not: the MUTCD draws M1-1 at 24x24 inches for a two-digit route and 30x24
- * for three, so a real interstate marker is square-ish and barely widens. Let
- * them follow the plaque ramp and a three-digit shield comes out a squashed
- * lozenge that reads as anything but a shield.
+ * Plaques are free to grow with the ref, and do. The two pointed markers stay
+ * near-square, as the MUTCD draws them — M1-1 is 24x24 inches for a two-digit
+ * route and 30x24 for three — so they widen far less. Let them follow the
+ * plaque ramp and a three-digit shield comes out a squashed lozenge that reads
+ * as anything but a shield.
+ *
+ * Both ramps are set from the text rather than from the sign: at `text-size` 9
+ * a digit is about 5.6px, and a pointed marker also has to clear its border and
+ * the taper toward the foot. Sized from the sign alone the digits crowd the
+ * edge of the field, which is what happened when these were first cut against a
+ * sprite sheet that was rendering 1.7x too large.
  *
  * They stop at four characters for the same reason — beyond that no proportion
  * saves the shape, and there is no such route anyway. Longer refs fall through
  * to `default-N`, which is exactly what Standard's `coalesce` is for.
  */
 const PLAQUE_WIDTHS = { 1: 15, 2: 18, 3: 24, 4: 29, 5: 34, 6: 39 }
-const POINTED_WIDTHS = { 1: 15, 2: 17, 3: 21, 4: 26 }
+const POINTED_WIDTHS = { 1: 18, 2: 21, 3: 25, 4: 30 }
 
+/**
+ * Sign colours, at map weight rather than at literal MUTCD values.
+ *
+ * The specified inks — PMS 294 blue, PMS 187 red — are made to be read at
+ * speed from a distance in daylight, and at 15 pixels over a pale basemap they
+ * go muddy: the navy reads as a dark blob and the brick red as brown. These
+ * keep the hues and lift them, which is the same adjustment Mapbox makes.
+ *
+ * The plaque rule is grey rather than the near-black it was. A 1px black
+ * keyline around a small white box is heavier than anything else on the map
+ * and pulls the eye to a route number ahead of the road it belongs to.
+ */
 const SHIELD_COLORS = {
-  interstateField: '#173F8A',
-  interstateCrown: '#BF2033',
+  interstateField: '#1B54A8',
+  interstateCrown: '#D22E3F',
   white: '#FFFFFF',
-  ink: '#1A1A1A',
-  rule: '#8C8C8C',
-  exit: '#1F6B3B',
+  ink: '#3D3D3D',
+  rule: '#9A9A9A',
+  exit: '#2A7D4A',
 }
 
 const svgDoc = (w, h, body) =>
@@ -191,7 +211,7 @@ function shieldPath(outline, w, h, pad) {
  * per-state art keyed off a field OpenMapTiles does not carry.
  */
 function plaqueSvg(width, { fill, stroke, radius = 3 }) {
-  const h = SHIELD_HEIGHT - 2
+  const h = PLAQUE_HEIGHT
   return svgDoc(
     width,
     h,
@@ -541,8 +561,16 @@ async function buildSheet(icons, ratio) {
     // Colour art is blitted as-is, so padding it would only inflate its
     // collision box.
     const pad = colour ? 0 : buffer
-    const base = sharp(svg, { density: 72 * ratio })
-    const meta = await base.metadata()
+    // Measure at the base density, then scale by `ratio` exactly once.
+    //
+    // `density` already scales a vector: at 72 a 15-unit SVG rasterises to
+    // 15px, at 144 to 30px. Reading the metadata off the *scaled* render and
+    // then multiplying by `ratio` applied it twice, so the @2x sheet came out
+    // at 4x the design size and every icon it carries drew ~1.7x too large on
+    // a retina display — while the 1x sheet was correct, so the same map was
+    // a different size on two monitors. Badges escaped it only because
+    // `badgeAlpha` computes its own size rather than reading it back.
+    const meta = await sharp(svg, { density: 72 }).metadata()
     const width = Math.round((meta.width ?? 15) * ratio)
     const height = Math.round((meta.height ?? 15) * ratio)
 

@@ -868,12 +868,16 @@ async function main() {
     // wider than a residential street is at the zooms this layer switches on
     // at, which is why they read as arrows floating over the map rather than as
     // markings painted on the road. Roughly half that keeps them inside it.
+    //
+    // The numbers were first cut against a sprite sheet that rendered 1.7x too
+    // large on a retina display, so they are scaled by that factor here: the
+    // sizing that was judged by eye is preserved, now that the sheet is right.
     // Written as an interpolate rather than the legacy stops function it
     // replaces: style-spec 25 warns on those.
     if (layer.id === 'Oneway') {
       out.layout = {
         ...out.layout,
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.34, 19, 0.55],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.58, 19, 0.94],
       }
     }
 

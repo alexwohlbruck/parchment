@@ -947,7 +947,7 @@
     "x": 189,
     "y": 167,
     "width": 15,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -955,7 +955,7 @@
     "x": 204,
     "y": 167,
     "width": 18,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -963,7 +963,7 @@
     "x": 222,
     "y": 167,
     "width": 24,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -971,7 +971,7 @@
     "x": 246,
     "y": 167,
     "width": 29,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -979,7 +979,7 @@
     "x": 275,
     "y": 167,
     "width": 34,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -987,7 +987,7 @@
     "x": 225,
     "y": 188,
     "width": 39,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -2035,7 +2035,7 @@
     "x": 588,
     "y": 121,
     "width": 15,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -2043,7 +2043,7 @@
     "x": 603,
     "y": 121,
     "width": 18,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -2051,7 +2051,7 @@
     "x": 621,
     "y": 121,
     "width": 24,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -2059,7 +2059,7 @@
     "x": 330,
     "y": 167,
     "width": 29,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -2067,7 +2067,7 @@
     "x": 359,
     "y": 167,
     "width": 34,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -2075,7 +2075,7 @@
     "x": 393,
     "y": 167,
     "width": 39,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
@@ -3386,117 +3386,117 @@
   "us-highway-1": {
     "x": 210,
     "y": 330,
-    "width": 15,
-    "height": 15,
+    "width": 18,
+    "height": 18,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-highway-2": {
-    "x": 225,
+    "x": 228,
     "y": 330,
-    "width": 17,
-    "height": 15,
+    "width": 21,
+    "height": 18,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-highway-3": {
-    "x": 242,
+    "x": 249,
     "y": 330,
-    "width": 21,
-    "height": 15,
+    "width": 25,
+    "height": 18,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-highway-4": {
-    "x": 263,
+    "x": 274,
     "y": 330,
-    "width": 26,
-    "height": 15,
+    "width": 30,
+    "height": 18,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-interstate-1": {
-    "x": 289,
+    "x": 304,
     "y": 330,
-    "width": 15,
-    "height": 15,
+    "width": 18,
+    "height": 18,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-interstate-2": {
-    "x": 304,
+    "x": 322,
     "y": 330,
-    "width": 17,
-    "height": 15,
+    "width": 21,
+    "height": 18,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-interstate-3": {
-    "x": 321,
+    "x": 343,
     "y": 330,
-    "width": 21,
-    "height": 15,
+    "width": 25,
+    "height": 18,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-interstate-4": {
-    "x": 342,
+    "x": 368,
     "y": 330,
-    "width": 26,
-    "height": 15,
+    "width": 30,
+    "height": 18,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-state-1": {
-    "x": 368,
+    "x": 398,
     "y": 330,
     "width": 15,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-state-2": {
-    "x": 383,
+    "x": 413,
     "y": 330,
     "width": 18,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-state-3": {
-    "x": 401,
+    "x": 431,
     "y": 330,
     "width": 24,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-state-4": {
-    "x": 425,
+    "x": 455,
     "y": 330,
     "width": 29,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-state-5": {
-    "x": 454,
+    "x": 484,
     "y": 330,
     "width": 34,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
   "us-state-6": {
-    "x": 488,
+    "x": 518,
     "y": 330,
     "width": 39,
-    "height": 13,
+    "height": 14,
     "pixelRatio": 1,
     "sdf": false
   },
   "veterinary": {
-    "x": 527,
+    "x": 557,
     "y": 330,
     "width": 21,
     "height": 21,
@@ -3512,7 +3512,7 @@
     "sdf": true
   },
   "viewpoint": {
-    "x": 548,
+    "x": 578,
     "y": 330,
     "width": 21,
     "height": 21,
@@ -3528,7 +3528,7 @@
     "sdf": true
   },
   "village": {
-    "x": 569,
+    "x": 599,
     "y": 330,
     "width": 21,
     "height": 21,
@@ -3544,7 +3544,7 @@
     "sdf": true
   },
   "volcano": {
-    "x": 590,
+    "x": 620,
     "y": 330,
     "width": 21,
     "height": 21,
@@ -3560,7 +3560,7 @@
     "sdf": true
   },
   "volleyball": {
-    "x": 611,
+    "x": 641,
     "y": 330,
     "width": 21,
     "height": 21,
@@ -3576,15 +3576,15 @@
     "sdf": true
   },
   "warehouse": {
-    "x": 632,
-    "y": 330,
+    "x": 375,
+    "y": 351,
     "width": 21,
     "height": 21,
     "pixelRatio": 1,
     "sdf": true
   },
   "badge-warehouse": {
-    "x": 375,
+    "x": 396,
     "y": 351,
     "width": 25,
     "height": 25,
@@ -3592,7 +3592,7 @@
     "sdf": true
   },
   "waste-basket": {
-    "x": 400,
+    "x": 421,
     "y": 351,
     "width": 21,
     "height": 21,
@@ -3600,7 +3600,7 @@
     "sdf": true
   },
   "badge-waste-basket": {
-    "x": 421,
+    "x": 442,
     "y": 351,
     "width": 25,
     "height": 25,
@@ -3608,7 +3608,7 @@
     "sdf": true
   },
   "watch": {
-    "x": 446,
+    "x": 467,
     "y": 351,
     "width": 21,
     "height": 21,
@@ -3616,7 +3616,7 @@
     "sdf": true
   },
   "badge-watch": {
-    "x": 467,
+    "x": 488,
     "y": 351,
     "width": 25,
     "height": 25,
@@ -3624,7 +3624,7 @@
     "sdf": true
   },
   "water": {
-    "x": 492,
+    "x": 513,
     "y": 351,
     "width": 21,
     "height": 21,
@@ -3632,7 +3632,7 @@
     "sdf": true
   },
   "badge-water": {
-    "x": 513,
+    "x": 534,
     "y": 351,
     "width": 25,
     "height": 25,
@@ -3640,7 +3640,7 @@
     "sdf": true
   },
   "waterfall": {
-    "x": 538,
+    "x": 559,
     "y": 351,
     "width": 21,
     "height": 21,
@@ -3648,7 +3648,7 @@
     "sdf": true
   },
   "badge-waterfall": {
-    "x": 559,
+    "x": 580,
     "y": 351,
     "width": 25,
     "height": 25,
@@ -3656,7 +3656,7 @@
     "sdf": true
   },
   "watermill": {
-    "x": 584,
+    "x": 605,
     "y": 351,
     "width": 21,
     "height": 21,
@@ -3664,7 +3664,7 @@
     "sdf": true
   },
   "badge-watermill": {
-    "x": 605,
+    "x": 626,
     "y": 351,
     "width": 25,
     "height": 25,
@@ -3672,7 +3672,7 @@
     "sdf": true
   },
   "wetland": {
-    "x": 630,
+    "x": 651,
     "y": 351,
     "width": 21,
     "height": 21,
@@ -3688,15 +3688,15 @@
     "sdf": true
   },
   "wheelchair": {
-    "x": 651,
-    "y": 351,
+    "x": 25,
+    "y": 376,
     "width": 21,
     "height": 21,
     "pixelRatio": 1,
     "sdf": true
   },
   "badge-wheelchair": {
-    "x": 25,
+    "x": 46,
     "y": 376,
     "width": 25,
     "height": 25,
@@ -3704,7 +3704,7 @@
     "sdf": true
   },
   "windmill": {
-    "x": 50,
+    "x": 71,
     "y": 376,
     "width": 21,
     "height": 21,
@@ -3712,7 +3712,7 @@
     "sdf": true
   },
   "badge-windmill": {
-    "x": 71,
+    "x": 92,
     "y": 376,
     "width": 25,
     "height": 25,
@@ -3720,7 +3720,7 @@
     "sdf": true
   },
   "zoo": {
-    "x": 96,
+    "x": 117,
     "y": 376,
     "width": 21,
     "height": 21,
@@ -3728,7 +3728,7 @@
     "sdf": true
   },
   "badge-zoo": {
-    "x": 117,
+    "x": 138,
     "y": 376,
     "width": 25,
     "height": 25,
@@ -4288,7 +4288,7 @@
     "sdf": true
   },
   "reservoir": {
-    "x": 492,
+    "x": 513,
     "y": 351,
     "width": 21,
     "height": 21,
@@ -4296,7 +4296,7 @@
     "sdf": true
   },
   "badge-reservoir": {
-    "x": 513,
+    "x": 534,
     "y": 351,
     "width": 25,
     "height": 25,
@@ -6392,7 +6392,7 @@
     "sdf": true
   },
   "waste_basket": {
-    "x": 400,
+    "x": 421,
     "y": 351,
     "width": 21,
     "height": 21,
@@ -6400,7 +6400,7 @@
     "sdf": true
   },
   "badge-waste_basket": {
-    "x": 421,
+    "x": 442,
     "y": 351,
     "width": 25,
     "height": 25,

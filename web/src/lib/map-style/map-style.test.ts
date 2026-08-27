@@ -277,6 +277,34 @@ describe('badge POI treatment', () => {
   })
 
   /**
+   * The two sheets have to describe the same icon at the same size.
+   *
+   * `width / pixelRatio` is what MapLibre draws, so a mismatch means the map
+   * renders at one size on an ordinary display and another on a retina one.
+   * That is exactly what happened: `sharp`'s `density` already scales a vector,
+   * the builder multiplied by the ratio a second time, and every icon that read
+   * its size back from the render — every bare glyph, and every route shield —
+   * came out 1.7x too large at @2x. Badges were unaffected, which is why it
+   * went unnoticed until the shields landed.
+   */
+  test('both sprite sheets draw every icon at the same CSS size', () => {
+    const at1x = JSON.parse(
+      readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'),
+    )
+    const at2x = JSON.parse(
+      readFileSync(resolvePath(WEB, 'public/sprites/parchment@2x.json'), 'utf8'),
+    )
+    const cssSize = (e: any) => [e.width / e.pixelRatio, e.height / e.pixelRatio]
+    const mismatched = Object.keys(at1x).filter(name => {
+      if (!at2x[name]) return false
+      const [w1, h1] = cssSize(at1x[name])
+      const [w2, h2] = cssSize(at2x[name])
+      return w1 !== w2 || h1 !== h2
+    })
+    expect(mismatched).toEqual([])
+  })
+
+  /**
    * Route shields resolve `{network}-{ref_length}` against the sprite and fall
    * back to `default-{ref_length}`. Two things have to hold for that to work.
    */

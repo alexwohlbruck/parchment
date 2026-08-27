@@ -237,23 +237,58 @@ function toUnit(parts) {
   }
 }
 
+/**
+ * The bounds of the geometry a part actually draws.
+ *
+ * Walks the index rather than the position array, which is not a detail: glTF
+ * lets several primitives share one vertex buffer and differ only by their
+ * indices, and Kenney's exporter does exactly that. Every part of a tree
+ * therefore *owns* a position array spanning the whole tree, and measuring it
+ * directly gives the trunk the bounds of the canopy — which is what wrapped
+ * every distant tree in a brown crate as tall and as wide as itself.
+ */
 function boundsOf(part) {
   const min = [Infinity, Infinity, Infinity]
   const max = [-Infinity, -Infinity, -Infinity]
-  for (let i = 0; i < part.position.length; i += 3)
+  for (const v of part.index)
     for (let c = 0; c < 3; c++) {
-      min[c] = Math.min(min[c], part.position[i + c])
-      max[c] = Math.max(max[c], part.position[i + c])
+      min[c] = Math.min(min[c], part.position[v * 3 + c])
+      max[c] = Math.max(max[c], part.position[v * 3 + c])
     }
   return { min, max }
 }
 
 /**
- * The far LOD: each role replaced by a solid fitted to its own bounds.
+ * How much of a trunk counts as "the bottom", for measuring its girth.
+ *
+ * A trunk's bounding box is not its width. Kenney's trees model the branches
+ * as part of the trunk, so the box around one is as wide and as tall as the
+ * whole tree — fitting a prism to it wrapped every distant tree in a brown
+ * crate with the canopy poking out. Measuring across the bottom of the trunk,
+ * below where it forks, gives the girth you actually want.
+ */
+const TRUNK_SAMPLE = 0.25
+
+/** The radius of a part across its lowest slice, about its own axis. */
+function baseRadius(part, min, max) {
+  const cut = min[1] + (max[1] - min[1]) * TRUNK_SAMPLE
+  let radius = 0
+  for (const v of part.index) {
+    if (part.position[v * 3 + 1] > cut) continue
+    radius = Math.max(radius, Math.hypot(part.position[v * 3], part.position[v * 3 + 2]))
+  }
+  // Nothing down there to measure — fall back to the box, which is at least
+  // never smaller than the thing it is standing in for.
+  return radius > 1e-4 ? radius : Math.max((max[0] - min[0]) / 2, (max[2] - min[2]) / 2, 1e-4)
+}
+
+/**
+ * The far LOD: each role replaced by a solid fitted to its own silhouette.
  *
  * Nothing as clever as mesh decimation, and it does not need to be — past the
- * distance this kicks in, a tree is a dozen pixels and only its silhouette and
- * its colour survive. Foliage becomes a lozenge, everything else a prism.
+ * distance this kicks in, a tree is a dozen pixels and only its outline and its
+ * colour survive. Foliage becomes a lozenge; a trunk becomes a tapered post as
+ * thick as the real trunk is at the ground, not as thick as its branches reach.
  */
 function farLod(parts) {
   const out = []
@@ -263,9 +298,10 @@ function farLod(parts) {
     if (part.role === 'foliage') {
       lozenge(m, min, max)
     } else {
-      const rx = Math.max((max[0] - min[0]) / 2, 1e-4)
-      const rz = Math.max((max[2] - min[2]) / 2, 1e-4)
-      cylinder(m, 4, Math.max(rx, rz), Math.max(rx, rz) * 0.85, min[1], max[1] - min[1])
+      const radius = baseRadius(part, min, max)
+      // Five sides rather than four: a square post reads as a crate at any
+      // distance close enough to make out an edge.
+      cylinder(m, 5, radius, radius * 0.8, min[1], max[1] - min[1])
     }
     out.push({ role: part.role, ...m })
   }
@@ -539,8 +575,11 @@ async function main() {
     manifest.push(name)
 
     const tris = n => n.reduce((t, p) => t + p.index.length / 3, 0)
+    // Not re-normalised: it is built from parts that already are, and running
+    // `toUnit` over it re-centres on its own bounding box — which for a
+    // five-sided prism is not its axis, so every proxy came out shifted off
+    // centre and about 8% wide.
     const far = farLod(parts)
-    toUnit(far)
 
     // A model can already be cheaper than its own proxy — the fitted solids
     // have a fixed tessellation, and a 24-triangle bin does not need standing

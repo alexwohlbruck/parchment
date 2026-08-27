@@ -100,6 +100,44 @@ describe('models', () => {
     expect(far).toBeLessThanOrEqual(96)
   })
 
+  /**
+   * A stand-in may not be bigger than the thing it stands in for.
+   *
+   * glTF lets several primitives share one vertex buffer and differ only by
+   * their indices, which is what Kenney's exporter does — so a part's position
+   * array spans the whole model, and measuring it directly gave every trunk the
+   * bounds of its own canopy. Distant trees came out wrapped in a brown crate
+   * as tall and as wide as the tree.
+   */
+  test.each(ALL)('%s: the far model fits inside the near one', name => {
+    if (!(`${name}${FAR_SUFFIX}` in OBJECT_MODELS)) return
+    const near = load(name)
+    const far = load(`${name}${FAR_SUFFIX}`)
+
+    const extent = (model: ReturnType<typeof load>, role: string) => {
+      const part = model.primitives.find(p => p.material === role)
+      if (!part) return null
+      let radius = 0
+      let top = -Infinity
+      let bottom = Infinity
+      for (let i = 0; i < part.position.length; i += 3) {
+        radius = Math.max(radius, Math.hypot(part.position[i], part.position[i + 2]))
+        top = Math.max(top, part.position[i + 1])
+        bottom = Math.min(bottom, part.position[i + 1])
+      }
+      return { radius, top, bottom }
+    }
+
+    for (const role of new Set(far.primitives.map(p => p.material))) {
+      const a = extent(near, role)!
+      const b = extent(far, role)!
+      // A hair of tolerance for the proxy's own faceting, and no more.
+      expect(b.radius, `${name} ${role} radius`).toBeLessThanOrEqual(a.radius * 1.05 + 0.01)
+      expect(b.top, `${name} ${role} top`).toBeLessThanOrEqual(a.top + 0.01)
+      expect(b.bottom, `${name} ${role} bottom`).toBeGreaterThanOrEqual(a.bottom - 0.01)
+    }
+  })
+
   test.each(ALL)('%s has unit-length normals', name => {
     // Smoothing averages normals across faces, and an un-normalised average
     // shades as if the surface were darker rather than as if it were curved.

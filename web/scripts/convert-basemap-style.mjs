@@ -53,6 +53,18 @@ const SOURCE = 'openmaptiles'
 /** Footprint outline that stands in for the roofline in the plan view. */
 const BUILDING_ROOF_EDGE_LAYER = 'Building roof edge'
 
+/**
+ * Where the 3D buildings switch on.
+ *
+ * MapTiler starts them at 15, which is close enough that a skyline only comes
+ * together once most of it is off screen — you cannot see Lower Manhattan as a
+ * skyline at all. 14 is as low as the data goes: our tiles carry the full
+ * `building` layer with `render_height` on every feature at 14, and at 13
+ * essentially nothing (one feature in the tile over Lower Manhattan), so a
+ * lower number would switch the layer on over an empty source.
+ */
+const BUILDING_3D_MINZOOM = 14
+
 /** How much zoom the buildings take to grow in, past the layer's minzoom. */
 const BUILDING_GROW_ZOOM = 0.4
 
@@ -179,6 +191,30 @@ const DROP_LAYERS = new Set([
 async function shieldImages() {
   const sheet = JSON.parse(await readFile(resolve(WEB, 'public/sprites/parchment.json'), 'utf8'))
   return new Set(Object.keys(sheet).filter(name => /^[a-z-]+-\d$/.test(name)))
+}
+
+/**
+ * Institutional land use, which MapTiler draws on top of natural land cover.
+ *
+ * That ordering says a campus boundary matters more than what is physically on
+ * the ground inside it, and in a city it is plainly wrong: NYU's landuse
+ * polygon covers Washington Square Park, so the park came out as a pale blue
+ * university tint with only the one corner outside the campus showing green.
+ * Several blocks around it went the same way.
+ *
+ * A zone is an administrative fact and land cover is a physical one, so the
+ * physical one wins: these sink below the `landcover` fills. The tint still
+ * reads on the built-up parts of a campus, where there is no cover to hide it.
+ */
+const INSTITUTIONAL_LANDUSE = ['Cemetery', 'Hospital', 'Stadium', 'School']
+
+function sinkInstitutionalLanduse(layers) {
+  const moved = INSTITUTIONAL_LANDUSE.map(id => {
+    const at = layers.findIndex(l => l.id === id)
+    return at < 0 ? null : layers.splice(at, 1)[0]
+  }).filter(Boolean)
+  const firstCover = layers.findIndex(l => l['source-layer'] === 'landcover')
+  layers.splice(firstCover < 0 ? 0 : firstCover, 0, ...moved)
 }
 
 /** Longest ref the sprite has `network` art for; longer ones get a plaque. */
@@ -689,6 +725,7 @@ async function main() {
     // map, muddy on ours, and it makes anything drawn over a building blend
     // with the ground beneath rather than with the building.
     if (out.type === 'fill-extrusion') {
+      out.minzoom = BUILDING_3D_MINZOOM
       // Buildings grow in over the first stretch of zoom past the layer's own
       // minzoom, rather than springing up at full height the instant it
       // switches on. This lives in the style, not in JS: `zoom` is one of the
@@ -741,6 +778,8 @@ async function main() {
 
     layers.push(out)
   }
+
+  sinkInstitutionalLanduse(layers)
 
   // The roofline edge, for the plan view.
   //

@@ -133,11 +133,26 @@ export function liveBuildingShade(): WallShadowLayer | null {
   return live
 }
 
-export function createBuildingShade(buildingsLayerId: string, flavor: FlavorId) {
+/**
+ * `minZoom` is the zoom the *style's* building layer switches on at, and it has
+ * to be passed rather than defaulted.
+ *
+ * The layer does not decorate MapLibre's building draw, it replaces it — the
+ * caller sets the style layer's opacity to 0 — so this threshold is the only
+ * thing deciding whether buildings appear in 3D at all. Leave it on the
+ * vendored default of 15 while the style says 14 and the buildings simply
+ * vanish for a whole zoom level.
+ */
+export function createBuildingShade(
+  buildingsLayerId: string,
+  flavor: FlavorId,
+  minZoom?: number,
+) {
   lightIntensity = LIGHT_INTENSITY[flavor]
   live = new WallShadowLayer({
     id: BUILDING_SHADE_LAYER_ID,
     buildingsLayerId,
+    ...(minZoom === undefined ? {} : { minZoom }),
     shadowOffset: [...SHADOW_OFFSET],
     sdfResolution: sdfResolution(),
     edgeWidth: edgeWidth(),

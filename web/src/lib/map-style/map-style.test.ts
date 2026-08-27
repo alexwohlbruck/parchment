@@ -220,6 +220,25 @@ describe('badge POI treatment', () => {
   })
 
   /**
+   * A campus or hospital boundary must not paint over what is physically on
+   * the ground inside it. NYU's university polygon covers Washington Square
+   * Park, and drawn on top it turned the whole park into a pale blue slab.
+   */
+  test('institutional land use draws beneath natural land cover', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const index = (id: string) => layers.findIndex(l => l.id === id)
+    const lastInstitutional = Math.max(
+      ...['Cemetery', 'Hospital', 'Stadium', 'School'].map(index),
+    )
+    const firstCover = Math.min(
+      ...layers
+        .map((l, i) => ((l as any)['source-layer'] === 'landcover' ? i : Infinity)),
+    )
+    expect(firstCover).toBeLessThan(Infinity)
+    expect(lastInstitutional).toBeLessThan(firstCover)
+  })
+
+  /**
    * Route shields resolve `{network}-{ref_length}` against the sprite and fall
    * back to `default-{ref_length}`. Two things have to hold for that to work.
    */

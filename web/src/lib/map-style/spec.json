@@ -53,6 +53,134 @@
    ]
   },
   {
+   "id": "Cemetery",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "landuse",
+   "minzoom": 9,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "@cemetery_fill_color",
+    "fill-opacity": {
+     "stops": [
+      [
+       9,
+       0.25
+      ],
+      [
+       16,
+       1
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "==",
+    "class",
+    "cemetery"
+   ]
+  },
+  {
+   "id": "Hospital",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "landuse",
+   "minzoom": 9,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "@hospital_fill_color",
+    "fill-opacity": {
+     "stops": [
+      [
+       9,
+       0.25
+      ],
+      [
+       16,
+       1
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "==",
+    "class",
+    "hospital"
+   ]
+  },
+  {
+   "id": "Stadium",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "landuse",
+   "minzoom": 9,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "@stadium_fill_color",
+    "fill-opacity": {
+     "stops": [
+      [
+       9,
+       0.25
+      ],
+      [
+       16,
+       1
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "in",
+    "class",
+    "pitch",
+    "stadium",
+    "playground"
+   ]
+  },
+  {
+   "id": "School",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "landuse",
+   "minzoom": 9,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "@school_fill_color",
+    "fill-opacity": {
+     "stops": [
+      [
+       9,
+       0.25
+      ],
+      [
+       16,
+       1
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "in",
+    "class",
+    "college",
+    "school",
+    "university"
+   ]
+  },
+  {
    "id": "Glacier",
    "type": "fill",
    "source": "openmaptiles",
@@ -269,134 +397,6 @@
      "pedestrian",
      "platform"
     ]
-   ]
-  },
-  {
-   "id": "Cemetery",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "landuse",
-   "minzoom": 9,
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": true,
-    "fill-color": "@cemetery_fill_color",
-    "fill-opacity": {
-     "stops": [
-      [
-       9,
-       0.25
-      ],
-      [
-       16,
-       1
-      ]
-     ]
-    }
-   },
-   "filter": [
-    "==",
-    "class",
-    "cemetery"
-   ]
-  },
-  {
-   "id": "Hospital",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "landuse",
-   "minzoom": 9,
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": true,
-    "fill-color": "@hospital_fill_color",
-    "fill-opacity": {
-     "stops": [
-      [
-       9,
-       0.25
-      ],
-      [
-       16,
-       1
-      ]
-     ]
-    }
-   },
-   "filter": [
-    "==",
-    "class",
-    "hospital"
-   ]
-  },
-  {
-   "id": "Stadium",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "landuse",
-   "minzoom": 9,
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": true,
-    "fill-color": "@stadium_fill_color",
-    "fill-opacity": {
-     "stops": [
-      [
-       9,
-       0.25
-      ],
-      [
-       16,
-       1
-      ]
-     ]
-    }
-   },
-   "filter": [
-    "in",
-    "class",
-    "pitch",
-    "stadium",
-    "playground"
-   ]
-  },
-  {
-   "id": "School",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "landuse",
-   "minzoom": 9,
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": true,
-    "fill-color": "@school_fill_color",
-    "fill-opacity": {
-     "stops": [
-      [
-       9,
-       0.25
-      ],
-      [
-       16,
-       1
-      ]
-     ]
-    }
-   },
-   "filter": [
-    "in",
-    "class",
-    "college",
-    "school",
-    "university"
    ]
   },
   {
@@ -3072,7 +3072,7 @@
    "type": "fill-extrusion",
    "source": "openmaptiles",
    "source-layer": "building",
-   "minzoom": 15,
+   "minzoom": 14,
    "layout": {
     "visibility": "visible",
     "fill-extrusion-rounded-corner-distance": 1.5
@@ -3086,9 +3086,9 @@
      [
       "zoom"
      ],
-     15,
+     14,
      0,
-     15.4,
+     14.4,
      [
       "coalesce",
       [
@@ -3110,9 +3110,9 @@
      [
       "zoom"
      ],
-     15,
+     14,
      0,
-     15.4,
+     14.4,
      [
       "coalesce",
       [
@@ -3137,7 +3137,7 @@
    "type": "line",
    "source": "openmaptiles",
    "source-layer": "building",
-   "minzoom": 15,
+   "minzoom": 14,
    "layout": {
     "line-join": "round"
    },

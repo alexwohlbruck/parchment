@@ -600,7 +600,11 @@ export class MaplibreStrategy extends MapStrategy {
       // own options, so this has to be set before it draws.
       this.mapInstance.setLight(shadeLight())
       this.mapInstance.addLayer(
-        createBuildingShade(buildingLayerId, flavor) as any,
+        createBuildingShade(
+          buildingLayerId,
+          flavor,
+          this.mapInstance.getLayer(buildingLayerId)?.minzoom,
+        ) as any,
         this.layerAfter(buildingLayerId),
       )
       this.shadowAlphaAtNoon = undefined

@@ -7,6 +7,8 @@
 * Map labels are set in Roboto, served from Parchment itself rather than fetched from someone else's font server on every pan
 * Looking straight down, the map is drawn without perspective. A flat-on view used to keep a vanishing point — building walls splayed outward from the middle of the screen and roofs sat offset from their own footprints — so a plan view never quite read as a plan. Tilting at all brings the perspective camera straight back
 * Buildings rise out of the ground as you zoom past the level they appear at, rather than springing up at full height the moment they switch on
+* 3D buildings appear a zoom level earlier, so a skyline reads as a skyline from further out instead of only once most of it is off screen
+* Parks inside a university or hospital campus are drawn as parks. Washington Square Park sits inside NYU's grounds and was coming out as a flat blue slab, along with several blocks around it — land use no longer paints over what is physically on the ground
 * Building shadows follow the real sun. The map works out where the sun actually is over whatever you are looking at, and throws the shadows accordingly — east and long in the afternoon, short at midday, the other way round in the southern hemisphere — fading them out overnight while the shading that separates one building from the next stays. Shadows also ease in as you zoom to them rather than appearing all at once, and lighten looking straight down, where a full-strength shadow reads as a stain on the ground rather than as depth
 * Buildings have softly rounded corners rather than knife-edged ones
 * Buildings keep their outlines looking straight down, not just when the map is tilted

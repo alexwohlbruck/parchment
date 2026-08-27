@@ -13,6 +13,7 @@
 * Buildings have softly rounded corners rather than knife-edged ones
 * Buildings keep their outlines looking straight down, not just when the map is tilted
 * One-way arrows are drawn to fit inside the road rather than overhanging it
+* Transit stops on the map wear a small blue square rather than a large coloured circle, so a station reads as a station rather than as another place to visit — and the basemap's own stops step aside while the transit layer is on, instead of doubling up with it
 * Sidewalks and footpaths are drawn as paved surfaces — a pale band with a fine grey edge — rather than as dotted grey trails, and pedestrian squares now join them seamlessly instead of showing a seam where a path crosses a plaza
 * Highways wear their real route markers. An interstate gets the blue-and-red shield, a US route the white escutcheon, and everything else a plaque sized to the route number — replacing the plain white box every road used to get regardless of what kind of road it was. Interstate shields were missing from the map altogether and are back. The markers keep their real colours at night, as road signs do
 * Buildings are painted their real colours where OpenStreetMap knows them, which in a well-mapped city is most of them — so a red brick block, a glass tower and a limestone facade no longer come out as the same beige. Only the hue is taken, not the brightness: a building someone tagged plain "black" or "white" would otherwise land as a hole punched in the map, and how light a building sits is the map's decision, not the paint's

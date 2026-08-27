@@ -13,6 +13,7 @@ import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/maplibre-gl-style-spec'
 import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups } from './build'
 import spec from './spec.json'
+import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -108,7 +109,12 @@ describe('flavors', () => {
     // deliberately so: they are MapTiler's own family palette, copied for the
     // glyph-only treatment rather than tracking ours.
     const categories = Object.keys(light).filter(
-      k => k.startsWith('poi_') && !k.startsWith('poi_v4_') && !['poi_halo', 'poi_ink'].includes(k),
+      k =>
+        k.startsWith('poi_') &&
+        !k.startsWith('poi_v4_') &&
+        // Real colours, not categories: the label halo, the glyph knockout,
+        // and transit blue — a stop is wayfinding rather than a category.
+        !['poi_halo', 'poi_ink', 'poi_transit'].includes(k),
     )
     expect(categories).toContain('poi_food_and_drink')
     expect(categories).toContain('poi_default')
@@ -163,9 +169,15 @@ describe('badge POI treatment', () => {
   })
 
   test.each(poi.map(l => [l.id, l]))('%s: draws the badge form of its icon', (_id, l: any) => {
-    expect(JSON.stringify(l.layout['icon-image'])).toContain('badge-')
-    // Baked at its final size; scaling it would scale the disc too.
-    expect(l.layout['icon-size']).toBe(1)
+    const image = JSON.stringify(l.layout['icon-image'])
+    // A disc for places, a square plate for transit stops.
+    expect(image).toContain('badge-')
+    expect(image).toContain('tile-')
+    // Places are drawn at the size the art was baked at — scaling a badge
+    // scales its disc. Transit plates are the one deliberate exception.
+    const size = l.layout['icon-size']
+    expect(Array.isArray(size) ? size[0] : size).toBe(Array.isArray(size) ? 'case' : 1)
+    if (Array.isArray(size)) expect(size[size.length - 1]).toBe(1)
   })
 
   test.each(poi.map(l => [l.id, l]))('%s: the disc carries the category colour', (_id, l: any) => {
@@ -210,7 +222,8 @@ describe('badge POI treatment', () => {
     const badges = Object.keys(sprite).filter(k => k.startsWith('badge-'))
     expect(badges.length).toBeGreaterThan(200)
     for (const name of Object.keys(sprite)) {
-      if (name.startsWith('badge-')) continue
+      // Both plate forms are themselves badges — there is no badge of a badge.
+      if (name.startsWith('badge-') || name.startsWith('tile-')) continue
       // A badge is a knocked-out SDF glyph, so only SDF art has one. The route
       // shields are full-colour rasters and are never worn as badges.
       if (!sprite[name].sdf) continue
@@ -585,10 +598,16 @@ describe('assets the spec depends on', () => {
       s =>
         s !== '' &&
         s !== 'badge-' &&
-        !['coalesce', 'image', 'match', 'concat', 'get', 'subclass', 'class'].includes(s),
+        s !== 'tile-' &&
+        !['coalesce', 'image', 'match', 'concat', 'get', 'subclass', 'class', 'case'].includes(s),
     )
     expect(names.length).toBeGreaterThan(40)
     expect(names.filter(n => !(n in sprite))).toEqual([])
     expect(names.filter(n => !(`badge-${n}` in sprite))).toEqual([])
+    // Transit classes are the ones drawn on a square plate, so they need the
+    // second art form too — a miss there draws nothing at all.
+    expect(
+      TRANSIT_POI_CLASSES.filter(c => names.includes(c) && !(`tile-${c}` in sprite)),
+    ).toEqual([])
   })
 })

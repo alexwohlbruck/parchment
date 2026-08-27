@@ -72,6 +72,7 @@ import {
   BUILDING_BASE_EXPRESSION,
   BUILDING_ROOF_EDGE_LAYER,
 } from '@/lib/map-style'
+import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import {
   rgbToHex,
   adjustLightness,
@@ -662,6 +663,39 @@ export class MaplibreStrategy extends MapStrategy {
     const ids = this.mapInstance.getStyle().layers.map((l: any) => l.id)
     return ids[ids.indexOf(layerId) + 1]
   }
+
+  /**
+   * The basemap's own transit POIs, hidden while the transit layer group draws
+   * its stops over the top.
+   *
+   * Two sources of stops for the same station is one too many: the basemap's
+   * come from OpenStreetMap and the overlay's from the GTFS feeds, they rarely
+   * sit at exactly the same coordinate, and the pair collide into a smear of
+   * near-duplicate labels. The overlay's are the better data when it is on —
+   * they know the routes — so the basemap's stand down.
+   *
+   * Done with a filter rather than by hiding the layers, because they carry
+   * every other POI too. The layer's own filter is kept so the extra clause can
+   * be added and removed without having to rebuild it.
+   */
+  setBasemapTransitPoisVisible(visible: boolean) {
+    for (const id of layerGroups.poi) {
+      if (!this.mapInstance.getLayer(id)) continue
+      if (!this.basePoiFilters.has(id)) {
+        this.basePoiFilters.set(id, this.mapInstance.getFilter(id) ?? null)
+      }
+      const base = this.basePoiFilters.get(id) ?? null
+      if (visible) {
+        this.mapInstance.setFilter(id, base as any)
+        continue
+      }
+      const notTransit = ['!', isTransitPoi()]
+      this.mapInstance.setFilter(id, (base ? ['all', base, notTransit] : notTransit) as any)
+    }
+  }
+
+  /** Each POI layer's filter as the style defined it; see above. */
+  private basePoiFilters = new Map<string, unknown>()
 
   private setLayerGroupVisibility(layerIds: string[], visible: boolean) {
     layerIds.forEach(id => {

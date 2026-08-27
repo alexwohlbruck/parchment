@@ -433,6 +433,24 @@ const BADGE_GLYPH_RATIO = 0.57
 export const BADGE_PREFIX = 'badge-'
 
 /**
+ * Transit stops get a rounded square rather than a disc.
+ *
+ * That is Mapbox's convention and it earns its place: a disc says "a place is
+ * here", where a square plate says "this is a station" — the same distinction
+ * a transit map draws between a point of interest and a stop. At the sizes
+ * these draw, shape is a far stronger signal than colour.
+ *
+ * Only the transit classes get the second form, so the sheet gains a couple of
+ * dozen images rather than doubling.
+ */
+export const TILE_PREFIX = 'tile-'
+const TILE_CORNER = 0.28
+const TRANSIT_ICONS = [
+  'bus', 'rail', 'rail-metro', 'rail-light', 'ferry', 'harbor',
+  'aerialway', 'airport', 'airfield', 'entrance',
+]
+
+/**
  * The glyph knocked out of a filled disc, as ONE shape.
  *
  * This is what lets a badge take part in collision. Drawn as a circle layer
@@ -445,7 +463,7 @@ export const BADGE_PREFIX = 'badge-'
  * The knockout is a hole, not ink — whatever the map draws underneath shows
  * through it, which is what the badge treatment wants in both flavors.
  */
-async function badgeAlpha(svg, ratio) {
+async function badgeAlpha(svg, ratio, shape = 'disc') {
   const size = Math.round(BADGE_DIAMETER * ratio)
   const glyphSize = Math.round(size * BADGE_GLYPH_RATIO)
   const inset = Math.round((size - glyphSize) / 2)
@@ -457,11 +475,17 @@ async function badgeAlpha(svg, ratio) {
     return out
   }
 
+  const plate =
+    shape === 'tile'
+      ? `<rect x="0" y="0" width="${size}" height="${size}" rx="${size * TILE_CORNER}" ` +
+        `ry="${size * TILE_CORNER}" fill="#000"/>`
+      : `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#000"/>`
+
   const disc = await rawAlpha(
     sharp(
       Buffer.from(
         `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
-          `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#000"/></svg>`,
+          plate + `</svg>`,
       ),
       { density: 72 },
     ).resize(size, size, { fit: 'fill' }),
@@ -574,6 +598,23 @@ async function buildSheet(icons, ratio) {
         height: bw,
         sdf: alphaToSdf(padded, bw, bw),
       })
+
+      if (TRANSIT_ICONS.includes(name)) {
+        const tile = await badgeAlpha(svg, ratio, 'tile')
+        const tw = tile.size + buffer * 2
+        const tp = Buffer.alloc(tw * tw)
+        for (let y = 0; y < tile.size; y++) {
+          for (let x = 0; x < tile.size; x++) {
+            tp[(y + buffer) * tw + (x + buffer)] = tile.alpha[y * tile.size + x]
+          }
+        }
+        rendered.push({
+          name: `${TILE_PREFIX}${name}`,
+          width: tw,
+          height: tw,
+          sdf: alphaToSdf(tp, tw, tw),
+        })
+      }
     }
   }
 
@@ -627,17 +668,19 @@ async function buildSheet(icons, ratio) {
     if (manifest[target] && !manifest[alias]) manifest[alias] = { ...manifest[target] }
     // Badges alias exactly as their glyphs do, or a class that reaches its
     // icon through an alias would have no badge form.
-    const [ba, bt] = [BADGE_PREFIX + alias, BADGE_PREFIX + target]
-    if (manifest[bt] && !manifest[ba]) manifest[ba] = { ...manifest[bt] }
+    for (const prefix of [BADGE_PREFIX, TILE_PREFIX]) {
+      const [a, t] = [prefix + alias, prefix + target]
+      if (manifest[t] && !manifest[a]) manifest[a] = { ...manifest[t] }
+    }
   }
   for (const name of Object.keys(manifest)) {
     // Maki hyphenates (`fast-food`), OpenMapTiles underscores (`fast_food`).
     // Only the icon's own name is rewritten, never the `badge-` prefix.
-    const stem = name.startsWith(BADGE_PREFIX) ? name.slice(BADGE_PREFIX.length) : name
+    const prefix = [BADGE_PREFIX, TILE_PREFIX].find(p => name.startsWith(p)) ?? ''
+    const stem = name.slice(prefix.length)
     // Shields are hyphenated on purpose — that is the name the style builds.
     if (!stem.includes('-') || isShield(stem)) continue
-    const underscored =
-      (name.startsWith(BADGE_PREFIX) ? BADGE_PREFIX : '') + stem.replace(/-/g, '_')
+    const underscored = prefix + stem.replace(/-/g, '_')
     if (!manifest[underscored]) manifest[underscored] = { ...manifest[name] }
   }
 

@@ -72,6 +72,7 @@
  "poi_ink": "#0D0D0D",
  "shield_ink": "hsl(0, 0%, 12%)",
  "shield_ink_reversed": "hsl(0, 0%, 100%)",
+ "poi_transit": "hsl(214, 80%, 62%)",
  "path_surface": "hsl(216, 14%, 33%)",
  "path_casing": "hsl(216, 20%, 20%)",
  "poi_food_and_drink": "@@category:food_and_drink",

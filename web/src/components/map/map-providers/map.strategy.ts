@@ -129,6 +129,12 @@ export class MapStrategy {
   setPoiLabels(value: boolean) {}
   setRoadLabels(value: boolean) {}
   setTransitLabels(value: boolean) {}
+
+  /**
+   * Hide the basemap's own transit POIs while a transit overlay draws its own.
+   * MapLibre only — Mapbox Standard has no equivalent basemap layer to filter.
+   */
+  setBasemapTransitPoisVisible(_visible: boolean) {}
   setPlaceLabels(value: boolean) {}
   setLandmarkIcons(value: boolean) {}
   setMapProjection(projection: MapProjection) {}

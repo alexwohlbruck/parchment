@@ -47,6 +47,7 @@ const OUT_TOKENS = resolve(WEB, 'src/lib/map-style/tokens.light.json')
 const OUT_TOKENS_DARK = resolve(WEB, 'src/lib/map-style/tokens.dark.json')
 
 import { buildingColor, BUILDING_CHROMA } from '../src/lib/map-style/building-color.mjs'
+import { isTransitPoi } from '../src/lib/map-style/transit-poi.mjs'
 
 const SOURCE = 'openmaptiles'
 
@@ -144,6 +145,20 @@ function poiIcon(prefix = '') {
 const POI_ICON = poiIcon()
 /** The badge form: one image, so it collides as a single object. */
 const POI_BADGE_ICON = poiIcon('badge-')
+
+/**
+ * Transit classes, which wear a rounded square plate rather than a disc.
+ *
+ * Mapbox draws stops this way and it is worth copying: shape separates a stop
+ * from a shop far more sharply than colour does at badge size, and a station is
+ * a different *kind* of thing from a place — you route to it rather than visit
+ * it. The square art is `tile-` in the sprite; see `build-sprite.mjs`.
+ */
+/** Badge art per class: a square plate for transit, a disc for everything else. */
+const POI_PLATE_ICON = ['case', isTransitPoi(), poiIcon('tile-'), poiIcon('badge-')]
+
+/** True where the feature is a transit stop, for size and colour. */
+const IS_TRANSIT_POI = isTransitPoi()
 
 /**
  * Hand corrections where MapTiler's dark style has no counterpart to read.
@@ -530,8 +545,11 @@ function toExpressionFilter(f) {
  * overlap flags go back to false.
  */
 const POI_LAYOUT = {
-  'icon-image': POI_BADGE_ICON,
-  'icon-size': 1,
+  'icon-image': POI_PLATE_ICON,
+  // Stops draw smaller than places. A transit plate is a wayfinding mark
+  // rather than a destination, and at full badge size a dense downtown turns
+  // into a wall of them.
+  'icon-size': ['case', IS_TRANSIT_POI, 0.78, 1],
   'icon-allow-overlap': false,
   'icon-ignore-placement': false,
   'text-size': 13,
@@ -552,7 +570,7 @@ const POI_PAINT = {
   'text-halo-color': '@poi_halo',
   // The disc carries the category colour and the glyph is a hole in it, so
   // tinting the image tints the badge.
-  'icon-color': poiColorExpression(),
+  'icon-color': ['case', IS_TRANSIT_POI, '@poi_transit', poiColorExpression()],
   // The ring, drawn rather than baked, so it can be the flavor's own surface.
   'icon-halo-color': '@poi_halo',
   'icon-halo-width': 1.5,
@@ -796,7 +814,9 @@ async function main() {
     // takes the same colour as the icon, which is how MapTiler letters theirs
     // — only keyed to our categories rather than their families.
     if (sl === 'poi' && out.type === 'symbol') {
-      const tint = poiColorExpression()
+      // The name takes the plate's colour, transit included — a blue square
+      // above a purple label reads as two unrelated marks.
+      const tint = ['case', IS_TRANSIT_POI, '@poi_transit', poiColorExpression()]
       out.filter = out.filter
         ? ['all', toExpressionFilter(out.filter), RANK_GATE]
         : RANK_GATE
@@ -980,6 +1000,12 @@ async function main() {
   // sits a few points above the night ground the way the pavement sits above
   // the earth in daylight, with a casing darker than the surface rather than
   // lighter, since at night the surface is the bright thing.
+  // Transit blue. Its own token rather than a category colour: a stop is
+  // wayfinding, not a category of place, and every transit system's own maps
+  // agree it is blue.
+  tokens.light.poi_transit = 'hsl(214, 78%, 52%)'
+  tokens.dark.poi_transit = 'hsl(214, 80%, 62%)'
+
   tokens.light.path_surface = 'hsl(295, 10%, 95%)'
   tokens.light.path_casing = 'hsl(0, 10%, 80%)'
   tokens.dark.path_surface = 'hsl(216, 14%, 33%)'

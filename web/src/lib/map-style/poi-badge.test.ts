@@ -17,9 +17,15 @@ const LIFT = 'rgba(0,0,0,0.34)'
 
 /**
  * A disc with a square knocked out of its middle, encoded exactly as
- * `build-sprite.mjs` encodes one: an exhaustive distance search rather than the
- * builder's two-pass transform, which is far too slow for a sheet and precise
- * enough for a 40px fixture.
+ * `build-sprite.mjs` encodes one.
+ *
+ * The distance is solved analytically rather than searched for on the pixel
+ * grid. That matters for `the plate edge is round`: a grid search can only
+ * return distances of the form `hypot(whole, whole)`, which is itself wrong by
+ * up to half a pixel and would put a staircase into the fixture that no
+ * compositor could remove — the test would then be measuring its own fixture.
+ * `alphaToSdf` seeds its transform from an antialiased raster and lands close
+ * to the true field, so the true field is the honest stand-in.
  */
 function badgeFixture(size = 26) {
   const cx = size / 2
@@ -27,29 +33,22 @@ function badgeFixture(size = 26) {
   const r = size / 2 - SDF_BUFFER
   const glyph = r * 0.5
 
-  const inside = (x: number, y: number) => {
+  /** Signed distance to the disc, then the disc with the square subtracted. */
+  const distance = (x: number, y: number) => {
     const dx = x + 0.5 - cx
     const dy = y + 0.5 - cy
-    const onPlate = Math.hypot(dx, dy) <= r
-    const inGlyph = Math.abs(dx) <= glyph && Math.abs(dy) <= glyph
-    return onPlate && !inGlyph
+    const disc = Math.hypot(dx, dy) - r
+    const qx = Math.abs(dx) - glyph
+    const qy = Math.abs(dy) - glyph
+    const box =
+      Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0)
+    return Math.max(disc, -box)
   }
 
   const data = new Uint8Array(size * size * 4)
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      // Distance to the nearest pixel of the opposite class, signed negative
-      // inside the shape — the same convention `alphaToSdf` writes.
-      let best = SDF_RADIUS
-      const here = inside(x, y)
-      for (let j = 0; j < size; j++) {
-        for (let i = 0; i < size; i++) {
-          if (inside(i, j) === here) continue
-          best = Math.min(best, Math.hypot(i - x, j - y))
-        }
-      }
-      const d = here ? -best : best
-      const a = 255 - 255 * (d / SDF_RADIUS + SDF_CUTOFF)
+      const a = 255 - 255 * (distance(x, y) / SDF_RADIUS + SDF_CUTOFF)
       data[(y * size + x) * 4 + 3] = Math.max(0, Math.min(255, Math.round(a)))
     }
   }
@@ -107,6 +106,8 @@ describe('colour parsing', () => {
 
 describe('composed badge', () => {
   const c = Math.floor(composed.width / 2)
+  /** Output pixels per pixel of the sprite art, so probes can be sized in art units. */
+  const density = composed.pixelRatio / fixture.pixelRatio
 
   test('the glyph takes the ink colour, not the map behind it', () => {
     // The whole point: the knockout used to be a hole showing the ground, which
@@ -119,7 +120,7 @@ describe('composed badge', () => {
   test('the plate takes its tint', () => {
     // Between the glyph and the rim: a quarter of the way out from the centre
     // lands on plate for this fixture.
-    const p = pixel(c, c + 8)
+    const p = pixel(c, c + 8 * density)
     expect(p.a).toBeGreaterThan(0.9)
     near(p, PLATE)
   })
@@ -153,10 +154,88 @@ describe('composed badge', () => {
     }
   })
 
+  /**
+   * Size is measured in display pixels — `width / pixelRatio`, which is what
+   * MapLibre draws — precisely because those two now differ. The badge is
+   * rasterised finer than the sheet it comes from (see `SUPERSAMPLE`), so a
+   * badge that forgot to declare its own ratio would draw at double size while
+   * every raw pixel count here still looked right.
+   */
   test('it grows by the room the ring and lift need, and stays centred', () => {
-    expect(composed.width).toBeGreaterThan(fixture.width)
-    expect(composed.width - fixture.width).toBe(composed.height - fixture.height)
-    expect((composed.width - fixture.width) % 2).toBe(0)
+    const display = (image: { width: number; height: number; pixelRatio: number }) => [
+      image.width / image.pixelRatio,
+      image.height / image.pixelRatio,
+    ]
+    const [dw, dh] = display(composed)
+    const [aw, ah] = display(fixture)
+    expect(dw).toBeGreaterThan(aw)
+    expect(dw - aw).toBe(dh - ah)
+    expect((dw - aw) % 2).toBe(0)
+  })
+
+  /**
+   * The badge has to be round, and this is the test that says so.
+   *
+   * A baked badge was an SDF and MapLibre rebuilt its edge per screen pixel; a
+   * composed one is a raster and only has the edge it was given. Built at the
+   * sprite's own density that edge is a staircase on a 19px disc, which is what
+   * made these read as rounded squares. So: walk out from the centre at many
+   * angles, find where the alpha crosses half, and require every one of those
+   * radii to agree — a staircase does not.
+   *
+   * Diameters rather than radii, because a radius is measured from an assumed
+   * centre and the badge's true centre lands on a half-pixel — which shows up
+   * as a smooth 0.5px lean across the disc and swamps the thing being measured.
+   * Opposite rays cancel it exactly.
+   *
+   * The threshold is in display pixels, so it holds whatever the sheet's ratio
+   * and the supersample happen to be. Measured on this fixture the spread is
+   * exactly the source grid divided by the supersample: 0.32 undersampled,
+   * 0.16 at two, 0.08 at four.
+   */
+  test('the plate edge is round to well under a drawn pixel', () => {
+    // Measured where the plate meets the ring rather than at the badge's outer
+    // silhouette: both are fully opaque there, so the lift — which is blurred
+    // and deliberately dropped downwards — cannot tilt the reading.
+    const [pr, pg, pb] = parseColor(PLATE)
+    const [ir, ig, ib] = parseColor(INK)
+    const span = (pr - ir) ** 2 + (pg - ig) ** 2 + (pb - ib) ** 2
+    /** 0 on the ring, 1 on the plate, projected onto the ink-to-plate axis. */
+    const platenessAt = (x: number, y: number) => {
+      const x0 = Math.floor(x)
+      const y0 = Math.floor(y)
+      const fx = x - x0
+      const fy = y - y0
+      const at = (px: number, py: number) => {
+        const p = pixel(px, py)
+        return ((p.r - ir) * (pr - ir) + (p.g - ig) * (pg - ig) + (p.b - ib) * (pb - ib)) / span
+      }
+      const top = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * fx
+      const bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * fx
+      return top + (bottom - top) * fy
+    }
+
+    // Walked inwards from the rim, so the crossing found is the outermost one
+    // — the plate's own edge. Walking outwards from the centre would stop at
+    // the knockout's corner on the diagonals, which is a different boundary.
+    const radii: number[] = []
+    const step = 0.05
+    for (let i = 0; i < 64; i++) {
+      const angle = (i / 64) * Math.PI * 2
+      let previous = 0
+      for (let r = composed.width / 2 - 1; r > 0; r -= step) {
+        const p = platenessAt(c + Math.cos(angle) * r, c + Math.sin(angle) * r)
+        if (previous < 0.5 && p >= 0.5) {
+          radii.push((r + step * (p - 0.5) / (p - previous)) / composed.pixelRatio)
+          break
+        }
+        previous = p
+      }
+    }
+    expect(radii.length).toBe(64)
+    const diameters = radii.slice(0, 32).map((r, i) => r + radii[i + 32])
+    const spread = Math.max(...diameters) - Math.min(...diameters)
+    expect(spread, `edge diameter varies by ${spread.toFixed(2)} display px`).toBeLessThan(0.25)
   })
 })
 

@@ -23,7 +23,7 @@
  *
  * MapLibre only. Mapbox draws Standard's own POIs.
  */
-import { sdfCoverage, sdfDistance, SDF_BUFFER } from './sdf.mjs'
+import { sdfDistance, SDF_BUFFER } from './sdf.mjs'
 
 /** Marks an image the sprite cannot supply and this module has to build. */
 export const POI_BADGE_PREFIX = 'poi|'
@@ -51,6 +51,28 @@ const PAD = Math.ceil(RING_WIDTH + LIFT_BLUR + LIFT_DROP - SDF_BUFFER)
 
 /** Anything at or below this is outside the plate; see `floodOutside`. */
 const SOLID = 0.995
+
+/**
+ * How much finer the badge is drawn than the sprite art it is built from.
+ *
+ * A baked badge was an SDF, and MapLibre's SDF shader reconstructs the edge
+ * from the interpolated distance at every screen pixel — so it came out clean
+ * wherever it landed. A composed badge is a plain raster, because four colours
+ * will not fit in one channel, and a raster only has the edge it was baked
+ * with: the coverage ramp here is one texel wide, laid on the sprite's own
+ * pixel grid, and at a badge's size that grid is coarse enough to see. It is
+ * why a disc started reading as a rounded square.
+ *
+ * Drawing at twice the density fixes it because the source is still a distance
+ * field, which is linear in space and can therefore be resampled between
+ * texels and re-thresholded — a genuinely finer edge, not an upscale of a
+ * coarse one. The GPU then minifies 2:1 back to the drawn size, which is a
+ * 2x2 box filter over that edge.
+ *
+ * Twice, not four times: the badge is the icon atlas's largest tenant at ~55px
+ * a side, and this squares to 4x the texture memory for each one already.
+ */
+const SUPERSAMPLE = 2
 
 export type BadgeParts = {
   /** Sprite image holding the plate with the glyph knocked out of it. */
@@ -247,6 +269,42 @@ export type ComposedImage = {
 }
 
 /**
+ * The distance field, resampled onto the finer grid the badge is drawn on.
+ *
+ * Bilinear on the *distance* rather than on the coverage, which is the whole
+ * reason this works: distance to the shape is linear across a flat edge, so
+ * interpolating it and thresholding afterwards recovers where the edge really
+ * falls between two texels. Interpolating coverage instead would only blur the
+ * edge the sprite already quantised.
+ *
+ * Returned in output pixels, so a coverage ramp of one unit is one drawn pixel.
+ */
+function resampleDistance(src: SdfSource, sw: number, sh: number): Float32Array {
+  const w = sw * SUPERSAMPLE
+  const h = sh * SUPERSAMPLE
+  const out = new Float32Array(w * h)
+  const at = (x: number, y: number) => sdfDistance(src.data[(y * sw + x) * 4 + 3])
+
+  for (let y = 0; y < h; y++) {
+    // Pixel centres, so the finer grid straddles the coarse one evenly.
+    const sy = (y + 0.5) / SUPERSAMPLE - 0.5
+    const y0 = Math.max(0, Math.min(sh - 1, Math.floor(sy)))
+    const y1 = Math.min(sh - 1, y0 + 1)
+    const fy = Math.max(0, sy - y0)
+    for (let x = 0; x < w; x++) {
+      const sx = (x + 0.5) / SUPERSAMPLE - 0.5
+      const x0 = Math.max(0, Math.min(sw - 1, Math.floor(sx)))
+      const x1 = Math.min(sw - 1, x0 + 1)
+      const fx = Math.max(0, sx - x0)
+      const top = at(x0, y0) + (at(x1, y0) - at(x0, y0)) * fx
+      const bottom = at(x0, y1) + (at(x1, y1) - at(x0, y1)) * fx
+      out[y * w + x] = (top + (bottom - top) * fy) * SUPERSAMPLE
+    }
+  }
+  return out
+}
+
+/**
  * Draw one badge: lift, then ring, then plate, then glyph.
  *
  * Premultiplied, because MapLibre copies what it is given straight into the
@@ -255,31 +313,29 @@ export type ComposedImage = {
  */
 export function composeBadge(src: SdfSource, parts: BadgeParts): ComposedImage {
   const ratio = src.pixelRatio || 1
-  const sw = src.width
-  const sh = src.height
-  const pad = Math.round(PAD * ratio)
-  const w = sw + pad * 2
-  const h = sh + pad * 2
+  // Output pixels per CSS pixel. Every length below is in output pixels.
+  const scale = ratio * SUPERSAMPLE
+  const aw = src.width * SUPERSAMPLE
+  const ah = src.height * SUPERSAMPLE
+  const pad = Math.round(PAD * scale)
+  const w = aw + pad * 2
+  const h = ah + pad * 2
 
-  const cov = new Float32Array(sw * sh)
-  const dist = new Float32Array(sw * sh)
-  for (let i = 0; i < sw * sh; i++) {
-    const a = src.data[i * 4 + 3]
-    cov[i] = sdfCoverage(a)
-    dist[i] = sdfDistance(a)
-  }
-  const outside = floodOutside(cov, sw, sh)
+  const dist = resampleDistance(src, src.width, src.height)
+  const cov = new Float32Array(aw * ah)
+  for (let i = 0; i < aw * ah; i++) cov[i] = Math.min(1, Math.max(0, 0.5 - dist[i]))
+  const outside = floodOutside(cov, aw, ah)
 
   // The plate is everything the flood could not reach, so it includes the
   // glyph's hole — which is exactly right: the glyph is painted over it.
   const plate = new Float32Array(w * h)
   const glyph = new Float32Array(w * h)
   const ring = new Float32Array(w * h)
-  const ringPx = RING_WIDTH * ratio
+  const ringPx = RING_WIDTH * scale
 
-  for (let y = 0; y < sh; y++) {
-    for (let x = 0; x < sw; x++) {
-      const i = y * sw + x
+  for (let y = 0; y < ah; y++) {
+    for (let x = 0; x < aw; x++) {
+      const i = y * aw + x
       const o = (y + pad) * w + (x + pad)
       plate[o] = outside[i] ? cov[i] : 1
       glyph[o] = outside[i] ? 0 : 1 - cov[i]
@@ -292,8 +348,8 @@ export function composeBadge(src: SdfSource, parts: BadgeParts): ComposedImage {
     }
   }
 
-  const drop = Math.round(LIFT_DROP * ratio)
-  const lift = blur(shift(plate, w, h, drop), w, h, LIFT_BLUR * ratio)
+  const drop = Math.round(LIFT_DROP * scale)
+  const lift = blur(shift(plate, w, h, drop), w, h, LIFT_BLUR * scale)
 
   const data = new Uint8Array(w * h * 4)
   const layers: Array<[Float32Array, Rgba]> = [
@@ -321,7 +377,7 @@ export function composeBadge(src: SdfSource, parts: BadgeParts): ComposedImage {
     data[i * 4 + 3] = Math.round(a * 255)
   }
 
-  return { width: w, height: h, data, pixelRatio: ratio }
+  return { width: w, height: h, data, pixelRatio: scale }
 }
 
 function shift(mask: Float32Array, w: number, h: number, dy: number): Float32Array {
@@ -363,10 +419,10 @@ export function registerPoiBadges(map: BadgeHost): void {
     // No art for this class — nothing to draw, the same as the sprite lookup
     // failing before. Adding a placeholder would be worse than an empty spot.
     if (!source?.data) return
-    map.addImage(
-      id,
-      composeBadge({ ...source.data, pixelRatio: source.pixelRatio ?? 1 }, parts),
-      { pixelRatio: source.pixelRatio ?? 1 },
-    )
+    const badge = composeBadge({ ...source.data, pixelRatio: source.pixelRatio ?? 1 }, parts)
+    // The badge's own ratio, not the sprite's: it is drawn finer than the sheet
+    // (see `SUPERSAMPLE`), and MapLibre sizes an icon by `width / pixelRatio`,
+    // so handing it the sheet's would draw the badge at twice its real size.
+    map.addImage(id, badge, { pixelRatio: badge.pixelRatio })
   })
 }

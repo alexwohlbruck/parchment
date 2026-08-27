@@ -109,10 +109,20 @@ const STOP_CLICK_LAYERS = [
 const EMPTY_FC = { type: 'FeatureCollection', features: [] } as any
 
 // The atlas labels with Montserrat from CARTO's glyph CDN; parchment's
-// basemap styles serve the Roboto stack, so labels ride the fonts the
+// basemap styles serve the Geist stacks, so labels ride the fonts the
 // style can actually shape.
-const LABEL_FONT = ['Roboto Medium']
-const LABEL_FONT_ITALIC = ['Roboto Condensed Italic']
+//
+// Stop names run a weight heavier than the basemap's own labels. A stop is a
+// thing you are looking *for* when the transit layer is on, and the extra
+// weight is what separates it from the street names around it without making
+// it bigger.
+//
+// The italic stack is Geist Regular because Geist has no italic face — and
+// because the name that used to sit here, "Roboto Condensed Italic", was never
+// a stack we generated, so those labels were asking the glyph endpoint for a
+// directory that has never existed.
+const LABEL_FONT = ['Geist SemiBold']
+const LABEL_FONT_ITALIC = ['Geist Regular']
 
 // ── module state (one map at a time, like the other layer services) ────
 let map: any = null

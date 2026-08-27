@@ -3509,7 +3509,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Italic"
+     "Geist Regular"
     ],
     "text-letter-spacing": 0.2,
     "text-max-width": 5,
@@ -3565,7 +3565,7 @@
     "symbol-placement": "point",
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Italic"
+     "Geist Regular"
     ],
     "text-max-width": 5,
     "text-size": [
@@ -3724,7 +3724,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Italic"
+     "Geist Regular"
     ],
     "text-letter-spacing": 0.1,
     "text-max-width": 5,
@@ -3774,7 +3774,7 @@
    "layout": {
     "text-field": "{housenumber}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-size": 10,
     "visibility": "visible"
@@ -3807,7 +3807,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Italic"
+     "Geist Regular"
     ],
     "text-offset": [
      0.8,
@@ -3870,7 +3870,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Italic"
+     "Geist Regular"
     ],
     "text-offset": [
      0.8,
@@ -3939,7 +3939,7 @@
     "symbol-placement": "line",
     "symbol-spacing": 75,
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "visibility": "visible"
    },
@@ -4000,7 +4000,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-ignore-placement": false,
     "text-justify": "center",
@@ -4084,7 +4084,7 @@
      "ref"
     ],
     "text-font": [
-     "Roboto Bold"
+     "Geist Bold"
     ],
     "text-offset": [
      0,
@@ -4193,7 +4193,7 @@
      "ref"
     ],
     "text-font": [
-     "Roboto Bold"
+     "Geist Bold"
     ],
     "text-offset": [
      0,
@@ -4388,7 +4388,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -5035,7 +5035,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -5653,7 +5653,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -6271,7 +6271,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -6912,7 +6912,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -7584,7 +7584,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -8246,7 +8246,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -8896,7 +8896,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -9596,7 +9596,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -10200,7 +10200,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -10710,7 +10710,7 @@
     "text-anchor": "center",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-letter-spacing": [
      "match",
@@ -10995,7 +10995,7 @@
     "text-anchor": "top",
     "text-field": "{name}",
     "text-font": [
-     "Roboto Medium"
+     "Geist Medium"
     ],
     "text-line-height": 0.9,
     "text-max-width": 8,
@@ -11520,7 +11520,7 @@
    "layout": {
     "text-field": "{ref}",
     "text-font": [
-     "Roboto Medium"
+     "Geist Medium"
     ],
     "text-size": {
      "stops": [
@@ -11616,7 +11616,7 @@
      ]
     },
     "text-font": [
-     "Roboto Medium"
+     "Geist Medium"
     ],
     "text-line-height": 1.2,
     "text-max-width": 9,
@@ -11764,7 +11764,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Medium"
+     "Geist Medium"
     ],
     "text-letter-spacing": 0.1,
     "text-max-width": 8,
@@ -11899,7 +11899,7 @@
      ]
     ],
     "text-font": [
-     "Roboto Regular"
+     "Geist Regular"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -12017,7 +12017,7 @@
     "text-anchor": "bottom",
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Medium"
+     "Geist Medium"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -12161,7 +12161,7 @@
     "text-anchor": "bottom",
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Medium"
+     "Geist Medium"
     ],
     "text-max-width": 8,
     "text-offset": [
@@ -12230,7 +12230,7 @@
     "text-allow-overlap": false,
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Medium"
+     "Geist Medium"
     ],
     "text-letter-spacing": 0.07,
     "text-max-width": {
@@ -12376,7 +12376,7 @@
    "layout": {
     "text-field": "{name:en}",
     "text-font": [
-     "Roboto Medium"
+     "Geist Medium"
     ],
     "text-justify": "center",
     "text-size": {

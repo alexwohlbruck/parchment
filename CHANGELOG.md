@@ -4,7 +4,7 @@
 
 * The map has a new basemap, in daylight and at night. Streets, land, water and labels are drawn the way a professional cartographer set them rather than by darkening the light map with maths — which is what the old night map did, and why it collapsed into one flat field of purple where a motorway and a driveway differed only in shade. Roads now carry a real hierarchy at every zoom, parks and water read as themselves, and labels sit at the weights they should
 * Places on the map wear proper icons, coloured by what they are — and by the same palette the app already uses for search results, so a café you find by searching and the same café drawn on the map finally match
-* Map labels are set in Roboto, served from Parchment itself rather than fetched from someone else's font server on every pan
+* Map labels are set in Geist — the same typeface as the rest of the app — served from Parchment itself rather than fetched from someone else's font server on every pan. Transit stop names are set a weight heavier, so a stop stands out from the street names around it
 * Looking straight down, the map is drawn without perspective. A flat-on view used to keep a vanishing point — building walls splayed outward from the middle of the screen and roofs sat offset from their own footprints — so a plan view never quite read as a plan. Tilting at all brings the perspective camera straight back
 * Buildings rise out of the ground as you zoom past the level they appear at, rather than springing up at full height the moment they switch on
 * 3D buildings appear a zoom level earlier, so a skyline reads as a skyline from further out instead of only once most of it is off screen

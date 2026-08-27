@@ -251,7 +251,7 @@ function routeShieldLayer(layer, art) {
       'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 11, 400, 14, 600],
       'icon-size': 1,
       'text-field': ['get', 'ref'],
-      'text-font': ['Roboto Bold'],
+      'text-font': ['Geist Bold'],
       'text-size': 9,
       'text-letter-spacing': 0.05,
       'text-max-angle': 38,
@@ -288,7 +288,7 @@ function exitShieldLayer(layer) {
       ...layer.layout,
       'icon-image': ['concat', 'motorway-exit-', ['to-string', ['get', 'ref_length']]],
       'text-field': ['get', 'ref'],
-      'text-font': ['Roboto Bold'],
+      'text-font': ['Geist Bold'],
       'text-size': 9,
       'text-offset': [0, 0.05],
     },
@@ -347,9 +347,22 @@ function isFontList(node) {
  * `stack[0]` would turn the whole expression into the font "match".
  */
 function singleFont(node) {
-  if (isFontList(node)) return [node[0]]
+  if (isFontList(node)) return [GEIST[node[0]] ?? GEIST_DEFAULT]
   if (Array.isArray(node)) return node.map(singleFont)
   return node
+}
+
+/**
+ * MapTiler's Roboto weights, mapped onto the Geist stacks `build-glyphs.mjs`
+ * generates. Italic has no Geist face and comes out upright; see that script.
+ */
+const GEIST_DEFAULT = 'Geist Regular'
+const GEIST = {
+  'Roboto Regular': 'Geist Regular',
+  'Roboto Medium': 'Geist Medium',
+  'Roboto Bold': 'Geist Bold',
+  'Roboto Italic': 'Geist Regular',
+  'Roboto Condensed Italic': 'Geist Regular',
 }
 
 /**

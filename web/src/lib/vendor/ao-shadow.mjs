@@ -2,12 +2,16 @@
  * VENDORED — github.com/wallabyway/maplibre-building-shadows @ f4336f5 (MIT).
  *
  * Kept as close to upstream as possible so it stays updatable; every Parchment
- * change is marked `PARCHMENT:` and they fall into two groups:
+ * change is marked `PARCHMENT:` and they fall into three groups:
  *
  *   - back-porting two v5 APIs to the MapLibre 4.7.1 fork we pin for variable
  *     line-offset (`_tileMatrix`, `_lightUniforms`)
  *   - the roofline edge, an addition rather than a fix — see the note above
  *     `BUILD_FS`
+ *   - 3D terrain, which upstream has no support for — see the note above
+ *     `TERRAIN`. Not optional: this layer *replaces* MapLibre's own extrusion
+ *     draw, so without it every building over raised ground is drawn at sea
+ *     level and the terrain buries it.
  *
  * See `building-shade.ts` for how it is configured and wired up.
  *
@@ -29,8 +33,63 @@
  */
 
 // Fixed attribute locations shared by every program, so one VAO serves all.
-const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7 };
+const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8 };
 const LAYOUT_STRIDE = 12; // bytes per vertex in MapLibre fill-extrusion layout
+const CENTROID_STRIDE = 4; // bytes per vertex in MapLibre's centroid buffer
+
+// PARCHMENT: 3D terrain.
+//
+// This layer replaces MapLibre's fill-extrusion draw, so it has to replace
+// everything that draw does — and with terrain on, that includes lifting each
+// building onto the ground beneath it. MapLibre reads the elevation of the
+// footprint's centroid out of the DEM texture in the vertex shader; without
+// the same lookup the buildings stay pinned to sea level and sink into any
+// hill they stand on.
+//
+// The lookup below mirrors `get_elevation` in MapLibre's own vertex prelude,
+// rewritten for ESSL1: these shaders are GLSL ES 1.00 (`attribute`/`varying`),
+// where the prelude is ESSL3 and uses `texelFetch`/`textureSize`. The DEM is a
+// `u_terrain_dim` grid with a one-pixel border, so its texture is `dim + 2`
+// square, and it is sampled NEAREST — hitting texel centres exactly is what
+// makes the manual bilinear blend below match MapLibre's.
+const TERRAIN = `
+  uniform sampler2D u_terrain;
+  uniform float u_terrain_dim;
+  uniform mat4 u_terrain_matrix;
+  uniform vec4 u_terrain_unpack;
+  uniform float u_terrain_exaggeration;
+  uniform float u_terrain_on;
+
+  float ele(vec2 texel, vec2 c) {
+    vec4 rgb = texture2DLod(u_terrain, (c + 0.5) * texel, 0.0) * 255.0 * u_terrain_unpack;
+    return rgb.r + rgb.g + rgb.b - u_terrain_unpack.a;
+  }
+
+  float get_elevation(vec2 pos) {
+    if (u_terrain_on < 0.5) return 0.0;
+    float dim = u_terrain_dim + 2.0;
+    vec2 texel = vec2(1.0 / dim);
+    vec2 hi = vec2(dim - 1.0);
+    vec2 coord = (u_terrain_matrix * vec4(pos, 0.0, 1.0)).xy * u_terrain_dim + 1.0;
+    vec2 f = fract(coord);
+    vec2 c = floor(coord);
+    float tl = ele(texel, clamp(c, vec2(0.0), hi));
+    float tr = ele(texel, clamp(c + vec2(1.0, 0.0), vec2(0.0), hi));
+    float bl = ele(texel, clamp(c + vec2(0.0, 1.0), vec2(0.0), hi));
+    float br = ele(texel, clamp(c + vec2(1.0, 1.0), vec2(0.0), hi));
+    return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y) * u_terrain_exaggeration;
+  }
+
+  attribute vec2 a_centroid;`;
+
+/** Uniform names every program that samples the DEM has to be handed. */
+const TERRAIN_UNIFORMS = [
+  'u_terrain', 'u_terrain_dim', 'u_terrain_matrix', 'u_terrain_unpack',
+  'u_terrain_exaggeration', 'u_terrain_on',
+];
+
+/** The DEM's texture unit. MapLibre uses 3 for the same thing; so do we. */
+const TERRAIN_UNIT = 3;
 
 // u_ht/u_bt/u_ct < 0 selects the flat attribute, else interpolates the vec2 pair.
 // Light color is hardcoded to white (the default in the styles we target).
@@ -59,6 +118,7 @@ const BUILD_VS = `
   attribute vec4 a_color4;
   uniform float u_ct;
   ${HEIGHT_ATTRS}
+  ${TERRAIN}
   varying vec3 v_color;
   varying float v_dark;
   uniform vec2 u_viewport;   // PARCHMENT
@@ -73,6 +133,18 @@ const BUILD_VS = `
     float h = max(FE(a_height_f, a_height_v, u_ht), 0.0);
     float elev = mix(base, h, t);
     float wallRatio = isWall > 0.5 ? max(0.0, elev - base) / max(h - base, 0.001) : -1.0;
+
+    // PARCHMENT: lift onto the terrain. The roof rises by the ground height at
+    // the footprint's centroid; the floor drops a further 10m when it sits at
+    // ground level, which is the basement MapLibre digs for the same reason —
+    // a building on a slope would otherwise hang in the air on its low side.
+    //
+    // Applied after wallRatio, which is a fraction of the wall and would be
+    // skewed by the basement if it were measured against the offset values.
+    float groundTop = get_elevation(a_centroid);
+    float groundBase = groundTop - (base > 0.0 ? 0.0 : 10.0);
+    float ground = mix(groundBase, groundTop, t);
+    elev += ground;
 
     // exp(-3) = 0.0498, 1 / (1 - exp(-3)) = 1.0524
     float dark = (wallRatio < 0.0 || wallRatio >= u_band) ? 0.0
@@ -92,8 +164,8 @@ const BUILD_VS = `
     // under it — so it fades out as the wall approaches the border's own size
     // and the far side of a view stays clean.
     v_ratio = wallRatio;
-    vec4 pTop = u_matrix * vec4(a_pos, h, 1.0);
-    vec4 pBot = u_matrix * vec4(a_pos, base, 1.0);
+    vec4 pTop = u_matrix * vec4(a_pos, h + groundTop, 1.0);
+    vec4 pBot = u_matrix * vec4(a_pos, base + groundBase, 1.0);
     float wallPx = (pTop.w > 0.001 && pBot.w > 0.001)
       ? length((pTop.xy / pTop.w - pBot.xy / pBot.w) * 0.5 * u_viewport)
       : 0.0;
@@ -151,12 +223,16 @@ const SHAD_VS = `
   attribute vec2 a_pos;
   attribute vec4 a_normal_ed;
   ${HEIGHT_ATTRS}
+  ${TERRAIN}
   void main() {
     float t = mod(a_normal_ed.x, 2.0);
     // Roof (t=1) shears by height, wall bottoms (t=0) by fill-extrusion-base,
     // so floating slabs (render_min_height) don't cast full-height shadows.
     float h = mix(FE(a_base_f, a_base_v, u_bt), FE(a_height_f, a_height_v, u_ht), t) * u_heightScale;
-    gl_Position = u_matrix * vec4(a_pos + u_shadowOff * h, 0.0, 1.0);
+    // PARCHMENT: the shadow lands on the ground, and with terrain on the
+    // ground is not at zero — it has to be sheared at the height the building
+    // is actually standing at or it projects to the wrong place on screen.
+    gl_Position = u_matrix * vec4(a_pos + u_shadowOff * h, get_elevation(a_centroid), 1.0);
   }`;
 const SHAD_FS = `
   precision highp float;
@@ -166,7 +242,8 @@ const SHAD_FS = `
 const SEED_VS = `
   uniform mat4 u_matrix;
   attribute vec2 a_pos;
-  void main() { gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0); }`;
+  ${TERRAIN}
+  void main() { gl_Position = u_matrix * vec4(a_pos, get_elevation(a_centroid), 1.0); }`;
 const SEED_FS = `
   precision highp float;
   uniform vec2 u_res;
@@ -390,13 +467,14 @@ export class WallShadowLayer {
     this._buildProg = linkProgram(gl, BUILD_VS, BUILD_FS);
     this._uBuild = uniformLocs(gl, this._buildProg,
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
-        'u_edge', 'u_edgeWidth', 'u_viewport']); // PARCHMENT
+        'u_edge', 'u_edgeWidth', 'u_viewport', ...TERRAIN_UNIFORMS]); // PARCHMENT
 
     this._shadProg = linkProgram(gl, SHAD_VS, SHAD_FS);
-    this._uShad = uniformLocs(gl, this._shadProg, ['u_matrix', 'u_shadowOff', 'u_heightScale', 'u_ht', 'u_bt']);
+    this._uShad = uniformLocs(gl, this._shadProg,
+      ['u_matrix', 'u_shadowOff', 'u_heightScale', 'u_ht', 'u_bt', ...TERRAIN_UNIFORMS]);
 
     this._seedProg = linkProgram(gl, SEED_VS, SEED_FS);
-    this._uSeed = uniformLocs(gl, this._seedProg, ['u_matrix', 'u_res']);
+    this._uSeed = uniformLocs(gl, this._seedProg, ['u_matrix', 'u_res', ...TERRAIN_UNIFORMS]);
 
     this._jfaProg = linkProgram(gl, JFA_VS, JFA_FS);
     this._uJfa = uniformLocs(gl, this._jfaProg, ['u_tex', 'u_stride', 'u_texel']);
@@ -463,6 +541,36 @@ export class WallShadowLayer {
     catch { return null; }
   }
 
+  /**
+   * PARCHMENT: the elevation this tile stands on, or null when terrain is off.
+   *
+   * MapLibre hands its own fill-extrusion draw exactly this, per tile — the DEM
+   * texture covering the tile plus the matrix that maps tile coordinates into
+   * it. Reading it off the live terrain rather than caching anything means the
+   * layer follows a terrain toggle without being rebuilt.
+   */
+  _terrain() {
+    const map = this._map;
+    return map.terrain ?? map.style?.map?.terrain ?? map.painter?.style?.map?.terrain ?? null;
+  }
+
+  _bindTerrain(gl, U, coord) {
+    const terrain = this._terrain();
+    const data = terrain && coord ? terrain.getTerrainData(coord) : null;
+    if (!data) {
+      gl.uniform1f(U.u_terrain_on, 0);
+      return;
+    }
+    gl.uniform1f(U.u_terrain_on, 1);
+    gl.uniform1i(U.u_terrain, TERRAIN_UNIT);
+    gl.uniform1f(U.u_terrain_dim, data.u_terrain_dim);
+    gl.uniformMatrix4fv(U.u_terrain_matrix, false, data.u_terrain_matrix);
+    gl.uniform4fv(U.u_terrain_unpack, data.u_terrain_unpack);
+    gl.uniform1f(U.u_terrain_exaggeration, data.u_terrain_exaggeration);
+    gl.activeTexture(gl.TEXTURE0 + TERRAIN_UNIT);
+    gl.bindTexture(gl.TEXTURE_2D, data.texture);
+  }
+
   _lightUniforms() {
     const light = this._map.style.light;
     const L = light?.properties;
@@ -511,6 +619,11 @@ export class WallShadowLayer {
       this._vao.bind(vao);
       point(LOC.a_pos, bucket.layoutVertexBuffer.buffer, 2, gl.SHORT, LAYOUT_STRIDE, seg.vertexOffset * LAYOUT_STRIDE);
       point(LOC.a_normal_ed, bucket.layoutVertexBuffer.buffer, 4, gl.SHORT, LAYOUT_STRIDE, seg.vertexOffset * LAYOUT_STRIDE + 4);
+      // PARCHMENT: the footprint centroid, which is where the DEM is sampled.
+      // MapLibre builds this buffer whether or not terrain is on, and passes it
+      // to its own draw only when it is; we bind it always and let
+      // `u_terrain_on` decide, so a terrain toggle needs no VAO rebuild.
+      point(LOC.a_centroid, bucket.centroidVertexBuffer?.buffer, 2, gl.SHORT, CENTROID_STRIDE, seg.vertexOffset * CENTROID_STRIDE);
       for (const d of [hD, bD, cD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bucket.indexBuffer.buffer);
       list.push({ vao, pO: seg.primitiveOffset, pL: seg.primitiveLength });
@@ -561,6 +674,7 @@ export class WallShadowLayer {
     gl.vertexAttrib1f(LOC.a_height_f, H); gl.vertexAttrib2f(LOC.a_height_v, H, H);
     gl.vertexAttrib1f(LOC.a_base_f, B); gl.vertexAttrib2f(LOC.a_base_v, B, B);
     gl.vertexAttrib2f(LOC.a_color, W, W);
+    gl.vertexAttrib2f(LOC.a_centroid, 0, 0); // PARCHMENT
     gl.vertexAttrib4f(LOC.a_color4, W, W, W, W);
 
     if (this.groundFx) {
@@ -620,6 +734,7 @@ export class WallShadowLayer {
       const sg = this._segVaos(gl, bucket);
       if (!sg) continue;
       gl.uniformMatrix4fv(U.u_matrix, false, matrix);
+      this._bindTerrain(gl, U, coord); // PARCHMENT
       const s = Math.pow(2, coord.overscaledZ) / tile.tileSize / 8;
       gl.uniform2f(U.u_shadowOff, this.shadowOffset[0] * s, -this.shadowOffset[1] * s);
       gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
@@ -638,10 +753,11 @@ export class WallShadowLayer {
     gl.useProgram(this._seedProg);
     gl.uniform2f(U.u_res, this._sdfRes, this._sdfRes);
 
-    for (const { bucket, matrix } of tiles) {
+    for (const { coord, bucket, matrix } of tiles) {
       const sg = this._segVaos(gl, bucket);
       if (!sg) continue;
       gl.uniformMatrix4fv(U.u_matrix, false, matrix);
+      this._bindTerrain(gl, U, coord); // PARCHMENT
       this._drawSegs(gl, sg);
     }
     this._vao.bind(null);
@@ -743,10 +859,11 @@ export class WallShadowLayer {
     gl.uniform3fv(U.u_lightpos, light.pos);
     gl.uniform1f(U.u_lightintensity, light.intensity);
 
-    for (const { bucket, matrix, zf } of tiles) {
+    for (const { coord, bucket, matrix, zf } of tiles) {
       const sg = this._segVaos(gl, bucket);
       if (!sg) continue;
       gl.uniformMatrix4fv(U.u_matrix, false, matrix);
+      this._bindTerrain(gl, U, coord); // PARCHMENT
       gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
       gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
       gl.uniform1f(U.u_ct, sg.cComp === 4 ? zf : -1);

@@ -1,37 +1,63 @@
 /**
- * Repeated 3D objects — trees today, benches and bins on the same rails later.
+ * Repeated 3D objects: trees, and the street furniture beside them.
  *
  * The shape of the problem is instancing. A city block holds hundreds of street
  * trees and a viewport can hold thousands, so one draw call per tree is out;
  * what works is one model, uploaded once, drawn `N` times from a buffer of
- * per-object transforms (`ANGLE_instanced_arrays`, core in WebGL2). That is the
- * standard answer for scattered repeated geometry and it is what this does:
- * two attribute buffers per object — where it stands, and how it is shaped —
- * and one `drawElementsInstanced` per material.
+ * per-object transforms (`drawElementsInstanced`, core in WebGL2). That is the
+ * standard answer for scattered repeated geometry, and everything else here
+ * follows from keeping it to a handful of draws:
+ *
+ *   roles      A primitive carries a role (`bark`, `foliage`, `metal`, …)
+ *              rather than a colour, and the role is resolved to a colour by
+ *              flavor at draw time. So the night map is a uniform change, not
+ *              a second set of models.
+ *   LOD        Every model has a cheap far variant. Objects beyond a screen
+ *              distance are drawn with it, which is what lets the layer keep
+ *              drawing trees out to the horizon instead of culling them.
+ *   shadows    One extra quad per object, blended onto the ground and sheared
+ *              by the sun — two triangles, not a shadow map.
  *
  * The alternative, three.js behind MapLibre's `CustomLayerInterface`, is the
- * more commonly written one and would have cost ~150KB gzipped to draw a
- * cylinder and a cone. `glb.ts` reads the model instead.
+ * more commonly written one and would have cost ~150KB gzipped. It would also
+ * have been a dead end for the native apps: MapLibre Native has no 3D model
+ * support and its custom drawable layers are C++, so nothing written against a
+ * JS scene graph ports. What does port is everything in this file that is not
+ * GL — the models, the roles, and the tag rules that shape an instance.
  *
  * Precision is why positions are stored relative to an origin. Mercator world
  * coordinates run 0–1 across the planet, and float32 holds about seven digits,
- * which lands at roughly four metres of quantisation — visible as trees
+ * which lands at roughly four metres of quantisation — visible as objects
  * snapping between positions as you pan. Subtracting a per-refresh origin and
- * folding it back into the matrix keeps the numbers small and the error under a
- * millimetre.
+ * folding it back into the matrix keeps the numbers small.
  *
  * Objects are read from the same vector source their flat form is drawn from,
- * so the two cannot disagree about what exists: turning 3D objects on hides the
- * circles and shows the models, and nothing else is loaded.
+ * so the two cannot disagree about what exists.
  */
 import { MercatorCoordinate } from 'maplibre-gl'
-import type { GlbModel } from './glb'
+import type { GlbModel } from './glb.mjs'
+
+/** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
+export const FAR_SUFFIX = '-far'
+
+/**
+ * How far from the centre of the view an object may be, in ground pixels,
+ * before it is drawn with its far model.
+ *
+ * Ground pixels rather than metres so the rule holds at every zoom: this is
+ * roughly "past the first screenful", which at any tilt is where a tree stops
+ * resolving into a trunk and a canopy.
+ */
+const NEAR_PIXELS = 850
+
+/** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
+const mercatorPerPixel = (zoom: number) => 1 / (512 * 2 ** zoom)
 
 const VS = `
   uniform mat4 u_matrix;
   uniform vec3 u_light;
   uniform float u_ambient;
-  uniform vec4 u_color;
+  uniform vec3 u_color;
 
   attribute vec3 a_position;
   attribute vec3 a_normal;
@@ -61,7 +87,7 @@ const VS = `
     // Half-lambert: a plain dot product leaves every face turned away from the
     // sun flat black, which at this size reads as a hole rather than as shade.
     float lit = dot(normalize(n), u_light) * 0.5 + 0.5;
-    v_color = u_color.rgb * a_shade * mix(u_ambient, 1.0, lit);
+    v_color = u_color * a_shade * mix(u_ambient, 1.0, lit);
 
     gl_Position = u_matrix * vec4(world, 1.0);
   }`
@@ -71,7 +97,58 @@ const FS = `
   varying vec3 v_color;
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
 
-const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4 }
+/**
+ * The shadow: one quad on the ground per object, sheared away from the sun.
+ *
+ * Not a shadow map, and not the buildings' stencil-and-jump-flood pass either —
+ * both are per-frame screen work, and this has to survive a few thousand
+ * objects. Two triangles with a radial falloff cost a vertex each and read
+ * correctly at map scale, where a tree's shadow is a soft blob under it rather
+ * than a silhouette of its branches.
+ */
+const SHADOW_VS = `
+  uniform mat4 u_matrix;
+  uniform vec2 u_sunOffset;
+
+  attribute vec2 a_corner;
+  attribute vec3 a_offset;
+  attribute vec3 a_shape;
+
+  varying vec2 v_uv;
+
+  void main() {
+    v_uv = a_corner;
+    // Wider than the object, since a shadow is cast at an angle, and offset
+    // along the sun by a multiple of the object's height.
+    vec2 fall = u_sunOffset * a_shape.x;
+    vec3 world = a_offset + vec3(a_corner * a_shape.y * 0.85 + fall, 0.0);
+    gl_Position = u_matrix * vec4(world, 1.0);
+  }`
+
+const SHADOW_FS = `
+  precision mediump float;
+  uniform vec4 u_shadow;
+  varying vec2 v_uv;
+  void main() {
+    float d = length(v_uv);
+    if (d > 1.0) discard;
+    // Solid through the middle and soft only at the rim. A falloff that starts
+    // at the centre leaves nothing but a faint smudge — the first version of
+    // this squared the term and the shadows were invisible until turned red.
+    float a = u_shadow.a * smoothstep(1.0, 0.35, d);
+    // Premultiplied, which the canvas is. Written straight, the blend below
+    // eats the destination's alpha as well as its colour and the page shows
+    // through — a black shadow at 14% came out *lighter* than the night map
+    // it was cast on.
+    gl_FragColor = vec4(u_shadow.rgb * a, a);
+  }`
+
+const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_corner: 5 }
+
+/** What a primitive is made of, which is how it gets its colour. */
+export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint'
+
+export type ObjectPalette = Record<string, [number, number, number]>
 
 /** One object read out of the source, in the units the shader wants. */
 export type ObjectInstance = {
@@ -94,8 +171,13 @@ export type ObjectSourceSpec = {
   sourceLayer: string
   /** Below this the objects are too small to be worth the draw. */
   minzoom: number
-  /** Turns one source feature into an instance, or null to skip it. */
-  toInstance: (feature: any, lng: number, lat: number) => ObjectInstance | null
+  /**
+   * Where a feature puts its objects. Points give one; lines are walked, which
+   * is how a `tree_row` becomes a row of trees.
+   */
+  positions?: (feature: any) => Array<[number, number]>
+  /** Turns one position into an instance, or null to skip it. */
+  toInstance: (feature: any, lng: number, lat: number, index: number) => ObjectInstance | null
 }
 
 type ModelBuffers = {
@@ -105,7 +187,8 @@ type ModelBuffers = {
     index: WebGLBuffer
     count: number
     indexType: number
-    color: [number, number, number, number]
+    role: string
+    color: [number, number, number]
   }>
 }
 
@@ -126,6 +209,27 @@ function compile(gl: WebGL2RenderingContext, type: number, src: string) {
   return shader
 }
 
+function link(gl: WebGL2RenderingContext, vs: string, fs: string) {
+  const program = gl.createProgram()!
+  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, vs))
+  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, fs))
+  for (const [name, loc] of Object.entries(LOC)) gl.bindAttribLocation(program, loc, name)
+  gl.linkProgram(program)
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+    console.error('[objects] link:', gl.getProgramInfoLog(program))
+  return program
+}
+
+function uniformsOf(gl: WebGL2RenderingContext, program: WebGLProgram, names: string[]) {
+  return Object.fromEntries(names.map(n => [n, gl.getUniformLocation(program, n)]))
+}
+
+/** Default positions: a point feature stands where it is. */
+function pointPositions(feature: any): Array<[number, number]> {
+  const coords = feature.geometry?.coordinates
+  return coords && typeof coords[0] === 'number' ? [[coords[0], coords[1]]] : []
+}
+
 /**
  * A MapLibre custom layer drawing one model per object, instanced.
  *
@@ -139,40 +243,56 @@ export class ObjectLayer {
   renderingMode = '3d' as const
 
   private map: any
-  private gl!: WebGL2RenderingContext
   private program!: WebGLProgram
+  private shadowProgram!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
+  private shadowUniforms: Record<string, WebGLUniformLocation | null> = {}
   private models = new Map<string, ModelBuffers>()
   private instanceBuffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer } | null = null
+  private quad: WebGLBuffer | null = null
   private batches: Batch[] = []
   private origin: [number, number, number] = [0, 0, 0]
   private dirty = true
   private onSourceData?: () => void
 
   enabled = true
+  /** Where the sun throws a shadow, and how dark it lands. See `setFlavor`. */
+  sunOffset: [number, number] = [0.45, -0.45]
+  shadowColor: [number, number, number, number] = [0, 0, 0, 0.22]
 
   constructor(
-    private spec: ObjectSourceSpec,
+    private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
+    private palette: ObjectPalette,
     options: { id?: string } = {},
   ) {
     this.id = options.id ?? 'map-objects'
   }
 
+  /**
+   * Retint every role for the flavor, without touching a vertex.
+   *
+   * An object standing on the night map has to read as part of it: the same
+   * green that looks like a tree against pale ground looks like a hole cut in a
+   * dark one. Because colour lives in a uniform rather than in the model, this
+   * is a single call and takes effect on the next frame.
+   */
+  setFlavor(palette: ObjectPalette, shadow: [number, number, number, number]) {
+    this.palette = palette
+    this.shadowColor = shadow
+    for (const model of this.models.values())
+      for (const p of model.primitives) p.color = palette[p.role] ?? p.color
+    this.map?.triggerRepaint?.()
+  }
+
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
-    this.gl = gl
 
-    this.program = gl.createProgram()!
-    gl.attachShader(this.program, compile(gl, gl.VERTEX_SHADER, VS))
-    gl.attachShader(this.program, compile(gl, gl.FRAGMENT_SHADER, FS))
-    for (const [name, loc] of Object.entries(LOC)) gl.bindAttribLocation(this.program, loc, name)
-    gl.linkProgram(this.program)
-    if (!gl.getProgramParameter(this.program, gl.LINK_STATUS))
-      console.error('[objects] link:', gl.getProgramInfoLog(this.program))
+    this.program = link(gl, VS, FS)
+    this.uniforms = uniformsOf(gl, this.program, ['u_matrix', 'u_light', 'u_ambient', 'u_color'])
 
-    for (const name of ['u_matrix', 'u_light', 'u_ambient', 'u_color'])
-      this.uniforms[name] = gl.getUniformLocation(this.program, name)
+    this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
+    this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_sunOffset', 'u_shadow'])
 
     for (const [name, model] of Object.entries(this.sources)) {
       this.models.set(name, {
@@ -182,7 +302,8 @@ export class ObjectLayer {
           index: this.upload(gl, gl.ELEMENT_ARRAY_BUFFER, p.index),
           count: p.index.length,
           indexType: p.index.BYTES_PER_ELEMENT === 4 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
-          color: p.color,
+          role: p.material,
+          color: this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]],
         })),
       })
     }
@@ -192,6 +313,7 @@ export class ObjectLayer {
       shape: gl.createBuffer()!,
       shade: gl.createBuffer()!,
     }
+    this.quad = this.upload(gl, gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]))
 
     // The source arrives asynchronously and changes as you pan, so the instance
     // list is rebuilt rather than collected once.
@@ -215,6 +337,7 @@ export class ObjectLayer {
       map.off('moveend', this.onSourceData)
     }
     gl.deleteProgram(this.program)
+    gl.deleteProgram(this.shadowProgram)
     for (const model of this.models.values())
       for (const p of model.primitives) {
         gl.deleteBuffer(p.position)
@@ -222,13 +345,14 @@ export class ObjectLayer {
         gl.deleteBuffer(p.index)
       }
     if (this.instanceBuffers) for (const b of Object.values(this.instanceBuffers)) gl.deleteBuffer(b)
+    if (this.quad) gl.deleteBuffer(this.quad)
   }
 
   /**
-   * Rebuild the instance buffers from whatever the source currently holds.
+   * Rebuild the instance buffers from whatever the sources currently hold.
    *
    * `querySourceFeatures` returns each feature once per tile it appears in, so
-   * a tree on a tile boundary would otherwise be drawn twice — hence the id
+   * an object on a tile boundary would otherwise be drawn twice — hence the id
    * set. Objects with no id are kept: a duplicate is better than a hole.
    */
   private collect() {
@@ -236,44 +360,63 @@ export class ObjectLayer {
     this.batches = []
 
     const zoom = this.map.getZoom()
-    if (zoom < this.spec.minzoom) return
-
-    let features: any[] = []
-    try {
-      features = this.map.querySourceFeatures(this.spec.source, {
-        sourceLayer: this.spec.sourceLayer,
-      })
-    } catch {
-      return
-    }
-    if (!features.length) return
-
-    const terrain = this.map.getTerrain?.() ? this.map : null
-    const seen = new Set<string | number>()
-    const byModel = new Map<string, ObjectInstance[]>()
-
-    for (const feature of features) {
-      const coords = feature.geometry?.coordinates
-      if (!coords) continue
-      const key = feature.id ?? feature.properties?.id
-      if (key !== undefined) {
-        if (seen.has(key)) continue
-        seen.add(key)
-      }
-      const instance = this.spec.toInstance(feature, coords[0], coords[1])
-      if (!instance) continue
-      const list = byModel.get(instance.model)
-      if (list) list.push(instance)
-      else byModel.set(instance.model, [instance])
-    }
-
-    // The origin every position is measured from. The map centre, so the error
-    // float32 introduces is smallest where the eye is.
     const centre = this.map.getCenter()
     const origin = MercatorCoordinate.fromLngLat(centre, 0)
     this.origin = [origin.x, origin.y, 0]
 
+    const terrain = this.map.getTerrain?.() ? this.map : null
+    const nearLimit = NEAR_PIXELS * mercatorPerPixel(zoom)
+    const nearLimitSquared = nearLimit * nearLimit
+
+    const byModel = new Map<string, ObjectInstance[]>()
+    const seen = new Set<string>()
+
+    for (const spec of this.specs) {
+      if (zoom < spec.minzoom) continue
+      let features: any[] = []
+      try {
+        features = this.map.querySourceFeatures(spec.source, { sourceLayer: spec.sourceLayer })
+      } catch {
+        continue
+      }
+      const positions = spec.positions ?? pointPositions
+      for (const feature of features) {
+        const key = feature.id ?? feature.properties?.id
+        if (key !== undefined) {
+          const scoped = `${spec.sourceLayer}:${key}`
+          if (seen.has(scoped)) continue
+          seen.add(scoped)
+        }
+        const places = positions(feature)
+        for (let i = 0; i < places.length; i++) {
+          const instance = spec.toInstance(feature, places[i][0], places[i][1], i)
+          if (!instance) continue
+          const list = byModel.get(instance.model)
+          if (list) list.push(instance)
+          else byModel.set(instance.model, [instance])
+        }
+      }
+    }
+
+    // Split each model's instances by distance, so the far half is drawn with
+    // the cheap variant. Both halves stay in the same buffer layout, so this
+    // costs one extra draw call rather than a second code path.
+    const buckets = new Map<string, ObjectInstance[]>()
     for (const [model, instances] of byModel) {
+      const far = `${model}${FAR_SUFFIX}`
+      const hasFar = this.models.has(far)
+      for (const o of instances) {
+        const mc = MercatorCoordinate.fromLngLat([o.lng, o.lat], 0)
+        const dx = mc.x - this.origin[0]
+        const dy = mc.y - this.origin[1]
+        const which = hasFar && dx * dx + dy * dy > nearLimitSquared ? far : model
+        const list = buckets.get(which)
+        if (list) list.push(o)
+        else buckets.set(which, [o])
+      }
+    }
+
+    for (const [model, instances] of buckets) {
       if (!this.models.has(model)) continue
       const offset = new Float32Array(instances.length * 3)
       const shape = new Float32Array(instances.length * 3)
@@ -295,6 +438,11 @@ export class ObjectLayer {
     }
   }
 
+  /** How many objects are drawn right now, and with which model. Dev only. */
+  get drawn(): Array<{ model: string; count: number }> {
+    return this.batches.map(b => ({ model: b.model, count: b.count }))
+  }
+
   render(gl: WebGL2RenderingContext, args: any) {
     if (!this.enabled) return
     if (this.dirty) this.collect()
@@ -304,44 +452,18 @@ export class ObjectLayer {
     // the origin is what lets the instance offsets stay small.
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const shifted = translate(matrix as ArrayLike<number>, this.origin)
-
-    gl.useProgram(this.program)
-    gl.uniformMatrix4fv(this.uniforms.u_matrix, false, shifted)
-
-    const light = this.lightDirection()
-    gl.uniform3fv(this.uniforms.u_light, light)
-    gl.uniform1f(this.uniforms.u_ambient, 0.55)
+    const range = this.map.painter?.depthRangeFor3D
 
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
-    gl.depthMask(true)
-    const range = this.map.painter?.depthRangeFor3D
     if (range) gl.depthRange(range[0], range[1])
-    gl.disable(gl.BLEND)
     gl.disable(gl.STENCIL_TEST)
-    // Both faces: the canopy is a closed hull but a cone's base is not, and a
-    // gap in a tree reads far worse than the cost of drawing 30 more triangles.
+    // Both faces: a canopy is a closed hull but a palm frond is not, and a gap
+    // in a tree reads far worse than the cost of drawing 30 more triangles.
     gl.disable(gl.CULL_FACE)
 
-    for (const batch of this.batches) {
-      const model = this.models.get(batch.model)
-      if (!model) continue
-
-      this.bindInstances(gl, batch)
-      for (const primitive of model.primitives) {
-        gl.uniform4fv(this.uniforms.u_color, primitive.color)
-        bindVec3(gl, LOC.a_position, primitive.position, 0)
-        bindVec3(gl, LOC.a_normal, primitive.normal, 0)
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
-        gl.drawElementsInstanced(
-          gl.TRIANGLES,
-          primitive.count,
-          primitive.indexType,
-          0,
-          batch.count,
-        )
-      }
-    }
+    this.drawShadows(gl, shifted)
+    this.drawObjects(gl, shifted)
 
     for (const loc of Object.values(LOC)) {
       gl.vertexAttribDivisor(loc, 0)
@@ -352,8 +474,55 @@ export class ObjectLayer {
     const context = this.map.painter?.context
     if (context)
       for (const key of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
-        'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace'])
+        'depthMask', 'depthFunc', 'depthRange', 'blend', 'blendFunc', 'cullFace'])
         if (context[key]) context[key].dirty = true
+  }
+
+  /** Blended onto the ground, before the objects and without writing depth. */
+  private drawShadows(gl: WebGL2RenderingContext, matrix: Float32Array) {
+    if (this.shadowColor[3] <= 0) return
+    gl.useProgram(this.shadowProgram)
+    gl.uniformMatrix4fv(this.shadowUniforms.u_matrix, false, matrix)
+    gl.uniform2fv(this.shadowUniforms.u_sunOffset, this.sunOffset)
+    gl.uniform4fv(this.shadowUniforms.u_shadow, this.shadowColor)
+
+    gl.depthMask(false)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.quad!)
+    gl.enableVertexAttribArray(LOC.a_corner)
+    gl.vertexAttribPointer(LOC.a_corner, 2, gl.FLOAT, false, 0, 0)
+    gl.vertexAttribDivisor(LOC.a_corner, 0)
+
+    for (const batch of this.batches) {
+      this.bindInstances(gl, batch)
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, batch.count)
+    }
+    gl.disableVertexAttribArray(LOC.a_corner)
+  }
+
+  private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array) {
+    gl.useProgram(this.program)
+    gl.uniformMatrix4fv(this.uniforms.u_matrix, false, matrix)
+    gl.uniform3fv(this.uniforms.u_light, this.lightDirection())
+    gl.uniform1f(this.uniforms.u_ambient, 0.58)
+
+    gl.depthMask(true)
+    gl.disable(gl.BLEND)
+
+    for (const batch of this.batches) {
+      const model = this.models.get(batch.model)
+      if (!model) continue
+      this.bindInstances(gl, batch)
+      for (const primitive of model.primitives) {
+        gl.uniform3fv(this.uniforms.u_color, primitive.color)
+        bindVec3(gl, LOC.a_position, primitive.position)
+        bindVec3(gl, LOC.a_normal, primitive.normal)
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
+        gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
+      }
+    }
   }
 
   private bindInstances(gl: WebGL2RenderingContext, batch: Batch) {
@@ -391,9 +560,9 @@ function translate(matrix: ArrayLike<number>, origin: [number, number, number]):
   return out
 }
 
-function bindVec3(gl: WebGL2RenderingContext, loc: number, buffer: WebGLBuffer, offset: number) {
+function bindVec3(gl: WebGL2RenderingContext, loc: number, buffer: WebGLBuffer) {
   gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
   gl.enableVertexAttribArray(loc)
-  gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, offset)
+  gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0)
   gl.vertexAttribDivisor(loc, 0)
 }

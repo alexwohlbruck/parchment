@@ -75,10 +75,15 @@ import {
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
-import { TREE_LAYER, TREE_OPACITY } from '@/lib/map-style/detail-layers'
-import { ObjectLayer } from '@/lib/map-objects/object-layer'
-import { loadGlb, type GlbModel } from '@/lib/map-objects/glb'
-import { TREE_MODELS, TREE_OBJECTS } from '@/lib/map-objects/trees'
+import { OBJECT_FLAT_LAYERS, TREE_OPACITY } from '@/lib/map-style/detail-layers'
+import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
+import {
+  ObjectLayer,
+  OBJECT_MODELS,
+  OBJECT_PALETTE,
+  OBJECT_SHADOW,
+  OBJECT_SPECS,
+} from '@/lib/map-objects'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -624,10 +629,12 @@ export class MaplibreStrategy extends MapStrategy {
     const map = this.mapInstance
     // Muted rather than hidden: see `TREE_OPACITY`.
     const flat = () => {
-      if (map.getLayer(TREE_LAYER)) {
+      for (const id of OBJECT_FLAT_LAYERS) {
+        const layer = map.getLayer(id)
+        if (!layer) continue
         map.setPaintProperty(
-          TREE_LAYER,
-          'circle-opacity',
+          id,
+          layer.type === 'line' ? 'line-opacity' : 'circle-opacity',
           this.map3dObjects ? 0 : TREE_OPACITY,
         )
       }
@@ -643,7 +650,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
 
     this.objectModels ??= Promise.all(
-      Object.entries(TREE_MODELS).map(async ([name, url]) => [name, await loadGlb(url)] as const),
+      Object.entries(OBJECT_MODELS).map(async ([name, url]) => [name, await loadGlb(url)] as const),
     ).then(entries => Object.fromEntries(entries))
 
     let models: Record<string, GlbModel>
@@ -661,9 +668,21 @@ export class MaplibreStrategy extends MapStrategy {
 
     // The setting may have been turned back off, or the style swapped, while
     // the models were in flight.
-    if (!this.map3dObjects || map.getLayer(OBJECT_LAYER_ID)) return flat()
+    if (!this.map3dObjects) return flat()
 
-    this.objectLayer = new ObjectLayer(TREE_OBJECTS, models, { id: OBJECT_LAYER_ID })
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    // Already drawing: a flavor change is a uniform, not a rebuild.
+    if (map.getLayer(OBJECT_LAYER_ID) && this.objectLayer) {
+      this.objectLayer.setFlavor(OBJECT_PALETTE[flavor], [...OBJECT_SHADOW[flavor]])
+      this.updateSunShadow()
+      return flat()
+    }
+
+    this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, OBJECT_PALETTE[flavor], {
+      id: OBJECT_LAYER_ID,
+    })
+    this.objectLayer.shadowColor = [...OBJECT_SHADOW[flavor]]
+    this.updateSunShadow()
     // Above the buildings in the layer list, though the depth buffer is what
     // actually decides which is in front — both write depth.
     map.addLayer(this.objectLayer as any)
@@ -742,10 +761,22 @@ export class MaplibreStrategy extends MapStrategy {
     const layer = this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID)
       ? (liveBuildingShade() as any)
       : null
-    if (!layer) return
 
     const { lng, lat } = this.mapInstance.getCenter()
     const sun = sunShadow(new Date(), lat, lng)
+
+    // The trees and the buildings have to agree about where the sun is, or a
+    // street throws its shadows two ways at once.
+    if (this.objectLayer) {
+      const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+      this.objectLayer.sunOffset = [
+        sun.offset[0] * sun.heightScale,
+        sun.offset[1] * sun.heightScale,
+      ]
+      const shadow = OBJECT_SHADOW[flavor]
+      this.objectLayer.shadowColor = [shadow[0], shadow[1], shadow[2], shadow[3] * sun.daylight]
+    }
+    if (!layer) return
 
     layer.shadowOffset = sun.offset
     layer._heightScale = sun.heightScale

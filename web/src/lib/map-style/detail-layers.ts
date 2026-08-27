@@ -19,14 +19,23 @@ import type { FlavorId } from './build'
 
 export const PARKING_SOURCE = 'parking'
 export const TREE_SOURCE = 'trees'
+export const TREE_ROW_SOURCE = 'tree-rows'
+export const FURNITURE_SOURCE = 'furniture'
 
 /** Martin source names; see barrelman's `martin-config.yaml`. */
 export const PARKING_TILES = 'parking_areas'
 export const TREE_TILES = 'street_trees'
+export const TREE_ROW_TILES = 'tree_rows'
+export const FURNITURE_TILES = 'street_furniture'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
 export const TREE_LAYER = 'Trees'
+export const TREE_ROW_LAYER = 'Tree rows'
+export const FURNITURE_LAYER = 'Street furniture'
+
+/** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */
+export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
 
 /**
  * The flat form's opacity ramp, so the 3D form can put it back.
@@ -52,11 +61,13 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     parking: 'hsl(45, 20%, 89%)',
     parkingCasing: 'hsl(45, 14%, 80%)',
     tree: 'hsl(112, 38%, 46%)',
+    furniture: 'hsl(210, 12%, 52%)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
     parkingCasing: 'hsl(216, 24%, 21%)',
     tree: 'hsl(112, 30%, 40%)',
+    furniture: 'hsl(210, 12%, 44%)',
   },
 }
 
@@ -85,6 +96,18 @@ export function detailSources(tileUrl: (source: string) => string) {
       type: 'vector' as const,
       tiles: [tileUrl(TREE_TILES)],
       minzoom: 16,
+      maxzoom: 17,
+    },
+    [TREE_ROW_SOURCE]: {
+      type: 'vector' as const,
+      tiles: [tileUrl(TREE_ROW_TILES)],
+      minzoom: 16,
+      maxzoom: 17,
+    },
+    [FURNITURE_SOURCE]: {
+      type: 'vector' as const,
+      tiles: [tileUrl(FURNITURE_TILES)],
+      minzoom: 17,
       maxzoom: 17,
     },
   }
@@ -122,7 +145,7 @@ export function parkingLayers(flavor: FlavorId): any[] {
 }
 
 /**
- * Trees, as the flat mark that stands in for the 3D model.
+ * Trees and street furniture, as the flat marks that stand in for the models.
  *
  * This is what draws when 3D objects are off — and, since the two forms are the
  * same features from the same source, turning them on is a matter of muting
@@ -143,6 +166,38 @@ export function treeLayers(flavor: FlavorId): any[] {
         // A canopy, roughly: a street tree reads about 4m across, which is
         // this many pixels at each of these zooms.
         'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 16, 2, 20, 14],
+        'circle-opacity': TREE_OPACITY,
+        'circle-pitch-alignment': 'map',
+      },
+    },
+    {
+      // A row of trees is one line in OSM, so flat it stays a line — a dashed
+      // green thread reads as planting where a string of dots would read as a
+      // path. The 3D form walks the same line and plants along it.
+      id: TREE_ROW_LAYER,
+      type: 'line',
+      source: TREE_ROW_SOURCE,
+      'source-layer': TREE_ROW_TILES,
+      minzoom: 16,
+      layout: { 'line-cap': 'round' },
+      paint: {
+        'line-color': c.tree,
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 16, 3, 20, 20],
+        'line-opacity': TREE_OPACITY,
+        'line-blur': 1,
+      },
+    },
+    {
+      // Furniture flat is a dot and nothing more. At the one zoom it draws at
+      // there is no room for an icon, and a bin does not want a label.
+      id: FURNITURE_LAYER,
+      type: 'circle',
+      source: FURNITURE_SOURCE,
+      'source-layer': FURNITURE_TILES,
+      minzoom: 17,
+      paint: {
+        'circle-color': c.furniture,
+        'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 17, 1.5, 20, 6],
         'circle-opacity': TREE_OPACITY,
         'circle-pitch-alignment': 'map',
       },

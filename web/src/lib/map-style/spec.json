@@ -819,7 +819,8 @@
       18,
       18
      ]
-    ]
+    ],
+    "line-opacity": 0.6
    },
    "filter": [
     "all",
@@ -878,7 +879,7 @@
      "@road_major",
      "@road_minor"
     ],
-    "line-opacity": 1,
+    "line-opacity": 0.6,
     "line-width": [
      "interpolate",
      [
@@ -1222,7 +1223,7 @@
    },
    "paint": {
     "line-color": "@footway_tunnel_outline_line_color",
-    "line-opacity": 1,
+    "line-opacity": 0.6,
     "line-width": {
      "base": 1.2,
      "stops": [

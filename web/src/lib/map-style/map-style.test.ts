@@ -80,6 +80,22 @@ describe('converted spec', () => {
   test('the two flavors define exactly the same tokens', () => {
     expect(Object.keys(dark).sort()).toEqual(Object.keys(light).sort())
   })
+
+  /**
+   * A tunnel is under the ground, and the only thing on the map that says so is
+   * that the ground shows through it. Every tunnelled way has to be in on it —
+   * a road tunnel drawn at full strength beside a translucent rail one reads as
+   * a road, not as a tunnel.
+   */
+  test('every tunnelled way lets the ground through', () => {
+    const tunnels = layers.filter(l => /tunnel/i.test(l.id) && l.type === 'line')
+    expect(tunnels.length).toBeGreaterThan(4)
+    for (const layer of tunnels) {
+      const opacity = layer.paint?.['line-opacity']
+      expect(typeof opacity, layer.id).toBe('number')
+      expect(opacity, layer.id).toBeLessThanOrEqual(0.6)
+    }
+  })
 })
 
 /**

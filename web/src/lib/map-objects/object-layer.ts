@@ -47,8 +47,36 @@ export const FAR_SUFFIX = '-far'
  */
 const NEAR_PIXELS = 850
 
+/**
+ * How long a burst of source events has to go quiet before the scene is
+ * rebuilt, and the longest a continuous burst may hold that off. Milliseconds.
+ */
+const SETTLE = 80
+const AT_MOST = 300
+
 /** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
 const mercatorPerPixel = (zoom: number) => 1 / (512 * 2 ** zoom)
+
+/** The sphere MapLibre projects onto, in metres. */
+const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6371008.8
+
+/**
+ * Project one object, without allocating.
+ *
+ * The same numbers `MercatorCoordinate.fromLngLat` and
+ * `meterInMercatorCoordinateUnits` produce, and `map-objects.test.ts` holds
+ * them to that — this exists only to avoid the two objects and the round trip
+ * back through `latFromMercatorY` that the pair costs per call. That is
+ * nothing once, and a measurable share of a rebuild across a few thousand
+ * trees, which is work done while somebody is panning.
+ */
+export function project(lng: number, lat: number, elevation: number, out: Placed) {
+  const perMetre = 1 / (EARTH_CIRCUMFERENCE * Math.cos((lat * Math.PI) / 180))
+  out.x = (180 + lng) / 360
+  out.y = (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))) / 360
+  out.z = elevation * perMetre
+  out.perMetre = perMetre
+}
 
 const VS = `
   uniform mat4 u_matrix;
@@ -149,6 +177,34 @@ type Batch = {
   shape: Float32Array
   shade: Float32Array
   count: number
+  /**
+   * Uploaded on the first frame that draws this batch, and not again.
+   *
+   * The GPU buffers are created here rather than shared across batches because
+   * a shared buffer has to be refilled before every batch, which meant a
+   * `bufferData` per batch per frame for data that only changes when the view
+   * does. GL is touched only inside `render`, so the arrays are built off the
+   * render path and handed over here.
+   */
+  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer } | null
+}
+
+/**
+ * One object, with everything that does not depend on where the camera is
+ * already worked out.
+ *
+ * Mercator position and the metres-to-mercator scale are held here because
+ * they are the expensive part — `MercatorCoordinate.fromLngLat` twice per
+ * object, plus the tag parsing and hashing behind `toInstance` — and none of it
+ * changes when you pan. Only the near/far choice does.
+ */
+export type Placed = {
+  instance: ObjectInstance
+  x: number
+  y: number
+  /** Ground height in mercator units, which is how an object stands on terrain. */
+  z: number
+  perMetre: number
 }
 
 function compile(gl: WebGL2RenderingContext, type: number, src: string) {
@@ -197,13 +253,18 @@ export class ObjectLayer {
   private program!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
   private models = new Map<string, ModelBuffers>()
-  private instanceBuffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer } | null = null
   private batches: Batch[] = []
+  private retired: Array<{ offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer }> = []
+  private placed: Placed[] = []
   private origin: [number, number, number] = [0, 0, 0]
-  private dirty = true
-  private onSourceData?: () => void
-
-  enabled = true
+  /** Zoom the current `placed` was gathered at; a change re-runs the gate. */
+  private gatheredZoom = NaN
+  private needsGather = true
+  private needsArrange = true
+  private scheduled = 0
+  private pendingSince = 0
+  private onSourceData?: (event: { sourceId?: string }) => void
+  private onMoveEnd?: () => void
 
   constructor(
     private specs: ObjectSourceSpec[],
@@ -249,19 +310,61 @@ export class ObjectLayer {
       })
     }
 
-    this.instanceBuffers = {
-      offset: gl.createBuffer()!,
-      shape: gl.createBuffer()!,
-      shade: gl.createBuffer()!,
-    }
-
     // The source arrives asynchronously and changes as you pan, so the instance
     // list is rebuilt rather than collected once.
-    this.onSourceData = () => {
-      this.dirty = true
+    //
+    // Only our own sources count. `sourcedata` fires for every tile of every
+    // source in the style — basemap, terrain, transit — and the basemap alone
+    // streams an order of magnitude more tiles than these three do, so an
+    // unfiltered handler rebuilt the whole scene several times a second for
+    // events that could not possibly have changed a tree.
+    const ours = new Set(this.specs.map(s => s.source))
+    this.onSourceData = event => {
+      if (!event?.sourceId || ours.has(event.sourceId)) this.invalidate(true)
     }
+    // Panning does not change which objects exist, only which of them are far
+    // enough away to draw cheaply — so it asks for the cheap half of the work.
+    this.onMoveEnd = () => this.invalidate(this.map.getZoom() !== this.gatheredZoom)
     map.on('sourcedata', this.onSourceData)
-    map.on('moveend', this.onSourceData)
+    map.on('moveend', this.onMoveEnd)
+    // The tiles are usually already loaded when the layer is added — turning
+    // the setting on mid-session is the common case — and neither event would
+    // fire again on their own.
+    this.invalidate(true)
+  }
+
+  /**
+   * Queue a rebuild, coalescing the burst of events that caused it.
+   *
+   * Two things happen here, and both were needed to stop the map stuttering.
+   *
+   * It runs between frames rather than inside `render`. Gathering costs a few
+   * milliseconds with a few thousand trees in view, and spending that inside
+   * the render pass turns every tile that arrives during a pan into a dropped
+   * frame. Deferred, the pending frame draws the previous scene and nothing
+   * stalls; the objects are then a moment stale, which at a tree's size nobody
+   * can see.
+   *
+   * And it waits for the burst to end. A source fires `sourcedata` twice per
+   * tile, so panning across a city asked for about a hundred rebuilds where two
+   * or three would have drawn exactly the same thing. `SETTLE` collapses those;
+   * `AT_MOST` caps how long that can go on, so a long continuous pan keeps
+   * planting trees as it goes rather than leaving them all until you stop.
+   */
+  private invalidate(gather: boolean) {
+    this.needsGather ||= gather
+    this.needsArrange = true
+    const now = performance.now()
+    if (!this.scheduled) this.pendingSince = now
+    else clearTimeout(this.scheduled)
+    const wait = Math.max(0, Math.min(SETTLE, AT_MOST - (now - this.pendingSince)))
+    this.scheduled = setTimeout(() => {
+      this.scheduled = 0
+      if (!this.map) return
+      if (this.needsGather) this.gather()
+      if (this.needsArrange) this.arrange()
+      this.map.triggerRepaint?.()
+    }, wait) as unknown as number
   }
 
   private upload(gl: WebGL2RenderingContext, target: number, data: ArrayBufferView) {
@@ -272,10 +375,11 @@ export class ObjectLayer {
   }
 
   onRemove(map: any, gl: WebGL2RenderingContext) {
-    if (this.onSourceData) {
-      map.off('sourcedata', this.onSourceData)
-      map.off('moveend', this.onSourceData)
-    }
+    if (this.onSourceData) map.off('sourcedata', this.onSourceData)
+    if (this.onMoveEnd) map.off('moveend', this.onMoveEnd)
+    if (this.scheduled) clearTimeout(this.scheduled)
+    this.scheduled = 0
+    this.map = null
     gl.deleteProgram(this.program)
     for (const model of this.models.values())
       for (const p of model.primitives) {
@@ -283,30 +387,33 @@ export class ObjectLayer {
         gl.deleteBuffer(p.normal)
         gl.deleteBuffer(p.index)
       }
-    if (this.instanceBuffers) for (const b of Object.values(this.instanceBuffers)) gl.deleteBuffer(b)
+    for (const batch of this.batches) if (batch.buffers) this.retired.push(batch.buffers)
+    for (const buffers of this.retired)
+      for (const buffer of Object.values(buffers)) gl.deleteBuffer(buffer)
+    this.batches = []
+    this.retired = []
   }
 
   /**
-   * Rebuild the instance buffers from whatever the sources currently hold.
+   * Read every object the sources currently hold, and place it.
+   *
+   * The expensive half, and the one that only depends on the data: reading the
+   * features, turning each into an instance — which parses OSM tags and hashes
+   * an id — and projecting it. Panning cannot change any of it, so this runs
+   * when a tile arrives or the zoom crosses a source's `minzoom`, and `arrange`
+   * does the rest.
    *
    * `querySourceFeatures` returns each feature once per tile it appears in, so
    * an object on a tile boundary would otherwise be drawn twice — hence the id
    * set. Objects with no id are kept: a duplicate is better than a hole.
    */
-  private collect() {
-    this.dirty = false
-    this.batches = []
-
+  private gather() {
+    this.needsGather = false
     const zoom = this.map.getZoom()
-    const centre = this.map.getCenter()
-    const origin = MercatorCoordinate.fromLngLat(centre, 0)
-    this.origin = [origin.x, origin.y, 0]
+    this.gatheredZoom = zoom
+    this.placed = []
 
     const terrain = this.map.getTerrain?.() ? this.map : null
-    const nearLimit = NEAR_PIXELS * mercatorPerPixel(zoom)
-    const nearLimitSquared = nearLimit * nearLimit
-
-    const byModel = new Map<string, ObjectInstance[]>()
     const seen = new Set<string>()
 
     for (const spec of this.specs) {
@@ -327,52 +434,69 @@ export class ObjectLayer {
         }
         const places = positions(feature)
         for (let i = 0; i < places.length; i++) {
-          const instance = spec.toInstance(feature, places[i][0], places[i][1], i)
+          const [lng, lat] = places[i]
+          const instance = spec.toInstance(feature, lng, lat, i)
           if (!instance) continue
-          const list = byModel.get(instance.model)
-          if (list) list.push(instance)
-          else byModel.set(instance.model, [instance])
+          const elevation = terrain ? (terrain.queryTerrainElevation([lng, lat]) ?? 0) : 0
+          const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0 }
+          project(lng, lat, elevation, placed)
+          this.placed.push(placed)
         }
       }
     }
+  }
 
-    // Split each model's instances by distance, so the far half is drawn with
-    // the cheap variant. Both halves stay in the same buffer layout, so this
-    // costs one extra draw call rather than a second code path.
-    const buckets = new Map<string, ObjectInstance[]>()
-    for (const [model, instances] of byModel) {
+  /**
+   * Sort the placed objects into per-model batches around the current view.
+   *
+   * The cheap half: one pass with no allocation per object beyond the typed
+   * arrays themselves. Objects past `NEAR_PIXELS` are moved onto the model's
+   * far variant, which is what lets the layer keep drawing out to the horizon —
+   * both halves share a buffer layout, so it costs one more draw call rather
+   * than a second code path.
+   *
+   */
+  private arrange() {
+    this.needsArrange = false
+    const zoom = this.map.getZoom()
+    const origin = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
+    this.origin = [origin.x, origin.y, 0]
+
+    const nearLimit = NEAR_PIXELS * mercatorPerPixel(zoom)
+    const nearLimitSquared = nearLimit * nearLimit
+
+    const buckets = new Map<string, Placed[]>()
+    for (const p of this.placed) {
+      const model = p.instance.model
       const far = `${model}${FAR_SUFFIX}`
-      const hasFar = this.models.has(far)
-      for (const o of instances) {
-        const mc = MercatorCoordinate.fromLngLat([o.lng, o.lat], 0)
-        const dx = mc.x - this.origin[0]
-        const dy = mc.y - this.origin[1]
-        const which = hasFar && dx * dx + dy * dy > nearLimitSquared ? far : model
-        const list = buckets.get(which)
-        if (list) list.push(o)
-        else buckets.set(which, [o])
-      }
+      const dx = p.x - origin.x
+      const dy = p.y - origin.y
+      const which =
+        this.models.has(far) && dx * dx + dy * dy > nearLimitSquared ? far : model
+      const list = buckets.get(which)
+      if (list) list.push(p)
+      else buckets.set(which, [p])
     }
 
-    for (const [model, instances] of buckets) {
+    for (const batch of this.batches) if (batch.buffers) this.retired.push(batch.buffers)
+
+    this.batches = []
+    for (const [model, group] of buckets) {
       if (!this.models.has(model)) continue
-      const offset = new Float32Array(instances.length * 3)
-      const shape = new Float32Array(instances.length * 3)
-      const shade = new Float32Array(instances.length)
-      for (let i = 0; i < instances.length; i++) {
-        const o = instances[i]
-        const elevation = terrain ? (terrain.queryTerrainElevation([o.lng, o.lat]) ?? 0) : 0
-        const mc = MercatorCoordinate.fromLngLat([o.lng, o.lat], elevation)
-        const perMetre = mc.meterInMercatorCoordinateUnits()
-        offset[i * 3] = mc.x - this.origin[0]
-        offset[i * 3 + 1] = mc.y - this.origin[1]
-        offset[i * 3 + 2] = mc.z
-        shape[i * 3] = o.height * perMetre
-        shape[i * 3 + 1] = o.spread * perMetre
-        shape[i * 3 + 2] = o.heading
-        shade[i] = o.shade
+      const offset = new Float32Array(group.length * 3)
+      const shape = new Float32Array(group.length * 3)
+      const shade = new Float32Array(group.length)
+      for (let i = 0; i < group.length; i++) {
+        const { instance, x, y, z, perMetre } = group[i]
+        offset[i * 3] = x - origin.x
+        offset[i * 3 + 1] = y - origin.y
+        offset[i * 3 + 2] = z
+        shape[i * 3] = instance.height * perMetre
+        shape[i * 3 + 1] = instance.spread * perMetre
+        shape[i * 3 + 2] = instance.heading
+        shade[i] = instance.shade
       }
-      this.batches.push({ model, offset, shape, shade, count: instances.length })
+      this.batches.push({ model, offset, shape, shade, count: group.length, buffers: null })
     }
   }
 
@@ -382,9 +506,13 @@ export class ObjectLayer {
   }
 
   render(gl: WebGL2RenderingContext, args: any) {
-    if (!this.enabled) return
-    if (this.dirty) this.collect()
-    if (!this.batches.length || !this.instanceBuffers) return
+    // Buffers a rebuild replaced. Freed here rather than where they are
+    // retired, because `arrange` runs between frames and deleting a bound
+    // buffer there would unbind it under MapLibre's cached GL state.
+    for (const buffers of this.retired)
+      for (const buffer of Object.values(buffers)) gl.deleteBuffer(buffer)
+    this.retired.length = 0
+    if (!this.batches.length) return
 
     // The matrix maps mercator world coordinates to clip space. Shifting it by
     // the origin is what lets the instance offsets stay small.
@@ -438,18 +566,31 @@ export class ObjectLayer {
     }
   }
 
+  /**
+   * Point the instance attributes at this batch, uploading it the first time.
+   *
+   * The upload used to happen here on every frame for every batch, since one
+   * set of buffers was shared by all of them and had to be refilled before each
+   * draw. The data only changes when `arrange` runs, so it is uploaded once and
+   * every later frame is three `bindBuffer` calls.
+   */
   private bindInstances(gl: WebGL2RenderingContext, batch: Batch) {
-    const b = this.instanceBuffers!
+    const fresh = !batch.buffers
+    batch.buffers ??= {
+      offset: gl.createBuffer()!,
+      shape: gl.createBuffer()!,
+      shade: gl.createBuffer()!,
+    }
     const attach = (buffer: WebGLBuffer, data: Float32Array, loc: number, size: number) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-      gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW)
+      if (fresh) gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW)
       gl.enableVertexAttribArray(loc)
       gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0)
       gl.vertexAttribDivisor(loc, 1)
     }
-    attach(b.offset, batch.offset, LOC.a_offset, 3)
-    attach(b.shape, batch.shape, LOC.a_shape, 3)
-    attach(b.shade, batch.shade, LOC.a_shade, 1)
+    attach(batch.buffers.offset, batch.offset, LOC.a_offset, 3)
+    attach(batch.buffers.shape, batch.shape, LOC.a_shape, 3)
+    attach(batch.buffers.shade, batch.shade, LOC.a_shade, 1)
   }
 
   /** The style's own light, so objects agree with the buildings beside them. */

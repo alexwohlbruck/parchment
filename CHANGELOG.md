@@ -10,7 +10,8 @@
 ### Changed
 
 * The daylight map has cooled from parchment cream to a near-neutral grey, matching the app's own chrome — and its motorways and main roads have given up the orange and yellow that digital maps inherited from paper road atlases. The hierarchy is still there, drawn in weight and in shade rather than in colour: main roads stay white, motorways run a step darker than the ground, and each rung carries a heavier edge than the one below it
-* Trees are a friendlier green in daylight, on a lighter trunk
+* Trees are a friendlier green in daylight, on a lighter trunk, and they no longer stand in front of place markers and labels — anything you can read now sits above anything you can only look at
+* Tunnels are drawn see-through, so a road that dives under something reads as going under it rather than as another junction on the surface. Railway, footway and culverted-river tunnels were already fainter than this and are left alone
 * Place markers on the map are drawn the way a place's icon is drawn in its detail panel: a pale tinted disc with the glyph in the deeper shade of the same colour, and an outline to match. The white ring is back, a little wider than before, and it now carries the marker's own colour rather than the map's background — and the soft shadow under it stays, which it could not before, since a map marker only gets one halo and it was spending it on one or the other
 * Buildings hide the one-way arrows on any road they stand over, instead of letting them float across the roof
 * The map tilts further — to 85 degrees, up from 60 — with a sky and a haze at the horizon so a steep view ends in something map-like rather than in nothing
@@ -76,6 +77,7 @@
 
 ### Fixed
 
+* Panning a map full of 3D trees no longer stutters. The scene was being rebuilt inside the frame that was trying to draw it, and rebuilt again for every tile of every source that arrived — including sources with no trees in them — so a pan across a leafy city dropped a frame each time. The rebuild now happens between frames, once per burst of arriving tiles, and only the part that actually changed: panning re-sorts what is already there rather than reading it all back out of the map
 * Place markers on the map are round again. They are assembled from the sprite sheet's own artwork now that they carry four colours instead of one, and were being built at the sheet's resolution rather than the screen's — so at the size a marker actually draws, the disc came out with visibly stepped edges and read as a rounded square
 * The night map is less blue. Minor streets were being painted a saturated cyan that read as water at a glance, and the halo behind every label on the map was the same colour — both were picking up a colour meant for glaciers, along with runways, cable cars and tunnels. Each is back to the shade it was drawn with, and residential streets now sit in the same family as the main roads they join
 * Recents on the Library home now include your searches, not just the places you opened. A category or brand you browsed showed up in the search palette's recents but was missing from the home list — the two now show the same history, newest first, and tapping a search there runs it again

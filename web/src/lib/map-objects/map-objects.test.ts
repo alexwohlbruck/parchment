@@ -13,7 +13,8 @@ import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE } from './index'
-import { FAR_SUFFIX } from './object-layer'
+import { FAR_SUFFIX, project } from './object-layer'
+import { MercatorCoordinate } from 'maplibre-gl'
 
 const MODELS = resolve(__dirname, '../../../public/models')
 const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS })
@@ -342,6 +343,36 @@ describe('street furniture', () => {
     const bench = at({ kind: 'bench', direction: 'N' })!
     expect(bench.spread).toBeCloseTo(1.8, 2)
     expect(bench.height).toBeLessThan(1)
+  })
+})
+
+/**
+ * The layer projects objects itself rather than through `MercatorCoordinate`,
+ * to avoid two allocations and a round trip through `latFromMercatorY` for
+ * every tree on screen — see `project`. That is a copy of somebody else's
+ * formula, so it is held to the original here: a drift would not throw, it
+ * would move every tree a few metres and only show as objects sitting beside
+ * the ground they belong to.
+ */
+describe('projection', () => {
+  const places: Array<[string, number, number, number]> = [
+    ['null island', 0, 0, 0],
+    ['Charlotte', -80.8394, 35.216, 0],
+    ['Manhattan', -73.9903, 40.734, 12],
+    ['Quito', -78.4678, -0.1807, 2850],
+    ['Tromso', 18.9553, 69.6492, 40],
+    ['Wellington', 174.7762, -41.2865, 5],
+    ['dateline', 179.9, -8.5, 0],
+  ]
+
+  test.each(places)('%s matches MercatorCoordinate', (_name, lng, lat, elevation) => {
+    const out = { instance: null as any, x: 0, y: 0, z: 0, perMetre: 0 }
+    project(lng, lat, elevation, out)
+    const reference = MercatorCoordinate.fromLngLat([lng, lat], elevation)
+    expect(out.x).toBeCloseTo(reference.x, 12)
+    expect(out.y).toBeCloseTo(reference.y, 12)
+    expect(out.z).toBeCloseTo(reference.z, 12)
+    expect(out.perMetre).toBeCloseTo(reference.meterInMercatorCoordinateUnits(), 12)
   })
 })
 

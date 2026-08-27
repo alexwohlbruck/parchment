@@ -157,6 +157,28 @@ const ROOF_EDGE_FADE_PITCH = 8
 /** The one custom layer every 3D scene object is drawn by. */
 const OBJECT_LAYER_ID = 'map-objects'
 
+/**
+ * The first label layer the 3D objects have to stay behind.
+ *
+ * Found rather than named, so a reordered style does not silently put trees
+ * back over the labels. The flat forms of these same objects mark the point in
+ * the stack where they belong — everything drawn after them is a label of some
+ * kind — so the answer is the first symbol layer past the last of those.
+ *
+ * Returns undefined if the style has none, which puts the layer on top. That is
+ * where it used to sit, and it is the right fallback: a satellite basemap has
+ * no detail layers, and drawing the objects is better than not.
+ */
+function firstLabelLayer(map: MaplibreMap): string | undefined {
+  const layers = map.getStyle()?.layers ?? []
+  let after = -1
+  layers.forEach((layer, i) => {
+    if (OBJECT_FLAT_LAYERS.includes(layer.id)) after = i
+  })
+  if (after < 0) return undefined
+  return layers.slice(after + 1).find(layer => layer.type === 'symbol')?.id
+}
+
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
@@ -679,9 +701,11 @@ export class MaplibreStrategy extends MapStrategy {
     this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, OBJECT_PALETTE[flavor], {
       id: OBJECT_LAYER_ID,
     })
-    // Above the buildings in the layer list, though the depth buffer is what
-    // actually decides which is in front — both write depth.
-    map.addLayer(this.objectLayer as any)
+    // Above the buildings, below every label. Against the buildings the depth
+    // buffer decides — both write depth, so a tree in front of a tower hides
+    // part of it — but a symbol layer ignores depth entirely, so the only thing
+    // keeping a tree from covering a place marker is drawing it first.
+    map.addLayer(this.objectLayer as any, firstLabelLayer(map))
     flat()
   }
 

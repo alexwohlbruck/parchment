@@ -383,6 +383,33 @@ const constructionMatch = () => [
 ]
 
 /**
+ * How opaque a tunnelled way is drawn.
+ *
+ * A tunnel is under the ground, and MapTiler draws the road ones at full
+ * strength with only a dashed casing to say so — which at a glance reads as a
+ * road, so an interchange with a tunnel through it looks like a junction that
+ * is not there. Letting the ground show through is the cheapest way to say
+ * "below", and it costs no extra layer.
+ *
+ * Applied as a ceiling rather than a value: the river, railway and footway
+ * tunnels are already fainter than this, and setting them *to* it would make
+ * them more prominent, which is the opposite of the point.
+ */
+const TUNNEL_OPACITY = 0.6
+
+/** Every tunnelled way, faded to at most `TUNNEL_OPACITY`. */
+function fadeTunnels(layers) {
+  for (const layer of layers) {
+    if (!/tunnel/i.test(layer.id) || layer.type !== 'line') continue
+    const current = layer.paint?.['line-opacity']
+    layer.paint = {
+      ...layer.paint,
+      'line-opacity': Math.min(typeof current === 'number' ? current : 1, TUNNEL_OPACITY),
+    }
+  }
+}
+
+/**
  * Repaint every road layer from `ROAD_INK`.
  *
  * Tunnels and roads under construction are included deliberately: they are the
@@ -1161,6 +1188,7 @@ async function main() {
 
   sinkInstitutionalLanduse(layers)
   applyRoadInk(layers)
+  fadeTunnels(layers)
   // Before the pedestrian pass, so the footbridges it inserts land above the
   // arrows rather than below them: an arrow is painted on the road, and a
   // footbridge crossing over that road covers it.

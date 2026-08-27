@@ -46,12 +46,30 @@ const COMPASS: Record<string, number> = {
 }
 
 /**
- * A compass bearing in radians, or null.
+ * Which way an unrotated model faces, as a compass bearing.
+ *
+ * A model is authored Y-up with its front towards -Z, and the layer swaps that
+ * to the map's Z-up as `(x, -z, y)` — so -Z becomes +Y, and mercator's +Y is
+ * *south*. An untouched bench therefore faces 180°, not 0°, and a heading is
+ * the turn from there rather than from north.
+ */
+const MODEL_RESTING_BEARING = 180
+
+/**
+ * The model rotation, in radians, that points a thing at a compass bearing.
  *
  * `direction` is documented as degrees but written both ways in practice, so
- * both are read. The map's heading runs the other way round from a compass
- * bearing — bearings go clockwise from north, the model's rotation goes
- * anticlockwise — hence the negation.
+ * both are read.
+ *
+ * The conversion is a rotation *from* the model's resting bearing, and the
+ * layer's rotation is clockwise: its `(x cos - y sin, x sin + y cos)` runs in
+ * a frame where +X is east and +Y is south, which reads clockwise on a
+ * north-up screen. So a bearing maps to `bearing - 180`.
+ *
+ * Getting this wrong is not subtle and was not caught by eye: the first
+ * version negated the bearing, which faces a bench at `180 - bearing`, and a
+ * bench tagged 130° came out facing 43°. It happens to be right at 90°, which
+ * is exactly the kind of coincidence that survives a spot check.
  */
 export function bearingOf(value: unknown): number | null {
   if (value === undefined || value === null || value === '') return null
@@ -59,7 +77,15 @@ export function bearingOf(value: unknown): number | null {
   const compass = COMPASS[text]
   const degrees = compass ?? tagged(text, -360, 360)
   if (degrees === null) return null
-  return (-degrees * Math.PI) / 180
+  return ((degrees - MODEL_RESTING_BEARING) * Math.PI) / 180
+}
+
+/**
+ * The bearing a heading actually points at — the inverse of `bearingOf`, for
+ * tests and for anything that needs to check the round trip.
+ */
+export function headingToBearing(heading: number): number {
+  return (((heading * 180) / Math.PI + MODEL_RESTING_BEARING) % 360 + 360) % 360
 }
 
 export function furnitureInstance(feature: any, lng: number, lat: number): ObjectInstance | null {

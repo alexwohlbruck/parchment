@@ -11,7 +11,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
-import { bearingOf, furnitureInstance, FURNITURE_MODELS } from './furniture'
+import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE } from './index'
 import { FAR_SUFFIX } from './object-layer'
 
@@ -254,13 +254,26 @@ describe('street furniture', () => {
     furnitureInstance({ properties: { id: 'node/1', ...props } }, -73.97, 40.76)
 
   test('reads a bearing in degrees or as a compass point', () => {
-    // Bearings run clockwise from north; the model's heading runs the other
-    // way, so the two are negatives of each other.
-    expect(bearingOf('90')).toBeCloseTo(-Math.PI / 2, 6)
-    expect(bearingOf('E')).toBeCloseTo(-Math.PI / 2, 6)
-    expect(bearingOf('NW')).toBeCloseTo((-315 * Math.PI) / 180, 6)
     expect(bearingOf('')).toBeNull()
     expect(bearingOf('forward')).toBeNull()
+    expect(bearingOf('E')).toEqual(bearingOf('90'))
+    expect(bearingOf('NW')).toEqual(bearingOf('315'))
+  })
+
+  /**
+   * The one that matters, and the one that was wrong: a bench tagged 130° has
+   * to end up facing 130°. The first version negated the bearing, which faces
+   * it at `180 - bearing` — right at 90°, wrong everywhere else, and 43°
+   * instead of 130° for the bench that caught it.
+   */
+  test.each([0, 45, 90, 130, 180, 270, 315])('a bench tagged %i faces %i', degrees => {
+    expect(headingToBearing(bearingOf(String(degrees))!)).toBeCloseTo(degrees % 360, 6)
+  })
+
+  test('every compass point round-trips to its own bearing', () => {
+    for (const [point, degrees] of Object.entries({ N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315 })) {
+      expect(headingToBearing(bearingOf(point)!), point).toBeCloseTo(degrees, 6)
+    }
   })
 
   /**

@@ -282,6 +282,223 @@ function baseRadius(part, min, max) {
   return radius > 1e-4 ? radius : Math.max((max[0] - min[0]) / 2, (max[2] - min[2]) / 2, 1e-4)
 }
 
+/** Welded vertex ids for one part, so a corner split for its normals is one point. */
+function weldedFaces(part) {
+  const ids = new Map()
+  const idOf = v => {
+    const key = `${part.position[v * 3].toFixed(5)},${part.position[v * 3 + 1].toFixed(5)},${part.position[v * 3 + 2].toFixed(5)}`
+    if (!ids.has(key)) ids.set(key, ids.size)
+    return ids.get(key)
+  }
+  const faces = []
+  for (let i = 0; i < part.index.length; i += 3)
+    faces.push([idOf(part.index[i]), idOf(part.index[i + 1]), idOf(part.index[i + 2])])
+  return faces
+}
+
+/** How many triangles sit on each undirected edge. */
+function edgeUse(part) {
+  const uses = new Map()
+  for (const [a, b, c] of weldedFaces(part))
+    for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+      const key = u < v ? `${u}_${v}` : `${v}_${u}`
+      uses.set(key, (uses.get(key) ?? 0) + 1)
+    }
+  return uses
+}
+
+/** No edge carries more than two triangles — the condition for orienting one. */
+function isManifold(part) {
+  for (const n of edgeUse(part).values()) if (n > 2) return false
+  return true
+}
+
+/**
+ * Can this part be drawn with back faces culled?
+ *
+ * Culling a solid removes the half of it nobody can see. Culling anything else
+ * removes geometry that was doing a job: an unpaired edge means a hole to see
+ * through, and a triangle wound against its neighbours faces the wrong way and
+ * disappears. Either shows up as exactly the shattering that culling is there
+ * to prevent, so the models that fail this are drawn double-sided instead.
+ */
+function isSolid(part) {
+  if (!isManifold(part)) return false
+  for (const n of edgeUse(part).values()) if (n !== 2) return false
+  const directed = new Set()
+  for (const [a, b, c] of weldedFaces(part))
+    for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+      const key = `${u}>${v}`
+      if (directed.has(key)) return false
+      directed.add(key)
+    }
+  return signedVolume(part) > 0
+}
+
+/** Twice the enclosed volume, positive when the faces face outwards. */
+function signedVolume(part) {
+  let volume = 0
+  const at = v => [part.position[v * 3], part.position[v * 3 + 1], part.position[v * 3 + 2]]
+  for (let i = 0; i < part.index.length; i += 3) {
+    const [a, b, c] = [at(part.index[i]), at(part.index[i + 1]), at(part.index[i + 2])]
+    volume +=
+      (a[0] * (b[1] * c[2] - b[2] * c[1]) -
+        a[1] * (b[0] * c[2] - b[2] * c[0]) +
+        a[2] * (b[0] * c[1] - b[1] * c[0])) / 6
+  }
+  return volume
+}
+
+/**
+ * Wind every triangle the same way round, facing out.
+ *
+ * The layer culls back faces, so which way a triangle faces stops being a
+ * detail and becomes the difference between drawing it and not. Two sources of
+ * geometry meet here and neither could be trusted on its own: `cylinder` and
+ * `lozenge` build their walls clockwise, so every far model came out inside
+ * out, and Kenney's palms and one of the conifers carry triangles wound against
+ * their neighbours — 186 of 190 in one case. Culled, those become holes, and a
+ * hole in a crown looks exactly like the depth-fighting this was meant to cure.
+ *
+ * Two passes. First make each connected shell agree with itself, by walking
+ * face to face across shared edges and flipping any neighbour that traverses
+ * the shared edge the same way round rather than the opposite way. Then decide
+ * which way *out* is: a closed shell encloses a positive volume when its faces
+ * face outwards, so a negative one gets turned inside out wholesale. A shell
+ * with a boundary has no volume to measure, so it is pointed away from the
+ * model's own centre instead, which is right for a palm frond and harmless for
+ * anything else.
+ *
+ * Normals follow the geometry — a flipped face takes negated normals — so the
+ * source's smooth shading survives the trip.
+ */
+function orientFaces(part) {
+  // Only where "the same way round" means anything. An edge with three or four
+  // triangles on it has no consistent answer, and walking one anyway does not
+  // fail quietly: run over Kenney's conifer it flipped a skirt and left the
+  // model with seventy-two edges bounding nothing, which is a hole.
+  if (!isManifold(part)) return false
+
+  const ids = new Map()
+  const idOf = v => {
+    const key = `${part.position[v * 3].toFixed(5)},${part.position[v * 3 + 1].toFixed(5)},${part.position[v * 3 + 2].toFixed(5)}`
+    if (!ids.has(key)) ids.set(key, ids.size)
+    return ids.get(key)
+  }
+  const faces = []
+  for (let i = 0; i < part.index.length; i += 3)
+    faces.push({
+      corners: [part.index[i], part.index[i + 1], part.index[i + 2]],
+      welded: [idOf(part.index[i]), idOf(part.index[i + 1]), idOf(part.index[i + 2])],
+      flipped: false,
+    })
+
+  const edges = new Map()
+  faces.forEach((face, f) => {
+    const [a, b, c] = face.welded
+    for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+      const key = u < v ? `${u}_${v}` : `${v}_${u}`
+      const list = edges.get(key)
+      if (list) list.push(f)
+      else edges.set(key, [f])
+    }
+  })
+
+  /** Does this face traverse the edge u→v, given how it has been flipped? */
+  const traverses = (face, u, v) => {
+    const [a, b, c] = face.flipped ? [face.welded[0], face.welded[2], face.welded[1]] : face.welded
+    return (a === u && b === v) || (b === u && c === v) || (c === u && a === v)
+  }
+
+  const at = v => [0, 1, 2].map(c => part.position[v * 3 + c])
+  const seen = new Array(faces.length).fill(false)
+  let changed = false
+
+  for (let seed = 0; seed < faces.length; seed++) {
+    if (seen[seed]) continue
+    const shell = []
+    const queue = [seed]
+    seen[seed] = true
+    while (queue.length) {
+      const f = queue.pop()
+      shell.push(f)
+      const [a, b, c] = faces[f].flipped
+        ? [faces[f].welded[0], faces[f].welded[2], faces[f].welded[1]]
+        : faces[f].welded
+      for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+        const key = u < v ? `${u}_${v}` : `${v}_${u}`
+        for (const g of edges.get(key) ?? []) {
+          if (g === f || seen[g]) continue
+          seen[g] = true
+          // Agreeing neighbours traverse a shared edge in opposite
+          // directions. One that traverses it the same way is inside out.
+          if (traverses(faces[g], u, v)) {
+            faces[g].flipped = true
+            changed = true
+          }
+          queue.push(g)
+        }
+      }
+    }
+
+    // Which way is out? Enclosed volume where there is one, otherwise the
+    // direction away from the model's own middle.
+    let volume = 0
+    let outward = 0
+    const centre = [0, 0, 0]
+    for (const f of shell)
+      for (const corner of faces[f].corners) {
+        const p = at(corner)
+        for (let c = 0; c < 3; c++) centre[c] += p[c] / (shell.length * 3)
+      }
+    for (const f of shell) {
+      const [x, y, z] = faces[f].flipped
+        ? [faces[f].corners[0], faces[f].corners[2], faces[f].corners[1]]
+        : faces[f].corners
+      const [a, b, c] = [at(x), at(y), at(z)]
+      volume +=
+        (a[0] * (b[1] * c[2] - b[2] * c[1]) -
+          a[1] * (b[0] * c[2] - b[2] * c[0]) +
+          a[2] * (b[0] * c[1] - b[1] * c[0])) / 6
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+      const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]
+      const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+      const mid = [0, 1, 2].map(i => (a[i] + b[i] + c[i]) / 3 - centre[i])
+      outward += n[0] * mid[0] + n[1] * mid[1] + n[2] * mid[2]
+    }
+    const inside = Math.abs(volume) > 1e-9 ? volume < 0 : outward < 0
+    if (inside) {
+      for (const f of shell) faces[f].flipped = !faces[f].flipped
+      changed = true
+    }
+  }
+
+  if (!changed) return false
+
+  // Rebuilt unindexed so a corner shared by a flipped and an unflipped face
+  // can carry a different normal for each. `weld` re-indexes at write time.
+  const position = []
+  const normal = []
+  const index = []
+  for (const face of faces) {
+    const corners = face.flipped
+      ? [face.corners[0], face.corners[2], face.corners[1]]
+      : face.corners
+    for (const corner of corners) {
+      const base = position.length / 3
+      index.push(base)
+      for (let c = 0; c < 3; c++) {
+        position.push(part.position[corner * 3 + c])
+        normal.push(face.flipped ? -part.normal[corner * 3 + c] : part.normal[corner * 3 + c])
+      }
+    }
+  }
+  part.position = new Float32Array(position)
+  part.normal = new Float32Array(normal)
+  part.index = index
+  return true
+}
+
 /**
  * Close every hole in a part, so back-face culling is safe.
  *
@@ -301,6 +518,10 @@ function baseRadius(part, min, max) {
  * up underneath the tree where nobody sees them. They exist to be culled.
  */
 function capHoles(part) {
+  // Same restriction as `orientFaces`: an edge with three triangles on it is a
+  // junction, not a rim, and chaining rims through one caps across the model.
+  if (!isManifold(part)) return 0
+
   // Welded by position: a corner split for its normals is one point here, or
   // every seam would read as a hole.
   const ids = new Map()
@@ -718,13 +939,17 @@ async function loadSource(file) {
 async function main() {
   await mkdir(OUT, { recursive: true })
   const written = []
-  const manifest = []
+  const manifest = {}
 
   const emit = async (name, parts) => {
     toUnit(parts)
     // Before the far LOD is fitted, so its proxy post is fitted to the slimmed
     // trunk rather than to the one nobody will see.
     const slimmed = slimTrunks(parts)
+    // Orientation first: capping finds a hole by looking for an edge with only
+    // one triangle on it, and against inconsistent winding that test reports
+    // every disagreeing seam as a hole and caps straight across the model.
+    const turned = parts.filter(part => orientFaces(part)).length
     // Before smoothing, so a cap's own hard edge is one of the creases the
     // smoothing pass considers rather than a normal it never sees.
     const holes = parts.reduce((n, part) => n + capHoles(part), 0)
@@ -735,7 +960,8 @@ async function main() {
 
     const near = toGlb(name, parts)
     await writeFile(join(OUT, `${name}.glb`), near)
-    manifest.push(name)
+    const solid = parts.every(isSolid)
+    manifest[name] = solid
 
     const tris = n => n.reduce((t, p) => t + p.index.length / 3, 0)
     // Not re-normalised: it is built from parts that already are, and running
@@ -743,6 +969,10 @@ async function main() {
     // five-sided prism is not its axis, so every proxy came out shifted off
     // centre and about 8% wide.
     const far = farLod(parts)
+    // Oriented in its own right: these solids are built here rather than
+    // vendored, and `cylinder` and `lozenge` wind their walls the wrong way
+    // round — so every proxy was inside out until this ran over it too.
+    far.forEach(orientFaces)
 
     // A model can already be cheaper than its own proxy — the fitted solids
     // have a fixed tessellation, and a 24-triangle bin does not need standing
@@ -753,7 +983,7 @@ async function main() {
     if (worthIt) {
       const farGlb = toGlb(`${name}${FAR_SUFFIX}`, far)
       await writeFile(join(OUT, `${name}${FAR_SUFFIX}.glb`), farGlb)
-      manifest.push(`${name}${FAR_SUFFIX}`)
+      manifest[`${name}${FAR_SUFFIX}`] = far.every(isSolid)
       farNote = `far ${String(tris(far)).padStart(3)} tris ${(farGlb.length / 1024).toFixed(1)} KB`
     }
 
@@ -761,7 +991,9 @@ async function main() {
       `${name.padEnd(20)} ${String(tris(parts)).padStart(4)} tris ` +
         `${(near.length / 1024).toFixed(1).padStart(5)} KB   ${farNote}` +
         (slimmed ? `   trunk x${slimmed.toFixed(2)}` : '') +
-        (holes ? `   capped ${holes}` : ''),
+        (turned ? `   turned ${turned}` : '') +
+        (holes ? `   capped ${holes}` : '') +
+        (solid ? '' : '   NOT SOLID (drawn double-sided)'),
     )
   }
 
@@ -775,10 +1007,18 @@ async function main() {
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404
   // that takes the whole layer down with it.
-  await writeFile(MANIFEST, `${JSON.stringify(manifest.sort(), null, 2)}\n`)
+  //
+  // The value says whether the model is a solid, which is the layer's licence
+  // to cull its back faces — see `isSolid`.
+  const sorted = Object.fromEntries(Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b)))
+  await writeFile(MANIFEST, `${JSON.stringify(sorted, null, 2)}\n`)
 
   for (const line of written) console.log(line)
-  console.log(`${written.length} models, ${manifest.length} files`)
+  const loose = Object.values(manifest).filter(s => !s).length
+  console.log(
+    `${written.length} models, ${Object.keys(manifest).length} files` +
+      (loose ? `, ${loose} drawn double-sided` : ''),
+  )
 }
 
 main().catch(err => {

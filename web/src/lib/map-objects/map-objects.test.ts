@@ -12,7 +12,7 @@ import { resolve } from 'node:path'
 import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
-import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE } from './index'
+import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, project } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 
@@ -96,21 +96,28 @@ describe('models', () => {
   })
 
   /**
-   * Nothing may be see-through, because the layer culls back faces.
+   * A model the manifest calls solid really is one — because that flag is the
+   * layer's licence to cull its back faces, and culling anything else is what
+   * the flag exists to prevent.
    *
-   * It has to: in the plan view the depth buffer cannot separate the front of a
-   * crown from its back, and letting a back face win a fragment shades it by
-   * the opposite normal — the tree breaks into light and dark wedges that crawl
-   * as the camera moves. Culling settles that, but only for a solid. Cull an
-   * open shell and you look straight through it, which is what happened to the
-   * conifers: their skirts were open underneath and every one grew a hole.
+   * Culling has to happen somewhere: in the plan view the depth buffer cannot
+   * separate the front of a crown from its back, and letting a back face win a
+   * fragment shades it by the opposite normal, so the tree breaks into light
+   * and dark wedges that crawl as the camera moves. But cull a mesh that is not
+   * a solid and it comes apart instead — an unpaired edge is a hole to see
+   * through, and a triangle wound against its neighbours faces backwards and
+   * vanishes. Both look like the very thing culling was meant to cure.
    *
-   * An edge used by exactly one triangle is a hole's rim. The build script caps
-   * them (`capHoles`), and this is what says it has to. Edges used by three or
-   * four triangles are left alone — those are junctions where surfaces meet,
-   * not openings, and there is nothing to see through.
+   * Three conditions, and the flag has to mean all three: every edge shared by
+   * exactly two triangles, no two of them traversing it the same way round, and
+   * the whole enclosing a positive volume rather than being inside out. That
+   * last one is not hypothetical — the far-LOD proxies were built inside out by
+   * their own generator and every distant tree was drawn from the inside.
    */
-  test.each(ALL)('%s is solid, so culling cannot open a hole in it', name => {
+  test.each(Object.keys(OBJECT_SOLID))('%s matches what the manifest claims of it', name => {
+    let paired = true
+    let consistent = true
+    let volume = 0
     for (const primitive of load(name).primitives) {
       // Welded by position: a corner split for its normals is one point here,
       // or every shading seam would read as a hole.
@@ -120,17 +127,35 @@ describe('models', () => {
         if (!ids.has(key)) ids.set(key, ids.size)
         return ids.get(key)!
       }
+      const at = (v: number) => [0, 1, 2].map(c => primitive.position[v * 3 + c])
       const uses = new Map<string, number>()
+      const directed = new Set<string>()
       for (let i = 0; i < primitive.index.length; i += 3) {
-        const [a, b, c] = [id(primitive.index[i]), id(primitive.index[i + 1]), id(primitive.index[i + 2])]
-        for (const [u, v] of [[a, b], [b, c], [c, a]]) {
-          const key = u < v ? `${u}_${v}` : `${v}_${u}`
+        const raw = [primitive.index[i], primitive.index[i + 1], primitive.index[i + 2]]
+        const [a, b, c] = raw.map(at)
+        volume +=
+          (a[0] * (b[1] * c[2] - b[2] * c[1]) -
+            a[1] * (b[0] * c[2] - b[2] * c[0]) +
+            a[2] * (b[0] * c[1] - b[1] * c[0])) / 6
+        const [u, v, w] = raw.map(id)
+        for (const [x, y] of [[u, v], [v, w], [w, u]]) {
+          const key = x < y ? `${x}_${y}` : `${y}_${x}`
           uses.set(key, (uses.get(key) ?? 0) + 1)
+          if (directed.has(`${x}>${y}`)) consistent = false
+          directed.add(`${x}>${y}`)
         }
       }
-      const rims = [...uses.values()].filter(n => n === 1).length
-      expect(rims, `${name} has ${rims} unpaired edge(s)`).toBe(0)
+      if ([...uses.values()].some(n => n !== 2)) paired = false
     }
+    const solid = paired && consistent && volume > 0
+    expect(solid, `${name}: paired=${paired} consistent=${consistent} volume=${volume.toFixed(4)}`)
+      .toBe(OBJECT_SOLID[name])
+  })
+
+  /** Most of them should be, or the plan view is still shattering. */
+  test('the great majority of models are solid', () => {
+    const solid = Object.values(OBJECT_SOLID).filter(Boolean).length
+    expect(solid / Object.keys(OBJECT_SOLID).length).toBeGreaterThan(0.8)
   })
 
   /**

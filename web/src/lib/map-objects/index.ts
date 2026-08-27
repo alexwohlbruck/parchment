@@ -26,8 +26,21 @@ export const OBJECT_SPECS: ObjectSourceSpec[] = [
  * that was skipped is a 404 that takes the whole layer down with it.
  */
 export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
-  (models as string[]).map(name => [name, `/models/${name}.glb`]),
+  Object.keys(models).map(name => [name, `/models/${name}.glb`]),
 )
+
+/**
+ * Which models are solids, and may therefore be drawn with back faces culled.
+ *
+ * Culling is what stops a crown shattering in the plan view, where the depth
+ * buffer cannot separate its front from its back — but it is only safe on a
+ * mesh with an inside. Four of the vendored trees are not: their fronds and
+ * skirts share edges between three and four triangles at a time, which has no
+ * consistent inside, so they are drawn double-sided. They are also single
+ * layers of geometry, so there is nothing there for the depth buffer to get
+ * wrong. The build script works this out per model; see `isSolid`.
+ */
+export const OBJECT_SOLID: Record<string, boolean> = models
 
 /** The models a catalogue entry names, for the tests to check against. */
 export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }

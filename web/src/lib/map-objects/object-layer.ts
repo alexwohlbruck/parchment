@@ -172,6 +172,8 @@ export type ObjectSourceSpec = {
 }
 
 type ModelBuffers = {
+  /** Whether this model is a solid, and so safe to draw with back faces culled. */
+  cullable: boolean
   primitives: Array<{
     position: WebGLBuffer
     normal: WebGLBuffer
@@ -282,10 +284,20 @@ export class ObjectLayer {
     private specs: ObjectSourceSpec[],
     private sources: Record<string, GlbModel>,
     private palette: ObjectPalette,
-    options: { id?: string } = {},
+    options: { id?: string; solid?: Record<string, boolean> } = {},
   ) {
     this.id = options.id ?? 'map-objects'
+    this.solid = options.solid ?? {}
   }
+
+  /**
+   * Which models may be drawn with back faces culled, by name.
+   *
+   * Defaults to none, which is the safe answer: culling a model that is not a
+   * solid opens holes in it, where not culling one that is only costs the
+   * triangles nobody sees.
+   */
+  private solid: Record<string, boolean>
 
   /**
    * Retint every role for the flavor, without touching a vertex.
@@ -310,6 +322,7 @@ export class ObjectLayer {
 
     for (const [name, model] of Object.entries(this.sources)) {
       this.models.set(name, {
+        cullable: this.solid[name] ?? false,
         primitives: model.primitives.map(p => ({
           position: this.upload(gl, gl.ARRAY_BUFFER, p.position),
           normal: this.upload(gl, gl.ARRAY_BUFFER, p.normal),
@@ -536,7 +549,8 @@ export class ObjectLayer {
     gl.depthFunc(gl.LEQUAL)
     if (range) gl.depthRange(range[0], range[1])
     gl.disable(gl.STENCIL_TEST)
-    // Back faces are culled, and that is a correctness fix rather than a saving.
+    // Back faces are culled per model, and that is a correctness fix rather
+    // than a saving — see `cullable` and `OBJECT_SOLID`.
     //
     // Drawing both faces is fine while the depth buffer can tell the front of a
     // crown from its back. In the plan view it cannot: the camera retreats to
@@ -551,7 +565,6 @@ export class ObjectLayer {
     // Winding survives the trip: the glTF-to-map frame swap in the shader is a
     // rotation, and both instance scales are positive, so a model authored
     // counter-clockwise still faces out.
-    gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
     gl.frontFace(gl.CCW)
 
@@ -582,6 +595,12 @@ export class ObjectLayer {
     for (const batch of this.batches) {
       const model = this.models.get(batch.model)
       if (!model) continue
+      // Only a solid may be culled. A model that is not one has geometry that
+      // is a single layer rather than a shell, which is both unsafe to cull —
+      // half of it faces the wrong way and would simply vanish — and in no
+      // danger of fighting itself, since there is no second surface behind it.
+      if (model.cullable) gl.enable(gl.CULL_FACE)
+      else gl.disable(gl.CULL_FACE)
       this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
         gl.uniform3fv(this.uniforms.u_color, primitive.color)

@@ -81,6 +81,7 @@ import {
   ObjectLayer,
   OBJECT_MODELS,
   OBJECT_PALETTE,
+  OBJECT_SOLID,
   OBJECT_SPECS,
 } from '@/lib/map-objects'
 import {
@@ -700,6 +701,7 @@ export class MaplibreStrategy extends MapStrategy {
 
     this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, OBJECT_PALETTE[flavor], {
       id: OBJECT_LAYER_ID,
+      solid: OBJECT_SOLID,
     })
     // Above the buildings, below every label. Against the buildings the depth
     // buffer decides — both write depth, so a tree in front of a tower hides

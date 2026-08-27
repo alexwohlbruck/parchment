@@ -74,6 +74,11 @@ import {
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import {
+  terrainSource,
+  TERRAIN_SOURCE_ID,
+  TERRAIN_EXAGGERATION,
+} from '@/lib/map-style/terrain'
+import {
   rgbToHex,
   adjustLightness,
 } from '@/lib/utils'
@@ -530,8 +535,20 @@ export class MaplibreStrategy extends MapStrategy {
     this.setLayerGroupVisibility(layerGroups.placeLabels, value)
   }
 
-  setMap3dTerrain(_value: boolean) {
-    // TODO: Need to find a free 3D DEM source
+  setMap3dTerrain(value: boolean) {
+    const present = !!this.mapInstance.getSource(TERRAIN_SOURCE_ID)
+    if (value && !present) {
+      this.mapInstance.addSource(TERRAIN_SOURCE_ID, terrainSource() as any)
+      this.mapInstance.setTerrain({
+        source: TERRAIN_SOURCE_ID,
+        exaggeration: TERRAIN_EXAGGERATION,
+      })
+    } else if (!value && present) {
+      // Order matters: a source still referenced by the terrain cannot be
+      // removed, so the terrain has to be cleared first.
+      this.mapInstance.setTerrain(null)
+      this.mapInstance.removeSource(TERRAIN_SOURCE_ID)
+    }
   }
 
   setMap3dObjects(value: boolean) {

@@ -14,6 +14,7 @@ import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/m
 import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups } from './build'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
+import { terrainSource } from './terrain'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -76,6 +77,36 @@ describe('converted spec', () => {
 
   test('the two flavors define exactly the same tokens', () => {
     expect(Object.keys(dark).sort()).toEqual(Object.keys(light).sort())
+  })
+})
+
+/**
+ * The elevation source is shared by both engines, so the things that make it
+ * readable by both are the things worth pinning.
+ */
+describe('terrain source', () => {
+  const src = terrainSource()
+
+  test('is terrarium-encoded, which is what both engines can read', () => {
+    // Mapbox's own DEM needs a Mapbox token and so cannot serve MapLibre;
+    // terrarium is the encoding they have in common.
+    expect(src.encoding).toBe('terrarium')
+    expect(src.type).toBe('raster-dem')
+  })
+
+  test('declares the tile size and zoom the dataset actually has', () => {
+    // Terrarium tiles are 256px where a DEM source otherwise assumes 512, and
+    // the dataset stops at 15. Both wrong by default, and both wrong quietly:
+    // the terrain just comes out garbled rather than erroring.
+    expect(src.tileSize).toBe(256)
+    expect(src.maxzoom).toBe(15)
+  })
+
+  test('needs no API key', () => {
+    for (const url of src.tiles) {
+      expect(url).not.toMatch(/token|key|access/i)
+      expect(url).toMatch(/^https:\/\//)
+    }
   })
 })
 

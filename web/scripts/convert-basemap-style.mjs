@@ -140,23 +140,128 @@ const POI_BADGE_ICON = poiIcon('badge-')
  */
 const DARK_OVERRIDES = {
   oneway_icon_color: 'hsl(0, 0%, 42%)',
-  shield_fill: 'hsl(0, 0%, 100%)',
-  shield_fill_2: 'hsl(0, 0%, 24%)',
 }
 
 /**
- * Route shields. MapTiler's sprite carries per-network shield art (US
- * interstate, US highway, …) that we have no equivalent for, so every shield
- * layer falls back to the generic `road_{ref_length}` rectangle the sprite
- * builder generates, tinted per flavor. The two interstate-specific overlay
- * layers are dropped — without their art they would only double-draw.
+ * Route shields, rebuilt on Mapbox Standard's `road-number-shield` — see that
+ * layer in `src/components/map/styles/standard.json`.
+ *
+ * MapTiler splits the job across four layers: a generic one, a US one, and two
+ * that stack interstate art on top. We collapse all four into one, the way
+ * Standard does, because the art is now per-network in our own sprite and a
+ * single `icon-image` expression can choose it: network and ref length are
+ * concatenated into a sprite name, with `default-{n}` behind a `coalesce` for
+ * any network we have no marker for.
+ *
+ * `Highway junction` stays separate — exit tabs come off a different subclass
+ * and want their own placement.
  */
-const SHIELD_LAYERS = new Set([
-  'Highway shield', 'Highway shield (US)', 'Highway junction',
-])
+const SHIELD_LAYER = 'Highway shield'
+const JUNCTION_LAYER = 'Highway junction'
 const DROP_LAYERS = new Set([
-  'Highway shield interstate top (US)', 'Highway shield interstate (US)',
+  'Highway shield (US)',
+  'Highway shield interstate top (US)',
+  'Highway shield interstate (US)',
 ])
+
+/**
+ * The sprite names the shield art actually ships, read back from the sheet the
+ * sprite builder writes.
+ *
+ * The style has to know this because the text colour depends on which marker
+ * gets drawn, not on the route's network: a five-character interstate ref has
+ * no interstate art, falls through to the white `default-5` plaque, and would
+ * be lettered in white on white if the colour followed the network alone.
+ * Standard solves the same problem at runtime with `to-boolean(coalesce(image
+ * …))`; reading the manifest at build time says the same thing in one place
+ * and keeps it impossible for the two to drift.
+ */
+async function shieldImages() {
+  const sheet = JSON.parse(await readFile(resolve(WEB, 'public/sprites/parchment.json'), 'utf8'))
+  return new Set(Object.keys(sheet).filter(name => /^[a-z-]+-\d$/.test(name)))
+}
+
+/** Longest ref the sprite has `network` art for; longer ones get a plaque. */
+function longestRef(art, network) {
+  let max = 0
+  for (let n = 1; n <= 9; n++) if (art.has(`${network}-${n}`)) max = n
+  return max
+}
+
+/** The sprite name for a feature's marker, falling back to the plaque. */
+function shieldImageExpression() {
+  const len = ['to-string', ['get', 'ref_length']]
+  return [
+    'coalesce',
+    ['image', ['concat', ['coalesce', ['get', 'network'], 'default'], '-', len]],
+    ['image', ['concat', 'default-', len]],
+  ]
+}
+
+/**
+ * The one route-marker layer, on Standard's geometry: markers appear as points
+ * while the map is zoomed out and switch to riding the line at z11, spaced
+ * further apart as they get closer.
+ */
+function routeShieldLayer(layer, art) {
+  const interstateMax = longestRef(art, 'us-interstate')
+  return {
+    minzoom: 6,
+    layout: {
+      ...layer.layout,
+      'icon-image': shieldImageExpression(),
+      'icon-rotation-alignment': 'viewport',
+      'symbol-placement': ['step', ['zoom'], 'point', 11, 'line'],
+      'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 11, 400, 14, 600],
+      'icon-size': 1,
+      'text-field': ['get', 'ref'],
+      'text-font': ['Roboto Bold'],
+      'text-size': 9,
+      'text-letter-spacing': 0.05,
+      'text-max-angle': 38,
+      'text-rotation-alignment': 'viewport',
+      'text-offset': [0, 0.05],
+    },
+    paint: {
+      // White only where the interstate marker is genuinely what gets drawn —
+      // a longer ref falls back to the white plaque; see `shieldImages`.
+      'text-color': [
+        'case',
+        [
+          'all',
+          ['==', ['get', 'network'], 'us-interstate'],
+          ['<=', ['get', 'ref_length'], interstateMax],
+        ],
+        '@shield_ink_reversed',
+        '@shield_ink',
+      ],
+    },
+    filter: [
+      'all',
+      ['has', 'ref'],
+      ['<=', ['get', 'ref_length'], 6],
+      ['match', ['get', 'class'], ['pedestrian', 'service', 'path'], false, true],
+    ],
+  }
+}
+
+/** Exit tabs: a green plaque with white numerals, as on the sign itself. */
+function exitShieldLayer(layer) {
+  return {
+    layout: {
+      ...layer.layout,
+      'icon-image': ['concat', 'motorway-exit-', ['to-string', ['get', 'ref_length']]],
+      'text-field': ['get', 'ref'],
+      'text-font': ['Roboto Bold'],
+      'text-size': 9,
+      'text-offset': [0, 0.05],
+    },
+    paint: {
+      'text-color': '@shield_ink_reversed',
+      'text-halo-width': 0,
+    },
+  }
+}
 
 /** Tint a POI by Parchment's category palette rather than MapTiler's families. */
 function poiColorExpression() {
@@ -527,6 +632,9 @@ async function main() {
   const style = JSON.parse(await readFile(SRC, 'utf8'))
   const darkStyle = JSON.parse(await readFile(SRC_DARK, 'utf8'))
   const darkById = new Map(darkStyle.layers.map(l => [l.id, l]))
+  // Build the sprite before the style: the shield layers read back which
+  // markers the sheet actually carries. See `shieldImages`.
+  const shieldArt = await shieldImages()
   const tokens = new Tokens()
   const layers = []
   const dropped = []
@@ -545,7 +653,7 @@ async function main() {
       continue
     }
     if (DROP_LAYERS.has(layer.id)) {
-      dropped.push([layer.id, 'network-specific shield art we do not have'])
+      dropped.push([layer.id, `folded into "${SHIELD_LAYER}"`])
       continue
     }
 
@@ -628,15 +736,8 @@ async function main() {
       }
     }
 
-    // Every shield falls back to the generic rectangle, tinted per flavor.
-    if (SHIELD_LAYERS.has(layer.id)) {
-      const prefix = layer.id === 'Highway junction' ? 'exit' : 'road'
-      out.layout = {
-        ...out.layout,
-        'icon-image': ['concat', prefix, '_', ['to-string', ['get', 'ref_length']]],
-      }
-      out.paint = { ...out.paint, 'icon-color': '@shield_fill' }
-    }
+    if (layer.id === SHIELD_LAYER) Object.assign(out, routeShieldLayer(out, shieldArt))
+    if (layer.id === JUNCTION_LAYER) Object.assign(out, exitShieldLayer(out))
 
     layers.push(out)
   }
@@ -699,12 +800,20 @@ async function main() {
   tokens.light.poi_ink = '#FFFFFF'
   tokens.dark.poi_ink = '#0D0D0D'
 
-  // Shield fill is ours, not MapTiler's — their shields are sprite art.
-  tokens.light.shield_fill = 'hsl(0, 0%, 100%)'
-  tokens.dark.shield_fill = DARK_OVERRIDES.shield_fill_2
+  // Shield lettering is ours, not MapTiler's — their shields are sprite art.
+  //
+  // Both flavors get the same two values, which is deliberate: the markers are
+  // full-colour art rather than tintable SDFs, so a blue interstate marker is
+  // blue on the night map too, and its numerals have to stay white to be
+  // legible against it. Mapbox does the same — a route marker is a physical
+  // sign, and darkness does not repaint it.
+  for (const flavor of [tokens.light, tokens.dark]) {
+    flavor.shield_ink = 'hsl(0, 0%, 12%)'
+    flavor.shield_ink_reversed = 'hsl(0, 0%, 100%)'
+  }
 
   for (const [name, color] of Object.entries(DARK_OVERRIDES)) {
-    if (name in tokens.dark && !name.startsWith('shield_')) tokens.dark[name] = color
+    if (name in tokens.dark) tokens.dark[name] = color
   }
 
   // Category palette tokens, resolved at runtime from the app's own palette

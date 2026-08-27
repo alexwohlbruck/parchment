@@ -4064,8 +4064,7 @@
    "layout": {
     "icon-image": [
      "concat",
-     "exit",
-     "_",
+     "motorway-exit-",
      [
       "to-string",
       [
@@ -4080,23 +4079,24 @@
     "symbol-placement": "point",
     "symbol-spacing": 200,
     "symbol-z-order": "auto",
-    "text-field": "{ref}",
+    "text-field": [
+     "get",
+     "ref"
+    ],
     "text-font": [
-     "Roboto Regular"
+     "Roboto Bold"
     ],
     "text-offset": [
      0,
-     0.1
+     0.05
     ],
     "text-rotation-alignment": "viewport",
     "text-size": 9,
     "visibility": "visible"
    },
    "paint": {
-    "text-color": "@highway_junction_text_color",
-    "text-halo-color": "@glacier_fill_color",
-    "text-halo-width": 1,
-    "icon-color": "@shield_fill"
+    "text-color": "@shield_ink_reversed",
+    "text-halo-width": 0
    },
    "filter": [
     "all",
@@ -4122,56 +4122,78 @@
    "type": "symbol",
    "source": "openmaptiles",
    "source-layer": "transportation_name",
-   "minzoom": 8,
+   "minzoom": 6,
    "layout": {
     "icon-image": [
-     "concat",
-     "road",
-     "_",
+     "coalesce",
      [
-      "to-string",
+      "image",
       [
-       "get",
-       "ref_length"
+       "concat",
+       [
+        "coalesce",
+        [
+         "get",
+         "network"
+        ],
+        "default"
+       ],
+       "-",
+       [
+        "to-string",
+        [
+         "get",
+         "ref_length"
+        ]
+       ]
+      ]
+     ],
+     [
+      "image",
+      [
+       "concat",
+       "default-",
+       [
+        "to-string",
+        [
+         "get",
+         "ref_length"
+        ]
+       ]
       ]
      ]
     ],
     "icon-rotation-alignment": "viewport",
     "icon-size": 1,
     "symbol-avoid-edges": true,
-    "symbol-placement": "line",
-    "symbol-spacing": {
-     "stops": [
-      [
-       10,
-       200
-      ],
-      [
-       18,
-       400
-      ]
-     ]
-    },
-    "text-field": "{ref}",
+    "symbol-placement": [
+     "step",
+     [
+      "zoom"
+     ],
+     "point",
+     11,
+     "line"
+    ],
+    "symbol-spacing": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     11,
+     400,
+     14,
+     600
+    ],
+    "text-field": [
+     "get",
+     "ref"
+    ],
     "text-font": [
-     "match",
-     [
-      "get",
-      "class"
-     ],
-     "motorway",
-     [
-      "literal",
-      [
-       "Roboto Bold"
-      ]
-     ],
-     [
-      "literal",
-      [
-       "Roboto Regular"
-      ]
-     ]
+     "Roboto Bold"
     ],
     "text-offset": [
      0,
@@ -4179,143 +4201,65 @@
     ],
     "text-padding": 2,
     "text-rotation-alignment": "viewport",
-    "text-size": 10,
+    "text-size": 9,
     "text-transform": "uppercase",
-    "visibility": "visible"
+    "visibility": "visible",
+    "text-letter-spacing": 0.05,
+    "text-max-angle": 38
    },
    "paint": {
-    "icon-color": "@shield_fill",
-    "icon-halo-color": "@highway_shield_icon_halo_color",
-    "icon-halo-width": 1,
-    "text-color": "@highway_shield_icon_halo_color",
-    "text-halo-color": "@highway_shield_icon_color",
-    "text-halo-width": 1
+    "text-color": [
+     "case",
+     [
+      "all",
+      [
+       "==",
+       [
+        "get",
+        "network"
+       ],
+       "us-interstate"
+      ],
+      [
+       "<=",
+       [
+        "get",
+        "ref_length"
+       ],
+       4
+      ]
+     ],
+     "@shield_ink_reversed",
+     "@shield_ink"
+    ]
    },
    "filter": [
     "all",
     [
+     "has",
+     "ref"
+    ],
+    [
      "<=",
-     "ref_length",
+     [
+      "get",
+      "ref_length"
+     ],
      6
     ],
     [
-     "==",
-     "$type",
-     "LineString"
-    ],
-    [
-     "!in",
-     "network",
-     "us-interstate",
-     "us-highway",
-     "us-state"
-    ],
-    [
-     "!in",
-     "class",
-     "path"
-    ]
-   ]
-  },
-  {
-   "id": "Highway shield (US)",
-   "type": "symbol",
-   "source": "openmaptiles",
-   "source-layer": "transportation_name",
-   "minzoom": 7,
-   "layout": {
-    "icon-image": [
-     "concat",
-     "road",
-     "_",
-     [
-      "to-string",
-      [
-       "get",
-       "ref_length"
-      ]
-     ]
-    ],
-    "icon-rotation-alignment": "viewport",
-    "icon-size": 1.1,
-    "symbol-avoid-edges": true,
-    "symbol-placement": {
-     "base": 1,
-     "stops": [
-      [
-       7,
-       "point"
-      ],
-      [
-       7,
-       "line"
-      ],
-      [
-       8,
-       "line"
-      ]
-     ]
-    },
-    "symbol-spacing": 200,
-    "text-field": "{ref}",
-    "text-font": [
      "match",
      [
       "get",
       "class"
      ],
-     "motorway",
      [
-      "literal",
-      [
-       "Roboto Bold"
-      ]
+      "pedestrian",
+      "service",
+      "path"
      ],
-     [
-      "literal",
-      [
-       "Roboto Regular"
-      ]
-     ]
-    ],
-    "text-offset": [
-     0,
-     0.05
-    ],
-    "text-rotation-alignment": "viewport",
-    "text-size": 9,
-    "visibility": "visible"
-   },
-   "paint": {
-    "icon-color": "@shield_fill",
-    "icon-halo-color": "@highway_shield_icon_halo_color",
-    "icon-halo-width": 1,
-    "text-color": "@highway_shield_icon_halo_color",
-    "text-halo-color": "@highway_shield_us_text_halo_color",
-    "text-halo-width": 0
-   },
-   "filter": [
-    "all",
-    [
-     "<=",
-     "ref_length",
-     6
-    ],
-    [
-     "==",
-     "$type",
-     "LineString"
-    ],
-    [
-     "in",
-     "network",
-     "us-highway",
-     "us-state"
-    ],
-    [
-     "!in",
-     "class",
-     "path"
+     false,
+     true
     ]
    ]
   },

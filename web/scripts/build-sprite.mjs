@@ -6,6 +6,10 @@
  * per POI family and per theme via `icon-color` — which MapLibre only honours
  * for SDF sprites. Anything else would mean baking one sheet per flavor.
  *
+ * Route shields are the exception: they are full-colour art that must not be
+ * tinted, so the sheet is mixed and the manifest carries `sdf` per icon. See
+ * `shieldArt`.
+ *
  * Output (committed, so a checkout renders without running this):
  *   public/sprites/parchment.png     / .json
  *   public/sprites/parchment@2x.png  / .json
@@ -44,21 +48,179 @@ const INF = 1e20
  * These are the classes Maki genuinely names something else.
  */
 /**
- * Route shields. The style asks for `road_{ref_length}` / `exit_{ref_length}`,
- * so the sheet needs one background per ref width. Maki has no shield art, and
- * MapTiler's is in their sprite, so we draw plain rounded rectangles: solid
- * SDFs the style tints per flavor, with the route number set over them by the
- * layer's own text-color. Widths are in the 15-unit grid Maki icons use.
+ * Route shields, named `{network}-{ref_length}` the way Mapbox Standard names
+ * its own — see `road-number-shield` in `styles/standard.json`, which resolves
+ * `icon-image` by concatenating the route's network with the length of its
+ * ref, and falls back to `default-N` for a network it has no art for.
+ *
+ * These are the one part of the sheet that is *not* an SDF. An interstate
+ * marker is blue with a red crown and white numerals; a US route is a white
+ * escutcheon outlined in black. None of that survives a single-channel
+ * distance field, which carries a silhouette and nothing else. They are drawn
+ * as full-colour rasters instead and marked `sdf: false`, so `icon-color`
+ * passes them by — which also means they keep their real colours in the dark
+ * flavor, as Mapbox's do. A route marker is a physical sign with legislated
+ * colours; a night map does not repaint the roads.
+ *
+ * Shapes follow the MUTCD, which is where Mapbox's come from too: M1-1 for the
+ * interstate, M1-4 for the US route. Both are public-domain designs, so this is
+ * a redraw from the same source rather than a copy of their sprite.
  */
-const SHIELD_WIDTHS = { 1: 13, 2: 15, 3: 19, 4: 23, 5: 27, 6: 31 }
+const SHIELD_HEIGHT = 15
 
-function shieldSvg(width) {
-  const h = 13
-  return Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${h}" viewBox="0 0 ${width} ${h}">` +
-      `<rect x="0.5" y="0.5" width="${width - 1}" height="${h - 1}" rx="2.5" ry="2.5" fill="#000"/>` +
-      `</svg>`,
+/**
+ * Border weight, in design pixels. A marker is only 15px tall, so this is the
+ * difference between a fine keyline and a black blob: much over a pixel and
+ * the border eats the shape it is supposed to describe. The interstate's white
+ * ring runs a little heavier, as it does on the real sign.
+ */
+const BORDER = 0.9
+
+/**
+ * How wide each marker is at a given ref length. The text is set over the art
+ * by the layer rather than baked in, so these have to clear `text-size` 9 bold
+ * at `text-letter-spacing` 0.05 — roughly 6px per character — plus the border.
+ *
+ * Plaques are free to grow with the ref, and do. The two pointed markers are
+ * not: the MUTCD draws M1-1 at 24x24 inches for a two-digit route and 30x24
+ * for three, so a real interstate marker is square-ish and barely widens. Let
+ * them follow the plaque ramp and a three-digit shield comes out a squashed
+ * lozenge that reads as anything but a shield.
+ *
+ * They stop at four characters for the same reason — beyond that no proportion
+ * saves the shape, and there is no such route anyway. Longer refs fall through
+ * to `default-N`, which is exactly what Standard's `coalesce` is for.
+ */
+const PLAQUE_WIDTHS = { 1: 15, 2: 18, 3: 24, 4: 29, 5: 34, 6: 39 }
+const POINTED_WIDTHS = { 1: 15, 2: 17, 3: 21, 4: 26 }
+
+const SHIELD_COLORS = {
+  interstateField: '#173F8A',
+  interstateCrown: '#BF2033',
+  white: '#FFFFFF',
+  ink: '#1A1A1A',
+  rule: '#8C8C8C',
+  exit: '#1F6B3B',
+}
+
+const svgDoc = (w, h, body) =>
+  Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${body}</svg>`,
   )
+
+/**
+ * The interstate marker (MUTCD M1-1): a white-bordered blue escutcheon whose
+ * top third is red. The crown is drawn as a full shield clipped to a band, so
+ * the red meets the white border on the same curve the blue does.
+ */
+function interstateSvg(w) {
+  const h = SHIELD_HEIGHT
+  const path = shieldPath(INTERSTATE_OUTLINE, w, h, 0.5)
+  const inner = shieldPath(INTERSTATE_OUTLINE, w, h, 0.5 + BORDER * 1.4)
+  const { interstateField, interstateCrown, white } = SHIELD_COLORS
+  return svgDoc(
+    w,
+    h,
+    `<defs><clipPath id="c"><path d="${inner}"/></clipPath></defs>` +
+      `<path d="${path}" fill="${white}"/>` +
+      `<path d="${inner}" fill="${interstateField}"/>` +
+      `<rect x="0" y="0" width="${w}" height="${h * 0.34}" fill="${interstateCrown}" clip-path="url(#c)"/>`,
+  )
+}
+
+/**
+ * The US route marker (MUTCD M1-4): a white escutcheon with a black border and
+ * black numerals. Same silhouette as the interstate, cut the other way round.
+ */
+function usRouteSvg(w) {
+  const h = SHIELD_HEIGHT
+  const { white, ink } = SHIELD_COLORS
+  return svgDoc(
+    w,
+    h,
+    `<path d="${shieldPath(US_ROUTE_OUTLINE, w, h, 0.5)}" fill="${ink}"/>` +
+      `<path d="${shieldPath(US_ROUTE_OUTLINE, w, h, 0.5 + BORDER)}" fill="${white}"/>`,
+  )
+}
+
+/**
+ * The two marker silhouettes, traced in a unit square with y running down, so
+ * one description serves every ref width and both inset rings.
+ *
+ * The interstate (M1-1) is a flat-crowned escutcheon: the top edge runs
+ * straight across the middle two thirds, the corners sweep out to the full
+ * width just below it, and the sides fall vertically before tapering to a
+ * point on the centre line.
+ *
+ * The US route (M1-4) is the older cut-corner shape — two raised shoulders
+ * with a shallow dip between them, and a broader, blunter foot. It is what
+ * tells a US route from an interstate at a glance, so it is worth the extra
+ * curve even at this size.
+ */
+const INTERSTATE_OUTLINE =
+  'M0.155,0 L0.845,0 C0.93,0 1,0.07 1,0.17 L1,0.42 ' +
+  'C1,0.63 0.85,0.85 0.60,0.98 C0.56,1 0.44,1 0.40,0.98 ' +
+  'C0.15,0.85 0,0.63 0,0.42 L0,0.17 C0,0.07 0.07,0 0.155,0 Z'
+
+const US_ROUTE_OUTLINE =
+  'M0.5,0.03 C0.44,0.005 0.38,0 0.28,0 C0.12,0 0,0.09 0,0.25 L0,0.53 ' +
+  'C0,0.73 0.11,0.89 0.30,0.97 C0.37,1 0.63,1 0.70,0.97 ' +
+  'C0.89,0.89 1,0.73 1,0.53 L1,0.25 C1,0.09 0.88,0 0.72,0 ' +
+  'C0.62,0 0.56,0.005 0.5,0.03 Z'
+
+/**
+ * Map a unit outline onto the box inset by `pad`.
+ *
+ * The inset scales the shape rather than offsetting its edges, so a border
+ * comes out slightly thinner at the crown than at the point. At a one- or
+ * two-pixel rule on a 15px marker that is well under a pixel, and it keeps the
+ * two rings exactly concentric, which an offset curve would not.
+ */
+function shieldPath(outline, w, h, pad) {
+  const sx = (w - pad * 2) / 1
+  const sy = (h - pad * 2) / 1
+  return outline.replace(/-?\d*\.?\d+,-?\d*\.?\d+/g, pair => {
+    const [x, y] = pair.split(',').map(Number)
+    return `${(pad + x * sx).toFixed(2)},${(pad + y * sy).toFixed(2)}`
+  })
+}
+
+/**
+ * State routes and every network we have no art for: a white plaque with a
+ * hairline rule, which is what Standard falls back to. Real state markers are
+ * per-state art keyed off a field OpenMapTiles does not carry.
+ */
+function plaqueSvg(width, { fill, stroke, radius = 3 }) {
+  const h = SHIELD_HEIGHT - 2
+  return svgDoc(
+    width,
+    h,
+    `<rect x="0.5" y="0.5" width="${width - 1}" height="${h - 1}" rx="${radius}" ry="${radius}" ` +
+      `fill="${fill}"${stroke ? ` stroke="${stroke}" stroke-width="1"` : ''}/>`,
+  )
+}
+
+function shieldArt() {
+  const art = new Map()
+  for (const [len, width] of Object.entries(POINTED_WIDTHS)) {
+    art.set(`us-interstate-${len}`, interstateSvg(width))
+    art.set(`us-highway-${len}`, usRouteSvg(width))
+  }
+  for (const [len, width] of Object.entries(PLAQUE_WIDTHS)) {
+    art.set(`us-state-${len}`, plaqueSvg(width, {
+      fill: SHIELD_COLORS.white,
+      stroke: SHIELD_COLORS.ink,
+      radius: 2,
+    }))
+    art.set(`default-${len}`, plaqueSvg(width, {
+      fill: SHIELD_COLORS.white,
+      stroke: SHIELD_COLORS.rule,
+    }))
+    // Exit tabs carry white numerals, so the plaque is the green of a US exit
+    // sign rather than white; Standard hard-codes the same text colour.
+    art.set(`motorway-exit-${len}`, plaqueSvg(width, { fill: SHIELD_COLORS.exit }))
+  }
+  return art
 }
 
 /**
@@ -334,13 +496,14 @@ async function collectIcons() {
       icons.set(file.replace(/\.svg$/, ''), join(dir, file))
     }
   }
-  for (const [refLength, width] of Object.entries(SHIELD_WIDTHS)) {
-    icons.set(`road_${refLength}`, shieldSvg(width))
-    icons.set(`exit_${refLength}`, shieldSvg(width))
-  }
+  for (const [name, buf] of shieldArt()) icons.set(name, buf)
   icons.set('dot', dotSvg())
   return [...icons.entries()].sort(([a], [b]) => a.localeCompare(b))
 }
+
+/** Shields are the sheet's only full-colour art; see `shieldArt`. */
+const isShield = name => SHIELD_NETWORKS.some(n => new RegExp(`^${n}-\\d$`).test(name))
+const SHIELD_NETWORKS = ['us-interstate', 'us-highway', 'us-state', 'default', 'motorway-exit']
 
 async function buildSheet(icons, ratio) {
   const buffer = BUFFER * ratio
@@ -349,6 +512,11 @@ async function buildSheet(icons, ratio) {
   for (const [name, source] of icons) {
     // Shields arrive as inline SVG buffers; everything else as a file path.
     const svg = Buffer.isBuffer(source) ? source : await readFile(source)
+    const colour = isShield(name)
+    // A distance field needs transparent room around the glyph to ramp into.
+    // Colour art is blitted as-is, so padding it would only inflate its
+    // collision box.
+    const pad = colour ? 0 : buffer
     const base = sharp(svg, { density: 72 * ratio })
     const meta = await base.metadata()
     const width = Math.round((meta.width ?? 15) * ratio)
@@ -357,10 +525,10 @@ async function buildSheet(icons, ratio) {
     const padded = await sharp(svg, { density: 72 * ratio })
       .resize(width, height, { fit: 'fill' })
       .extend({
-        top: buffer,
-        bottom: buffer,
-        left: buffer,
-        right: buffer,
+        top: pad,
+        bottom: pad,
+        left: pad,
+        right: pad,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       })
       .ensureAlpha()
@@ -370,13 +538,28 @@ async function buildSheet(icons, ratio) {
     const w = padded.info.width
     const h = padded.info.height
     const channels = padded.info.channels
+
+    if (colour) {
+      // Premultiplied, because that is how MapLibre samples a non-SDF sprite.
+      const rgba = Buffer.alloc(w * h * 4)
+      for (let i = 0; i < w * h; i++) {
+        const a = padded.data[i * channels + channels - 1]
+        for (let c = 0; c < 3; c++) {
+          rgba[i * 4 + c] = Math.round((padded.data[i * channels + c] * a) / 255)
+        }
+        rgba[i * 4 + 3] = a
+      }
+      rendered.push({ name, width: w, height: h, rgba })
+      continue
+    }
+
     const alpha = Buffer.alloc(w * h)
     for (let i = 0; i < w * h; i++) alpha[i] = padded.data[i * channels + channels - 1]
 
     rendered.push({ name, width: w, height: h, sdf: alphaToSdf(alpha, w, h) })
 
-    // Shields and the dot are never worn as badges — they are not POI glyphs.
-    if (!/^(road|exit)_\d$/.test(name) && name !== 'dot' && name !== 'oneway') {
+    // The dot is never worn as a badge — it is not a POI glyph.
+    if (name !== 'dot' && name !== 'oneway') {
       const badge = await badgeAlpha(svg, ratio)
       const bw = badge.size + buffer * 2
       const padded = Buffer.alloc(bw * bw)
@@ -421,7 +604,12 @@ async function buildSheet(icons, ratio) {
     for (let y = 0; y < icon.height; y++) {
       for (let x = 0; x < icon.width; x++) {
         const dst = ((icon.y + y) * sheetWidth + (icon.x + x)) * 4
-        sheet[dst + 3] = icon.sdf[y * icon.width + x]
+        const src = y * icon.width + x
+        if (icon.rgba) {
+          for (let c = 0; c < 4; c++) sheet[dst + c] = icon.rgba[src * 4 + c]
+        } else {
+          sheet[dst + 3] = icon.sdf[src]
+        }
       }
     }
     manifest[icon.name] = {
@@ -430,7 +618,7 @@ async function buildSheet(icons, ratio) {
       width: icon.width,
       height: icon.height,
       pixelRatio: ratio,
-      sdf: true,
+      sdf: !icon.rgba,
     }
   }
 
@@ -446,7 +634,8 @@ async function buildSheet(icons, ratio) {
     // Maki hyphenates (`fast-food`), OpenMapTiles underscores (`fast_food`).
     // Only the icon's own name is rewritten, never the `badge-` prefix.
     const stem = name.startsWith(BADGE_PREFIX) ? name.slice(BADGE_PREFIX.length) : name
-    if (!stem.includes('-')) continue
+    // Shields are hyphenated on purpose — that is the name the style builds.
+    if (!stem.includes('-') || isShield(stem)) continue
     const underscored =
       (name.startsWith(BADGE_PREFIX) ? BADGE_PREFIX : '') + stem.replace(/-/g, '_')
     if (!manifest[underscored]) manifest[underscored] = { ...manifest[name] }

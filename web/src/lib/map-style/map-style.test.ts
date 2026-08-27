@@ -210,10 +210,54 @@ describe('badge POI treatment', () => {
     const badges = Object.keys(sprite).filter(k => k.startsWith('badge-'))
     expect(badges.length).toBeGreaterThan(200)
     for (const name of Object.keys(sprite)) {
-      if (name.startsWith('badge-') || /^(road|exit)_\d$/.test(name)) continue
+      if (name.startsWith('badge-')) continue
+      // A badge is a knocked-out SDF glyph, so only SDF art has one. The route
+      // shields are full-colour rasters and are never worn as badges.
+      if (!sprite[name].sdf) continue
       if (name === 'dot' || name === 'oneway') continue
       expect(sprite[`badge-${name}`], `badge-${name}`).toBeTruthy()
     }
+  })
+
+  /**
+   * Route shields resolve `{network}-{ref_length}` against the sprite and fall
+   * back to `default-{ref_length}`. Two things have to hold for that to work.
+   */
+  describe('route shields', () => {
+    const sprite = JSON.parse(
+      readFileSync(resolvePath(WEB, 'public/sprites/parchment.json'), 'utf8'),
+    )
+    const shieldLayer = () =>
+      buildMapStyle({ ...opts, theme: 'light' }).layers.find(
+        l => l.id === 'Highway shield',
+      )!
+
+    /** The fallback is only a fallback if it covers every length that passes the filter. */
+    test('a default plaque exists for every ref length the layer allows', () => {
+      for (let n = 1; n <= 6; n++) {
+        expect(sprite[`default-${n}`], `default-${n}`).toBeTruthy()
+      }
+    })
+
+    /**
+     * White numerals are keyed on ref length, not on the network alone,
+     * because a long interstate ref falls through to the white plaque — and
+     * white-on-white is invisible. The cutoff has to match the art that ships.
+     */
+    test('white lettering stops where the interstate art stops', () => {
+      const layer = shieldLayer()
+      const [, condition] = layer.paint!['text-color'] as any[]
+      const cutoff = condition[2][2]
+      expect(sprite[`us-interstate-${cutoff}`], `us-interstate-${cutoff}`).toBeTruthy()
+      expect(sprite[`us-interstate-${cutoff + 1}`]).toBeUndefined()
+    })
+
+    /** Shields are colour art; tinting them would flatten the interstate to one hue. */
+    test('shield art is not SDF', () => {
+      for (const name of ['us-interstate-2', 'us-highway-2', 'default-3', 'motorway-exit-2']) {
+        expect(sprite[name]?.sdf, name).toBe(false)
+      }
+    })
   })
 })
 

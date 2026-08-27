@@ -109,9 +109,21 @@ const VS = `
 
     vec3 world = a_offset + vec3(p.xy * a_shape.y, p.z * a_shape.x);
 
+    vec3 unit = normalize(n);
     // Half-lambert: a plain dot product leaves every face turned away from the
     // sun flat black, which at this size reads as a hole rather than as shade.
-    float lit = dot(normalize(n), u_light) * 0.5 + 0.5;
+    float sun = dot(unit, u_light) * 0.5 + 0.5;
+    // Sky light. The top of a crown sees the whole sky and its underside sees
+    // the ground, so up is bright and down is dark whatever the sun is doing.
+    //
+    // Weighted over the sun, not added to it, and that is the point: with the
+    // sun alone the shading followed its azimuth, so a low sun put the dark
+    // side of every crown at the top of the screen and a map full of trees read
+    // as inside-out from above. Sky light does not have an azimuth, so it
+    // cannot. The sun still sets which flank is brighter — it just no longer
+    // decides whether the top or the bottom of a tree is lit.
+    float sky = unit.z * 0.5 + 0.5;
+    float lit = mix(sun, sky, 0.65);
     v_color = u_color * a_shade * mix(u_ambient, 1.0, lit);
 
     gl_Position = u_matrix * vec4(world, 1.0);
@@ -524,9 +536,24 @@ export class ObjectLayer {
     gl.depthFunc(gl.LEQUAL)
     if (range) gl.depthRange(range[0], range[1])
     gl.disable(gl.STENCIL_TEST)
-    // Both faces: a canopy is a closed hull but a palm frond is not, and a gap
-    // in a tree reads far worse than the cost of drawing 30 more triangles.
-    gl.disable(gl.CULL_FACE)
+    // Back faces are culled, and that is a correctness fix rather than a saving.
+    //
+    // Drawing both faces is fine while the depth buffer can tell the front of a
+    // crown from its back. In the plan view it cannot: the camera retreats to
+    // fake an orthographic projection (see `updateCameraProjection`), which
+    // takes the far-to-near ratio from ~84 to ~5800, and a tree is a couple of
+    // metres thick against a depth range of tens of kilometres. Front and back
+    // quantise to the same value, `LEQUAL` lets whichever came later in the
+    // index buffer win, and since a back face is lit by the opposite normal the
+    // crown shatters into light and dark wedges that crawl as the camera moves.
+    // Culling removes the losing half of the argument entirely.
+    //
+    // Winding survives the trip: the glTF-to-map frame swap in the shader is a
+    // rotation, and both instance scales are positive, so a model authored
+    // counter-clockwise still faces out.
+    gl.enable(gl.CULL_FACE)
+    gl.cullFace(gl.BACK)
+    gl.frontFace(gl.CCW)
 
     this.drawObjects(gl, shifted)
 

@@ -59,6 +59,81 @@ describe('models', () => {
   })
 
   /**
+   * A trunk is a trunk, not a plinth.
+   *
+   * The vendored models are drawn to read at arm's length in a game, where a
+   * chunky trunk is part of the look — one of them is nearly as wide as its own
+   * crown. Seen from above on a map that is a brown post with a bush balanced
+   * on it, so the build script slims every one to a fraction of its crown. This
+   * holds it there: re-vendoring a model, or a change to the normalisation that
+   * ran before the slimming, would otherwise quietly bring the plinths back.
+   */
+  test.each(Object.keys(TREE_MODELS))('%s stands on a trunk, not a plinth', name => {
+    const model = load(name)
+    const reach = (role: string, below = Infinity) => {
+      let radius = 0
+      for (const p of model.primitives) {
+        if (p.material !== role) continue
+        for (const v of p.index) {
+          if (p.position[v * 3 + 1] > below) continue
+          radius = Math.max(radius, Math.hypot(p.position[v * 3], p.position[v * 3 + 2]))
+        }
+      }
+      return radius
+    }
+    let crownBottom = Infinity
+    for (const p of model.primitives) {
+      if (p.material !== 'foliage') continue
+      for (const v of p.index) crownBottom = Math.min(crownBottom, p.position[v * 3 + 1])
+    }
+    const crown = reach('foliage')
+    // Only the length of trunk anyone can see; branches inside the crown are
+    // behind the foliage they hold up.
+    const trunk = reach('bark', crownBottom)
+    expect(crown).toBeGreaterThan(0)
+    expect(trunk / crown, `${name} trunk is ${((trunk / crown) * 100).toFixed(0)}% of its crown`)
+      .toBeLessThanOrEqual(0.16)
+  })
+
+  /**
+   * Nothing may be see-through, because the layer culls back faces.
+   *
+   * It has to: in the plan view the depth buffer cannot separate the front of a
+   * crown from its back, and letting a back face win a fragment shades it by
+   * the opposite normal — the tree breaks into light and dark wedges that crawl
+   * as the camera moves. Culling settles that, but only for a solid. Cull an
+   * open shell and you look straight through it, which is what happened to the
+   * conifers: their skirts were open underneath and every one grew a hole.
+   *
+   * An edge used by exactly one triangle is a hole's rim. The build script caps
+   * them (`capHoles`), and this is what says it has to. Edges used by three or
+   * four triangles are left alone — those are junctions where surfaces meet,
+   * not openings, and there is nothing to see through.
+   */
+  test.each(ALL)('%s is solid, so culling cannot open a hole in it', name => {
+    for (const primitive of load(name).primitives) {
+      // Welded by position: a corner split for its normals is one point here,
+      // or every shading seam would read as a hole.
+      const ids = new Map<string, number>()
+      const id = (v: number) => {
+        const key = [0, 1, 2].map(c => primitive.position[v * 3 + c].toFixed(5)).join(',')
+        if (!ids.has(key)) ids.set(key, ids.size)
+        return ids.get(key)!
+      }
+      const uses = new Map<string, number>()
+      for (let i = 0; i < primitive.index.length; i += 3) {
+        const [a, b, c] = [id(primitive.index[i]), id(primitive.index[i + 1]), id(primitive.index[i + 2])]
+        for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+          const key = u < v ? `${u}_${v}` : `${v}_${u}`
+          uses.set(key, (uses.get(key) ?? 0) + 1)
+        }
+      }
+      const rims = [...uses.values()].filter(n => n === 1).length
+      expect(rims, `${name} has ${rims} unpaired edge(s)`).toBe(0)
+    }
+  })
+
+  /**
    * The layer's only per-instance transform is a height in metres and a
    * lateral scale, which is only correct if the model is exactly one unit tall
    * standing on its own origin. The vendored source models are not — Kenney

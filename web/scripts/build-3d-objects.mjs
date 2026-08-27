@@ -283,6 +283,163 @@ function baseRadius(part, min, max) {
 }
 
 /**
+ * Close every hole in a part, so back-face culling is safe.
+ *
+ * The layer culls back faces, which it has to: in the plan view the depth
+ * buffer cannot separate the front of a crown from its back, and a back face
+ * winning a fragment shades it by the opposite normal — the crown breaks into
+ * light and dark wedges that crawl as the camera moves. Culling settles it, but
+ * only for a mesh with an inside: cull an open shell and you see straight
+ * through it. Kenney's conifers are stacked skirts open underneath, and culling
+ * them punched a white hole through the bottom of every tree.
+ *
+ * So the holes are filled here rather than worked around at draw time. A
+ * boundary edge is one used by a single triangle; chained head to tail those
+ * edges form loops, and a fan from each loop's centroid caps it. The caps face
+ * away from the surface they close — traversed in the opposite direction to the
+ * boundary, which is what the neighbouring triangle would have done — and end
+ * up underneath the tree where nobody sees them. They exist to be culled.
+ */
+function capHoles(part) {
+  // Welded by position: a corner split for its normals is one point here, or
+  // every seam would read as a hole.
+  const ids = new Map()
+  const key = i => {
+    const k = `${part.position[i * 3].toFixed(5)},${part.position[i * 3 + 1].toFixed(5)},${part.position[i * 3 + 2].toFixed(5)}`
+    if (!ids.has(k)) ids.set(k, { id: ids.size, vertex: i })
+    return ids.get(k).id
+  }
+  const point = []
+  const welded = []
+  for (let i = 0; i < part.index.length; i++) welded.push(key(part.index[i]))
+  for (const { id, vertex } of ids.values()) point[id] = vertex
+
+  const directed = new Set()
+  for (let i = 0; i < welded.length; i += 3) {
+    const [a, b, c] = [welded[i], welded[i + 1], welded[i + 2]]
+    for (const [u, v] of [[a, b], [b, c], [c, a]]) directed.add(`${u}>${v}`)
+  }
+  // A boundary edge has no twin running the other way.
+  const next = new Map()
+  for (const edge of directed) {
+    const [u, v] = edge.split('>').map(Number)
+    if (!directed.has(`${v}>${u}`)) next.set(u, v)
+  }
+  if (!next.size) return 0
+
+  const at = id => [0, 1, 2].map(c => part.position[point[id] * 3 + c])
+  const position = Array.from(part.position)
+  const normal = Array.from(part.normal)
+  const index = Array.from(part.index)
+  let capped = 0
+
+  const unvisited = new Set(next.keys())
+  while (unvisited.size) {
+    const start = unvisited.values().next().value
+    const loop = []
+    let at_ = start
+    // Bounded: a malformed loop must not spin forever, and a hole nobody can
+    // chain is better left open than left hanging.
+    while (unvisited.has(at_) && loop.length <= next.size) {
+      unvisited.delete(at_)
+      loop.push(at_)
+      at_ = next.get(at_)
+    }
+    if (at_ !== start || loop.length < 3) continue
+
+    const centre = [0, 0, 0]
+    for (const id of loop) {
+      const p = at(id)
+      for (let c = 0; c < 3; c++) centre[c] += p[c] / loop.length
+    }
+    const base = position.length / 3
+    // One fan per loop, flat shaded from each triangle's own geometry.
+    for (let i = 0; i < loop.length; i++) {
+      const a = at(loop[(i + 1) % loop.length])
+      const b = at(loop[i])
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+      const v = [centre[0] - a[0], centre[1] - a[1], centre[2] - a[2]]
+      const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+      const len = Math.hypot(...n) || 1
+      const first = position.length / 3
+      for (const p of [a, b, centre]) {
+        position.push(p[0], p[1], p[2])
+        normal.push(n[0] / len, n[1] / len, n[2] / len)
+      }
+      index.push(first, first + 1, first + 2)
+    }
+    if (position.length / 3 > base) capped++
+  }
+
+  part.position = new Float32Array(position)
+  part.normal = new Float32Array(normal)
+  part.index = index
+  return capped
+}
+
+/**
+ * How thick a trunk may be, as a fraction of the crown's radius.
+ *
+ * Kenney's trees are modelled to read at arm's length in a game, where a chunky
+ * trunk is part of the style — theirs run from 15% of the crown up to 68%, and
+ * one of them is very nearly as wide as the tree. On a map seen from above that
+ * is not a stylistic choice, it is a brown post with a bush balanced on it.
+ *
+ * A real street tree is nearer 5%. This is deliberately above that: at the size
+ * these draw, a trunk thinner than a couple of pixels stops being a trunk and
+ * the crown starts to look like it is floating.
+ */
+const TRUNK_RATIO = 0.14
+
+/**
+ * Slim every trunk to `TRUNK_RATIO` of its own crown.
+ *
+ * Scaled about the model's axis rather than set to a fixed width, so a tree
+ * whose trunk leans, forks or splits into two legs keeps its shape — only its
+ * girth changes. Branches inside the crown are scaled too, which is invisible:
+ * they are behind the foliage they hold up.
+ *
+ * Trunks already this slim are left alone. Nothing here is scaled *up*.
+ */
+function slimTrunks(parts) {
+  const bark = parts.filter(p => p.role === 'bark')
+  const foliage = parts.filter(p => p.role === 'foliage')
+  if (!bark.length || !foliage.length) return
+
+  const spread = (list, below = Infinity) => {
+    let radius = 0
+    for (const part of list)
+      for (const v of part.index) {
+        if (part.position[v * 3 + 1] > below) continue
+        radius = Math.max(radius, Math.hypot(part.position[v * 3], part.position[v * 3 + 2]))
+      }
+    return radius
+  }
+
+  // Measured below the crown, since that is the length of trunk anyone sees.
+  let crownBottom = Infinity
+  for (const part of foliage)
+    for (const v of part.index) crownBottom = Math.min(crownBottom, part.position[v * 3 + 1])
+
+  const trunk = spread(bark, crownBottom)
+  const crown = spread(foliage)
+  if (trunk < 1e-4 || crown < 1e-4) return
+  const scale = Math.min(1, (TRUNK_RATIO * crown) / trunk)
+  if (scale > 0.999) return
+
+  for (const part of bark) {
+    const out = new Float32Array(part.position.length)
+    for (let i = 0; i < part.position.length; i += 3) {
+      out[i] = part.position[i] * scale
+      out[i + 1] = part.position[i + 1]
+      out[i + 2] = part.position[i + 2] * scale
+    }
+    part.position = out
+  }
+  return scale
+}
+
+/**
  * The far LOD: each role replaced by a solid fitted to its own silhouette.
  *
  * Nothing as clever as mesh decimation, and it does not need to be — past the
@@ -565,6 +722,12 @@ async function main() {
 
   const emit = async (name, parts) => {
     toUnit(parts)
+    // Before the far LOD is fitted, so its proxy post is fitted to the slimmed
+    // trunk rather than to the one nobody will see.
+    const slimmed = slimTrunks(parts)
+    // Before smoothing, so a cap's own hard edge is one of the creases the
+    // smoothing pass considers rather than a normal it never sees.
+    const holes = parts.reduce((n, part) => n + capHoles(part), 0)
     // Only the leafy parts. Smoothing bark rounds off the trunk's cap edge,
     // and smoothing a bench turns its slats into a ramp.
     const foliage = parts.filter(p => p.role === 'foliage')
@@ -596,7 +759,9 @@ async function main() {
 
     written.push(
       `${name.padEnd(20)} ${String(tris(parts)).padStart(4)} tris ` +
-        `${(near.length / 1024).toFixed(1).padStart(5)} KB   ${farNote}`,
+        `${(near.length / 1024).toFixed(1).padStart(5)} KB   ${farNote}` +
+        (slimmed ? `   trunk x${slimmed.toFixed(2)}` : '') +
+        (holes ? `   capped ${holes}` : ''),
     )
   }
 

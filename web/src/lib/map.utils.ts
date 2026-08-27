@@ -25,15 +25,23 @@ const MAPBOX_LAYOUT_PROPERTIES = [
   'symbol-z-elevate',
 ] as const
 
-// Font name translation table: Mapbox Standard → MapLibre (OSM Liberty) equivalents
-// OSM Liberty uses Roboto + Noto Sans via CDN glyphs.
+/**
+ * Mapbox Standard's font names → the stacks we actually serve.
+ *
+ * Every name on the right has to be a directory under `public/fonts`, because
+ * MapLibre asks our own glyph endpoint for it and a miss is silent: the request
+ * falls through to the SPA's index.html and the labels just do not draw.
+ * `Noto Sans Regular` used to sit here and was never one of them — Noto is
+ * composited *inside* each stack as the non-Latin fallback, not served alone.
+ */
 const MAPBOX_TO_MAPLIBRE_FONTS: Record<string, string> = {
-  'DIN Pro Medium':         'Roboto Medium',
-  'DIN Pro':                'Roboto Regular',
-  'DIN Pro Bold':           'Roboto Bold',
-  'DIN Pro Italic':         'Roboto Italic',
-  'Arial Unicode MS Bold':  'Noto Sans Regular',
-  'Arial Unicode MS Regular': 'Noto Sans Regular',
+  'DIN Pro Medium':         'Geist Medium',
+  'DIN Pro':                'Geist Regular',
+  'DIN Pro Bold':           'Geist Bold',
+  // Geist has no italic face; see build-glyphs.mjs.
+  'DIN Pro Italic':         'Geist Regular',
+  'Arial Unicode MS Bold':  'Geist Bold',
+  'Arial Unicode MS Regular': 'Geist Regular',
 }
 
 /**
@@ -57,7 +65,7 @@ function stripMapboxExpressions(value: unknown): unknown {
 
   // ['config', 'font'] → return default font family
   if (op === 'config') {
-    return 'Roboto'
+    return 'Geist'
   }
 
   // ['concat', ...args] with config inside → evaluate with defaults
@@ -130,17 +138,17 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
     if (Array.isArray(maplibreConfig.layout['text-font'])) {
       maplibreConfig.layout['text-font'] = maplibreConfig.layout['text-font']
         .filter((entry: unknown) => typeof entry === 'string')
-        .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? 'Roboto Regular')
+        .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? 'Geist Regular')
       // Ensure at least one font remains
       if (maplibreConfig.layout['text-font'].length === 0) {
-        maplibreConfig.layout['text-font'] = ['Roboto Regular']
+        maplibreConfig.layout['text-font'] = ['Geist Regular']
       }
     } else if (maplibreConfig.type === 'symbol') {
       // No text-font specified — inject a known-good default so MapLibre doesn't
       // fall back to the basemap style's default (e.g. "Open Sans Regular") which
       // may not exist on the glyph server.
       if (!maplibreConfig.layout) maplibreConfig.layout = {}
-      maplibreConfig.layout['text-font'] = ['Roboto Regular']
+      maplibreConfig.layout['text-font'] = ['Geist Regular']
     }
   }
 

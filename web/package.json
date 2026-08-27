@@ -1,10 +1,11 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "build:sprite": "node scripts/build-sprite.mjs",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
@@ -26,7 +27,10 @@
     "tauri:clean": "cd src-tauri && cargo clean",
     "preview": "vite preview",
     "docker:dev": "docker-compose up --build",
-    "docker:prod": "docker build -t parchment-frontend . && docker run -d -p 8080:80 parchment-frontend"
+    "docker:prod": "docker build -t parchment-frontend . && docker run -d -p 8080:80 parchment-frontend",
+    "build:style": "node scripts/convert-basemap-style.mjs",
+    "build:glyphs": "node scripts/build-glyphs.mjs",
+    "build:models": "node scripts/build-3d-objects.mjs"
   },
   "trustedDependencies": [
     "@morev/vue-transitions"
@@ -73,7 +77,7 @@
     "lucide-vue-next": "0.475.0",
     "mapbox-gl": "^3.27.0",
     "mapillary-js": "^4.1.2",
-    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v4.7.1-transit.1",
+    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.4.1-transit.3",
     "mitt": "^3.0.1",
     "mousetrap": "^1.6.5",
     "photoswipe": "^5.4.4",
@@ -100,6 +104,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@fontsource/roboto": "^5.3.0",
+    "@mapbox/shelf-pack": "^3.2.0",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.12",
     "@tauri-apps/cli": "^2.10.0",
@@ -112,16 +118,19 @@
     "@vitest/ui": "^4.0.18",
     "@vue/test-utils": "^2.4.6",
     "drizzle-orm": "^0.44.2",
+    "fontnik": "^0.7.7",
     "happy-dom": "^20.1.0",
     "i18next": "^25.3.6",
     "postcss": "^8.4.38",
     "postgres": "^3.4.5",
     "sass": "^1.97.3",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vite-svg-loader": "^5.1.1",
     "vitest": "^4.0.18",
-    "vue-tsc": "^3.2.5"
+    "vue-tsc": "^3.2.5",
+    "wawoff2": "^2.0.1"
   }
 }

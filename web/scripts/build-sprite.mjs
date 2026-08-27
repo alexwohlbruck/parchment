@@ -22,6 +22,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import ShelfPack from '@mapbox/shelf-pack'
+import { SDF_BUFFER, SDF_CUTOFF, SDF_RADIUS } from '../src/lib/map-style/sdf.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WEB = resolve(HERE, '..')
@@ -29,12 +30,11 @@ const MAKI = resolve(WEB, 'node_modules/@mapbox/maki/icons')
 const LOCAL = resolve(WEB, 'src/assets/map-icons')
 const OUT = resolve(WEB, 'public/sprites')
 
-/** Transparent padding around each icon, so the distance field has room. */
-const BUFFER = 3
-/** Distance, in pixels, that the field ramps over. */
-const RADIUS = 8
-/** Where the 0.5 alpha boundary lands in the encoded range. */
-const CUTOFF = 0.25
+// The field's own constants live beside the code that decodes it again at
+// runtime; see `sdf.mjs`.
+const BUFFER = SDF_BUFFER
+const RADIUS = SDF_RADIUS
+const CUTOFF = SDF_CUTOFF
 
 const INF = 1e20
 

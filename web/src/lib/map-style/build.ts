@@ -1,5 +1,6 @@
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import type { MapStyleId } from '@/types/map.types'
+import { getCustomColorTint } from '@/lib/color-tint'
 import spec from './spec.json'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -76,6 +77,50 @@ const cacheBuster = String(Date.now())
 
 export const SOURCE = 'openmaptiles'
 
+/**
+ * How far the camera may tilt.
+ *
+ * Both engines default to 60, and past that MapLibre calls it experimental —
+ * the far half of the view is a shallow sliver of ground, so tile counts climb
+ * and label placement gets crowded. 85 is the ceiling Mapbox Standard uses and
+ * the value the compass control was already written against (it clamps its own
+ * drag to 85), so raising it makes the control mean what it says.
+ *
+ * Above roughly 70 the horizon comes into view, which is what `sky` is for.
+ */
+export const MAX_PITCH = 85
+
+/**
+ * What sits above the horizon once the camera can see it.
+ *
+ * Unspecified, MapLibre's sky is fully transparent and a steep view ends in
+ * whatever is behind the canvas. These are the map's own colours rather than a
+ * photographic sky: the horizon takes the land it meets so the ground fades
+ * into it instead of ending on a line, and the sky above is a few steps toward
+ * blue in daylight and toward black at night.
+ *
+ * `fog-color` is the haze drawn onto the far ground, which is what stops the
+ * last few tiles reading as a hard edge.
+ */
+const SKY: Record<FlavorId, Record<string, string | number>> = {
+  light: {
+    'sky-color': 'hsl(205, 80%, 78%)',
+    'horizon-color': 'hsl(47, 60%, 92%)',
+    'fog-color': 'hsl(47, 79%, 94%)',
+    'fog-ground-blend': 0.72,
+    'horizon-fog-blend': 0.6,
+    'sky-horizon-blend': 0.85,
+  },
+  dark: {
+    'sky-color': 'hsl(217, 45%, 10%)',
+    'horizon-color': 'hsl(216, 34%, 22%)',
+    'fog-color': 'hsl(216, 37%, 24%)',
+    'fog-ground-blend': 0.72,
+    'horizon-fog-blend': 0.6,
+    'sky-horizon-blend': 0.85,
+  },
+}
+
 /** Self-hosted; see `scripts/build-glyphs.mjs` and `scripts/build-sprite.mjs`. */
 const GLYPHS_PATH = '/fonts/{fontstack}/{range}.pbf'
 const SPRITE_PATH = '/sprites/parchment'
@@ -111,9 +156,27 @@ export interface BasemapStyleOptions {
 // ---------------------------------------------------------------------------
 
 const CATEGORY_PREFIX = '@@category:'
+/** A palette colour run through the icon-tile treatment; see `tintOf`. */
+const CATEGORY_TINT_PREFIX = /^@@category-(plate|ink):/
+/** A literal colour run through the same treatment. */
+const TINT_PREFIX = /^@@tint-(plate|ink):/
 
 function tokenMap(flavor: FlavorId): Record<string, string> {
   return (flavor === 'dark' ? darkTokens : lightTokens) as Record<string, string>
+}
+
+/**
+ * The pale plate and the deep glyph a colour tints to — the same pair the
+ * place header's icon tile wears, from the same function, so the two cannot
+ * drift. `poi-badge.ts` composites the badge from them.
+ *
+ * Falls back to the colour itself if it will not parse, which draws a flat
+ * badge rather than none at all.
+ */
+function tintOf(color: string, kind: string, flavor: FlavorId): string {
+  const tint = getCustomColorTint(color, 'solid', flavor === 'dark')
+  if (!tint) return color
+  return kind === 'ink' ? tint.foreground : tint.background ?? color
 }
 
 /**
@@ -122,7 +185,12 @@ function tokenMap(flavor: FlavorId): Record<string, string> {
  * Category tokens resolve one step further, to the live palette, so a POI on
  * the basemap is the same colour as the same place in search results.
  */
-function resolve(value: unknown, tokens: Record<string, string>, categories: Record<string, string>): any {
+function resolve(
+  value: unknown,
+  tokens: Record<string, string>,
+  categories: Record<string, string>,
+  flavor: FlavorId,
+): any {
   if (typeof value === 'string') {
     if (!value.startsWith('@')) return value
     const resolved = tokens[value.slice(1)]
@@ -131,12 +199,19 @@ function resolve(value: unknown, tokens: Record<string, string>, categories: Rec
       const category = resolved.slice(CATEGORY_PREFIX.length)
       return categories[category] ?? categories.default
     }
+    const tinted = CATEGORY_TINT_PREFIX.exec(resolved)
+    if (tinted) {
+      const category = resolved.slice(tinted[0].length)
+      return tintOf(categories[category] ?? categories.default, tinted[1], flavor)
+    }
+    const literal = TINT_PREFIX.exec(resolved)
+    if (literal) return tintOf(resolved.slice(literal[0].length), literal[1], flavor)
     return resolved
   }
-  if (Array.isArray(value)) return value.map(v => resolve(v, tokens, categories))
+  if (Array.isArray(value)) return value.map(v => resolve(v, tokens, categories, flavor))
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value)) out[k] = resolve(v, tokens, categories)
+    for (const [k, v] of Object.entries(value)) out[k] = resolve(v, tokens, categories, flavor)
     return out
   }
   return value
@@ -263,7 +338,7 @@ export function buildLayers(options: {
   base = applyOverrides(base, flavorStyles[flavor])
 
   return base
-    .map(l => resolve(l, tokens, categories))
+    .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang)) as LayerSpecification[]
 }
 
@@ -278,6 +353,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: { [SOURCE]: vectorSource(tileServerUrl, tileKey) },
+    sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),
   } as StyleSpecification
 }
@@ -331,6 +407,9 @@ export function buildSatelliteStyle(
   return {
     version: 8,
     name: hybrid ? 'Parchment hybrid' : 'Parchment satellite',
+    // Daylight regardless of app theme, for the same reason hybrid's labels are
+    // fixed: the ground here is aerial photography, taken in the day.
+    sky: SKY.light,
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
     sources,

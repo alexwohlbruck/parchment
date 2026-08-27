@@ -11,10 +11,11 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/maplibre-gl-style-spec'
-import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups } from './build'
+import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups, MAX_PITCH } from './build'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { terrainSource } from './terrain'
+import { getCustomColorTint } from '@/lib/color-tint'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -135,21 +136,22 @@ describe('flavors', () => {
   })
 
   test('POI tints come from the app category palette, not a literal', () => {
-    // `poi_halo`/`poi_ink` are real colours, not categories — they are the
-    // label halo and the glyph knockout. `poi_v4_*` are real colours too, but
-    // deliberately so: they are MapTiler's own family palette, copied for the
-    // glyph-only treatment rather than tracking ours.
+    // `poi_v4_*` are real colours, deliberately: they are MapTiler's own
+    // family palette, copied for the glyph-only treatment rather than
+    // tracking ours. The rest name a category and resolve through the live
+    // palette — raw for the label, tinted for the badge's plate and ink.
     const categories = Object.keys(light).filter(
       k =>
         k.startsWith('poi_') &&
         !k.startsWith('poi_v4_') &&
-        // Real colours, not categories: the label halo, the glyph knockout,
-        // and transit blue — a stop is wayfinding rather than a category.
-        !['poi_halo', 'poi_ink', 'poi_transit', 'poi_icon_halo'].includes(k),
+        // Real colours, not categories: the label halo, the badge's lift, and
+        // transit blue — a stop is wayfinding rather than a category.
+        !['poi_halo', 'poi_lift'].includes(k) &&
+        !k.startsWith('poi_transit_'),
     )
-    expect(categories).toContain('poi_food_and_drink')
-    expect(categories).toContain('poi_default')
-    for (const c of categories) expect(light[c]).toMatch(/^@@category:/)
+    expect(categories).toContain('poi_plate_food_and_drink')
+    expect(categories).toContain('poi_ink_default')
+    for (const c of categories) expect(light[c], c).toMatch(/^@@category-(plate|ink):/)
   })
 
   /**
@@ -163,17 +165,13 @@ describe('flavors', () => {
   })
 
   /**
-   * The glyph is knocked out of the badge to the surface behind it, so the ink
-   * follows the flavor. Light-flavor categories are saturated and mid-dark,
-   * dark-flavor ones are pale — a white glyph washes out on the latter.
+   * The badge's lift inverts too. A cast shadow is a daylight idea: behind a
+   * pale badge on dark ground a dark blur does nothing, so night gets a faint
+   * light bloom doing the same job.
    */
-  test('badge ink follows the flavor, matching the halo', () => {
-    expect(light.poi_ink).toBe('#FFFFFF')
-    expect(dark.poi_ink).toBe('#0D0D0D')
-    // Knockout and halo are the same surface; drifting apart means the glyph
-    // stops matching the map it is cut out of.
-    expect(light.poi_ink).toBe(light.poi_halo)
-    expect(dark.poi_ink).toBe(dark.poi_halo)
+  test('the badge lift inverts between flavors', () => {
+    expect(light.poi_lift).toMatch(/^rgba\(0,\s*0,\s*0/)
+    expect(dark.poi_lift).toMatch(/^rgba\(255,\s*255,\s*255/)
   })
 })
 
@@ -211,19 +209,26 @@ describe('badge POI treatment', () => {
     if (Array.isArray(size)) expect(size[size.length - 1]).toBe(1)
   })
 
-  test.each(poi.map(l => [l.id, l]))('%s: the disc carries the category colour', (_id, l: any) => {
-    // The glyph is a hole in the disc, so tinting the image tints the badge.
-    expect(JSON.stringify(l.paint['icon-color'])).toContain('@poi_')
-    expect(JSON.stringify(l.paint['text-color'])).toContain('@poi_')
+  test.each(poi.map(l => [l.id, l]))('%s: the badge name carries its colours', (_id, l: any) => {
+    // A badge is four colours and a symbol layer offers two, so the image is
+    // named rather than tinted and `poi-badge.ts` composites it. The name has
+    // to carry a plate, an ink and a lift, or there is nothing to draw with.
+    const image = JSON.stringify(l.layout['icon-image'])
+    expect(image).toContain('@poi_plate_')
+    expect(image).toContain('@poi_ink_')
+    expect(image).toContain('@poi_lift')
+    // The label takes the glyph's colour, not the plate's — the plate is a pale
+    // tint and would be unreadable as lettering.
+    expect(JSON.stringify(l.paint['text-color'])).toContain('@poi_ink_')
   })
 
-  test.each(poi.map(l => [l.id, l]))('%s: the badge casts a shadow, not a ring', (_id, l: any) => {
-    // One halo per symbol, spent on the shadow. It has to be width 0: a halo
-    // renders around every edge of the SDF, and the glyph is a hole through
-    // the disc, so any width puts a dark rim around the glyph.
-    expect(l.paint['icon-halo-color']).toBe('@poi_icon_halo')
-    expect(l.paint['icon-halo-width']).toBe(0)
-    expect(l.paint['icon-halo-blur']).toBeGreaterThan(0)
+  test.each(poi.map(l => [l.id, l]))('%s: nothing tints the badge at draw time', (_id, l: any) => {
+    // Both of these are inherited from MapTiler and both are dead against a
+    // full-colour image. Left in they are misleading, and they keep MapTiler's
+    // own family tokens alive in the token file.
+    expect(l.paint['icon-color']).toBeUndefined()
+    expect(l.paint['icon-halo-color']).toBeUndefined()
+    expect(l.paint['icon-halo-width']).toBeUndefined()
   })
 
   /**
@@ -308,6 +313,27 @@ describe('badge POI treatment', () => {
     expect(bridge).toBeGreaterThan(-1)
     expect(bridge).toBeGreaterThan(at('Highway'))
     expect(bridge).toBeLessThan(
+      layers.findIndex(l => (l as any)['source-layer'] === 'building'),
+    )
+  })
+
+  /**
+   * A one-way arrow is paint on the roadway, so a building standing over that
+   * road hides it. MapLibre draws every layer at or after the first 3D one with
+   * depth testing off (`opaquePassCutoff`), so the only way a building can
+   * occlude a symbol is for the symbol to be ordered underneath it.
+   */
+  test('one-way arrows draw beneath the buildings that stand over them', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    const oneway = at('Oneway')
+    expect(oneway).toBeGreaterThan(-1)
+    // Above every road, so the arrow still sits on the tarmac...
+    expect(oneway).toBeGreaterThan(at('Highway'))
+    expect(oneway).toBeGreaterThan(at('Minor road'))
+    // ...and under the footbridges and buildings that cross over it.
+    expect(oneway).toBeLessThan(at('Path bridge'))
+    expect(oneway).toBeLessThan(
       layers.findIndex(l => (l as any)['source-layer'] === 'building'),
     )
   })
@@ -600,9 +626,35 @@ describe('assembled styles', () => {
       theme: 'light',
       categoryColors: { food_and_drink: '#123456' },
     })
-    expect(JSON.stringify(style.layers)).toContain('#123456')
+    // Through the tint, which is what the badge is drawn from: the same hue at
+    // the icon-tile's lightness rather than the raw colour, so a badge on the
+    // map and the icon in a place's header cannot come out different.
+    const json = JSON.stringify(style.layers)
+    expect(json).toContain(getCustomColorTint('#123456', 'solid', false)!.foreground)
+    expect(json).toContain(getCustomColorTint('#123456', 'solid', false)!.background)
   })
 
+
+  /**
+   * The camera can now tilt to 85, where the horizon comes into view. Left
+   * unspecified MapLibre's sky is fully transparent, so a steep view would end
+   * in whatever is behind the canvas rather than in anything map-like.
+   */
+  test('both flavors define a sky for the raised pitch to look into', () => {
+    expect(MAX_PITCH).toBe(85)
+    for (const theme of ['light', 'dark'] as const) {
+      const sky = (buildMapStyle({ ...opts, theme }) as any).sky
+      expect(sky, theme).toBeTruthy()
+      expect(sky['sky-color'], theme).toBeTruthy()
+      // The haze on the far ground, which is what stops the last tiles ending
+      // on a hard line.
+      expect(sky['fog-color'], theme).toBeTruthy()
+    }
+    // The imagery basemap is daylight photography whatever the app theme is.
+    expect((buildSatelliteStyle({ ...opts, theme: 'dark' }) as any).sky).toEqual(
+      (buildMapStyle({ ...opts, theme: 'light' }) as any).sky,
+    )
+  })
 
   test('hybrid keeps labels and arterials over the imagery, nothing else', () => {
     const style = buildSatelliteStyle({ ...opts, theme: 'dark', hybrid: true })
@@ -701,6 +753,11 @@ describe('assets the spec depends on', () => {
         s !== '' &&
         s !== 'badge-' &&
         s !== 'tile-' &&
+        // The name's own scaffolding: its prefix, its separators, and the
+        // colour tokens `poi-badge.ts` reads back out of it.
+        s !== 'poi|' &&
+        s !== '|' &&
+        !s.startsWith('@poi_') &&
         !['coalesce', 'image', 'match', 'concat', 'get', 'subclass', 'class', 'case'].includes(s),
     )
     expect(names.length).toBeGreaterThan(40)

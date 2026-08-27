@@ -68,11 +68,13 @@ import {
   buildMapStyle,
   buildSatelliteStyle,
   layerGroups,
+  MAX_PITCH,
   BUILDING_HEIGHT_EXPRESSION,
   BUILDING_BASE_EXPRESSION,
   BUILDING_ROOF_EDGE_LAYER,
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
+import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -184,6 +186,7 @@ export class MaplibreStrategy extends MapStrategy {
       bearing,
       pitch,
       zoom,
+      maxPitch: MAX_PITCH,
       attributionControl: false,
       // Disable the engine's built-in north snap — we do north + grid snapping
       // ourselves in map.service (snapRotation) so both settings toggle live.
@@ -222,6 +225,11 @@ export class MaplibreStrategy extends MapStrategy {
       showUserLocation: true,
       showAccuracyCircle: true,
     })
+
+    // Answers for the POI badges, which the style names but the sprite cannot
+    // carry — see `poi-badge.ts`. Set on the map rather than per style, since
+    // the resolver survives a style swap and every flavor needs it.
+    registerPoiBadges(this.mapInstance as unknown as BadgeHost)
 
     this.addControls()
     this.configureEventListeners()

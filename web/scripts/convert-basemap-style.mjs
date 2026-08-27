@@ -143,8 +143,6 @@ function poiIcon(prefix = '') {
 }
 
 const POI_ICON = poiIcon()
-/** The badge form: one image, so it collides as a single object. */
-const POI_BADGE_ICON = poiIcon('badge-')
 
 /**
  * Transit classes, which wear a rounded square plate rather than a disc.
@@ -154,8 +152,44 @@ const POI_BADGE_ICON = poiIcon('badge-')
  * a different *kind* of thing from a place — you route to it rather than visit
  * it. The square art is `tile-` in the sprite; see `build-sprite.mjs`.
  */
-/** Badge art per class: a square plate for transit, a disc for everything else. */
-const POI_PLATE_ICON = ['case', isTransitPoi(), poiIcon('tile-'), poiIcon('badge-')]
+/** The icon stem for a feature: its subclass where the sprite has one, else its class. */
+const POI_ICON_STEM = [
+  'match',
+  ['get', 'subclass'],
+  ICON_SUBCLASSES,
+  ['get', 'subclass'],
+  ['coalesce', ['get', 'class'], ''],
+]
+
+/**
+ * The badge image, named rather than drawn from the sheet.
+ *
+ * A badge is four colours — a lift, an outline, a tinted plate and the glyph —
+ * and a symbol layer offers two. The sprite's art carries the shape; the name
+ * carries the colours, and `poi-badge.ts` composites the two the first time
+ * MapLibre asks for one. Naming them here rather than resolving colours in that
+ * module is what keeps the palette live and every colour decision in the style.
+ *
+ * A square plate for transit, a disc for everything else — see `TILE_PREFIX`.
+ */
+const poiTint = kind => [
+  'case',
+  isTransitPoi(),
+  `@poi_transit_${kind}`,
+  ['match', ['get', 'class'],
+    ...Object.entries(POI_CATEGORY).flatMap(([category, classes]) => [classes, `@poi_${kind}_${category}`]),
+    `@poi_${kind}_default`],
+]
+
+const POI_PLATE_ICON = [
+  'concat',
+  'poi|',
+  ['case', isTransitPoi(), 'tile-', 'badge-'],
+  POI_ICON_STEM,
+  '|', poiTint('plate'),
+  '|', poiTint('ink'),
+  '|', '@poi_lift',
+]
 
 /** True where the feature is a transit stop, for size and colour. */
 const IS_TRANSIT_POI = isTransitPoi()
@@ -343,6 +377,34 @@ function orderPedestrianSurfaces(layers) {
   layers.splice(buildings < 0 ? layers.length : buildings, 0, ...elevated)
 }
 
+/**
+ * Road markings belong to the roadway, so a building standing over one hides it.
+ *
+ * MapTiler draws the one-way arrows up with the labels, well past the buildings,
+ * which leaves them floating over a tower the moment the camera tilts. Moving
+ * the layer below the buildings is all it takes: the buildings are opaque and
+ * are drawn afterwards, so they simply paint over it.
+ *
+ * The same move is *not* available to the POI layers, which is why only this one
+ * is made. MapLibre decides depth-testing by the first 3D layer in the style —
+ * everything at or after it draws with depth disabled (`opaquePassCutoff` in
+ * `painter.ts`) — so the only way to have a building occlude a symbol is to
+ * order the symbol underneath it, and a POI ordered underneath a building
+ * disappears under its roof in plan view as well. Mapbox solves that with
+ * `symbol-z-elevate`, lifting the symbol to roof height; MapLibre has no
+ * equivalent, and `symbol-height-offset` takes metres rather than a reference to
+ * whatever the symbol is standing on.
+ */
+const ROAD_MARKING_LAYER = 'Oneway'
+
+function sinkRoadMarkings(layers) {
+  const at = layers.findIndex(l => l.id === ROAD_MARKING_LAYER)
+  if (at < 0) return
+  const [marking] = layers.splice(at, 1)
+  const buildings = layers.findIndex(l => l['source-layer'] === 'building')
+  layers.splice(buildings < 0 ? layers.length : buildings, 0, marking)
+}
+
 function sinkInstitutionalLanduse(layers) {
   const moved = INSTITUTIONAL_LANDUSE.map(id => {
     const at = layers.findIndex(l => l.id === id)
@@ -434,14 +496,6 @@ function exitShieldLayer(layer) {
   }
 }
 
-/** Tint a POI by Parchment's category palette rather than MapTiler's families. */
-function poiColorExpression() {
-  const branches = []
-  for (const [category, classes] of Object.entries(POI_CATEGORY)) {
-    branches.push(classes, `@poi_${category}`)
-  }
-  return ['match', ['get', 'class'], ...branches, '@poi_default']
-}
 
 /**
  * Mapbox Standard's POI treatment, which is what the app already draws search
@@ -622,21 +676,10 @@ const POI_PAINT = {
   'text-halo-width': 1,
   'text-halo-blur': 0,
   'text-halo-color': '@poi_halo',
-  // The disc carries the category colour and the glyph is a hole in it, so
-  // tinting the image tints the badge.
-  'icon-color': ['case', IS_TRANSIT_POI, '@poi_transit', poiColorExpression()],
-  // A soft shadow under the badge, in place of the ring it used to draw.
-  //
-  // A symbol gets one halo, and the badge needs it for one thing or the other.
-  // The ring was the old choice; this is the better one — but only at
-  // `icon-halo-width` 0. A halo renders around every edge in the SDF, and the
-  // glyph is a hole punched through the disc, so any width at all puts a dark
-  // rim around the glyph and turns it muddy. At width 0 the halo starts
-  // exactly at the edge and only the blur escapes, which lands outside the
-  // disc and leaves the knockout clean.
-  'icon-halo-color': '@poi_icon_halo',
-  'icon-halo-width': 0,
-  'icon-halo-blur': 2.5,
+  // No `icon-color` and no halo: the badge arrives already coloured. Both used
+  // to be set here, and between them they could only ever produce two colours —
+  // the plate and one ring, with the glyph left as a hole showing the map. See
+  // `poi-badge.ts` for why that is a wall rather than a tuning problem.
 }
 
 // ---------------------------------------------------------------------------
@@ -876,14 +919,22 @@ async function main() {
     // takes the same colour as the icon, which is how MapTiler letters theirs
     // — only keyed to our categories rather than their families.
     if (sl === 'poi' && out.type === 'symbol') {
-      // The name takes the plate's colour, transit included — a blue square
-      // above a purple label reads as two unrelated marks.
-      const tint = ['case', IS_TRANSIT_POI, '@poi_transit', poiColorExpression()]
+      // The name takes the badge's glyph colour, transit included — a blue
+      // square above a purple label reads as two unrelated marks. The glyph
+      // rather than the plate: the plate is a pale tint and would be unreadable
+      // as lettering, where the ink is the pair's contrasting half.
+      const tint = poiTint('ink')
       out.filter = out.filter
         ? ['all', toExpressionFilter(out.filter), RANK_GATE]
         : RANK_GATE
       out.layout = { ...out.layout, ...POI_LAYOUT }
       out.paint = { ...out.paint, ...POI_PAINT, 'text-color': tint }
+      // MapTiler tints its glyphs with these; ours arrive already coloured, and
+      // a non-SDF image ignores them anyway. Left in they are dead paint that
+      // keeps a handful of their family tokens alive.
+      for (const dead of ['icon-color', 'icon-halo-color', 'icon-halo-width', 'icon-halo-blur']) {
+        delete out.paint[dead]
+      }
     }
 
     // Buildings are solid. MapTiler draws them at 0.4, which lets the streets
@@ -972,6 +1023,10 @@ async function main() {
   }
 
   sinkInstitutionalLanduse(layers)
+  // Before the pedestrian pass, so the footbridges it inserts land above the
+  // arrows rather than below them: an arrow is painted on the road, and a
+  // footbridge crossing over that road covers it.
+  sinkRoadMarkings(layers)
 
   // The plaza's own outline, which MapTiler has no equivalent of — without it a
   // pedestrian area ends in a hard colour change against the ground, where
@@ -1048,19 +1103,12 @@ async function main() {
   tokens.light.poi_halo = '#FFFFFF'
   tokens.dark.poi_halo = '#0D0D0D'
 
-  // Glyph ink — the surface the glyph is knocked out to, so it tracks the map
-  // beneath rather than staying white. The dark flavor fills badges with the
-  // palette's night tints, which are pale; a white glyph on those washes out,
-  // where a dark one reads the way Mapbox's own `{maki}-dark` badge art does.
-  tokens.light.poi_ink = '#FFFFFF'
-  tokens.dark.poi_ink = '#0D0D0D'
-
   // The badge's lift. A cast shadow is a daylight idea: on the night map a
   // dark blur behind an already-pale badge on dark ground does nothing, so the
   // dark flavor gets a faint light bloom instead — the same job, the way the
   // night does it.
-  tokens.light.poi_icon_halo = 'rgba(0, 0, 0, 0.5)'
-  tokens.dark.poi_icon_halo = 'rgba(255, 255, 255, 0.3)'
+  tokens.light.poi_lift = 'rgba(0,0,0,0.34)'
+  tokens.dark.poi_lift = 'rgba(255,255,255,0.16)'
 
   // Shield lettering is ours, not MapTiler's — their shields are sprite art.
   //
@@ -1082,8 +1130,15 @@ async function main() {
   // Transit blue. Its own token rather than a category colour: a stop is
   // wayfinding, not a category of place, and every transit system's own maps
   // agree it is blue.
-  tokens.light.poi_transit = 'hsl(214, 78%, 52%)'
-  tokens.dark.poi_transit = 'hsl(214, 80%, 62%)'
+  // Only as a tint pair, the same as every category: `@@tint-*` runs a literal
+  // through the icon-tile treatment where `@@category-*` (below) runs a live
+  // palette colour through it. Both land in `build.ts`, which is the only place
+  // that knows the flavor and can therefore pick the direction.
+  const TRANSIT_BLUE = { light: 'hsl(214, 78%, 52%)', dark: 'hsl(214, 80%, 62%)' }
+  for (const flavor of ['light', 'dark']) {
+    tokens[flavor].poi_transit_plate = `@@tint-plate:${TRANSIT_BLUE[flavor]}`
+    tokens[flavor].poi_transit_ink = `@@tint-ink:${TRANSIT_BLUE[flavor]}`
+  }
 
   tokens.light.path_surface = 'hsl(295, 10%, 95%)'
   tokens.light.path_casing = 'hsl(0, 10%, 80%)'
@@ -1096,9 +1151,16 @@ async function main() {
 
   // Category palette tokens, resolved at runtime from the app's own palette
   // so basemap POIs match the colours search results already use.
+  //
+  // The pale plate and its contrasting ink, from the same palette colour and
+  // through the same function the place header's icon tile uses — which is what
+  // makes a café on the map and a café in the header the same mark. The raw
+  // colour is not emitted: nothing draws with it directly any more.
   for (const category of [...Object.keys(POI_CATEGORY), 'default']) {
-    tokens.light[`poi_${category}`] = `@@category:${category}`
-    tokens.dark[`poi_${category}`] = `@@category:${category}`
+    for (const kind of ['plate', 'ink']) {
+      tokens.light[`poi_${kind}_${category}`] = `@@category-${kind}:${category}`
+      tokens.dark[`poi_${kind}_${category}`] = `@@category-${kind}:${category}`
+    }
   }
 
   // MapTiler Streets v4's own family palette, for the glyph-only treatment.

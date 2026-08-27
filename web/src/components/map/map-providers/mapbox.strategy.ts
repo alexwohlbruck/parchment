@@ -46,6 +46,7 @@ import {
   TERRAIN_SOURCE_ID,
   TERRAIN_EXAGGERATION,
 } from '@/lib/map-style/terrain'
+import { MAX_PITCH } from '@/lib/map-style'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
@@ -163,6 +164,7 @@ export class MapboxStrategy extends MapStrategy {
       bearing,
       pitch,
       zoom,
+      maxPitch: MAX_PITCH,
       attributionControl: false,
       // Disable the engine's built-in north snap — we do north + grid snapping
       // ourselves in map.service (snapRotation) so both settings toggle live.

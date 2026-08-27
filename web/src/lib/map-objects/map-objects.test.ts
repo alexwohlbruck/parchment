@@ -12,7 +12,7 @@ import { resolve } from 'node:path'
 import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
 import { bearingOf, furnitureInstance, FURNITURE_MODELS } from './furniture'
-import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SHADOW } from './index'
+import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE } from './index'
 import { FAR_SUFFIX } from './object-layer'
 
 const MODELS = resolve(__dirname, '../../../public/models')
@@ -305,10 +305,5 @@ describe('flavors', () => {
       const sum = (c: [number, number, number]) => c[0] + c[1] + c[2]
       expect(sum(OBJECT_PALETTE.dark[role]), role).toBeLessThan(sum(OBJECT_PALETTE.light[role]))
     }
-  })
-
-  test('the shadow all but disappears at night', () => {
-    expect(OBJECT_SHADOW.dark[3]).toBeLessThan(OBJECT_SHADOW.light[3])
-    expect(OBJECT_SHADOW.dark[3]).toBeGreaterThan(0)
   })
 })

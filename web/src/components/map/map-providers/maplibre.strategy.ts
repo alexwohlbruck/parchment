@@ -81,7 +81,6 @@ import {
   ObjectLayer,
   OBJECT_MODELS,
   OBJECT_PALETTE,
-  OBJECT_SHADOW,
   OBJECT_SPECS,
 } from '@/lib/map-objects'
 import {
@@ -673,16 +672,13 @@ export class MaplibreStrategy extends MapStrategy {
     const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
     // Already drawing: a flavor change is a uniform, not a rebuild.
     if (map.getLayer(OBJECT_LAYER_ID) && this.objectLayer) {
-      this.objectLayer.setFlavor(OBJECT_PALETTE[flavor], [...OBJECT_SHADOW[flavor]])
-      this.updateSunShadow()
+      this.objectLayer.setFlavor(OBJECT_PALETTE[flavor])
       return flat()
     }
 
     this.objectLayer = new ObjectLayer(OBJECT_SPECS, models, OBJECT_PALETTE[flavor], {
       id: OBJECT_LAYER_ID,
     })
-    this.objectLayer.shadowColor = [...OBJECT_SHADOW[flavor]]
-    this.updateSunShadow()
     // Above the buildings in the layer list, though the depth buffer is what
     // actually decides which is in front — both write depth.
     map.addLayer(this.objectLayer as any)
@@ -765,17 +761,6 @@ export class MaplibreStrategy extends MapStrategy {
     const { lng, lat } = this.mapInstance.getCenter()
     const sun = sunShadow(new Date(), lat, lng)
 
-    // The trees and the buildings have to agree about where the sun is, or a
-    // street throws its shadows two ways at once.
-    if (this.objectLayer) {
-      const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
-      this.objectLayer.sunOffset = [
-        sun.offset[0] * sun.heightScale,
-        sun.offset[1] * sun.heightScale,
-      ]
-      const shadow = OBJECT_SHADOW[flavor]
-      this.objectLayer.shadowColor = [shadow[0], shadow[1], shadow[2], shadow[3] * sun.daylight]
-    }
     if (!layer) return
 
     layer.shadowOffset = sun.offset

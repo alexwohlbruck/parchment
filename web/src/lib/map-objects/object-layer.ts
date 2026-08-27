@@ -15,9 +15,6 @@
  *   LOD        Every model has a cheap far variant. Objects beyond a screen
  *              distance are drawn with it, which is what lets the layer keep
  *              drawing trees out to the horizon instead of culling them.
- *   shadows    One extra quad per object, blended onto the ground and sheared
- *              by the sun — two triangles, not a shadow map.
- *
  * The alternative, three.js behind MapLibre's `CustomLayerInterface`, is the
  * more commonly written one and would have cost ~150KB gzipped. It would also
  * have been a dead end for the native apps: MapLibre Native has no 3D model
@@ -97,53 +94,7 @@ const FS = `
   varying vec3 v_color;
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
 
-/**
- * The shadow: one quad on the ground per object, sheared away from the sun.
- *
- * Not a shadow map, and not the buildings' stencil-and-jump-flood pass either —
- * both are per-frame screen work, and this has to survive a few thousand
- * objects. Two triangles with a radial falloff cost a vertex each and read
- * correctly at map scale, where a tree's shadow is a soft blob under it rather
- * than a silhouette of its branches.
- */
-const SHADOW_VS = `
-  uniform mat4 u_matrix;
-  uniform vec2 u_sunOffset;
-
-  attribute vec2 a_corner;
-  attribute vec3 a_offset;
-  attribute vec3 a_shape;
-
-  varying vec2 v_uv;
-
-  void main() {
-    v_uv = a_corner;
-    // Wider than the object, since a shadow is cast at an angle, and offset
-    // along the sun by a multiple of the object's height.
-    vec2 fall = u_sunOffset * a_shape.x;
-    vec3 world = a_offset + vec3(a_corner * a_shape.y * 0.85 + fall, 0.0);
-    gl_Position = u_matrix * vec4(world, 1.0);
-  }`
-
-const SHADOW_FS = `
-  precision mediump float;
-  uniform vec4 u_shadow;
-  varying vec2 v_uv;
-  void main() {
-    float d = length(v_uv);
-    if (d > 1.0) discard;
-    // Solid through the middle and soft only at the rim. A falloff that starts
-    // at the centre leaves nothing but a faint smudge — the first version of
-    // this squared the term and the shadows were invisible until turned red.
-    float a = u_shadow.a * smoothstep(1.0, 0.35, d);
-    // Premultiplied, which the canvas is. Written straight, the blend below
-    // eats the destination's alpha as well as its colour and the page shows
-    // through — a black shadow at 14% came out *lighter* than the night map
-    // it was cast on.
-    gl_FragColor = vec4(u_shadow.rgb * a, a);
-  }`
-
-const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_corner: 5 }
+const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4 }
 
 /** What a primitive is made of, which is how it gets its colour. */
 export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint'
@@ -244,21 +195,15 @@ export class ObjectLayer {
 
   private map: any
   private program!: WebGLProgram
-  private shadowProgram!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
-  private shadowUniforms: Record<string, WebGLUniformLocation | null> = {}
   private models = new Map<string, ModelBuffers>()
   private instanceBuffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer } | null = null
-  private quad: WebGLBuffer | null = null
   private batches: Batch[] = []
   private origin: [number, number, number] = [0, 0, 0]
   private dirty = true
   private onSourceData?: () => void
 
   enabled = true
-  /** Where the sun throws a shadow, and how dark it lands. See `setFlavor`. */
-  sunOffset: [number, number] = [0.45, -0.45]
-  shadowColor: [number, number, number, number] = [0, 0, 0, 0.22]
 
   constructor(
     private specs: ObjectSourceSpec[],
@@ -277,9 +222,8 @@ export class ObjectLayer {
    * dark one. Because colour lives in a uniform rather than in the model, this
    * is a single call and takes effect on the next frame.
    */
-  setFlavor(palette: ObjectPalette, shadow: [number, number, number, number]) {
+  setFlavor(palette: ObjectPalette) {
     this.palette = palette
-    this.shadowColor = shadow
     for (const model of this.models.values())
       for (const p of model.primitives) p.color = palette[p.role] ?? p.color
     this.map?.triggerRepaint?.()
@@ -290,9 +234,6 @@ export class ObjectLayer {
 
     this.program = link(gl, VS, FS)
     this.uniforms = uniformsOf(gl, this.program, ['u_matrix', 'u_light', 'u_ambient', 'u_color'])
-
-    this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
-    this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_sunOffset', 'u_shadow'])
 
     for (const [name, model] of Object.entries(this.sources)) {
       this.models.set(name, {
@@ -313,7 +254,6 @@ export class ObjectLayer {
       shape: gl.createBuffer()!,
       shade: gl.createBuffer()!,
     }
-    this.quad = this.upload(gl, gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]))
 
     // The source arrives asynchronously and changes as you pan, so the instance
     // list is rebuilt rather than collected once.
@@ -337,7 +277,6 @@ export class ObjectLayer {
       map.off('moveend', this.onSourceData)
     }
     gl.deleteProgram(this.program)
-    gl.deleteProgram(this.shadowProgram)
     for (const model of this.models.values())
       for (const p of model.primitives) {
         gl.deleteBuffer(p.position)
@@ -345,7 +284,6 @@ export class ObjectLayer {
         gl.deleteBuffer(p.index)
       }
     if (this.instanceBuffers) for (const b of Object.values(this.instanceBuffers)) gl.deleteBuffer(b)
-    if (this.quad) gl.deleteBuffer(this.quad)
   }
 
   /**
@@ -462,7 +400,6 @@ export class ObjectLayer {
     // in a tree reads far worse than the cost of drawing 30 more triangles.
     gl.disable(gl.CULL_FACE)
 
-    this.drawShadows(gl, shifted)
     this.drawObjects(gl, shifted)
 
     for (const loc of Object.values(LOC)) {
@@ -474,32 +411,8 @@ export class ObjectLayer {
     const context = this.map.painter?.context
     if (context)
       for (const key of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
-        'depthMask', 'depthFunc', 'depthRange', 'blend', 'blendFunc', 'cullFace'])
+        'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace'])
         if (context[key]) context[key].dirty = true
-  }
-
-  /** Blended onto the ground, before the objects and without writing depth. */
-  private drawShadows(gl: WebGL2RenderingContext, matrix: Float32Array) {
-    if (this.shadowColor[3] <= 0) return
-    gl.useProgram(this.shadowProgram)
-    gl.uniformMatrix4fv(this.shadowUniforms.u_matrix, false, matrix)
-    gl.uniform2fv(this.shadowUniforms.u_sunOffset, this.sunOffset)
-    gl.uniform4fv(this.shadowUniforms.u_shadow, this.shadowColor)
-
-    gl.depthMask(false)
-    gl.enable(gl.BLEND)
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quad!)
-    gl.enableVertexAttribArray(LOC.a_corner)
-    gl.vertexAttribPointer(LOC.a_corner, 2, gl.FLOAT, false, 0, 0)
-    gl.vertexAttribDivisor(LOC.a_corner, 0)
-
-    for (const batch of this.batches) {
-      this.bindInstances(gl, batch)
-      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, batch.count)
-    }
-    gl.disableVertexAttribArray(LOC.a_corner)
   }
 
   private drawObjects(gl: WebGL2RenderingContext, matrix: Float32Array) {

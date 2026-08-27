@@ -41,6 +41,26 @@ describe('terrain-aware building shade', () => {
     expect(source).toContain('if (u_terrain_on < 0.5) return 0.0;')
   })
 
+  /**
+   * Terrain gave the buildings something to lose a depth fight against.
+   *
+   * MapLibre pins `nearZ` at `height / 50` while `farZ` follows the camera, so
+   * the narrow field of view that fakes an orthographic plan view takes the
+   * far-to-near ratio from ~84 to ~5800 — and at that precision a building's
+   * base and the terrain mesh under it land on the same depth value. The
+   * buildings shattered into a flickering mosaic of slivers, top-down only.
+   */
+  test('buildings are biased in front of the ground they stand on', () => {
+    expect(source).toContain('POLYGON_OFFSET_FILL')
+    // Negative, or the bias pushes them the wrong way and makes it worse.
+    const [, factor, units] = /polygonOffset\((-?[\d.]+),\s*(-?[\d.]+)\)/.exec(source) ?? []
+    expect(Number(factor)).toBeLessThan(0)
+    expect(Number(units)).toBeLessThan(0)
+    // And put back afterwards — it is global GL state, and MapLibre draws
+    // every other layer through the same context.
+    expect(source).toContain('gl.disable(gl.POLYGON_OFFSET_FILL)')
+  })
+
   test('the elevation lookup is ESSL1, matching the shaders around it', () => {
     // MapLibre's own prelude uses `texelFetch`/`textureSize`, which are ESSL3
     // only; these shaders are GLSL ES 1.00 and would fail to compile.

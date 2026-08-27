@@ -60,16 +60,5 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   },
 }
 
-/**
- * The contact shadow, per flavor.
- *
- * Daylight throws one; at night there is no sun, so it fades to almost nothing
- * and only enough is left to keep an object from floating.
- */
-export const OBJECT_SHADOW: Record<FlavorId, [number, number, number, number]> = {
-  light: [0, 0, 0, 0.3],
-  dark: [0, 0, 0, 0.14],
-}
-
 export { ObjectLayer } from './object-layer'
 export type { ObjectInstance, ObjectSourceSpec, ObjectPalette } from './object-layer'

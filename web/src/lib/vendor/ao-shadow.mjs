@@ -849,6 +849,25 @@ export class WallShadowLayer {
     gl.cullFace(gl.BACK);
     gl.frontFace(gl.CCW);
 
+    // PARCHMENT: bias the buildings towards the camera, so they always win the
+    // depth test against the ground they are standing on.
+    //
+    // With 3D terrain on, that ground is a real depth-writing mesh directly
+    // under every footprint, and how finely the two can be told apart depends
+    // on the depth buffer's precision. MapLibre pins `nearZ` at `height / 50`
+    // while `farZ` follows the camera's distance, so narrowing the field of
+    // view to fake an orthographic plan view (see `updateCameraProjection`)
+    // pushes the camera far enough back to take the far-to-near ratio from ~84
+    // to ~5800 — and at that point a building base and the terrain under it
+    // quantise to the same depth. Fragments then win or lose at random and the
+    // buildings shatter into a mosaic of slivers that flickers as the camera
+    // moves.
+    //
+    // The offset is constant across every building, so it changes nothing about
+    // which building is in front of which.
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(-2, -8);
+
     gl.useProgram(this._buildProg);
     gl.uniform1f(U.u_band, Math.max(0.01, this.band));
     gl.uniform1f(U.u_strength, this.strength);
@@ -870,6 +889,8 @@ export class WallShadowLayer {
       this._drawSegs(gl, sg);
     }
     this._vao.bind(null);
+    gl.polygonOffset(0, 0); // PARCHMENT
+    gl.disable(gl.POLYGON_OFFSET_FILL); // PARCHMENT
   }
 
   onRemove(_map, gl) {

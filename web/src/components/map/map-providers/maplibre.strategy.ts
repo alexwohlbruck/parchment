@@ -75,6 +75,10 @@ import {
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
+import { TREE_LAYER, TREE_OPACITY } from '@/lib/map-style/detail-layers'
+import { ObjectLayer } from '@/lib/map-objects/object-layer'
+import { loadGlb, type GlbModel } from '@/lib/map-objects/glb'
+import { TREE_MODELS, TREE_OBJECTS } from '@/lib/map-objects/trees'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -146,6 +150,9 @@ const ORTHO_FOV = 0.5
 /** Degrees of pitch over which the plan-view roof outline fades out. */
 const ROOF_EDGE_FADE_PITCH = 8
 
+/** The one custom layer every 3D scene object is drawn by. */
+const OBJECT_LAYER_ID = 'map-objects'
+
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
@@ -160,7 +167,11 @@ export class MaplibreStrategy extends MapStrategy {
   private poiHandlerCleanup: (() => void) | null = null
   /** The two switches gating the building lighting; see `applyBuildingShade`. */
   private buildingShade = true
+  private map3dBuildings = true
   private map3dObjects = true
+  /** Trees and the rest; see `applyMapObjects`. */
+  private objectLayer: ObjectLayer | null = null
+  private objectModels: Promise<Record<string, GlbModel>> | null = null
 
   constructor(
     container: string | HTMLElement,
@@ -278,6 +289,10 @@ export class MaplibreStrategy extends MapStrategy {
       // opacity, so the shading has to be re-added rather than merely left be.
       this.applyBuildingShade()
       this.updateRoofEdge()
+      // A style swap drops custom layers with it, and rebuilds the flat form's
+      // visibility from the stylesheet.
+      this.objectLayer = null
+      void this.applyMapObjects()
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {
@@ -559,7 +574,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
-  setMap3dObjects(value: boolean) {
+  setMap3dBuildings(value: boolean) {
     const buildingLayerId = layerGroups.building3d
     if (!this.mapInstance.getLayer(buildingLayerId)) return
 
@@ -588,8 +603,71 @@ export class MaplibreStrategy extends MapStrategy {
         0,
       )
     }
-    this.map3dObjects = value
+    this.map3dBuildings = value
     this.applyBuildingShade()
+  }
+
+  /**
+   * Trees as models rather than as the flat marks that stand in for them.
+   *
+   * The two forms come from the same vector source, so this is a swap rather
+   * than a load: the circle layer is hidden and the object layer draws the same
+   * features. Models are fetched once, on the first time the setting is turned
+   * on, so a user who never enables it never pays for them.
+   */
+  override setMap3dObjects(value: boolean) {
+    this.map3dObjects = value
+    void this.applyMapObjects()
+  }
+
+  private async applyMapObjects() {
+    const map = this.mapInstance
+    // Muted rather than hidden: see `TREE_OPACITY`.
+    const flat = () => {
+      if (map.getLayer(TREE_LAYER)) {
+        map.setPaintProperty(
+          TREE_LAYER,
+          'circle-opacity',
+          this.map3dObjects ? 0 : TREE_OPACITY,
+        )
+      }
+    }
+
+    if (!this.map3dObjects) {
+      if (this.objectLayer && map.getLayer(this.objectLayer.id)) {
+        map.removeLayer(this.objectLayer.id)
+      }
+      this.objectLayer = null
+      flat()
+      return
+    }
+
+    this.objectModels ??= Promise.all(
+      Object.entries(TREE_MODELS).map(async ([name, url]) => [name, await loadGlb(url)] as const),
+    ).then(entries => Object.fromEntries(entries))
+
+    let models: Record<string, GlbModel>
+    try {
+      models = await this.objectModels
+    } catch (error) {
+      // A model that will not load leaves the flat form drawing, which is a
+      // complete map rather than a hole where the trees were.
+      console.error('3D objects: could not load models', error)
+      this.objectModels = null
+      this.map3dObjects = false
+      flat()
+      return
+    }
+
+    // The setting may have been turned back off, or the style swapped, while
+    // the models were in flight.
+    if (!this.map3dObjects || map.getLayer(OBJECT_LAYER_ID)) return flat()
+
+    this.objectLayer = new ObjectLayer(TREE_OBJECTS, models, { id: OBJECT_LAYER_ID })
+    // Above the buildings in the layer list, though the depth buffer is what
+    // actually decides which is in front — both write depth.
+    map.addLayer(this.objectLayer as any)
+    flat()
   }
 
   override setBuildingShade(value: boolean) {
@@ -617,7 +695,7 @@ export class MaplibreStrategy extends MapStrategy {
     const buildingLayerId = layerGroups.building3d
     if (!this.mapInstance.getLayer(buildingLayerId)) return
 
-    const active = this.buildingShade && this.map3dObjects
+    const active = this.buildingShade && this.map3dBuildings
     const present = !!this.mapInstance.getLayer(BUILDING_SHADE_LAYER_ID)
     if (active && !present) {
       const flavor = this.options.theme === 'dark' ? 'dark' : 'light'

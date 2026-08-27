@@ -16,6 +16,7 @@ import {
   CheckIcon,
   MountainSnowIcon,
   Building2Icon,
+  TreePineIcon,
   MapIcon,
   MilestoneIcon,
   InfoIcon,
@@ -183,8 +184,22 @@ const handleColorChange = (value: any) => {
       :title="$t('settings.mapSettings.configuration.title')"
     >
       <SettingsItem
-        :title="$t('settings.mapSettings.configuration.3dObjects')"
+        :title="$t('settings.mapSettings.configuration.3dBuildings')"
         :icon="Building2Icon"
+      >
+        <Switch
+          :model-value="settings.buildings3d"
+          @update:model-value="mapService.toggle3dBuildings()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPLIBRE"
+        :title="$t('settings.mapSettings.configuration.3dObjects')"
+        :description="
+          $t('settings.mapSettings.configuration.3dObjectsDescription')
+        "
+        :icon="TreePineIcon"
       >
         <Switch
           :model-value="settings.objects3d"

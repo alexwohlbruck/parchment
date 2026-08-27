@@ -153,6 +153,13 @@ export class MapStrategy {
    */
   updateCameraProjection() {}
   setMap3dTerrain(value: boolean) {}
+  /** Extrude the basemap's buildings. */
+  setMap3dBuildings(value: boolean) {}
+  /**
+   * Draw the scene's repeated objects (trees, and later street furniture) as
+   * models rather than as the flat marks that stand in for them. MapLibre only;
+   * Mapbox Standard draws its own and has no hook for ours.
+   */
   setMap3dObjects(value: boolean) {}
   /**
    * Light the 3D buildings — cast shadows on the ground, ambient occlusion in

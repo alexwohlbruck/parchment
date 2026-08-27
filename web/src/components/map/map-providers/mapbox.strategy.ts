@@ -596,7 +596,7 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
-  setMap3dObjects(value: boolean) {
+  setMap3dBuildings(value: boolean) {
     this.mapInstance.setConfigProperty('basemap', 'show3dObjects', value)
   }
 

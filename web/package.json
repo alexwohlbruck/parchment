@@ -29,7 +29,8 @@
     "docker:dev": "docker-compose up --build",
     "docker:prod": "docker build -t parchment-frontend . && docker run -d -p 8080:80 parchment-frontend",
     "build:style": "node scripts/convert-basemap-style.mjs",
-    "build:glyphs": "node scripts/build-glyphs.mjs"
+    "build:glyphs": "node scripts/build-glyphs.mjs",
+    "build:models": "node scripts/build-3d-objects.mjs"
   },
   "trustedDependencies": [
     "@morev/vue-transitions"

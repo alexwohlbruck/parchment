@@ -2,6 +2,7 @@ import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import type { MapStyleId } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
 import spec from './spec.json'
+import { detailSources, parkingLayers, treeLayers } from './detail-layers'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -337,9 +338,33 @@ export function buildLayers(options: {
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
 
-  return base
+  const converted = base
     .map(l => resolve(l, tokens, categories, flavor))
-    .map(l => localize(l, lang)) as LayerSpecification[]
+    .map(l => localize(l, lang))
+
+  return spliceDetailLayers(converted, flavor) as LayerSpecification[]
+}
+
+/**
+ * Splice in the layers that are ours rather than MapTiler's; see
+ * `detail-layers.ts` for why they are not in the spec.
+ *
+ * Parking goes under the pedestrian block, which is itself under the roads: a
+ * lot is the lowest paving on the street, and a path crossing one should draw
+ * over it. Trees go above the buildings, because a tree is an object standing
+ * on the ground rather than part of it — and because that is where the 3D form
+ * has to sit, so the flat and the modelled versions occupy the same slot.
+ */
+function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
+  const out = [...layers]
+
+  const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
+  out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
+
+  const lastBuilding = out.map(l => l['source-layer']).lastIndexOf('building')
+  out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor))
+
+  return out
 }
 
 /** The full street basemap. */
@@ -352,7 +377,10 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     name: `Parchment ${flavor}`,
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
-    sources: { [SOURCE]: vectorSource(tileServerUrl, tileKey) },
+    sources: {
+      [SOURCE]: vectorSource(tileServerUrl, tileKey),
+      ...detailSources(source => buildTileUrl(tileServerUrl, tileKey, source)),
+    },
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),
   } as StyleSpecification

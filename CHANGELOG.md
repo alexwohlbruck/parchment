@@ -1,7 +1,16 @@
 ## [Unreleased]
 
+### Added
+
+* Parking lots are drawn on the map, as paved surfaces with a fine edge. Multi-storey and underground parking are left to the buildings layer, since neither is ground you can see from above
+* Trees on the map, and a "3D objects" switch under Appearance to draw them as actual trees rather than as green dots. Trees are sized, turned and tinted individually — from the tree's own id, so the same tree looks the same every time — and conifers are drawn as conifers where OpenStreetMap says so. The switch is separate from "3D buildings", which used to carry both
+
 ### Changed
 
+* Place markers on the map are drawn the way a place's icon is drawn in its detail panel: a pale tinted disc with the glyph in the deeper shade of the same colour, and an outline to match. The white ring is back, a little wider than before, and it now carries the marker's own colour rather than the map's background — and the soft shadow under it stays, which it could not before, since a map marker only gets one halo and it was spending it on one or the other
+* Buildings hide the one-way arrows on any road they stand over, instead of letting them float across the roof
+* The map tilts further — to 85 degrees, up from 60 — with a sky and a haze at the horizon so a steep view ends in something map-like rather than in nothing
+* 3D buildings stand on the terrain instead of at sea level. With 3D terrain switched on, any ground above sea level swallowed them: over a hill the whole skyline disappeared and only its shadows were left on the slope
 * The map has a new basemap, in daylight and at night. Streets, land, water and labels are drawn the way a professional cartographer set them rather than by darkening the light map with maths — which is what the old night map did, and why it collapsed into one flat field of purple where a motorway and a driveway differed only in shade. Roads now carry a real hierarchy at every zoom, parks and water read as themselves, and labels sit at the weights they should
 * Places on the map wear proper icons, coloured by what they are — and by the same palette the app already uses for search results, so a café you find by searching and the same café drawn on the map finally match
 * Map labels are set in Geist — the same typeface as the rest of the app — served from Parchment itself rather than fetched from someone else's font server on every pan. Transit stop names are set a weight heavier, so a stop stands out from the street names around it

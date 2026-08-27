@@ -83,6 +83,13 @@ export interface MapSettings {
   camera?: MapCamera
   projection: MapProjection
   terrain3d: boolean
+  /** Extrude the basemap's buildings. */
+  buildings3d: boolean
+  /**
+   * Draw the scene's repeated objects — trees today, street furniture later —
+   * as models rather than as the flat marks that stand in for them. Split from
+   * `buildings3d`, which used to carry both.
+   */
   objects3d: boolean
   poiLabels: boolean
   roadLabels: boolean

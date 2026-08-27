@@ -31,6 +31,7 @@ const defaultSettings: MapSettings = {
   mapStyle: 'parchment',
   poiStyle: 'badge',
   terrain3d: false,
+  buildings3d: true,
   objects3d: true,
   poiLabels: true,
   roadLabels: true,
@@ -74,6 +75,15 @@ export const useMapStore = defineStore('map', () => {
   }
 
   const settings = useStorage<MapSettings>('map', defaultSettings)
+
+  // One-time split of the single "3D objects" switch into buildings and scene
+  // objects. `useStorage` returns the stored object as-is rather than merging
+  // new defaults into it, so without this an existing install would come back
+  // with `buildings3d` undefined and its skyline flat.
+  if (settings.value.buildings3d === undefined) {
+    settings.value.buildings3d = settings.value.objects3d ?? true
+  }
+  if (settings.value.objects3d === undefined) settings.value.objects3d = true
   const controlSettings = useStorage<MapControlSettings>(
     'map-controls',
     getDefaultControlSettings(),

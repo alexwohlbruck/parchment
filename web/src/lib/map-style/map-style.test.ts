@@ -15,6 +15,7 @@ import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups, MAX_PITCH
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { terrainSource } from './terrain'
+import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -656,6 +657,57 @@ describe('assembled styles', () => {
     expect((buildSatelliteStyle({ ...opts, theme: 'dark' }) as any).sky).toEqual(
       (buildMapStyle({ ...opts, theme: 'light' }) as any).sky,
     )
+  })
+
+  /**
+   * Parking and trees are ours rather than MapTiler's, and come from their own
+   * Barrelman sources — OpenMapTiles carries neither. See `detail-layers.ts`.
+   */
+  describe('map detail', () => {
+    const style = buildMapStyle({ ...opts, theme: 'light' })
+    const at = (id: string) => style.layers.findIndex(l => l.id === id)
+
+    test('the detail sources are declared and separate from the basemap', () => {
+      expect(Object.keys(style.sources)).toContain('parking')
+      expect(Object.keys(style.sources)).toContain('trees')
+      for (const id of ['Parking', 'Parking outline', 'Trees']) expect(at(id)).toBeGreaterThan(-1)
+    })
+
+    test('parking is the lowest paving on the street', () => {
+      // Under the pedestrian block, and so under the roads too: a path
+      // crossing a lot is drawn over it, not scored through it.
+      expect(at('Parking')).toBeLessThan(at('Pedestrian area outline'))
+      expect(at('Parking outline')).toBeLessThan(at('Pedestrian area outline'))
+      expect(at('Parking')).toBeLessThan(at('Parking outline'))
+    })
+
+    test('multi-storey and underground parking are not painted as ground', () => {
+      // The first is a building the basemap already draws; the second is not
+      // visible from above. Either one drawn flat puts a slab over a tower.
+      const layer = style.layers.find(l => l.id === 'Parking')! as any
+      const filter = featureFilter(layer.filter as any, 'Parking.filter')
+      const evaluate = (parking: string) =>
+        filter.filter({ zoom: 16 } as any, { properties: { parking }, type: 3 } as any, {} as any)
+      expect(evaluate('surface')).toBe(true)
+      expect(evaluate('multi-storey')).toBe(false)
+      expect(evaluate('underground')).toBe(false)
+    })
+
+    test('trees stand above the buildings, where the models have to sit', () => {
+      const lastBuilding = style.layers.map(l => (l as any)['source-layer']).lastIndexOf('building')
+      expect(at('Trees')).toBeGreaterThan(lastBuilding)
+    })
+
+    /**
+     * The 3D form reads its instances out of the same tiles the flat form
+     * draws, so hiding the circles with `visibility` would stop the source
+     * loading and leave the models with nothing to place.
+     */
+    test('the flat tree form can be muted without unloading its source', () => {
+      const trees = style.layers.find(l => l.id === 'Trees')!
+      expect(trees.layout?.visibility).toBeUndefined()
+      expect(trees.paint!['circle-opacity']).toEqual(TREE_OPACITY)
+    })
   })
 
   test('hybrid keeps labels and arterials over the imagery, nothing else', () => {

@@ -124,6 +124,9 @@ export const usePortolanTransitStore = defineStore('portolan-transit', () => {
     } else {
       portolanService.teardownPortolanTransit()
     }
+    // The basemap's OSM stops stand down while the feed's own stops are drawn,
+    // or every station gets two near-duplicate markers a few metres apart.
+    mapStrategy?.setBasemapTransitPoisVisible(!on)
   })
 
   watch(serviceDate, d => {
@@ -138,6 +141,9 @@ export const usePortolanTransitStore = defineStore('portolan-transit', () => {
    *  portolan sources/layers; the service re-adds idempotently). */
   function handleStyleLoad(strategy: MapStrategy | undefined) {
     mapStrategy = strategy
+    // A style swap rebuilds every layer with its original filter, so this has
+    // to be reapplied whether the group is on or off.
+    strategy?.setBasemapTransitPoisVisible(!active.value)
     if (!active.value) return
     portolanService.initializePortolanTransit(strategy)
     applyFilters()

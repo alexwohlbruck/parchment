@@ -26,6 +26,14 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['@morev/vue-transitions'],
+    // MapLibre 6 is ESM-only and loads its worker as a real URL rather than a
+    // blob — `new Worker(new URL('./maplibre-gl-worker.mjs', import.meta.url))`.
+    // Pre-bundling rewrites that module into `.vite/deps/`, where the worker
+    // file does not exist, so the request comes back empty and the map never
+    // starts: "Loading Worker ... blocked because of a disallowed MIME type".
+    // Excluding it serves the package's own ESM straight from node_modules, so
+    // the worker URL resolves next to the module that asks for it.
+    exclude: ['maplibre-gl'],
   },
   server: {
     port: parseInt(process.env.VITE_PORT || '5173'),

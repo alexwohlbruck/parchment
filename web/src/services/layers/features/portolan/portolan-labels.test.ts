@@ -13,7 +13,7 @@
  * letters its own street names with.
  */
 import { describe, test, expect } from 'vitest'
-import { buildMapStyle, buildSatelliteStyle } from '@/lib/basemap-style'
+import { buildMapStyle, buildSatelliteStyle } from '@/lib/map-style'
 import {
   basemapTextColors,
   darkFromLightPreset,
@@ -28,8 +28,6 @@ const opts = { tileServerUrl: 'https://example.test/tiles' }
 const STYLES: Array<[string, () => any]> = [
   ['street light', () => buildMapStyle({ ...opts, theme: 'light' } as any)],
   ['street dark', () => buildMapStyle({ ...opts, theme: 'dark' } as any)],
-  ['street light (openmaptiles)', () => buildMapStyle({ ...opts, theme: 'light', mapStyle: 'osm-openmaptiles' } as any)],
-  ['street dark (openmaptiles)', () => buildMapStyle({ ...opts, theme: 'dark', mapStyle: 'osm-openmaptiles' } as any)],
   ['hybrid', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: true } as any)],
   ['satellite', () => buildSatelliteStyle({ ...opts, theme: 'light', hybrid: false } as any)],
 ]

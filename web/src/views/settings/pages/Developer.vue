@@ -27,6 +27,7 @@ import {
   XIcon,
 } from 'lucide-vue-next'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+import BuildingShadeSection from './developer/BuildingShadeSection.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -422,6 +423,8 @@ onMounted(() => {
         </div>
       </SettingsItem>
     </SettingsSection>
+
+    <BuildingShadeSection />
 
     <SettingsSection
       id="dev-info"

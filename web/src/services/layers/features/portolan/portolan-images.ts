@@ -219,16 +219,23 @@ let measureCtx: CanvasRenderingContext2D | null = null
 
 /**
  * Turn a MapLibre font stack into a CSS font the canvas can measure with.
- * "Roboto Condensed Italic" is a family plus modifiers, not a CSS family,
- * so the modifiers have to come off the end and become weight and style
- * or the measurement runs in the wrong face entirely.
+ * "Geist SemiBold" is a family plus a weight, not a CSS family, so the
+ * modifiers have to come off the end and become weight and style or the
+ * measurement runs in the wrong face entirely.
  */
 /** What the atlas measured with, kept as the fallback when no basemap
  *  font is available yet. */
-const MEASURE_FONT = '500 100px Roboto, system-ui, sans-serif'
+const MEASURE_FONT = '500 100px "Geist Sans", system-ui, sans-serif'
+
+/**
+ * The glyph stacks are named for the family; the webfont is named for the
+ * @fontsource package. They are not the same string, and a canvas asked for
+ * the wrong one silently measures a substitute.
+ */
+const CSS_FAMILY: Record<string, string> = { Geist: 'Geist Sans' }
 
 export function cssFontFor(stack: string[], sizePx = 100): string {
-  const name = stack[0] ?? 'Roboto Medium'
+  const name = stack[0] ?? 'Geist Medium'
   const words = name.split(/\s+/)
   const WEIGHTS: Record<string, number> = {
     Thin: 100, Light: 300, Regular: 400, Book: 400, Medium: 500,
@@ -247,7 +254,8 @@ export function cssFontFor(stack: string[], sizePx = 100): string {
     } else break
   }
   const family = words.join(' ')
-  return `${style} ${weight} ${sizePx}px "${family}", Roboto, system-ui, sans-serif`.trim()
+  const css = CSS_FAMILY[family] ?? family
+  return `${style} ${weight} ${sizePx}px "${css}", system-ui, sans-serif`.trim()
 }
 
 /**
@@ -320,9 +328,11 @@ export function estRows(name: string, cssFont = MEASURE_FONT): number {
   // text-max-width is 10 em, measured here at 1 em = 100 px.
   //
   // The slack matters. This canvas can only measure a face the BROWSER
-  // has, while the map shapes with glyphs from the tile server's endpoint
-  // — parchment loads no Roboto webfont, so a request for it measures as
-  // whatever the system substitutes, and substitutes are typically wider.
+  // has, while the map shapes with glyphs from our own glyph endpoint.
+  // Those are now the same typeface — parchment loads Geist Sans at the
+  // weights the stacks are built from, so the substitution this used to
+  // suffer is gone — but they are still not the same rasteriser, and a
+  // browser face and an SDF differ by a fraction of a per cent.
   // Measuring wide means predicting a wrap that never happens, and the
   // bullet strip — which hangs below the last row — then floats a whole
   // line clear of a name that fitted. Erring the other way costs a few

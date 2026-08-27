@@ -249,25 +249,32 @@ describe('cssFontFor', () => {
   // A row estimate measured in the wrong face reports a wrap that never
   // happens, and the bullet strip drops a line below a one-line name.
   test('splits MapLibre font modifiers into CSS weight and style', () => {
-    expect(cssFontFor(['Roboto Condensed Italic'])).toBe(
-      'italic 400 100px "Roboto Condensed", Roboto, system-ui, sans-serif',
+    expect(cssFontFor(['Geist SemiBold'])).toBe(
+      '600 100px "Geist Sans", system-ui, sans-serif',
     )
-    expect(cssFontFor(['Roboto Medium'])).toBe(
-      '500 100px "Roboto", Roboto, system-ui, sans-serif',
+    expect(cssFontFor(['Geist Medium'])).toBe(
+      '500 100px "Geist Sans", system-ui, sans-serif',
     )
     expect(cssFontFor(['Noto Sans Bold'])).toBe(
-      '700 100px "Noto Sans", Roboto, system-ui, sans-serif',
+      '700 100px "Noto Sans", system-ui, sans-serif',
     )
+  })
+
+  // The glyph stacks are named for the family, the webfont for the
+  // @fontsource package. Measuring in "Geist" rather than "Geist Sans"
+  // silently falls through to a system substitute.
+  test('maps the glyph family onto the webfont family', () => {
+    expect(cssFontFor(['Geist Regular'])).toContain('"Geist Sans"')
   })
 
   test('keeps a bare family intact and honours the size', () => {
-    expect(cssFontFor(['Inter'], 24)).toBe('400 24px "Inter", Roboto, system-ui, sans-serif')
+    expect(cssFontFor(['Inter'], 24)).toBe('400 24px "Inter", system-ui, sans-serif')
   })
 
   test('falls back to the default face when the stack is empty', () => {
-    // the fallback NAME is "Roboto Medium", which parses the same way
-    // everything else does: family Roboto, weight 500
-    expect(cssFontFor([])).toBe('500 100px "Roboto", Roboto, system-ui, sans-serif')
+    // the fallback NAME is "Geist Medium", which parses the same way
+    // everything else does: family Geist, weight 500
+    expect(cssFontFor([])).toBe('500 100px "Geist Sans", system-ui, sans-serif')
   })
 })
 

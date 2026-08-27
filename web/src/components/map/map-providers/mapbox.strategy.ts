@@ -41,6 +41,12 @@ import { parseMapboxToOsmId } from '@/lib/map.utils'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
+import {
+  terrainSource,
+  TERRAIN_SOURCE_ID,
+  TERRAIN_EXAGGERATION,
+} from '@/lib/map-style/terrain'
+import { MAX_PITCH } from '@/lib/map-style'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
@@ -158,6 +164,7 @@ export class MapboxStrategy extends MapStrategy {
       bearing,
       pitch,
       zoom,
+      maxPitch: MAX_PITCH,
       attributionControl: false,
       // Disable the engine's built-in north snap — we do north + grid snapping
       // ourselves in map.service (snapRotation) so both settings toggle live.
@@ -203,6 +210,7 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
+      this.updateCameraProjection()
     })
     this.mapInstance.on('move', () => {
       mapEventBus.emit('move', {
@@ -546,29 +554,49 @@ export class MapboxStrategy extends MapStrategy {
     )
   }
 
+  /**
+   * Mapbox has a real orthographic camera, and decides for itself when to use
+   * it: `camera-projection: orthographic` means "orthographic below 15° of
+   * pitch", falling back to perspective above that. So there is nothing to do
+   * on pitch — but it is a STYLE property rather than a map option, so a
+   * basemap or theme switch drops it and it has to be set again.
+   *
+   * Not supported under the globe projection, where the engine keeps
+   * perspective regardless of this setting.
+   */
+  override updateCameraProjection() {
+    this.mapInstance.setCamera({ 'camera-projection': 'orthographic' })
+  }
+
   setMapProjection(projection: MapProjection) {
     this.mapInstance.setProjection(projection)
   }
 
+  /**
+   * The same elevation data the MapLibre engine uses, rather than
+   * `mapbox://mapbox.terrain-rgb`.
+   *
+   * Both engines read `terrarium` tiles, and sharing one source is what keeps
+   * the two from disagreeing about the shape of a hill when you switch between
+   * them. It also drops a Mapbox-token dependency from a feature that no longer
+   * needs one. See `lib/map-style/terrain`.
+   */
   setMap3dTerrain(value: boolean) {
-    const existingTerrainSource = this.mapInstance.getSource('mapbox-dem')
+    const present = !!this.mapInstance.getSource(TERRAIN_SOURCE_ID)
 
-    if (value && !existingTerrainSource) {
-      this.mapInstance.addSource('mapbox-dem', {
-        type: 'raster-dem',
-        url: 'mapbox://mapbox.terrain-rgb',
-      })
+    if (value && !present) {
+      this.mapInstance.addSource(TERRAIN_SOURCE_ID, terrainSource() as any)
       this.mapInstance.setTerrain({
-        source: 'mapbox-dem',
-        exaggeration: value ? 1 : 0,
+        source: TERRAIN_SOURCE_ID,
+        exaggeration: TERRAIN_EXAGGERATION,
       })
-    } else if (!value && existingTerrainSource) {
-      this.mapInstance.setTerrain()
-      this.mapInstance.removeSource('mapbox-dem')
+    } else if (!value && present) {
+      this.mapInstance.setTerrain(null)
+      this.mapInstance.removeSource(TERRAIN_SOURCE_ID)
     }
   }
 
-  setMap3dObjects(value: boolean) {
+  setMap3dBuildings(value: boolean) {
     this.mapInstance.setConfigProperty('basemap', 'show3dObjects', value)
   }
 

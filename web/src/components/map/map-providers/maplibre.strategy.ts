@@ -70,6 +70,7 @@ import {
   layerGroups,
   BUILDING_HEIGHT_EXPRESSION,
   BUILDING_BASE_EXPRESSION,
+  BUILDING_ROOF_EDGE_LAYER,
 } from '@/lib/map-style'
 import {
   rgbToHex,
@@ -133,6 +134,9 @@ const TOP_DOWN_EPSILON = 0.001
 
 /** Narrow enough to be indistinguishable from a true orthographic camera. */
 const ORTHO_FOV = 0.5
+
+/** Degrees of pitch over which the plan-view roof outline fades out. */
+const ROOF_EDGE_FADE_PITCH = 8
 
 
 export class MaplibreStrategy extends MapStrategy {
@@ -259,6 +263,7 @@ export class MaplibreStrategy extends MapStrategy {
       // A style swap drops the custom layer and restores the extrusion's own
       // opacity, so the shading has to be re-added rather than merely left be.
       this.applyBuildingShade()
+      this.updateRoofEdge()
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {
@@ -752,11 +757,30 @@ export class MaplibreStrategy extends MapStrategy {
     // Not `=== 0`: an eased pitch animation can settle a hair off zero, and
     // the view is still flat on at a thousandth of a degree.
     const topDown = Math.abs(this.mapInstance.getPitch()) < TOP_DOWN_EPSILON
+    this.updateRoofEdge()
     const wanted = topDown ? ORTHO_FOV : this.defaultFov
     // `pitch` fires continuously through a gesture; setting the field of view
     // recomputes every matrix, so only touch it when the answer changes.
     if (Math.abs(current - wanted) < 0.001) return
     this.mapInstance.setVerticalFieldOfView(wanted)
+  }
+
+  /**
+   * Fade the footprint outline in as the camera flattens.
+   *
+   * The shader's roofline edge lives on the top of each wall, which disappears
+   * along with the walls in a plan view. The footprint is the same line seen
+   * from above — but only while the camera is orthographic, since a tilted
+   * camera separates the two and the outline slides off onto the ground. So it
+   * is tied to pitch, arriving over the last few degrees before flat rather
+   * than snapping on, and there is no `["pitch"]` expression to do it in the
+   * style.
+   */
+  private updateRoofEdge() {
+    if (!this.mapInstance.getLayer(BUILDING_ROOF_EDGE_LAYER)) return
+    const pitch = Math.abs(this.mapInstance.getPitch())
+    const opacity = 1 - Math.min(pitch / ROOF_EDGE_FADE_PITCH, 1)
+    this.mapInstance.setPaintProperty(BUILDING_ROOF_EDGE_LAYER, 'line-opacity', opacity)
   }
 
   private defaultFov?: number

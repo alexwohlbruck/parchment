@@ -3133,6 +3133,33 @@
    ]
   },
   {
+   "id": "Building roof edge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "building",
+   "minzoom": 15,
+   "layout": {
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "@building_roof_edge",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     15,
+     0.5,
+     18,
+     1.1
+    ],
+    "line-opacity": 0
+   }
+  },
+  {
    "id": "Aqueduct outline",
    "type": "line",
    "source": "openmaptiles",
@@ -3896,18 +3923,19 @@
      0
     ],
     "icon-rotation-alignment": "map",
-    "icon-size": {
-     "stops": [
-      [
-       16,
-       0.7
-      ],
-      [
-       19,
-       1
-      ]
-     ]
-    },
+    "icon-size": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     16,
+     0.34,
+     19,
+     0.55
+    ],
     "symbol-placement": "line",
     "symbol-spacing": 75,
     "text-font": [

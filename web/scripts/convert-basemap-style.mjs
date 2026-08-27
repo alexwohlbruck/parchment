@@ -50,6 +50,9 @@ import { buildingColor, BUILDING_CHROMA } from '../src/lib/map-style/building-co
 
 const SOURCE = 'openmaptiles'
 
+/** Footprint outline that stands in for the roofline in the plan view. */
+const BUILDING_ROOF_EDGE_LAYER = 'Building roof edge'
+
 /** How much zoom the buildings take to grow in, past the layer's minzoom. */
 const BUILDING_GROW_ZOOM = 0.4
 
@@ -611,6 +614,20 @@ async function main() {
       buildingLayerId = out.id
     }
 
+    // One-way arrows sit inside the road casing rather than overhanging it.
+    // The sprite is 21px square, so MapTiler's 0.7-1.0 draws a 15-21px arrow —
+    // wider than a residential street is at the zooms this layer switches on
+    // at, which is why they read as arrows floating over the map rather than as
+    // markings painted on the road. Roughly half that keeps them inside it.
+    // Written as an interpolate rather than the legacy stops function it
+    // replaces: style-spec 25 warns on those.
+    if (layer.id === 'Oneway') {
+      out.layout = {
+        ...out.layout,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 16, 0.34, 19, 0.55],
+      }
+    }
+
     // Every shield falls back to the generic rectangle, tinted per flavor.
     if (SHIELD_LAYERS.has(layer.id)) {
       const prefix = layer.id === 'Highway junction' ? 'exit' : 'road'
@@ -622,6 +639,36 @@ async function main() {
     }
 
     layers.push(out)
+  }
+
+  // The roofline edge, for the plan view.
+  //
+  // The shader draws that edge on the top of each *wall*, which is exactly
+  // right when the camera is tilted and useless when it is not: looking
+  // straight down there are no walls on screen, only roofs, and the buildings
+  // lose their outlines. A line on the footprint is the missing half — under
+  // the orthographic top-down camera a roof sits precisely over its own
+  // footprint, so the two coincide.
+  //
+  // It is only correct at that angle, though. Tilt at all and the footprint
+  // separates from the roof and the line reads as a smear on the ground, so its
+  // opacity is driven from `maplibre.strategy` on pitch rather than being
+  // baked here. Starting at 0 keeps it invisible until that runs.
+  const building3d = layers.findIndex(l => l.type === 'fill-extrusion')
+  if (building3d >= 0) {
+    layers.splice(building3d + 1, 0, {
+      id: BUILDING_ROOF_EDGE_LAYER,
+      type: 'line',
+      source: SOURCE,
+      'source-layer': 'building',
+      minzoom: layers[building3d].minzoom ?? 15,
+      layout: { 'line-join': 'round' },
+      paint: {
+        'line-color': '@building_roof_edge',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 15, 0.5, 18, 1.1],
+        'line-opacity': 0,
+      },
+    })
   }
 
   // Rewriting the POI layers strands MapTiler's 11 family colours, which
@@ -695,6 +742,10 @@ async function main() {
   //   dark    hsl(216, 37%, 24%)  hsl(217, 32%, 32%)
   tokens.light.building_3d_fill_extrusion_color = 'hsl(45, 52%, 97%)'
   tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
+
+  // Matches the shader's roofline edge: darker than the roof it outlines.
+  tokens.light.building_roof_edge = 'hsl(45, 18%, 76%)'
+  tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when
   // the glyph-only style is selected. Emitted rather than duplicating every

@@ -177,6 +177,9 @@ const buildingLayer = specLayers.find(l => l.type === 'fill-extrusion')
 export const BUILDING_HEIGHT_EXPRESSION = buildingLayer?.paint?.['fill-extrusion-height']
 export const BUILDING_BASE_EXPRESSION = buildingLayer?.paint?.['fill-extrusion-base']
 
+/** The footprint outline that stands in for the roofline looking straight down. */
+export const BUILDING_ROOF_EDGE_LAYER = 'Building roof edge'
+
 /** OpenMapTiles property names for building extrusion height. */
 export const BUILDING_HEIGHT_PROPERTY = 'render_height'
 export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'

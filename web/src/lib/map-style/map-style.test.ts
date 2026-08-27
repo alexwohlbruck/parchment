@@ -123,6 +123,82 @@ describe('flavors', () => {
     expect(differing.length).toBeGreaterThan(Object.keys(light).length * 0.6)
   })
 
+  /**
+   * Every layer's dark colour has to be the one MapTiler paints it, not one it
+   * inherited from an unrelated layer that happened to agree in daylight.
+   *
+   * This is the invariant the tokenizer exists to hold and the one it quietly
+   * broke: it deduplicated on the light colour alone, so the first layer to
+   * claim a colour also decided what everything else painted that colour would
+   * look like at night. White is where that bites — MapTiler paints sixteen
+   * unrelated things white in daylight, and all sixteen took glacier blue,
+   * including minor roads, runways, cable cars, and the halo behind every
+   * label on the map. Nothing about the light map changed, so nothing showed
+   * it except the night map looking oddly blue.
+   *
+   * Checked against the vendored source rather than against a snapshot,
+   * because a snapshot of the wrong values is just as green.
+   */
+  test('a dark colour belongs to its own layer, not to whichever shared its light one', () => {
+    const vendor = (file: string) =>
+      JSON.parse(readFileSync(resolvePath(WEB, 'scripts/vendor', file), 'utf8'))
+    const darkStyle = vendor('maptiler-streets-v2-dark.json')
+    const byId = new Map<string, any>(darkStyle.layers.map((l: any) => [l.id, l]))
+
+    /** Every colour literal in a value, in document order — the pairing order. */
+    const colorsIn = (value: any, out: string[] = []): string[] => {
+      if (typeof value === 'string' && /^(#|rgba?\(|hsla?\()/.test(value.trim())) out.push(value.trim())
+      else if (Array.isArray(value)) value.forEach(v => colorsIn(v, out))
+      else if (value && typeof value === 'object') Object.values(value).forEach(v => colorsIn(v, out))
+      return out
+    }
+    const tokensIn = (value: any, out: string[] = []): string[] => {
+      if (typeof value === 'string' && value.startsWith('@')) out.push(value.slice(1))
+      else if (Array.isArray(value)) value.forEach(v => tokensIn(v, out))
+      else if (value && typeof value === 'object') Object.values(value).forEach(v => tokensIn(v, out))
+      return out
+    }
+
+    /**
+     * Tokens we author rather than lift — the tail of `convert-basemap-style`
+     * overwrites these after tokenizing, so MapTiler's value is not the answer
+     * for them and never was.
+     */
+    const authored =
+      /^(poi_|road_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$)/
+
+    const wrong: string[] = []
+    let checked = 0
+    for (const layer of layers) {
+      const source = byId.get(layer.id)
+      if (!source) continue
+      for (const section of ['paint', 'layout'] as const) {
+        for (const [prop, value] of Object.entries(layer[section] ?? {})) {
+          const expected = colorsIn(source[section]?.[prop])
+          const used = tokensIn(value)
+          // Only where both sides carry the same number of colours: our layer
+          // rewrites (shields, POIs, pedestrian surfaces) deliberately diverge.
+          if (!used.length || used.length !== expected.length) continue
+          used.forEach((token, i) => {
+            if (authored.test(token)) return
+            checked++
+            if (dark[token] !== expected[i]) {
+              wrong.push(`${layer.id}.${prop}[${i}] is ${dark[token]}, MapTiler paints ${expected[i]}`)
+            }
+          })
+        }
+      }
+    }
+
+    // A floor, so a change that silently stops pairing anything at all — a
+    // renamed layer, a restructured section — fails here instead of passing
+    // vacuously with an empty `wrong`. Well under the ~77 lifted colours left
+    // once the authored ones are set aside, since authoring more of the map is
+    // a normal thing to do and should not need this number revisited.
+    expect(checked).toBeGreaterThan(50)
+    expect(wrong).toEqual([])
+  })
+
   test('the ground inverts between flavors', () => {
     const bg = Object.keys(light).filter(k => k.startsWith('background_'))
     expect(bg.length).toBeGreaterThan(0)

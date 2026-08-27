@@ -42,11 +42,17 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
  * way it looks at noon. These are linear RGB, matching the models' own
  * `baseColorFactor`, and the layer resolves them per draw rather than baking
  * them in: switching theme is a uniform, not a reload.
+ *
+ * Daylight foliage is a fresh mid-green rather than the forest green it was.
+ * Every face is then darkened by the half-lambert term and by the instance's
+ * own `shade`, so a value chosen to look right on its own comes out several
+ * steps heavier on the map — these are picked for where they land after that,
+ * not for where they read in a swatch.
  */
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
-    bark: [0.38, 0.29, 0.23],
-    foliage: [0.34, 0.55, 0.28],
+    bark: [0.55, 0.42, 0.32],
+    foliage: [0.5, 0.72, 0.4],
     metal: [0.46, 0.49, 0.51],
     wood: [0.56, 0.42, 0.29],
     paint: [0.24, 0.44, 0.32],

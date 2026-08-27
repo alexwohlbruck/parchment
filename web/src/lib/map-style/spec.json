@@ -409,7 +409,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@river_tunnel_line_color",
+    "line-color": "@river_line_color",
     "line-width": {
      "stops": [
       [
@@ -486,7 +486,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@glacier_fill_color",
+    "line-color": "@aeroway_line_color",
     "line-width": [
      "interpolate",
      [
@@ -535,7 +535,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "fill-color": "@glacier_fill_color",
+    "fill-color": "@heliport_fill_color",
     "fill-opacity": 1
    },
    "filter": [
@@ -624,14 +624,16 @@
       "get",
       "class"
      ],
-     "motorway",
-     "@tunnel_outline_line_color",
+     [
+      "motorway"
+     ],
+     "@road_highway_casing",
      [
       "trunk",
       "primary"
      ],
-     "@tunnel_outline_line_color",
-     "@tunnel_outline_line_color_2"
+     "@road_major_casing",
+     "@road_minor_casing"
     ],
     "line-dasharray": [
      0.5,
@@ -865,14 +867,16 @@
       "get",
       "class"
      ],
-     "motorway",
-     "@tunnel_line_color",
+     [
+      "motorway"
+     ],
+     "@road_highway",
      [
       "trunk",
       "primary"
      ],
-     "@tunnel_line_color_2",
-     "@tunnel_line_color_3"
+     "@road_major",
+     "@road_minor"
     ],
     "line-opacity": 1,
     "line-width": [
@@ -1217,7 +1221,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@glacier_fill_color",
+    "line-color": "@footway_tunnel_outline_line_color",
     "line-opacity": 1,
     "line-width": {
      "base": 1.2,
@@ -1345,7 +1349,7 @@
    },
    "paint": {
     "fill-antialias": true,
-    "fill-color": "@background_background_color_2"
+    "fill-color": "@pier_fill_color"
    },
    "filter": [
     "all",
@@ -1372,7 +1376,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@background_background_color_2",
+    "line-color": "@pier_fill_color",
     "line-width": {
      "base": 1.2,
      "stops": [
@@ -1494,7 +1498,7 @@
    },
    "paint": {
     "fill-antialias": true,
-    "fill-color": "@background_background_color_2",
+    "fill-color": "@pier_fill_color",
     "fill-opacity": 0.6
    },
    "filter": [
@@ -1818,7 +1822,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@tunnel_outline_line_color_2",
+    "line-color": "@road_minor_casing",
     "line-opacity": 1,
     "line-width": [
      "interpolate",
@@ -1967,7 +1971,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@tunnel_outline_line_color",
+    "line-color": "@road_major_casing",
     "line-opacity": 1,
     "line-width": [
      "interpolate",
@@ -2084,7 +2088,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@tunnel_outline_line_color",
+    "line-color": "@road_highway_casing",
     "line-opacity": 1,
     "line-width": [
      "interpolate",
@@ -2225,14 +2229,16 @@
       "get",
       "class"
      ],
-     "motorway_construction",
-     "@tunnel_line_color",
+     [
+      "motorway_construction"
+     ],
+     "@road_highway",
      [
       "trunk_construction",
       "primary_construction"
      ],
-     "@road_under_construction_line_color",
-     "@glacier_fill_color"
+     "@road_major",
+     "@road_minor"
     ],
     "line-dasharray": [
      2,
@@ -2486,7 +2492,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@glacier_fill_color",
+    "line-color": "@road_minor",
     "line-width": [
      "interpolate",
      [
@@ -2634,19 +2640,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": [
-     "interpolate",
-     [
-      "linear"
-     ],
-     [
-      "zoom"
-     ],
-     6,
-     "@major_road_line_color",
-     8,
-     "@major_road_line_color_2"
-    ],
+    "line-color": "@road_major",
     "line-width": [
      "interpolate",
      [
@@ -2760,7 +2754,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@major_road_line_color",
+    "line-color": "@road_highway",
     "line-width": [
      "interpolate",
      [
@@ -3529,7 +3523,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@water_fill_color",
+    "line-color": "@aqueduct_line_color",
     "line-width": {
      "base": 1.3,
      "stops": [
@@ -3570,7 +3564,7 @@
    },
    "paint": {
     "line-blur": 1,
-    "line-color": "@glacier_fill_color",
+    "line-color": "@cablecar_line_color",
     "line-width": {
      "base": 1,
      "stops": [
@@ -4074,7 +4068,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "text-color": "@river_labels_text_color",
+    "text-color": "@lake_labels_text_color",
     "text-halo-color": "@lake_labels_text_halo_color",
     "text-halo-width": 1.5
    },
@@ -4166,7 +4160,7 @@
    "paint": {
     "text-color": "@gondola_text_color",
     "text-halo-blur": 1,
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@cablecar_line_color",
     "text-halo-width": 1
    },
    "filter": [
@@ -4219,7 +4213,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "text-color": "@river_labels_text_color",
+    "text-color": "@ferry_text_color",
     "text-halo-blur": 0.5,
     "text-halo-color": "@ferry_text_halo_color",
     "text-halo-width": 1
@@ -4300,7 +4294,7 @@
     "icon-color": "@road_labels_icon_color",
     "text-color": "@road_labels_icon_color",
     "text-halo-blur": 0.5,
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@footway_tunnel_outline_line_color",
     "text-halo-width": 1
    },
    "filter": [
@@ -13515,7 +13509,7 @@
    },
    "paint": {
     "text-color": "@place_labels_text_color",
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@place_labels_text_halo_color",
     "text-halo-width": 1.2,
     "text-opacity": [
      "step",
@@ -14476,7 +14470,7 @@
    "paint": {
     "text-color": "@gondola_text_color",
     "text-halo-blur": 0.5,
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@cablecar_line_color",
     "text-halo-width": 1
    },
    "filter": [
@@ -14599,7 +14593,7 @@
     "visibility": "visible"
    },
    "paint": {
-    "icon-color": "@station_icon_color",
+    "icon-color": "@airport_icon_color",
     "icon-halo-blur": [
      "interpolate",
      [
@@ -14615,7 +14609,7 @@
      12,
      0
     ],
-    "icon-halo-color": "@highway_shield_icon_color",
+    "icon-halo-color": "@public_icon_halo_color",
     "icon-halo-width": [
      "interpolate",
      [
@@ -14630,7 +14624,7 @@
      2
     ],
     "icon-opacity": 1,
-    "text-color": "@station_icon_color",
+    "text-color": "@airport_icon_color",
     "text-halo-blur": [
      "interpolate",
      [
@@ -14646,7 +14640,7 @@
      12,
      0
     ],
-    "text-halo-color": "@highway_shield_icon_color",
+    "text-halo-color": "@public_icon_halo_color",
     "text-halo-width": [
      "interpolate",
      [
@@ -14899,7 +14893,7 @@
    },
    "paint": {
     "icon-color": "@town_labels_icon_color",
-    "icon-halo-color": "@highway_shield_icon_halo_color",
+    "icon-halo-color": "@town_labels_icon_halo_color",
     "icon-halo-width": 1,
     "text-color": [
      "interpolate",
@@ -14915,7 +14909,7 @@
      "@town_labels_text_color_2"
     ],
     "text-halo-blur": 0.5,
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@town_labels_text_halo_color",
     "text-halo-width": 1
    },
    "filter": [
@@ -15030,13 +15024,13 @@
     "visibility": "visible"
    },
    "paint": {
-    "icon-color": "@highway_shield_icon_color",
-    "icon-halo-color": "@highway_shield_icon_halo_color",
+    "icon-color": "@highway_shield_text_halo_color",
+    "icon-halo-color": "@town_labels_icon_halo_color",
     "icon-halo-width": 1,
     "icon-opacity": 1,
     "text-color": "@town_labels_text_color",
     "text-halo-blur": 0.5,
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@town_labels_text_halo_color",
     "text-halo-width": 0.8
    },
    "filter": [
@@ -15126,13 +15120,13 @@
     "visibility": "visible"
    },
    "paint": {
-    "icon-color": "@highway_shield_icon_color",
-    "icon-halo-color": "@highway_shield_icon_halo_color",
+    "icon-color": "@highway_shield_text_halo_color",
+    "icon-halo-color": "@town_labels_icon_halo_color",
     "icon-halo-width": 1,
     "icon-opacity": 1,
     "text-color": "@town_labels_text_color",
     "text-halo-blur": 0.5,
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@town_labels_text_halo_color",
     "text-halo-width": 0.8
    },
    "filter": [
@@ -15231,7 +15225,7 @@
    "paint": {
     "text-color": "@country_labels_text_color",
     "text-halo-blur": 0.8,
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@town_labels_text_halo_color",
     "text-halo-width": 1,
     "text-opacity": [
      "interpolate",
@@ -15334,7 +15328,7 @@
    "paint": {
     "text-color": "@continent_labels_text_color",
     "text-halo-blur": 1,
-    "text-halo-color": "@glacier_fill_color",
+    "text-halo-color": "@continent_labels_text_halo_color",
     "text-halo-width": 1
    },
    "filter": [

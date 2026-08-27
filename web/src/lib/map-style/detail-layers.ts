@@ -58,9 +58,11 @@ export const TREE_OPACITY = [
  */
 const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
   light: {
-    parking: 'hsl(45, 20%, 89%)',
-    parkingCasing: 'hsl(45, 14%, 80%)',
-    tree: 'hsl(112, 38%, 46%)',
+    parking: 'hsl(228, 12%, 89%)',
+    parkingCasing: 'hsl(228, 11%, 80%)',
+    // The disc a tree draws when 3D objects are off, so it has to land where
+    // the model's own foliage lands — see `OBJECT_PALETTE` in `map-objects`.
+    tree: 'hsl(104, 40%, 55%)',
     furniture: 'hsl(210, 12%, 52%)',
   },
   dark: {

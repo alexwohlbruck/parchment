@@ -288,6 +288,126 @@ const PEDESTRIAN_AREA_CASING_LAYER = 'Pedestrian area outline'
 /** The lowest road layer — the casings, which everything else stacks onto. */
 const FIRST_ROAD_LAYER = 'Minor road outline'
 
+// ---------------------------------------------------------------------------
+// Road ink
+// ---------------------------------------------------------------------------
+
+/**
+ * The whole road network's colour, in one place, for both flavors.
+ *
+ * MapTiler paints motorways orange and trunk roads yellow, which is the
+ * convention nearly every digital map inherited from paper road atlases, where
+ * the colour did real work: it was how you found a route at a glance on a sheet
+ * with no zoom. On a screen it mostly reads as a warning. So the daylight map
+ * gives up the hue and keeps the hierarchy, which is what the hierarchy was for
+ * — a motorway is a shade of the ground rather than a colour laid over it, and
+ * everything below it is white, separated by how heavy its casing is.
+ *
+ * Lifted out of the layers because the same six colours are spread across nine
+ * of them — surface, tunnel, and under-construction each split the network the
+ * same three ways — and MapTiler's own values only agree with each other by
+ * coincidence. `applyRoadInk` puts them back.
+ *
+ * Night keeps MapTiler's blue-slate family, with the minor roads pulled in
+ * towards the majors: theirs are a saturated cyan that reads as water at a
+ * glance, which on a map with real water on it is the one thing a road must
+ * not do.
+ */
+const ROAD_INK = {
+  light: {
+    highway: 'hsl(228, 16%, 86%)',
+    highway_casing: 'hsl(228, 14%, 72%)',
+    major: 'hsl(0, 0%, 100%)',
+    major_casing: 'hsl(228, 13%, 78%)',
+    minor: 'hsl(0, 0%, 100%)',
+    minor_casing: 'hsl(228, 11%, 85%)',
+  },
+  dark: {
+    highway: 'hsl(211, 47%, 33%)',
+    highway_casing: 'hsl(211, 41%, 39%)',
+    major: 'hsl(211, 44%, 40%)',
+    major_casing: 'hsl(212, 38%, 52%)',
+    minor: 'hsl(211, 22%, 34%)',
+    minor_casing: 'hsl(213, 20%, 24%)',
+  },
+}
+
+/**
+ * The daylight ground, re-tempered from cream to a cool near-neutral.
+ *
+ * MapTiler's land is a warm parchment — hue 42-54 at high saturation — which is
+ * a handsome map on its own and the wrong colour next to this app, whose chrome
+ * is a near-white that shifts hue with the accent theme (#F7F6F9, #F6F9F7,
+ * #F9F6F6, #F9F8F6). Those four average to something with no cast at all, so
+ * the ground takes their temperature rather than any one of their hues: a
+ * whisper of blue, low enough that it reads as "not warm" rather than as blue.
+ *
+ * Only the lightness is carried over from MapTiler unchanged. Every contrast on
+ * the daylight map is a lightness relationship — buildings sit three points
+ * above the ground, roof edges eighteen below, pavement between the two — and
+ * re-tempering the hue keeps all of them exactly where they were tuned.
+ */
+const LIGHT_GROUND = {
+  background_background_color: 'hsl(228, 14%, 94%)',
+  background_background_color_2: 'hsl(228, 12%, 93%)',
+  residential_fill_color: 'hsl(228, 10%, 88%)',
+  residential_fill_color_2: 'hsl(228, 12%, 91%)',
+  pier_fill_color: 'hsl(228, 12%, 93%)',
+  bridge_outline_line_color: 'hsl(228, 12%, 93%)',
+  // Industrial land is a neutral in MapTiler too, just a warm one; the two
+  // translucent members keep their alpha, which is what they are for.
+  industrial_fill_color: 'hsl(228, 12%, 90%)',
+  industrial_fill_color_2: 'hsla(228, 12%, 87%, 0.2)',
+  industrial_fill_color_3: 'hsl(228, 9%, 87%)',
+  industrial_fill_color_4: 'hsl(228, 12%, 90%)',
+  industrial_fill_color_5: 'hsla(228, 12%, 87%, 0.5)',
+}
+
+/** `class` values each rung of the hierarchy covers, as the tunnel layers split them. */
+const ROAD_RUNG = { highway: ['motorway'], major: ['trunk', 'primary'] }
+
+/** A `match` on road class picking one of the three rungs, for the mixed layers. */
+const roadMatch = (suffix = '') => [
+  'match', ['get', 'class'],
+  ROAD_RUNG.highway, `@road_highway${suffix}`,
+  ROAD_RUNG.major, `@road_major${suffix}`,
+  `@road_minor${suffix}`,
+]
+
+/** The same, for the `*_construction` classes the under-construction layer carries. */
+const constructionMatch = () => [
+  'match', ['get', 'class'],
+  ROAD_RUNG.highway.map(c => `${c}_construction`), '@road_highway',
+  ROAD_RUNG.major.map(c => `${c}_construction`), '@road_major',
+  '@road_minor',
+]
+
+/**
+ * Repaint every road layer from `ROAD_INK`.
+ *
+ * Tunnels and roads under construction are included deliberately: they are the
+ * same network seen through a different treatment, and leaving them on
+ * MapTiler's values is how a tunnel ends up orange on a map with no orange in
+ * it. Their dashes and lower opacity already say what they are.
+ */
+function applyRoadInk(layers) {
+  const repaint = {
+    'Minor road': '@road_minor',
+    'Minor road outline': '@road_minor_casing',
+    'Major road': '@road_major',
+    'Major road outline': '@road_major_casing',
+    Highway: '@road_highway',
+    'Highway outline': '@road_highway_casing',
+    Tunnel: roadMatch(),
+    'Tunnel outline': roadMatch('_casing'),
+    'Road under construction': constructionMatch(),
+  }
+  for (const layer of layers) {
+    const color = repaint[layer.id]
+    if (color && layer.paint) layer.paint['line-color'] = color
+  }
+}
+
 /** The paved surface's width. Standard's ramp, which is exponential, not linear. */
 const PATH_SURFACE_WIDTH = [
   'interpolate', ['exponential', 1.5], ['zoom'], 12, 0, 18, 6, 22, 80,
@@ -800,21 +920,32 @@ class Tokens {
    * flavors stay small enough to reason about. The dark value is read from
    * the same position in MapTiler's own Streets Dark, whose layer sequence is
    * identical — so dark is their cartography too, not a transform of light.
+   *
+   * Both colours form the key, not just the light one. Sharing on light alone
+   * looks harmless — a token is only a name — but it silently hands every
+   * later layer the *first* layer's dark value, and light is exactly where
+   * unrelated things collide: MapTiler paints sixteen different things white
+   * in daylight, so glaciers, minor roads, runways, cable cars and the halo
+   * behind every label in the style all collapsed onto one token and every one
+   * of them came out glacier blue at night. Keying on the pair keeps a shared
+   * name to things that genuinely agree in both flavors.
    */
   ref(color, darkColor, hint) {
-    const key = color.trim()
+    const light = color.trim()
+    const dark = isColor(darkColor) ? darkColor.trim() : null
+    const key = `${light} ${dark ?? ''}`
     if (this.byColor.has(key)) return `@${this.byColor.get(key)}`
     let name = hint
     let n = 2
     while (name in this.light) name = `${hint}_${n++}`
     this.byColor.set(key, name)
-    this.light[name] = key
-    if (isColor(darkColor)) {
-      this.dark[name] = darkColor.trim()
+    this.light[name] = light
+    if (dark) {
+      this.dark[name] = dark
     } else {
       // No colour at the matching position — dark keeps the light value and
       // gets reported, so a silent light-on-dark patch cannot slip through.
-      this.dark[name] = key
+      this.dark[name] = light
       this.unmatched.push(name)
     }
     return `@${name}`
@@ -1029,6 +1160,7 @@ async function main() {
   }
 
   sinkInstitutionalLanduse(layers)
+  applyRoadInk(layers)
   // Before the pedestrian pass, so the footbridges it inserts land above the
   // arrows rather than below them: an arrow is painted on the road, and a
   // footbridge crossing over that road covers it.
@@ -1146,10 +1278,15 @@ async function main() {
     tokens[flavor].poi_transit_ink = `@@tint-ink:${TRANSIT_BLUE[flavor]}`
   }
 
-  tokens.light.path_surface = 'hsl(295, 10%, 95%)'
-  tokens.light.path_casing = 'hsl(0, 10%, 80%)'
+  tokens.light.path_surface = 'hsl(228, 16%, 96%)'
+  tokens.light.path_casing = 'hsl(228, 12%, 82%)'
   tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
   tokens.dark.path_casing = 'hsl(216, 20%, 20%)'
+
+  for (const [rung, color] of Object.entries(ROAD_INK.light)) tokens.light[`road_${rung}`] = color
+  for (const [rung, color] of Object.entries(ROAD_INK.dark)) tokens.dark[`road_${rung}`] = color
+
+  Object.assign(tokens.light, LIGHT_GROUND)
 
   for (const [name, color] of Object.entries(DARK_OVERRIDES)) {
     if (name in tokens.dark) tokens.dark[name] = color
@@ -1192,14 +1329,17 @@ async function main() {
   // the separation — walls fall to roughly 72% of the roof, which in the dark
   // flavor puts them just under the land they stand on.
   //
-  //                       ground             roof
-  //   light   hsl(47, 79%, 94%)   hsl(45, 52%, 97%)
-  //   dark    hsl(216, 37%, 24%)  hsl(217, 32%, 32%)
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(45, 52%, 97%)'
+  //                        ground             roof
+  //   light   hsl(228, 14%, 94%)   hsl(228, 30%, 97%)
+  //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
+  //
+  // Light follows `LIGHT_GROUND` in hue: a warm roof on cool land reads as a
+  // different material rather than as the same map lit from above.
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(228, 30%, 97%)'
   tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
 
   // Matches the shader's roofline edge: darker than the roof it outlines.
-  tokens.light.building_roof_edge = 'hsl(45, 18%, 76%)'
+  tokens.light.building_roof_edge = 'hsl(228, 14%, 78%)'
   tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when

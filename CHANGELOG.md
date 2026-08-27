@@ -9,6 +9,8 @@
 
 ### Changed
 
+* The daylight map has cooled from parchment cream to a near-neutral grey, matching the app's own chrome — and its motorways and main roads have given up the orange and yellow that digital maps inherited from paper road atlases. The hierarchy is still there, drawn in weight and in shade rather than in colour: main roads stay white, motorways run a step darker than the ground, and each rung carries a heavier edge than the one below it
+* Trees are a friendlier green in daylight, on a lighter trunk
 * Place markers on the map are drawn the way a place's icon is drawn in its detail panel: a pale tinted disc with the glyph in the deeper shade of the same colour, and an outline to match. The white ring is back, a little wider than before, and it now carries the marker's own colour rather than the map's background — and the soft shadow under it stays, which it could not before, since a map marker only gets one halo and it was spending it on one or the other
 * Buildings hide the one-way arrows on any road they stand over, instead of letting them float across the roof
 * The map tilts further — to 85 degrees, up from 60 — with a sky and a haze at the horizon so a steep view ends in something map-like rather than in nothing
@@ -74,6 +76,8 @@
 
 ### Fixed
 
+* Place markers on the map are round again. They are assembled from the sprite sheet's own artwork now that they carry four colours instead of one, and were being built at the sheet's resolution rather than the screen's — so at the size a marker actually draws, the disc came out with visibly stepped edges and read as a rounded square
+* The night map is less blue. Minor streets were being painted a saturated cyan that read as water at a glance, and the halo behind every label on the map was the same colour — both were picking up a colour meant for glaciers, along with runways, cable cars and tunnels. Each is back to the shade it was drawn with, and residential streets now sit in the same family as the main roads they join
 * Recents on the Library home now include your searches, not just the places you opened. A category or brand you browsed showed up in the search palette's recents but was missing from the home list — the two now show the same history, newest first, and tapping a search there runs it again
 * The "Inside" and "Located in" rows on a place no longer run their first two cards together — every card in the row is evenly spaced
 * Opening hours are read properly. Parchment now understands the full OpenStreetMap hours notation instead of a rough approximation of it, and several common ways of writing hours were being read wrongly or thrown away entirely: a place open "08:00-12:00, 13:00-18:00" lost its whole afternoon, hours written as "9:00" rather than "09:00" reported the place shut all morning, and weekend ranges like "Sa-Su" were discarded, leaving no hours at all. Bars and diners that stay open past midnight now stay open on screen until they actually close, rather than flipping to "Closed" at midnight. Places that only open part of the year, keep different hours on public holidays, or open from sunrise to sunset are now read as written

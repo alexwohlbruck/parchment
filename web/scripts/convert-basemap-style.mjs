@@ -251,6 +251,9 @@ const PATH_LAYER = 'Path'
 const PEDESTRIAN_AREA_LAYER = 'Pedestrian'
 const PEDESTRIAN_AREA_CASING_LAYER = 'Pedestrian area outline'
 
+/** The lowest road layer — the casings, which everything else stacks onto. */
+const FIRST_ROAD_LAYER = 'Minor road outline'
+
 /** The paved surface's width. Standard's ramp, which is exponential, not linear. */
 const PATH_SURFACE_WIDTH = [
   'interpolate', ['exponential', 1.5], ['zoom'], 12, 0, 18, 6, 22, 80,
@@ -277,6 +280,33 @@ const PATH_CASING_WIDTH = [
  * road crosses a square: the square is drawn over it. Pedestrian areas are
  * car-free by definition, so that is the cheaper of the two errors.
  */
+/** Ground level: not a bridge, and not stacked above the surface. */
+const AT_GRADE = [
+  'all',
+  ['!=', ['get', 'brunnel'], 'bridge'],
+  ['<=', ['case', ['has', 'layer'], ['to-number', ['get', 'layer']], 0], 0],
+]
+/** Carried over whatever it crosses. */
+const ELEVATED = [
+  'any',
+  ['==', ['get', 'brunnel'], 'bridge'],
+  ['>', ['case', ['has', 'layer'], ['to-number', ['get', 'layer']], 0], 0],
+]
+
+function withCondition(layer, condition, suffix) {
+  const base = layer.filter ? toExpressionFilter(layer.filter) : null
+  return {
+    ...layer,
+    id: suffix ? `${layer.id}${suffix}` : layer.id,
+    filter: base ? ['all', base, condition] : condition,
+  }
+}
+
+/** Whatever zoom the path casing starts at, so the plaza edge matches it. */
+function pathCasingMinzoom(layers) {
+  return layers.find(l => l.id === PATH_CASING_LAYER)?.minzoom ?? 12
+}
+
 function orderPedestrianSurfaces(layers) {
   const take = id => {
     const at = layers.findIndex(l => l.id === id)
@@ -286,12 +316,31 @@ function orderPedestrianSurfaces(layers) {
   const areaCasing = take(PEDESTRIAN_AREA_CASING_LAYER)
   const pathCasing = take(PATH_CASING_LAYER)
   const path = take(PATH_LAYER)
-  const block = [areaCasing, pathCasing, area, path].filter(Boolean)
-  if (!block.length) return
+  if (!pathCasing || !path) return
 
-  // Anchor on the road labels, the first thing drawn above the road surfaces.
-  const anchor = layers.findIndex(l => l['source-layer'] === 'transportation_name')
-  layers.splice(anchor < 0 ? layers.length : anchor, 0, ...block)
+  // At grade, a pavement is the lowest thing on the street: a road crossing it
+  // is drawn over it, and so is any building standing on it. Plazas are only
+  // ever at grade — their layer already excludes anything with a `brunnel`.
+  const ground = [
+    areaCasing,
+    withCondition(pathCasing, AT_GRADE),
+    area,
+    withCondition(path, AT_GRADE),
+  ].filter(Boolean)
+
+  // A footbridge is the exception, and the reason this is split at all: it
+  // crosses over the road rather than under it, so it is drawn after every road
+  // and rail — but still below the buildings.
+  const elevated = [
+    withCondition(pathCasing, ELEVATED, ' bridge'),
+    withCondition(path, ELEVATED, ' bridge'),
+  ]
+
+  const roads = layers.findIndex(l => l.id === FIRST_ROAD_LAYER)
+  layers.splice(roads < 0 ? layers.length : roads, 0, ...ground)
+
+  const buildings = layers.findIndex(l => l['source-layer'] === 'building')
+  layers.splice(buildings < 0 ? layers.length : buildings, 0, ...elevated)
 }
 
 function sinkInstitutionalLanduse(layers) {
@@ -552,6 +601,11 @@ const POI_LAYOUT = {
   'icon-size': ['case', IS_TRANSIT_POI, 0.78, 1],
   'icon-allow-overlap': false,
   'icon-ignore-placement': false,
+  // A weight above the map's own labels. A POI name is a thing you are reading
+  // the map *for*, and at 13px over a busy background Regular sits back into
+  // the streets around it. Medium rather than SemiBold keeps a step below the
+  // transit stops, which are heavier again.
+  'text-font': ['Geist Medium'],
   'text-size': 13,
   // Clears the badge — offset is in ems of text-size, so 1.1em ≈ 14px below
   // the icon's centre.
@@ -571,10 +625,18 @@ const POI_PAINT = {
   // The disc carries the category colour and the glyph is a hole in it, so
   // tinting the image tints the badge.
   'icon-color': ['case', IS_TRANSIT_POI, '@poi_transit', poiColorExpression()],
-  // The ring, drawn rather than baked, so it can be the flavor's own surface.
-  'icon-halo-color': '@poi_halo',
-  'icon-halo-width': 1.5,
-  'icon-halo-blur': 0,
+  // A soft shadow under the badge, in place of the ring it used to draw.
+  //
+  // A symbol gets one halo, and the badge needs it for one thing or the other.
+  // The ring was the old choice; this is the better one — but only at
+  // `icon-halo-width` 0. A halo renders around every edge in the SDF, and the
+  // glyph is a hole punched through the disc, so any width at all puts a dark
+  // rim around the glyph and turns it muddy. At width 0 the halo starts
+  // exactly at the edge and only the blur escapes, which lands outside the
+  // disc and leaves the knockout clean.
+  'icon-halo-color': '@poi_icon_halo',
+  'icon-halo-width': 0,
+  'icon-halo-blur': 2.5,
 }
 
 // ---------------------------------------------------------------------------
@@ -921,7 +983,13 @@ async function main() {
       type: 'line',
       source: SOURCE,
       'source-layer': area['source-layer'],
-      minzoom: area.minzoom ?? 14,
+      // The same zoom and the same stroke as the path casing, deliberately: a
+      // plaza edge and the edge of a path running into it are one continuous
+      // line, and any difference between them shows exactly where they meet.
+      // Defaulting this to the plaza's own minzoom put it at 14 against the
+      // path's 12, so between those zooms the paths were cased and the plazas
+      // were not.
+      minzoom: pathCasingMinzoom(layers),
       filter: area.filter,
       layout: { 'line-join': 'round' },
       paint: { 'line-color': '@path_casing', 'line-width': PATH_CASING_WIDTH },
@@ -986,6 +1054,13 @@ async function main() {
   // where a dark one reads the way Mapbox's own `{maki}-dark` badge art does.
   tokens.light.poi_ink = '#FFFFFF'
   tokens.dark.poi_ink = '#0D0D0D'
+
+  // The badge's lift. A cast shadow is a daylight idea: on the night map a
+  // dark blur behind an already-pale badge on dark ground does nothing, so the
+  // dark flavor gets a faint light bloom instead — the same job, the way the
+  // night does it.
+  tokens.light.poi_icon_halo = 'rgba(0, 0, 0, 0.5)'
+  tokens.dark.poi_icon_halo = 'rgba(255, 255, 255, 0.3)'
 
   // Shield lettering is ours, not MapTiler's — their shields are sprite art.
   //

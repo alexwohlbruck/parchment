@@ -114,7 +114,7 @@ describe('flavors', () => {
         !k.startsWith('poi_v4_') &&
         // Real colours, not categories: the label halo, the glyph knockout,
         // and transit blue — a stop is wayfinding rather than a category.
-        !['poi_halo', 'poi_ink', 'poi_transit'].includes(k),
+        !['poi_halo', 'poi_ink', 'poi_transit', 'poi_icon_halo'].includes(k),
     )
     expect(categories).toContain('poi_food_and_drink')
     expect(categories).toContain('poi_default')
@@ -186,10 +186,13 @@ describe('badge POI treatment', () => {
     expect(JSON.stringify(l.paint['text-color'])).toContain('@poi_')
   })
 
-  test.each(poi.map(l => [l.id, l]))('%s: the ring is drawn, not baked', (_id, l: any) => {
-    // Left to the style so it can be the flavor's own surface colour.
-    expect(l.paint['icon-halo-color']).toBe('@poi_halo')
-    expect(l.paint['icon-halo-width']).toBe(1.5)
+  test.each(poi.map(l => [l.id, l]))('%s: the badge casts a shadow, not a ring', (_id, l: any) => {
+    // One halo per symbol, spent on the shadow. It has to be width 0: a halo
+    // renders around every edge of the SDF, and the glyph is a hole through
+    // the disc, so any width puts a dark rim around the glyph.
+    expect(l.paint['icon-halo-color']).toBe('@poi_icon_halo')
+    expect(l.paint['icon-halo-width']).toBe(0)
+    expect(l.paint['icon-halo-blur']).toBeGreaterThan(0)
   })
 
   /**
@@ -246,6 +249,46 @@ describe('badge POI treatment', () => {
     for (const c of casings) expect(c).toBeGreaterThan(-1)
     for (const s of surfaces) expect(s).toBeGreaterThan(-1)
     expect(Math.max(...casings)).toBeLessThan(Math.min(...surfaces))
+  })
+
+  /**
+   * At grade a pavement is the lowest thing on the street. Drawn above the
+   * roads it cut across every junction; drawn above the buildings it ran
+   * straight through them in a tilted view.
+   */
+  test('pedestrian surfaces at grade draw beneath roads and buildings', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    const ped = ['Pedestrian area outline', 'Path outline', 'Pedestrian', 'Path'].map(at)
+    for (const i of ped) expect(i).toBeGreaterThan(-1)
+    const firstRoad = at('Minor road outline')
+    const firstBuilding = layers.findIndex(l => (l as any)['source-layer'] === 'building')
+    expect(firstRoad).toBeGreaterThan(-1)
+    expect(firstBuilding).toBeGreaterThan(-1)
+    expect(Math.max(...ped)).toBeLessThan(firstRoad)
+    expect(Math.max(...ped)).toBeLessThan(firstBuilding)
+  })
+
+  /** A footbridge crosses over the road, not under it — but still under buildings. */
+  test('elevated paths draw above the roads and below the buildings', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    const bridge = at('Path bridge')
+    expect(bridge).toBeGreaterThan(-1)
+    expect(bridge).toBeGreaterThan(at('Highway'))
+    expect(bridge).toBeLessThan(
+      layers.findIndex(l => (l as any)['source-layer'] === 'building'),
+    )
+  })
+
+  /** A plaza edge and the path running into it are one line. */
+  test('the plaza casing matches the path casing', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const plaza = layers.find(l => l.id === 'Pedestrian area outline')!
+    const path = layers.find(l => l.id === 'Path outline')!
+    expect(plaza.paint!['line-color']).toEqual(path.paint!['line-color'])
+    expect(plaza.paint!['line-width']).toEqual(path.paint!['line-width'])
+    expect((plaza as any).minzoom).toBe((path as any).minzoom)
   })
 
   /** The surface is continuous pavement; dashing it reads as a trail. */

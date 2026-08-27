@@ -70,6 +70,7 @@
  "continent_labels_text_color": "hsl(0,0%,19%)",
  "poi_halo": "#FFFFFF",
  "poi_ink": "#FFFFFF",
+ "poi_icon_halo": "rgba(0, 0, 0, 0.5)",
  "shield_ink": "hsl(0, 0%, 12%)",
  "shield_ink_reversed": "hsl(0, 0%, 100%)",
  "poi_transit": "hsl(214, 78%, 52%)",

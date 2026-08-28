@@ -75,7 +75,11 @@ import {
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
-import { OBJECT_FLAT_LAYERS, TREE_OPACITY } from '@/lib/map-style/detail-layers'
+import {
+  probeBarrelmanBuildings,
+  barrelmanBuildingsReady,
+} from '@/lib/map-style/barrelman-buildings'
+import { OBJECT_FLAT_LAYERS, TREE_OPACITY, BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import {
   ObjectLayer,
@@ -279,6 +283,32 @@ export class MaplibreStrategy extends MapStrategy {
       () => theme.accentColor,
       () => this.updateStreetViewColors(),
     )
+
+    void this.adoptBarrelmanBuildings()
+  }
+
+  /**
+   * Move the 3D buildings onto Barrelman's source once it is serving them.
+   *
+   * The style is built on the basemap's buildings and stays there unless this
+   * finds the other source answering — see `barrelman-buildings.ts` for why
+   * that way round. One tile request per session, and a style rebuild only on
+   * an instance that has the source, which happens once before there is much
+   * on screen to lose.
+   */
+  private async adoptBarrelmanBuildings() {
+    if (!this.tileServerUrl) return
+    const base = this.tileServerUrl
+    const key = this.tileKey
+    await probeBarrelmanBuildings(
+      (z, x, y) => `${base}/${BUILDING_3D_TILES}/${z}/${x}/${y}${key ? `?token=${key}` : ''}`,
+      this.mapInstance.getCenter(),
+    )
+    // Only when the answer is yes. The style is already built on the basemap,
+    // so a no leaves it exactly as it is — reloading on every startup for an
+    // instance that has not been migrated would throw the map away and rebuild
+    // it identically, in front of the user.
+    if (barrelmanBuildingsReady()) this.reloadStyle()
   }
 
   addControls() {

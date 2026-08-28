@@ -10,6 +10,7 @@ import {
   BUILDING_3D_TILES,
 } from './detail-layers'
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
+import { barrelmanBuildingsReady } from './barrelman-buildings'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -399,6 +400,12 @@ export function buildLayers(options: {
  * shape, so the doubling costs nothing there.
  */
 function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
+  // Until the source is known to answer, the buildings stay on the basemap —
+  // doubled where a building is mapped in parts, which is the fault this fixes,
+  // but present. Pointed at a source that 404s there would be none at all. See
+  // `barrelman-buildings.ts`.
+  if (!barrelmanBuildingsReady()) return layers
+
   const at = layers.findIndex(l => l.type === 'fill-extrusion')
   if (at < 0) return layers
 

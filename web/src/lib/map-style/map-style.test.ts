@@ -7,7 +7,7 @@
  * have no glyphs for, an icon the sprite lacks. Each of those still renders
  * *something*, which is exactly why they need asserting rather than eyeballing.
  */
-import { describe, test, expect } from 'vitest'
+import { describe, test, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/maplibre-gl-style-spec'
@@ -22,6 +22,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
 } from './build'
 import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
+import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { terrainSource } from './terrain'
@@ -654,8 +655,31 @@ describe('assembled styles', () => {
    * part's own.
    */
   describe('3D building source', () => {
+    // The switch is made only once the source is known to answer; these build
+    // the migrated style directly. `falls back` below covers the other side.
+    beforeEach(() => setBarrelmanBuildingsReady(true))
+    afterEach(() => setBarrelmanBuildingsReady(null))
+
     const extrusions = (flavor: 'light' | 'dark' = 'dark') =>
       (buildLayers({ flavor }) as any[]).filter(l => l.type === 'fill-extrusion')
+
+    /**
+     * Barrelman has to have the source created before it serves it, and a style
+     * pointed at one that 404s draws no buildings at all — worse than the fault
+     * it fixes, since a doubled building is at least a building. So the basemap
+     * is what the style starts on, and the probe in `barrelman-buildings.ts`
+     * moves it over.
+     */
+    test('falls back to the basemap until the source is known to answer', () => {
+      setBarrelmanBuildingsReady(null)
+      for (const l of extrusions()) {
+        expect(l.source, l.id).toBe(SOURCE)
+        expect(l['source-layer'], l.id).toBe('building')
+      }
+      // And the roof-colour layer is not added either — there is no second
+      // colour to read without the source that carries it.
+      expect(extrusions().map(l => l.id)).not.toContain(BUILDING_3D_ROOF_LAYER)
+    })
 
     test('the extrusion reads Barrelman, and the flat fill still reads the basemap', () => {
       for (const l of extrusions()) {

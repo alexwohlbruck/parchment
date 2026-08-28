@@ -1,7 +1,17 @@
 ## [Unreleased]
 
+### Changed
+
+* Place icons on the map are drawn crisply. They were built at twice the size they render at and handed to the map engine that way, which then point-sampled them back down and threw half the edge away — so a disc came out with a stair-stepped rim next to a search-result pin the browser had drawn cleanly. The soft glow under a marker no longer ends in a faint square either
+* At night, the ring around a place icon is a shade darker than the icon itself rather than the near-white the glyph wears. A pale ring on a dark map was the loudest part of the marker; a darker one reads as a seam and lets the glyph carry the mark
+* Search-result pins are drawn the same way as the places already on the map — the same tinted plate, glyph and ring — instead of a flat disc in the raw category colour. A café you searched for and the café under it are now visibly the same thing
+* Search-result labels follow the theme. On the MapLibre engine they were stuck in daylight colours whatever the map was doing, so a night map carried orange names with a white outline over dark ground. The same fix reaches the outline around saved places, which was white at night for the same reason
+* Streets below the main road network are drawn wider. The map gave up colour for road hierarchy and left the weight to carry it, but the weights were cut for a map that still had colour — so a residential grid came out as a mesh of threads. Their outlines no longer vanish at middling zooms either, which is where they used to converge on the road itself
+* Fewer place icons fall back to a map pin. Roughly half the icons in the OpenStreetMap preset schema name an icon set Parchment does not ship, and every one of them silently became a pin — which is why a Mexican restaurant showed a pin while the same restaurant on the map showed a plate of food. A place now inherits from what it is a kind of, so a taqueria gets the restaurant glyph and a police station gets the police one
+
 ### Fixed
 
+* The map engine's own locate button no longer appears next to Parchment's
 * The map draws again on the MapLibre engine. A released build was missing one file the map's background worker loads, so the worker died the moment it started — silently, with nothing in the console and not a single tile ever requested. The map sat blank behind everything else, which carried on working: search found places, panels opened, the transit layer was there, all of it over empty space
 
 ## [0.8.0] - 2026-08-27

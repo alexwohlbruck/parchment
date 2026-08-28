@@ -101,18 +101,19 @@ export function searchResultLabelPaint(options: {
     return getCustomColorTint(color, 'solid', isDark)?.foreground ?? color
   }
 
+  // `default` is the fallback arm rather than a case of its own, which is also
+  // what happens to a result whose category the palette does not name. A
+  // `match` needs at least one real arm, so a palette carrying nothing else
+  // has to come out as the bare colour instead.
+  const named = categories.filter(c => c !== 'default')
+
   return {
     'text-halo-width': 1,
     'text-halo-blur': 0,
     'text-halo-color': isDark ? POI_LABEL_HALO.dark : POI_LABEL_HALO.light,
-    // `default` is the fallback arm rather than a case of its own, which is
-    // also what happens to a result whose category the palette does not name.
-    'text-color': [
-      'match',
-      ['get', 'category'],
-      ...categories.filter(c => c !== 'default').flatMap(c => [c, ink(c)]),
-      ink('default'),
-    ],
+    'text-color': named.length
+      ? ['match', ['get', 'category'], ...named.flatMap(c => [c, ink(c)]), ink('default')]
+      : ink('default'),
   }
 }
 

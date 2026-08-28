@@ -2,7 +2,14 @@ import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import type { MapStyleId } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
 import spec from './spec.json'
-import { detailSources, parkingLayers, treeLayers } from './detail-layers'
+import {
+  detailSources,
+  parkingLayers,
+  treeLayers,
+  BUILDING_3D_SOURCE,
+  BUILDING_3D_TILES,
+} from './detail-layers'
+import { buildingColor, BUILDING_TINT } from './building-color.mjs'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -263,6 +270,27 @@ export const BUILDING_BASE_EXPRESSION = buildingLayer?.paint?.['fill-extrusion-b
 /** The footprint outline that stands in for the roofline looking straight down. */
 export const BUILDING_ROOF_EDGE_LAYER = 'Building roof edge'
 
+/**
+ * A second extrusion layer over the same buildings, carrying the roof colour.
+ *
+ * OSM records `roof:colour` separately from `building:colour`, and MapLibre's
+ * `fill-extrusion` has exactly one colour — no property to put a second one in.
+ * The shade layer draws the buildings itself, though, and its shader already
+ * knows a roof face from a wall, so what it lacks is only the data.
+ *
+ * This is how the data gets there. MapLibre groups layers into one bucket by
+ * `type`, `source`, `source-layer`, `minzoom`, `maxzoom`, `filter` and `layout`
+ * — paint is not part of the key — so a layer identical to the building layer
+ * in all of those, differing only in its paint, shares that bucket and gets its
+ * own paint buffers built beside it, vertex for vertex. `WallShadowLayer` reads
+ * the colour buffer off this layer and the wall colour off the real one.
+ *
+ * It is never drawn: `fill-extrusion-opacity: 0` makes MapLibre's own draw
+ * return before it does anything (`drawFillExtrusion` bails on zero opacity),
+ * so this costs a paint buffer per tile and no fragments at all.
+ */
+export const BUILDING_3D_ROOF_LAYER = 'Building 3D roof colour'
+
 /** OpenMapTiles property names for building extrusion height. */
 export const BUILDING_HEIGHT_PROPERTY = 'render_height'
 export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
@@ -344,12 +372,63 @@ export function buildLayers(options: {
   let base = specLayers
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
+  base = useBarrelmanBuildings(base, flavor)
 
   const converted = base
     .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang))
 
   return spliceDetailLayers(converted, flavor) as LayerSpecification[]
+}
+
+/**
+ * Point the 3D buildings at Barrelman's source, and add the roof-colour layer.
+ *
+ * The basemap's own building layer cannot tell a part-mapped building's outline
+ * from its parts — see `BUILDING_3D_SOURCE` — so the extrusion reads from
+ * Barrelman instead, where the outline carries `hide_3d` and the filter the
+ * spec already has (`["!has", "hide_3d"]`, MapTiler's own) finally bites.
+ *
+ * Done here rather than in `convert-basemap-style.mjs` for the same reason the
+ * detail layers are: that script regenerates `spec.json` wholesale from
+ * MapTiler's style, and which source a layer reads is Parchment's decision, not
+ * theirs. It also keeps the source names in one module.
+ *
+ * The flat `Building` fill is left on the basemap. An outline and a part painted
+ * the same flat colour on top of one another are indistinguishable from one
+ * shape, so the doubling costs nothing there.
+ */
+function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
+  const at = layers.findIndex(l => l.type === 'fill-extrusion')
+  if (at < 0) return layers
+
+  const buildings = {
+    ...layers[at],
+    source: BUILDING_3D_SOURCE,
+    'source-layer': BUILDING_3D_TILES,
+  }
+
+  // Every key MapLibre groups buckets by is copied verbatim; only the paint
+  // differs. Spreading the layer and overwriting `id` and `paint` is what keeps
+  // that true as the building layer is retuned.
+  const roof = {
+    ...buildings,
+    id: BUILDING_3D_ROOF_LAYER,
+    paint: {
+      ...buildings.paint,
+      'fill-extrusion-opacity': 0,
+      'fill-extrusion-color': buildingColor(
+        BUILDING_TINT[flavor],
+        '@building_3d_fill_extrusion_color',
+        // Falling back to the wall colour rather than to the flavor's plain
+        // building: a building that records only `building:colour` should wear
+        // it on the roof too, not band at the roofline.
+        ['roof_colour', 'colour'],
+      ),
+    },
+  }
+
+  return [...layers.slice(0, at), buildings, roof, ...layers.slice(at + 1)]
 }
 
 /**
@@ -368,7 +447,13 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
 
-  const lastBuilding = out.map(l => l['source-layer']).lastIndexOf('building')
+  // Both building source-layers: the flat fill still reads the basemap's
+  // `building`, the extrusions read Barrelman's `buildings_3d`, and the trees go
+  // above the last of either. Matching only the basemap's name would put them
+  // between the two and bury every tree under the buildings.
+  const lastBuilding = out
+    .map(l => (l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES))
+    .lastIndexOf(true)
   out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor))
 
   return out

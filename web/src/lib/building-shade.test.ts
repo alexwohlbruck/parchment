@@ -17,6 +17,63 @@ import { resolve } from 'node:path'
 
 const source = readFileSync(resolve(__dirname, 'vendor/ao-shadow.mjs'), 'utf8')
 
+/**
+ * The roof colour path.
+ *
+ * OSM records `roof:colour` separately and MapLibre's `fill-extrusion` has one
+ * colour, so the roof's arrives on a second layer sharing this bucket and is
+ * read here per vertex — see `BUILDING_3D_ROOF_LAYER`. Every failure mode is
+ * silent: a missing attribute reads as the pinned constant (white roofs), a
+ * missing gate paints them white wherever the donor is absent, and a stray
+ * backtick in a comment ends the template literal the shader lives in.
+ */
+describe('roof colour', () => {
+  test('the shader takes both colours and picks on the face', () => {
+    expect(source).toContain('attribute vec2 a_roof_color;')
+    expect(source).toContain('attribute vec4 a_roof_color4;')
+    // Chosen on the face normal the shader already computes, not on a second
+    // draw — the two colours arrive together and one is picked.
+    expect(source).toMatch(/if \(u_roof_on > 0\.5 && isWall < 0\.5\)/)
+  })
+
+  /**
+   * Without the gate, a style with no donor layer reads the pinned attribute
+   * constant instead — which is white, on every roof on the map.
+   */
+  test('it is gated on the donor buffer actually being there', () => {
+    expect(source).toContain("gl.uniform1f(U.u_roof_on, sg.rComp ? 1 : 0)")
+    expect(source).toMatch(/const roofCfg = this\._roofLayerId \? configs\?\.\[this\._roofLayerId\] : null/)
+    // And the slots are pinned regardless: an attribute constant is global to
+    // the context, so an unset one is whatever the last layer left behind.
+    expect(source).toContain('gl.vertexAttrib2f(LOC.a_roof_color, W, W)')
+    expect(source).toContain('gl.vertexAttrib4f(LOC.a_roof_color4, W, W, W, W)')
+  })
+
+  test('both new uniforms are looked up, or setting them writes nowhere', () => {
+    const locs = /uniformLocs\(gl, this\._buildProg,\s*\[([\s\S]*?)\]/.exec(source)?.[1] ?? ''
+    expect(locs).toContain("'u_rct'")
+    expect(locs).toContain("'u_roof_on'")
+  })
+
+  test('the roof buffer is bound alongside the others, not instead of one', () => {
+    // Same loop, so it gets the same per-segment vertex offset — the whole
+    // reason the donor's buffer lines up with these at all.
+    expect(source).toContain('for (const d of [hD, bD, cD, rD])')
+  })
+
+  /**
+   * The shaders are template literals. A backtick anywhere inside one ends it
+   * early, and what follows is parsed as JavaScript — which has bitten this file
+   * twice, both times from prose in a comment.
+   */
+  test('no shader template contains a backtick', () => {
+    const templates = source.matchAll(/const ([A-Z_]+(?:_VS|_FS|_ATTRS)?) = `([\s\S]*?)`;/g)
+    for (const [, name, body] of templates) {
+      expect(body.includes('`'), `${name} has a stray backtick`).toBe(false)
+    }
+  })
+})
+
 describe('terrain-aware building shade', () => {
   test('every geometry pass samples the DEM', () => {
     // The buildings, the cast shadow and the occlusion seed all project the

@@ -11,7 +11,16 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/maplibre-gl-style-spec'
-import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups, MAX_PITCH } from './build'
+import {
+  buildMapStyle,
+  buildSatelliteStyle,
+  buildLayers,
+  layerGroups,
+  MAX_PITCH,
+  SOURCE,
+  BUILDING_3D_ROOF_LAYER,
+} from './build'
+import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { terrainSource } from './terrain'
@@ -630,6 +639,85 @@ describe('assembled styles', () => {
   test.each(cases)('%s leaves no unresolved token behind', (_name, make) => {
     const stray = collectStrings(make().layers).filter(s => /^@/.test(s))
     expect(stray).toEqual([])
+  })
+
+  /**
+   * 3D buildings come from Barrelman, not from the basemap.
+   *
+   * OpenStreetMap maps a detailed building twice — an outline over the whole
+   * footprint and `building:part` polygons inside it holding the real heights —
+   * and OpenMapTiles marks the outline `hide_3d` so a 3D map can drop it. A
+   * stock build carries no such field, so the filter MapTiler wrote (and which
+   * is still here) had nothing to bite on and every part-mapped building drew
+   * twice, z-fighting, one at the outline's default height and one at the
+   * part's own.
+   */
+  describe('3D building source', () => {
+    const extrusions = (flavor: 'light' | 'dark' = 'dark') =>
+      (buildLayers({ flavor }) as any[]).filter(l => l.type === 'fill-extrusion')
+
+    test('the extrusion reads Barrelman, and the flat fill still reads the basemap', () => {
+      for (const l of extrusions()) {
+        expect(l.source, l.id).toBe(BUILDING_3D_SOURCE)
+        expect(l['source-layer'], l.id).toBe(BUILDING_3D_TILES)
+      }
+      // The flat footprint is left alone: an outline and a part painted the same
+      // flat colour on top of each other are indistinguishable from one shape.
+      const flat = (buildLayers({ flavor: 'dark' }) as any[]).find(l => l.id === 'Building')
+      expect(flat.source).toBe(SOURCE)
+      expect(flat['source-layer']).toBe('building')
+    })
+
+    test('the source it reads is declared', () => {
+      const style = buildMapStyle({ ...opts, theme: 'dark' })
+      expect(style.sources[BUILDING_3D_SOURCE]).toBeTruthy()
+      expect((style.sources[BUILDING_3D_SOURCE] as any).tiles[0]).toContain(BUILDING_3D_TILES)
+    })
+
+    test('the outline filter is still there, to bite on the flag Barrelman adds', () => {
+      for (const l of extrusions()) expect(l.filter, l.id).toEqual(['!has', 'hide_3d'])
+    })
+
+    /**
+     * The one that matters, and the one that fails silently.
+     *
+     * The roof colour arrives on a second layer over the same buildings, and the
+     * whole trick rests on MapLibre putting the two in ONE bucket — it groups by
+     * `type`, `source`, `source-layer`, `minzoom`, `maxzoom`, `filter` and
+     * `layout`, and paint is deliberately not in that list. Differ on any of
+     * them and they land in separate buckets with separately ordered vertices,
+     * at which point the roof colours are read against the wrong buildings.
+     */
+    test('the roof layer matches the buildings on every key a bucket is grouped by', () => {
+      const [buildings, roof] = extrusions()
+      expect(roof.id).toBe(BUILDING_3D_ROOF_LAYER)
+      for (const key of ['type', 'source', 'source-layer', 'minzoom', 'maxzoom', 'filter', 'layout']) {
+        expect(roof[key], key).toEqual(buildings[key])
+      }
+    })
+
+    test('the roof layer is never drawn', () => {
+      // MapLibre's own fill-extrusion draw returns immediately on zero opacity,
+      // so the layer costs a paint buffer per tile and no fragments at all.
+      const [, roof] = extrusions()
+      expect(roof.paint['fill-extrusion-opacity']).toBe(0)
+    })
+
+    test('the roof takes roof_colour, falling back to the walls rather than to bare', () => {
+      const [buildings, roof] = extrusions()
+      const wall = JSON.stringify(buildings.paint['fill-extrusion-color'])
+      const top = JSON.stringify(roof.paint['fill-extrusion-color'])
+      expect(wall).not.toContain('roof_colour')
+      expect(top).toContain('roof_colour')
+      // A building recording only `building:colour` wears it on the roof too,
+      // rather than banding at the roofline against an untinted top.
+      expect(top).toContain('"coalesce",["get","roof_colour"],["get","colour"]')
+    })
+
+    test('trees still stand above the buildings, both layers of them', () => {
+      const ids = (buildLayers({ flavor: 'dark' }) as any[]).map(l => l.id)
+      expect(ids.indexOf('Trees')).toBeGreaterThan(ids.indexOf(BUILDING_3D_ROOF_LAYER))
+    })
   })
 
   /**

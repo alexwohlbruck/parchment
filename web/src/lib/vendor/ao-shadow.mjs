@@ -33,7 +33,7 @@
  */
 
 // Fixed attribute locations shared by every program, so one VAO serves all.
-const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8 };
+const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10 };
 const LAYOUT_STRIDE = 12; // bytes per vertex in MapLibre fill-extrusion layout
 const CENTROID_STRIDE = 4; // bytes per vertex in MapLibre's centroid buffer
 
@@ -126,6 +126,14 @@ const BUILD_VS = `
   attribute vec2 a_color;
   attribute vec4 a_color4;
   uniform float u_ct;
+  // PARCHMENT: the roof's own colour, from the donor layer — see
+  // BUILDING_3D_ROOF_LAYER in map-style/build.ts. Same packing as a_color,
+  // because it is the same paint property on a layer sharing this bucket.
+  attribute vec2 a_roof_color;
+  attribute vec4 a_roof_color4;
+  uniform float u_rct;
+  // 0 where no donor layer is in the style; the roof then wears the walls'.
+  uniform float u_roof_on;
   ${HEIGHT_ATTRS}
   ${TERRAIN}
   varying vec3 v_color;
@@ -190,6 +198,12 @@ const BUILD_VS = `
     v_fade = smoothstep(1.5, 4.0, wallPx / max(u_edgeWidth, 0.001));
 
     vec2 pk = u_ct < -0.5 ? a_color : mix(a_color4.xy, a_color4.zw, u_ct);
+    // PARCHMENT: a roof face takes the roof colour where the style supplies one.
+    // isWall is already computed above off the face normal, so the choice is
+    // free — the two colours arrive per vertex and one of them is picked.
+    if (u_roof_on > 0.5 && isWall < 0.5) {
+      pk = u_rct < -0.5 ? a_roof_color : mix(a_roof_color4.xy, a_roof_color4.zw, u_rct);
+    }
     vec4 color = vec4(floor(pk / 256.0), mod(pk, 256.0)).xzyw / 255.0;
     float colorvalue = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
     color.rgb += vec3(0.03);
@@ -441,6 +455,8 @@ export class WallShadowLayer {
     this.type = 'custom';
     this.renderingMode = '2d';
     this._layerId = opts.buildingsLayerId;
+    // PARCHMENT: the layer whose colour is the roof's; see BUILDING_3D_ROOF_LAYER.
+    this._roofLayerId = opts.roofLayerId ?? null;
     this._sourceId = opts.sourceId || null;
     this._minZoom = opts.minZoom ?? 15;
     this._maxZoom = opts.maxZoom ?? 20;
@@ -484,7 +500,7 @@ export class WallShadowLayer {
     this._buildProg = linkProgram(gl, BUILD_VS, BUILD_FS);
     this._uBuild = uniformLocs(gl, this._buildProg,
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
-        'u_edge', 'u_edgeWidth', 'u_viewport', ...TERRAIN_UNIFORMS]); // PARCHMENT
+        'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS]); // PARCHMENT
 
     this._shadProg = linkProgram(gl, SHAD_VS, SHAD_FS);
     this._uShad = uniformLocs(gl, this._shadProg,
@@ -612,18 +628,26 @@ export class WallShadowLayer {
   _segVaos(gl, bucket) {
     const key = '_wshVao';
     if (bucket[key]) return bucket[key];
-    const cfg = bucket.programConfigurations?.programConfigurations?.[this._layerId];
-    const findBuf = name => cfg?._buffers?.find(b => b.attributes?.some(a => a.name === name)) ?? null;
+    const configs = bucket.programConfigurations?.programConfigurations;
+    const cfg = configs?.[this._layerId];
+    // PARCHMENT: the roof colour rides on a second layer sharing this bucket, so
+    // its paint buffers are built alongside and indexed by the same vertices —
+    // see BUILDING_3D_ROOF_LAYER. Absent (an older style, the hybrid overlay)
+    // and the roof simply wears the walls' colour; `u_roof_on` says which.
+    const roofCfg = this._roofLayerId ? configs?.[this._roofLayerId] : null;
+    const findBuf = (from, name) =>
+      from?._buffers?.find(b => b.attributes?.some(a => a.name === name)) ?? null;
     // Resolve a data-driven attribute: flat loc at the default component count,
     // vec loc for the interpolated variant; comp 0 when the buffer is absent.
-    const dyn = (name, fLoc, vLoc, defComp) => {
-      const buf = findBuf(name);
+    const dyn = (from, name, fLoc, vLoc, defComp) => {
+      const buf = findBuf(from, name);
       const comp = buf ? (buf.attributes?.find(a => a.name === name)?.components || defComp) : 0;
       return { buf: buf?.buffer, loc: comp === defComp ? fLoc : vLoc, comp };
     };
-    const hD = dyn('a_height', LOC.a_height_f, LOC.a_height_v, 1);
-    const bD = dyn('a_base', LOC.a_base_f, LOC.a_base_v, 1);
-    const cD = dyn('a_color', LOC.a_color, LOC.a_color4, 2);
+    const hD = dyn(cfg, 'a_height', LOC.a_height_f, LOC.a_height_v, 1);
+    const bD = dyn(cfg, 'a_base', LOC.a_base_f, LOC.a_base_v, 1);
+    const cD = dyn(cfg, 'a_color', LOC.a_color, LOC.a_color4, 2);
+    const rD = dyn(roofCfg, 'a_color', LOC.a_roof_color, LOC.a_roof_color4, 2);
     const point = (loc, glBuf, comp, type, stride, off) => {
       if (!glBuf) return;
       gl.bindBuffer(gl.ARRAY_BUFFER, glBuf);
@@ -641,12 +665,12 @@ export class WallShadowLayer {
       // to its own draw only when it is; we bind it always and let
       // `u_terrain_on` decide, so a terrain toggle needs no VAO rebuild.
       point(LOC.a_centroid, bucket.centroidVertexBuffer?.buffer, 2, gl.SHORT, CENTROID_STRIDE, seg.vertexOffset * CENTROID_STRIDE);
-      for (const d of [hD, bD, cD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
+      for (const d of [hD, bD, cD, rD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bucket.indexBuffer.buffer);
       list.push({ vao, pO: seg.primitiveOffset, pL: seg.primitiveLength });
     }
     this._vao.bind(null);
-    return (bucket[key] = { list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp });
+    return (bucket[key] = { list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp, rComp: rD.comp });
   }
 
   _drawSegs(gl, sg) {
@@ -693,6 +717,11 @@ export class WallShadowLayer {
     gl.vertexAttrib2f(LOC.a_color, W, W);
     gl.vertexAttrib2f(LOC.a_centroid, 0, 0); // PARCHMENT
     gl.vertexAttrib4f(LOC.a_color4, W, W, W, W);
+    // PARCHMENT: never read unless `u_roof_on`, which is only set when the
+    // buffer behind them exists — pinned anyway, since an unset attribute
+    // constant is whatever the last layer through this context left there.
+    gl.vertexAttrib2f(LOC.a_roof_color, W, W);
+    gl.vertexAttrib4f(LOC.a_roof_color4, W, W, W, W);
 
     if (this.groundFx) {
       this._shadowPass(gl, tiles);
@@ -917,6 +946,8 @@ export class WallShadowLayer {
       gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
       gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
       gl.uniform1f(U.u_ct, sg.cComp === 4 ? zf : -1);
+      gl.uniform1f(U.u_rct, sg.rComp === 4 ? zf : -1); // PARCHMENT
+      gl.uniform1f(U.u_roof_on, sg.rComp ? 1 : 0);     // PARCHMENT
       this._drawSegs(gl, sg);
     }
     this._vao.bind(null);

@@ -91,7 +91,21 @@ const HEADROOM_REF = 90
  * `let` bindings cannot see each other — only the expression they wrap — so the
  * quantities are nested in dependency order rather than declared in one block.
  */
-export function buildingColor(amount, colorToken = '@building_3d_fill_extrusion_color') {
+export function buildingColor(
+  amount,
+  colorToken = '@building_3d_fill_extrusion_color',
+  properties = ['colour'],
+) {
+  // The first of `properties` the feature carries. One name is the ordinary
+  // case; the roof passes `['roof_colour', 'colour']` so a building that
+  // records only a wall colour keeps a roof to match, rather than falling all
+  // the way back to the flavor's plain building and banding at the roofline.
+  const present = properties.length === 1
+    ? ['has', properties[0]]
+    : ['any', ...properties.map(p => ['has', p])]
+  const painted = properties.length === 1
+    ? ['get', properties[0]]
+    : ['coalesce', ...properties.map(p => ['get', p])]
   const t = i => ['at', i, ['var', 'tile']]
   const f = i => ['at', i, ['var', 'flavor']]
   const mean = c => ['/', ['+', c(0), c(1), c(2)], 3]
@@ -112,9 +126,9 @@ export function buildingColor(amount, colorToken = '@building_3d_fill_extrusion_
 
   return [
     'case',
-    ['has', 'colour'],
+    present,
     ['let',
-      'tile', ['to-rgba', ['to-color', ['get', 'colour'], '#808080']],
+      'tile', ['to-rgba', ['to-color', painted, '#808080']],
       'flavor', ['to-rgba', ['to-color', colorToken]],
       ['let',
         'high', ['max', t(0), t(1), t(2)],

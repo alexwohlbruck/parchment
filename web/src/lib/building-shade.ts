@@ -19,7 +19,7 @@
  */
 import { WallShadowLayer } from './vendor/ao-shadow.mjs'
 import type { FlavorId } from './map-style/build'
-import { BUILDING_CHROMA } from './map-style/building-color.mjs'
+import { BUILDING_TINT } from './map-style/building-color.mjs'
 import { sunPosition } from './sun-position'
 
 const RAD_PER_DEG = Math.PI / 180
@@ -278,7 +278,7 @@ export function buildingShadeDefaults(flavor: FlavorId) {
     ...TUNING[flavor],
     edgeWidth: edgeWidth(),
     shadowOffset: [...SHADOW_OFFSET] as [number, number],
-    chroma: BUILDING_CHROMA[flavor],
+    tint: BUILDING_TINT[flavor],
     intensity: LIGHT_INTENSITY[flavor],
   }
 }

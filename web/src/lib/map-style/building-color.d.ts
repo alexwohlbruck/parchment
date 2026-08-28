@@ -1,3 +1,3 @@
 /** Typings for the shared colour builder; see `building-color.mjs`. */
-export declare const BUILDING_CHROMA: { light: number; dark: number }
-export declare function buildingColor(chroma: number, colorToken?: string): unknown[]
+export declare const BUILDING_TINT: { light: number; dark: number }
+export declare function buildingColor(amount: number, colorToken?: string): unknown[]

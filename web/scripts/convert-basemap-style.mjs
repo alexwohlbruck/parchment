@@ -46,7 +46,7 @@ const OUT_SPEC = resolve(WEB, 'src/lib/map-style/spec.json')
 const OUT_TOKENS = resolve(WEB, 'src/lib/map-style/tokens.light.json')
 const OUT_TOKENS_DARK = resolve(WEB, 'src/lib/map-style/tokens.dark.json')
 
-import { buildingColor, BUILDING_CHROMA } from '../src/lib/map-style/building-color.mjs'
+import { buildingColor, BUILDING_TINT } from '../src/lib/map-style/building-color.mjs'
 import { isTransitPoi } from '../src/lib/map-style/transit-poi.mjs'
 
 const SOURCE = 'openmaptiles'
@@ -1539,10 +1539,10 @@ async function main() {
   // the ordinary case; this covers the rest. Same shape as `poiStyles`, and
   // merged by `build.ts` the same way.
   const flavorStyles = Object.fromEntries(
-    Object.entries(BUILDING_CHROMA).map(([flavor, chroma]) => [
+    Object.entries(BUILDING_TINT).map(([flavor, amount]) => [
       flavor,
       buildingLayerId && {
-        [buildingLayerId]: { paint: { 'fill-extrusion-color': buildingColor(chroma) } },
+        [buildingLayerId]: { paint: { 'fill-extrusion-color': buildingColor(amount) } },
       },
     ]),
   )

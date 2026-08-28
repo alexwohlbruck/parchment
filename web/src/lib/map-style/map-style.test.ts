@@ -653,6 +653,20 @@ describe('assembled styles', () => {
     }
 
     const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
+    /** How colourful, in channel units — 0 for any grey, 255 for a pure hue. */
+    const chroma = (c: number[]) => Math.max(...c) - Math.min(...c)
+    /** Hue in degrees, and how far two of them are apart around the circle. */
+    const hue = ([r, g, b]: number[]) => {
+      const mx = Math.max(r, g, b)
+      const d = mx - Math.min(r, g, b)
+      if (!d) return 0
+      const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4
+      return ((h * 60) % 360 + 360) % 360
+    }
+    const hueGap = (a: number, b: number) => {
+      const d = Math.abs(a - b) % 360
+      return d > 180 ? 360 - d : d
+    }
 
     test.each(['light', 'dark'] as const)('%s: a painted building takes its hue', flavor => {
       const plain = evaluate(flavor, {})
@@ -682,20 +696,69 @@ describe('assembled styles', () => {
       }
     })
 
-    test.each(['light', 'dark'] as const)('%s: lightness is the flavor’s, not the tile’s', flavor => {
-      // A near-black and a near-white facade must not differ in weight.
-      const dim = luma(evaluate(flavor, { colour: '#1e1006' }))
-      const bright = luma(evaluate(flavor, { colour: '#fffffb' }))
-      expect(Math.abs(dim - bright)).toBeLessThan(6)
+    /**
+     * The property the whole expression is built around, and the one it used to
+     * get wrong. The tint was scaled by the tile colour's departure from its own
+     * luminance in absolute channel units, which a dark colour has little of
+     * however saturated it is — so a maroon facade tinted a fraction as much as
+     * a scarlet one, and a bottle-green one barely at all. Normalising by the
+     * tile's chroma means only hue and colourfulness survive the trip.
+     *
+     * Every shade here clears `CHROMA_REF`, which is where the tint reaches full
+     * strength. Below it the tint deliberately fades out — a colour with little
+     * chroma left to measure is a grey with a cast, and the map would rather
+     * under-tint one of those than punch a hole for every facade tagged `black`.
+     */
+    test.each(['light', 'dark'] as const)('%s: the same hue tints alike at any lightness', flavor => {
+      for (const shades of [
+        ['#800000', '#b00000', '#ff0000'],
+        ['#005500', '#00aa00', '#00ff00'],
+        ['#000080', '#0000c0', '#0000ff'],
+      ]) {
+        const [first, ...rest] = shades.map(colour => evaluate(flavor, { colour }))
+        for (const other of rest) expect(other, shades.join(' ')).toEqual(first)
+      }
     })
 
-    test('dark keeps less of the tile colour than light does', () => {
-      const spread = (f: 'light' | 'dark') => {
-        const [r, g, b] = evaluate(f, { colour: '#cdaa7d' })
-        const [pr, pg, pb] = evaluate(f, {})
-        return Math.abs(r - pr) + Math.abs(g - pg) + Math.abs(b - pb)
+    /**
+     * The other half of that failure: subtracting a *luminance*-weighted mean
+     * leaves a direction that is not isotropic, because blue carries 0.07 of the
+     * luminance and red and green carry the rest. Any blue content swung the
+     * blue channel hard while red and green movements damped out, so the palette
+     * collapsed onto the blue-yellow axis — on the night flavor, whose anchor is
+     * itself a saturated blue-grey, a dark red facade came out blue.
+     */
+    test.each(['light', 'dark'] as const)('%s: a facade keeps its own hue', flavor => {
+      const wheel = [
+        '#ff0000', '#ff8c00', '#ffff00', '#556b2f', '#00ff00', '#008080',
+        '#0000ff', '#4b0082', '#800080', '#8b4513', '#ffc0cb',
+        // Dark and muted paint, which is what a real facade usually is, and
+        // what the luminance-weighted version turned blue.
+        '#4b0000', '#004d00', '#000080', '#cdaa7d',
+      ]
+      for (const colour of wheel) {
+        const tile = [1, 3, 5].map(i => parseInt(colour.slice(i, i + 2), 16))
+        expect(hueGap(hue(evaluate(flavor, { colour })), hue(tile)), colour).toBeLessThan(4)
       }
-      expect(spread('dark')).toBeLessThan(spread('light'))
+    })
+
+    /**
+     * A hint of the colour, never the colour. The hue is carried faithfully, so
+     * the only thing keeping a red-painted building from being red is how far
+     * the tint is allowed to travel — and on the night flavor it may travel in
+     * both directions, where daylight can only darken. Bounded against the
+     * flavor's own colour cast rather than an absolute, since "subtle" means
+     * subtle next to the map it sits on.
+     */
+    test.each(['light', 'dark'] as const)('%s: a tint stays a hint of the paint', flavor => {
+      const plain = chroma(evaluate(flavor, {}))
+      for (const colour of ['#ff0000', '#00ff00', '#0000ff', '#ffff00']) {
+        const tinted = chroma(evaluate(flavor, { colour }))
+        expect(tinted, colour).toBeLessThan(70)
+        // And it never reads as more colourful than the tile it came from.
+        expect(tinted, colour).toBeLessThan(chroma([1, 3, 5].map(i => parseInt(colour.slice(i, i + 2), 16))))
+      }
+      expect(plain).toBeLessThan(70)
     })
   })
 

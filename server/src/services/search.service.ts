@@ -20,7 +20,7 @@ import {
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
 import { getBrandSuggestions } from './brand.service'
-import { resolveIcon } from '../lib/place-categories'
+import { resolvePresetIcon } from '../lib/place-categories'
 import { isPlacePermanentlyClosed } from '../lib/place-tags'
 
 /**
@@ -77,8 +77,9 @@ function validateAndNormalizeCoords(a: number, b: number): { lat: number; lng: n
  * Convert a CategoryResult/preset to a SearchResult
  */
 function convertPresetToSearchResult(preset: any): SearchResult {
-  // Resolve preset icon (usually maki-prefixed) to icon name + pack
-  const resolvedIcon = resolveIcon(preset.icon || 'maki-marker')
+  // Resolve preset icon (usually maki-prefixed) to icon name + pack, falling
+  // back through the preset's own family rather than to a pin.
+  const resolvedIcon = resolvePresetIcon(preset.id, preset.icon)
 
   return {
     id: preset.id,

@@ -254,7 +254,9 @@ export class MaplibreStrategy extends MapStrategy {
       },
     })
 
-    // Add geolocate control but hide it off-screen
+    // Added for `trigger()` alone — the app draws its own locate button, and
+    // the one this control renders is hidden in `Map.vue`. It still goes
+    // through `addControl` so `map.remove()` tears its geolocation watch down.
     this.geolocateControl = new GeolocateControl({
       positionOptions: {
         enableHighAccuracy: true,
@@ -1024,6 +1026,7 @@ export class MaplibreStrategy extends MapStrategy {
   addLayer(layer: Layer, overwrite: boolean = false) {
     const { configuration }: any = mapboxLayerToMaplibreLayer(
       applyThemedStreetViewStyling(layer),
+      useThemeStore().isDark,
     )
 
     if (typeof configuration.source === 'object') {

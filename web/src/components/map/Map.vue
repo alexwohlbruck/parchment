@@ -230,4 +230,17 @@ watch(
 .maplibregl-ctrl-attrib {
   display: none !important;
 }
+
+/**
+ * MapLibre's own geolocate button.
+ *
+ * The control is added to the map only for its `trigger()` API — the app draws
+ * its own locate button in the map controls — so the button it renders is a
+ * duplicate. The group is hidden as well as the button, or an empty rounded
+ * box is left sitting in the corner where the control used to be.
+ */
+.maplibregl-ctrl-geolocate,
+.maplibregl-ctrl-group:has(> .maplibregl-ctrl-geolocate) {
+  display: none !important;
+}
 </style>

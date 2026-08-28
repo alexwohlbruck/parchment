@@ -32,9 +32,10 @@ export const POI_BADGE_PREFIX = 'poi|'
  * The outline, in CSS pixels.
  *
  * It used to be an `icon-halo-width` of 1.5 in the flavor's surface colour — a
- * white ring in daylight. Drawn here it can be the glyph's own colour instead,
- * and a shade wider now that it is carrying the badge's edge rather than just
- * separating it from the ground.
+ * white ring in daylight. Drawn here it can take a colour of its own, and a
+ * shade wider now that it is carrying the badge's edge rather than just
+ * separating it from the ground. What that colour is, is the style's call; see
+ * `COLOR_TINTS` in `color-tint.ts`.
  */
 const RING_WIDTH = 1.9
 
@@ -46,8 +47,13 @@ const LIFT_DROP = 0.7
  * Room for the ring and the lift, beyond the padding the sprite already leaves
  * around the field. The badge grows by this much on every side, which also
  * grows its collision box — correct, since the lift is part of the mark.
+ *
+ * The lift is blurred by two box passes, and two passes of radius r reach 2r,
+ * not r — so the room it needs is twice `LIFT_BLUR`, plus the drop. Sized from
+ * `LIFT_BLUR` alone the tail of the glow ran off the edge of the image, which
+ * is what put a faint square around every badge.
  */
-const PAD = Math.ceil(RING_WIDTH + LIFT_BLUR + LIFT_DROP - SDF_BUFFER)
+const PAD = Math.ceil(Math.max(RING_WIDTH, 2 * LIFT_BLUR + LIFT_DROP) - SDF_BUFFER)
 
 /** Anything at or below this is outside the plate; see `floodOutside`. */
 const SOLID = 0.995
@@ -66,11 +72,20 @@ const SOLID = 0.995
  * Drawing at twice the density fixes it because the source is still a distance
  * field, which is linear in space and can therefore be resampled between
  * texels and re-thresholded — a genuinely finer edge, not an upscale of a
- * coarse one. The GPU then minifies 2:1 back to the drawn size, which is a
- * 2x2 box filter over that edge.
+ * coarse one. `downsample` then box-filters it back to the sprite's own
+ * density, so what MapLibre uploads is a texture at the size the badge is
+ * actually drawn at, carrying a 2x2-averaged edge.
  *
- * Twice, not four times: the badge is the icon atlas's largest tenant at ~55px
- * a side, and this squares to 4x the texture memory for each one already.
+ * Doing that fold here rather than leaving it to the GPU is the whole point.
+ * Handing MapLibre the finer image and letting it minify 2:1 looks equivalent
+ * and is not: the icon atlas is sampled with `LINEAR` and no mipmaps, so one
+ * screen pixel takes a single bilinear tap out of a 2x2 texel footprint rather
+ * than averaging it. Half the edge is thrown away, and which half depends on
+ * where the symbol lands — which is the stair-stepped, faintly blocky rim the
+ * badges had, next to a search-result marker the browser drew cleanly.
+ *
+ * Twice, not four times: the badge is the icon atlas's largest tenant, and the
+ * intermediate squares to 4x the working memory for each one already.
  */
 const SUPERSAMPLE = 2
 
@@ -79,26 +94,33 @@ export type BadgeParts = {
   art: string
   /** The plate's fill. */
   plate: string
-  /** The glyph, and the ring around the plate. */
+  /** The glyph. */
   ink: string
+  /** The ring around the plate. */
+  ring: string
   /** The soft lift under the whole badge. */
   lift: string
 }
 
 /**
- * `poi|<art>|<plate>|<ink>|<lift>` — the name the style builds per feature.
+ * `poi|<art>|<plate>|<ink>|<ring>|<lift>` — the name the style builds per
+ * feature.
  *
  * Colours travel in the name rather than being looked up here because the style
  * is where they are decided: `build.ts` has already resolved the live category
  * palette and the flavor by the time an expression is evaluated, and a second
  * copy of that logic in this module is a second thing to keep in step. Pipes
  * separate, since no CSS colour contains one.
+ *
+ * Only the art, the plate and the glyph are required. The ring falls back to
+ * the glyph's colour and the lift to nothing, so a name assembled from a style
+ * that omits either still draws a badge rather than dropping the icon.
  */
 export function parseBadgeName(name: string): BadgeParts | null {
   if (!name.startsWith(POI_BADGE_PREFIX)) return null
-  const [art, plate, ink, lift] = name.slice(POI_BADGE_PREFIX.length).split('|')
+  const [art, plate, ink, ring, lift] = name.slice(POI_BADGE_PREFIX.length).split('|')
   if (!art || !plate || !ink) return null
-  return { art, plate, ink, lift: lift ?? 'rgba(0,0,0,0)' }
+  return { art, plate, ink, ring: ring || ink, lift: lift ?? 'rgba(0,0,0,0)' }
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +138,7 @@ type Rgba = [number, number, number, number]
  * inside MapLibre's image resolver stops the whole layer drawing.
  */
 export function parseColor(value: string): Rgba {
+  if (typeof value !== 'string') return [0, 0, 0, 0]
   const v = value.trim()
 
   const hex = /^#([0-9a-f]{3,8})$/i.exec(v)
@@ -313,11 +336,13 @@ function resampleDistance(src: SdfSource, sw: number, sh: number): Float32Array 
  */
 export function composeBadge(src: SdfSource, parts: BadgeParts): ComposedImage {
   const ratio = src.pixelRatio || 1
-  // Output pixels per CSS pixel. Every length below is in output pixels.
+  // Working pixels per CSS pixel. Every length below is in working pixels.
   const scale = ratio * SUPERSAMPLE
   const aw = src.width * SUPERSAMPLE
   const ah = src.height * SUPERSAMPLE
-  const pad = Math.round(PAD * scale)
+  // Measured in sprite pixels and then scaled, so the working grid stays an
+  // exact multiple of `SUPERSAMPLE` and folds back down without a remainder.
+  const pad = Math.ceil(PAD * ratio) * SUPERSAMPLE
   const w = aw + pad * 2
   const h = ah + pad * 2
 
@@ -354,7 +379,7 @@ export function composeBadge(src: SdfSource, parts: BadgeParts): ComposedImage {
   const data = new Uint8Array(w * h * 4)
   const layers: Array<[Float32Array, Rgba]> = [
     [lift, parseColor(parts.lift)],
-    [ring, parseColor(parts.ink)],
+    [ring, parseColor(parts.ring)],
     [plate, parseColor(parts.plate)],
     [glyph, parseColor(parts.ink)],
   ]
@@ -377,7 +402,44 @@ export function composeBadge(src: SdfSource, parts: BadgeParts): ComposedImage {
     data[i * 4 + 3] = Math.round(a * 255)
   }
 
-  return { width: w, height: h, data, pixelRatio: scale }
+  return downsample(data, w, h, ratio)
+}
+
+/**
+ * Fold the working image back to the sprite's own density.
+ *
+ * A plain box average over each `SUPERSAMPLE` block, in premultiplied space —
+ * which is the space the pixels are already in, and the only one where
+ * averaging is a straight mean: unpremultiplied, a fully transparent pixel's
+ * colour is arbitrary and would drag the block's mean around with it.
+ */
+function downsample(
+  data: Uint8Array,
+  w: number,
+  h: number,
+  pixelRatio: number,
+): ComposedImage {
+  const ow = w / SUPERSAMPLE
+  const oh = h / SUPERSAMPLE
+  const out = new Uint8Array(ow * oh * 4)
+  const n = SUPERSAMPLE * SUPERSAMPLE
+
+  for (let y = 0; y < oh; y++) {
+    for (let x = 0; x < ow; x++) {
+      for (let c = 0; c < 4; c++) {
+        let sum = 0
+        for (let dy = 0; dy < SUPERSAMPLE; dy++) {
+          const row = (y * SUPERSAMPLE + dy) * w
+          for (let dx = 0; dx < SUPERSAMPLE; dx++) {
+            sum += data[(row + x * SUPERSAMPLE + dx) * 4 + c]
+          }
+        }
+        out[(y * ow + x) * 4 + c] = Math.round(sum / n)
+      }
+    }
+  }
+
+  return { width: ow, height: oh, data: out, pixelRatio }
 }
 
 function shift(mask: Float32Array, w: number, h: number, dy: number): Float32Array {
@@ -420,9 +482,10 @@ export function registerPoiBadges(map: BadgeHost): void {
     // failing before. Adding a placeholder would be worse than an empty spot.
     if (!source?.data) return
     const badge = composeBadge({ ...source.data, pixelRatio: source.pixelRatio ?? 1 }, parts)
-    // The badge's own ratio, not the sprite's: it is drawn finer than the sheet
-    // (see `SUPERSAMPLE`), and MapLibre sizes an icon by `width / pixelRatio`,
-    // so handing it the sheet's would draw the badge at twice its real size.
+    // MapLibre sizes an icon by `width / pixelRatio`, so this has to be the
+    // ratio the badge came back at — `composeBadge` works at a finer grid than
+    // the sheet and folds back to it (see `SUPERSAMPLE`), and reading the
+    // number off the result rather than assuming it keeps the two in step.
     map.addImage(id, badge, { pixelRatio: badge.pixelRatio })
   })
 }

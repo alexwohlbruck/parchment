@@ -163,16 +163,16 @@ export interface BasemapStyleOptions {
 
 const CATEGORY_PREFIX = '@@category:'
 /** A palette colour run through the icon-tile treatment; see `tintOf`. */
-const CATEGORY_TINT_PREFIX = /^@@category-(plate|ink):/
+const CATEGORY_TINT_PREFIX = /^@@category-(plate|ink|ring):/
 /** A literal colour run through the same treatment. */
-const TINT_PREFIX = /^@@tint-(plate|ink):/
+const TINT_PREFIX = /^@@tint-(plate|ink|ring):/
 
 function tokenMap(flavor: FlavorId): Record<string, string> {
   return (flavor === 'dark' ? darkTokens : lightTokens) as Record<string, string>
 }
 
 /**
- * The pale plate and the deep glyph a colour tints to — the same pair the
+ * The plate, the glyph and the ring a colour tints to — the same three the
  * place header's icon tile wears, from the same function, so the two cannot
  * drift. `poi-badge.ts` composites the badge from them.
  *
@@ -182,7 +182,9 @@ function tokenMap(flavor: FlavorId): Record<string, string> {
 function tintOf(color: string, kind: string, flavor: FlavorId): string {
   const tint = getCustomColorTint(color, 'solid', flavor === 'dark')
   if (!tint) return color
-  return kind === 'ink' ? tint.foreground : tint.background ?? color
+  if (kind === 'ink') return tint.foreground
+  if (kind === 'ring') return tint.ring ?? tint.foreground
+  return tint.background ?? color
 }
 
 /**

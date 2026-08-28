@@ -89,18 +89,32 @@ export function hslToHex(h: number, s: number, l: number): string {
  * palette (park, then sport & leisure) still clears WCAG's 3:1 floor for
  * non-text graphics with room to spare — 4.1:1 light, 4.8:1 dark.
  */
+/**
+ * The outline around a solid tile or badge.
+ *
+ * By day it is the foreground: a pale plate on a pale map needs a dark edge to
+ * be a shape at all, and the glyph's own colour is the one dark thing the mark
+ * already contains. At night the plate is the dark thing and the ground around
+ * it is lighter, so the same treatment — a near-white ring — turns the outline
+ * into the loudest part of the badge. Night rings instead in a shade of the
+ * plate a little below it, which reads as a seam rather than a halo.
+ */
 const COLOR_TINTS = {
   solid: {
-    light: { bg: { l: 88, s: 0.7 }, fg: { l: 30, s: 0.95 } },
-    dark: { bg: { l: 30, s: 0.75 }, fg: { l: 88, s: 0.8 } },
+    light: { bg: { l: 88, s: 0.7 }, fg: { l: 30, s: 0.95 }, ring: { l: 30, s: 0.95 } },
+    dark: { bg: { l: 30, s: 0.75 }, fg: { l: 88, s: 0.8 }, ring: { l: 21, s: 0.75 } },
   },
   ghost: {
-    light: { bg: null, fg: { l: 42, s: 1 } },
-    dark: { bg: null, fg: { l: 80, s: 0.85 } },
+    light: { bg: null, fg: { l: 42, s: 1 }, ring: null },
+    dark: { bg: null, fg: { l: 80, s: 0.85 }, ring: null },
   },
 } as const
 
-export type ColorTint = { background: string | null; foreground: string }
+export type ColorTint = {
+  background: string | null
+  foreground: string
+  ring: string | null
+}
 
 /**
  * Background and foreground for an icon tile tinted from an arbitrary colour,
@@ -125,5 +139,6 @@ export function getCustomColorTint(
   return {
     background: target.bg ? shade(target.bg) : null,
     foreground: shade(target.fg),
+    ring: target.ring ? shade(target.ring) : null,
   }
 }

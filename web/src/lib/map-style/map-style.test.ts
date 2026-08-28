@@ -232,7 +232,7 @@ describe('flavors', () => {
     // `poi_v4_*` are real colours, deliberately: they are MapTiler's own
     // family palette, copied for the glyph-only treatment rather than
     // tracking ours. The rest name a category and resolve through the live
-    // palette — raw for the label, tinted for the badge's plate and ink.
+    // palette — raw for the label, tinted for the badge's plate, ink and ring.
     const categories = Object.keys(light).filter(
       k =>
         k.startsWith('poi_') &&
@@ -244,7 +244,7 @@ describe('flavors', () => {
     )
     expect(categories).toContain('poi_plate_food_and_drink')
     expect(categories).toContain('poi_ink_default')
-    for (const c of categories) expect(light[c], c).toMatch(/^@@category-(plate|ink):/)
+    for (const c of categories) expect(light[c], c).toMatch(/^@@category-(plate|ink|ring):/)
   })
 
   /**

@@ -402,11 +402,22 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
   const at = layers.findIndex(l => l.type === 'fill-extrusion')
   if (at < 0) return layers
 
-  const buildings = {
-    ...layers[at],
+  const fromBarrelman = (layer: any) => ({
+    ...layer,
     source: BUILDING_3D_SOURCE,
     'source-layer': BUILDING_3D_TILES,
-  }
+    // The same outlines have to go from here too, or the layer draws an edge
+    // around a building that is no longer extruded under it.
+    filter: ['!has', 'hide_3d'],
+  })
+
+  // The roofline stand-in outlines whatever is extruded, so it follows the
+  // extrusion to the same source. Left on the basemap it would trace the
+  // footprints of the part-mapped outlines that are now hidden — an edge with
+  // no building inside it — and miss the parts that replaced them.
+  layers = layers.map(l => (l.id === BUILDING_ROOF_EDGE_LAYER ? fromBarrelman(l) : l))
+
+  const buildings = fromBarrelman(layers[at])
 
   // Every key MapLibre groups buckets by is copied verbatim; only the paint
   // differs. Spreading the layer and overwriting `id` and `paint` is what keeps

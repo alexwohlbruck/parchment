@@ -19,6 +19,7 @@ import {
   MAX_PITCH,
   SOURCE,
   BUILDING_3D_ROOF_LAYER,
+  BUILDING_ROOF_EDGE_LAYER,
 } from './build'
 import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
 import spec from './spec.json'
@@ -712,6 +713,16 @@ describe('assembled styles', () => {
       // A building recording only `building:colour` wears it on the roof too,
       // rather than banding at the roofline against an untinted top.
       expect(top).toContain('"coalesce",["get","roof_colour"],["get","colour"]')
+    })
+
+    test('the roofline stand-in follows the extrusion, source and filter both', () => {
+      // It traces what is extruded. Left on the basemap it would outline the
+      // hidden outlines — an edge around nothing — and miss the parts.
+      const edge = (buildLayers({ flavor: 'dark' }) as any[])
+        .find(l => l.id === BUILDING_ROOF_EDGE_LAYER)
+      expect(edge.source).toBe(BUILDING_3D_SOURCE)
+      expect(edge['source-layer']).toBe(BUILDING_3D_TILES)
+      expect(edge.filter).toEqual(['!has', 'hide_3d'])
     })
 
     test('trees still stand above the buildings, both layers of them', () => {

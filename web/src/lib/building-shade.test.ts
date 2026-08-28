@@ -49,16 +49,44 @@ describe('terrain-aware building shade', () => {
    * far-to-near ratio from ~84 to ~5800 — and at that precision a building's
    * base and the terrain mesh under it land on the same depth value. The
    * buildings shattered into a flickering mosaic of slivers, top-down only.
+   *
+   * Top-down only is the point. Everywhere else the building must *lose* to
+   * the ground, which is what buries the basement below — so the bias is gated
+   * on the same flat-on view that needs it, and carries no slope term, which
+   * would grow with the tilt and lift the buildings out of the ground exactly
+   * when the camera can see under them.
    */
-  test('buildings are biased in front of the ground they stand on', () => {
+  test('buildings are biased in front of the ground, in the plan view only', () => {
     expect(source).toContain('POLYGON_OFFSET_FILL')
-    // Negative, or the bias pushes them the wrong way and makes it worse.
     const [, factor, units] = /polygonOffset\((-?[\d.]+),\s*(-?[\d.]+)\)/.exec(source) ?? []
-    expect(Number(factor)).toBeLessThan(0)
+    // No slope term: it is multiplied by the polygon's depth slope, which for a
+    // wall seen near edge-on is enormous.
+    expect(Number(factor)).toBe(0)
+    // Negative, or the bias pushes them the wrong way and makes it worse.
     expect(Number(units)).toBeLessThan(0)
+    // Gated on the flat-on view rather than applied to every frame.
+    expect(source).toContain('const planView =')
+    expect(source).toMatch(/if \(planView\) \{\s*\n\s*gl\.enable\(gl\.POLYGON_OFFSET_FILL\)/)
     // And put back afterwards — it is global GL state, and MapLibre draws
     // every other layer through the same context.
     expect(source).toContain('gl.disable(gl.POLYGON_OFFSET_FILL)')
+  })
+
+  /**
+   * The basement is a hole for the ground to fill.
+   *
+   * MapLibre drops a building's floor 10m below the terrain so one on a slope
+   * does not hang in the air on its low side, and gets away with it because the
+   * terrain mesh is right there to bury it — the whole block is compiled behind
+   * `#ifdef TERRAIN3D`. Ported without that guard it is dug on a flat map too,
+   * where nothing writes depth underneath and the 10m is simply drawn: every
+   * building 10m too tall, standing in a wall that starts below its footprint.
+   */
+  test('the basement is only dug where there is ground to bury it', () => {
+    const basement = /float basement = ([^;]+);/.exec(source)?.[1] ?? ''
+    expect(basement).toBeTruthy()
+    expect(basement).toContain('u_terrain_on')
+    expect(basement).toContain('10.0')
   })
 
   test('the elevation lookup is ESSL1, matching the shaders around it', () => {

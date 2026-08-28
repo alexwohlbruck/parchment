@@ -91,6 +91,15 @@ const TERRAIN_UNIFORMS = [
 /** The DEM's texture unit. MapLibre uses 3 for the same thing; so do we. */
 const TERRAIN_UNIT = 3;
 
+/**
+ * PARCHMENT: below this pitch the view counts as flat on, and the narrow
+ * field of view that fakes an orthographic camera is in play. Matches
+ * `TOP_DOWN_EPSILON` in `maplibre.strategy.ts`, which is what actually swaps
+ * the projection — an eased pitch animation settles a hair off zero, and a
+ * thousandth of a degree is still flat on.
+ */
+const PLAN_VIEW_PITCH = 0.001;
+
 // u_ht/u_bt/u_ct < 0 selects the flat attribute, else interpolates the vec2 pair.
 // Light color is hardcoded to white (the default in the styles we target).
 const FE = `
@@ -139,10 +148,18 @@ const BUILD_VS = `
     // ground level, which is the basement MapLibre digs for the same reason —
     // a building on a slope would otherwise hang in the air on its low side.
     //
+    // The basement is dug ONLY with terrain on, which is the guard MapLibre
+    // gets for free from compiling the whole block behind #ifdef TERRAIN3D.
+    // It is a hole for the ground to fill, and it only works because the ground
+    // is there to fill it: on a flat map nothing writes depth under a building,
+    // so the same 10m is simply drawn, and every building stands 10m too tall
+    // in a wall of its own that starts below its footprint.
+    //
     // Applied after wallRatio, which is a fraction of the wall and would be
     // skewed by the basement if it were measured against the offset values.
     float groundTop = get_elevation(a_centroid);
-    float groundBase = groundTop - (base > 0.0 ? 0.0 : 10.0);
+    float basement = (u_terrain_on < 0.5 || base > 0.0) ? 0.0 : 10.0;
+    float groundBase = groundTop - basement;
     float ground = mix(groundBase, groundTop, t);
     elev += ground;
 
@@ -849,8 +866,8 @@ export class WallShadowLayer {
     gl.cullFace(gl.BACK);
     gl.frontFace(gl.CCW);
 
-    // PARCHMENT: bias the buildings towards the camera, so they always win the
-    // depth test against the ground they are standing on.
+    // PARCHMENT: in the plan view only, bias the buildings towards the camera
+    // so they win the depth test against the ground they are standing on.
     //
     // With 3D terrain on, that ground is a real depth-writing mesh directly
     // under every footprint, and how finely the two can be told apart depends
@@ -863,10 +880,24 @@ export class WallShadowLayer {
     // buildings shatter into a mosaic of slivers that flickers as the camera
     // moves.
     //
-    // The offset is constant across every building, so it changes nothing about
-    // which building is in front of which.
-    gl.enable(gl.POLYGON_OFFSET_FILL);
-    gl.polygonOffset(-2, -8);
+    // Only there, though, and that is the whole point of the check. Winning the
+    // depth test against the ground is exactly what a building must NOT do once
+    // the camera tilts: the 10m basement above is meant to be buried, and a
+    // building that outranks the terrain has it drawn instead — ten metres of
+    // wall below the pavement, the building reading that much taller, and the
+    // trees beside it (an honest depth test, no bias) left hanging above a
+    // ground line that has dropped away from under them.
+    //
+    // The slope term goes with it. `glPolygonOffset`'s first argument is scaled
+    // by the polygon's depth slope, which for a wall seen near edge-on — which
+    // is what tilting produces — is enormous, so the bias grew with the tilt
+    // and the artefact grew with it. A plan view sees roofs, whose slope is
+    // ~0 and for which the constant term was doing all the work anyway.
+    const planView = Math.abs(this._map.getPitch?.() ?? 0) < PLAN_VIEW_PITCH;
+    if (planView) {
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(0, -8);
+    }
 
     gl.useProgram(this._buildProg);
     gl.uniform1f(U.u_band, Math.max(0.01, this.band));
@@ -889,8 +920,10 @@ export class WallShadowLayer {
       this._drawSegs(gl, sg);
     }
     this._vao.bind(null);
-    gl.polygonOffset(0, 0); // PARCHMENT
-    gl.disable(gl.POLYGON_OFFSET_FILL); // PARCHMENT
+    if (planView) { // PARCHMENT
+      gl.polygonOffset(0, 0);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
+    }
   }
 
   onRemove(_map, gl) {

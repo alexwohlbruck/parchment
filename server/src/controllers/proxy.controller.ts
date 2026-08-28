@@ -169,27 +169,44 @@ app.get(
   },
 )
 
-// Proxy Martin tile requests through Barrelman integration config.
-// Martin serves vector tiles at /{source}/{z}/{x}/{y} (no /tiles/ prefix).
+// Proxy vector tile requests through the Barrelman integration.
+//
+// Barrelman fronts Martin at /tiles/{source}/{z}/{x}/{y} — the same prefix the
+// portolan proxy below uses, and the same auth: the integration's apiKey as a
+// Bearer header, its tileKey as a query parameter. This used to address a bare
+// Martin instead, at /{source}/{z}/{x}/{y} on a `martinHost` config field, and
+// both halves of that had rotted: Barrelman moved tiles behind /tiles/* when it
+// made them metered and revocable (there is no unmetered tile key any more),
+// and `martinHost` is not a field `BarrelmanConfig` has ever carried — so the
+// lookup silently returned undefined and every tile went to the localhost
+// default, whatever the integration was pointed at. The basemap drew nothing.
 app.get(
   '/barrelman/:source/:z/:x/:y',
   async ({ params }) => {
     try {
-      const systemIntegration = integrationManager
-        .getConfiguredIntegrations()
-        .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+      const config = resolveBarrelmanConfig()
+      // Kept as an escape hatch for a Martin reachable directly, which is what
+      // a local Barrelman checkout serves behind its own /tiles route.
+      const host = config?.host || process.env.MARTIN_HOST
+      if (!host) {
+        return new Response('Barrelman not configured', { status: 501 })
+      }
 
-      const martinHost =
-        (systemIntegration?.config as { martinHost?: string })?.martinHost ||
-        process.env.MARTIN_HOST ||
-        'http://localhost:5002'
-      const tileKey = (systemIntegration?.config as { tileKey?: string })
-        ?.tileKey
+      const tileKey = (
+        integrationManager
+          .getConfiguredIntegrations()
+          .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+          ?.config as { tileKey?: string }
+      )?.tileKey
+
       const { source, z, x, y } = params
-      const tileUrl = new URL(`/${source}/${z}/${x}/${y}`, martinHost)
+      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
       if (tileKey) tileUrl.searchParams.set('token', tileKey)
 
-      const response = await fetch(tileUrl.toString())
+      const headers: Record<string, string> = {}
+      if (config?.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+
+      const response = await fetch(tileUrl.toString(), { headers })
 
       if (!response.ok) {
         logError(

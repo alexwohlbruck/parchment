@@ -12,6 +12,7 @@
 
 ### Fixed
 
+* The map draws its tiles again. Parchment asked Barrelman for them at an address it stopped serving from — before it made tiles metered and revocable, tiles sat at the top level; now they sit under `/tiles`. It also looked the host up under a name the integration has never stored, so every request went to a local default whatever the integration was pointed at, and the basemap, parking, trees and street detail all came back empty
 * The map engine's own locate button no longer appears next to Parchment's
 * The map draws again on the MapLibre engine. A released build was missing one file the map's background worker loads, so the worker died the moment it started — silently, with nothing in the console and not a single tile ever requested. The map sat blank behind everything else, which carried on working: search found places, panels opened, the transit layer was there, all of it over empty space
 

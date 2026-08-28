@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Fixed
+
+* The map draws again on the MapLibre engine. A released build was missing one file the map's background worker loads, so the worker died the moment it started — silently, with nothing in the console and not a single tile ever requested. The map sat blank behind everything else, which carried on working: search found places, panels opened, the transit layer was there, all of it over empty space
+
 ## [0.8.0] - 2026-08-27
 
 ### Added

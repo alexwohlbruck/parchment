@@ -196,12 +196,26 @@ const POI_PLATE_ICON = [
 const IS_TRANSIT_POI = isTransitPoi()
 
 /**
- * Hand corrections where MapTiler's dark style has no counterpart to read.
+ * Hand corrections where MapTiler's dark style has no counterpart to read, or
+ * where the counterpart it has does not survive our own palette.
+ *
  * Their dark Oneway layer drops `icon-color` entirely and leans on its own
  * sprite art, which would otherwise leave a light-grey arrow on a dark road.
+ *
+ * Sand is theirs — `hsl(195, 64%, 22%)`, a cyan — and it is the most saturated
+ * fill on our night map by a wide margin: the ground sits at 37% saturation,
+ * woodland at 47%, grass at 33%. Every one of those is a cool hue too, so the
+ * beach did not read as a lighter shade of anything, it read as a band of
+ * turquoise laid between the town and the sea. Ours keeps the light map's warm
+ * hue instead of inverting it, drops the saturation to where the rest of the
+ * palette sits, and takes a lightness a few points above the ground so a beach
+ * is a pale strip against the land and clearly above the water. Sand is also
+ * what deserts draw with, so it has to hold at continent scale without
+ * glowing.
  */
 const DARK_OVERRIDES = {
   oneway_icon_color: 'hsl(0, 0%, 42%)',
+  sand_fill_color: 'hsl(42, 19%, 30%)',
 }
 
 /**
@@ -1109,7 +1123,7 @@ class Tokens {
   ref(color, darkColor, hint) {
     const light = color.trim()
     const dark = isColor(darkColor) ? darkColor.trim() : null
-    const key = `${light} ${dark ?? ''}`
+    const key = `${light}\u0000${dark ?? ''}`
     if (this.byColor.has(key)) return `@${this.byColor.get(key)}`
     let name = hint
     let n = 2

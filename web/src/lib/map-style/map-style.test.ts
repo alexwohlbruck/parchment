@@ -190,9 +190,15 @@ describe('flavors', () => {
      * Tokens we author rather than lift — the tail of `convert-basemap-style`
      * overwrites these after tokenizing, so MapTiler's value is not the answer
      * for them and never was.
+     *
+     * `sand_fill_color` is the one that is lifted and then overridden, through
+     * `DARK_OVERRIDES`: MapTiler paints a night beach in cyan, which on our
+     * palette read as turquoise rather than as sand. Anything else added to
+     * that map and present in both styles has to be listed here too, or this
+     * test will report our own deliberate value as a drift from theirs.
      */
     const authored =
-      /^(poi_|road_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$)/
+      /^(poi_|road_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$)/
 
     const wrong: string[] = []
     let checked = 0

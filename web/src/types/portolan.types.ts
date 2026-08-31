@@ -3,9 +3,8 @@
  *
  * Portolan is the pipeline that charts GTFS feeds into schematic transit
  * ribbons and cuts them into MVT pyramids. Barrelman serves those pyramids
- * at /tiles/portolan/*, which parchment reaches through the server proxy
- * (/proxy/portolan/*). Schemas mirror the portolan atlas so a server change
- * breaks typecheck rather than a screen:
+ * at /tiles/portolan/*, which the browser fetches directly. Schemas mirror the
+ * portolan atlas so a server change breaks typecheck rather than a screen:
  *   portolan/web/src/lib/api.ts (TilesIndexEntry, TileJSON, StyleSet)
  *   portolan/internal/atlas/atlas.go (index.json writer)
  *   portolan/internal/pipeline/pipeline.go ~889 (ribbon props)

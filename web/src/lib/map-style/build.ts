@@ -271,7 +271,9 @@ export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
 
 function buildTileUrl(tileServerUrl: string, tileKey?: string, source = 'basemap'): string {
   const params = new URLSearchParams()
-  if (tileKey) params.set('token', tileKey)
+  // Barrelman takes the key on the URL; a map library cannot set a header, and
+  // a header would force a CORS preflight on every tile.
+  if (tileKey) params.set('api_key', tileKey)
   params.set('v', cacheBuster)
   return `${tileServerUrl}/${source}/{z}/{x}/{y}?${params.toString()}`
 }

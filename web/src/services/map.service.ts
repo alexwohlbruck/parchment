@@ -55,7 +55,7 @@ import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useOrientationService } from '@/services/orientation.service'
 import { useSearchStore } from '@/stores/search.store'
-import { api } from '@/lib/api'
+import { barrelmanTileBase, barrelmanTileKey } from '@/lib/barrelman-tiles'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 
@@ -145,15 +145,15 @@ function mapService() {
       case MapEngine.MAPBOX:
         return new MapboxStrategy(container, options, accessToken, languageCode)
       case MapEngine.MAPLIBRE: {
-        // Route tile requests through the Parchment server's proxy to avoid
-        // CORS issues with the Barrelman tile server.  The proxy handles
-        // auth (appends tileKey server-side) and caching headers.
-        const proxyBaseUrl = `${api.defaults.baseURL}/proxy/barrelman`
+        // Straight to Barrelman: it serves tiles CORS-open and takes its key
+        // on the URL, so a proxy hop would only funnel every user through one
+        // address on the far side of a per-address rate limit.
         return new MaplibreStrategy(
           container,
           options,
           accessToken,
-          proxyBaseUrl,
+          barrelmanTileBase() ?? undefined,
+          barrelmanTileKey(),
         )
       }
     }

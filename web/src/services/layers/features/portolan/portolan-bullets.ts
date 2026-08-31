@@ -22,7 +22,7 @@
  * in the feed's own colours, which is what it always was.
  */
 import { reactive } from 'vue'
-import { api } from '@/lib/api'
+import { barrelmanTileBase, withTileKey } from '@/lib/barrelman-tiles'
 import type { PortolanIndexEntry } from '@/types/portolan.types'
 
 export interface PortolanBullet {
@@ -35,7 +35,11 @@ export interface PortolanBullet {
 
 type RouteIndex = Record<string, PortolanBullet>
 
-const proxyBase = () => `${api.defaults.baseURL}/proxy/portolan`
+/** The pyramid root on Barrelman, or null when it isn't configured. */
+const portolanBase = () => {
+  const base = barrelmanTileBase()
+  return base ? `${base}/portolan` : null
+}
 
 /** Loaded route indexes, per feed. `null` marks a feed that has none. */
 const indexes = reactive<Record<string, RouteIndex | null>>({})
@@ -48,7 +52,9 @@ const state = reactive({ generation: 0 })
 
 function ensureRegions(): Promise<PortolanIndexEntry[]> {
   if (!regionsPromise) {
-    regionsPromise = fetch(`${proxyBase()}/index.json`)
+    const base = portolanBase()
+    if (!base) return (regionsPromise = Promise.resolve([]))
+    regionsPromise = fetch(withTileKey(`${base}/index.json`))
       .then(r => (r.ok ? r.json() : []))
       .then(list => (Array.isArray(list) ? list : []))
       .catch(() => [])
@@ -65,7 +71,9 @@ function ensureIndex(feed: string): Promise<void> {
   const inFlight = pending.get(feed)
   if (inFlight) return inFlight
   if (feed in indexes) return Promise.resolve()
-  const p = fetch(`${proxyBase()}/${encodeURIComponent(feed)}/routes.json`)
+  const base = portolanBase()
+  if (!base) return Promise.resolve()
+  const p = fetch(withTileKey(`${base}/${encodeURIComponent(feed)}/routes.json`))
     .then(r => (r.ok ? r.json() : null))
     .catch(() => null)
     .then(idx => {

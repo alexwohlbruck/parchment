@@ -236,22 +236,6 @@ export class MaplibreStrategy extends MapStrategy {
       // mapped straight to bearing wherever the cursor was — which is what this
       // map has always felt like, and what Mapbox does.
       aroundCenter: false,
-      transformRequest: (url, resourceType) => {
-        // Add auth header for tile requests to the barrelman tile proxy
-        if (
-          this.tileKey &&
-          this.tileServerUrl &&
-          url.startsWith(this.tileServerUrl)
-        ) {
-          return {
-            url,
-            headers: {
-              Authorization: `Bearer ${this.tileKey}`,
-            },
-          }
-        }
-        return { url }
-      },
     })
 
     // Add geolocate control but hide it off-screen

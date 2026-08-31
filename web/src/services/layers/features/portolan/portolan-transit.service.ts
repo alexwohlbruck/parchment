@@ -1,9 +1,9 @@
 /**
  * Portolan transit renderer.
  *
- * Streams portolan's MVT pyramids (served by barrelman, reached through
- * the parchment server proxy at /proxy/portolan/*) and renders them the
- * way portolan's own atlas viewer does. Structural port of the tile mode
+ * Streams portolan's MVT pyramids (served by barrelman at /tiles/portolan/*,
+ * fetched straight from the browser) and renders them the way portolan's own
+ * atlas viewer does. Structural port of the tile mode
  * in portolan/web/src/views/MapView.vue — line references throughout.
  *
  * Renders on both engines. The maplibre-gl transit fork adds two things
@@ -23,7 +23,7 @@
  *     localStorage.setItem('parchment.portolan-transit', '1'); location.reload()
  *
  * Rendering architecture (MapView.vue:1288-1512):
- *  - one vector source per feed pyramid, built from /proxy/portolan/index.json
+ *  - one vector source per feed pyramid, built from the pyramid index.json
  *    alone (bounds + maxzoom ride in the index; the tile template is fixed);
  *  - steady ribbons render straight off the vector tiles, one layer per
  *    feed per zoom band (band_min filter — exactly one band per zoom or
@@ -44,7 +44,7 @@
 
 import { getVersion } from 'maplibre-gl'
 import router, { AppRoute } from '@/router'
-import { api } from '@/lib/api'
+import { barrelmanTileBase, withTileKey } from '@/lib/barrelman-tiles'
 import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
@@ -493,14 +493,21 @@ function unbindListeners() {
   }
 }
 
-const proxyBase = () => `${api.defaults.baseURL}/proxy/portolan`
+/** The pyramid root on Barrelman, or null when it isn't configured. Fetched
+ *  from the browser directly — see `lib/barrelman-tiles.ts`. */
+const portolanBase = () => {
+  const base = barrelmanTileBase()
+  return base ? `${base}/portolan` : null
+}
 
 /** The feed list, probed once per session. A missing index (portolan not
  *  yet deployed on this barrelman, or barrelman not configured) resolves
  *  to [] and the feature is silently absent. */
 function ensureRegions(): Promise<PortolanIndexEntry[]> {
   if (!regionsPromise) {
-    regionsPromise = fetch(`${proxyBase()}/index.json`)
+    const base = portolanBase()
+    if (!base) return (regionsPromise = Promise.resolve([]))
+    regionsPromise = fetch(withTileKey(`${base}/index.json`))
       .then(r => (r.ok ? r.json() : []))
       .then(list => (Array.isArray(list) ? list : []))
       .catch(() => [])
@@ -522,7 +529,9 @@ function ensureFeedStyle(feed: string): Promise<void> {
   const pending = stylePending.get(feed)
   if (pending) return pending
   if (feedStyles.has(feed)) return Promise.resolve()
-  const p = fetch(`${proxyBase()}/${encodeURIComponent(feed)}/style.json`)
+  const base = portolanBase()
+  if (!base) return Promise.resolve()
+  const p = fetch(withTileKey(`${base}/${encodeURIComponent(feed)}/style.json`))
     .then(res => (res.ok ? res.json() : null))
     .catch(() => null)
     .then(s => {
@@ -845,13 +854,15 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
 function mountFeed(r: PortolanIndexEntry) {
   if (mounted.has(r.feed) || !map?.getSource(SRC_STATIONS)) return
   if (map.getSource(srcTiles(r.feed))) return
+  const base = portolanBase()
+  if (!base) return
   mounted.add(r.feed)
   const anchor = ribbonAnchor && map.getLayer(ribbonAnchor) ? ribbonAnchor : undefined
 
   const src = srcTiles(r.feed)
   map.addSource(src, {
     type: 'vector',
-    tiles: [`${proxyBase()}/${encodeURIComponent(r.feed)}/{z}/{x}/{y}.mvt`],
+    tiles: [withTileKey(`${base}/${encodeURIComponent(r.feed)}/{z}/{x}/{y}.mvt`)],
     minzoom: 0,
     maxzoom: r.maxzoom ?? 15, // the renderer overzooms above the pyramid top
     ...(r.bounds?.length === 4 ? { bounds: r.bounds } : {}),

@@ -296,6 +296,10 @@ export class MaplibreStrategy extends MapStrategy {
       },
     })
 
+    // A console handle for poking the live map — camera, transform, layers —
+    // without wiring anything through the app. Dev builds only.
+    if (import.meta.env.DEV) (window as any).__map = this.mapInstance
+
     // Added for `trigger()` alone — the app draws its own locate button, and
     // the one this control renders is hidden in `Map.vue`. It still goes
     // through `addControl` so `map.remove()` tears its geolocation watch down.

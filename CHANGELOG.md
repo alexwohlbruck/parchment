@@ -2,6 +2,7 @@
 
 ### Changed
 
+* Settings open with ⌘, (Ctrl+, on Windows and Linux), the shortcut every other app uses, instead of a bare comma. Keyboard hints throughout the app now name the right key for the machine you're on rather than always showing ⌘
 * Buildings take a lighter tint from the colour recorded for them. The tint is there to tell one building from its neighbour, and at the old strength a street of brick or painted render read as a wash of colour over the land rather than as buildings standing on it
 * Trees and buildings no longer break into flickering patches when the map is flat on. The plan view fakes an overhead camera by pushing the camera far enough back that the walls disappear, and at that distance the depth the map draws with was too coarse to tell the front of a tree from its back, or a roof from the wall under it
 * Place icons on the map are drawn crisply. They were built at twice the size they render at and handed to the map engine that way, which then point-sampled them back down and threw half the edge away — so a disc came out with a stair-stepped rim next to a search-result pin the browser had drawn cleanly. The soft glow under a marker no longer ends in a faint square either

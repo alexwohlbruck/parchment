@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { type Hotkey } from '@/types/command.types'
 import { useCommandService } from '@/services/command.service'
 import { useHotkeyStore } from '@/stores/hotkey.store'
+import { isApplePlatform } from '@/lib/platform'
 
 const commandService = useCommandService()
 const hotkeyStore = useHotkeyStore()
@@ -54,7 +55,9 @@ const displayString = computed(() => {
   if (!hotkey?.value?.map) return ''
   return hotkey.value
     .map(key => {
-      if (key === 'meta' || key === 'mod') return '⌘'
+      // `mod` is mousetrap's platform-aware modifier: ⌘ on macOS, Ctrl elsewhere
+      if (key === 'mod') return isApplePlatform() ? '⌘' : 'Ctrl'
+      if (key === 'meta') return '⌘'
       if (key === 'ctrl') return 'Ctrl'
       if (key === 'shift') return 'Shift'
       if (key === 'alt') return 'Alt'

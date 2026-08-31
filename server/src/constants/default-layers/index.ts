@@ -29,8 +29,25 @@ export function getProxyUrl(serverUrl: string, endpoint: string): string {
   return `${base}/proxy/${endpoint}`
 }
 
-// Resolve {PROXY_URL} placeholders in layer configuration tile URLs
-export function resolveProxyUrls(configuration: any, serverUrl: string): any {
+/**
+ * Where a browser fetches Barrelman tiles, from `resolveBarrelmanTileConfig`.
+ * Absent when Barrelman isn't configured — the templates that need it then
+ * resolve to nothing, which is the same thing they meant before.
+ */
+export interface BarrelmanTiles {
+  /** Tile root, e.g. `https://api.barrelman.dev/tiles`. */
+  base: string
+  /** Public, tiles-scoped key. Appended to the URL: map libraries can't set headers. */
+  tileKey?: string
+}
+
+// Resolve {PROXY_URL} / {BARRELMAN_TILES} placeholders in layer configuration
+// tile URLs
+export function resolveProxyUrls(
+  configuration: any,
+  serverUrl: string,
+  barrelman?: BarrelmanTiles,
+): any {
   const config = JSON.parse(JSON.stringify(configuration))
   const base = serverUrl.endsWith('/') ? serverUrl.slice(0, -1) : serverUrl
   const proxyBase = `${base}/proxy`
@@ -39,10 +56,20 @@ export function resolveProxyUrls(configuration: any, serverUrl: string): any {
 
   function replacePlaceholders(obj: any): any {
     if (typeof obj === 'string') {
-      return obj
+      const resolved = obj
         .replace(/\{PROXY_URL\}/g, proxyBase)
         .replace(/\{SERVER_URL\}/g, base)
         .replace(/\{YESTERDAY\}/g, yesterday)
+      // Barrelman tiles go straight from the browser to Barrelman, so the key
+      // has to be on the URL. Appended after substitution rather than baked
+      // into the placeholder so the templates stay readable and a template
+      // that already carries a query string still ends up with one `?`.
+      if (!obj.includes('{BARRELMAN_TILES}')) return resolved
+      if (!barrelman) return resolved.replace(/\{BARRELMAN_TILES\}/g, '')
+      const withHost = resolved.replace(/\{BARRELMAN_TILES\}/g, barrelman.base)
+      if (!barrelman.tileKey) return withHost
+      const sep = withHost.includes('?') ? '&' : '?'
+      return `${withHost}${sep}api_key=${encodeURIComponent(barrelman.tileKey)}`
     }
     if (Array.isArray(obj)) {
       return obj.map(replacePlaceholders)

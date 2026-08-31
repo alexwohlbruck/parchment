@@ -3,7 +3,22 @@ import { requireAuth } from '../../middleware/auth.middleware'
 import { permissions } from '../../middleware/auth.middleware'
 import { PermissionId } from '../../types/auth.types'
 import * as layersService from '../../services/layers.service'
+import { resolveBarrelmanTileConfig } from '../../services/barrelman.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
+
+/**
+ * What a default template's placeholders resolve against: this server's public
+ * origin, and where a browser reaches Barrelman's tiles.
+ *
+ * SERVER_ORIGIN is the canonical public-origin env everything else uses; fall
+ * back to it so a deployment that sets only SERVER_ORIGIN doesn't silently emit
+ * localhost tile URLs (mixed-content-blocked on https).
+ */
+function templateContext(): [string, ReturnType<typeof resolveBarrelmanTileConfig>] {
+  const serverUrl =
+    process.env.SERVER_URL || process.env.SERVER_ORIGIN || 'http://localhost:5000'
+  return [serverUrl, resolveBarrelmanTileConfig()]
+}
 
 const app = new Elysia().use(i18nPlugin)
 
@@ -323,15 +338,11 @@ app.group('', (g) =>
           DEFAULT_GROUP_TEMPLATES,
           resolveProxyUrls,
         } = await import('../../constants/default-layers')
-        // SERVER_ORIGIN is the canonical public-origin env everything else uses;
-        // fall back to it so a deployment that sets only SERVER_ORIGIN doesn't
-        // silently emit localhost tile URLs (mixed-content-blocked on https).
-        const serverUrl =
-          process.env.SERVER_URL || process.env.SERVER_ORIGIN || 'http://localhost:5000'
+        const [serverUrl, barrelman] = templateContext()
         return {
           layers: DEFAULT_LAYER_TEMPLATES.map((t) => ({
             ...t,
-            configuration: resolveProxyUrls(t.configuration, serverUrl),
+            configuration: resolveProxyUrls(t.configuration, serverUrl, barrelman),
           })),
           groups: DEFAULT_GROUP_TEMPLATES,
         }
@@ -438,9 +449,8 @@ app.group('', (g) =>
           set.status = 404
           return { error: t('errors.library.layerTemplateNotFound') }
         }
-        const serverUrl =
-          process.env.SERVER_URL || process.env.SERVER_ORIGIN || 'http://localhost:5000'
-        const resolved = resolveProxyUrls(template.configuration, serverUrl)
+        const [serverUrl, barrelman] = templateContext()
+        const resolved = resolveProxyUrls(template.configuration, serverUrl, barrelman)
         const clone = await layersService.cloneDefaultLayer(
           user.id,
           template,

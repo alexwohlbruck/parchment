@@ -34,7 +34,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'transit-station-buildings',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/transit_station_buildings/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/transit_station_buildings/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'transit_station_buildings',
@@ -82,7 +82,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'transit-platforms',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/transit_platforms/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/transit_platforms/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'transit_platforms',
@@ -130,7 +130,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'transit-entrances',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/transit_entrances/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/transit_entrances/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'transit_entrances',
@@ -189,7 +189,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'transit-entrances',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/transit_entrances/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/transit_entrances/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'transit_entrances',

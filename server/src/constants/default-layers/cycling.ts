@@ -30,7 +30,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-routes',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_routes/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_routes/{z}/{x}/{y}'],
         maxzoom: 14,
       },
       'source-layer': 'bicycle_routes',
@@ -96,7 +96,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -151,7 +151,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -216,7 +216,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -283,7 +283,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -331,7 +331,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -386,7 +386,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -435,7 +435,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -501,7 +501,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -561,7 +561,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -626,7 +626,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -699,7 +699,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -766,7 +766,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -824,7 +824,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -879,7 +879,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -928,7 +928,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -983,7 +983,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -1031,7 +1031,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -1086,7 +1086,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-ways',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_ways/{z}/{x}/{y}'],
         maxzoom: 16,
       },
       'source-layer': 'bicycle_ways',
@@ -1134,7 +1134,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       source: {
         id: 'bicycle-routes',
         type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_routes/{z}/{x}/{y}'],
+        tiles: ['{BARRELMAN_TILES}/bicycle_routes/{z}/{x}/{y}'],
         maxzoom: 14,
       },
       'source-layer': 'bicycle_routes',

@@ -85,9 +85,22 @@ mock.module('../../services/layers.service', () => ({
   restoreAllDefaults,
 }))
 
-const resolveProxyUrls = mock((config: any, serverUrl: string) => ({
+const resolveProxyUrls = mock((config: any, serverUrl: string, _barrelman?: any) => ({
   ...config,
   tiles: [`${serverUrl}/proxy/tiles/{z}/{x}/{y}`],
+}))
+
+/**
+ * Mocked rather than left to the real service: it reads the integration
+ * manager, and module mocks are process-wide in bun — another controller's
+ * test installs an `integrationManager` without `getConfiguredIntegrations`,
+ * which would take this suite down with it depending on file order.
+ */
+const barrelmanTiles = { base: 'https://api.barrelman.dev/tiles', tileKey: 'tiles-key' }
+const resolveBarrelmanTileConfig = mock(() => barrelmanTiles)
+
+mock.module('../../services/barrelman.service', () => ({
+  resolveBarrelmanTileConfig,
 }))
 
 mock.module('../../constants/default-layers', () => ({
@@ -134,6 +147,7 @@ beforeEach(() => {
   cloneDefaultGroup.mockClear()
   restoreAllDefaults.mockClear()
   resolveProxyUrls.mockClear()
+  resolveBarrelmanTileConfig.mockClear()
 })
 
 describe('permission gating', () => {
@@ -424,6 +438,14 @@ describe('GET /layers/defaults', () => {
 
     expect(resolveProxyUrls.mock.calls[0][1]).toBe('https://tiles.parchment.test')
     delete process.env.SERVER_URL
+  })
+
+  test('hands the resolver where a browser reaches barrelman tiles', async () => {
+    // Barrelman tiles are fetched from the page, not from here, so the
+    // templates have to resolve against its address and public key.
+    await req(app).get('/layers/defaults')
+
+    expect(resolveProxyUrls.mock.calls[0][2]).toEqual(barrelmanTiles)
   })
 })
 

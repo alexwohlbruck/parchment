@@ -6,14 +6,15 @@
  * must never do is leak a provider key, so several tests assert the key
  * appears in the upstream URL but never in the response.
  *
- * Data endpoints that happen to be served by Barrelman are not proxies and
- * live elsewhere — see transit / gbfs / isochrone controller tests.
+ * Only the providers with a secret account key are here. Barrelman tiles are
+ * fetched straight from the browser with a public scoped key, so there is no
+ * proxy route to test — see `resolveBarrelmanTileConfig` and the client's
+ * portolan service instead.
  */
 
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
 import { authMockModule, setAuthUser, resetAuth } from '../test/auth-mock'
 import { createTestApp, req } from '../test/app'
-import { portolanTileCache } from '../lib/tile-cache'
 
 let configuredIntegrations: any[] = []
 
@@ -55,18 +56,12 @@ function tileResponse() {
   })
 }
 
-const barrelmanIntegration = {
-  integrationId: 'barrelman',
-  config: { host: 'https://barrelman.test', apiKey: 'barrelman-key' },
-}
-
 beforeEach(() => {
   resetAuth()
-  portolanTileCache.clear()
   fetchCalls.length = 0
   fetchResponses = []
   fetchError = null
-  configuredIntegrations = [barrelmanIntegration]
+  configuredIntegrations = []
 })
 
 describe('GET /proxy/loom/:service/geo/:z/:x/:y', () => {
@@ -200,157 +195,5 @@ describe('GET /proxy/transitland/...', () => {
     const res = await req(app).get('/proxy/transitland/routes/12/1170/1567')
 
     expect(res.status).toBe(501)
-  })
-})
-
-describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
-  test('proxies to the configured Martin host with the tile token', async () => {
-    configuredIntegrations = [
-      {
-        integrationId: 'barrelman',
-        config: { martinHost: 'https://martin.test', tileKey: 'tile-key' },
-      },
-    ]
-    fetchResponses = [tileResponse()]
-
-    const res = await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
-
-    expect(res.status).toBe(200)
-    expect(fetchCalls[0]).toContain('https://martin.test/geo_places/12/1170/1567')
-    expect(fetchCalls[0]).toContain('token=tile-key')
-  })
-
-  test('falls back to MARTIN_HOST when the integration has none', async () => {
-    configuredIntegrations = [{ integrationId: 'barrelman', config: {} }]
-    process.env.MARTIN_HOST = 'https://martin-env.test'
-    fetchResponses = [tileResponse()]
-
-    await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
-
-    expect(fetchCalls[0]).toContain('martin-env.test')
-    delete process.env.MARTIN_HOST
-  })
-
-  test('omits the token when none is configured', async () => {
-    configuredIntegrations = [
-      { integrationId: 'barrelman', config: { martinHost: 'https://martin.test' } },
-    ]
-    fetchResponses = [tileResponse()]
-
-    await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
-
-    expect(fetchCalls[0]).not.toContain('token=')
-  })
-
-  test('preserves the upstream content type', async () => {
-    configuredIntegrations = [
-      { integrationId: 'barrelman', config: { martinHost: 'https://martin.test' } },
-    ]
-    fetchResponses = [
-      new Response(new Uint8Array([1]), {
-        headers: { 'content-type': 'application/vnd.mapbox-vector-tile' },
-      }),
-    ]
-
-    const res = await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
-
-    expect(res.headers.get('content-type')).toBe('application/vnd.mapbox-vector-tile')
-  })
-
-  test('forwards the upstream status on failure', async () => {
-    configuredIntegrations = [
-      { integrationId: 'barrelman', config: { martinHost: 'https://martin.test' } },
-    ]
-    fetchResponses = [new Response('gone', { status: 404 })]
-
-    const res = await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
-
-    expect(res.status).toBe(404)
-  })
-})
-
-/**
- * Portolan tiles are cached IN THE SERVER, not just in the browser.
- *
- * Parchment proxies them, so every user's map traffic reaches barrelman
- * from one address — and barrelman's per-address limit is sized for API
- * calls, not for a viewport's worth of tiles. Forwarding each request ran
- * normal map viewing into a steady stream of 429s. These assert the proxy
- * asks upstream once and answers from memory after that.
- */
-describe('GET /proxy/portolan/* — server-side caching', () => {
-  test('the second request never reaches barrelman', async () => {
-    fetchResponses = [tileResponse()]
-
-    const first = await req(app).get('/proxy/portolan/nyc/14/4825/6168.mvt')
-    expect(first.status).toBe(200)
-    expect(first.headers.get('x-cache')).toBe('MISS')
-    expect(fetchCalls.length).toBe(1)
-
-    const second = await req(app).get('/proxy/portolan/nyc/14/4825/6168.mvt')
-    expect(second.status).toBe(200)
-    expect(second.headers.get('x-cache')).toBe('HIT')
-    expect(fetchCalls.length).toBe(1) // no second upstream call
-    // the harness decodes the body as text; the bytes survive the round trip
-    expect(String(second.body)).toBe(String(first.body))
-    expect(String(second.body).length).toBeGreaterThan(0)
-  })
-
-  test('an empty tile is cached, which is most of a viewport', async () => {
-    fetchResponses = [new Response(null, { status: 204 })]
-
-    const first = await req(app).get('/proxy/portolan/nyc/14/1/1.mvt')
-    expect(first.status).toBe(204)
-    expect(fetchCalls.length).toBe(1)
-
-    const second = await req(app).get('/proxy/portolan/nyc/14/1/1.mvt')
-    expect(second.status).toBe(204)
-    expect(second.headers.get('x-cache')).toBe('HIT')
-    expect(fetchCalls.length).toBe(1)
-  })
-
-  test('a 404 is cached — the client asks again on every load', async () => {
-    // the bus-only feeds have no routes.json at all, and that request
-    // repeats forever; barrelman boxes an address that keeps being refused
-    fetchResponses = [new Response('nope', { status: 404 })]
-
-    const first = await req(app).get('/proxy/portolan/mta-bus/routes.json')
-    expect(first.status).toBe(404)
-    expect(fetchCalls.length).toBe(1)
-
-    const second = await req(app).get('/proxy/portolan/mta-bus/routes.json')
-    expect(second.status).toBe(404)
-    expect(second.headers.get('x-cache')).toBe('HIT')
-    expect(fetchCalls.length).toBe(1)
-  })
-
-  test('an upstream fault is NOT cached', async () => {
-    // a 500 is a moment, not an answer — caching it would extend an
-    // outage past the end of the outage
-    fetchResponses = [new Response('boom', { status: 500 }), tileResponse()]
-
-    const first = await req(app).get('/proxy/portolan/nyc/14/9/9.mvt')
-    expect(first.status).toBe(500)
-
-    const second = await req(app).get('/proxy/portolan/nyc/14/9/9.mvt')
-    expect(second.status).toBe(200)
-    expect(fetchCalls.length).toBe(2) // it asked again
-  })
-
-  test('different tiles are different entries', async () => {
-    fetchResponses = [tileResponse(), tileResponse()]
-    await req(app).get('/proxy/portolan/nyc/14/1/2.mvt')
-    await req(app).get('/proxy/portolan/nyc/14/1/3.mvt')
-    expect(fetchCalls.length).toBe(2)
-    await req(app).get('/proxy/portolan/nyc/14/1/2.mvt')
-    expect(fetchCalls.length).toBe(2)
-  })
-
-  test('a cached tile keeps its content type and browser TTL', async () => {
-    fetchResponses = [tileResponse()]
-    await req(app).get('/proxy/portolan/nyc/14/5/5.mvt')
-    const hit = await req(app).get('/proxy/portolan/nyc/14/5/5.mvt')
-    expect(hit.headers.get('content-type')).toContain('protobuf')
-    expect(hit.headers.get('cache-control')).toContain('max-age=3600')
   })
 })

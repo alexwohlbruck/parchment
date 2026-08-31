@@ -10050,52 +10050,6 @@
         }
       }
     },
-    "/proxy/barrelman/{source}/{z}/{x}/{y}": {
-      "get": {
-        "operationId": "getProxyBarrelmanBySourceByZByXByY",
-        "tags": [
-          "Proxy"
-        ],
-        "summary": "Proxy Barrelman tile requests",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "source",
-            "required": true
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "z",
-            "required": true
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "x",
-            "required": true
-          },
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "y",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {}
-        }
-      }
-    },
     "/public/collections/{token}": {
       "get": {
         "parameters": [

@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+* The map fetches its tiles straight from the map data service instead of routing every one through Parchment's own server. Tiles arrive in one hop rather than two, and a busy map no longer trips the rate limit it used to reach on nothing but ordinary panning — which is what put the gaps in the transit map, and what the stuttering was. Self-hosted setups where the browser can't reach the map service at the same address the server uses can now set a separate tile address on the Barrelman integration
+
 ### Fixed
 
 * The map draws again on the MapLibre engine. A released build was missing one file the map's background worker loads, so the worker died the moment it started — silently, with nothing in the console and not a single tile ever requested. The map sat blank behind everything else, which carried on working: search found places, panels opened, the transit layer was there, all of it over empty space

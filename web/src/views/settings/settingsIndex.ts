@@ -355,6 +355,12 @@ export const settingsIndex: SettingsPageDef[] = [
               keywords: ['impersonate', 'login as', 'debug user'],
             },
             {
+              id: 'building-shading',
+              titleKey: 'settings.developer.buildingShading.title',
+              descriptionKey: 'settings.developer.buildingShading.description',
+              keywords: ['building', 'shadow', 'shading', 'occlusion', 'edge', '3d', 'lighting'],
+            },
+            {
               id: 'dev-info',
               titleKey: 'settings.developer.info.title',
             },

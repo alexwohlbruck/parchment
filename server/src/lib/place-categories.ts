@@ -1,5 +1,7 @@
+import makiIconNames from '@mapbox/maki/layouts/all.json'
 import type { PlaceCategory, PlaceIcon } from '../types/place.types'
 import type { MatchResult } from './osm-presets'
+import { getPresetById } from './osm-presets'
 import { logWarn } from './logger'
 
 // ─── Category palette ────────────────────────────────────────────────────────
@@ -354,37 +356,150 @@ const nonMakiFallbackMap: Record<string, { icon: string; iconPack: 'lucide' | 'm
   'iD-relation': { icon: 'GitBranch', iconPack: 'lucide' },
 }
 
+export type ResolvedIcon = { icon: string; iconPack: 'lucide' | 'maki' }
+
+const ICON_PACK_PREFIX = /^(maki|iD|temaki|fas|roentgen)-/
+
+/**
+ * Every glyph the client can actually draw from the Maki sheet.
+ *
+ * The list ships with the package, so this is the icon set itself rather than a
+ * copy of it that can fall behind. It exists because the client's fallback for
+ * a name Maki does not have is a map pin, silently — and two thirds of the iD
+ * schema used to land there: an icon like `fas-pepper-hot` had its prefix
+ * stripped and was handed on as the Maki name `pepper-hot`, which does not
+ * exist, so every Mexican restaurant in the app drew a pin.
+ */
+const MAKI_ICONS = new Set<string>(makiIconNames as string[])
+
+/**
+ * A name as Maki spells it, or null if Maki has no such glyph.
+ *
+ * Maki hyphenates (`fast-food`) where OSM and the iD schema underscore
+ * (`fast_food`), so the two only ever differed by that. It is the same
+ * substitution the basemap's sprite builder makes to let `icon-image` resolve
+ * an OpenMapTiles class straight out of the sheet — see the alias pass in
+ * `web/scripts/build-sprite.mjs` — which is what makes a place's icon in the
+ * app and the badge under it on the map the same glyph.
+ */
+function makiName(name: string): string | null {
+  const hyphenated = name.replace(/_/g, '-')
+  return MAKI_ICONS.has(hyphenated) ? hyphenated : null
+}
+
+/**
+ * Resolves one OSM preset icon name to something drawable, or null if nothing
+ * in either pack answers to it.
+ *
+ * Prefers maki, since that is what the basemap's own POI badges are cut from.
+ * Returning null rather than a guess is what lets `resolvePresetIcon` keep
+ * looking — a guess would draw a pin and look like an answer.
+ */
+export function resolveIconName(presetIcon: string): ResolvedIcon | null {
+  if (!presetIcon || presetIcon === 'maki-marker' || presetIcon === 'maki-circle') return null
+
+  // Already a lucide-compatible name (no prefix)
+  if (!ICON_PACK_PREFIX.test(presetIcon)) return { icon: presetIcon, iconPack: 'lucide' }
+
+  const stripped = presetIcon.replace(ICON_PACK_PREFIX, '')
+
+  if (presetIcon.startsWith('maki-')) {
+    const name = makiName(stripped)
+    return name ? { icon: name, iconPack: 'maki' } : null
+  }
+
+  // Non-maki icon packs (temaki, iD, fas, roentgen): the hand-written map first,
+  // since it is where a deliberate substitution goes.
+  const fallback = nonMakiFallbackMap[presetIcon]
+  if (fallback) {
+    if (fallback.iconPack !== 'maki') return fallback
+    const name = makiName(fallback.icon)
+    if (name) return { icon: name, iconPack: 'maki' }
+  }
+
+  // Then the name itself — the packs often agree, modulo the hyphen.
+  const direct = makiName(stripped)
+  if (direct) return { icon: direct, iconPack: 'maki' }
+
+  const lucideMatch = makiToLucideMap[`maki-${stripped}`]
+  if (lucideMatch) return { icon: lucideMatch, iconPack: 'lucide' }
+
+  return null
+}
+
 /**
  * Resolves an OSM preset icon to the best available icon for rendering.
- * Prefers maki icons. Falls back to lucide only for non-maki icon packs.
+ *
+ * Kept for callers that have an icon name and no preset to go with it. Prefer
+ * `resolvePresetIcon`, which can fall back on the preset's own family instead
+ * of on a pin.
  */
-export function resolveIcon(presetIcon: string): { icon: string; iconPack: 'lucide' | 'maki' } {
-  // Already a lucide-compatible name (no prefix)
-  if (!presetIcon.startsWith('maki-') && !presetIcon.startsWith('iD-') && !presetIcon.startsWith('temaki-') && !presetIcon.startsWith('fas-') && !presetIcon.startsWith('roentgen-')) {
-    return { icon: presetIcon, iconPack: 'lucide' }
+export function resolveIcon(presetIcon: string): ResolvedIcon {
+  return resolveIconName(presetIcon) ?? CATEGORY_FALLBACK_ICON.default
+}
+
+/**
+ * The glyph a category falls back to, matching what the basemap draws for the
+ * same family of places. The last resort, and the only place a pin is a
+ * legitimate answer: `default` is genuinely "we do not know what this is".
+ */
+const CATEGORY_FALLBACK_ICON: Record<PlaceCategory, ResolvedIcon> = {
+  food_and_drink: { icon: 'restaurant', iconPack: 'maki' },
+  education: { icon: 'school', iconPack: 'maki' },
+  medical: { icon: 'hospital', iconPack: 'maki' },
+  sport_and_leisure: { icon: 'pitch', iconPack: 'maki' },
+  store: { icon: 'shop', iconPack: 'maki' },
+  arts_and_entertainment: { icon: 'attraction', iconPack: 'maki' },
+  commercial_services: { icon: 'commercial', iconPack: 'maki' },
+  park: { icon: 'park', iconPack: 'maki' },
+  default: { icon: 'marker', iconPack: 'maki' },
+}
+
+/** `amenity/restaurant/mexican` → `amenity/restaurant`, `amenity`. */
+function presetAncestors(presetId: string): string[] {
+  const parts = presetId.split('/')
+  const out: string[] = []
+  for (let n = parts.length - 1; n >= 1; n--) out.push(parts.slice(0, n).join('/'))
+  return out
+}
+
+/**
+ * The glyph for a preset, which is guaranteed to be one the client can draw.
+ *
+ * Four steps, most specific first, because the iD schema draws on icon packs we
+ * do not ship and roughly half of its presets name one:
+ *
+ *   1. the preset's own icon;
+ *   2. the icon of the nearest ancestor preset — a cuisine has none of its own,
+ *      but `amenity/restaurant` above it does, and a plate of food is a far
+ *      better answer for a taqueria than a pin;
+ *   3. the preset's own tag values, which are OSM's vocabulary and therefore
+ *      very often Maki's too (`amenity/police` → `police`);
+ *   4. the category's glyph, which is what the basemap draws for that family.
+ *
+ * Only step 4 can produce a pin, and only for `default`.
+ */
+export function resolvePresetIcon(
+  presetId: string,
+  presetIcon?: string,
+  category: PlaceCategory = getPlaceCategory(presetId),
+): ResolvedIcon {
+  const own = presetIcon && resolveIconName(presetIcon)
+  if (own) return own
+
+  for (const ancestor of presetAncestors(presetId)) {
+    const inherited = resolveIconName(getPresetById(ancestor)?.icon ?? '')
+    if (inherited) return inherited
   }
 
-  // maki-prefixed icons: use maki directly
-  if (presetIcon.startsWith('maki-')) {
-    const makiName = presetIcon.slice(5)
-    return { icon: makiName, iconPack: 'maki' }
+  // Most specific tag value first: `shop/car_repair` is a car repair shop
+  // before it is a shop.
+  for (const value of presetId.split('/').slice(1).reverse()) {
+    const name = makiName(value)
+    if (name) return { icon: name, iconPack: 'maki' }
   }
 
-  // Non-maki icon packs (temaki, iD, fas, roentgen): try fallback map
-  const fallback = nonMakiFallbackMap[presetIcon]
-  if (fallback) return fallback
-
-  // Try stripping prefix — maybe maki has it under the same name
-  const stripped = presetIcon.replace(/^(temaki|iD|fas|roentgen)-/, '')
-  // Fall back to lucide map for unmapped non-maki icons
-  const lucideMatch = makiToLucideMap[`maki-${stripped}`]
-  if (lucideMatch) {
-    return { icon: lucideMatch, iconPack: 'lucide' }
-  }
-
-  // Last resort: use as maki name but log the miss
-  logWarn(`Unmapped icon "${presetIcon}" → falling back to "${stripped}" (maki). Add to nonMakiFallbackMap.`)
-  return { icon: stripped, iconPack: 'maki' }
+  return CATEGORY_FALLBACK_ICON[category] ?? CATEGORY_FALLBACK_ICON.default
 }
 
 // Track icons that resolve to generic fallbacks
@@ -396,18 +511,20 @@ const loggedMissingIcons = new Set<string>()
 export function buildPlaceIcon(presetMatch: MatchResult | null): PlaceIcon | undefined {
   if (!presetMatch?.preset) return undefined
 
-  const category = getPlaceCategory(presetMatch.preset.id)
-  const presetIcon = presetMatch.preset.icon
-  if (!presetIcon || presetIcon === 'maki-circle' || presetIcon === 'maki-marker') {
-    // No meaningful icon — log once per preset so we can assign icons
-    const key = presetMatch.preset.id
-    if (!loggedMissingIcons.has(key)) {
-      loggedMissingIcons.add(key)
-      logWarn(`No icon for preset "${key}" (raw: ${presetIcon || 'none'}). Will show MapPin.`)
-    }
+  const presetId = presetMatch.preset.id
+  const category = getPlaceCategory(presetId)
+  const { icon, iconPack } = resolvePresetIcon(presetId, presetMatch.preset.icon, category)
+
+  // Landing on the category's own glyph means nothing in the preset tree named
+  // one we could draw. Harmless — that glyph is the basemap's answer for the
+  // family — but worth knowing about, since a specific icon is always better.
+  if (icon === CATEGORY_FALLBACK_ICON[category]?.icon && !loggedMissingIcons.has(presetId)) {
+    loggedMissingIcons.add(presetId)
+    logWarn(
+      `No drawable icon for preset "${presetId}" (raw: ${presetMatch.preset.icon || 'none'}). ` +
+        `Falling back to the "${category}" glyph "${icon}".`,
+    )
   }
 
-  const { icon, iconPack } = resolveIcon(presetIcon || 'maki-marker')
-
-  return { category, icon, iconPack, presetId: presetMatch.preset.id }
+  return { category, icon, iconPack, presetId }
 }

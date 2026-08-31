@@ -597,6 +597,8 @@ function mapService() {
     mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
     mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
     mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
+    mapStrategy?.setMap3dBuildings(mapStore.settings.buildings3d)
+    mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
     mapStrategy?.setHdRoads(mapStore.settings.hdRoads)
     mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
   }
@@ -900,26 +902,41 @@ function mapService() {
     const newValue = value ?? !mapStore.settings.terrain3d
     mapStore.settings.terrain3d = newValue
 
-    // 3d objects must be enabled when terrain3d is enabled
-    if (newValue && !mapStore.settings.objects3d) {
-      toggle3dObjects(true)
+    // Raised ground with flat buildings reads as a bug, so terrain brings the
+    // skyline with it.
+    if (newValue && !mapStore.settings.buildings3d) {
+      toggle3dBuildings(true)
     }
   }
 
-  function toggle3dObjects(value?: boolean) {
-    const newValue = value ?? !mapStore.settings.objects3d
-    mapStore.settings.objects3d = newValue
+  function toggle3dBuildings(value?: boolean) {
+    const newValue = value ?? !mapStore.settings.buildings3d
+    mapStore.settings.buildings3d = newValue
 
-    // 3d terrain must be disabled when objects3d is disabled
     if (!newValue && mapStore.settings.terrain3d) {
       toggle3dTerrain(false)
     }
+  }
+
+  /**
+   * The scene's repeated objects — trees, and whatever joins them. Independent
+   * of the buildings: they are a different kind of thing and a different cost.
+   */
+  function toggle3dObjects(value?: boolean) {
+    mapStore.settings.objects3d = value ?? !mapStore.settings.objects3d
   }
 
   watch(
     () => mapStore.settings.terrain3d,
     value => {
       mapStrategy?.setMap3dTerrain(value)
+    },
+  )
+
+  watch(
+    () => mapStore.settings.buildings3d,
+    value => {
+      mapStrategy?.setMap3dBuildings(value)
     },
   )
 
@@ -1379,6 +1396,7 @@ function mapService() {
     reinitializeMap,
     setMapProjection,
     toggle3dTerrain,
+    toggle3dBuildings,
     toggle3dObjects,
     togglePoiLabels,
     toggleRoadLabels,

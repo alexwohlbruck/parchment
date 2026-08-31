@@ -9,6 +9,7 @@ import {
   getPlacePolygonFillColor,
   getPlacePolygonStrokeColor,
 } from './helpers'
+import { getCustomColorTint } from '@/lib/color-tint'
 
 // Search results layer constants - these are internal and not user-modifiable
 export const SEARCH_RESULTS_LAYER_ID = 'search-results-internal'
@@ -63,117 +64,57 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
       // the top results win collisions and their labels stay visible.
       'symbol-sort-key': ['get', 'sortKey'],
     },
-    paint: {
-      'text-halo-width': 1,
-      'text-halo-blur': 0,
-      // Halo adapts to map light preset: dark halo in night/dusk, white in day/dawn
-      'text-halo-color': [
-        'interpolate',
-        ['linear'],
-        ['measure-light', 'brightness'],
-        0.25,
-        '#0D0D0D',
-        0.3,
-        '#FFFFFF',
-      ],
-      // Category-based text colors, matching Mapbox Standard POI label palette.
-      // Uses measure-light brightness so they automatically adapt to day/dusk/night presets.
-      'text-color': [
-        'match',
-        ['get', 'category'],
-        'food_and_drink',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(40, 95%, 70%)',
-          0.3,
-          'hsl(30, 100%, 48%)',
-        ],
-        'education',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(30, 50%, 70%)',
-          0.3,
-          'hsl(30, 50%, 38%)',
-        ],
-        'medical',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(0, 70%, 70%)',
-          0.3,
-          'hsl(0, 90%, 60%)',
-        ],
-        'sport_and_leisure',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(190, 60%, 70%)',
-          0.3,
-          'hsl(190, 75%, 38%)',
-        ],
-        'store',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(210, 70%, 75%)',
-          0.3,
-          'hsl(210, 75%, 53%)',
-        ],
-        'arts_and_entertainment',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(320, 70%, 75%)',
-          0.3,
-          'hsl(320, 85%, 60%)',
-        ],
-        'commercial_services',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(260, 70%, 75%)',
-          0.3,
-          'hsl(250, 75%, 60%)',
-        ],
-        'park',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(110, 55%, 65%)',
-          0.3,
-          'hsl(110, 70%, 28%)',
-        ],
-        // default
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(210, 20%, 70%)',
-          0.3,
-          'hsl(210, 20%, 43%)',
-        ],
-      ],
-    },
   },
+}
+
+/**
+ * The halo behind a POI label, per flavor. Mirrors the `poi_halo` token the
+ * basemap resolves for its own labels — a search result and the basemap POI
+ * under it are the same place, so they get the same treatment.
+ */
+const POI_LABEL_HALO = { light: '#FFFFFF', dark: '#0D0D0D' }
+
+/**
+ * What a search-result label is painted with.
+ *
+ * Built per call rather than baked into the config above, because it depends
+ * on two things the config cannot see: the app theme, and the live category
+ * palette the server serves. It used to be a hand-written `measure-light` ramp
+ * per category — a second copy of the palette, at lightnesses that were never
+ * the basemap's — and on MapLibre it never reached its night half at all:
+ * `stripMapboxExpressions` collapses a `measure-light` interpolation to its
+ * brightest stop, so the night map drew daylight-orange labels with a white
+ * halo over dark ground.
+ *
+ * The ink is the same tint the basemap's POI labels wear (`@poi_ink_*`, which
+ * is `getCustomColorTint(...).foreground`), out of the same function, so the
+ * two cannot drift again.
+ */
+export function searchResultLabelPaint(options: {
+  isDark: boolean
+  categories: string[]
+  categoryColor: (category: string) => string
+}): Record<string, unknown> {
+  const { isDark, categories, categoryColor } = options
+  const ink = (category: string) => {
+    const color = categoryColor(category)
+    return getCustomColorTint(color, 'solid', isDark)?.foreground ?? color
+  }
+
+  // `default` is the fallback arm rather than a case of its own, which is also
+  // what happens to a result whose category the palette does not name. A
+  // `match` needs at least one real arm, so a palette carrying nothing else
+  // has to come out as the bare colour instead.
+  const named = categories.filter(c => c !== 'default')
+
+  return {
+    'text-halo-width': 1,
+    'text-halo-blur': 0,
+    'text-halo-color': isDark ? POI_LABEL_HALO.dark : POI_LABEL_HALO.light,
+    'text-color': named.length
+      ? ['match', ['get', 'category'], ...named.flatMap(c => [c, ink(c)]), ink('default')]
+      : ink('default'),
+  }
 }
 
 // Default empty GeoJSON for the search results source

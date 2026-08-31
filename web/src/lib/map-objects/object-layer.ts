@@ -553,14 +553,16 @@ export class ObjectLayer {
     // than a saving — see `cullable` and `OBJECT_SOLID`.
     //
     // Drawing both faces is fine while the depth buffer can tell the front of a
-    // crown from its back. In the plan view it cannot: the camera retreats to
-    // fake an orthographic projection (see `updateCameraProjection`), which
-    // takes the far-to-near ratio from ~84 to ~5800, and a tree is a couple of
-    // metres thick against a depth range of tens of kilometres. Front and back
-    // quantise to the same value, `LEQUAL` lets whichever came later in the
-    // index buffer win, and since a back face is lit by the opposite normal the
-    // crown shatters into light and dark wedges that crawl as the camera moves.
-    // Culling removes the losing half of the argument entirely.
+    // crown from its back. In the plan view it once could not: the camera
+    // retreats to fake an orthographic projection (see `updateCameraProjection`)
+    // and took the far-to-near ratio from ~84 to ~5800, so a tree a couple of
+    // metres thick sat inside one quantisation step. Front and back landed on
+    // the same value, `LEQUAL` let whichever came later in the index buffer win,
+    // and since a back face is lit by the opposite normal the crown shattered
+    // into light and dark wedges that crawled as the camera moved. Closing the
+    // clip planes around the map fixed the precision; culling stays because it
+    // removes the losing half of the argument outright rather than relying on
+    // there being enough depth to settle it.
     //
     // Winding survives the trip: the glTF-to-map frame swap in the shader is a
     // rotation, and both instance scales are positive, so a model authored

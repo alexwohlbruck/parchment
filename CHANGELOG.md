@@ -3,6 +3,7 @@
 ### Changed
 
 * Buildings take a lighter tint from the colour recorded for them. The tint is there to tell one building from its neighbour, and at the old strength a street of brick or painted render read as a wash of colour over the land rather than as buildings standing on it
+* Trees and buildings no longer break into flickering patches when the map is flat on. The plan view fakes an overhead camera by pushing the camera far enough back that the walls disappear, and at that distance the depth the map draws with was too coarse to tell the front of a tree from its back, or a roof from the wall under it
 * Place icons on the map are drawn crisply. They were built at twice the size they render at and handed to the map engine that way, which then point-sampled them back down and threw half the edge away — so a disc came out with a stair-stepped rim next to a search-result pin the browser had drawn cleanly. The soft glow under a marker no longer ends in a faint square either
 * At night, the ring around a place icon is a shade darker than the icon itself rather than the near-white the glyph wears. A pale ring on a dark map was the loudest part of the marker; a darker one reads as a seam and lets the glyph carry the mark
 * Search-result pins are drawn the same way as the places already on the map — the same tinted plate, glyph and ring — instead of a flat disc in the raw category colour. A café you searched for and the café under it are now visibly the same thing

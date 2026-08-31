@@ -156,6 +156,44 @@ const TOP_DOWN_EPSILON = 0.001
 /** Narrow enough to be indistinguishable from a true orthographic camera. */
 const ORTHO_FOV = 0.5
 
+/**
+ * The clip planes the plan view uses, as multiples of the camera's distance to
+ * the map.
+ *
+ * MapLibre pins the near plane at `height / 50` whatever the field of view. In
+ * a perspective view that is the right call — the camera sits about 1.5 screen
+ * heights out and terrain can rise most of the way to it — but the ortho trick
+ * throws the camera ~115 screen heights out, so the near plane ends up nearly
+ * six thousand times closer than the far one and the depth buffer spends all
+ * of its precision on empty air in front of the camera. What reaches the map
+ * is a quantisation step tens of pixels deep: a tree's front and back land on
+ * the same value and the crown shatters, and a roof and the wall below it
+ * settle their argument by index order rather than by depth.
+ *
+ * Nothing is anywhere near the camera in a plan view — the whole scene sits in
+ * a thin slab around the map plane — so the planes can close in around it. Half
+ * the throw of headroom above and a full throw below is tens of kilometres of
+ * clearance at any zoom a building or a mountain could use, and it takes the
+ * far-to-near ratio from ~5800 to 4, which is finer than the perspective camera
+ * ever gets.
+ *
+ * This is why the fix is not simply a wider ortho FOV: precision scales with
+ * the square of the camera's distance, so buying it back that way costs the
+ * flatness the plan view exists for — 5° would fix the depth and put visible
+ * walls on every building at the edge of the screen.
+ */
+const ORTHO_NEAR = 0.5
+const ORTHO_FAR = 2
+
+/** The internal transform surface `updateClipPlanes` needs. */
+interface OverridableTransform {
+  cameraToCenterDistance: number
+  autoCalculateNearFarZ: boolean
+  nearZ: number
+  overrideNearFarZ?: (near: number, far: number) => void
+  clearNearFarZOverride?: () => void
+}
+
 /** Degrees of pitch over which the plan-view roof outline fades out. */
 const ROOF_EDGE_FADE_PITCH = 8
 
@@ -330,6 +368,9 @@ export class MaplibreStrategy extends MapStrategy {
       mapEventBus.emit('load', this.mapInstance)
     })
     this.mapInstance.on('pitch', () => this.updateCameraProjection())
+    // The plan view's clip planes are scaled by a camera distance that moves
+    // with the viewport height, so a resize has to recompute them.
+    this.mapInstance.on('resize', () => this.updateCameraProjection())
     // A quarter of a degree a minute: five is far finer than the eye needs and
     // costs one trig evaluation.
     this.sunTimer = setInterval(() => this.updateSunShadow(), 5 * 60 * 1000)
@@ -952,13 +993,17 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
-   * MapLibre 4 has no orthographic camera (`setVerticalFieldOfView` is v5, and
-   * even that is the same trick behind a nicer name), so this narrows the
-   * field of view instead. A perspective frustum approaches an orthographic
-   * box as the FOV approaches zero and the camera retreats to compensate,
-   * which MapLibre does implicitly — 0.5° puts the camera ~80,000 units out
-   * and flattens the walls away entirely. It is an approximation, not a true
-   * orthographic matrix, but at this angle the two are indistinguishable.
+   * MapLibre has no orthographic camera — `setVerticalFieldOfView` is the same
+   * trick behind a nicer name — so this narrows the field of view instead. A
+   * perspective frustum approaches an orthographic box as the FOV approaches
+   * zero and the camera retreats to compensate, which MapLibre does implicitly
+   * — 0.5° puts the camera ~115 screen heights out and flattens the walls away
+   * entirely. It is an approximation, not a true orthographic matrix, but at
+   * this angle the two are indistinguishable.
+   *
+   * What it does not fix on its own is depth: the retreating camera drags the
+   * far plane out with it while MapLibre holds the near plane where it is, so
+   * the clip planes have to be closed back in by hand. See `ORTHO_NEAR`.
    *
    * Applied only when the map is perfectly flat on. Any pitch at all, however
    * slight, gets the real perspective camera back — the flattening is meant
@@ -976,8 +1021,47 @@ export class MaplibreStrategy extends MapStrategy {
     const wanted = topDown ? ORTHO_FOV : this.defaultFov
     // `pitch` fires continuously through a gesture; setting the field of view
     // recomputes every matrix, so only touch it when the answer changes.
-    if (Math.abs(current - wanted) < 0.001) return
-    this.mapInstance.setVerticalFieldOfView(wanted)
+    if (Math.abs(current - wanted) >= 0.001) this.mapInstance.setVerticalFieldOfView(wanted)
+    // After the FOV, never before: the clip planes are scaled by the camera
+    // distance the FOV decides.
+    this.updateClipPlanes(topDown)
+  }
+
+  /**
+   * Close the clip planes around the map in the plan view, and hand them back
+   * to MapLibre in every other view.
+   *
+   * `transform` is typed read-only because the mutators are internal, but the
+   * near and far planes are the one thing a near-orthographic camera has to
+   * take over — there is no styling or camera API that reaches them. Guarded
+   * on the method existing so a MapLibre that drops it degrades to the old
+   * z-fighting rather than throwing on every pitch event.
+   */
+  private updateClipPlanes(topDown: boolean) {
+    // The transit fork keeps the camera on `_camera` rather than having Map
+    // extend it; plain MapLibre exposes `transform` on the map itself. Try
+    // both, so the reach survives either layout.
+    const instance = this.mapInstance as unknown as {
+      _camera?: { transform?: OverridableTransform }
+      transform?: OverridableTransform
+    }
+    const transform = instance._camera?.transform ?? instance.transform
+    if (!transform?.overrideNearFarZ || !transform.clearNearFarZOverride) return
+
+    if (!topDown) {
+      if (transform.autoCalculateNearFarZ) return
+      transform.clearNearFarZOverride()
+      this.mapInstance.triggerRepaint()
+      return
+    }
+
+    const near = transform.cameraToCenterDistance * ORTHO_NEAR
+    // The distance also moves with the viewport, so this has to re-run on
+    // resize; a repaint on every pitch event with nothing to change would be
+    // wasted work.
+    if (transform.autoCalculateNearFarZ === false && Math.abs(transform.nearZ - near) < 1) return
+    transform.overrideNearFarZ(near, transform.cameraToCenterDistance * ORTHO_FAR)
+    this.mapInstance.triggerRepaint()
   }
 
   /**

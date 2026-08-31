@@ -20,7 +20,9 @@
 `CHANGELOG.md` is cumulative ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)). When a user-facing feature or fix is complete, append an entry under `## [Unreleased]` at the top — do not wait for release time.
 
 - Group entries under `### Added`, `### Changed`, or `### Fixed` within `[Unreleased]`. Create the heading if it isn't there; otherwise append to the existing one.
-- One `*` bullet per change, written for users rather than developers: what it does for them, not which files moved. Match the tone of the released sections below it.
+- One `*` bullet per change, written for users rather than developers: what it does for them, not which files moved.
+- Keep each bullet short: usually one sentence, with a second only when it adds necessary user-facing context.
+- Prefer plain, direct language over scene-setting or long explanations. If a bullet needs more than about 30 words, tighten it.
 - Skip purely internal work (refactors, test-only changes, dependency bumps) — if a user wouldn't notice it, it doesn't belong here.
 - Never edit the released `## [X.Y.Z]` sections. `deploy.sh` retitles `[Unreleased]` at release time and opens a fresh empty one; `scripts/changelog.sh` is the only thing that should rewrite the file.
 
@@ -39,3 +41,4 @@
 - Keep the swagger API documentation up-to-date and clean while making changes to the backend.
 - Always apply a clean, minimalist, and refined style when designing UI.
 - No uppercase tracking-wider text in UI.
+- When creating pull requests, if applicable, run the app and take a screenshot of the feature or change and attach to the PR for visual confirmation.

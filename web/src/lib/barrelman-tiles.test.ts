@@ -23,29 +23,31 @@ const { barrelmanTileBase, barrelmanTileKey, withTileKey } = await import(
 beforeEach(() => {
   config = {
     host: 'https://api.barrelman.dev',
+    tileBase: 'https://api.barrelman.dev/tiles',
     tileKey: 'public-tile-key',
   }
 })
 
 describe('barrelmanTileBase', () => {
-  it('serves tiles off the configured host', () => {
-    expect(barrelmanTileBase()).toBe('https://api.barrelman.dev/tiles')
-  })
-
-  it('prefers tileHost, for a host only the server can reach', () => {
-    config = { host: 'http://barrelman:5001', tileHost: 'https://api.barrelman.dev' }
-
-    expect(barrelmanTileBase()).toBe('https://api.barrelman.dev/tiles')
-  })
-
-  it('trims a trailing slash rather than emitting a double one', () => {
-    config = { host: 'https://api.barrelman.dev/' }
-
+  it('takes the address the server resolved for the browser', () => {
     expect(barrelmanTileBase()).toBe('https://api.barrelman.dev/tiles')
   })
 
   it('is null when barrelman is not configured, so callers can skip it', () => {
     config = undefined
+
+    expect(barrelmanTileBase()).toBeNull()
+  })
+
+  it('is null when the server published no tile address', () => {
+    // e.g. barrelman configured for search but with no host a browser can use
+    config = { tileKey: 'public-tile-key' }
+
+    expect(barrelmanTileBase()).toBeNull()
+  })
+
+  it('does not fall back to host, which may be unreachable from here', () => {
+    config = { host: 'http://barrelman:5001' }
 
     expect(barrelmanTileBase()).toBeNull()
   })
@@ -65,7 +67,7 @@ describe('withTileKey', () => {
   })
 
   it('leaves the tile template alone when no key is configured', () => {
-    config = { host: 'https://api.barrelman.dev' }
+    config = { tileBase: 'https://api.barrelman.dev/tiles' }
 
     expect(withTileKey('https://api.barrelman.dev/tiles/x/{z}/{x}/{y}.mvt')).toBe(
       'https://api.barrelman.dev/tiles/x/{z}/{x}/{y}.mvt',
@@ -73,7 +75,7 @@ describe('withTileKey', () => {
   })
 
   it('escapes a key that would otherwise break the query', () => {
-    config = { host: 'https://api.barrelman.dev', tileKey: 'a&b=c' }
+    config = { tileBase: 'https://api.barrelman.dev/tiles', tileKey: 'a&b=c' }
 
     expect(withTileKey('https://api.barrelman.dev/tiles/x')).toBe(
       'https://api.barrelman.dev/tiles/x?api_key=a%26b%3Dc',
@@ -81,7 +83,7 @@ describe('withTileKey', () => {
   })
 
   it('never reaches for the account key', () => {
-    config = { host: 'https://api.barrelman.dev', apiKey: 'secret-account-key' }
+    config = { tileBase: 'https://api.barrelman.dev/tiles', apiKey: 'secret-account-key' }
 
     expect(barrelmanTileKey()).toBeUndefined()
     expect(withTileKey('https://api.barrelman.dev/tiles/x')).not.toContain(

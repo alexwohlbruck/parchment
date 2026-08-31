@@ -16,6 +16,7 @@ import {
   IntegrationTestResult,
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
+import { resolveTileConfig, type BarrelmanTileSource } from '../lib/barrelman-tiles'
 import { users } from '../schema/users.schema'
 import {
   encryptIntegrationConfig,
@@ -122,7 +123,19 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: false,
     configSchema: 'barrelmanSchema',
-    publicFields: ['host', 'tileHost', 'tileKey'],
+    // The client fetches tiles itself, so it needs the RESOLVED address rather
+    // than the raw fields: `host` may be a container name, and an env override
+    // (which a preview uses to point at its own Barrelman) is invisible from
+    // the browser. Publishing `tileBase` means one authority for the answer.
+    // `apiKey` is absent by construction — only what this returns is sent.
+    resolvePublicConfig: (config) => {
+      const tiles = resolveTileConfig(config as BarrelmanTileSource)
+      return {
+        host: config.host,
+        tileBase: tiles?.base,
+        tileKey: tiles?.tileKey,
+      }
+    },
     scope: [IntegrationScope.SYSTEM],
   },
   {

@@ -16,6 +16,11 @@
 
 import { integrationManager } from './integrations'
 import { IntegrationId } from '../types/integration.types'
+import {
+  resolveTileConfig,
+  type BarrelmanTileConfig,
+  type BarrelmanTileSource,
+} from '../lib/barrelman-tiles'
 
 /** Upstream timeout for everything but isochrones. */
 export const DEFAULT_BARRELMAN_TIMEOUT_MS = 10_000
@@ -64,45 +69,16 @@ export function resolveBarrelmanConfig(): { host?: string; apiKey?: string } | u
 }
 
 /**
- * Where a BROWSER fetches Barrelman tiles, and the key it presents.
- *
- * Deliberately separate from `resolveBarrelmanConfig`, which answers the same
- * question for this process. The two answers differ in both halves:
- *
- *   - `host` may be an address only the server can resolve (a container name,
- *     a private port). `tileHost` overrides it with one a browser can reach,
- *     and is the only field that needs setting in that layout.
- *   - `apiKey` is a secret and must never leave the server. `tileKey` is
- *     published on purpose — a map library cannot set an Authorization header,
- *     so the key rides the tile URL where anyone reading the page can see it.
- *     Give it the `tiles` scope and an origin allowlist in the Barrelman
- *     console; it is the browser's key, not the account's.
- *
- * Undefined when Barrelman isn't configured — callers treat tiles as absent
- * rather than emitting URLs that cannot resolve.
+ * Where a browser fetches this Barrelman's tiles. The resolution lives in
+ * `lib/barrelman-tiles.ts`, dependency-free so the integration definition can
+ * publish the same answer to the client; this only supplies the config.
  */
-export function resolveBarrelmanTileConfig():
-  | { base: string; tileKey?: string }
-  | undefined {
+export function resolveBarrelmanTileConfig(): BarrelmanTileConfig | undefined {
   const systemIntegration = integrationManager
     .getConfiguredIntegrations()
     .find((i) => i.integrationId === IntegrationId.BARRELMAN)
 
-  const config = systemIntegration?.config as
-    | { host?: string; tileHost?: string; tileKey?: string }
-    | undefined
-
-  const host =
-    process.env.BARRELMAN_TILE_HOST ||
-    config?.tileHost ||
-    process.env.BARRELMAN_HOST ||
-    config?.host
-  if (!host) return undefined
-
-  return {
-    base: `${host.replace(/\/+$/, '')}/tiles`,
-    tileKey: process.env.BARRELMAN_TILE_KEY || config?.tileKey,
-  }
+  return resolveTileConfig(systemIntegration?.config as BarrelmanTileSource)
 }
 
 /**

@@ -97,54 +97,27 @@ describe('resolveBarrelmanConfig', () => {
 })
 
 /**
- * The browser's answer to the same question, which is a different answer.
- * Tiles are fetched from the page, so the address has to be one a phone can
- * resolve and the key has to be the public one — leaking `apiKey` here would
- * hand the account key to anyone who opens devtools.
+ * The service's only job here is to feed the integration config to the
+ * resolver; the resolution rules are covered in `lib/barrelman-tiles.test.ts`.
  */
 describe('resolveBarrelmanTileConfig', () => {
-  beforeEach(() => {
+  it('resolves tiles from the configured integration', () => {
     configured = {
       host: 'https://barrelman.example',
       apiKey: 'configured-key',
       tileKey: 'public-tile-key',
     }
-  })
 
-  it('serves tiles off the configured host', () => {
     expect(resolveBarrelmanTileConfig()).toEqual({
       base: 'https://barrelman.example/tiles',
       tileKey: 'public-tile-key',
     })
   })
 
-  it('prefers tileHost, for a host only the server can reach', () => {
-    configured!.host = 'http://barrelman:5001'
-    configured!.tileHost = 'https://api.barrelman.dev'
-
-    expect(resolveBarrelmanTileConfig()?.base).toBe('https://api.barrelman.dev/tiles')
-  })
-
   it('never carries the account key', () => {
-    configured!.tileKey = undefined
+    configured = { host: 'https://barrelman.example', apiKey: 'configured-key' }
 
     expect(resolveBarrelmanTileConfig()?.tileKey).toBeUndefined()
-  })
-
-  it('trims a trailing slash rather than emitting a double one', () => {
-    configured!.host = 'https://barrelman.example/'
-
-    expect(resolveBarrelmanTileConfig()?.base).toBe('https://barrelman.example/tiles')
-  })
-
-  it('lets the environment override both halves', () => {
-    process.env.BARRELMAN_TILE_HOST = 'https://tiles.example'
-    process.env.BARRELMAN_TILE_KEY = 'env-tile-key'
-
-    expect(resolveBarrelmanTileConfig()).toEqual({
-      base: 'https://tiles.example/tiles',
-      tileKey: 'env-tile-key',
-    })
   })
 
   it('reports nothing when Barrelman is not configured', () => {

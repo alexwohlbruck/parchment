@@ -16,7 +16,7 @@
  * is on most buildings — 67-91% across central Manhattan — so this drives the
  * look of the whole 3D layer rather than being a rare accent.
  */
-export const BUILDING_TINT = { light: 34, dark: 46 }
+export const BUILDING_TINT = { light: 22, dark: 30 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units

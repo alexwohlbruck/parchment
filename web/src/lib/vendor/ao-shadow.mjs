@@ -33,7 +33,7 @@
  */
 
 // Fixed attribute locations shared by every program, so one VAO serves all.
-const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8 };
+const LOC = { a_pos: 0, a_normal_ed: 1, a_height_f: 2, a_height_v: 3, a_base_f: 4, a_base_v: 5, a_color: 6, a_color4: 7, a_centroid: 8, a_roof_color: 9, a_roof_color4: 10 };
 const LAYOUT_STRIDE = 12; // bytes per vertex in MapLibre fill-extrusion layout
 const CENTROID_STRIDE = 4; // bytes per vertex in MapLibre's centroid buffer
 
@@ -91,6 +91,15 @@ const TERRAIN_UNIFORMS = [
 /** The DEM's texture unit. MapLibre uses 3 for the same thing; so do we. */
 const TERRAIN_UNIT = 3;
 
+/**
+ * PARCHMENT: below this pitch the view counts as flat on, and the narrow
+ * field of view that fakes an orthographic camera is in play. Matches
+ * `TOP_DOWN_EPSILON` in `maplibre.strategy.ts`, which is what actually swaps
+ * the projection — an eased pitch animation settles a hair off zero, and a
+ * thousandth of a degree is still flat on.
+ */
+const PLAN_VIEW_PITCH = 0.001;
+
 // u_ht/u_bt/u_ct < 0 selects the flat attribute, else interpolates the vec2 pair.
 // Light color is hardcoded to white (the default in the styles we target).
 const FE = `
@@ -117,6 +126,14 @@ const BUILD_VS = `
   attribute vec2 a_color;
   attribute vec4 a_color4;
   uniform float u_ct;
+  // PARCHMENT: the roof's own colour, from the donor layer — see
+  // BUILDING_3D_ROOF_LAYER in map-style/build.ts. Same packing as a_color,
+  // because it is the same paint property on a layer sharing this bucket.
+  attribute vec2 a_roof_color;
+  attribute vec4 a_roof_color4;
+  uniform float u_rct;
+  // 0 where no donor layer is in the style; the roof then wears the walls'.
+  uniform float u_roof_on;
   ${HEIGHT_ATTRS}
   ${TERRAIN}
   varying vec3 v_color;
@@ -139,10 +156,18 @@ const BUILD_VS = `
     // ground level, which is the basement MapLibre digs for the same reason —
     // a building on a slope would otherwise hang in the air on its low side.
     //
+    // The basement is dug ONLY with terrain on, which is the guard MapLibre
+    // gets for free from compiling the whole block behind #ifdef TERRAIN3D.
+    // It is a hole for the ground to fill, and it only works because the ground
+    // is there to fill it: on a flat map nothing writes depth under a building,
+    // so the same 10m is simply drawn, and every building stands 10m too tall
+    // in a wall of its own that starts below its footprint.
+    //
     // Applied after wallRatio, which is a fraction of the wall and would be
     // skewed by the basement if it were measured against the offset values.
     float groundTop = get_elevation(a_centroid);
-    float groundBase = groundTop - (base > 0.0 ? 0.0 : 10.0);
+    float basement = (u_terrain_on < 0.5 || base > 0.0) ? 0.0 : 10.0;
+    float groundBase = groundTop - basement;
     float ground = mix(groundBase, groundTop, t);
     elev += ground;
 
@@ -173,6 +198,12 @@ const BUILD_VS = `
     v_fade = smoothstep(1.5, 4.0, wallPx / max(u_edgeWidth, 0.001));
 
     vec2 pk = u_ct < -0.5 ? a_color : mix(a_color4.xy, a_color4.zw, u_ct);
+    // PARCHMENT: a roof face takes the roof colour where the style supplies one.
+    // isWall is already computed above off the face normal, so the choice is
+    // free — the two colours arrive per vertex and one of them is picked.
+    if (u_roof_on > 0.5 && isWall < 0.5) {
+      pk = u_rct < -0.5 ? a_roof_color : mix(a_roof_color4.xy, a_roof_color4.zw, u_rct);
+    }
     vec4 color = vec4(floor(pk / 256.0), mod(pk, 256.0)).xzyw / 255.0;
     float colorvalue = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
     color.rgb += vec3(0.03);
@@ -424,6 +455,8 @@ export class WallShadowLayer {
     this.type = 'custom';
     this.renderingMode = '2d';
     this._layerId = opts.buildingsLayerId;
+    // PARCHMENT: the layer whose colour is the roof's; see BUILDING_3D_ROOF_LAYER.
+    this._roofLayerId = opts.roofLayerId ?? null;
     this._sourceId = opts.sourceId || null;
     this._minZoom = opts.minZoom ?? 15;
     this._maxZoom = opts.maxZoom ?? 20;
@@ -467,7 +500,7 @@ export class WallShadowLayer {
     this._buildProg = linkProgram(gl, BUILD_VS, BUILD_FS);
     this._uBuild = uniformLocs(gl, this._buildProg,
       ['u_matrix', 'u_ht', 'u_bt', 'u_ct', 'u_band', 'u_strength', 'u_lightpos', 'u_lightintensity',
-        'u_edge', 'u_edgeWidth', 'u_viewport', ...TERRAIN_UNIFORMS]); // PARCHMENT
+        'u_edge', 'u_edgeWidth', 'u_viewport', 'u_rct', 'u_roof_on', ...TERRAIN_UNIFORMS]); // PARCHMENT
 
     this._shadProg = linkProgram(gl, SHAD_VS, SHAD_FS);
     this._uShad = uniformLocs(gl, this._shadProg,
@@ -595,18 +628,26 @@ export class WallShadowLayer {
   _segVaos(gl, bucket) {
     const key = '_wshVao';
     if (bucket[key]) return bucket[key];
-    const cfg = bucket.programConfigurations?.programConfigurations?.[this._layerId];
-    const findBuf = name => cfg?._buffers?.find(b => b.attributes?.some(a => a.name === name)) ?? null;
+    const configs = bucket.programConfigurations?.programConfigurations;
+    const cfg = configs?.[this._layerId];
+    // PARCHMENT: the roof colour rides on a second layer sharing this bucket, so
+    // its paint buffers are built alongside and indexed by the same vertices —
+    // see BUILDING_3D_ROOF_LAYER. Absent (an older style, the hybrid overlay)
+    // and the roof simply wears the walls' colour; `u_roof_on` says which.
+    const roofCfg = this._roofLayerId ? configs?.[this._roofLayerId] : null;
+    const findBuf = (from, name) =>
+      from?._buffers?.find(b => b.attributes?.some(a => a.name === name)) ?? null;
     // Resolve a data-driven attribute: flat loc at the default component count,
     // vec loc for the interpolated variant; comp 0 when the buffer is absent.
-    const dyn = (name, fLoc, vLoc, defComp) => {
-      const buf = findBuf(name);
+    const dyn = (from, name, fLoc, vLoc, defComp) => {
+      const buf = findBuf(from, name);
       const comp = buf ? (buf.attributes?.find(a => a.name === name)?.components || defComp) : 0;
       return { buf: buf?.buffer, loc: comp === defComp ? fLoc : vLoc, comp };
     };
-    const hD = dyn('a_height', LOC.a_height_f, LOC.a_height_v, 1);
-    const bD = dyn('a_base', LOC.a_base_f, LOC.a_base_v, 1);
-    const cD = dyn('a_color', LOC.a_color, LOC.a_color4, 2);
+    const hD = dyn(cfg, 'a_height', LOC.a_height_f, LOC.a_height_v, 1);
+    const bD = dyn(cfg, 'a_base', LOC.a_base_f, LOC.a_base_v, 1);
+    const cD = dyn(cfg, 'a_color', LOC.a_color, LOC.a_color4, 2);
+    const rD = dyn(roofCfg, 'a_color', LOC.a_roof_color, LOC.a_roof_color4, 2);
     const point = (loc, glBuf, comp, type, stride, off) => {
       if (!glBuf) return;
       gl.bindBuffer(gl.ARRAY_BUFFER, glBuf);
@@ -624,12 +665,12 @@ export class WallShadowLayer {
       // to its own draw only when it is; we bind it always and let
       // `u_terrain_on` decide, so a terrain toggle needs no VAO rebuild.
       point(LOC.a_centroid, bucket.centroidVertexBuffer?.buffer, 2, gl.SHORT, CENTROID_STRIDE, seg.vertexOffset * CENTROID_STRIDE);
-      for (const d of [hD, bD, cD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
+      for (const d of [hD, bD, cD, rD]) point(d.loc, d.buf, d.comp, gl.FLOAT, d.comp * 4, seg.vertexOffset * d.comp * 4);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bucket.indexBuffer.buffer);
       list.push({ vao, pO: seg.primitiveOffset, pL: seg.primitiveLength });
     }
     this._vao.bind(null);
-    return (bucket[key] = { list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp });
+    return (bucket[key] = { list, hComp: hD.comp, bComp: bD.comp, cComp: cD.comp, rComp: rD.comp });
   }
 
   _drawSegs(gl, sg) {
@@ -676,6 +717,11 @@ export class WallShadowLayer {
     gl.vertexAttrib2f(LOC.a_color, W, W);
     gl.vertexAttrib2f(LOC.a_centroid, 0, 0); // PARCHMENT
     gl.vertexAttrib4f(LOC.a_color4, W, W, W, W);
+    // PARCHMENT: never read unless `u_roof_on`, which is only set when the
+    // buffer behind them exists — pinned anyway, since an unset attribute
+    // constant is whatever the last layer through this context left there.
+    gl.vertexAttrib2f(LOC.a_roof_color, W, W);
+    gl.vertexAttrib4f(LOC.a_roof_color4, W, W, W, W);
 
     if (this.groundFx) {
       this._shadowPass(gl, tiles);
@@ -849,8 +895,8 @@ export class WallShadowLayer {
     gl.cullFace(gl.BACK);
     gl.frontFace(gl.CCW);
 
-    // PARCHMENT: bias the buildings towards the camera, so they always win the
-    // depth test against the ground they are standing on.
+    // PARCHMENT: in the plan view only, bias the buildings towards the camera
+    // so they win the depth test against the ground they are standing on.
     //
     // With 3D terrain on, that ground is a real depth-writing mesh directly
     // under every footprint, and how finely the two can be told apart depends
@@ -863,10 +909,24 @@ export class WallShadowLayer {
     // buildings shatter into a mosaic of slivers that flickers as the camera
     // moves.
     //
-    // The offset is constant across every building, so it changes nothing about
-    // which building is in front of which.
-    gl.enable(gl.POLYGON_OFFSET_FILL);
-    gl.polygonOffset(-2, -8);
+    // Only there, though, and that is the whole point of the check. Winning the
+    // depth test against the ground is exactly what a building must NOT do once
+    // the camera tilts: the 10m basement above is meant to be buried, and a
+    // building that outranks the terrain has it drawn instead — ten metres of
+    // wall below the pavement, the building reading that much taller, and the
+    // trees beside it (an honest depth test, no bias) left hanging above a
+    // ground line that has dropped away from under them.
+    //
+    // The slope term goes with it. `glPolygonOffset`'s first argument is scaled
+    // by the polygon's depth slope, which for a wall seen near edge-on — which
+    // is what tilting produces — is enormous, so the bias grew with the tilt
+    // and the artefact grew with it. A plan view sees roofs, whose slope is
+    // ~0 and for which the constant term was doing all the work anyway.
+    const planView = Math.abs(this._map.getPitch?.() ?? 0) < PLAN_VIEW_PITCH;
+    if (planView) {
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(0, -8);
+    }
 
     gl.useProgram(this._buildProg);
     gl.uniform1f(U.u_band, Math.max(0.01, this.band));
@@ -886,11 +946,15 @@ export class WallShadowLayer {
       gl.uniform1f(U.u_ht, sg.hComp === 2 ? zf : -1);
       gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
       gl.uniform1f(U.u_ct, sg.cComp === 4 ? zf : -1);
+      gl.uniform1f(U.u_rct, sg.rComp === 4 ? zf : -1); // PARCHMENT
+      gl.uniform1f(U.u_roof_on, sg.rComp ? 1 : 0);     // PARCHMENT
       this._drawSegs(gl, sg);
     }
     this._vao.bind(null);
-    gl.polygonOffset(0, 0); // PARCHMENT
-    gl.disable(gl.POLYGON_OFFSET_FILL); // PARCHMENT
+    if (planView) { // PARCHMENT
+      gl.polygonOffset(0, 0);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
+    }
   }
 
   onRemove(_map, gl) {

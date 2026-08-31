@@ -1837,7 +1837,7 @@
      6,
      0,
      7,
-     0.5,
+     0.75,
      12,
      [
       "match",
@@ -1849,14 +1849,14 @@
        "secondary",
        "tertiary"
       ],
-      2,
+      2.73,
       [
        "minor",
        "service",
        "track"
       ],
-      1,
-      0.5
+      2.5,
+      2.5
      ],
      14,
      [
@@ -1868,18 +1868,18 @@
       [
        "secondary"
       ],
-      6,
+      6.9,
       [
        "tertiary"
       ],
-      4,
+      5.4,
       [
        "minor",
        "service",
        "track"
       ],
-      3,
-      3
+      4.5,
+      4.5
      ],
      16,
      [
@@ -1891,18 +1891,18 @@
       [
        "secondary"
       ],
-      8,
+      10.4,
       [
        "tertiary"
       ],
-      8,
+      10.4,
       [
        "minor",
        "service",
        "track"
       ],
-      4,
-      4
+      8,
+      8
      ],
      20,
      [
@@ -1914,18 +1914,18 @@
       [
        "secondary"
       ],
-      26,
+      34.2,
       [
        "tertiary"
       ],
-      26,
+      34.2,
       [
        "minor",
        "service",
        "track"
       ],
-      18,
-      18
+      27,
+      27
      ]
     ]
    },
@@ -2504,9 +2504,9 @@
       "zoom"
      ],
      5,
-     0.5,
+     0.75,
      10,
-     1,
+     1.5,
      12,
      [
       "match",
@@ -2518,14 +2518,14 @@
        "secondary",
        "tertiary"
       ],
-      1.5,
+      1.73,
       [
        "minor",
        "service",
        "track"
       ],
-      1,
-      1
+      1.5,
+      1.5
      ],
      14,
      [
@@ -2537,18 +2537,18 @@
       [
        "secondary"
       ],
-      4,
+      4.6,
       [
        "tertiary"
       ],
-      3,
+      3.9,
       [
        "minor",
        "service",
        "track"
       ],
-      2,
-      2
+      3,
+      3
      ],
      16,
      [
@@ -2560,18 +2560,18 @@
       [
        "secondary"
       ],
-      7,
+      8.05,
       [
        "tertiary"
       ],
-      6,
+      7.8,
       [
        "minor",
        "service",
        "track"
       ],
-      4,
-      4
+      6,
+      6
      ],
      20,
      [
@@ -2583,18 +2583,18 @@
       [
        "secondary"
       ],
-      24,
+      31.2,
       [
        "tertiary"
       ],
-      24,
+      31.2,
       [
        "minor",
        "service",
        "track"
       ],
-      16,
-      16
+      24,
+      24
      ]
     ]
    },
@@ -4960,6 +4960,165 @@
       ]
      ],
      "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
+      ]
+     ],
+     "|",
      "@poi_lift"
     ],
     "icon-size": [
@@ -5850,6 +6009,165 @@
       ]
      ],
      "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
+      ]
+     ],
+     "|",
      "@poi_lift"
     ],
     "icon-size": [
@@ -6711,6 +7029,165 @@
       ]
      ],
      "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
+      ]
+     ],
+     "|",
      "@poi_lift"
     ],
     "icon-size": [
@@ -7569,6 +8046,165 @@
        ],
        "@poi_ink_arts_and_entertainment",
        "@poi_ink_default"
+      ]
+     ],
+     "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
       ]
      ],
      "|",
@@ -8453,6 +9089,165 @@
        ],
        "@poi_ink_arts_and_entertainment",
        "@poi_ink_default"
+      ]
+     ],
+     "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
       ]
      ],
      "|",
@@ -9371,6 +10166,165 @@
       ]
      ],
      "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
+      ]
+     ],
+     "|",
      "@poi_lift"
     ],
     "icon-size": [
@@ -10276,6 +11230,165 @@
       ]
      ],
      "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
+      ]
+     ],
+     "|",
      "@poi_lift"
     ],
     "icon-size": [
@@ -11166,6 +12279,165 @@
        ],
        "@poi_ink_arts_and_entertainment",
        "@poi_ink_default"
+      ]
+     ],
+     "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
       ]
      ],
      "|",
@@ -12113,6 +13385,165 @@
       ]
      ],
      "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
+      ]
+     ],
+     "|",
      "@poi_lift"
     ],
     "symbol-sort-key": [
@@ -12956,6 +14387,165 @@
        ],
        "@poi_ink_arts_and_entertainment",
        "@poi_ink_default"
+      ]
+     ],
+     "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
       ]
      ],
      "|",
@@ -13994,6 +15584,165 @@
        ],
        "@poi_ink_arts_and_entertainment",
        "@poi_ink_default"
+      ]
+     ],
+     "|",
+     [
+      "case",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "bus",
+        "bus_stop",
+        "bus_station",
+        "railway",
+        "station",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "harbor",
+        "aerialway",
+        "airport"
+       ],
+       true,
+       false
+      ],
+      "@poi_transit_ring",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "restaurant",
+        "cafe",
+        "bar",
+        "beer",
+        "fast_food",
+        "food_court",
+        "ice_cream",
+        "biergarten",
+        "pub",
+        "bakery"
+       ],
+       "@poi_ring_food_and_drink",
+       [
+        "school",
+        "university",
+        "college",
+        "library",
+        "kindergarten",
+        "childcare",
+        "driving_school",
+        "dancing_school"
+       ],
+       "@poi_ring_education",
+       [
+        "hospital",
+        "pharmacy",
+        "clinic",
+        "doctors",
+        "doctor",
+        "dentist",
+        "veterinary",
+        "first_aid"
+       ],
+       "@poi_ring_medical",
+       [
+        "bicycle",
+        "bicycle_parking",
+        "swimming",
+        "pitch",
+        "golf",
+        "stadium",
+        "playground",
+        "sport"
+       ],
+       "@poi_ring_sport_and_leisure",
+       [
+        "shop",
+        "grocery",
+        "clothing_store",
+        "alcohol_shop",
+        "jewelry_store",
+        "furniture",
+        "florist",
+        "shoe",
+        "hairdresser",
+        "laundry",
+        "books",
+        "marketplace"
+       ],
+       "@poi_ring_store",
+       [
+        "park",
+        "garden",
+        "picnic_site",
+        "dog_park"
+       ],
+       "@poi_ring_park",
+       [
+        "railway",
+        "bus",
+        "aerialway",
+        "harbor",
+        "airport",
+        "subway",
+        "tram_stop",
+        "ferry_terminal",
+        "station",
+        "bus_stop",
+        "bus_station",
+        "office",
+        "bank",
+        "atm",
+        "car",
+        "car_rental",
+        "car_repair",
+        "fuel",
+        "charging_station",
+        "parking",
+        "parking_garage",
+        "parking_paid",
+        "toilets",
+        "shower",
+        "lodging",
+        "hotel",
+        "motel",
+        "hostel",
+        "guest_house",
+        "apartment",
+        "chalet",
+        "campsite",
+        "camp_site",
+        "caravan_site",
+        "information",
+        "post"
+       ],
+       "@poi_ring_commercial_services",
+       [
+        "art_gallery",
+        "museum",
+        "theatre",
+        "cinema",
+        "attraction",
+        "castle",
+        "monument",
+        "ruins",
+        "theme_park",
+        "aquarium",
+        "music",
+        "nightclub",
+        "community_centre",
+        "zoo"
+       ],
+       "@poi_ring_arts_and_entertainment",
+       "@poi_ring_default"
       ]
      ],
      "|",
@@ -17578,14 +19327,77 @@
          "#808080"
         ]
        ],
+       "flavor",
+       [
+        "to-rgba",
+        [
+         "to-color",
+         "@building_3d_fill_extrusion_color"
+        ]
+       ],
        [
         "let",
-        "luma",
+        "high",
         [
-         "+",
+         "max",
          [
-          "*",
-          0.2126,
+          "at",
+          0,
+          [
+           "var",
+           "tile"
+          ]
+         ],
+         [
+          "at",
+          1,
+          [
+           "var",
+           "tile"
+          ]
+         ],
+         [
+          "at",
+          2,
+          [
+           "var",
+           "tile"
+          ]
+         ]
+        ],
+        "low",
+        [
+         "min",
+         [
+          "at",
+          0,
+          [
+           "var",
+           "tile"
+          ]
+         ],
+         [
+          "at",
+          1,
+          [
+           "var",
+           "tile"
+          ]
+         ],
+         [
+          "at",
+          2,
+          [
+           "var",
+           "tile"
+          ]
+         ]
+        ],
+        "mid",
+        [
+         "/",
+         [
+          "+",
           [
            "at",
            0,
@@ -17593,11 +19405,7 @@
             "var",
             "tile"
            ]
-          ]
-         ],
-         [
-          "*",
-          0.7152,
+          ],
           [
            "at",
            1,
@@ -17605,11 +19413,7 @@
             "var",
             "tile"
            ]
-          ]
-         ],
-         [
-          "*",
-          0.0722,
+          ],
           [
            "at",
            2,
@@ -17618,127 +19422,366 @@
             "tile"
            ]
           ]
+         ],
+         3
+        ],
+        "base",
+        [
+         "/",
+         [
+          "+",
+          [
+           "at",
+           0,
+           [
+            "var",
+            "flavor"
+           ]
+          ],
+          [
+           "at",
+           1,
+           [
+            "var",
+            "flavor"
+           ]
+          ],
+          [
+           "at",
+           2,
+           [
+            "var",
+            "flavor"
+           ]
+          ]
+         ],
+         3
+        ],
+        "headroom",
+        [
+         "-",
+         255,
+         [
+          "max",
+          [
+           "at",
+           0,
+           [
+            "var",
+            "flavor"
+           ]
+          ],
+          [
+           "at",
+           1,
+           [
+            "var",
+            "flavor"
+           ]
+          ],
+          [
+           "at",
+           2,
+           [
+            "var",
+            "flavor"
+           ]
+          ]
          ]
         ],
         [
-         "rgb",
+         "let",
+         "chroma",
          [
-          "max",
-          0,
+          "-",
+          [
+           "var",
+           "high"
+          ],
+          [
+           "var",
+           "low"
+          ]
+         ],
+         "bias",
+         [
+          "-",
+          1,
           [
            "min",
-           255,
+           1,
            [
-            "+",
+            "/",
             [
-             "at",
+             "var",
+             "headroom"
+            ],
+            90
+           ]
+          ]
+         ],
+         [
+          "let",
+          "scale",
+          [
+           "/",
+           22,
+           [
+            "max",
+            [
+             "var",
+             "chroma"
+            ],
+            48
+           ]
+          ],
+          "colourfulness",
+          [
+           "min",
+           1,
+           [
+            "/",
+            [
+             "var",
+             "chroma"
+            ],
+            48
+           ]
+          ],
+          [
+           "let",
+           "sub",
+           [
+            "*",
+            [
+             "var",
+             "bias"
+            ],
+            [
+             "-",
+             [
+              "var",
+              "high"
+             ],
+             [
+              "var",
+              "mid"
+             ]
+            ],
+            [
+             "var",
+             "scale"
+            ]
+           ],
+           [
+            "rgb",
+            [
+             "max",
              0,
              [
-              "to-rgba",
+              "min",
+              255,
               [
-               "to-color",
-               "@building_3d_fill_extrusion_color"
+               "+",
+               [
+                "var",
+                "base"
+               ],
+               [
+                "*",
+                [
+                 "-",
+                 1,
+                 [
+                  "var",
+                  "colourfulness"
+                 ]
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  0,
+                  [
+                   "var",
+                   "flavor"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "base"
+                 ]
+                ]
+               ],
+               [
+                "*",
+                [
+                 "var",
+                 "scale"
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  0,
+                  [
+                   "var",
+                   "tile"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "mid"
+                 ]
+                ]
+               ],
+               [
+                "-",
+                [
+                 "var",
+                 "sub"
+                ]
+               ]
               ]
              ]
             ],
             [
-             "*",
-             0.26,
+             "max",
+             0,
              [
-              "-",
+              "min",
+              255,
               [
-               "at",
-               0,
+               "+",
                [
                 "var",
-                "tile"
+                "base"
+               ],
+               [
+                "*",
+                [
+                 "-",
+                 1,
+                 [
+                  "var",
+                  "colourfulness"
+                 ]
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  1,
+                  [
+                   "var",
+                   "flavor"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "base"
+                 ]
+                ]
+               ],
+               [
+                "*",
+                [
+                 "var",
+                 "scale"
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  1,
+                  [
+                   "var",
+                   "tile"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "mid"
+                 ]
+                ]
+               ],
+               [
+                "-",
+                [
+                 "var",
+                 "sub"
+                ]
                ]
-              ],
-              [
-               "var",
-               "luma"
-              ]
-             ]
-            ]
-           ]
-          ]
-         ],
-         [
-          "max",
-          0,
-          [
-           "min",
-           255,
-           [
-            "+",
-            [
-             "at",
-             1,
-             [
-              "to-rgba",
-              [
-               "to-color",
-               "@building_3d_fill_extrusion_color"
               ]
              ]
             ],
             [
-             "*",
-             0.26,
+             "max",
+             0,
              [
-              "-",
+              "min",
+              255,
               [
-               "at",
-               1,
+               "+",
                [
                 "var",
-                "tile"
-               ]
-              ],
-              [
-               "var",
-               "luma"
-              ]
-             ]
-            ]
-           ]
-          ]
-         ],
-         [
-          "max",
-          0,
-          [
-           "min",
-           255,
-           [
-            "+",
-            [
-             "at",
-             2,
-             [
-              "to-rgba",
-              [
-               "to-color",
-               "@building_3d_fill_extrusion_color"
-              ]
-             ]
-            ],
-            [
-             "*",
-             0.26,
-             [
-              "-",
-              [
-               "at",
-               2,
+                "base"
+               ],
                [
-                "var",
-                "tile"
+                "*",
+                [
+                 "-",
+                 1,
+                 [
+                  "var",
+                  "colourfulness"
+                 ]
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  2,
+                  [
+                   "var",
+                   "flavor"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "base"
+                 ]
+                ]
+               ],
+               [
+                "*",
+                [
+                 "var",
+                 "scale"
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  2,
+                  [
+                   "var",
+                   "tile"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "mid"
+                 ]
+                ]
+               ],
+               [
+                "-",
+                [
+                 "var",
+                 "sub"
+                ]
                ]
-              ],
-              [
-               "var",
-               "luma"
               ]
              ]
             ]
@@ -17776,14 +19819,77 @@
          "#808080"
         ]
        ],
+       "flavor",
+       [
+        "to-rgba",
+        [
+         "to-color",
+         "@building_3d_fill_extrusion_color"
+        ]
+       ],
        [
         "let",
-        "luma",
+        "high",
         [
-         "+",
+         "max",
          [
-          "*",
-          0.2126,
+          "at",
+          0,
+          [
+           "var",
+           "tile"
+          ]
+         ],
+         [
+          "at",
+          1,
+          [
+           "var",
+           "tile"
+          ]
+         ],
+         [
+          "at",
+          2,
+          [
+           "var",
+           "tile"
+          ]
+         ]
+        ],
+        "low",
+        [
+         "min",
+         [
+          "at",
+          0,
+          [
+           "var",
+           "tile"
+          ]
+         ],
+         [
+          "at",
+          1,
+          [
+           "var",
+           "tile"
+          ]
+         ],
+         [
+          "at",
+          2,
+          [
+           "var",
+           "tile"
+          ]
+         ]
+        ],
+        "mid",
+        [
+         "/",
+         [
+          "+",
           [
            "at",
            0,
@@ -17791,11 +19897,7 @@
             "var",
             "tile"
            ]
-          ]
-         ],
-         [
-          "*",
-          0.7152,
+          ],
           [
            "at",
            1,
@@ -17803,11 +19905,7 @@
             "var",
             "tile"
            ]
-          ]
-         ],
-         [
-          "*",
-          0.0722,
+          ],
           [
            "at",
            2,
@@ -17816,127 +19914,366 @@
             "tile"
            ]
           ]
+         ],
+         3
+        ],
+        "base",
+        [
+         "/",
+         [
+          "+",
+          [
+           "at",
+           0,
+           [
+            "var",
+            "flavor"
+           ]
+          ],
+          [
+           "at",
+           1,
+           [
+            "var",
+            "flavor"
+           ]
+          ],
+          [
+           "at",
+           2,
+           [
+            "var",
+            "flavor"
+           ]
+          ]
+         ],
+         3
+        ],
+        "headroom",
+        [
+         "-",
+         255,
+         [
+          "max",
+          [
+           "at",
+           0,
+           [
+            "var",
+            "flavor"
+           ]
+          ],
+          [
+           "at",
+           1,
+           [
+            "var",
+            "flavor"
+           ]
+          ],
+          [
+           "at",
+           2,
+           [
+            "var",
+            "flavor"
+           ]
+          ]
          ]
         ],
         [
-         "rgb",
+         "let",
+         "chroma",
          [
-          "max",
-          0,
+          "-",
+          [
+           "var",
+           "high"
+          ],
+          [
+           "var",
+           "low"
+          ]
+         ],
+         "bias",
+         [
+          "-",
+          1,
           [
            "min",
-           255,
+           1,
            [
-            "+",
+            "/",
             [
-             "at",
+             "var",
+             "headroom"
+            ],
+            90
+           ]
+          ]
+         ],
+         [
+          "let",
+          "scale",
+          [
+           "/",
+           30,
+           [
+            "max",
+            [
+             "var",
+             "chroma"
+            ],
+            48
+           ]
+          ],
+          "colourfulness",
+          [
+           "min",
+           1,
+           [
+            "/",
+            [
+             "var",
+             "chroma"
+            ],
+            48
+           ]
+          ],
+          [
+           "let",
+           "sub",
+           [
+            "*",
+            [
+             "var",
+             "bias"
+            ],
+            [
+             "-",
+             [
+              "var",
+              "high"
+             ],
+             [
+              "var",
+              "mid"
+             ]
+            ],
+            [
+             "var",
+             "scale"
+            ]
+           ],
+           [
+            "rgb",
+            [
+             "max",
              0,
              [
-              "to-rgba",
+              "min",
+              255,
               [
-               "to-color",
-               "@building_3d_fill_extrusion_color"
+               "+",
+               [
+                "var",
+                "base"
+               ],
+               [
+                "*",
+                [
+                 "-",
+                 1,
+                 [
+                  "var",
+                  "colourfulness"
+                 ]
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  0,
+                  [
+                   "var",
+                   "flavor"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "base"
+                 ]
+                ]
+               ],
+               [
+                "*",
+                [
+                 "var",
+                 "scale"
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  0,
+                  [
+                   "var",
+                   "tile"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "mid"
+                 ]
+                ]
+               ],
+               [
+                "-",
+                [
+                 "var",
+                 "sub"
+                ]
+               ]
               ]
              ]
             ],
             [
-             "*",
-             0.17,
+             "max",
+             0,
              [
-              "-",
+              "min",
+              255,
               [
-               "at",
-               0,
+               "+",
                [
                 "var",
-                "tile"
+                "base"
+               ],
+               [
+                "*",
+                [
+                 "-",
+                 1,
+                 [
+                  "var",
+                  "colourfulness"
+                 ]
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  1,
+                  [
+                   "var",
+                   "flavor"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "base"
+                 ]
+                ]
+               ],
+               [
+                "*",
+                [
+                 "var",
+                 "scale"
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  1,
+                  [
+                   "var",
+                   "tile"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "mid"
+                 ]
+                ]
+               ],
+               [
+                "-",
+                [
+                 "var",
+                 "sub"
+                ]
                ]
-              ],
-              [
-               "var",
-               "luma"
-              ]
-             ]
-            ]
-           ]
-          ]
-         ],
-         [
-          "max",
-          0,
-          [
-           "min",
-           255,
-           [
-            "+",
-            [
-             "at",
-             1,
-             [
-              "to-rgba",
-              [
-               "to-color",
-               "@building_3d_fill_extrusion_color"
               ]
              ]
             ],
             [
-             "*",
-             0.17,
+             "max",
+             0,
              [
-              "-",
+              "min",
+              255,
               [
-               "at",
-               1,
+               "+",
                [
                 "var",
-                "tile"
-               ]
-              ],
-              [
-               "var",
-               "luma"
-              ]
-             ]
-            ]
-           ]
-          ]
-         ],
-         [
-          "max",
-          0,
-          [
-           "min",
-           255,
-           [
-            "+",
-            [
-             "at",
-             2,
-             [
-              "to-rgba",
-              [
-               "to-color",
-               "@building_3d_fill_extrusion_color"
-              ]
-             ]
-            ],
-            [
-             "*",
-             0.17,
-             [
-              "-",
-              [
-               "at",
-               2,
+                "base"
+               ],
                [
-                "var",
-                "tile"
+                "*",
+                [
+                 "-",
+                 1,
+                 [
+                  "var",
+                  "colourfulness"
+                 ]
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  2,
+                  [
+                   "var",
+                   "flavor"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "base"
+                 ]
+                ]
+               ],
+               [
+                "*",
+                [
+                 "var",
+                 "scale"
+                ],
+                [
+                 "-",
+                 [
+                  "at",
+                  2,
+                  [
+                   "var",
+                   "tile"
+                  ]
+                 ],
+                 [
+                  "var",
+                  "mid"
+                 ]
+                ]
+               ],
+               [
+                "-",
+                [
+                 "var",
+                 "sub"
+                ]
                ]
-              ],
-              [
-               "var",
-               "luma"
               ]
              ]
             ]

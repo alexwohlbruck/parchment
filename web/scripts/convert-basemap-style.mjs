@@ -46,7 +46,7 @@ const OUT_SPEC = resolve(WEB, 'src/lib/map-style/spec.json')
 const OUT_TOKENS = resolve(WEB, 'src/lib/map-style/tokens.light.json')
 const OUT_TOKENS_DARK = resolve(WEB, 'src/lib/map-style/tokens.dark.json')
 
-import { buildingColor, BUILDING_CHROMA } from '../src/lib/map-style/building-color.mjs'
+import { buildingColor, BUILDING_TINT } from '../src/lib/map-style/building-color.mjs'
 import { isTransitPoi } from '../src/lib/map-style/transit-poi.mjs'
 
 const SOURCE = 'openmaptiles'
@@ -188,6 +188,7 @@ const POI_PLATE_ICON = [
   POI_ICON_STEM,
   '|', poiTint('plate'),
   '|', poiTint('ink'),
+  '|', poiTint('ring'),
   '|', '@poi_lift',
 ]
 
@@ -195,12 +196,26 @@ const POI_PLATE_ICON = [
 const IS_TRANSIT_POI = isTransitPoi()
 
 /**
- * Hand corrections where MapTiler's dark style has no counterpart to read.
+ * Hand corrections where MapTiler's dark style has no counterpart to read, or
+ * where the counterpart it has does not survive our own palette.
+ *
  * Their dark Oneway layer drops `icon-color` entirely and leans on its own
  * sprite art, which would otherwise leave a light-grey arrow on a dark road.
+ *
+ * Sand is theirs — `hsl(195, 64%, 22%)`, a cyan — and it is the most saturated
+ * fill on our night map by a wide margin: the ground sits at 37% saturation,
+ * woodland at 47%, grass at 33%. Every one of those is a cool hue too, so the
+ * beach did not read as a lighter shade of anything, it read as a band of
+ * turquoise laid between the town and the sea. Ours keeps the light map's warm
+ * hue instead of inverting it, drops the saturation to where the rest of the
+ * palette sits, and takes a lightness a few points above the ground so a beach
+ * is a pale strip against the land and clearly above the water. Sand is also
+ * what deserts draw with, so it has to hold at continent scale without
+ * glowing.
  */
 const DARK_OVERRIDES = {
   oneway_icon_color: 'hsl(0, 0%, 42%)',
+  sand_fill_color: 'hsl(42, 19%, 30%)',
 }
 
 /**
@@ -432,6 +447,154 @@ function applyRoadInk(layers) {
   for (const layer of layers) {
     const color = repaint[layer.id]
     if (color && layer.paint) layer.paint['line-color'] = color
+  }
+}
+
+/**
+ * How much wider the lower rungs of the network are drawn than MapTiler draws
+ * them.
+ *
+ * Their ramps are cut for a map whose roads carry colour: a motorway is orange
+ * and a residential street is white, so the street can be a hairline and still
+ * be found. This map gave the colour up (see `ROAD_INK`) and left the hierarchy
+ * to weight alone — which put the whole burden on a stroke that was never sized
+ * to carry it, and a residential grid came out as a mesh of threads.
+ *
+ * Weighted rather than flat, so widening the bottom of the network does not
+ * flatten it into the top: a service road gains half again, a secondary barely
+ * moves, and the gaps between the rungs stay in the same order.
+ *
+ * Only the `Minor road` pair. The trunk-and-above layers were legible already,
+ * and lifting them too would just restore the same ratios one size up.
+ */
+const ROAD_WIDEN = {
+  secondary: 1.15,
+  tertiary: 1.3,
+  minor: 1.5,
+  service: 1.5,
+  track: 1.5,
+}
+/** For the `match`'s fallback arm — an unclassified road is a minor one. */
+const ROAD_WIDEN_DEFAULT = 1.5
+
+/**
+ * The least ink a minor road's casing may show either side of its surface.
+ *
+ * MapTiler's two ramps converge as they climb — at z16 a residential street's
+ * casing is 4px against a 4px surface, which is no casing at all — so the
+ * street loses its edge over exactly the range you browse at and comes back
+ * once you are past it. Widening both ramps together preserves that, so the
+ * casing is given a floor as well: whatever the scale says, it clears the
+ * surface by this much on each side.
+ */
+const MINOR_CASING_WEIGHT = { 12: 0.5, 14: 0.75, 16: 1, 20: 1.5 }
+
+/** The scale for one `match` arm, by the first class it names. */
+const widenFor = className =>
+  (className && ROAD_WIDEN[className]) || ROAD_WIDEN_DEFAULT
+
+/** Round off the float noise a scale leaves behind; widths are drawn in px. */
+const px = n => Math.round(n * 100) / 100
+
+/**
+ * Walk the per-class arms of one zoom stop.
+ *
+ * A stop is either a bare width — the low-zoom end, where every class draws the
+ * same — or a `match` on `class`. `visit` is handed each arm's width and the
+ * first class that arm names, and returns the width to put back.
+ */
+function mapClassWidths(value, visit) {
+  if (typeof value === 'number') return visit(value, null)
+  if (!Array.isArray(value) || value[0] !== 'match') return value
+  const out = value.slice()
+  for (let i = 2; i < out.length - 1; i += 2) {
+    const arm = Array.isArray(out[i]) ? out[i][0] : out[i]
+    out[i + 1] = visit(out[i + 1], arm)
+  }
+  out[out.length - 1] = visit(out[out.length - 1], null)
+  return out
+}
+
+/**
+ * Stop a widened stop from putting a rung above the one over it.
+ *
+ * The arms of these `match`es run high rank to low, and MapTiler draws several
+ * of the pairs at the same width — secondary and tertiary are both 8px at z16.
+ * Scaling those by different factors is what ranks them, and it ranks them the
+ * wrong way round: the smaller factor on the higher rung leaves the lower rung
+ * wider. So each arm is raised to at least the widest arm below it, which
+ * flattens an inversion back to a tie rather than narrowing a road that the
+ * whole pass exists to widen.
+ */
+function flattenInversions(value) {
+  if (!Array.isArray(value) || value[0] !== 'match') return value
+  const out = value.slice()
+  let widest = out[out.length - 1]
+  for (let i = out.length - 2; i >= 3; i -= 2) {
+    widest = Math.max(out[i], widest)
+    out[i] = widest
+  }
+  return out
+}
+
+/** The width one stop draws for the arm at `index`, for comparing two ramps. */
+function classWidthAt(value, index) {
+  if (typeof value === 'number') return value
+  if (!Array.isArray(value) || value[0] !== 'match') return null
+  return index === null ? value[value.length - 1] : value[index * 2 + 3]
+}
+
+/** `['interpolate', interpolation, ['zoom'], z1, v1, ...]` as `[zoom, value]` pairs. */
+function zoomStops(expression) {
+  const stops = []
+  for (let i = 3; i < expression.length; i += 2) stops.push([expression[i], i + 1])
+  return stops
+}
+
+/**
+ * Widen the bottom of the road network, and stop its casings collapsing.
+ *
+ * Done here rather than in `spec.json` so a regenerated spec keeps it: the spec
+ * is MapTiler's layers with our colours substituted, and every other departure
+ * from their cartography is a pass over the layer list like this one.
+ */
+function widenLowerRoads(layers) {
+  const surface = layers.find(l => l.id === 'Minor road')
+  const casing = layers.find(l => l.id === 'Minor road outline')
+  if (!surface || !casing) return
+
+  for (const layer of [surface, casing]) {
+    const width = layer.paint?.['line-width']
+    if (!Array.isArray(width) || width[0] !== 'interpolate') continue
+    for (const [, at] of zoomStops(width)) {
+      width[at] = mapClassWidths(width[at], (w, className) =>
+        px(w * widenFor(className)),
+      )
+    }
+  }
+
+  // Both ramps carry the same class groupings at the stops that have them, so
+  // an arm's index means the same thing in each and the two can be compared
+  // arm by arm.
+  const surfaceWidth = surface.paint['line-width']
+  const casingWidth = casing.paint['line-width']
+  const surfaceAt = Object.fromEntries(
+    zoomStops(surfaceWidth).map(([zoom, at]) => [zoom, surfaceWidth[at]]),
+  )
+  for (const [zoom, at] of zoomStops(casingWidth)) {
+    const weight = MINOR_CASING_WEIGHT[zoom]
+    const beneath = surfaceAt[zoom]
+    if (weight === undefined || beneath === undefined) continue
+    let arm = -1
+    casingWidth[at] = mapClassWidths(casingWidth[at], (w, className) => {
+      arm++
+      const under = classWidthAt(beneath, className === null ? null : arm)
+      return under === null ? w : px(Math.max(w, under + weight * 2))
+    })
+  }
+
+  for (const width of [surfaceWidth, casingWidth]) {
+    for (const [, at] of zoomStops(width)) width[at] = flattenInversions(width[at])
   }
 }
 
@@ -960,7 +1123,7 @@ class Tokens {
   ref(color, darkColor, hint) {
     const light = color.trim()
     const dark = isColor(darkColor) ? darkColor.trim() : null
-    const key = `${light} ${dark ?? ''}`
+    const key = `${light}\u0000${dark ?? ''}`
     if (this.byColor.has(key)) return `@${this.byColor.get(key)}`
     let name = hint
     let n = 2
@@ -1188,6 +1351,7 @@ async function main() {
 
   sinkInstitutionalLanduse(layers)
   applyRoadInk(layers)
+  widenLowerRoads(layers)
   fadeTunnels(layers)
   // Before the pedestrian pass, so the footbridges it inserts land above the
   // arrows rather than below them: an arrow is painted on the road, and a
@@ -1304,6 +1468,7 @@ async function main() {
   for (const flavor of ['light', 'dark']) {
     tokens[flavor].poi_transit_plate = `@@tint-plate:${TRANSIT_BLUE[flavor]}`
     tokens[flavor].poi_transit_ink = `@@tint-ink:${TRANSIT_BLUE[flavor]}`
+    tokens[flavor].poi_transit_ring = `@@tint-ring:${TRANSIT_BLUE[flavor]}`
   }
 
   tokens.light.path_surface = 'hsl(228, 16%, 96%)'
@@ -1323,12 +1488,13 @@ async function main() {
   // Category palette tokens, resolved at runtime from the app's own palette
   // so basemap POIs match the colours search results already use.
   //
-  // The pale plate and its contrasting ink, from the same palette colour and
-  // through the same function the place header's icon tile uses — which is what
-  // makes a café on the map and a café in the header the same mark. The raw
-  // colour is not emitted: nothing draws with it directly any more.
+  // The pale plate, its contrasting ink and the ring around it, from the same
+  // palette colour and through the same function the place header's icon tile
+  // uses — which is what makes a café on the map and a café in the header the
+  // same mark. The raw colour is not emitted: nothing draws with it directly
+  // any more. `build.ts` picks what each of the three resolves to per flavor.
   for (const category of [...Object.keys(POI_CATEGORY), 'default']) {
-    for (const kind of ['plate', 'ink']) {
+    for (const kind of ['plate', 'ink', 'ring']) {
       tokens.light[`poi_${kind}_${category}`] = `@@category-${kind}:${category}`
       tokens.dark[`poi_${kind}_${category}`] = `@@category-${kind}:${category}`
     }
@@ -1387,10 +1553,10 @@ async function main() {
   // the ordinary case; this covers the rest. Same shape as `poiStyles`, and
   // merged by `build.ts` the same way.
   const flavorStyles = Object.fromEntries(
-    Object.entries(BUILDING_CHROMA).map(([flavor, chroma]) => [
+    Object.entries(BUILDING_TINT).map(([flavor, amount]) => [
       flavor,
       buildingLayerId && {
-        [buildingLayerId]: { paint: { 'fill-extrusion-color': buildingColor(chroma) } },
+        [buildingLayerId]: { paint: { 'fill-extrusion-color': buildingColor(amount) } },
       },
     ]),
   )

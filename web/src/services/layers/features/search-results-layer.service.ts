@@ -10,6 +10,8 @@ import type { Place } from '@/types/place.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { watch } from 'vue'
 import { useSearchStore } from '@/stores/search.store'
+import { useThemeStore } from '@/stores/theme.store'
+import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import SearchResultMapIcon from '@/components/map/SearchResultMapIcon.vue'
 import {
   SEARCH_RESULTS_LAYER_ID,
@@ -17,6 +19,7 @@ import {
   SEARCH_RESULTS_LABELS_LAYER_ID,
   SEARCH_RESULTS_LAYER_CONFIG,
   EMPTY_SEARCH_RESULTS_GEOJSON,
+  searchResultLabelPaint,
 } from '@/constants/layer.constants'
 
 export function useSearchResultsLayerService() {
@@ -30,8 +33,21 @@ export function useSearchResultsLayerService() {
   // ============================================================================
 
   function createSearchResultsLayer(): Layer {
+    const theme = useThemeStore()
+    const palette = useCategoryPaletteStore()
     return {
       ...SEARCH_RESULTS_LAYER_CONFIG,
+      configuration: {
+        ...SEARCH_RESULTS_LAYER_CONFIG.configuration,
+        // Resolved here rather than in the config, since it follows the theme
+        // and the live palette. Both are read fresh on every style.load, which
+        // is what a theme switch triggers.
+        paint: searchResultLabelPaint({
+          isDark: theme.isDark,
+          categories: palette.palette.map(c => c.id),
+          categoryColor: category => palette.getCategoryColor(category, theme.isDark),
+        }),
+      },
       id: SEARCH_RESULTS_LAYER_ID,
       userId: '',
       createdAt: new Date().toISOString(),
@@ -44,8 +60,16 @@ export function useSearchResultsLayerService() {
   // ============================================================================
 
   function initializeSearchResultsLayer(mapStrategy: MapStrategy) {
-    // Skip if already initialized for this map instance
-    if (searchResultsSourceInitialized) {
+    // Skip if already initialized — but ask the map, not just the flag.
+    // `setStyle`, which is what a theme or basemap switch does, drops every
+    // source and layer, so a service that has initialised once still has to
+    // rebuild afterwards. Trusting the flag alone left the labels gone for the
+    // rest of the session after the first theme switch, and pinned their
+    // colours to whichever theme happened to be on at the first style load.
+    if (
+      searchResultsSourceInitialized &&
+      mapStrategy.mapInstance.getLayer(SEARCH_RESULTS_LABELS_LAYER_ID)
+    ) {
       return
     }
 

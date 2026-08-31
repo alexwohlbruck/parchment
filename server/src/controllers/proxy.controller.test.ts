@@ -38,9 +38,12 @@ const realFetch = globalThis.fetch
 let fetchResponses: Response[] = []
 let fetchError: Error | null = null
 const fetchCalls: string[] = []
+/** Headers per call, so auth can be asserted as well as the URL. */
+const fetchHeaders: Record<string, string>[] = []
 
-globalThis.fetch = mock(async (url: any) => {
+globalThis.fetch = mock(async (url: any, init?: any) => {
   fetchCalls.push(String(url))
+  fetchHeaders.push({ ...(init?.headers ?? {}) })
   if (fetchError) throw fetchError
   return fetchResponses.shift() ?? new Response(new Uint8Array([1, 2, 3]))
 }) as any
@@ -64,6 +67,7 @@ beforeEach(() => {
   resetAuth()
   portolanTileCache.clear()
   fetchCalls.length = 0
+  fetchHeaders.length = 0
   fetchResponses = []
   fetchError = null
   configuredIntegrations = [barrelmanIntegration]
@@ -203,12 +207,20 @@ describe('GET /proxy/transitland/...', () => {
   })
 })
 
+/**
+ * These asserted a `martinHost` config field and a bare `/{source}/…` path, and
+ * passed — because the mock supplied that field too. Neither existed: Barrelman
+ * serves tiles at `/tiles/*` and `BarrelmanConfig` carries `host`, so in
+ * production the lookup returned undefined and every tile went to the localhost
+ * default. Nothing about the basemap drew. Tests now name the same fields the
+ * integration actually stores.
+ */
 describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
-  test('proxies to the configured Martin host with the tile token', async () => {
+  test('proxies to the Barrelman host under /tiles, with the tile token', async () => {
     configuredIntegrations = [
       {
         integrationId: 'barrelman',
-        config: { martinHost: 'https://martin.test', tileKey: 'tile-key' },
+        config: { host: 'https://barrelman.test', tileKey: 'tile-key' },
       },
     ]
     fetchResponses = [tileResponse()]
@@ -216,11 +228,19 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
     const res = await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
 
     expect(res.status).toBe(200)
-    expect(fetchCalls[0]).toContain('https://martin.test/geo_places/12/1170/1567')
+    expect(fetchCalls[0]).toContain('https://barrelman.test/tiles/geo_places/12/1170/1567')
     expect(fetchCalls[0]).toContain('token=tile-key')
   })
 
-  test('falls back to MARTIN_HOST when the integration has none', async () => {
+  test('sends the integration apiKey as a bearer, like every other Barrelman call', async () => {
+    fetchResponses = [tileResponse()]
+
+    await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
+
+    expect(fetchHeaders[0].Authorization).toBe('Bearer barrelman-key')
+  })
+
+  test('falls back to MARTIN_HOST when the integration has no host', async () => {
     configuredIntegrations = [{ integrationId: 'barrelman', config: {} }]
     process.env.MARTIN_HOST = 'https://martin-env.test'
     fetchResponses = [tileResponse()]
@@ -231,9 +251,18 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
     delete process.env.MARTIN_HOST
   })
 
+  test('answers 501 rather than guessing when no host is configured at all', async () => {
+    configuredIntegrations = [{ integrationId: 'barrelman', config: {} }]
+
+    const res = await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
+
+    expect(res.status).toBe(501)
+    expect(fetchCalls).toEqual([])
+  })
+
   test('omits the token when none is configured', async () => {
     configuredIntegrations = [
-      { integrationId: 'barrelman', config: { martinHost: 'https://martin.test' } },
+      { integrationId: 'barrelman', config: { host: 'https://barrelman.test' } },
     ]
     fetchResponses = [tileResponse()]
 
@@ -243,9 +272,6 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
   })
 
   test('preserves the upstream content type', async () => {
-    configuredIntegrations = [
-      { integrationId: 'barrelman', config: { martinHost: 'https://martin.test' } },
-    ]
     fetchResponses = [
       new Response(new Uint8Array([1]), {
         headers: { 'content-type': 'application/vnd.mapbox-vector-tile' },
@@ -258,9 +284,6 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
   })
 
   test('forwards the upstream status on failure', async () => {
-    configuredIntegrations = [
-      { integrationId: 'barrelman', config: { martinHost: 'https://martin.test' } },
-    ]
     fetchResponses = [new Response('gone', { status: 404 })]
 
     const res = await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')

@@ -8,7 +8,7 @@ import {
   getSearchResultIconPack,
   getSearchResultCategory,
 } from '@/lib/search.utils'
-import { getCategoryColor } from '@/lib/place-colors'
+import { getCategoryMarkerTint } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
 
@@ -26,8 +26,8 @@ const emit = defineEmits<{
 const themeStore = useThemeStore()
 const iconName = computed(() => getSearchResultIconName(place))
 const iconPack = computed(() => getSearchResultIconPack(place))
-const categoryColor = computed(() =>
-  getCategoryColor(getSearchResultCategory(place), themeStore.isDark),
+const tint = computed(() =>
+  getCategoryMarkerTint(getSearchResultCategory(place), themeStore.isDark),
 )
 
 const lucideIcon = computed(() => {
@@ -50,26 +50,22 @@ function handleMouseLeave(event: MouseEvent) {
 </script>
 
 <template>
-  <!-- Mapbox-style circular pin. Text labels are rendered by the symbol layer. -->
+  <!-- The basemap's POI badge, in the DOM: same plate, glyph and ring, from
+       `getCategoryMarkerTint`. Text labels are drawn by the symbol layer. -->
   <div
-    class="size-[22px] border-[1.5px] border-white dark:border-[#0C0C0C] rounded-full flex items-center justify-center shadow-md transition-all duration-150 ease-out cursor-pointer select-none"
+    class="size-[22px] border-[1.5px] rounded-full flex items-center justify-center shadow-md transition-all duration-150 ease-out cursor-pointer select-none"
     :class="{ 'scale-[1.3] shadow-lg': isHovered }"
-    :style="{ backgroundColor: categoryColor }"
+    :style="{
+      backgroundColor: tint.plate,
+      borderColor: tint.ring,
+      color: tint.ink,
+    }"
     @click="handleClick"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
-    <MakiIcon
-      v-if="iconPack === 'maki'"
-      :name="iconName"
-      size="xs"
-      class="fill-current text-white dark:text-[#0C0C0C]"
-    />
-    <component
-      v-else
-      :is="lucideIcon"
-      class="text-white dark:text-[#0C0C0C] size-3"
-    />
+    <MakiIcon v-if="iconPack === 'maki'" :name="iconName" size="xs" class="fill-current" />
+    <component v-else :is="lucideIcon" class="size-3" />
   </div>
 </template>
 

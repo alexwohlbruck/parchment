@@ -93,7 +93,7 @@ export const SHADE_GROUPS: Array<{
   },
   {
     title: 'Colour',
-    levers: [{ key: 'chroma', label: 'Tile colour strength', min: 0, max: 1.5, step: 0.01, format: NUM }],
+    levers: [{ key: 'tint', label: 'Tile colour strength', min: 0, max: 90, step: 1 }],
   },
 ]
 
@@ -129,7 +129,7 @@ export function useBuildingShadeTuner() {
       aoRadiusMin: pick('aoRadiusMin', d.aoRadiusMin),
       aoRadiusMax: pick('aoRadiusMax', d.aoRadiusMax),
       aoZ: source?.aoOffset?.[2] ?? d.aoOffset[2],
-      chroma: d.chroma,
+      tint: d.tint,
       // Seed the manual sun from wherever the real one is, so releasing the
       // toggle starts from today's sky rather than from an arbitrary angle.
       sunAzimuth: state.sunAzimuth ?? realSunDegrees().azimuth,
@@ -193,7 +193,7 @@ export function useBuildingShadeTuner() {
         map.value.setPaintProperty(
           layerGroups.building3d,
           'fill-extrusion-color',
-          resolveTokens(buildingColor(state.chroma)),
+          resolveTokens(buildingColor(state.tint)),
         )
       }
       map.value.triggerRepaint()
@@ -261,8 +261,8 @@ export function useBuildingShadeTuner() {
       `aoRadiusMax = ${n(state.aoRadiusMax)}`,
       `aoOffset = [0, ${n(state.aoZ / 2)}, ${n(state.aoZ)}]`,
       '',
-      '// BUILDING_CHROMA in src/lib/map-style/building-color.mjs',
-      `${f}: ${n(state.chroma)}`,
+      '// BUILDING_TINT in src/lib/map-style/building-color.mjs',
+      `${f}: ${n(state.tint)}`,
     ].join('\n')
     navigator.clipboard.writeText(snippet)
     copied.value = true

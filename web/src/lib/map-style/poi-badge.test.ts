@@ -13,6 +13,7 @@ import { SDF_BUFFER, SDF_CUTOFF, SDF_RADIUS } from './sdf.mjs'
 
 const PLATE = '#cfe0f2'
 const INK = '#164c83'
+const RING = '#0b2b4b'
 const LIFT = 'rgba(0,0,0,0.34)'
 
 /**
@@ -56,7 +57,13 @@ function badgeFixture(size = 26) {
 }
 
 const fixture = badgeFixture()
-const composed = composeBadge(fixture, { art: 'badge-x', plate: PLATE, ink: INK, lift: LIFT })
+const composed = composeBadge(fixture, {
+  art: 'badge-x',
+  plate: PLATE,
+  ink: INK,
+  ring: RING,
+  lift: LIFT,
+})
 
 /** Straight (un-premultiplied) RGBA at a point, for comparing against a colour. */
 function pixel(x: number, y: number) {
@@ -80,8 +87,8 @@ function near(actual: { r: number; g: number; b: number }, hex: string, toleranc
 
 describe('badge names', () => {
   test('round-trip the colours the style put in them', () => {
-    const parts = parseBadgeName(`poi|badge-cafe|${PLATE}|${INK}|${LIFT}`)
-    expect(parts).toEqual({ art: 'badge-cafe', plate: PLATE, ink: INK, lift: LIFT })
+    const parts = parseBadgeName(`poi|badge-cafe|${PLATE}|${INK}|${RING}|${LIFT}`)
+    expect(parts).toEqual({ art: 'badge-cafe', plate: PLATE, ink: INK, ring: RING, lift: LIFT })
   })
 
   test('anything not ours is left alone', () => {
@@ -125,15 +132,17 @@ describe('composed badge', () => {
     near(p, PLATE)
   })
 
-  test('the ring is the glyph colour, and outside the plate', () => {
-    // Walk out along a row and find the last opaque run — the ring — then check
-    // it is ink rather than plate.
+  test('the ring wears its own colour, and sits outside the plate', () => {
+    // Walk out along a row to the outermost fully-covered pixel — solid ring —
+    // then check it is the ring colour rather than the plate. Fully covered
+    // rather than merely opaque, since the rim beyond it is the ring blended
+    // into the lift and carries neither colour cleanly.
     let edge = -1
     for (let x = c; x < composed.width; x++) {
-      if (pixel(x, c).a > 0.85) edge = x
+      if (pixel(x, c).a > 0.99) edge = x
     }
     expect(edge).toBeGreaterThan(c)
-    near(pixel(edge, c), INK)
+    near(pixel(edge, c), RING)
   })
 
   test('the lift falls below the badge and fades out', () => {
@@ -156,10 +165,11 @@ describe('composed badge', () => {
 
   /**
    * Size is measured in display pixels — `width / pixelRatio`, which is what
-   * MapLibre draws — precisely because those two now differ. The badge is
-   * rasterised finer than the sheet it comes from (see `SUPERSAMPLE`), so a
-   * badge that forgot to declare its own ratio would draw at double size while
-   * every raw pixel count here still looked right.
+   * MapLibre draws — rather than in raw ones. The badge is composited on a
+   * finer grid than the sheet and folded back onto it (see `SUPERSAMPLE`), so
+   * a fold that went missing, or one that landed on a different ratio than the
+   * image it produced, would show up here as a badge of the wrong size while
+   * every raw pixel count still looked plausible.
    */
   test('it grows by the room the ring and lift need, and stays centred', () => {
     const display = (image: { width: number; height: number; pixelRatio: number }) => [
@@ -189,9 +199,14 @@ describe('composed badge', () => {
    * Opposite rays cancel it exactly.
    *
    * The threshold is in display pixels, so it holds whatever the sheet's ratio
-   * and the supersample happen to be. Measured on this fixture the spread is
-   * exactly the source grid divided by the supersample: 0.32 undersampled,
-   * 0.16 at two, 0.08 at four.
+   * happens to be. It is measured on the image as MapLibre receives it, which
+   * is the image it draws: `composeBadge` folds its working grid back to the
+   * sprite's density, so the badge's texels and the screen's pixels line up
+   * and nothing downstream resamples the edge. That fold is also the floor on
+   * this number — the fixture spreads 0.31 at a supersample of two and 0.29 at
+   * four, because what is left is the output grid rather than the working one.
+   * A third of a pixel of out-of-round is invisible; a staircase is not, and a
+   * staircase measures several times this.
    */
   test('the plate edge is round to well under a drawn pixel', () => {
     // Measured where the plate meets the ring rather than at the badge's outer
@@ -235,7 +250,7 @@ describe('composed badge', () => {
     expect(radii.length).toBe(64)
     const diameters = radii.slice(0, 32).map((r, i) => r + radii[i + 32])
     const spread = Math.max(...diameters) - Math.min(...diameters)
-    expect(spread, `edge diameter varies by ${spread.toFixed(2)} display px`).toBeLessThan(0.25)
+    expect(spread, `edge diameter varies by ${spread.toFixed(2)} display px`).toBeLessThan(0.4)
   })
 })
 

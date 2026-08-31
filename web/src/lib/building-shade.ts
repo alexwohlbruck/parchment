@@ -18,8 +18,8 @@
  * two apart; see `MapStrategy.setBuildingShade`.
  */
 import { WallShadowLayer } from './vendor/ao-shadow.mjs'
-import type { FlavorId } from './map-style/build'
-import { BUILDING_CHROMA } from './map-style/building-color.mjs'
+import { BUILDING_3D_ROOF_LAYER, type FlavorId } from './map-style/build'
+import { BUILDING_TINT } from './map-style/building-color.mjs'
 import { sunPosition } from './sun-position'
 
 const RAD_PER_DEG = Math.PI / 180
@@ -152,6 +152,12 @@ export function createBuildingShade(
   live = new WallShadowLayer({
     id: BUILDING_SHADE_LAYER_ID,
     buildingsLayerId,
+    // Where the roof's own colour comes from. A second layer over the same
+    // buildings, never drawn, whose paint buffers ride in the same bucket —
+    // see BUILDING_3D_ROOF_LAYER. Handing the id over unconditionally is safe:
+    // the layer looks the buffers up per bucket and falls back to the wall
+    // colour wherever they are missing, which is every style but the basemap.
+    roofLayerId: BUILDING_3D_ROOF_LAYER,
     ...(minZoom === undefined ? {} : { minZoom }),
     shadowOffset: [...SHADOW_OFFSET],
     sdfResolution: sdfResolution(),
@@ -278,7 +284,7 @@ export function buildingShadeDefaults(flavor: FlavorId) {
     ...TUNING[flavor],
     edgeWidth: edgeWidth(),
     shadowOffset: [...SHADOW_OFFSET] as [number, number],
-    chroma: BUILDING_CHROMA[flavor],
+    tint: BUILDING_TINT[flavor],
     intensity: LIGHT_INTENSITY[flavor],
   }
 }

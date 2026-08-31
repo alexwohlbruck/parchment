@@ -21,12 +21,33 @@ export const PARKING_SOURCE = 'parking'
 export const TREE_SOURCE = 'trees'
 export const TREE_ROW_SOURCE = 'tree-rows'
 export const FURNITURE_SOURCE = 'furniture'
+/**
+ * 3D buildings, served by Barrelman rather than read off the basemap.
+ *
+ * OpenStreetMap maps a detailed building twice — an outline tagged `building=*`
+ * over the whole footprint and `building:part=*` polygons inside it carrying the
+ * real heights — and a 3D map must draw the parts and not the outline, or it
+ * draws both and they z-fight. OpenMapTiles marks the outline `hide_3d` for
+ * exactly this, and a stock build of it does not: our basemap's building layer
+ * carries `colour`, `render_height` and `render_min_height` and nothing else, so
+ * every part-mapped building came out doubled.
+ *
+ * Barrelman works the flag out from the geometry (`buildings_3d` in
+ * `import/create-detail-views.sql`) and serves the roof colour with it, which
+ * the OpenMapTiles schema has no field for at all.
+ *
+ * The flat `Building` fill still comes from the basemap. Two footprints painted
+ * the same colour on top of each other look like one, so the outline costs
+ * nothing there, and the basemap is the cheaper source for it.
+ */
+export const BUILDING_3D_SOURCE = 'buildings-3d'
 
 /** Martin source names; see barrelman's `martin-config.yaml`. */
 export const PARKING_TILES = 'parking_areas'
 export const TREE_TILES = 'street_trees'
 export const TREE_ROW_TILES = 'tree_rows'
 export const FURNITURE_TILES = 'street_furniture'
+export const BUILDING_3D_TILES = 'buildings_3d'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
@@ -111,6 +132,14 @@ export function detailSources(tileUrl: (source: string) => string) {
       tiles: [tileUrl(FURNITURE_TILES)],
       minzoom: 17,
       maxzoom: 17,
+    },
+    // Zooms match the basemap's own building layer, so switching source changes
+    // nothing about when buildings appear or when they start over-zooming.
+    [BUILDING_3D_SOURCE]: {
+      type: 'vector' as const,
+      tiles: [tileUrl(BUILDING_3D_TILES)],
+      minzoom: 14,
+      maxzoom: 16,
     },
   }
 }

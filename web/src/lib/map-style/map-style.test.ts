@@ -7,11 +7,22 @@
  * have no glyphs for, an icon the sprite lacks. Each of those still renders
  * *something*, which is exactly why they need asserting rather than eyeballing.
  */
-import { describe, test, expect } from 'vitest'
+import { describe, test, expect, beforeEach, afterEach } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 import { validateStyleMin, featureFilter, expression, latest } from '@maplibre/maplibre-gl-style-spec'
-import { buildMapStyle, buildSatelliteStyle, buildLayers, layerGroups, MAX_PITCH } from './build'
+import {
+  buildMapStyle,
+  buildSatelliteStyle,
+  buildLayers,
+  layerGroups,
+  MAX_PITCH,
+  SOURCE,
+  BUILDING_3D_ROOF_LAYER,
+  BUILDING_ROOF_EDGE_LAYER,
+} from './build'
+import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
+import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { terrainSource } from './terrain'
@@ -179,9 +190,15 @@ describe('flavors', () => {
      * Tokens we author rather than lift — the tail of `convert-basemap-style`
      * overwrites these after tokenizing, so MapTiler's value is not the answer
      * for them and never was.
+     *
+     * `sand_fill_color` is the one that is lifted and then overridden, through
+     * `DARK_OVERRIDES`: MapTiler paints a night beach in cyan, which on our
+     * palette read as turquoise rather than as sand. Anything else added to
+     * that map and present in both styles has to be listed here too, or this
+     * test will report our own deliberate value as a drift from theirs.
      */
     const authored =
-      /^(poi_|road_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$)/
+      /^(poi_|road_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$)/
 
     const wrong: string[] = []
     let checked = 0
@@ -232,7 +249,7 @@ describe('flavors', () => {
     // `poi_v4_*` are real colours, deliberately: they are MapTiler's own
     // family palette, copied for the glyph-only treatment rather than
     // tracking ours. The rest name a category and resolve through the live
-    // palette — raw for the label, tinted for the badge's plate and ink.
+    // palette — raw for the label, tinted for the badge's plate, ink and ring.
     const categories = Object.keys(light).filter(
       k =>
         k.startsWith('poi_') &&
@@ -244,7 +261,7 @@ describe('flavors', () => {
     )
     expect(categories).toContain('poi_plate_food_and_drink')
     expect(categories).toContain('poi_ink_default')
-    for (const c of categories) expect(light[c], c).toMatch(/^@@category-(plate|ink):/)
+    for (const c of categories) expect(light[c], c).toMatch(/^@@category-(plate|ink|ring):/)
   })
 
   /**
@@ -633,6 +650,118 @@ describe('assembled styles', () => {
   })
 
   /**
+   * 3D buildings come from Barrelman, not from the basemap.
+   *
+   * OpenStreetMap maps a detailed building twice — an outline over the whole
+   * footprint and `building:part` polygons inside it holding the real heights —
+   * and OpenMapTiles marks the outline `hide_3d` so a 3D map can drop it. A
+   * stock build carries no such field, so the filter MapTiler wrote (and which
+   * is still here) had nothing to bite on and every part-mapped building drew
+   * twice, z-fighting, one at the outline's default height and one at the
+   * part's own.
+   */
+  describe('3D building source', () => {
+    // The switch is made only once the source is known to answer; these build
+    // the migrated style directly. `falls back` below covers the other side.
+    beforeEach(() => setBarrelmanBuildingsReady(true))
+    afterEach(() => setBarrelmanBuildingsReady(null))
+
+    const extrusions = (flavor: 'light' | 'dark' = 'dark') =>
+      (buildLayers({ flavor }) as any[]).filter(l => l.type === 'fill-extrusion')
+
+    /**
+     * Barrelman has to have the source created before it serves it, and a style
+     * pointed at one that 404s draws no buildings at all — worse than the fault
+     * it fixes, since a doubled building is at least a building. So the basemap
+     * is what the style starts on, and the probe in `barrelman-buildings.ts`
+     * moves it over.
+     */
+    test('falls back to the basemap until the source is known to answer', () => {
+      setBarrelmanBuildingsReady(null)
+      for (const l of extrusions()) {
+        expect(l.source, l.id).toBe(SOURCE)
+        expect(l['source-layer'], l.id).toBe('building')
+      }
+      // And the roof-colour layer is not added either — there is no second
+      // colour to read without the source that carries it.
+      expect(extrusions().map(l => l.id)).not.toContain(BUILDING_3D_ROOF_LAYER)
+    })
+
+    test('the extrusion reads Barrelman, and the flat fill still reads the basemap', () => {
+      for (const l of extrusions()) {
+        expect(l.source, l.id).toBe(BUILDING_3D_SOURCE)
+        expect(l['source-layer'], l.id).toBe(BUILDING_3D_TILES)
+      }
+      // The flat footprint is left alone: an outline and a part painted the same
+      // flat colour on top of each other are indistinguishable from one shape.
+      const flat = (buildLayers({ flavor: 'dark' }) as any[]).find(l => l.id === 'Building')
+      expect(flat.source).toBe(SOURCE)
+      expect(flat['source-layer']).toBe('building')
+    })
+
+    test('the source it reads is declared', () => {
+      const style = buildMapStyle({ ...opts, theme: 'dark' })
+      expect(style.sources[BUILDING_3D_SOURCE]).toBeTruthy()
+      expect((style.sources[BUILDING_3D_SOURCE] as any).tiles[0]).toContain(BUILDING_3D_TILES)
+    })
+
+    test('the outline filter is still there, to bite on the flag Barrelman adds', () => {
+      for (const l of extrusions()) expect(l.filter, l.id).toEqual(['!has', 'hide_3d'])
+    })
+
+    /**
+     * The one that matters, and the one that fails silently.
+     *
+     * The roof colour arrives on a second layer over the same buildings, and the
+     * whole trick rests on MapLibre putting the two in ONE bucket — it groups by
+     * `type`, `source`, `source-layer`, `minzoom`, `maxzoom`, `filter` and
+     * `layout`, and paint is deliberately not in that list. Differ on any of
+     * them and they land in separate buckets with separately ordered vertices,
+     * at which point the roof colours are read against the wrong buildings.
+     */
+    test('the roof layer matches the buildings on every key a bucket is grouped by', () => {
+      const [buildings, roof] = extrusions()
+      expect(roof.id).toBe(BUILDING_3D_ROOF_LAYER)
+      for (const key of ['type', 'source', 'source-layer', 'minzoom', 'maxzoom', 'filter', 'layout']) {
+        expect(roof[key], key).toEqual(buildings[key])
+      }
+    })
+
+    test('the roof layer is never drawn', () => {
+      // MapLibre's own fill-extrusion draw returns immediately on zero opacity,
+      // so the layer costs a paint buffer per tile and no fragments at all.
+      const [, roof] = extrusions()
+      expect(roof.paint['fill-extrusion-opacity']).toBe(0)
+    })
+
+    test('the roof takes roof_colour, falling back to the walls rather than to bare', () => {
+      const [buildings, roof] = extrusions()
+      const wall = JSON.stringify(buildings.paint['fill-extrusion-color'])
+      const top = JSON.stringify(roof.paint['fill-extrusion-color'])
+      expect(wall).not.toContain('roof_colour')
+      expect(top).toContain('roof_colour')
+      // A building recording only `building:colour` wears it on the roof too,
+      // rather than banding at the roofline against an untinted top.
+      expect(top).toContain('"coalesce",["get","roof_colour"],["get","colour"]')
+    })
+
+    test('the roofline stand-in follows the extrusion, source and filter both', () => {
+      // It traces what is extruded. Left on the basemap it would outline the
+      // hidden outlines — an edge around nothing — and miss the parts.
+      const edge = (buildLayers({ flavor: 'dark' }) as any[])
+        .find(l => l.id === BUILDING_ROOF_EDGE_LAYER)
+      expect(edge.source).toBe(BUILDING_3D_SOURCE)
+      expect(edge['source-layer']).toBe(BUILDING_3D_TILES)
+      expect(edge.filter).toEqual(['!has', 'hide_3d'])
+    })
+
+    test('trees still stand above the buildings, both layers of them', () => {
+      const ids = (buildLayers({ flavor: 'dark' }) as any[]).map(l => l.id)
+      expect(ids.indexOf('Trees')).toBeGreaterThan(ids.indexOf(BUILDING_3D_ROOF_LAYER))
+    })
+  })
+
+  /**
    * Buildings take their colour from the tile's own `building:colour` where OSM
    * has one, blended toward the flavor's anchor. Most buildings in a well-mapped
    * city carry one, so this drives the look of the whole 3D layer — and the
@@ -653,6 +782,20 @@ describe('assembled styles', () => {
     }
 
     const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
+    /** How colourful, in channel units — 0 for any grey, 255 for a pure hue. */
+    const chroma = (c: number[]) => Math.max(...c) - Math.min(...c)
+    /** Hue in degrees, and how far two of them are apart around the circle. */
+    const hue = ([r, g, b]: number[]) => {
+      const mx = Math.max(r, g, b)
+      const d = mx - Math.min(r, g, b)
+      if (!d) return 0
+      const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4
+      return ((h * 60) % 360 + 360) % 360
+    }
+    const hueGap = (a: number, b: number) => {
+      const d = Math.abs(a - b) % 360
+      return d > 180 ? 360 - d : d
+    }
 
     test.each(['light', 'dark'] as const)('%s: a painted building takes its hue', flavor => {
       const plain = evaluate(flavor, {})
@@ -682,20 +825,69 @@ describe('assembled styles', () => {
       }
     })
 
-    test.each(['light', 'dark'] as const)('%s: lightness is the flavor’s, not the tile’s', flavor => {
-      // A near-black and a near-white facade must not differ in weight.
-      const dim = luma(evaluate(flavor, { colour: '#1e1006' }))
-      const bright = luma(evaluate(flavor, { colour: '#fffffb' }))
-      expect(Math.abs(dim - bright)).toBeLessThan(6)
+    /**
+     * The property the whole expression is built around, and the one it used to
+     * get wrong. The tint was scaled by the tile colour's departure from its own
+     * luminance in absolute channel units, which a dark colour has little of
+     * however saturated it is — so a maroon facade tinted a fraction as much as
+     * a scarlet one, and a bottle-green one barely at all. Normalising by the
+     * tile's chroma means only hue and colourfulness survive the trip.
+     *
+     * Every shade here clears `CHROMA_REF`, which is where the tint reaches full
+     * strength. Below it the tint deliberately fades out — a colour with little
+     * chroma left to measure is a grey with a cast, and the map would rather
+     * under-tint one of those than punch a hole for every facade tagged `black`.
+     */
+    test.each(['light', 'dark'] as const)('%s: the same hue tints alike at any lightness', flavor => {
+      for (const shades of [
+        ['#800000', '#b00000', '#ff0000'],
+        ['#005500', '#00aa00', '#00ff00'],
+        ['#000080', '#0000c0', '#0000ff'],
+      ]) {
+        const [first, ...rest] = shades.map(colour => evaluate(flavor, { colour }))
+        for (const other of rest) expect(other, shades.join(' ')).toEqual(first)
+      }
     })
 
-    test('dark keeps less of the tile colour than light does', () => {
-      const spread = (f: 'light' | 'dark') => {
-        const [r, g, b] = evaluate(f, { colour: '#cdaa7d' })
-        const [pr, pg, pb] = evaluate(f, {})
-        return Math.abs(r - pr) + Math.abs(g - pg) + Math.abs(b - pb)
+    /**
+     * The other half of that failure: subtracting a *luminance*-weighted mean
+     * leaves a direction that is not isotropic, because blue carries 0.07 of the
+     * luminance and red and green carry the rest. Any blue content swung the
+     * blue channel hard while red and green movements damped out, so the palette
+     * collapsed onto the blue-yellow axis — on the night flavor, whose anchor is
+     * itself a saturated blue-grey, a dark red facade came out blue.
+     */
+    test.each(['light', 'dark'] as const)('%s: a facade keeps its own hue', flavor => {
+      const wheel = [
+        '#ff0000', '#ff8c00', '#ffff00', '#556b2f', '#00ff00', '#008080',
+        '#0000ff', '#4b0082', '#800080', '#8b4513', '#ffc0cb',
+        // Dark and muted paint, which is what a real facade usually is, and
+        // what the luminance-weighted version turned blue.
+        '#4b0000', '#004d00', '#000080', '#cdaa7d',
+      ]
+      for (const colour of wheel) {
+        const tile = [1, 3, 5].map(i => parseInt(colour.slice(i, i + 2), 16))
+        expect(hueGap(hue(evaluate(flavor, { colour })), hue(tile)), colour).toBeLessThan(4)
       }
-      expect(spread('dark')).toBeLessThan(spread('light'))
+    })
+
+    /**
+     * A hint of the colour, never the colour. The hue is carried faithfully, so
+     * the only thing keeping a red-painted building from being red is how far
+     * the tint is allowed to travel — and on the night flavor it may travel in
+     * both directions, where daylight can only darken. Bounded against the
+     * flavor's own colour cast rather than an absolute, since "subtle" means
+     * subtle next to the map it sits on.
+     */
+    test.each(['light', 'dark'] as const)('%s: a tint stays a hint of the paint', flavor => {
+      const plain = chroma(evaluate(flavor, {}))
+      for (const colour of ['#ff0000', '#00ff00', '#0000ff', '#ffff00']) {
+        const tinted = chroma(evaluate(flavor, { colour }))
+        expect(tinted, colour).toBeLessThan(70)
+        // And it never reads as more colourful than the tile it came from.
+        expect(tinted, colour).toBeLessThan(chroma([1, 3, 5].map(i => parseInt(colour.slice(i, i + 2), 16))))
+      }
+      expect(plain).toBeLessThan(70)
     })
   })
 

@@ -207,6 +207,15 @@ export const configSchemas: Record<
       .url('Please enter a valid URL')
       .default('https://api.barrelman.dev'),
     apiKey: z.string().optional(),
+    // Tiles are fetched by the browser, not the server, so they need an address
+    // the browser can reach and a key it is allowed to carry. Both fall back to
+    // nothing gracefully: no tileKey means barrelman refuses the tiles and the
+    // map falls back to whatever else is configured.
+    tileHost: z
+      .string()
+      .url('Please enter a valid URL')
+      .optional()
+      .or(z.literal('')),
     tileKey: z.string().optional(),
   }),
 

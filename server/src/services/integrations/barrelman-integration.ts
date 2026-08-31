@@ -165,6 +165,12 @@ const barrelmanSearchHttp = createLimitedHttp(
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
   apiKey?: string
+  /**
+   * Where the BROWSER reaches this Barrelman, when that differs from `host` —
+   * a container name or a private port is fine for the server and unreachable
+   * from a phone. Optional; falls back to `host`.
+   */
+  tileHost?: string
   /** Public tile key — sent to client for authenticated tile requests */
   tileKey?: string
 }

@@ -7,10 +7,11 @@
  * failures into clean JSON — so that lives here rather than being repeated per
  * module.
  *
- * This is not a tile proxy. Tiles go through `proxy.controller.ts`, which
- * exists so MapLibre sources (which can't attach our auth header) can still
- * reach third-party tile servers. These are ordinary authenticated data calls
- * that happen to be served by another service.
+ * Tiles do not come through here, and no longer come through the server at
+ * all: Barrelman serves them CORS-open and authenticates map libraries with a
+ * key on the URL, so the browser fetches them directly. What this module owns
+ * for tiles is only `resolveBarrelmanTileConfig` — the address and public key
+ * a client needs to do that.
  */
 
 import { integrationManager } from './integrations'
@@ -59,6 +60,48 @@ export function resolveBarrelmanConfig(): { host?: string; apiKey?: string } | u
     // A host override usually comes with its own key; fall back to the
     // configured one so pointing at a local instance needs one variable.
     apiKey: process.env.BARRELMAN_API_KEY || config?.apiKey,
+  }
+}
+
+/**
+ * Where a BROWSER fetches Barrelman tiles, and the key it presents.
+ *
+ * Deliberately separate from `resolveBarrelmanConfig`, which answers the same
+ * question for this process. The two answers differ in both halves:
+ *
+ *   - `host` may be an address only the server can resolve (a container name,
+ *     a private port). `tileHost` overrides it with one a browser can reach,
+ *     and is the only field that needs setting in that layout.
+ *   - `apiKey` is a secret and must never leave the server. `tileKey` is
+ *     published on purpose — a map library cannot set an Authorization header,
+ *     so the key rides the tile URL where anyone reading the page can see it.
+ *     Give it the `tiles` scope and an origin allowlist in the Barrelman
+ *     console; it is the browser's key, not the account's.
+ *
+ * Undefined when Barrelman isn't configured — callers treat tiles as absent
+ * rather than emitting URLs that cannot resolve.
+ */
+export function resolveBarrelmanTileConfig():
+  | { base: string; tileKey?: string }
+  | undefined {
+  const systemIntegration = integrationManager
+    .getConfiguredIntegrations()
+    .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+
+  const config = systemIntegration?.config as
+    | { host?: string; tileHost?: string; tileKey?: string }
+    | undefined
+
+  const host =
+    process.env.BARRELMAN_TILE_HOST ||
+    config?.tileHost ||
+    process.env.BARRELMAN_HOST ||
+    config?.host
+  if (!host) return undefined
+
+  return {
+    base: `${host.replace(/\/+$/, '')}/tiles`,
+    tileKey: process.env.BARRELMAN_TILE_KEY || config?.tileKey,
   }
 }
 

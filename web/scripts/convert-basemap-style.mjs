@@ -395,19 +395,21 @@ const LIGHT_LAND = {
   industrial_fill_color_3: 'hsl(40, 14%, 87%)',
   industrial_fill_color_4: 'hsl(40, 18%, 89%)',
   industrial_fill_color_5: 'hsla(40, 18%, 86%, 0.5)',
-  // Anything planted, in one green family. Grass reads far paler than it looks
-  // here — its layer draws at half opacity over the ground, deliberately, so
-  // that a park edge softens rather than cuts — so the token is pitched about
-  // as far past the intended green as the blend pulls it back: on the map it
-  // lands near hsl(97, 55%, 70%), a shade below the wood it borders.
-  grass_fill_color: 'hsl(101, 70%, 60%)',
-  wood_fill_color: 'hsl(92, 50%, 68%)',
-  stadium_fill_color: 'hsl(98, 64%, 72%)',
+  // Anything planted, in one green family: a soft yellow-green rather than the
+  // pure one, which is what stops a park reading as a colour swatch next to
+  // cream land. Grass is paler than it looks here — its layer draws at half
+  // opacity over the ground, deliberately, so that a park edge softens rather
+  // than cuts — so the token is pitched about as far past the intended green as
+  // the blend pulls it back: on the map it lands near hsl(95, 52%, 76%), a
+  // shade above the wood it borders.
+  grass_fill_color: 'hsl(100, 54%, 58%)',
+  wood_fill_color: 'hsl(95, 48%, 71%)',
+  stadium_fill_color: 'hsl(95, 54%, 75%)',
   // A pitch is a made surface with a boundary, so it gets an edge — the
   // same green a shade down, which reads as the line around a field rather
   // than as a second colour.
-  stadium_outline_color: 'hsl(98, 60%, 60%)',
-  cemetery_fill_color: 'hsl(90, 34%, 82%)',
+  stadium_outline_color: 'hsl(95, 45%, 62%)',
+  cemetery_fill_color: 'hsl(92, 30%, 84%)',
   // A campus is amber, not the pale blue MapTiler gives it: blue on a map with
   // water on it is a colour that already means something else. Yellow rather
   // than orange, and light: the polygons are large, and at this size an orange
@@ -421,13 +423,14 @@ const LIGHT_LAND = {
   building_fill_color: 'hsl(38, 28%, 64%)',
   building_fill_outline_color: 'hsla(38, 24%, 74%, 0.3)',
   building_fill_outline_color_2: 'hsl(38, 24%, 74%)',
-  // The water the land meets. MapTiler's is already a bright blue, but a pale
-  // one, and next to greens this saturated it reads as the thing that faded.
-  water_fill_color: 'hsl(202, 88%, 68%)',
-  water_intermittent_fill_color: 'hsl(203, 84%, 78%)',
-  river_line_color: 'hsl(206, 82%, 66%)',
-  river_tunnel_line_color: 'hsl(206, 82%, 66%)',
-  aqueduct_line_color: 'hsl(202, 88%, 68%)',
+  // The water the land meets: a light cyan-leaning blue rather than the azure
+  // it was. Deep blue is what a nautical chart wants — a map of a city wants
+  // water that reads as shallow and lit, the way it does from a plane.
+  water_fill_color: 'hsl(197, 85%, 74%)',
+  water_intermittent_fill_color: 'hsl(198, 78%, 83%)',
+  river_line_color: 'hsl(199, 76%, 70%)',
+  river_tunnel_line_color: 'hsl(199, 76%, 70%)',
+  aqueduct_line_color: 'hsl(197, 85%, 74%)',
 }
 
 /** `class` values each rung of the hierarchy covers, as the tunnel layers split them. */

@@ -2,7 +2,7 @@
 
 ### Changed
 
-* The daylight map has colour in it. The ground is a warm cream rather than a cool near-white, parks and woods are a storybook green, water a sky blue, beaches sand, hospitals rose, and buildings a light grey that sits on the land instead of blending into it — so a neighbourhood has a shape before you read a single label
+* The daylight map has colour in it. The ground is a warm cream rather than a cool near-white, parks and woods a soft spring green, water a light sky blue, beaches sand, hospitals rose, and buildings a light grey that sits on the land instead of blending into it — so a neighbourhood has a shape before you read a single label
 * School and university grounds are amber instead of pale blue, which on a map with water on it was a colour that already meant something else
 * Buildings carry more of their own recorded paint colour again, back to the strength it was tuned at before it was cut — the roof they tint is no longer near-white, so there is room for the hue without a street of brick reading as a wash over the land
 * Sports pitches, playgrounds and stadium grounds carry a thin darker edge in their own colour, so a field reads as a bounded surface rather than a soft patch of green

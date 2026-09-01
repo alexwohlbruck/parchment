@@ -27,11 +27,13 @@
  * paint is a cast on a grey building rather than a colour the building is —
  * two neighbours differ, and neither announces itself.
  *
- * 12 is the floor, not a taste: below it the `rgb()` output rounds to whole
- * channels coarser than the tint itself, and the hue a facade keeps starts to
- * drift off the one it was given — which the hue-fidelity test catches at 10.
+ * Kept this low, the hue a facade contributes is nearly all it contributes;
+ * what makes a brown building look brown at this strength is `VALUE_PULL`
+ * below, which lets dark paint darken the surface it is on. 10 is night's
+ * floor: at 9 the `rgb()` output rounds to whole channels coarser than the
+ * tint, and the hue-fidelity test catches orange drifting off its own hue.
  */
-export const BUILDING_TINT = { light: 34, dark: 12 }
+export const BUILDING_TINT = { light: 34, dark: 10 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units
@@ -65,6 +67,23 @@ const CHROMA_REF = 48
  * building colour cannot leave a stale bias behind it.
  */
 const HEADROOM_REF = 90
+
+/**
+ * How far a building's own colour pulls the flavor's *lightness*, as a
+ * fraction of the distance between them.
+ *
+ * Hue alone cannot carry brown. Brown is dark orange — take the darkness away
+ * and what is left is orange, which is why a street of brick came out as tan
+ * and gold slabs on a pale roof. The tint had the hue exactly right and no way
+ * to say "and dark".
+ *
+ * Scaled by `colourfulness`, the same guard the tint uses, so this cannot
+ * reintroduce what discarding lightness was there to prevent: a facade tagged
+ * `black` or `white` has no chroma, contributes nothing, and renders plain. It
+ * is only a *fraction* of the distance, so even a saturated near-black — navy,
+ * bottle green — darkens its building rather than punching a hole in the map.
+ */
+const VALUE_PULL = 0.3
 
 /**
  * A building's colour, taking the tile's `building:colour` as a *tint* on the
@@ -149,7 +168,7 @@ export function buildingColor(
         'high', ['max', t(0), t(1), t(2)],
         'low', ['min', t(0), t(1), t(2)],
         'mid', mean(t),
-        'base', mean(f),
+        'plain', mean(f),
         'headroom', ['-', 255, ['max', f(0), f(1), f(2)]],
         ['let',
           'chroma', ['-', ['var', 'high'], ['var', 'low']],
@@ -161,6 +180,11 @@ export function buildingColor(
             'scale', ['/', amount, ['max', ['var', 'chroma'], CHROMA_REF]],
             'colourfulness', ['min', 1, ['/', ['var', 'chroma'], CHROMA_REF]],
             ['let',
+              // The flavor's lightness, pulled a fraction of the way toward the
+              // paint's own — which is what separates brown from orange.
+              'base', ['+', ['var', 'plain'],
+                ['*', VALUE_PULL, ['var', 'colourfulness'],
+                  ['-', ['var', 'mid'], ['var', 'plain']]]],
               'sub', ['*', ['var', 'bias'], ['-', ['var', 'high'], ['var', 'mid']], ['var', 'scale']],
               ['rgb', channel(0), channel(1), channel(2)]]]]]],
     colorToken,

@@ -867,6 +867,12 @@ describe('assembled styles', () => {
      * strength. Below it the tint deliberately fades out — a colour with little
      * chroma left to measure is a grey with a cast, and the map would rather
      * under-tint one of those than punch a hole for every facade tagged `black`.
+     *
+     * Hue and colourfulness are what must not vary; the *value* deliberately
+     * does, by `VALUE_PULL`. Brown is dark orange, and a tint that carried only
+     * hue drew a street of brick as tan. So a maroon and a scarlet facade wear
+     * the same colour at different lightnesses, and the bug this test was
+     * written for — maroon barely tinting at all — is still caught.
      */
     test.each(['light', 'dark'] as const)('%s: the same hue tints alike at any lightness', flavor => {
       for (const shades of [
@@ -874,8 +880,15 @@ describe('assembled styles', () => {
         ['#005500', '#00aa00', '#00ff00'],
         ['#000080', '#0000c0', '#0000ff'],
       ]) {
-        const [first, ...rest] = shades.map(colour => evaluate(flavor, { colour }))
-        for (const other of rest) expect(other, shades.join(' ')).toEqual(first)
+        const drawn = shades.map(colour => evaluate(flavor, { colour }))
+        const [first, ...rest] = drawn
+        for (const other of rest) {
+          expect(hueGap(hue(other), hue(first)), shades.join(' ')).toBeLessThan(4)
+          expect(Math.abs(chroma(other) - chroma(first)), shades.join(' ')).toBeLessThan(6)
+        }
+        // Darker paint really does draw a darker building, in order.
+        const value = (c: number[]) => (c[0] + c[1] + c[2]) / 3
+        expect(value(drawn[0]), shades.join(' ')).toBeLessThan(value(drawn[2]))
       }
     })
 

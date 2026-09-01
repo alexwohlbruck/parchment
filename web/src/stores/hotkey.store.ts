@@ -19,11 +19,18 @@ export interface EphemeralHotkey {
   registeredAt: number // Timestamp of registration
 }
 
+/**
+ * Whether a key should still fire while a text field has focus. A predicate
+ * gets the focused element, for a key whose owner depends on what is in it.
+ */
+export type AllowInInput = boolean | ((element: Element) => boolean)
+
 interface HotkeyBinding {
   id: string
   mousetrapKey: string // The key string used for mousetrap binding
   handler: () => void
   preventDefault?: boolean
+  allowInInput?: AllowInInput
   hotkey: Hotkey // The array format hotkey
   name?: string
   description?: string
@@ -107,6 +114,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     description?: string,
     component?: string,
     preventDefault?: boolean,
+    allowInInput?: AllowInInput,
   ): string {
     // Convert to array format for storage
     const hotkeyArray: Hotkey = Array.isArray(key)
@@ -129,6 +137,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
         mousetrapKey,
         handler,
         preventDefault,
+        allowInInput,
         hotkey: hotkeyArray,
         name,
         description,
@@ -150,6 +159,21 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     for (const binding of [...(activeBindings.get(mousetrapKey) ?? [])]) {
       binding.handler()
     }
+  }
+
+  /**
+   * Whether any handler for this key wants it while a text field has focus.
+   *
+   * Mousetrap drops every key pressed inside an input, which is right for a
+   * single-letter shortcut and wrong for ⌘Z — a view that owns an undo stack
+   * still owns it when the field it just opened has focus.
+   */
+  function allowsInInput(mousetrapKey: string, element: Element) {
+    return (activeBindings.get(mousetrapKey) ?? []).some(({ allowInInput }) =>
+      typeof allowInInput === 'function'
+        ? allowInInput(element)
+        : !!allowInInput,
+    )
   }
 
   /** Whether any handler for this key wants the browser default suppressed. */
@@ -236,6 +260,7 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     isBound,
     dispatch,
     preventsDefault,
+    allowsInInput,
     getHotkeyById,
     getAllEphemeralHotkeys,
     getAllBindings,

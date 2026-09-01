@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, getCurrentInstance } from 'vue'
 import mousetrap from 'mousetrap'
 import { type Hotkey } from '@/types/command.types'
-import { useHotkeyStore } from '@/stores/hotkey.store'
+import { useHotkeyStore, type AllowInInput } from '@/stores/hotkey.store'
 
 // Re-export for convenience
 export type { EphemeralHotkey } from '@/stores/hotkey.store'
@@ -18,6 +18,31 @@ interface HotkeyBinding {
   // handler is a no-op (e.g. an `esc` binding gated on a v-if'd panel —
   // unconditional preventDefault would swallow Reka UI's dialog close).
   preventDefault?: boolean
+  // Whether the key should still fire while a text field has focus. Mousetrap
+  // drops those by default, which is right for a single-letter shortcut and
+  // wrong for a view-level ⌘Z. Pass a predicate to decide per element.
+  allowInInput?: AllowInInput
+}
+
+/**
+ * Mousetrap decides in one place, for every key, whether a keypress inside a
+ * text field counts — so opting one key back in means wrapping that decision
+ * rather than setting a flag on the binding. The original still runs for
+ * everything that hasn't asked.
+ */
+// It has to go on the prototype: `Mousetrap.init()` copies forwarding wrappers
+// onto the exported object, so assigning there replaces the wrapper and never
+// reaches the instance actually listening on the document.
+const defaultStopCallback = mousetrap.prototype.stopCallback
+mousetrap.prototype.stopCallback = function (
+  this: unknown,
+  e: KeyboardEvent,
+  element: Element,
+  combo: string,
+  sequence?: string,
+) {
+  if (useHotkeyStore().allowsInInput(combo, element)) return false
+  return defaultStopCallback.call(this, e, element, combo, sequence)
 }
 
 /**
@@ -46,7 +71,15 @@ export function useHotkeys(bindings: HotkeyBinding | HotkeyBinding[]) {
     const bindingArray = Array.isArray(bindings) ? bindings : [bindings]
 
     bindingArray.forEach(
-      ({ key, handler, id, name, description, preventDefault = true }) => {
+      ({
+        key,
+        handler,
+        id,
+        name,
+        description,
+        preventDefault = true,
+        allowInInput,
+      }) => {
         // Register binding in the store (handles ephemeral hotkey registration)
         const mousetrapKey = hotkeyStore.registerBinding(
           id,
@@ -56,6 +89,7 @@ export function useHotkeys(bindings: HotkeyBinding | HotkeyBinding[]) {
           description,
           componentName,
           preventDefault,
+          allowInInput,
         )
 
         // One mousetrap callback per key, dispatching to every component that

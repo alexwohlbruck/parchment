@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -34,6 +34,48 @@ function binder(key: string, handler: () => void) {
     },
   })
 }
+
+/** Press a key from inside a text field, the way a focused input sees it. */
+function pressIn(
+  element: Element,
+  key: string,
+  keyCode: number,
+  modifiers: Partial<KeyboardEvent> = {},
+) {
+  element.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key,
+      keyCode,
+      which: keyCode,
+      bubbles: true,
+      cancelable: true,
+      ...modifiers,
+    } as KeyboardEventInit),
+  )
+}
+
+/**
+ * Mousetrap resolves `mod` to meta or ctrl by platform, and an event whose
+ * modifiers don't match the binding exactly never matches at all.
+ */
+const MOD = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+  ? 'metaKey'
+  : 'ctrlKey'
+
+function modZ(element: Element) {
+  pressIn(element, 'z', 90, { [MOD]: true } as Partial<KeyboardEvent>)
+}
+
+function field(value = '') {
+  const input = document.createElement('input')
+  input.value = value
+  document.body.appendChild(input)
+  return input
+}
+
+afterEach(() => {
+  document.body.innerHTML = ''
+})
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -116,5 +158,69 @@ describe('useHotkeys', () => {
 
     expect(escape).toHaveBeenCalledTimes(1)
     a.unmount()
+  })
+})
+
+
+/**
+ * Mousetrap drops every key pressed inside a text field. That is right for a
+ * single-letter shortcut and wrong for a view-level ⌘Z: the canvas editor
+ * opens a new mark's name field for you, and undo went dead the moment it
+ * did — while the toolbar button next to it still worked.
+ */
+describe('keys pressed inside a text field', () => {
+  function undoBinder(handler: () => void, allowInInput?: boolean | ((el: Element) => boolean)) {
+    return defineComponent({
+      setup() {
+        useHotkeys([{ key: 'mod+z', handler, allowInInput, preventDefault: false }])
+        return () => null
+      },
+    })
+  }
+
+  it('are dropped, as they always were', () => {
+    const handler = vi.fn()
+    const wrapper = mount(undoBinder(handler))
+
+    modZ(field())
+
+    expect(handler).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('reach a binding that asked for them', () => {
+    const handler = vi.fn()
+    const wrapper = mount(undoBinder(handler, true))
+
+    modZ(field())
+
+    expect(handler).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('let a predicate hand the key to the field or the view', () => {
+    const handler = vi.fn()
+    const wrapper = mount(
+      undoBinder(handler, el => !(el as HTMLInputElement).value),
+    )
+
+    // Nothing typed: no text to take back, so the view gets it.
+    modZ(field())
+    expect(handler).toHaveBeenCalledTimes(1)
+
+    // Something typed: the field keeps its own undo.
+    modZ(field('Water station'))
+    expect(handler).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+  })
+
+  it('go back to being dropped once the binding is gone', () => {
+    const handler = vi.fn()
+    mount(undoBinder(handler, true)).unmount()
+
+    modZ(field())
+
+    expect(handler).not.toHaveBeenCalled()
   })
 })

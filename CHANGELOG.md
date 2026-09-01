@@ -31,10 +31,12 @@
 
 * Pins on a canvas are drawn the way search results are, glyph and all — the icon you choose is the icon on the map, at the same size whatever the zoom. Saved places shrink and fade as you zoom out because the question there is "where have I saved things"; a pin you placed deliberately stays where and what you put it
 * Canvas layers keep their colour on a night basemap. Mapbox dims the map after dark, which is right for buildings and wrong for something you drew, so marks and data layers now light themselves
+* A canvas's layers and the marks you drew are one list now, bottom to top, rather than two lists with marks always pinned above everything. What covers what is whatever the list says, so a mark can sit under a layer if that is where you drag it. Drag anything anywhere in the stack, and gather related things into a group with a name and a switch of its own — switching the group off takes everything inside it off the map. Selecting a mark on the map highlights its row, and selecting a row highlights the mark
 
 ### Fixed
 
 * Escape works again in views that bind it alongside another. Several parts of the app listen for Escape at once, and closing any one of them quietly took the others' handling with it — so Escape could stop dismissing a panel until the page was reloaded
+* Undo and redo on a canvas now work while the cursor is in a text field. Naming a mark and then pressing ⌘Z did nothing, while the toolbar's undo button worked — the same keystroke, two different answers, depending on where you had last clicked
 
 ## [0.6.0] - 2026-08-18
 

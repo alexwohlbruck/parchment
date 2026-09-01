@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.8.2] - 2026-09-01
+
 ### Changed
 
 * The daylight map has colour in it. The ground is a warm cream rather than a cool near-white, parks and woods a soft spring green, water a light sky blue, beaches sand, hospitals rose, and buildings a light grey that sits on the land instead of blending into it — so a neighbourhood has a shape before you read a single label

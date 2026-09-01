@@ -21,6 +21,11 @@ import {
 } from '@/lib/measure.utils'
 import type { Feature, FeatureCollection, Position } from 'geojson'
 import {
+  markerImageId,
+  markerPaint,
+  type MarkerImageSpec,
+} from '@/lib/map-marker'
+import {
   ANNOTATION_STYLE_DEFAULTS,
   type AnnotationLabelPosition,
   type AnnotationTool,
@@ -104,7 +109,39 @@ export function annotationStyle(
     fillOpacity:
       annotation.fillOpacity ?? ANNOTATION_STYLE_DEFAULTS.fillOpacity,
     markerSize: annotation.markerSize ?? ANNOTATION_STYLE_DEFAULTS.markerSize,
+    markerShape:
+      annotation.markerShape ?? ANNOTATION_STYLE_DEFAULTS.markerShape,
     labelSize: annotation.labelSize ?? ANNOTATION_STYLE_DEFAULTS.labelSize,
+  }
+}
+
+/** The glyph a pin wears, defaulted. Pins are the only tool with one. */
+export function annotationGlyph(annotation: CanvasAnnotation): string {
+  return annotation.icon ?? 'MapPin'
+}
+
+/**
+ * The marker image a pin needs, or null for a `disc`.
+ *
+ * A disc is drawn as a circle layer with a glyph over it, so it needs only the
+ * glyph registered. The other shapes have no circle layer to sit on — their
+ * plate is baked into the image — so they need a composed one, keyed by shape,
+ * glyph and colours. See `map-marker/marker-image`.
+ */
+export function annotationMarkerSpec(
+  annotation: CanvasAnnotation,
+  resolveColor: (color: string) => string,
+  isDark: boolean,
+): MarkerImageSpec | null {
+  const shape =
+    annotation.markerShape ?? ANNOTATION_STYLE_DEFAULTS.markerShape
+  if (annotation.tool !== 'pin' || shape === 'disc') return null
+  const color = resolveColor(annotation.color ?? DEFAULT_ANNOTATION_COLOR)
+  return {
+    shape,
+    pack: 'lucide',
+    name: annotationGlyph(annotation),
+    paint: markerPaint(color, shape, isDark),
   }
 }
 
@@ -267,6 +304,8 @@ export function annotationFeature(
    * default so the geometry here stays testable without a document.
    */
   resolveColor: (color: string) => string = color => color,
+  /** Which flavor the marker is tinted for; see `map-marker/marker-paint`. */
+  isDark = false,
 ): Feature | null {
   const { tool, positions } = annotation
   // A committed circle keeps its centre and a radius, so it needs one
@@ -292,11 +331,18 @@ export function annotationFeature(
     // expressed to the style layer.
     label:
       annotation.labelVisible === false ? '' : (annotation.label ?? ''),
-    icon: annotation.icon ?? 'MapPin',
+    icon: annotationGlyph(annotation),
     // The saved-place marker layers read these names; a pin on a canvas is
     // the same kind of thing as a pin in your library, so it draws the same.
     iconPack: 'lucide',
     iconColor: resolveColor(annotation.color ?? DEFAULT_ANNOTATION_COLOR),
+    // Empty for a disc, whose plate is a circle layer rather than an image.
+    // The shape layers filter on `markerShape`, so a pin only ever reaches the
+    // layer that knows how to draw it.
+    markerImage: (() => {
+      const spec = annotationMarkerSpec(annotation, resolveColor, isDark)
+      return spec ? markerImageId(spec) : ''
+    })(),
     // Everything the paint expressions read. Resolved here rather than in the
     // layers so one place decides what a mark looks like unstyled.
     ...annotationStyle(annotation, resolveColor),
@@ -431,13 +477,14 @@ export function annotationsCollection(
    */
   selectedId: string | null = null,
   resolveColor: (color: string) => string = color => color,
+  isDark = false,
 ): FeatureCollection {
   return {
     type: 'FeatureCollection',
     features: (annotations ?? [])
       .filter(annotation => annotation.visible !== false)
       .map(annotation => {
-        const feature = annotationFeature(annotation, resolveColor)
+        const feature = annotationFeature(annotation, resolveColor, isDark)
         if (feature && annotation.id === selectedId) {
           feature.properties = { ...feature.properties, selected: true }
         }
@@ -713,14 +760,36 @@ export function smoothStroke(positions: Position[]): Position[] {
   }).geometry.coordinates
 }
 
-/** The glyphs a canvas's pins need registered before they can be drawn. */
+/**
+ * The bare glyphs a canvas's pins need registered before they can be drawn.
+ *
+ * Discs only: the other shapes carry their glyph inside a composed image, and
+ * registering the bare one as well would put an image on the map that nothing
+ * ever names.
+ */
 export function annotationIconSpecs(
   annotations: CanvasAnnotation[] | undefined,
 ): { pack: 'lucide'; name: string }[] {
   return (annotations ?? [])
-    .filter(annotation => annotation.tool === 'pin')
+    .filter(
+      annotation =>
+        annotation.tool === 'pin' &&
+        (annotation.markerShape ?? ANNOTATION_STYLE_DEFAULTS.markerShape) ===
+          'disc',
+    )
     .map(annotation => ({
       pack: 'lucide' as const,
-      name: annotation.icon ?? 'MapPin',
+      name: annotationGlyph(annotation),
     }))
+}
+
+/** The composed marker images a canvas's square and glyph pins need. */
+export function annotationMarkerSpecs(
+  annotations: CanvasAnnotation[] | undefined,
+  resolveColor: (color: string) => string,
+  isDark: boolean,
+): MarkerImageSpec[] {
+  return (annotations ?? [])
+    .map(annotation => annotationMarkerSpec(annotation, resolveColor, isDark))
+    .filter((spec): spec is MarkerImageSpec => spec !== null)
 }

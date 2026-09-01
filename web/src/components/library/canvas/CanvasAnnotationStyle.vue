@@ -19,7 +19,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { IconPicker } from '@/components/ui/icon-picker'
-import { annotationStyle } from '@/lib/canvas-annotations'
+import {
+  annotationStyle,
+  DEFAULT_ANNOTATION_COLOR,
+} from '@/lib/canvas-annotations'
+import { markerPaint, MARKER_SHAPES, type MarkerShape } from '@/lib/map-marker'
+import { themeColorToHex } from '@/lib/utils'
+import { useThemeStore } from '@/stores/theme.store'
 import {
   ANNOTATION_STROKE_STYLES,
   type AnnotationStrokeStyle,
@@ -30,6 +36,7 @@ const props = defineProps<{ annotation: CanvasAnnotation }>()
 const emit = defineEmits<{ update: [patch: Partial<CanvasAnnotation>] }>()
 
 const { t } = useI18n()
+const themeStore = useThemeStore()
 
 /** What the mark is actually drawn as right now, defaults included. */
 const style = computed(() => annotationStyle(props.annotation))
@@ -51,6 +58,23 @@ const strokeStyles = computed(() =>
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`
+}
+
+const markerShapes = MARKER_SHAPES
+
+/**
+ * Each preview wears the mark's own colours, so the choice is between three
+ * versions of THIS pin rather than three generic shapes.
+ */
+function shapePreview(shape: MarkerShape) {
+  const paint = markerPaint(
+    themeColorToHex(props.annotation.color ?? DEFAULT_ANNOTATION_COLOR),
+    shape,
+    themeStore.isDark,
+  )
+  return shape === 'glyph'
+    ? { color: paint.ink }
+    : { backgroundColor: paint.plate ?? 'transparent', borderColor: paint.ring }
 }
 </script>
 
@@ -162,6 +186,47 @@ function percent(value: number) {
         </span>
       </div>
     </template>
+
+    <!-- The shape is drawn rather than named: three small previews say what a
+         disc, a square plate and a bare glyph look like faster than three
+         words do, and they are the marks themselves. -->
+    <div
+      v-if="isPin"
+      class="flex items-center justify-between gap-3 py-1.5 min-h-7"
+    >
+      <span class="text-xs shrink-0">
+        {{ t('canvases.annotations.markerShape') }}
+      </span>
+      <span class="flex items-center gap-1">
+        <button
+          v-for="option in markerShapes"
+          :key="option"
+          type="button"
+          class="size-7 rounded-md flex items-center justify-center transition-colors hover:bg-accent"
+          :class="style.markerShape === option && 'bg-accent'"
+          :title="t(`canvases.annotations.markerShapes.${option}`)"
+          :aria-label="t(`canvases.annotations.markerShapes.${option}`)"
+          :aria-pressed="style.markerShape === option"
+          @click="emit('update', { markerShape: option })"
+        >
+          <span
+            class="size-3.5 border-[1.5px] flex items-center justify-center"
+            :class="{
+              'rounded-full': option === 'disc',
+              'rounded-[3px]': option === 'square',
+              'border-transparent': option === 'glyph',
+            }"
+            :style="shapePreview(option)"
+          >
+            <span
+              v-if="option === 'glyph'"
+              class="size-2 rounded-[1px]"
+              :style="{ backgroundColor: 'currentColor' }"
+            />
+          </span>
+        </button>
+      </span>
+    </div>
 
     <div
       v-if="isPin"

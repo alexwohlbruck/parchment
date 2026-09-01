@@ -2473,6 +2473,12 @@
       "fillColor": "Fill color",
       "fillOpacity": "Fill opacity",
       "markerSize": "Pin size",
+      "markerShape": "Pin shape",
+      "markerShapes": {
+        "disc": "Circle",
+        "square": "Square",
+        "glyph": "Icon only"
+      },
       "labelSize": "Label size",
       "strokeStyles": {
         "solid": "Solid",

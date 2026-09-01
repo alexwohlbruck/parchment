@@ -47,8 +47,14 @@ import { ensureIconImages } from '@/lib/map-icon-images'
 import { resolveSpecBounds } from '@/lib/map-style/bounds'
 import {
   annotationIconSpecs,
+  annotationMarkerSpecs,
   annotationsCollection,
 } from '@/lib/canvas-annotations'
+import {
+  ensureMarkerImages,
+  markerLayers,
+  MARKER_SHAPES,
+} from '@/lib/map-marker'
 import { canvasStack, stackDrawOrder } from '@/lib/canvas-stack'
 import { ANNOTATION_STROKE_STYLES } from '@/types/canvas.types'
 import { presetLayers } from '@/lib/map-style/data-presets'
@@ -61,10 +67,18 @@ import {
   BOOKMARKS_CIRCLES_LAYER_CONFIG,
   BOOKMARKS_ICONS_LAYER_CONFIG,
   MARKER_CIRCLE_RADIUS,
-  MARKER_CIRCLE_STROKE_WIDTH,
   MARKER_CONTRAST_COLOR,
   MARKER_ICON_SIZE,
 } from '@/constants/layers'
+
+/**
+ * The bare glyph a `disc` pin wears, under the same image-id scheme saved
+ * places use — a pin on a canvas is the same kind of thing as a pin in your
+ * library, so it draws from the same registered images.
+ */
+const PIN_GLYPH_IMAGE = (BOOKMARKS_ICONS_LAYER_CONFIG.configuration.layout as
+  | Record<string, unknown>
+  | undefined)?.['icon-image']
 
 /**
  * Label colours follow the basemap's lighting, the way the basemap's own
@@ -427,8 +441,13 @@ export function useCanvasRendering(
     const sourceId = scopedId(options.key, canvas.id, scope, '-source')
     const id = (suffix: string) => scopedId(options.key, canvas.id, scope, suffix)
     const labels = themeStore.isDark ? LABEL_COLORS.night : LABEL_COLORS.day
-    // A pin's glyph has to be on the map before the layer that names it.
+    // A pin's glyph — or its whole baked marker — has to be on the map before
+    // the layer that names it.
     void ensureIconImages(strategy.mapInstance, annotationIconSpecs(annotations))
+    void ensureMarkerImages(
+      strategy.mapInstance as never,
+      annotationMarkerSpecs(annotations, themeColorToHex, themeStore.isDark),
+    )
 
     return {
       sources: {
@@ -438,6 +457,7 @@ export function useCanvasRendering(
             annotations,
             canvas.selectedAnnotationId ?? null,
             themeColorToHex,
+            themeStore.isDark,
           ),
         },
       },
@@ -504,48 +524,42 @@ export function useCanvasRendering(
           },
           true,
         ),
-        // A pin is drawn the way a search result is — the dot, then the glyph
+        // A pin is drawn the way a search result is — the plate, then the glyph
         // inside it — at full size whatever the zoom. Saved places shrink and
         // fade on the way out because the low-zoom question is "where have I
         // saved things"; a pin someone placed on a canvas is answering a
         // different one and has to stay where and what it was put down as.
-        toLayer(
-          id('-pins'),
-          {
-            type: 'circle',
+        //
+        // One set of layers per shape, filtered on the pin's own `markerShape`.
+        // A disc gets a circle plate with a glyph over it; a square or a bare
+        // glyph is a single symbol drawing an image that already carries its
+        // plate — see `map-marker/marker-layers` for why the two cannot be the
+        // same layer.
+        ...MARKER_SHAPES.flatMap(shape =>
+          markerLayers({
+            shape,
+            id: id(`-pins-${shape}`),
             source: sourceId,
-            filter: ['==', ['get', 'tool'], 'pin'],
-            paint: {
-              'circle-color': ['get', 'iconColor'],
-              'circle-radius': ['get', 'markerSize'],
-              'circle-stroke-width': MARKER_CIRCLE_STROKE_WIDTH,
-              'circle-stroke-color': MARKER_CONTRAST_COLOR,
-            },
-          },
-          true,
-        ),
-        toLayer(
-          id('-pin-icons'),
-          {
-            type: 'symbol',
-            source: sourceId,
-            filter: ['==', ['get', 'tool'], 'pin'],
-            layout: {
-              // The same glyph placement rules — pinned to the viewport, never
-              // culled — so a canvas pin behaves like every other marker.
-              ...((BOOKMARKS_ICONS_LAYER_CONFIG.configuration.layout ??
-                {}) as Record<string, unknown>),
-              // Tracks the dot, so a bigger pin gets a bigger glyph rather
-              // than the same one floating in more space.
-              'icon-size': [
-                '*',
-                MARKER_ICON_SIZE,
-                ['/', ['get', 'markerSize'], MARKER_CIRCLE_RADIUS],
-              ],
-            },
-            paint: { 'icon-opacity': 1 },
-          },
-          true,
+            filter: [
+              'all',
+              ['==', ['get', 'tool'], 'pin'],
+              ['==', ['get', 'markerShape'], shape],
+            ],
+            plateColor: ['get', 'iconColor'],
+            ringColor: MARKER_CONTRAST_COLOR,
+            radius: ['get', 'markerSize'],
+            image: shape === 'disc' ? PIN_GLYPH_IMAGE : ['get', 'markerImage'],
+            // Tracks the plate, so a bigger pin gets a bigger glyph rather
+            // than the same one floating in more space. A baked marker scales
+            // as a whole, so its ratio is against the size it was baked at
+            // rather than against the glyph's share of the plate.
+            iconSize: [
+              '*',
+              shape === 'disc' ? MARKER_ICON_SIZE : 1,
+              ['/', ['get', 'markerSize'], MARKER_CIRCLE_RADIUS],
+            ],
+            iconOpacity: 1,
+          }).map(layer => toLayer(layer.id, layer as never, true)),
         ),
         toLayer(
           id('-labels'),

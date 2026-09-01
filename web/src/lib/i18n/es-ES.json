@@ -2349,6 +2349,12 @@
       "fillColor": "Color de relleno",
       "fillOpacity": "Opacidad del relleno",
       "markerSize": "Tamaño del pin",
+      "markerShape": "Forma del pin",
+      "markerShapes": {
+        "disc": "Círculo",
+        "square": "Cuadrado",
+        "glyph": "Solo icono"
+      },
       "labelSize": "Tamaño de la etiqueta",
       "strokeStyles": {
         "solid": "Sólido",

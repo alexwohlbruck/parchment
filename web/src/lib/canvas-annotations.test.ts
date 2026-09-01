@@ -3,6 +3,9 @@ import * as turf from '@turf/turf'
 import type { Feature, Polygon, Position } from 'geojson'
 import {
   annotationFeature,
+  annotationMarkerSpec,
+  annotationMarkerSpecs,
+  annotationIconSpecs,
   annotationStyle,
   smoothStroke,
   annotationMeasurement,
@@ -673,5 +676,69 @@ describe('annotationStyle', () => {
       fillOpacity: 0.5,
       strokeWidth: 3,
     })
+  })
+})
+
+/**
+ * A pin's shape decides which of two mechanisms draws it: a disc gets a circle
+ * plate with a bare glyph over it, anything else gets a single baked image. So
+ * exactly one of the two registration lists has to claim any given pin — a pin
+ * in both draws twice, a pin in neither draws nothing.
+ */
+describe('marker shapes', () => {
+  const resolve = (c: string) => c
+
+  it('defaults a pin to a disc, which needs no baked image', () => {
+    expect(annotationMarkerSpec(annotation({ tool: 'pin' }), resolve, false)).toBeNull()
+  })
+
+  it('bakes a marker for the shapes that carry their own plate', () => {
+    for (const markerShape of ['square', 'glyph'] as const) {
+      const spec = annotationMarkerSpec(
+        annotation({ tool: 'pin', markerShape, icon: 'Train' }),
+        resolve,
+        false,
+      )
+      expect(spec).toMatchObject({ shape: markerShape, name: 'Train', pack: 'lucide' })
+    }
+  })
+
+  it('never bakes one for something that is not a pin', () => {
+    expect(
+      annotationMarkerSpec(
+        annotation({ tool: 'polygon', markerShape: 'square' }),
+        resolve,
+        false,
+      ),
+    ).toBeNull()
+  })
+
+  it('claims each pin exactly once across the two registration lists', () => {
+    const marks = [
+      annotation({ id: 'a', tool: 'pin' }),
+      annotation({ id: 'b', tool: 'pin', markerShape: 'square' }),
+      annotation({ id: 'c', tool: 'pin', markerShape: 'glyph' }),
+    ]
+    expect(annotationIconSpecs(marks)).toHaveLength(1)
+    expect(annotationMarkerSpecs(marks, resolve, false)).toHaveLength(2)
+  })
+
+  it('puts the baked image on the feature, and nothing on a disc', () => {
+    const disc = annotationFeature(annotation({ tool: 'pin' }), resolve, false)
+    const square = annotationFeature(
+      annotation({ tool: 'pin', markerShape: 'square' }),
+      resolve,
+      false,
+    )
+    expect(disc?.properties?.markerImage).toBe('')
+    expect(square?.properties?.markerImage).toContain('pm|square')
+    expect(disc?.properties?.markerShape).toBe('disc')
+  })
+
+  it('gives the same pin different images by flavor, so it turns with the map', () => {
+    const mark = annotation({ tool: 'pin', markerShape: 'square' })
+    const day = annotationFeature(mark, resolve, false)?.properties?.markerImage
+    const night = annotationFeature(mark, resolve, true)?.properties?.markerImage
+    expect(day).not.toBe(night)
   })
 })

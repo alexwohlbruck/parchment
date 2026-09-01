@@ -15,6 +15,7 @@
 
 import type { FeatureCollection, Position } from 'geojson'
 import type { MapEngine } from '@/types/map.types'
+import { MARKER_PLATE_SIZE, type MarkerShape } from '@/lib/map-marker'
 
 export type CanvasScheme = 'server-key' | 'user-e2ee'
 
@@ -173,7 +174,8 @@ export const ANNOTATION_STYLE_DEFAULTS = {
   strokeOpacity: 1,
   strokeStyle: 'solid' as AnnotationStrokeStyle,
   fillOpacity: 0.18,
-  markerSize: 9.5,
+  markerSize: MARKER_PLATE_SIZE / 2,
+  markerShape: 'disc' as MarkerShape,
   labelSize: 12,
 } as const
 
@@ -241,8 +243,17 @@ export interface CanvasAnnotation {
   /** Areas only. Defaults to the mark's own colour. */
   fillColor?: string
   fillOpacity?: number
-  /** Pins only: the dot's radius, in pixels. */
+  /** Pins only: the plate's radius, in pixels. */
   markerSize?: number
+  /**
+   * Pins only: which of the app's marker shapes the pin wears.
+   *
+   * A disc says "a place is here"; a square says "this is a station", which is
+   * the distinction the basemap already draws between a shop and a transit
+   * stop; a bare glyph is the quiet one, for a canvas already carrying a lot.
+   * See `lib/map-marker`.
+   */
+  markerShape?: MarkerShape
   labelSize?: number
   /**
    * Pin only: the glyph drawn in the marker. A lucide icon name, or absent

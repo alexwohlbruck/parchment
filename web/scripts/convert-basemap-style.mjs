@@ -767,20 +767,25 @@ function sinkRoadMarkings(layers) {
 }
 
 /**
- * Sand, above the grass rather than under it.
+ * Sand, on top of every green it can sit inside.
  *
- * The grass layer draws at half opacity so a park edge softens rather than
- * cuts, and it is the last cover in MapTiler's order — so every sand feature
- * inside a green one, which is most of them (a baseball infield, a bunker, a
- * playground pit), came out as sand seen through a green wash. Cover is not a
- * hierarchy: the smaller, more specific surface is the one you are looking at.
+ * Grass draws at half opacity so a park edge softens rather than cuts, and it
+ * is the last cover in MapTiler's order; a pitch is opaque and, since it stops
+ * being sunk with the campuses, draws later still. Sand is almost always inside
+ * one of the two — a baseball infield, a bunker, a playground pit — so under
+ * either it is invisible or washed green. The rule for surfaces is size: the
+ * smaller, more specific one is what you are looking at, so sand goes last.
  */
-function raiseSandAboveGrass(layers) {
+const SURFACES_BELOW_SAND = ['Grass', 'Stadium']
+
+function raiseSandAboveSurfaces(layers) {
   const sand = layers.findIndex(l => l.id === 'Sand')
-  const grass = layers.findIndex(l => l.id === 'Grass')
-  if (sand < 0 || grass < 0 || sand > grass) return
-  layers.splice(grass, 0, ...layers.splice(sand, 1))
+  const last = Math.max(...SURFACES_BELOW_SAND.map(id => layers.findIndex(l => l.id === id)))
+  if (sand < 0 || last < 0 || sand > last) return
+  const [fill] = layers.splice(sand, 1)
+  layers.splice(last, 0, fill)
 }
+
 
 function sinkInstitutionalLanduse(layers) {
   const moved = INSTITUTIONAL_LANDUSE.map(id => {
@@ -1411,7 +1416,7 @@ async function main() {
   }
 
   sinkInstitutionalLanduse(layers)
-  raiseSandAboveGrass(layers)
+  raiseSandAboveSurfaces(layers)
   applyRoadInk(layers)
   widenLowerRoads(layers)
   fadeTunnels(layers)

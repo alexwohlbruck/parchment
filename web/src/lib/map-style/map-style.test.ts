@@ -493,8 +493,9 @@ describe('badge POI treatment', () => {
     const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
     const index = (id: string) => layers.findIndex(l => l.id === id)
     expect(index('Grass')).toBeGreaterThan(-1)
-    expect(index('Sand')).toBeGreaterThan(index('Grass'))
     expect(index('Stadium')).toBeGreaterThan(index('Grass'))
+    // Sand last of all: it is almost always inside one of the other two.
+    expect(index('Sand')).toBeGreaterThan(index('Stadium'))
   })
 
   /**

@@ -292,25 +292,6 @@
    ]
   },
   {
-   "id": "Sand",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "landcover",
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": false,
-    "fill-color": "@sand_fill_color",
-    "fill-opacity": 0.85
-   },
-   "filter": [
-    "==",
-    "class",
-    "sand"
-   ]
-  },
-  {
    "id": "Airport zone",
    "type": "fill",
    "source": "openmaptiles",
@@ -360,6 +341,25 @@
     "pitch",
     "stadium",
     "playground"
+   ]
+  },
+  {
+   "id": "Sand",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "landcover",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": false,
+    "fill-color": "@sand_fill_color",
+    "fill-opacity": 0.85
+   },
+   "filter": [
+    "==",
+    "class",
+    "sand"
    ]
   },
   {

@@ -2238,10 +2238,7 @@
     "layerCount": "No layers | 1 layer | {count} layers",
     "showOnMap": "Show on the map",
     "saved": "Saved",
-    "cameraSaved": "This canvas will open at the current view",
-    "saveCamera": "Save the current view",
     "notFound": "This canvas no longer exists.",
-    "noDescription": "No description",
     "actions": {
       "new": "New canvas",
       "rename": "Rename"
@@ -2269,9 +2266,6 @@
       }
     },
     "layers": {
-      "order": "Layers draw from the bottom up.",
-      "empty": "This canvas is empty",
-      "emptyHint": "Add imagery, data or a collection of saved places.",
       "missing": "Missing layer",
       "show": "Show",
       "hide": "Hide",
@@ -2313,11 +2307,11 @@
           "description": "Draw a collection's places as points."
         },
         "route": {
-          "title": "A saved route",
+          "title": "Routes",
           "description": "Put one of your routes on this canvas."
         },
         "library": {
-          "title": "From your library",
+          "title": "Layers",
           "description": "Reuse a layer you already have."
         },
         "people": {
@@ -2331,8 +2325,8 @@
       },
       "noRoutes": "No routes yet.",
       "groups": {
-        "data": "Data",
-        "yours": "From Parchment"
+        "data": "Bring in data",
+        "yours": "From your library"
       }
     },
     "delete": {
@@ -2430,7 +2424,6 @@
       "strokeWidth": "Stroke width {width}"
     },
     "annotations": {
-      "title": "Annotations",
       "remove": "Delete annotation",
       "labelPlaceholder": "Add a label",
       "icon": "Icon",
@@ -2484,8 +2477,20 @@
     "saving": "Saving…",
     "mapSettings": {
       "title": "Map appearance",
-      "override": "Give this canvas its own",
-      "followingApp": "Following your app settings."
+      "override": "Custom for this canvas",
+      "description": "Only while this canvas is open."
+    },
+    "stack": {
+      "title": "Layers",
+      "empty": "Nothing on this canvas yet",
+      "emptyHint": "Add a layer, or draw on the map with the toolbar."
+    },
+    "groups": {
+      "add": "New group",
+      "untitled": "Group",
+      "rename": "Rename group",
+      "remove": "Ungroup",
+      "empty": "Drag layers and marks in here"
     }
   },
   "colors": {

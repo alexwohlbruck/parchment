@@ -13,6 +13,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { IconPicker } from '@/components/ui/icon-picker'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import CanvasAnnotationStyle from './CanvasAnnotationStyle.vue'
 import {
   Select,
@@ -25,8 +31,10 @@ import {
   ChevronRightIcon,
   CircleIcon,
   CrosshairIcon,
+  GripVerticalIcon,
   MapPinIcon,
   MinusIcon,
+  MoreHorizontalIcon,
   PencilIcon,
   PentagonIcon,
   SquareIcon,
@@ -53,6 +61,8 @@ const props = defineProps<{
   annotation: CanvasAnnotation
   expanded?: boolean
 }>()
+
+/** An open mark is the selected one; there is no third state to draw. */
 
 const emit = defineEmits<{
   update: [patch: Partial<CanvasAnnotation>]
@@ -159,8 +169,14 @@ const fallbackName = computed(() =>
 </script>
 
 <template>
-  <div class="rounded-lg border bg-card overflow-hidden">
+  <div
+    class="rounded-lg border bg-card overflow-hidden transition-colors"
+    :class="expanded && 'border-primary bg-primary/5'"
+  >
     <div class="flex items-center gap-2 px-2 py-1.5">
+      <GripVerticalIcon
+        class="size-3.5 shrink-0 text-muted-foreground/60 cursor-grab canvas-stack-handle"
+      />
       <button
         class="flex items-center gap-2 min-w-0 flex-1 text-left"
         :aria-expanded="expanded"
@@ -207,16 +223,22 @@ const fallbackName = computed(() =>
       >
         <CrosshairIcon class="size-3.5" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        class="size-7 shrink-0"
-        :title="t('canvases.annotations.remove')"
-        :aria-label="t('canvases.annotations.remove')"
-        @click="emit('remove')"
-      >
-        <Trash2Icon class="size-3.5" />
-      </Button>
+      <!-- Deleting sits behind the same overflow menu a layer row uses:
+           the two lists read as one thing, and neither loses a mark to a
+           mis-tap. -->
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="ghost" size="icon" class="size-7 shrink-0">
+            <MoreHorizontalIcon class="size-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem class="text-destructive" @click="emit('remove')">
+            <Trash2Icon class="size-3.5" />
+            {{ t('canvases.annotations.remove') }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
 
     <!-- Properties read down the left and are set down the right, the way

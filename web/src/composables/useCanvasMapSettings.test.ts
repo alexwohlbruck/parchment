@@ -30,8 +30,8 @@ beforeEach(() => {
 function open(overrides: CanvasMapSettings | undefined) {
   const value = ref(overrides)
   const scope = effectScope()
-  const api = scope.run(() => useCanvasMapSettings(value))!
-  return { ...api, value, close: () => scope.stop() }
+  scope.run(() => useCanvasMapSettings(value))
+  return { value, close: () => scope.stop() }
 }
 
 describe('useCanvasMapSettings', () => {

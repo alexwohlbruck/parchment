@@ -2118,10 +2118,7 @@
     "layerCount": "Sin capas | 1 capa | {count} capas",
     "showOnMap": "Mostrar en el mapa",
     "saved": "Guardado",
-    "cameraSaved": "Este lienzo se abrirá en la vista actual",
-    "saveCamera": "Guardar la vista actual",
     "notFound": "Este lienzo ya no existe.",
-    "noDescription": "Sin descripción",
     "actions": {
       "new": "Nuevo lienzo",
       "rename": "Cambiar nombre"
@@ -2149,9 +2146,6 @@
       }
     },
     "layers": {
-      "order": "Las capas se dibujan de abajo hacia arriba.",
-      "empty": "Este lienzo está vacío",
-      "emptyHint": "Añade imágenes, datos o una colección de lugares guardados.",
       "missing": "Capa no encontrada",
       "show": "Mostrar",
       "hide": "Ocultar",
@@ -2193,11 +2187,11 @@
           "description": "Dibuja los lugares de una colección como puntos."
         },
         "route": {
-          "title": "Una ruta guardada",
+          "title": "Rutas",
           "description": "Pon una de tus rutas en este lienzo."
         },
         "library": {
-          "title": "De tu biblioteca",
+          "title": "Capas",
           "description": "Reutiliza una capa que ya tienes."
         },
         "people": {
@@ -2211,8 +2205,8 @@
       },
       "noRoutes": "Todavía no hay rutas.",
       "groups": {
-        "data": "Datos",
-        "yours": "De Parchment"
+        "data": "Traer datos",
+        "yours": "De tu biblioteca"
       }
     },
     "delete": {
@@ -2310,7 +2304,6 @@
       "strokeWidth": "Grosor del trazo {width}"
     },
     "annotations": {
-      "title": "Anotaciones",
       "remove": "Eliminar anotación",
       "labelPlaceholder": "Añade una etiqueta",
       "icon": "Icono",
@@ -2364,8 +2357,20 @@
     "saving": "Guardando…",
     "mapSettings": {
       "title": "Apariencia del mapa",
-      "override": "Dar a este lienzo la suya propia",
-      "followingApp": "Sigue los ajustes de la aplicación."
+      "override": "Personalizada para este lienzo",
+      "description": "Solo mientras este lienzo está abierto."
+    },
+    "stack": {
+      "title": "Capas",
+      "empty": "Todavía no hay nada en este lienzo",
+      "emptyHint": "Añade una capa o dibuja en el mapa con la barra de herramientas."
+    },
+    "groups": {
+      "add": "Nuevo grupo",
+      "untitled": "Grupo",
+      "rename": "Renombrar grupo",
+      "remove": "Desagrupar",
+      "empty": "Arrastra capas y marcas aquí"
     }
   },
   "colors": {

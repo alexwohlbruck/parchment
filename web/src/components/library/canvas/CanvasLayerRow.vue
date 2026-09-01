@@ -40,12 +40,15 @@ const props = defineProps<{
   layer: CanvasLayer
   /** Shared view: show what's on the canvas, offer nothing to change it. */
   readonly?: boolean
+  /** The row the panel is pointed at, and the mark that has the map's halo. */
+  selected?: boolean
 }>()
 
 const emit = defineEmits<{
   toggle: [visible: boolean]
   edit: []
   remove: []
+  select: []
 }>()
 
 const { t } = useI18n()
@@ -135,12 +138,16 @@ const subtitle = computed(() => {
 
 <template>
   <div
-    class="group flex items-center gap-2 rounded-lg border px-2 py-1.5 bg-card"
-    :class="!layer.visible && 'opacity-60'"
+    class="group flex items-center gap-2 rounded-lg border px-2 py-1.5 bg-card transition-colors"
+    :class="[
+      !layer.visible && 'opacity-60',
+      selected && 'border-primary bg-primary/5',
+    ]"
+    @click="emit('select')"
   >
     <GripVerticalIcon
       v-if="!readonly"
-      class="size-3.5 shrink-0 text-muted-foreground/60 cursor-grab canvas-layer-handle"
+      class="size-3.5 shrink-0 text-muted-foreground/60 cursor-grab canvas-stack-handle"
     />
 
     <ItemIcon
@@ -164,14 +171,14 @@ const subtitle = computed(() => {
       class="size-7 shrink-0"
       :title="t(layer.visible ? 'canvases.layers.hide' : 'canvases.layers.show')"
       :aria-label="t(layer.visible ? 'canvases.layers.hide' : 'canvases.layers.show')"
-      @click="emit('toggle', !layer.visible)"
+      @click.stop="emit('toggle', !layer.visible)"
     >
       <EyeIcon v-if="layer.visible" class="size-3.5" />
       <EyeOffIcon v-else class="size-3.5 text-muted-foreground" />
     </Button>
 
     <DropdownMenu v-if="!readonly">
-      <DropdownMenuTrigger as-child>
+      <DropdownMenuTrigger as-child @click.stop>
         <Button variant="ghost" size="icon" class="size-7 shrink-0">
           <MoreHorizontalIcon class="size-3.5" />
         </Button>

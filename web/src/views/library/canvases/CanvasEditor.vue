@@ -8,9 +8,8 @@
  * Save; leaving with unsaved work asks first, which is also what the sheet's
  * close button ends up doing.
  */
-import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, onScopeDispose, ref, watch } from 'vue'
 import { useHotkeys } from '@/composables/useHotkeys'
-import { useUnits } from '@/composables/useUnits'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
@@ -19,7 +18,6 @@ import { AppRoute } from '@/router'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { useCollectionsService } from '@/services/library/collections.service'
-import { useAppService } from '@/services/app.service'
 import { useMapStore } from '@/stores/map.store'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
 import * as turf from '@turf/turf'
@@ -28,7 +26,7 @@ import { useAnnotationEditing } from '@/composables/useAnnotationEditing'
 import { useCanvasHistory } from '@/composables/useCanvasHistory'
 import { useCanvasMapSettings } from '@/composables/useCanvasMapSettings'
 import type { CanvasMapSettings } from '@/types/canvas.types'
-import CanvasMapSettingsPanel from '@/components/library/canvas/CanvasMapSettings.vue'
+import CanvasContextMenu from '@/components/library/canvas/CanvasContextMenu.vue'
 import { useDrawOverlay } from '@/composables/useDrawOverlay'
 import { annotationFeature } from '@/lib/canvas-annotations'
 import { useRoutesService } from '@/services/library/routes.service'
@@ -39,6 +37,7 @@ import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
 import CanvasDataLayerSettings from '@/components/library/canvas/CanvasDataLayerSettings.vue'
 import CanvasDataSourcesDialog from '@/components/library/canvas/CanvasDataSourcesDialog.vue'
 import CanvasAnnotationRow from '@/components/library/canvas/CanvasAnnotationRow.vue'
+import CanvasGroupRow from '@/components/library/canvas/CanvasGroupRow.vue'
 import CanvasToolbar from '@/components/library/canvas/CanvasToolbar.vue'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import {
@@ -48,9 +47,11 @@ import {
 } from '@/lib/map-style/data-presets'
 import type { DataSourceDefinition } from '@/lib/data-sources/catalogue'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { SectionHeader } from '@/components/ui/section-header'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty-state'
+import { CloudCheckIcon } from '@/components/ui/icons'
 import type { ThemeColor } from '@/lib/utils'
 import {
   cloneCanvasBody,
@@ -59,20 +60,30 @@ import {
   type CanvasBody,
   type CanvasDataLayer,
   type CanvasDataOrigin,
+  type CanvasGroup,
   type CanvasLayer,
 } from '@/types/canvas.types'
 import {
+  appendToStack,
+  canvasStack,
+  groupContents,
+  moveInStack,
+  removeFromStack,
+  type StackChange,
+  type StackItem,
+} from '@/lib/canvas-stack'
+import {
   BookmarkIcon,
-  CrosshairIcon,
+  CloudUploadIcon,
   DatabaseIcon,
   Layers3Icon,
+  FolderPlusIcon,
   LayersIcon,
   LockIcon,
   PenLineIcon,
-  PencilIcon,
   PlusIcon,
   RouteIcon,
-  Trash2Icon,
+  ShapesIcon,
   UsersIcon,
 } from 'lucide-vue-next'
 
@@ -84,8 +95,6 @@ const canvasesStore = useCanvasesStore()
 const canvasesService = useCanvasesService()
 const collectionsService = useCollectionsService()
 const routesService = useRoutesService()
-const { formatDistance } = useUnits()
-const appService = useAppService()
 const mapStore = useMapStore()
 const { canvases } = storeToRefs(canvasesStore)
 
@@ -132,8 +141,19 @@ const isDirty = computed(() => JSON.stringify(body.value) !== pristine.value)
  * Marks made on the canvas rather than data brought to it. They live in their
  * own bucket, so drawing never asks the user to create a layer first.
  */
-/** The annotation whose properties are open for editing. */
-const selectedAnnotationId = ref<string | null>(null)
+/**
+ * The row the panel is pointed at, whichever kind it is. A selected mark also
+ * opens into its properties and takes the map's halo; a selected layer just
+ * reads as selected, since editing one happens elsewhere.
+ */
+const selectedId = ref<string | null>(null)
+
+/** Only a mark can be the selected *annotation*, which is what the map wants. */
+const selectedAnnotationId = computed(() =>
+  (body.value.annotations ?? []).some(a => a.id === selectedId.value)
+    ? selectedId.value
+    : null,
+)
 
 const annotations = useCanvasAnnotations({
   onCommit(annotation: CanvasAnnotation) {
@@ -143,7 +163,7 @@ const annotations = useCanvasAnnotations({
     }
     // Open the new mark straight away: naming is nearly always the next
     // thing, and hunting for the row you just created is friction.
-    selectedAnnotationId.value = annotation.id
+    selectedId.value = annotation.id
   },
 })
 
@@ -186,6 +206,21 @@ const editing = useAnnotationEditing({
 // happening, since a tool cannot be armed at the same time.
 useDrawOverlay(computed(() => editing.scene.value ?? annotations.scene.value))
 
+/**
+ * Who owns ⌘Z while a text field has focus.
+ *
+ * Finishing a mark opens its row with the name field focused, which is where
+ * you want to be — but mousetrap drops every key pressed inside a field, so
+ * undo did nothing there while the toolbar button beside it worked. An empty
+ * field has no typing of its own to take back, so the canvas takes the key;
+ * once something has been typed, the field keeps it and ⌘Z reverts that
+ * instead of throwing away the mark it belongs to.
+ */
+function canvasOwnsUndo(element: Element) {
+  if ((element as HTMLElement).isContentEditable) return false
+  return !(element as HTMLInputElement).value
+}
+
 // Esc drops the armed tool before it does anything else — the reflex when a
 // tool is live is "get me out of this", not "leave this view".
 useHotkeys([
@@ -196,10 +231,14 @@ useHotkeys([
       if (annotations.isArmed.value) annotations.disarm()
     },
   },
-  { key: 'mod+z', handler: () => history.undo() },
-  { key: 'mod+shift+z', handler: () => history.redo() },
+  { key: 'mod+z', allowInInput: canvasOwnsUndo, handler: () => history.undo() },
+  {
+    key: 'mod+shift+z',
+    allowInInput: canvasOwnsUndo,
+    handler: () => history.redo(),
+  },
   // What Windows reaches for, and harmless everywhere else.
-  { key: 'mod+y', handler: () => history.redo() },
+  { key: 'mod+y', allowInInput: canvasOwnsUndo, handler: () => history.redo() },
   { key: 'p', handler: () => annotations.arm('pin') },
   { key: 'l', handler: () => annotations.arm('line') },
   { key: 'r', handler: () => annotations.arm('route') },
@@ -233,11 +272,14 @@ function zoomToAnnotation(annotation: CanvasAnnotation) {
 }
 
 function removeAnnotation(id: string) {
-  if (selectedAnnotationId.value === id) selectedAnnotationId.value = null
-  body.value = {
-    ...body.value,
-    annotations: (body.value.annotations ?? []).filter(a => a.id !== id),
-  }
+  if (selectedId.value === id) selectedId.value = null
+  body.value = removeFromStack(
+    {
+      ...body.value,
+      annotations: (body.value.annotations ?? []).filter(a => a.id !== id),
+    },
+    id,
+  )
 }
 
 // Draw the working copy, so reordering and toggling read on the map at once.
@@ -266,28 +308,129 @@ const { fitToLayer } = useCanvasRendering(
 
 // ── Layer stack ──────────────────────────────────────────────────────────────
 
-const layers = computed({
-  get: () => body.value.layers,
-  set: (next: CanvasLayer[]) => {
-    body.value = { ...body.value, layers: next }
-  },
-})
+/** The stack, bottom first — the order it draws in, and the order the layer
+ *  library already lists layers in. */
+const stack = computed(() => canvasStack(body.value))
+
+/**
+ * A drop, from either list. Only the half that says "this arrived" is acted
+ * on — acting on the half that says "this left" is what used to lose items
+ * mid-drag, since between the two the item belonged nowhere.
+ */
+function onStackChange(event: StackChange, groupId: string | null = null) {
+  const change = event.added ?? event.moved
+  if (!change?.element) return
+  body.value = moveInStack(body.value, change.element.id, {
+    groupId,
+    index: change.newIndex,
+  })
+}
+
+/**
+ * A row per kind, bound by hand rather than by three near-identical blocks of
+ * markup — the stack renders at the top level and again inside every group,
+ * and the two have to stay the same row.
+ */
+const ROWS = {
+  layer: markRaw(CanvasLayerRow),
+  annotation: markRaw(CanvasAnnotationRow),
+}
+
+function rowFor(entry: StackItem) {
+  return ROWS[entry.kind]
+}
+
+function rowProps(entry: StackItem) {
+  if (entry.kind === 'layer') {
+    return {
+      layer: entry.layer,
+      selected: selectedId.value === entry.id,
+      onSelect: () => (selectedId.value = entry.id),
+      onToggle: (visible: boolean) => patchLayer(entry.id, { visible }),
+      onEdit: () => editLayer(entry.layer),
+      onRemove: () => removeLayer(entry.id),
+    }
+  }
+  return {
+    annotation: entry.annotation,
+    expanded: selectedId.value === entry.id,
+    onToggleExpanded: () =>
+      (selectedId.value = selectedId.value === entry.id ? null : entry.id),
+    onUpdate: (patch: Partial<CanvasAnnotation>) =>
+      patchAnnotation(entry.id, patch),
+    onRemove: () => removeAnnotation(entry.id),
+    onZoomTo: () => zoomToAnnotation(entry.annotation),
+  }
+}
 
 function patchLayer(id: string, patch: Partial<CanvasLayer>) {
-  layers.value = layers.value.map(l =>
-    l.id === id ? ({ ...l, ...patch } as CanvasLayer) : l,
-  )
+  body.value = {
+    ...body.value,
+    layers: body.value.layers.map(l =>
+      l.id === id ? ({ ...l, ...patch } as CanvasLayer) : l,
+    ),
+  }
 }
 
 function addLayer(layer: CanvasLayer) {
-  layers.value = [...layers.value, layer]
+  body.value = {
+    ...body.value,
+    layers: [...body.value.layers, layer],
+    order: appendToStack(body.value, layer.id),
+  }
   // Show what was just added. The render pass has to put it on the map first,
   // so this waits a tick rather than racing it.
   nextTick(() => fitToLayer(props.id, layer))
 }
 
 async function removeLayer(id: string) {
-  layers.value = layers.value.filter(l => l.id !== id)
+  if (selectedId.value === id) selectedId.value = null
+  body.value = removeFromStack(
+    { ...body.value, layers: body.value.layers.filter(l => l.id !== id) },
+    id,
+  )
+}
+
+// ── Groups ───────────────────────────────────────────────────────────────────
+
+function patchGroup(id: string, patch: Partial<CanvasGroup>) {
+  body.value = {
+    ...body.value,
+    groups: (body.value.groups ?? []).map(group =>
+      group.id === id ? { ...group, ...patch } : group,
+    ),
+  }
+}
+
+/** A new group lands on top, empty, with its name already selected. */
+function addGroup() {
+  const group: CanvasGroup = {
+    id: `cg-${Math.random().toString(36).slice(2, 10)}`,
+    name: t('canvases.groups.untitled'),
+    visible: true,
+    children: [],
+  }
+  body.value = {
+    ...body.value,
+    groups: [...(body.value.groups ?? []), group],
+    order: appendToStack(body.value, group.id),
+  }
+}
+
+/**
+ * Deleting a group keeps what was filed in it — a folder is how the stack is
+ * tidied, not something the layers inside belong to. They come back out where
+ * the group was, in the order they were in it.
+ */
+function removeGroup(id: string) {
+  const contents = groupContents(body.value, id)
+  const order = (body.value.order ?? canvasStack(body.value).map(e => e.id))
+    .flatMap(entryId => (entryId === id ? contents : [entryId]))
+  body.value = {
+    ...body.value,
+    groups: (body.value.groups ?? []).filter(group => group.id !== id),
+    order,
+  }
 }
 
 /** Style layers open the layer editor; data layers open their own settings. */
@@ -310,7 +453,7 @@ function editLayer(layer: CanvasLayer) {
 const editingDataLayerId = ref<string | null>(null)
 
 const editingDataLayer = computed<CanvasDataLayer | null>(() => {
-  const found = layers.value.find(l => l.id === editingDataLayerId.value)
+  const found = body.value.layers.find(l => l.id === editingDataLayerId.value)
   return found?.kind === 'data' ? found : null
 })
 
@@ -396,24 +539,14 @@ function openPicker(step: 'library' | 'collection' | 'route') {
   addOpen.value = true
 }
 
-/** The add-layer menu: a list of routes in, so a dropdown rather than a dialog. */
+/**
+ * The add menu. There are two ways to put something on a canvas — reach for
+ * something you already have, or bring data in — and they read better apart
+ * than as one flat list. A dropdown rather than a dialog: most of these open
+ * a picker of their own, and a dialog to choose which dialog is a step too
+ * many.
+ */
 const addMenuItems = computed(() => [
-  { type: 'label' as const, label: t('canvases.add.groups.data') },
-  {
-    type: 'item' as const,
-    id: 'sources',
-    label: t('canvases.add.options.sources.title'),
-    icon: DatabaseIcon,
-    onSelect: () => (sourcesOpen.value = true),
-  },
-  {
-    type: 'item' as const,
-    id: 'style',
-    label: t('canvases.add.options.style.title'),
-    icon: PenLineIcon,
-    onSelect: createStyleLayer,
-  },
-  { type: 'separator' as const },
   { type: 'label' as const, label: t('canvases.add.groups.yours') },
   {
     type: 'item' as const,
@@ -444,41 +577,33 @@ const addMenuItems = computed(() => [
     onSelect: () =>
       addLayer({ id: newLayerId(), kind: 'people', visible: true }),
   },
+  { type: 'separator' as const },
+  { type: 'label' as const, label: t('canvases.add.groups.data') },
+  {
+    type: 'item' as const,
+    id: 'sources',
+    label: t('canvases.add.options.sources.title'),
+    icon: DatabaseIcon,
+    onSelect: () => (sourcesOpen.value = true),
+  },
+  {
+    type: 'item' as const,
+    id: 'style',
+    label: t('canvases.add.options.style.title'),
+    icon: PenLineIcon,
+    onSelect: createStyleLayer,
+  },
 ])
 
 /**
  * The canvas's own map appearance, in force while it is open. Absent means it
- * follows whatever the app is set to.
+ * follows whatever the app is set to. Called for its effect on the map; the
+ * switches themselves live in the header menu.
  */
-const mapSettings = useCanvasMapSettings(
-  computed(() => body.value.mapSettings),
-)
+useCanvasMapSettings(computed(() => body.value.mapSettings))
 
 function setMapSettings(next: CanvasMapSettings | undefined) {
   body.value = { ...body.value, mapSettings: next }
-}
-
-/** Starting a canvas's own set from what the app is showing right now. */
-function adoptMapSettings() {
-  setMapSettings(mapSettings.currentSettings())
-}
-
-// ── Camera ───────────────────────────────────────────────────────────────────
-
-/** Pin the canvas to the view it should open at. */
-function saveCamera() {
-  const camera = mapStore.mapCamera
-  const center = camera.center as [number, number] | { lng: number; lat: number }
-  body.value = {
-    ...body.value,
-    camera: {
-      center: Array.isArray(center) ? center : [center.lng, center.lat],
-      zoom: camera.zoom,
-      bearing: camera.bearing,
-      pitch: camera.pitch,
-    },
-  }
-  appService.toast.success(t('canvases.cameraSaved'))
 }
 
 // ── Save ─────────────────────────────────────────────────────────────────────
@@ -545,139 +670,167 @@ function close() {
 }
 
 const displayName = computed(() => canvasesService.displayName(canvas.value))
+
+/** Anything still to write, whether it is in flight or waiting on the debounce. */
+const pending = computed(() => saving.value || isDirty.value)
+const saveStatus = computed(() =>
+  pending.value ? t('canvases.saving') : t('canvases.saved'),
+)
 </script>
 
 <template>
-  <DetailPanelLayout show-back-button @back="close">
+  <DetailPanelLayout>
     <template #title>
-      <button
-        class="flex items-center gap-2 min-w-0 group"
-        @click="renameOpen = true"
-      >
-        <p class="text-lg font-semibold truncate">{{ displayName }}</p>
-        <LockIcon
-          v-if="canvas?.scheme === 'user-e2ee'"
-          class="size-3.5 shrink-0 text-muted-foreground"
-        />
-        <PencilIcon
-          class="size-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-        />
-      </button>
+      <div class="flex items-center gap-2 min-w-0">
+        <!-- A canvas saves itself, so where that got to is a property of the
+             canvas rather than a control beside it — it rides on its icon,
+             the way a status dot rides on an avatar. -->
+        <div v-if="canvas" class="relative shrink-0" :title="saveStatus">
+          <ItemIcon
+            :icon="canvas.icon ?? 'MapIcon'"
+            :color="(canvas.iconColor as ThemeColor) ?? 'iris'"
+            size="sm"
+          />
+          <span
+            class="absolute -bottom-1 -right-1 rounded-full bg-background p-0.5 text-muted-foreground"
+          >
+            <CloudUploadIcon v-if="pending" class="size-3 animate-pulse" />
+            <CloudCheckIcon v-else class="size-3" />
+          </span>
+          <span class="sr-only" aria-live="polite">{{ saveStatus }}</span>
+        </div>
+        <div class="min-w-0">
+          <h4 class="text-base font-semibold truncate flex items-center gap-1.5">
+            <span class="truncate">{{ displayName }}</span>
+            <LockIcon
+              v-if="canvas?.scheme === 'user-e2ee'"
+              class="size-3 shrink-0 text-muted-foreground"
+            />
+          </h4>
+          <p
+            v-if="canvas?.description"
+            class="text-xs text-muted-foreground truncate"
+          >
+            {{ canvas.description }}
+          </p>
+        </div>
+      </div>
     </template>
 
     <template #actions>
-      <Button
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :title="t('canvases.saveCamera')"
-        :aria-label="t('canvases.saveCamera')"
-        @click="saveCamera"
-      >
-        <CrosshairIcon class="size-4" />
-      </Button>
-      <!-- A canvas saves itself; this only says where that got to. -->
-      <span
-        class="flex items-center gap-1.5 text-xs text-muted-foreground"
-        aria-live="polite"
-      >
-        <Spinner v-if="saving" class="size-3" />
-        {{ saving ? t('canvases.saving') : isDirty ? '' : t('canvases.saved') }}
-      </span>
+      <CanvasContextMenu
+        v-if="canvas"
+        :canvas="canvas"
+        :map-settings="body.mapSettings"
+        @update:map-settings="setMapSettings"
+        @edit="renameOpen = true"
+        @deleted="close"
+      />
     </template>
 
     <div v-if="loading && !canvas" class="py-12 flex justify-center">
       <Spinner />
     </div>
 
-    <div v-else-if="!canvas" class="py-12">
-      <EmptyState :icon="LayersIcon" :title="t('canvases.notFound')" />
-    </div>
+    <EmptyState
+      v-else-if="!canvas"
+      :icon="LayersIcon"
+      :title="t('canvases.notFound')"
+    />
 
-    <div v-else class="space-y-3">
-      <div class="flex items-center gap-2.5">
-        <ItemIcon
-          :icon="canvas.icon ?? 'MapIcon'"
-          :color="(canvas.iconColor as ThemeColor) ?? 'iris'"
-          size="md"
-        />
-        <p class="text-sm text-muted-foreground flex-1 min-w-0">
-          {{ canvas.description || t('canvases.noDescription') }}
-        </p>
-      </div>
+    <div v-else class="space-y-5">
+      <section class="space-y-2">
+        <SectionHeader size="lg" :title="t('canvases.stack.title')">
+          <template #trailing>
+            <div class="flex items-center gap-0.5 -mr-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                class="size-8"
+                :title="t('canvases.groups.add')"
+                :aria-label="t('canvases.groups.add')"
+                @click="addGroup"
+              >
+                <FolderPlusIcon class="size-4" />
+              </Button>
+              <ResponsiveDropdown
+                :items="addMenuItems"
+                align="end"
+                :title="t('canvases.add.trigger')"
+              >
+                <template #trigger>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="size-8"
+                    :title="t('canvases.add.trigger')"
+                    :aria-label="t('canvases.add.trigger')"
+                  >
+                    <PlusIcon class="size-4" />
+                  </Button>
+                </template>
+              </ResponsiveDropdown>
+            </div>
+          </template>
+        </SectionHeader>
 
-      <ResponsiveDropdown :items="addMenuItems" align="start">
-        <template #trigger>
-          <Button variant="outline" size="sm" class="w-full">
-            <PlusIcon class="size-3.5" />
-            {{ t('canvases.add.trigger') }}
-          </Button>
+        <template v-if="stack.length">
+          <!-- Bottom of the list draws first, matching how the layer library
+               reads. A group shares this list's `group` name, so a drag can
+               cross into and out of one. -->
+          <draggable
+            :model-value="stack"
+            item-key="id"
+            handle=".canvas-stack-handle"
+            :group="{ name: 'canvas-stack' }"
+            :animation="150"
+            class="space-y-1.5"
+            @change="onStackChange"
+          >
+            <template #item="{ element }">
+              <div>
+                <CanvasGroupRow
+                  v-if="element.kind === 'group'"
+                  :group="element.group"
+                  :children="element.children"
+                  @toggle="visible => patchGroup(element.id, { visible })"
+                  @collapse="collapsed => patchGroup(element.id, { collapsed })"
+                  @rename="name => patchGroup(element.id, { name })"
+                  @remove="removeGroup(element.id)"
+                  @change="change => onStackChange(change, element.id)"
+                >
+                  <template #item="{ entry }">
+                    <component :is="rowFor(entry)" v-bind="rowProps(entry)" />
+                  </template>
+                </CanvasGroupRow>
+
+                <component v-else :is="rowFor(element)" v-bind="rowProps(element)" />
+              </div>
+            </template>
+          </draggable>
         </template>
-      </ResponsiveDropdown>
 
-      <!-- Bottom of the list is the top of the map, matching how the layer
-           library already reads. -->
-      <p v-if="layers.length" class="text-[11px] text-muted-foreground pt-1">
-        {{ t('canvases.layers.order') }}
-      </p>
-
-      <draggable
-        v-if="layers.length"
-        v-model="layers"
-        item-key="id"
-        handle=".canvas-layer-handle"
-        :animation="150"
-        class="space-y-1.5"
-      >
-        <template #item="{ element }">
-          <CanvasLayerRow
-            :layer="element"
-            @toggle="visible => patchLayer(element.id, { visible })"
-            @edit="editLayer(element)"
-            @remove="removeLayer(element.id)"
-          />
-        </template>
-      </draggable>
-
-      <!-- Annotations count as content: a canvas with three pins on it is
-           not empty, whatever its layer list says. -->
-      <EmptyState
-        v-else-if="!body.annotations?.length"
-        :icon="LayersIcon"
-        :title="t('canvases.layers.empty')"
-        :description="t('canvases.layers.emptyHint')"
-        class="py-8"
-      />
-
-      <div class="pt-3 space-y-1.5">
-        <p class="text-[11px] text-muted-foreground">
-          {{ t('canvases.mapSettings.title') }}
-        </p>
-        <CanvasMapSettingsPanel
-          :model-value="body.mapSettings"
-          @update:model-value="setMapSettings"
-          @adopt="adoptMapSettings"
-        />
-      </div>
-
-      <div v-if="body.annotations?.length" class="pt-2 space-y-1.5">
-        <p class="text-[11px] text-muted-foreground">
-          {{ t('canvases.annotations.title') }}
-        </p>
-        <CanvasAnnotationRow
-          v-for="annotation in body.annotations"
-          :key="annotation.id"
-          :annotation="annotation"
-          :expanded="selectedAnnotationId === annotation.id"
-          @toggle-expanded="
-            selectedAnnotationId =
-              selectedAnnotationId === annotation.id ? null : annotation.id
-          "
-          @update="patch => patchAnnotation(annotation.id, patch)"
-          @remove="removeAnnotation(annotation.id)"
-          @zoom-to="zoomToAnnotation(annotation)"
-        />
-      </div>
+        <EmptyState
+          v-else
+          variant="card"
+          :icon="LayersIcon"
+          :title="t('canvases.stack.empty')"
+          :description="t('canvases.stack.emptyHint')"
+        >
+          <ResponsiveDropdown
+            :items="addMenuItems"
+            align="center"
+            :title="t('canvases.add.trigger')"
+          >
+            <template #trigger>
+              <Button variant="outline" size="sm">
+                <PlusIcon class="size-3.5" />
+                {{ t('canvases.add.trigger') }}
+              </Button>
+            </template>
+          </ResponsiveDropdown>
+        </EmptyState>
+      </section>
     </div>
 
     <AddCanvasLayerDialog

@@ -20,17 +20,21 @@ import {
   type CanvasMapSettings,
 } from '@/types/canvas.types'
 
+/**
+ * What the app is set to right now, for the keys a canvas can override — the
+ * set a canvas starts from when it takes appearance into its own hands.
+ */
+export function currentMapSettings(): CanvasMapSettings {
+  const mapStore = useMapStore()
+  return Object.fromEntries(
+    CANVAS_MAP_SETTING_KEYS.map(key => [key, mapStore.settings[key]]),
+  ) as unknown as CanvasMapSettings
+}
+
 export function useCanvasMapSettings(
   overrides: Ref<CanvasMapSettings | undefined>,
 ) {
   const mapStore = useMapStore()
-
-  /** What the app is set to right now, for the keys a canvas can override. */
-  function currentSettings(): CanvasMapSettings {
-    return Object.fromEntries(
-      CANVAS_MAP_SETTING_KEYS.map(key => [key, mapStore.settings[key]]),
-    ) as unknown as CanvasMapSettings
-  }
 
   function isParked() {
     return Object.keys(mapStore.parkedSettings).length > 0
@@ -38,7 +42,7 @@ export function useCanvasMapSettings(
 
   function park() {
     if (isParked()) return
-    mapStore.parkedSettings = currentSettings()
+    mapStore.parkedSettings = currentMapSettings()
   }
 
   function unpark() {
@@ -61,6 +65,4 @@ export function useCanvasMapSettings(
   )
 
   onScopeDispose(unpark)
-
-  return { currentSettings }
 }

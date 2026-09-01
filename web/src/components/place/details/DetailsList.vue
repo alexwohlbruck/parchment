@@ -35,6 +35,7 @@ import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import { Button } from '@/components/ui/button'
 import { formatClockTime } from '@/lib/time.utils'
+import { getOsmTagLabel } from '@/lib/osm-tag-labels'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -112,12 +113,18 @@ const wifiSubfields = computed(() => {
   return [
     {
       key: 'ssid',
-      label: t('place.osmTags.labels.internet_access_ssid'),
+      label: t(
+        'place.osmTags.labels.internet_access_ssid',
+        getOsmTagLabel('internet_access:ssid'),
+      ),
       value: wifiStatus.value.ssid,
     },
     {
       key: 'password',
-      label: t('place.details.wifiPassword'),
+      label: t(
+        'place.osmTags.labels.internet_access_password',
+        getOsmTagLabel('internet_access:password'),
+      ),
       value: wifiStatus.value.password,
     },
   ].filter(
@@ -569,7 +576,7 @@ function getFullAddress(address: any) {
           class="flex gap-3 group min-w-0"
         >
           <WifiIcon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-          <div class="flex min-w-0 flex-1 flex-col gap-2">
+          <div class="flex min-w-0 flex-1 flex-col">
             <div class="min-w-0">
               <div class="text-sm leading-tight text-muted-foreground">
                 {{ t('place.osmTags.labels.internet_access') }}
@@ -581,24 +588,23 @@ function getFullAddress(address: any) {
 
             <div
               v-if="wifiSubfields.length > 0"
-              class="space-y-1.5"
+              class="mt-1 divide-y divide-border/50"
             >
               <div
                 v-for="field in wifiSubfields"
                 :key="field.key"
-                class="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 min-w-0"
+                class="flex min-h-8 min-w-0 items-center gap-2 py-1"
               >
-                <div class="min-w-0 flex-1">
-                  <div class="text-[11px] leading-none text-muted-foreground">
-                    {{ field.label }}
-                  </div>
-                  <div class="break-all text-sm leading-snug text-foreground">
-                    {{ field.value }}
-                  </div>
+                <div class="w-24 shrink-0 truncate text-xs text-muted-foreground">
+                  {{ field.label }}
+                </div>
+                <div class="min-w-0 flex-1 break-all text-sm leading-snug text-foreground">
+                  {{ field.value }}
                 </div>
                 <CopyButton
                   :text="field.value"
                   :message="`${field.label} copied to clipboard`"
+                  class="-mr-1 shrink-0 opacity-60 transition-opacity hover:opacity-100"
                 />
               </div>
             </div>

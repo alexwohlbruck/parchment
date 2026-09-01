@@ -333,7 +333,8 @@
        1
       ]
      ]
-    }
+    },
+    "fill-outline-color": "@stadium_outline_color"
    },
    "filter": [
     "in",

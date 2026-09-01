@@ -283,6 +283,9 @@ async function shieldImages() {
  */
 const INSTITUTIONAL_LANDUSE = ['Cemetery', 'Hospital', 'School']
 
+/** Sports surfaces — `pitch`, `playground` and `stadium` share one layer. */
+const PITCH_LAYER = 'Stadium'
+
 // ---------------------------------------------------------------------------
 // Pedestrian paths and areas
 // ---------------------------------------------------------------------------
@@ -400,6 +403,10 @@ const LIGHT_LAND = {
   grass_fill_color: 'hsl(101, 70%, 60%)',
   wood_fill_color: 'hsl(92, 50%, 68%)',
   stadium_fill_color: 'hsl(98, 64%, 72%)',
+  // A pitch is a made surface with a boundary, so it gets an edge — the
+  // same green a shade down, which reads as the line around a field rather
+  // than as a second colour.
+  stadium_outline_color: 'hsl(98, 60%, 60%)',
   cemetery_fill_color: 'hsl(90, 34%, 82%)',
   // A campus is amber, not the pale blue MapTiler gives it: blue on a map with
   // water on it is a colour that already means something else. Yellow rather
@@ -776,7 +783,7 @@ function sinkRoadMarkings(layers) {
  * either it is invisible or washed green. The rule for surfaces is size: the
  * smaller, more specific one is what you are looking at, so sand goes last.
  */
-const SURFACES_BELOW_SAND = ['Grass', 'Stadium']
+const SURFACES_BELOW_SAND = ['Grass', PITCH_LAYER]
 
 function raiseSandAboveSurfaces(layers) {
   const sand = layers.findIndex(l => l.id === 'Sand')
@@ -786,6 +793,20 @@ function raiseSandAboveSurfaces(layers) {
   layers.splice(last, 0, fill)
 }
 
+
+/**
+ * The outline around a pitch.
+ *
+ * `fill-outline-color` rather than a line layer: it is one pixel wide at every
+ * zoom, which is what a boundary line wants to be, and it costs no extra layer
+ * or geometry. It rides the fill's own opacity ramp, so the edge fades in with
+ * the surface it belongs to instead of arriving before it.
+ */
+function outlinePitches(layers) {
+  const pitch = layers.find(l => l.id === PITCH_LAYER)
+  if (!pitch) return
+  pitch.paint = { ...pitch.paint, 'fill-outline-color': '@stadium_outline_color' }
+}
 
 function sinkInstitutionalLanduse(layers) {
   const moved = INSTITUTIONAL_LANDUSE.map(id => {
@@ -1415,6 +1436,7 @@ async function main() {
     layers.push(out)
   }
 
+  outlinePitches(layers)
   sinkInstitutionalLanduse(layers)
   raiseSandAboveSurfaces(layers)
   applyRoadInk(layers)
@@ -1537,6 +1559,11 @@ async function main() {
     tokens[flavor].poi_transit_ink = `@@tint-ink:${TRANSIT_BLUE[flavor]}`
     tokens[flavor].poi_transit_ring = `@@tint-ring:${TRANSIT_BLUE[flavor]}`
   }
+
+  // The pitch edge is authored, not lifted, so the night value is set here
+  // rather than in `DARK_OVERRIDES`: a shade off its own fill in each flavor,
+  // which at night means lighter, since there the fill is the dark thing.
+  tokens.dark.stadium_outline_color = 'hsl(183, 20%, 27%)'
 
   tokens.light.path_surface = 'hsl(44, 40%, 96%)'
   tokens.light.path_casing = 'hsl(42, 16%, 81%)'

@@ -88,6 +88,7 @@
  "road_major_casing": "hsl(40, 15%, 77%)",
  "road_minor": "hsl(0, 0%, 100%)",
  "road_minor_casing": "hsl(40, 14%, 84%)",
+ "stadium_outline_color": "hsl(98, 60%, 60%)",
  "poi_plate_food_and_drink": "@@category-plate:food_and_drink",
  "poi_ink_food_and_drink": "@@category-ink:food_and_drink",
  "poi_ring_food_and_drink": "@@category-ring:food_and_drink",

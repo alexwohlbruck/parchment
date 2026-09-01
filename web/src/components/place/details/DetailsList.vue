@@ -106,6 +106,26 @@ const wifiStatus = computed(() => {
   return getWifiStatus(wifiTags)
 })
 
+const wifiSubfields = computed(() => {
+  if (!wifiStatus.value) return []
+
+  return [
+    {
+      key: 'ssid',
+      label: t('place.osmTags.labels.internet_access_ssid'),
+      value: wifiStatus.value.ssid,
+    },
+    {
+      key: 'password',
+      label: t('place.details.wifiPassword'),
+      value: wifiStatus.value.password,
+    },
+  ].filter(
+    (field): field is { key: string; label: string; value: string } =>
+      typeof field.value === 'string' && field.value.length > 0,
+  )
+})
+
 const outdoorSeating = computed(() => {
   if (!props.place) return false
   const seating = props.place.amenities?.['outdoor_seating']?.value
@@ -544,20 +564,58 @@ function getFullAddress(address: any) {
     <PlaceSection v-if="wifiStatus || outdoorSeating || wheelchairAccess || smokingStatus || restroomAccess || wheelchairRestroomAccess">
       <template #main>
         <!-- WiFi -->
-        <DetailItem
+        <div
           v-if="wifiStatus"
-          :icon="WifiIcon"
-          :value="wifiStatus.label"
-          :copyValue="wifiStatus.password"
-          :osmUrl="osmUrl"
-          :label="t('place.details.wifiPassword')"
+          class="flex gap-3 group min-w-0"
         >
-          <template v-if="wifiStatus.ssid">
-            <span class="text-muted-foreground text-sm">
-              {{ t('place.details.wifiNetwork', { ssid: wifiStatus.ssid }) }}
-            </span>
-          </template>
-        </DetailItem>
+          <WifiIcon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <div class="min-w-0">
+              <div class="text-sm leading-tight text-muted-foreground">
+                {{ t('place.osmTags.labels.internet_access') }}
+              </div>
+              <div class="leading-snug break-words">
+                {{ wifiStatus.label }}
+              </div>
+            </div>
+
+            <div
+              v-if="wifiSubfields.length > 0"
+              class="space-y-1.5"
+            >
+              <div
+                v-for="field in wifiSubfields"
+                :key="field.key"
+                class="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 min-w-0"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="text-[11px] leading-none text-muted-foreground">
+                    {{ field.label }}
+                  </div>
+                  <div class="break-all text-sm leading-snug text-foreground">
+                    {{ field.value }}
+                  </div>
+                </div>
+                <CopyButton
+                  :text="field.value"
+                  :message="`${field.label} copied to clipboard`"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="flex opacity-0 transition-opacity shrink-0 group-hover:opacity-100">
+            <a
+              v-if="osmUrl"
+              :href="coordinates ? `${osmUrl}#map=19/${coordinates.lat}/${coordinates.lng}` : osmUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rounded p-1 hover:bg-muted"
+              :title="t('place.details.viewOnOpenStreetMap')"
+            >
+              <ExternalLinkIcon class="h-4 w-4 text-muted-foreground" />
+            </a>
+          </div>
+        </div>
 
         <!-- Outdoor Seating -->
         <DetailItem

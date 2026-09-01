@@ -8,13 +8,16 @@ import {
   getSearchResultIconPack,
   getSearchResultCategory,
 } from '@/lib/search.utils'
-import { getCategoryMarkerTint } from '@/lib/place-colors'
+import { categoryMarkerPaint } from '@/lib/place-colors'
+import { markerCss, type MarkerShape } from '@/lib/map-marker'
 import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
 
-const { place, isHovered } = defineProps<{
+const { place, isHovered, shape = 'disc' } = defineProps<{
   place: Place
   isHovered?: boolean
+  /** How the marker draws. Transit results read better as a square plate. */
+  shape?: MarkerShape
 }>()
 
 const emit = defineEmits<{
@@ -26,8 +29,14 @@ const emit = defineEmits<{
 const themeStore = useThemeStore()
 const iconName = computed(() => getSearchResultIconName(place))
 const iconPack = computed(() => getSearchResultIconPack(place))
-const tint = computed(() =>
-  getCategoryMarkerTint(getSearchResultCategory(place), themeStore.isDark),
+
+// The same plate, glyph and ring the basemap POI underneath wears, at the same
+// size — both now come out of `map-marker`.
+const css = computed(() =>
+  markerCss(
+    categoryMarkerPaint(getSearchResultCategory(place), themeStore.isDark, shape),
+    shape,
+  ),
 )
 
 const lucideIcon = computed(() => {
@@ -50,22 +59,22 @@ function handleMouseLeave(event: MouseEvent) {
 </script>
 
 <template>
-  <!-- The basemap's POI badge, in the DOM: same plate, glyph and ring, from
-       `getCategoryMarkerTint`. Text labels are drawn by the symbol layer. -->
   <div
-    class="size-[22px] border-[1.5px] rounded-full flex items-center justify-center shadow-md transition-all duration-150 ease-out cursor-pointer select-none"
+    class="shadow-md transition-all duration-150 ease-out cursor-pointer select-none"
     :class="{ 'scale-[1.3] shadow-lg': isHovered }"
-    :style="{
-      backgroundColor: tint.plate,
-      borderColor: tint.ring,
-      color: tint.ink,
-    }"
+    :style="css.plate"
     @click="handleClick"
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
-    <MakiIcon v-if="iconPack === 'maki'" :name="iconName" size="xs" class="fill-current" />
-    <component v-else :is="lucideIcon" class="size-3" />
+    <MakiIcon
+      v-if="iconPack === 'maki'"
+      :name="iconName"
+      size="xs"
+      class="fill-current"
+      :style="css.glyph"
+    />
+    <component v-else :is="lucideIcon" :style="css.glyph" />
   </div>
 </template>
 

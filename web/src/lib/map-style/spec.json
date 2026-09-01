@@ -19566,14 +19566,18 @@
               "colourfulness"
              ],
              [
-              "-",
+              "min",
+              0,
               [
-               "var",
-               "mid"
-              ],
-              [
-               "var",
-               "plain"
+               "-",
+               [
+                "var",
+                "mid"
+               ],
+               [
+                "var",
+                "plain"
+               ]
               ]
              ]
             ]
@@ -20045,7 +20049,7 @@
           "scale",
           [
            "/",
-           10,
+           11,
            [
             "max",
             [
@@ -20085,14 +20089,18 @@
               "colourfulness"
              ],
              [
-              "-",
+              "min",
+              0,
               [
-               "var",
-               "mid"
-              ],
-              [
-               "var",
-               "plain"
+               "-",
+               [
+                "var",
+                "mid"
+               ],
+               [
+                "var",
+                "plain"
+               ]
               ]
              ]
             ]

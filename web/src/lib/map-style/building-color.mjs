@@ -29,11 +29,11 @@
  *
  * Kept this low, the hue a facade contributes is nearly all it contributes;
  * what makes a brown building look brown at this strength is `VALUE_PULL`
- * below, which lets dark paint darken the surface it is on. 10 is night's
- * floor: at 9 the `rgb()` output rounds to whole channels coarser than the
- * tint, and the hue-fidelity test catches orange drifting off its own hue.
+ * below, which lets dark paint darken the surface it is on. 11 is night's
+ * floor: below it the `rgb()` output rounds to whole channels coarser than the
+ * tint, and the hue-fidelity test catches a facade drifting off its own hue.
  */
-export const BUILDING_TINT = { light: 34, dark: 10 }
+export const BUILDING_TINT = { light: 34, dark: 11 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units
@@ -82,6 +82,13 @@ const HEADROOM_REF = 90
  * `black` or `white` has no chroma, contributes nothing, and renders plain. It
  * is only a *fraction* of the distance, so even a saturated near-black — navy,
  * bottle green — darkens its building rather than punching a hole in the map.
+ *
+ * One direction only: paint may take a building down in value, never up. On
+ * the night map the flavor sits low and most facade colours are lighter than
+ * it, so a two-way pull lit every beige block up out of the city around it —
+ * and brightness on a map reads as light falling on a thing, which paint is
+ * not. Downward, the same rule says something true in both flavors: pigment
+ * absorbs. It is also why daylight needs no special case here.
  */
 const VALUE_PULL = 0.3
 
@@ -184,7 +191,7 @@ export function buildingColor(
               // paint's own — which is what separates brown from orange.
               'base', ['+', ['var', 'plain'],
                 ['*', VALUE_PULL, ['var', 'colourfulness'],
-                  ['-', ['var', 'mid'], ['var', 'plain']]]],
+                  ['min', 0, ['-', ['var', 'mid'], ['var', 'plain']]]]],
               'sub', ['*', ['var', 'bias'], ['-', ['var', 'high'], ['var', 'mid']], ['var', 'scale']],
               ['rgb', channel(0), channel(1), channel(2)]]]]]],
     colorToken,

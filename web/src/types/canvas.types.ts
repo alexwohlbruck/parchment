@@ -288,10 +288,34 @@ export const CANVAS_MAP_SETTING_KEYS = [
   'placeLabels',
 ] as const satisfies readonly (keyof CanvasMapSettings)[]
 
+/**
+ * A folder in the stack. Two levels only — a group holds layers and marks,
+ * never another group — which is as deep as a map stack ever needs to be and
+ * keeps dragging something into place unambiguous.
+ */
+export interface CanvasGroup {
+  id: string
+  name: string
+  /** Hides everything inside it, whatever each item says for itself. */
+  visible: boolean
+  /** Folded shut in the panel. Nothing to do with what draws. */
+  collapsed?: boolean
+  /** Ids of the layers and marks inside, bottom first. */
+  children: string[]
+}
+
 export interface CanvasBody {
   layers: CanvasLayer[]
   /** Pins, lines and shapes drawn straight onto the canvas. */
   annotations?: CanvasAnnotation[]
+  /** Folders in the stack. Their contents live in `children`. */
+  groups?: CanvasGroup[]
+  /**
+   * The one stack, bottom first: layer ids, mark ids and group ids
+   * interleaved. Absent on a canvas saved before the two lists merged, which
+   * reads as every layer and then every mark — the order they drew in then.
+   */
+  order?: string[]
   camera?: CanvasCamera
   /** Absent means the canvas follows whatever the app is set to. */
   mapSettings?: CanvasMapSettings

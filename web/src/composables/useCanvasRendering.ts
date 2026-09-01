@@ -32,7 +32,11 @@ import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { MARKER_RENDERED_LAYER_TYPES, type Layer } from '@/types/map.types'
-import type { CanvasBody, CanvasLayer } from '@/types/canvas.types'
+import type {
+  CanvasAnnotation,
+  CanvasBody,
+  CanvasLayer,
+} from '@/types/canvas.types'
 import {
   selectSavedPlaces,
   buildSavedPlacesGeoJSON,
@@ -45,6 +49,7 @@ import {
   annotationIconSpecs,
   annotationsCollection,
 } from '@/lib/canvas-annotations'
+import { canvasStack, stackDrawOrder } from '@/lib/canvas-stack'
 import { ANNOTATION_STROKE_STYLES } from '@/types/canvas.types'
 import { presetLayers } from '@/lib/map-style/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
@@ -407,15 +412,20 @@ export function useCanvasRendering(
   function planAnnotations(
     strategy: MapStrategy,
     canvas: RenderableCanvas,
+    run: CanvasAnnotation[],
   ): LayerPlan {
-    const annotations = (canvas.body?.annotations ?? []).filter(
+    const annotations = run.filter(
       annotation => annotation.id !== canvas.suppressedAnnotationId,
     )
     if (!annotations.length) return EMPTY_PLAN
 
-    const sourceId = scopedId(options.key, canvas.id, 'annotations', '-source')
-    const id = (suffix: string) =>
-      scopedId(options.key, canvas.id, 'annotations', suffix)
+    // Marks draw in runs now rather than as one bundle on top, so the ids are
+    // scoped to the run rather than to the canvas. Keyed by the mark at the
+    // bottom of the run: stable while the run keeps its footing, where a
+    // running index would renumber every run below an insertion.
+    const scope = `annotations:${annotations[0].id}`
+    const sourceId = scopedId(options.key, canvas.id, scope, '-source')
+    const id = (suffix: string) => scopedId(options.key, canvas.id, scope, suffix)
     const labels = themeStore.isDark ? LABEL_COLORS.night : LABEL_COLORS.day
     // A pin's glyph has to be on the map before the layer that names it.
     void ensureIconImages(strategy.mapInstance, annotationIconSpecs(annotations))
@@ -645,13 +655,33 @@ export function useCanvasRendering(
     }
 
     for (const canvas of canvases.value) {
-      // Bottom of the list draws first, matching how the layer library reads.
-      for (const layer of canvas.body?.layers ?? []) {
-        collect(planLayer(strategy, canvas.id, layer), layer.visible)
+      // Bottom of the stack draws first, matching how the panel reads.
+      // Marks are gathered into runs: consecutive ones share a source and a
+      // set of style layers, so a canvas whose marks sit together — which is
+      // most of them — still costs the one bundle it used to.
+      let run: { annotation: CanvasAnnotation; visible: boolean }[] = []
+      const flushRun = () => {
+        if (!run.length) return
+        const plan = planAnnotations(
+          strategy,
+          canvas,
+          run.filter(entry => entry.visible).map(entry => entry.annotation),
+        )
+        if (plan.layers.length) collect(plan, true)
+        run = []
       }
-      // Annotations last, so they draw over the canvas's own layers.
-      const annotations = planAnnotations(strategy, canvas)
-      if (annotations.layers.length) collect(annotations, true)
+
+      for (const { item, visible } of stackDrawOrder(
+        canvasStack(canvas.body ?? { layers: [] }),
+      )) {
+        if (item.kind === 'annotation') {
+          run.push({ annotation: item.annotation, visible })
+          continue
+        }
+        flushRun()
+        collect(planLayer(strategy, canvas.id, item.layer), visible)
+      }
+      flushRun()
     }
 
     /**

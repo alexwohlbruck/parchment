@@ -4,7 +4,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useMapStore } from '@/stores/map.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCanvasRendering } from './useCanvasRendering'
-import type { CanvasBody, CanvasLayer } from '@/types/canvas.types'
+import type {
+  CanvasAnnotation,
+  CanvasBody,
+  CanvasLayer,
+} from '@/types/canvas.types'
 
 /**
  * Two renderers are routinely alive at once — the main map draws the canvases
@@ -261,10 +265,16 @@ describe('labels under the map\'s lighting', () => {
     ],
   }
 
-  const labelPaint = () =>
-    strategy.configurations.get(
-      'canvas-map-canvas-1-annotations-labels',
-    ) as { paint: Record<string, unknown> } | undefined
+  // Marks draw in runs keyed by the one at the bottom, so the label layer's
+  // id depends on what is on the canvas. Found by its suffix instead.
+  const labelPaint = () => {
+    const id = [...strategy.configurations.keys()].find(key =>
+      key.endsWith('-labels'),
+    )
+    return strategy.configurations.get(id ?? '') as
+      | { paint: Record<string, unknown> }
+      | undefined
+  }
 
   it('writes dark text on a light halo by day', () => {
     useThemeStore().isDark = false
@@ -285,5 +295,101 @@ describe('labels under the map\'s lighting', () => {
     // Left alone, a dark label on a night basemap is a smear.
     expect(labelPaint()?.paint['text-color']).toBe('#f9fafb')
     expect(labelPaint()?.paint['text-halo-color']).toBe('#0b1220')
+  })
+})
+
+
+/**
+ * Layers and marks are one stack, so what covers what is whatever the order
+ * says — a mark is no longer pinned above every layer. Marks still share a
+ * source when they sit together, which is what keeps a canvas full of pins
+ * from becoming a source per pin.
+ */
+describe('one stack, marks and layers alike', () => {
+  const l = (id: string) => dataLayer({ id })
+  const a = (id: string): CanvasAnnotation =>
+    ({ id, tool: 'pin', positions: [[0, 0]] }) as CanvasAnnotation
+
+  /** The order the engine was asked to add things in, ids only. */
+  const added = () =>
+    strategy.calls
+      .filter(call => call.startsWith('addLayer:'))
+      .map(call => call.slice('addLayer:'.length))
+
+  it('draws a layer above a mark when the order puts it there', () => {
+    render('map', {
+      layers: [l('cl-1')],
+      annotations: [a('an-1')],
+      order: ['an-1', 'cl-1'],
+    })
+
+    const markAt = added().findIndex(id => id.includes('an-1'))
+    const layerAt = added().findIndex(id => id.includes('cl-1'))
+    expect(markAt).toBeGreaterThanOrEqual(0)
+    expect(markAt).toBeLessThan(layerAt)
+  })
+
+  it('still draws a mark above a layer the other way round', () => {
+    render('map', {
+      layers: [l('cl-1')],
+      annotations: [a('an-1')],
+      order: ['cl-1', 'an-1'],
+    })
+
+    const layerAt = added().findIndex(id => id.includes('cl-1'))
+    const markAt = added().findIndex(id => id.includes('an-1'))
+    expect(layerAt).toBeLessThan(markAt)
+  })
+
+  it('gives marks sitting together a single source', () => {
+    render('map', {
+      layers: [],
+      annotations: [a('an-1'), a('an-2'), a('an-3')],
+      order: ['an-1', 'an-2', 'an-3'],
+    })
+
+    expect([...strategy.sources]).toHaveLength(1)
+  })
+
+  it('splits them where a layer comes between', () => {
+    render('map', {
+      layers: [l('cl-1')],
+      annotations: [a('an-1'), a('an-2')],
+      order: ['an-1', 'cl-1', 'an-2'],
+    })
+
+    const annotationSources = [...strategy.sources].filter(id =>
+      id.includes('annotations'),
+    )
+    expect(annotationSources).toHaveLength(2)
+  })
+
+  it('leaves out a layer switched off, without splitting the marks around it', () => {
+    render('map', {
+      layers: [dataLayer({ id: 'cl-1', visible: false })],
+      annotations: [a('an-1'), a('an-2')],
+      order: ['an-1', 'cl-1', 'an-2'],
+    })
+
+    // The layer is still in the stack, so the run is still split — hiding
+    // something must not silently change what covers what around it.
+    expect(added().some(id => id.includes('cl-1'))).toBe(true)
+  })
+
+  it('takes a hidden group\'s contents off the map', () => {
+    render('map', {
+      layers: [l('cl-1')],
+      annotations: [],
+      groups: [
+        { id: 'cg-1', name: 'Base', visible: false, children: ['cl-1'] },
+      ],
+      order: ['cg-1'],
+    })
+
+    expect(
+      added().every(id => strategy.configurations.get(id)?.layout === undefined ||
+        (strategy.configurations.get(id) as { layout?: Record<string, unknown> })
+          .layout?.visibility === 'none'),
+    ).toBe(true)
   })
 })

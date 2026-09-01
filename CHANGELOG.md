@@ -4,6 +4,7 @@
 
 * The daylight map has colour in it. The ground is a warm cream rather than a cool near-white, parks and woods are a storybook green, water a sky blue, beaches sand, hospitals rose, and buildings a light grey that sits on the land instead of blending into it — so a neighbourhood has a shape before you read a single label
 * School and university grounds are amber instead of pale blue, which on a map with water on it was a colour that already meant something else
+* Ballfields and sand — a baseball infield, a bunker, a playground pit — are drawn on top of the grass around them rather than underneath it, so they read as their own surface instead of a faded patch of the park
 
 ## [0.8.1] - 2026-08-31
 

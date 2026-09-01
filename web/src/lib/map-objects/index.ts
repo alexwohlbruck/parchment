@@ -55,7 +55,7 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
  * way it looks at noon. The layer resolves them per draw rather than baking them
  * in: switching theme is a uniform, not a reload.
  *
- * Daylight foliage is `#99C07D`, as a plain sRGB triple. The models' own
+ * Daylight foliage is `#A5DE7C`, as a plain sRGB triple. The models' own
  * `baseColorFactor` is nominally linear and this comment used to say these were
  * too, but nothing in the pipeline treats them that way: the fragment shader
  * writes the colour straight to `gl_FragColor` and the drawing buffer is not
@@ -70,7 +70,7 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
     bark: [0.55, 0.42, 0.32],
-    foliage: [0.6, 0.753, 0.49],
+    foliage: [0.648, 0.872, 0.488],
     metal: [0.46, 0.49, 0.51],
     wood: [0.56, 0.42, 0.29],
     paint: [0.24, 0.44, 0.32],

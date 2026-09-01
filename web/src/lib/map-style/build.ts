@@ -111,7 +111,7 @@ export const MAX_PITCH = 85
  * `fog-color` is the haze drawn onto the far ground, which is what stops the
  * last few tiles reading as a hard edge.
  *
- * The two ground-side values track `LIGHT_GROUND` in `convert-basemap-style`.
+ * The two ground-side values track `LIGHT_LAND` in `convert-basemap-style`.
  * They are not tokens — the sky is ours, not MapTiler's — so a change to the
  * ground has to be made here too, and a mismatch shows as a band of the old
  * colour along the horizon where the land runs out.
@@ -119,8 +119,8 @@ export const MAX_PITCH = 85
 const SKY: Record<FlavorId, Record<string, string | number>> = {
   light: {
     'sky-color': 'hsl(205, 80%, 78%)',
-    'horizon-color': 'hsl(228, 12%, 92%)',
-    'fog-color': 'hsl(228, 14%, 94%)',
+    'horizon-color': 'hsl(44, 40%, 92%)',
+    'fog-color': 'hsl(44, 45%, 93%)',
     'fog-ground-blend': 0.72,
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,

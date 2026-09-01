@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Changed
+
+* The daylight map has colour in it. The ground is a warm cream rather than a cool near-white, parks and woods are green enough to read as planted, beaches are sand, hospitals rose, and buildings are a light grey that sits on the land instead of blending into it — so a neighbourhood has a shape before you read a single label
+* School and university grounds are amber instead of pale blue, which on a map with water on it was a colour that already meant something else
+
 ## [0.8.1] - 2026-08-31
 
 ### Changed

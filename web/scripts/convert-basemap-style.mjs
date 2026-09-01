@@ -361,8 +361,10 @@ const ROAD_INK = {
  * So the ground goes back to a cream — warmer and more saturated than
  * MapTiler's, which the app's near-white chrome (#F7F6F9, #F6F9F7, #F9F6F6,
  * #F9F8F6) sits over as a surface rather than blending into — and the land
- * classes come up with it: green for anything planted, amber for campuses,
- * rose for hospitals, sand for beaches.
+ * classes come up with it, and further than Apple takes them: a storybook
+ * green for anything planted, a sky blue for water, amber for campuses, rose
+ * for hospitals, sand for beaches. Saturation is what a map has instead of
+ * labels at a glance, and this one can afford to spend it.
  *
  * Lightness is the part that does not move. Every contrast on the daylight map
  * is a lightness relationship — buildings sit just off the ground, roof edges
@@ -370,12 +372,12 @@ const ROAD_INK = {
  * moving it in value adds colour and disturbs nothing that was tuned.
  */
 const LIGHT_LAND = {
-  background_background_color: 'hsl(44, 45%, 93%)',
-  background_background_color_2: 'hsl(44, 40%, 92%)',
-  residential_fill_color: 'hsl(43, 34%, 88%)',
-  residential_fill_color_2: 'hsl(43, 38%, 90%)',
-  pier_fill_color: 'hsl(44, 38%, 92%)',
-  bridge_outline_line_color: 'hsl(44, 38%, 92%)',
+  background_background_color: 'hsl(44, 52%, 93%)',
+  background_background_color_2: 'hsl(44, 46%, 92%)',
+  residential_fill_color: 'hsl(43, 40%, 88%)',
+  residential_fill_color_2: 'hsl(43, 44%, 90%)',
+  pier_fill_color: 'hsl(44, 44%, 92%)',
+  bridge_outline_line_color: 'hsl(44, 44%, 92%)',
   // Industrial land is a neutral in MapTiler too, just a warm one; the two
   // translucent members keep their alpha, which is what they are for.
   industrial_fill_color: 'hsl(40, 18%, 89%)',
@@ -386,17 +388,25 @@ const LIGHT_LAND = {
   // Anything planted, in one green family. Grass reads far paler than it looks
   // here — its layer draws at half opacity over the ground, deliberately, so
   // that a park edge softens rather than cuts — so the token is pitched about
-  // as far past the intended green as the blend pulls it back.
-  grass_fill_color: 'hsl(100, 60%, 71%)',
-  wood_fill_color: 'hsl(88, 42%, 76%)',
-  stadium_fill_color: 'hsl(96, 55%, 80%)',
-  cemetery_fill_color: 'hsl(88, 26%, 86%)',
+  // as far past the intended green as the blend pulls it back: on the map it
+  // lands near hsl(97, 55%, 70%), a shade below the wood it borders.
+  grass_fill_color: 'hsl(101, 70%, 60%)',
+  wood_fill_color: 'hsl(92, 50%, 68%)',
+  stadium_fill_color: 'hsl(98, 64%, 72%)',
+  cemetery_fill_color: 'hsl(90, 34%, 82%)',
   // A campus is amber, not the pale blue MapTiler gives it: blue on a map with
   // water on it is a colour that already means something else.
-  school_fill_color: 'hsl(41, 78%, 84%)',
-  hospital_fill_color: 'hsl(4, 68%, 91%)',
-  sand_fill_color: 'hsl(48, 88%, 85%)',
+  school_fill_color: 'hsl(40, 88%, 80%)',
+  hospital_fill_color: 'hsl(4, 78%, 88%)',
+  sand_fill_color: 'hsl(46, 92%, 80%)',
   airport_zone_fill_color: 'hsl(42, 18%, 91%)',
+  // The water the land meets. MapTiler's is already a bright blue, but a pale
+  // one, and next to greens this saturated it reads as the thing that faded.
+  water_fill_color: 'hsl(202, 88%, 68%)',
+  water_intermittent_fill_color: 'hsl(203, 84%, 78%)',
+  river_line_color: 'hsl(206, 82%, 66%)',
+  river_tunnel_line_color: 'hsl(206, 82%, 66%)',
+  aqueduct_line_color: 'hsl(202, 88%, 68%)',
 }
 
 /** `class` values each rung of the hierarchy covers, as the tunnel layers split them. */

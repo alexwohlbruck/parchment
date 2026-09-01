@@ -420,17 +420,17 @@ const LIGHT_LAND = {
   airport_zone_fill_color: 'hsl(42, 18%, 91%)',
   // The flat building fill, for the zooms below the extrusions. Its layer draws
   // at 0.3, so the token is well past where the buildings land.
-  building_fill_color: 'hsl(38, 28%, 64%)',
-  building_fill_outline_color: 'hsla(38, 24%, 74%, 0.3)',
-  building_fill_outline_color_2: 'hsl(38, 24%, 74%)',
+  building_fill_color: 'hsl(40, 34%, 64%)',
+  building_fill_outline_color: 'hsla(40, 30%, 75%, 0.3)',
+  building_fill_outline_color_2: 'hsl(40, 30%, 75%)',
   // The water the land meets: a light cyan-leaning blue rather than the azure
   // it was. Deep blue is what a nautical chart wants — a map of a city wants
   // water that reads as shallow and lit, the way it does from a plane.
-  water_fill_color: 'hsl(197, 85%, 74%)',
-  water_intermittent_fill_color: 'hsl(198, 78%, 83%)',
-  river_line_color: 'hsl(199, 76%, 70%)',
-  river_tunnel_line_color: 'hsl(199, 76%, 70%)',
-  aqueduct_line_color: 'hsl(197, 85%, 74%)',
+  water_fill_color: 'hsl(197, 92%, 72%)',
+  water_intermittent_fill_color: 'hsl(198, 84%, 82%)',
+  river_line_color: 'hsl(199, 82%, 68%)',
+  river_tunnel_line_color: 'hsl(199, 82%, 68%)',
+  aqueduct_line_color: 'hsl(197, 92%, 72%)',
 }
 
 /** `class` values each rung of the hierarchy covers, as the tunnel layers split them. */
@@ -1621,10 +1621,10 @@ async function main() {
   // flavor puts them just under the land they stand on.
   //
   //                        ground             roof
-  //   light   hsl(44, 52%, 95%)    hsl(38, 30%, 87%)
+  //   light   hsl(44, 52%, 95%)    hsl(42, 38%, 88%)
   //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
   //
-  // Daylight is the one place the roof goes the other way — eight points below
+  // Daylight is the one place the roof goes the other way — seven points below
   // the cream and a good deal less saturated. It stays in the warm family, so a
   // roof reads as a made surface rather than a grey object dropped on the land,
   // but it must not land *on* the ground's colour: a block has to be a thing
@@ -1633,11 +1633,11 @@ async function main() {
   // buildings on it is how a city block reads as built rather than as more
   // ground, and it is the relationship Apple's daylight map is built on. The
   // walls fall from there, so the elevation still lights from above.
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(38, 30%, 87%)'
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(42, 38%, 88%)'
   tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
 
   // Matches the shader's roofline edge: darker than the roof it outlines.
-  tokens.light.building_roof_edge = 'hsl(38, 24%, 71%)'
+  tokens.light.building_roof_edge = 'hsl(42, 30%, 72%)'
   tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when

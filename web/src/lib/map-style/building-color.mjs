@@ -14,12 +14,17 @@
  *
  * OpenMapTiles carries `building:colour` from OSM, and in a mapped-out city it
  * is on most buildings — 67-91% across central Manhattan — so this drives the
- * look of the whole 3D layer rather than being a rare accent. These were cut to
+ * look of the whole 3D layer rather than being a rare accent. Both were cut to
  * 22/30 to stop a street of brick reading as a wash of colour over the land;
  * the daylight roof has since come down off near-white, which leaves room for
- * the paint again, so they are back where they were tuned.
+ * the paint again, so day is back where it was tuned.
+ *
+ * Night is not, and the reason is above: "night has the room" is true of
+ * headroom and false of how the eye reads it. Against a dark ground a channel
+ * pushed this far reads as a lit surface rather than a tint, and lower
+ * Manhattan came out as a field of gold and blue slabs. Night keeps the cut.
  */
-export const BUILDING_TINT = { light: 34, dark: 46 }
+export const BUILDING_TINT = { light: 34, dark: 30 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units

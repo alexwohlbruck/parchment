@@ -21,10 +21,12 @@
  *
  * Night is not, and the reason is above: "night has the room" is true of
  * headroom and false of how the eye reads it. Against a dark ground a channel
- * pushed this far reads as a lit surface rather than a tint, and lower
- * Manhattan came out as a field of gold and blue slabs. Night keeps the cut.
+ * pushed even as far as day's reads as a lit surface rather than a tint, and
+ * lower Manhattan came out as a field of gold and blue slabs. So night is now
+ * the quieter of the two rather than the louder — enough for a brick block to
+ * be a shade off a rendered one, not enough to be its own colour.
  */
-export const BUILDING_TINT = { light: 34, dark: 30 }
+export const BUILDING_TINT = { light: 34, dark: 16 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units

@@ -10,6 +10,13 @@ import {
   getPlacePolygonStrokeColor,
 } from './helpers'
 import { getCustomColorTint } from '@/lib/color-tint'
+import {
+  markerGlyphSizeForRadius,
+  MARKER_GLYPH_PLACEMENT,
+  MARKER_PLATE_PLACEMENT,
+  MARKER_PLATE_SIZE,
+  MARKER_RING_WIDTH,
+} from '@/lib/map-marker'
 
 // Search results layer constants - these are internal and not user-modifiable
 export const SEARCH_RESULTS_LAYER_ID = 'search-results-internal'
@@ -162,16 +169,11 @@ export const EMPTY_SEARCH_RESULTS_GEOJSON = {
  */
 const DOT = {
   zoom: { hidden: 10, min: 10.5, collapsed: 13.5, marker: 14, full: 15 },
-  radius: { min: 1, collapsed: 2.5, marker: 6, full: 9.5 },
+  // Only the ramp is local. Where it ends is the shared marker size, so a
+  // saved place at full zoom is exactly the mark a search result and a canvas
+  // pin are — see `map-marker/marker-metrics`.
+  radius: { min: 1, collapsed: 2.5, marker: 6, full: MARKER_PLATE_SIZE / 2 },
 } as const
-
-/**
- * Glyph size for a given dot radius. Images are registered at 24 logical px,
- * and `1.14r / 24` holds the glyph at ~57% of the dot's diameter — the
- * glyph-to-circle ratio the basemap's POI sprites use.
- */
-const glyphSize = (radius: number) =>
-  Math.round(((radius * 1.14) / 24) * 1000) / 1000
 
 /** Glyphs appear once the dot is big enough to hold one legibly. */
 export const BOOKMARKS_ICON_MINZOOM = DOT.zoom.collapsed
@@ -186,8 +188,8 @@ export const BOOKMARKS_ICON_MINZOOM = DOT.zoom.collapsed
  * basemap's own POI sprites do.
  */
 export const MARKER_CIRCLE_RADIUS = DOT.radius.full
-export const MARKER_CIRCLE_STROKE_WIDTH = 1.5
-export const MARKER_ICON_SIZE = glyphSize(DOT.radius.full)
+export const MARKER_CIRCLE_STROKE_WIDTH = MARKER_RING_WIDTH
+export const MARKER_ICON_SIZE = markerGlyphSizeForRadius(DOT.radius.full)
 
 /**
  * NB: a `['zoom']` interpolate has to be the OUTERMOST expression of a paint
@@ -242,11 +244,11 @@ const BOOKMARK_ICON_SIZE = [
   ['linear'],
   ['zoom'],
   DOT.zoom.collapsed,
-  glyphSize(DOT.radius.collapsed),
+  markerGlyphSizeForRadius(DOT.radius.collapsed),
   DOT.zoom.marker,
-  glyphSize(DOT.radius.marker),
+  markerGlyphSizeForRadius(DOT.radius.marker),
   DOT.zoom.full,
-  glyphSize(DOT.radius.full),
+  markerGlyphSizeForRadius(DOT.radius.full),
 ]
 
 /**
@@ -305,16 +307,7 @@ export const BOOKMARKS_CIRCLES_LAYER_CONFIG: Omit<
       'circle-opacity': BOOKMARK_CIRCLE_OPACITY,
       'circle-stroke-opacity': BOOKMARK_CIRCLE_OPACITY,
       'circle-stroke-color': MARKER_CONTRAST_COLOR,
-      // Both 'viewport' so a saved place behaves like the basemap's POI
-      // symbols under a tilted camera: `map` alignment lays the circle flat on
-      // the ground plane, where pitch foreshortens it into an ellipse, and
-      // `map` scaling grows the near ones with perspective. The glyph on top
-      // is a symbol layer, which is viewport-aligned by default — so leaving
-      // these as 'map' made the circle distort out from under a glyph that
-      // didn't.
-      'circle-pitch-alignment': 'viewport',
-      'circle-pitch-scale': 'viewport',
-      'circle-emissive-strength': 1,
+      ...MARKER_PLATE_PLACEMENT,
     },
   },
 }
@@ -337,22 +330,9 @@ export const BOOKMARKS_ICONS_LAYER_CONFIG: Omit<
     source: BOOKMARKS_SOURCE_ID,
     minzoom: BOOKMARKS_ICON_MINZOOM,
     layout: {
-      // Deliberately NOT `symbol-z-elevate`: that lifts a symbol to the
-      // elevation of whatever is beneath it (terrain, buildings) while the
-      // circle layer stays on the ground plane, so a tilted camera pulls the
-      // glyph off its dot. Right for labels that should ride on top of
-      // buildings; wrong for a glyph that belongs to a specific circle.
-      //
-      // Pinned to the viewport for the same reason the circle is — both have
-      // to be drawn in the same space or they separate under pitch.
-      'icon-pitch-alignment': 'viewport',
-      'icon-rotation-alignment': 'viewport',
+      ...MARKER_GLYPH_PLACEMENT,
       // Image ids are registered by `map-icon-images.ts` under this scheme.
       'icon-image': ['concat', 'bm-', ['get', 'iconPack'], '-', ['get', 'icon']],
-      // The glyph belongs to its circle, not to the label collision system:
-      // letting it be culled would leave an empty dot behind.
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
       'icon-size': BOOKMARK_ICON_SIZE,
     },
     paint: {

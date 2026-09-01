@@ -24,6 +24,7 @@
  * MapLibre only. Mapbox draws Standard's own POIs.
  */
 import { sdfDistance, SDF_BUFFER } from './sdf.mjs'
+import { MARKER_BADGE_RING_WIDTH } from '@/lib/map-marker/marker-metrics.mjs'
 
 /** Marks an image the sprite cannot supply and this module has to build. */
 export const POI_BADGE_PREFIX = 'poi|'
@@ -36,8 +37,11 @@ export const POI_BADGE_PREFIX = 'poi|'
  * shade wider now that it is carrying the badge's edge rather than just
  * separating it from the ground. What that colour is, is the style's call; see
  * `COLOR_TINTS` in `color-tint.ts`.
+ *
+ * Named apart from the app's own marker ring rather than shared with it — see
+ * `marker-metrics.mjs` for why the two differ.
  */
-const RING_WIDTH = 1.9
+const RING_WIDTH = MARKER_BADGE_RING_WIDTH
 
 /** How far the lift under the badge spreads, and how far it falls, in CSS px. */
 const LIFT_BLUR = 2.2

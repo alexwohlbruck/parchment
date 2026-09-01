@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronRightIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
@@ -59,11 +60,44 @@ const departures = computed((): TransitDeparture[] => {
  *  Rendered by the place header next to the title (Apple-Maps style) —
  *  published there as soon as the widget data arrives. */
 const stationLines = computed(() => transitInfo.value?.routes || [])
+
+/**
+ * Which of those lines have a run on the board.
+ *
+ * This is the honest reading of "in service": the board looked ahead
+ * `windowMinutes` and this line had nothing in it. Systems shorten and
+ * suspend lines by hour — the MTA's B stops at night, the 5 runs a
+ * fraction of its route — and a bullet that looks identical at 3am to
+ * one at 3pm is telling the rider something false.
+ *
+ * Published alongside the lines rather than computed in the header,
+ * because the departures live here.
+ */
+const runningRouteIds = computed(() => {
+  const ids = new Set<string>()
+  for (const d of departures.value) if (d.route?.id) ids.add(d.route.id)
+  return ids
+})
+
 watch(
-  stationLines,
-  (lines) => setPlaceTransitLines(props.place?.id, lines),
+  [stationLines, runningRouteIds],
+  ([lines, running]) =>
+    setPlaceTransitLines(props.place?.id, lines, {
+      feedId: transitInfo.value?.feedId,
+      runningRouteIds: running,
+    }),
   { immediate: true },
 )
+
+/** The bullets the map draws for these routes: portolan's curated shape,
+ *  colour and label, resolved against the stop's own coordinates. */
+watch(
+  () => [transitInfo.value?.lat, transitInfo.value?.lng],
+  () => void ensureBulletsAt(transitInfo.value?.lat, transitInfo.value?.lng),
+  { immediate: true },
+)
+const styleOfRoute = (route: { id: string }) =>
+  bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng)
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
@@ -172,9 +206,10 @@ function openRouteDetail(group: RouteGroup) {
             @click="openRouteDetail(group)"
           >
             <RouteBullet
-              :label="getRouteBulletLabel(group.route, t)"
-              :color="group.route.color"
-              :text-color="group.route.textColor"
+              :label="styleOfRoute(group.route)?.label || getRouteBulletLabel(group.route, t)"
+              :color="styleOfRoute(group.route)?.color || group.route.color"
+              :shape="styleOfRoute(group.route)?.shape"
+              :text-color="styleOfRoute(group.route)?.color ? null : group.route.textColor"
               class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
             />
             <span class="text-sm text-muted-foreground truncate group-hover/route:text-foreground transition-colors">

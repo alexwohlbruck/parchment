@@ -9,6 +9,7 @@ import {
   MapCamera,
   MapTheme,
   MapStyleId,
+  PoiStyleId,
   Pegman,
   MapProjection,
   MapControlSettings,
@@ -27,8 +28,10 @@ const defaultSettings: MapSettings = {
   engine: MapEngine.MAPBOX,
   projection: MapProjection.GLOBE,
   basemap: 'standard',
-  mapStyle: 'osm-liberty',
+  mapStyle: 'parchment',
+  poiStyle: 'badge',
   terrain3d: false,
+  buildings3d: true,
   objects3d: true,
   poiLabels: true,
   roadLabels: true,
@@ -102,11 +105,23 @@ export const useMapStore = defineStore('map', () => {
   )
 
   // Anything still parked at startup was never handed back — the tab went
-  // away while a canvas had the map. Give it back now.
+  // away while a canvas had the map. Give it back now, BEFORE the migration
+  // below: while a canvas holds the map, `settings` carries the canvas's
+  // choices, and deriving the 3D split from those would hand the user back a
+  // skyline the canvas asked for rather than the one they set.
   if (Object.keys(parkedSettings.value).length) {
     Object.assign(settings.value, parkedSettings.value)
     parkedSettings.value = {}
   }
+
+  // One-time split of the single "3D objects" switch into buildings and scene
+  // objects. `useStorage` returns the stored object as-is rather than merging
+  // new defaults into it, so without this an existing install would come back
+  // with `buildings3d` undefined and its skyline flat.
+  if (settings.value.buildings3d === undefined) {
+    settings.value.buildings3d = settings.value.objects3d ?? true
+  }
+  if (settings.value.objects3d === undefined) settings.value.objects3d = true
   const controlSettings = useStorage<MapControlSettings>(
     'map-controls',
     getDefaultControlSettings(),
@@ -129,6 +144,10 @@ export const useMapStore = defineStore('map', () => {
 
   function setMapStyle(styleId: MapStyleId) {
     settings.value.mapStyle = styleId
+  }
+
+  function setPoiStyle(poiStyle: PoiStyleId) {
+    settings.value.poiStyle = poiStyle
   }
 
   // Event methods
@@ -171,6 +190,7 @@ export const useMapStore = defineStore('map', () => {
     setMapCamera,
     setBasemap,
     setMapStyle,
+    setPoiStyle,
     on,
     off,
     emit,

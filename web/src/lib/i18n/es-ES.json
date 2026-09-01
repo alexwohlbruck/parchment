@@ -430,6 +430,14 @@
   },
   "layers": {
     "title": "Capas",
+    "transit": {
+      "rail": "Tren",
+      "bus": "Autobús",
+      "ferry": "Ferri",
+      "other": "Otros",
+      "serviceTime": "Hora de servicio",
+      "live": "En directo"
+    },
     "meta": {
       "title": "Información de la capa",
       "fields": {
@@ -1140,7 +1148,10 @@
           "SEVERE": "Interrupción",
           "WARNING": "Aviso"
         }
-      }
+      },
+      "notInService": "No circula ahora",
+      "openRouteDetail": "Ver {name}",
+      "notInServiceNamed": "{name} no circula ahora"
     },
     "header": {
       "showMore": "Ver más",
@@ -1667,7 +1678,9 @@
         "title": "Configuración del mapa",
         "experimental": "Experimental",
         "3dTerrain": "Terreno 3D",
+        "3dBuildings": "Edificios 3D",
         "3dObjects": "Objetos 3D",
+        "3dObjectsDescription": "Dibuja árboles y mobiliario urbano como modelos. Solo MapLibre.",
         "hdRoads": "Carreteras HD",
         "hdRoadsDescription": "Visualización de carreteras de alta definición con detalles mejorados",
         "indoorMaps": "Mapas de interiores",
@@ -1724,6 +1737,10 @@
       "style": {
         "title": "Estilo",
         "mapStyle": "Estilo del mapa",
+        "poiStyle": "Iconos de lugares",
+        "poiStyleDescription": "Cómo se dibujan los puntos de interés en el mapa.",
+        "poiStyleBadge": "Insignias de color",
+        "poiStyleGlyph": "Solo iconos",
         "descriptionMaplibre": "Estilo visual del mapa",
         "descriptionMapbox": "Mapbox usa su propio estilo estándar",
         "placeholder": "Elige un estilo"

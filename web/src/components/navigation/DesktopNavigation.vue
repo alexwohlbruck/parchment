@@ -92,7 +92,7 @@ useHotkeys([
   },
   {
     id: HotkeyId.OPEN_SETTINGS,
-    key: [','],
+    key: ['mod', ','],
     name: t('settings.title'),
     description: t('settings.openHotkeyDescription'),
     handler: () => {

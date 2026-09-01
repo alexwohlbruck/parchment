@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -58,6 +58,23 @@ const vehiclesStore = useVehiclesStore()
 const recentsStore = useRecentsStore()
 const { isMobileScreen } = useResponsive()
 const isDev = import.meta.env.DEV
+
+// TEMPORARY: the building-lighting tuner, as a panel over the map. Opened from
+// Settings → Developer, which is a dialog that covers the very thing being
+// tuned. Async-imported behind the dev check so the chunk never ships.
+const BuildingShadePopover = isDev
+  ? defineAsyncComponent(() => import('@/components/map/dev/BuildingShadePopover.vue'))
+  : null
+const shadePopoverOpen = ref(
+  isDev && sessionStorage.getItem('dev:shade-popover') === '1',
+)
+watch(
+  () => route.fullPath,
+  () => {
+    if (isDev) shadePopoverOpen.value = sessionStorage.getItem('dev:shade-popover') === '1'
+  },
+)
+
 const { openExternalLink } = useExternalLink()
 
 const { dialogs } = appStore
@@ -239,6 +256,7 @@ function beforeNavTransition(value: boolean) {
   <HotkeysMenu />
   <DialogView></DialogView>
   <ImpersonationBanner v-if="isDev" />
+  <component :is="BuildingShadePopover" v-if="shadePopoverOpen" />
   <OnboardingDialog v-if="authStore.needsOnboarding" />
   <KeyRestoreDialog v-else-if="authStore.me" />
 

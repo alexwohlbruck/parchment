@@ -21,6 +21,14 @@ export function createVueMarkerElement(
   const app: App = createApp(component, props)
   app.use(i18n)
 
+  // A marker is its own app, so it inherits nothing from the main one: any
+  // component calling useI18n() throws on mount, and the throw escapes into
+  // whatever was iterating markers. That killed every initializer queued
+  // after the marker layers in onStyleLoad — bookmarks, notes, timeline and
+  // the portolan ribbons all silently vanished for any account that owned a
+  // tracker. Markers need the same translations as the rest of the app.
+  app.use(i18n)
+
   // Mount the app to the container
   app.mount(container)
 

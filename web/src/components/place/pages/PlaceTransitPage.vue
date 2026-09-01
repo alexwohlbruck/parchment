@@ -6,6 +6,7 @@ import { WidgetType } from '@/types/place.types'
 import { ClockIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
 import ServiceAlertBadge from '@/components/transit/ServiceAlertBadge.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
@@ -56,6 +57,15 @@ watch(
 const departures = computed((): TransitDeparture[] => {
   return laterDepartures.value || props.transitInfo?.departures || []
 })
+
+/** Same curated bullets as the card this page expands. */
+watch(
+  () => [props.transitInfo?.lat, props.transitInfo?.lng],
+  () => void ensureBulletsAt(props.transitInfo?.lat, props.transitInfo?.lng),
+  { immediate: true },
+)
+const styleOfRoute = (route: { id: string }) =>
+  bulletFor(route.id, props.transitInfo?.lat, props.transitInfo?.lng)
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
@@ -180,9 +190,10 @@ function openTransitlandLink() {
           @click="openRouteDetail(group.representative)"
         >
           <RouteBullet
-            :label="getRouteBulletLabel(group.route, t)"
-            :color="group.route.color"
-            :text-color="group.route.textColor"
+            :label="styleOfRoute(group.route)?.label || getRouteBulletLabel(group.route, t)"
+            :color="styleOfRoute(group.route)?.color || group.route.color"
+            :shape="styleOfRoute(group.route)?.shape"
+            :text-color="styleOfRoute(group.route)?.color ? null : group.route.textColor"
             class="group-hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
           />
           <span class="text-sm text-muted-foreground truncate group-hover:text-foreground transition-colors">

@@ -1250,6 +1250,9 @@ export const useLayersStore = defineStore('layers', () => {
     // Optimistic visibility
     updateLayerVisibility,
     toggleLayerGroupVisibility,
+    // Read side of the override map, for synthetic selector rows (portolan
+    // class toggles) whose ids are not `layers` rows but persist here too.
+    getLayerVisibilityOverride,
 
     // Drag and drop
     handleMainReorder,

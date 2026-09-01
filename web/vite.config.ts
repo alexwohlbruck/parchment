@@ -1,12 +1,50 @@
 import path from 'path'
 import vue from '@vitejs/plugin-vue'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import svgLoader from 'vite-svg-loader'
 import { readFileSync } from 'fs'
+import { createRequire } from 'module'
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 
 const host = process.env.TAURI_DEV_HOST
+
+/**
+ * Ship the chunk MapLibre's worker imports.
+ *
+ * `maplibre.strategy.ts` pulls the worker in with `?url`, which copies the file
+ * verbatim and hands back its URL. Verbatim means its own
+ * `import ... from './maplibre-gl-shared.mjs'` is left exactly as written, and
+ * Rollup never sees it, so that sibling is never emitted. The dev server gets
+ * away with it because `optimizeDeps.exclude` serves MapLibre straight from
+ * `node_modules`, where the two files already sit side by side — a production
+ * build has only the worker.
+ *
+ * The failure is silent and total: the import 404s (or, behind an SPA fallback,
+ * comes back as `index.html`), the worker dies before it can report anything,
+ * and every source stays pending forever. No tiles are ever requested, no error
+ * is raised, and the map renders blank.
+ *
+ * The worker's import is relative and unhashed, so the sibling has to keep that
+ * exact name — hence `fileName` rather than the usual hashed asset naming.
+ */
+function maplibreWorkerChunk(): Plugin {
+  return {
+    name: 'maplibre-worker-shared-chunk',
+    apply: 'build',
+    generateBundle() {
+      const require = createRequire(import.meta.url)
+      const shared = require.resolve(
+        'maplibre-gl/dist/maplibre-gl-shared.mjs',
+      )
+      this.emitFile({
+        type: 'asset',
+        fileName: 'assets/maplibre-gl-shared.mjs',
+        source: readFileSync(shared, 'utf-8'),
+      })
+    },
+  }
+}
 
 export default defineConfig({
   define: {
@@ -17,6 +55,7 @@ export default defineConfig({
     svgLoader({
       defaultImport: 'url', // Import as URL by default
     }),
+    maplibreWorkerChunk(),
   ],
   resolve: {
     alias: {
@@ -26,6 +65,14 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['@morev/vue-transitions'],
+    // MapLibre 6 is ESM-only and loads its worker as a real URL rather than a
+    // blob — `new Worker(new URL('./maplibre-gl-worker.mjs', import.meta.url))`.
+    // Pre-bundling rewrites that module into `.vite/deps/`, where the worker
+    // file does not exist, so the request comes back empty and the map never
+    // starts: "Loading Worker ... blocked because of a disallowed MIME type".
+    // Excluding it serves the package's own ESM straight from node_modules, so
+    // the worker URL resolves next to the module that asks for it.
+    exclude: ['maplibre-gl'],
   },
   server: {
     port: parseInt(process.env.VITE_PORT || '5173'),

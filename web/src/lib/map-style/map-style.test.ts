@@ -25,6 +25,7 @@ import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
+import { BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
@@ -482,6 +483,23 @@ describe('badge POI treatment', () => {
     )
     expect(firstCover).toBeLessThan(Infinity)
     expect(lastInstitutional).toBeLessThan(firstCover)
+  })
+
+  /**
+   * The facade tint is baked into `spec.json` for the walls and computed at
+   * runtime for the roof, from the same constant — so editing the constant
+   * without re-running the generator leaves the two disagreeing, and a
+   * building wears one strength on its roof and another on its walls. That is
+   * exactly what happened while the night tint was being brought down: the
+   * roofs quietened three times and the facades stayed where they were.
+   */
+  test('the facade tint in the spec matches the constant it came from', () => {
+    for (const flavor of ['light', 'dark'] as const) {
+      const baked = JSON.stringify((spec as any).flavorStyles?.[flavor] ?? null)
+      const found = [...baked.matchAll(/\["\/",(\d+),\["max"/g)].map(m => Number(m[1]))
+      expect(found.length, `${flavor}: no tint found in the spec`).toBeGreaterThan(0)
+      for (const amount of found) expect(amount, flavor).toBe(BUILDING_TINT[flavor])
+    }
   })
 
   /**

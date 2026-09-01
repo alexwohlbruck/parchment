@@ -26,8 +26,12 @@
  * the quieter of the two rather than the louder, and quiet enough that the
  * paint is a cast on a grey building rather than a colour the building is —
  * two neighbours differ, and neither announces itself.
+ *
+ * 12 is the floor, not a taste: below it the `rgb()` output rounds to whole
+ * channels coarser than the tint itself, and the hue a facade keeps starts to
+ * drift off the one it was given — which the hue-fidelity test catches at 10.
  */
-export const BUILDING_TINT = { light: 34, dark: 10 }
+export const BUILDING_TINT = { light: 34, dark: 12 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units

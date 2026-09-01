@@ -25,6 +25,7 @@ import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
+import { BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
@@ -475,15 +476,44 @@ describe('badge POI treatment', () => {
   test('institutional land use draws beneath natural land cover', () => {
     const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
     const index = (id: string) => layers.findIndex(l => l.id === id)
-    const lastInstitutional = Math.max(
-      ...['Cemetery', 'Hospital', 'Stadium', 'School'].map(index),
-    )
+    const lastInstitutional = Math.max(...['Cemetery', 'Hospital', 'School'].map(index))
     const firstCover = Math.min(
       ...layers
         .map((l, i) => ((l as any)['source-layer'] === 'landcover' ? i : Infinity)),
     )
     expect(firstCover).toBeLessThan(Infinity)
     expect(lastInstitutional).toBeLessThan(firstCover)
+  })
+
+  /**
+   * The facade tint is baked into `spec.json` for the walls and computed at
+   * runtime for the roof, from the same constant — so editing the constant
+   * without re-running the generator leaves the two disagreeing, and a
+   * building wears one strength on its roof and another on its walls. That is
+   * exactly what happened while the night tint was being brought down: the
+   * roofs quietened three times and the facades stayed where they were.
+   */
+  test('the facade tint in the spec matches the constant it came from', () => {
+    for (const flavor of ['light', 'dark'] as const) {
+      const baked = JSON.stringify((spec as any).flavorStyles?.[flavor] ?? null)
+      const found = [...baked.matchAll(/\["\/",(\d+),\["max"/g)].map(m => Number(m[1]))
+      expect(found.length, `${flavor}: no tint found in the spec`).toBeGreaterThan(0)
+      for (const amount of found) expect(amount, flavor).toBe(BUILDING_TINT[flavor])
+    }
+  })
+
+  /**
+   * The other half of that rule: a surface is not a zone. Grass draws at half
+   * opacity, so anything under it is seen through a green wash — which is what
+   * a ballfield and its sand infield looked like when they sat below it.
+   */
+  test('specific surfaces draw above the grass wash', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const index = (id: string) => layers.findIndex(l => l.id === id)
+    expect(index('Grass')).toBeGreaterThan(-1)
+    expect(index('Stadium')).toBeGreaterThan(index('Grass'))
+    // Sand last of all: it is almost always inside one of the other two.
+    expect(index('Sand')).toBeGreaterThan(index('Stadium'))
   })
 
   /**
@@ -837,6 +867,12 @@ describe('assembled styles', () => {
      * strength. Below it the tint deliberately fades out — a colour with little
      * chroma left to measure is a grey with a cast, and the map would rather
      * under-tint one of those than punch a hole for every facade tagged `black`.
+     *
+     * Hue and colourfulness are what must not vary; the *value* deliberately
+     * does, by `VALUE_PULL`. Brown is dark orange, and a tint that carried only
+     * hue drew a street of brick as tan. So a maroon and a scarlet facade wear
+     * the same colour at different lightnesses, and the bug this test was
+     * written for — maroon barely tinting at all — is still caught.
      */
     test.each(['light', 'dark'] as const)('%s: the same hue tints alike at any lightness', flavor => {
       for (const shades of [
@@ -844,8 +880,15 @@ describe('assembled styles', () => {
         ['#005500', '#00aa00', '#00ff00'],
         ['#000080', '#0000c0', '#0000ff'],
       ]) {
-        const [first, ...rest] = shades.map(colour => evaluate(flavor, { colour }))
-        for (const other of rest) expect(other, shades.join(' ')).toEqual(first)
+        const drawn = shades.map(colour => evaluate(flavor, { colour }))
+        const [first, ...rest] = drawn
+        for (const other of rest) {
+          expect(hueGap(hue(other), hue(first)), shades.join(' ')).toBeLessThan(4)
+          expect(Math.abs(chroma(other) - chroma(first)), shades.join(' ')).toBeLessThan(6)
+        }
+        // Darker paint really does draw a darker building, in order.
+        const value = (c: number[]) => (c[0] + c[1] + c[2]) / 3
+        expect(value(drawn[0]), shades.join(' ')).toBeLessThan(value(drawn[2]))
       }
     })
 

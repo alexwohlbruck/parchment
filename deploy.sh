@@ -301,7 +301,7 @@ fi
 # CHANGELOG.md is cumulative: entries land under `## [Unreleased]` as features
 # are completed, and cutting the release retitles that section. Offer an edit
 # pass first — entries are written one at a time as work lands, so this is the
-# first chance to read them together and reorder, merge, or cut.
+# first chance to read them together and reorder, merge, cut, or tighten.
 #
 # A hotfix (X.Y.Z-N) usually rebuilds an existing release rather than shipping
 # anything new, so an empty [Unreleased] is expected there: skip the stamp and
@@ -333,6 +333,7 @@ while [ -n "$STAMP_CHANGELOG" ]; do
     echo "---"
     echo ""
     echo "Used as the PR description, GitHub Release body, and store release notes."
+    echo "Keep it tight: one short sentence per bullet unless more context is necessary."
     echo "Google Play truncates to 500 characters — put the notable changes first."
     read -r -p "Continue with these notes? [y]es / [e]dit / [N]o " reply
     case "$reply" in

@@ -9,14 +9,17 @@
  *
  * In channel units on the 0-255 scale, at full colourfulness: the strongest
  * channel of the tint moves about this far from neutral. Night carries more
- * than day because it has the room — the daylight building sits at L 97, where
- * the tint has nowhere to go but down (see `bias`).
+ * than day because it has the room — the daylight building sits high, where the
+ * tint has nowhere to go but down (see `bias`).
  *
  * OpenMapTiles carries `building:colour` from OSM, and in a mapped-out city it
  * is on most buildings — 67-91% across central Manhattan — so this drives the
- * look of the whole 3D layer rather than being a rare accent.
+ * look of the whole 3D layer rather than being a rare accent. These were cut to
+ * 22/30 to stop a street of brick reading as a wash of colour over the land;
+ * the daylight roof has since come down off near-white, which leaves room for
+ * the paint again, so they are back where they were tuned.
  */
-export const BUILDING_TINT = { light: 22, dark: 30 }
+export const BUILDING_TINT = { light: 34, dark: 46 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units

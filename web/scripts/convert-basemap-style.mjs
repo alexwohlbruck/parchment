@@ -1618,22 +1618,23 @@ async function main() {
   // flavor puts them just under the land they stand on.
   //
   //                        ground             roof
-  //   light   hsl(44, 52%, 93%)    hsl(42, 38%, 90%)
+  //   light   hsl(44, 52%, 93%)    hsl(38, 30%, 87%)
   //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
   //
-  // Daylight is the one place the roof goes the other way — three points
-  // *below* the cream and a little less saturated, so a roof is the same
-  // material as the ground rather than a grey object set on it. What separates
-  // a block from the land is the roofline and the fall to the walls, not a
-  // change of colour family. Cream land with grey
+  // Daylight is the one place the roof goes the other way — six points *below*
+  // the cream and a good deal less saturated. It stays in the warm family, so a
+  // roof reads as a made surface rather than a grey object dropped on the land,
+  // but it must not land *on* the ground's colour: a block has to be a thing
+  // standing on the map, and at a glance that separation is carried by value.
+  // Close enough to share the family, far enough to be another material. Cream land with grey
   // buildings on it is how a city block reads as built rather than as more
   // ground, and it is the relationship Apple's daylight map is built on. The
   // walls fall from there, so the elevation still lights from above.
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(42, 38%, 90%)'
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(38, 30%, 87%)'
   tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
 
   // Matches the shader's roofline edge: darker than the roof it outlines.
-  tokens.light.building_roof_edge = 'hsl(40, 26%, 74%)'
+  tokens.light.building_roof_edge = 'hsl(38, 24%, 71%)'
   tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when

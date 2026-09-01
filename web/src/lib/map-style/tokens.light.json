@@ -35,7 +35,7 @@
  "building_fill_color": "hsl(38, 28%, 64%)",
  "building_fill_outline_color": "hsla(38, 24%, 74%, 0.3)",
  "building_fill_outline_color_2": "hsl(38, 24%, 74%)",
- "building_3d_fill_extrusion_color": "hsl(42, 38%, 90%)",
+ "building_3d_fill_extrusion_color": "hsl(38, 30%, 87%)",
  "aqueduct_outline_line_color": "hsl(0,0%,51%)",
  "aqueduct_line_color": "hsl(202, 88%, 68%)",
  "cablecar_line_color": "hsl(0,0%,100%)",
@@ -128,5 +128,5 @@
  "poi_v4_sport": "hsl(129, 37%, 45%)",
  "poi_v4_station": "hsl(215, 83%, 48%)",
  "poi_v4_halo": "hsl(0, 0%, 100%)",
- "building_roof_edge": "hsl(40, 26%, 74%)"
+ "building_roof_edge": "hsl(38, 24%, 71%)"
 }

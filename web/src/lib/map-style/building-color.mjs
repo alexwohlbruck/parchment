@@ -9,14 +9,31 @@
  *
  * In channel units on the 0-255 scale, at full colourfulness: the strongest
  * channel of the tint moves about this far from neutral. Night carries more
- * than day because it has the room — the daylight building sits at L 97, where
- * the tint has nowhere to go but down (see `bias`).
+ * than day because it has the room — the daylight building sits high, where the
+ * tint has nowhere to go but down (see `bias`).
  *
  * OpenMapTiles carries `building:colour` from OSM, and in a mapped-out city it
  * is on most buildings — 67-91% across central Manhattan — so this drives the
- * look of the whole 3D layer rather than being a rare accent.
+ * look of the whole 3D layer rather than being a rare accent. Both were cut to
+ * 22/30 to stop a street of brick reading as a wash of colour over the land;
+ * the daylight roof has since come down off near-white, which leaves room for
+ * the paint again, so day is back where it was tuned.
+ *
+ * Night is not, and the reason is above: "night has the room" is true of
+ * headroom and false of how the eye reads it. Against a dark ground a channel
+ * pushed even as far as day's reads as a lit surface rather than a tint, and
+ * lower Manhattan came out as a field of gold and blue slabs. So night is now
+ * the quieter of the two rather than the louder, and quiet enough that the
+ * paint is a cast on a grey building rather than a colour the building is —
+ * two neighbours differ, and neither announces itself.
+ *
+ * Kept this low, the hue a facade contributes is nearly all it contributes;
+ * what makes a brown building look brown at this strength is `VALUE_PULL`
+ * below, which lets dark paint darken the surface it is on. 11 is night's
+ * floor: below it the `rgb()` output rounds to whole channels coarser than the
+ * tint, and the hue-fidelity test catches a facade drifting off its own hue.
  */
-export const BUILDING_TINT = { light: 22, dark: 30 }
+export const BUILDING_TINT = { light: 34, dark: 11 }
 
 /**
  * The tile chroma at which a colour counts as fully coloured, in channel units
@@ -50,6 +67,30 @@ const CHROMA_REF = 48
  * building colour cannot leave a stale bias behind it.
  */
 const HEADROOM_REF = 90
+
+/**
+ * How far a building's own colour pulls the flavor's *lightness*, as a
+ * fraction of the distance between them.
+ *
+ * Hue alone cannot carry brown. Brown is dark orange — take the darkness away
+ * and what is left is orange, which is why a street of brick came out as tan
+ * and gold slabs on a pale roof. The tint had the hue exactly right and no way
+ * to say "and dark".
+ *
+ * Scaled by `colourfulness`, the same guard the tint uses, so this cannot
+ * reintroduce what discarding lightness was there to prevent: a facade tagged
+ * `black` or `white` has no chroma, contributes nothing, and renders plain. It
+ * is only a *fraction* of the distance, so even a saturated near-black — navy,
+ * bottle green — darkens its building rather than punching a hole in the map.
+ *
+ * One direction only: paint may take a building down in value, never up. On
+ * the night map the flavor sits low and most facade colours are lighter than
+ * it, so a two-way pull lit every beige block up out of the city around it —
+ * and brightness on a map reads as light falling on a thing, which paint is
+ * not. Downward, the same rule says something true in both flavors: pigment
+ * absorbs. It is also why daylight needs no special case here.
+ */
+const VALUE_PULL = 0.3
 
 /**
  * A building's colour, taking the tile's `building:colour` as a *tint* on the
@@ -134,7 +175,7 @@ export function buildingColor(
         'high', ['max', t(0), t(1), t(2)],
         'low', ['min', t(0), t(1), t(2)],
         'mid', mean(t),
-        'base', mean(f),
+        'plain', mean(f),
         'headroom', ['-', 255, ['max', f(0), f(1), f(2)]],
         ['let',
           'chroma', ['-', ['var', 'high'], ['var', 'low']],
@@ -146,6 +187,11 @@ export function buildingColor(
             'scale', ['/', amount, ['max', ['var', 'chroma'], CHROMA_REF]],
             'colourfulness', ['min', 1, ['/', ['var', 'chroma'], CHROMA_REF]],
             ['let',
+              // The flavor's lightness, pulled a fraction of the way toward the
+              // paint's own — which is what separates brown from orange.
+              'base', ['+', ['var', 'plain'],
+                ['*', VALUE_PULL, ['var', 'colourfulness'],
+                  ['min', 0, ['-', ['var', 'mid'], ['var', 'plain']]]]],
               'sub', ['*', ['var', 'bias'], ['-', ['var', 'high'], ['var', 'mid']], ['var', 'scale']],
               ['rgb', channel(0), channel(1), channel(2)]]]]]],
     colorToken,

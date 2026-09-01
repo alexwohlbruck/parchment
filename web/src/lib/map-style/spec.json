@@ -115,39 +115,6 @@
    ]
   },
   {
-   "id": "Stadium",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "landuse",
-   "minzoom": 9,
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": true,
-    "fill-color": "@stadium_fill_color",
-    "fill-opacity": {
-     "stops": [
-      [
-       9,
-       0.25
-      ],
-      [
-       16,
-       1
-      ]
-     ]
-    }
-   },
-   "filter": [
-    "in",
-    "class",
-    "pitch",
-    "stadium",
-    "playground"
-   ]
-  },
-  {
    "id": "School",
    "type": "fill",
    "source": "openmaptiles",
@@ -208,25 +175,6 @@
     "==",
     "class",
     "ice"
-   ]
-  },
-  {
-   "id": "Sand",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "landcover",
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": false,
-    "fill-color": "@sand_fill_color",
-    "fill-opacity": 0.85
-   },
-   "filter": [
-    "==",
-    "class",
-    "sand"
    ]
   },
   {
@@ -360,6 +308,59 @@
     "==",
     "$type",
     "Polygon"
+   ]
+  },
+  {
+   "id": "Stadium",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "landuse",
+   "minzoom": 9,
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "@stadium_fill_color",
+    "fill-opacity": {
+     "stops": [
+      [
+       9,
+       0.25
+      ],
+      [
+       16,
+       1
+      ]
+     ]
+    },
+    "fill-outline-color": "@stadium_outline_color"
+   },
+   "filter": [
+    "in",
+    "class",
+    "pitch",
+    "stadium",
+    "playground"
+   ]
+  },
+  {
+   "id": "Sand",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "landcover",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": false,
+    "fill-color": "@sand_fill_color",
+    "fill-opacity": 0.85
+   },
+   "filter": [
+    "==",
+    "class",
+    "sand"
    ]
   },
   {
@@ -19425,7 +19426,7 @@
          ],
          3
         ],
-        "base",
+        "plain",
         [
          "/",
          [
@@ -19525,7 +19526,7 @@
           "scale",
           [
            "/",
-           22,
+           34,
            [
             "max",
             [
@@ -19550,6 +19551,37 @@
           ],
           [
            "let",
+           "base",
+           [
+            "+",
+            [
+             "var",
+             "plain"
+            ],
+            [
+             "*",
+             0.3,
+             [
+              "var",
+              "colourfulness"
+             ],
+             [
+              "min",
+              0,
+              [
+               "-",
+               [
+                "var",
+                "mid"
+               ],
+               [
+                "var",
+                "plain"
+               ]
+              ]
+             ]
+            ]
+           ],
            "sub",
            [
             "*",
@@ -19917,7 +19949,7 @@
          ],
          3
         ],
-        "base",
+        "plain",
         [
          "/",
          [
@@ -20017,7 +20049,7 @@
           "scale",
           [
            "/",
-           30,
+           11,
            [
             "max",
             [
@@ -20042,6 +20074,37 @@
           ],
           [
            "let",
+           "base",
+           [
+            "+",
+            [
+             "var",
+             "plain"
+            ],
+            [
+             "*",
+             0.3,
+             [
+              "var",
+              "colourfulness"
+             ],
+             [
+              "min",
+              0,
+              [
+               "-",
+               [
+                "var",
+                "mid"
+               ],
+               [
+                "var",
+                "plain"
+               ]
+              ]
+             ]
+            ]
+           ],
            "sub",
            [
             "*",

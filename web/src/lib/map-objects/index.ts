@@ -52,20 +52,25 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
  * reads as a tree against pale daylight land reads as a hole cut in the night
  * map, so the dark flavor takes everything down — less saturated and several
  * steps darker, the way real foliage looks under a streetlight rather than the
- * way it looks at noon. These are linear RGB, matching the models' own
- * `baseColorFactor`, and the layer resolves them per draw rather than baking
- * them in: switching theme is a uniform, not a reload.
+ * way it looks at noon. The layer resolves them per draw rather than baking them
+ * in: switching theme is a uniform, not a reload.
  *
- * Daylight foliage is a fresh mid-green rather than the forest green it was.
- * Every face is then darkened by the half-lambert term and by the instance's
- * own `shade`, so a value chosen to look right on its own comes out several
- * steps heavier on the map — these are picked for where they land after that,
- * not for where they read in a swatch.
+ * Daylight foliage is `#B6E694`, as a plain sRGB triple. The models' own
+ * `baseColorFactor` is nominally linear and this comment used to say these were
+ * too, but nothing in the pipeline treats them that way: the fragment shader
+ * writes the colour straight to `gl_FragColor` and the drawing buffer is not
+ * sRGB, so what is written here is what the screen shows. Converting a hex to
+ * linear before pasting it in renders the tree several steps too dark.
+ *
+ * What does move it is the shading — the half-lambert term against ambient, and
+ * the instance's own `shade`. A crown seen from above keeps roughly 93-100% of
+ * the value below, so the named colour is close to what the top of a tree
+ * reads as, and its flanks sit under that.
  */
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
     bark: [0.55, 0.42, 0.32],
-    foliage: [0.5, 0.72, 0.4],
+    foliage: [0.713, 0.901, 0.579],
     metal: [0.46, 0.49, 0.51],
     wood: [0.56, 0.42, 0.29],
     paint: [0.24, 0.44, 0.32],

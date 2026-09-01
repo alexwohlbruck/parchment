@@ -33,8 +33,19 @@
 
 ### Fixed
 
+* OSM tag groups with subfields are easier to read in place details, and each individual value can now be copied on its own instead of only as one combined block
 * Escape works again in views that bind it alongside another. Several parts of the app listen for Escape at once, and closing any one of them quietly took the others' handling with it — so Escape could stop dismissing a panel until the page was reloaded
 * Undo and redo on a canvas now work while the cursor is in a text field. Naming a mark and then pressing ⌘Z used to do nothing, though the toolbar button worked
+
+## [0.8.2] - 2026-09-01
+
+### Changed
+
+* The daylight map has colour in it. The ground is a warm cream rather than a cool near-white, parks and woods a soft spring green, water a light sky blue, beaches sand, hospitals rose, and buildings a light grey that sits on the land instead of blending into it — so a neighbourhood has a shape before you read a single label
+* School and university grounds are amber instead of pale blue, which on a map with water on it was a colour that already meant something else
+* Buildings carry more of their own recorded paint colour again in daylight, back to the strength it was tuned at before it was cut — the roof they tint is no longer near-white, so there is room for the hue without a street of brick reading as a wash over the land. A building's paint now darkens it as well as tinting it, which is what makes a brown building read as brown rather than tan: brown is dark orange, and a tint that carried only the hue drew a street of brick as gold. It only ever darkens, so a pale facade no longer lights its building up out of the city around it at night. At night the tint is quieter than it has ever been: against dark ground a strong one reads as lit surfaces rather than painted ones, so a brick block is now a shade off a rendered one rather than its own colour
+* Sports pitches, playgrounds and stadium grounds carry a thin darker edge in their own colour, so a field reads as a bounded surface rather than a soft patch of green
+* Ballfields and sand — a baseball infield, a bunker, a playground pit — are drawn on top of the grass around them rather than underneath it, so they read as their own surface instead of a faded patch of the park
 
 ## [0.8.1] - 2026-08-31
 

@@ -80,6 +80,7 @@
  "poi_transit_plate": "@@tint-plate:hsl(214, 80%, 62%)",
  "poi_transit_ink": "@@tint-ink:hsl(214, 80%, 62%)",
  "poi_transit_ring": "@@tint-ring:hsl(214, 80%, 62%)",
+ "stadium_outline_color": "hsl(183, 20%, 27%)",
  "path_surface": "hsl(216, 14%, 33%)",
  "path_casing": "hsl(216, 20%, 20%)",
  "road_highway": "hsl(211, 47%, 33%)",

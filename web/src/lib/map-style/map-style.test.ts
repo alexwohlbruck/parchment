@@ -475,15 +475,26 @@ describe('badge POI treatment', () => {
   test('institutional land use draws beneath natural land cover', () => {
     const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
     const index = (id: string) => layers.findIndex(l => l.id === id)
-    const lastInstitutional = Math.max(
-      ...['Cemetery', 'Hospital', 'Stadium', 'School'].map(index),
-    )
+    const lastInstitutional = Math.max(...['Cemetery', 'Hospital', 'School'].map(index))
     const firstCover = Math.min(
       ...layers
         .map((l, i) => ((l as any)['source-layer'] === 'landcover' ? i : Infinity)),
     )
     expect(firstCover).toBeLessThan(Infinity)
     expect(lastInstitutional).toBeLessThan(firstCover)
+  })
+
+  /**
+   * The other half of that rule: a surface is not a zone. Grass draws at half
+   * opacity, so anything under it is seen through a green wash — which is what
+   * a ballfield and its sand infield looked like when they sat below it.
+   */
+  test('specific surfaces draw above the grass wash', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers
+    const index = (id: string) => layers.findIndex(l => l.id === id)
+    expect(index('Grass')).toBeGreaterThan(-1)
+    expect(index('Sand')).toBeGreaterThan(index('Grass'))
+    expect(index('Stadium')).toBeGreaterThan(index('Grass'))
   })
 
   /**

@@ -273,8 +273,15 @@ async function shieldImages() {
  * A zone is an administrative fact and land cover is a physical one, so the
  * physical one wins: these sink below the `landcover` fills. The tint still
  * reads on the built-up parts of a campus, where there is no cover to hide it.
+ *
+ * `Stadium` is deliberately not in the list, though MapTiler groups it with
+ * these: its classes are `pitch` and `playground` as well as `stadium`, and a
+ * ballfield is a physical surface like the grass around it rather than a zone
+ * drawn over one. Sunk, it came out as a pale patch of the park it sits in —
+ * its own colour showing through half-opacity grass — which is the same failure
+ * as the campus, one layer down.
  */
-const INSTITUTIONAL_LANDUSE = ['Cemetery', 'Hospital', 'Stadium', 'School']
+const INSTITUTIONAL_LANDUSE = ['Cemetery', 'Hospital', 'School']
 
 // ---------------------------------------------------------------------------
 // Pedestrian paths and areas
@@ -750,6 +757,22 @@ function sinkRoadMarkings(layers) {
   const [marking] = layers.splice(at, 1)
   const buildings = layers.findIndex(l => l['source-layer'] === 'building')
   layers.splice(buildings < 0 ? layers.length : buildings, 0, marking)
+}
+
+/**
+ * Sand, above the grass rather than under it.
+ *
+ * The grass layer draws at half opacity so a park edge softens rather than
+ * cuts, and it is the last cover in MapTiler's order — so every sand feature
+ * inside a green one, which is most of them (a baseball infield, a bunker, a
+ * playground pit), came out as sand seen through a green wash. Cover is not a
+ * hierarchy: the smaller, more specific surface is the one you are looking at.
+ */
+function raiseSandAboveGrass(layers) {
+  const sand = layers.findIndex(l => l.id === 'Sand')
+  const grass = layers.findIndex(l => l.id === 'Grass')
+  if (sand < 0 || grass < 0 || sand > grass) return
+  layers.splice(grass, 0, ...layers.splice(sand, 1))
 }
 
 function sinkInstitutionalLanduse(layers) {
@@ -1381,6 +1404,7 @@ async function main() {
   }
 
   sinkInstitutionalLanduse(layers)
+  raiseSandAboveGrass(layers)
   applyRoadInk(layers)
   widenLowerRoads(layers)
   fadeTunnels(layers)

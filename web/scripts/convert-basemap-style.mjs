@@ -418,9 +418,9 @@ const LIGHT_LAND = {
   airport_zone_fill_color: 'hsl(42, 18%, 91%)',
   // The flat building fill, for the zooms below the extrusions. Its layer draws
   // at 0.3, so the token is well past where the buildings land.
-  building_fill_color: 'hsl(38, 10%, 62%)',
-  building_fill_outline_color: 'hsla(38, 10%, 72%, 0.3)',
-  building_fill_outline_color_2: 'hsl(38, 10%, 72%)',
+  building_fill_color: 'hsl(38, 28%, 64%)',
+  building_fill_outline_color: 'hsla(38, 24%, 74%, 0.3)',
+  building_fill_outline_color_2: 'hsl(38, 24%, 74%)',
   // The water the land meets. MapTiler's is already a bright blue, but a pale
   // one, and next to greens this saturated it reads as the thing that faded.
   water_fill_color: 'hsl(202, 88%, 68%)',
@@ -1618,19 +1618,22 @@ async function main() {
   // flavor puts them just under the land they stand on.
   //
   //                        ground             roof
-  //   light   hsl(44, 52%, 93%)    hsl(40, 10%, 86%)
+  //   light   hsl(44, 52%, 93%)    hsl(42, 38%, 90%)
   //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
   //
-  // Daylight is the one place the roof goes the other way — seven points
-  // *below* the cream, and nearly all of its saturation dropped. Cream land with grey
+  // Daylight is the one place the roof goes the other way — three points
+  // *below* the cream and a little less saturated, so a roof is the same
+  // material as the ground rather than a grey object set on it. What separates
+  // a block from the land is the roofline and the fall to the walls, not a
+  // change of colour family. Cream land with grey
   // buildings on it is how a city block reads as built rather than as more
   // ground, and it is the relationship Apple's daylight map is built on. The
   // walls fall from there, so the elevation still lights from above.
-  tokens.light.building_3d_fill_extrusion_color = 'hsl(40, 10%, 86%)'
+  tokens.light.building_3d_fill_extrusion_color = 'hsl(42, 38%, 90%)'
   tokens.dark.building_3d_fill_extrusion_color = 'hsl(217, 32%, 32%)'
 
   // Matches the shader's roofline edge: darker than the roof it outlines.
-  tokens.light.building_roof_edge = 'hsl(40, 10%, 71%)'
+  tokens.light.building_roof_edge = 'hsl(40, 26%, 74%)'
   tokens.dark.building_roof_edge = 'hsl(217, 30%, 22%)'
 
   // The second POI treatment, as per-layer overrides `build.ts` merges in when

@@ -382,12 +382,12 @@ const ROAD_INK = {
  * moving it in value adds colour and disturbs nothing that was tuned.
  */
 const LIGHT_LAND = {
-  background_background_color: 'hsl(44, 52%, 93%)',
-  background_background_color_2: 'hsl(44, 46%, 92%)',
-  residential_fill_color: 'hsl(43, 40%, 88%)',
-  residential_fill_color_2: 'hsl(43, 44%, 90%)',
-  pier_fill_color: 'hsl(44, 44%, 92%)',
-  bridge_outline_line_color: 'hsl(44, 44%, 92%)',
+  background_background_color: 'hsl(44, 52%, 95%)',
+  background_background_color_2: 'hsl(44, 46%, 94%)',
+  residential_fill_color: 'hsl(43, 40%, 90%)',
+  residential_fill_color_2: 'hsl(43, 44%, 92%)',
+  pier_fill_color: 'hsl(44, 44%, 94%)',
+  bridge_outline_line_color: 'hsl(44, 44%, 94%)',
   // Industrial land is a neutral in MapTiler too, just a warm one; the two
   // translucent members keep their alpha, which is what they are for.
   industrial_fill_color: 'hsl(40, 18%, 89%)',
@@ -1618,10 +1618,10 @@ async function main() {
   // flavor puts them just under the land they stand on.
   //
   //                        ground             roof
-  //   light   hsl(44, 52%, 93%)    hsl(38, 30%, 87%)
+  //   light   hsl(44, 52%, 95%)    hsl(38, 30%, 87%)
   //   dark    hsl(216, 37%, 24%)   hsl(217, 32%, 32%)
   //
-  // Daylight is the one place the roof goes the other way — six points *below*
+  // Daylight is the one place the roof goes the other way — eight points below
   // the cream and a good deal less saturated. It stays in the warm family, so a
   // roof reads as a made surface rather than a grey object dropped on the land,
   // but it must not land *on* the ground's colour: a block has to be a thing

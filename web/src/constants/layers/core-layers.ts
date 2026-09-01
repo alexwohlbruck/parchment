@@ -12,11 +12,13 @@ import {
 import { getCustomColorTint } from '@/lib/color-tint'
 import {
   markerGlyphSizeForRadius,
-  MARKER_GLYPH_PLACEMENT,
-  MARKER_PLATE_PLACEMENT,
   MARKER_PLATE_SIZE,
   MARKER_RING_WIDTH,
-} from '@/lib/map-marker'
+} from '@/lib/map-marker/marker-metrics.mjs'
+import {
+  MARKER_GLYPH_PLACEMENT,
+  MARKER_PLATE_PLACEMENT,
+} from '@/lib/map-marker/marker-layers'
 
 // Search results layer constants - these are internal and not user-modifiable
 export const SEARCH_RESULTS_LAYER_ID = 'search-results-internal'

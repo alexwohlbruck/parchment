@@ -15,7 +15,8 @@
 
 import type { FeatureCollection, Position } from 'geojson'
 import type { MapEngine } from '@/types/map.types'
-import { MARKER_PLATE_SIZE, type MarkerShape } from '@/lib/map-marker'
+import { MARKER_PLATE_SIZE } from '@/lib/map-marker/marker-metrics.mjs'
+import type { MarkerShape } from '@/lib/map-marker/marker-shape'
 
 export type CanvasScheme = 'server-key' | 'user-e2ee'
 

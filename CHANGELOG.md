@@ -29,6 +29,7 @@
 * Pins on a canvas are drawn the way search results are, glyph and all — the icon you choose is the icon on the map, at the same size whatever the zoom. Saved places shrink and fade as you zoom out because the question there is "where have I saved things"; a pin you placed deliberately stays where and what you put it
 * Canvas layers keep their colour on a night basemap. Mapbox dims the map after dark, which is right for buildings and wrong for something you drew, so marks and data layers now light themselves
 * A canvas's layers and marks are one reorderable list now, bottom to top, so what covers what is whatever the list says. Related things can be gathered into a group with its own name and switch
+* A pin on a canvas can be a circle, a square or just its icon. A square reads as a station or a stop the way the basemap already draws them, and a bare icon keeps a busy map quiet
 
 ### Fixed
 

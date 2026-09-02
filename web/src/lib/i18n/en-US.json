@@ -1061,7 +1061,8 @@
       "notInService": "Not running now",
       "openRouteDetail": "Show {name}",
       "notInServiceNamed": "{name} isn't running now",
-      "transfers": "Transfers"
+      "transfers": "Transfers",
+      "nearby": "Nearby"
     },
     "header": {
       "showMore": "Show more",

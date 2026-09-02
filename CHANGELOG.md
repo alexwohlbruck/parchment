@@ -15,6 +15,7 @@
 
 ### Fixed
 
+* Lines you can walk to are listed separately from lines you can transfer to, instead of sharing one Transfers heading. At Rector St the 1 train is fifty metres away but reaching it means leaving through the turnstiles and paying a second fare, and listing it beside the genuine in-station transfers said otherwise. Walk-to lines now sit under their own heading with the distance beside them
 * Tapping a station label that covers a whole interchange now shows all of its lines beside the station's name. The departures below already covered the whole interchange; the bullets did not, so Brooklyn Bridge–City Hall read "4 5 6" with the J and Z listed as connections — the answer for tapping one station rather than the group
 * Tapping a station label that covers a whole interchange now opens all of it. New York draws four separate stations named "Canal St" as one symbol, and tapping it opened whichever of the four the label happened to sit on — so the panel showed two lines where the map had drawn six. Tapping a single line's marker still opens just that station
 * The map keeps up with the sidebar as it is dragged or collapsed, resizing frame by frame rather than snapping once the panel has settled

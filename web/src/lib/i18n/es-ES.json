@@ -1012,7 +1012,8 @@
       "notInService": "No circula ahora",
       "openRouteDetail": "Ver {name}",
       "notInServiceNamed": "{name} no circula ahora",
-      "transfers": "Transbordos"
+      "transfers": "Transbordos",
+      "nearby": "Cerca"
     },
     "header": {
       "showMore": "Ver más",

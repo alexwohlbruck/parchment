@@ -70,6 +70,44 @@ export const PORTOLAN_CLASSES = [
 ] as const
 export type PortolanClass = (typeof PORTOLAN_CLASSES)[number]
 
+/**
+ * The class portolan files a GTFS `route_type` under — the port of
+ * `mode.Of` (internal/mode/mode.go), basic types then the extended HVT
+ * ranges. Portolan keys everything off the class and never the raw
+ * number, so anything matching parchment's routes against portolan's has
+ * to ask the same question the same way.
+ *
+ * Returns null for a type portolan calls unknown, which matches nothing
+ * rather than matching the first thing tried.
+ */
+export function portolanClassOf(routeType?: number | null): PortolanClass | null {
+  if (routeType == null) return null
+
+  switch (routeType) {
+    case 0: return 'tram'
+    case 1: return 'metro'
+    case 2: return 'regional'
+    case 3: case 11: return 'bus' // bus, trolleybus
+    case 4: return 'ferry'
+    case 5: return 'cable'
+    case 6: return 'aerial'
+    case 7: return 'funicular'
+    case 12: return 'monorail'
+  }
+
+  if (routeType >= 100 && routeType < 300) return 'regional' // rail + coach
+  if (routeType === 405) return 'monorail'
+  if (routeType >= 400 && routeType < 500) return 'metro'
+  if (routeType >= 700 && routeType < 900) return 'bus'
+  if (routeType >= 900 && routeType < 1000) return 'tram'
+  if (routeType >= 1000 && routeType < 1300) return 'ferry' // water, air, taxi
+  if (routeType >= 1300 && routeType < 1400) return 'aerial'
+  if (routeType >= 1400 && routeType < 1500) return 'funicular'
+  if (routeType >= 1700 && routeType < 1800) return 'cable'
+
+  return null
+}
+
 /** Ribbon feature properties (vector layer `ribbons`, z0..max). */
 export interface PortolanRibbonProps {
   seg: string

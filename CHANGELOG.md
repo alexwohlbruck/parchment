@@ -10,6 +10,9 @@
 * OSM tag groups with subfields are easier to read in place details, and each individual value can now be copied on its own instead of only as one combined block
 * Trees and street furniture on the map were being drawn inside-out, so they were lit by the side of themselves facing away from you and came out flat and too dark. They now catch the light on the surface you can actually see
 * The Brand Catalog, Transit Routing and Rideshare Estimate capability filters in integration settings show their names instead of raw translation keys, in English and Spanish
+* A subway station's departure board shows that station's own lines. Opening Brooklyn Bridge–City Hall listed trains from the Chambers St platforms 14 m nearer and buried its own 4, 5 and 6 at the bottom, each departure printed twice
+* Line bullets in a station header show the right line. New York's subway 4, 5, 6 and 7 share their route ids with Long Island Rail Road branches, and every one of them was drawn as a Ronkonkoma, Montauk, Long Beach or Far Rockaway pill
+* A station's line-up now lists the lines it runs before the ones an in-station transfer reaches, instead of mixing them together
 
 ## [0.8.2] - 2026-09-01
 

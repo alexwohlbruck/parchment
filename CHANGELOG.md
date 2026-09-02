@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+* The integrations page no longer offers an "Imagery" capability filter, which no integration provided. The rideshare filter is now named "Rideshare" instead of "Rideshare Estimate"
+
 ## [0.8.3] - 2026-09-02
 
 ### Changed

@@ -245,11 +245,6 @@ export interface BrandCatalogCapability {
   ): Promise<Place[]>
 }
 
-// TODO: Return types
-export interface ImageryCapability {
-  getImagery(lat: number, lng: number, options?: any): Promise<any[]>
-}
-
 export interface MapEngineCapability {} // No methods needed for now
 
 export interface TransitDataCapability {
@@ -635,7 +630,6 @@ export interface IntegrationCapabilities {
   placeInfo?: PlaceInfoCapability
   geocoding?: GeocodingCapability
   routing?: RoutingCapability
-  imagery?: ImageryCapability
   mapEngine?: MapEngineCapability
   transitData?: TransitDataCapability
   weather?: WeatherCapability

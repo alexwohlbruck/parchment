@@ -162,7 +162,6 @@ export const settingsIndex: SettingsPageDef[] = [
           { titleKey: 'settings.mapSettings.controls.streetView' },
           { titleKey: 'settings.mapSettings.controls.locate' },
           { titleKey: 'settings.mapSettings.controls.weather' },
-          { titleKey: 'settings.mapSettings.controls.toolbox' },
         ],
       },
       {

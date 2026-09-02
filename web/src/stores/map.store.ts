@@ -63,7 +63,6 @@ function getDefaultControlSettings(): MapControlSettings {
       : ControlVisibility.ALWAYS,
     locate: ControlVisibility.ALWAYS,
     weather: ControlVisibility.ALWAYS,
-    toolbox: isMobile ? ControlVisibility.NEVER : ControlVisibility.ALWAYS,
   }
 }
 

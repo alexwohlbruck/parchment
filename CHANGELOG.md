@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+* The toolbox button has been removed from the map. Measure, radius and isochrone are still available from the map's right-click menu, and the setting for showing the toolbox is gone from Settings
+
 ### Fixed
 
 * OSM tag groups with subfields are easier to read in place details, and each individual value can now be copied on its own instead of only as one combined block

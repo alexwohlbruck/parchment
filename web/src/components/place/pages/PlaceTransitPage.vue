@@ -15,6 +15,8 @@ import { api } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
 import { groupDepartures, type BoardDeparture } from '@/lib/transit-departures'
+import { transferLinesOf, type StationLine } from '@/composables/usePlaceTransitLines'
+import StationTransfers from '@/components/transit/StationTransfers.vue'
 import {
   formatDepartureTime,
   getMinutesUntil,
@@ -66,6 +68,16 @@ watch(
 )
 const styleOfRoute = (route: { id: string; type?: number }) =>
   bulletFor(route.id, props.transitInfo?.lat, props.transitInfo?.lng, route.type)
+
+/** Lines an in-station transfer reaches — listed below the board, since they
+ *  do not depart from here. */
+const transferLines = computed(() => transferLinesOf(props.transitInfo?.routes))
+
+function openRoute(routeId?: string) {
+  const feedId = props.transitInfo?.feedId
+  if (!feedId || !routeId) return
+  router.push({ name: AppRoute.TRANSIT_ROUTE, params: { feedId, routeId } })
+}
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
@@ -267,6 +279,15 @@ function openTransitlandLink() {
       <p class="text-sm">{{ t('place.transit.noUpcomingDepartures') }}</p>
       <p class="text-xs mt-1">{{ t('place.transit.checkBackLater') }}</p>
     </div>
+
+    <StationTransfers
+      :lines="transferLines"
+      :lat="transitInfo?.lat"
+      :lng="transitInfo?.lng"
+      :feed-id="transitInfo?.feedId"
+      class="mt-6"
+      @open="(line: StationLine) => openRoute(line.id)"
+    />
 
     <!-- Footer -->
     <div class="mt-6 pt-3 border-t space-y-2 text-xs text-muted-foreground">

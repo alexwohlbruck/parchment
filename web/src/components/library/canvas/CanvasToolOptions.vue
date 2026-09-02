@@ -326,6 +326,11 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
       />
     </template>
 
-    <Spinner v-if="isBusy" class="size-3.5 mx-1 text-muted-foreground" />
+    <!-- Always here, so the row keeps its width while the engine works. -->
+    <Spinner
+      class="size-3.5 mx-1 text-muted-foreground"
+      :class="!isBusy && 'invisible'"
+      :aria-hidden="!isBusy"
+    />
   </div>
 </template>

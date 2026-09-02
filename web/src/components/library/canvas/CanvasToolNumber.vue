@@ -41,7 +41,11 @@ const emit = defineEmits<{ 'update:modelValue': [value: number] }>()
         <!-- A glyph that shows the setting rather than naming it: a bar at
              the chosen thickness, a swatch at the chosen opacity. -->
         <slot name="glyph" />
-        <span class="text-xs tabular-nums">{{ display ?? modelValue }}</span>
+        <!-- Fixed width: the bar is centred, so a value growing a digit
+             would nudge every control beside it. -->
+        <span class="text-xs tabular-nums text-center min-w-9">
+          {{ display ?? modelValue }}
+        </span>
       </Button>
     </PopoverTrigger>
     <PopoverContent class="w-48 p-3" align="center">

@@ -99,6 +99,16 @@ function toolTitle(item: (typeof TOOLS)[number]) {
 /** Mid-draw only for the shapes that don't finish themselves. */
 const isDrawing = computed(() => props.vertexCount > 0)
 
+/**
+ * One button, two meanings: the last point while a shape is being drawn, the
+ * last thing done otherwise. Both land on the same history in the editor, so
+ * this is about what the button says rather than what it does.
+ */
+function undo() {
+  if (isDrawing.value) emit('undo')
+  else emit('undoEdit')
+}
+
 // ── Where new marks land ─────────────────────────────────────────────────────
 
 const activeGroup = computed(() =>
@@ -199,59 +209,50 @@ const destinationItems = computed(() => [
         </ResponsiveDropdown>
       </template>
 
-      <!-- Stepping the canvas itself back and forth. Hidden mid-draw, where
-           Undo means the last point rather than the last thing done. -->
-      <template v-if="!isDrawing">
-        <Separator orientation="vertical" class="h-5 mx-0.5" />
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-8"
-          :disabled="!canUndoEdit"
-          :title="`${t('canvases.toolbar.undoEdit')} (⌘Z)`"
-          :aria-label="t('canvases.toolbar.undoEdit')"
-          @click="emit('undoEdit')"
-        >
-          <UndoIcon class="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-8"
-          :disabled="!canRedoEdit"
-          :title="`${t('canvases.toolbar.redoEdit')} (⌘⇧Z)`"
-          :aria-label="t('canvases.toolbar.redoEdit')"
-          @click="emit('redoEdit')"
-        >
-          <RedoIcon class="size-4" />
-        </Button>
-      </template>
+      <!-- The trailing pair never changes shape, whatever the state.
+           The bar is centred over the map, so a button that comes and goes
+           re-centres the whole thing — which reads as flicker while you are
+           mid-shape and clicking. Undo is always undo; the second slot is
+           Redo until there is a shape to finish, and Done while there is. -->
+      <Separator orientation="vertical" class="h-5 mx-0.5" />
+      <Button
+        variant="ghost"
+        size="icon"
+        class="size-8"
+        :disabled="isDrawing ? !canUndo : !canUndoEdit"
+        :title="`${t('canvases.toolbar.undoEdit')} (⌘Z)`"
+        :aria-label="t('canvases.toolbar.undoEdit')"
+        @click="undo"
+      >
+        <UndoIcon class="size-4" />
+      </Button>
 
-      <!-- Only the open-ended shapes need finishing; a pin or a circle is done
-           the moment it has its positions. -->
-      <template v-if="isDrawing">
-        <Separator orientation="vertical" class="h-5 mx-0.5" />
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-8"
-          :disabled="!canUndo"
-          :title="t('canvases.toolbar.undo')"
-          :aria-label="t('canvases.toolbar.undo')"
-          @click="emit('undo')"
-        >
-          <UndoIcon class="size-4" />
-        </Button>
-        <Button
-          size="sm"
-          class="h-8 px-2.5"
-          :disabled="!canFinish"
-          @click="emit('finish')"
-        >
-          <CheckIcon class="size-3.5" />
-          {{ t('general.done') }}
-        </Button>
-      </template>
+      <!-- Finishing is the only thing worth offering mid-shape, and it takes
+           the redo slot rather than a place of its own. -->
+      <Button
+        v-if="isDrawing"
+        variant="ghost"
+        size="icon"
+        class="size-8 text-primary hover:text-primary"
+        :disabled="!canFinish"
+        :title="`${t('general.done')} (⏎)`"
+        :aria-label="t('general.done')"
+        @click="emit('finish')"
+      >
+        <CheckIcon class="size-4" />
+      </Button>
+      <Button
+        v-else
+        variant="ghost"
+        size="icon"
+        class="size-8"
+        :disabled="!canRedoEdit"
+        :title="`${t('canvases.toolbar.redoEdit')} (⌘⇧Z)`"
+        :aria-label="t('canvases.toolbar.redoEdit')"
+        @click="emit('redoEdit')"
+      >
+        <RedoIcon class="size-4" />
+      </Button>
     </div>
 
     <!-- What the armed tool is set to: the same box, under a divider, so

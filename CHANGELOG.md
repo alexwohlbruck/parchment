@@ -2,6 +2,7 @@
 
 ### Fixed
 
+* The Brand Catalog, Transit Routing and Rideshare Estimate capability filters in integration settings show their names instead of raw translation keys, in English and Spanish
 * Internet access details in place cards are easier to read, and Wi‑Fi network names and passwords can now be copied one at a time instead of only as a single block
 
 ## [0.8.2] - 2026-09-01

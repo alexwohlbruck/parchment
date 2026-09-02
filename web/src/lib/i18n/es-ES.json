@@ -1732,7 +1732,10 @@
         "searchAlongRoute": "Buscar en la ruta",
         "osmMapEdit": "Editar Mapa",
         "tileServer": "Servidor de teselas",
-        "locationHistory": "Historial de ubicación"
+        "locationHistory": "Historial de ubicación",
+        "brandCatalog": "Catálogo de marcas",
+        "transitRouting": "Rutas de tránsito",
+        "rideshareEstimate": "Estimación de viaje compartido"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",

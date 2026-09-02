@@ -177,6 +177,9 @@ export interface TransitStopInfo {
     color?: string
     textColor?: string
     type?: number
+    /** `station` — the line calls here. `transfer` — it calls at a station
+     *  connected to this one, reachable without leaving the paid area. */
+    via?: 'station' | 'transfer'
   }>
 }
 

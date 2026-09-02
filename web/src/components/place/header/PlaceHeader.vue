@@ -74,7 +74,9 @@ watch(
 
 function styleOf(line: StationLine) {
   const center = props.place?.geometry?.value?.center
-  return bulletFor(line.id, center?.lat, center?.lng)
+  // The route type goes with the id: a bare "4" is the Lexington Avenue
+  // express here and the Ronkonkoma Branch in the commuter-rail pyramid.
+  return bulletFor(line.id, center?.lat, center?.lng, line.type)
 }
 
 /** Why a bullet is dimmed, in words — a dimmed chip with no explanation

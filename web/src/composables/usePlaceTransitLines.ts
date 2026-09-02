@@ -64,14 +64,22 @@ export function usePlaceTransitLines(placeId: Ref<string | undefined>) {
   return computed<StationLine[]>(() => {
     const entry = placeId.value ? byPlace[placeId.value] : undefined
     if (!entry) return []
-    const ordered = orderBullets(entry.routes, r => ({
+    const bullet = (r: StationRoute) => ({
       // the label portolan sorts by is the bullet's own glyphs — short
       // name, long name if there is none. Not parchment's translated
       // mode fallback ("Tram"), which would sort by the UI language.
       label: r.shortName || r.longName || '',
       color: r.color,
       id: r.id,
-    }))
+    })
+    // Lines the station runs come before the ones a transfer reaches — the J
+    // and Z are how a rider leaves Brooklyn Bridge–City Hall without paying
+    // twice, and they still aren't its own. Bullet order applies inside each
+    // group; one sort across both would interleave them.
+    const ordered = [
+      ...orderBullets(entry.routes.filter(r => r.via !== 'transfer'), bullet),
+      ...orderBullets(entry.routes.filter(r => r.via === 'transfer'), bullet),
+    ]
     return ordered.map(r => ({
       ...r,
       inService: !entry.ctx.known || entry.running.has(r.id),

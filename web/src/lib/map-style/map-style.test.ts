@@ -1174,6 +1174,22 @@ describe('projection', () => {
   })
 
   /**
+   * MapLibre scatters the globe's halo from the style's light, which the
+   * strategy keeps pointed at the real sun for building shadows — so a halo
+   * lights one limb of the globe and darkens the other, under the day/night
+   * layer's own terminator. Off in every style that has a sky.
+   */
+  test('no atmosphere doubles the day/night layer', () => {
+    const styles = [
+      buildMapStyle({ ...opts, theme: 'light' } as any),
+      buildMapStyle({ ...opts, theme: 'dark' } as any),
+      buildSatelliteStyle({ ...opts, hybrid: false } as any),
+      buildSatelliteStyle({ ...opts, hybrid: true } as any),
+    ]
+    expect(styles.map(s => s.sky?.['atmosphere-blend'])).toEqual([0, 0, 0, 0])
+  })
+
+  /**
    * Two entries in the picker that draw the same thing would read as a setting
    * that does nothing, which is how the Mapbox-only projections behaved here
    * before they were filtered out of it.

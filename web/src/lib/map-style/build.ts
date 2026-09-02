@@ -116,6 +116,16 @@ export const MAX_PITCH = 85
  * They are not tokens — the sky is ours, not MapTiler's — so a change to the
  * ground has to be made here too, and a mismatch shows as a band of the old
  * colour along the horizon where the land runs out.
+ *
+ * `atmosphere-blend` is the globe's halo, and it is off. MapLibre scatters it
+ * from the sun, which the strategy keeps at the real one so buildings cast
+ * their shadows the right way (see `updateSunShadow`) — so switching the globe
+ * on would light one limb and darken the other, drawing a second, cruder
+ * terminator underneath the day/night layer's own. One is the map's, tuned
+ * through twilight; the other is a side effect of the shadow light. The
+ * property is scaled by the globe transition, so this changes nothing on a
+ * flat map, and the shadows themselves are untouched — buildings are drawn far
+ * past the zoom where the sphere has already flattened.
  */
 const SKY: Record<FlavorId, Record<string, string | number>> = {
   light: {
@@ -125,6 +135,7 @@ const SKY: Record<FlavorId, Record<string, string | number>> = {
     'fog-ground-blend': 0.72,
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,
+    'atmosphere-blend': 0,
   },
   dark: {
     'sky-color': 'hsl(217, 45%, 10%)',
@@ -133,6 +144,7 @@ const SKY: Record<FlavorId, Record<string, string | number>> = {
     'fog-ground-blend': 0.72,
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,
+    'atmosphere-blend': 0,
   },
 }
 

@@ -173,12 +173,13 @@ watch(
 /*
  * What sits behind the globe.
  *
- * MapLibre's atmosphere leaves everything past its own glow transparent, so
- * the page shows through around the sphere. A flat map covers the canvas edge
- * to edge, which is why this is only ever visible under the globe projection.
- * The colours are the basemap's own land and night sky rather than a
- * photographic space, so the globe reads as sitting on the map's paper by day
- * and in its own dark by night.
+ * MapLibre draws nothing outside the sphere — the atmosphere that would
+ * otherwise halo it is off, because it doubles the day/night layer's
+ * terminator (see `SKY` in `map-style/build`) — so the page shows through
+ * around it. A flat map covers the canvas edge to edge, which is why this is
+ * only ever visible under the globe projection. The colours are the basemap's
+ * own land and night sky rather than a photographic space, so the globe reads
+ * as sitting on the map's paper by day and in its own dark by night.
  */
 .maplibregl-canvas-container {
   background: hsl(44, 52%, 95%);

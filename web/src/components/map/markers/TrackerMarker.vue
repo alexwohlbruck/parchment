@@ -51,6 +51,12 @@ const isStale = computed(
   () => props.staleness === 'stale' || props.staleness === 'very-stale',
 )
 
+// The ring claims "this is where it is now", so only a position recent enough
+// to still mean that earns one. `fresh` is the vehicles store's own word for
+// that — under two hours. Anything older keeps its colour and simply stops
+// insisting it is current, including a position whose age we never learned.
+const isLive = computed(() => props.staleness === 'fresh')
+
 const paint = computed(() =>
   isStale.value
     ? categoryMarkerPaint('default', themeStore.isDark)
@@ -72,7 +78,7 @@ const timeAgo = computed(() =>
           class="cursor-pointer"
           :paint="paint"
           :size="MARKER_LIVE_PLATE_SIZE"
-          pulse
+          :pulse="isLive"
           :muted="isStale"
           @click="handleClick"
         >

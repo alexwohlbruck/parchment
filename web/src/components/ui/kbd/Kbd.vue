@@ -74,7 +74,8 @@ const displayString = computed(() => {
 </script>
 
 <template>
-  <component :is="props.as" :class="kbdClass">
+  <!-- An id that resolves to nothing would otherwise render an empty keycap. -->
+  <component v-if="displayString" :is="props.as" :class="kbdClass">
     {{ displayString }}
   </component>
 </template>

@@ -8,7 +8,7 @@
  *     Headsign     12, 25 min  📶
  */
 import { computed, markRaw, onBeforeUnmount, watch } from 'vue'
-import { setPlaceTransitLines } from '@/composables/usePlaceTransitLines'
+import { setPlaceTransitLines, usePlaceTransferLines, type StationLine } from '@/composables/usePlaceTransitLines'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,6 +25,7 @@ import {
   type RouteGroup,
 } from '@/lib/transit-departures'
 import { formatDepartureTime, getMinutesUntil, getRouteBulletLabel } from '@/lib/transit'
+import StationTransfers from '@/components/transit/StationTransfers.vue'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
@@ -96,8 +97,8 @@ watch(
   () => void ensureBulletsAt(transitInfo.value?.lat, transitInfo.value?.lng),
   { immediate: true },
 )
-const styleOfRoute = (route: { id: string }) =>
-  bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng)
+const styleOfRoute = (route: { id: string; type?: number }) =>
+  bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng, route.type)
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
@@ -167,8 +168,15 @@ function openFullTransit() {
 }
 
 function openRouteDetail(group: RouteGroup) {
+  openRoute(group.route.id)
+}
+
+/** Lines reached by an in-station transfer — their own section below the
+ *  board, because they do not depart from here. */
+const transferLines = usePlaceTransferLines(computed(() => props.place?.id))
+
+function openRoute(routeId?: string) {
   const feedId = transitInfo.value?.feedId
-  const routeId = group.route.id
   if (!feedId || !routeId) return
 
   router.push({
@@ -248,6 +256,14 @@ function openRouteDetail(group: RouteGroup) {
       <div v-else class="py-4 text-center text-sm text-muted-foreground">
         {{ t('place.transit.noUpcomingDepartures') }}
       </div>
+
+      <StationTransfers
+        :lines="transferLines"
+        :lat="transitInfo?.lat"
+        :lng="transitInfo?.lng"
+        :feed-id="transitInfo?.feedId"
+        @open="(line: StationLine) => openRoute(line.id)"
+      />
 
       <!-- Agency attribution -->
       <div v-if="agencyName" class="mt-3 pt-2 border-t text-xs text-muted-foreground">

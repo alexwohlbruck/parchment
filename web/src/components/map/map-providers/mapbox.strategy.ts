@@ -52,10 +52,22 @@ import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
-import { calculateFitPadding } from '@/lib/map-padding'
+import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
+
+/**
+ * The zoom at which the globe has finished becoming a flat map.
+ *
+ * Mapbox interpolates the two across `globeToMercatorTransition`, a smoothstep
+ * from zoom 5 to zoom 6, rather than drawing a sphere at every zoom. Past this
+ * point a globe map and a Mercator map are the same map.
+ *
+ * MapLibre holds its sphere a good deal longer — see `GLOBE_FLATTENS_AT` in
+ * its strategy — so each engine keeps its own number rather than sharing one.
+ */
+const GLOBE_FLATTENS_AT = 6
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -585,7 +597,20 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setMapProjection(projection: MapProjection) {
+    this.options.projection = projection
     this.mapInstance.setProjection(projection)
+  }
+
+  /**
+   * Mapbox eases the globe into Mercator across `GLOBE_FLATTENS_AT`, so past
+   * that zoom a globe map is a flat map and the sphere is only on screen
+   * below it.
+   */
+  override isGlobeRendering(): boolean {
+    return (
+      this.options.projection === MapProjection.GLOBE &&
+      this.mapInstance.getZoom() < GLOBE_FLATTENS_AT
+    )
   }
 
   /**
@@ -1028,7 +1053,10 @@ export class MapboxStrategy extends MapStrategy {
 
     const appStore = useAppStore()
     const padding = calculateFitPadding(
-      appStore.visibleMapArea,
+      toContainerRect(
+        appStore.visibleMapArea,
+        this.container.getBoundingClientRect(),
+      ),
       this.container.clientWidth,
       this.container.clientHeight,
     )

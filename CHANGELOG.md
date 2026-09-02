@@ -2,6 +2,7 @@
 
 ### Added
 
+* The MapLibre engine can now draw the map on a globe. The map projection setting applies to both engines, offering flat and globe on MapLibre and the full list on Mapbox
 * Canvases — your own maps, in a new tab of your library. A canvas is a stack of layers you assemble: imagery or data you style yourself, layers borrowed from your library, and collections of saved places drawn as points. Switch a canvas on and it draws over the basemap like anything else; open it and it takes over the panel beside the map so you can arrange it against the map itself
 * A canvas is either shareable or private, and you can change your mind. A shareable one is stored so it can be published with a link one day; a private one is end-to-end encrypted, and only devices holding your recovery key can open it. Switching between them under Canvas details re-packages the whole canvas in one go — and making one private revokes any public link, since there would be nothing left for that link to show. A device that hasn't imported your recovery key can still make and edit shareable canvases
 * A data sources browser for canvases. One half is a curated library of datasets that need no setup — time zones, OpenStreetMap and topographic tiles, elevation, railways, nautical charts — and picking one makes a layer you can restyle. The other half is your own file or a URL. Live database connections (Postgres, BigQuery, Snowflake) are listed but not built yet, and say so
@@ -25,6 +26,10 @@
 
 ### Changed
 
+* The desktop sidebar has been rebuilt. Rows sit on an even grid at full contrast, the current one is marked by a single raised chip that slides between them, and collapsing or expanding the rail now glides instead of snapping — with the map resizing in step
+* The sidebar remembers whether it was collapsed, and the collapse toggle has moved to the top of the panel, next to the logo. Collapsed, the strip along the sidebar's edge lights up under the cursor and clicking it expands the panel again — `S` still works from anywhere
+* The expanded sidebar can be dragged to whatever width you want, by its outer edge, and it remembers that too. Drag it well past its narrowest and it collapses to the icon rail; drag back out and it returns
+* The account row at the bottom of the sidebar now lines up with the links above it, showing your name against a single line; your email is still in the menu it opens, which is wider and no longer clips a long address
 * Parchment's own layers are no longer editable. Many of them are more than a block of map styling — transit stops you can tap for departures, friends moving around live, the day and night terminator — and opening them in the layer editor exposed settings that could not describe what they actually do. They can still be reordered, regrouped, toggled and deleted; the store puts back anything you remove
 * Taking over one of Parchment's layers to make your own copy is gone, along with the copies-and-originals bookkeeping behind it. Layers you built yourself are untouched
 * Deleting one of Parchment's layer groups now takes the layers inside it too, instead of scattering them across the top of your library. Adding the group back from the store brings the whole set with it. Your own layers filed inside such a group are moved out rather than deleted
@@ -38,11 +43,32 @@
 
 ### Fixed
 
+* Tapping a station label that covers a whole interchange now opens all of it. New York draws four separate stations named "Canal St" as one symbol, and tapping it opened whichever of the four the label happened to sit on — so the panel showed two lines where the map had drawn six. Tapping a single line's marker still opens just that station
+* The map keeps up with the sidebar as it is dragged or collapsed, resizing frame by frame rather than snapping once the panel has settled
+* Centring on a place, or fitting a route, no longer aims too far to the right when a panel is open over the map. The gutter the map was told to leave on the left included the sidebar's width a second time, even though the map never extended under it — worse the wider the sidebar
+* The globe sits in the middle of the map when a panel is open. That same gutter moves the point the map is centred on off the middle of the screen, which a flat map hides and a globe cannot, so it is dropped while the globe is on screen
 * Buttons and other controls show the hand cursor again — they had been left on the arrow, so nothing in the app looked clickable
 * The tick beside a custom colour now applies it and closes the picker, rather than leaving the picker open with nothing apparently happening
-* OSM tag groups with subfields are easier to read in place details, and each individual value can now be copied on its own instead of only as one combined block
 * Escape works again in views that bind it alongside another. Several parts of the app listen for Escape at once, and closing any one of them quietly took the others' handling with it — so Escape could stop dismissing a panel until the page was reloaded
 * Undo and redo on a canvas now work while the cursor is in a text field. Naming a mark and then pressing ⌘Z used to do nothing, though the toolbar button worked
+
+## [0.8.3] - 2026-09-02
+
+### Changed
+
+* Lines you can transfer to without leaving a station have their own Transfers section below the departures, instead of being mixed into the station's own bullets
+* The toolbox button has been removed from the map. Measure, radius and isochrone are still available from the map's right-click menu, and the setting for showing the toolbox is gone from Settings
+* The capability filters in integration settings are listed alphabetically
+
+### Fixed
+
+* A station's line bullets no longer claim a transfer line isn't running. The row beside a station's name listed every line in its transfer complex and dimmed the ones with nothing on the board — but a transfer line never has anything on that board, so the 4, 5, 6 and 6X at Chambers St all read "isn't running now" while the trains were arriving one platform away. The row now shows only the lines that stop here
+* OSM tag groups with subfields are easier to read in place details, and each individual value can now be copied on its own instead of only as one combined block
+* Trees and street furniture on the map were being drawn inside-out, so they were lit by the side of themselves facing away from you and came out flat and too dark. They now catch the light on the surface you can actually see
+* The Brand Catalog, Transit Routing and Rideshare Estimate capability filters in integration settings show their names instead of raw translation keys, in English and Spanish
+* A subway station's departure board shows that station's own lines. Opening Brooklyn Bridge–City Hall listed trains from the Chambers St platforms 14 m nearer and buried its own 4, 5 and 6 at the bottom, each departure printed twice
+* Line bullets in a station header show the right line. New York's subway 4, 5, 6 and 7 share their route ids with Long Island Rail Road branches, and every one of them was drawn as a Ronkonkoma, Montauk, Long Beach or Far Rockaway pill
+* A station's line-up now lists the lines it runs before the ones an in-station transfer reaches, instead of mixing them together
 
 ## [0.8.2] - 2026-09-01
 

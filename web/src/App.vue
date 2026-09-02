@@ -13,6 +13,7 @@ import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useStorage } from '@vueuse/core'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
@@ -31,6 +32,7 @@ import {
 // imports in one obvious place.
 import '@/lib/realtime-bootstrap'
 
+import { SIDEBAR_WIDTH } from '@/components/ui/sidebar'
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
 import DialogView from '@/views/DialogView.vue'
@@ -78,7 +80,11 @@ watch(
 const { openExternalLink } = useExternalLink()
 
 const { dialogs } = appStore
-const navMini = ref(true)
+// Collapsed by default, and remembered — the rail's width changes the map's
+// viewport, so relearning it on every load is a visible layout shift.
+const navCollapsed = useStorage('sidebar-collapsed', true)
+// Width the user dragged the rail to, kept for the same reason.
+const navWidth = useStorage('sidebar-width', SIDEBAR_WIDTH)
 const viewRef = ref()
 
 const hideUI = ref(true)
@@ -282,7 +288,12 @@ function beforeNavTransition(value: boolean) {
         @after-enter="() => afterNavTransition(true)"
         @before-leave="() => beforeNavTransition(false)"
       >
-        <DesktopNav v-if="!hideUI" v-model:mini="navMini" class="z-40 h-full" />
+        <DesktopNav
+          v-if="!hideUI"
+          v-model:collapsed="navCollapsed"
+          v-model:width="navWidth"
+          class="z-40 h-full"
+        />
       </transition-slide>
     </template>
 

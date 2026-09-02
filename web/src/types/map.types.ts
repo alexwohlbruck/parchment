@@ -36,6 +36,19 @@ export enum MapProjection {
   LAMBERT_CONFORMAL_CONIC = 'lambertConformalConic',
 }
 
+/**
+ * Which projections each engine can actually draw.
+ *
+ * Mapbox has the whole list. MapLibre has two — a flat Mercator plane and a
+ * sphere — and warns and falls back to Mercator when handed anything else, so
+ * the Mapbox-only projections are kept out of its picker rather than offered
+ * and quietly ignored.
+ */
+export const ENGINE_PROJECTIONS: Record<MapEngine, MapProjection[]> = {
+  [MapEngine.MAPBOX]: Object.values(MapProjection),
+  [MapEngine.MAPLIBRE]: [MapProjection.MERCATOR, MapProjection.GLOBE],
+}
+
 export enum MapTheme {
   LIGHT = 'light',
   DARK = 'dark',
@@ -412,7 +425,6 @@ export interface MapControlSettings {
     | ControlVisibility.NEVER
   locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
   weather: ControlVisibility.ALWAYS | ControlVisibility.NEVER
-  toolbox?: ControlVisibility.ALWAYS | ControlVisibility.NEVER
 }
 
 export enum UnitSystem {

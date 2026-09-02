@@ -1,5 +1,6 @@
 import { shallowRef, triggerRef, watch, onUnmounted, type Ref } from 'vue'
 import axios from 'axios'
+import { useRoute } from 'vue-router'
 import { api } from '@/lib/api'
 import type { Place, WidgetDescriptor, WidgetResponse } from '@/types/place.types'
 import { WidgetDataType } from '@/types/place.types'
@@ -21,6 +22,19 @@ export function descriptorKey(desc: WidgetDescriptor): string {
 }
 
 export function useWidgets(place: Ref<Partial<Place> | null>) {
+  const route = useRoute()
+
+  /**
+   * Params the URL adds on top of the descriptor's own.
+   *
+   * `complex` comes from tapping a merged station label on the map — one
+   * symbol drawn over a whole interchange — and asks the transit widget for
+   * every station in it rather than the one the coordinates landed on. The
+   * descriptor is built server-side from the place alone and cannot know
+   * which symbol was tapped, so it rides the route instead.
+   */
+  const urlParams = (): Record<string, string> =>
+    route.query.complex ? { complex: '1' } : {}
   // shallowRef: Map mutations (.set/.delete) don't trigger Vue reactivity on their own.
   // We call triggerRef(widgetStates) after every mutation instead of replacing the Map.
   const widgetStates = shallowRef<Map<string, WidgetState>>(new Map())
@@ -31,8 +45,10 @@ export function useWidgets(place: Ref<Partial<Place> | null>) {
   onUnmounted(() => controller.abort())
 
   watch(
-    () => place.value?.widgets,
-    async (widgets) => {
+    // The URL's own params are part of the request, so a change to them has to
+    // refetch even when the place has not moved.
+    () => [place.value?.widgets, route.query.complex] as const,
+    async ([widgets]) => {
       // Abort any in-flight widget requests from the previous place
       controller.abort()
       controller = new AbortController()
@@ -71,7 +87,7 @@ export function useWidgets(place: Ref<Partial<Place> | null>) {
     try {
       const response = await api.get<WidgetResponse>(
         `/places/widgets/${descriptor.type}`,
-        { params: descriptor.params, signal },
+        { params: { ...descriptor.params, ...urlParams() }, signal },
       )
 
       widgetStates.value.set(key, {

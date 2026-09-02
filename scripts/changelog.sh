@@ -4,6 +4,14 @@
 # file with an `## [Unreleased]` section on top that accumulates entries as work
 # lands, followed by `## [X.Y.Z] - DATE` sections newest-first.
 #
+# A fresh `[Unreleased]` is opened with its `### Added` / `### Changed` /
+# `### Fixed` headings already in place, even though they are empty. They are
+# there to be merge anchors: two branches appending under headings they both
+# had to invent land on the same line with the same context and always
+# conflict, whereas two branches filling in headings that already exist merge
+# cleanly as long as they are different headings. Empty headings are stripped
+# back out on the way to any consumer, so nothing downstream ever sees one.
+#
 # Every consumer of the changelog goes through here so the format is known in
 # exactly one place: deploy.sh (PR body, release cut) and release.yml (GitHub
 # Release body, Google Play "what's new").
@@ -18,6 +26,9 @@ set -euo pipefail
 
 CHANGELOG="${CHANGELOG_FILE:-CHANGELOG.md}"
 
+# Seeded into every fresh [Unreleased], in Keep a Changelog order.
+SECTIONS="Added Changed Fixed"
+
 # Print the body of one `## [...]` section, without its header.
 # want=unreleased -> the [Unreleased] section; want=latest -> the first released one.
 section() {
@@ -31,6 +42,24 @@ section() {
         }
         capturing { print }
     ' "$CHANGELOG" | trim
+}
+
+# Drop any `### X` heading with no `* ` bullet under it. The seeded headings
+# exist for git's benefit, not the reader's — callers asking "is there anything
+# to release?" must not see three empty headings and answer yes.
+drop_empty_sections() {
+    awk '
+        function flush() {
+            if (heading != "" && has) {
+                print heading
+                for (i = 1; i <= n; i++) print buf[i]
+            }
+        }
+        /^### / { flush(); heading = $0; n = 0; has = 0; next }
+        heading == "" { print; next }
+        { buf[++n] = $0; if ($0 ~ /^\* /) has = 1 }
+        END { flush() }
+    '
 }
 
 # Strip leading and trailing blank lines.
@@ -52,14 +81,14 @@ plain() {
 
 case "${1:-}" in
     unreleased)
-        section unreleased
+        section unreleased | drop_empty_sections | trim
         ;;
 
     latest)
         if [ "${2:-}" = "--plain" ]; then
-            section latest | plain
+            section latest | drop_empty_sections | trim | plain
         else
-            section latest
+            section latest | drop_empty_sections | trim
         fi
         ;;
 
@@ -69,24 +98,30 @@ case "${1:-}" in
             echo "Usage: $0 release X.Y.Z" >&2
             exit 1
         fi
-        if [ -z "$(section unreleased)" ]; then
+        body=$(section unreleased | drop_empty_sections | trim)
+        if [ -z "$body" ]; then
             echo "Nothing under [Unreleased] in $CHANGELOG — nothing to release." >&2
             exit 1
         fi
 
-        # Retitle [Unreleased] as the new version and open an empty one above it.
-        # The accumulated entries stay put and fall under the new version header.
+        # Retitle [Unreleased] as the new version and open a freshly seeded one
+        # above it. The accumulated entries are rewritten rather than left in
+        # place so the headings nobody filled in don't ship with the release.
         tmp=$(mktemp)
-        awk -v v="$version" -v d="$(date +%Y-%m-%d)" '
-            !stamped && /^## \[Unreleased\]/ {
-                print "## [Unreleased]"
-                print ""
-                print "## [" v "] - " d
-                stamped = 1
-                next
-            }
-            { print }
-        ' "$CHANGELOG" > "$tmp"
+        {
+            echo "## [Unreleased]"
+            for s in $SECTIONS; do
+                echo ""
+                echo "### $s"
+            done
+            echo ""
+            echo "## [$version] - $(date +%Y-%m-%d)"
+            echo ""
+            echo "$body"
+            echo ""
+            # Everything from the previous release header down, untouched.
+            awk 'seen { print } !seen && /^## \[/ && !/^## \[Unreleased\]/ { seen = 1; print }' "$CHANGELOG"
+        } > "$tmp"
         mv "$tmp" "$CHANGELOG"
         ;;
 

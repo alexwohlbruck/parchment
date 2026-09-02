@@ -33,6 +33,10 @@ export interface StationLinesContext {
  * 1 2 A B C D here while the map drew A C · B D · 1 2, which is the order
  * the MTA and Apple both use. Sorting on the way OUT rather than the way
  * in means every subscriber gets it, whatever published the lines.
+ *
+ * Read as two lists, because they answer different questions: the lines the
+ * station runs, and the lines a transfer reaches. Only the first belongs
+ * beside the title.
  */
 type Entry = { routes: StationRoute[]; running: Set<string>; ctx: StationLinesContext }
 
@@ -60,23 +64,57 @@ export function setPlaceTransitLines(
   }
 }
 
+/** Bullet-order input: the glyphs portolan sorts by are the bullet's own —
+ *  short name, long name if there is none. Not parchment's translated mode
+ *  fallback ("Tram"), which would sort by the UI language. */
+const bulletOf = (r: StationRoute) => ({
+  label: r.shortName || r.longName || '',
+  color: r.color,
+  id: r.id,
+})
+
+/**
+ * The lines this station runs.
+ *
+ * Only its own: a line reachable by transfer does not depart from here, and
+ * putting it in this row made the header lie twice over. The row dims a bullet
+ * whose line has no run on the board — which is honest for a line that stops
+ * here and simply isn't running — but a transfer line has no run on this
+ * board by construction, so every one of them rendered as "isn't running now"
+ * while the trains were in fact turning up one platform away.
+ */
 export function usePlaceTransitLines(placeId: Ref<string | undefined>) {
   return computed<StationLine[]>(() => {
     const entry = placeId.value ? byPlace[placeId.value] : undefined
     if (!entry) return []
-    const ordered = orderBullets(entry.routes, r => ({
-      // the label portolan sorts by is the bullet's own glyphs — short
-      // name, long name if there is none. Not parchment's translated
-      // mode fallback ("Tram"), which would sort by the UI language.
-      label: r.shortName || r.longName || '',
-      color: r.color,
-      id: r.id,
-    }))
-    return ordered.map(r => ({
+    const own = entry.routes.filter(r => r.via !== 'transfer')
+    return orderBullets(own, bulletOf).map(r => ({
       ...r,
       inService: !entry.ctx.known || entry.running.has(r.id),
     }))
   })
+}
+
+/**
+ * The lines a rider reaches from here without leaving the paid area — the J
+ * and Z at Chambers St, from Brooklyn Bridge–City Hall.
+ *
+ * Never marked out of service. The board that would answer that question is
+ * the connecting station's, not this one's, so the honest answer here is to
+ * say the transfer exists and stop there.
+ */
+export function usePlaceTransferLines(placeId: Ref<string | undefined>) {
+  return computed<StationLine[]>(() => {
+    const entry = placeId.value ? byPlace[placeId.value] : undefined
+    return entry ? transferLinesOf(entry.routes) : []
+  })
+}
+
+/** The same split off a raw route list, for a view holding the board's own
+ *  `transitInfo` rather than a place id. */
+export function transferLinesOf(routes: StationRoute[] | undefined): StationLine[] {
+  const reached = (routes ?? []).filter(r => r.via === 'transfer')
+  return orderBullets(reached, bulletOf).map(r => ({ ...r, inService: true }))
 }
 
 /** The board's own context — feed and window — for the same place. */

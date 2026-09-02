@@ -13,7 +13,7 @@ import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
-import { FAR_SUFFIX, project } from './object-layer'
+import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 
 const MODELS = resolve(__dirname, '../../../public/models')
@@ -156,6 +156,50 @@ describe('models', () => {
     expect(solid, `${name}: paired=${paired} consistent=${consistent} volume=${volume.toFixed(4)}`)
       .toBe(OBJECT_SOLID[name])
   })
+
+  /**
+   * A solid's outward faces reach the screen wound the way `FRONT_FACE` says.
+   *
+   * The test above settles which way a model is wound in its own space, and
+   * that is the half everyone checks. This is the other half, and it is the
+   * one that decides whether culling keeps the near surface or the far one:
+   * the map's frame runs y south while the framebuffer's runs y up, so the
+   * projection mirrors the plane and a model wound outwards arrives wound the
+   * other way. Match `frontFace` to the model rather than to the map and every
+   * solid is drawn from the inside — it keeps its silhouette and loses its
+   * lighting, which reads as normals pointing the wrong way.
+   */
+  test.each(Object.keys(OBJECT_SOLID).filter(name => OBJECT_SOLID[name]))(
+    '%s presents its outward faces as FRONT_FACE claims',
+    name => {
+      let tested = 0
+      for (const primitive of load(name).primitives) {
+        for (let i = 0; i < primitive.index.length; i += 3) {
+          const triangle = [primitive.index[i], primitive.index[i + 1], primitive.index[i + 2]]
+          // Only the faces a plan view can see. Those are the ones that have to
+          // survive the cull, so they are the ones worth asking about.
+          const up = triangle.reduce((sum, v) => sum + primitive.normal[v * 3 + 1], 0) / 3
+          if (up < 0.9) continue
+          const screen = triangle.map(v => {
+            const [x, y, z] = [0, 1, 2].map(c => primitive.position[v * 3 + c])
+            // Model space to the map's, mirroring the swap in `VS`, and then to
+            // the screen of a camera looking straight down: x east is x to the
+            // right, and y south is y down, which the framebuffer's y up flips.
+            const [east, south] = [x, -z]
+            return [east, -south]
+          })
+          const area =
+            (screen[1][0] - screen[0][0]) * (screen[2][1] - screen[0][1]) -
+            (screen[1][1] - screen[0][1]) * (screen[2][0] - screen[0][0])
+          if (Math.abs(area) < 1e-9) continue
+          expect(area > 0 ? 'ccw' : 'cw', `${name} triangle ${i / 3}`).toBe(FRONT_FACE)
+          tested++
+        }
+      }
+      // Otherwise a model with nothing facing upwards passes by testing nothing.
+      expect(tested, `${name} has no upward face to check`).toBeGreaterThan(0)
+    },
+  )
 
   /** Most of them should be, or the plan view is still shattering. */
   test('the great majority of models are solid', () => {

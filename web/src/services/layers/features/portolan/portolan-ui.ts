@@ -114,9 +114,23 @@ export function parseGtfsIds(raw: unknown): GtfsIdPair[] {
 /** Where a clicked station goes: an OSM object, or a transit.land stop
  *  key, or nowhere. Route names are the caller's (AppRoute) — this module
  *  stays free of the router. */
-export type StopTarget =
+export type StopTarget = (
   | { kind: 'osm'; type: string; id: string }
   | { kind: 'transitland'; stopKey: string }
+) & {
+  /**
+   * The symbol stands for a whole complex rather than one station, so the
+   * panel should open all of it.
+   *
+   * Read from `nmarkers`, not from `gtfs_ids`: that prop lists every stop
+   * merged into the station — platforms AND parent records — so even a plain
+   * two-platform station carries several pairs and counting them would call
+   * everything a complex. `nmarkers` is one per ribbon bundle the station's
+   * lines snap to, which is what actually makes a drawn label cover more than
+   * one station: Canal St is one symbol over four of them.
+   */
+  complex?: boolean
+}
 
 /**
  * Which place a click on this station feature identifies.
@@ -139,13 +153,21 @@ export type StopTarget =
  * be a link.
  */
 export function stopTargetFor(props: any): StopTarget | null {
+  // The merged label is the whole interchange; one corridor's marker is not.
+  // Present only when true, so a plain station's target stays exactly what it
+  // has always been.
+  const complex =
+    props?.ftype === 'station' && Number(props?.nmarkers ?? 0) > 1
+      ? { complex: true as const }
+      : {}
+
   const osm = String(props?.osm ?? '')
   const slash = osm.indexOf('/')
   if (slash > 0 && slash < osm.length - 1) {
-    return { kind: 'osm', type: osm.slice(0, slash), id: osm.slice(slash + 1) }
+    return { kind: 'osm', type: osm.slice(0, slash), id: osm.slice(slash + 1), ...complex }
   }
   // a merged complex can carry several pairs; the tiler orders them by
   // importance, so the first is the one to open
   const pairs = parseGtfsIds(props?.gtfs_ids)
-  return pairs.length ? { kind: 'transitland', stopKey: pairs[0].stopKey } : null
+  return pairs.length ? { kind: 'transitland', stopKey: pairs[0].stopKey, ...complex } : null
 }

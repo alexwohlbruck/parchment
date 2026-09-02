@@ -5513,6 +5513,7 @@
           "Library"
         ],
         "summary": "Update a canvas",
+        "description": "Returns the canvas without its body: a canvas saves itself as it is edited, and the document it has just sent is the one thing the client already holds. Read it back with GET /canvases/:id.",
         "requestBody": {
           "required": true,
           "content": {

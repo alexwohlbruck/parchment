@@ -19,10 +19,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  CarFrontIcon,
-  BikeIcon,
-  TruckIcon,
-  AccessibilityIcon,
   MapPinIcon,
   MapPinOffIcon,
   MoreVerticalIcon,
@@ -30,29 +26,14 @@ import {
   NavigationIcon,
   CheckIcon,
   SettingsIcon,
-  type LucideIcon,
 } from 'lucide-vue-next'
+import { getVehicleIcon } from '@/lib/travel-mode-icons'
 
 const router = useRouter()
 const vehiclesStore = useVehiclesStore()
 const mapService = useMapService()
 const { startPicking } = useVehicleLocationPicker()
 const { vehicles, loading } = storeToRefs(vehiclesStore)
-
-const vehicleTypeIcons: Record<string, LucideIcon> = {
-  car: CarFrontIcon,
-  truck: TruckIcon,
-  moped: BikeIcon,
-  bike: BikeIcon,
-  'e-bike': BikeIcon,
-  scooter: BikeIcon,
-  'e-scooter': BikeIcon,
-  wheelchair: AccessibilityIcon,
-}
-
-function getIcon(type: string): LucideIcon {
-  return vehicleTypeIcons[type] || MapPinIcon
-}
 
 function formatRelativeTime(dateStr: string): string {
   const ms = Date.now() - new Date(dateStr).getTime()
@@ -153,7 +134,7 @@ function goToSettings() {
           @click="openDetail(vehicle)"
         >
           <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground">
-            <component :is="getIcon(vehicle.type)" class="size-5 text-background" />
+            <component :is="getVehicleIcon(vehicle.type)" class="size-5 text-background" />
           </div>
           <div class="flex-1 min-w-0">
             <p class="text-sm font-semibold truncate leading-tight">
@@ -221,7 +202,7 @@ function goToSettings() {
           @click="openDetail(vehicle)"
         >
           <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
-            <component :is="getIcon(vehicle.type)" class="size-5 text-muted-foreground" />
+            <component :is="getVehicleIcon(vehicle.type)" class="size-5 text-muted-foreground" />
           </div>
           <div class="flex-1 min-w-0">
             <p class="text-sm font-semibold truncate leading-tight text-muted-foreground">

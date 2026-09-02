@@ -9,34 +9,12 @@ import { AppRoute } from '@/router'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
-import {
-  CarFrontIcon,
-  BikeIcon,
-  TruckIcon,
-  AccessibilityIcon,
-  MapPinIcon,
-  MapPinOffIcon,
-  type LucideIcon,
-} from 'lucide-vue-next'
+import { MapPinIcon, MapPinOffIcon } from 'lucide-vue-next'
+import { getVehicleIcon } from '@/lib/travel-mode-icons'
 
 const router = useRouter()
 const vehiclesStore = useVehiclesStore()
 const { vehicles, loading } = storeToRefs(vehiclesStore)
-
-const vehicleTypeIcons: Record<string, LucideIcon> = {
-  car: CarFrontIcon,
-  truck: TruckIcon,
-  moped: BikeIcon,
-  bike: BikeIcon,
-  'e-bike': BikeIcon,
-  scooter: BikeIcon,
-  'e-scooter': BikeIcon,
-  wheelchair: AccessibilityIcon,
-}
-
-function getIcon(type: string): LucideIcon {
-  return vehicleTypeIcons[type] || MapPinIcon
-}
 
 function formatRelativeTime(dateStr: string): string {
   const ms = Date.now() - new Date(dateStr).getTime()
@@ -109,7 +87,7 @@ function openDetail(vehicle: UserVehicle) {
           @click="openDetail(vehicle)"
         >
           <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-            <component :is="getIcon(vehicle.type)" class="size-5 text-foreground" />
+            <component :is="getVehicleIcon(vehicle.type)" class="size-5 text-foreground" />
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2">
@@ -139,7 +117,7 @@ function openDetail(vehicle: UserVehicle) {
           @click="openDetail(vehicle)"
         >
           <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
-            <component :is="getIcon(vehicle.type)" class="size-5 text-foreground/50" />
+            <component :is="getVehicleIcon(vehicle.type)" class="size-5 text-foreground/50" />
           </div>
           <div class="flex-1 min-w-0">
             <span class="text-sm font-medium truncate text-muted-foreground">

@@ -24,6 +24,17 @@
 export const MARKER_PLATE_SIZE = 19
 
 /**
+ * The plate for a live marker — a friend, a tracked vehicle — in CSS pixels.
+ *
+ * Bigger than a place marker on purpose, and the one place a marker is allowed
+ * to be. A POI is part of the map and is drawn at the density the map is drawn
+ * at; a live marker is a thing that is somewhere right now, sits on top of all
+ * of it, and is usually the reason the map is open. It also has to hold a face
+ * at a size a face is recognisable at.
+ */
+export const MARKER_LIVE_PLATE_SIZE = 28
+
+/**
  * The glyph, as a fraction of the plate.
  *
  * 0.57 is the ratio the basemap's own POI sprites use, and holding every other

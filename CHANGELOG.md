@@ -42,6 +42,9 @@
 * Canvases holding large imported datasets stay responsive as you edit them, and save without sending the whole document back and forth
 * A pin on a canvas can be a circle, a square or just its icon. A square reads as a station or a stop the way the basemap already draws them, and a bare icon keeps a busy map quiet
 * Canvases appear in the layer selector under their own group, so one can be switched on or off from the map without opening your library
+* Trackers and friends are drawn like every other marker on the map — the same plate, ring and shadow a place wears, in the app's accent colour, at a size that keeps them above the map rather than in it. Each was previously its own hand-drawn circle, so a tracked car, a friend and the café beside them read as three unrelated marks
+* A tracker or a friend whose position is too old to trust now goes grey and stops pulsing, instead of only fading a little
+* A tracker's marker only pulses while its position is still current, rather than for a full day after the vehicle last reported
 
 ### Fixed
 

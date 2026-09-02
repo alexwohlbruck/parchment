@@ -12,6 +12,7 @@ export { MARKER_SHAPES, type MarkerShape } from './marker-shape'
 
 export {
   MARKER_PLATE_SIZE,
+  MARKER_LIVE_PLATE_SIZE,
   MARKER_GLYPH_RATIO,
   MARKER_SQUARE_CORNER,
   MARKER_RING_WIDTH,

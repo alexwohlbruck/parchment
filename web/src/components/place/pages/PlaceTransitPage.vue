@@ -64,8 +64,8 @@ watch(
   () => void ensureBulletsAt(props.transitInfo?.lat, props.transitInfo?.lng),
   { immediate: true },
 )
-const styleOfRoute = (route: { id: string }) =>
-  bulletFor(route.id, props.transitInfo?.lat, props.transitInfo?.lng)
+const styleOfRoute = (route: { id: string; type?: number }) =>
+  bulletFor(route.id, props.transitInfo?.lat, props.transitInfo?.lng, route.type)
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {

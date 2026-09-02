@@ -130,6 +130,7 @@ export function resolveWidgetDescriptors(
       // The mode the place's own tags claim, so the stop search prefers a stop
       // of that mode over whatever happens to be closest.
       const routeTypes = getGTFSRouteTypesFromTags(getPlaceOsmTags(place))
+      const stationName = transitInfo?.name || place.name?.value
 
       descriptors.push({
         type: WidgetType.TRANSIT,
@@ -142,6 +143,10 @@ export function resolveWidgetDescriptors(
           ...(transitInfo?.feedId ? { feedId: transitInfo.feedId } : {}),
           ...(transitInfo?.stopId ? { stopId: transitInfo.stopId } : {}),
           ...(routeTypes.length ? { routeTypes: routeTypes.join(',') } : {}),
+          // The station's own name settles which GTFS stop these coordinates
+          // belong to. Nearest-wins gets it wrong wherever a neighbouring
+          // station's platforms sit closer to the node than the station's own.
+          ...(stationName ? { name: stationName } : {}),
           // Keep onestopIds for backwards compatibility with cached data
           ...(transitInfo?.onestopId ? { onestopIds: (transitInfo.onestopIds || [transitInfo.onestopId]).join(',') } : {}),
         },
@@ -404,7 +409,10 @@ function adaptDeparture(dep: BarrelmanDeparture, timezone: string): TransitDepar
  * enriches with route colors from the GTFS database.
  */
 async function fetchTransitDepartures(
-  params: { lat: number; lng: number; feedId?: string; stopId?: string; routeTypes?: string },
+  params: {
+    lat: number; lng: number; feedId?: string; stopId?: string
+    routeTypes?: string; name?: string
+  },
   options?: { limit?: number; windowMinutes?: number },
 ): Promise<{
   departures: TransitDeparture[]
@@ -435,6 +443,7 @@ async function fetchTransitDepartures(
     if (params.feedId) queryParams.set('feedId', params.feedId)
     if (params.stopId) queryParams.set('stopId', params.stopId)
     if (params.routeTypes) queryParams.set('routeTypes', params.routeTypes)
+    if (params.name) queryParams.set('name', params.name)
     if (windowMinutes) queryParams.set('windowMinutes', String(windowMinutes))
 
     const response = await fetch(`${config!.host}/transit/departures?${queryParams}`, { headers })
@@ -491,6 +500,7 @@ async function fetchTransitDepartures(
           const rows = await routesRes.json() as Array<{
             routeId: string; routeShortName?: string; routeLongName?: string
             routeType?: number; routeColor?: string; routeTextColor?: string
+            via?: 'station' | 'transfer'
           }>
           routes = rows.map((r) => ({
             id: r.routeId,
@@ -499,6 +509,10 @@ async function fetchTransitDepartures(
             color: r.routeColor,
             textColor: r.routeTextColor,
             type: r.routeType,
+            // Whether the line calls here or is reached by an in-station
+            // transfer. Both belong in a station's line-up and they do not
+            // mean the same thing; older instances send neither.
+            via: r.via ?? 'station',
           }))
         }
       } catch {
@@ -626,6 +640,7 @@ export async function fetchWidgetData(
           feedId: params.feedId || undefined,
           stopId: params.stopId || undefined,
           routeTypes: params.routeTypes || undefined,
+          name: params.name || undefined,
         },
         { limit, windowMinutes },
       )

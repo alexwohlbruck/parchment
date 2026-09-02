@@ -69,12 +69,15 @@ export function useIntegrationFilters() {
   const sortField = ref<SortField>('alphabetical')
   const sortAscending = ref(true)
 
-  // All capability options (used to populate the capabilities submenu)
+  // All capability options (used to populate the capabilities submenu),
+  // alphabetized by their localized label
   const allCapabilities = computed(() =>
-    Object.values(IntegrationCapabilityId).map(id => ({
-      id,
-      label: t(`settings.integrations.capabilities.${id}`),
-    })),
+    Object.values(IntegrationCapabilityId)
+      .map(id => ({
+        id,
+        label: t(`settings.integrations.capabilities.${id}`),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
   )
 
   // Name → ref map, for generic toggle/remove handlers

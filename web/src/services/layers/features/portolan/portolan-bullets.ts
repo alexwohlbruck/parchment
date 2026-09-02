@@ -23,7 +23,7 @@
  */
 import { reactive } from 'vue'
 import { api } from '@/lib/api'
-import type { PortolanIndexEntry } from '@/types/portolan.types'
+import { portolanClassOf, type PortolanIndexEntry } from '@/types/portolan.types'
 
 export interface PortolanBullet {
   label: string
@@ -115,21 +115,40 @@ export async function ensureBulletsAt(lat?: number, lng?: number): Promise<void>
  * own id first, then a `:id` suffix, because a group pyramid prefixes
  * every feed after the first — the 2 is `f3:2` in northeast-corridor and
  * plain `2` in mta-subway, and the panel only ever has the bare one.
+ *
+ * A bare id is not unique across agencies, though, and the suffix match
+ * happily crosses one. The New York subway's 4, 5, 6 and 7 are also the
+ * Long Island Rail Road's route ids, stored as `f1:4`…`f1:7` in the
+ * northeast-corridor pyramid, and no NYC subway pyramid is published — so
+ * every Lexington Avenue bullet in a station header came back as a
+ * Ronkonkoma, Montauk or Long Beach Branch pill. Passing the route's GTFS
+ * `route_type` narrows the match to bullets of the same mode class, which
+ * is what separates a metro 4 from a regional one. Omit it and the match
+ * is as loose as it ever was.
  */
-export function bulletFor(routeId: string, lat?: number, lng?: number): PortolanBullet | null {
+export function bulletFor(
+  routeId: string,
+  lat?: number,
+  lng?: number,
+  routeType?: number | null,
+): PortolanBullet | null {
   // touch the generation so Vue re-evaluates when a fetch lands
   void state.generation
   if (!routeId) return null
   const feeds =
     lat !== undefined && lng !== undefined ? feedsAt(lat, lng) : Object.keys(indexes)
+  const wanted = portolanClassOf(routeType)
+  // A bullet that never declared a mode can't contradict one — take it.
+  const usable = (b?: PortolanBullet) =>
+    !!b && (!wanted || !b.mode || b.mode === wanted)
   const suffix = `:${routeId}`
   for (const feed of feeds) {
     const idx = indexes[feed]
     if (!idx) continue
     const exact = idx[routeId]
-    if (exact) return exact
+    if (usable(exact)) return exact
     for (const id of Object.keys(idx)) {
-      if (id.endsWith(suffix)) return idx[id]
+      if (id.endsWith(suffix) && usable(idx[id])) return idx[id]
     }
   }
   return null

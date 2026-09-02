@@ -1645,7 +1645,6 @@
         "streetView": "Street view",
         "locate": "Locate",
         "weather": "Weather",
-        "toolbox": "Toolbox",
         "visibility": {
           "always": "Always",
           "never": "Never",
@@ -1843,7 +1842,10 @@
         "searchAlongRoute": "Search Along Route",
         "osmMapEdit": "Edit Map",
         "tileServer": "Tile Server",
-        "locationHistory": "Location History"
+        "locationHistory": "Location History",
+        "brandCatalog": "Brand Catalog",
+        "transitRouting": "Transit Routing",
+        "rideshareEstimate": "Rideshare Estimate"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",

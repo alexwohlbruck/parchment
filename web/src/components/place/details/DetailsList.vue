@@ -35,6 +35,7 @@ import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import { Button } from '@/components/ui/button'
 import { formatClockTime } from '@/lib/time.utils'
+import { getOsmTagLabel } from '@/lib/osm-tag-labels'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -104,6 +105,32 @@ const wifiStatus = computed(() => {
   }
 
   return getWifiStatus(wifiTags)
+})
+
+const wifiSubfields = computed(() => {
+  if (!wifiStatus.value) return []
+
+  return [
+    {
+      key: 'ssid',
+      label: t(
+        'place.osmTags.labels.internet_access_ssid',
+        getOsmTagLabel('internet_access:ssid'),
+      ),
+      value: wifiStatus.value.ssid,
+    },
+    {
+      key: 'password',
+      label: t(
+        'place.osmTags.labels.internet_access_password',
+        getOsmTagLabel('internet_access:password'),
+      ),
+      value: wifiStatus.value.password,
+    },
+  ].filter(
+    (field): field is { key: string; label: string; value: string } =>
+      typeof field.value === 'string' && field.value.length > 0,
+  )
 })
 
 const outdoorSeating = computed(() => {
@@ -544,20 +571,57 @@ function getFullAddress(address: any) {
     <PlaceSection v-if="wifiStatus || outdoorSeating || wheelchairAccess || smokingStatus || restroomAccess || wheelchairRestroomAccess">
       <template #main>
         <!-- WiFi -->
-        <DetailItem
+        <div
           v-if="wifiStatus"
-          :icon="WifiIcon"
-          :value="wifiStatus.label"
-          :copyValue="wifiStatus.password"
-          :osmUrl="osmUrl"
-          :label="t('place.details.wifiPassword')"
+          class="flex gap-3 group min-w-0"
         >
-          <template v-if="wifiStatus.ssid">
-            <span class="text-muted-foreground text-sm">
-              {{ t('place.details.wifiNetwork', { ssid: wifiStatus.ssid }) }}
-            </span>
-          </template>
-        </DetailItem>
+          <WifiIcon class="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div class="flex min-w-0 flex-1 flex-col">
+            <div class="min-w-0">
+              <div class="text-sm leading-tight text-muted-foreground">
+                {{ t('place.osmTags.labels.internet_access') }}
+              </div>
+              <div class="leading-snug break-words">
+                {{ wifiStatus.label }}
+              </div>
+            </div>
+
+            <div
+              v-if="wifiSubfields.length > 0"
+              class="mt-1 divide-y divide-border/50"
+            >
+              <div
+                v-for="field in wifiSubfields"
+                :key="field.key"
+                class="flex min-h-8 min-w-0 items-center gap-2 py-1"
+              >
+                <div class="w-24 shrink-0 truncate text-xs text-muted-foreground">
+                  {{ field.label }}
+                </div>
+                <div class="min-w-0 flex-1 break-all text-sm leading-snug text-foreground">
+                  {{ field.value }}
+                </div>
+                <CopyButton
+                  :text="field.value"
+                  :message="`${field.label} copied to clipboard`"
+                  class="-mr-1 shrink-0 opacity-60 transition-opacity hover:opacity-100"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="flex opacity-0 transition-opacity shrink-0 group-hover:opacity-100">
+            <a
+              v-if="osmUrl"
+              :href="coordinates ? `${osmUrl}#map=19/${coordinates.lat}/${coordinates.lng}` : osmUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rounded p-1 hover:bg-muted"
+              :title="t('place.details.viewOnOpenStreetMap')"
+            >
+              <ExternalLinkIcon class="h-4 w-4 text-muted-foreground" />
+            </a>
+          </div>
+        </div>
 
         <!-- Outdoor Seating -->
         <DetailItem

@@ -101,6 +101,8 @@ const VS = `
 
     // glTF is Y-up and the map is Z-up. The asset keeps the standard
     // orientation so it opens correctly in any viewer; the swap happens here.
+    // It is a rotation, so it leaves the models' winding alone — which is not
+    // the same as leaving them facing the right way. See \`FRONT_FACE\`.
     vec3 p = vec3(a_position.x, -a_position.z, a_position.y);
     vec3 n = vec3(a_normal.x, -a_normal.z, a_normal.y);
 
@@ -135,6 +137,29 @@ const FS = `
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
 
 const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4 }
+
+/**
+ * Which way round an outward-facing triangle lands on screen.
+ *
+ * Clockwise, and that is not the usual answer. The map's frame is mirrored
+ * against the screen's: mercator x runs east but y runs *south*, while the
+ * framebuffer's y runs up, so the projection reflects the plane on the way to
+ * the viewport. The glTF-to-map swap in `VS` is a rotation and so preserves
+ * winding, which means a model authored counter-clockwise — every one of ours
+ * is, and `map-objects.test.ts` holds them to it — arrives clockwise here.
+ *
+ * MapLibre's own 3D geometry meets the same rule from the other side: its
+ * `fixWindingOrder` flips every fill-extrusion triangle to the winding that
+ * comes out counter-clockwise on screen, and only then draws with
+ * `frontFace(CCW)`. Nothing about `CCW` is inherent to the map; it is the
+ * convention their geometry is normalised into, and ours is not.
+ *
+ * Getting it backwards is not a subtle defect: culling then keeps the far side
+ * of every solid and throws away the surface facing the camera. The far side
+ * carries normals pointing away, so the object is shaded by the wrong half of
+ * itself and reads as inside-out — dark where the light is.
+ */
+export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
 export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint'
@@ -564,11 +589,11 @@ export class ObjectLayer {
     // removes the losing half of the argument outright rather than relying on
     // there being enough depth to settle it.
     //
-    // Winding survives the trip: the glTF-to-map frame swap in the shader is a
-    // rotation, and both instance scales are positive, so a model authored
-    // counter-clockwise still faces out.
+    // Both instance scales are positive, so nothing between the model and here
+    // flips a face; which way round its outward faces land is fixed by the
+    // frame it is drawn in, and `FRONT_FACE` is where that is worked out.
     gl.cullFace(gl.BACK)
-    gl.frontFace(gl.CCW)
+    gl.frontFace(FRONT_FACE === 'cw' ? gl.CW : gl.CCW)
 
     this.drawObjects(gl, shifted)
 
@@ -580,8 +605,12 @@ export class ObjectLayer {
     // MapLibre's painter caches GL state; invalidate what we touched.
     const context = this.map.painter?.context
     if (context)
+      // `frontFace` and `cullFaceSide` matter as much as the rest: MapLibre
+      // only re-issues a state call when its cached value differs, so a layer
+      // that leaves the winding on `CW` without saying so has every extrusion
+      // drawn after it inside-out.
       for (const key of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
-        'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace'])
+        'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace', 'cullFaceSide', 'frontFace'])
         if (context[key]) context[key].dirty = true
   }
 

@@ -26,6 +26,7 @@
 
 ### Changed
 
+* The layer selector now separates map overlays, saved-place collections and canvases into a compact tabbed panel with a clearer base-map picker
 * The desktop sidebar has been rebuilt. Rows sit on an even grid at full contrast, the current one is marked by a single raised chip that slides between them, and collapsing or expanding the rail now glides instead of snapping — with the map resizing in step
 * The sidebar remembers whether it was collapsed, and the collapse toggle has moved to the top of the panel, next to the logo. Collapsed, the strip along the sidebar's edge lights up under the cursor and clicking it expands the panel again — `S` still works from anywhere
 * The expanded sidebar can be dragged to whatever width you want, by its outer edge, and it remembers that too. Drag it well past its narrowest and it collapses to the icon rail; drag back out and it returns

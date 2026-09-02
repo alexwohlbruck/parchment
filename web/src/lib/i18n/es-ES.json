@@ -432,6 +432,24 @@
   },
   "layers": {
     "title": "Capas",
+    "selector": {
+      "tabs": {
+        "map": "Mapa",
+        "collections": "Colecciones",
+        "canvases": "Lienzos"
+      },
+      "baseMap": "Mapa base",
+      "overlays": "Superposiciones",
+      "savedPlaces": "Mostrar lugares guardados",
+      "showCanvases": "Mostrar lienzos",
+      "placeCount": "{count} lugares",
+      "canvasItemCount": "{count} elementos",
+      "switchBasemap": "Cambiar a {name}",
+      "emptyCollections": {
+        "title": "Aún no hay lugares guardados",
+        "description": "Las colecciones con lugares guardados aparecerán aquí."
+      }
+    },
     "transit": {
       "rail": "Tren",
       "bus": "Autobús",

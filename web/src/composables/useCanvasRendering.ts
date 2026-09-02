@@ -54,7 +54,7 @@ import {
 import {
   ensureMarkerImages,
   markerLayers,
-  MARKER_SHAPES,
+  type MarkerShape,
 } from '@/lib/map-marker'
 import { canvasStack, stackDrawOrder } from '@/lib/canvas-stack'
 import type {
@@ -122,23 +122,91 @@ const STROKE_DASHES: Record<string, number[] | undefined> = {
   dotted: [0.2, 1.8],
 }
 
+/** The tools that draw an area, and so need a fill layer under them. */
+const AREA_TOOLS = new Set(['polygon', 'rectangle', 'circle', 'isochrone'])
+
 /**
- * The dash-and-cap pairs a run of marks actually asks for, in a stable order.
+ * What a run of marks actually asks the style for.
  *
- * Pins draw no stroke, so they ask for nothing. Everything else contributes
- * the pair it is drawn with, which is usually one — a canvas full of solid
- * round-ended marks costs the single layer it always did.
+ * A run used to be given every layer any mark could ever need — a fill, four
+ * pin layers, a halo and a label layer — whether or not anything in it drew
+ * an area or was a pin. Most of them could never match a feature, and a
+ * canvas with marks between its layers pays for the whole set again in every
+ * run. So the run is read once, and asked for only what it uses.
+ *
+ * The dash-and-cap pairs come out the same way, and for a harder reason:
+ * neither can be read from a feature, so each pair in use needs a line layer
+ * of its own. A canvas of solid round-ended marks costs the single one it
+ * always did.
  */
-function strokeVariants(
-  annotations: CanvasAnnotation[],
-): { style: AnnotationStrokeStyle; cap: AnnotationStrokeCap }[] {
-  const seen = new Map<string, { style: AnnotationStrokeStyle; cap: AnnotationStrokeCap }>()
+interface RunLayers {
+  strokes: { style: AnnotationStrokeStyle; cap: AnnotationStrokeCap }[]
+  /** The marker shapes its pins wear; one set of layers each. */
+  shapes: MarkerShape[]
+  fill: boolean
+  labels: boolean
+}
+
+function runLayers(annotations: CanvasAnnotation[]): RunLayers {
+  const strokes = new Map<
+    string,
+    { style: AnnotationStrokeStyle; cap: AnnotationStrokeCap }
+  >()
+  const shapes = new Set<MarkerShape>()
+  let fill = false
+  let labels = false
+
   for (const annotation of annotations) {
-    if (annotation.tool === 'pin') continue
-    const { strokeStyle, strokeCap } = annotationStyle(annotation)
-    seen.set(`${strokeStyle}|${strokeCap}`, { style: strokeStyle, cap: strokeCap })
+    const style = annotationStyle(annotation)
+    if (annotation.tool === 'pin') {
+      shapes.add(style.markerShape)
+    } else {
+      // Pins draw no stroke, so they ask for no line layer.
+      strokes.set(`${style.strokeStyle}|${style.strokeCap}`, {
+        style: style.strokeStyle,
+        cap: style.strokeCap,
+      })
+    }
+    if (AREA_TOOLS.has(annotation.tool)) fill = true
+    if (annotation.label && annotation.labelVisible !== false) labels = true
   }
-  return [...seen.values()]
+
+  return { strokes: [...strokes.values()], shapes: [...shapes], fill, labels }
+}
+
+/**
+ * The serialised form of a source's data, remembered against the object it
+ * came from.
+ *
+ * A canvas can hold megabytes of imported GeoJSON, and it is handed over as
+ * the same object on every pass — so serialising it only to find it had not
+ * changed was the most expensive thing a render pass did. Marks are rebuilt
+ * each pass and miss the cache, but there is little of them.
+ */
+const dataSignatures = new WeakMap<object, string>()
+
+function dataSignature(data: unknown): string {
+  if (typeof data !== 'object' || data === null) return JSON.stringify(data)
+  const cached = dataSignatures.get(data)
+  if (cached !== undefined) return cached
+  const signature = JSON.stringify(data)
+  dataSignatures.set(data, signature)
+  return signature
+}
+
+/**
+ * A source spec split in two, because the halves cost different things to
+ * act on: everything but the data, which can only be changed by rebuilding
+ * the source, and the data itself, which a live source will take in place.
+ */
+interface SourceSignature {
+  shape: string
+  data: string
+}
+
+function sourceSignature(spec: Record<string, unknown>): SourceSignature {
+  const { data, ...shape } = spec
+  return { shape: JSON.stringify(shape), data: dataSignature(data) }
 }
 
 const EMISSIVE_KEYS: Record<string, string> = {
@@ -213,10 +281,16 @@ export function useCanvasRendering(
   const pointsStore = useEncryptedPointsStore()
   const { layers: libraryLayers } = storeToRefs(layersStore)
 
-  /** Layer id → the configuration on the map, so an unchanged layer is left alone. */
+  /**
+   * Layer id → the configuration on the map, so an unchanged layer is left
+   * alone. Insertion order is the order the engine holds them in, which is
+   * what a reorder is checked against.
+   */
   let mountedLayers = new Map<string, string>()
-  /** Source id → the spec currently on the map, so we only rebuild on change. */
-  let mountedSources = new Map<string, string>()
+  /** Layer id → whether it is currently switched on. */
+  let mountedVisible = new Map<string, boolean>()
+  /** Source id → the signature currently on the map, so we rebuild on change. */
+  let mountedSources = new Map<string, SourceSignature>()
 
   function collectionPlaces(layer: Extract<CanvasLayer, { kind: 'collection' }>) {
     const collection = collectionsStore.collections.find(
@@ -449,6 +523,13 @@ export function useCanvasRendering(
   function planAnnotations(
     strategy: MapStrategy,
     canvas: RenderableCanvas,
+    /**
+     * The run's name on the map. Taken from the mark at the bottom of the
+     * run *before* anything is held out of it — a hidden or reshaped mark
+     * must not rename the run around it, or the whole run comes off the map
+     * and goes back on, which is the flash this all exists to avoid.
+     */
+    scope: string,
     run: CanvasAnnotation[],
   ): LayerPlan {
     const annotations = run.filter(
@@ -456,11 +537,6 @@ export function useCanvasRendering(
     )
     if (!annotations.length) return EMPTY_PLAN
 
-    // Marks draw in runs now rather than as one bundle on top, so the ids are
-    // scoped to the run rather than to the canvas. Keyed by the mark at the
-    // bottom of the run: stable while the run keeps its footing, where a
-    // running index would renumber every run below an insertion.
-    const scope = `annotations:${annotations[0].id}`
     const sourceId = scopedId(options.key, canvas.id, scope, '-source')
     const id = (suffix: string) => scopedId(options.key, canvas.id, scope, suffix)
     const labels = themeStore.isDark ? LABEL_COLORS.night : LABEL_COLORS.day
@@ -470,6 +546,12 @@ export function useCanvasRendering(
     void ensureMarkerImages(
       strategy.mapInstance as never,
       annotationMarkerSpecs(annotations, themeColorToHex, themeStore.isDark),
+    )
+
+    // Only what this run's marks actually draw with — see `runLayers`.
+    const needed = runLayers(annotations)
+    const selected = annotations.some(
+      annotation => annotation.id === canvas.selectedAnnotationId,
     )
 
     return {
@@ -485,19 +567,23 @@ export function useCanvasRendering(
         },
       },
       layers: [
-        toLayer(
-          id('-fill'),
-          {
-            type: 'fill',
-            source: sourceId,
-            filter: ['==', ['geometry-type'], 'Polygon'],
-            paint: {
-              'fill-color': ['get', 'fillColor'],
-              'fill-opacity': ['get', 'fillOpacity'],
-            },
-          },
-          true,
-        ),
+        ...(needed.fill
+          ? [
+              toLayer(
+                id('-fill'),
+                {
+                  type: 'fill',
+                  source: sourceId,
+                  filter: ['==', ['geometry-type'], 'Polygon'],
+                  paint: {
+                    'fill-color': ['get', 'fillColor'],
+                    'fill-opacity': ['get', 'fillOpacity'],
+                  },
+                },
+                true,
+              ),
+            ]
+          : []),
         // One layer per dash pattern and cap in the run, and only the pairs
         // actually in it.
         //
@@ -506,7 +592,7 @@ export function useCanvasRendering(
         // constant `line-cap` — round dashes for a round cap, which is what
         // makes a dotted line read as dots — and a data-driven one leaves
         // them with no answer, so the dashes come out wrong or not at all.
-        ...strokeVariants(annotations).map(({ style, cap }) =>
+        ...needed.strokes.map(({ style, cap }) =>
           toLayer(
             id(`-stroke-${style}-${cap}`),
             {
@@ -531,37 +617,42 @@ export function useCanvasRendering(
             true,
           ),
         ),
-        // A halo under the selected annotation, so clicking one shows.
-        toLayer(
-          id('-selected'),
-          {
-            type: 'circle',
-            source: sourceId,
-            filter: [
-              'all',
-              ['==', ['geometry-type'], 'Point'],
-              ['to-boolean', ['get', 'selected']],
-            ],
-            paint: {
-              'circle-color': ['get', 'color'],
-              'circle-radius': 14,
-              'circle-opacity': 0.25,
-            },
-          },
-          true,
-        ),
+        // A halo under the selected annotation, so clicking one shows. Only
+        // the run holding it needs one.
+        ...(selected
+          ? [
+              toLayer(
+                id('-selected'),
+                {
+                  type: 'circle',
+                  source: sourceId,
+                  filter: [
+                    'all',
+                    ['==', ['geometry-type'], 'Point'],
+                    ['to-boolean', ['get', 'selected']],
+                  ],
+                  paint: {
+                    'circle-color': ['get', 'color'],
+                    'circle-radius': 14,
+                    'circle-opacity': 0.25,
+                  },
+                },
+                true,
+              ),
+            ]
+          : []),
         // A pin is drawn the way a search result is — the plate, then the glyph
         // inside it — at full size whatever the zoom. Saved places shrink and
         // fade on the way out because the low-zoom question is "where have I
         // saved things"; a pin someone placed on a canvas is answering a
         // different one and has to stay where and what it was put down as.
         //
-        // One set of layers per shape, filtered on the pin's own `markerShape`.
-        // A disc gets a circle plate with a glyph over it; a square or a bare
-        // glyph is a single symbol drawing an image that already carries its
-        // plate — see `map-marker/marker-layers` for why the two cannot be the
-        // same layer.
-        ...MARKER_SHAPES.flatMap(shape =>
+        // One set of layers per shape *the run's pins actually wear*, filtered
+        // on the pin's own `markerShape`. A disc gets a circle plate with a
+        // glyph over it; a square or a bare glyph is a single symbol drawing
+        // an image that already carries its plate — see
+        // `map-marker/marker-layers` for why the two cannot be the same layer.
+        ...needed.shapes.flatMap(shape =>
           markerLayers({
             shape,
             id: id(`-pins-${shape}`),
@@ -587,111 +678,96 @@ export function useCanvasRendering(
             iconOpacity: 1,
           }).map(layer => toLayer(layer.id, layer as never, true)),
         ),
-        toLayer(
-          id('-labels'),
-          {
-            type: 'symbol',
-            source: sourceId,
-            filter: ['!=', ['get', 'label'], ''],
-            layout: {
-              'text-field': ['get', 'label'],
-              'text-size': ['get', 'labelSize'],
-              // A label above the mark anchors by its own bottom edge, and so
-              // on round — the anchor is the opposite of where the text goes.
-              'text-anchor': [
-                'match',
-                ['get', 'labelPosition'],
-                'top',
-                'bottom',
-                'bottom',
-                'top',
-                'left',
-                'right',
-                'right',
-                'left',
-                'center',
-              ],
-              'text-offset': [
-                'match',
-                ['get', 'labelPosition'],
-                'top',
-                ['literal', [0, -1.1]],
-                'bottom',
-                ['literal', [0, 1.1]],
-                'left',
-                ['literal', [-1.1, 0]],
-                'right',
-                ['literal', [1.1, 0]],
-                ['literal', [0, 0]],
-              ],
-              'text-optional': true,
-            },
-            paint: {
-              'text-color': labels.text,
-              'text-halo-color': labels.halo,
-              'text-halo-width': labels.haloWidth,
-            },
-          },
-          true,
-        ),
+        ...(needed.labels
+          ? [
+              toLayer(
+                id('-labels'),
+                {
+                  type: 'symbol',
+                  source: sourceId,
+                  filter: ['!=', ['get', 'label'], ''],
+                  layout: {
+                    'text-field': ['get', 'label'],
+                    'text-size': ['get', 'labelSize'],
+                    // A label above the mark anchors by its own bottom edge, and so
+                    // on round — the anchor is the opposite of where the text goes.
+                    'text-anchor': [
+                      'match',
+                      ['get', 'labelPosition'],
+                      'top',
+                      'bottom',
+                      'bottom',
+                      'top',
+                      'left',
+                      'right',
+                      'right',
+                      'left',
+                      'center',
+                    ],
+                    'text-offset': [
+                      'match',
+                      ['get', 'labelPosition'],
+                      'top',
+                      ['literal', [0, -1.1]],
+                      'bottom',
+                      ['literal', [0, 1.1]],
+                      'left',
+                      ['literal', [-1.1, 0]],
+                      'right',
+                      ['literal', [1.1, 0]],
+                      ['literal', [0, 0]],
+                    ],
+                    'text-optional': true,
+                  },
+                  paint: {
+                    'text-color': labels.text,
+                    'text-halo-color': labels.halo,
+                    'text-halo-width': labels.haloWidth,
+                  },
+                },
+                true,
+              ),
+            ]
+          : []),
       ],
     }
-  }
-
-  /**
-   * The data of a GeoJSON source whose spec changed in no other way, or
-   * undefined if the source has to be rebuilt.
-   *
-   * Worth telling apart: rebuilding a source means dropping every layer drawn
-   * from it and adding them all back. That is slow, and it is visible — the
-   * annotation bucket would flash on every mark committed.
-   */
-  function inlineDataChange(
-    previousSpec: string,
-    spec: Record<string, unknown>,
-  ): unknown | undefined {
-    if (spec.type !== 'geojson' || spec.data === undefined) return undefined
-    let previous: Record<string, unknown>
-    try {
-      previous = JSON.parse(previousSpec)
-    } catch {
-      return undefined
-    }
-    if (previous.type !== 'geojson') return undefined
-
-    const withoutData = (source: Record<string, unknown>) =>
-      JSON.stringify(
-        Object.keys(source)
-          .filter(key => key !== 'data')
-          .sort()
-          .map(key => [key, source[key]]),
-      )
-    return withoutData(previous) === withoutData(spec) ? spec.data : undefined
   }
 
   function render() {
     const strategy = mapStore.getMapStrategy()
     if (!strategy) return
 
-    /** Source id → its serialised spec, and the spec itself to hand over. */
-    const nextSources = new Map<string, string>()
+    /** Source id → its signature, and the spec itself to hand over. */
+    const nextSources = new Map<string, SourceSignature>()
     const specs = new Map<string, Record<string, unknown>>()
     /** Layer id → serialised configuration, the key for "has this changed". */
     const nextLayers = new Map<string, string>()
-    const plans: { plan: LayerPlan; visible: boolean }[] = []
+    /**
+     * Kept apart from the configuration: a switch flipping is one call to the
+     * engine, where a changed configuration means taking the layer off and
+     * putting it back — and putting it back moves it to the top of the style.
+     */
+    const nextVisible = new Map<string, boolean>()
+    /** Every layer this pass wants, bottom first — the order it must draw in. */
+    const ordered: { layer: Layer; visible: boolean }[] = []
+    /** Which sources a layer draws from, for "did one of them get rebuilt". */
+    const drawnFrom = new Map<string, string[]>()
 
     function collect(plan: LayerPlan, visible: boolean) {
-      plans.push({ plan, visible })
       for (const [id, spec] of Object.entries(plan.sources)) {
-        nextSources.set(id, JSON.stringify(spec))
+        nextSources.set(id, sourceSignature(spec))
         specs.set(id, spec)
       }
       for (const layer of plan.layers) {
         layer.configuration = withEmissive(
           layer.configuration as Record<string, unknown>,
         ) as typeof layer.configuration
-        nextLayers.set(layer.id, JSON.stringify([layer.configuration, visible]))
+        nextLayers.set(layer.id, JSON.stringify(layer.configuration))
+        nextVisible.set(layer.id, visible)
+        ordered.push({ layer, visible })
       }
+      const sources = Object.keys(plan.sources)
+      for (const layer of plan.layers) drawnFrom.set(layer.id, sources)
     }
 
     for (const canvas of canvases.value) {
@@ -705,6 +781,10 @@ export function useCanvasRendering(
         const plan = planAnnotations(
           strategy,
           canvas,
+          // Named after the mark at the bottom of the run as the stack has
+          // it, not as the run ends up drawn: hiding that mark, or picking
+          // it up to reshape, must not rename the run around it.
+          `annotations:${run[0].annotation.id}`,
           run.filter(entry => entry.visible).map(entry => entry.annotation),
         )
         if (plan.layers.length) collect(plan, true)
@@ -731,31 +811,27 @@ export function useCanvasRendering(
      */
     const updating = new Map<string, unknown>()
     const rebuilding = new Set<string>()
-    for (const [id, spec] of nextSources) {
+    for (const [id, signature] of nextSources) {
       const previous = mountedSources.get(id)
-      if (previous === spec) continue
-      const data =
-        previous === undefined
-          ? undefined
-          : inlineDataChange(previous, specs.get(id)!)
-      if (data === undefined) rebuilding.add(id)
-      else updating.set(id, data)
+      if (previous?.shape === signature.shape) {
+        // Only the features changed, which a live source will take as it is.
+        if (previous.data !== signature.data) {
+          updating.set(id, specs.get(id)!.data)
+        }
+        continue
+      }
+      rebuilding.add(id)
     }
 
-    const onRebuiltSource = new Set(
-      plans
-        .filter(({ plan }) =>
-          Object.keys(plan.sources).some(id => rebuilding.has(id)),
-        )
-        .flatMap(({ plan }) => plan.layers.map(layer => layer.id)),
-    )
+    const onRebuiltSource = (layerId: string) =>
+      (drawnFrom.get(layerId) ?? []).some(id => rebuilding.has(id))
 
     // Nothing may reference a source we are about to drop — the engine
     // refuses outright, and the failed drop used to leave the next addSource
     // colliding with the source it thought it had removed. So layers come off
     // first: the ones going away, and the ones sitting on a rebuilt source.
     for (const id of [...mountedLayers.keys()]) {
-      if (!nextLayers.has(id) || onRebuiltSource.has(id)) {
+      if (!nextLayers.has(id) || onRebuiltSource(id)) {
         strategy.removeLayer(id)
         mountedLayers.delete(id)
       }
@@ -765,25 +841,51 @@ export function useCanvasRendering(
       if (!nextSources.has(id) || rebuilding.has(id)) strategy.removeSource(id)
     }
 
+    for (const [id, spec] of specs) {
+      if (rebuilding.has(id)) strategy.addSource(id, spec)
+    }
+
     for (const [id, data] of updating) strategy.setSourceData(id, data)
 
-    for (const { plan, visible } of plans) {
-      for (const [id, spec] of Object.entries(plan.sources)) {
-        if (rebuilding.has(id)) strategy.addSource(id, spec)
+    /**
+     * Where the style stops matching what the stack now says, and everything
+     * from there up has to be laid down again.
+     *
+     * The engine has no "move this layer": adding one puts it on top. So a
+     * pass keeps the longest run of layers that are already unchanged *and*
+     * already in the right order, and re-adds the rest in order above it.
+     * Skipping unchanged layers wherever they sat is what used to make a
+     * reorder a no-op — nothing about a layer says where it draws, so two
+     * swapped layers both looked untouched and the map never heard about it.
+     */
+    const mounted = [...mountedLayers.keys()]
+    let held = 0
+    let from = ordered.length
+    for (const [index, { layer }] of ordered.entries()) {
+      const unchanged = mountedLayers.get(layer.id) === nextLayers.get(layer.id)
+      if (unchanged && mounted[held] === layer.id) {
+        held++
+        continue
       }
-      for (const mapLayer of plan.layers) {
-        // Re-adding an unchanged layer rebuilds the style for nothing, and
-        // this used to run for every layer on every pass — which is why
-        // moving the pointer rebuilt the whole canvas, sixty times a second.
-        if (mountedLayers.get(mapLayer.id) === nextLayers.get(mapLayer.id)) {
-          continue
+      from = index
+      break
+    }
+
+    for (const [index, { layer, visible }] of ordered.entries()) {
+      if (index < from) {
+        // Untouched and already in the right place; only its switch can have
+        // moved, and that is one call rather than a rebuild.
+        if (mountedVisible.get(layer.id) !== visible) {
+          strategy.toggleLayerVisibility(layer.id, visible)
         }
-        strategy.addLayer(mapLayer, true)
-        strategy.toggleLayerVisibility(mapLayer.id, visible)
+        continue
       }
+      strategy.addLayer(layer, true)
+      strategy.toggleLayerVisibility(layer.id, visible)
     }
 
     mountedLayers = nextLayers
+    mountedVisible = nextVisible
     mountedSources = nextSources
   }
 
@@ -791,8 +893,9 @@ export function useCanvasRendering(
     const strategy = mapStore.getMapStrategy()
     if (!strategy) return
     mountedLayers.forEach((_configuration, id) => strategy.removeLayer(id))
-    mountedSources.forEach((_spec, id) => strategy.removeSource(id))
+    mountedSources.forEach((_signature, id) => strategy.removeSource(id))
     mountedLayers = new Map()
+    mountedVisible = new Map()
     mountedSources = new Map()
   }
 

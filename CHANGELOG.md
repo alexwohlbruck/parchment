@@ -3,11 +3,13 @@
 ### Changed
 
 * The toolbox button has been removed from the map. Measure, radius and isochrone are still available from the map's right-click menu, and the setting for showing the toolbox is gone from Settings
+* The capability filters in integration settings are listed alphabetically
 
 ### Fixed
 
 * OSM tag groups with subfields are easier to read in place details, and each individual value can now be copied on its own instead of only as one combined block
 * Trees and street furniture on the map were being drawn inside-out, so they were lit by the side of themselves facing away from you and came out flat and too dark. They now catch the light on the surface you can actually see
+* The Brand Catalog, Transit Routing and Rideshare Estimate capability filters in integration settings show their names instead of raw translation keys, in English and Spanish
 
 ## [0.8.2] - 2026-09-01
 

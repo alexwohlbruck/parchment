@@ -2521,7 +2521,11 @@
       "untitled": "Group",
       "rename": "Rename group",
       "remove": "Ungroup",
-      "empty": "Drag layers and marks in here"
+      "empty": "Drag layers and marks in here",
+      "drawHere": "File new marks here",
+      "drawingHere": "New marks land here",
+      "destination": "Where new marks go",
+      "canvas": "Canvas"
     }
   },
   "colors": {

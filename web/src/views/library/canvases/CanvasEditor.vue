@@ -8,12 +8,11 @@
  * Save; leaving with unsaved work asks first, which is also what the sheet's
  * close button ends up doing.
  */
-import { computed, markRaw, nextTick, onScopeDispose, ref, watch } from 'vue'
+import { computed, nextTick, onScopeDispose, provide, ref, watch } from 'vue'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
-import draggable from 'vuedraggable'
 import { AppRoute } from '@/router'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { useCanvasesService } from '@/services/library/canvases.service'
@@ -31,13 +30,16 @@ import { useDrawOverlay } from '@/composables/useDrawOverlay'
 import { annotationFeature } from '@/lib/canvas-annotations'
 import { useRoutesService } from '@/services/library/routes.service'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
-import CanvasLayerRow from '@/components/library/canvas/CanvasLayerRow.vue'
 import AddCanvasLayerDialog from '@/components/library/canvas/AddCanvasLayerDialog.vue'
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
 import CanvasDataLayerSettings from '@/components/library/canvas/CanvasDataLayerSettings.vue'
 import CanvasDataSourcesDialog from '@/components/library/canvas/CanvasDataSourcesDialog.vue'
-import CanvasAnnotationRow from '@/components/library/canvas/CanvasAnnotationRow.vue'
-import CanvasGroupRow from '@/components/library/canvas/CanvasGroupRow.vue'
+import CanvasStackList from '@/components/library/canvas/CanvasStackList.vue'
+import {
+  CANVAS_STACK,
+  type AnnotationRowProps,
+  type LayerRowProps,
+} from '@/components/library/canvas/canvas-stack-context'
 import CanvasToolbar from '@/components/library/canvas/CanvasToolbar.vue'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import {
@@ -64,13 +66,15 @@ import {
   type CanvasLayer,
 } from '@/types/canvas.types'
 import {
-  appendToStack,
+  addToStack,
   canvasStack,
-  groupContents,
+  dissolveGroup,
+  groupOptions,
   moveInStack,
   removeFromStack,
+  type StackAnnotation,
   type StackChange,
-  type StackItem,
+  type StackLayer,
 } from '@/lib/canvas-stack'
 import {
   BookmarkIcon,
@@ -157,10 +161,13 @@ const selectedAnnotationId = computed(() =>
 
 const annotations = useCanvasAnnotations({
   onCommit(annotation: CanvasAnnotation) {
-    body.value = {
-      ...body.value,
-      annotations: [...(body.value.annotations ?? []), annotation],
-    }
+    body.value = fileInDestination(
+      {
+        ...body.value,
+        annotations: [...(body.value.annotations ?? []), annotation],
+      },
+      annotation.id,
+    )
     // Open the new mark straight away: naming is nearly always the next
     // thing, and hunting for the row you just created is friction.
     selectedId.value = annotation.id
@@ -327,30 +334,22 @@ function onStackChange(event: StackChange, groupId: string | null = null) {
 }
 
 /**
- * A row per kind, bound by hand rather than by three near-identical blocks of
- * markup — the stack renders at the top level and again inside every group,
- * and the two have to stay the same row.
+ * What each kind of row binds to. Bound here rather than in the panel because
+ * the stack renders at the top level and again inside every group, however
+ * deep, and they all have to stay the same row.
  */
-const ROWS = {
-  layer: markRaw(CanvasLayerRow),
-  annotation: markRaw(CanvasAnnotationRow),
-}
-
-function rowFor(entry: StackItem) {
-  return ROWS[entry.kind]
-}
-
-function rowProps(entry: StackItem) {
-  if (entry.kind === 'layer') {
-    return {
-      layer: entry.layer,
-      selected: selectedId.value === entry.id,
-      onSelect: () => (selectedId.value = entry.id),
-      onToggle: (visible: boolean) => patchLayer(entry.id, { visible }),
-      onEdit: () => editLayer(entry.layer),
-      onRemove: () => removeLayer(entry.id),
-    }
+function layerProps(entry: StackLayer): LayerRowProps {
+  return {
+    layer: entry.layer,
+    selected: selectedId.value === entry.id,
+    onSelect: () => (selectedId.value = entry.id),
+    onToggle: (visible: boolean) => patchLayer(entry.id, { visible }),
+    onEdit: () => editLayer(entry.layer),
+    onRemove: () => removeLayer(entry.id),
   }
+}
+
+function annotationProps(entry: StackAnnotation): AnnotationRowProps {
   return {
     annotation: entry.annotation,
     expanded: selectedId.value === entry.id,
@@ -373,11 +372,10 @@ function patchLayer(id: string, patch: Partial<CanvasLayer>) {
 }
 
 function addLayer(layer: CanvasLayer) {
-  body.value = {
-    ...body.value,
-    layers: [...body.value.layers, layer],
-    order: appendToStack(body.value, layer.id),
-  }
+  body.value = fileInDestination(
+    { ...body.value, layers: [...body.value.layers, layer] },
+    layer.id,
+  )
   // Show what was just added. The render pass has to put it on the map first,
   // so this waits a tick rather than racing it.
   nextTick(() => fitToLayer(props.id, layer))
@@ -393,6 +391,43 @@ async function removeLayer(id: string) {
 
 // ── Groups ───────────────────────────────────────────────────────────────────
 
+/**
+ * The group new work is filed in — what the pin and drawing tools aim at, and
+ * where anything added from the panel lands.
+ *
+ * Editor state rather than part of the document: it is where *you* are
+ * working, not something about the canvas, and a canvas opened on another
+ * device shouldn't inherit it.
+ */
+const activeGroupId = ref<string | null>(null)
+
+/** Every group, flattened with its depth, for the toolbar's picker. */
+const groupChoices = computed(() => groupOptions(stack.value))
+
+// Deleting the destination, or undoing back past the point it existed, has to
+// hand new work back to the canvas rather than aim it at a group that is gone.
+watch(
+  () => (body.value.groups ?? []).some(group => group.id === activeGroupId.value),
+  exists => {
+    if (activeGroupId.value && !exists) activeGroupId.value = null
+  },
+)
+
+/**
+ * Put something new where the user is working. A folded destination is opened
+ * on the way — a mark that files itself out of sight reads as a mark lost.
+ */
+function fileInDestination(next: CanvasBody, id: string): CanvasBody {
+  const filed = addToStack(next, id, activeGroupId.value)
+  if (!activeGroupId.value) return filed
+  return {
+    ...filed,
+    groups: (filed.groups ?? []).map(group =>
+      group.id === activeGroupId.value ? { ...group, collapsed: false } : group,
+    ),
+  }
+}
+
 function patchGroup(id: string, patch: Partial<CanvasGroup>) {
   body.value = {
     ...body.value,
@@ -402,7 +437,11 @@ function patchGroup(id: string, patch: Partial<CanvasGroup>) {
   }
 }
 
-/** A new group lands on top, empty, with its name already selected. */
+/**
+ * A new group lands on top, empty — inside the current destination if there
+ * is one, which is how a group ends up inside another group without dragging
+ * anything.
+ */
 function addGroup() {
   const group: CanvasGroup = {
     id: `cg-${Math.random().toString(36).slice(2, 10)}`,
@@ -410,28 +449,31 @@ function addGroup() {
     visible: true,
     children: [],
   }
-  body.value = {
-    ...body.value,
-    groups: [...(body.value.groups ?? []), group],
-    order: appendToStack(body.value, group.id),
-  }
+  body.value = fileInDestination(
+    { ...body.value, groups: [...(body.value.groups ?? []), group] },
+    group.id,
+  )
+}
+
+/** Ungrouping keeps what was filed in the group — see `dissolveGroup`. */
+function removeGroup(id: string) {
+  body.value = dissolveGroup(body.value, id)
 }
 
 /**
- * Deleting a group keeps what was filed in it — a folder is how the stack is
- * tidied, not something the layers inside belong to. They come back out where
- * the group was, in the order they were in it.
+ * Everything a row needs, handed to the whole tree at once. The stack renders
+ * itself at every depth, so passing these down as props would mean each level
+ * redeclaring and forwarding all of them.
  */
-function removeGroup(id: string) {
-  const contents = groupContents(body.value, id)
-  const order = (body.value.order ?? canvasStack(body.value).map(e => e.id))
-    .flatMap(entryId => (entryId === id ? contents : [entryId]))
-  body.value = {
-    ...body.value,
-    groups: (body.value.groups ?? []).filter(group => group.id !== id),
-    order,
-  }
-}
+provide(CANVAS_STACK, {
+  layerProps,
+  annotationProps,
+  isActiveGroup: (id: string) => activeGroupId.value === id,
+  setActiveGroup: (id: string | null) => (activeGroupId.value = id),
+  patchGroup,
+  removeGroup,
+  onChange: onStackChange,
+})
 
 /** Style layers open the layer editor; data layers open their own settings. */
 function editLayer(layer: CanvasLayer) {
@@ -774,41 +816,10 @@ const saveStatus = computed(() =>
           </template>
         </SectionHeader>
 
-        <template v-if="stack.length">
-          <!-- Bottom of the list draws first, matching how the layer library
-               reads. A group shares this list's `group` name, so a drag can
-               cross into and out of one. -->
-          <draggable
-            :model-value="stack"
-            item-key="id"
-            handle=".canvas-stack-handle"
-            :group="{ name: 'canvas-stack' }"
-            :animation="150"
-            class="space-y-1.5"
-            @change="onStackChange"
-          >
-            <template #item="{ element }">
-              <div>
-                <CanvasGroupRow
-                  v-if="element.kind === 'group'"
-                  :group="element.group"
-                  :children="element.children"
-                  @toggle="visible => patchGroup(element.id, { visible })"
-                  @collapse="collapsed => patchGroup(element.id, { collapsed })"
-                  @rename="name => patchGroup(element.id, { name })"
-                  @remove="removeGroup(element.id)"
-                  @change="change => onStackChange(change, element.id)"
-                >
-                  <template #item="{ entry }">
-                    <component :is="rowFor(entry)" v-bind="rowProps(entry)" />
-                  </template>
-                </CanvasGroupRow>
-
-                <component v-else :is="rowFor(element)" v-bind="rowProps(element)" />
-              </div>
-            </template>
-          </draggable>
-        </template>
+        <!-- Bottom of the list draws first, matching how the layer library
+             reads. Every list in the tree shares one sortable group, so a
+             drag can cross into and out of a folder at any depth. -->
+        <CanvasStackList v-if="stack.length" :entries="stack" />
 
         <EmptyState
           v-else
@@ -866,6 +877,9 @@ const saveStatus = computed(() =>
           :can-route="annotations.canRoute.value"
           :doodle-width="annotations.doodleWidth.value"
           @update:doodle-width="v => (annotations.doodleWidth.value = v)"
+          :groups="groupChoices"
+          :group-id="activeGroupId"
+          @update:group-id="id => (activeGroupId = id)"
           :can-undo-edit="history.canUndo.value"
           :can-redo-edit="history.canRedo.value"
           :vertex-count="annotations.vertexCount.value"

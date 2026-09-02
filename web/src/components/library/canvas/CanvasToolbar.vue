@@ -12,12 +12,16 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { IconPicker } from '@/components/ui/icon-picker'
+import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import {
   BikeIcon,
   CarFrontIcon,
   CheckIcon,
   CircleIcon,
+  FolderIcon,
+  FolderOpenIcon,
   FootprintsIcon,
+  LayersIcon,
   MapPinIcon,
   MinusIcon,
   MousePointer2Icon,
@@ -51,6 +55,10 @@ const props = defineProps<{
   canRoute: boolean
   /** Doodle only: how thick the stroke is drawn. */
   doodleWidth: number
+  /** The canvas's groups, flattened, for the destination picker. */
+  groups: { id: string; name: string; depth: number }[]
+  /** Which of them new marks are filed in. Null is the canvas itself. */
+  groupId: string | null
 }>()
 
 const emit = defineEmits<{
@@ -58,6 +66,7 @@ const emit = defineEmits<{
   'update:color': [color: string]
   'update:routeMode': [mode: RouteMode]
   'update:doodleWidth': [width: number]
+  'update:groupId': [id: string | null]
   finish: []
   undo: []
   undoEdit: []
@@ -109,6 +118,38 @@ const ROUTE_MODES: { id: RouteMode; icon: typeof BikeIcon }[] = [
 
 /** Mid-draw only for the shapes that don't finish themselves. */
 const isDrawing = computed(() => props.vertexCount > 0)
+
+// ── Where new marks land ─────────────────────────────────────────────────────
+
+const activeGroup = computed(() =>
+  props.groups.find(group => group.id === props.groupId),
+)
+
+/**
+ * The destination, named on the toolbar rather than only in the panel: you
+ * draw with your eyes on the map, and a pin that quietly files itself
+ * somewhere you can't see is how a canvas gets untidy.
+ */
+const destinationItems = computed(() => [
+  { type: 'label' as const, label: t('canvases.groups.destination') },
+  {
+    type: 'item' as const,
+    id: 'canvas',
+    label: t('canvases.groups.canvas'),
+    icon: LayersIcon,
+    active: !activeGroup.value,
+    onSelect: () => emit('update:groupId', null),
+  },
+  ...props.groups.map(group => ({
+    type: 'item' as const,
+    id: group.id,
+    // Nesting reads as indentation; the menu has no depth of its own.
+    label: '\u2003'.repeat(group.depth) + group.name,
+    icon: FolderIcon,
+    active: group.id === props.groupId,
+    onSelect: () => emit('update:groupId', group.id),
+  })),
+])
 </script>
 
 <template>
@@ -193,6 +234,37 @@ const isDrawing = computed(() => props.vertexCount > 0)
         :model-value="{ icon: '', color }"
         @update:model-value="value => emit('update:color', value.color)"
       />
+    </template>
+
+    <!-- Where the next mark gets filed. Only worth showing once there is
+         somewhere else for it to go. -->
+    <template v-if="groups.length && !isDrawing">
+      <Separator orientation="vertical" class="h-5 mx-0.5" />
+      <ResponsiveDropdown
+        :items="destinationItems"
+        align="end"
+        :title="t('canvases.groups.destination')"
+      >
+        <template #trigger>
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-8 gap-1.5 px-2 max-w-36"
+            :class="activeGroup && 'text-primary'"
+            :title="t('canvases.groups.destination')"
+          >
+            <component
+              :is="activeGroup ? FolderOpenIcon : LayersIcon"
+              class="size-4 shrink-0"
+            />
+            <!-- The bar is already tight on a phone; there the icon and its
+                 colour carry it, and the menu names the destination. -->
+            <span class="text-xs truncate hidden sm:inline">
+              {{ activeGroup?.name ?? t('canvases.groups.canvas') }}
+            </span>
+          </Button>
+        </template>
+      </ResponsiveDropdown>
     </template>
 
     <!-- Stepping the canvas itself back and forth. Hidden mid-draw, where

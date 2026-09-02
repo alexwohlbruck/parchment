@@ -18,6 +18,8 @@
 * The map flies to a layer's data the first time it loads. Point a layer at a council's aerial imagery or paste a list of trailheads and you land on it, instead of hunting for it from wherever you happened to be. Pasted GeoJSON also picks its own renderer from what's in it — points draw as circles, lines as lines — so a layer never comes up blank because it was pointed at the wrong one
 * Layers can be imported from a Mapbox Studio or Maputnik style. Paste the style, pick a layer from it, and it opens in the editor with its source attached. Anything that will not travel — a Mapbox-hosted source, sprite images or fonts from the original style — is called out before you import rather than after it renders nothing
 * A layer store, reached from the Layers tab of your library. It holds every ready-made layer Parchment ships with, so anything you delete can be added back — there is no separate "restore defaults" any more. Terrain, Time Zones, Air Quality, Wildfires and OSM Notes now start out in the store rather than in your library, so a fresh library only carries what most people want on the map
+* Canvas groups can hold other groups, so a large stack can be arranged in folders within folders
+* Point new work at a group and everything you draw or add is filed there. Pick it from the group's own row, or from the toolbar over the map
 
 ### Changed
 

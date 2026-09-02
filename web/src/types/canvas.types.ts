@@ -301,9 +301,11 @@ export const CANVAS_MAP_SETTING_KEYS = [
 ] as const satisfies readonly (keyof CanvasMapSettings)[]
 
 /**
- * A folder in the stack. Two levels only — a group holds layers and marks,
- * never another group — which is as deep as a map stack ever needs to be and
- * keeps dragging something into place unambiguous.
+ * A folder in the stack, holding layers, marks and other folders.
+ *
+ * Nesting is what makes a big canvas legible — a "Transit" folder with
+ * "Rail" and "Bus" inside it — so `children` may name another group. The
+ * stack is a tree, and `lib/canvas-stack` is the only thing that walks it.
  */
 export interface CanvasGroup {
   id: string
@@ -312,7 +314,7 @@ export interface CanvasGroup {
   visible: boolean
   /** Folded shut in the panel. Nothing to do with what draws. */
   collapsed?: boolean
-  /** Ids of the layers and marks inside, bottom first. */
+  /** Ids of the layers, marks and groups inside, bottom first. */
   children: string[]
 }
 

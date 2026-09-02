@@ -2397,7 +2397,11 @@
       "untitled": "Grupo",
       "rename": "Renombrar grupo",
       "remove": "Desagrupar",
-      "empty": "Arrastra capas y marcas aquí"
+      "empty": "Arrastra capas y marcas aquí",
+      "drawHere": "Archivar aquí las nuevas marcas",
+      "drawingHere": "Las nuevas marcas van aquí",
+      "destination": "Dónde van las nuevas marcas",
+      "canvas": "Lienzo"
     }
   },
   "colors": {

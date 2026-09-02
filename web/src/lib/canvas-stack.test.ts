@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
+  addToStack,
   appendToStack,
   canvasStack,
+  dissolveGroup,
   groupContents,
+  groupOptions,
   moveInStack,
   removeFromStack,
   stackDrawOrder,
@@ -242,5 +245,196 @@ describe('adding and removing', () => {
     const next = removeFromStack({ ...body, order: ['l1', 'g1', 'l2'] }, 'l2')
     expect(next.order).toEqual(['l1', 'g1'])
     expect(next.groups?.[0].children).toEqual([])
+  })
+})
+
+describe('groups inside groups', () => {
+  const nested: CanvasBody = {
+    layers: [layer('l1'), layer('l2')],
+    annotations: [mark('a1')],
+    groups: [
+      { id: 'g1', name: 'Transit', visible: true, children: ['l1', 'g2'] },
+      { id: 'g2', name: 'Rail', visible: true, children: ['l2', 'a1'] },
+    ],
+    order: ['g1'],
+  }
+
+  const find = (entries: StackEntry[], id: string): StackEntry | undefined => {
+    for (const entry of entries) {
+      if (entry.id === id) return entry
+      if (entry.kind === 'group') {
+        const found = find(entry.children, id)
+        if (found) return found
+      }
+    }
+  }
+
+  it('holds a group the way it holds anything else', () => {
+    const stack = canvasStack(nested)
+    expect(ids(stack)).toEqual(['g1'])
+    const outer = stack[0]
+    expect(outer.kind === 'group' && ids(outer.children)).toEqual(['l1', 'g2'])
+    const inner = find(stack, 'g2')
+    expect(inner?.kind === 'group' && ids(inner.children)).toEqual(['l2', 'a1'])
+  })
+
+  it('leaves a nested group where its parent holds it, not at the top', () => {
+    // Only `g1` is in the order — `g2` is reachable through it, and hoisting
+    // it to the top level would empty its parent out.
+    expect(ids(canvasStack(nested))).not.toContain('g2')
+  })
+
+  it('draws everything in one flat pass, deepest contents in place', () => {
+    expect(stackDrawOrder(canvasStack(nested)).map(d => d.item.id)).toEqual([
+      'l1',
+      'l2',
+      'a1',
+    ])
+  })
+
+  it('takes a whole branch off the map when a group above it is switched off', () => {
+    const hidden = {
+      ...nested,
+      groups: [{ ...nested.groups![0], visible: false }, nested.groups![1]],
+    }
+    // `g2` still says it is visible; its parent is what decides.
+    expect(stackDrawOrder(canvasStack(hidden))).toEqual([
+      { item: expect.objectContaining({ id: 'l1' }), visible: false },
+      { item: expect.objectContaining({ id: 'l2' }), visible: false },
+      { item: expect.objectContaining({ id: 'a1' }), visible: false },
+    ])
+  })
+
+  it('hides only the inner branch when the inner group is the one off', () => {
+    const hidden = {
+      ...nested,
+      groups: [nested.groups![0], { ...nested.groups![1], visible: false }],
+    }
+    const drawn = stackDrawOrder(canvasStack(hidden))
+    expect(drawn.find(d => d.item.id === 'l1')?.visible).toBe(true)
+    expect(drawn.find(d => d.item.id === 'l2')?.visible).toBe(false)
+  })
+
+  it('shows a group whose holder was deleted rather than losing it', () => {
+    // `g1` is gone, so `g2` comes back to the top level with its contents
+    // intact, and the layer `g1` was holding is loose again rather than lost.
+    const orphaned = { ...nested, groups: [nested.groups![1]] }
+    expect(ids(canvasStack(orphaned))).toEqual(['g2', 'l1'])
+    expect(stackDrawOrder(canvasStack(orphaned)).map(d => d.item.id)).toEqual([
+      'l2',
+      'a1',
+      'l1',
+    ])
+  })
+
+  it('terminates on a group that ends up holding itself', () => {
+    const cyclic: CanvasBody = {
+      layers: [layer('l1')],
+      groups: [
+        { id: 'g1', name: 'One', visible: true, children: ['g2'] },
+        { id: 'g2', name: 'Two', visible: true, children: ['g1', 'l1'] },
+      ],
+      order: [],
+    }
+    const stack = canvasStack(cyclic)
+    // Whatever it does with the loop, everything is shown exactly once.
+    expect(stackDrawOrder(stack).map(d => d.item.id)).toEqual(['l1'])
+  })
+
+  it('lists every group with how deep it sits, for the destination picker', () => {
+    expect(groupOptions(canvasStack(nested))).toEqual([
+      { id: 'g1', name: 'Transit', depth: 0 },
+      { id: 'g2', name: 'Rail', depth: 1 },
+    ])
+  })
+})
+
+describe('moving a group', () => {
+  const body: CanvasBody = {
+    layers: [layer('l1')],
+    groups: [
+      { id: 'g1', name: 'Transit', visible: true, children: [] },
+      { id: 'g2', name: 'Rail', visible: true, children: [] },
+    ],
+    order: ['l1', 'g1', 'g2'],
+  }
+
+  it('files one group inside another', () => {
+    const next = moveInStack(body, 'g2', { groupId: 'g1', index: 0 })
+    expect(next.groups?.find(g => g.id === 'g1')?.children).toEqual(['g2'])
+    expect(next.order).toEqual(['l1', 'g1'])
+  })
+
+  it('refuses to file a group inside itself', () => {
+    expect(moveInStack(body, 'g1', { groupId: 'g1', index: 0 })).toBe(body)
+  })
+
+  it('refuses to file a group inside something it already holds', () => {
+    // The branch would leave the tree with it, taking everything in it away.
+    const deep: CanvasBody = {
+      ...body,
+      groups: [
+        { id: 'g1', name: 'Transit', visible: true, children: ['g2'] },
+        { id: 'g2', name: 'Rail', visible: true, children: ['g3'] },
+        { id: 'g3', name: 'Metro', visible: true, children: [] },
+      ],
+      order: ['l1', 'g1'],
+    }
+    expect(moveInStack(deep, 'g1', { groupId: 'g3', index: 0 })).toBe(deep)
+  })
+})
+
+describe('filing something new where the user is working', () => {
+  const body: CanvasBody = {
+    layers: [layer('l1')],
+    annotations: [],
+    groups: [{ id: 'g1', name: 'Transit', visible: true, children: ['l2'] }],
+    order: ['l1', 'g1'],
+  }
+
+  it('puts it on top of the group that is the destination', () => {
+    const next = addToStack(body, 'a1', 'g1')
+    expect(next.groups?.[0].children).toEqual(['l2', 'a1'])
+    // Filed in the group, so the top level is left alone.
+    expect(next.order).toEqual(['l1', 'g1'])
+  })
+
+  it('puts it on top of the stack when the canvas itself is the destination', () => {
+    expect(addToStack(body, 'a1', null).order).toEqual(['l1', 'g1', 'a1'])
+  })
+
+  it('falls back to the top rather than losing it when the group has gone', () => {
+    expect(addToStack(body, 'a1', 'deleted').order).toEqual(['l1', 'g1', 'a1'])
+  })
+})
+
+describe('ungrouping', () => {
+  it('leaves the contents where the group was, in the order they were in', () => {
+    const body: CanvasBody = {
+      layers: [layer('l1'), layer('l2')],
+      annotations: [mark('a1')],
+      groups: [{ id: 'g1', name: 'Transit', visible: true, children: ['l2', 'a1'] }],
+      order: ['l1', 'g1'],
+    }
+    const next = dissolveGroup(body, 'g1')
+    expect(next.order).toEqual(['l1', 'l2', 'a1'])
+    expect(next.groups).toEqual([])
+    expect(ids(canvasStack(next))).toEqual(['l1', 'l2', 'a1'])
+  })
+
+  it('leaves them inside the parent when the group was nested', () => {
+    const body: CanvasBody = {
+      layers: [layer('l1'), layer('l2')],
+      groups: [
+        { id: 'g1', name: 'Transit', visible: true, children: ['l1', 'g2'] },
+        { id: 'g2', name: 'Rail', visible: true, children: ['l2'] },
+      ],
+      order: ['g1'],
+    }
+    const next = dissolveGroup(body, 'g2')
+    expect(next.groups).toEqual([
+      { id: 'g1', name: 'Transit', visible: true, children: ['l1', 'l2'] },
+    ])
+    expect(ids(canvasStack(next))).toEqual(['g1'])
   })
 })

@@ -1,8 +1,10 @@
-import { watch, toRaw } from 'vue'
+import { computed, watch, toRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useNotesStore, parseBbox } from '@/stores/notes.store'
+import { useLayersStore } from '@/stores/layers.store'
 import { useNotesService } from '@/services/notes.service'
+import { LayerType } from '@/types/map.types'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import NoteMapIcon from '@/components/map/NoteMapIcon.vue'
 import type { OsmNote } from '@/types/notes.types'
@@ -32,6 +34,16 @@ export function useNotesLayerService() {
 
     const notesStore = useNotesStore()
     const notesService = useNotesService()
+    const layersStore = useLayersStore()
+
+    // Notes draw as markers rather than a map layer, so there is nothing on
+    // the style to toggle — the layer row exists purely to drive this flag.
+    // Removing the layer from the library turns notes off with it.
+    const isLayerVisible = computed(
+      () =>
+        layersStore.layers.find(l => l.type === LayerType.NOTES)?.visible ??
+        false,
+    )
 
     function getCurrentViewportBbox(): string | null {
       const bounds = mapStrategy.getBounds()
@@ -61,7 +73,7 @@ export function useNotesLayerService() {
 
     // Watch layer visibility
     watch(
-      () => notesStore.isLayerVisible,
+      isLayerVisible,
       visible => {
         if (visible) {
           loadAndShowNotes()
@@ -76,7 +88,7 @@ export function useNotesLayerService() {
     watch(
       () => notesStore.notes,
       () => {
-        if (!notesStore.isLayerVisible) return
+        if (!isLayerVisible.value) return
         showNotesForCurrentView()
       },
       { deep: true },
@@ -84,7 +96,7 @@ export function useNotesLayerService() {
 
     // Listen for map move to load & show notes
     mapStrategy.mapInstance.on('moveend', () => {
-      if (!notesStore.isLayerVisible) return
+      if (!isLayerVisible.value) return
       loadAndShowNotes()
     })
   }

@@ -10,7 +10,6 @@ const route = useRoute()
 const icon = computed(() => {
   if (route.name === AppRoute.LIBRARY_ROUTES) return RouteIcon
   if (route.name === AppRoute.LIBRARY_LAYERS) return Layers3Icon
-  if (route.name === AppRoute.LIBRARY_MAPS) return MapIcon
   return MapIcon
 })
 
@@ -18,7 +17,6 @@ const entityId = computed(() => {
   const routeToEntityId = {
     [AppRoute.LIBRARY_ROUTES]: 'routes',
     [AppRoute.LIBRARY_LAYERS]: 'layers',
-    [AppRoute.LIBRARY_MAPS]: 'maps',
   }
 
   return (

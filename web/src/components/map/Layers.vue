@@ -2,23 +2,19 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { useLayersStore } from '@/stores/layers.store'
 import { useAppService } from '@/services/app.service'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import { useDragState } from '@/composables/useDragState'
 import type { Layer, LayerGroup } from '@/types/map.types'
-import LayerConfiguration from './layers/LayerConfiguration.vue'
 import LayerGroupConfiguration from './layers/LayerGroupConfiguration.vue'
 import LayerItemComponent from './layers/LayerItem.vue'
 import LayerGroupItem from './layers/LayerGroupItem.vue'
+import LayerStoreDialog from './layers/LayerStoreDialog.vue'
 import { Button } from '@/components/ui/button'
-import {
-  FolderIcon,
-  PlusIcon,
-  LayersIcon,
-  MoreHorizontalIcon,
-  RotateCcwIcon,
-} from 'lucide-vue-next'
+import { FolderIcon, PlusIcon, LayersIcon, StoreIcon } from 'lucide-vue-next'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,24 +25,25 @@ import draggable from 'vuedraggable'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const appService = useAppService()
+const router = useRouter()
 const layersStore = useLayersStore()
 const { mainReorderableItems, groupsWithLayers, groupTree } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
-
-const isProd = import.meta.env.PROD
 
 const hasTeleportTarget = ref(false)
 onMounted(() => {
   hasTeleportTarget.value = !!document.getElementById('library-tab-actions')
 })
 
-function openLayerConfigDialog(layerId?: string) {
-  appService.componentDialog({
-    component: LayerConfiguration,
-    continueText: t('general.save'),
-    props: { layerId },
-  })
+// The layer editor is a sheet view, not a dialog: it renders the draft on
+// the live map while you edit, which a modal over the map cannot do.
+function openLayerEditor(layerId?: string) {
+  router.push(
+    layerId
+      ? { name: AppRoute.LAYER_EDITOR, params: { id: layerId } }
+      : { name: AppRoute.LAYER_EDITOR_NEW },
+  )
 }
 
 function openLayerGroupConfigDialog(groupId?: string) {
@@ -57,12 +54,7 @@ function openLayerGroupConfigDialog(groupId?: string) {
   })
 }
 
-async function restoreDefaults() {
-  const result = await layersStore.restoreDefaults()
-  appService.toast.success(
-    t('layers.restoreDefaults.success', { count: result.restoredLayers + result.restoredGroups }),
-  )
-}
+const storeOpen = ref(false)
 
 // Track expanded groups
 const expandedGroups = ref(new Set<string>())
@@ -154,12 +146,12 @@ async function handleMainChange(evt: any) {
   <Teleport v-if="hasTeleportTarget" to="#library-tab-actions">
     <DropdownMenu>
       <DropdownMenuTrigger as-child>
-        <Button variant="ghost" size="icon" class="size-7" :disabled="isProd">
+        <Button variant="ghost" size="icon" class="size-7">
           <PlusIcon class="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem @click="openLayerConfigDialog()">
+        <DropdownMenuItem @click="openLayerEditor()">
           <LayersIcon class="size-4" />
           {{ t('layers.actions.newLayer') }}
         </DropdownMenuItem>
@@ -169,20 +161,20 @@ async function handleMainChange(evt: any) {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-    <DropdownMenu>
-      <DropdownMenuTrigger as-child>
-        <Button variant="ghost" size="icon" class="size-7">
-          <MoreHorizontalIcon class="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem @click="restoreDefaults">
-          <RotateCcwIcon class="size-4" />
-          {{ t('layers.actions.restoreDefaults') }}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <!-- Sits outside `TooltipProvider`, so this one labels itself natively. -->
+    <Button
+      variant="ghost"
+      size="icon"
+      class="size-7"
+      :aria-label="t('layers.store.title')"
+      :title="t('layers.store.title')"
+      @click="storeOpen = true"
+    >
+      <StoreIcon class="size-4" />
+    </Button>
   </Teleport>
+
+  <LayerStoreDialog v-model:open="storeOpen" />
 
   <TooltipProvider>
     <div class="h-full flex flex-col">

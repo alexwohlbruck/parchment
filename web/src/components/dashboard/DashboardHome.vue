@@ -14,6 +14,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useLayersStore } from '@/stores/layers.store'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { useRecentsStore } from '@/stores/recents.store'
 import { useResponsive } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
@@ -44,6 +45,7 @@ const { t } = useI18n()
 const isDark = useDark()
 const collectionsStore = useCollectionsStore()
 const layersStore = useLayersStore()
+const canvasesStore = useCanvasesStore()
 const recentsStore = useRecentsStore()
 const { places: recentPlaces, searches: recentSearches } = storeToRefs(recentsStore)
 const { isMobileScreen, isDesktopScreen } = useResponsive()
@@ -194,11 +196,12 @@ const libraryTabs = computed(() => [
     count: layersStore.userLayers.length || undefined,
   },
   {
-    id: 'maps',
+    id: 'canvases',
     icon: 'Map',
     color: 'iris' as ThemeColor,
-    route: AppRoute.LIBRARY_MAPS,
-    label: capitalize(t('library.entities.maps.title.plural')),
+    route: AppRoute.LIBRARY_CANVASES,
+    label: capitalize(t('library.entities.canvases.title.plural')),
+    count: canvasesStore.canvases.length || undefined,
   },
 ])
 

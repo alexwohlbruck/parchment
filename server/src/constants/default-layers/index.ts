@@ -8,6 +8,7 @@ import { TRANSIT_LAYER_TEMPLATES } from './transit'
 import { TIMEZONE_LAYER_TEMPLATES } from './timezone'
 import { DAYNIGHT_LAYER_TEMPLATES } from './daynight'
 import { ENVIRONMENT_LAYER_TEMPLATES } from './environment'
+import { NOTES_LAYER_TEMPLATES } from './notes'
 import { USER_LAYER_TEMPLATES } from './user-templates'
 
 export const DEFAULT_GROUP_TEMPLATES: DefaultLayerGroupTemplate[] = DEFAULT_LAYER_GROUPS
@@ -21,6 +22,7 @@ export const DEFAULT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   ...TIMEZONE_LAYER_TEMPLATES,
   ...DAYNIGHT_LAYER_TEMPLATES,
   ...ENVIRONMENT_LAYER_TEMPLATES,
+  ...NOTES_LAYER_TEMPLATES,
   ...USER_LAYER_TEMPLATES,
 ]
 

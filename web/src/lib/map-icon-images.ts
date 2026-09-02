@@ -22,6 +22,10 @@
  */
 
 import * as LucideIcons from 'lucide-vue-next'
+import {
+  MARKER_IMAGE_PIXEL_RATIO,
+  MARKER_IMAGE_SIZE,
+} from '@/lib/map-marker/marker-metrics.mjs'
 
 export type MapIconPack = 'lucide' | 'maki'
 
@@ -30,10 +34,14 @@ export interface MapIconSpec {
   name: string
 }
 
-/** Logical (CSS) px of the registered image; `icon-size` scales from here. */
-const IMAGE_SIZE = 24
-/** Rasterize at 2× so the glyph stays crisp on retina and when scaled up. */
-const PIXEL_RATIO = 2
+/**
+ * Logical (CSS) px of the registered image and the density it is rasterized
+ * at. Both come from `map-marker/marker-metrics`, because a symbol layer's
+ * `icon-size` is a ratio of the first of them — the glyph size and the image
+ * size are two halves of one number and cannot be set independently.
+ */
+const IMAGE_SIZE = MARKER_IMAGE_SIZE
+const PIXEL_RATIO = MARKER_IMAGE_PIXEL_RATIO
 
 const makiSources = import.meta.glob('/node_modules/@mapbox/maki/icons/*.svg', {
   query: '?raw',
@@ -133,13 +141,13 @@ export function mapIconImageId(pack: MapIconPack, name: string): string {
 }
 
 /**
- * Force the glyph white. Maki paths carry no fill and inherit black from the
- * SVG root; lucide strokes resolve `currentColor`, which has no cascade to
- * inherit from inside an `<img>`, so both need an explicit color.
+ * Force the glyph to one colour. Maki paths carry no fill and inherit black
+ * from the SVG root; lucide strokes resolve `currentColor`, which has no
+ * cascade to inherit from inside an `<img>`, so both need an explicit color.
  */
-function recolorToWhite(svg: string, pack: MapIconPack): string {
-  if (pack === 'lucide') return svg.replace(/currentColor/g, '#ffffff')
-  return svg.replace(/<svg\b/, '<svg fill="#ffffff"')
+function recolor(svg: string, pack: MapIconPack, color: string): string {
+  if (pack === 'lucide') return svg.replace(/currentColor/g, color)
+  return svg.replace(/<svg\b/, `<svg fill="${color}"`)
 }
 
 /**
@@ -147,14 +155,19 @@ function recolorToWhite(svg: string, pack: MapIconPack): string {
  * that name. Split out from registration so the name resolution — the part
  * that has to cope with `MapPin` vs `map-pin` vs `Volume2` — is testable
  * without a canvas.
+ *
+ * White by default, which is what a glyph on a coloured circle wants. Marker
+ * images with a pale plate pass the plate's ink instead; see
+ * `map-marker/marker-image.ts`.
  */
 export async function resolveIconSvg(
   pack: MapIconPack,
   name: string,
+  color = '#ffffff',
 ): Promise<string | null> {
   const load = findSource(pack, name)
   if (!load) return null
-  return recolorToWhite(await load(), pack)
+  return recolor(await load(), pack, color)
 }
 
 async function rasterize(svg: string): Promise<ImageData | null> {

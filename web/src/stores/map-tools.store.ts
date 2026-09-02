@@ -13,6 +13,28 @@ export type MapToolId = 'none' | 'measure' | 'radius' | 'isochrone'
 export const useMapToolsStore = defineStore('map-tools', () => {
   const activeTool = ref<MapToolId>('none')
 
+  /**
+   * Set while something is capturing raw map clicks — the measure tool, or a
+   * canvas drawing tool.
+   *
+   * The basemap's POI interaction normally wins a click and re-emits it at the
+   * POI's own centre, which is right for "open this cafe" and wrong for
+   * "put a vertex here": the point would jump to the nearest label. Anything
+   * placing geometry sets this so the plain map click fires instead, with the
+   * coordinates actually clicked.
+   */
+  const rawClickCapture = ref(false)
+
+  /**
+   * Set while a map tool wants Escape for itself.
+   *
+   * Escape is bound in several places at once — the drawing tools, the left
+   * sheet, the bottom sheet — and every binding fires. Without this, one
+   * press both disarms the tool and closes the view behind it, which is never
+   * what was meant: mid-shape, Escape means "get me out of this tool".
+   */
+  const escapeCapture = ref(false)
+
   // Measure tool state: points in order, and history for undo/redo
   const measurePoints = ref<LngLat[]>([])
 
@@ -129,6 +151,8 @@ export const useMapToolsStore = defineStore('map-tools', () => {
 
   return {
     activeTool,
+    rawClickCapture,
+    escapeCapture,
     measurePoints,
     measureHistory,
     measureHistoryIndex,

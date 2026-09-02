@@ -3,6 +3,8 @@ import { DefaultLayerGroupTemplate } from '../../types/layers.types'
 export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   {
     templateId: 'default:group:cycling',
+    description:
+      'Bike lanes, cycle tracks and signed routes from OpenStreetMap.',
     name: 'Cycling',
     icon: 'BikeIcon',
     showInLayerSelector: true,
@@ -103,6 +105,8 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:mapillary',
+    description:
+      'Street-level photo coverage and sequences from Mapillary.',
     name: 'Street imagery',
     icon: 'CameraIcon',
     showInLayerSelector: true,
@@ -112,6 +116,8 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:transit',
+    description:
+      'Rail, tram and bus lines with clickable stops and live departures.',
     name: 'Transit',
     icon: 'TrainIcon',
     showInLayerSelector: true,
@@ -122,6 +128,8 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:loom-transit',
+    description:
+      'Schematic transit lines rendered by a Loom server.',
     name: 'Loom Transit',
     icon: 'TrainIcon',
     showInLayerSelector: true,
@@ -132,6 +140,8 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:terrain',
+    description: 'Hillshading and elevation contours over the basemap.',
+    installedByDefault: false,
     name: 'Terrain',
     icon: 'MountainSnowIcon',
     showInLayerSelector: true,
@@ -141,6 +151,7 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:daynight',
+    description: 'A shaded overlay tracking the day/night terminator.',
     name: 'Day & Night',
     icon: 'SunMoonIcon',
     showInLayerSelector: true,
@@ -150,6 +161,8 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:timezone',
+    description: 'Time zone boundaries with their current local time.',
+    installedByDefault: false,
     name: 'Time Zones',
     icon: 'ClockIcon',
     showInLayerSelector: true,
@@ -159,6 +172,8 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:air-quality',
+    description: 'A global PM2.5 surface from Copernicus CAMS.',
+    installedByDefault: false,
     name: 'Air Quality',
     icon: 'WindIcon',
     showInLayerSelector: true,
@@ -168,6 +183,8 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
   },
   {
     templateId: 'default:group:wildfires',
+    description: 'Active fire hotspots, perimeters and smoke plumes.',
+    installedByDefault: false,
     name: 'Wildfires',
     icon: 'FlameIcon',
     showInLayerSelector: true,

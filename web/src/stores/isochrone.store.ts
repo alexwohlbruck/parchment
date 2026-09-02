@@ -9,7 +9,6 @@
 
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { api } from '@/lib/api'
 import type { LngLat } from '@/types/map.types'
 import type {
   IsochroneMode,
@@ -17,10 +16,10 @@ import type {
 } from '@server/types/isochrone.types'
 import {
   contourDurations,
-  toIsochroneBands,
   maxMinutesForMode,
   type IsochroneBand,
 } from '@/lib/isochrone.utils'
+import { fetchIsochroneBands } from '@/lib/isochrone-request'
 
 /** Debounce on control changes, so dragging a slider fires one request. */
 const REQUEST_DEBOUNCE_MS = 350
@@ -132,24 +131,17 @@ export const useIsochroneStore = defineStore('isochrone', () => {
     error.value = null
 
     try {
-      const { data } = await api.get<IsochroneResponse>('/isochrone', {
-        params: {
-          lat: point.lat,
-          lng: point.lng,
-          mode: mode.value,
-          durations: durations.value.join(','),
-          arriveBy: arriveBy.value || undefined,
-        },
+      const result = await fetchIsochroneBands({
+        origin: point,
+        mode: mode.value,
+        durations: durations.value,
+        arriveBy: arriveBy.value,
         signal: controller.signal,
-        timeout: REQUEST_TIMEOUT_MS,
-        // The panel reports failures inline, next to the controls that caused
-        // them; the global toast would just say the same thing twice.
-        silent: true,
-      } as any)
+      })
       if (id !== requestId) return
 
-      bands.value = toIsochroneBands(data.isochrones?.features ?? [])
-      meta.value = data.meta ?? null
+      bands.value = result.bands
+      meta.value = result.meta
       status.value = bands.value.length ? 'ready' : 'error'
       if (!bands.value.length) error.value = 'unreachable'
     } catch (err) {

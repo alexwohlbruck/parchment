@@ -73,7 +73,45 @@ export const useMapStore = defineStore('map', () => {
     mapStrategy = map
   }
 
+  /**
+   * The live map strategy, or undefined before the map has loaded. Kept out
+   * of reactive state deliberately — it wraps a mapbox/maplibre instance,
+   * and making that a Pinia ref would have Vue walk the whole map object on
+   * every change.
+   */
+  function getMapStrategy(): MapStrategy | undefined {
+    return mapStrategy
+  }
+
   const settings = useStorage<MapSettings>('map', defaultSettings)
+
+  /**
+   * The user's own appearance settings, parked while a canvas overrides them.
+   *
+   * Overrides are applied by writing into `settings`, so every watcher and
+   * strategy call that already reacts to them keeps working — there is no
+   * second path to the map. That leaves one hazard: `settings` is persisted,
+   * so a tab closed mid-canvas would leave the canvas's choices looking like
+   * the user's. Parking the originals here, persisted too, means the next
+   * start can always hand them back.
+   */
+  // Empty rather than null: `useStorage` picks its serializer from the
+  // default, and a null default gets the one that stringifies with `String()`
+  // — an object written through it comes back as "[object Object]".
+  const parkedSettings = useStorage<Partial<MapSettings>>(
+    'map-parked-settings',
+    {},
+  )
+
+  // Anything still parked at startup was never handed back — the tab went
+  // away while a canvas had the map. Give it back now, BEFORE the migration
+  // below: while a canvas holds the map, `settings` carries the canvas's
+  // choices, and deriving the 3D split from those would hand the user back a
+  // skyline the canvas asked for rather than the one they set.
+  if (Object.keys(parkedSettings.value).length) {
+    Object.assign(settings.value, parkedSettings.value)
+    parkedSettings.value = {}
+  }
 
   // One-time split of the single "3D objects" switch into buildings and scene
   // objects. `useStorage` returns the stored object as-is rather than merging
@@ -141,7 +179,10 @@ export const useMapStore = defineStore('map', () => {
   }
 
   return {
+    parkedSettings,
+
     setMapStrategy,
+    getMapStrategy,
     settings,
     controlSettings,
     mapCamera,

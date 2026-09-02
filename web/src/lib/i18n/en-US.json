@@ -47,7 +47,15 @@
       "minutesAgo": "{n}m ago",
       "hoursAgo": "{n}h ago",
       "daysAgo": "{n}d ago"
-    }
+    },
+    "unsavedChanges": {
+      "title": "Discard unsaved changes?",
+      "description": "Your edits haven't been saved yet.",
+      "discard": "Discard",
+      "keepEditing": "Keep editing"
+    },
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "weather": {
     "title": "Weather Conditions",
@@ -492,11 +500,12 @@
       "editGroup": "Edit Group",
       "deleteGroup": "Delete Group",
       "deleteLayer": "Delete Layer",
-      "ungroupLayer": "Ungroup Layer",
-      "restoreDefaults": "Restore defaults"
+      "ungroupLayer": "Ungroup Layer"
     },
     "empty": {
-      "message": "No layers configured"
+      "message": "No layers configured",
+      "title": "No layers",
+      "description": "Add ready-made layers from the store, or build one of your own."
     },
     "configuration": {
       "title": "Layer Configuration",
@@ -526,10 +535,6 @@
         }
       }
     },
-    "restoreDefaults": {
-      "button": "Restore defaults",
-      "success": "Restored {count} default layers"
-    },
     "badges": {
       "default": "Default",
       "custom": "Custom"
@@ -539,6 +544,150 @@
       "uncategorized": "Unfiled",
       "locked": "Locked collection",
       "frequents": "Frequents"
+    },
+    "canvases": {
+      "group": "Canvases",
+      "locked": "Locked canvas"
+    },
+    "store": {
+      "title": "Layer store",
+      "description": "Add pre-made layers to your library.",
+      "add": "Add",
+      "added": "Added {name} to your library",
+      "inLibrary": "Added",
+      "layers": "1 layer | {count} layers",
+      "allAdded": "Everything here is already in your library.",
+      "empty": "No layers available.",
+      "back": "All layers",
+      "includes": "Includes 1 layer | Includes {count} layers"
+    },
+    "editor": {
+      "newTitle": "New layer",
+      "editTitle": "Edit layer",
+      "namePlaceholder": "Layer name",
+      "layerType": "Draw as",
+      "saved": "Saved {name}",
+      "created": "Added {name} to your library",
+      "saveFailed": "Could not save the layer.",
+      "previewOn": "Previewing on the map",
+      "previewOff": "Preview hidden",
+      "previewFailed": "The map could not draw this layer: {error}",
+      "resetProperty": "Reset to default",
+      "expression": "Expression",
+      "tabs": {
+        "source": "Source",
+        "style": "Style",
+        "options": "Options"
+      },
+      "sections": {
+        "fill": "Fill",
+        "stroke": "Stroke",
+        "shape": "Shape",
+        "circle": "Circle",
+        "icon": "Icon",
+        "text": "Label",
+        "placement": "Placement",
+        "position": "Position",
+        "heatmap": "Heatmap",
+        "extrusion": "Extrusion",
+        "raster": "Imagery",
+        "hillshade": "Hillshade",
+        "background": "Background"
+      },
+      "source": {
+        "type": "Data source",
+        "address": "Address by",
+        "tiles": "Tile URLs",
+        "addTile": "Add another URL",
+        "tileSize": "Tile size",
+        "encoding": "Elevation encoding",
+        "cluster": "Cluster points",
+        "clusterHint": "Groups nearby points into counted clusters.",
+        "sourceLayer": "Source layer",
+        "sourceLayerPlaceholder": "Layer name inside the vector tiles",
+        "zoomRange": "Zoom range",
+        "attribution": "Attribution",
+        "attributionPlaceholder": "© Data provider",
+        "geojsonData": "GeoJSON",
+        "geojsonHint": "Pasted data is stored with the layer. File uploads are coming later.",
+        "kinds": {
+          "raster": "Raster tiles",
+          "raster-dem": "Elevation",
+          "vector": "Vector tiles",
+          "geojson": "GeoJSON",
+          "image": "Image"
+        },
+        "hints": {
+          "raster": "Pre-rendered image tiles — aerial imagery, scanned maps, weather overlays.",
+          "raster-dem": "Elevation tiles, drawn as shaded relief. Not the same as the map's 3D terrain.",
+          "vector": "Mapbox vector tiles. Every layer inside them can be styled separately.",
+          "geojson": "Points, lines and polygons supplied directly or fetched from a URL.",
+          "image": "A single image pinned to four corner coordinates."
+        },
+        "modes": {
+          "tilejson": "TileJSON",
+          "tiles": "Tile URLs",
+          "url": "URL",
+          "inline": "Paste data"
+        },
+        "urlLabel": {
+          "raster": "TileJSON URL",
+          "raster-dem": "TileJSON URL",
+          "vector": "TileJSON URL",
+          "geojson": "GeoJSON URL",
+          "image": "Image URL"
+        },
+        "urlPlaceholder": {
+          "raster": "https://example.com/tiles.json",
+          "raster-dem": "https://example.com/terrain.json",
+          "vector": "https://example.com/tiles.json",
+          "geojson": "https://example.com/data.geojson",
+          "image": "https://example.com/overlay.png"
+        }
+      },
+      "options": {
+        "showInSelectorHint": "List this layer in the map's layer menu.",
+        "fadeBasemapHint": "Mute the basemap while this layer is on, so it reads clearly.",
+        "filter": "Filter",
+        "filterHint": "A style expression. Only features matching it are drawn.",
+        "rawLayer": "Paint and layout JSON",
+        "rawLayerHint": "Edit the style properties directly, including any this editor has no control for."
+      },
+      "import": {
+        "trigger": "Import from a style",
+        "title": "Import a layer",
+        "description": "Paste a style from Mapbox Studio or Maputnik and pick a layer from it.",
+        "placeholder": "Paste style JSON…",
+        "parse": "Read style",
+        "back": "Paste a different style",
+        "untitledStyle": "Untitled style",
+        "count": "{n} of {total} can be imported",
+        "errors": {
+          "invalidJson": "That isn't valid JSON.",
+          "notAStyle": "That isn't a style document or a layer.",
+          "noLayers": "This style has no layers to import."
+        },
+        "warnings": {
+          "mapboxProtocol": "Uses a mapbox:// source, which needs a Mapbox token",
+          "spriteImage": "References sprite images from its original style",
+          "customFont": "Uses fonts that may not exist in this basemap",
+          "missingSource": "Its source isn't in this document",
+          "unsupportedType": "This layer type isn't supported"
+        },
+        "prompt": "Already have a style?"
+      },
+      "errors": {
+        "nameRequired": "Give the layer a name.",
+        "urlRequired": "A URL is required.",
+        "tilesRequired": "Add at least one tile URL.",
+        "tileTemplate": "Tile URLs need {z}, {x} and {y} placeholders.",
+        "sourceLayerRequired": "Vector layers need a source layer.",
+        "invalidGeoJson": "That isn't valid GeoJSON.",
+        "cornersRequired": "An image needs four corner coordinates.",
+        "zoomRange": "The minimum zoom is above the maximum.",
+        "invalidJson": "Invalid JSON."
+      },
+      "addedToCanvas": "Added {name} to this canvas"
     }
   },
   "directions": {
@@ -653,10 +802,10 @@
           "plural": "layers"
         }
       },
-      "maps": {
+      "canvases": {
         "title": {
-          "singular": "map",
-          "plural": "maps"
+          "singular": "canvas",
+          "plural": "canvases"
         }
       }
     },
@@ -740,9 +889,6 @@
   },
   "offlineMaps": {
     "title": "Offline maps"
-  },
-  "customMaps": {
-    "title": "Custom maps"
   },
   "timeline": {
     "title": "Timeline",
@@ -1941,7 +2087,6 @@
     "reopenError": "Failed to reactivate note",
     "actionClosed": "resolved this note",
     "actionReopened": "reactivated this note",
-    "layer": "OSM Notes",
     "addNote": "Add note",
     "createNote": "New Note",
     "createDescription": "Drag the marker to adjust the location. Describe the issue or suggestion below.",
@@ -2117,6 +2262,316 @@
       "sendFailed": "Failed to send invitation.",
       "sent": "Sent {count} invitation(s).",
       "sentSummary": "{count} invitation(s) sent"
+    }
+  },
+  "canvases": {
+    "title": "Canvases",
+    "layerCount": "No layers | 1 layer | {count} layers",
+    "showOnMap": "Show on the map",
+    "saved": "Saved",
+    "notFound": "This canvas no longer exists.",
+    "actions": {
+      "new": "New canvas",
+      "rename": "Rename"
+    },
+    "empty": {
+      "title": "No canvases yet",
+      "description": "A canvas is your own map — stack imagery, data and saved places, then switch it on over the basemap."
+    },
+    "dialog": {
+      "newTitle": "New canvas",
+      "editTitle": "Canvas details",
+      "description": "Give it a name and decide who can read it.",
+      "namePlaceholder": "Canvas name",
+      "descriptionPlaceholder": "What is this canvas for? (optional)",
+      "privacy": "Privacy"
+    },
+    "schemes": {
+      "server-key": {
+        "title": "Shareable",
+        "description": "Stored so it can be published with a link later."
+      },
+      "user-e2ee": {
+        "title": "Private",
+        "description": "End-to-end encrypted. Only your devices can read it."
+      }
+    },
+    "layers": {
+      "missing": "Missing layer",
+      "show": "Show",
+      "hide": "Hide",
+      "edit": "Edit layer",
+      "remove": "Remove from canvas",
+      "kinds": {
+        "style": "Custom layer",
+        "library": "From your library",
+        "collection": "Saved places",
+        "data": "Your data",
+        "route": "Route",
+        "people": "People"
+      },
+      "renders": {
+        "points": "Points",
+        "lines": "Lines",
+        "shapes": "Shapes",
+        "heatmap": "Heatmap"
+      },
+      "featureCount": "No features | 1 feature | {count} features",
+      "rename": "Rename layer"
+    },
+    "add": {
+      "trigger": "Add a layer",
+      "title": "Add a layer",
+      "description": "What would you like to put on this canvas?",
+      "noLayers": "No layers in your library yet.",
+      "noCollections": "No collections yet.",
+      "options": {
+        "sources": {
+          "title": "Data sources",
+          "description": "Curated datasets, your files, or a live connection."
+        },
+        "style": {
+          "title": "Design a layer",
+          "description": "Imagery, vector tiles or GeoJSON, styled how you like."
+        },
+        "collection": {
+          "title": "Saved places",
+          "description": "Draw a collection's places as points."
+        },
+        "route": {
+          "title": "Routes",
+          "description": "Put one of your routes on this canvas."
+        },
+        "library": {
+          "title": "Layers",
+          "description": "Reuse a layer you already have."
+        },
+        "people": {
+          "title": "People",
+          "description": "Friends sharing their location with you, live."
+        },
+        "import": {
+          "title": "Upload a file",
+          "description": "GeoJSON, KML, GPX or a CSV with latitude and longitude columns."
+        }
+      },
+      "noRoutes": "No routes yet.",
+      "groups": {
+        "data": "Bring in data",
+        "yours": "From your library"
+      }
+    },
+    "delete": {
+      "title": "Delete canvas?",
+      "description": "\"{name}\" and its layers will be removed. This can't be undone."
+    },
+    "privacy": {
+      "needsIdentity": "Needs your recovery key on this device.",
+      "switched": "Canvas privacy updated",
+      "switchTo": {
+        "server-key": "Make it shareable",
+        "user-e2ee": "Make it private"
+      },
+      "confirm": {
+        "server-key": {
+          "title": "Make this canvas shareable?",
+          "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+        },
+        "user-e2ee": {
+          "title": "Make this canvas private?",
+          "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+        }
+      }
+    },
+    "import": {
+      "errors": {
+        "unsupportedFormat": "That file type isn't supported. Try GeoJSON, KML, GPX or CSV.",
+        "notGeoJson": "That file isn't valid GeoJSON.",
+        "badKml": "That KML file couldn't be read.",
+        "badGpx": "That GPX file couldn't be read.",
+        "csvEmpty": "That CSV has no rows.",
+        "csvNoCoordinates": "That CSV needs latitude and longitude columns.",
+        "csvNoRows": "No rows in that CSV had usable coordinates.",
+        "noFeatures": "There was nothing to map in that file.",
+        "tooLarge": "That file is too big for a canvas. Try simplifying or splitting it.",
+        "failed": "That file couldn't be imported.",
+        "fetchFailed": "That URL couldn't be read."
+      }
+    },
+    "dataSettings": {
+      "title": "Layer settings",
+      "render": "Draw as",
+      "color": "Color",
+      "opacity": "Opacity",
+      "label": "Label with",
+      "size": {
+        "points": "Dot size",
+        "lines": "Line width",
+        "shapes": "Outline width",
+        "heatmap": "Radius"
+      }
+    },
+    "share": {
+      "create": "Create a share link",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "revoke": "Revoke this link",
+      "revokeConfirm": {
+        "title": "Revoke this link?",
+        "description": "Anyone holding it will stop being able to open this canvas."
+      }
+    },
+    "public": {
+      "subtitle": "Shared with you",
+      "gone": {
+        "title": "This link no longer works",
+        "description": "It may have been revoked, or the canvas made private."
+      }
+    },
+    "toolbar": {
+      "select": "Select",
+      "undo": "Undo last point",
+      "tools": {
+        "pin": "Pin",
+        "line": "Line",
+        "polygon": "Polygon",
+        "rectangle": "Rectangle",
+        "circle": "Circle",
+        "route": "Route",
+        "isochrone": "Travel time",
+        "doodle": "Doodle",
+        "erase": "Erase"
+      },
+      "undoEdit": "Undo",
+      "redoEdit": "Redo",
+      "hints": {
+        "straight": "Hold Shift to hold the angle",
+        "close": "Click the first point to close",
+        "square": "Three clicks for any angle, Shift for a square",
+        "radius": "Hold Shift for a round radius",
+        "isochrone": "Click a point to see how far you can get",
+        "routingUnavailable": "Travel time needs a routing integration — set one up in Settings",
+        "doodle": "Drag to draw freehand",
+        "erase": "Click a mark to take it off the canvas"
+      },
+      "advanced": "More tools"
+    },
+    "annotations": {
+      "remove": "Delete annotation",
+      "labelPlaceholder": "Add a label",
+      "icon": "Icon",
+      "zoomTo": "Zoom to",
+      "showLabel": "Show label on the map",
+      "color": "Color",
+      "labelPosition": "Label position",
+      "positions": {
+        "top": "Above",
+        "bottom": "Below",
+        "left": "Left",
+        "right": "Right",
+        "center": "On the mark"
+      },
+      "name": "Name",
+      "metrics": {
+        "length": "Length",
+        "perimeter": "Perimeter",
+        "area": "Area",
+        "radius": "Radius",
+        "circumference": "Circumference"
+      },
+      "strokeWidth": "Border width",
+      "strokeStyle": "Border style",
+      "strokeOpacity": "Border opacity",
+      "fillColor": "Fill color",
+      "fillOpacity": "Fill opacity",
+      "markerSize": "Pin size",
+      "markerShape": "Pin shape",
+      "markerShapes": {
+        "disc": "Circle",
+        "square": "Square",
+        "glyph": "Icon only"
+      },
+      "labelSize": "Label size",
+      "strokeStyles": {
+        "solid": "Solid",
+        "dashed": "Dashed",
+        "dotted": "Dotted"
+      },
+      "strokeCap": "Ends",
+      "strokeCaps": {
+        "round": "Round",
+        "butt": "Flat",
+        "square": "Square"
+      },
+      "rename": "Rename mark"
+    },
+    "sources": {
+      "title": "Data sources",
+      "description": "Pick a dataset to make a layer from, or bring your own.",
+      "search": "Search data sources",
+      "noResults": "Nothing matches that.",
+      "uploadDirectly": "Upload directly",
+      "connectToSource": "Connect to a source",
+      "connectorSoon": "Live database sources aren't available yet.",
+      "urlPlaceholder": "https://example.com/data.geojson",
+      "formats": "GeoJSON, KML, GPX and CSV. Read on your device — nothing is uploaded.",
+      "sections": {
+        "library": "Library",
+        "new": "Your data"
+      }
+    },
+    "saving": "Saving…",
+    "mapSettings": {
+      "title": "Map appearance",
+      "override": "Custom for this canvas",
+      "description": "Only while this canvas is open."
+    },
+    "stack": {
+      "title": "Layers",
+      "empty": "Nothing on this canvas yet",
+      "emptyHint": "Add a layer, or draw on the map with the toolbar."
+    },
+    "groups": {
+      "add": "New group",
+      "untitled": "Group",
+      "rename": "Rename group",
+      "remove": "Ungroup",
+      "empty": "Drag layers and marks in here",
+      "drawingHere": "New marks land here",
+      "destination": "Where new marks go",
+      "canvas": "Canvas",
+      "delete": "Delete group"
+    }
+  },
+  "colors": {
+    "compass": "Compass",
+    "coral": "Coral",
+    "amber": "Amber",
+    "peach": "Peach",
+    "citrine": "Citrine",
+    "olive": "Olive",
+    "forest": "Forest",
+    "moss": "Moss",
+    "teal": "Teal",
+    "sky": "Sky",
+    "cobalt": "Cobalt",
+    "periwinkle": "Periwinkle",
+    "indigo": "Indigo",
+    "violet": "Violet",
+    "iris": "Iris",
+    "magenta": "Magenta",
+    "ink": "Ink",
+    "parchment": "Parchment"
+  },
+  "iconPicker": {
+    "trigger": "Choose an icon or color",
+    "customColor": "Custom color",
+    "sampleColor": "Pick a color from the screen",
+    "applyColor": "Apply color",
+    "tabs": {
+      "lucide": "Lucide",
+      "maki": "Maki",
+      "color": "Color"
     }
   }
 }

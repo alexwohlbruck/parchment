@@ -41,7 +41,7 @@ const category = computed(() => props.stop.category ?? null)
 
 <template>
   <div
-    class="tl-event group"
+    class="tl-event group cursor-pointer"
     :class="{ 'is-last': isLast }"
     data-kind="place"
     @click="emit('select', stop)"

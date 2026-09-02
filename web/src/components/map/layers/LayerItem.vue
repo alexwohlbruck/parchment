@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map.service'
@@ -20,7 +23,6 @@ import {
   MoveIcon,
   TrashIcon,
 } from 'lucide-vue-next'
-import LayerConfiguration from './LayerConfiguration.vue'
 import {
   Tooltip,
   TooltipTrigger,
@@ -44,26 +46,27 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapService = useMapService()
 const appService = useAppService()
 
-// Determine if this layer belongs to system defaults
-const defaultConfigIds = new Set([
-  'mapillary-overview',
-  'mapillary-sequence',
-  'mapillary-image',
-  'transitland',
-])
+/**
+ * Only the user's own layers are editable. System layers are projected from a
+ * server-side template and read-only: many carry app behaviour (clickable
+ * transit stops, live friend positions) that plain Mapbox layer JSON can't
+ * express, so there is nothing safe to hand to the editor. They can still be
+ * reordered, toggled and removed — and a removed one comes back from the
+ * layer store.
+ */
+const isUserOwned = computed(() => props.layer.origin === 'custom')
 
-function isDefaultLayer(layer: Layer): boolean {
-  const idIsReserved =
-    typeof layer.id === 'string' && layer.id.startsWith('reserved:')
-  const cfgId = (layer as any)?.configuration?.id as string | undefined
-  const cfgIsDefault = !!cfgId && defaultConfigIds.has(cfgId)
-  return idIsReserved || cfgIsDefault
-}
+/**
+ * Saved-places rows are projected from collections and have no layer row at
+ * all, so deleting one here would do nothing. They're managed in Collections.
+ */
+const isVirtual = computed(() => props.layer.origin === 'virtual')
 
 // Helper function to convert icon string name to Vue component
 function getIconComponent(iconName?: string | null) {
@@ -77,14 +80,9 @@ function getIconComponent(iconName?: string | null) {
   return isValidIcon ? (icon as any) : null
 }
 
-function openLayerConfigDialog() {
-  appService.componentDialog({
-    component: LayerConfiguration,
-    continueText: t('general.save'),
-    props: {
-      layerId: props.layer.id,
-    },
-  })
+function openLayerEditor() {
+  if (!isUserOwned.value) return
+  router.push({ name: AppRoute.LAYER_EDITOR, params: { id: props.layer.id } })
 }
 
 function handleUngroup() {
@@ -124,15 +122,19 @@ async function toggleLayer(enabled: boolean) {
   >
     <!-- Layer Icon & Name -->
     <div
-      class="flex items-center gap-2 flex-1 cursor-pointer"
-      @click="openLayerConfigDialog"
+      class="flex items-center gap-2 flex-1 min-w-0"
+      :class="{ 'cursor-pointer': isUserOwned }"
+      @click="openLayerEditor"
     >
       <component
         v-if="getIconComponent(layer.icon)"
         :is="getIconComponent(layer.icon)"
         :class="compact ? 'size-3' : 'size-4'"
       />
-      <span :class="compact ? 'text-sm' : 'text-sm font-medium'">
+      <span
+        class="truncate"
+        :class="compact ? 'text-sm' : 'text-sm font-medium'"
+      >
         {{ layer.name }}
       </span>
     </div>
@@ -146,8 +148,8 @@ async function toggleLayer(enabled: boolean) {
       }}
     </span> -->
 
-    <!-- Layer Visibility Toggle -->
-    <Tooltip v-if="!isDefaultLayer(layer)">
+    <!-- Marks the layer as the user's own, rather than a system default -->
+    <Tooltip v-if="isUserOwned">
       <TooltipTrigger as-child>
         <span
           class="mr-2 inline-block w-1.5 h-1.5 rounded-full bg-primary align-middle"
@@ -181,7 +183,7 @@ async function toggleLayer(enabled: boolean) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem @click="openLayerConfigDialog">
+        <DropdownMenuItem v-if="isUserOwned" @click="openLayerEditor">
           <PencilIcon class="size-3 mr-2" />
           {{ t('layers.actions.editLayer') }}
         </DropdownMenuItem>
@@ -189,7 +191,11 @@ async function toggleLayer(enabled: boolean) {
           <MoveIcon class="size-3 mr-2" />
           {{ t('layers.actions.ungroupLayer') }}
         </DropdownMenuItem>
-        <DropdownMenuItem class="text-destructive" @click="deleteLayer">
+        <DropdownMenuItem
+          v-if="!isVirtual"
+          class="text-destructive"
+          @click="deleteLayer"
+        >
           <TrashIcon class="size-3 mr-2" />
           {{ t('layers.actions.deleteLayer') }}
         </DropdownMenuItem>

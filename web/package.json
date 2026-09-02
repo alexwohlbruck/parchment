@@ -57,6 +57,7 @@
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-store": "~2.4.2",
     "@tauri-apps/plugin-updater": "2.9.0",
+    "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.3.4",
     "@types/suncalc": "^1.9.2",
     "@unovis/ts": "^1.6.4",

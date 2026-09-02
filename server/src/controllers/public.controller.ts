@@ -13,6 +13,7 @@
 import { Elysia, t } from 'elysia'
 import * as collectionsService from '../services/library/collections.service'
 import * as routesService from '../services/library/routes.service'
+import * as canvasesService from '../services/library/canvases.service'
 import { makeIpRateLimit } from '../middleware/rate-limit.middleware'
 import { i18nPlugin } from '../lib/i18n/plugin'
 
@@ -111,5 +112,45 @@ const publicController = new Elysia({ prefix: '/public' })
       },
     },
   )
+  /**
+   * GET /public/canvases/:token
+   *
+   * Resolve a public-link token to a canvas. Server-key only — a private
+   * canvas has no readable name or layer stack to render, and refuses to
+   * carry a link in the first place. 404 when the token doesn't match.
+   */
+  .get(
+    '/canvases/:token',
+    async ({ params: { token }, set, t }) => {
+      const canvas = await canvasesService.getPublicCanvasByToken(token)
+      if (!canvas) {
+        set.status = 404
+        return { error: t('errors.notFound.resource') }
+      }
+      return {
+        canvas: {
+          id: canvas.id,
+          userId: canvas.userId,
+          scheme: canvas.scheme,
+          name: canvas.name,
+          description: canvas.description,
+          icon: canvas.icon,
+          iconColor: canvas.iconColor,
+          body: canvas.body,
+          publicRole: canvas.publicRole,
+          createdAt: canvas.createdAt,
+          updatedAt: canvas.updatedAt,
+        },
+      }
+    },
+    {
+      params: t.Object({ token: t.String() }),
+      detail: {
+        tags: ['Public'],
+        summary: 'Resolve a public-link token to a canvas',
+      },
+    },
+  )
+
 
 export default publicController

@@ -13,13 +13,14 @@ import { useI18n } from 'vue-i18n'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
-import { useNotesStore } from '@/stores/notes.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map.service'
 import { basemaps } from '../map/map.data'
 import { Basemap } from '@/types/map.types'
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { isVirtualLayerId } from '@/lib/saved-places-layers'
+import { canvasIdFromLayerId } from '@/lib/canvas-layers'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import {
   CLASS_GROUP_ROW_ID_PREFIX,
@@ -35,12 +36,18 @@ const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const notesStore = useNotesStore()
 const portolanStore = usePortolanTransitStore()
+const canvasesStore = useCanvasesStore()
 const { t } = useI18n()
 
-const { layers, allLayerGroups, mainReorderableItems, groupTree, savedPlacesMeta } =
-  storeToRefs(layersStore)
+const {
+  layers,
+  allLayerGroups,
+  mainReorderableItems,
+  groupTree,
+  savedPlacesMeta,
+  canvasesMeta,
+} = storeToRefs(layersStore)
 
 const expanded = ref(new Set<string>())
 
@@ -60,6 +67,15 @@ function getLayerId(layer: any): string {
 // ---------------------------------------------------------------------------
 
 async function setLayerVisible(layer: Layer, visible: boolean) {
+  // A canvas is already switched on and off from the library, and that state
+  // lives in the canvases store. Writing an override here as well would make
+  // this row and the library two answers to one question.
+  const canvasId = canvasIdFromLayerId(layer.id)
+  if (canvasId) {
+    canvasesStore.setActive(canvasId, visible)
+    return
+  }
+
   // Virtual layers all share one map layer (the saved-places circle layer), so
   // the usual lookup-by-configuration-id would resolve the wrong row. They
   // carry no map layer of their own — flipping the override is the whole job,
@@ -102,7 +118,7 @@ async function setGroupVisible(group: LayerGroup, visible: boolean) {
 // ---------------------------------------------------------------------------
 
 function layerNode(layer: Layer): SelectorNode {
-  const meta = savedPlacesMeta.value.get(layer.id)
+  const meta = savedPlacesMeta.value.get(layer.id) ?? canvasesMeta.value.get(layer.id)
   return {
     id: layer.id,
     name: layer.name,
@@ -186,18 +202,6 @@ const nodes = computed<SelectorNode[]>(() => {
     if (!layer || layer.groupId || !layer.showInLayerSelector) continue
     result.push(layerNode(layer))
   }
-
-  // OSM notes aren't a `layers` row — they're their own store-backed overlay —
-  // but they belong in the same list as far as the user is concerned.
-  result.push({
-    id: 'osm-notes',
-    name: t('notes.layer'),
-    icon: 'MessageSquare',
-    visible: notesStore.isLayerVisible,
-    onToggle: (visible: boolean) => {
-      notesStore.isLayerVisible = visible
-    },
-  })
 
   return result
 })

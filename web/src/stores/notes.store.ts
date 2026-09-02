@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useStorage } from '@vueuse/core'
 import type { OsmNote } from '@/types/notes.types'
 
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
@@ -91,7 +90,6 @@ export const useNotesStore = defineStore('notes', () => {
   const notes = ref<OsmNote[]>(Object.values(cache.notes))
   const selectedNoteId = ref<number | null>(null)
   const isLoading = ref(false)
-  const isLayerVisible = useStorage<boolean>('notes-layer-visible', false)
   const lastBbox = ref<string | null>(null)
   const loadedTiles = ref<Record<string, number>>(cache.loadedTiles)
   const selectedNote = computed(() => {
@@ -196,7 +194,6 @@ export const useNotesStore = defineStore('notes', () => {
     selectedNoteId,
     selectedNote,
     isLoading,
-    isLayerVisible,
     lastBbox,
     getUnloadedTileBboxes,
     markTilesLoaded,

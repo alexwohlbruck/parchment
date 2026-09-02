@@ -455,9 +455,12 @@ export function useCanvasAnnotations(options: {
   /**
    * The cursor says what the next click will do.
    *
-   * `crosshair` for placing a point precisely, `copy` for the shapes that
-   * add to something already started — one cursor for every tool told the
-   * user nothing about which one they were in.
+   * `crosshair` throughout, because every click while a tool is armed places
+   * a point precisely. Mid-shape used to show `copy`, which the browser
+   * draws as an arrow with a green plus badge — a file-manager cursor that
+   * says "drop a copy here", not "add a vertex". The one distinction worth
+   * drawing is the click that *finishes*: over the vertex that would close
+   * the shape, the cursor turns into a pointer.
    */
   function applyCursor() {
     const canvas = (
@@ -471,13 +474,7 @@ export function useCanvasAnnotations(options: {
       canvas.style.cursor = ''
       return
     }
-    // Over the vertex that would close the shape, say so: this click finishes
-    // rather than adds.
-    canvas.style.cursor = snapToStart.value
-      ? 'pointer'
-      : positions.value.length && tool.value !== 'pin'
-        ? 'copy'
-        : 'crosshair'
+    canvas.style.cursor = snapToStart.value ? 'pointer' : 'crosshair'
   }
 
   // The cursor tracks how far into a shape you are, and whether the next

@@ -11,6 +11,7 @@ import {
   BUILDING_3D_TILES,
 } from './detail-layers'
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
+import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { barrelmanBuildingsReady } from './barrelman-buildings'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -283,12 +284,37 @@ function idsWhere(pred: (l: any) => boolean): string[] {
   return specLayers.filter(pred).map(l => l.id)
 }
 
+/** Every `class` value a layer's filter tests for, however deeply nested. */
+function filterClasses(filter: any, found = new Set<string>()): Set<string> {
+  if (!Array.isArray(filter)) return found
+  const [op, subject, values] = filter
+  if (op === 'match' && Array.isArray(subject) && subject[0] === 'get' && subject[1] === 'class' && Array.isArray(values)) {
+    for (const v of values) found.add(v)
+  }
+  for (const part of filter) filterClasses(part, found)
+  return found
+}
+
+/** A POI layer that draws transit stops and nothing else. */
+function isTransitStopLayer(l: any): boolean {
+  if (l.type !== 'symbol' || l['source-layer'] !== 'poi') return false
+  const classes = filterClasses(l.filter)
+  return classes.size > 0 && [...classes].every(c => TRANSIT_POI_CLASSES.includes(c))
+}
+
 export const layerGroups = {
   poi: idsWhere(
     l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
   ),
   roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
-  transit: idsWhere(l => /rail|transit|subway|tram|funicular/i.test(l.id)),
+  /**
+   * Transit stop labels, not the rails under them. The transit overlay redraws
+   * these stops itself, so the basemap's copies hide while it is on — but the
+   * railway network is basemap cartography and stays either way. Matching on
+   * layer *id* instead caught only the `Railway` / `rail` line layers, so
+   * turning transit on erased the rails and left every stop label doubled.
+   */
+  transit: idsWhere(isTransitStopLayer),
   placeLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'place'),
   building3d: specLayers.find(l => l.type === 'fill-extrusion')?.id ?? 'Building 3D',
 }

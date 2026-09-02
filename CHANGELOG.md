@@ -44,6 +44,7 @@
 
 ### Fixed
 
+* Turning on the transit layer no longer erases the railway network from the map. The basemap's station labels step aside for the layer's own stops instead, so the rails stay drawn
 * Tapping a station label that covers a whole interchange now opens all of it. New York draws four separate stations named "Canal St" as one symbol, and tapping it opened whichever of the four the label happened to sit on — so the panel showed two lines where the map had drawn six. Tapping a single line's marker still opens just that station
 * The map keeps up with the sidebar as it is dragged or collapsed, resizing frame by frame rather than snapping once the panel has settled
 * Centring on a place, or fitting a route, no longer aims too far to the right when a panel is open over the map. The gutter the map was told to leave on the left included the sidebar's width a second time, even though the map never extended under it — worse the wider the sidebar

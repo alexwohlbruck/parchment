@@ -11,6 +11,7 @@ export {
   buildMapStyle,
   buildSatelliteStyle,
   buildLayers,
+  maplibreProjection,
   layerGroups,
   SOURCE,
   MAX_PITCH,

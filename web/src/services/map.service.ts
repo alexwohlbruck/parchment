@@ -1,4 +1,5 @@
 import {
+  ENGINE_PROJECTIONS,
   MapCamera,
   MapEngine,
   MapProjection,
@@ -855,6 +856,13 @@ function mapService() {
     isMapReady.value = false // Reset map ready state
     queuedTrips.value = null // Clear any queued trips
     mapStore.settings.engine = mapEngine
+
+    // The two engines draw different sets of projections. Carrying a
+    // Mapbox-only one into MapLibre would leave the setting naming a shape the
+    // map is not drawing, and its picker with nothing selected.
+    if (!ENGINE_PROJECTIONS[mapEngine].includes(mapStore.settings.projection)) {
+      mapStore.settings.projection = MapProjection.MERCATOR
+    }
 
     // Only initialize map if we have a container
     if (!mapContainer) {

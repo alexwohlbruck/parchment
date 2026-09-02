@@ -1,5 +1,6 @@
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import type { MapStyleId } from '@/types/map.types'
+import { MapProjection } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
 import spec from './spec.json'
 import {
@@ -133,6 +134,27 @@ const SKY: Record<FlavorId, Record<string, string | number>> = {
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,
   },
+}
+
+/**
+ * The projection setting, in the two shapes MapLibre can draw.
+ *
+ * MapLibre projects onto a flat Mercator plane or onto a sphere, and nothing
+ * else — the rest of the setting's list is Mapbox's. `globe` is not a fixed
+ * sphere either: MapLibre eases it into Mercator between zoom 11 and 12, so a
+ * globe map is the same flat map as a Mercator one everywhere a street is
+ * legible, and the sphere is what you get on the way out.
+ *
+ * `ENGINE_PROJECTIONS` keeps the Mapbox-only projections out of MapLibre's
+ * picker, so they should never arrive here — but a setting carried over from
+ * the other engine can, and Mercator is the honest answer for those. Handing
+ * MapLibre the name itself would only get a console warning and the same
+ * fallback, one frame later.
+ */
+export function maplibreProjection(
+  projection?: MapProjection,
+): 'globe' | 'mercator' {
+  return projection === MapProjection.GLOBE ? 'globe' : 'mercator'
 }
 
 /** Self-hosted; see `scripts/build-glyphs.mjs` and `scripts/build-sprite.mjs`. */

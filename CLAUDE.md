@@ -19,7 +19,7 @@
 
 `CHANGELOG.md` is cumulative ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)). When a user-facing feature or fix is complete, append an entry under `## [Unreleased]` at the top — do not wait for release time.
 
-- Group entries under `### Added`, `### Changed`, or `### Fixed` within `[Unreleased]`. Create the heading if it isn't there; otherwise append to the existing one.
+- Group entries under `### Added`, `### Changed`, or `### Fixed` within `[Unreleased]`. All three headings are always present, even when empty — append under the right one rather than adding or removing a heading. They exist as merge anchors: two branches that each have to invent a heading conflict, two branches filling in different existing headings do not. Empty headings are stripped back out at release time, so they never ship.
 - One `*` bullet per change, written for users rather than developers: what it does for them, not which files moved.
 - Keep each bullet short: usually one sentence, with a second only when it adds necessary user-facing context.
 - Prefer plain, direct language over scene-setting or long explanations. If a bullet needs more than about 30 words, tighten it.

@@ -2,6 +2,8 @@
 
 ### Added
 
+* The MapLibre engine can now draw the map on a globe. The map projection setting applies to both engines, offering flat and globe on MapLibre and the full list on Mapbox
+
 ### Changed
 
 * The desktop sidebar has been rebuilt. Rows sit on an even grid at full contrast, the current one is marked by a single raised chip that slides between them, and collapsing or expanding the rail now glides instead of snapping — with the map resizing in step

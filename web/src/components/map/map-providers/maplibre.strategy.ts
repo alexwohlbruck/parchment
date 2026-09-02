@@ -192,11 +192,19 @@ interface InternalTransform {
   cameraToCenterDistance: number
   autoCalculateNearFarZ: boolean
   nearZ: number
-  /** Set on the globe transform only; see `isGlobeRendering`. */
-  isGlobeRendering?: boolean
   overrideNearFarZ?: (near: number, far: number) => void
   clearNearFarZOverride?: () => void
 }
+
+/**
+ * The zoom at which the globe has finished becoming a flat map.
+ *
+ * MapLibre's `globe` is shorthand for an interpolation — vertical perspective
+ * at zoom 11, Mercator at 12 — rather than a sphere at every zoom. Past this
+ * point a globe map and a Mercator map are the same map, and everything
+ * written for the flat one applies again.
+ */
+const GLOBE_FLATTENS_AT = 12
 
 /** Degrees of pitch over which the plan-view roof outline fades out. */
 const ROOF_EDGE_FADE_PITCH = 8
@@ -1035,18 +1043,24 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
-   * Whether a sphere is on screen right now — which is not the same question
-   * as whether the globe projection is selected. MapLibre eases the globe into
-   * Mercator between zoom 11 and 12, so a globe map is flat by the time a
-   * building is drawn, and the plan view's flattening should come back with
-   * it. Reading the transform rather than the setting is what makes that
-   * happen at the same moment the map does it.
+   * Whether a sphere is on screen — which is not the same question as whether
+   * the globe projection is selected. MapLibre eases the globe into Mercator
+   * as you zoom in, so a globe map is flat by the time a building is drawn,
+   * and the plan view's flattening has to come back with it.
    *
-   * The flag is internal to the globe transform; every other transform lacks
-   * it, and reads as not-a-globe, which is exactly what it is.
+   * Derived from zoom rather than read off the transform, which holds the same
+   * answer in `isGlobeRendering`: the transform's copy is written during
+   * render, from a zoom-dependent style property evaluated for the frame about
+   * to be drawn. Every caller here runs from an event handler — before that
+   * frame — so it would read the previous answer, and a zoom that ended on the
+   * far side of the boundary would never be reconsidered, because the events
+   * stop with the gesture. See `GLOBE_FLATTENS_AT`.
    */
   private isGlobeRendering(): boolean {
-    return this.transform()?.isGlobeRendering === true
+    return (
+      this.options.projection === MapProjection.GLOBE &&
+      this.mapInstance.getZoom() < GLOBE_FLATTENS_AT
+    )
   }
 
   /**

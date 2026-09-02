@@ -2525,7 +2525,8 @@
       "empty": "Drag layers and marks in here",
       "drawingHere": "New marks land here",
       "destination": "Where new marks go",
-      "canvas": "Canvas"
+      "canvas": "Canvas",
+      "delete": "Delete group"
     }
   },
   "colors": {

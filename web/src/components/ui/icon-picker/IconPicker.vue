@@ -209,6 +209,19 @@ function handleColorSelect(color: string) {
   })
 }
 
+/**
+ * Done: take the colour that's been typed or sampled, and close.
+ *
+ * Swatches stay open — picking one is often followed by picking another,
+ * and on the icon tabs there is a glyph to choose as well — but the tick at
+ * the end of the custom-colour row is the one control that says "that's the
+ * one", so it has to behave like it.
+ */
+function applyCustomColor() {
+  handleColorSelect(customColor.value)
+  showPopover.value = false
+}
+
 const isSelectedLucide = (name: string) =>
   (props.modelValue.iconPack ?? 'lucide') === 'lucide' &&
   props.modelValue.icon === name
@@ -453,7 +466,7 @@ const makiVirtualizer = useVirtualizer(
               v-model="customColor"
               class="h-7 flex-1 font-mono text-xs"
               placeholder="#000000"
-              @keydown.enter="handleColorSelect(customColor)"
+              @keydown.enter="applyCustomColor"
             />
             <Button
               v-if="eyeDropper"
@@ -472,7 +485,7 @@ const makiVirtualizer = useVirtualizer(
               class="size-7 shrink-0"
               :title="t('iconPicker.applyColor')"
               :aria-label="t('iconPicker.applyColor')"
-              @click="handleColorSelect(customColor)"
+              @click="applyCustomColor"
             >
               <CheckIcon class="size-3.5" />
             </Button>

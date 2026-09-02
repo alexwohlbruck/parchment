@@ -2401,7 +2401,8 @@
       "empty": "Arrastra capas y marcas aquí",
       "drawingHere": "Las nuevas marcas van aquí",
       "destination": "Dónde van las nuevas marcas",
-      "canvas": "Lienzo"
+      "canvas": "Lienzo",
+      "delete": "Eliminar grupo"
     }
   },
   "colors": {

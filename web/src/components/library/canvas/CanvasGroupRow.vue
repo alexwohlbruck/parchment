@@ -37,6 +37,8 @@ import type { CanvasGroup } from '@/types/canvas.types'
 
 const props = defineProps<{
   group: CanvasGroup
+  /** Nothing filed in it, so removing it takes nothing with it. */
+  empty?: boolean
   /** The row the panel is pointed at. */
   selected?: boolean
   /**
@@ -61,16 +63,33 @@ const renaming = ref(false)
 const draft = ref(props.group.name)
 const nameInput = ref<InstanceType<typeof Input> | null>(null)
 
-watch(renaming, async open => {
-  if (!open) return
-  draft.value = props.group.name
+async function focusName() {
   await nextTick()
   const el = (nameInput.value?.$el ?? nameInput.value) as
     | HTMLInputElement
     | undefined
   el?.focus?.()
   el?.select?.()
+}
+
+watch(renaming, open => {
+  if (!open) return
+  draft.value = props.group.name
+  void focusName()
 })
+
+/**
+ * Renaming starts from the menu, and a closing menu takes focus back to the
+ * button that opened it — which blurred the field a moment after it
+ * appeared, and a blur commits, so the field closed on its own. When the
+ * field is what should have focus, the menu hands it over instead of
+ * reclaiming it.
+ */
+function onMenuClosed(event: Event) {
+  if (!renaming.value) return
+  event.preventDefault()
+  void focusName()
+}
 
 function commitName() {
   renaming.value = false
@@ -154,14 +173,16 @@ const collapsed = () => props.group.collapsed === true
             <MoreHorizontalIcon class="size-3.5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" @close-auto-focus="onMenuClosed">
           <DropdownMenuItem @click="renaming = true">
             <PencilIcon class="size-3.5" />
             {{ t('canvases.groups.rename') }}
           </DropdownMenuItem>
+          <!-- Ungrouping keeps what was inside; with nothing inside, that
+               is just a delete, and saying "Ungroup" would be a riddle. -->
           <DropdownMenuItem class="text-destructive" @click="emit('remove')">
             <Trash2Icon class="size-3.5" />
-            {{ t('canvases.groups.remove') }}
+            {{ t(empty ? 'canvases.groups.delete' : 'canvases.groups.remove') }}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -55,6 +55,7 @@ if (!stack) throw new Error('CanvasStackList needs a canvas stack context')
           <CanvasGroupRow
             v-if="element.kind === 'group'"
             :group="element.group"
+            :empty="!element.children.length"
             :selected="stack!.isSelected(element.id)"
             :destination="stack!.isDestination(element.id)"
             @toggle="visible => stack!.patchGroup(element.id, { visible })"

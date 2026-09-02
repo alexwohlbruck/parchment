@@ -138,7 +138,7 @@ const subtitle = computed(() => {
 
 <template>
   <div
-    class="group flex items-center gap-2 rounded-lg border px-2 py-1.5 bg-card transition-colors"
+    class="group flex items-center gap-2 rounded-lg border px-2 py-1.5 bg-card transition-colors cursor-pointer"
     :class="[
       !layer.visible && 'opacity-60',
       selected && 'border-primary bg-primary/5',

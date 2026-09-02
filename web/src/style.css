@@ -590,6 +590,32 @@
     border-color: var(--color-border, currentcolor);
   }
 
+  /* Tailwind v4's preflight leaves buttons on the browser's `cursor: default`,
+     which reads as "not clickable" on every button in the app. Put the hand
+     back — on anything acting as a control, not just <button> — and leave a
+     disabled one alone, since it isn't clickable. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='menuitem']:not([aria-disabled='true']),
+  [role='option']:not([aria-disabled='true']),
+  [role='tab']:not([aria-disabled='true']),
+  [role='switch']:not([aria-disabled='true']),
+  [role='checkbox']:not([aria-disabled='true']),
+  [role='radio']:not([aria-disabled='true']),
+  label:has(> input[type='checkbox']:not(:disabled)),
+  label:has(> input[type='radio']:not(:disabled)),
+  summary,
+  select:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='color']:not(:disabled),
+  input[type='file']:not(:disabled)::file-selector-button,
+  input[type='range']:not(:disabled),
+  input[type='submit']:not(:disabled),
+  input[type='reset']:not(:disabled) {
+    cursor: pointer;
+  }
+
   /* h1..h3 are display titles (page/section headers, names) → Exposure.
      h4..h6 stay sans; they're used for small structural labels (settings
      rows, detail sub-sections, etc.), not display titles. */

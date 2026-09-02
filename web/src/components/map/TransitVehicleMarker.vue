@@ -138,6 +138,7 @@ const timeAgo = computed(() => {
 
 <style scoped>
 .transit-vehicle-marker {
+  cursor: pointer;
   position: relative;
   display: flex;
   align-items: center;

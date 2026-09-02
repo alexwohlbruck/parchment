@@ -38,6 +38,7 @@
 
 ### Fixed
 
+* Buttons and other controls show the hand cursor again — they had been left on the arrow, so nothing in the app looked clickable
 * The tick beside a custom colour now applies it and closes the picker, rather than leaving the picker open with nothing apparently happening
 * OSM tag groups with subfields are easier to read in place details, and each individual value can now be copied on its own instead of only as one combined block
 * Escape works again in views that bind it alongside another. Several parts of the app listen for Escape at once, and closing any one of them quietly took the others' handling with it — so Escape could stop dismissing a panel until the page was reloaded

@@ -43,7 +43,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
 <template>
   <!-- Mobile: Bottom Sheet -->
   <div v-if="isMobileScreen">
-    <div @click="handleOpenChange(true)">
+    <div class="cursor-pointer" @click="handleOpenChange(true)">
       <slot name="trigger" :open="() => handleOpenChange(true)" />
     </div>
 

@@ -38,7 +38,7 @@ import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
-import { emptyCanvasBody } from '@/types/canvas.types'
+import { emptyCanvasBody, type Canvas } from '@/types/canvas.types'
 import { ControlVisibility, LayerType } from '@/types/map.types'
 import { usePlaceService } from '@/services/place.service'
 import { SearchIcon } from 'lucide-vue-next'
@@ -218,14 +218,17 @@ const streetPeekStyle = computed<CSSProperties>(() => {
   const bottom = Math.max(PEEK_INSET, window.innerHeight - sheetTop + PEEK_INSET)
   return { position: 'fixed', left: `${PEEK_INSET}px`, bottom: `${bottom}px` }
 })
-// Canvases the user has switched on in the library render over the basemap
-// for as long as they are on, independently of the layer library.
+// Canvases the user has switched on render over the basemap for as long as
+// they are on. Which ones those are comes from the layer store's projection
+// rather than straight off the canvases store, so the "Canvases" group's
+// master switch in the layer selector actually takes them off the map — the
+// projection is also what already drops the one open in the editor.
 useCanvasRendering(
   computed(() =>
-    canvasesStore.activeCanvases.map(c => ({
-      id: c.id,
-      body: c.body ?? emptyCanvasBody(),
-    })),
+    layersStore.visibleCanvasIds
+      .map(id => canvasesStore.getCanvasById(id))
+      .filter((c): c is Canvas => !!c)
+      .map(c => ({ id: c.id, body: c.body ?? emptyCanvasBody() })),
   ),
   { key: 'map' },
 )

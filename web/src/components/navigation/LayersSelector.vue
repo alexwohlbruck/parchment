@@ -19,6 +19,8 @@ import { basemaps } from '../map/map.data'
 import { Basemap } from '@/types/map.types'
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { isVirtualLayerId } from '@/lib/saved-places-layers'
+import { canvasIdFromLayerId } from '@/lib/canvas-layers'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import {
   CLASS_GROUP_ROW_ID_PREFIX,
@@ -35,10 +37,17 @@ const layersService = useLayersService()
 const mapStore = useMapStore()
 const mapService = useMapService()
 const portolanStore = usePortolanTransitStore()
+const canvasesStore = useCanvasesStore()
 const { t } = useI18n()
 
-const { layers, allLayerGroups, mainReorderableItems, groupTree, savedPlacesMeta } =
-  storeToRefs(layersStore)
+const {
+  layers,
+  allLayerGroups,
+  mainReorderableItems,
+  groupTree,
+  savedPlacesMeta,
+  canvasesMeta,
+} = storeToRefs(layersStore)
 
 const expanded = ref(new Set<string>())
 
@@ -58,6 +67,15 @@ function getLayerId(layer: any): string {
 // ---------------------------------------------------------------------------
 
 async function setLayerVisible(layer: Layer, visible: boolean) {
+  // A canvas is already switched on and off from the library, and that state
+  // lives in the canvases store. Writing an override here as well would make
+  // this row and the library two answers to one question.
+  const canvasId = canvasIdFromLayerId(layer.id)
+  if (canvasId) {
+    canvasesStore.setActive(canvasId, visible)
+    return
+  }
+
   // Virtual layers all share one map layer (the saved-places circle layer), so
   // the usual lookup-by-configuration-id would resolve the wrong row. They
   // carry no map layer of their own — flipping the override is the whole job,
@@ -100,7 +118,7 @@ async function setGroupVisible(group: LayerGroup, visible: boolean) {
 // ---------------------------------------------------------------------------
 
 function layerNode(layer: Layer): SelectorNode {
-  const meta = savedPlacesMeta.value.get(layer.id)
+  const meta = savedPlacesMeta.value.get(layer.id) ?? canvasesMeta.value.get(layer.id)
   return {
     id: layer.id,
     name: layer.name,

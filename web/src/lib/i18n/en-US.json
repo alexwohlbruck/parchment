@@ -543,6 +543,10 @@
       "locked": "Locked collection",
       "frequents": "Frequents"
     },
+    "canvases": {
+      "group": "Canvases",
+      "locked": "Locked canvas"
+    },
     "store": {
       "title": "Layer store",
       "description": "Add pre-made layers to your library.",

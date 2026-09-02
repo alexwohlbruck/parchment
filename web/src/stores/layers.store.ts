@@ -25,6 +25,8 @@ import {
   EMPTY_SAVED_PLACES_VISIBILITY,
   SAVED_PLACES_GROUP_ID,
 } from '@/lib/saved-places-layers'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { buildCanvasesProjection } from '@/lib/canvas-layers'
 import {
   buildLayerStoreItems,
   collectGroupLayerTemplateIds,
@@ -343,8 +345,38 @@ export const useLayersStore = defineStore('layers', () => {
   /** Icon pack / color / count per virtual layer id, for the selector rows. */
   const savedPlacesMeta = computed(() => savedPlaces.value.meta)
 
+  // ==========================================================================
+  // CANVASES (virtual)
+  // ==========================================================================
+
+  /**
+   * The user's canvases, projected into a layer group. Rebuilt on every read
+   * rather than persisted — see `canvas-layers.ts` for why these can never
+   * become `layers` rows, and why their toggle stays in `canvases.store`.
+   */
+  const canvasesProjection = computed(() => {
+    const canvasesStore = useCanvasesStore()
+    return buildCanvasesProjection({
+      canvases: canvasesStore.canvases,
+      activeCanvasIds: canvasesStore.activeCanvasIds,
+      activeCanvases: canvasesStore.activeCanvases,
+      groupOverrides: groupVisibilityOverrides.value ?? {},
+      groupLabel: translate('layers.canvases.group'),
+      lockedLabel: translate('layers.canvases.locked'),
+    })
+  })
+
+  /** The canvases the main map should draw, master switch already applied. */
+  const visibleCanvasIds = computed(() => canvasesProjection.value.visibleIds)
+
+  /** Icon pack / color / count per canvas layer id, for the selector rows. */
+  const canvasesMeta = computed(() => canvasesProjection.value.meta)
+
   const mergedLayers = computed<Layer[]>(() => {
-    const projected: Layer[] = [...savedPlaces.value.layers]
+    const projected: Layer[] = [
+      ...savedPlaces.value.layers,
+      ...canvasesProjection.value.layers,
+    ]
     for (const template of defaultLayerTemplates.value) {
       const p = projectDefaultLayer(template)
       if (p) projected.push(p)
@@ -366,6 +398,8 @@ export const useLayersStore = defineStore('layers', () => {
     const projected: LayerGroup[] = []
     const savedPlacesGroup = savedPlaces.value.group
     if (savedPlacesGroup) projected.push(savedPlacesGroup)
+    const canvasesGroup = canvasesProjection.value.group
+    if (canvasesGroup) projected.push(canvasesGroup)
     for (const template of defaultGroupTemplates.value) {
       const p = projectDefaultGroup(template)
       if (p) projected.push(p)
@@ -1225,6 +1259,9 @@ export const useLayersStore = defineStore('layers', () => {
     // Saved places (virtual — projected from collections, never persisted)
     savedPlacesVisibility,
     savedPlacesMeta,
+    // Canvases (virtual — projected from the canvases store, never persisted)
+    visibleCanvasIds,
+    canvasesMeta,
     SAVED_PLACES_GROUP_ID,
 
     // Settings-panel views

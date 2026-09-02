@@ -524,6 +524,10 @@
       "locked": "Colección bloqueada",
       "frequents": "Frecuentes"
     },
+    "canvases": {
+      "group": "Lienzos",
+      "locked": "Lienzo bloqueado"
+    },
     "store": {
       "title": "Tienda de capas",
       "description": "Añade capas predefinidas a tu biblioteca.",

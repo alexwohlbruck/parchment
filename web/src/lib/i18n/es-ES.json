@@ -1179,7 +1179,7 @@
       "openRouteDetail": "Ver {name}",
       "notInServiceNamed": "{name} no circula ahora",
       "transfers": "Transbordos",
-      "transfersHint": "Accesibles desde esta estación sin salir"
+      "nearby": "Cerca"
     },
     "header": {
       "showMore": "Ver más",

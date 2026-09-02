@@ -178,8 +178,15 @@ export interface TransitStopInfo {
     textColor?: string
     type?: number
     /** `station` — the line calls here. `transfer` — it calls at a station
-     *  connected to this one, reachable without leaving the paid area. */
-    via?: 'station' | 'transfer'
+     *  connected to this one, reachable without leaving the paid area.
+     *  `nearby` — it calls at a stop within walking distance that no feed
+     *  joins to this station, which is the only way a subway station's bus
+     *  connections can be found: `transfers.txt` is scoped to one feed, so
+     *  neither operator's file can reference the other's stops. Says nothing
+     *  about whether the connection is free. */
+    via?: 'station' | 'transfer' | 'nearby'
+    /** Metres to the stop, for `nearby` lines only. */
+    distanceM?: number
   }>
 }
 

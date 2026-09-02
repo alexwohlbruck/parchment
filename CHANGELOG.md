@@ -2,6 +2,8 @@
 
 ### Added
 
+* Each stop on a route's detail page shows the other lines you can get there, under its name — Union Square on the N listing Q and R and W beside it, and the 4, 5, 6 and L a passageway away. Lines reached by a transfer are dimmed, since they leave from another platform rather than the one you are standing on
+* A station's Transfers section now also lists lines running from stops within walking distance — the bus from the stop outside a subway entrance. No transit feed can describe a connection between two different operators, so these are found by distance alone: they come after the connections the agency does publish, nearest first, and may well cost another fare
 * The MapLibre engine can now draw the map on a globe. The map projection setting applies to both engines, offering flat and globe on MapLibre and the full list on Mapbox
 * Canvases — your own maps, in a new tab of your library. A canvas is a stack of layers you assemble: imagery or data you style yourself, layers borrowed from your library, and collections of saved places drawn as points. Switch a canvas on and it draws over the basemap like anything else; open it and it takes over the panel beside the map so you can arrange it against the map itself
 * A canvas is either shareable or private, and you can change your mind. A shareable one is stored so it can be published with a link one day; a private one is end-to-end encrypted, and only devices holding your recovery key can open it. Switching between them under Canvas details re-packages the whole canvas in one go — and making one private revokes any public link, since there would be nothing left for that link to show. A device that hasn't imported your recovery key can still make and edit shareable canvases
@@ -49,6 +51,8 @@
 ### Fixed
 
 * Turning on the transit layer no longer erases the railway network from the map. The basemap's station labels step aside for the layer's own stops instead, so the rails stay drawn
+* Lines you can walk to are listed separately from lines you can transfer to, instead of sharing one Transfers heading. At Rector St the 1 train is fifty metres away but reaching it means leaving through the turnstiles and paying a second fare, and listing it beside the genuine in-station transfers said otherwise. Walk-to lines now sit under their own heading with the distance beside them
+* Tapping a station label that covers a whole interchange now shows all of its lines beside the station's name. The departures below already covered the whole interchange; the bullets did not, so Brooklyn Bridge–City Hall read "4 5 6" with the J and Z listed as connections — the answer for tapping one station rather than the group
 * Tapping a station label that covers a whole interchange now opens all of it. New York draws four separate stations named "Canal St" as one symbol, and tapping it opened whichever of the four the label happened to sit on — so the panel showed two lines where the map had drawn six. Tapping a single line's marker still opens just that station
 * The map keeps up with the sidebar as it is dragged or collapsed, resizing frame by frame rather than snapping once the panel has settled
 * Centring on a place, or fitting a route, no longer aims too far to the right when a panel is open over the map. The gutter the map was told to leave on the left included the sidebar's width a second time, even though the map never extended under it — worse the wider the sidebar

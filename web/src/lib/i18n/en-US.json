@@ -1228,7 +1228,7 @@
       "openRouteDetail": "Show {name}",
       "notInServiceNamed": "{name} isn't running now",
       "transfers": "Transfers",
-      "transfersHint": "Reachable from this station without exiting"
+      "nearby": "Nearby"
     },
     "header": {
       "showMore": "Show more",

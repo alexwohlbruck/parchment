@@ -1,6 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
-import { useRouteDetailStore, type DepartureContext, type VehicleOnRoute } from '@/stores/route-detail.store'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
+import {
+  useRouteDetailStore,
+  type DepartureContext,
+  type VehicleOnRoute,
+  type RouteDetailStop,
+  type StopTransferRoute,
+} from '@/stores/route-detail.store'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
+import {
+  bulletFor,
+  ensureBulletsAt,
+} from '@/services/layers/features/portolan/portolan-bullets'
 import { useRouter } from 'vue-router'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
@@ -160,12 +171,43 @@ function isStopInPast(stop: { stopId: string }): boolean {
   return new Date(time).getTime() < Date.now()
 }
 
-/** Height of each stop row in px (must match the CSS). */
-const STOP_ROW_HEIGHT = 32
+/**
+ * Portolan's curated bullet for a line at a stop, or null.
+ *
+ * The map is usually open beside this panel drawing the same lines, so the
+ * glyphs have to agree — a notched square here and a plain circle there for
+ * the same route reads as two different routes. Passing the stop's own point
+ * picks the pyramid covering it, and the route type keeps a metro 4 from
+ * matching a commuter-rail one.
+ */
+const stopBullet = (route: StopTransferRoute, stop: RouteDetailStop) =>
+  bulletFor(route.routeId, stop.lat, stop.lng, route.routeType)
+
+// Curated styles are fetched per feed and per session. Ask once the stops
+// land, using the first one as the point — a route stays inside one city.
+watch(
+  () => displayStops.value[0],
+  (first) => {
+    if (first) void ensureBulletsAt(first.lat, first.lng)
+  },
+  { immediate: true },
+)
+
+/**
+ * Height of each stop row in px (must match the CSS).
+ *
+ * The same for every row on purpose. The spine and the vehicle markers are
+ * placed by index x this height, so a row that grew to fit its own bullets
+ * would slide every marker below it out of position. When any stop on the
+ * route has bullets to draw, the whole list gets the taller row instead.
+ */
+const STOP_ROW_HEIGHT = computed(() =>
+  displayStops.value.some((s) => s.routes?.length) ? 52 : 32,
+)
 
 /** Top offset in px for a vehicle at the given routeFraction. */
 function vehicleTopPx(vr: VehicleOnRoute): number {
-  const totalHeight = (displayStops.value.length - 1) * STOP_ROW_HEIGHT
+  const totalHeight = (displayStops.value.length - 1) * STOP_ROW_HEIGHT.value
   return vr.routeFraction * totalHeight
 }
 
@@ -348,7 +390,7 @@ onUnmounted(() => {
           <div
             v-for="(stop, i) in displayStops"
             :key="stop.stopId"
-            class="flex items-center justify-between gap-2"
+            class="flex items-start justify-between gap-2 py-0.5"
             :style="{ height: `${STOP_ROW_HEIGHT}px` }"
           >
             <!-- Stop dot -->
@@ -363,15 +405,31 @@ onUnmounted(() => {
               }"
             />
 
-            <span
-              class="text-sm min-w-0 truncate"
-              :class="{
-                'font-semibold': i === 0 || i === displayStops.length - 1,
-                'text-muted-foreground': isStopPassedBySelected(i),
-              }"
-            >
-              {{ stop.stopName }}
-            </span>
+            <div class="min-w-0 flex flex-col justify-center gap-1">
+              <span
+                class="text-sm min-w-0 truncate"
+                :class="{
+                  'font-semibold': i === 0 || i === displayStops.length - 1,
+                  'text-muted-foreground': isStopPassedBySelected(i),
+                }"
+              >
+                {{ stop.stopName }}
+              </span>
+
+              <!-- Other lines here. Transfers are dimmed: they are a walk
+                   across the interchange, not a train on this platform. -->
+              <div v-if="stop.routes?.length" class="flex items-center gap-1 flex-wrap">
+                <RouteBullet
+                  v-for="r in stop.routes"
+                  :key="r.routeId"
+                  :label="stopBullet(r, stop)?.label || r.routeShortName || r.routeLongName || ''"
+                  :color="stopBullet(r, stop)?.color || r.routeColor"
+                  :shape="stopBullet(r, stop)?.shape"
+                  :text-color="stopBullet(r, stop)?.color ? null : r.routeTextColor"
+                  :class="r.via === 'transfer' && 'opacity-60'"
+                />
+              </div>
+            </div>
 
             <!-- Departure time (when a vehicle is selected) -->
             <span

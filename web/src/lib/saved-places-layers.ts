@@ -41,11 +41,11 @@ export const FREQUENTS_LAYER_ID = `${COLLECTION_LAYER_PREFIX}frequents`
 export const UNCATEGORIZED_LAYER_ID = `${COLLECTION_LAYER_PREFIX}uncategorized`
 
 /**
- * Sorts above every real group. Real orders are non-negative, so a negative
- * order pins saved places to the top of the selector without renumbering
- * anything the user owns.
+ * Sorts above every real group, and above canvases. Real orders are
+ * non-negative, so a negative order pins saved places to the top of the
+ * selector without renumbering anything the user owns.
  */
-const SAVED_PLACES_ORDER = -1
+const SAVED_PLACES_ORDER = -2
 
 /** Matches the layer store's placeholder for projected (non-DB) rows. */
 const PLACEHOLDER_TIMESTAMP = '1970-01-01T00:00:00.000Z'

@@ -1,7 +1,7 @@
 import { CategoryResult } from '../types/search.types'
 import type { Language } from '../lib/i18n/i18n.types'
 import { getLanguageCode } from '../lib/i18n'
-import { getPlaceCategory, resolveIcon } from '../lib/place-categories'
+import { getPlaceCategory, resolvePresetIcon } from '../lib/place-categories'
 import { PRESET_NAME_OVERRIDES } from '../lib/osm-presets'
 import { logWarn } from '../lib/logger'
 
@@ -282,7 +282,10 @@ export class CategoryService {
         }
 
         const rawIcon = preset.icon || 'maki-circle'
-        const resolved = resolveIcon(rawIcon)
+        // By preset rather than by icon name: half the iD schema names an icon
+        // from a pack we do not ship, and the preset's own family answers for
+        // it far better than a pin does.
+        const resolved = resolvePresetIcon(presetId, rawIcon)
 
         const category: CategoryResult = {
           id: presetId,

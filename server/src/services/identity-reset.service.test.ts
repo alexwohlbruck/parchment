@@ -191,11 +191,8 @@ import { users } from '../schema/users.schema'
 import { wrappedMasterKeys } from '../schema/wrapped-master-keys.schema'
 import { deviceWrapSecrets } from '../schema/device-wrap-secrets.schema'
 import { encryptedUserBlobs } from '../schema/personal-blobs.schema'
-import {
-  bookmarks,
-  collections,
-  canvases,
-} from '../schema/library.schema'
+import { bookmarks, collections } from '../schema/library.schema'
+import { canvases } from '../schema/canvases.schema'
 import {
   encryptedLocations,
   locationSharingConfig,

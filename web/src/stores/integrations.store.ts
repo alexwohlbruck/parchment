@@ -188,6 +188,24 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     )
   })
 
+  /**
+   * Whether anything can plan a route.
+   *
+   * Several integrations offer routing — Barrelman, GraphHopper, Valhalla,
+   * Geoapify — and the server picks between them, so what matters here is
+   * only whether at least one is configured and switched on. Tools that
+   * cannot work without one check this rather than failing at the request.
+   */
+  const isRoutingActive = computed(() =>
+    safeConfigurationsArray().some(config =>
+      config.capabilities?.some(
+        capability =>
+          capability.id === IntegrationCapabilityId.ROUTING &&
+          capability.active,
+      ),
+    ),
+  )
+
   // Check if a location-history-capable integration is configured and active.
   // Dawarich is the only provider today; extend this list when others land.
   const isLocationHistoryActive = computed(() => {
@@ -264,6 +282,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     getIntegrationConfig,
     getIntegrationConfigValue,
     isCapabilityActive,
+    isRoutingActive,
     osmProfile,
     clearCache,
   }

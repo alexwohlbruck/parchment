@@ -9,6 +9,16 @@ import {
   getPlacePolygonFillColor,
   getPlacePolygonStrokeColor,
 } from './helpers'
+import { getCustomColorTint } from '@/lib/color-tint'
+import {
+  markerGlyphSizeForRadius,
+  MARKER_PLATE_SIZE,
+  MARKER_RING_WIDTH,
+} from '@/lib/map-marker/marker-metrics.mjs'
+import {
+  MARKER_GLYPH_PLACEMENT,
+  MARKER_PLATE_PLACEMENT,
+} from '@/lib/map-marker/marker-layers'
 
 // Search results layer constants - these are internal and not user-modifiable
 export const SEARCH_RESULTS_LAYER_ID = 'search-results-internal'
@@ -63,117 +73,57 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
       // the top results win collisions and their labels stay visible.
       'symbol-sort-key': ['get', 'sortKey'],
     },
-    paint: {
-      'text-halo-width': 1,
-      'text-halo-blur': 0,
-      // Halo adapts to map light preset: dark halo in night/dusk, white in day/dawn
-      'text-halo-color': [
-        'interpolate',
-        ['linear'],
-        ['measure-light', 'brightness'],
-        0.25,
-        '#0D0D0D',
-        0.3,
-        '#FFFFFF',
-      ],
-      // Category-based text colors, matching Mapbox Standard POI label palette.
-      // Uses measure-light brightness so they automatically adapt to day/dusk/night presets.
-      'text-color': [
-        'match',
-        ['get', 'category'],
-        'food_and_drink',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(40, 95%, 70%)',
-          0.3,
-          'hsl(30, 100%, 48%)',
-        ],
-        'education',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(30, 50%, 70%)',
-          0.3,
-          'hsl(30, 50%, 38%)',
-        ],
-        'medical',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(0, 70%, 70%)',
-          0.3,
-          'hsl(0, 90%, 60%)',
-        ],
-        'sport_and_leisure',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(190, 60%, 70%)',
-          0.3,
-          'hsl(190, 75%, 38%)',
-        ],
-        'store',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(210, 70%, 75%)',
-          0.3,
-          'hsl(210, 75%, 53%)',
-        ],
-        'arts_and_entertainment',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(320, 70%, 75%)',
-          0.3,
-          'hsl(320, 85%, 60%)',
-        ],
-        'commercial_services',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(260, 70%, 75%)',
-          0.3,
-          'hsl(250, 75%, 60%)',
-        ],
-        'park',
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(110, 55%, 65%)',
-          0.3,
-          'hsl(110, 70%, 28%)',
-        ],
-        // default
-        [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          'hsl(210, 20%, 70%)',
-          0.3,
-          'hsl(210, 20%, 43%)',
-        ],
-      ],
-    },
   },
+}
+
+/**
+ * The halo behind a POI label, per flavor. Mirrors the `poi_halo` token the
+ * basemap resolves for its own labels — a search result and the basemap POI
+ * under it are the same place, so they get the same treatment.
+ */
+const POI_LABEL_HALO = { light: '#FFFFFF', dark: '#0D0D0D' }
+
+/**
+ * What a search-result label is painted with.
+ *
+ * Built per call rather than baked into the config above, because it depends
+ * on two things the config cannot see: the app theme, and the live category
+ * palette the server serves. It used to be a hand-written `measure-light` ramp
+ * per category — a second copy of the palette, at lightnesses that were never
+ * the basemap's — and on MapLibre it never reached its night half at all:
+ * `stripMapboxExpressions` collapses a `measure-light` interpolation to its
+ * brightest stop, so the night map drew daylight-orange labels with a white
+ * halo over dark ground.
+ *
+ * The ink is the same tint the basemap's POI labels wear (`@poi_ink_*`, which
+ * is `getCustomColorTint(...).foreground`), out of the same function, so the
+ * two cannot drift again.
+ */
+export function searchResultLabelPaint(options: {
+  isDark: boolean
+  categories: string[]
+  categoryColor: (category: string) => string
+}): Record<string, unknown> {
+  const { isDark, categories, categoryColor } = options
+  const ink = (category: string) => {
+    const color = categoryColor(category)
+    return getCustomColorTint(color, 'solid', isDark)?.foreground ?? color
+  }
+
+  // `default` is the fallback arm rather than a case of its own, which is also
+  // what happens to a result whose category the palette does not name. A
+  // `match` needs at least one real arm, so a palette carrying nothing else
+  // has to come out as the bare colour instead.
+  const named = categories.filter(c => c !== 'default')
+
+  return {
+    'text-halo-width': 1,
+    'text-halo-blur': 0,
+    'text-halo-color': isDark ? POI_LABEL_HALO.dark : POI_LABEL_HALO.light,
+    'text-color': named.length
+      ? ['match', ['get', 'category'], ...named.flatMap(c => [c, ink(c)]), ink('default')]
+      : ink('default'),
+  }
 }
 
 // Default empty GeoJSON for the search results source
@@ -221,19 +171,27 @@ export const EMPTY_SEARCH_RESULTS_GEOJSON = {
  */
 const DOT = {
   zoom: { hidden: 10, min: 10.5, collapsed: 13.5, marker: 14, full: 15 },
-  radius: { min: 1, collapsed: 2.5, marker: 6, full: 9.5 },
+  // Only the ramp is local. Where it ends is the shared marker size, so a
+  // saved place at full zoom is exactly the mark a search result and a canvas
+  // pin are — see `map-marker/marker-metrics`.
+  radius: { min: 1, collapsed: 2.5, marker: 6, full: MARKER_PLATE_SIZE / 2 },
 } as const
-
-/**
- * Glyph size for a given dot radius. Images are registered at 24 logical px,
- * and `1.14r / 24` holds the glyph at ~57% of the dot's diameter — the
- * glyph-to-circle ratio the basemap's POI sprites use.
- */
-const glyphSize = (radius: number) =>
-  Math.round(((radius * 1.14) / 24) * 1000) / 1000
 
 /** Glyphs appear once the dot is big enough to hold one legibly. */
 export const BOOKMARKS_ICON_MINZOOM = DOT.zoom.collapsed
+
+/**
+ * A marker held at full size at every zoom.
+ *
+ * Saved places shrink and fade on the way out because the low-zoom question
+ * is "where have I saved things", which reads as dots. A mark someone placed
+ * deliberately — a search result, a pin on a canvas — is answering a
+ * different question and has to stay the size it was put down at, the way the
+ * basemap's own POI sprites do.
+ */
+export const MARKER_CIRCLE_RADIUS = DOT.radius.full
+export const MARKER_CIRCLE_STROKE_WIDTH = MARKER_RING_WIDTH
+export const MARKER_ICON_SIZE = markerGlyphSizeForRadius(DOT.radius.full)
 
 /**
  * NB: a `['zoom']` interpolate has to be the OUTERMOST expression of a paint
@@ -288,11 +246,11 @@ const BOOKMARK_ICON_SIZE = [
   ['linear'],
   ['zoom'],
   DOT.zoom.collapsed,
-  glyphSize(DOT.radius.collapsed),
+  markerGlyphSizeForRadius(DOT.radius.collapsed),
   DOT.zoom.marker,
-  glyphSize(DOT.radius.marker),
+  markerGlyphSizeForRadius(DOT.radius.marker),
   DOT.zoom.full,
-  glyphSize(DOT.radius.full),
+  markerGlyphSizeForRadius(DOT.radius.full),
 ]
 
 /**
@@ -314,7 +272,7 @@ const BOOKMARK_ICON_OPACITY = [
  * Halo/stroke color that flips with the map's light preset — dark at night,
  * white by day. Same treatment the search-result labels use.
  */
-const BOOKMARK_CONTRAST_COLOR = [
+export const MARKER_CONTRAST_COLOR = [
   'interpolate',
   ['linear'],
   ['measure-light', 'brightness'],
@@ -350,17 +308,8 @@ export const BOOKMARKS_CIRCLES_LAYER_CONFIG: Omit<
       'circle-stroke-width': BOOKMARK_CIRCLE_STROKE_WIDTH,
       'circle-opacity': BOOKMARK_CIRCLE_OPACITY,
       'circle-stroke-opacity': BOOKMARK_CIRCLE_OPACITY,
-      'circle-stroke-color': BOOKMARK_CONTRAST_COLOR,
-      // Both 'viewport' so a saved place behaves like the basemap's POI
-      // symbols under a tilted camera: `map` alignment lays the circle flat on
-      // the ground plane, where pitch foreshortens it into an ellipse, and
-      // `map` scaling grows the near ones with perspective. The glyph on top
-      // is a symbol layer, which is viewport-aligned by default — so leaving
-      // these as 'map' made the circle distort out from under a glyph that
-      // didn't.
-      'circle-pitch-alignment': 'viewport',
-      'circle-pitch-scale': 'viewport',
-      'circle-emissive-strength': 1,
+      'circle-stroke-color': MARKER_CONTRAST_COLOR,
+      ...MARKER_PLATE_PLACEMENT,
     },
   },
 }
@@ -383,22 +332,9 @@ export const BOOKMARKS_ICONS_LAYER_CONFIG: Omit<
     source: BOOKMARKS_SOURCE_ID,
     minzoom: BOOKMARKS_ICON_MINZOOM,
     layout: {
-      // Deliberately NOT `symbol-z-elevate`: that lifts a symbol to the
-      // elevation of whatever is beneath it (terrain, buildings) while the
-      // circle layer stays on the ground plane, so a tilted camera pulls the
-      // glyph off its dot. Right for labels that should ride on top of
-      // buildings; wrong for a glyph that belongs to a specific circle.
-      //
-      // Pinned to the viewport for the same reason the circle is — both have
-      // to be drawn in the same space or they separate under pitch.
-      'icon-pitch-alignment': 'viewport',
-      'icon-rotation-alignment': 'viewport',
+      ...MARKER_GLYPH_PLACEMENT,
       // Image ids are registered by `map-icon-images.ts` under this scheme.
       'icon-image': ['concat', 'bm-', ['get', 'iconPack'], '-', ['get', 'icon']],
-      // The glyph belongs to its circle, not to the label collision system:
-      // letting it be culled would leave an empty dot behind.
-      'icon-allow-overlap': true,
-      'icon-ignore-placement': true,
       'icon-size': BOOKMARK_ICON_SIZE,
     },
     paint: {

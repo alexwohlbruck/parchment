@@ -129,11 +129,51 @@ export class MapStrategy {
   setPoiLabels(value: boolean) {}
   setRoadLabels(value: boolean) {}
   setTransitLabels(value: boolean) {}
+
+  /**
+   * Hide the basemap's own transit POIs while a transit overlay draws its own.
+   * MapLibre only — Mapbox Standard has no equivalent basemap layer to filter.
+   */
+  setBasemapTransitPoisVisible(_visible: boolean) {}
   setPlaceLabels(value: boolean) {}
   setLandmarkIcons(value: boolean) {}
   setMapProjection(projection: MapProjection) {}
+  /**
+   * Draw the top-down view orthographically rather than in perspective, so a
+   * flat-on view has no vanishing point: building walls stop splaying outward
+   * from the middle of the screen and a roof sits over its own footprint.
+   * Perspective comes back once the camera is tilted.
+   *
+   * Each strategy subscribes to whatever it actually needs, because the two
+   * engines need different upkeep: Mapbox has a real orthographic camera and
+   * switches on pitch itself, but exposes it as a style property that a style
+   * swap resets — so it re-applies on style load only. MapLibre 4 has no
+   * orthographic camera and approximates one by narrowing the field of view,
+   * which it has to undo when the map is tilted — so it also tracks pitch.
+   */
+  updateCameraProjection() {}
   setMap3dTerrain(value: boolean) {}
+  /** Extrude the basemap's buildings. */
+  setMap3dBuildings(value: boolean) {}
+  /**
+   * Draw the scene's repeated objects (trees, and later street furniture) as
+   * models rather than as the flat marks that stand in for them. MapLibre only;
+   * Mapbox Standard draws its own and has no hook for ours.
+   */
   setMap3dObjects(value: boolean) {}
+  /**
+   * Light the 3D buildings — cast shadows on the ground, ambient occlusion in
+   * the crease where a wall meets it, and a darkening band up the base of each
+   * wall, so a block reads as separate buildings rather than one mass.
+   *
+   * Only MapLibre implements this. Mapbox Standard lights its buildings itself
+   * and exposes `fill-extrusion-ambient-occlusion-*` for the rest; MapLibre has
+   * no lighting model past a flat directional tint, so it draws the buildings
+   * through a custom WebGL layer instead. Because the two arrive at the same
+   * result by unrelated means, this stays a strategy method rather than
+   * anything the style or the caller has to know about.
+   */
+  setBuildingShade(value: boolean) {}
   setMapTheme(theme: MapTheme) {}
   setMapColorTheme(theme: MapColorTheme) {}
   setBasemap(basemap: Basemap) {}
@@ -145,6 +185,11 @@ export class MapStrategy {
   }
   addSource(sourceId: string, source: any) {}
   removeSource(sourceId: string) {}
+  /**
+   * Replace a live GeoJSON source's data without touching the layers drawn
+   * from it — the cheap path for content that changes while you work.
+   */
+  setSourceData(sourceId: string, data: any) {}
   addLayer(layer: Layer, overwrite: boolean = false) {}
   removeLayer(layerId: Layer['configuration']['id']) {}
   updateLayer(layerId: Layer['configuration']['id'], updates: Partial<Layer>) {}

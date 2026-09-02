@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -8,12 +8,18 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { SearchIcon } from 'lucide-vue-next'
+import { CheckIcon, PipetteIcon, SearchIcon } from 'lucide-vue-next'
 import * as LucideIcons from 'lucide-vue-next'
 import type { LucideIcon } from 'lucide-vue-next'
 import lucideTags from 'lucide-static/tags.json'
 import { useVirtualizer } from '@tanstack/vue-virtual'
-import { fuzzyFilter, getThemeColorClasses, type ThemeColor } from '@/lib/utils'
+import {
+  fuzzyFilter,
+  getThemeColorClasses,
+  themeColorToHex,
+  type ThemeColor,
+  THEME_COLORS,
+} from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
 import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
 import { useI18n } from 'vue-i18n'
@@ -21,7 +27,8 @@ import { useI18n } from 'vue-i18n'
 interface ModelValue {
   icon: string
   iconPack?: 'lucide' | 'maki'
-  color: ThemeColor
+  /** One of the app's colours, or a CSS colour where custom ones are allowed. */
+  color: ThemeColor | string
 }
 
 interface IconItem {
@@ -49,10 +56,24 @@ for (const [kebab, terms] of Object.entries(
   lucideAliasMap[pascal] = terms
 }
 
-const props = defineProps<{
-  modelValue: ModelValue
-  placeholder?: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: ModelValue
+    placeholder?: string
+    /** A tile by default; compact fits a property row, where a tile shouts. */
+    compact?: boolean
+    /**
+     * Colour only, for the things that have one but no glyph — a line on a
+     * canvas, a layer's fill. Same picker, one tab.
+     */
+    colorOnly?: boolean
+    /** Allows a colour outside the palette: a brand hex, an rgba() with alpha. */
+    allowCustomColor?: boolean
+    /** Names what this picker sets, where a screen carries more than one. */
+    label?: string
+  }>(),
+  { compact: false, colorOnly: false, allowCustomColor: false },
+)
 
 const { t } = useI18n()
 
@@ -60,8 +81,53 @@ const emit = defineEmits(['update:modelValue'])
 
 const showPopover = ref(false)
 const activeTab = ref<'lucide' | 'maki' | 'color'>(
-  props.modelValue.iconPack === 'maki' ? 'maki' : 'lucide',
+  props.colorOnly
+    ? 'color'
+    : props.modelValue.iconPack === 'maki'
+      ? 'maki'
+      : 'lucide',
 )
+
+/** The swatch has to paint a real colour, not the name of one. */
+const resolvedColor = computed(() => themeColorToHex(props.modelValue.color))
+
+const customColor = ref(props.modelValue.color)
+watch(
+  () => props.modelValue.color,
+  color => (customColor.value = color),
+)
+
+/**
+ * Sampling a colour from anywhere on screen.
+ *
+ * The browser does this itself now — the EyeDropper API takes over the
+ * screen, so it can read pixels the page has no business seeing, including
+ * outside the window. Chromium has it; Firefox and Safari don't, so the
+ * button is only offered where it will work rather than failing on click.
+ */
+interface EyeDropperResult {
+  sRGBHex: string
+}
+type EyeDropperConstructor = new () => {
+  open: (options?: { signal?: AbortSignal }) => Promise<EyeDropperResult>
+}
+
+const eyeDropper = computed(() =>
+  typeof window === 'undefined'
+    ? undefined
+    : (window as unknown as { EyeDropper?: EyeDropperConstructor }).EyeDropper,
+)
+
+async function sampleFromScreen() {
+  const Dropper = eyeDropper.value
+  if (!Dropper) return
+  try {
+    const { sRGBHex } = await new Dropper().open()
+    handleColorSelect(sRGBHex)
+  } catch {
+    // Dismissing the picker rejects rather than resolving — not an error.
+  }
+}
 const iconSearch = ref('')
 
 const lucideIconComponents = computed<IconItem[]>(() => {
@@ -117,27 +183,8 @@ const filteredMakiIcons = computed(() => {
 // Ordered to roughly walk the spectrum (warm → cool → magenta) and
 // keep the two retained neutrals at the end. Default is `blue`; see
 // `ThemeColor` in lib/utils.ts for the rationale on the trimmed set.
-const themeColors: ThemeColor[] = [
-  'compass',
-  'coral',
-  'amber',
-  'peach',
-  'olive',
-  'forest',
-  'moss',
-  'teal',
-  'teal',
-  'sky',
-  'cobalt',
-  'indigo',
-  'violet',
-  'iris',
-  'iris',
-  'magenta',
-  'magenta',
-  'parchment',
-  'parchment',
-]
+// One palette for the whole app — see THEME_COLORS.
+const themeColors = THEME_COLORS
 
 function selectLucide(iconName: string) {
   emit('update:modelValue', {
@@ -155,11 +202,24 @@ function selectMaki(iconName: string) {
   })
 }
 
-function handleColorSelect(color: ThemeColor) {
+function handleColorSelect(color: string) {
   emit('update:modelValue', {
     ...props.modelValue,
     color,
   })
+}
+
+/**
+ * Done: take the colour that's been typed or sampled, and close.
+ *
+ * Swatches stay open — picking one is often followed by picking another,
+ * and on the icon tabs there is a glyph to choose as well — but the tick at
+ * the end of the custom-colour row is the one control that says "that's the
+ * one", so it has to behave like it.
+ */
+function applyCustomColor() {
+  handleColorSelect(customColor.value)
+  showPopover.value = false
 }
 
 const isSelectedLucide = (name: string) =>
@@ -214,23 +274,36 @@ const makiVirtualizer = useVirtualizer(
     <PopoverTrigger as-child>
       <Button
         variant="outline"
-        class="p-4 flex items-center justify-center"
-        size="icon-xl"
+        class="flex items-center justify-center overflow-hidden"
+        :class="props.compact ? 'size-7 p-0' : 'p-4'"
+        :size="props.compact ? 'icon' : 'icon-xl'"
+        :title="props.label"
+        :aria-label="props.label ?? t('iconPicker.trigger')"
       >
+        <span
+          v-if="props.colorOnly"
+          class="size-5 rounded"
+          :style="{ background: resolvedColor }"
+        />
         <ItemIcon
+          v-else
           :icon="modelValue.icon"
           :icon-pack="modelValue.iconPack ?? 'lucide'"
-          :color="modelValue.color"
+          :color="(modelValue.color as ThemeColor)"
           size="md"
         />
       </Button>
     </PopoverTrigger>
     <PopoverContent class="w-72 p-0">
       <Tabs v-model="activeTab" class="w-full">
-        <TabsList class="grid grid-cols-3 mb-2 px-2">
-          <TabsTrigger value="lucide">Lucide</TabsTrigger>
-          <TabsTrigger value="maki">Maki</TabsTrigger>
-          <TabsTrigger value="color">Color</TabsTrigger>
+        <TabsList v-if="!props.colorOnly" class="grid grid-cols-3 mb-2 px-2">
+          <TabsTrigger value="lucide">
+            {{ t('iconPicker.tabs.lucide') }}
+          </TabsTrigger>
+          <TabsTrigger value="maki">{{ t('iconPicker.tabs.maki') }}</TabsTrigger>
+          <TabsTrigger value="color">
+            {{ t('iconPicker.tabs.color') }}
+          </TabsTrigger>
         </TabsList>
 
         <!-- Lucide icon tab -->
@@ -367,6 +440,54 @@ const makiVirtualizer = useVirtualizer(
                 class="size-6 rounded"
                 :class="getThemeColorClasses(color)"
               ></div>
+            </Button>
+          </div>
+
+          <!-- Some colours a palette cannot hold: a brand hex, an rgba()
+               with alpha, the transparent a halo property defaults to. -->
+          <div
+            v-if="props.allowCustomColor"
+            class="mt-2 flex items-center gap-1.5 border-t pt-2"
+          >
+            <div class="relative size-7 shrink-0 rounded-md border overflow-hidden">
+              <span
+                class="absolute inset-0"
+                :style="{ background: resolvedColor }"
+              />
+              <input
+                type="color"
+                :value="/^#[0-9a-f]{6}$/i.test(resolvedColor) ? resolvedColor : '#000000'"
+                class="absolute inset-0 cursor-pointer opacity-0"
+                :aria-label="t('iconPicker.customColor')"
+                @input="handleColorSelect(($event.target as HTMLInputElement).value)"
+              />
+            </div>
+            <Input
+              v-model="customColor"
+              class="h-7 flex-1 font-mono text-xs"
+              placeholder="#000000"
+              @keydown.enter="applyCustomColor"
+            />
+            <Button
+              v-if="eyeDropper"
+              variant="ghost"
+              size="icon"
+              class="size-7 shrink-0"
+              :title="t('iconPicker.sampleColor')"
+              :aria-label="t('iconPicker.sampleColor')"
+              @click="sampleFromScreen"
+            >
+              <PipetteIcon class="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-7 shrink-0"
+              :title="t('iconPicker.applyColor')"
+              :aria-label="t('iconPicker.applyColor')"
+              @click="applyCustomColor"
+            >
+              <CheckIcon class="size-3.5" />
             </Button>
           </div>
         </TabsContent>

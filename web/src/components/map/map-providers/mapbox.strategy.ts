@@ -41,6 +41,12 @@ import { parseMapboxToOsmId } from '@/lib/map.utils'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
+import {
+  terrainSource,
+  TERRAIN_SOURCE_ID,
+  TERRAIN_EXAGGERATION,
+} from '@/lib/map-style/terrain'
+import { MAX_PITCH } from '@/lib/map-style'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
@@ -158,6 +164,7 @@ export class MapboxStrategy extends MapStrategy {
       bearing,
       pitch,
       zoom,
+      maxPitch: MAX_PITCH,
       attributionControl: false,
       // Disable the engine's built-in north snap — we do north + grid snapping
       // ourselves in map.service (snapRotation) so both settings toggle live.
@@ -169,6 +176,10 @@ export class MapboxStrategy extends MapStrategy {
       // This prevents API calls and WebGL rendering issues in headless browsers
       testMode: isTestEnvironment,
     })
+
+    // Dev only: the map is otherwise unreachable from the console, which
+    // makes every rendering question a guess instead of a check.
+    if (import.meta.env.DEV) (window as any).__parchmentMap = this.mapInstance
 
     this.addControls()
     this.configureEventListeners()
@@ -199,6 +210,7 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
+      this.updateCameraProjection()
     })
     this.mapInstance.on('move', () => {
       mapEventBus.emit('move', {
@@ -267,33 +279,46 @@ export class MapboxStrategy extends MapStrategy {
       type: 'mouseenter',
       target: { layerId: 'mapillary-image' },
       handler: () => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
+        this.setHoverCursor('pointer')
       },
     })
     this.mapInstance.addInteraction('mapillary-mouseleave', {
       type: 'mouseleave',
       target: { layerId: 'mapillary-image' },
       handler: () => {
-        this.mapInstance.getCanvas().style.cursor = ''
+        this.setHoverCursor('')
       },
     })
     this.listenPOIClick()
+  }
+
+  /**
+   * Hover cursors, ignored while a tool owns the pointer.
+   *
+   * A drawing tool sets its own cursor for the whole map; letting a POI
+   * hover flip it to a pointer — and letting the matching leave handler
+   * reset it to nothing — meant the crosshair vanished the moment you moved
+   * across a label, which is most of the time in a city.
+   */
+  private setHoverCursor(cursor: string) {
+    if (useMapToolsStore().rawClickCapture) return
+    this.mapInstance.getCanvas().style.cursor = cursor
   }
 
   listenPOIClick() {
     this.mapInstance.addInteraction('poi-mouseenter', {
       type: 'mouseenter',
       target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
+      handler: () => {
+        this.setHoverCursor('pointer')
       },
     })
 
     this.mapInstance.addInteraction('poi-mouseleave', {
       type: 'mouseleave',
       target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = ''
+      handler: () => {
+        this.setHoverCursor('')
       },
     })
 
@@ -303,7 +328,10 @@ export class MapboxStrategy extends MapStrategy {
       handler: e => {
         // When measure tool is active, ignore POI clicks so the debounced map click
         // fires and the click is treated as a regular map click (add measure point).
-        if (useMapToolsStore().activeTool === 'measure') return
+        // Anything placing geometry needs the raw click, at the coordinates the
+        // user actually clicked — see `rawClickCapture`.
+        const mapTools = useMapToolsStore()
+        if (mapTools.activeTool === 'measure' || mapTools.rawClickCapture) return
         if (!e.feature?.id) return
 
         const { osmId, poiType } = parseMapboxToOsmId(e.feature.id)
@@ -542,29 +570,49 @@ export class MapboxStrategy extends MapStrategy {
     )
   }
 
+  /**
+   * Mapbox has a real orthographic camera, and decides for itself when to use
+   * it: `camera-projection: orthographic` means "orthographic below 15° of
+   * pitch", falling back to perspective above that. So there is nothing to do
+   * on pitch — but it is a STYLE property rather than a map option, so a
+   * basemap or theme switch drops it and it has to be set again.
+   *
+   * Not supported under the globe projection, where the engine keeps
+   * perspective regardless of this setting.
+   */
+  override updateCameraProjection() {
+    this.mapInstance.setCamera({ 'camera-projection': 'orthographic' })
+  }
+
   setMapProjection(projection: MapProjection) {
     this.mapInstance.setProjection(projection)
   }
 
+  /**
+   * The same elevation data the MapLibre engine uses, rather than
+   * `mapbox://mapbox.terrain-rgb`.
+   *
+   * Both engines read `terrarium` tiles, and sharing one source is what keeps
+   * the two from disagreeing about the shape of a hill when you switch between
+   * them. It also drops a Mapbox-token dependency from a feature that no longer
+   * needs one. See `lib/map-style/terrain`.
+   */
   setMap3dTerrain(value: boolean) {
-    const existingTerrainSource = this.mapInstance.getSource('mapbox-dem')
+    const present = !!this.mapInstance.getSource(TERRAIN_SOURCE_ID)
 
-    if (value && !existingTerrainSource) {
-      this.mapInstance.addSource('mapbox-dem', {
-        type: 'raster-dem',
-        url: 'mapbox://mapbox.terrain-rgb',
-      })
+    if (value && !present) {
+      this.mapInstance.addSource(TERRAIN_SOURCE_ID, terrainSource() as any)
       this.mapInstance.setTerrain({
-        source: 'mapbox-dem',
-        exaggeration: value ? 1 : 0,
+        source: TERRAIN_SOURCE_ID,
+        exaggeration: TERRAIN_EXAGGERATION,
       })
-    } else if (!value && existingTerrainSource) {
-      this.mapInstance.setTerrain()
-      this.mapInstance.removeSource('mapbox-dem')
+    } else if (!value && present) {
+      this.mapInstance.setTerrain(null)
+      this.mapInstance.removeSource(TERRAIN_SOURCE_ID)
     }
   }
 
-  setMap3dObjects(value: boolean) {
+  setMap3dBuildings(value: boolean) {
     this.mapInstance.setConfigProperty('basemap', 'show3dObjects', value)
   }
 
@@ -652,6 +700,14 @@ export class MapboxStrategy extends MapStrategy {
     if (this.mapInstance.getSource(sourceId)) {
       this.mapInstance.removeSource(sourceId)
     }
+  }
+
+  setSourceData(sourceId: string, data: any) {
+    // Only a GeoJSON source can take data in place; anything else is a no-op.
+    const source = this.mapInstance.getSource(sourceId) as
+      | { setData?: (data: any) => void }
+      | undefined
+    source?.setData?.(data)
   }
 
   addSource(sourceId: string, source: any) {

@@ -139,7 +139,8 @@
       "layerGroupTemplateNotFound": "Plantilla de grupo predeterminada no encontrada",
       "routeNotFound": "Ruta no encontrada",
       "routeUpdateFailed": "Ruta no encontrada o error al actualizar",
-      "routeDeleteFailed": "Ruta no encontrada o error al eliminar"
+      "routeDeleteFailed": "Ruta no encontrada o error al eliminar",
+      "canvasNotFound": "Lienzo no encontrado"
     },
     "avatar": {
       "invalidType": "El archivo debe ser JPEG, PNG o WebP",

@@ -8,7 +8,18 @@ import { Place } from '@/types/place.types'
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
 
 export type Basemap = 'standard' | 'satellite' | 'hybrid'
-export type MapStyleId = 'osm-liberty' | 'osm-openmaptiles'
+/** Basemap style. Light/dark is driven by the app theme, not by this. */
+export type MapStyleId = 'parchment'
+
+/**
+ * How points of interest are drawn on the basemap.
+ *
+ * `badge` — a category-coloured disc with the glyph knocked out, matching the
+ * markers search results and saved places use.
+ * `glyph` — a tinted glyph on a halo and nothing else, in MapTiler Streets'
+ * own family palette.
+ */
+export type PoiStyleId = 'badge' | 'glyph'
 
 export enum MapEngine {
   MAPBOX = 'mapbox',
@@ -68,9 +79,17 @@ export interface MapSettings {
   engine: MapEngine
   basemap: Basemap
   mapStyle: MapStyleId
+  poiStyle: PoiStyleId
   camera?: MapCamera
   projection: MapProjection
   terrain3d: boolean
+  /** Extrude the basemap's buildings. */
+  buildings3d: boolean
+  /**
+   * Draw the scene's repeated objects — trees today, street furniture later —
+   * as models rather than as the flat marks that stand in for them. Split from
+   * `buildings3d`, which used to carry both.
+   */
   objects3d: boolean
   poiLabels: boolean
   roadLabels: boolean

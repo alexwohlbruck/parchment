@@ -25,44 +25,61 @@ const MAPBOX_LAYOUT_PROPERTIES = [
   'symbol-z-elevate',
 ] as const
 
-// Font name translation table: Mapbox Standard → MapLibre (OSM Liberty) equivalents
-// OSM Liberty uses Roboto + Noto Sans via CDN glyphs.
+/**
+ * Mapbox Standard's font names → the stacks we actually serve.
+ *
+ * Every name on the right has to be a directory under `public/fonts`, because
+ * MapLibre asks our own glyph endpoint for it and a miss is silent: the request
+ * falls through to the SPA's index.html and the labels just do not draw.
+ * `Noto Sans Regular` used to sit here and was never one of them — Noto is
+ * composited *inside* each stack as the non-Latin fallback, not served alone.
+ */
 const MAPBOX_TO_MAPLIBRE_FONTS: Record<string, string> = {
-  'DIN Pro Medium':         'Roboto Medium',
-  'DIN Pro':                'Roboto Regular',
-  'DIN Pro Bold':           'Roboto Bold',
-  'DIN Pro Italic':         'Roboto Italic',
-  'Arial Unicode MS Bold':  'Noto Sans Regular',
-  'Arial Unicode MS Regular': 'Noto Sans Regular',
+  'DIN Pro Medium':         'Geist Medium',
+  'DIN Pro':                'Geist Regular',
+  'DIN Pro Bold':           'Geist Bold',
+  // Geist has no italic face; see build-glyphs.mjs.
+  'DIN Pro Italic':         'Geist Regular',
+  'Arial Unicode MS Bold':  'Geist Bold',
+  'Arial Unicode MS Regular': 'Geist Regular',
 }
 
 /**
  * Recursively strip Mapbox-only expressions that MapLibre doesn't understand.
- * - `measure-light`: replaced with its "day" fallback (the last value in the
- *   interpolation, i.e. the highest-brightness stop).
+ * - `measure-light`: resolved against the app theme; see below.
  * - `config`: replaced with a sensible default string.
  * Returns the cleaned value, or the original if no Mapbox expressions found.
+ *
+ * `measure-light` reads the basemap's light preset, which Mapbox alone has.
+ * The app sets that preset from the theme and nothing else — `day` or `night`,
+ * never `dawn` or `dusk` (see `setMapTheme` in `mapbox.strategy.ts`) — so on
+ * MapLibre the theme answers the same question exactly, and a ramp over it
+ * collapses to whichever end the theme picks.
+ *
+ * It used to collapse to the bright end unconditionally, which is why every
+ * light/dark pair written this way — search-result label colours, the ring
+ * around a saved place — came out in daylight colours on the night map.
  */
-function stripMapboxExpressions(value: unknown): unknown {
+function stripMapboxExpressions(value: unknown, isDark: boolean): unknown {
   if (!Array.isArray(value)) return value
 
   const [op, ...rest] = value
 
-  // ['measure-light', 'brightness'] → not directly useful, but it appears
-  // inside interpolate expressions.  We handle it at the interpolate level.
+  // ['measure-light', 'brightness'] → the brightness the theme implies. Mostly
+  // it appears inside an interpolate, which is handled below, but a bare one
+  // still has to answer with something.
   if (op === 'measure-light') {
-    // Return a neutral brightness value (day mode = high brightness)
-    return 1
+    return isDark ? 0 : 1
   }
 
   // ['config', 'font'] → return default font family
   if (op === 'config') {
-    return 'Roboto'
+    return 'Geist'
   }
 
   // ['concat', ...args] with config inside → evaluate with defaults
   if (op === 'concat') {
-    const resolved = rest.map(a => stripMapboxExpressions(a))
+    const resolved = rest.map(a => stripMapboxExpressions(a, isDark))
     // If all parts resolved to strings, return the concatenated result
     if (resolved.every(v => typeof v === 'string')) {
       return resolved.join('')
@@ -70,30 +87,37 @@ function stripMapboxExpressions(value: unknown): unknown {
   }
 
   // ['interpolate', ['linear'], ['measure-light', ...], stop1, val1, stop2, val2]
-  // → use the last value (highest brightness = day mode)
+  // → the darkest stop's value at night, the brightest one's by day. The stops
+  // are ordered by brightness, so those are the first and last values.
   if (op === 'interpolate' && Array.isArray(rest[1]) && rest[1][0] === 'measure-light') {
-    const lastVal = value[value.length - 1]
-    return stripMapboxExpressions(lastVal)
+    const chosen = isDark ? value[4] : value[value.length - 1]
+    return stripMapboxExpressions(chosen, isDark)
   }
 
   // Recurse into all array elements
-  return value.map(v => stripMapboxExpressions(v))
+  return value.map(v => stripMapboxExpressions(v, isDark))
 }
 
 /**
  * Clean a paint or layout object by stripping Mapbox-only expressions
  * from all property values.
  */
-function stripMapboxExpressionsFromObject(obj: Record<string, any>): Record<string, any> {
+function stripMapboxExpressionsFromObject(
+  obj: Record<string, any>,
+  isDark: boolean,
+): Record<string, any> {
   const result: Record<string, any> = {}
   for (const [key, val] of Object.entries(obj)) {
-    result[key] = stripMapboxExpressions(val)
+    result[key] = stripMapboxExpressions(val, isDark)
   }
   return result
 }
 
 // TODO: Fix any types
-export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
+export function mapboxLayerToMaplibreLayer(
+  layer: Layer,
+  isDark = false,
+): MaplibreLayerType {
   // IMPORTANT: deep clone the configuration before mutating. A shallow spread
   // preserves references to nested paint/layout/source objects, which means
   // the `delete` statements below would permanently strip Mapbox-only keys
@@ -112,7 +136,7 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
         delete maplibreConfig.paint[prop]
       }
     })
-    maplibreConfig.paint = stripMapboxExpressionsFromObject(maplibreConfig.paint)
+    maplibreConfig.paint = stripMapboxExpressionsFromObject(maplibreConfig.paint, isDark)
   }
 
   // Remove Mapbox-specific layout properties, then strip unsupported expressions
@@ -122,7 +146,7 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
         delete maplibreConfig.layout[prop]
       }
     })
-    maplibreConfig.layout = stripMapboxExpressionsFromObject(maplibreConfig.layout)
+    maplibreConfig.layout = stripMapboxExpressionsFromObject(maplibreConfig.layout, isDark)
 
     // Translate text-font: replace Mapbox font names with MapLibre equivalents.
     // Handle both flat arrays (['DIN Pro', ...]) and arrays that contained
@@ -130,17 +154,17 @@ export function mapboxLayerToMaplibreLayer(layer: Layer): MaplibreLayerType {
     if (Array.isArray(maplibreConfig.layout['text-font'])) {
       maplibreConfig.layout['text-font'] = maplibreConfig.layout['text-font']
         .filter((entry: unknown) => typeof entry === 'string')
-        .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? 'Roboto Regular')
+        .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? 'Geist Regular')
       // Ensure at least one font remains
       if (maplibreConfig.layout['text-font'].length === 0) {
-        maplibreConfig.layout['text-font'] = ['Roboto Regular']
+        maplibreConfig.layout['text-font'] = ['Geist Regular']
       }
     } else if (maplibreConfig.type === 'symbol') {
       // No text-font specified — inject a known-good default so MapLibre doesn't
       // fall back to the basemap style's default (e.g. "Open Sans Regular") which
       // may not exist on the glyph server.
       if (!maplibreConfig.layout) maplibreConfig.layout = {}
-      maplibreConfig.layout['text-font'] = ['Roboto Regular']
+      maplibreConfig.layout['text-font'] = ['Geist Regular']
     }
   }
 

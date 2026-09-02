@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/card'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useAppStore } from '@/stores/app.store'
 import SheetActionButtons from '@/components/SheetActionButtons.vue'
+import { useMapToolsStore } from '@/stores/map-tools.store'
 
 const OBSTRUCTING_KEY = 'left-sheet'
 const DURATION_MS = 300
@@ -140,12 +141,17 @@ watch(
 // subview open) would still fire and trigger a home navigation.
 // preventDefault: false so esc still reaches Reka UI dialogs above (e.g.
 // the settings dialog) when this sheet is hidden.
+const mapToolsStore = useMapToolsStore()
+
 useHotkeys([
   {
     key: 'esc',
     preventDefault: false,
     handler: () => {
       if (!props.show) return
+      // A map tool mid-shape owns Escape: getting out of the tool is what
+      // was meant, not leaving the view it was opened from.
+      if (mapToolsStore.escapeCapture) return
       emit('home')
     },
   },

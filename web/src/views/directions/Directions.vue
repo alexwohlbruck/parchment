@@ -267,7 +267,7 @@ useMapListener(
           {{ departureTimeLabel }}
           <span
             v-if="departureTime"
-            class="ml-0.5 p-0.5 rounded hover:bg-muted"
+            class="ml-0.5 p-0.5 rounded hover:bg-muted cursor-pointer"
             @click.stop="clearDepartureTime"
           >
             <XIcon class="size-3" />

@@ -1,5 +1,6 @@
 import type dayjs from 'dayjs'
 import type { TransitDeparture } from '@/types/place.types'
+import { orderBullets } from './transit-bullets'
 import { getMinutesUntil } from '@/lib/transit'
 
 /**
@@ -199,7 +200,17 @@ export function groupDepartures(
     return ma - mb
   }
 
-  return [...byRoute].map(([routeKey, entry]) => ({
+  // The board lists routes in portolan's bullet order, not in the order
+  // the next train happens to arrive: this is a station's line listing,
+  // and it sits under a header drawing the same bullets. Insertion order
+  // put Columbus Circle's D ahead of its A whenever a D came first.
+  const routes = orderBullets([...byRoute], ([, entry]) => ({
+    label: entry.route.shortName || entry.route.longName || '',
+    color: entry.route.color,
+    id: entry.route.id,
+  }))
+
+  return routes.map(([routeKey, entry]) => ({
     routeKey,
     route: entry.route,
     representative: entry.representative,

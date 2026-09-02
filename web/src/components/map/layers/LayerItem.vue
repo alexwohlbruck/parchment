@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map.service'
@@ -21,7 +23,6 @@ import {
   MoveIcon,
   TrashIcon,
 } from 'lucide-vue-next'
-import LayerConfiguration from './LayerConfiguration.vue'
 import {
   Tooltip,
   TooltipTrigger,
@@ -45,6 +46,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const layersStore = useLayersStore()
 const layersService = useLayersService()
 const mapService = useMapService()
@@ -78,15 +80,9 @@ function getIconComponent(iconName?: string | null) {
   return isValidIcon ? (icon as any) : null
 }
 
-function openLayerConfigDialog() {
+function openLayerEditor() {
   if (!isUserOwned.value) return
-  appService.componentDialog({
-    component: LayerConfiguration,
-    continueText: t('general.save'),
-    props: {
-      layerId: props.layer.id,
-    },
-  })
+  router.push({ name: AppRoute.LAYER_EDITOR, params: { id: props.layer.id } })
 }
 
 function handleUngroup() {
@@ -128,7 +124,7 @@ async function toggleLayer(enabled: boolean) {
     <div
       class="flex items-center gap-2 flex-1 min-w-0"
       :class="{ 'cursor-pointer': isUserOwned }"
-      @click="openLayerConfigDialog"
+      @click="openLayerEditor"
     >
       <component
         v-if="getIconComponent(layer.icon)"
@@ -187,7 +183,7 @@ async function toggleLayer(enabled: boolean) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem v-if="isUserOwned" @click="openLayerConfigDialog">
+        <DropdownMenuItem v-if="isUserOwned" @click="openLayerEditor">
           <PencilIcon class="size-3 mr-2" />
           {{ t('layers.actions.editLayer') }}
         </DropdownMenuItem>

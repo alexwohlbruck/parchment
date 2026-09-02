@@ -49,6 +49,7 @@ import {
   annotationIconSpecs,
   annotationMarkerSpecs,
   annotationsCollection,
+  annotationStyle,
 } from '@/lib/canvas-annotations'
 import {
   ensureMarkerImages,
@@ -56,7 +57,10 @@ import {
   MARKER_SHAPES,
 } from '@/lib/map-marker'
 import { canvasStack, stackDrawOrder } from '@/lib/canvas-stack'
-import { ANNOTATION_STROKE_STYLES } from '@/types/canvas.types'
+import type {
+  AnnotationStrokeCap,
+  AnnotationStrokeStyle,
+} from '@/types/canvas.types'
 import { presetLayers } from '@/lib/map-style/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
@@ -116,6 +120,25 @@ const STROKE_DASHES: Record<string, number[] | undefined> = {
   solid: undefined,
   dashed: [2, 1.5],
   dotted: [0.2, 1.8],
+}
+
+/**
+ * The dash-and-cap pairs a run of marks actually asks for, in a stable order.
+ *
+ * Pins draw no stroke, so they ask for nothing. Everything else contributes
+ * the pair it is drawn with, which is usually one — a canvas full of solid
+ * round-ended marks costs the single layer it always did.
+ */
+function strokeVariants(
+  annotations: CanvasAnnotation[],
+): { style: AnnotationStrokeStyle; cap: AnnotationStrokeCap }[] {
+  const seen = new Map<string, { style: AnnotationStrokeStyle; cap: AnnotationStrokeCap }>()
+  for (const annotation of annotations) {
+    if (annotation.tool === 'pin') continue
+    const { strokeStyle, strokeCap } = annotationStyle(annotation)
+    seen.set(`${strokeStyle}|${strokeCap}`, { style: strokeStyle, cap: strokeCap })
+  }
+  return [...seen.values()]
 }
 
 const EMISSIVE_KEYS: Record<string, string> = {
@@ -475,12 +498,17 @@ export function useCanvasRendering(
           },
           true,
         ),
-        // One layer per dash pattern, since a dash array cannot be read from
-        // a feature. Everything else about a stroke can, so these differ only
-        // in their filter and their dashes.
-        ...ANNOTATION_STROKE_STYLES.map(style =>
+        // One layer per dash pattern and cap in the run, and only the pairs
+        // actually in it.
+        //
+        // Neither can be read from a feature. The dash because no engine
+        // will; the cap because the engines pick the *dash texture* from a
+        // constant `line-cap` — round dashes for a round cap, which is what
+        // makes a dotted line read as dots — and a data-driven one leaves
+        // them with no answer, so the dashes come out wrong or not at all.
+        ...strokeVariants(annotations).map(({ style, cap }) =>
           toLayer(
-            id(`-stroke-${style}`),
+            id(`-stroke-${style}-${cap}`),
             {
               type: 'line',
               source: sourceId,
@@ -488,13 +516,9 @@ export function useCanvasRendering(
                 'all',
                 ['!=', ['geometry-type'], 'Point'],
                 ['==', ['get', 'strokeStyle'], style],
+                ['==', ['get', 'strokeCap'], cap],
               ],
-              layout: {
-                // Data-driven in both engines, so one layer covers every cap
-                // — unlike the dash pattern, which is why these split at all.
-                'line-cap': ['get', 'strokeCap'],
-                'line-join': 'round',
-              },
+              layout: { 'line-cap': cap, 'line-join': 'round' },
               paint: {
                 'line-color': ['get', 'color'],
                 'line-width': ['get', 'strokeWidth'],

@@ -252,6 +252,72 @@ describe('useCanvasRendering', () => {
   })
 })
 
+describe('the stroke layers a run of marks asks for', () => {
+  const line = (id: string, style?: string, cap?: string): CanvasAnnotation =>
+    ({
+      id,
+      tool: 'line',
+      positions: [[0, 0], [1, 1]],
+      ...(style ? { strokeStyle: style } : {}),
+      ...(cap ? { strokeCap: cap } : {}),
+    }) as CanvasAnnotation
+
+  const strokes = () =>
+    [...strategy.configurations.entries()]
+      .filter(([id]) => id.includes('-stroke-'))
+      .map(([id, configuration]) => ({
+        id: id.slice(id.indexOf('-stroke-')),
+        layout: (configuration as { layout: Record<string, unknown> }).layout,
+        dash: (configuration as { paint: Record<string, unknown> }).paint[
+          'line-dasharray'
+        ],
+      }))
+
+  it('asks for one layer when every mark is drawn the same way', () => {
+    render('map', { layers: [], annotations: [line('an-1'), line('an-2')] })
+
+    expect(strokes()).toEqual([
+      {
+        id: '-stroke-solid-round',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        dash: undefined,
+      },
+    ])
+  })
+
+  it('keeps the cap constant on the layer, which is what makes a dot a dot', () => {
+    // The engines choose the dash texture from a constant `line-cap` — round
+    // dashes for a round cap. Read from the feature instead, they have no
+    // answer, and a dotted line comes out wrong.
+    render('map', {
+      layers: [],
+      annotations: [line('an-1', 'dotted'), line('an-2', 'dashed', 'butt')],
+    })
+
+    expect(strokes()).toEqual([
+      {
+        id: '-stroke-dotted-round',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        dash: [0.2, 1.8],
+      },
+      {
+        id: '-stroke-dashed-butt',
+        layout: { 'line-cap': 'butt', 'line-join': 'round' },
+        dash: [2, 1.5],
+      },
+    ])
+  })
+
+  it('asks for nothing on a canvas of pins, which have no stroke', () => {
+    render('map', {
+      layers: [],
+      annotations: [{ id: 'an-1', tool: 'pin', positions: [[0, 0]] } as CanvasAnnotation],
+    })
+
+    expect(strokes()).toEqual([])
+  })
+})
+
 describe('labels under the map\'s lighting', () => {
   const annotated: CanvasBody = {
     layers: [],

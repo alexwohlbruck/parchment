@@ -15,15 +15,13 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import type { Position } from 'geojson'
 import { mapEventBus } from '@/lib/eventBus'
-import { useMapStore } from '@/stores/map.store'
+import { useDrawingSurface } from '@/composables/useDrawingSurface'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { themeColorToHex } from '@/lib/utils'
 import type { OverlayScene } from '@/composables/useDrawOverlay'
-import {
-  RouteSnapAborted,
-  snapWaypointsToPath,
-} from '@/lib/route-snapping'
+import { snapWaypointsToPath } from '@/lib/route-snapping'
+import { SUPERSEDED, useLatestRequest } from '@/composables/useLatestRequest'
 import type { RouteMode } from '@/types/routes.types'
 import type { IsochroneMode } from '@server/types/isochrone.types'
 import { fetchIsochroneBands } from '@/lib/isochrone-request'
@@ -78,8 +76,8 @@ export function useCanvasAnnotations(options: {
    */
   styleFor: (tool: AnnotationTool | null) => DrawStyle
 }) {
-  const mapStore = useMapStore()
   const mapToolsStore = useMapToolsStore()
+  const surface = useDrawingSurface()
   const integrationsStore = useIntegrationsStore()
 
   /** The Route tool needs a routing engine; without one it isn't offered. */
@@ -102,24 +100,9 @@ export function useCanvasAnnotations(options: {
     // Escape belongs to the tool while one is armed — see the store.
     mapToolsStore.escapeCapture = active
 
-    const map = mapStore.getMapStrategy()?.mapInstance as
-      | {
-          doubleClickZoom?: { enable: () => void; disable: () => void }
-          boxZoom?: { enable: () => void; disable: () => void }
-          getCanvas?: () => HTMLCanvasElement
-        }
-      | undefined
-    if (!map) return
-    if (active) {
-      map.doubleClickZoom?.disable()
-      // Shift+click is the engine's box zoom, and it swallows the click
-      // outright — so holding shift to constrain a shape placed nothing at
-      // all. The tool needs the modifier more than the map does.
-      map.boxZoom?.disable()
-    } else {
-      map.doubleClickZoom?.enable()
-      map.boxZoom?.enable()
-    }
+    // The tool needs the double-click and the shift key more than the map
+    // does — see `setMapGestures`.
+    surface.setMapGestures(!active)
     applyCursor()
   }
 
@@ -159,13 +142,8 @@ export function useCanvasAnnotations(options: {
   let detachPointer: (() => void) | undefined
 
   function trackPointer(active: boolean) {
-    const map = mapStore.getMapStrategy()?.mapInstance as
-      | {
-          on: (event: string, handler: (e: any) => void) => void
-          off: (event: string, handler: (e: any) => void) => void
-        }
-      | undefined
-    if (!map) return
+    const map = surface.map()
+    if (!map?.on || !map.off) return
 
     detachPointer?.()
     detachPointer = undefined
@@ -212,16 +190,16 @@ export function useCanvasAnnotations(options: {
       shift.value = event.shiftKey
     }
 
-    map.on('mousemove', onMove)
-    map.on('mouseout', onOut)
-    map.on('dblclick', onDoubleClick)
+    map.on('mousemove', onMove as never)
+    map.on('mouseout', onOut as never)
+    map.on('dblclick', onDoubleClick as never)
     window.addEventListener('keydown', onKey)
     window.addEventListener('keyup', onKey)
     detachPointer = () => {
       if (frame) cancelAnimationFrame(frame)
-      map.off('mousemove', onMove)
-      map.off('mouseout', onOut)
-      map.off('dblclick', onDoubleClick)
+      map.off?.('mousemove', onMove as never)
+      map.off?.('mouseout', onOut as never)
+      map.off?.('dblclick', onDoubleClick as never)
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('keyup', onKey)
       shift.value = false
@@ -237,8 +215,7 @@ export function useCanvasAnnotations(options: {
 
   const routeMode = ref<RouteMode>('walking')
   const routed = ref<CanvasAnnotation['routed'] | null>(null)
-  const isSnapping = ref(false)
-  let snapRequest: AbortController | undefined
+  const snapping = useLatestRequest('failed to snap a route')
 
   async function snapRoute() {
     if (tool.value !== 'route' || positions.value.length < 2) {
@@ -246,36 +223,23 @@ export function useCanvasAnnotations(options: {
       return
     }
 
-    snapRequest?.abort()
-    const controller = new AbortController()
-    snapRequest = controller
-    isSnapping.value = true
-
-    try {
-      const path = await snapWaypointsToPath({
+    const mode = routeMode.value
+    const path = await snapping.run(signal =>
+      snapWaypointsToPath({
         waypoints: positions.value.map(([lng, lat]) => ({ lat, lng })),
-        mode: routeMode.value,
-        signal: controller.signal,
-      })
-      // A miss leaves the last good path in place: the straight fallback is
-      // still drawn from the waypoints, so nothing is lost either way.
-      if (path) {
-        routed.value = {
-          geometry: path.geometry,
-          mode: routeMode.value,
-          distance: path.stats.distance,
-          duration: path.stats.duration,
-        }
-      }
-    } catch (error) {
-      if (!(error instanceof RouteSnapAborted)) {
-        console.error('[canvas] failed to snap route', error)
-      }
-    } finally {
-      if (snapRequest === controller) {
-        isSnapping.value = false
-        snapRequest = undefined
-      }
+        mode,
+        signal,
+      }),
+    )
+    // A miss leaves the last good path in place: the straight fallback is
+    // still drawn from the waypoints, so nothing is lost either way. So does
+    // an ask that a newer one replaced.
+    if (!path || path === SUPERSEDED) return
+    routed.value = {
+      geometry: path.geometry,
+      mode,
+      distance: path.stats.distance,
+      duration: path.stats.duration,
     }
   }
 
@@ -288,41 +252,19 @@ export function useCanvasAnnotations(options: {
 
   const isDoodling = ref(false)
 
-  function doodlePosition(event: PointerEvent): Position | null {
-    const map = mapStore.getMapStrategy()?.mapInstance as
-      | {
-          unproject?: (point: [number, number]) => { lng: number; lat: number }
-          getCanvas?: () => HTMLCanvasElement
-        }
-      | undefined
-    const canvas = map?.getCanvas?.()
-    if (!map?.unproject || !canvas) return null
-    const rect = canvas.getBoundingClientRect()
-    const { lng, lat } = map.unproject([
-      event.clientX - rect.left,
-      event.clientY - rect.top,
-    ])
-    return [lng, lat]
-  }
-
   function onDoodleDown(event: PointerEvent) {
     if (tool.value !== 'doodle' || event.button !== 0) return
-    const at = doodlePosition(event)
+    const at = surface.positionAt(event)
     if (!at) return
 
     event.preventDefault()
     event.stopPropagation()
     isDoodling.value = true
     positions.value = [at]
-    setPanning(false)
+    surface.setPanning(false)
 
-    const canvas = (
-      mapStore.getMapStrategy()?.mapInstance as
-        | { getCanvas?: () => HTMLCanvasElement }
-        | undefined
-    )?.getCanvas?.()
     try {
-      canvas?.setPointerCapture(event.pointerId)
+      surface.element()?.setPointerCapture(event.pointerId)
     } catch {
       // Capture is a nicety; the window listeners are the guarantee.
     }
@@ -333,7 +275,7 @@ export function useCanvasAnnotations(options: {
 
   function onDoodleMove(event: PointerEvent) {
     if (!isDoodling.value) return
-    const at = doodlePosition(event)
+    const at = surface.positionAt(event)
     if (at) positions.value = [...positions.value, at]
   }
 
@@ -343,7 +285,7 @@ export function useCanvasAnnotations(options: {
     window.removeEventListener('pointerup', onDoodleUp)
     window.removeEventListener('pointercancel', onDoodleUp)
     isDoodling.value = false
-    setPanning(true)
+    surface.setPanning(true)
 
     // Tidy the stroke before it is kept: a hand leaves far more points than
     // the shape needs, and shakier ones than it meant.
@@ -352,21 +294,8 @@ export function useCanvasAnnotations(options: {
     else positions.value = []
   }
 
-  /** The map's own drag has to stand down for the length of a stroke. */
-  function setPanning(enabled: boolean) {
-    const map = mapStore.getMapStrategy()?.mapInstance as
-      | { dragPan?: { enable: () => void; disable: () => void } }
-      | undefined
-    if (enabled) map?.dragPan?.enable()
-    else map?.dragPan?.disable()
-  }
-
   function trackDoodle(active: boolean) {
-    const canvas = (
-      mapStore.getMapStrategy()?.mapInstance as
-        | { getCanvas?: () => HTMLCanvasElement }
-        | undefined
-    )?.getCanvas?.()
+    const canvas = surface.element()
     if (!canvas) return
     canvas.removeEventListener('pointerdown', onDoodleDown, true)
     if (active) canvas.addEventListener('pointerdown', onDoodleDown, true)
@@ -381,51 +310,45 @@ export function useCanvasAnnotations(options: {
   const isochroneMode = ref<IsochroneMode>('walk')
   const isochroneMinutes = ref(15)
   const isochrone = ref<CanvasAnnotation['isochrone'] | null>(null)
-  const isFetchingIsochrone = ref(false)
-  let isochroneRequest: AbortController | undefined
+  const reaching = useLatestRequest('failed to fetch an isochrone')
 
   async function requestIsochrone() {
     const origin = positions.value[0]
     if (tool.value !== 'isochrone' || !origin) return
 
-    isochroneRequest?.abort()
-    const controller = new AbortController()
-    isochroneRequest = controller
-    isFetchingIsochrone.value = true
-
-    try {
-      const { bands } = await fetchIsochroneBands({
+    const mode = isochroneMode.value
+    const minutes = isochroneMinutes.value
+    const answer = await reaching.run(signal =>
+      fetchIsochroneBands({
         origin: { lng: origin[0], lat: origin[1] },
-        mode: isochroneMode.value,
+        mode,
         // One contour: a mark is one shape, and bands would be several.
-        durations: contourDurations(isochroneMinutes.value, 1),
-        signal: controller.signal,
-      })
-      // The outermost band is the whole reachable area.
-      const band = bands[bands.length - 1]
-      const geometry = band?.geometry
-      if (!geometry) return
-
-      isochrone.value = {
-        geometry:
-          geometry.type === 'Polygon'
-            ? geometry.coordinates
-            : geometry.coordinates.flat(),
-        mode: isochroneMode.value,
-        minutes: isochroneMinutes.value,
-      }
-      commit()
-    } catch (error) {
-      if (!(error as Error)?.name?.includes('Abort')) {
-        console.error('[canvas] failed to fetch an isochrone', error)
-      }
+        durations: contourDurations(minutes, 1),
+        signal,
+      }),
+    )
+    // Changing the mode or the reach asks again, and the ask it replaced
+    // must leave the origin alone — dropping it there used to lose the mark
+    // outright, since the answer still on its way had nothing to commit to.
+    if (answer === SUPERSEDED) return
+    if (!answer) {
       positions.value = []
-    } finally {
-      if (isochroneRequest === controller) {
-        isFetchingIsochrone.value = false
-        isochroneRequest = undefined
-      }
+      return
     }
+
+    // The outermost band is the whole reachable area.
+    const geometry = answer.bands[answer.bands.length - 1]?.geometry
+    if (!geometry) return
+
+    isochrone.value = {
+      geometry:
+        geometry.type === 'Polygon'
+          ? geometry.coordinates
+          : geometry.coordinates.flat(),
+      mode,
+      minutes,
+    }
+    commit()
   }
 
   // A new origin, or a change of reach, asks the engine again.
@@ -441,21 +364,6 @@ export function useCanvasAnnotations(options: {
   })
 
   /**
-   * Screen distance between two positions, or null if the map can't say.
-   * Snapping has to be judged in pixels: two points a metre apart are the
-   * same click at one zoom and far apart at another.
-   */
-  function screenDistance(a: Position, b: Position): number | null {
-    const map = mapStore.getMapStrategy()?.mapInstance as
-      | { project?: (position: Position) => { x: number; y: number } }
-      | undefined
-    if (!map?.project) return null
-    const from = map.project(a)
-    const to = map.project(b)
-    return Math.hypot(from.x - to.x, from.y - to.y)
-  }
-
-  /**
    * Whether the cursor is close enough to the first vertex to close the shape.
    *
    * Clicking back on the start is how everyone expects to finish a polygon,
@@ -464,7 +372,7 @@ export function useCanvasAnnotations(options: {
   const snapToStart = computed(() => {
     if (tool.value !== 'polygon' || !cursor.value) return false
     if (positions.value.length < TOOL_MINIMUM.polygon) return false
-    const distance = screenDistance(cursor.value, positions.value[0])
+    const distance = surface.screenDistance(cursor.value, positions.value[0])
     return distance !== null && distance <= SNAP_PX
   })
 
@@ -490,23 +398,14 @@ export function useCanvasAnnotations(options: {
    * the shape, the cursor turns into a pointer.
    */
   function applyCursor() {
-    const canvas = (
-      mapStore.getMapStrategy()?.mapInstance as
-        | { getCanvas?: () => HTMLCanvasElement }
-        | undefined
-    )?.getCanvas?.()
-    if (!canvas) return
-
     if (!tool.value) {
-      canvas.style.cursor = ''
+      surface.setCursor('')
       return
     }
     // The eraser only does something over a mark, so it only offers there.
-    if (tool.value === 'erase') {
-      canvas.style.cursor = eraseTarget.value ? 'pointer' : 'crosshair'
-      return
-    }
-    canvas.style.cursor = snapToStart.value ? 'pointer' : 'crosshair'
+    const offering =
+      tool.value === 'erase' ? !!eraseTarget.value : snapToStart.value
+    surface.setCursor(offering ? 'pointer' : 'crosshair')
   }
 
   // The cursor tracks how far into a shape you are, and whether the next
@@ -523,26 +422,8 @@ export function useCanvasAnnotations(options: {
    * decides which of the ids are its own.
    */
   function markUnder(position: Position): string | null {
-    const map = mapStore.getMapStrategy()?.mapInstance as
-      | {
-          project?: (position: Position) => { x: number; y: number }
-          queryRenderedFeatures?: (
-            geometry: [[number, number], [number, number]],
-          ) => { properties?: Record<string, unknown> | null }[]
-        }
-      | undefined
-    if (!map?.project || !map.queryRenderedFeatures) return null
-
-    const { x, y } = map.project(position)
     // A box rather than a point: a hairline is otherwise almost unhittable.
-    const found = map.queryRenderedFeatures([
-      [x - ERASE_HIT_PX, y - ERASE_HIT_PX],
-      [x + ERASE_HIT_PX, y + ERASE_HIT_PX],
-    ])
-    const ids = found
-      .map(feature => feature.properties?.id)
-      .filter((id): id is string => typeof id === 'string')
-    return options.eraseTarget(ids)
+    return options.eraseTarget(surface.idsAround(position, ERASE_HIT_PX))
   }
 
   /** What the eraser is over, for the cursor. */
@@ -602,7 +483,7 @@ export function useCanvasAnnotations(options: {
         : null,
       color: themeColorToHex(color.value),
       guide: guide.value,
-      pending: isSnapping.value || isFetchingIsochrone.value,
+      pending: snapping.pending.value || reaching.pending.value,
       width: drawing.value === 'doodle' ? resolved.value.strokeWidth : undefined,
       cap: resolved.value.strokeCap,
       handles: (drawing.value === 'doodle' ? [] : positions.value).map((position, index) => ({
@@ -687,8 +568,8 @@ export function useCanvasAnnotations(options: {
   function disarm() {
     if (tool.value) mapEventBus.removeOverride('click', onMapClick)
     eraseTarget.value = null
-    snapRequest?.abort()
-    isochroneRequest?.abort()
+    snapping.abort()
+    reaching.abort()
     trackDoodle(false)
     onDoodleUp()
     tool.value = null
@@ -751,7 +632,7 @@ export function useCanvasAnnotations(options: {
   return {
     tool,
     routeMode,
-    isSnapping,
+    isSnapping: snapping.pending,
     isArmed,
     canFinish,
     canUndo,
@@ -762,7 +643,7 @@ export function useCanvasAnnotations(options: {
     isBusy: isDoodling,
     isochroneMode,
     isochroneMinutes,
-    isFetchingIsochrone,
+    isFetchingIsochrone: reaching.pending,
     scene,
     vertexCount: computed(() => positions.value.length),
     arm,

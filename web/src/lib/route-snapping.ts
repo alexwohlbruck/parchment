@@ -110,7 +110,13 @@ export function pathFromTrip(trip: any): SnappedPath {
   }
 }
 
-export class RouteSnapAborted extends Error {}
+/**
+ * Named for what the platform calls a cancelled request, so anything asking
+ * "was this abandoned or did it fail" gets one answer for both.
+ */
+export class RouteSnapAborted extends Error {
+  override name = 'AbortError'
+}
 
 /**
  * Route between the given waypoints. Returns null when the engine had nothing

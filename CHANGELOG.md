@@ -2,6 +2,7 @@
 
 ### Added
 
+* A station's Transfers section now also lists lines running from stops within walking distance — the bus from the stop outside a subway entrance. No transit feed can describe a connection between two different operators, so these are found by distance alone: they come after the connections the agency does publish, nearest first, and may well cost another fare
 * The MapLibre engine can now draw the map on a globe. The map projection setting applies to both engines, offering flat and globe on MapLibre and the full list on Mapbox
 
 ### Changed
@@ -13,6 +14,7 @@
 
 ### Fixed
 
+* Tapping a station label that covers a whole interchange now shows all of its lines beside the station's name. The departures below already covered the whole interchange; the bullets did not, so Brooklyn Bridge–City Hall read "4 5 6" with the J and Z listed as connections — the answer for tapping one station rather than the group
 * Tapping a station label that covers a whole interchange now opens all of it. New York draws four separate stations named "Canal St" as one symbol, and tapping it opened whichever of the four the label happened to sit on — so the panel showed two lines where the map had drawn six. Tapping a single line's marker still opens just that station
 * The map keeps up with the sidebar as it is dragged or collapsed, resizing frame by frame rather than snapping once the panel has settled
 * Centring on a place, or fitting a route, no longer aims too far to the right when a panel is open over the map. The gutter the map was told to leave on the left included the sidebar's width a second time, even though the map never extended under it — worse the wider the sidebar

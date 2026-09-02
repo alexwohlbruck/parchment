@@ -87,7 +87,12 @@ export function usePlaceTransitLines(placeId: Ref<string | undefined>) {
   return computed<StationLine[]>(() => {
     const entry = placeId.value ? byPlace[placeId.value] : undefined
     if (!entry) return []
-    const own = entry.routes.filter(r => r.via !== 'transfer')
+    // Station lines only, named positively. `via !== 'transfer'` used to say
+    // the same thing and stopped being true the moment a third kind existed:
+    // it swept the bus stop across the street into the badge row under the
+    // station's name. An older server sends no `via` at all, and everything it
+    // sends is a station line.
+    const own = entry.routes.filter(r => !r.via || r.via === 'station')
     return orderBullets(own, bulletOf).map(r => ({
       ...r,
       inService: !entry.ctx.known || entry.running.has(r.id),
@@ -96,12 +101,20 @@ export function usePlaceTransitLines(placeId: Ref<string | undefined>) {
 }
 
 /**
- * The lines a rider reaches from here without leaving the paid area — the J
- * and Z at Chambers St, from Brooklyn Bridge–City Hall.
+ * The lines a rider reaches from here without boarding one that calls here —
+ * the J and Z at Chambers St from Brooklyn Bridge–City Hall, and the bus from
+ * the stop outside the door.
+ *
+ * The two arrive by different routes and the difference is real: a `transfer`
+ * is published in the agency's own `transfers.txt`, so it is a connection the
+ * operator asserts and usually one made inside the paid area; a `nearby` line
+ * is one nothing in either feed joins to this station, found by walking
+ * distance alone, and may well cost another fare. Published connections lead,
+ * then the neighbours by how far away they are.
  *
  * Never marked out of service. The board that would answer that question is
- * the connecting station's, not this one's, so the honest answer here is to
- * say the transfer exists and stop there.
+ * the other stop's, not this one's, so the honest answer here is to say the
+ * connection exists and stop there.
  */
 export function usePlaceTransferLines(placeId: Ref<string | undefined>) {
   return computed<StationLine[]>(() => {
@@ -113,8 +126,16 @@ export function usePlaceTransferLines(placeId: Ref<string | undefined>) {
 /** The same split off a raw route list, for a view holding the board's own
  *  `transitInfo` rather than a place id. */
 export function transferLinesOf(routes: StationRoute[] | undefined): StationLine[] {
-  const reached = (routes ?? []).filter(r => r.via === 'transfer')
-  return orderBullets(reached, bulletOf).map(r => ({ ...r, inService: true }))
+  const published = (routes ?? []).filter(r => r.via === 'transfer')
+  const walked = (routes ?? [])
+    .filter(r => r.via === 'nearby')
+    .sort((a, b) => (a.distanceM ?? Infinity) - (b.distanceM ?? Infinity))
+  // Each group keeps portolan's bullet order within itself, so the ribbon
+  // order on the map beside the panel still reads across.
+  return [...orderBullets(published, bulletOf), ...orderBullets(walked, bulletOf)].map(r => ({
+    ...r,
+    inService: true,
+  }))
 }
 
 /** The board's own context — feed and window — for the same place. */

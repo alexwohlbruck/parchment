@@ -494,15 +494,31 @@ async function fetchTransitDepartures(
     let routes: TransitStopInfo['routes']
     if (primaryStop) {
       try {
+        const routesQuery = new URLSearchParams({
+          feedId: primaryStop.feedId,
+          stopId: primaryStop.stopId,
+          // Bus connections outside the door are not in any transfers.txt —
+          // that file is scoped to one feed — so Barrelman finds them by
+          // proximity, and proximity needs the point.
+          lat: String(params.lat),
+          lng: String(params.lng),
+        })
+        // A tap on the single symbol a map draws over an interchange is a
+        // question about the interchange: its lines are the place's own, not
+        // connections from it. Without this the badge row under a merged
+        // Brooklyn Bridge–City Hall label reads 4 5 6 and files the J and Z
+        // as connections, which is the answer for a tap on one station.
+        if (params.complex) routesQuery.set('complex', 'true')
+
         const routesRes = await fetch(
-          `${config.host}/transit/routes?feedId=${encodeURIComponent(primaryStop.feedId)}&stopId=${encodeURIComponent(primaryStop.stopId)}`,
+          `${config.host}/transit/routes?${routesQuery}`,
           { headers },
         )
         if (routesRes.ok) {
           const rows = await routesRes.json() as Array<{
             routeId: string; routeShortName?: string; routeLongName?: string
             routeType?: number; routeColor?: string; routeTextColor?: string
-            via?: 'station' | 'transfer'
+            via?: 'station' | 'transfer' | 'nearby'; distanceM?: number
           }>
           routes = rows.map((r) => ({
             id: r.routeId,
@@ -511,10 +527,12 @@ async function fetchTransitDepartures(
             color: r.routeColor,
             textColor: r.routeTextColor,
             type: r.routeType,
-            // Whether the line calls here or is reached by an in-station
-            // transfer. Both belong in a station's line-up and they do not
-            // mean the same thing; older instances send neither.
+            // Whether the line calls here, is reached by an in-station
+            // transfer, or runs from a stop within walking distance. All
+            // three belong in a station's line-up and they do not mean the
+            // same thing; older instances send neither.
             via: r.via ?? 'station',
+            distanceM: r.distanceM,
           }))
         }
       } catch {

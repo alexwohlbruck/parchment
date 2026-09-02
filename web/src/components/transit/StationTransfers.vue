@@ -39,9 +39,6 @@ const styleOf = (line: StationLine) => bulletFor(line.id, props.lat, props.lng, 
 <template>
   <section v-if="lines.length" class="mt-3 pt-3 border-t">
     <h3 class="text-sm font-medium mb-2">{{ t('place.transit.transfers') }}</h3>
-    <p class="text-xs text-muted-foreground mb-2">
-      {{ t('place.transit.transfersHint') }}
-    </p>
 
     <ul class="space-y-1.5">
       <li v-for="line in lines" :key="line.id">

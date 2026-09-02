@@ -1055,6 +1055,23 @@ describe('assembled styles', () => {
     }
     expect(ids).toContain(layerGroups.building3d)
   })
+
+  /**
+   * The transit toggle hides stop labels the overlay is about to redraw. It
+   * once matched on layer id, which caught the railway line layers instead —
+   * so turning transit on wiped the rail network off the basemap.
+   */
+  test('the transit group is stop labels, never the rails themselves', () => {
+    const toggled = layerGroups.transit.map(id => layers.find(l => l.id === id)!)
+    expect(toggled.length).toBeGreaterThan(0)
+    for (const layer of toggled) {
+      expect(layer.type, layer.id).toBe('symbol')
+      expect((layer as any)['source-layer'], layer.id).toBe('poi')
+    }
+    for (const layer of layers) {
+      if (layer.type === 'line') expect(layerGroups.transit).not.toContain(layer.id)
+    }
+  })
 })
 
 describe('assets the spec depends on', () => {

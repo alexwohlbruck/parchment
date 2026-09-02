@@ -65,7 +65,7 @@ watch(
 <template>
   <!-- Mobile: Bottom Sheet with click trigger -->
   <template v-if="isMobileScreen">
-    <div @click="handleMobileOpenChange(true)">
+    <div class="cursor-pointer" @click="handleMobileOpenChange(true)">
       <slot name="trigger" />
     </div>
 

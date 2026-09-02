@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } fr
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
@@ -88,6 +89,7 @@ const viewRef = ref()
 
 const hideUI = ref(true)
 const authStore = useAuthStore()
+const integrationsStore = useIntegrationsStore()
 
 // We don't use computed value here, it was causing a layout shift
 watch(route, () => {
@@ -192,6 +194,15 @@ onMounted(async () => {
   // Fetch configured integrations for all users (public fields only).
   // This provides Mapbox token, OSM server URL, etc. to the client.
   await integrationService.fetchConfiguredIntegrations()
+
+  // The *available* integrations list is the set a user could configure, so
+  // it is authenticated. A signed-out visitor has none — and the map waits on
+  // both lists before it will draw, so leaving it unset stranded anonymous
+  // pages (a public canvas link) on the loading state forever. An empty list
+  // is the correct answer for them, not a missing one.
+  if (!authStore.me && !Array.isArray(integrationsStore.availableIntegrations)) {
+    integrationsStore.availableIntegrations = []
+  }
 
   // Bootstrap if the user is already known at mount (cached session). A fresh
   // sign-in leaves `me` null here and is handled by the auth watcher below.

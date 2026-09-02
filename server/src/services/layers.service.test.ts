@@ -7,11 +7,9 @@
  *   - `upsertDefaultUserState` must only overwrite fields the caller actually
  *     passed, using `in` rather than a nullish check, so clearing an override
  *     with `null` is distinguishable from omitting it;
- *   - cloning a default tombstones the template, otherwise the user sees both
- *     the original and their copy;
- *   - a clone attaches to the parent group's real row if that group was itself
- *     cloned, and otherwise keeps the template id so the client's merge still
- *     nests it correctly;
+ *   - an insert leaves every unmentioned column NULL, `hidden` included — a
+ *     row written to record an order must not read back as "user added this",
+ *     which is what a non-NULL `hidden` means;
  *   - bulk reorder silently skips `default:` ids — those are not rows and must
  *     go through the state endpoints instead.
  *
@@ -37,32 +35,10 @@ const {
   getDefaultUserState,
   upsertDefaultUserState,
   deleteDefaultUserState,
-  restoreAllDefaults,
-  cloneDefaultLayer,
-  cloneDefaultGroup,
   moveLayer,
   moveLayerGroup,
   reorderLayers,
 } = await import('./layers.service')
-
-const layerTemplate = {
-  templateId: 'default:layer:traffic',
-  name: 'Traffic',
-  type: 'raster',
-  engine: ['maplibre'],
-  showInLayerSelector: true,
-  visible: false,
-  order: 3,
-  groupId: null as string | null,
-  isSubLayer: false,
-  integrationId: null,
-}
-
-const groupTemplate = {
-  templateId: 'default:group:cycling',
-  name: 'Cycling',
-  order: 1,
-}
 
 beforeEach(() => {
   dbMock.reset()
@@ -168,9 +144,10 @@ describe('upsertDefaultUserState', () => {
       userId: 'user-1',
       templateId: 'default:layer:traffic',
       type: 'layer',
-      hidden: false,
+      hidden: null,
       visible: true,
       order: null,
+      showInLayerSelector: null,
     })
   })
 
@@ -209,6 +186,26 @@ describe('upsertDefaultUserState', () => {
     expect((dbMock.conflictUpdates[0] as any).hidden).toBe(true)
   })
 
+  test('adding a removed template back writes hidden: false', async () => {
+    dbMock.setReturningRows([{}])
+
+    await upsertDefaultUserState('user-1', 'default:group:terrain', 'group', {
+      hidden: false,
+    })
+
+    expect((dbMock.conflictUpdates[0] as any).hidden).toBe(false)
+  })
+
+  test('carries a selector override through to the conflict set', async () => {
+    dbMock.setReturningRows([{}])
+
+    await upsertDefaultUserState('user-1', 'default:layer:traffic', 'layer', {
+      showInLayerSelector: false,
+    })
+
+    expect((dbMock.conflictUpdates[0] as any).showInLayerSelector).toBe(false)
+  })
+
   test('always bumps updatedAt', async () => {
     dbMock.setReturningRows([{}])
 
@@ -229,152 +226,6 @@ describe('default state teardown', () => {
     await deleteDefaultUserState('user-1', 'default:layer:traffic', 'layer')
 
     expect(dbMock.deleteCount).toBe(1)
-  })
-
-  test('restoreAllDefaults reports how many overrides were cleared', async () => {
-    dbMock.setReturningRows([{ id: 1 }, { id: 2 }, { id: 3 }])
-
-    expect(await restoreAllDefaults('user-1')).toEqual({ cleared: 3 })
-  })
-
-  test('restoreAllDefaults reports zero on a clean account', async () => {
-    dbMock.setReturningRows([])
-
-    expect(await restoreAllDefaults('user-1')).toEqual({ cleared: 0 })
-  })
-})
-
-describe('cloneDefaultLayer', () => {
-  test('copies template fields into a user-owned row', async () => {
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultLayer('user-1', layerTemplate as any, {}, { kind: 'raster' })
-
-    expect(dbMock.inserted[0]).toMatchObject({
-      userId: 'user-1',
-      name: 'Traffic',
-      order: 3,
-      clonedFromTemplateId: 'default:layer:traffic',
-      configuration: { kind: 'raster' },
-    })
-  })
-
-  test('applies the caller’s patch over the template', async () => {
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultLayer(
-      'user-1',
-      layerTemplate as any,
-      { name: 'My Traffic', order: 9 } as any,
-      {},
-    )
-
-    expect(dbMock.inserted[0]).toMatchObject({ name: 'My Traffic', order: 9 })
-  })
-
-  test('tombstones the template so the original disappears', async () => {
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultLayer('user-1', layerTemplate as any, {}, {})
-
-    expect(dbMock.inserted[1]).toMatchObject({
-      templateId: 'default:layer:traffic',
-      type: 'layer',
-      hidden: true,
-    })
-    expect(dbMock.conflictUpdates[0]).toMatchObject({ hidden: true })
-  })
-
-  test('attaches to the user’s cloned parent group when one exists', async () => {
-    const withGroup = { ...layerTemplate, groupId: 'default:group:cycling' }
-    dbMock.queueSelect([{ id: 'real-group-row' }])
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultLayer('user-1', withGroup as any, {}, {})
-
-    expect((dbMock.inserted[0] as any).groupId).toBe('real-group-row')
-  })
-
-  test('keeps the template group id when the parent was not cloned', async () => {
-    // The client's merge pipeline still nests it under the projected default.
-    const withGroup = { ...layerTemplate, groupId: 'default:group:cycling' }
-    dbMock.queueSelect([])
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultLayer('user-1', withGroup as any, {}, {})
-
-    expect((dbMock.inserted[0] as any).groupId).toBe('default:group:cycling')
-  })
-
-  test('an explicit groupId in the patch wins and skips the lookup', async () => {
-    const withGroup = { ...layerTemplate, groupId: 'default:group:cycling' }
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultLayer(
-      'user-1',
-      withGroup as any,
-      { groupId: 'my-group' } as any,
-      {},
-    )
-
-    expect((dbMock.inserted[0] as any).groupId).toBe('my-group')
-    expect(dbMock.selectCount).toBe(0)
-  })
-
-  test('a template with no group clones to the top level', async () => {
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultLayer('user-1', layerTemplate as any, {}, {})
-
-    expect((dbMock.inserted[0] as any).groupId).toBeNull()
-  })
-
-  test('falls back to sensible defaults for absent template fields', async () => {
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultLayer(
-      'user-1',
-      { templateId: 'default:layer:bare', name: 'Bare', order: 0 } as any,
-      {},
-      {},
-    )
-
-    expect(dbMock.inserted[0]).toMatchObject({
-      type: 'custom',
-      engine: ['mapbox', 'maplibre'],
-      fadeBasemap: false,
-      icon: null,
-      enabled: true,
-    })
-  })
-})
-
-describe('cloneDefaultGroup', () => {
-  test('creates a user-owned group and tombstones the template', async () => {
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultGroup('user-1', groupTemplate as any, {})
-
-    expect(dbMock.inserted[0]).toMatchObject({
-      userId: 'user-1',
-      name: 'Cycling',
-      clonedFromTemplateId: 'default:group:cycling',
-    })
-    expect(dbMock.inserted[1]).toMatchObject({
-      templateId: 'default:group:cycling',
-      type: 'group',
-      hidden: true,
-    })
-  })
-
-  test('applies the caller’s patch', async () => {
-    dbMock.setReturningRows([{ id: 'generated-id' }])
-
-    await cloneDefaultGroup('user-1', groupTemplate as any, {
-      name: 'My Cycling',
-    } as any)
-
-    expect((dbMock.inserted[0] as any).name).toBe('My Cycling')
   })
 })
 

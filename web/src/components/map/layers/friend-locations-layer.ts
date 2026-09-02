@@ -40,7 +40,7 @@ import {
   requestTick,
   type Tick,
 } from '@/lib/animation-scheduler'
-import FriendLocationMarker from '@/components/map/FriendLocationMarker.vue'
+import FriendLocationMarker from '@/components/map/markers/FriendLocationMarker.vue'
 
 // Skip `setMarkerLngLat` when the predicted position hasn't moved by
 // more than this. ~5 cm at the equator — well below visible

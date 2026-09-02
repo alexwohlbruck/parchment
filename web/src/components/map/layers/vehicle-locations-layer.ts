@@ -15,7 +15,7 @@ import {
 } from './base-marker-layer'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useDirectionsStore } from '@/stores/directions.store'
-import VehicleLocationMarker from '@/components/map/VehicleLocationMarker.vue'
+import VehicleLocationMarker from '@/components/map/markers/VehicleLocationMarker.vue'
 
 export class VehicleLocationsLayer extends BaseMarkerLayer {
   private vehiclesStore = useVehiclesStore()

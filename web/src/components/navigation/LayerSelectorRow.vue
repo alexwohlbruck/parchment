@@ -47,13 +47,18 @@ function onRowClick() {
 <template>
   <div>
     <div
-      class="flex items-center gap-2 rounded-md py-1.5 pr-1 transition-colors"
+      class="flex min-h-9 items-center gap-2 rounded-md px-2 py-1 outline-hidden transition-colors focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
       :class="[
-        hasChildren ? 'cursor-pointer hover:bg-accent/60' : 'cursor-default',
-        depth > 0 ? 'pl-2' : 'pl-1',
+        hasChildren ? 'cursor-pointer hover:bg-muted/70' : 'cursor-default',
+        partiallyOn ? 'bg-primary/[0.06]' : '',
       ]"
-      :style="depth > 0 ? { marginLeft: `${depth * 20}px` } : undefined"
+      :style="depth > 0 ? { marginLeft: `${depth * 16}px` } : undefined"
+      :role="hasChildren ? 'button' : undefined"
+      :tabindex="hasChildren ? 0 : undefined"
+      :aria-expanded="hasChildren ? isExpanded : undefined"
       @click="onRowClick"
+      @keydown.enter.prevent="onRowClick"
+      @keydown.space.prevent="onRowClick"
     >
       <!-- Disclosure. Leaf rows get an equivalent spacer so every icon in the
            list stays on the same vertical line. -->
@@ -90,13 +95,17 @@ function onRowClick() {
       <Switch
         :model-value="node.visible"
         :aria-label="node.name"
+        class="origin-right scale-[0.82]"
         :class="{ 'opacity-70': partiallyOn }"
         @click.stop
         @update:model-value="node.onToggle"
       />
     </div>
 
-    <div v-if="hasChildren && isExpanded">
+    <div
+      v-if="hasChildren && isExpanded"
+      class="ml-[17px] border-l border-border/70 pl-0.5"
+    >
       <LayerSelectorRow
         v-for="child in node.children"
         :key="child.id"

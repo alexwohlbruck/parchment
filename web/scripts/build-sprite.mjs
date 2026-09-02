@@ -23,6 +23,11 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import ShelfPack from '@mapbox/shelf-pack'
 import { SDF_BUFFER, SDF_CUTOFF, SDF_RADIUS } from '../src/lib/map-style/sdf.mjs'
+import {
+  MARKER_GLYPH_RATIO,
+  MARKER_PLATE_SIZE,
+  MARKER_SQUARE_CORNER,
+} from '../src/lib/map-marker/marker-metrics.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const WEB = resolve(HERE, '..')
@@ -441,13 +446,16 @@ function alphaToSdf(alpha, width, height) {
 // --- Badges ---------------------------------------------------------------
 
 /**
- * Badge geometry, in the same units `core-layers.ts` uses for the saved-place
- * markers: a 19px disc with the glyph held at 57% of its diameter. The ring
- * is not drawn here — the style adds it with `icon-halo-width`, so it can be
- * the flavor's own surface colour rather than baked into the art.
+ * Badge geometry, from the app's own marker metrics — a badge on the basemap
+ * and a saved place drawn over it are the same mark at the same size, and the
+ * numbers used to be written out separately in both places.
+ *
+ * The ring is not drawn here: the style adds it when it composites the badge,
+ * so it can take a colour of its own rather than being baked into the art.
+ * See `src/lib/map-marker/marker-metrics.mjs`.
  */
-const BADGE_DIAMETER = 19
-const BADGE_GLYPH_RATIO = 0.57
+const BADGE_DIAMETER = MARKER_PLATE_SIZE
+const BADGE_GLYPH_RATIO = MARKER_GLYPH_RATIO
 
 /** Prefix for the badge form of an icon: `restaurant` → `badge-restaurant`. */
 export const BADGE_PREFIX = 'badge-'
@@ -464,7 +472,7 @@ export const BADGE_PREFIX = 'badge-'
  * dozen images rather than doubling.
  */
 export const TILE_PREFIX = 'tile-'
-const TILE_CORNER = 0.28
+const TILE_CORNER = MARKER_SQUARE_CORNER
 const TRANSIT_ICONS = [
   'bus', 'rail', 'rail-metro', 'rail-light', 'ferry', 'harbor',
   'aerialway', 'airport', 'airfield', 'entrance',

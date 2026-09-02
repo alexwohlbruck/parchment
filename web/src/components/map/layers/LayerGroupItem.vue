@@ -110,9 +110,9 @@ function getItemKey(item: Layer | LayerGroup): string {
   return `group-${item.id}`
 }
 
-function isDefaultGroup(id: string, name: string): boolean {
-  return id?.startsWith('reserved:') || name === 'Mapillary'
-}
+/** See `LayerItem.vue` — the same rules apply to groups. */
+const isUserOwned = computed(() => props.group.origin === 'custom')
+const isVirtual = computed(() => props.group.origin === 'virtual')
 
 function getIconComponent(iconName?: string | null) {
   if (!iconName) return null
@@ -138,6 +138,7 @@ async function updateGroupEnabledForSelector(enabled: boolean) {
 }
 
 function openLayerGroupConfigDialog() {
+  if (!isUserOwned.value) return
   appService.componentDialog({
     component: LayerGroupConfiguration,
     continueText: t('general.save'),
@@ -147,8 +148,15 @@ function openLayerGroupConfigDialog() {
   })
 }
 
-function deleteGroup() {
-  layersStore.removeLayerGroup(props.group.id)
+async function deleteGroup() {
+  // Deleting a group takes the layers inside it, so this is worth confirming.
+  const confirmed = await appService.confirm({
+    title: t('layers.actions.deleteGroup'),
+    description: t('library.confirmDelete', { name: props.group.name }),
+    destructive: true,
+  })
+  if (!confirmed) return
+  await layersStore.removeLayerGroup(props.group.id)
 }
 
 function handleToggleExpanded() {
@@ -222,7 +230,7 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
             >
               {{ layersStore.getGroupTotalLayerCount(group.id) }}
             </span>
-            <Tooltip v-if="!isDefaultGroup(group.id, group.name)">
+            <Tooltip v-if="isUserOwned">
               <TooltipTrigger as-child>
                 <span
                   class="inline-block w-1.5 h-1.5 rounded-full bg-primary align-middle"
@@ -258,12 +266,18 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem @click="openLayerGroupConfigDialog">
-              <PencilIcon class="size-3 mr-2" />
-              {{ t('layers.actions.editGroup') }}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem @click="deleteGroup" class="text-destructive">
+            <template v-if="isUserOwned">
+              <DropdownMenuItem @click="openLayerGroupConfigDialog">
+                <PencilIcon class="size-3 mr-2" />
+                {{ t('layers.actions.editGroup') }}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </template>
+            <DropdownMenuItem
+              v-if="!isVirtual"
+              @click="deleteGroup"
+              class="text-destructive"
+            >
               <TrashIcon class="size-3 mr-2" />
               {{ t('layers.actions.deleteGroup') }}
             </DropdownMenuItem>

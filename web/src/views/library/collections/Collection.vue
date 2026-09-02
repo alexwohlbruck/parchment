@@ -75,7 +75,7 @@ function handleCollectionDelete() {
           size="sm"
         />
         <div class="min-w-0">
-          <h4 class="text-md font-semibold truncate">{{ collectionName }}</h4>
+          <h4 class="text-base font-semibold truncate">{{ collectionName }}</h4>
           <p
             v-if="collection.description"
             class="text-xs text-muted-foreground truncate"

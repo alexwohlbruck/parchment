@@ -1199,6 +1199,14 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
+  setSourceData(sourceId: string, data: any) {
+    // Only a GeoJSON source can take data in place; anything else is a no-op.
+    const source = this.mapInstance.getSource(sourceId) as
+      | { setData?: (data: any) => void }
+      | undefined
+    source?.setData?.(data)
+  }
+
   addSource(sourceId: string, source: any) {
     try {
       // Remove existing source if it exists to prevent conflicts
@@ -1542,16 +1550,26 @@ export class MaplibreStrategy extends MapStrategy {
     const canvas = this.mapInstance.getCanvas()
     let hoverCount = 0
 
+    // Hover cursors defer to a tool that owns the pointer: a drawing tool
+    // sets its own for the whole map, and letting a POI hover flip it meant
+    // the crosshair vanished whenever you crossed a label.
     const onEnter = () => {
-      if (hoverCount++ === 0) canvas.style.cursor = 'pointer'
+      if (hoverCount++ === 0 && !useMapToolsStore().rawClickCapture) {
+        canvas.style.cursor = 'pointer'
+      }
     }
     const onLeave = () => {
       hoverCount = Math.max(0, hoverCount - 1)
-      if (hoverCount === 0) canvas.style.cursor = ''
+      if (hoverCount === 0 && !useMapToolsStore().rawClickCapture) {
+        canvas.style.cursor = ''
+      }
     }
 
     const handleClick = (layerEvent: any) => {
-      if (useMapToolsStore().activeTool === 'measure') return
+      // Anything placing geometry needs the raw click, at the coordinates the
+      // user actually clicked — see `rawClickCapture`.
+      const mapTools = useMapToolsStore()
+      if (mapTools.activeTool === 'measure' || mapTools.rawClickCapture) return
 
       const feature = layerEvent.features?.[0]
       if (!feature?.id) return
@@ -1589,7 +1607,7 @@ export class MaplibreStrategy extends MapStrategy {
         this.mapInstance.off('mouseleave', id, onLeave)
         this.mapInstance.off('click', id, handleClick)
       }
-      canvas.style.cursor = ''
+      if (!useMapToolsStore().rawClickCapture) canvas.style.cursor = ''
     }
   }
 

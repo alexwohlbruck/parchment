@@ -34,6 +34,9 @@ import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useSearchStore } from '@/stores/search.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { useCanvasRendering } from '@/composables/useCanvasRendering'
+import { emptyCanvasBody, type Canvas } from '@/types/canvas.types'
 import { LayerType } from '@/types/map.types'
 import { usePlaceService } from '@/services/place.service'
 import { SearchIcon } from 'lucide-vue-next'
@@ -50,6 +53,7 @@ const mapToolsStore = useMapToolsStore()
 const searchStore = useSearchStore()
 const vehiclesStore = useVehiclesStore()
 const directionsStore = useDirectionsStore()
+const canvasesStore = useCanvasesStore()
 const { currentPlace } = usePlaceService()
 const isBottomSheetView = computed(() => {
   const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
@@ -86,9 +90,22 @@ function handleHome() {
 // view opens.
 // Directions uses peek (inputs) ↔ full only — the half detent isn't useful
 // there. Other views keep peek / half / full.
-const MOBILE_SNAP_POINTS = computed<(number | string)[]>(() =>
-  route.name === AppRoute.DIRECTIONS ? ['125px', 1] : ['125px', 0.5, 1],
+/**
+ * A route can shape the sheet it opens in via `meta.sheet` — a workspace view
+ * (the canvas editor) opts out of swipe-to-dismiss so a stray drag can't
+ * discard unsaved work, and picks its own detents.
+ */
+const sheetMeta = computed(
+  () =>
+    route.meta.sheet as
+      | { dismissable?: boolean; snapPoints?: (number | string)[] }
+      | undefined,
 )
+
+const MOBILE_SNAP_POINTS = computed<(number | string)[]>(() => {
+  if (sheetMeta.value?.snapPoints) return sheetMeta.value.snapPoints
+  return route.name === AppRoute.DIRECTIONS ? ['125px', 1] : ['125px', 0.5, 1]
+})
 const MOBILE_DEFAULT_SNAP_INDEX = 1
 const bottomSheetSnapIndex = ref(MOBILE_DEFAULT_SNAP_INDEX)
 
@@ -191,6 +208,21 @@ const streetPeekStyle = computed<CSSProperties>(() => {
   const bottom = Math.max(PEEK_INSET, window.innerHeight - sheetTop + PEEK_INSET)
   return { position: 'fixed', left: `${PEEK_INSET}px`, bottom: `${bottom}px` }
 })
+// Canvases the user has switched on render over the basemap for as long as
+// they are on. Which ones those are comes from the layer store's projection
+// rather than straight off the canvases store, so the "Canvases" group's
+// master switch in the layer selector actually takes them off the map — the
+// projection is also what already drops the one open in the editor.
+useCanvasRendering(
+  computed(() =>
+    layersStore.visibleCanvasIds
+      .map(id => canvasesStore.getCanvasById(id))
+      .filter((c): c is Canvas => !!c)
+      .map(c => ({ id: c.id, body: c.body ?? emptyCanvasBody() })),
+  ),
+  { key: 'map' },
+)
+
 const bottomSheetOpen = ref(false)
 const isNavTransitioning = ref(isMobileScreen.value)
 
@@ -382,7 +414,7 @@ defineExpose({
         :default-snap-point-index="MOBILE_DEFAULT_SNAP_INDEX"
         :active-snap-point="bottomSheetActiveSnapPoint"
         @update:active-snap-point-index="onBottomSheetSnapIndexChange"
-        dismissable
+        :dismissable="sheetMeta?.dismissable !== false"
         show-drag-handle
         dynamic-peek
         adjust-map-padding

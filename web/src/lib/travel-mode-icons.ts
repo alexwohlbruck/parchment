@@ -48,6 +48,32 @@ const modeIcons: Record<string, LucideIcon> = {
 }
 
 /**
+ * Map the vehicle types a user can own to icons.
+ *
+ * Distinct from `modeIcons` above, which is keyed by travel mode — a bike and
+ * an e-bike are one mode and two vehicles. Lucide has no moped or scooter
+ * glyph, so both borrow the bike.
+ */
+const vehicleTypeIcons: Record<string, LucideIcon> = {
+  car: CarFrontIcon,
+  truck: TruckIcon,
+  moped: BikeIcon,
+  bike: BikeIcon,
+  'e-bike': BikeIcon,
+  scooter: BikeIcon,
+  'e-scooter': BikeIcon,
+  wheelchair: AccessibilityIcon,
+}
+
+/**
+ * Get the icon for a user's vehicle. Falls back to the car, since an unknown
+ * vehicle is still a vehicle — a map pin would read as a place instead.
+ */
+export function getVehicleIcon(vehicleType: string): LucideIcon {
+  return vehicleTypeIcons[vehicleType] ?? CarFrontIcon
+}
+
+/**
  * Get the icon for a transit segment based on its GTFS route type.
  * Falls back to the generic transit icon (train) if unknown.
  */

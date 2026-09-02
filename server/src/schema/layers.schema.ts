@@ -19,6 +19,7 @@ export const LayerType = {
   TRANSIT: 'transit',
   FRIENDS: 'friends',
   TRACKERS: 'trackers',
+  NOTES: 'notes',
 } as const
 
 export const MapEngine = {
@@ -51,9 +52,6 @@ export const layers = pgTable('layers', {
   isSubLayer: boolean('is_sub_layer').notNull().default(false),
   enabled: boolean('enabled').notNull().default(true),
   integrationId: text('integration_id'),
-  // Informational: set when this row is a user clone of a default template.
-  // Clones are fully user-owned; this field is NOT consulted at read time.
-  clonedFromTemplateId: text('cloned_from_template_id'),
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
@@ -73,7 +71,6 @@ export const layerGroups = pgTable('layer_groups', {
   order: integer('order').notNull(),
   parentGroupId: text('parent_group_id'),
   integrationId: text('integration_id'),
-  clonedFromTemplateId: text('cloned_from_template_id'),
   userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
@@ -83,15 +80,19 @@ export const layerGroups = pgTable('layer_groups', {
 
 /**
  * Sidecar table storing the user's preferences for default (template-backed)
- * layers and groups WITHOUT cloning them. Used for light overrides:
+ * layers and groups. Templates themselves are read-only — this is the only
+ * place a user's choices about them live:
+ *   - installed / removed (`hidden`)
  *   - visibility toggles
  *   - ordering
  *   - enabled flag
+ *   - selector participation
  *   - parent/group re-parenting
- *   - tombstone (`hidden`) when the user deletes or replaces a default via clone
  *
  * Primary key: (userId, templateId, type).
- * NULL in an override column means "use the template's value".
+ * NULL in an override column means "use the template's value". That includes
+ * `hidden`: NULL defers to the template's `installedByDefault`, which is how
+ * store-only bundles stay out of a fresh library until they're added.
  */
 export const defaultLayerUserState = pgTable(
   'default_layer_user_state',
@@ -101,10 +102,11 @@ export const defaultLayerUserState = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     templateId: text('template_id').notNull(),
     type: text('type', { enum: ['layer', 'group'] as const }).notNull(),
-    hidden: boolean('hidden').notNull().default(false),
+    hidden: boolean('hidden'),
     visible: boolean('visible'),
     order: integer('order'),
     enabled: boolean('enabled'),
+    showInLayerSelector: boolean('show_in_layer_selector'),
     groupId: text('group_id'),
     parentGroupId: text('parent_group_id'),
     createdAt: timestamp('created_at').defaultNow().notNull(),

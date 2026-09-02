@@ -19,10 +19,18 @@ export interface EphemeralHotkey {
   registeredAt: number // Timestamp of registration
 }
 
+/**
+ * Whether a key should still fire while a text field has focus. A predicate
+ * gets the focused element, for a key whose owner depends on what is in it.
+ */
+export type AllowInInput = boolean | ((element: Element) => boolean)
+
 interface HotkeyBinding {
   id: string
   mousetrapKey: string // The key string used for mousetrap binding
   handler: () => void
+  preventDefault?: boolean
+  allowInInput?: AllowInInput
   hotkey: Hotkey // The array format hotkey
   name?: string
   description?: string
@@ -49,8 +57,17 @@ export const useHotkeyStore = defineStore('hotkey', () => {
   // Registry of all ephemeral hotkeys with metadata
   const ephemeralHotkeys = new Map<string, EphemeralHotkey>()
 
-  // Active bindings tracked by mousetrap key (for unbinding)
-  const activeBindings = new Map<string, HotkeyBinding>()
+  /**
+   * Active bindings, several per key.
+   *
+   * More than one component binds the same key at once — `esc` is bound by
+   * the left sheet, the bottom sheet and whatever view is open — and
+   * mousetrap's own unbind is per key, not per callback, so letting each
+   * component bind and unbind directly meant the first one to unmount took
+   * everyone else's handler with it. Keeping the list here means a component
+   * going away only removes its own.
+   */
+  const activeBindings = new Map<string, HotkeyBinding[]>()
 
   /**
    * Register an ephemeral hotkey
@@ -96,6 +113,8 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     name?: string,
     description?: string,
     component?: string,
+    preventDefault?: boolean,
+    allowInInput?: AllowInInput,
   ): string {
     // Convert to array format for storage
     const hotkeyArray: Hotkey = Array.isArray(key)
@@ -110,33 +129,87 @@ export const useHotkeyStore = defineStore('hotkey', () => {
       registerEphemeralHotkey(id, hotkeyArray, name, description, component)
     }
 
-    // Track the binding
-    activeBindings.set(mousetrapKey, {
-      id: id || mousetrapKey,
-      mousetrapKey,
-      handler,
-      hotkey: hotkeyArray,
-      name,
-      description,
-      component,
-    })
+    // Newest first: the view opened most recently is the one that should get
+    // a key before the chrome it opened over.
+    activeBindings.set(mousetrapKey, [
+      {
+        id: id || mousetrapKey,
+        mousetrapKey,
+        handler,
+        preventDefault,
+        allowInInput,
+        hotkey: hotkeyArray,
+        name,
+        description,
+        component,
+      },
+      ...(activeBindings.get(mousetrapKey) ?? []),
+    ])
 
     return mousetrapKey
+  }
+
+  /** Whether this key already has a mousetrap callback dispatching to it. */
+  function isBound(mousetrapKey: string) {
+    return (activeBindings.get(mousetrapKey)?.length ?? 0) > 1
+  }
+
+  /** Run every handler registered for a key, newest first. */
+  function dispatch(mousetrapKey: string) {
+    for (const binding of [...(activeBindings.get(mousetrapKey) ?? [])]) {
+      binding.handler()
+    }
+  }
+
+  /**
+   * Whether any handler for this key wants it while a text field has focus.
+   *
+   * Mousetrap drops every key pressed inside an input, which is right for a
+   * single-letter shortcut and wrong for ⌘Z — a view that owns an undo stack
+   * still owns it when the field it just opened has focus.
+   */
+  function allowsInInput(mousetrapKey: string, element: Element) {
+    return (activeBindings.get(mousetrapKey) ?? []).some(({ allowInInput }) =>
+      typeof allowInInput === 'function'
+        ? allowInInput(element)
+        : !!allowInInput,
+    )
+  }
+
+  /** Whether any handler for this key wants the browser default suppressed. */
+  function preventsDefault(mousetrapKey: string) {
+    return (activeBindings.get(mousetrapKey) ?? []).some(
+      binding => binding.preventDefault !== false,
+    )
   }
 
   /**
    * Unregister an active binding
    */
-  function unregisterBinding(key: string | Hotkey) {
-    // Convert to string for mousetrap unbinding
+  /**
+   * Drop one component's binding for a key. Returns whether the key has no
+   * handlers left, which is the only point at which mousetrap should be
+   * unbound — its unbind takes the whole key with it.
+   */
+  function unregisterBinding(
+    key: string | Hotkey,
+    handler?: () => void,
+  ): boolean {
     const mousetrapKey = Array.isArray(key) ? hotkeyArrayToString(key) : key
+    const bindings = activeBindings.get(mousetrapKey) ?? []
 
-    const binding = activeBindings.get(mousetrapKey)
-    if (binding?.id) {
-      unregisterEphemeralHotkey(binding.id)
+    const remaining = handler
+      ? bindings.filter(binding => binding.handler !== handler)
+      : bindings.slice(1)
+    const removed = bindings.filter(binding => !remaining.includes(binding))
+
+    for (const binding of removed) {
+      if (binding.id) unregisterEphemeralHotkey(binding.id)
     }
 
-    activeBindings.delete(mousetrapKey)
+    if (remaining.length) activeBindings.set(mousetrapKey, remaining)
+    else activeBindings.delete(mousetrapKey)
+    return remaining.length === 0
   }
 
   /**
@@ -157,14 +230,15 @@ export const useHotkeyStore = defineStore('hotkey', () => {
    * Get all active bindings (for debugging/inspection)
    */
   function getAllBindings(): HotkeyBinding[] {
-    return Array.from(activeBindings.values())
+    return Array.from(activeBindings.values()).flat()
   }
 
   /**
-   * Get binding by mousetrap key
+   * Get the binding that would run first for a key — the most recently
+   * registered, since that is the view closest to the user.
    */
   function getBinding(mousetrapKey: string): HotkeyBinding | undefined {
-    return activeBindings.get(mousetrapKey)
+    return activeBindings.get(mousetrapKey)?.[0]
   }
 
   // Computed getters for reactive access
@@ -183,6 +257,10 @@ export const useHotkeyStore = defineStore('hotkey', () => {
     unregisterEphemeralHotkey,
     registerBinding,
     unregisterBinding,
+    isBound,
+    dispatch,
+    preventsDefault,
+    allowsInInput,
     getHotkeyById,
     getAllEphemeralHotkeys,
     getAllBindings,

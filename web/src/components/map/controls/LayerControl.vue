@@ -12,7 +12,8 @@ import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue
     side="left"
     align="end"
     :side-offset="12"
-    desktop-content-class="w-[360px] max-w-[calc(100vw-3.75rem)] md:max-w-[400px] p-4 shadow-xl"
+    desktop-content-class="w-[380px] max-w-[calc(100vw-3.75rem)] overflow-hidden rounded-md p-0 shadow-xl"
+    mobile-content-class="p-0 pt-8"
     :fit-content="true"
   >
     <template #trigger>

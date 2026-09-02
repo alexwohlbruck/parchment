@@ -11,12 +11,27 @@ import { api } from '@/lib/api'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import type { TransitDeparture } from '@/types/place.types'
 
+/** Another line available at a stop on this route. `station` calls there;
+ *  `transfer` is reached from it without leaving the paid area. */
+export interface StopTransferRoute {
+  routeId: string
+  routeShortName: string | null
+  routeLongName: string | null
+  routeType: number | null
+  routeColor: string | null
+  routeTextColor: string | null
+  agencyName: string | null
+  via: 'station' | 'transfer'
+}
+
 export interface RouteDetailStop {
   stopId: string
   stopName: string
   lat: number
   lng: number
   distanceAlongRoute: number
+  /** Lines other than this one available here. Absent from older instances. */
+  routes?: StopTransferRoute[]
 }
 
 export interface RouteDetail {

@@ -2,6 +2,7 @@
 
 ### Added
 
+* Each stop on a route's detail page shows the other lines you can get there, under its name — Union Square on the N listing Q and R and W beside it, and the 4, 5, 6 and L a passageway away. Lines reached by a transfer are dimmed, since they leave from another platform rather than the one you are standing on
 * A station's Transfers section now also lists lines running from stops within walking distance — the bus from the stop outside a subway entrance. No transit feed can describe a connection between two different operators, so these are found by distance alone: they come after the connections the agency does publish, nearest first, and may well cost another fare
 * The MapLibre engine can now draw the map on a globe. The map projection setting applies to both engines, offering flat and globe on MapLibre and the full list on Mapbox
 

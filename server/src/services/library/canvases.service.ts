@@ -6,7 +6,7 @@ import {
   type NewCanvas,
 } from '../../schema/canvases.schema'
 import type { CollectionScheme } from '../../schema/library.schema'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, eq, desc, getTableColumns } from 'drizzle-orm'
 import { generateId } from '../../util'
 import { randomBytes } from 'node:crypto'
 
@@ -29,6 +29,19 @@ export interface CreateCanvasParams {
   scheme?: CollectionScheme
   isPublic?: boolean
 }
+
+/**
+ * Everything about a canvas except the document itself.
+ *
+ * A canvas saves itself every second or so, and the body it just sent back
+ * is the one thing the client already has — echoing it doubled the cost of
+ * every save, on a document that can carry megabytes of imported features.
+ * Callers that need the body read it (`getCanvasById`) or hold it already.
+ */
+const { body: _body, bodyEncrypted: _bodyEncrypted, ...canvasSummary } =
+  getTableColumns(canvases)
+
+export type CanvasSummary = Omit<Canvas, 'body' | 'bodyEncrypted'>
 
 export interface UpdateCanvasParams {
   isPublic?: boolean
@@ -104,7 +117,7 @@ export async function updateCanvas(
   id: string,
   userId: string,
   updates: UpdateCanvasParams,
-): Promise<Canvas | undefined> {
+): Promise<CanvasSummary | undefined> {
   // Spread only the keys the caller actually sent, so a partial update can't
   // null out a body it never mentioned.
   const set: Record<string, unknown> = { updatedAt: new Date() }
@@ -116,7 +129,7 @@ export async function updateCanvas(
     .update(canvases)
     .set(set)
     .where(and(eq(canvases.id, id), eq(canvases.userId, userId)))
-    .returning()
+    .returning(canvasSummary)
   return updated
 }
 

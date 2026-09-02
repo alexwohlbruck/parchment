@@ -86,7 +86,14 @@ const canvasesRouter = new Elysia({ prefix: '/canvases' })
         metadataKeyVersion: t.Optional(t.Number()),
         bodyEncrypted: t.Optional(t.Union([t.String(), t.Null()])),
       }),
-      detail: { tags: ['Library'], summary: 'Update a canvas' },
+      detail: {
+        tags: ['Library'],
+        summary: 'Update a canvas',
+        description:
+          'Returns the canvas without its body: a canvas saves itself as it ' +
+          'is edited, and the document it has just sent is the one thing the ' +
+          'client already holds. Read it back with GET /canvases/:id.',
+      },
     },
   )
 

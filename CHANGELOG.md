@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+* The toolbox button has been removed from the map. Measure, radius and isochrone are still available from the map's right-click menu, and the setting for showing the toolbox is gone from Settings
+
 ### Fixed
 
 * Internet access details in place cards are easier to read, and Wi‑Fi network names and passwords can now be copied one at a time instead of only as a single block

@@ -1645,7 +1645,6 @@
         "streetView": "Street view",
         "locate": "Locate",
         "weather": "Weather",
-        "toolbox": "Toolbox",
         "visibility": {
           "always": "Always",
           "never": "Never",

@@ -1,5 +1,9 @@
 ## [Unreleased]
 
+### Changed
+
+* The capability filters in integration settings are listed alphabetically
+
 ### Fixed
 
 * The Brand Catalog, Transit Routing and Rideshare Estimate capability filters in integration settings show their names instead of raw translation keys, in English and Spanish

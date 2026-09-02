@@ -38,10 +38,15 @@ describe('what a tool can be styled with', () => {
     expect(hasStyleOption('pin', 'strokeWidth')).toBe(false)
   })
 
-  it('offers a colour whatever is in hand', () => {
-    for (const options of Object.values(TOOL_STYLE_OPTIONS)) {
+  it('offers a colour whatever is being drawn', () => {
+    for (const [tool, options] of Object.entries(TOOL_STYLE_OPTIONS)) {
+      if (tool === 'erase') continue
       expect(options).toContain('color')
     }
+  })
+
+  it('has nothing to set for the eraser, which is what hides its row', () => {
+    expect(TOOL_STYLE_OPTIONS.erase).toEqual([])
   })
 })
 

@@ -31,6 +31,7 @@ function fakeMap() {
     boxZoom: { enable: vi.fn(), disable: vi.fn() },
     getCanvas: () => canvas,
     project: (position: number[]) => ({ x: position[0], y: position[1] }),
+    queryRenderedFeatures: vi.fn(() => [] as { properties: { id: string } }[]),
     on: vi.fn(),
     off: vi.fn(),
   }
@@ -48,9 +49,17 @@ beforeEach(() => {
 function tools(
   onCommit: (a: CanvasAnnotation) => void = () => {},
   styleFor: () => DrawStyle = () => ({}),
+  erase: { target?: (ids: string[]) => string | null; onErase?: (id: string) => void } = {},
 ) {
   const scope = effectScope()
-  const api = scope.run(() => useCanvasAnnotations({ onCommit, styleFor }))!
+  const api = scope.run(() =>
+    useCanvasAnnotations({
+      onCommit,
+      styleFor,
+      eraseTarget: erase.target ?? (ids => ids[0] ?? null),
+      onErase: erase.onErase ?? (() => {}),
+    }),
+  )!
   return { ...api, dispose: () => scope.stop() }
 }
 
@@ -116,6 +125,54 @@ describe('useCanvasAnnotations', () => {
     session.arm('route')
 
     expect(session.tool.value).toBe('route')
+    session.dispose()
+  })
+})
+
+describe('the eraser', () => {
+  function erase(target: (ids: string[]) => string | null) {
+    const erased: string[] = []
+    const session = tools(() => {}, () => ({}), {
+      target,
+      onErase: id => erased.push(id),
+    })
+    session.arm('erase')
+    mapEventBus.emit('click', { lngLat: { lng: 1, lat: 2 } } as never)
+    return { session, erased }
+  }
+
+  it('takes off the mark under the pointer', () => {
+    map.queryRenderedFeatures.mockReturnValue([
+      { properties: { id: 'poi-9' } },
+      { properties: { id: 'an-1' } },
+    ])
+    // The map answers with everything it drew there; the canvas picks its own.
+    const { session, erased } = erase(ids => ids.find(id => id === 'an-1') ?? null)
+
+    expect(erased).toEqual(['an-1'])
+    session.dispose()
+  })
+
+  it('does nothing over bare map', () => {
+    map.queryRenderedFeatures.mockReturnValue([])
+    const { session, erased } = erase(() => null)
+
+    expect(erased).toEqual([])
+    session.dispose()
+  })
+
+  it('draws nothing while it is in hand', () => {
+    map.queryRenderedFeatures.mockReturnValue([])
+    const marks: CanvasAnnotation[] = []
+    const session = tools(mark => marks.push(mark), () => ({}), {
+      target: () => null,
+    })
+    session.arm('erase')
+    mapEventBus.emit('click', { lngLat: { lng: 1, lat: 2 } } as never)
+
+    // An eraser that left a pin behind would be a poor eraser.
+    expect(marks).toEqual([])
+    expect(session.scene.value).toBeNull()
     session.dispose()
   })
 })

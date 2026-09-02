@@ -19,6 +19,7 @@ import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import {
   CheckIcon,
   CircleIcon,
+  EraserIcon,
   FolderIcon,
   FolderOpenIcon,
   LayersIcon,
@@ -33,10 +34,11 @@ import {
   UndoIcon,
   WaypointsIcon,
 } from 'lucide-vue-next'
-import type { AnnotationTool } from '@/types/canvas.types'
+import type { CanvasTool } from '@/types/canvas.types'
+import { TOOL_STYLE_OPTIONS } from '@/lib/canvas-draw-style'
 
 const props = defineProps<{
-  tool: AnnotationTool | null
+  tool: CanvasTool | null
   canFinish: boolean
   canUndo: boolean
   vertexCount: number
@@ -52,7 +54,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  arm: [tool: AnnotationTool | null]
+  arm: [tool: CanvasTool | null]
   'update:groupId': [id: string | null]
   finish: []
   undo: []
@@ -68,7 +70,7 @@ const { t } = useI18n()
  * can be found without taking up room on the bar.
  */
 const TOOLS: {
-  id: AnnotationTool
+  id: CanvasTool
   icon: typeof MapPinIcon
   key: string
   hint?: string
@@ -81,6 +83,7 @@ const TOOLS: {
   { id: 'circle', icon: CircleIcon, key: 'I', hint: 'radius' },
   { id: 'isochrone', icon: TimerIcon, key: 'T', hint: 'isochrone' },
   { id: 'doodle', icon: PencilIcon, key: 'D', hint: 'doodle' },
+  { id: 'erase', icon: EraserIcon, key: 'X', hint: 'erase' },
 ]
 
 function isDisabled(item: (typeof TOOLS)[number]) {
@@ -259,7 +262,7 @@ const destinationItems = computed(() => [
          the two read as one control rather than two things floating over
          the map. -->
     <div
-      v-if="tool"
+      v-if="tool && TOOL_STYLE_OPTIONS[tool].length"
       class="border-t p-1 flex flex-wrap justify-center items-center gap-0.5"
     >
       <slot name="options" />

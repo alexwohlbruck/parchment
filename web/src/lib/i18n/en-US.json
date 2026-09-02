@@ -2434,7 +2434,8 @@
         "circle": "Circle",
         "route": "Route",
         "isochrone": "Travel time",
-        "doodle": "Doodle"
+        "doodle": "Doodle",
+        "erase": "Erase"
       },
       "undoEdit": "Undo",
       "redoEdit": "Redo",
@@ -2445,7 +2446,8 @@
         "radius": "Hold Shift for a round radius",
         "isochrone": "Click a point to see how far you can get",
         "routingUnavailable": "Travel time needs a routing integration — set one up in Settings",
-        "doodle": "Drag to draw freehand"
+        "doodle": "Drag to draw freehand",
+        "erase": "Click a mark to take it off the canvas"
       },
       "advanced": "More tools"
     },

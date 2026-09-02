@@ -170,6 +170,12 @@ const drawStyle = useCanvasDrawStyle()
 
 const annotations = useCanvasAnnotations({
   styleFor: drawStyle.forTool,
+  // The map hands back everything drawn under the pointer; only this canvas
+  // knows which of those ids are marks of its own, and the topmost wins.
+  eraseTarget: ids =>
+    ids.find(id => (body.value.annotations ?? []).some(a => a.id === id)) ??
+    null,
+  onErase: removeAnnotation,
   onCommit(annotation: CanvasAnnotation) {
     body.value = fileInDestination(
       {
@@ -272,6 +278,7 @@ useHotkeys([
   { key: 'i', handler: () => annotations.arm('circle') },
   { key: 't', handler: () => annotations.arm('isochrone') },
   { key: 'd', handler: () => annotations.arm('doodle') },
+  { key: 'x', handler: () => annotations.arm('erase') },
 ])
 
 function patchAnnotation(id: string, patch: Partial<CanvasAnnotation>) {
@@ -426,6 +433,11 @@ const activeGroupId = computed<string | null>(() => {
   if (groups.some(group => group.id === id)) return id
   return parentGroupId(body.value, id)
 })
+
+/** Null while the eraser is in hand: it has nothing to be set to. */
+const drawingTool = computed(() =>
+  annotations.tool.value === 'erase' ? null : annotations.tool.value,
+)
 
 /** Every group, flattened with its depth, for the toolbar's picker. */
 const groupChoices = computed(() => groupOptions(stack.value))
@@ -910,9 +922,9 @@ const saveStatus = computed(() =>
           <!-- The armed tool's own settings, on the toolbar's second row. -->
           <template #options>
             <CanvasToolOptions
-              v-if="annotations.tool.value"
-              :tool="annotations.tool.value"
-              :style="drawStyle.forTool(annotations.tool.value)"
+              v-if="drawingTool"
+              :tool="drawingTool"
+              :style="drawStyle.forTool(drawingTool)"
               :route-mode="annotations.routeMode.value"
               :isochrone-mode="annotations.isochroneMode.value"
               :isochrone-minutes="annotations.isochroneMinutes.value"
@@ -920,9 +932,7 @@ const saveStatus = computed(() =>
                 annotations.isSnapping.value ||
                 annotations.isFetchingIsochrone.value
               "
-              @update:style="
-                patch => drawStyle.set(annotations.tool.value!, patch)
-              "
+              @update:style="patch => drawStyle.set(drawingTool!, patch)"
               @update:route-mode="value => (annotations.routeMode.value = value)"
               @update:isochrone-mode="
                 value => (annotations.isochroneMode.value = value)

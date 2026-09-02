@@ -159,6 +159,16 @@ export type AnnotationTool =
   | 'doodle'
 
 /**
+ * Everything the toolbar can arm.
+ *
+ * The eraser is a tool you hold but not a kind of mark: it makes nothing, so
+ * it is no part of `AnnotationTool` — nothing keyed by that (what a tool
+ * draws, how many clicks it needs, what it can be styled with) has an answer
+ * for it.
+ */
+export type CanvasTool = AnnotationTool | 'erase'
+
+/**
  * Dash patterns a mark's outline can take.
  *
  * Not data-driven in either engine — `line-dasharray` is one of the few paint

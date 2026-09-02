@@ -11,7 +11,11 @@
  * never styled as small in the document as the day it was made.
  */
 
-import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
+import type {
+  AnnotationTool,
+  CanvasAnnotation,
+  CanvasTool,
+} from '@/types/canvas.types'
 
 /** The style fields a new mark can inherit from the toolbar. */
 export type DrawStyle = Partial<
@@ -52,8 +56,11 @@ const AREA: DrawOption[] = [...STROKE, 'fillColor', 'fillOpacity']
  * editor offers. A line has no fill and a pin has no outline, and there is
  * only one place that says so.
  */
-export const TOOL_STYLE_OPTIONS: Record<AnnotationTool, DrawOption[]> = {
+export const TOOL_STYLE_OPTIONS: Record<CanvasTool, DrawOption[]> = {
   pin: ['color', 'icon', 'markerShape', 'markerSize'],
+  // The eraser draws nothing, so there is nothing to set for it — and an
+  // empty list is what keeps its options row off the toolbar.
+  erase: [],
   line: OUTLINE,
   route: OUTLINE,
   doodle: OUTLINE,
@@ -65,7 +72,7 @@ export const TOOL_STYLE_OPTIONS: Record<AnnotationTool, DrawOption[]> = {
 
 /** Whether a tool is styled by this setting at all. */
 export function hasStyleOption(
-  tool: AnnotationTool,
+  tool: CanvasTool,
   option: DrawOption,
 ): boolean {
   return TOOL_STYLE_OPTIONS[tool].includes(option)

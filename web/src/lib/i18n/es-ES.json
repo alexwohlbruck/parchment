@@ -2310,7 +2310,8 @@
         "circle": "Círculo",
         "route": "Ruta",
         "isochrone": "Tiempo de viaje",
-        "doodle": "Dibujo"
+        "doodle": "Dibujo",
+        "erase": "Borrar"
       },
       "advanced": "Más herramientas",
       "undoEdit": "Deshacer",
@@ -2322,7 +2323,8 @@
         "radius": "Mantén Mayús para un radio redondo",
         "isochrone": "Haz clic en un punto para ver hasta dónde llegas",
         "routingUnavailable": "El tiempo de viaje necesita una integración de rutas — configura una en Ajustes",
-        "doodle": "Arrastra para dibujar a mano alzada"
+        "doodle": "Arrastra para dibujar a mano alzada",
+        "erase": "Haz clic en una marca para quitarla del lienzo"
       }
     },
     "annotations": {

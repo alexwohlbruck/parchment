@@ -29,7 +29,11 @@ import type { IsochroneMode } from '@server/types/isochrone.types'
 import { fetchIsochroneBands } from '@/lib/isochrone-request'
 import { contourDurations } from '@/lib/isochrone.utils'
 import type { LngLat, MapEvents } from '@/types/map.types'
-import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
+import type {
+  AnnotationTool,
+  CanvasAnnotation,
+  CanvasTool,
+} from '@/types/canvas.types'
 import {
   annotationFeature,
   annotationStyle,
@@ -47,6 +51,9 @@ import { drawStylePatch, type DrawStyle } from '@/lib/canvas-draw-style'
 /** How close to the first vertex closing a shape starts to pull, in pixels. */
 const SNAP_PX = 12
 
+/** How far either side of the pointer the eraser reaches, in pixels. */
+const ERASE_HIT_PX = 6
+
 /** How many clicks a tool needs before the cursor completes its shape. */
 const PREVIEW_AT: Partial<Record<AnnotationTool, number>> = {
   rectangle: 2,
@@ -56,6 +63,14 @@ const PREVIEW_AT: Partial<Record<AnnotationTool, number>> = {
 export function useCanvasAnnotations(options: {
   /** Called with each finished annotation. */
   onCommit: (annotation: CanvasAnnotation) => void
+  /**
+   * Which of the ids under the pointer the eraser would remove — the map
+   * hands back everything drawn there, basemap included, and only the canvas
+   * knows which of them are its own marks.
+   */
+  eraseTarget: (ids: string[]) => string | null
+  /** Remove that mark. */
+  onErase: (id: string) => void
   /**
    * How the tool is set to draw — see `useCanvasDrawStyle`. A getter rather
    * than a value: the armed tool decides which settings apply, and it lives
@@ -108,12 +123,20 @@ export function useCanvasAnnotations(options: {
     applyCursor()
   }
 
-  const tool = ref<AnnotationTool | null>(null)
+  const tool = ref<CanvasTool | null>(null)
+
+  /**
+   * The armed tool when it is one that draws — null while the eraser is in
+   * hand, which is what keeps every drawing path below out of its way.
+   */
+  const drawing = computed<AnnotationTool | null>(() =>
+    tool.value === 'erase' ? null : tool.value,
+  )
 
   /** The armed tool's settings, and the same defaults the map draws with. */
-  const style = computed(() => options.styleFor(tool.value))
+  const style = computed(() => options.styleFor(drawing.value))
   const resolved = computed(() =>
-    annotationStyle({ tool: tool.value ?? 'line', ...style.value }),
+    annotationStyle({ tool: drawing.value ?? 'line', ...style.value }),
   )
   const color = computed(() => style.value.color ?? DEFAULT_ANNOTATION_COLOR)
   /** Positions clicked for the annotation currently being drawn. */
@@ -164,6 +187,10 @@ export function useCanvasAnnotations(options: {
       frame = requestAnimationFrame(() => {
         frame = 0
         cursor.value = queued
+        if (tool.value === 'erase' && queued) {
+          eraseTarget.value = markUnder(queued)
+          applyCursor()
+        }
       })
     }
     const onOut = () => {
@@ -171,7 +198,7 @@ export function useCanvasAnnotations(options: {
     }
 
     const onDoubleClick = () => {
-      if (!tool.value || TOOL_AUTOCOMPLETES[tool.value]) return
+      if (!drawing.value || TOOL_AUTOCOMPLETES[drawing.value]) return
       // The second click of the double already added a vertex on top of the
       // one before it; drop the duplicate rather than committing a spur.
       const [a, b] = positions.value.slice(-2)
@@ -446,10 +473,10 @@ export function useCanvasAnnotations(options: {
    * and after shift has constrained it.
    */
   const effectiveCursor = computed<Position | null>(() => {
-    if (!tool.value || !cursor.value) return cursor.value
+    if (!drawing.value || !cursor.value) return cursor.value
     if (snapToStart.value) return positions.value[0]
     if (!shift.value) return cursor.value
-    return constrainPosition(tool.value, positions.value, cursor.value)
+    return constrainPosition(drawing.value, positions.value, cursor.value)
   })
 
   /**
@@ -474,6 +501,11 @@ export function useCanvasAnnotations(options: {
       canvas.style.cursor = ''
       return
     }
+    // The eraser only does something over a mark, so it only offers there.
+    if (tool.value === 'erase') {
+      canvas.style.cursor = eraseTarget.value ? 'pointer' : 'crosshair'
+      return
+    }
     canvas.style.cursor = snapToStart.value ? 'pointer' : 'crosshair'
   }
 
@@ -481,9 +513,44 @@ export function useCanvasAnnotations(options: {
   // click would close it.
   watch([positions, snapToStart], applyCursor)
 
+  /**
+   * The mark the eraser would take off, or null over bare map.
+   *
+   * The engine is asked what it drew at that point rather than the geometry
+   * being hit-tested here: a mark is as thick as its stroke and as big as its
+   * label, and only the thing that painted it knows that. Everything else
+   * drawn there comes back too — basemap POIs, saved places — so the canvas
+   * decides which of the ids are its own.
+   */
+  function markUnder(position: Position): string | null {
+    const map = mapStore.getMapStrategy()?.mapInstance as
+      | {
+          project?: (position: Position) => { x: number; y: number }
+          queryRenderedFeatures?: (
+            geometry: [[number, number], [number, number]],
+          ) => { properties?: Record<string, unknown> | null }[]
+        }
+      | undefined
+    if (!map?.project || !map.queryRenderedFeatures) return null
+
+    const { x, y } = map.project(position)
+    // A box rather than a point: a hairline is otherwise almost unhittable.
+    const found = map.queryRenderedFeatures([
+      [x - ERASE_HIT_PX, y - ERASE_HIT_PX],
+      [x + ERASE_HIT_PX, y + ERASE_HIT_PX],
+    ])
+    const ids = found
+      .map(feature => feature.properties?.id)
+      .filter((id): id is string => typeof id === 'string')
+    return options.eraseTarget(ids)
+  }
+
+  /** What the eraser is over, for the cursor. */
+  const eraseTarget = ref<string | null>(null)
+
   const isArmed = computed(() => tool.value !== null)
   const canFinish = computed(
-    () => !!tool.value && isComplete(tool.value, positions.value.length),
+    () => !!drawing.value && isComplete(drawing.value, positions.value.length),
   )
   const canUndo = computed(() => positions.value.length > 0)
 
@@ -492,22 +559,23 @@ export function useCanvasAnnotations(options: {
    * until it has enough positions to be worth showing.
    */
   const draft = computed<CanvasAnnotation | null>(() => {
-    if (!tool.value || !positions.value.length) return null
+    if (!drawing.value || !positions.value.length) return null
 
     // A rectangle's depth and a circle's radius are the last thing set, so
     // once the rest is clicked the cursor completes the real shape rather
     // than a guide standing in for it.
     const previewing =
-      PREVIEW_AT[tool.value] === positions.value.length && effectiveCursor.value
+      PREVIEW_AT[drawing.value] === positions.value.length &&
+      effectiveCursor.value
 
     return {
       id: 'annotation-draft',
-      tool: tool.value,
+      tool: drawing.value,
       positions: previewing
         ? [...positions.value, effectiveCursor.value!]
         : [...positions.value],
-      ...drawStylePatch(tool.value, { color: color.value, ...style.value }),
-      ...(tool.value === 'route' && routed.value
+      ...drawStylePatch(drawing.value, { color: color.value, ...style.value }),
+      ...(drawing.value === 'route' && routed.value
         ? { routed: routed.value }
         : {}),
     }
@@ -515,8 +583,8 @@ export function useCanvasAnnotations(options: {
 
   /** The rubber band from the last vertex to where the click would land. */
   const guide = computed(() =>
-    tool.value
-      ? guideFeature(tool.value, positions.value, effectiveCursor.value)
+    drawing.value
+      ? guideFeature(drawing.value, positions.value, effectiveCursor.value)
       : null,
   )
 
@@ -525,7 +593,9 @@ export function useCanvasAnnotations(options: {
    * the overlay takes itself off the map.
    */
   const scene = computed<OverlayScene | null>(() => {
-    if (!tool.value) return null
+    // Nothing to paint while erasing: the eraser takes marks off the map
+    // rather than putting one on it.
+    if (!drawing.value) return null
     return {
       shape: draft.value
         ? annotationFeature(draft.value, themeColorToHex)
@@ -533,9 +603,9 @@ export function useCanvasAnnotations(options: {
       color: themeColorToHex(color.value),
       guide: guide.value,
       pending: isSnapping.value || isFetchingIsochrone.value,
-      width: tool.value === 'doodle' ? resolved.value.strokeWidth : undefined,
+      width: drawing.value === 'doodle' ? resolved.value.strokeWidth : undefined,
       cap: resolved.value.strokeCap,
-      handles: (tool.value === 'doodle' ? [] : positions.value).map((position, index) => ({
+      handles: (drawing.value === 'doodle' ? [] : positions.value).map((position, index) => ({
         position,
         kind: 'vertex' as const,
         // The vertex a click would close the shape on, ringed to say so.
@@ -545,12 +615,12 @@ export function useCanvasAnnotations(options: {
   })
 
   function commit() {
-    if (!tool.value || !canFinish.value) return
+    if (!drawing.value || !canFinish.value) return
     // An isochrone is only a mark once the engine has answered for it.
-    if (tool.value === 'isochrone' && !isochrone.value) return
+    if (drawing.value === 'isochrone' && !isochrone.value) return
 
     const annotation = createAnnotation(
-      tool.value,
+      drawing.value,
       [...positions.value],
       style.value,
       routed.value ?? undefined,
@@ -567,6 +637,14 @@ export function useCanvasAnnotations(options: {
   function onMapClick(event: MapEvents['click']) {
     if (!tool.value) return
 
+    if (tool.value === 'erase') {
+      const lngLat = event.lngLat as LngLat
+      const id = markUnder([lngLat.lng, lngLat.lat])
+      if (id) options.onErase(id)
+      return
+    }
+    if (!drawing.value) return
+
     // Back on the first vertex: that closes the shape rather than adding to it.
     if (snapToStart.value) {
       commit()
@@ -575,7 +653,10 @@ export function useCanvasAnnotations(options: {
 
     const lngLat = event.lngLat as LngLat
     const at: Position = shift.value
-      ? constrainPosition(tool.value, positions.value, [lngLat.lng, lngLat.lat])
+      ? constrainPosition(drawing.value, positions.value, [
+          lngLat.lng,
+          lngLat.lat,
+        ])
       : [lngLat.lng, lngLat.lat]
     positions.value = [...positions.value, at]
 
@@ -583,14 +664,14 @@ export function useCanvasAnnotations(options: {
     // positions — there is nothing more to add, so committing keeps the tool
     // armed for the next one instead of asking for a press that means nothing.
     if (
-      TOOL_AUTOCOMPLETES[tool.value] &&
-      positions.value.length >= TOOL_MINIMUM[tool.value]
+      TOOL_AUTOCOMPLETES[drawing.value] &&
+      positions.value.length >= TOOL_MINIMUM[drawing.value]
     ) {
       commit()
     }
   }
 
-  function arm(next: AnnotationTool | null) {
+  function arm(next: CanvasTool | null) {
     if (tool.value === next || !next) return disarm()
     // Both lean on the routing engine; neither works without one.
     if ((next === 'route' || next === 'isochrone') && !canRoute.value) return
@@ -605,6 +686,7 @@ export function useCanvasAnnotations(options: {
 
   function disarm() {
     if (tool.value) mapEventBus.removeOverride('click', onMapClick)
+    eraseTarget.value = null
     snapRequest?.abort()
     isochroneRequest?.abort()
     trackDoodle(false)
@@ -636,7 +718,7 @@ export function useCanvasAnnotations(options: {
    * describe nothing.
    */
   interface DrawingSnapshot {
-    tool: AnnotationTool | null
+    tool: CanvasTool | null
     positions: Position[]
     routed: CanvasAnnotation['routed'] | null
     isochrone: CanvasAnnotation['isochrone'] | null

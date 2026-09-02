@@ -17,7 +17,7 @@ import {
 } from './base-marker-layer'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useLayersStore } from '@/stores/layers.store'
-import TrackerMarker from '@/components/map/TrackerMarker.vue'
+import TrackerMarker from '@/components/map/markers/TrackerMarker.vue'
 import { VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
 import type { VehicleType } from '@/types/multimodal.types'
 

@@ -29,6 +29,8 @@
     "loading": "Loading...",
     "dateAdded": "Date Added",
     "lastModified": "Last Modified",
+    "lastSeen": "Last seen",
+    "updated": "Updated",
     "description": "Description",
     "icon": "Icon",
     "color": "Color",

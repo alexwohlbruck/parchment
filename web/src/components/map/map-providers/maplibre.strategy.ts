@@ -1056,7 +1056,7 @@ export class MaplibreStrategy extends MapStrategy {
    * far side of the boundary would never be reconsidered, because the events
    * stop with the gesture. See `GLOBE_FLATTENS_AT`.
    */
-  private isGlobeRendering(): boolean {
+  override isGlobeRendering(): boolean {
     return (
       this.options.projection === MapProjection.GLOBE &&
       this.mapInstance.getZoom() < GLOBE_FLATTENS_AT

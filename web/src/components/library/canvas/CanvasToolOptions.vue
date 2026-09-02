@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The armed tool's own settings, on a second bar under the toolbar.
+ * The armed tool's own settings, on the toolbar's second row.
  *
  * Only what the tool in hand can actually do: a line has no fill, a pin has
  * no dash pattern, and a bar that offers them anyway is mostly greyed out.
@@ -100,9 +100,7 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
 </script>
 
 <template>
-  <div
-    class="pointer-events-auto flex flex-wrap justify-center items-center gap-0.5 rounded-xl border bg-background/95 backdrop-blur-sm p-1 shadow-lg"
-  >
+  <div class="contents">
     <!-- Colour, and for a pin its glyph too: one picker, since a pin is both. -->
     <IconPicker
       compact

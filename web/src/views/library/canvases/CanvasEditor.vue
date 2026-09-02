@@ -890,47 +890,49 @@ const saveStatus = computed(() =>
       <div
         class="fixed z-40 top-3 inset-x-0 md:left-104 pointer-events-none flex justify-center px-3"
       >
-        <div class="flex flex-col items-center gap-2">
-          <CanvasToolbar
-            :tool="annotations.tool.value"
-            :can-finish="annotations.canFinish.value"
-            :can-undo="history.canUndo.value"
-            :can-route="annotations.canRoute.value"
-            :groups="groupChoices"
-            :group-id="activeGroupId"
-            @update:group-id="id => (selectedId = id)"
-            :can-undo-edit="history.canUndo.value"
-            :can-redo-edit="history.canRedo.value"
-            :vertex-count="annotations.vertexCount.value"
-            @arm="annotations.arm"
-            @finish="annotations.finish"
-            @undo="history.undo"
-            @undo-edit="history.undo"
-            @redo-edit="history.redo"
-          />
-
-          <!-- What the armed tool is set to, only while one is armed. -->
-          <CanvasToolOptions
-            v-if="annotations.tool.value"
-            :tool="annotations.tool.value"
-            :style="drawStyle.forTool(annotations.tool.value)"
-            :route-mode="annotations.routeMode.value"
-            :isochrone-mode="annotations.isochroneMode.value"
-            :isochrone-minutes="annotations.isochroneMinutes.value"
-            :is-busy="
-              annotations.isSnapping.value ||
-              annotations.isFetchingIsochrone.value
-            "
-            @update:style="patch => drawStyle.set(annotations.tool.value!, patch)"
-            @update:route-mode="value => (annotations.routeMode.value = value)"
-            @update:isochrone-mode="
-              value => (annotations.isochroneMode.value = value)
-            "
-            @update:isochrone-minutes="
-              value => (annotations.isochroneMinutes.value = value)
-            "
-          />
-        </div>
+        <CanvasToolbar
+          :tool="annotations.tool.value"
+          :can-finish="annotations.canFinish.value"
+          :can-undo="history.canUndo.value"
+          :can-route="annotations.canRoute.value"
+          :can-undo-edit="history.canUndo.value"
+          :can-redo-edit="history.canRedo.value"
+          :vertex-count="annotations.vertexCount.value"
+          :groups="groupChoices"
+          :group-id="activeGroupId"
+          @update:group-id="id => (selectedId = id)"
+          @arm="annotations.arm"
+          @finish="annotations.finish"
+          @undo="history.undo"
+          @undo-edit="history.undo"
+          @redo-edit="history.redo"
+        >
+          <!-- The armed tool's own settings, on the toolbar's second row. -->
+          <template #options>
+            <CanvasToolOptions
+              v-if="annotations.tool.value"
+              :tool="annotations.tool.value"
+              :style="drawStyle.forTool(annotations.tool.value)"
+              :route-mode="annotations.routeMode.value"
+              :isochrone-mode="annotations.isochroneMode.value"
+              :isochrone-minutes="annotations.isochroneMinutes.value"
+              :is-busy="
+                annotations.isSnapping.value ||
+                annotations.isFetchingIsochrone.value
+              "
+              @update:style="
+                patch => drawStyle.set(annotations.tool.value!, patch)
+              "
+              @update:route-mode="value => (annotations.routeMode.value = value)"
+              @update:isochrone-mode="
+                value => (annotations.isochroneMode.value = value)
+              "
+              @update:isochrone-minutes="
+                value => (annotations.isochroneMinutes.value = value)
+              "
+            />
+          </template>
+        </CanvasToolbar>
       </div>
     </Teleport>
   </DetailPanelLayout>

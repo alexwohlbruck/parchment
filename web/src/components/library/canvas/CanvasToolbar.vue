@@ -7,8 +7,9 @@
  * mirrors the shape of Felt's toolbar — a tool strip with the open-ended
  * shapes offering Done and Undo once you're mid-draw.
  *
- * What the armed tool can be *set* to lives on a second bar underneath —
- * see `CanvasToolOptions`. This one is which tool, and what to do with it.
+ * What the armed tool can be *set* to comes in through the `options` slot —
+ * see `CanvasToolOptions` — and sits under a divider in the same box, so the
+ * two read as one control rather than two things floating over the map.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -133,120 +134,134 @@ const destinationItems = computed(() => [
 
 <template>
   <div
-    class="pointer-events-auto flex items-center gap-0.5 rounded-xl border bg-background/95 backdrop-blur-sm p-1 shadow-lg"
+    class="pointer-events-auto rounded-xl border bg-background/95 backdrop-blur-sm shadow-lg overflow-hidden"
   >
-    <Button
-      variant="ghost"
-      size="icon"
-      class="size-8"
-      :class="!tool && 'bg-secondary text-foreground'"
-      :title="t('canvases.toolbar.select')"
-      :aria-label="t('canvases.toolbar.select')"
-      @click="emit('arm', null)"
+    <!-- Wraps rather than overflows: the box is rounded and clipped, so a
+         strip too wide for a phone would lose its last buttons entirely. -->
+    <div class="flex flex-wrap justify-center items-center gap-0.5 p-1">
+      <Button
+        variant="ghost"
+        size="icon"
+        class="size-8"
+        :class="!tool && 'bg-secondary text-foreground'"
+        :title="t('canvases.toolbar.select')"
+        :aria-label="t('canvases.toolbar.select')"
+        @click="emit('arm', null)"
+      >
+        <MousePointer2Icon class="size-4" />
+      </Button>
+
+      <Separator orientation="vertical" class="h-5 mx-0.5" />
+
+      <Button
+        v-for="item in TOOLS"
+        :key="item.id"
+        variant="ghost"
+        size="icon"
+        class="size-8"
+        :class="tool === item.id && 'bg-secondary text-foreground'"
+        :disabled="isDisabled(item)"
+        :title="toolTitle(item)"
+        :aria-label="t(`canvases.toolbar.tools.${item.id}`)"
+        @click="emit('arm', item.id)"
+      >
+        <component :is="item.icon" class="size-4" />
+      </Button>
+
+      <!-- Where the next mark gets filed. Only worth showing once there is
+           somewhere else for it to go. -->
+      <template v-if="groups.length && !isDrawing">
+        <Separator orientation="vertical" class="h-5 mx-0.5" />
+        <ResponsiveDropdown
+          :items="destinationItems"
+          align="end"
+          :title="t('canvases.groups.destination')"
+        >
+          <template #trigger>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-8 gap-1.5 px-2 max-w-36"
+              :class="activeGroup && 'text-primary'"
+              :title="t('canvases.groups.destination')"
+            >
+              <component
+                :is="activeGroup ? FolderOpenIcon : LayersIcon"
+                class="size-4 shrink-0"
+              />
+              <!-- The bar is already tight on a phone; there the icon and its
+                   colour carry it, and the menu names the destination. -->
+              <span class="text-xs truncate hidden sm:inline">
+                {{ activeGroup?.name ?? t('canvases.groups.canvas') }}
+              </span>
+            </Button>
+          </template>
+        </ResponsiveDropdown>
+      </template>
+
+      <!-- Stepping the canvas itself back and forth. Hidden mid-draw, where
+           Undo means the last point rather than the last thing done. -->
+      <template v-if="!isDrawing">
+        <Separator orientation="vertical" class="h-5 mx-0.5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-8"
+          :disabled="!canUndoEdit"
+          :title="`${t('canvases.toolbar.undoEdit')} (⌘Z)`"
+          :aria-label="t('canvases.toolbar.undoEdit')"
+          @click="emit('undoEdit')"
+        >
+          <UndoIcon class="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-8"
+          :disabled="!canRedoEdit"
+          :title="`${t('canvases.toolbar.redoEdit')} (⌘⇧Z)`"
+          :aria-label="t('canvases.toolbar.redoEdit')"
+          @click="emit('redoEdit')"
+        >
+          <RedoIcon class="size-4" />
+        </Button>
+      </template>
+
+      <!-- Only the open-ended shapes need finishing; a pin or a circle is done
+           the moment it has its positions. -->
+      <template v-if="isDrawing">
+        <Separator orientation="vertical" class="h-5 mx-0.5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-8"
+          :disabled="!canUndo"
+          :title="t('canvases.toolbar.undo')"
+          :aria-label="t('canvases.toolbar.undo')"
+          @click="emit('undo')"
+        >
+          <UndoIcon class="size-4" />
+        </Button>
+        <Button
+          size="sm"
+          class="h-8 px-2.5"
+          :disabled="!canFinish"
+          @click="emit('finish')"
+        >
+          <CheckIcon class="size-3.5" />
+          {{ t('general.done') }}
+        </Button>
+      </template>
+    </div>
+
+    <!-- What the armed tool is set to: the same box, under a divider, so
+         the two read as one control rather than two things floating over
+         the map. -->
+    <div
+      v-if="tool"
+      class="border-t p-1 flex flex-wrap justify-center items-center gap-0.5"
     >
-      <MousePointer2Icon class="size-4" />
-    </Button>
-
-    <Separator orientation="vertical" class="h-5 mx-0.5" />
-
-    <Button
-      v-for="item in TOOLS"
-      :key="item.id"
-      variant="ghost"
-      size="icon"
-      class="size-8"
-      :class="tool === item.id && 'bg-secondary text-foreground'"
-      :disabled="isDisabled(item)"
-      :title="toolTitle(item)"
-      :aria-label="t(`canvases.toolbar.tools.${item.id}`)"
-      @click="emit('arm', item.id)"
-    >
-      <component :is="item.icon" class="size-4" />
-    </Button>
-
-    <!-- Where the next mark gets filed. Only worth showing once there is
-         somewhere else for it to go. -->
-    <template v-if="groups.length && !isDrawing">
-      <Separator orientation="vertical" class="h-5 mx-0.5" />
-      <ResponsiveDropdown
-        :items="destinationItems"
-        align="end"
-        :title="t('canvases.groups.destination')"
-      >
-        <template #trigger>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-8 gap-1.5 px-2 max-w-36"
-            :class="activeGroup && 'text-primary'"
-            :title="t('canvases.groups.destination')"
-          >
-            <component
-              :is="activeGroup ? FolderOpenIcon : LayersIcon"
-              class="size-4 shrink-0"
-            />
-            <!-- The bar is already tight on a phone; there the icon and its
-                 colour carry it, and the menu names the destination. -->
-            <span class="text-xs truncate hidden sm:inline">
-              {{ activeGroup?.name ?? t('canvases.groups.canvas') }}
-            </span>
-          </Button>
-        </template>
-      </ResponsiveDropdown>
-    </template>
-
-    <!-- Stepping the canvas itself back and forth. Hidden mid-draw, where
-         Undo means the last point rather than the last thing done. -->
-    <template v-if="!isDrawing">
-      <Separator orientation="vertical" class="h-5 mx-0.5" />
-      <Button
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :disabled="!canUndoEdit"
-        :title="`${t('canvases.toolbar.undoEdit')} (⌘Z)`"
-        :aria-label="t('canvases.toolbar.undoEdit')"
-        @click="emit('undoEdit')"
-      >
-        <UndoIcon class="size-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :disabled="!canRedoEdit"
-        :title="`${t('canvases.toolbar.redoEdit')} (⌘⇧Z)`"
-        :aria-label="t('canvases.toolbar.redoEdit')"
-        @click="emit('redoEdit')"
-      >
-        <RedoIcon class="size-4" />
-      </Button>
-    </template>
-
-    <!-- Only the open-ended shapes need finishing; a pin or a circle is done
-         the moment it has its positions. -->
-    <template v-if="isDrawing">
-      <Separator orientation="vertical" class="h-5 mx-0.5" />
-      <Button
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :disabled="!canUndo"
-        :title="t('canvases.toolbar.undo')"
-        :aria-label="t('canvases.toolbar.undo')"
-        @click="emit('undo')"
-      >
-        <UndoIcon class="size-4" />
-      </Button>
-      <Button
-        size="sm"
-        class="h-8 px-2.5"
-        :disabled="!canFinish"
-        @click="emit('finish')"
-      >
-        <CheckIcon class="size-3.5" />
-        {{ t('general.done') }}
-      </Button>
-    </template>
+      <slot name="options" />
+    </div>
   </div>
 </template>

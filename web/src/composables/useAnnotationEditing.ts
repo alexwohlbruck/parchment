@@ -33,12 +33,14 @@ import {
   annotationFeature,
   annotationMidpoints,
   annotationNodes,
+  annotationStyle,
   DEFAULT_ANNOTATION_COLOR,
   insertNode,
   moveNode,
   removeNode,
   type AnnotationNode,
 } from '@/lib/canvas-annotations'
+import { themeColorToHex } from '@/lib/utils'
 
 /**
  * How close the pointer has to be to catch a handle. Shared with the measure
@@ -123,7 +125,12 @@ export function useAnnotationEditing(options: {
    */
   const scene = computed<OverlayScene | null>(() => {
     if (!options.enabled.value || !edited.value) return null
-    const color = edited.value.color ?? DEFAULT_ANNOTATION_COLOR
+    // Resolved, not the palette's name for it: the overlay paints on a 2D
+    // canvas, and `strokeStyle = 'ruby'` is silently ignored — which is how
+    // a mark being dragged used to lose its colour.
+    const color = themeColorToHex(edited.value.color ?? DEFAULT_ANNOTATION_COLOR)
+    // What the map draws it as, so it doesn't change thickness on the way.
+    const style = annotationStyle(edited.value, themeColorToHex)
     const handles: OverlayHandle[] = [
       ...nodes.value.map((node, index) => ({
         position: node.position,
@@ -138,8 +145,12 @@ export function useAnnotationEditing(options: {
     return {
       // Only drawn while the mark is held out of the style, so it isn't
       // painted twice.
-      shape: dragging.value ? annotationFeature(edited.value) : null,
+      shape: dragging.value
+        ? annotationFeature(edited.value, themeColorToHex)
+        : null,
       color,
+      width: style.strokeWidth,
+      cap: style.strokeCap,
       guide: null,
       handles,
     }

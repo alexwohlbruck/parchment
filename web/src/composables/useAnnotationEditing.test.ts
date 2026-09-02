@@ -121,6 +121,25 @@ describe('useAnnotationEditing', () => {
     session.dispose()
   })
 
+  it('paints the mark in a colour a canvas can actually use', async () => {
+    // The overlay is a 2D canvas: `strokeStyle = 'ruby'` is ignored outright,
+    // so a mark being reshaped used to lose its colour on the way.
+    const session = editor({ ...line(), color: 'ruby' })
+    await nextTick()
+
+    expect(session.scene.value?.color).toMatch(/^#|^rgb|^oklch|^oklab/)
+    session.dispose()
+  })
+
+  it('keeps the mark the thickness the map draws it', async () => {
+    const session = editor({ ...line(), strokeWidth: 12, strokeCap: 'square' })
+    await nextTick()
+
+    expect(session.scene.value?.width).toBe(12)
+    expect(session.scene.value?.cap).toBe('square')
+    session.dispose()
+  })
+
   it('shows nothing while a drawing tool is armed', async () => {
     const session = editor(line(), false)
     await nextTick()

@@ -52,7 +52,9 @@
       "description": "Tus cambios todavía no se han guardado.",
       "discard": "Descartar",
       "keepEditing": "Seguir editando"
-    }
+    },
+    "expand": "Expandir",
+    "collapse": "Contraer"
   },
   "weather": {
     "title": "Condiciones del tiempo",
@@ -2398,7 +2400,6 @@
       "rename": "Renombrar grupo",
       "remove": "Desagrupar",
       "empty": "Arrastra capas y marcas aquí",
-      "drawHere": "Archivar aquí las nuevas marcas",
       "drawingHere": "Las nuevas marcas van aquí",
       "destination": "Dónde van las nuevas marcas",
       "canvas": "Lienzo"

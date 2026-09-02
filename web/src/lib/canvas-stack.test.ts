@@ -7,6 +7,7 @@ import {
   groupContents,
   groupOptions,
   moveInStack,
+  parentGroupId,
   removeFromStack,
   stackDrawOrder,
   type StackEntry,
@@ -436,5 +437,33 @@ describe('ungrouping', () => {
       { id: 'g1', name: 'Transit', visible: true, children: ['l1', 'l2'] },
     ])
     expect(ids(canvasStack(next))).toEqual(['g1'])
+  })
+})
+
+describe('what holds something', () => {
+  const body: CanvasBody = {
+    layers: [layer('l1'), layer('l2')],
+    annotations: [mark('a1')],
+    groups: [
+      { id: 'g1', name: 'Transit', visible: true, children: ['l2', 'g2'] },
+      { id: 'g2', name: 'Rail', visible: true, children: ['a1'] },
+    ],
+    order: ['l1', 'g1'],
+  }
+
+  it('names the group a layer or a mark sits in', () => {
+    // This is what lets the selection say where the next mark is filed.
+    expect(parentGroupId(body, 'l2')).toBe('g1')
+    expect(parentGroupId(body, 'a1')).toBe('g2')
+  })
+
+  it('names the group a nested group sits in', () => {
+    expect(parentGroupId(body, 'g2')).toBe('g1')
+  })
+
+  it('is null for anything loose in the stack', () => {
+    expect(parentGroupId(body, 'l1')).toBeNull()
+    expect(parentGroupId(body, 'g1')).toBeNull()
+    expect(parentGroupId(body, 'gone')).toBeNull()
   })
 })

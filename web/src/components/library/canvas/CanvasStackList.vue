@@ -55,13 +55,12 @@ if (!stack) throw new Error('CanvasStackList needs a canvas stack context')
           <CanvasGroupRow
             v-if="element.kind === 'group'"
             :group="element.group"
-            :active="stack!.isActiveGroup(element.id)"
+            :selected="stack!.isSelected(element.id)"
+            :destination="stack!.isDestination(element.id)"
             @toggle="visible => stack!.patchGroup(element.id, { visible })"
             @collapse="collapsed => stack!.patchGroup(element.id, { collapsed })"
             @rename="name => stack!.patchGroup(element.id, { name })"
-            @activate="
-              active => stack!.setActiveGroup(active ? element.id : null)
-            "
+            @select="stack!.toggleSelected(element.id)"
             @remove="stack!.removeGroup(element.id)"
           >
             <!-- Here is the recursion: a group's contents are a stack too. -->

@@ -38,10 +38,15 @@ export interface AnnotationRowProps {
 export interface CanvasStackContext {
   layerProps(item: StackLayer): LayerRowProps
   annotationProps(item: StackAnnotation): AnnotationRowProps
-  /** Whether this group is the one new marks and layers are filed in. */
-  isActiveGroup(id: string): boolean
-  /** Null puts new work back on the canvas itself. */
-  setActiveGroup(id: string | null): void
+  /** The row the panel is pointed at, group rows included. */
+  isSelected(id: string): boolean
+  /** Clicking the selected group again hands new work back to the canvas. */
+  toggleSelected(id: string): void
+  /**
+   * Whether new marks are filed in this group — true for the selected group
+   * and for the group holding whatever else is selected.
+   */
+  isDestination(id: string): boolean
   patchGroup(id: string, patch: Partial<CanvasGroup>): void
   removeGroup(id: string): void
   /** Sortable's report of a drop, with the list it landed in. */

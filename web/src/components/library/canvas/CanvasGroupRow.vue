@@ -8,8 +8,9 @@
  * in it. The contents come in as a slot, which is what lets a group hold
  * another group without this component knowing how the stack is rendered.
  *
- * A group can also be the destination: while it is, everything you draw and
- * everything you add is filed here rather than at the top of the stack.
+ * Selecting a group is how you say where you are working: while it — or
+ * anything inside it — is the selected row, everything you draw and add is
+ * filed here rather than at the top of the stack.
  */
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -23,7 +24,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   ChevronRightIcon,
-  CrosshairIcon,
   EyeIcon,
   EyeOffIcon,
   FolderIcon,
@@ -37,16 +37,21 @@ import type { CanvasGroup } from '@/types/canvas.types'
 
 const props = defineProps<{
   group: CanvasGroup
-  /** True when new marks and layers are filed in this group. */
-  active?: boolean
+  /** The row the panel is pointed at. */
+  selected?: boolean
+  /**
+   * True when new marks and layers are filed here — this group is selected,
+   * or something inside it is.
+   */
+  destination?: boolean
 }>()
 
 const emit = defineEmits<{
   toggle: [visible: boolean]
   collapse: [collapsed: boolean]
   rename: [name: string]
-  /** Aim new work at this group, or hand it back to the canvas. */
-  activate: [active: boolean]
+  /** Point the panel at this group, or, if it already is, at the canvas. */
+  select: []
   remove: []
 }>()
 
@@ -81,9 +86,9 @@ const collapsed = () => props.group.collapsed === true
     class="rounded-lg border bg-card overflow-hidden"
     :class="[
       !group.visible && 'opacity-60',
-      // The destination reads at a glance, without having to hover the row
-      // that says so — you are about to draw into it.
-      active && 'ring-1 ring-primary/40 border-primary/40',
+      // Selected reads as selected; the open folder is the quieter signal
+      // that this is where the next mark lands.
+      selected && 'ring-1 ring-primary/40 border-primary/40',
     ]"
   >
     <div class="flex items-center gap-2 px-2 py-1.5">
@@ -91,19 +96,30 @@ const collapsed = () => props.group.collapsed === true
         class="size-3.5 shrink-0 text-muted-foreground/60 cursor-grab canvas-stack-handle"
       />
 
+      <!-- Folding a group and pointing at it are different intentions, so
+           the chevron is its own control rather than the whole row. -->
       <button
-        class="flex items-center gap-2 min-w-0 flex-1 text-left"
+        class="shrink-0 text-muted-foreground"
         :aria-expanded="!collapsed()"
-        @click="emit('collapse', !collapsed())"
+        :aria-label="t(collapsed() ? 'general.expand' : 'general.collapse')"
+        @click.stop="emit('collapse', !collapsed())"
       >
         <ChevronRightIcon
-          class="size-3 shrink-0 text-muted-foreground transition-transform duration-150"
+          class="size-3 transition-transform duration-150"
           :class="!collapsed() && 'rotate-90'"
         />
+      </button>
+
+      <button
+        class="flex items-center gap-2 min-w-0 flex-1 text-left"
+        :aria-pressed="selected"
+        :title="destination ? t('canvases.groups.drawingHere') : undefined"
+        @click="emit('select')"
+      >
         <component
-          :is="active ? FolderOpenIcon : FolderIcon"
+          :is="destination ? FolderOpenIcon : FolderIcon"
           class="size-3.5 shrink-0"
-          :class="active ? 'text-primary' : 'text-muted-foreground'"
+          :class="destination ? 'text-primary' : 'text-muted-foreground'"
         />
         <Input
           v-if="renaming"
@@ -117,23 +133,6 @@ const collapsed = () => props.group.collapsed === true
         />
         <span v-else class="text-sm truncate">{{ group.name }}</span>
       </button>
-
-      <Button
-        variant="ghost"
-        size="icon"
-        class="size-7 shrink-0"
-        :class="active && 'text-primary bg-primary/10 hover:bg-primary/15'"
-        :aria-pressed="active"
-        :title="
-          t(active ? 'canvases.groups.drawingHere' : 'canvases.groups.drawHere')
-        "
-        :aria-label="
-          t(active ? 'canvases.groups.drawingHere' : 'canvases.groups.drawHere')
-        "
-        @click.stop="emit('activate', !active)"
-      >
-        <CrosshairIcon class="size-3.5" />
-      </Button>
 
       <Button
         variant="ghost"

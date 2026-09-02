@@ -12,8 +12,8 @@ import type { CanvasAnnotation, CanvasLayer } from '@/types/canvas.types'
 /**
  * The stack panel renders itself inside every group, so the things worth
  * pinning are that the recursion actually happens — a group inside a group
- * gets a row of its own, at any depth — and that the destination control on
- * each of those rows aims at the group it sits on rather than the outermost.
+ * gets a row of its own, at any depth — and that clicking one of those rows
+ * points the panel at the group it sits on rather than the outermost.
  */
 
 const i18n = createI18n({
@@ -47,7 +47,7 @@ const group = (id: string, name: string, children: StackEntry[]): StackEntry => 
 })
 
 function render(entries: StackEntry[]) {
-  const activeGroupId = ref<string | null>(null)
+  const selectedId = ref<string | null>(null)
   const context: CanvasStackContext = {
     layerProps: item => ({
       layer: item.layer,
@@ -65,8 +65,12 @@ function render(entries: StackEntry[]) {
       onRemove: () => {},
       onZoomTo: () => {},
     }),
-    isActiveGroup: id => activeGroupId.value === id,
-    setActiveGroup: id => (activeGroupId.value = id),
+    isSelected: id => selectedId.value === id,
+    toggleSelected: id =>
+      (selectedId.value = selectedId.value === id ? null : id),
+    // The editor derives this from the selection; here it only has to agree
+    // that the selected group is the one being drawn into.
+    isDestination: id => selectedId.value === id,
     patchGroup: () => {},
     removeGroup: () => {},
     onChange: () => {},
@@ -85,18 +89,14 @@ function render(entries: StackEntry[]) {
     },
   })
 
-  return { wrapper, activeGroupId }
+  return { wrapper, selectedId }
 }
 
-/** The destination toggle, in whichever state it is currently in. */
-function destinationButtons(wrapper: ReturnType<typeof render>['wrapper']) {
+/** The part of a group's row that points the panel at it. */
+function groupButtons(wrapper: ReturnType<typeof render>['wrapper']) {
   return wrapper
     .findAll('button')
-    .filter(button =>
-      ['File new marks here', 'New marks land here'].includes(
-        button.attributes('aria-label') ?? '',
-      ),
-    )
+    .filter(button => button.attributes('aria-pressed') !== undefined)
 }
 
 describe('a group inside a group', () => {
@@ -119,21 +119,31 @@ describe('a group inside a group', () => {
   })
 })
 
-describe('choosing where new marks go', () => {
+describe('selecting a group', () => {
   const nested = [group('g1', 'Transit', [group('g2', 'Rail', [])])]
 
-  it('aims at the group whose row was clicked, however deep it sits', async () => {
-    const { wrapper, activeGroupId } = render(nested)
-    await destinationButtons(wrapper)[1].trigger('click')
-    expect(activeGroupId.value).toBe('g2')
+  it('points at the group whose row was clicked, however deep it sits', async () => {
+    const { wrapper, selectedId } = render(nested)
+    await groupButtons(wrapper)[1].trigger('click')
+    expect(selectedId.value).toBe('g2')
   })
 
   it('hands new marks back to the canvas when the same row is clicked again', async () => {
-    const { wrapper, activeGroupId } = render(nested)
-    const button = () => destinationButtons(wrapper)[0]
+    const { wrapper, selectedId } = render(nested)
+    const button = () => groupButtons(wrapper)[0]
     await button().trigger('click')
-    expect(activeGroupId.value).toBe('g1')
+    expect(selectedId.value).toBe('g1')
     await button().trigger('click')
-    expect(activeGroupId.value).toBeNull()
+    expect(selectedId.value).toBeNull()
+  })
+
+  it('leaves folding the group to its own control', async () => {
+    // The chevron and the row are different intentions: one folds, one aims.
+    const { wrapper, selectedId } = render(nested)
+    const chevron = wrapper
+      .findAll('button')
+      .find(b => b.attributes('aria-expanded') !== undefined)!
+    await chevron.trigger('click')
+    expect(selectedId.value).toBeNull()
   })
 })

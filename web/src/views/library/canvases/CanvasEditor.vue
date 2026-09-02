@@ -71,6 +71,7 @@ import {
   dissolveGroup,
   groupOptions,
   moveInStack,
+  parentGroupId,
   removeFromStack,
   type StackAnnotation,
   type StackChange,
@@ -392,38 +393,38 @@ async function removeLayer(id: string) {
 // ── Groups ───────────────────────────────────────────────────────────────────
 
 /**
- * The group new work is filed in — what the pin and drawing tools aim at, and
+ * The group new work is filed in — where the pin and drawing tools aim, and
  * where anything added from the panel lands.
  *
- * Editor state rather than part of the document: it is where *you* are
- * working, not something about the canvas, and a canvas opened on another
- * device shouldn't inherit it.
+ * Read off the selection rather than set on its own: the row you are pointed
+ * at is where you are working. Select a group and marks go in it; select
+ * something inside a group and they join it there; select a mark at the top
+ * level, or nothing at all, and they go back on the canvas. One control, and
+ * no second piece of state to fall out of step with the panel.
  */
-const activeGroupId = ref<string | null>(null)
+const activeGroupId = computed<string | null>(() => {
+  const id = selectedId.value
+  if (!id) return null
+  const groups = body.value.groups ?? []
+  if (groups.some(group => group.id === id)) return id
+  return parentGroupId(body.value, id)
+})
 
 /** Every group, flattened with its depth, for the toolbar's picker. */
 const groupChoices = computed(() => groupOptions(stack.value))
-
-// Deleting the destination, or undoing back past the point it existed, has to
-// hand new work back to the canvas rather than aim it at a group that is gone.
-watch(
-  () => (body.value.groups ?? []).some(group => group.id === activeGroupId.value),
-  exists => {
-    if (activeGroupId.value && !exists) activeGroupId.value = null
-  },
-)
 
 /**
  * Put something new where the user is working. A folded destination is opened
  * on the way — a mark that files itself out of sight reads as a mark lost.
  */
 function fileInDestination(next: CanvasBody, id: string): CanvasBody {
-  const filed = addToStack(next, id, activeGroupId.value)
-  if (!activeGroupId.value) return filed
+  const destination = activeGroupId.value
+  const filed = addToStack(next, id, destination)
+  if (!destination) return filed
   return {
     ...filed,
     groups: (filed.groups ?? []).map(group =>
-      group.id === activeGroupId.value ? { ...group, collapsed: false } : group,
+      group.id === destination ? { ...group, collapsed: false } : group,
     ),
   }
 }
@@ -457,6 +458,7 @@ function addGroup() {
 
 /** Ungrouping keeps what was filed in the group — see `dissolveGroup`. */
 function removeGroup(id: string) {
+  if (selectedId.value === id) selectedId.value = null
   body.value = dissolveGroup(body.value, id)
 }
 
@@ -468,8 +470,10 @@ function removeGroup(id: string) {
 provide(CANVAS_STACK, {
   layerProps,
   annotationProps,
-  isActiveGroup: (id: string) => activeGroupId.value === id,
-  setActiveGroup: (id: string | null) => (activeGroupId.value = id),
+  isSelected: (id: string) => selectedId.value === id,
+  toggleSelected: (id: string) =>
+    (selectedId.value = selectedId.value === id ? null : id),
+  isDestination: (id: string) => activeGroupId.value === id,
   patchGroup,
   removeGroup,
   onChange: onStackChange,
@@ -879,7 +883,7 @@ const saveStatus = computed(() =>
           @update:doodle-width="v => (annotations.doodleWidth.value = v)"
           :groups="groupChoices"
           :group-id="activeGroupId"
-          @update:group-id="id => (activeGroupId = id)"
+          @update:group-id="id => (selectedId = id)"
           :can-undo-edit="history.canUndo.value"
           :can-redo-edit="history.canRedo.value"
           :vertex-count="annotations.vertexCount.value"

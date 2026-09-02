@@ -311,6 +311,19 @@ export function groupContents(body: CanvasBody, groupId: string): string[] {
 }
 
 /**
+ * The group holding something — a layer, a mark or another group — or null
+ * when it sits at the top level.
+ *
+ * This is what makes the selection say where new work goes: pick anything
+ * inside a folder and the folder is where the next mark is filed.
+ */
+export function parentGroupId(body: CanvasBody, id: string): string | null {
+  return (
+    (body.groups ?? []).find(group => group.children?.includes(id))?.id ?? null
+  )
+}
+
+/**
  * Ungrouping: the folder goes, what was in it stays.
  *
  * A folder is how the stack is tidied, not something the layers inside belong

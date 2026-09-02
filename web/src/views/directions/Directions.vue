@@ -242,11 +242,11 @@ useMapListener(
 
     <!-- Pinned controls — pin to the top of the host scroll surface (which on
          mobile sits just below the sheet's opaque chrome bar). pt-3 keeps the
-         inputs off the chrome; the full-bleed background covers suggestions
-         scrolling underneath. -->
+         inputs off the chrome; the full-bleed background fades in from the top
+         so content scrolling underneath dissolves rather than clipping. -->
     <div
       ref="peekRef"
-      class="sticky z-30 -mx-3 px-3 pt-3 pb-3 space-y-3 bg-background"
+      class="sticky z-30 -mx-3 px-3 pt-3 pb-3 space-y-3 bg-gradient-to-b from-background/0 to-background"
       :style="{ top: 'var(--sheet-sticky-top, 0px)' }"
     >
       <WaypointInput

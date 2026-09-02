@@ -2188,7 +2188,8 @@
         "shapes": "Formas",
         "heatmap": "Mapa de calor"
       },
-      "featureCount": "Sin elementos | 1 elemento | {count} elementos"
+      "featureCount": "Sin elementos | 1 elemento | {count} elementos",
+      "rename": "Renombrar capa"
     },
     "add": {
       "trigger": "Añadir una capa",
@@ -2373,7 +2374,8 @@
         "round": "Redondos",
         "butt": "Planos",
         "square": "Cuadrados"
-      }
+      },
+      "rename": "Renombrar marca"
     },
     "sources": {
       "title": "Orígenes de datos",

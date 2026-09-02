@@ -11,6 +11,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useInlineRename } from '@/composables/useInlineRename'
 import { Switch } from '@/components/ui/switch'
 import { IconPicker } from '@/components/ui/icon-picker'
 import {
@@ -166,6 +167,23 @@ function commitLabel() {
 const fallbackName = computed(() =>
   t(`canvases.toolbar.tools.${props.annotation.tool}`),
 )
+
+/**
+ * A mark's name is its label, so renaming it from the list is the same edit
+ * as typing one in its properties — and clicking the title is the quickest
+ * way to it without opening the row at all.
+ */
+const {
+  renaming,
+  draft,
+  input: renameField,
+  start: startRename,
+  commit: commitRename,
+  cancel: cancelRename,
+} = useInlineRename({
+  value: () => props.annotation.label || fallbackName.value,
+  onCommit: name => emit('update', { label: name }),
+})
 </script>
 
 <template>
@@ -196,7 +214,24 @@ const fallbackName = computed(() =>
           />
         </span>
         <span class="min-w-0 flex-1">
-          <span class="block text-sm truncate">
+          <Input
+            v-if="renaming"
+            ref="renameField"
+            v-model="draft"
+            class="h-6 text-sm"
+            @click.stop
+            @blur="commitRename"
+            @keydown.enter="commitRename"
+            @keydown.esc="cancelRename"
+          />
+          <!-- The name is the way in to renaming it; the rest of the row
+               opens the mark's properties. -->
+          <span
+            v-else
+            class="block text-sm truncate cursor-text hover:underline decoration-dotted underline-offset-2"
+            :title="t('canvases.annotations.rename')"
+            @click.stop="startRename"
+          >
             {{ annotation.label || fallbackName }}
           </span>
           <!-- What the mark is, and how big — the question behind drawing it. -->

@@ -28,6 +28,8 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import type { ThemeColor } from '@/lib/utils'
 import type { CanvasLayer } from '@/types/canvas.types'
+import { useInlineRename } from '@/composables/useInlineRename'
+import { Input } from '@/components/ui/input'
 
 const RENDER_ICONS: Record<string, string> = {
   points: 'CircleDotIcon',
@@ -49,6 +51,7 @@ const emit = defineEmits<{
   edit: []
   remove: []
   select: []
+  rename: [name: string]
 }>()
 
 const { t } = useI18n()
@@ -58,8 +61,20 @@ const routesStore = useRoutesStore()
 const { layers } = storeToRefs(layersStore)
 const { collections } = storeToRefs(collectionsStore)
 
-/** Borrowed layers and collections show whatever their source is called now. */
+/**
+ * What the row shows.
+ *
+ * What this canvas calls the layer wins over what its source calls itself:
+ * renaming here is this canvas's own word for it, so it survives the source
+ * being renamed — or going away.
+ */
 const resolved = computed(() => {
+  const source = borrowed.value
+  return { ...source, name: props.layer.name || source.name }
+})
+
+/** Borrowed layers and collections show whatever their source is called now. */
+const borrowed = computed(() => {
   // Bound to a local so the discriminant narrowing survives into the
   // callbacks below — TypeScript drops it across a closure on `props`.
   const layer = props.layer
@@ -124,6 +139,18 @@ const isEditable = computed(
   () => props.layer.kind === 'style' || props.layer.kind === 'data',
 )
 
+const {
+  renaming,
+  draft,
+  input: renameField,
+  start: startRename,
+  commit: commitRename,
+  cancel: cancelRename,
+} = useInlineRename({
+  value: () => resolved.value.name,
+  onCommit: name => emit('rename', name),
+})
+
 const subtitle = computed(() => {
   const layer = props.layer
   if (layer.kind !== 'data') return t(`canvases.layers.kinds.${layer.kind}`)
@@ -158,7 +185,27 @@ const subtitle = computed(() => {
     />
 
     <div class="min-w-0 flex-1">
-      <p class="text-sm truncate" :class="resolved.missing && 'italic text-muted-foreground'">
+      <Input
+        v-if="renaming"
+        ref="renameField"
+        v-model="draft"
+        class="h-6 text-sm"
+        @click.stop
+        @blur="commitRename"
+        @keydown.enter="commitRename"
+        @keydown.esc="cancelRename"
+      />
+      <!-- The name is the way in to renaming it. -->
+      <p
+        v-else
+        class="text-sm truncate"
+        :class="[
+          resolved.missing && 'italic text-muted-foreground',
+          !readonly && 'cursor-text hover:underline decoration-dotted underline-offset-2',
+        ]"
+        :title="readonly ? undefined : t('canvases.layers.rename')"
+        @click.stop="!readonly && startRename()"
+      >
         {{ resolved.name }}
       </p>
       <p class="text-[11px] text-muted-foreground truncate">{{ subtitle }}</p>

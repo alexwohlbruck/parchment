@@ -31,13 +31,20 @@ export interface CanvasStyleLayer {
   engine?: MapEngine[]
 }
 
-/** A layer borrowed from the user's library, by id. */
+/**
+ * A layer borrowed from the user's library, by id.
+ *
+ * `name` is this canvas's own word for it — borrowed layers show whatever
+ * their source is called until they are renamed here, so a rename never
+ * reaches back and renames the layer in your library.
+ */
 export interface CanvasLibraryLayer {
   id: string
   kind: 'library'
   /** A user layer's id, or a default-template id like `default:hillshade`. */
   layerId: string
   visible: boolean
+  name?: string
 }
 
 /**
@@ -50,6 +57,8 @@ export interface CanvasCollectionLayer {
   kind: 'collection'
   collectionId: string
   visible: boolean
+  /** This canvas's own word for it; the collection keeps its own name. */
+  name?: string
   icon?: string | null
   iconColor?: string | null
 }
@@ -109,6 +118,8 @@ export interface CanvasRouteLayer {
   routeId: string
   visible: boolean
   color?: string | null
+  /** This canvas's own word for it; the route keeps its own name. */
+  name?: string
 }
 
 /**
@@ -123,6 +134,7 @@ export interface CanvasPeopleLayer {
   kind: 'people'
   visible: boolean
   friendHandles?: string[]
+  name?: string
 }
 
 export type CanvasLayer =

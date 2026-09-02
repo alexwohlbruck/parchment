@@ -370,6 +370,7 @@ function layerProps(entry: StackLayer): LayerRowProps {
     onSelect: () => (selectedId.value = entry.id),
     onToggle: (visible: boolean) => patchLayer(entry.id, { visible }),
     onEdit: () => editLayer(entry.layer),
+    onRename: (name: string) => patchLayer(entry.id, { name }),
     onRemove: () => removeLayer(entry.id),
   }
 }

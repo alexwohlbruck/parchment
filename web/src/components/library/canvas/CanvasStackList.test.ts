@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { defineComponent, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { createPinia } from 'pinia'
 import CanvasStackList from './CanvasStackList.vue'
 import CanvasGroupRow from './CanvasGroupRow.vue'
 import { CANVAS_STACK, type CanvasStackContext } from './canvas-stack-context'
@@ -55,6 +56,7 @@ function render(entries: StackEntry[]) {
       onSelect: () => {},
       onToggle: () => {},
       onEdit: () => {},
+      onRename: () => {},
       onRemove: () => {},
     }),
     annotationProps: item => ({
@@ -98,6 +100,110 @@ function groupButtons(wrapper: ReturnType<typeof render>['wrapper']) {
     .findAll('button')
     .filter(button => button.attributes('aria-pressed') !== undefined)
 }
+
+describe('renaming a row from its title', () => {
+  /** The real rows this time: the title is the thing under test. */
+  function panel(entries: StackEntry[]) {
+    const renamed: string[] = []
+    const context: CanvasStackContext = {
+      layerProps: item => ({
+        layer: item.layer,
+        selected: false,
+        onSelect: () => {},
+        onToggle: () => {},
+        onEdit: () => {},
+        onRename: name => renamed.push(`layer=${name}`),
+        onRemove: () => {},
+      }),
+      annotationProps: item => ({
+        annotation: item.annotation as CanvasAnnotation,
+        expanded: false,
+        onToggleExpanded: () => {},
+        onUpdate: patch => renamed.push(`mark=${patch.label}`),
+        onRemove: () => {},
+        onZoomTo: () => {},
+      }),
+      isSelected: () => false,
+      toggleSelected: () => {},
+      isDestination: () => false,
+      patchGroup: (_id, patch) => renamed.push(`group=${patch.name}`),
+      removeGroup: () => {},
+      onChange: () => {},
+    }
+
+    const wrapper = mount(CanvasStackList, {
+      props: { entries },
+      global: {
+        plugins: [i18n, createPinia()],
+        provide: { [CANVAS_STACK as symbol]: context },
+        stubs: { draggable: DraggableStub },
+      },
+    })
+    return { wrapper, renamed }
+  }
+
+  const rows = [
+    group('g1', 'Transit', []),
+    layer('l1'),
+    {
+      kind: 'annotation' as const,
+      id: 'a1',
+      annotation: {
+        id: 'a1',
+        tool: 'line',
+        positions: [[0, 0], [1, 1]],
+        label: 'Ridge path',
+      } as CanvasAnnotation,
+    },
+  ]
+
+  /** The title of a row, whichever kind of row it is. */
+  const title = (wrapper: ReturnType<typeof panel>['wrapper'], name: string) =>
+    wrapper.findAll('span, p').find(el => el.text() === name)!
+
+  it('opens the name for editing wherever it is clicked', async () => {
+    const { wrapper } = panel(rows)
+    for (const name of ['Transit', 'l1', 'Ridge path']) {
+      await title(wrapper, name).trigger('click')
+      const field = wrapper.find('input')
+      expect(field.exists()).toBe(true)
+      expect((field.element as HTMLInputElement).value).toBe(name)
+      // Leave it as it was for the next one.
+      await field.trigger('keydown.esc')
+    }
+  })
+
+  it('tells the canvas what each row is now called', async () => {
+    const { wrapper, renamed } = panel(rows)
+    const rename = async (from: string, to: string) => {
+      await title(wrapper, from).trigger('click')
+      const field = wrapper.find('input')
+      await field.setValue(to)
+      await field.trigger('keydown.enter')
+    }
+
+    await rename('Transit', 'Rail')
+    await rename('l1', 'Relief')
+    await rename('Ridge path', 'Summit path')
+
+    expect(renamed).toEqual(['group=Rail', 'layer=Relief', 'mark=Summit path'])
+  })
+
+  it('keeps the old name when the edit is abandoned or emptied', async () => {
+    const { wrapper, renamed } = panel(rows)
+
+    await title(wrapper, 'Transit').trigger('click')
+    await wrapper.find('input').setValue('Nope')
+    await wrapper.find('input').trigger('keydown.esc')
+
+    await title(wrapper, 'Transit').trigger('click')
+    await wrapper.find('input').setValue('   ')
+    await wrapper.find('input').trigger('keydown.enter')
+
+    // A row with no name is unfindable; a blank one is a slip, not an order.
+    expect(renamed).toEqual([])
+  })
+})
 
 describe('a group inside a group', () => {
   const nested = [group('g1', 'Transit', [layer('l1'), group('g2', 'Rail', [])])]

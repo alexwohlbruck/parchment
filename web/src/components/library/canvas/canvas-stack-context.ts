@@ -22,6 +22,7 @@ export interface LayerRowProps {
   onSelect: () => void
   onToggle: (visible: boolean) => void
   onEdit: () => void
+  onRename: (name: string) => void
   onRemove: () => void
 }
 

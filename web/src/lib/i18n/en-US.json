@@ -2312,7 +2312,8 @@
         "shapes": "Shapes",
         "heatmap": "Heatmap"
       },
-      "featureCount": "No features | 1 feature | {count} features"
+      "featureCount": "No features | 1 feature | {count} features",
+      "rename": "Rename layer"
     },
     "add": {
       "trigger": "Add a layer",
@@ -2497,7 +2498,8 @@
         "round": "Round",
         "butt": "Flat",
         "square": "Square"
-      }
+      },
+      "rename": "Rename mark"
     },
     "sources": {
       "title": "Data sources",

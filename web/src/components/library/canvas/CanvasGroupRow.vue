@@ -12,8 +12,8 @@
  * anything inside it — is the selected row, everything you draw and add is
  * filed here rather than at the top of the stack.
  */
-import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useInlineRename } from '@/composables/useInlineRename'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -59,28 +59,22 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const renaming = ref(false)
-const draft = ref(props.group.name)
-const nameInput = ref<InstanceType<typeof Input> | null>(null)
-
-async function focusName() {
-  await nextTick()
-  const el = (nameInput.value?.$el ?? nameInput.value) as
-    | HTMLInputElement
-    | undefined
-  el?.focus?.()
-  el?.select?.()
-}
-
-watch(renaming, open => {
-  if (!open) return
-  draft.value = props.group.name
-  void focusName()
+const {
+  renaming,
+  draft,
+  input: renameField,
+  start: startRename,
+  commit: commitRename,
+  cancel: cancelRename,
+  focus: focusRename,
+} = useInlineRename({
+  value: () => props.group.name,
+  onCommit: name => emit('rename', name),
 })
 
 /**
- * Renaming starts from the menu, and a closing menu takes focus back to the
- * button that opened it — which blurred the field a moment after it
+ * Renaming also starts from the menu, and a closing menu takes focus back to
+ * the button that opened it — which blurred the field a moment after it
  * appeared, and a blur commits, so the field closed on its own. When the
  * field is what should have focus, the menu hands it over instead of
  * reclaiming it.
@@ -88,13 +82,7 @@ watch(renaming, open => {
 function onMenuClosed(event: Event) {
   if (!renaming.value) return
   event.preventDefault()
-  void focusName()
-}
-
-function commitName() {
-  renaming.value = false
-  const next = draft.value.trim()
-  if (next && next !== props.group.name) emit('rename', next)
+  void focusRename()
 }
 
 const collapsed = () => props.group.collapsed === true
@@ -142,15 +130,24 @@ const collapsed = () => props.group.collapsed === true
         />
         <Input
           v-if="renaming"
-          ref="nameInput"
+          ref="renameField"
           v-model="draft"
           class="h-6 text-sm"
           @click.stop
-          @blur="commitName"
-          @keydown.enter="commitName"
-          @keydown.esc="renaming = false"
+          @blur="commitRename"
+          @keydown.enter="commitRename"
+          @keydown.esc="cancelRename"
         />
-        <span v-else class="text-sm truncate">{{ group.name }}</span>
+        <!-- The name is the way in to renaming it; the rest of the row is
+             how you point the panel at the group. -->
+        <span
+          v-else
+          class="text-sm truncate cursor-text hover:underline decoration-dotted underline-offset-2"
+          :title="t('canvases.groups.rename')"
+          @click.stop="startRename"
+        >
+          {{ group.name }}
+        </span>
       </button>
 
       <Button
@@ -174,7 +171,7 @@ const collapsed = () => props.group.collapsed === true
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" @close-auto-focus="onMenuClosed">
-          <DropdownMenuItem @click="renaming = true">
+          <DropdownMenuItem @click="startRename">
             <PencilIcon class="size-3.5" />
             {{ t('canvases.groups.rename') }}
           </DropdownMenuItem>

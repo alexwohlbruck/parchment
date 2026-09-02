@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.8.3] - 2026-09-02
+
 ### Changed
 
 * The toolbox button has been removed from the map. Measure, radius and isochrone are still available from the map's right-click menu, and the setting for showing the toolbox is gone from Settings

@@ -31,6 +31,7 @@ import {
   type AnnotationTool,
   type CanvasAnnotation,
 } from '@/types/canvas.types'
+import { drawStylePatch, type DrawStyle } from '@/lib/canvas-draw-style'
 
 /** How many clicks a tool needs before it can be committed. */
 export const TOOL_MINIMUM: Record<AnnotationTool, number> = {
@@ -80,8 +81,7 @@ export const DEFAULT_LABEL_POSITION: AnnotationLabelPosition = 'bottom'
 /** Circle geometry is approximated by a ring; 64 steps reads as smooth. */
 const CIRCLE_STEPS = 64
 
-/** Stroke widths a doodle can be drawn at, in pixels. */
-export const DOODLE_WIDTHS = [2, 4, 8, 14] as const
+/** What a doodle is drawn at until its stroke width is changed. */
 export const DEFAULT_DOODLE_WIDTH = 4
 
 /**
@@ -89,9 +89,13 @@ export const DEFAULT_DOODLE_WIDTH = 4
  *
  * A dash pattern can't be read from a feature by either engine, so it is
  * carried as a name and matched by a layer per style — see the renderer.
+ *
+ * Takes anything shaped like a styled mark, so the toolbar can resolve what
+ * the *next* mark will look like through the same defaults the map uses.
  */
 export function annotationStyle(
-  annotation: CanvasAnnotation,
+  annotation: { tool: AnnotationTool } & DrawStyle &
+    Pick<CanvasAnnotation, 'labelSize'>,
   resolveColor: (color: string) => string = color => color,
 ) {
   const color = annotation.color ?? DEFAULT_ANNOTATION_COLOR
@@ -498,14 +502,16 @@ export function annotationsCollection(
 export function createAnnotation(
   tool: AnnotationTool,
   positions: Position[],
-  color = DEFAULT_ANNOTATION_COLOR,
+  style: DrawStyle = {},
   routed?: CanvasAnnotation['routed'],
 ): CanvasAnnotation {
   const annotation: CanvasAnnotation = {
     id: `an-${Math.random().toString(36).slice(2, 10)}`,
     tool,
     positions,
-    color,
+    color: DEFAULT_ANNOTATION_COLOR,
+    // Whatever the toolbar was set to, minus anything this tool can't draw.
+    ...drawStylePatch(tool, style),
     ...(tool === 'route' && routed ? { routed } : {}),
   }
   // A circle's radius is fixed when it's drawn: keeping it as a distance

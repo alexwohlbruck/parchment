@@ -69,6 +69,8 @@ const props = withDefaults(
     colorOnly?: boolean
     /** Allows a colour outside the palette: a brand hex, an rgba() with alpha. */
     allowCustomColor?: boolean
+    /** Names what this picker sets, where a screen carries more than one. */
+    label?: string
   }>(),
   { compact: false, colorOnly: false, allowCustomColor: false },
 )
@@ -262,7 +264,8 @@ const makiVirtualizer = useVirtualizer(
         class="flex items-center justify-center overflow-hidden"
         :class="props.compact ? 'size-7 p-0' : 'p-4'"
         :size="props.compact ? 'icon' : 'icon-xl'"
-        :aria-label="t('iconPicker.trigger')"
+        :title="props.label"
+        :aria-label="props.label ?? t('iconPicker.trigger')"
       >
         <span
           v-if="props.colorOnly"

@@ -6,21 +6,20 @@
  * on a canvas, and a tool you have to go and find is a tool you don't use. It
  * mirrors the shape of Felt's toolbar — a tool strip with the open-ended
  * shapes offering Done and Undo once you're mid-draw.
+ *
+ * What the armed tool can be *set* to lives on a second bar underneath —
+ * see `CanvasToolOptions`. This one is which tool, and what to do with it.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { IconPicker } from '@/components/ui/icon-picker'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import {
-  BikeIcon,
-  CarFrontIcon,
   CheckIcon,
   CircleIcon,
   FolderIcon,
   FolderOpenIcon,
-  FootprintsIcon,
   LayersIcon,
   MapPinIcon,
   MinusIcon,
@@ -33,28 +32,18 @@ import {
   UndoIcon,
   WaypointsIcon,
 } from 'lucide-vue-next'
-import { Spinner } from '@/components/ui/spinner'
 import type { AnnotationTool } from '@/types/canvas.types'
-import { DOODLE_WIDTHS } from '@/lib/canvas-annotations'
-import type { RouteMode } from '@/types/routes.types'
 
 const props = defineProps<{
   tool: AnnotationTool | null
-  color: string
   canFinish: boolean
   canUndo: boolean
   vertexCount: number
-  /** Travel mode the Route tool snaps with. */
-  routeMode: RouteMode
-  /** True while the routing engine is working. */
-  isSnapping?: boolean
   /** Whether the canvas itself has anything to step back to, or forward to. */
   canUndoEdit: boolean
   canRedoEdit: boolean
   /** False when nothing is configured that can plan a route. */
   canRoute: boolean
-  /** Doodle only: how thick the stroke is drawn. */
-  doodleWidth: number
   /** The canvas's groups, flattened, for the destination picker. */
   groups: { id: string; name: string; depth: number }[]
   /** Which of them new marks are filed in. Null is the canvas itself. */
@@ -63,9 +52,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   arm: [tool: AnnotationTool | null]
-  'update:color': [color: string]
-  'update:routeMode': [mode: RouteMode]
-  'update:doodleWidth': [width: number]
   'update:groupId': [id: string | null]
   finish: []
   undo: []
@@ -108,13 +94,6 @@ function toolTitle(item: (typeof TOOLS)[number]) {
     ? `${name} · ${t(`canvases.toolbar.hints.${item.hint}`)}`
     : name
 }
-
-/** Travel modes the Route tool can snap with. */
-const ROUTE_MODES: { id: RouteMode; icon: typeof BikeIcon }[] = [
-  { id: 'walking', icon: FootprintsIcon },
-  { id: 'cycling', icon: BikeIcon },
-  { id: 'driving', icon: CarFrontIcon },
-]
 
 /** Mid-draw only for the shapes that don't finish themselves. */
 const isDrawing = computed(() => props.vertexCount > 0)
@@ -184,57 +163,6 @@ const destinationItems = computed(() => [
     >
       <component :is="item.icon" class="size-4" />
     </Button>
-
-    <!-- Which network the route follows. Only meaningful for that tool. -->
-    <template v-if="tool === 'route'">
-      <Separator orientation="vertical" class="h-5 mx-0.5" />
-      <Button
-        v-for="mode in ROUTE_MODES"
-        :key="mode.id"
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :class="routeMode === mode.id && 'bg-secondary text-foreground'"
-        :title="t(`directions.modes.${mode.id}`)"
-        :aria-label="t(`directions.modes.${mode.id}`)"
-        @click="emit('update:routeMode', mode.id)"
-      >
-        <component :is="mode.icon" class="size-4" />
-      </Button>
-      <Spinner v-if="isSnapping" class="size-3.5 mx-1 text-muted-foreground" />
-    </template>
-
-    <!-- How thick the stroke goes down. Only the freehand tool has one. -->
-    <template v-if="tool === 'doodle'">
-      <Separator orientation="vertical" class="h-5 mx-0.5" />
-      <Button
-        v-for="width in DOODLE_WIDTHS"
-        :key="width"
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :class="doodleWidth === width && 'bg-secondary'"
-        :title="t('canvases.toolbar.strokeWidth', { width })"
-        :aria-label="t('canvases.toolbar.strokeWidth', { width })"
-        @click="emit('update:doodleWidth', width)"
-      >
-        <span
-          class="rounded-full bg-foreground"
-          :style="{ width: `${width}px`, height: `${width}px` }"
-        />
-      </Button>
-    </template>
-
-    <template v-if="tool">
-      <Separator orientation="vertical" class="h-5 mx-0.5" />
-      <IconPicker
-        compact
-        color-only
-        allow-custom-color
-        :model-value="{ icon: '', color }"
-        @update:model-value="value => emit('update:color', value.color)"
-      />
-    </template>
 
     <!-- Where the next mark gets filed. Only worth showing once there is
          somewhere else for it to go. -->

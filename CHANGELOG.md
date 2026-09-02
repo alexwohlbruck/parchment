@@ -20,6 +20,8 @@
 * A layer store, reached from the Layers tab of your library. It holds every ready-made layer Parchment ships with, so anything you delete can be added back — there is no separate "restore defaults" any more. Terrain, Time Zones, Air Quality, Wildfires and OSM Notes now start out in the store rather than in your library, so a fresh library only carries what most people want on the map
 * Canvas groups can hold other groups, so a large stack can be arranged in folders within folders
 * Select a group on a canvas — or anything inside one — and everything you draw or add is filed there. The toolbar over the map names where that is
+* A second toolbar under the drawing tools holds the settings for the tool in hand — a pin's glyph and shape, a shape's outline and fill, a travel time area's mode and reach
+* Select a mark and its style goes onto the toolbar, so the next one you draw matches what you picked
 
 ### Changed
 

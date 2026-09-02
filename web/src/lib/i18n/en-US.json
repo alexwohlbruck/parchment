@@ -2447,8 +2447,7 @@
         "routingUnavailable": "Travel time needs a routing integration — set one up in Settings",
         "doodle": "Drag to draw freehand"
       },
-      "advanced": "More tools",
-      "strokeWidth": "Stroke width {width}"
+      "advanced": "More tools"
     },
     "annotations": {
       "remove": "Delete annotation",

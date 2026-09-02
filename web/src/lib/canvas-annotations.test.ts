@@ -186,7 +186,7 @@ describe('the route tool', () => {
     const created = createAnnotation(
       'route',
       [[0, 0], [1, 1]],
-      '#000000',
+      { color: '#000000' },
       { geometry: [[0, 0], [0.5, 0.5], [1, 1]], mode: 'cycling' },
     )
 

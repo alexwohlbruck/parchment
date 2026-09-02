@@ -4,9 +4,11 @@
  *
  * Only the fields that mean something for the shape in hand: a line has no
  * fill, a pin has no outline, and offering them anyway is how a panel ends up
- * mostly greyed out. Everything falls back to a default rather than being
- * written into the mark, so a mark you never styled stays as small as the
- * day it was made.
+ * mostly greyed out. Which is which comes from `TOOL_STYLE_OPTIONS`, the same
+ * table the tool options bar reads, so the two can't drift apart.
+ *
+ * Everything falls back to a default rather than being written into the mark,
+ * so a mark you never styled stays as small as the day it was made.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -19,13 +21,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { IconPicker } from '@/components/ui/icon-picker'
+import MarkerShapePicker from './MarkerShapePicker.vue'
 import {
   annotationStyle,
   DEFAULT_ANNOTATION_COLOR,
 } from '@/lib/canvas-annotations'
-import { markerPaint, MARKER_SHAPES, type MarkerShape } from '@/lib/map-marker'
-import { themeColorToHex } from '@/lib/utils'
-import { useThemeStore } from '@/stores/theme.store'
+import { hasStyleOption, type DrawOption } from '@/lib/canvas-draw-style'
+import type { MarkerShape } from '@/lib/map-marker'
 import {
   ANNOTATION_STROKE_STYLES,
   type AnnotationStrokeStyle,
@@ -36,18 +38,13 @@ const props = defineProps<{ annotation: CanvasAnnotation }>()
 const emit = defineEmits<{ update: [patch: Partial<CanvasAnnotation>] }>()
 
 const { t } = useI18n()
-const themeStore = useThemeStore()
 
 /** What the mark is actually drawn as right now, defaults included. */
 const style = computed(() => annotationStyle(props.annotation))
 
-const tool = computed(() => props.annotation.tool)
-/** Shapes that enclose something have a fill; the rest are outlines. */
-const hasFill = computed(() =>
-  ['polygon', 'rectangle', 'circle', 'isochrone'].includes(tool.value),
-)
-const hasStroke = computed(() => tool.value !== 'pin')
-const isPin = computed(() => tool.value === 'pin')
+/** Whether this mark's tool is styled by a given setting at all. */
+const has = (option: DrawOption) =>
+  hasStyleOption(props.annotation.tool, option)
 
 const strokeStyles = computed(() =>
   ANNOTATION_STROKE_STYLES.map(value => ({
@@ -59,28 +56,11 @@ const strokeStyles = computed(() =>
 function percent(value: number) {
   return `${Math.round(value * 100)}%`
 }
-
-const markerShapes = MARKER_SHAPES
-
-/**
- * Each preview wears the mark's own colours, so the choice is between three
- * versions of THIS pin rather than three generic shapes.
- */
-function shapePreview(shape: MarkerShape) {
-  const paint = markerPaint(
-    themeColorToHex(props.annotation.color ?? DEFAULT_ANNOTATION_COLOR),
-    shape,
-    themeStore.isDark,
-  )
-  return shape === 'glyph'
-    ? { color: paint.ink }
-    : { backgroundColor: paint.plate ?? 'transparent', borderColor: paint.ring }
-}
 </script>
 
 <template>
   <div>
-    <template v-if="hasStroke">
+    <template v-if="has('strokeWidth')">
       <div class="flex items-center justify-between gap-3 py-1.5 min-h-7">
         <span class="text-xs shrink-0">
           {{ t('canvases.annotations.strokeWidth') }}
@@ -148,7 +128,7 @@ function shapePreview(shape: MarkerShape) {
       </div>
     </template>
 
-    <template v-if="hasFill">
+    <template v-if="has('fillColor')">
       <div class="flex items-center justify-between gap-3 py-1.5 min-h-7">
         <span class="text-xs shrink-0">
           {{ t('canvases.annotations.fillColor') }}
@@ -187,49 +167,24 @@ function shapePreview(shape: MarkerShape) {
       </div>
     </template>
 
-    <!-- The shape is drawn rather than named: three small previews say what a
-         disc, a square plate and a bare glyph look like faster than three
-         words do, and they are the marks themselves. -->
     <div
-      v-if="isPin"
+      v-if="has('markerShape')"
       class="flex items-center justify-between gap-3 py-1.5 min-h-7"
     >
       <span class="text-xs shrink-0">
         {{ t('canvases.annotations.markerShape') }}
       </span>
-      <span class="flex items-center gap-1">
-        <button
-          v-for="option in markerShapes"
-          :key="option"
-          type="button"
-          class="size-7 rounded-md flex items-center justify-center transition-colors hover:bg-accent"
-          :class="style.markerShape === option && 'bg-accent'"
-          :title="t(`canvases.annotations.markerShapes.${option}`)"
-          :aria-label="t(`canvases.annotations.markerShapes.${option}`)"
-          :aria-pressed="style.markerShape === option"
-          @click="emit('update', { markerShape: option })"
-        >
-          <span
-            class="size-3.5 border-[1.5px] flex items-center justify-center"
-            :class="{
-              'rounded-full': option === 'disc',
-              'rounded-[3px]': option === 'square',
-              'border-transparent': option === 'glyph',
-            }"
-            :style="shapePreview(option)"
-          >
-            <span
-              v-if="option === 'glyph'"
-              class="size-2 rounded-[1px]"
-              :style="{ backgroundColor: 'currentColor' }"
-            />
-          </span>
-        </button>
-      </span>
+      <MarkerShapePicker
+        :model-value="style.markerShape"
+        :color="annotation.color ?? DEFAULT_ANNOTATION_COLOR"
+        @update:model-value="
+          shape => emit('update', { markerShape: shape as MarkerShape })
+        "
+      />
     </div>
 
     <div
-      v-if="isPin"
+      v-if="has('markerSize')"
       class="flex items-center justify-between gap-3 py-1.5 min-h-7"
     >
       <span class="text-xs shrink-0">

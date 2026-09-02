@@ -32,8 +32,8 @@ import type { LngLat, MapEvents } from '@/types/map.types'
 import type { AnnotationTool, CanvasAnnotation } from '@/types/canvas.types'
 import {
   annotationFeature,
+  annotationStyle,
   constrainPosition,
-  DEFAULT_DOODLE_WIDTH,
   smoothStroke,
   createAnnotation,
   guideFeature,
@@ -42,6 +42,7 @@ import {
   TOOL_MINIMUM,
   DEFAULT_ANNOTATION_COLOR,
 } from '@/lib/canvas-annotations'
+import { drawStylePatch, type DrawStyle } from '@/lib/canvas-draw-style'
 
 /** How close to the first vertex closing a shape starts to pull, in pixels. */
 const SNAP_PX = 12
@@ -55,6 +56,12 @@ const PREVIEW_AT: Partial<Record<AnnotationTool, number>> = {
 export function useCanvasAnnotations(options: {
   /** Called with each finished annotation. */
   onCommit: (annotation: CanvasAnnotation) => void
+  /**
+   * How the tool is set to draw — see `useCanvasDrawStyle`. A getter rather
+   * than a value: the armed tool decides which settings apply, and it lives
+   * here.
+   */
+  styleFor: (tool: AnnotationTool | null) => DrawStyle
 }) {
   const mapStore = useMapStore()
   const mapToolsStore = useMapToolsStore()
@@ -102,7 +109,13 @@ export function useCanvasAnnotations(options: {
   }
 
   const tool = ref<AnnotationTool | null>(null)
-  const color = ref(DEFAULT_ANNOTATION_COLOR)
+
+  /** The armed tool's settings, and the same defaults the map draws with. */
+  const style = computed(() => options.styleFor(tool.value))
+  const resolved = computed(() =>
+    annotationStyle({ tool: tool.value ?? 'line', ...style.value }),
+  )
+  const color = computed(() => style.value.color ?? DEFAULT_ANNOTATION_COLOR)
   /** Positions clicked for the annotation currently being drawn. */
   const positions = ref<Position[]>([])
   /**
@@ -246,7 +259,6 @@ export function useCanvasAnnotations(options: {
   // own pan has to stand down for the length of the stroke, the way it does
   // for a handle being dragged.
 
-  const doodleWidth = ref(DEFAULT_DOODLE_WIDTH)
   const isDoodling = ref(false)
 
   function doodlePosition(event: PointerEvent): Position | null {
@@ -497,7 +509,7 @@ export function useCanvasAnnotations(options: {
       positions: previewing
         ? [...positions.value, effectiveCursor.value!]
         : [...positions.value],
-      color: color.value,
+      ...drawStylePatch(tool.value, { color: color.value, ...style.value }),
       ...(tool.value === 'route' && routed.value
         ? { routed: routed.value }
         : {}),
@@ -524,7 +536,7 @@ export function useCanvasAnnotations(options: {
       color: themeColorToHex(color.value),
       guide: guide.value,
       pending: isSnapping.value || isFetchingIsochrone.value,
-      width: tool.value === 'doodle' ? doodleWidth.value : undefined,
+      width: tool.value === 'doodle' ? resolved.value.strokeWidth : undefined,
       handles: (tool.value === 'doodle' ? [] : positions.value).map((position, index) => ({
         position,
         kind: 'vertex' as const,
@@ -542,11 +554,10 @@ export function useCanvasAnnotations(options: {
     const annotation = createAnnotation(
       tool.value,
       [...positions.value],
-      color.value,
+      style.value,
       routed.value ?? undefined,
     )
     if (isochrone.value) annotation.isochrone = isochrone.value
-    if (tool.value === 'doodle') annotation.strokeWidth = doodleWidth.value
     options.onCommit(annotation)
 
     positions.value = []
@@ -659,7 +670,6 @@ export function useCanvasAnnotations(options: {
 
   return {
     tool,
-    color,
     routeMode,
     isSnapping,
     isArmed,
@@ -670,7 +680,6 @@ export function useCanvasAnnotations(options: {
     restore,
     // A stroke lays down a point per frame; history waits for it to finish.
     isBusy: isDoodling,
-    doodleWidth,
     isochroneMode,
     isochroneMinutes,
     isFetchingIsochrone,

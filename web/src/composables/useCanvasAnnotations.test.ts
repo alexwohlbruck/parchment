@@ -5,7 +5,9 @@ import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useCanvasAnnotations } from './useCanvasAnnotations'
+import { mapEventBus } from '@/lib/eventBus'
 import type { CanvasAnnotation } from '@/types/canvas.types'
+import type { DrawStyle } from '@/lib/canvas-draw-style'
 
 /**
  * What a tool does to the map while it is armed.
@@ -43,9 +45,12 @@ beforeEach(() => {
   useMapStore().setMapStrategy({ mapInstance: map } as never)
 })
 
-function tools(onCommit: (a: CanvasAnnotation) => void = () => {}) {
+function tools(
+  onCommit: (a: CanvasAnnotation) => void = () => {},
+  styleFor: () => DrawStyle = () => ({}),
+) {
   const scope = effectScope()
-  const api = scope.run(() => useCanvasAnnotations({ onCommit }))!
+  const api = scope.run(() => useCanvasAnnotations({ onCommit, styleFor }))!
   return { ...api, dispose: () => scope.stop() }
 }
 
@@ -112,5 +117,40 @@ describe('useCanvasAnnotations', () => {
 
     expect(session.tool.value).toBe('route')
     session.dispose()
+  })
+})
+
+describe('what the tool is set to', () => {
+  /** A pin commits on its first click, so one click is a whole mark. */
+  function drawPin(styleFor: () => DrawStyle) {
+    const marks: CanvasAnnotation[] = []
+    const session = tools(mark => marks.push(mark), styleFor)
+    session.arm('pin')
+    mapEventBus.emit('click', { lngLat: { lng: 1, lat: 2 } } as never)
+    session.dispose()
+    return marks[0]
+  }
+
+  it('draws the mark with the settings on the bar', () => {
+    const mark = drawPin(() => ({
+      color: 'ruby',
+      icon: 'Train',
+      markerShape: 'square',
+    }))
+
+    expect(mark).toMatchObject({
+      color: 'ruby',
+      icon: 'Train',
+      markerShape: 'square',
+    })
+  })
+
+  it('writes nothing a setting did not ask for', () => {
+    // A mark nobody styled stays as small in the document as it always was.
+    const mark = drawPin(() => ({}))
+
+    expect(mark.color).toBe('compass')
+    expect(mark.markerSize).toBeUndefined()
+    expect(mark.markerShape).toBeUndefined()
   })
 })

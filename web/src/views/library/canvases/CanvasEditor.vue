@@ -21,6 +21,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useCanvasRendering } from '@/composables/useCanvasRendering'
 import * as turf from '@turf/turf'
 import { useCanvasAnnotations } from '@/composables/useCanvasAnnotations'
+import { useCanvasDrawStyle } from '@/composables/useCanvasDrawStyle'
 import { useAnnotationEditing } from '@/composables/useAnnotationEditing'
 import { useCanvasHistory } from '@/composables/useCanvasHistory'
 import { useCanvasMapSettings } from '@/composables/useCanvasMapSettings'
@@ -41,6 +42,7 @@ import {
   type LayerRowProps,
 } from '@/components/library/canvas/canvas-stack-context'
 import CanvasToolbar from '@/components/library/canvas/CanvasToolbar.vue'
+import CanvasToolOptions from '@/components/library/canvas/CanvasToolOptions.vue'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import {
   countGeometries,
@@ -160,7 +162,14 @@ const selectedAnnotationId = computed(() =>
     : null,
 )
 
+/**
+ * How each tool is set to draw. Selecting a mark copies its style here, so
+ * the next one of its kind matches what you just pointed at.
+ */
+const drawStyle = useCanvasDrawStyle()
+
 const annotations = useCanvasAnnotations({
+  styleFor: drawStyle.forTool,
   onCommit(annotation: CanvasAnnotation) {
     body.value = fileInDestination(
       {
@@ -173,6 +182,14 @@ const annotations = useCanvasAnnotations({
     // thing, and hunting for the row you just created is friction.
     selectedId.value = annotation.id
   },
+})
+
+// Selecting a mark takes its style onto the toolbar — the quickest way to
+// draw another one like it, and the only traffic between the two: changing a
+// setting on the bar never reaches back and restyles the mark you selected.
+watch(selectedAnnotationId, id => {
+  const annotation = (body.value.annotations ?? []).find(a => a.id === id)
+  if (annotation) drawStyle.adopt(annotation)
 })
 
 /**
@@ -873,30 +890,47 @@ const saveStatus = computed(() =>
       <div
         class="fixed z-40 top-3 inset-x-0 md:left-104 pointer-events-none flex justify-center px-3"
       >
-        <CanvasToolbar
-          :tool="annotations.tool.value"
-          :color="annotations.color.value"
-          :can-finish="annotations.canFinish.value"
-          :can-undo="history.canUndo.value"
-          :can-route="annotations.canRoute.value"
-          :doodle-width="annotations.doodleWidth.value"
-          @update:doodle-width="v => (annotations.doodleWidth.value = v)"
-          :groups="groupChoices"
-          :group-id="activeGroupId"
-          @update:group-id="id => (selectedId = id)"
-          :can-undo-edit="history.canUndo.value"
-          :can-redo-edit="history.canRedo.value"
-          :vertex-count="annotations.vertexCount.value"
-          :route-mode="annotations.routeMode.value"
-          :is-snapping="annotations.isSnapping.value"
-          @arm="annotations.arm"
-          @update:color="value => (annotations.color.value = value)"
-          @update:route-mode="value => (annotations.routeMode.value = value)"
-          @finish="annotations.finish"
-          @undo="history.undo"
-          @undo-edit="history.undo"
-          @redo-edit="history.redo"
-        />
+        <div class="flex flex-col items-center gap-2">
+          <CanvasToolbar
+            :tool="annotations.tool.value"
+            :can-finish="annotations.canFinish.value"
+            :can-undo="history.canUndo.value"
+            :can-route="annotations.canRoute.value"
+            :groups="groupChoices"
+            :group-id="activeGroupId"
+            @update:group-id="id => (selectedId = id)"
+            :can-undo-edit="history.canUndo.value"
+            :can-redo-edit="history.canRedo.value"
+            :vertex-count="annotations.vertexCount.value"
+            @arm="annotations.arm"
+            @finish="annotations.finish"
+            @undo="history.undo"
+            @undo-edit="history.undo"
+            @redo-edit="history.redo"
+          />
+
+          <!-- What the armed tool is set to, only while one is armed. -->
+          <CanvasToolOptions
+            v-if="annotations.tool.value"
+            :tool="annotations.tool.value"
+            :style="drawStyle.forTool(annotations.tool.value)"
+            :route-mode="annotations.routeMode.value"
+            :isochrone-mode="annotations.isochroneMode.value"
+            :isochrone-minutes="annotations.isochroneMinutes.value"
+            :is-busy="
+              annotations.isSnapping.value ||
+              annotations.isFetchingIsochrone.value
+            "
+            @update:style="patch => drawStyle.set(annotations.tool.value!, patch)"
+            @update:route-mode="value => (annotations.routeMode.value = value)"
+            @update:isochrone-mode="
+              value => (annotations.isochroneMode.value = value)
+            "
+            @update:isochrone-minutes="
+              value => (annotations.isochroneMinutes.value = value)
+            "
+          />
+        </div>
       </div>
     </Teleport>
   </DetailPanelLayout>

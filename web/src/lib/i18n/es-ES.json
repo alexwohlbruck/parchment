@@ -2323,8 +2323,7 @@
         "isochrone": "Haz clic en un punto para ver hasta dónde llegas",
         "routingUnavailable": "El tiempo de viaje necesita una integración de rutas — configura una en Ajustes",
         "doodle": "Arrastra para dibujar a mano alzada"
-      },
-      "strokeWidth": "Grosor del trazo {width}"
+      }
     },
     "annotations": {
       "remove": "Eliminar anotación",

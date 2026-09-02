@@ -224,11 +224,12 @@ const {
             @keydown.enter="commitRename"
             @keydown.esc="cancelRename"
           />
-          <!-- The name is the way in to renaming it; the rest of the row
-               opens the mark's properties. -->
+          <!-- The name is the way in to renaming it, and only the name: the
+               box hugs the text, so the rest of the row still opens the
+               mark's properties. -->
           <span
             v-else
-            class="block text-sm truncate cursor-text hover:underline decoration-dotted underline-offset-2"
+            class="inline-block max-w-full align-top text-sm truncate cursor-text hover:underline decoration-dotted underline-offset-2"
             :title="t('canvases.annotations.rename')"
             @click.stop="startRename"
           >

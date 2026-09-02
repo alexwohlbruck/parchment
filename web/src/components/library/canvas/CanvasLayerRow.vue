@@ -195,10 +195,12 @@ const subtitle = computed(() => {
         @keydown.enter="commitRename"
         @keydown.esc="cancelRename"
       />
-      <!-- The name is the way in to renaming it. -->
+      <!-- The name is the way in to renaming it, and only the name: the box
+           hugs the text so the empty half of the row still belongs to the
+           card, which is what selects the layer. -->
       <p
         v-else
-        class="text-sm truncate"
+        class="text-sm truncate inline-block max-w-full align-top"
         :class="[
           resolved.missing && 'italic text-muted-foreground',
           !readonly && 'cursor-text hover:underline decoration-dotted underline-offset-2',

@@ -11,6 +11,10 @@
  * These are the settings for the *next* mark. Selecting a mark copies its
  * style up here, so "another one like that" is a click; changing something
  * here never reaches back and restyles what you already drew.
+ *
+ * Laid out in groups — paint, the marker itself, the stroke, the fill, and
+ * how the tool behaves — with a divider between each. Colour opens every
+ * tool's row, so a group only ever needs a divider in front of it.
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -125,6 +129,9 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
       "
     />
 
+    <!-- The marker itself: what shape the plate is, and how big. -->
+    <Separator v-if="has('markerShape')" orientation="vertical" class="h-5 mx-0.5" />
+
     <MarkerShapePicker
       v-if="has('markerShape')"
       :model-value="style.markerShape"
@@ -151,6 +158,9 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
         />
       </template>
     </CanvasToolNumber>
+
+    <!-- The stroke: how thick, how broken, how it ends, how solid. -->
+    <Separator v-if="has('strokeWidth')" orientation="vertical" class="h-5 mx-0.5" />
 
     <CanvasToolNumber
       v-if="has('strokeWidth')"
@@ -281,7 +291,8 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
       </CanvasToolNumber>
     </template>
 
-    <!-- Which network a route follows. Only meaningful for that tool. -->
+    <!-- How the tool behaves, rather than how the mark looks: which network
+         a route follows, and how far a reachable area reaches. -->
     <template v-if="tool === 'route'">
       <Separator orientation="vertical" class="h-5 mx-0.5" />
       <Button
@@ -299,7 +310,6 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
       </Button>
     </template>
 
-    <!-- How far, and by what, a reachable area is measured. -->
     <template v-if="tool === 'isochrone'">
       <Separator orientation="vertical" class="h-5 mx-0.5" />
       <Button

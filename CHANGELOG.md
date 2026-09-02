@@ -2,6 +2,8 @@
 
 ### Added
 
+* The MapLibre engine can now draw the map on a globe. The map projection setting applies to both engines, offering flat and globe on MapLibre and the full list on Mapbox
+
 ### Changed
 
 * The desktop sidebar has been rebuilt. Rows sit on an even grid at full contrast, the current one is marked by a single raised chip that slides between them, and collapsing or expanding the rail now glides instead of snapping — with the map resizing in step
@@ -13,6 +15,7 @@
 
 * The map keeps up with the sidebar as it is dragged or collapsed, resizing frame by frame rather than snapping once the panel has settled
 * Centring on a place, or fitting a route, no longer aims too far to the right when a panel is open over the map. The gutter the map was told to leave on the left included the sidebar's width a second time, even though the map never extended under it — worse the wider the sidebar
+* The globe sits in the middle of the map when a panel is open. That same gutter moves the point the map is centred on off the middle of the screen, which a flat map hides and a globe cannot, so it is dropped while the globe is on screen
 
 ## [0.8.3] - 2026-09-02
 

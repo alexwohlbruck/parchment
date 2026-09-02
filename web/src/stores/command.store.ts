@@ -26,7 +26,7 @@ import { useMapService } from '@/services/map.service'
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import { MapEngine, MapProjection } from '@/types/map.types'
+import { ENGINE_PROJECTIONS, MapEngine } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
 import { getCategoryColor } from '@/lib/place-colors'
@@ -583,7 +583,6 @@ export const useCommandStore = defineStore('command', () => {
       },
       {
         id: CommandName.MAP_PROJECTION,
-        engine: [MapEngine.MAPBOX],
         name: t('palette.commands.mapProjection.name'),
         description: t('palette.commands.mapProjection.description'),
         icon: GlobeIcon,
@@ -595,12 +594,15 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.mapProjection.arguments.projection.name'),
             type: 'string',
             getItems() {
-              return Object.values(MapProjection).map(projection => ({
-                value: projection,
-                name: t(
-                  `palette.commands.mapProjection.arguments.projection.values.${projection}`,
-                ),
-              }))
+              // Both engines project, but not into the same set of shapes.
+              return ENGINE_PROJECTIONS[settings.value.engine].map(
+                projection => ({
+                  value: projection,
+                  name: t(
+                    `palette.commands.mapProjection.arguments.projection.values.${projection}`,
+                  ),
+                }),
+              )
             },
           },
         ],

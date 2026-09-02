@@ -438,6 +438,24 @@
   },
   "layers": {
     "title": "Layers",
+    "selector": {
+      "tabs": {
+        "map": "Map",
+        "collections": "Collections",
+        "canvases": "Canvases"
+      },
+      "baseMap": "Base map",
+      "overlays": "Overlays",
+      "savedPlaces": "Show saved places",
+      "showCanvases": "Show canvases",
+      "placeCount": "{count} places",
+      "canvasItemCount": "{count} items",
+      "switchBasemap": "Switch to {name}",
+      "emptyCollections": {
+        "title": "No saved places yet",
+        "description": "Collections with saved places will appear here."
+      }
+    },
     "transit": {
       "rail": "Rail",
       "bus": "Bus",

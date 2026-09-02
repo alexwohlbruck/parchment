@@ -13,12 +13,18 @@
  * half-drawn. Undo walks back through placing a vertex, finishing a shape,
  * recolouring it and deleting it without caring which of those it is.
  *
- * Snapshots rather than a log of operations: a canvas body is small, saved
- * whole anyway, and every edit already replaces it — so a stack of snapshots
- * is both simpler and impossible to get out of step with the document.
+ * Snapshots rather than a log of operations: every edit already replaces the
+ * thing it edits, so a stack of snapshots is both simpler and impossible to
+ * get out of step with the document.
+ *
+ * A snapshot is a flat set of values, each of which is replaced rather than
+ * changed in place — that is what lets a step be the values themselves
+ * rather than a copy of them. Steps share everything an edit did not touch,
+ * so a hundred of them cost about as much as one, and a canvas carrying
+ * megabytes of imported GeoJSON is never serialised to take a step at all.
  */
 
-import { computed, ref, watch, type Ref } from 'vue'
+import { computed, shallowRef, watch, type Ref } from 'vue'
 
 /**
  * How long an edit waits for the next one before its step closes.
@@ -29,11 +35,18 @@ import { computed, ref, watch, type Ref } from 'vue'
  * however fast they come.
  */
 const IDLE_MS = 250
-/** Far more than anyone reaches for, and still nothing in memory terms. */
+/**
+ * Far more than anyone reaches for, and nothing in memory terms: steps share
+ * every part of the document an edit did not touch.
+ */
 const LIMIT = 100
 
-export function useCanvasHistory<T>(options: {
-  /** Everything an undo would have to put back. */
+export function useCanvasHistory<T extends object>(options: {
+  /**
+   * Everything an undo would have to put back, flat: every value replaced
+   * rather than mutated, so two snapshots differ exactly where an edit
+   * landed.
+   */
   snapshot: () => T
   restore: (snapshot: T) => void
   /**
@@ -43,10 +56,22 @@ export function useCanvasHistory<T>(options: {
    */
   busy?: Ref<boolean>
 }) {
-  const past = ref<string[]>([])
-  const future = ref<string[]>([])
+  // Shallow: a step holds the editor's own values, and making them reactive
+  // all over again would both cost the walk and break the identity the
+  // steps are compared by.
+  const past = shallowRef<T[]>([])
+  const future = shallowRef<T[]>([])
 
-  const take = () => JSON.stringify(options.snapshot())
+  const take = () => options.snapshot()
+
+  /** Nothing moved: every part of the snapshot is the same object as before. */
+  function unchanged(a: T, b: T) {
+    const keys = Object.keys(a) as (keyof T)[]
+    return (
+      keys.length === Object.keys(b).length &&
+      keys.every(key => Object.is(a[key], b[key]))
+    )
+  }
 
   /** The snapshot the stacks are relative to. */
   let current = take()
@@ -61,7 +86,7 @@ export function useCanvasHistory<T>(options: {
     if (options.busy?.value) return
 
     const next = take()
-    if (next === current) return
+    if (unchanged(next, current)) return
 
     const now = Date.now()
     // Still inside the idle window: the step already on the stack absorbs
@@ -85,11 +110,11 @@ export function useCanvasHistory<T>(options: {
     },
   )
 
-  function apply(snapshot: string) {
+  function apply(snapshot: T) {
     applying = true
     clearTimeout(timer)
     timer = undefined
-    options.restore(JSON.parse(snapshot) as T)
+    options.restore(snapshot)
     current = snapshot
     lastChangeAt = 0
     // Released after the watcher has seen the write and skipped it.

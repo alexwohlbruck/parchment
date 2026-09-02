@@ -171,6 +171,33 @@ describe('useCanvasHistory', () => {
     editor.dispose()
   })
 
+  it('puts back the document that was there, rather than a copy of it', async () => {
+    const editor = history()
+    const original = editor.body.value
+
+    editor.body.value = withPin(original, 'an-1')
+    await settle()
+    await pause()
+    editor.undo()
+
+    // A step holds the editor's own values: a canvas carrying megabytes of
+    // imported features is never serialised to take one, and undoing back to
+    // what was saved reads as saved rather than as another change.
+    expect(editor.body.value).toBe(original)
+  })
+
+  it('leaves the parts an edit never touched exactly where they were', async () => {
+    const editor = history()
+    const drawing = editor.drawing.value
+
+    editor.body.value = withPin(editor.body.value, 'an-1')
+    await settle()
+    await pause()
+    editor.undo()
+
+    expect(editor.drawing.value).toBe(drawing)
+  })
+
   it('forgets everything when another canvas is loaded', async () => {
     const editor = history()
     editor.body.value = withPin(editor.body.value, 'a')

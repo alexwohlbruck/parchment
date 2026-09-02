@@ -899,7 +899,11 @@ export function useCanvasRendering(
     mountedSources = new Map()
   }
 
-  watch(canvases, render, { deep: true, immediate: true })
+  // Shallow: a canvas body is replaced rather than changed in place, both in
+  // the editor's working copy and in the store, so the list changes identity
+  // whenever anything in it does. A deep watch would only add a walk of every
+  // feature on the canvas — and a canvas can carry megabytes of them.
+  watch(canvases, render, { immediate: true })
 
   // Turning the map to night changes what a label has to be to stay readable,
   // and nothing else would prompt a redraw for it.

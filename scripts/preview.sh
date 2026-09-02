@@ -23,7 +23,9 @@
 #
 # Each preview names its browser tab after the branch's pull request title, or
 # the branch name until there is one, so a row of preview tabs can be told
-# apart. PREVIEW_LABEL=... overrides it.
+# apart. PREVIEW_LABEL=... overrides it. Keep either short — a tab is only a
+# few characters wide once several are open, so two to four words, leading with
+# what tells this preview from the rest.
 #
 # Slot 0 is reserved for the main checkout tracking `dev`: it runs against the
 # real `parchment` database on fixed ports, as a stable always-on instance.

@@ -1060,7 +1060,9 @@
       },
       "notInService": "Not running now",
       "openRouteDetail": "Show {name}",
-      "notInServiceNamed": "{name} isn't running now"
+      "notInServiceNamed": "{name} isn't running now",
+      "transfers": "Transfers",
+      "transfersHint": "Reachable from this station without exiting"
     },
     "header": {
       "showMore": "Show more",

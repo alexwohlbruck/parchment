@@ -4,7 +4,15 @@
 
 ### Changed
 
+* The desktop sidebar has been rebuilt. Rows sit on an even grid at full contrast, the current one is marked by a single raised chip that slides between them, and collapsing or expanding the rail now glides instead of snapping — with the map resizing in step
+* The sidebar remembers whether it was collapsed, and the collapse toggle has moved to the top of the panel, next to the logo. Collapsed, the strip along the sidebar's edge lights up under the cursor and clicking it expands the panel again — `S` still works from anywhere
+* The expanded sidebar can be dragged to whatever width you want, by its outer edge, and it remembers that too. Drag it well past its narrowest and it collapses to the icon rail; drag back out and it returns
+* The account row at the bottom of the sidebar now lines up with the links above it, showing your name against a single line; your email is still in the menu it opens, which is wider and no longer clips a long address
+
 ### Fixed
+
+* The map keeps up with the sidebar as it is dragged or collapsed, resizing frame by frame rather than snapping once the panel has settled
+* Centring on a place, or fitting a route, no longer aims too far to the right when a panel is open over the map. The gutter the map was told to leave on the left included the sidebar's width a second time, even though the map never extended under it — worse the wider the sidebar
 
 ## [0.8.3] - 2026-09-02
 

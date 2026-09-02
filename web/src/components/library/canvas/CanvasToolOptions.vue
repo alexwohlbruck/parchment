@@ -34,6 +34,7 @@ import {
 import { maxMinutesForMode } from '@/lib/isochrone.utils'
 import { themeColorToHex } from '@/lib/utils'
 import {
+  ANNOTATION_STROKE_CAPS,
   ANNOTATION_STROKE_STYLES,
   type AnnotationStrokeStyle,
   type AnnotationTool,
@@ -190,6 +191,33 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
             stroke-width="2"
             stroke-linecap="round"
             :stroke-dasharray="STROKE_DASHES[option] || undefined"
+          />
+        </svg>
+      </button>
+    </span>
+
+    <span v-if="has('strokeCap')" class="flex items-center gap-0.5">
+      <button
+        v-for="option in ANNOTATION_STROKE_CAPS"
+        :key="option"
+        type="button"
+        class="size-8 rounded-md flex items-center justify-center transition-colors hover:bg-accent"
+        :class="style.strokeCap === option && 'bg-accent'"
+        :title="t(`canvases.annotations.strokeCaps.${option}`)"
+        :aria-label="t(`canvases.annotations.strokeCaps.${option}`)"
+        :aria-pressed="style.strokeCap === option"
+        @click="emit('update:style', { strokeCap: option })"
+      >
+        <!-- Drawn thick and short so the end itself is what you see. -->
+        <svg width="18" height="8" viewBox="0 0 18 8" aria-hidden="true">
+          <line
+            x1="5"
+            y1="4"
+            x2="13"
+            y2="4"
+            stroke="currentColor"
+            stroke-width="6"
+            :stroke-linecap="option"
           />
         </svg>
       </button>

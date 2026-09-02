@@ -490,7 +490,9 @@ export function useCanvasRendering(
                 ['==', ['get', 'strokeStyle'], style],
               ],
               layout: {
-                'line-cap': style === 'dotted' ? 'round' : 'butt',
+                // Data-driven in both engines, so one layer covers every cap
+                // — unlike the dash pattern, which is why these split at all.
+                'line-cap': ['get', 'strokeCap'],
                 'line-join': 'round',
               },
               paint: {

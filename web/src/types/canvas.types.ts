@@ -169,11 +169,21 @@ export const ANNOTATION_STROKE_STYLES = ['solid', 'dashed', 'dotted'] as const
 
 export type AnnotationStrokeStyle = (typeof ANNOTATION_STROKE_STYLES)[number]
 
+/**
+ * How a stroke ends. The names are the engines' own (`line-cap`), and both
+ * read it off the feature, so unlike a dash pattern this costs no extra
+ * layer.
+ */
+export const ANNOTATION_STROKE_CAPS = ['round', 'butt', 'square'] as const
+
+export type AnnotationStrokeCap = (typeof ANNOTATION_STROKE_CAPS)[number]
+
 /** What a mark is drawn as when it has not been told otherwise. */
 export const ANNOTATION_STYLE_DEFAULTS = {
   strokeWidth: 3,
   strokeOpacity: 1,
   strokeStyle: 'solid' as AnnotationStrokeStyle,
+  strokeCap: 'round' as AnnotationStrokeCap,
   fillOpacity: 0.18,
   markerSize: MARKER_PLATE_SIZE / 2,
   markerShape: 'disc' as MarkerShape,
@@ -241,6 +251,8 @@ export interface CanvasAnnotation {
   strokeWidth?: number
   strokeOpacity?: number
   strokeStyle?: AnnotationStrokeStyle
+  /** Open shapes only: how the ends of the stroke are finished. */
+  strokeCap?: AnnotationStrokeCap
   /** Areas only. Defaults to the mark's own colour. */
   fillColor?: string
   fillOpacity?: number

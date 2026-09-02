@@ -2489,6 +2489,12 @@
         "solid": "Solid",
         "dashed": "Dashed",
         "dotted": "Dotted"
+      },
+      "strokeCap": "Ends",
+      "strokeCaps": {
+        "round": "Round",
+        "butt": "Flat",
+        "square": "Square"
       }
     },
     "sources": {

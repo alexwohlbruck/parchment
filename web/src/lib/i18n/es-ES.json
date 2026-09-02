@@ -2365,6 +2365,12 @@
         "solid": "Sólido",
         "dashed": "Discontinuo",
         "dotted": "Punteado"
+      },
+      "strokeCap": "Extremos",
+      "strokeCaps": {
+        "round": "Redondos",
+        "butt": "Planos",
+        "square": "Cuadrados"
       }
     },
     "sources": {

@@ -73,6 +73,8 @@ export interface OverlayScene {
   pending?: boolean
   /** A freehand stroke's thickness, where it differs from the default. */
   width?: number
+  /** How the stroke ends, so the preview finishes like the mark will. */
+  cap?: CanvasLineCap
 }
 
 interface OverlayMap {
@@ -136,6 +138,7 @@ export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
       dash?: number[]
       dashOffset?: number
       fill?: boolean
+      cap?: CanvasLineCap
     },
   ) {
     const { geometry } = feature
@@ -143,7 +146,7 @@ export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
     context.strokeStyle = style.color
     context.lineWidth = style.width
     context.lineJoin = 'round'
-    context.lineCap = 'round'
+    context.lineCap = style.cap ?? 'round'
     context.setLineDash(style.dash ?? [])
     context.lineDashOffset = style.dashOffset ?? 0
 
@@ -248,6 +251,7 @@ export function useDrawOverlay(scene: ComputedRef<OverlayScene | null>) {
       paintFeature(context, map, current.shape, {
         color: current.color,
         width: current.width ?? STROKE_WIDTH,
+        cap: current.cap,
         fill: true,
         dash: current.pending ? PENDING_DASH : undefined,
         dashOffset: current.pending

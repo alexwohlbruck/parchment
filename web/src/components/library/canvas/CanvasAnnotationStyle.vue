@@ -29,7 +29,9 @@ import {
 import { hasStyleOption, type DrawOption } from '@/lib/canvas-draw-style'
 import type { MarkerShape } from '@/lib/map-marker'
 import {
+  ANNOTATION_STROKE_CAPS,
   ANNOTATION_STROKE_STYLES,
+  type AnnotationStrokeCap,
   type AnnotationStrokeStyle,
   type CanvasAnnotation,
 } from '@/types/canvas.types'
@@ -50,6 +52,13 @@ const strokeStyles = computed(() =>
   ANNOTATION_STROKE_STYLES.map(value => ({
     value,
     label: t(`canvases.annotations.strokeStyles.${value}`),
+  })),
+)
+
+const strokeCaps = computed(() =>
+  ANNOTATION_STROKE_CAPS.map(value => ({
+    value,
+    label: t(`canvases.annotations.strokeCaps.${value}`),
   })),
 )
 
@@ -96,6 +105,35 @@ function percent(value: number) {
           <SelectContent>
             <SelectItem
               v-for="option in strokeStyles"
+              :key="option.value"
+              :value="option.value"
+              class="text-xs"
+            >
+              {{ option.label }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div
+        v-if="has('strokeCap')"
+        class="flex items-center justify-between gap-3 py-1.5 min-h-7"
+      >
+        <span class="text-xs shrink-0">
+          {{ t('canvases.annotations.strokeCap') }}
+        </span>
+        <Select
+          :model-value="style.strokeCap"
+          @update:model-value="
+            v => emit('update', { strokeCap: v as AnnotationStrokeCap })
+          "
+        >
+          <SelectTrigger class="h-7 w-28 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem
+              v-for="option in strokeCaps"
               :key="option.value"
               :value="option.value"
               class="text-xs"

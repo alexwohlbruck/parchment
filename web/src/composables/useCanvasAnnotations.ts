@@ -537,6 +537,7 @@ export function useCanvasAnnotations(options: {
       guide: guide.value,
       pending: isSnapping.value || isFetchingIsochrone.value,
       width: tool.value === 'doodle' ? resolved.value.strokeWidth : undefined,
+      cap: resolved.value.strokeCap,
       handles: (tool.value === 'doodle' ? [] : positions.value).map((position, index) => ({
         position,
         kind: 'vertex' as const,

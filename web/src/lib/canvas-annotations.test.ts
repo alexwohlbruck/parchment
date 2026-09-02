@@ -638,6 +638,22 @@ describe('annotationStyle', () => {
     })
   })
 
+  it('rounds the ends of a stroke unless told otherwise', () => {
+    expect(annotationStyle(annotation({ tool: 'line' })).strokeCap).toBe('round')
+    expect(
+      annotationStyle(annotation({ tool: 'line', strokeCap: 'square' })).strokeCap,
+    ).toBe('square')
+  })
+
+  it('carries the cap to the feature, where the line layer reads it', () => {
+    // Data-driven in both engines, so it rides on the feature rather than
+    // splitting the stroke into another layer.
+    const feature = annotationFeature(
+      annotation({ tool: 'line', positions: [[0, 0], [1, 1]], strokeCap: 'butt' }),
+    )
+    expect(feature?.properties?.strokeCap).toBe('butt')
+  })
+
   it('gives a doodle the thickness it was drawn at', () => {
     expect(annotationStyle(annotation({ tool: 'doodle' })).strokeWidth).toBe(4)
     expect(

@@ -23,6 +23,15 @@ describe('what a tool can be styled with', () => {
     expect(hasStyleOption('doodle', 'fillColor')).toBe(false)
   })
 
+  it('gives an open shape two ends to finish, and a ring none', () => {
+    expect(hasStyleOption('line', 'strokeCap')).toBe(true)
+    expect(hasStyleOption('doodle', 'strokeCap')).toBe(true)
+    expect(hasStyleOption('route', 'strokeCap')).toBe(true)
+    // A polygon's outline closes on itself, so it has no ends to style.
+    expect(hasStyleOption('polygon', 'strokeCap')).toBe(false)
+    expect(hasStyleOption('pin', 'strokeCap')).toBe(false)
+  })
+
   it('gives a pin its glyph and shape, and no outline', () => {
     expect(hasStyleOption('pin', 'icon')).toBe(true)
     expect(hasStyleOption('pin', 'markerShape')).toBe(true)

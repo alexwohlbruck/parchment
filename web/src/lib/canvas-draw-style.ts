@@ -21,6 +21,7 @@ export type DrawStyle = Partial<
     | 'strokeWidth'
     | 'strokeOpacity'
     | 'strokeStyle'
+    | 'strokeCap'
     | 'fillColor'
     | 'fillOpacity'
     | 'markerSize'
@@ -31,14 +32,17 @@ export type DrawStyle = Partial<
 
 export type DrawOption = keyof DrawStyle
 
-const OUTLINE: DrawOption[] = [
+const STROKE: DrawOption[] = [
   'color',
   'strokeWidth',
   'strokeStyle',
   'strokeOpacity',
 ]
 
-const AREA: DrawOption[] = [...OUTLINE, 'fillColor', 'fillOpacity']
+/** An open shape has two ends to finish; a ring has none. */
+const OUTLINE: DrawOption[] = [...STROKE, 'strokeCap']
+
+const AREA: DrawOption[] = [...STROKE, 'fillColor', 'fillOpacity']
 
 /**
  * What each tool can be styled with, and in the order it should be offered.

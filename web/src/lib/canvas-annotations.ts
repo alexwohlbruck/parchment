@@ -109,6 +109,7 @@ export function annotationStyle(
       annotation.strokeOpacity ?? ANNOTATION_STYLE_DEFAULTS.strokeOpacity,
     strokeStyle:
       annotation.strokeStyle ?? ANNOTATION_STYLE_DEFAULTS.strokeStyle,
+    strokeCap: annotation.strokeCap ?? ANNOTATION_STYLE_DEFAULTS.strokeCap,
     fillColor: resolveColor(annotation.fillColor ?? color),
     fillOpacity:
       annotation.fillOpacity ?? ANNOTATION_STYLE_DEFAULTS.fillOpacity,

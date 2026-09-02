@@ -26,7 +26,12 @@ import {
   annotationStyle,
   DEFAULT_ANNOTATION_COLOR,
 } from '@/lib/canvas-annotations'
-import { hasStyleOption, type DrawOption } from '@/lib/canvas-draw-style'
+import {
+  hasStyleOption,
+  percentLabel,
+  STYLE_RANGES,
+  type DrawOption,
+} from '@/lib/canvas-draw-style'
 import type { MarkerShape } from '@/lib/map-marker'
 import {
   ANNOTATION_STROKE_CAPS,
@@ -61,10 +66,6 @@ const strokeCaps = computed(() =>
     label: t(`canvases.annotations.strokeCaps.${value}`),
   })),
 )
-
-function percent(value: number) {
-  return `${Math.round(value * 100)}%`
-}
 </script>
 
 <template>
@@ -77,9 +78,7 @@ function percent(value: number) {
         <span class="flex items-center gap-2">
           <Slider
             :model-value="[style.strokeWidth]"
-            :min="1"
-            :max="24"
-            :step="1"
+            v-bind="STYLE_RANGES.strokeWidth"
             class="w-24"
             @update:model-value="v => emit('update', { strokeWidth: v?.[0] })"
           />
@@ -151,16 +150,14 @@ function percent(value: number) {
         <span class="flex items-center gap-2">
           <Slider
             :model-value="[style.strokeOpacity * 100]"
-            :min="0"
-            :max="100"
-            :step="5"
+            v-bind="STYLE_RANGES.strokeOpacity"
             class="w-24"
             @update:model-value="
               v => emit('update', { strokeOpacity: (v?.[0] ?? 100) / 100 })
             "
           />
           <span class="w-8 text-right text-xs tabular-nums text-muted-foreground">
-            {{ percent(style.strokeOpacity) }}
+            {{ percentLabel(style.strokeOpacity) }}
           </span>
         </span>
       </div>
@@ -190,16 +187,14 @@ function percent(value: number) {
         <span class="flex items-center gap-2">
           <Slider
             :model-value="[style.fillOpacity * 100]"
-            :min="0"
-            :max="100"
-            :step="5"
+            v-bind="STYLE_RANGES.fillOpacity"
             class="w-24"
             @update:model-value="
               v => emit('update', { fillOpacity: (v?.[0] ?? 0) / 100 })
             "
           />
           <span class="w-8 text-right text-xs tabular-nums text-muted-foreground">
-            {{ percent(style.fillOpacity) }}
+            {{ percentLabel(style.fillOpacity) }}
           </span>
         </span>
       </div>
@@ -231,9 +226,7 @@ function percent(value: number) {
       <span class="flex items-center gap-2">
         <Slider
           :model-value="[style.markerSize]"
-          :min="4"
-          :max="20"
-          :step="0.5"
+          v-bind="STYLE_RANGES.markerSize"
           class="w-24"
           @update:model-value="v => emit('update', { markerSize: v?.[0] })"
         />
@@ -253,9 +246,7 @@ function percent(value: number) {
       <span class="flex items-center gap-2">
         <Slider
           :model-value="[style.labelSize]"
-          :min="8"
-          :max="32"
-          :step="1"
+          v-bind="STYLE_RANGES.labelSize"
           class="w-24"
           @update:model-value="v => emit('update', { labelSize: v?.[0] })"
         />

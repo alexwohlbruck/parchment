@@ -52,6 +52,26 @@ async function seedServerKey() {
   return canvas.id
 }
 
+describe('updateCanvas', () => {
+  test('answers without the document it was just handed', async () => {
+    const id = await seedServerKey()
+
+    const updated = await updateCanvas(id, userId, { name: 'Sunday ride' })
+
+    // A canvas saves itself as it is edited, so the body it just sent is the
+    // one thing the client already holds — echoing it doubled every save.
+    expect(updated?.name).toBe('Sunday ride')
+    expect(updated).not.toHaveProperty('body')
+    expect(updated).not.toHaveProperty('bodyEncrypted')
+    // And it is still there to be read back.
+    expect((await getCanvasById(id, userId))?.body).toEqual({
+      layers: [{ id: 'a', kind: 'library', layerId: 'l1', visible: true }],
+    })
+
+    await deleteCanvas(id, userId)
+  })
+})
+
 describe('changeCanvasScheme', () => {
   test('going private clears every cleartext column', async () => {
     const id = await seedServerKey()

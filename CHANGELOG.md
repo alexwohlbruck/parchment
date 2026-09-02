@@ -38,6 +38,7 @@
 * Pins on a canvas are drawn the way search results are, glyph and all — the icon you choose is the icon on the map, at the same size whatever the zoom. Saved places shrink and fade as you zoom out because the question there is "where have I saved things"; a pin you placed deliberately stays where and what you put it
 * Canvas layers keep their colour on a night basemap. Mapbox dims the map after dark, which is right for buildings and wrong for something you drew, so marks and data layers now light themselves
 * A canvas's layers and marks are one reorderable list now, bottom to top, so what covers what is whatever the list says. Related things can be gathered into a group with its own name and switch
+* Canvases holding large imported datasets stay responsive as you edit them, and save without sending the whole document back and forth
 * A pin on a canvas can be a circle, a square or just its icon. A square reads as a station or a stop the way the basemap already draws them, and a bare icon keeps a busy map quiet
 * Canvases appear in the layer selector under their own group, so one can be switched on or off from the map without opening your library
 
@@ -51,6 +52,10 @@
 * The tick beside a custom colour now applies it and closes the picker, rather than leaving the picker open with nothing apparently happening
 * Escape works again in views that bind it alongside another. Several parts of the app listen for Escape at once, and closing any one of them quietly took the others' handling with it — so Escape could stop dismissing a panel until the page was reloaded
 * Undo and redo on a canvas now work while the cursor is in a text field. Naming a mark and then pressing ⌘Z used to do nothing, though the toolbar button worked
+* Reordering a canvas's layers and marks now changes what covers what on the map straight away, instead of only after something else made it redraw
+* Restyling a canvas layer no longer quietly lifts it above the layers it was sitting under
+* Marks around the one you are reshaping or hiding no longer flicker off the map and back
+* A travel time area is no longer lost when you change its mode or reach while it is still being worked out
 
 ## [0.8.3] - 2026-09-02
 

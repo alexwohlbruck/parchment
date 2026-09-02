@@ -130,11 +130,6 @@ const borrowed = computed(() => {
   }
 })
 
-/**
- * The second line. A data layer says what it is and where it came from — an
- * imported file is worth naming, and a drawn one is worth distinguishing from
- * one that arrived as a file.
- */
 /** Style layers open the layer editor; data layers open their own settings. */
 const isEditable = computed(
   () => props.layer.kind === 'style' || props.layer.kind === 'data',
@@ -153,6 +148,11 @@ const {
   onCommit: name => emit('rename', name),
 })
 
+/**
+ * The second line. A data layer says what it is and where it came from — an
+ * imported file is worth naming, and a drawn one is worth distinguishing from
+ * one that arrived as a file.
+ */
 const subtitle = computed(() => {
   const layer = props.layer
   if (layer.kind !== 'data') return t(`canvases.layers.kinds.${layer.kind}`)
@@ -161,8 +161,6 @@ const subtitle = computed(() => {
   parts.push(t('canvases.layers.featureCount', count))
   return parts.join(' · ')
 })
-
-
 </script>
 
 <template>

@@ -6,6 +6,7 @@ import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useCanvasAnnotations } from './useCanvasAnnotations'
 import { mapEventBus } from '@/lib/eventBus'
+import { fetchIsochroneBands } from '@/lib/isochrone-request'
 import type { CanvasAnnotation } from '@/types/canvas.types'
 import type { DrawStyle } from '@/lib/canvas-draw-style'
 
@@ -21,6 +22,10 @@ import type { DrawStyle } from '@/lib/canvas-draw-style'
 vi.mock('@/lib/route-snapping', () => ({
   RouteSnapAborted: class extends Error {},
   snapWaypointsToPath: vi.fn(async () => null),
+}))
+
+vi.mock('@/lib/isochrone-request', () => ({
+  fetchIsochroneBands: vi.fn(),
 }))
 
 function fakeMap() {
@@ -209,5 +214,70 @@ describe('what the tool is set to', () => {
     expect(mark.color).toBe('compass')
     expect(mark.markerSize).toBeUndefined()
     expect(mark.markerShape).toBeUndefined()
+  })
+})
+
+/**
+ * An isochrone is the one tool whose mark is not finished by the user: the
+ * origin is clicked, the engine supplies the shape, and only then is there
+ * anything to keep. Changing the reach in the meantime asks again — and the
+ * ask it replaces must leave the origin alone, or the answer still on its
+ * way arrives to find nothing to attach itself to.
+ */
+describe('an isochrone whose reach changes while the engine is thinking', () => {
+  const band = {
+    bands: [
+      {
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]],
+        },
+      },
+    ],
+  }
+
+  it('still lands the mark the second answer is for', async () => {
+    useIntegrationsStore()
+    vi.spyOn(useIntegrationsStore(), 'isRoutingActive', 'get').mockReturnValue(
+      true,
+    )
+    const committed: CanvasAnnotation[] = []
+    const fetched = vi.mocked(fetchIsochroneBands)
+
+    // The first ask never answers; it is abandoned when the reach changes.
+    let release: (value: unknown) => void = () => {}
+    fetched.mockImplementationOnce(
+      (({ signal }: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => {
+            const aborted = new Error('aborted')
+            aborted.name = 'AbortError'
+            reject(aborted)
+          })
+        })) as never,
+    )
+    fetched.mockImplementationOnce(
+      (() =>
+        new Promise(resolve => {
+          release = resolve
+        })) as never,
+    )
+
+    const session = tools(annotation => committed.push(annotation))
+    session.arm('isochrone')
+    mapEventBus.emit('click', { lngLat: { lng: 1, lat: 2 } } as never)
+    await Promise.resolve()
+
+    session.isochroneMinutes.value = 30
+    // Let the abandoned ask reject before the live one answers.
+    await Promise.resolve()
+    await Promise.resolve()
+    release(band)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(committed).toHaveLength(1)
+    expect(committed[0].isochrone?.minutes).toBe(30)
+    session.dispose()
   })
 })

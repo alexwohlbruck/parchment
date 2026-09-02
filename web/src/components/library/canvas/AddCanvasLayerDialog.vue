@@ -19,7 +19,7 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { fuzzyFilter, type ThemeColor } from '@/lib/utils'
-import type { CanvasLayer } from '@/types/canvas.types'
+import { newCanvasId, type CanvasLayer } from '@/types/canvas.types'
 import { SearchIcon } from 'lucide-vue-next'
 
 const open = defineModel<boolean>('open', { required: true })
@@ -66,7 +66,7 @@ const filteredCollections = computed(() => filtered(collections.value))
 const filteredRoutes = computed(() => filtered(routes.value))
 
 function newId() {
-  return `cl-${Math.random().toString(36).slice(2, 10)}`
+  return newCanvasId('cl')
 }
 
 function addLibraryLayer(layerId: string) {

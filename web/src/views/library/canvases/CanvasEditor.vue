@@ -8,7 +8,15 @@
  * Save; leaving with unsaved work asks first, which is also what the sheet's
  * close button ends up doing.
  */
-import { computed, nextTick, onScopeDispose, provide, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onScopeDispose,
+  provide,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -60,6 +68,7 @@ import type { ThemeColor } from '@/lib/utils'
 import {
   cloneCanvasBody,
   emptyCanvasBody,
+  newCanvasId,
   type CanvasAnnotation,
   type CanvasBody,
   type CanvasDataLayer,
@@ -107,19 +116,28 @@ const { canvases } = storeToRefs(canvasesStore)
 
 const canvas = computed(() => canvases.value.find(c => c.id === props.id))
 
-/** The working copy. Nothing here reaches the server until Save. */
+/** The working copy. Nothing here reaches the server until it is saved. */
 const body = ref<CanvasBody>(emptyCanvasBody())
-const pristine = ref('')
+/**
+ * The body that is on the server, held by identity rather than by a copy of
+ * its text.
+ *
+ * Every edit replaces the body rather than changing it in place, so "has
+ * anything moved" is one comparison — where serialising a canvas that can
+ * carry megabytes of imported GeoJSON was the most expensive thing a
+ * keystroke did. It also means undoing back to what was saved reads as
+ * saved, since the step put the very same body back.
+ */
+const saved = shallowRef<CanvasBody | null>(null)
 const loading = ref(true)
 const saving = ref(false)
 
 function load() {
   body.value = cloneCanvasBody(canvas.value?.body)
-  pristine.value = JSON.stringify(body.value)
+  saved.value = body.value
   // Nothing before the canvas was opened is undoable.
   history.reset()
 }
-
 
 
 // A cold load (opened from a link, or after a reload) has neither the canvas
@@ -140,14 +158,10 @@ function load() {
   }
 })()
 
-const isDirty = computed(() => JSON.stringify(body.value) !== pristine.value)
+const isDirty = computed(() => body.value !== saved.value)
 
 // ── Annotations ──────────────────────────────────────────────────────────────
 
-/**
- * Marks made on the canvas rather than data brought to it. They live in their
- * own bucket, so drawing never asks the user to create a layer first.
- */
 /**
  * The row the panel is pointed at, whichever kind it is. A selected mark also
  * opens into its properties and takes the map's halo; a selected layer just
@@ -203,13 +217,12 @@ watch(selectedAnnotationId, id => {
  * half-drawn on it. See `useCanvasHistory` for why they can't be separate.
  */
 const history = useCanvasHistory({
-  snapshot: () => ({
-    body: body.value,
-    drawing: annotations.snapshot(),
-  }),
+  // Flat, and every part replaced rather than changed in place, which is
+  // what lets a step be the values themselves — see `useCanvasHistory`.
+  snapshot: () => ({ body: body.value, ...annotations.snapshot() }),
   restore: snapshot => {
     body.value = snapshot.body
-    annotations.restore(snapshot.drawing)
+    annotations.restore(snapshot)
   },
   busy: annotations.isBusy,
 })
@@ -407,7 +420,7 @@ function addLayer(layer: CanvasLayer) {
   nextTick(() => fitToLayer(props.id, layer))
 }
 
-async function removeLayer(id: string) {
+function removeLayer(id: string) {
   if (selectedId.value === id) selectedId.value = null
   body.value = removeFromStack(
     { ...body.value, layers: body.value.layers.filter(l => l.id !== id) },
@@ -475,7 +488,7 @@ function patchGroup(id: string, patch: Partial<CanvasGroup>) {
  */
 function addGroup() {
   const group: CanvasGroup = {
-    id: `cg-${Math.random().toString(36).slice(2, 10)}`,
+    id: newCanvasId('cg'),
     name: t('canvases.groups.untitled'),
     visible: true,
     children: [],
@@ -545,16 +558,11 @@ function patchDataLayer(patch: Partial<CanvasDataLayer>) {
   patchLayer(editingDataLayerId.value, patch as Partial<CanvasLayer>)
 }
 
-
 // ── Adding layers ────────────────────────────────────────────────────────────
 
 const sourcesOpen = ref(false)
 const addOpen = ref(false)
 const pickerStep = ref<'library' | 'collection' | 'route' | null>(null)
-
-function newLayerId() {
-  return `cl-${Math.random().toString(36).slice(2, 10)}`
-}
 
 function createStyleLayer() {
   router.push({ name: AppRoute.LAYER_EDITOR_NEW, query: { canvas: props.id } })
@@ -568,7 +576,7 @@ function createStyleLayer() {
 function addLibrarySource(source: DataSourceDefinition) {
   if (source.layer.type === 'style') {
     addLayer({
-      id: newLayerId(),
+      id: newCanvasId('cl'),
       kind: 'style',
       name: source.name,
       visible: true,
@@ -578,7 +586,7 @@ function addLibrarySource(source: DataSourceDefinition) {
   }
 
   addLayer({
-    id: newLayerId(),
+    id: newCanvasId('cl'),
     kind: 'data',
     name: source.name,
     visible: true,
@@ -599,7 +607,7 @@ function addImportedData(result: {
   const collection = result.collection as CanvasDataLayer['data']
   const render = inferRender(countGeometries(collection))
   addLayer({
-    id: newLayerId(),
+    id: newCanvasId('cl'),
     kind: 'data',
     name: result.name,
     visible: true,
@@ -651,7 +659,7 @@ const addMenuItems = computed(() => [
     label: t('canvases.add.options.people.title'),
     icon: UsersIcon,
     onSelect: () =>
-      addLayer({ id: newLayerId(), kind: 'people', visible: true }),
+      addLayer({ id: newCanvasId('cl'), kind: 'people', visible: true }),
   },
   { type: 'separator' as const },
   { type: 'label' as const, label: t('canvases.add.groups.data') },
@@ -708,13 +716,13 @@ async function save() {
 
   clearTimeout(saveTimer)
   saveTimer = undefined
-  const attempted = JSON.stringify(body.value)
+  const attempted = body.value
   saving.value = true
   try {
-    const saved = await canvasesService.saveBody(canvas.value, body.value)
-    // `pristine` records what actually reached the server, not what the
-    // working copy holds now — it may have moved on while this was away.
-    if (saved) pristine.value = attempted
+    const written = await canvasesService.saveBody(canvas.value, attempted)
+    // What actually reached the server, not what the working copy holds now
+    // — it may have moved on while this was away.
+    if (written) saved.value = attempted
   } finally {
     saving.value = false
     if (saveAgain) {
@@ -724,15 +732,13 @@ async function save() {
   }
 }
 
-watch(
-  body,
-  () => {
-    if (!canvas.value || !isDirty.value) return
-    clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => void save(), SAVE_DEBOUNCE_MS)
-  },
-  { deep: true },
-)
+// Shallow: every edit replaces the body, so there is nothing a deep watch
+// would catch — only a walk of every feature in it to find that out.
+watch(body, () => {
+  if (!canvas.value || !isDirty.value) return
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => void save(), SAVE_DEBOUNCE_MS)
+})
 
 // Closing the editor shouldn't drop the last second of work.
 onScopeDispose(() => {

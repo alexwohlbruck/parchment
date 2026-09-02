@@ -27,6 +27,7 @@ import {
 } from '@/lib/map-marker'
 import {
   ANNOTATION_STYLE_DEFAULTS,
+  newCanvasId,
   type AnnotationLabelPosition,
   type AnnotationTool,
   type CanvasAnnotation,
@@ -507,7 +508,7 @@ export function createAnnotation(
   routed?: CanvasAnnotation['routed'],
 ): CanvasAnnotation {
   const annotation: CanvasAnnotation = {
-    id: `an-${Math.random().toString(36).slice(2, 10)}`,
+    id: newCanvasId('an'),
     tool,
     positions,
     color: DEFAULT_ANNOTATION_COLOR,

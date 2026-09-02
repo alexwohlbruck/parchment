@@ -14,11 +14,9 @@
 
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type { Position } from 'geojson'
-import { useMapStore } from '@/stores/map.store'
-import {
-  RouteSnapAborted,
-  snapWaypointsToPath,
-} from '@/lib/route-snapping'
+import { useDrawingSurface } from '@/composables/useDrawingSurface'
+import { snapWaypointsToPath } from '@/lib/route-snapping'
+import { SUPERSEDED, useLatestRequest } from '@/composables/useLatestRequest'
 import { fetchIsochroneBands } from '@/lib/isochrone-request'
 import { contourDurations } from '@/lib/isochrone.utils'
 import type { IsochroneMode } from '@server/types/isochrone.types'
@@ -50,13 +48,6 @@ import { themeColorToHex } from '@/lib/utils'
 const GRAB_PX = VERTEX_NEAR_PX
 const MIDPOINT_GRAB_PX = INSERT_THRESHOLD_PX
 
-interface EditableMap {
-  project: (position: Position) => { x: number; y: number }
-  unproject: (point: [number, number]) => { lng: number; lat: number }
-  getCanvas: () => HTMLCanvasElement
-  dragPan?: { enable: () => void; disable: () => void }
-}
-
 type Grab = AnnotationNode & { pointerId: number }
 
 export function useAnnotationEditing(options: {
@@ -66,7 +57,15 @@ export function useAnnotationEditing(options: {
   enabled: Ref<boolean>
   onChange: (id: string, patch: Partial<CanvasAnnotation>) => void
 }) {
-  const mapStore = useMapStore()
+  const surface = useDrawingSurface()
+
+  /**
+   * A route's path and an isochrone's reach both have to be asked for again
+   * when their origin moves, and a drag asks repeatedly — so each keeps only
+   * its newest ask. See `useLatestRequest`.
+   */
+  const snapping = useLatestRequest('failed to re-snap a route')
+  const reaching = useLatestRequest('failed to move an isochrone')
 
   /** The live position of the handle being dragged, before it is written. */
   const dragging = ref<Grab | null>(null)
@@ -79,10 +78,6 @@ export function useAnnotationEditing(options: {
       options.annotations.value.find(a => a.id === options.selectedId.value) ??
       null,
   )
-
-  function mapInstance(): EditableMap | undefined {
-    return mapStore.getMapStrategy()?.mapInstance as EditableMap | undefined
-  }
 
   /** The mark as it looks right now, drag included. */
   const edited = computed<CanvasAnnotation | null>(() => {
@@ -161,15 +156,6 @@ export function useAnnotationEditing(options: {
     dragging.value ? (selected.value?.id ?? null) : null,
   )
 
-  function pointToPosition(map: EditableMap, event: PointerEvent): Position {
-    const rect = map.getCanvas().getBoundingClientRect()
-    const { lng, lat } = map.unproject([
-      event.clientX - rect.left,
-      event.clientY - rect.top,
-    ])
-    return [lng, lat]
-  }
-
   type Hit =
     | { kind: 'node'; node: AnnotationNode; nodeIndex: number }
     | { kind: 'midpoint'; midpoint: { index: number; position: Position } }
@@ -182,9 +168,10 @@ export function useAnnotationEditing(options: {
    * taking them in order would make one of them impossible to pick up.
    * Vertices are tried before midpoints, since a midpoint is only an offer.
    */
-  function hitTest(map: EditableMap, x: number, y: number): Hit | null {
-    const distance = (position: Position) =>
-      distancePx(map.project(position), { x, y })
+  function hitTest(at: { x: number; y: number }): Hit | null {
+    const project = surface.map()?.project
+    if (!project) return null
+    const distance = (position: Position) => distancePx(project(position), at)
 
     let closest: { index: number; away: number } | null = null
     nodes.value.forEach((node, index) => {
@@ -205,24 +192,16 @@ export function useAnnotationEditing(options: {
     return null
   }
 
-  function relative(map: EditableMap, event: PointerEvent) {
-    const rect = map.getCanvas().getBoundingClientRect()
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top }
-  }
-
   function onPointerDown(event: PointerEvent) {
     if (!options.enabled.value || !selected.value) return
-    const map = mapInstance()
-    if (!map) return
-
-    const { x, y } = relative(map, event)
-    const hit = hitTest(map, x, y)
+    const at = surface.pointAt(event)
+    const hit = at && hitTest(at)
     if (!hit) return
 
     // The map would otherwise start panning under the drag.
     event.preventDefault()
     event.stopPropagation()
-    map.dragPan?.disable()
+    surface.setPanning(false)
 
     if (hit.kind === 'midpoint') {
       // Dragging a midpoint turns it into a real vertex, and then drags that.
@@ -243,12 +222,12 @@ export function useAnnotationEditing(options: {
       dragPosition.value = hit.node.position
     }
 
-    map.getCanvas().style.cursor = 'grabbing'
+    surface.setCursor('grabbing')
     // Capture so the release still arrives if the pointer leaves the window
     // mid-drag. Without it a drag let go outside the page never ends, and the
     // mark stays held out of the style — invisible until the page reloads.
     try {
-      map.getCanvas().setPointerCapture(event.pointerId)
+      surface.element()?.setPointerCapture(event.pointerId)
     } catch {
       // Capture is a nicety; the window listeners below are the guarantee.
     }
@@ -259,10 +238,8 @@ export function useAnnotationEditing(options: {
   }
 
   function onPointerMove(event: PointerEvent) {
-    const map = mapInstance()
-    if (!map || !dragging.value) return
-    if (event.pointerId !== dragging.value.pointerId) return
-    dragPosition.value = pointToPosition(map, event)
+    if (event.pointerId !== dragging.value?.pointerId) return
+    dragPosition.value = surface.positionAt(event) ?? dragPosition.value
   }
 
   /** Hovering a handle without pressing, so it can say it is grabbable. */
@@ -272,36 +249,31 @@ export function useAnnotationEditing(options: {
       hovered.value = null
       return
     }
-    const map = mapInstance()
-    if (!map) return
-    const { x, y } = relative(map, event)
-    const hit = hitTest(map, x, y)
+    const at = surface.pointAt(event)
+    if (!at) return
+    const hit = hitTest(at)
     const next = hit?.kind === 'node' ? hit.nodeIndex : null
     if (next === hovered.value && !hit) return
     hovered.value = next
     // A handle you can pick up should look like one.
-    const canvas = map.getCanvas()
-    if (hit) canvas.style.cursor = 'grab'
-    else if (canvas.style.cursor === 'grab') canvas.style.cursor = ''
+    if (hit) surface.setCursor('grab')
+    else surface.clearCursor('grab')
   }
 
   /** Put everything back, whether the drag finished or was taken away. */
   function endDrag(): { annotation: CanvasAnnotation; grab: Grab; to: Position } | null {
     const grab = dragging.value
-    const map = mapInstance()
     window.removeEventListener('pointermove', onPointerMove)
     window.removeEventListener('pointerup', onPointerUp)
     window.removeEventListener('pointercancel', onPointerUp)
     window.removeEventListener('blur', endDrag)
-    map?.dragPan?.enable()
-    if (map) {
-      map.getCanvas().style.cursor = ''
-      if (grab) {
-        try {
-          map.getCanvas().releasePointerCapture(grab.pointerId)
-        } catch {
-          // Already released, or never captured.
-        }
+    surface.setPanning(true)
+    surface.setCursor('')
+    if (grab) {
+      try {
+        surface.element()?.releasePointerCapture(grab.pointerId)
+      } catch {
+        // Already released, or never captured.
       }
     }
 
@@ -344,43 +316,34 @@ export function useAnnotationEditing(options: {
     const previous = annotation.isochrone
     if (!origin || !previous) return
 
-    snapRequest?.abort()
-    const controller = new AbortController()
-    snapRequest = controller
-    try {
-      const { bands } = await fetchIsochroneBands({
+    const answer = await reaching.run(signal =>
+      fetchIsochroneBands({
         origin: { lng: origin[0], lat: origin[1] },
         mode: previous.mode as IsochroneMode,
         durations: contourDurations(previous.minutes, 1),
-        signal: controller.signal,
-      })
-      const geometry = bands[bands.length - 1]?.geometry
-      if (!geometry) return
-      options.onChange(annotation.id, {
-        isochrone: {
-          ...previous,
-          geometry:
-            geometry.type === 'Polygon'
-              ? geometry.coordinates
-              : geometry.coordinates.flat(),
-        },
-      })
-    } catch (error) {
-      if (!(error as Error)?.name?.includes('Abort')) {
-        console.error('[canvas] failed to move an isochrone', error)
-      }
-    } finally {
-      if (snapRequest === controller) snapRequest = undefined
-    }
+        signal,
+      }),
+    )
+    if (!answer || answer === SUPERSEDED) return
+    const geometry = answer.bands[answer.bands.length - 1]?.geometry
+    if (!geometry) return
+
+    options.onChange(annotation.id, {
+      isochrone: {
+        ...previous,
+        geometry:
+          geometry.type === 'Polygon'
+            ? geometry.coordinates
+            : geometry.coordinates.flat(),
+      },
+    })
   }
 
   /** Double-clicking a vertex takes it out, if the shape can spare it. */
   function onDoubleClick(event: PointerEvent) {
     if (!options.enabled.value || !selected.value) return
-    const map = mapInstance()
-    if (!map) return
-    const { x, y } = relative(map, event)
-    const hit = hitTest(map, x, y)
+    const at = surface.pointAt(event)
+    const hit = at && hitTest(at)
     if (hit?.kind !== 'node' || hit.node.kind === 'radius') return
 
     const patch = removeNode(selected.value, hit.node.index)
@@ -393,34 +356,24 @@ export function useAnnotationEditing(options: {
     }
   }
 
-  let snapRequest: AbortController | undefined
-
   async function resnap(annotation: CanvasAnnotation) {
-    snapRequest?.abort()
-    const controller = new AbortController()
-    snapRequest = controller
-    try {
-      const path = await snapWaypointsToPath({
+    const mode = annotation.routed?.mode ?? 'walking'
+    const path = await snapping.run(signal =>
+      snapWaypointsToPath({
         waypoints: annotation.positions.map(([lng, lat]) => ({ lat, lng })),
-        mode: annotation.routed?.mode ?? 'walking',
-        signal: controller.signal,
-      })
-      if (!path) return
-      options.onChange(annotation.id, {
-        routed: {
-          geometry: path.geometry,
-          mode: annotation.routed?.mode ?? 'walking',
-          distance: path.stats.distance,
-          duration: path.stats.duration,
-        },
-      })
-    } catch (error) {
-      if (!(error instanceof RouteSnapAborted)) {
-        console.error('[canvas] failed to re-snap a route', error)
-      }
-    } finally {
-      if (snapRequest === controller) snapRequest = undefined
-    }
+        mode,
+        signal,
+      }),
+    )
+    if (!path || path === SUPERSEDED) return
+    options.onChange(annotation.id, {
+      routed: {
+        geometry: path.geometry,
+        mode,
+        distance: path.stats.distance,
+        duration: path.stats.duration,
+      },
+    })
   }
 
   /**
@@ -429,8 +382,7 @@ export function useAnnotationEditing(options: {
    * win the press before panning starts.
    */
   function listen(active: boolean) {
-    const map = mapInstance()
-    const canvas = map?.getCanvas()
+    const canvas = surface.element()
     if (!canvas) return
     canvas.removeEventListener('pointerdown', onPointerDown, true)
     canvas.removeEventListener('pointermove', onHoverMove)
@@ -449,7 +401,6 @@ export function useAnnotationEditing(options: {
 
   onScopeDispose(() => {
     listen(false)
-    snapRequest?.abort()
     endDrag()
   })
 

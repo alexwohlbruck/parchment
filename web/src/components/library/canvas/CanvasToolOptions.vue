@@ -33,6 +33,8 @@ import {
 import { annotationStyle } from '@/lib/canvas-annotations'
 import {
   hasStyleOption,
+  percentLabel,
+  STYLE_RANGES,
   type DrawStyle,
 } from '@/lib/canvas-draw-style'
 import { maxMinutesForMode } from '@/lib/isochrone.utils'
@@ -73,8 +75,6 @@ const style = computed(() => annotationStyle({ tool: props.tool, ...props.style 
 const color = computed(() => props.style.color ?? 'compass')
 const has = (option: Parameters<typeof hasStyleOption>[1]) =>
   hasStyleOption(props.tool, option)
-
-const percent = (value: number) => `${Math.round(value * 100)}%`
 
 /** A dash pattern is shown as one, not named. */
 const STROKE_DASHES: Record<AnnotationStrokeStyle, string> = {
@@ -143,9 +143,7 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
       v-if="has('markerSize')"
       :label="t('canvases.annotations.markerSize')"
       :model-value="style.markerSize"
-      :min="4"
-      :max="20"
-      :step="0.5"
+      v-bind="STYLE_RANGES.markerSize"
       @update:model-value="markerSize => emit('update:style', { markerSize })"
     >
       <template #glyph>
@@ -166,9 +164,7 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
       v-if="has('strokeWidth')"
       :label="t('canvases.annotations.strokeWidth')"
       :model-value="style.strokeWidth"
-      :min="1"
-      :max="24"
-      :step="1"
+      v-bind="STYLE_RANGES.strokeWidth"
       @update:model-value="strokeWidth => emit('update:style', { strokeWidth })"
     >
       <template #glyph>
@@ -237,10 +233,8 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
       v-if="has('strokeOpacity')"
       :label="t('canvases.annotations.strokeOpacity')"
       :model-value="style.strokeOpacity * 100"
-      :display="percent(style.strokeOpacity)"
-      :min="0"
-      :max="100"
-      :step="5"
+      :display="percentLabel(style.strokeOpacity)"
+      v-bind="STYLE_RANGES.strokeOpacity"
       @update:model-value="
         value => emit('update:style', { strokeOpacity: value / 100 })
       "
@@ -271,10 +265,8 @@ const maxMinutes = computed(() => maxMinutesForMode(props.isochroneMode))
       <CanvasToolNumber
         :label="t('canvases.annotations.fillOpacity')"
         :model-value="style.fillOpacity * 100"
-        :display="percent(style.fillOpacity)"
-        :min="0"
-        :max="100"
-        :step="5"
+        :display="percentLabel(style.fillOpacity)"
+        v-bind="STYLE_RANGES.fillOpacity"
         @update:model-value="
           value => emit('update:style', { fillOpacity: value / 100 })
         "

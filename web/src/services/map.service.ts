@@ -31,7 +31,11 @@ import { useTimelineLayerService } from '@/services/layers/features/timeline-lay
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useAppStore } from '../stores/app.store'
-import { calculateFitPadding, type Padding } from '@/lib/map-padding'
+import {
+  calculateFitPadding,
+  toContainerRect,
+  type Padding,
+} from '@/lib/map-padding'
 import {
   findGriddedCity,
   gridOrientations,
@@ -617,7 +621,12 @@ function mapService() {
       return null
     }
 
-    const visibleArea = appStore.visibleMapArea
+    // Obstruction bounds are viewport-space; everything below is relative to
+    // the canvas, which the sidebar has already pushed off the viewport edge.
+    const visibleArea = toContainerRect(
+      appStore.visibleMapArea,
+      mapContainer.getBoundingClientRect(),
+    )
     const mapWidth = mapContainer.clientWidth
     const mapHeight = mapContainer.clientHeight
 
@@ -723,7 +732,10 @@ function mapService() {
     // on top of the computed one — useful for cases that want an extra
     // buffer around the fitted content beyond the default breathing room.
     const basePadding = calculateFitPadding(
-      appStore.visibleMapArea,
+      toContainerRect(
+        appStore.visibleMapArea,
+        mapContainer.getBoundingClientRect(),
+      ),
       mapContainer.clientWidth,
       mapContainer.clientHeight,
     )
@@ -1470,10 +1482,17 @@ function mapService() {
       const map = mapStrategy?.mapInstance
       if (!map?.unproject) return mapStrategy?.getBounds() || null
 
-      const visibleArea = appStore.visibleMapArea
-      if (!visibleArea || !visibleArea.width || !visibleArea.height) {
+      const viewportArea = appStore.visibleMapArea
+      if (!viewportArea || !viewportArea.width || !viewportArea.height) {
         return mapStrategy?.getBounds() || null
       }
+
+      // `unproject` reads container-relative pixels, and the obstruction
+      // bounds are viewport-relative — on desktop the sidebar sits between
+      // the two origins.
+      const visibleArea = mapContainer
+        ? toContainerRect(viewportArea, mapContainer.getBoundingClientRect())
+        : viewportArea
 
       // Unproject the four corners of the visible area rect (pixel → lng/lat)
       const nw = map.unproject([visibleArea.x, visibleArea.y])

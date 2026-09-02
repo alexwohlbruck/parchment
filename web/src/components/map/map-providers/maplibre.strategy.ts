@@ -61,7 +61,7 @@ import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
-import { calculateFitPadding } from '@/lib/map-padding'
+import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import {
@@ -1429,7 +1429,10 @@ export class MaplibreStrategy extends MapStrategy {
 
     const appStore = useAppStore()
     const padding = calculateFitPadding(
-      appStore.visibleMapArea,
+      toContainerRect(
+        appStore.visibleMapArea,
+        this.container.getBoundingClientRect(),
+      ),
       this.container.clientWidth,
       this.container.clientHeight,
     )

@@ -141,6 +141,15 @@ interface TagGroup {
   subtags: Array<{ subKey: string; fullKey: string; value: string }>
 }
 
+interface TagValueRow {
+  id: string
+  label: string
+  fullKey: string
+  text: string
+  rawValue: string
+  href?: string
+}
+
 const tags = computed(() => props.data.data.value as Record<string, string>)
 
 const groupedTags = computed((): TagGroup[] => {
@@ -176,20 +185,44 @@ const groupedTags = computed((): TagGroup[] => {
 
 const hasListTags = computed(() => groupedTags.value.length > 0)
 
-/** Build a plain-text copy string for a tag group */
-function copyText(group: TagGroup): string {
-  const lines: string[] = []
-  if (group.rootValue !== undefined) {
-    lines.push(formatValue(group.rootKey, group.rootValue).text)
-  }
-  for (const sub of group.subtags) {
-    lines.push(`${tagLabel(sub.subKey)}: ${formatValue(sub.fullKey, sub.value).text}`)
-  }
-  return lines.join('\n')
+function subtagLabel(sub: TagGroup['subtags'][number]): string {
+  const fullKeyLabel = getOsmTagLabel(sub.fullKey)
+  if (fullKeyLabel !== formatWord(sub.fullKey)) return tagLabel(sub.fullKey)
+  return tagLabel(sub.subKey)
 }
 
-function tagCopyMessage(rootKey: string): string {
-  return t('place.osmTags.copiedMessage', { label: tagLabel(rootKey) })
+function valueRows(group: TagGroup): TagValueRow[] {
+  const rows: TagValueRow[] = []
+
+  if (group.rootValue !== undefined) {
+    const formatted = formatValue(group.rootKey, group.rootValue)
+    rows.push({
+      id: group.rootKey,
+      label: tagLabel(group.rootKey),
+      fullKey: group.rootKey,
+      text: formatted.text,
+      rawValue: group.rootValue,
+      href: formatted.href,
+    })
+  }
+
+  for (const sub of group.subtags) {
+    const formatted = formatValue(sub.fullKey, sub.value)
+    rows.push({
+      id: sub.fullKey,
+      label: subtagLabel(sub),
+      fullKey: sub.fullKey,
+      text: formatted.text,
+      rawValue: sub.value,
+      href: formatted.href,
+    })
+  }
+
+  return rows
+}
+
+function valueCopyMessage(label: string): string {
+  return t('place.osmTags.copiedMessage', { label })
 }
 </script>
 
@@ -200,73 +233,72 @@ function tagCopyMessage(rootKey: string): string {
         <div
           v-for="group in groupedTags"
           :key="group.rootKey"
-          class="flex gap-3 items-center min-w-0 group"
+          class="group relative flex min-w-0 items-start gap-3"
         >
-          <!-- Icon — vertically centered relative to the full row -->
           <component
             :is="getOsmTagIcon(group.rootKey)"
-            class="size-4 shrink-0 text-muted-foreground"
+            class="mt-0.5 size-4 shrink-0 text-muted-foreground"
           />
 
-          <!-- Label + value(s) -->
-          <div class="flex flex-col flex-1 min-w-0">
-            <!-- Row label -->
-            <div class="text-sm text-muted-foreground leading-tight">
+          <div class="flex min-w-0 flex-1 flex-col">
+            <div class="min-w-0 pr-7 text-sm leading-tight text-muted-foreground">
               {{ tagLabel(group.rootKey) }}
             </div>
 
-            <!-- Root value (if present) -->
-            <div v-if="group.rootValue !== undefined" class="leading-snug break-words">
-              <a
-                v-if="formatValue(group.rootKey, group.rootValue).href"
-                :href="formatValue(group.rootKey, group.rootValue).href"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-primary hover:underline break-all"
-              >
-                {{ formatValue(group.rootKey, group.rootValue).text }}
-              </a>
-              <span v-else>{{ formatValue(group.rootKey, group.rootValue).text }}</span>
-            </div>
-
-            <!-- Sub-tags (e.g. toilets:access, internet_access:fee) -->
             <div
-              v-for="sub in group.subtags"
-              :key="sub.fullKey"
-              class="text-sm text-muted-foreground leading-snug"
+              :class="[
+                'min-w-0',
+                group.subtags.length > 0 ? 'mt-1 divide-y divide-border/50' : '',
+              ]"
             >
-              <span class="font-medium text-foreground/70">{{ tagLabel(sub.subKey) }}:</span>
-              {{ ' ' }}
-              <a
-                v-if="formatValue(sub.fullKey, sub.value).href"
-                :href="formatValue(sub.fullKey, sub.value).href"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="text-primary hover:underline break-all"
+              <div
+                v-for="row in valueRows(group)"
+                :key="row.id"
+                class="flex min-w-0 items-center gap-2"
+                :class="group.subtags.length > 0 ? 'min-h-8 py-1' : ''"
               >
-                {{ formatValue(sub.fullKey, sub.value).text }}
-              </a>
-              <span v-else>{{ formatValue(sub.fullKey, sub.value).text }}</span>
+                <div
+                  v-if="row.fullKey !== group.rootKey"
+                  class="w-24 shrink-0 truncate text-xs text-muted-foreground"
+                  :title="row.label"
+                >
+                  {{ row.label }}
+                </div>
+                <div
+                  class="min-w-0 flex-1 break-words leading-snug text-foreground"
+                  :class="group.subtags.length > 0 ? 'text-sm' : 'text-[15px]'"
+                >
+                  <a
+                    v-if="row.href"
+                    :href="row.href"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="break-all text-primary hover:underline"
+                  >
+                    {{ row.text }}
+                  </a>
+                  <span v-else>{{ row.text }}</span>
+                </div>
+
+                <CopyButton
+                  :text="row.rawValue"
+                  :message="valueCopyMessage(row.label)"
+                  class="-mr-1 shrink-0 opacity-60 transition-opacity hover:opacity-100"
+                />
+              </div>
             </div>
           </div>
 
-          <!-- Hover actions: copy + OSM link -->
-          <div class="flex opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <CopyButton
-              :text="copyText(group)"
-              :message="tagCopyMessage(group.rootKey)"
-            />
-            <a
-              v-if="osmUrlWithCoords"
-              :href="osmUrlWithCoords"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="p-1 hover:bg-muted rounded"
-              :title="t('place.osmTags.viewOnOpenStreetMap')"
-            >
-              <ExternalLinkIcon class="w-4 h-4 text-muted-foreground" />
-            </a>
-          </div>
+          <a
+            v-if="osmUrlWithCoords"
+            :href="osmUrlWithCoords"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="absolute -right-1 -top-1 rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+            :title="t('place.osmTags.viewOnOpenStreetMap')"
+          >
+            <ExternalLinkIcon class="h-4 w-4 text-muted-foreground" />
+          </a>
         </div>
       </div>
     </template>

@@ -27,16 +27,14 @@ import { useStreetViewLayersService } from '@/services/layers/features/street-vi
 
 import MapChips from '@/components/map/MapChips.vue'
 import WeatherControl from '@/components/map/controls/WeatherControl.vue'
-import MapToolbox from '@/components/map/controls/MapToolbox.vue'
 import MeasureTool from '@/components/map/measure/MeasureTool.vue'
 import RadiusTool from '@/components/map/measure/RadiusTool.vue'
 import IsochroneTool from '@/components/map/measure/IsochroneTool.vue'
 import { useMapToolsStore } from '@/stores/map-tools.store'
-import { useMapStore } from '@/stores/map.store'
 import { useSearchStore } from '@/stores/search.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { ControlVisibility, LayerType } from '@/types/map.types'
+import { LayerType } from '@/types/map.types'
 import { usePlaceService } from '@/services/place.service'
 import { SearchIcon } from 'lucide-vue-next'
 
@@ -49,18 +47,10 @@ const layersStore = useLayersStore()
 const { layers } = storeToRefs(layersStore)
 const streetViewLayersService = useStreetViewLayersService()
 const mapToolsStore = useMapToolsStore()
-const mapStore = useMapStore()
 const searchStore = useSearchStore()
 const vehiclesStore = useVehiclesStore()
 const directionsStore = useDirectionsStore()
 const { currentPlace } = usePlaceService()
-const { controlSettings } = storeToRefs(mapStore)
-const showToolbox = computed(
-  () =>
-    (controlSettings.value.toolbox ?? ControlVisibility.ALWAYS) ===
-    ControlVisibility.ALWAYS,
-)
-
 const isBottomSheetView = computed(() => {
   const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
   const isNotDialog = !route.meta.dialog
@@ -525,7 +515,6 @@ defineExpose({
               <!-- Right top -->
               <div class="pointer-events-auto flex flex-col gap-2">
                 <ZoomControl />
-                <MapToolbox v-if="showToolbox" />
                 <CompassControl />
               </div>
 

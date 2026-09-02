@@ -68,6 +68,7 @@ import type { ThemeColor } from '@/lib/utils'
 import {
   cloneCanvasBody,
   emptyCanvasBody,
+  newCanvasId,
   type CanvasAnnotation,
   type CanvasBody,
   type CanvasDataLayer,
@@ -161,10 +162,6 @@ const isDirty = computed(() => body.value !== saved.value)
 
 // ── Annotations ──────────────────────────────────────────────────────────────
 
-/**
- * Marks made on the canvas rather than data brought to it. They live in their
- * own bucket, so drawing never asks the user to create a layer first.
- */
 /**
  * The row the panel is pointed at, whichever kind it is. A selected mark also
  * opens into its properties and takes the map's halo; a selected layer just
@@ -423,7 +420,7 @@ function addLayer(layer: CanvasLayer) {
   nextTick(() => fitToLayer(props.id, layer))
 }
 
-async function removeLayer(id: string) {
+function removeLayer(id: string) {
   if (selectedId.value === id) selectedId.value = null
   body.value = removeFromStack(
     { ...body.value, layers: body.value.layers.filter(l => l.id !== id) },
@@ -491,7 +488,7 @@ function patchGroup(id: string, patch: Partial<CanvasGroup>) {
  */
 function addGroup() {
   const group: CanvasGroup = {
-    id: `cg-${Math.random().toString(36).slice(2, 10)}`,
+    id: newCanvasId('cg'),
     name: t('canvases.groups.untitled'),
     visible: true,
     children: [],
@@ -561,16 +558,11 @@ function patchDataLayer(patch: Partial<CanvasDataLayer>) {
   patchLayer(editingDataLayerId.value, patch as Partial<CanvasLayer>)
 }
 
-
 // ── Adding layers ────────────────────────────────────────────────────────────
 
 const sourcesOpen = ref(false)
 const addOpen = ref(false)
 const pickerStep = ref<'library' | 'collection' | 'route' | null>(null)
-
-function newLayerId() {
-  return `cl-${Math.random().toString(36).slice(2, 10)}`
-}
 
 function createStyleLayer() {
   router.push({ name: AppRoute.LAYER_EDITOR_NEW, query: { canvas: props.id } })
@@ -584,7 +576,7 @@ function createStyleLayer() {
 function addLibrarySource(source: DataSourceDefinition) {
   if (source.layer.type === 'style') {
     addLayer({
-      id: newLayerId(),
+      id: newCanvasId('cl'),
       kind: 'style',
       name: source.name,
       visible: true,
@@ -594,7 +586,7 @@ function addLibrarySource(source: DataSourceDefinition) {
   }
 
   addLayer({
-    id: newLayerId(),
+    id: newCanvasId('cl'),
     kind: 'data',
     name: source.name,
     visible: true,
@@ -615,7 +607,7 @@ function addImportedData(result: {
   const collection = result.collection as CanvasDataLayer['data']
   const render = inferRender(countGeometries(collection))
   addLayer({
-    id: newLayerId(),
+    id: newCanvasId('cl'),
     kind: 'data',
     name: result.name,
     visible: true,
@@ -667,7 +659,7 @@ const addMenuItems = computed(() => [
     label: t('canvases.add.options.people.title'),
     icon: UsersIcon,
     onSelect: () =>
-      addLayer({ id: newLayerId(), kind: 'people', visible: true }),
+      addLayer({ id: newCanvasId('cl'), kind: 'people', visible: true }),
   },
   { type: 'separator' as const },
   { type: 'label' as const, label: t('canvases.add.groups.data') },

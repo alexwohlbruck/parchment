@@ -60,10 +60,9 @@ import { useMeasureUnits } from '@/composables/useMeasureUnits'
 
 const props = defineProps<{
   annotation: CanvasAnnotation
+  /** An open mark is the selected one; there is no third state to draw. */
   expanded?: boolean
 }>()
-
-/** An open mark is the selected one; there is no third state to draw. */
 
 const emit = defineEmits<{
   update: [patch: Partial<CanvasAnnotation>]

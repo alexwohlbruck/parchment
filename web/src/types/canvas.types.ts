@@ -412,6 +412,19 @@ export interface CreateCanvasParams {
   scheme?: CanvasScheme
 }
 
+/**
+ * A new id for something on a canvas, prefixed by what it is: `cl` a layer,
+ * `cg` a group, `an` a mark.
+ *
+ * The prefix is what makes an id read in a document, in a map layer id or in
+ * a log say what it belongs to — so it is worth there being one place that
+ * mints them rather than the same expression written out wherever something
+ * new is made.
+ */
+export function newCanvasId(kind: 'cl' | 'cg' | 'an'): string {
+  return `${kind}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 /** An empty body, so callers never have to null-check the layer list. */
 export function emptyCanvasBody(): CanvasBody {
   return { layers: [], annotations: [] }

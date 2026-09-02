@@ -43,7 +43,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { IconPicker } from '@/components/ui/icon-picker'
 import { Spinner } from '@/components/ui/spinner'
 import { MapEngine, type Layer } from '@/types/map.types'
-import type { CanvasStyleLayer } from '@/types/canvas.types'
+import { newCanvasId, type CanvasStyleLayer } from '@/types/canvas.types'
 import { DownloadIcon, EyeIcon, EyeOffIcon } from 'lucide-vue-next'
 
 const props = defineProps<{ id?: string }>()
@@ -199,7 +199,7 @@ async function saveToCanvas(fields: ReturnType<typeof draftToLayerFields>) {
   const target = canvas.value
   if (!target) return
   const layer: CanvasStyleLayer = {
-    id: props.id ?? `cl-${Math.random().toString(36).slice(2, 10)}`,
+    id: props.id ?? newCanvasId('cl'),
     kind: 'style',
     name: fields.name,
     icon: fields.icon,

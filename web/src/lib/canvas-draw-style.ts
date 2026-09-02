@@ -70,6 +70,29 @@ export const TOOL_STYLE_OPTIONS: Record<CanvasTool, DrawOption[]> = {
   isochrone: AREA,
 }
 
+/**
+ * The range each numeric setting is offered over, and how it reads.
+ *
+ * A mark can be styled in two places — the tool options bar, for the next
+ * one, and a finished mark's own editor — and they were each carrying their
+ * own idea of how thick a stroke can get. One table, so they cannot drift.
+ *
+ * The opacities are held as percentages, which is what both controls show
+ * and what neither wants to convert twice.
+ */
+export const STYLE_RANGES = {
+  strokeWidth: { min: 1, max: 24, step: 1 },
+  strokeOpacity: { min: 0, max: 100, step: 5 },
+  fillOpacity: { min: 0, max: 100, step: 5 },
+  markerSize: { min: 4, max: 20, step: 0.5 },
+  labelSize: { min: 8, max: 32, step: 1 },
+} as const
+
+/** An opacity as it is shown beside the control that sets it. */
+export function percentLabel(value: number): string {
+  return `${Math.round(value * 100)}%`
+}
+
 /** Whether a tool is styled by this setting at all. */
 export function hasStyleOption(
   tool: CanvasTool,

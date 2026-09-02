@@ -938,5 +938,7 @@ export function useCanvasRendering(
     teardown()
   })
 
-  return { render, teardown, fitToLayer, key: options.key }
+  // `render` is here for the tests, which drive a pass and read what the
+  // engine was asked to do; everything else happens on its own.
+  return { render, fitToLayer }
 }

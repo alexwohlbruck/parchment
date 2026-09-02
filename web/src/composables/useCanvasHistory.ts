@@ -161,7 +161,6 @@ export function useCanvasHistory<T extends object>(options: {
     undo,
     redo,
     reset,
-    checkpoint,
     canUndo: computed(() => past.value.length > 0),
     canRedo: computed(() => future.value.length > 0),
   }

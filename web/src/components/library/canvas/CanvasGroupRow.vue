@@ -66,24 +66,11 @@ const {
   start: startRename,
   commit: commitRename,
   cancel: cancelRename,
-  focus: focusRename,
+  onMenuClose,
 } = useInlineRename({
   value: () => props.group.name,
   onCommit: name => emit('rename', name),
 })
-
-/**
- * Renaming also starts from the menu, and a closing menu takes focus back to
- * the button that opened it — which blurred the field a moment after it
- * appeared, and a blur commits, so the field closed on its own. When the
- * field is what should have focus, the menu hands it over instead of
- * reclaiming it.
- */
-function onMenuClosed(event: Event) {
-  if (!renaming.value) return
-  event.preventDefault()
-  void focusRename()
-}
 
 const collapsed = () => props.group.collapsed === true
 </script>
@@ -170,7 +157,7 @@ const collapsed = () => props.group.collapsed === true
             <MoreHorizontalIcon class="size-3.5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" @close-auto-focus="onMenuClosed">
+        <DropdownMenuContent align="end" @close-auto-focus="onMenuClose">
           <DropdownMenuItem @click="startRename">
             <PencilIcon class="size-3.5" />
             {{ t('canvases.groups.rename') }}

@@ -180,6 +180,7 @@ const {
   start: startRename,
   commit: commitRename,
   cancel: cancelRename,
+  onMenuClose,
 } = useInlineRename({
   value: () => props.annotation.label || fallbackName.value,
   onCommit: name => emit('update', { label: name }),
@@ -268,7 +269,11 @@ const {
             <MoreHorizontalIcon class="size-3.5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" @close-auto-focus="onMenuClose">
+          <DropdownMenuItem @click="startRename">
+            <PencilIcon class="size-3.5" />
+            {{ t('canvases.annotations.rename') }}
+          </DropdownMenuItem>
           <DropdownMenuItem class="text-destructive" @click="emit('remove')">
             <Trash2Icon class="size-3.5" />
             {{ t('canvases.annotations.remove') }}

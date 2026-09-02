@@ -48,5 +48,19 @@ export function useInlineRename(options: {
     renaming.value = false
   }
 
-  return { renaming, draft, input, start, commit, cancel, focus }
+  /**
+   * For a row that also offers renaming from a menu.
+   *
+   * A closing menu takes focus back to the button that opened it, which
+   * blurred the field a moment after it appeared — and a blur commits, so
+   * the field closed on its own. When the field is what should have focus,
+   * the menu hands it over instead of reclaiming it.
+   */
+  function onMenuClose(event: Event) {
+    if (!renaming.value) return
+    event.preventDefault()
+    void focus()
+  }
+
+  return { renaming, draft, input, start, commit, cancel, focus, onMenuClose }
 }

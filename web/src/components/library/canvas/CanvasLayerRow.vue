@@ -21,6 +21,7 @@ import {
   GripVerticalIcon,
   MoreHorizontalIcon,
   PencilIcon,
+  PencilLineIcon,
   Trash2Icon,
 } from 'lucide-vue-next'
 import { useLayersStore } from '@/stores/layers.store'
@@ -146,6 +147,7 @@ const {
   start: startRename,
   commit: commitRename,
   cancel: cancelRename,
+  onMenuClose,
 } = useInlineRename({
   value: () => resolved.value.name,
   onCommit: name => emit('rename', name),
@@ -232,7 +234,11 @@ const subtitle = computed(() => {
           <MoreHorizontalIcon class="size-3.5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" @close-auto-focus="onMenuClose">
+        <DropdownMenuItem @click="startRename">
+          <PencilLineIcon class="size-3.5" />
+          {{ t('canvases.layers.rename') }}
+        </DropdownMenuItem>
         <DropdownMenuItem v-if="isEditable" @click="emit('edit')">
           <PencilIcon class="size-3.5" />
           {{ t('canvases.layers.edit') }}

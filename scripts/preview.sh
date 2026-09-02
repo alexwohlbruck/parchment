@@ -21,6 +21,10 @@
 # With no branch argument, commands act on the worktree you are currently in —
 # so an agent session working in a worktree can simply run `preview up`.
 #
+# Each preview names its browser tab after the branch's pull request title, or
+# the branch name until there is one, so a row of preview tabs can be told
+# apart. PREVIEW_LABEL=... overrides it.
+#
 # Slot 0 is reserved for the main checkout tracking `dev`: it runs against the
 # real `parchment` database on fixed ports, as a stable always-on instance.
 set -euo pipefail
@@ -255,6 +259,36 @@ ensure_worktree() {
   fi
 }
 
+# ── labels ───────────────────────────────────────────────────────────────────
+
+# owner/name from the remote URL, whatever form it takes. The `.git` suffix is
+# stripped first: sed's ERE has no lazy quantifiers, so folding it into the
+# capture leaves it attached, and every `gh` call then fails against a
+# repository named "parchment.git".
+repo_slug() {
+  git -C "$1" remote get-url origin 2>/dev/null \
+    | sed -E 's#\.git$##; s#.*[:/]([^/]+/[^/]+)$#\1#'
+}
+
+# A human name for the preview, shown as the browser tab title. With several
+# previews open, tabs are otherwise identical — so use what the branch is
+# actually about: its pull request title, falling back to the branch name.
+# $PREVIEW_LABEL overrides both.
+preview_label() {
+  local branch=$1 worktree=$2 repo title=
+  if [ -n "${PREVIEW_LABEL:-}" ]; then echo "$PREVIEW_LABEL"; return; fi
+  repo=$(repo_slug "$worktree")
+  if [ -n "$repo" ]; then
+    title=$(timeout 15 gh pr view "$branch" --repo "$repo" --json title -q .title 2>/dev/null || true)
+  fi
+  echo "${title:-$branch}"
+}
+
+# systemd's EnvironmentFile takes double-quoted values, so a title with spaces
+# or a `#` survives — as long as quotes and backslashes in it are escaped and
+# it stays on one line.
+env_quote() { printf '"%s"' "$(printf '%s' "$1" | tr -d '\n' | sed 's/[\\"]/\\&/g')"; }
+
 # ── env generation ───────────────────────────────────────────────────────────
 
 # Write .env.preview: the main .env with the per-slot values replaced. The app
@@ -280,7 +314,7 @@ EOF
 }
 
 write_unit_env() {
-  local slot=$1 worktree=$2 wport=$3 pub_host=$4 pub_scheme=$5 pub_web_port=$6 api_origin=$7
+  local slot=$1 worktree=$2 wport=$3 pub_host=$4 pub_scheme=$5 pub_web_port=$6 api_origin=$7 label=$8
   mkdir -p "$STATE_DIR/$slot"
   cat > "$STATE_DIR/$slot/env" <<EOF
 PREVIEW_WORKTREE=$worktree
@@ -300,7 +334,25 @@ VITE_ALLOWED_HOSTS=$pub_host,.ts.net,localhost
 VITE_PUBLIC_HOST=$pub_host
 VITE_PUBLIC_PROTOCOL=$pub_scheme
 VITE_PUBLIC_PORT=$pub_web_port
+# Names this preview's browser tab (web/vite.config.ts rewrites <title>).
+VITE_PREVIEW_LABEL=$(env_quote "$label")
 EOF
+}
+
+# Retitle a running preview without a full `up`: Vite reads the label once, at
+# start, so the web service is restarted to pick it up.
+set_unit_label() {
+  local slot=$1 label=$2 line tmp
+  local file="$STATE_DIR/$slot/env"
+  [ -f "$file" ] || return 0
+  line="VITE_PREVIEW_LABEL=$(env_quote "$label")"
+  # Already correct — leave the service alone rather than bouncing the tab.
+  if grep -qxF "$line" "$file"; then return 0; fi
+  tmp=$(mktemp)
+  grep -v '^VITE_PREVIEW_LABEL=' "$file" > "$tmp"
+  echo "$line" >> "$tmp"
+  mv "$tmp" "$file"
+  systemctl --user restart "parchment-preview-web@$slot"
 }
 
 # ── commands ─────────────────────────────────────────────────────────────────
@@ -346,8 +398,9 @@ cmd_up() {
     PREVIEW_INSECURE=1
   fi
 
+  local label; label=$(preview_label "$branch" "$worktree")
   write_env "$worktree" "$dbname" "$sport" "$wport" "$base_api" "$base_web"
-  write_unit_env "$slot" "$worktree" "$wport" "$host" "${scheme_web}" "$wpub" "$base_api"
+  write_unit_env "$slot" "$worktree" "$wport" "$host" "${scheme_web}" "$wpub" "$base_api" "$label"
 
   systemctl --user restart "parchment-preview-server@$slot" "parchment-preview-web@$slot"
   registry_put "$slot" "$branch" "$worktree" "${scheme_web}" "$host"
@@ -364,6 +417,7 @@ cmd_up() {
   echo "  preview ready — $branch (slot $slot)"
   echo "     app  $base_web"
   echo "     api  $base_api"
+  [ "$label" = "$branch" ] || echo "     tab  $label"
   if [ -n "${PREVIEW_INSECURE:-}" ]; then
     echo
     echo "  served over plain HTTP: browser geolocation will not work on mobile."
@@ -423,11 +477,7 @@ cmd_pr() {
   ensure_state; resolve_target "${1:-}"
   local branch=$TARGET_BRANCH worktree=$TARGET_WORKTREE url repo visibility
   url=$(cmd_url "$branch")
-  # owner/name from the remote URL, whatever form it takes. The `.git` suffix
-  # is stripped first: sed's ERE has no lazy quantifiers, so folding it into the
-  # capture leaves it attached, and every `gh` call below then fails against a
-  # repository named "parchment.git".
-  repo=$(git -C "$worktree" remote get-url origin | sed -E 's#\.git$##; s#.*[:/]([^/]+/[^/]+)$#\1#')
+  repo=$(repo_slug "$worktree")
 
   git -C "$worktree" push --quiet -u origin "$branch"
 
@@ -457,6 +507,11 @@ deliberately not published here."
   fi
   gh pr view "$branch" --repo "$repo" --json url -q .url
   [ "$visibility" = PRIVATE ] || log "preview (not posted — public repo): $url"
+
+  # The tab was named after the branch while no PR existed; now there is a
+  # title worth reading, so the running preview takes it.
+  local slot; slot=$(registry_get_slot_for_branch "$branch")
+  [ -n "$slot" ] && set_unit_label "$slot" "$(preview_label "$branch" "$worktree")" || true
 }
 
 cmd_logs() {
@@ -473,5 +528,6 @@ case "${1:-}" in
   url)  shift; cmd_url "${1:-}" ;;
   pr)   shift; cmd_pr "${1:-}" ;;
   logs) shift; cmd_logs "${1:-}" ;;
-  *) sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  # Usage is the header comment itself, minus the shebang — so it cannot drift.
+  *) awk 'NR>1 && !/^#/{exit} NR>1{sub(/^# ?/, ""); print}' "$0"; exit 1 ;;
 esac

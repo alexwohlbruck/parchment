@@ -46,6 +46,26 @@ function maplibreWorkerChunk(): Plugin {
   }
 }
 
+/**
+ * Name the browser tab after the preview it belongs to.
+ *
+ * Every branch preview (scripts/preview.sh) serves the same app on its own
+ * port, so a row of open tabs is otherwise indistinguishable. The label — the
+ * branch's pull request title, or the branch name — is put first, because that
+ * is the part still readable once tabs shrink. Unset outside previews, where
+ * the title in index.html stands.
+ */
+function previewTitle(): Plugin {
+  const label = process.env.VITE_PREVIEW_LABEL?.trim()
+  if (!label) return { name: 'preview-title' }
+  const escaped = label.replace(/[&<>]/g, (c) => `&#${c.charCodeAt(0)};`)
+  return {
+    name: 'preview-title',
+    transformIndexHtml: (html) =>
+      html.replace(/<title>.*?<\/title>/, `<title>${escaped} · Parchment</title>`),
+  }
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -56,6 +76,7 @@ export default defineConfig({
       defaultImport: 'url', // Import as URL by default
     }),
     maplibreWorkerChunk(),
+    previewTitle(),
   ],
   resolve: {
     alias: {

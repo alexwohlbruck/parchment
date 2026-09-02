@@ -411,7 +411,7 @@ function adaptDeparture(dep: BarrelmanDeparture, timezone: string): TransitDepar
 async function fetchTransitDepartures(
   params: {
     lat: number; lng: number; feedId?: string; stopId?: string
-    routeTypes?: string; name?: string
+    routeTypes?: string; name?: string; complex?: boolean
   },
   options?: { limit?: number; windowMinutes?: number },
 ): Promise<{
@@ -444,6 +444,8 @@ async function fetchTransitDepartures(
     if (params.stopId) queryParams.set('stopId', params.stopId)
     if (params.routeTypes) queryParams.set('routeTypes', params.routeTypes)
     if (params.name) queryParams.set('name', params.name)
+    // One board per station in the interchange, for a tap on a merged label.
+    if (params.complex) queryParams.set('complex', 'true')
     if (windowMinutes) queryParams.set('windowMinutes', String(windowMinutes))
 
     const response = await fetch(`${config!.host}/transit/departures?${queryParams}`, { headers })
@@ -641,6 +643,7 @@ export async function fetchWidgetData(
           stopId: params.stopId || undefined,
           routeTypes: params.routeTypes || undefined,
           name: params.name || undefined,
+          complex: params.complex === '1' || params.complex === 'true',
         },
         { limit, windowMinutes },
       )

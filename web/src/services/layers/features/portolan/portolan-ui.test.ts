@@ -146,3 +146,39 @@ describe('which place a clicked station is', () => {
     }
   })
 })
+
+describe('opening a merged station', () => {
+  /**
+   * One drawn label can stand for a whole interchange: New York has four
+   * separate GTFS stations named "Canal St", and the map merges them. Tapping
+   * that label should open all of them, while tapping one corridor's marker
+   * opens only the station it sits on — Apple's hybrid.
+   */
+  test('marks the merged label as a complex', () => {
+    expect(
+      stopTargetFor({ ftype: 'station', nmarkers: 3, osm: 'node/7613354754' })?.complex,
+    ).toBe(true)
+  })
+
+  test('leaves a single-bundle station alone', () => {
+    expect(
+      stopTargetFor({ ftype: 'station', nmarkers: 1, osm: 'node/1' })?.complex,
+    ).toBeFalsy()
+  })
+
+  test("leaves one corridor's marker alone", () => {
+    // A marker carries the station's ids, not its own — so without this it
+    // would inherit the complex flag and open the whole interchange.
+    expect(
+      stopTargetFor({ ftype: 'marker', nmarkers: 3, osm: 'node/1' })?.complex,
+    ).toBeFalsy()
+  })
+
+  test('does not count gtfs_ids, which lists platforms too', () => {
+    // Q01, Q01N and Q01S are one station; counting pairs would call it three.
+    expect(
+      stopTargetFor({ ftype: 'station', nmarkers: 1, gtfs_ids: 'f:Q01;f:Q01N;f:Q01S' })
+        ?.complex,
+    ).toBeFalsy()
+  })
+})

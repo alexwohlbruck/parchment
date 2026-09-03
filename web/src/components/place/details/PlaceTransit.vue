@@ -101,21 +101,39 @@ const styleOfRoute = (route: { id: string; type?: number }) =>
   bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng, route.type)
 
 /**
- * The connecting stations' own board, grouped exactly like this station's.
+ * The connecting stations, each with its own grouped board.
  *
- * Kept separate all the way from Barrelman: these runs leave another platform,
- * and merging them into the board above would say they depart from here.
+ * Kept per-station all the way from Barrelman: these runs leave another
+ * platform, and merging them into the board above would say they depart from
+ * here. The name rides along because a connection is a place — "the R in 6
+ * minutes" only helps once you know it leaves Court St — and it is what a
+ * rider taps to go and look at it.
  */
-const transferGroups = computed(() =>
-  groupDepartures(transitInfo.value?.transferDepartures || [], currentTime.value, {
-    unknownDirectionLabel: t('place.transit.unknownDirection'),
-    limit: 2,
-    dayLabels: {
-      tonight: t('place.transit.tonight'),
-      tomorrow: t('place.transit.tomorrow'),
-    },
-  }),
+const transferStations = computed(() =>
+  (transitInfo.value?.transferStations || []).map((station) => ({
+    name: station.name,
+    lat: station.lat,
+    lng: station.lng,
+    groups: groupDepartures(station.departures, currentTime.value, {
+      unknownDirectionLabel: t('place.transit.unknownDirection'),
+      limit: 2,
+      dayLabels: {
+        tonight: t('place.transit.tonight'),
+        tomorrow: t('place.transit.tomorrow'),
+      },
+    }),
+  })).filter((s) => s.groups.length),
 )
+
+/** Open a connecting station's own page — by name and point, which is how the
+ *  app addresses a place it has no OSM id for. */
+function openTransferStation(station: { name: string; lat?: number; lng?: number }) {
+  if (station.lat == null || station.lng == null) return
+  router.push({
+    name: AppRoute.PLACE_LOCATION,
+    params: { name: station.name, lat: String(station.lat), lng: String(station.lng) },
+  })
+}
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
@@ -275,7 +293,7 @@ function openRoute(routeId?: string) {
       </div>
 
       <StationTransfers
-        :groups="transferGroups"
+        :stations="transferStations"
         :now="currentTime"
         :lines="transferLines"
         :lat="transitInfo?.lat"
@@ -283,6 +301,7 @@ function openRoute(routeId?: string) {
         :feed-id="transitInfo?.feedId"
         @open="(line: StationLine) => openRoute(line.id)"
         @open-route="(routeId: string) => openRoute(routeId)"
+        @open-station="openTransferStation"
       />
 
       <!-- Agency attribution -->

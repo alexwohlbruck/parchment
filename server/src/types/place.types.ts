@@ -148,6 +148,16 @@ export interface TransitDeparture {
   }
 }
 
+/** A station reachable on foot from this one, with what leaves from it. */
+export interface TransitTransferStation {
+  name: string
+  feedId?: string
+  stopId?: string
+  lat?: number
+  lng?: number
+  departures: TransitDeparture[]
+}
+
 export interface TransitStopInfo {
   /** @deprecated Use stopId/feedId or coordinates instead */
   onestopId?: string
@@ -166,10 +176,13 @@ export interface TransitStopInfo {
   timezone?: string
   wheelchairBoarding?: number
   departures?: TransitDeparture[]
-  /** Runs leaving the stations a rider can transfer to from here — a
-   *  different promise from `departures`, which is what leaves this platform,
-   *  so they are kept apart rather than merged. */
-  transferDepartures?: TransitDeparture[]
+  /** The stations a rider can transfer to, each with its own board.
+   *
+   *  Kept per-station rather than merged into one list: a connection is a
+   *  place, and "the R leaves in 6 minutes" is only useful once you know it
+   *  leaves from Court St. Stations sharing a name are one entry, since that
+   *  is the same station drawn twice. */
+  transferStations?: TransitTransferStation[]
   /** How far ahead `departures` reaches, in minutes. */
   windowMinutes?: number
   /** More runs exist past the window — the board can offer to load them. */

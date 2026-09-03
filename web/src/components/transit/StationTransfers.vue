@@ -21,6 +21,7 @@ import { getRouteBulletLabel } from '@/lib/transit'
 import type { StationLine } from '@/composables/usePlaceTransitLines'
 import type { Dayjs } from 'dayjs'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import { ChevronRightIcon } from 'lucide-vue-next'
 import { formatCountdown, type RouteGroup } from '@/lib/transit-departures'
 
 const props = defineProps<{
@@ -31,10 +32,15 @@ const props = defineProps<{
   lng?: number
   /** Absent when the board never named its feed; a bullet is then inert. */
   feedId?: string
-  /** Departures leaving the connecting stations, grouped by route. When these
-   *  are present the Transfers list shows times instead of bare bullets — a
-   *  connection is worth more with them than without. */
-  groups?: RouteGroup[]
+  /** The connecting stations, each with its name and its own grouped board.
+   *  A connection is a place: "the R in 6 minutes" only helps once you know it
+   *  leaves from Court St, and the name is also what you tap to go there. */
+  stations?: Array<{
+    name: string
+    lat?: number
+    lng?: number
+    groups: RouteGroup[]
+  }>
   /** Clock the countdowns are measured against. */
   now?: Date | Dayjs
 }>()
@@ -42,6 +48,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'open', line: StationLine): void
   (e: 'openRoute', routeId: string): void
+  (e: 'openStation', station: { name: string; lat?: number; lng?: number }): void
 }>()
 
 const { t } = useI18n()
@@ -69,7 +76,9 @@ const bulletForRoute = (route: RouteGroup['route']) =>
 /** Transfer lines still needing a bullet row: the ones no board covers. When
  *  a connection has departures, its times say everything the bullet did. */
 const uncoveredTransfers = computed(() => {
-  const withTimes = new Set((props.groups ?? []).map((g) => g.route.id))
+  const withTimes = new Set(
+    (props.stations ?? []).flatMap((st) => st.groups.map((g) => g.route.id)),
+  )
   return props.lines.filter((l) => l.via === 'transfer' && !withTimes.has(l.id))
 })
 
@@ -78,10 +87,16 @@ const uncoveredTransfers = computed(() => {
 const nearbyLines = computed(() => props.lines.filter((l) => l.via === 'nearby'))
 
 const hasTransfers = computed(
-  () => (props.groups?.length ?? 0) > 0 || uncoveredTransfers.value.length > 0,
+  () => (props.stations?.length ?? 0) > 0 || uncoveredTransfers.value.length > 0,
 )
 
 const countdown = (dep: any) => (props.now ? formatCountdown(dep, props.now) : '')
+
+/** A station is only a link when we know where it is. */
+function openStation(station: { name: string; lat?: number; lng?: number }) {
+  if (station.lat == null || station.lng == null) return
+  emit('openStation', station)
+}
 </script>
 
 <template>
@@ -93,44 +108,66 @@ const countdown = (dep: any) => (props.now ? formatCountdown(dep, props.now) : '
     <div v-if="hasTransfers">
       <h3 class="text-sm font-medium mb-2">{{ t('place.transit.transfers') }}</h3>
 
-      <div class="space-y-3">
-        <div v-for="group in groups ?? []" :key="group.routeKey">
-          <button
-            class="flex items-center gap-2 mb-1.5 group/route cursor-pointer text-left"
-            @click="emit('openRoute', group.route.id)"
+      <div class="space-y-4">
+        <!-- One block per connecting station: its name, then what leaves it -->
+        <div v-for="station in stations ?? []" :key="station.name">
+          <component
+            :is="station.lat != null && station.lng != null ? 'button' : 'div'"
+            class="flex items-center gap-1 mb-1.5 text-left group/station"
+            :class="station.lat != null && station.lng != null && 'cursor-pointer'"
+            @click="openStation(station)"
           >
-            <RouteBullet
-              :label="bulletForRoute(group.route)?.label || group.route.shortName || ''"
-              :color="bulletForRoute(group.route)?.color || group.route.color"
-              :shape="bulletForRoute(group.route)?.shape"
-              :text-color="bulletForRoute(group.route)?.color ? null : group.route.textColor"
-              class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
-            />
             <span
-              class="text-sm text-muted-foreground truncate group-hover/route:text-foreground transition-colors"
+              class="text-xs font-medium text-muted-foreground group-hover/station:text-foreground transition-colors"
             >
-              {{ group.route.longName || group.route.shortName }}
+              {{ station.name }}
             </span>
-          </button>
+            <ChevronRightIcon
+              v-if="station.lat != null && station.lng != null"
+              class="h-3 w-3 text-muted-foreground/60 group-hover/station:text-foreground transition-colors"
+            />
+          </component>
 
-          <div class="space-y-1.5 ml-1">
-            <div
-              v-for="dir in group.directions"
-              :key="dir.headsign"
-              class="flex items-center justify-between gap-3"
-            >
-              <span class="text-sm truncate min-w-0">{{ dir.headsign }}</span>
-              <div class="flex items-center gap-0.5 shrink-0">
-                <template v-for="(dep, i) in dir.departures" :key="i">
-                  <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
-                  <span class="text-sm tabular-nums">{{ countdown(dep) }}</span>
-                  <RealtimeIndicator
-                    v-if="dep.realTime"
-                    :real-time="true"
-                    :delay="dep.delay"
-                    class="shrink-0"
-                  />
-                </template>
+          <div class="space-y-3">
+            <div v-for="group in station.groups" :key="group.routeKey">
+              <button
+                class="flex items-center gap-2 mb-1.5 group/route cursor-pointer text-left"
+                @click="emit('openRoute', group.route.id)"
+              >
+                <RouteBullet
+                  :label="bulletForRoute(group.route)?.label || group.route.shortName || ''"
+                  :color="bulletForRoute(group.route)?.color || group.route.color"
+                  :shape="bulletForRoute(group.route)?.shape"
+                  :text-color="bulletForRoute(group.route)?.color ? null : group.route.textColor"
+                  class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+                />
+                <span
+                  class="text-sm text-muted-foreground truncate group-hover/route:text-foreground transition-colors"
+                >
+                  {{ group.route.longName || group.route.shortName }}
+                </span>
+              </button>
+
+              <div class="space-y-1.5 ml-1">
+                <div
+                  v-for="dir in group.directions"
+                  :key="dir.headsign"
+                  class="flex items-center justify-between gap-3"
+                >
+                  <span class="text-sm truncate min-w-0">{{ dir.headsign }}</span>
+                  <div class="flex items-center gap-0.5 shrink-0">
+                    <template v-for="(dep, i) in dir.departures" :key="i">
+                      <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
+                      <span class="text-sm tabular-nums">{{ countdown(dep) }}</span>
+                      <RealtimeIndicator
+                        v-if="dep.realTime"
+                        :real-time="true"
+                        :delay="dep.delay"
+                        class="shrink-0"
+                      />
+                    </template>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

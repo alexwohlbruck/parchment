@@ -50,6 +50,7 @@
 
 ### Fixed
 
+* Tapping any part of a station on the transit map opens the whole interchange, rather than one line's platforms. Tapping the J at Canal St opened the N/Q station instead — six separate stations share that name and nothing drawn on the map says which one a given marker belongs to, so "just this station" was picking an arbitrary one. The group's list contains every line the specific station runs, so nothing is lost by opening it
 * Turning on the transit layer no longer erases the railway network from the map. The basemap's station labels step aside for the layer's own stops instead, so the rails stay drawn
 * Lines you can walk to are listed separately from lines you can transfer to, instead of sharing one Transfers heading. At Rector St the 1 train is fifty metres away but reaching it means leaving through the turnstiles and paying a second fare, and listing it beside the genuine in-station transfers said otherwise. Walk-to lines now sit under their own heading with the distance beside them
 * Tapping a station label that covers a whole interchange now shows all of its lines beside the station's name. The departures below already covered the whole interchange; the bullets did not, so Brooklyn Bridge–City Hall read "4 5 6" with the J and Z listed as connections — the answer for tapping one station rather than the group

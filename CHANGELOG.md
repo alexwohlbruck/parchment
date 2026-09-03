@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.9.0] - 2026-09-03
+
+### Added
+
 * The Transfers section shows where a connection leaves from and when. Each connecting station gets its own block under its name — tap it to open that station — with its lines and times beneath, laid out like the departures above. Stations sharing a name are one block, since that is the same station drawn twice.
 * Each stop on a route's detail page shows the other lines you can get there, under its name — Union Square on the N listing Q and R and W beside it, and the 4, 5, 6 and L a passageway away. Lines reached by a transfer are dimmed, since they leave from another platform rather than the one you are standing on
 * A station's Transfers section now also lists lines running from stops within walking distance — the bus from the stop outside a subway entrance. No transit feed can describe a connection between two different operators, so these are found by distance alone: they come after the connections the agency does publish, nearest first, and may well cost another fare

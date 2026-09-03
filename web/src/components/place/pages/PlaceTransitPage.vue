@@ -7,6 +7,10 @@ import { ClockIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
 import ServiceAlertBadge from '@/components/transit/ServiceAlertBadge.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
@@ -63,7 +67,10 @@ const departures = computed((): TransitDeparture[] => {
 /** Same curated bullets as the card this page expands. */
 watch(
   () => [props.transitInfo?.lat, props.transitInfo?.lng],
-  () => void ensureBulletsAt(props.transitInfo?.lat, props.transitInfo?.lng),
+  () => {
+    void ensureBulletsAt(props.transitInfo?.lat, props.transitInfo?.lng)
+    void ensureStopIndexAt(props.transitInfo?.lat, props.transitInfo?.lng)
+  },
   { immediate: true },
 )
 const styleOfRoute = (route: { id: string; type?: number }) =>
@@ -93,7 +100,10 @@ const transferStations = computed(() =>
     name: station.name,
     lat: station.lat,
     lng: station.lng,
-    osm: station.osm,
+    // Portolan's own join, which is the only exact one.
+    osm:
+      osmForStop(station.feedOnestopId, station.stopId, station.lat, station.lng) ??
+      undefined,
     groups: groupDepartures(station.departures, currentTime.value, {
       unknownDirectionLabel: t('place.transit.unknownDirection'),
       limit: 2,
@@ -122,10 +132,10 @@ function openTransferStation(station: {
   lng?: number
   osm?: string
 }) {
-  // The OSM object when Barrelman identified one: it opens the station the map
-  // opens, and it is the only way to tell three stations called "Chambers St"
-  // apart — a name search ranks by importance and picked the A/C/E one 428m
-  // from the J/Z platform the rider was standing on.
+  // Portolan's OSM object when it has one: it opens the station the map opens,
+  // and it is the only way to tell three stations called "Chambers St" apart —
+  // a name search ranks by importance and picked the A/C/E one 428m from the
+  // J/Z platform the rider was standing on.
   const [type, id] = (station.osm ?? '').split('/')
   if (type && id) {
     router.push({ name: AppRoute.PLACE, params: { type, id }, query: { complex: '1' } })

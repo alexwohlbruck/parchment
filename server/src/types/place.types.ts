@@ -155,10 +155,11 @@ export interface TransitTransferStation {
   stopId?: string
   lat?: number
   lng?: number
-  /** The OSM object this station is, as "node/123", when Barrelman could
-   *  identify one. Opening it beats searching by name, which cannot tell
-   *  three stations called "Chambers St" apart. */
-  osm?: string
+  /** The feed's transit.land onestop id. Portolan keys its station index by
+   *  `<onestop>:<stop_id>`, so this plus `stopId` is what resolves this
+   *  station to the OSM object the map opens — a name cannot, since three
+   *  stations are called "Chambers St". */
+  feedOnestopId?: string
   departures: TransitDeparture[]
 }
 

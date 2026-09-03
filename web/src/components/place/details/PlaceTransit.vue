@@ -16,6 +16,10 @@ import { ChevronRightIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
 import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
@@ -94,7 +98,10 @@ watch(
  *  colour and label, resolved against the stop's own coordinates. */
 watch(
   () => [transitInfo.value?.lat, transitInfo.value?.lng],
-  () => void ensureBulletsAt(transitInfo.value?.lat, transitInfo.value?.lng),
+  () => {
+    void ensureBulletsAt(transitInfo.value?.lat, transitInfo.value?.lng)
+    void ensureStopIndexAt(transitInfo.value?.lat, transitInfo.value?.lng)
+  },
   { immediate: true },
 )
 const styleOfRoute = (route: { id: string; type?: number }) =>
@@ -114,7 +121,10 @@ const transferStations = computed(() =>
     name: station.name,
     lat: station.lat,
     lng: station.lng,
-    osm: station.osm,
+    // Portolan's own join, which is the only exact one.
+    osm:
+      osmForStop(station.feedOnestopId, station.stopId, station.lat, station.lng) ??
+      undefined,
     groups: groupDepartures(station.departures, currentTime.value, {
       unknownDirectionLabel: t('place.transit.unknownDirection'),
       limit: 2,
@@ -143,10 +153,10 @@ function openTransferStation(station: {
   lng?: number
   osm?: string
 }) {
-  // The OSM object when Barrelman identified one: it opens the station the map
-  // opens, and it is the only way to tell three stations called "Chambers St"
-  // apart — a name search ranks by importance and picked the A/C/E one 428m
-  // from the J/Z platform the rider was standing on.
+  // Portolan's OSM object when it has one: it opens the station the map opens,
+  // and it is the only way to tell three stations called "Chambers St" apart —
+  // a name search ranks by importance and picked the A/C/E one 428m from the
+  // J/Z platform the rider was standing on.
   const [type, id] = (station.osm ?? '').split('/')
   if (type && id) {
     router.push({ name: AppRoute.PLACE, params: { type, id }, query: { complex: '1' } })

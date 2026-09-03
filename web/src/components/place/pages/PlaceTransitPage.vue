@@ -79,6 +79,23 @@ function openRoute(routeId?: string) {
   router.push({ name: AppRoute.TRANSIT_ROUTE, params: { feedId, routeId } })
 }
 
+/**
+ * The connecting stations' own board, grouped exactly like this station's.
+ *
+ * Kept separate all the way from Barrelman: these runs leave another platform,
+ * and merging them into the board above would say they depart from here.
+ */
+const transferGroups = computed(() =>
+  groupDepartures(props.transitInfo?.transferDepartures || [], currentTime.value, {
+    unknownDirectionLabel: t('place.transit.unknownDirection'),
+    limit: 2,
+    dayLabels: {
+      tonight: t('place.transit.tonight'),
+      tomorrow: t('place.transit.tomorrow'),
+    },
+  }),
+)
+
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
     unknownDirectionLabel: t('place.transit.unknownDirection'),
@@ -281,12 +298,15 @@ function openTransitlandLink() {
     </div>
 
     <StationTransfers
+      :groups="transferGroups"
+      :now="currentTime"
       :lines="transferLines"
       :lat="transitInfo?.lat"
       :lng="transitInfo?.lng"
       :feed-id="transitInfo?.feedId"
       class="mt-6"
       @open="(line: StationLine) => openRoute(line.id)"
+      @open-route="(routeId: string) => openRoute(routeId)"
     />
 
     <!-- Footer -->

@@ -2,6 +2,7 @@
 
 ### Added
 
+* The Transfers section shows when the connections actually leave, not just which lines they are. Changing at Chambers St now tells you the 4 leaves Brooklyn Bridge–City Hall in three minutes, laid out like the departures above it. They stay a separate list, because those trains leave a different platform — merging them would say they depart from where you are standing. Lines you can only walk to keep their distance instead, since no feed can say when they leave
 * Each stop on a route's detail page shows the other lines you can get there, under its name — Union Square on the N listing Q and R and W beside it, and the 4, 5, 6 and L a passageway away. Lines reached by a transfer are dimmed, since they leave from another platform rather than the one you are standing on
 * A station's Transfers section now also lists lines running from stops within walking distance — the bus from the stop outside a subway entrance. No transit feed can describe a connection between two different operators, so these are found by distance alone: they come after the connections the agency does publish, nearest first, and may well cost another fare
 * The MapLibre engine can now draw the map on a globe. The map projection setting applies to both engines, offering flat and globe on MapLibre and the full list on Mapbox

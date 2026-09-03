@@ -100,6 +100,23 @@ watch(
 const styleOfRoute = (route: { id: string; type?: number }) =>
   bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng, route.type)
 
+/**
+ * The connecting stations' own board, grouped exactly like this station's.
+ *
+ * Kept separate all the way from Barrelman: these runs leave another platform,
+ * and merging them into the board above would say they depart from here.
+ */
+const transferGroups = computed(() =>
+  groupDepartures(transitInfo.value?.transferDepartures || [], currentTime.value, {
+    unknownDirectionLabel: t('place.transit.unknownDirection'),
+    limit: 2,
+    dayLabels: {
+      tonight: t('place.transit.tonight'),
+      tomorrow: t('place.transit.tomorrow'),
+    },
+  }),
+)
+
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
     unknownDirectionLabel: t('place.transit.unknownDirection'),
@@ -258,11 +275,14 @@ function openRoute(routeId?: string) {
       </div>
 
       <StationTransfers
+        :groups="transferGroups"
+        :now="currentTime"
         :lines="transferLines"
         :lat="transitInfo?.lat"
         :lng="transitInfo?.lng"
         :feed-id="transitInfo?.feedId"
         @open="(line: StationLine) => openRoute(line.id)"
+        @open-route="(routeId: string) => openRoute(routeId)"
       />
 
       <!-- Agency attribution -->

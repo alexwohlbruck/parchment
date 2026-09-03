@@ -166,6 +166,10 @@ export interface TransitStopInfo {
   timezone?: string
   wheelchairBoarding?: number
   departures?: TransitDeparture[]
+  /** Runs leaving the stations a rider can transfer to from here — a
+   *  different promise from `departures`, which is what leaves this platform,
+   *  so they are kept apart rather than merged. */
+  transferDepartures?: TransitDeparture[]
   /** How far ahead `departures` reaches, in minutes. */
   windowMinutes?: number
   /** More runs exist past the window — the board can offer to load them. */

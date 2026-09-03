@@ -19,6 +19,9 @@ import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { bulletFor } from '@/services/layers/features/portolan/portolan-bullets'
 import { getRouteBulletLabel } from '@/lib/transit'
 import type { StationLine } from '@/composables/usePlaceTransitLines'
+import type { Dayjs } from 'dayjs'
+import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
+import { formatCountdown, type RouteGroup } from '@/lib/transit-departures'
 
 const props = defineProps<{
   lines: StationLine[]
@@ -28,13 +31,27 @@ const props = defineProps<{
   lng?: number
   /** Absent when the board never named its feed; a bullet is then inert. */
   feedId?: string
+  /** Departures leaving the connecting stations, grouped by route. When these
+   *  are present the Transfers list shows times instead of bare bullets — a
+   *  connection is worth more with them than without. */
+  groups?: RouteGroup[]
+  /** Clock the countdowns are measured against. */
+  now?: Date | Dayjs
 }>()
 
-const emit = defineEmits<{ (e: 'open', line: StationLine): void }>()
+const emit = defineEmits<{
+  (e: 'open', line: StationLine): void
+  (e: 'openRoute', routeId: string): void
+}>()
 
 const { t } = useI18n()
 
 const styleOf = (line: StationLine) => bulletFor(line.id, props.lat, props.lng, line.type)
+
+/** The same lookup for a departure group's route, which carries `type`
+ *  under a different name than a StationLine does. */
+const bulletForRoute = (route: RouteGroup['route']) =>
+  bulletFor(route.id, props.lat, props.lng, route.type)
 
 /**
  * Two lists, because they are two different promises.
@@ -49,49 +66,136 @@ const styleOf = (line: StationLine) => bulletFor(line.id, props.lat, props.lng, 
  * The distance is shown rather than described, which is the honest signal: a
  * row that says "50 m" is plainly somewhere you walk to.
  */
-const groups = computed(() =>
-  [
-    { key: 'transfers', label: t('place.transit.transfers'), lines: props.lines.filter((l) => l.via === 'transfer') },
-    { key: 'nearby', label: t('place.transit.nearby'), lines: props.lines.filter((l) => l.via === 'nearby') },
-  ].filter((g) => g.lines.length),
+/** Transfer lines still needing a bullet row: the ones no board covers. When
+ *  a connection has departures, its times say everything the bullet did. */
+const uncoveredTransfers = computed(() => {
+  const withTimes = new Set((props.groups ?? []).map((g) => g.route.id))
+  return props.lines.filter((l) => l.via === 'transfer' && !withTimes.has(l.id))
+})
+
+/** Walk-to lines. Never timed: the board that would answer when they leave is
+ *  the other stop's, and no feed connects it to this one. */
+const nearbyLines = computed(() => props.lines.filter((l) => l.via === 'nearby'))
+
+const hasTransfers = computed(
+  () => (props.groups?.length ?? 0) > 0 || uncoveredTransfers.value.length > 0,
 )
+
+const countdown = (dep: any) => (props.now ? formatCountdown(dep, props.now) : '')
 </script>
 
 <template>
-  <section v-if="groups.length" class="mt-3 pt-3 border-t space-y-4">
-    <div v-for="group in groups" :key="group.key">
-    <h3 class="text-sm font-medium mb-2">{{ group.label }}</h3>
+  <section
+    v-if="hasTransfers || nearbyLines.length"
+    class="mt-3 pt-3 border-t space-y-4"
+  >
+    <!-- Transfers: a connecting station's own board, so these carry times -->
+    <div v-if="hasTransfers">
+      <h3 class="text-sm font-medium mb-2">{{ t('place.transit.transfers') }}</h3>
 
-    <ul class="space-y-1.5">
-      <li v-for="line in group.lines" :key="line.id">
-        <component
-          :is="feedId ? 'button' : 'div'"
-          class="flex items-center gap-2 w-full text-left"
-          :class="feedId && 'group/transfer cursor-pointer'"
-          @click="feedId && emit('open', line)"
-        >
-          <RouteBullet
-            :label="styleOf(line)?.label || getRouteBulletLabel(line, t)"
-            :color="styleOf(line)?.color || line.color"
-            :shape="styleOf(line)?.shape"
-            :text-color="styleOf(line)?.color ? null : line.textColor"
-            class="group-hover/transfer:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
-          />
-          <span
-            class="text-sm text-muted-foreground truncate group-hover/transfer:text-foreground transition-colors"
+      <div class="space-y-3">
+        <div v-for="group in groups ?? []" :key="group.routeKey">
+          <button
+            class="flex items-center gap-2 mb-1.5 group/route cursor-pointer text-left"
+            @click="emit('openRoute', group.route.id)"
           >
-            {{ line.longName || line.shortName }}
-          </span>
-          <!-- How far the walk is. Only nearby rows carry one. -->
-          <span
-            v-if="line.distanceM != null"
-            class="text-xs text-muted-foreground/70 shrink-0 ml-auto tabular-nums"
+            <RouteBullet
+              :label="bulletForRoute(group.route)?.label || group.route.shortName || ''"
+              :color="bulletForRoute(group.route)?.color || group.route.color"
+              :shape="bulletForRoute(group.route)?.shape"
+              :text-color="bulletForRoute(group.route)?.color ? null : group.route.textColor"
+              class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+            />
+            <span
+              class="text-sm text-muted-foreground truncate group-hover/route:text-foreground transition-colors"
+            >
+              {{ group.route.longName || group.route.shortName }}
+            </span>
+          </button>
+
+          <div class="space-y-1.5 ml-1">
+            <div
+              v-for="dir in group.directions"
+              :key="dir.headsign"
+              class="flex items-center justify-between gap-3"
+            >
+              <span class="text-sm truncate min-w-0">{{ dir.headsign }}</span>
+              <div class="flex items-center gap-0.5 shrink-0">
+                <template v-for="(dep, i) in dir.departures" :key="i">
+                  <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
+                  <span class="text-sm tabular-nums">{{ countdown(dep) }}</span>
+                  <RealtimeIndicator
+                    v-if="dep.realTime"
+                    :real-time="true"
+                    :delay="dep.delay"
+                    class="shrink-0"
+                  />
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- A transfer no board covered: still worth saying it exists. -->
+        <ul v-if="uncoveredTransfers.length" class="space-y-1.5">
+          <li v-for="line in uncoveredTransfers" :key="line.id">
+            <component
+              :is="feedId ? 'button' : 'div'"
+              class="flex items-center gap-2 w-full text-left"
+              :class="feedId && 'group/transfer cursor-pointer'"
+              @click="feedId && emit('open', line)"
+            >
+              <RouteBullet
+                :label="styleOf(line)?.label || getRouteBulletLabel(line, t)"
+                :color="styleOf(line)?.color || line.color"
+                :shape="styleOf(line)?.shape"
+                :text-color="styleOf(line)?.color ? null : line.textColor"
+                class="group-hover/transfer:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+              />
+              <span
+                class="text-sm text-muted-foreground truncate group-hover/transfer:text-foreground transition-colors"
+              >
+                {{ line.longName || line.shortName }}
+              </span>
+            </component>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Nearby: a walk to another operator's stop, so distance, not times -->
+    <div v-if="nearbyLines.length">
+      <h3 class="text-sm font-medium mb-2">{{ t('place.transit.nearby') }}</h3>
+
+      <ul class="space-y-1.5">
+        <li v-for="line in nearbyLines" :key="line.id">
+          <component
+            :is="feedId ? 'button' : 'div'"
+            class="flex items-center gap-2 w-full text-left"
+            :class="feedId && 'group/transfer cursor-pointer'"
+            @click="feedId && emit('open', line)"
           >
-            {{ line.distanceM }} m
-          </span>
-        </component>
-      </li>
-    </ul>
+            <RouteBullet
+              :label="styleOf(line)?.label || getRouteBulletLabel(line, t)"
+              :color="styleOf(line)?.color || line.color"
+              :shape="styleOf(line)?.shape"
+              :text-color="styleOf(line)?.color ? null : line.textColor"
+              class="group-hover/transfer:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+            />
+            <span
+              class="text-sm text-muted-foreground truncate group-hover/transfer:text-foreground transition-colors"
+            >
+              {{ line.longName || line.shortName }}
+            </span>
+            <span
+              v-if="line.distanceM != null"
+              class="text-xs text-muted-foreground/70 shrink-0 ml-auto tabular-nums"
+            >
+              {{ line.distanceM }} m
+            </span>
+          </component>
+        </li>
+      </ul>
     </div>
   </section>
 </template>

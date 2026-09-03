@@ -16,6 +16,10 @@ import { ChevronRightIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
 import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
@@ -94,11 +98,80 @@ watch(
  *  colour and label, resolved against the stop's own coordinates. */
 watch(
   () => [transitInfo.value?.lat, transitInfo.value?.lng],
-  () => void ensureBulletsAt(transitInfo.value?.lat, transitInfo.value?.lng),
+  () => {
+    void ensureBulletsAt(transitInfo.value?.lat, transitInfo.value?.lng)
+    void ensureStopIndexAt(transitInfo.value?.lat, transitInfo.value?.lng)
+  },
   { immediate: true },
 )
 const styleOfRoute = (route: { id: string; type?: number }) =>
   bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng, route.type)
+
+/**
+ * The connecting stations, each with its own grouped board.
+ *
+ * Kept per-station all the way from Barrelman: these runs leave another
+ * platform, and merging them into the board above would say they depart from
+ * here. The name rides along because a connection is a place — "the R in 6
+ * minutes" only helps once you know it leaves Court St — and it is what a
+ * rider taps to go and look at it.
+ */
+const transferStations = computed(() =>
+  (transitInfo.value?.transferStations || []).map((station) => ({
+    name: station.name,
+    lat: station.lat,
+    lng: station.lng,
+    // Portolan's own join, which is the only exact one.
+    osm:
+      osmForStop(station.feedOnestopId, station.stopId, station.lat, station.lng) ??
+      undefined,
+    groups: groupDepartures(station.departures, currentTime.value, {
+      unknownDirectionLabel: t('place.transit.unknownDirection'),
+      limit: 2,
+      dayLabels: {
+        tonight: t('place.transit.tonight'),
+        tomorrow: t('place.transit.tomorrow'),
+      },
+    }),
+  })).filter((s) => s.groups.length),
+)
+
+/**
+ * Open a connecting station's own page.
+ *
+ * By name and point, which is how the app addresses a place it holds no OSM id
+ * for — the server resolves that pair back to the same OSM node a tap on the
+ * map would have opened.
+ *
+ * `complex` rides along for the same reason every station tap carries it: the
+ * name names an interchange, not one platform group, and without it the page
+ * answers for whichever member the point resolved to.
+ */
+function openTransferStation(station: {
+  name: string
+  lat?: number
+  lng?: number
+  osm?: string
+}) {
+  // Portolan's OSM object when it has one: it opens the station the map opens,
+  // and it is the only way to tell three stations called "Chambers St" apart —
+  // a name search ranks by importance and picked the A/C/E one 428m from the
+  // J/Z platform the rider was standing on.
+  const [type, id] = (station.osm ?? '').split('/')
+  if (type && id) {
+    router.push({ name: AppRoute.PLACE, params: { type, id }, query: { complex: '1' } })
+    return
+  }
+
+  // Otherwise the name and the point, which resolves to the same node wherever
+  // the name is unambiguous.
+  if (station.lat == null || station.lng == null) return
+  router.push({
+    name: AppRoute.PLACE_LOCATION,
+    params: { name: station.name, lat: String(station.lat), lng: String(station.lng) },
+    query: { complex: '1' },
+  })
+}
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
@@ -258,11 +331,15 @@ function openRoute(routeId?: string) {
       </div>
 
       <StationTransfers
+        :stations="transferStations"
+        :now="currentTime"
         :lines="transferLines"
         :lat="transitInfo?.lat"
         :lng="transitInfo?.lng"
         :feed-id="transitInfo?.feedId"
         @open="(line: StationLine) => openRoute(line.id)"
+        @open-route="(routeId: string) => openRoute(routeId)"
+        @open-station="openTransferStation"
       />
 
       <!-- Agency attribution -->

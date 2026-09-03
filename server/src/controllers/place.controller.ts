@@ -123,12 +123,37 @@ app.get(
           lng: lng!,
         }
 
-        // Use the new method to get place by name and coordinates
+        // Resolve the name and point to a place...
         place = await lookupPlaceByNameAndLocation(name!, coordinates, {
           userId: user?.id,
           radius: Math.round(radius),
           language,
         })
+
+        // ...then look it up again by the id that resolved to, so this route
+        // answers with the same place the id route does.
+        //
+        // The name lookup returns whatever the provider search found, and that
+        // is not an enriched place: no widget descriptors, so no departures,
+        // no OSM tags, no related places. A transit station reached this way
+        // rendered as a name, an address and a phone number, while the very
+        // same node reached by id showed its whole board. Both URLs name one
+        // place and should answer alike.
+        // Its OWN id, not `externalIds[OSM]` — those can point at a different
+        // object entirely. Here the node the name resolved to carried an
+        // external id for the platform WAY beside it, and enriching that
+        // opened "Brooklyn Bridge-City Hall (4,5,6,<6>)" instead of the
+        // station a tap on the map opens.
+        const [idSource, ...idRest] = (place?.id ?? '').split('/')
+        const resolvedOsmId = idSource === SOURCE.OSM ? idRest.join('/') : null
+        if (resolvedOsmId) {
+          place =
+            (await lookupEnrichedPlaceById(SOURCE.OSM, resolvedOsmId, {
+              userId: user?.id,
+              language,
+              premiumData,
+            })) ?? place
+        }
       } else if (isCoordinateLookup) {
         place = await lookupEnrichedPlaceByCoordinates(lat!, lng!, {
           userId: user?.id,

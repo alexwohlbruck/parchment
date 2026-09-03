@@ -2,6 +2,7 @@
 
 ### Added
 
+* The Transfers section shows where a connection leaves from and when. Each connecting station gets its own block under its name — tap it to open that station — with its lines and times beneath, laid out like the departures above. Stations sharing a name are one block, since that is the same station drawn twice.
 * Each stop on a route's detail page shows the other lines you can get there, under its name — Union Square on the N listing Q and R and W beside it, and the 4, 5, 6 and L a passageway away. Lines reached by a transfer are dimmed, since they leave from another platform rather than the one you are standing on
 * A station's Transfers section now also lists lines running from stops within walking distance — the bus from the stop outside a subway entrance. No transit feed can describe a connection between two different operators, so these are found by distance alone: they come after the connections the agency does publish, nearest first, and may well cost another fare
 * The MapLibre engine can now draw the map on a globe. The map projection setting applies to both engines, offering flat and globe on MapLibre and the full list on Mapbox
@@ -49,6 +50,8 @@
 * A tracker's marker only pulses while its position is still current, rather than for a full day after the vehicle last reported
 
 ### Fixed
+
+* A transfer opens the station it actually names. Tapping "Chambers St" from Brooklyn Bridge–City Hall opened the A/C/E station 428 metres away, because the only way to find it was to search by the name — and three stations are called Chambers St. Each one is now identified exactly, using the match the transit map itself already made
 
 * Tapping any part of a station on the transit map opens the whole interchange, rather than one line's platforms. Tapping the J at Canal St opened the N/Q station instead — six separate stations share that name and nothing drawn on the map says which one a given marker belongs to, so "just this station" was picking an arbitrary one. The group's list contains every line the specific station runs, so nothing is lost by opening it
 * Turning on the transit layer no longer erases the railway network from the map. The basemap's station labels step aside for the layer's own stops instead, so the rails stay drawn

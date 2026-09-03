@@ -1,5 +1,6 @@
 import type { LayerSpecification, StyleSpecification } from 'maplibre-gl'
 import type { MapStyleId } from '@/types/map.types'
+import { MapProjection } from '@/types/map.types'
 import { getCustomColorTint } from '@/lib/color-tint'
 import spec from './spec.json'
 import {
@@ -10,6 +11,7 @@ import {
   BUILDING_3D_TILES,
 } from './detail-layers'
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
+import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { barrelmanBuildingsReady } from './barrelman-buildings'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -115,6 +117,16 @@ export const MAX_PITCH = 85
  * They are not tokens — the sky is ours, not MapTiler's — so a change to the
  * ground has to be made here too, and a mismatch shows as a band of the old
  * colour along the horizon where the land runs out.
+ *
+ * `atmosphere-blend` is the globe's halo, and it is off. MapLibre scatters it
+ * from the sun, which the strategy keeps at the real one so buildings cast
+ * their shadows the right way (see `updateSunShadow`) — so switching the globe
+ * on would light one limb and darken the other, drawing a second, cruder
+ * terminator underneath the day/night layer's own. One is the map's, tuned
+ * through twilight; the other is a side effect of the shadow light. The
+ * property is scaled by the globe transition, so this changes nothing on a
+ * flat map, and the shadows themselves are untouched — buildings are drawn far
+ * past the zoom where the sphere has already flattened.
  */
 const SKY: Record<FlavorId, Record<string, string | number>> = {
   light: {
@@ -124,6 +136,7 @@ const SKY: Record<FlavorId, Record<string, string | number>> = {
     'fog-ground-blend': 0.72,
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,
+    'atmosphere-blend': 0,
   },
   dark: {
     'sky-color': 'hsl(217, 45%, 10%)',
@@ -132,7 +145,29 @@ const SKY: Record<FlavorId, Record<string, string | number>> = {
     'fog-ground-blend': 0.72,
     'horizon-fog-blend': 0.6,
     'sky-horizon-blend': 0.85,
+    'atmosphere-blend': 0,
   },
+}
+
+/**
+ * The projection setting, in the two shapes MapLibre can draw.
+ *
+ * MapLibre projects onto a flat Mercator plane or onto a sphere, and nothing
+ * else — the rest of the setting's list is Mapbox's. `globe` is not a fixed
+ * sphere either: MapLibre eases it into Mercator between zoom 11 and 12, so a
+ * globe map is the same flat map as a Mercator one everywhere a street is
+ * legible, and the sphere is what you get on the way out.
+ *
+ * `ENGINE_PROJECTIONS` keeps the Mapbox-only projections out of MapLibre's
+ * picker, so they should never arrive here — but a setting carried over from
+ * the other engine can, and Mercator is the honest answer for those. Handing
+ * MapLibre the name itself would only get a console warning and the same
+ * fallback, one frame later.
+ */
+export function maplibreProjection(
+  projection?: MapProjection,
+): 'globe' | 'mercator' {
+  return projection === MapProjection.GLOBE ? 'globe' : 'mercator'
 }
 
 /** Self-hosted; see `scripts/build-glyphs.mjs` and `scripts/build-sprite.mjs`. */
@@ -249,12 +284,37 @@ function idsWhere(pred: (l: any) => boolean): string[] {
   return specLayers.filter(pred).map(l => l.id)
 }
 
+/** Every `class` value a layer's filter tests for, however deeply nested. */
+function filterClasses(filter: any, found = new Set<string>()): Set<string> {
+  if (!Array.isArray(filter)) return found
+  const [op, subject, values] = filter
+  if (op === 'match' && Array.isArray(subject) && subject[0] === 'get' && subject[1] === 'class' && Array.isArray(values)) {
+    for (const v of values) found.add(v)
+  }
+  for (const part of filter) filterClasses(part, found)
+  return found
+}
+
+/** A POI layer that draws transit stops and nothing else. */
+function isTransitStopLayer(l: any): boolean {
+  if (l.type !== 'symbol' || l['source-layer'] !== 'poi') return false
+  const classes = filterClasses(l.filter)
+  return classes.size > 0 && [...classes].every(c => TRANSIT_POI_CLASSES.includes(c))
+}
+
 export const layerGroups = {
   poi: idsWhere(
     l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
   ),
   roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
-  transit: idsWhere(l => /rail|transit|subway|tram|funicular/i.test(l.id)),
+  /**
+   * Transit stop labels, not the rails under them. The transit overlay redraws
+   * these stops itself, so the basemap's copies hide while it is on — but the
+   * railway network is basemap cartography and stays either way. Matching on
+   * layer *id* instead caught only the `Railway` / `rail` line layers, so
+   * turning transit on erased the rails and left every stop label doubled.
+   */
+  transit: idsWhere(isTransitStopLayer),
   placeLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'place'),
   building3d: specLayers.find(l => l.type === 'fill-extrusion')?.id ?? 'Building 3D',
 }

@@ -138,6 +138,19 @@ export class MapStrategy {
   setPlaceLabels(value: boolean) {}
   setLandmarkIcons(value: boolean) {}
   setMapProjection(projection: MapProjection) {}
+
+  /**
+   * Whether a sphere is on screen — not the same question as whether the globe
+   * projection is selected. Both engines ease the globe into Mercator as you
+   * zoom in, at zooms of their own, so a globe map is a flat map everywhere a
+   * street is legible.
+   *
+   * Anything that only makes sense against a flat map asks this. False here
+   * because a strategy with no globe never draws one.
+   */
+  isGlobeRendering(): boolean {
+    return false
+  }
   /**
    * Draw the top-down view orthographically rather than in perspective, so a
    * flat-on view has no vanishing point: building walls stop splaying outward
@@ -185,6 +198,11 @@ export class MapStrategy {
   }
   addSource(sourceId: string, source: any) {}
   removeSource(sourceId: string) {}
+  /**
+   * Replace a live GeoJSON source's data without touching the layers drawn
+   * from it — the cheap path for content that changes while you work.
+   */
+  setSourceData(sourceId: string, data: any) {}
   addLayer(layer: Layer, overwrite: boolean = false) {}
   removeLayer(layerId: Layer['configuration']['id']) {}
   updateLayer(layerId: Layer['configuration']['id'], updates: Partial<Layer>) {}

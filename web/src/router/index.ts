@@ -41,7 +41,11 @@ export enum AppRoute {
   LIBRARY_COLLECTIONS = 'library-collections',
   LIBRARY_ROUTES = 'library-routes',
   LIBRARY_LAYERS = 'library-layers',
-  LIBRARY_MAPS = 'library-maps',
+  LIBRARY_CANVASES = 'library-canvases',
+  LAYER_EDITOR_NEW = 'layer-editor-new',
+  LAYER_EDITOR = 'layer-editor',
+  CANVAS_EDITOR = 'canvas-editor',
+  CANVAS_PUBLIC = 'canvas-public',
   COLLECTION = 'collection',
   ROUTE_BUILDER = 'route-builder',
   ROUTE_BUILDER_EDIT = 'route-builder-edit',
@@ -200,9 +204,9 @@ const router = createRouter({
               component: Layers,
             },
             {
-              path: 'maps',
-              name: AppRoute.LIBRARY_MAPS,
-              component: () => import('@/views/library/EmptyTab.vue'),
+              path: 'canvases',
+              name: AppRoute.LIBRARY_CANVASES,
+              component: () => import('@/views/library/canvases/Canvases.vue'),
             },
           ],
         },
@@ -211,6 +215,40 @@ const router = createRouter({
           name: AppRoute.COLLECTION,
           component: Collection,
           props: true,
+        },
+        {
+          path: '/layers/new',
+          name: AppRoute.LAYER_EDITOR_NEW,
+          component: () => import('@/views/library/layers/LayerEditor.vue'),
+        },
+        {
+          path: '/layers/:id/edit',
+          name: AppRoute.LAYER_EDITOR,
+          component: () => import('@/views/library/layers/LayerEditor.vue'),
+          props: true,
+        },
+        {
+          path: '/canvases/:id',
+          name: AppRoute.CANVAS_EDITOR,
+          component: () => import('@/views/library/canvases/CanvasEditor.vue'),
+          props: true,
+          meta: {
+            auth: true,
+            // A canvas is a workspace, not a passing detail view: on mobile
+            // the sheet stays put until it is closed deliberately.
+            sheet: { dismissable: false, snapPoints: ['160px', 0.6, 1] },
+          },
+        },
+        {
+          path: '/c/:token',
+          name: AppRoute.CANVAS_PUBLIC,
+          component: () => import('@/views/library/canvases/PublicCanvas.vue'),
+          props: true,
+          meta: {
+            // A public link has to open for someone who isn't signed in —
+            // overrides the map subtree's own `auth: true`.
+            auth: false,
+          },
         },
         {
           path: '/routes/new',

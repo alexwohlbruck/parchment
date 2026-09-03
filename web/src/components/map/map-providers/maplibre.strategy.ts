@@ -13,6 +13,7 @@ import {
   CameraOptions,
   setWorkerUrl,
 } from 'maplibre-gl'
+import type { StyleSpecification } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 // MapLibre 6 is ESM-only and loads its worker from a URL it computes at
 // runtime, relative to its own `import.meta.url`. A bundler cannot see that as
@@ -61,13 +62,14 @@ import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
-import { calculateFitPadding } from '@/lib/map-padding'
+import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import {
   buildMapStyle,
   buildSatelliteStyle,
   layerGroups,
+  maplibreProjection,
   MAX_PITCH,
   BUILDING_HEIGHT_EXPRESSION,
   BUILDING_BASE_EXPRESSION,
@@ -185,14 +187,24 @@ const ORTHO_FOV = 0.5
 const ORTHO_NEAR = 0.5
 const ORTHO_FAR = 2
 
-/** The internal transform surface `updateClipPlanes` needs. */
-interface OverridableTransform {
+/** The internal transform surface the camera work needs. */
+interface InternalTransform {
   cameraToCenterDistance: number
   autoCalculateNearFarZ: boolean
   nearZ: number
   overrideNearFarZ?: (near: number, far: number) => void
   clearNearFarZOverride?: () => void
 }
+
+/**
+ * The zoom at which the globe has finished becoming a flat map.
+ *
+ * MapLibre's `globe` is shorthand for an interpolation — vertical perspective
+ * at zoom 11, Mercator at 12 — rather than a sphere at every zoom. Past this
+ * point a globe map and a Mercator map are the same map, and everything
+ * written for the flat one applies again.
+ */
+const GLOBE_FLATTENS_AT = 12
 
 /** Degrees of pitch over which the plan-view roof outline fades out. */
 const ROOF_EDGE_FADE_PITCH = 8
@@ -375,6 +387,11 @@ export class MaplibreStrategy extends MapStrategy {
     // The plan view's clip planes are scaled by a camera distance that moves
     // with the viewport height, so a resize has to recompute them.
     this.mapInstance.on('resize', () => this.updateCameraProjection())
+    // Under the globe, zoom is what decides whether a sphere or a flat map is
+    // being drawn — and so whether the plan view gets its camera. The setters
+    // inside are all guarded on the answer changing, so the frames where it
+    // does not cost a couple of reads.
+    this.mapInstance.on('zoom', () => this.updateCameraProjection())
     // A quarter of a degree a minute: five is far finer than the eye needs and
     // costs one trig evaluation.
     this.sunTimer = setInterval(() => this.updateSunShadow(), 5 * 60 * 1000)
@@ -963,6 +980,19 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
+   * Flat or round. MapLibre animates between the two in place, so unlike a
+   * theme or basemap change this needs no style rebuild — `buildCurrentStyle`
+   * carries the setting only so a later rebuild does not undo it.
+   */
+  override setMapProjection(projection: MapProjection) {
+    this.options.projection = projection
+    this.mapInstance.setProjection({ type: maplibreProjection(projection) })
+    // The plan-view camera depends on which of the two is being drawn, and
+    // this switch goes through neither pitch nor style load.
+    this.updateCameraProjection()
+  }
+
+  /**
    * Swap the map style and fire style.load so downstream services can
    * re-register their custom layers.
    *
@@ -997,6 +1027,43 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   /**
+   * The live transform, which is where everything the camera API does not
+   * reach lives.
+   *
+   * The transit fork keeps it on `_camera` rather than having Map extend the
+   * camera; plain MapLibre exposes it on the map itself. Try both, so the
+   * reach survives either layout.
+   */
+  private transform(): InternalTransform | undefined {
+    const instance = this.mapInstance as unknown as {
+      _camera?: { transform?: InternalTransform }
+      transform?: InternalTransform
+    }
+    return instance._camera?.transform ?? instance.transform
+  }
+
+  /**
+   * Whether a sphere is on screen — which is not the same question as whether
+   * the globe projection is selected. MapLibre eases the globe into Mercator
+   * as you zoom in, so a globe map is flat by the time a building is drawn,
+   * and the plan view's flattening has to come back with it.
+   *
+   * Derived from zoom rather than read off the transform, which holds the same
+   * answer in `isGlobeRendering`: the transform's copy is written during
+   * render, from a zoom-dependent style property evaluated for the frame about
+   * to be drawn. Every caller here runs from an event handler — before that
+   * frame — so it would read the previous answer, and a zoom that ended on the
+   * far side of the boundary would never be reconsidered, because the events
+   * stop with the gesture. See `GLOBE_FLATTENS_AT`.
+   */
+  override isGlobeRendering(): boolean {
+    return (
+      this.options.projection === MapProjection.GLOBE &&
+      this.mapInstance.getZoom() < GLOBE_FLATTENS_AT
+    )
+  }
+
+  /**
    * MapLibre has no orthographic camera — `setVerticalFieldOfView` is the same
    * trick behind a nicer name — so this narrows the field of view instead. A
    * perspective frustum approaches an orthographic box as the FOV approaches
@@ -1009,10 +1076,12 @@ export class MaplibreStrategy extends MapStrategy {
    * far plane out with it while MapLibre holds the near plane where it is, so
    * the clip planes have to be closed back in by hand. See `ORTHO_NEAR`.
    *
-   * Applied only when the map is perfectly flat on. Any pitch at all, however
-   * slight, gets the real perspective camera back — the flattening is meant
-   * for the plan view, and a near-zero FOV on a tilted map would rob it of the
-   * depth that makes the tilt worth having.
+   * Applied only when the map is perfectly flat on, and only when it is flat
+   * at all. Any pitch, however slight, gets the real perspective camera back —
+   * the flattening is meant for the plan view, and a near-zero FOV on a tilted
+   * map would rob it of the depth that makes the tilt worth having. The globe
+   * gets it back for a blunter reason: retreating the camera a hundred screen
+   * heights from a sphere leaves the sphere a speck.
    */
   override updateCameraProjection() {
     const current = this.mapInstance.getVerticalFieldOfView()
@@ -1020,7 +1089,9 @@ export class MaplibreStrategy extends MapStrategy {
 
     // Not `=== 0`: an eased pitch animation can settle a hair off zero, and
     // the view is still flat on at a thousandth of a degree.
-    const topDown = Math.abs(this.mapInstance.getPitch()) < TOP_DOWN_EPSILON
+    const topDown =
+      !this.isGlobeRendering() &&
+      Math.abs(this.mapInstance.getPitch()) < TOP_DOWN_EPSILON
     this.updateRoofEdge()
     const wanted = topDown ? ORTHO_FOV : this.defaultFov
     // `pitch` fires continuously through a gesture; setting the field of view
@@ -1042,14 +1113,7 @@ export class MaplibreStrategy extends MapStrategy {
    * z-fighting rather than throwing on every pitch event.
    */
   private updateClipPlanes(topDown: boolean) {
-    // The transit fork keeps the camera on `_camera` rather than having Map
-    // extend it; plain MapLibre exposes `transform` on the map itself. Try
-    // both, so the reach survives either layout.
-    const instance = this.mapInstance as unknown as {
-      _camera?: { transform?: OverridableTransform }
-      transform?: OverridableTransform
-    }
-    const transform = instance._camera?.transform ?? instance.transform
+    const transform = this.transform()
     if (!transform?.overrideNearFarZ || !transform.clearNearFarZOverride) return
 
     if (!topDown) {
@@ -1092,9 +1156,9 @@ export class MaplibreStrategy extends MapStrategy {
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })
   }
 
-  private buildCurrentStyle() {
+  private buildCurrentStyle(): StyleSpecification {
     if (!this.tileServerUrl) {
-      return { version: 8 as const, sources: {}, layers: [] }
+      return { version: 8, sources: {}, layers: [] } as StyleSpecification
     }
     const theme = this.options.theme === 'dark' ? 'dark' : 'light'
     const styleOpts = {
@@ -1106,14 +1170,22 @@ export class MaplibreStrategy extends MapStrategy {
       categoryColors: this.categoryColors(theme),
     }
 
-    switch (this.currentBasemap) {
-      case 'satellite':
-        return buildSatelliteStyle({ ...styleOpts, hybrid: false })
-      case 'hybrid':
-        return buildSatelliteStyle({ ...styleOpts, hybrid: true })
-      default:
-        return buildMapStyle(styleOpts)
-    }
+    const style = (() => {
+      switch (this.currentBasemap) {
+        case 'satellite':
+          return buildSatelliteStyle({ ...styleOpts, hybrid: false })
+        case 'hybrid':
+          return buildSatelliteStyle({ ...styleOpts, hybrid: true })
+        default:
+          return buildMapStyle(styleOpts)
+      }
+    })()
+
+    // MapLibre reads the projection off the style, so it has to be carried on
+    // every rebuild — a theme or basemap switch would otherwise drop a globe
+    // back to Mercator, and the initial style is where the setting first
+    // reaches the map at all.
+    return { ...style, projection: { type: maplibreProjection(this.options.projection) } }
   }
 
   setMapLanguage(locale: string): boolean {
@@ -1125,6 +1197,14 @@ export class MaplibreStrategy extends MapStrategy {
     if (this.mapInstance.getSource(sourceId)) {
       this.mapInstance.removeSource(sourceId)
     }
+  }
+
+  setSourceData(sourceId: string, data: any) {
+    // Only a GeoJSON source can take data in place; anything else is a no-op.
+    const source = this.mapInstance.getSource(sourceId) as
+      | { setData?: (data: any) => void }
+      | undefined
+    source?.setData?.(data)
   }
 
   addSource(sourceId: string, source: any) {
@@ -1429,7 +1509,10 @@ export class MaplibreStrategy extends MapStrategy {
 
     const appStore = useAppStore()
     const padding = calculateFitPadding(
-      appStore.visibleMapArea,
+      toContainerRect(
+        appStore.visibleMapArea,
+        this.container.getBoundingClientRect(),
+      ),
       this.container.clientWidth,
       this.container.clientHeight,
     )
@@ -1467,16 +1550,26 @@ export class MaplibreStrategy extends MapStrategy {
     const canvas = this.mapInstance.getCanvas()
     let hoverCount = 0
 
+    // Hover cursors defer to a tool that owns the pointer: a drawing tool
+    // sets its own for the whole map, and letting a POI hover flip it meant
+    // the crosshair vanished whenever you crossed a label.
     const onEnter = () => {
-      if (hoverCount++ === 0) canvas.style.cursor = 'pointer'
+      if (hoverCount++ === 0 && !useMapToolsStore().rawClickCapture) {
+        canvas.style.cursor = 'pointer'
+      }
     }
     const onLeave = () => {
       hoverCount = Math.max(0, hoverCount - 1)
-      if (hoverCount === 0) canvas.style.cursor = ''
+      if (hoverCount === 0 && !useMapToolsStore().rawClickCapture) {
+        canvas.style.cursor = ''
+      }
     }
 
     const handleClick = (layerEvent: any) => {
-      if (useMapToolsStore().activeTool === 'measure') return
+      // Anything placing geometry needs the raw click, at the coordinates the
+      // user actually clicked — see `rawClickCapture`.
+      const mapTools = useMapToolsStore()
+      if (mapTools.activeTool === 'measure' || mapTools.rawClickCapture) return
 
       const feature = layerEvent.features?.[0]
       if (!feature?.id) return
@@ -1514,7 +1607,7 @@ export class MaplibreStrategy extends MapStrategy {
         this.mapInstance.off('mouseleave', id, onLeave)
         this.mapInstance.off('click', id, handleClick)
       }
-      canvas.style.cursor = ''
+      if (!useMapToolsStore().rawClickCapture) canvas.style.cursor = ''
     }
   }
 

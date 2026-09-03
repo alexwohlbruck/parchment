@@ -7,7 +7,11 @@
  */
 
 import type { Layer, LayerGroup } from '@/types/map.types'
-import { LayerType, MapColorTheme } from '@/types/map.types'
+import {
+  LayerType,
+  MapColorTheme,
+  MARKER_RENDERED_LAYER_TYPES,
+} from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { useThemeStore } from '@/stores/theme.store'
 
@@ -32,6 +36,21 @@ export function useLayerVisibilityService() {
   }
 
   /**
+   * Marker-rendered layers (friends, trackers, OSM notes) have no layer on the
+   * style — their services watch the in-memory `visible` flag and redraw their
+   * own markers. Calling the strategy for one only logs a "layer does not
+   * exist" warning.
+   */
+  function applyMapVisibility(
+    layer: Layer,
+    visible: boolean,
+    mapStrategy?: MapStrategy,
+  ) {
+    if (MARKER_RENDERED_LAYER_TYPES.has(layer.type)) return
+    toggleLayerVisibility(layer.configuration.id, visible, mapStrategy)
+  }
+
+  /**
    * Set visibility for a layer (updates in-memory store and map — no server call)
    */
   function setLayerVisibility(
@@ -51,7 +70,7 @@ export function useLayerVisibilityService() {
     layersStore.updateLayerVisibility(layer.id, newState)
 
     // Update map visualization
-    toggleLayerVisibility(layerConfigId, newState, mapStrategy)
+    applyMapVisibility(layer, newState, mapStrategy)
 
     // Check if this layer or its group has fadeBasemap
     const layerGroup = layer.groupId && allLayerGroups
@@ -132,7 +151,7 @@ export function useLayerVisibilityService() {
     // Update each layer's visibility in-memory (including sub-layers)
     for (const layer of groupLayers) {
       layersStore.updateLayerVisibility(layer.id, visible)
-      toggleLayerVisibility(layer.configuration.id, visible, mapStrategy)
+      applyMapVisibility(layer, visible, mapStrategy)
     }
 
     // Apply basemap fade if this group or its layers have fadeBasemap

@@ -13,6 +13,7 @@
  */
 
 import type { Layer, LayerGroup } from '@/types/map.types'
+import { MARKER_RENDERED_LAYER_TYPES } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { toRaw } from 'vue'
 import { isTransitStopLayer } from '@/lib/transit.utils'
@@ -21,6 +22,16 @@ import { isTransitStopLayer } from '@/lib/transit.utils'
 function isLayerCompatible(layer: Layer, mapStrategy: MapStrategy): boolean {
   if (!layer.engine || layer.engine.length === 0) return true
   return layer.engine.includes(mapStrategy.options.engine)
+}
+
+/**
+ * Friends, trackers and OSM notes are drawn as Vue markers by their own
+ * services, which watch the layer's `visible` flag. Their configurations name
+ * a source the style never has, so handing one to `addLayer` only produces a
+ * "source does not exist" warning.
+ */
+function isMarkerRendered(layer: Layer): boolean {
+  return MARKER_RENDERED_LAYER_TYPES.has(layer.type)
 }
 
 // Import specialized services
@@ -59,9 +70,6 @@ export function useLayersService() {
     getDefaultUserState,
     upsertDefaultUserState,
     clearDefaultUserState,
-    cloneDefaultLayer,
-    cloneDefaultGroup,
-    restoreDefaults,
   } = crudService
 
   // ============================================================================
@@ -81,6 +89,7 @@ export function useLayersService() {
 
       // Skip layers not compatible with the current map engine
       if (!isLayerCompatible(plainLayer, mapStrategy)) return
+      if (isMarkerRendered(plainLayer)) return
 
       // Special handling for search results layer: source + symbol layer are
       // both added inside initializeSearchResultsLayer so they stay in sync.
@@ -112,6 +121,7 @@ export function useLayersService() {
     if (!mapStrategy) return
     const plainLayer = toRaw(layer)
     if (!isLayerCompatible(plainLayer, mapStrategy)) return
+    if (isMarkerRendered(plainLayer)) return
 
     if (dayNightService.isDayNightLayer(plainLayer)) {
       dayNightService.initializeDayNightLayer(mapStrategy, plainLayer)
@@ -173,9 +183,6 @@ export function useLayersService() {
     getDefaultUserState,
     upsertDefaultUserState,
     clearDefaultUserState,
-    cloneDefaultLayer,
-    cloneDefaultGroup,
-    restoreDefaults,
 
     // Map integration
     initializeLayers,

@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } fr
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCommandService } from '@/services/command.service'
 import { useAuthService } from '@/services/auth.service'
@@ -12,6 +13,7 @@ import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useStorage } from '@vueuse/core'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
@@ -30,6 +32,7 @@ import {
 // imports in one obvious place.
 import '@/lib/realtime-bootstrap'
 
+import { SIDEBAR_WIDTH } from '@/components/ui/sidebar'
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
 import DialogView from '@/views/DialogView.vue'
@@ -77,11 +80,16 @@ watch(
 const { openExternalLink } = useExternalLink()
 
 const { dialogs } = appStore
-const navMini = ref(true)
+// Collapsed by default, and remembered — the rail's width changes the map's
+// viewport, so relearning it on every load is a visible layout shift.
+const navCollapsed = useStorage('sidebar-collapsed', true)
+// Width the user dragged the rail to, kept for the same reason.
+const navWidth = useStorage('sidebar-width', SIDEBAR_WIDTH)
 const viewRef = ref()
 
 const hideUI = ref(true)
 const authStore = useAuthStore()
+const integrationsStore = useIntegrationsStore()
 
 // We don't use computed value here, it was causing a layout shift
 watch(route, () => {
@@ -187,6 +195,15 @@ onMounted(async () => {
   // This provides Mapbox token, OSM server URL, etc. to the client.
   await integrationService.fetchConfiguredIntegrations()
 
+  // The *available* integrations list is the set a user could configure, so
+  // it is authenticated. A signed-out visitor has none — and the map waits on
+  // both lists before it will draw, so leaving it unset stranded anonymous
+  // pages (a public canvas link) on the loading state forever. An empty list
+  // is the correct answer for them, not a missing one.
+  if (!authStore.me && !Array.isArray(integrationsStore.availableIntegrations)) {
+    integrationsStore.availableIntegrations = []
+  }
+
   // Bootstrap if the user is already known at mount (cached session). A fresh
   // sign-in leaves `me` null here and is handled by the auth watcher below.
   await bootstrapAuthenticatedUser()
@@ -271,7 +288,12 @@ function beforeNavTransition(value: boolean) {
         @after-enter="() => afterNavTransition(true)"
         @before-leave="() => beforeNavTransition(false)"
       >
-        <DesktopNav v-if="!hideUI" v-model:mini="navMini" class="z-40 h-full" />
+        <DesktopNav
+          v-if="!hideUI"
+          v-model:collapsed="navCollapsed"
+          v-model:width="navWidth"
+          class="z-40 h-full"
+        />
       </transition-slide>
     </template>
 

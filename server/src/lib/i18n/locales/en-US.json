@@ -139,7 +139,8 @@
       "layerGroupTemplateNotFound": "Default group template not found",
       "routeNotFound": "Route not found",
       "routeUpdateFailed": "Route not found or update failed",
-      "routeDeleteFailed": "Route not found or delete failed"
+      "routeDeleteFailed": "Route not found or delete failed",
+      "canvasNotFound": "Canvas not found"
     },
     "avatar": {
       "invalidType": "File must be JPEG, PNG, or WebP",

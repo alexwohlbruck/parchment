@@ -11,6 +11,7 @@ import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useRoutesStore } from '@/stores/library/routes.store'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
 
 const authService = useAuthService()
 const canAccessLibrary = computed(() => authService.hasPermission(PermissionId.LIBRARY_READ))
@@ -18,22 +19,24 @@ const canAccessLibrary = computed(() => authService.hasPermission(PermissionId.L
 const collectionsStore = useCollectionsStore()
 const layersStore = useLayersStore()
 const routesStore = useRoutesStore()
+const canvasesStore = useCanvasesStore()
 const { collections } = storeToRefs(collectionsStore)
 const { userLayers } = storeToRefs(layersStore)
 const { routes } = storeToRefs(routesStore)
+const { canvases } = storeToRefs(canvasesStore)
 
 const tabs = [
   { id: 'collections', label: 'Collections', route: AppRoute.LIBRARY_COLLECTIONS },
   { id: 'routes', label: 'Routes', route: AppRoute.LIBRARY_ROUTES },
   { id: 'layers', label: 'Layers', route: AppRoute.LIBRARY_LAYERS },
-  { id: 'maps', label: 'Maps', route: AppRoute.LIBRARY_MAPS },
+  { id: 'canvases', label: 'Canvases', route: AppRoute.LIBRARY_CANVASES },
 ]
 
 const tabCounts = computed<Record<string, number | null>>(() => ({
   collections: collections.value.length || null,
   layers: userLayers.value.length || null,
   routes: routes.value.length || null,
-  maps: null,
+  canvases: canvases.value.length || null,
 }))
 
 const router = useRouter()

@@ -7,6 +7,10 @@ import { ClockIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
 import ServiceAlertBadge from '@/components/transit/ServiceAlertBadge.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
@@ -15,6 +19,8 @@ import { api } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
 import { groupDepartures, type BoardDeparture } from '@/lib/transit-departures'
+import { transferLinesOf, type StationLine } from '@/composables/usePlaceTransitLines'
+import StationTransfers from '@/components/transit/StationTransfers.vue'
 import {
   formatDepartureTime,
   getMinutesUntil,
@@ -61,11 +67,90 @@ const departures = computed((): TransitDeparture[] => {
 /** Same curated bullets as the card this page expands. */
 watch(
   () => [props.transitInfo?.lat, props.transitInfo?.lng],
-  () => void ensureBulletsAt(props.transitInfo?.lat, props.transitInfo?.lng),
+  () => {
+    void ensureBulletsAt(props.transitInfo?.lat, props.transitInfo?.lng)
+    void ensureStopIndexAt(props.transitInfo?.lat, props.transitInfo?.lng)
+  },
   { immediate: true },
 )
 const styleOfRoute = (route: { id: string; type?: number }) =>
   bulletFor(route.id, props.transitInfo?.lat, props.transitInfo?.lng, route.type)
+
+/** Lines an in-station transfer reaches — listed below the board, since they
+ *  do not depart from here. */
+const transferLines = computed(() => transferLinesOf(props.transitInfo?.routes))
+
+function openRoute(routeId?: string) {
+  const feedId = props.transitInfo?.feedId
+  if (!feedId || !routeId) return
+  router.push({ name: AppRoute.TRANSIT_ROUTE, params: { feedId, routeId } })
+}
+
+/**
+ * The connecting stations, each with its own grouped board.
+ *
+ * Kept per-station all the way from Barrelman: these runs leave another
+ * platform, and merging them into the board above would say they depart from
+ * here. The name rides along because a connection is a place — "the R in 6
+ * minutes" only helps once you know it leaves Court St — and it is what a
+ * rider taps to go and look at it.
+ */
+const transferStations = computed(() =>
+  (props.transitInfo?.transferStations || []).map((station) => ({
+    name: station.name,
+    lat: station.lat,
+    lng: station.lng,
+    // Portolan's own join, which is the only exact one.
+    osm:
+      osmForStop(station.feedOnestopId, station.stopId, station.lat, station.lng) ??
+      undefined,
+    groups: groupDepartures(station.departures, currentTime.value, {
+      unknownDirectionLabel: t('place.transit.unknownDirection'),
+      limit: 2,
+      dayLabels: {
+        tonight: t('place.transit.tonight'),
+        tomorrow: t('place.transit.tomorrow'),
+      },
+    }),
+  })).filter((s) => s.groups.length),
+)
+
+/**
+ * Open a connecting station's own page.
+ *
+ * By name and point, which is how the app addresses a place it holds no OSM id
+ * for — the server resolves that pair back to the same OSM node a tap on the
+ * map would have opened.
+ *
+ * `complex` rides along for the same reason every station tap carries it: the
+ * name names an interchange, not one platform group, and without it the page
+ * answers for whichever member the point resolved to.
+ */
+function openTransferStation(station: {
+  name: string
+  lat?: number
+  lng?: number
+  osm?: string
+}) {
+  // Portolan's OSM object when it has one: it opens the station the map opens,
+  // and it is the only way to tell three stations called "Chambers St" apart —
+  // a name search ranks by importance and picked the A/C/E one 428m from the
+  // J/Z platform the rider was standing on.
+  const [type, id] = (station.osm ?? '').split('/')
+  if (type && id) {
+    router.push({ name: AppRoute.PLACE, params: { type, id }, query: { complex: '1' } })
+    return
+  }
+
+  // Otherwise the name and the point, which resolves to the same node wherever
+  // the name is unambiguous.
+  if (station.lat == null || station.lng == null) return
+  router.push({
+    name: AppRoute.PLACE_LOCATION,
+    params: { name: station.name, lat: String(station.lat), lng: String(station.lng) },
+    query: { complex: '1' },
+  })
+}
 
 const routeGroups = computed(() =>
   groupDepartures(departures.value, currentTime.value, {
@@ -267,6 +352,19 @@ function openTransitlandLink() {
       <p class="text-sm">{{ t('place.transit.noUpcomingDepartures') }}</p>
       <p class="text-xs mt-1">{{ t('place.transit.checkBackLater') }}</p>
     </div>
+
+    <StationTransfers
+      :stations="transferStations"
+      :now="currentTime"
+      :lines="transferLines"
+      :lat="transitInfo?.lat"
+      :lng="transitInfo?.lng"
+      :feed-id="transitInfo?.feedId"
+      class="mt-6"
+      @open="(line: StationLine) => openRoute(line.id)"
+      @open-route="(routeId: string) => openRoute(routeId)"
+        @open-station="openTransferStation"
+    />
 
     <!-- Footer -->
     <div class="mt-6 pt-3 border-t space-y-2 text-xs text-muted-foreground">

@@ -114,9 +114,21 @@ export function parseGtfsIds(raw: unknown): GtfsIdPair[] {
 /** Where a clicked station goes: an OSM object, or a transit.land stop
  *  key, or nowhere. Route names are the caller's (AppRoute) — this module
  *  stays free of the router. */
-export type StopTarget =
+export type StopTarget = (
   | { kind: 'osm'; type: string; id: string }
   | { kind: 'transitland'; stopKey: string }
+) & {
+  /**
+   * Open everything at this interchange rather than one station of it.
+   *
+   * Always set. Nothing in the tiles identifies WHICH station a tapped marker
+   * belongs to — portolan matches OSM objects to the station and hands every
+   * marker the same id — so asking for one station means asking for an
+   * arbitrary one. Where the symbol covers a single station this is simply
+   * that station, so the flag costs nothing there.
+   */
+  complex?: boolean
+}
 
 /**
  * Which place a click on this station feature identifies.
@@ -139,13 +151,28 @@ export type StopTarget =
  * be a link.
  */
 export function stopTargetFor(props: any): StopTarget | null {
+  // Always the whole interchange.
+  //
+  // This used to be Apple's hybrid: the merged label opened the group, one
+  // corridor's marker opened the station it sat on. That second half cannot
+  // work with what the tiles carry. Portolan matches an OSM object to the
+  // STATION, and a marker is handed its station's `osm` id rather than one of
+  // its own — so tapping the J at Canal St opened whichever of the six
+  // same-named stations portolan had matched, which is the N/Q. There is no
+  // id on a marker that says which sub-station it belongs to, so the choice is
+  // between opening the right group and opening an arbitrary member of it.
+  //
+  // Opening the group is the honest one, and it loses nothing: every line the
+  // specific station runs is in the group's list too.
+  const complex = { complex: true as const }
+
   const osm = String(props?.osm ?? '')
   const slash = osm.indexOf('/')
   if (slash > 0 && slash < osm.length - 1) {
-    return { kind: 'osm', type: osm.slice(0, slash), id: osm.slice(slash + 1) }
+    return { kind: 'osm', type: osm.slice(0, slash), id: osm.slice(slash + 1), ...complex }
   }
   // a merged complex can carry several pairs; the tiler orders them by
   // importance, so the first is the one to open
   const pairs = parseGtfsIds(props?.gtfs_ids)
-  return pairs.length ? { kind: 'transitland', stopKey: pairs[0].stopKey } : null
+  return pairs.length ? { kind: 'transitland', stopKey: pairs[0].stopKey, ...complex } : null
 }

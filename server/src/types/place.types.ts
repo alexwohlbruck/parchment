@@ -148,6 +148,21 @@ export interface TransitDeparture {
   }
 }
 
+/** A station reachable on foot from this one, with what leaves from it. */
+export interface TransitTransferStation {
+  name: string
+  feedId?: string
+  stopId?: string
+  lat?: number
+  lng?: number
+  /** The feed's transit.land onestop id. Portolan keys its station index by
+   *  `<onestop>:<stop_id>`, so this plus `stopId` is what resolves this
+   *  station to the OSM object the map opens — a name cannot, since three
+   *  stations are called "Chambers St". */
+  feedOnestopId?: string
+  departures: TransitDeparture[]
+}
+
 export interface TransitStopInfo {
   /** @deprecated Use stopId/feedId or coordinates instead */
   onestopId?: string
@@ -166,6 +181,13 @@ export interface TransitStopInfo {
   timezone?: string
   wheelchairBoarding?: number
   departures?: TransitDeparture[]
+  /** The stations a rider can transfer to, each with its own board.
+   *
+   *  Kept per-station rather than merged into one list: a connection is a
+   *  place, and "the R leaves in 6 minutes" is only useful once you know it
+   *  leaves from Court St. Stations sharing a name are one entry, since that
+   *  is the same station drawn twice. */
+  transferStations?: TransitTransferStation[]
   /** How far ahead `departures` reaches, in minutes. */
   windowMinutes?: number
   /** More runs exist past the window — the board can offer to load them. */
@@ -178,8 +200,15 @@ export interface TransitStopInfo {
     textColor?: string
     type?: number
     /** `station` — the line calls here. `transfer` — it calls at a station
-     *  connected to this one, reachable without leaving the paid area. */
-    via?: 'station' | 'transfer'
+     *  connected to this one, reachable without leaving the paid area.
+     *  `nearby` — it calls at a stop within walking distance that no feed
+     *  joins to this station, which is the only way a subway station's bus
+     *  connections can be found: `transfers.txt` is scoped to one feed, so
+     *  neither operator's file can reference the other's stops. Says nothing
+     *  about whether the connection is free. */
+    via?: 'station' | 'transfer' | 'nearby'
+    /** Metres to the stop, for `nearby` lines only. */
+    distanceM?: number
   }>
 }
 

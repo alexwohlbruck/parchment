@@ -20,6 +20,7 @@ import {
   SOURCE,
   BUILDING_3D_ROOF_LAYER,
   BUILDING_ROOF_EDGE_LAYER,
+  maplibreProjection,
 } from './build'
 import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
@@ -29,6 +30,7 @@ import { BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
+import { ENGINE_PROJECTIONS, MapEngine, MapProjection } from '@/types/map.types'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -1053,6 +1055,23 @@ describe('assembled styles', () => {
     }
     expect(ids).toContain(layerGroups.building3d)
   })
+
+  /**
+   * The transit toggle hides stop labels the overlay is about to redraw. It
+   * once matched on layer id, which caught the railway line layers instead —
+   * so turning transit on wiped the rail network off the basemap.
+   */
+  test('the transit group is stop labels, never the rails themselves', () => {
+    const toggled = layerGroups.transit.map(id => layers.find(l => l.id === id)!)
+    expect(toggled.length).toBeGreaterThan(0)
+    for (const layer of toggled) {
+      expect(layer.type, layer.id).toBe('symbol')
+      expect((layer as any)['source-layer'], layer.id).toBe('poi')
+    }
+    for (const layer of layers) {
+      if (layer.type === 'line') expect(layerGroups.transit).not.toContain(layer.id)
+    }
+  })
 })
 
 describe('assets the spec depends on', () => {
@@ -1149,5 +1168,51 @@ describe('assets the spec depends on', () => {
     expect(
       TRANSIT_POI_CLASSES.filter(c => names.includes(c) && !(`tile-${c}` in sprite)),
     ).toEqual([])
+  })
+})
+
+/**
+ * MapLibre draws two of the projections the setting offers. These pin down
+ * which two, and that the picker never offers a choice the map cannot honour.
+ */
+describe('projection', () => {
+  test('the sphere is the only thing that is not Mercator', () => {
+    expect(maplibreProjection(MapProjection.GLOBE)).toBe('globe')
+    expect(maplibreProjection(MapProjection.MERCATOR)).toBe('mercator')
+    expect(maplibreProjection(undefined)).toBe('mercator')
+  })
+
+  test("Mapbox's own projections fall back rather than reaching MapLibre", () => {
+    const mapboxOnly = Object.values(MapProjection).filter(
+      p => !ENGINE_PROJECTIONS[MapEngine.MAPLIBRE].includes(p),
+    )
+    expect(mapboxOnly.length).toBeGreaterThan(0)
+    expect(mapboxOnly.map(maplibreProjection)).toEqual(mapboxOnly.map(() => 'mercator'))
+  })
+
+  /**
+   * MapLibre scatters the globe's halo from the style's light, which the
+   * strategy keeps pointed at the real sun for building shadows — so a halo
+   * lights one limb of the globe and darkens the other, under the day/night
+   * layer's own terminator. Off in every style that has a sky.
+   */
+  test('no atmosphere doubles the day/night layer', () => {
+    const styles = [
+      buildMapStyle({ ...opts, theme: 'light' } as any),
+      buildMapStyle({ ...opts, theme: 'dark' } as any),
+      buildSatelliteStyle({ ...opts, hybrid: false } as any),
+      buildSatelliteStyle({ ...opts, hybrid: true } as any),
+    ]
+    expect(styles.map(s => s.sky?.['atmosphere-blend'])).toEqual([0, 0, 0, 0])
+  })
+
+  /**
+   * Two entries in the picker that draw the same thing would read as a setting
+   * that does nothing, which is how the Mapbox-only projections behaved here
+   * before they were filtered out of it.
+   */
+  test("every projection MapLibre is offered draws something different", () => {
+    const offered = ENGINE_PROJECTIONS[MapEngine.MAPLIBRE]
+    expect(new Set(offered.map(maplibreProjection)).size).toBe(offered.length)
   })
 })

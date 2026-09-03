@@ -1,4 +1,5 @@
 import {
+  ENGINE_PROJECTIONS,
   MapCamera,
   MapEngine,
   MapProjection,
@@ -31,7 +32,11 @@ import { useTimelineLayerService } from '@/services/layers/features/timeline-lay
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useAppStore } from '../stores/app.store'
-import { calculateFitPadding, type Padding } from '@/lib/map-padding'
+import {
+  calculateFitPadding,
+  toContainerRect,
+  type Padding,
+} from '@/lib/map-padding'
 import {
   findGriddedCity,
   gridOrientations,
@@ -252,6 +257,8 @@ function mapService() {
   // Tracks per-zoom state that is closed over by a 'move' listener.
   // Scoped to the module so that rebinding on engine switch resets it cleanly.
   let previousZoom: number | null = null
+  /** Last known globe state, so padding is only reset when it flips. */
+  let wasGlobeRendering: boolean | null = null
 
   /**
    * Bind all mapEventBus listeners used by the service.
@@ -309,6 +316,18 @@ function mapService() {
           }
         }, CONTROL_HIDE_DELAY)
       }
+    })
+
+    // Whether padding applies depends on the globe being on screen, and that
+    // answer changes with zoom alone — no panel moves, so nothing else would
+    // re-run it. Only on the crossing: `setPadding` rebuilds every matrix, and
+    // `move` fires continuously through a gesture.
+    wasGlobeRendering = null
+    mapEventBus.on('move', () => {
+      const globe = mapStrategy?.isGlobeRendering() ?? false
+      if (globe === wasGlobeRendering) return
+      wasGlobeRendering = globe
+      updateMapPadding()
     })
 
     // Track zoom state for conditional control visibility
@@ -617,7 +636,12 @@ function mapService() {
       return null
     }
 
-    const visibleArea = appStore.visibleMapArea
+    // Obstruction bounds are viewport-space; everything below is relative to
+    // the canvas, which the sidebar has already pushed off the viewport edge.
+    const visibleArea = toContainerRect(
+      appStore.visibleMapArea,
+      mapContainer.getBoundingClientRect(),
+    )
     const mapWidth = mapContainer.clientWidth
     const mapHeight = mapContainer.clientHeight
 
@@ -682,7 +706,7 @@ function mapService() {
       }
 
       // Set padding to ensure the camera operation respects the visible area
-      adjustedCamera.padding = paddingResult.padding
+      adjustedCamera.padding = effectiveMapPadding() ?? paddingResult.padding
       return adjustedCamera
     } catch (error) {
       console.warn('Error adjusting camera for visible map area:', error)
@@ -723,7 +747,10 @@ function mapService() {
     // on top of the computed one — useful for cases that want an extra
     // buffer around the fitted content beyond the default breathing room.
     const basePadding = calculateFitPadding(
-      appStore.visibleMapArea,
+      toContainerRect(
+        appStore.visibleMapArea,
+        mapContainer.getBoundingClientRect(),
+      ),
       mapContainer.clientWidth,
       mapContainer.clientHeight,
     )
@@ -843,6 +870,13 @@ function mapService() {
     isMapReady.value = false // Reset map ready state
     queuedTrips.value = null // Clear any queued trips
     mapStore.settings.engine = mapEngine
+
+    // The two engines draw different sets of projections. Carrying a
+    // Mapbox-only one into MapLibre would leave the setting naming a shape the
+    // map is not drawing, and its picker with nothing selected.
+    if (!ENGINE_PROJECTIONS[mapEngine].includes(mapStore.settings.projection)) {
+      mapStore.settings.projection = MapProjection.MERCATOR
+    }
 
     // Only initialize map if we have a container
     if (!mapContainer) {
@@ -1036,10 +1070,33 @@ function mapService() {
   function updateMapPadding() {
     if (!mapStrategy || !mapContainer || !isMapReady.value) return
 
-    const paddingResult = calculateMapPadding()
-    if (!paddingResult) return
+    const padding = effectiveMapPadding()
+    if (!padding) return
 
-    mapStrategy.mapInstance?.setPadding(paddingResult.padding as any)
+    mapStrategy.mapInstance?.setPadding(padding as any)
+  }
+
+  /**
+   * The padding the map should be using right now.
+   *
+   * Normally the visible area's, so the point the map is centred on stays out
+   * from behind a panel. Zeroed while a sphere is on screen: padding works by
+   * moving the focal point off the middle of the viewport, which is invisible
+   * on a flat map that covers the canvas edge to edge, and glaring on a globe,
+   * which is a discrete object with an obvious centre — a 400px panel leaves
+   * it sitting 200px right of the middle.
+   *
+   * Nothing is lost by dropping it there. Padding exists to keep a place from
+   * landing under a panel, and both engines have flattened to Mercator long
+   * before the zoom at which you would be looking at one.
+   */
+  function effectiveMapPadding(): MapCamera['padding'] | null {
+    const result = calculateMapPadding()
+    if (!result) return null
+    if (mapStrategy?.isGlobeRendering()) {
+      return { top: 0, bottom: 0, left: 0, right: 0 }
+    }
+    return result.padding
   }
 
   // Watch for changes in the visible map area and apply padding immediately.
@@ -1470,10 +1527,17 @@ function mapService() {
       const map = mapStrategy?.mapInstance
       if (!map?.unproject) return mapStrategy?.getBounds() || null
 
-      const visibleArea = appStore.visibleMapArea
-      if (!visibleArea || !visibleArea.width || !visibleArea.height) {
+      const viewportArea = appStore.visibleMapArea
+      if (!viewportArea || !viewportArea.width || !viewportArea.height) {
         return mapStrategy?.getBounds() || null
       }
+
+      // `unproject` reads container-relative pixels, and the obstruction
+      // bounds are viewport-relative — on desktop the sidebar sits between
+      // the two origins.
+      const visibleArea = mapContainer
+        ? toContainerRect(viewportArea, mapContainer.getBoundingClientRect())
+        : viewportArea
 
       // Unproject the four corners of the visible area rect (pixel → lng/lat)
       const nw = map.unproject([visibleArea.x, visibleArea.y])

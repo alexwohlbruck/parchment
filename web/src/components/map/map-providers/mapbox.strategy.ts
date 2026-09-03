@@ -52,10 +52,22 @@ import { createVueMarkerElement } from '@/lib/vue-marker.utils'
 import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
 import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
-import { calculateFitPadding } from '@/lib/map-padding'
+import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
+
+/**
+ * The zoom at which the globe has finished becoming a flat map.
+ *
+ * Mapbox interpolates the two across `globeToMercatorTransition`, a smoothstep
+ * from zoom 5 to zoom 6, rather than drawing a sphere at every zoom. Past this
+ * point a globe map and a Mercator map are the same map.
+ *
+ * MapLibre holds its sphere a good deal longer — see `GLOBE_FLATTENS_AT` in
+ * its strategy — so each engine keeps its own number rather than sharing one.
+ */
+const GLOBE_FLATTENS_AT = 6
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -279,33 +291,46 @@ export class MapboxStrategy extends MapStrategy {
       type: 'mouseenter',
       target: { layerId: 'mapillary-image' },
       handler: () => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
+        this.setHoverCursor('pointer')
       },
     })
     this.mapInstance.addInteraction('mapillary-mouseleave', {
       type: 'mouseleave',
       target: { layerId: 'mapillary-image' },
       handler: () => {
-        this.mapInstance.getCanvas().style.cursor = ''
+        this.setHoverCursor('')
       },
     })
     this.listenPOIClick()
+  }
+
+  /**
+   * Hover cursors, ignored while a tool owns the pointer.
+   *
+   * A drawing tool sets its own cursor for the whole map; letting a POI
+   * hover flip it to a pointer — and letting the matching leave handler
+   * reset it to nothing — meant the crosshair vanished the moment you moved
+   * across a label, which is most of the time in a city.
+   */
+  private setHoverCursor(cursor: string) {
+    if (useMapToolsStore().rawClickCapture) return
+    this.mapInstance.getCanvas().style.cursor = cursor
   }
 
   listenPOIClick() {
     this.mapInstance.addInteraction('poi-mouseenter', {
       type: 'mouseenter',
       target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
+      handler: () => {
+        this.setHoverCursor('pointer')
       },
     })
 
     this.mapInstance.addInteraction('poi-mouseleave', {
       type: 'mouseleave',
       target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = ''
+      handler: () => {
+        this.setHoverCursor('')
       },
     })
 
@@ -315,7 +340,10 @@ export class MapboxStrategy extends MapStrategy {
       handler: e => {
         // When measure tool is active, ignore POI clicks so the debounced map click
         // fires and the click is treated as a regular map click (add measure point).
-        if (useMapToolsStore().activeTool === 'measure') return
+        // Anything placing geometry needs the raw click, at the coordinates the
+        // user actually clicked — see `rawClickCapture`.
+        const mapTools = useMapToolsStore()
+        if (mapTools.activeTool === 'measure' || mapTools.rawClickCapture) return
         if (!e.feature?.id) return
 
         const { osmId, poiType } = parseMapboxToOsmId(e.feature.id)
@@ -569,7 +597,20 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   setMapProjection(projection: MapProjection) {
+    this.options.projection = projection
     this.mapInstance.setProjection(projection)
+  }
+
+  /**
+   * Mapbox eases the globe into Mercator across `GLOBE_FLATTENS_AT`, so past
+   * that zoom a globe map is a flat map and the sphere is only on screen
+   * below it.
+   */
+  override isGlobeRendering(): boolean {
+    return (
+      this.options.projection === MapProjection.GLOBE &&
+      this.mapInstance.getZoom() < GLOBE_FLATTENS_AT
+    )
   }
 
   /**
@@ -684,6 +725,14 @@ export class MapboxStrategy extends MapStrategy {
     if (this.mapInstance.getSource(sourceId)) {
       this.mapInstance.removeSource(sourceId)
     }
+  }
+
+  setSourceData(sourceId: string, data: any) {
+    // Only a GeoJSON source can take data in place; anything else is a no-op.
+    const source = this.mapInstance.getSource(sourceId) as
+      | { setData?: (data: any) => void }
+      | undefined
+    source?.setData?.(data)
   }
 
   addSource(sourceId: string, source: any) {
@@ -1004,7 +1053,10 @@ export class MapboxStrategy extends MapStrategy {
 
     const appStore = useAppStore()
     const padding = calculateFitPadding(
-      appStore.visibleMapArea,
+      toContainerRect(
+        appStore.visibleMapArea,
+        this.container.getBoundingClientRect(),
+      ),
       this.container.clientWidth,
       this.container.clientHeight,
     )

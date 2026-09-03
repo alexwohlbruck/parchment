@@ -25,6 +25,7 @@ import type { DecryptedPoint } from '@/types/library.types'
 
 const COLLECTION_CONTEXT = 'parchment-collection-metadata-v1'
 const CANVAS_CONTEXT = 'parchment-canvas-metadata-v1'
+const CANVAS_BODY_CONTEXT = 'parchment-canvas-body-v1'
 const ROUTE_METADATA_CONTEXT = 'parchment-route-metadata-v1'
 const ROUTE_BODY_CONTEXT = 'parchment-route-body-v1'
 
@@ -45,6 +46,9 @@ export interface CollectionMetadata {
 export interface CanvasMetadata {
   name?: string
   description?: string
+  icon?: string
+  iconPack?: 'lucide' | 'maki'
+  iconColor?: string
   // Canvas rendering hints / style tokens live here; shape is intentionally
   // loose so future canvas features can extend without a schema migration.
   style?: Record<string, unknown>
@@ -59,6 +63,15 @@ function collectionAAD(params: {
     recordType: 'collection-metadata',
     recordId: params.collectionId,
     keyContext: COLLECTION_CONTEXT,
+  }
+}
+
+function canvasBodyAAD(params: { userId: string; canvasId: string }): AAD {
+  return {
+    userId: params.userId,
+    recordType: 'canvas-body',
+    recordId: params.canvasId,
+    keyContext: CANVAS_BODY_CONTEXT,
   }
 }
 
@@ -206,6 +219,40 @@ export function decryptCanvasMetadata(params: {
     }),
   })
   return JSON.parse(plaintext) as CanvasMetadata
+}
+
+/**
+ * Encrypt a canvas body (user-e2ee canvases only). The body is the layer
+ * stack: style layers, references to library layers, and collection ids. It
+ * gets its own key derivation so a canvas's metadata key can't read it.
+ */
+export function encryptCanvasBody(params: {
+  body: unknown
+  seed: Uint8Array
+  userId: string
+  canvasId: string
+}): string {
+  const key = deriveCollectionKey(params.seed, `canvas-body:${params.canvasId}`)
+  return encryptEnvelopeString({
+    plaintext: JSON.stringify(params.body),
+    key,
+    aad: canvasBodyAAD({ userId: params.userId, canvasId: params.canvasId }),
+  })
+}
+
+export function decryptCanvasBody<T = unknown>(params: {
+  envelope: string
+  seed: Uint8Array
+  userId: string
+  canvasId: string
+}): T {
+  const key = deriveCollectionKey(params.seed, `canvas-body:${params.canvasId}`)
+  const plaintext = decryptEnvelopeString({
+    envelope: params.envelope,
+    key,
+    aad: canvasBodyAAD({ userId: params.userId, canvasId: params.canvasId }),
+  })
+  return JSON.parse(plaintext) as T
 }
 
 // ── Custom routes ─────────────────────────────────────────────────────────

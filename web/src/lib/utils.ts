@@ -43,6 +43,40 @@ export type ThemeColor =
   | 'magenta'
   | 'primary'
 
+/**
+ * The colours offered wherever something in the app can be recoloured.
+ *
+ * One list, ordered around the wheel, so a pin, a collection, a layer and a
+ * canvas mark all draw from the same set — picking a colour should mean the
+ * same thing everywhere. `primary` is deliberately absent: it is an accent
+ * token that moves with the theme, not a colour anyone chooses.
+ */
+export const THEME_COLORS: readonly Exclude<ThemeColor, 'primary'>[] = [
+  'compass',
+  'coral',
+  'amber',
+  'peach',
+  'citrine',
+  'olive',
+  'forest',
+  'moss',
+  'teal',
+  'sky',
+  'cobalt',
+  'periwinkle',
+  'indigo',
+  'violet',
+  'iris',
+  'magenta',
+  'ink',
+  'parchment',
+] as const
+
+/** Whether a value names one of our colours rather than being a CSS colour. */
+export function isThemeColor(value: string | null | undefined): boolean {
+  return !!value && (THEME_COLORS as readonly string[]).includes(value)
+}
+
 export function getBreakpoints() {
   // Default Tailwind CSS breakpoints - hardcoded since v4 doesn't provide runtime config access
   return {

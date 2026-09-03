@@ -1,0 +1,671 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { computed, effectScope, nextTick, ref, type Ref } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useMapStore } from '@/stores/map.store'
+import { useThemeStore } from '@/stores/theme.store'
+import { useCanvasRendering } from './useCanvasRendering'
+import type {
+  CanvasAnnotation,
+  CanvasBody,
+  CanvasLayer,
+} from '@/types/canvas.types'
+
+/**
+ * Two renderers are routinely alive at once — the main map draws the canvases
+ * you switched on, the editor draws the working copy of the one you opened —
+ * so the invariants worth pinning down are about them not treading on each
+ * other, and about the order operations reach the engine.
+ *
+ * The engine refuses to drop a source a layer is still using, so a render
+ * pass that rebuilds a source has to take its layers off first. Getting that
+ * backwards is silent in types and loud at runtime.
+ */
+
+vi.mock('@/composables/useFriendLocationFeatures', () => ({
+  useFriendLocationFeatures: () => ({
+    peopleFeatures: () => ({ type: 'FeatureCollection', features: [] }),
+    displayName: (handle: string) => handle,
+  }),
+}))
+
+/** Records what the map was asked to do, in order. */
+function fakeStrategy() {
+  const calls: string[] = []
+  const sources = new Set<string>()
+  const layers = new Set<string>()
+  const configurations = new Map<string, Record<string, unknown>>()
+
+  return {
+    calls,
+    sources,
+    layers,
+    configurations,
+    mapInstance: { getSource: () => undefined, hasImage: () => true },
+    addSource(id: string) {
+      // Mirrors the engine: adding over a live source is an error.
+      if (sources.has(id)) throw new Error(`source ${id} already exists`)
+      sources.add(id)
+      calls.push(`addSource:${id}`)
+    },
+    removeSource(id: string) {
+      for (const layerId of layers) {
+        if (layerId.startsWith(id.replace(/-source$/, ''))) {
+          throw new Error(`source ${id} still in use by ${layerId}`)
+        }
+      }
+      sources.delete(id)
+      calls.push(`removeSource:${id}`)
+    },
+    addLayer(layer: { id: string; configuration?: Record<string, unknown> }) {
+      layers.add(layer.id)
+      configurations.set(layer.id, layer.configuration ?? {})
+      calls.push(`addLayer:${layer.id}`)
+    },
+    removeLayer(id: string) {
+      layers.delete(id)
+      calls.push(`removeLayer:${id}`)
+    },
+    setSourceData(id: string, _data: unknown) {
+      // Mirrors the engine: there has to be a live source to hand data to.
+      if (!sources.has(id)) throw new Error(`source ${id} does not exist`)
+      calls.push(`setSourceData:${id}`)
+    },
+    toggleLayerVisibility(id: string, visible: boolean) {
+      calls.push(`visibility:${id}:${visible}`)
+    },
+    fitBounds() {},
+  }
+}
+
+function dataLayer(overrides: Partial<CanvasLayer> = {}): CanvasLayer {
+  return {
+    id: 'cl-1',
+    kind: 'data',
+    name: 'Sites',
+    visible: true,
+    render: 'points',
+    data: {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [1, 2] },
+          properties: {},
+        },
+      ],
+    },
+    ...overrides,
+  } as CanvasLayer
+}
+
+/** A layer whose source spec can change in ways `setData` cannot express. */
+function styleLayer(tiles: string): CanvasLayer {
+  return {
+    id: 'cl-2',
+    kind: 'style',
+    name: 'Tiles',
+    visible: true,
+    configuration: {
+      id: 'cl-2',
+      type: 'raster',
+      source: { id: 'src', type: 'raster', tiles: [tiles] },
+    },
+  } as unknown as CanvasLayer
+}
+
+let strategy: ReturnType<typeof fakeStrategy>
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  localStorage.clear()
+  strategy = fakeStrategy()
+  useMapStore().setMapStrategy(strategy as never)
+})
+
+/** Render a canvas body under a given instance key, inside its own scope. */
+function render(key: string, body: CanvasBody) {
+  const scope = effectScope()
+  const api = scope.run(() =>
+    useCanvasRendering(
+      computed(() => [{ id: 'canvas-1', body }]),
+      { key },
+    ),
+  )!
+  return { ...api, dispose: () => scope.stop() }
+}
+
+describe('useCanvasRendering', () => {
+  it('draws a data layer as its preset layers over one source', () => {
+    render('map', { layers: [dataLayer()] })
+
+    expect([...strategy.sources]).toHaveLength(1)
+    expect([...strategy.layers]).toEqual(['canvas-map-canvas-1-cl-1-points'])
+  })
+
+  it('keeps two live renderers off each other’s ids', () => {
+    const body = { layers: [dataLayer()] }
+
+    render('map', body)
+    // The editor opening over a canvas already drawn on the map must not
+    // collide — this threw "source already exists" before ids carried the key.
+    expect(() => render('canvas-editor', body)).not.toThrow()
+
+    expect([...strategy.sources].sort()).toEqual([
+      'canvas-canvas-editor-canvas-1-cl-1-source',
+      'canvas-map-canvas-1-cl-1-source',
+    ])
+  })
+
+  it('takes layers off before rebuilding the source they draw from', () => {
+    const body = { layers: [styleLayer('https://a/{z}/{x}/{y}.png')] }
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    body.layers = [styleLayer('https://b/{z}/{x}/{y}.png')]
+    instance.render()
+
+    const removeLayer = strategy.calls.indexOf(
+      'removeLayer:canvas-map-canvas-1-cl-2',
+    )
+    const removeSource = strategy.calls.indexOf(
+      'removeSource:canvas-map-canvas-1-cl-2-source',
+    )
+    expect(removeLayer).toBeGreaterThanOrEqual(0)
+    expect(removeSource).toBeGreaterThan(removeLayer)
+  })
+
+  it('hands changed GeoJSON to the live source instead of rebuilding it', () => {
+    const body = { layers: [dataLayer()] }
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    body.layers = [
+      dataLayer({
+        data: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [9, 9] },
+              properties: {},
+            },
+          ],
+        },
+      } as never),
+    ]
+    instance.render()
+
+    // Rebuilding would mean dropping every layer drawn from the source and
+    // adding them back — the thing that made drawing lag.
+    expect(strategy.calls).toEqual([
+      'setSourceData:canvas-map-canvas-1-cl-1-source',
+    ])
+  })
+
+  it('leaves an unchanged canvas entirely alone', () => {
+    const body = { layers: [dataLayer()] }
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    instance.render()
+
+    expect(strategy.calls).toEqual([])
+  })
+
+  it('leaves the source alone when only the styling changed', () => {
+    const body = { layers: [dataLayer()] }
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    body.layers = [dataLayer({ style: { color: '#ff0000' } } as never)]
+    instance.render()
+
+    // No tile or feature refetch for a colour change.
+    expect(strategy.calls.filter(c => c.startsWith('addSource'))).toEqual([])
+    expect(strategy.calls.filter(c => c.startsWith('removeSource'))).toEqual([])
+  })
+
+  it('drops a layer and its source when it is removed from the canvas', () => {
+    const body = { layers: [dataLayer()] }
+    const instance = render('map', body)
+
+    body.layers = []
+    instance.render()
+
+    expect([...strategy.layers]).toEqual([])
+    expect([...strategy.sources]).toEqual([])
+  })
+
+  it('takes everything down again when the renderer goes away', () => {
+    const instance = render('map', { layers: [dataLayer()] })
+
+    instance.dispose()
+
+    expect([...strategy.layers]).toEqual([])
+    expect([...strategy.sources]).toEqual([])
+  })
+
+  it('skips a library layer that no longer exists rather than drawing nothing', () => {
+    render('map', {
+      layers: [{ id: 'cl-x', kind: 'library', layerId: 'gone', visible: true }],
+    })
+
+    expect([...strategy.layers]).toEqual([])
+  })
+})
+
+describe('the stroke layers a run of marks asks for', () => {
+  const line = (id: string, style?: string, cap?: string): CanvasAnnotation =>
+    ({
+      id,
+      tool: 'line',
+      positions: [[0, 0], [1, 1]],
+      ...(style ? { strokeStyle: style } : {}),
+      ...(cap ? { strokeCap: cap } : {}),
+    }) as CanvasAnnotation
+
+  const strokes = () =>
+    [...strategy.configurations.entries()]
+      .filter(([id]) => id.includes('-stroke-'))
+      .map(([id, configuration]) => ({
+        id: id.slice(id.indexOf('-stroke-')),
+        layout: (configuration as { layout: Record<string, unknown> }).layout,
+        dash: (configuration as { paint: Record<string, unknown> }).paint[
+          'line-dasharray'
+        ],
+      }))
+
+  it('asks for one layer when every mark is drawn the same way', () => {
+    render('map', { layers: [], annotations: [line('an-1'), line('an-2')] })
+
+    expect(strokes()).toEqual([
+      {
+        id: '-stroke-solid-round',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        dash: undefined,
+      },
+    ])
+  })
+
+  it('keeps the cap constant on the layer, which is what makes a dot a dot', () => {
+    // The engines choose the dash texture from a constant `line-cap` — round
+    // dashes for a round cap. Read from the feature instead, they have no
+    // answer, and a dotted line comes out wrong.
+    render('map', {
+      layers: [],
+      annotations: [line('an-1', 'dotted'), line('an-2', 'dashed', 'butt')],
+    })
+
+    expect(strokes()).toEqual([
+      {
+        id: '-stroke-dotted-round',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        dash: [0.2, 1.8],
+      },
+      {
+        id: '-stroke-dashed-butt',
+        layout: { 'line-cap': 'butt', 'line-join': 'round' },
+        dash: [2, 1.5],
+      },
+    ])
+  })
+
+  it('asks for nothing on a canvas of pins, which have no stroke', () => {
+    render('map', {
+      layers: [],
+      annotations: [{ id: 'an-1', tool: 'pin', positions: [[0, 0]] } as CanvasAnnotation],
+    })
+
+    expect(strokes()).toEqual([])
+  })
+})
+
+describe('labels under the map\'s lighting', () => {
+  const annotated: CanvasBody = {
+    layers: [],
+    annotations: [
+      {
+        id: 'an-1',
+        tool: 'pin',
+        positions: [[0, 0]],
+        label: 'Home',
+      },
+    ],
+  }
+
+  // Marks draw in runs keyed by the one at the bottom, so the label layer's
+  // id depends on what is on the canvas. Found by its suffix instead.
+  const labelPaint = () => {
+    const id = [...strategy.configurations.keys()].find(key =>
+      key.endsWith('-labels'),
+    )
+    return strategy.configurations.get(id ?? '') as
+      | { paint: Record<string, unknown> }
+      | undefined
+  }
+
+  it('writes dark text on a light halo by day', () => {
+    useThemeStore().isDark = false
+    render('map', annotated)
+
+    expect(labelPaint()?.paint['text-color']).toBe('#1f2937')
+    expect(labelPaint()?.paint['text-halo-color']).toBe('#ffffff')
+  })
+
+  it('turns the label over when the map turns to night', async () => {
+    const theme = useThemeStore()
+    theme.isDark = false
+    render('map', annotated)
+
+    theme.isDark = true
+    await nextTick()
+
+    // Left alone, a dark label on a night basemap is a smear.
+    expect(labelPaint()?.paint['text-color']).toBe('#f9fafb')
+    expect(labelPaint()?.paint['text-halo-color']).toBe('#0b1220')
+  })
+})
+
+
+/**
+ * Layers and marks are one stack, so what covers what is whatever the order
+ * says — a mark is no longer pinned above every layer. Marks still share a
+ * source when they sit together, which is what keeps a canvas full of pins
+ * from becoming a source per pin.
+ */
+describe('one stack, marks and layers alike', () => {
+  const l = (id: string) => dataLayer({ id })
+  const a = (id: string): CanvasAnnotation =>
+    ({ id, tool: 'pin', positions: [[0, 0]] }) as CanvasAnnotation
+
+  /** The order the engine was asked to add things in, ids only. */
+  const added = () =>
+    strategy.calls
+      .filter(call => call.startsWith('addLayer:'))
+      .map(call => call.slice('addLayer:'.length))
+
+  it('draws a layer above a mark when the order puts it there', () => {
+    render('map', {
+      layers: [l('cl-1')],
+      annotations: [a('an-1')],
+      order: ['an-1', 'cl-1'],
+    })
+
+    const markAt = added().findIndex(id => id.includes('an-1'))
+    const layerAt = added().findIndex(id => id.includes('cl-1'))
+    expect(markAt).toBeGreaterThanOrEqual(0)
+    expect(markAt).toBeLessThan(layerAt)
+  })
+
+  it('still draws a mark above a layer the other way round', () => {
+    render('map', {
+      layers: [l('cl-1')],
+      annotations: [a('an-1')],
+      order: ['cl-1', 'an-1'],
+    })
+
+    const layerAt = added().findIndex(id => id.includes('cl-1'))
+    const markAt = added().findIndex(id => id.includes('an-1'))
+    expect(layerAt).toBeLessThan(markAt)
+  })
+
+  it('gives marks sitting together a single source', () => {
+    render('map', {
+      layers: [],
+      annotations: [a('an-1'), a('an-2'), a('an-3')],
+      order: ['an-1', 'an-2', 'an-3'],
+    })
+
+    expect([...strategy.sources]).toHaveLength(1)
+  })
+
+  it('splits them where a layer comes between', () => {
+    render('map', {
+      layers: [l('cl-1')],
+      annotations: [a('an-1'), a('an-2')],
+      order: ['an-1', 'cl-1', 'an-2'],
+    })
+
+    const annotationSources = [...strategy.sources].filter(id =>
+      id.includes('annotations'),
+    )
+    expect(annotationSources).toHaveLength(2)
+  })
+
+  it('leaves out a layer switched off, without splitting the marks around it', () => {
+    render('map', {
+      layers: [dataLayer({ id: 'cl-1', visible: false })],
+      annotations: [a('an-1'), a('an-2')],
+      order: ['an-1', 'cl-1', 'an-2'],
+    })
+
+    // The layer is still in the stack, so the run is still split — hiding
+    // something must not silently change what covers what around it.
+    expect(added().some(id => id.includes('cl-1'))).toBe(true)
+  })
+
+  it('takes a hidden group\'s contents off the map', () => {
+    render('map', {
+      layers: [l('cl-1')],
+      annotations: [],
+      groups: [
+        { id: 'cg-1', name: 'Base', visible: false, children: ['cl-1'] },
+      ],
+      order: ['cg-1'],
+    })
+
+    expect(
+      added().every(id => strategy.configurations.get(id)?.layout === undefined ||
+        (strategy.configurations.get(id) as { layout?: Record<string, unknown> })
+          .layout?.visibility === 'none'),
+    ).toBe(true)
+  })
+})
+
+/**
+ * The engine has no "move this layer" — adding one puts it on top — so the
+ * order the panel shows only reaches the map if the renderer notices that
+ * what is mounted no longer matches what the stack says. Nothing about a
+ * layer's configuration records where it draws, so two swapped layers both
+ * look untouched: a reorder used to reach the engine as nothing at all.
+ */
+describe('reordering the stack', () => {
+  const added = () =>
+    strategy.calls
+      .filter(call => call.startsWith('addLayer:'))
+      .map(call => call.slice('addLayer:'.length))
+
+  const two = (): CanvasBody => ({
+    layers: [dataLayer({ id: 'cl-a' }), dataLayer({ id: 'cl-b' })],
+    order: ['cl-a', 'cl-b'],
+  })
+
+  it('lays the swapped layers back down in their new order', () => {
+    const body = two()
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    body.order = ['cl-b', 'cl-a']
+    instance.render()
+
+    expect(added()).toEqual([
+      'canvas-map-canvas-1-cl-b-points',
+      'canvas-map-canvas-1-cl-a-points',
+    ])
+  })
+
+  it('leaves everything under the change where it is', () => {
+    const body = two()
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    // Restyling the top layer says nothing about the one beneath it.
+    body.layers = [
+      dataLayer({ id: 'cl-a' }),
+      dataLayer({ id: 'cl-b', style: { color: '#ff0000' } } as never),
+    ]
+    instance.render()
+
+    expect(added()).toEqual(['canvas-map-canvas-1-cl-b-points'])
+  })
+
+  it('carries the layers above a restyled one back up with it', () => {
+    const body = two()
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    // Re-adding the bottom layer puts it on top of the style; anything that
+    // was above it has to follow, or a recolour quietly reorders the canvas.
+    body.layers = [
+      dataLayer({ id: 'cl-a', style: { color: '#ff0000' } } as never),
+      dataLayer({ id: 'cl-b' }),
+    ]
+    instance.render()
+
+    expect(added()).toEqual([
+      'canvas-map-canvas-1-cl-a-points',
+      'canvas-map-canvas-1-cl-b-points',
+    ])
+  })
+
+  it('flips a switch without taking the layer off the map', () => {
+    const body = two()
+    const instance = render('map', body)
+
+    strategy.calls.length = 0
+    body.layers = [
+      dataLayer({ id: 'cl-a', visible: false }),
+      dataLayer({ id: 'cl-b' }),
+    ]
+    instance.render()
+
+    // A rebuild would also have moved it to the top of the style.
+    expect(strategy.calls).toEqual([
+      'visibility:canvas-map-canvas-1-cl-a-points:false',
+    ])
+  })
+})
+
+describe('a run of marks keeps its name', () => {
+  const mark = (id: string): CanvasAnnotation =>
+    ({ id, tool: 'line', positions: [[0, 0], [1, 1]] }) as CanvasAnnotation
+
+  /** A mark held out of the style because the overlay is drawing it. */
+  function renderWithSuppressed(body: CanvasBody, suppressed: Ref<string | null>) {
+    const scope = effectScope()
+    return scope.run(() =>
+      useCanvasRendering(
+        computed(() => [
+          {
+            id: 'canvas-1',
+            body,
+            suppressedAnnotationId: suppressed.value,
+          },
+        ]),
+        { key: 'map' },
+      ),
+    )!
+  }
+
+  it('does not rebuild the run when the mark at its foot is picked up', async () => {
+    const body: CanvasBody = {
+      layers: [],
+      annotations: [mark('an-1'), mark('an-2')],
+      order: ['an-1', 'an-2'],
+    }
+    const suppressed = ref<string | null>(null)
+    renderWithSuppressed(body, suppressed)
+
+    strategy.calls.length = 0
+    suppressed.value = 'an-1'
+    await nextTick()
+
+    // Naming the run after what is left of it renamed every layer in it, so
+    // reshaping the bottom mark tore the whole run down and put it back —
+    // the flash the runs exist to avoid.
+    expect(strategy.calls.filter(c => c.startsWith('addSource'))).toEqual([])
+    expect(strategy.calls.filter(c => c.startsWith('removeSource'))).toEqual([])
+    expect(strategy.calls).toEqual([
+      'setSourceData:canvas-map-canvas-1-annotations:an-1-source',
+    ])
+  })
+
+  it('keeps its name when the mark at its foot is hidden', async () => {
+    const body: CanvasBody = {
+      layers: [],
+      annotations: [
+        { ...mark('an-1'), visible: false } as CanvasAnnotation,
+        mark('an-2'),
+      ],
+      order: ['an-1', 'an-2'],
+    }
+    render('map', body)
+
+    expect([...strategy.sources]).toEqual([
+      'canvas-map-canvas-1-annotations:an-1-source',
+    ])
+  })
+})
+
+/**
+ * A run used to be given every layer any mark could need, whether or not
+ * anything in it was a pin or drew an area — and a canvas with marks between
+ * its layers pays for that set again in every run.
+ */
+describe('the layers a run actually asks for', () => {
+  /** What each of the run's layers is for, with the run's own name dropped. */
+  const suffixes = () =>
+    [...strategy.layers]
+      .map(id => /annotations:an-\w+-(.+)$/.exec(id)?.[1])
+      .filter((suffix): suffix is string => !!suffix)
+
+  it('asks for no pin, fill or label layer for a plain line', () => {
+    render('map', {
+      layers: [],
+      annotations: [
+        { id: 'an-1', tool: 'line', positions: [[0, 0], [1, 1]] } as CanvasAnnotation,
+      ],
+    })
+
+    expect(suffixes()).toEqual(['stroke-solid-round'])
+  })
+
+  it('asks for a fill where something draws an area', () => {
+    render('map', {
+      layers: [],
+      annotations: [
+        {
+          id: 'an-1',
+          tool: 'polygon',
+          positions: [[0, 0], [1, 0], [1, 1]],
+        } as CanvasAnnotation,
+      ],
+    })
+
+    expect(suffixes()).toContain('fill')
+  })
+
+  it('asks only for the marker shapes its pins wear', () => {
+    render('map', {
+      layers: [],
+      annotations: [
+        { id: 'an-1', tool: 'pin', positions: [[0, 0]] } as CanvasAnnotation,
+      ],
+    })
+
+    // A disc is a circle plate with a glyph over it; the other shapes carry
+    // their plate in the image, and nothing here wears one.
+    expect(suffixes()).toEqual(['pins-disc', 'pins-disc-glyph'])
+  })
+
+  it('asks for a label layer only once a mark carries one', () => {
+    render('map', {
+      layers: [],
+      annotations: [
+        { id: 'an-1', tool: 'pin', positions: [[0, 0]], label: 'Home' } as CanvasAnnotation,
+      ],
+    })
+
+    expect(suffixes()).toContain('labels')
+  })
+})

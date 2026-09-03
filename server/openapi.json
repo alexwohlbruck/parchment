@@ -5382,6 +5382,759 @@
         }
       }
     },
+    "/library/canvases/": {
+      "get": {
+        "operationId": "getLibraryCanvases",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Get all canvases",
+        "responses": {
+          "200": {}
+        }
+      },
+      "post": {
+        "parameters": [],
+        "operationId": "postLibraryCanvases",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Create a canvas",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "isPublic": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "isPublic": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "isPublic": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/library/canvases/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "getLibraryCanvasesById",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Get a canvas by ID",
+        "responses": {
+          "200": {}
+        }
+      },
+      "put": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "putLibraryCanvasesById",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Update a canvas",
+        "description": "Returns the canvas without its body: a canvas saves itself as it is edited, and the document it has just sent is the one thing the client already holds. Read it back with GET /canvases/:id.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isPublic": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isPublic": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isPublic": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "deleteLibraryCanvasesById",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Delete a canvas",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/library/canvases/{id}/change-scheme": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "postLibraryCanvasesByIdChange-scheme",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Change a canvas encryption scheme",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "targetScheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "targetScheme"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "targetScheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "targetScheme"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "targetScheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "description": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "anyOf": [
+                      {},
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "metadataKeyVersion": {
+                    "type": "number"
+                  },
+                  "bodyEncrypted": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "targetScheme"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/library/canvases/{id}/public-link": {
+      "post": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "postLibraryCanvasesByIdPublic-link",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Create a public link for a canvas",
+        "responses": {
+          "200": {}
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "deleteLibraryCanvasesByIdPublic-link",
+        "tags": [
+          "Library"
+        ],
+        "summary": "Revoke a canvas public link",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/library/collections/": {
       "get": {
         "operationId": "getLibraryCollections",
@@ -6639,7 +7392,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6705,7 +7465,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6771,7 +7538,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6864,7 +7638,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6925,7 +7706,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -6986,7 +7774,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7086,7 +7881,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7135,7 +7937,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7184,7 +7993,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7260,7 +8076,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7305,7 +8128,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7350,7 +8180,14 @@
                     "type": "boolean"
                   },
                   "icon": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "order": {
                     "type": "number"
@@ -7782,7 +8619,14 @@
                     ]
                   },
                   "hidden": {
-                    "type": "boolean"
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "visible": {
                     "anyOf": [
@@ -7805,6 +8649,16 @@
                     ]
                   },
                   "enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "showInLayerSelector": {
                     "anyOf": [
                       {
                         "type": "boolean"
@@ -7861,7 +8715,14 @@
                     ]
                   },
                   "hidden": {
-                    "type": "boolean"
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "visible": {
                     "anyOf": [
@@ -7884,6 +8745,16 @@
                     ]
                   },
                   "enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "showInLayerSelector": {
                     "anyOf": [
                       {
                         "type": "boolean"
@@ -7940,7 +8811,14 @@
                     ]
                   },
                   "hidden": {
-                    "type": "boolean"
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "visible": {
                     "anyOf": [
@@ -7963,6 +8841,16 @@
                     ]
                   },
                   "enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "showInLayerSelector": {
                     "anyOf": [
                       {
                         "type": "boolean"
@@ -8095,138 +8983,6 @@
             }
           }
         },
-        "responses": {
-          "200": {}
-        }
-      }
-    },
-    "/library/layers/default-clone/layer": {
-      "post": {
-        "parameters": [],
-        "operationId": "postLibraryLayersDefault-cloneLayer",
-        "tags": [
-          "Layers"
-        ],
-        "summary": "Clone a default layer into a user-owned layer",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {}
-        }
-      }
-    },
-    "/library/layers/default-clone/group": {
-      "post": {
-        "parameters": [],
-        "operationId": "postLibraryLayersDefault-cloneGroup",
-        "tags": [
-          "Layers"
-        ],
-        "summary": "Clone a default group into a user-owned group",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "templateId": {
-                    "type": "string"
-                  },
-                  "patch": {}
-                },
-                "required": [
-                  "templateId"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {}
-        }
-      }
-    },
-    "/library/layers/restore-defaults": {
-      "post": {
-        "operationId": "postLibraryLayersRestore-defaults",
-        "tags": [
-          "Layers"
-        ],
-        "summary": "Restore default layers (clears state; clones remain)",
         "responses": {
           "200": {}
         }
@@ -10135,6 +10891,28 @@
           "Public"
         ],
         "summary": "Resolve a public-link token to a custom route",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/public/canvases/{token}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "token",
+            "required": true
+          }
+        ],
+        "operationId": "getPublicCanvasesByToken",
+        "tags": [
+          "Public"
+        ],
+        "summary": "Resolve a public-link token to a canvas",
         "responses": {
           "200": {}
         }

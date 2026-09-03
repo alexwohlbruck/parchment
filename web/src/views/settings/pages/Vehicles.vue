@@ -29,9 +29,6 @@ import {
 import { useVehicleLocationPicker } from '@/composables/useVehicleLocationPicker'
 import {
   CarFrontIcon,
-  BikeIcon,
-  TruckIcon,
-  AccessibilityIcon,
   ZapIcon,
   PlusIcon,
   PencilIcon,
@@ -39,8 +36,8 @@ import {
   MapPinIcon,
   CheckIcon,
   CrosshairIcon,
-  type LucideIcon,
 } from 'lucide-vue-next'
+import { getVehicleIcon } from '@/lib/travel-mode-icons'
 
 const { t, te } = useI18n()
 
@@ -52,22 +49,6 @@ const { vehicles, loading } = storeToRefs(vehiclesStore)
 function vehicleTypeLabel(type: string): string {
   const key = `settings.vehicles.types.${type}`
   return te(key) ? t(key) : VEHICLE_TYPE_LABELS[type as VehicleType] || type
-}
-
-// ── Vehicle type icons ─────────────────────────────────────────────────
-const vehicleTypeIcons: Record<string, LucideIcon> = {
-  car: CarFrontIcon,
-  truck: TruckIcon,
-  moped: BikeIcon,
-  bike: BikeIcon,
-  'e-bike': BikeIcon,
-  scooter: BikeIcon,
-  'e-scooter': BikeIcon,
-  wheelchair: AccessibilityIcon,
-}
-
-function getVehicleIcon(type: string): LucideIcon {
-  return vehicleTypeIcons[type] || CarFrontIcon
 }
 
 function isElectric(type: string): boolean {

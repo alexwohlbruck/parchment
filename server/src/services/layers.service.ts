@@ -9,13 +9,11 @@ import type {
   CreateLayerParams,
   CreateLayerGroupParams,
   ReorderParams,
-  DefaultLayerTemplate,
-  DefaultLayerGroupTemplate,
 } from '../types/layers.types'
 import { generateId } from '../util'
 
 // ============================================================================
-// USER-OWNED LAYERS (custom + clones)
+// USER-OWNED LAYERS (the user's own custom layers)
 // ============================================================================
 
 export async function getLayers(userId: string) {
@@ -157,16 +155,22 @@ export async function deleteLayerGroup(id: string, userId: string) {
 }
 
 // ============================================================================
-// DEFAULT LAYER USER STATE (sidecar for template overrides + tombstones)
+// DEFAULT LAYER USER STATE (sidecar: the user's preferences for templates)
 // ============================================================================
 
 export type DefaultStateType = 'layer' | 'group'
 
 export interface DefaultStatePatch {
-  hidden?: boolean
+  /**
+   * Whether the user has removed this template from their library. NULL means
+   * "follow the template's `installedByDefault`", which is what an untouched
+   * store item looks like.
+   */
+  hidden?: boolean | null
   visible?: boolean | null
   order?: number | null
   enabled?: boolean | null
+  showInLayerSelector?: boolean | null
   groupId?: string | null
   parentGroupId?: string | null
 }
@@ -190,10 +194,11 @@ export async function upsertDefaultUserState(
     userId,
     templateId,
     type,
-    hidden: patch.hidden ?? false,
+    hidden: patch.hidden ?? null,
     visible: patch.visible ?? null,
     order: patch.order ?? null,
     enabled: patch.enabled ?? null,
+    showInLayerSelector: patch.showInLayerSelector ?? null,
     groupId: patch.groupId ?? null,
     parentGroupId: patch.parentGroupId ?? null,
     createdAt: now,
@@ -202,12 +207,15 @@ export async function upsertDefaultUserState(
 
   // For upsert on composite PK, build the SET clause dynamically so we only
   // overwrite the fields the caller explicitly passed (others keep their
-  // existing values). `hidden` is special: if not passed, leave it untouched.
+  // existing values).
   const setClause: Record<string, any> = { updatedAt: now }
   if ('hidden' in patch) setClause.hidden = patch.hidden
   if ('visible' in patch) setClause.visible = patch.visible
   if ('order' in patch) setClause.order = patch.order
   if ('enabled' in patch) setClause.enabled = patch.enabled
+  if ('showInLayerSelector' in patch) {
+    setClause.showInLayerSelector = patch.showInLayerSelector
+  }
   if ('groupId' in patch) setClause.groupId = patch.groupId
   if ('parentGroupId' in patch) setClause.parentGroupId = patch.parentGroupId
 
@@ -240,191 +248,6 @@ export async function deleteDefaultUserState(
         eq(defaultLayerUserState.type, type),
       ),
     )
-}
-
-/**
- * Restore all defaults: clears every state row for this user (removing
- * hidden flags, visibility overrides, order overrides, etc). Cloned layers
- * remain as user-owned customs.
- */
-export async function restoreAllDefaults(userId: string) {
-  const result = await db
-    .delete(defaultLayerUserState)
-    .where(eq(defaultLayerUserState.userId, userId))
-    .returning()
-  return { cleared: result.length }
-}
-
-// ============================================================================
-// CLONE HELPERS (content modification on a default → full user-owned copy)
-// ============================================================================
-
-/**
- * Clone a default layer template into a user-owned layer, optionally with
- * patch edits applied. Also tombstones the template so the user doesn't see
- * both the original and the clone simultaneously.
- */
-export async function cloneDefaultLayer(
-  userId: string,
-  template: DefaultLayerTemplate,
-  patch: Partial<CreateLayerParams> = {},
-  resolvedConfiguration: any,
-) {
-  return await db.transaction(async (tx) => {
-    const now = new Date()
-
-    // Resolve the cloned layer's groupId. `template.groupId` is a template id
-    // (e.g. "default:group:cycling:cycleways"). If the user has already
-    // cloned that parent group, we want to attach the layer to their clone's
-    // real DB id rather than the template string. Otherwise preserve the
-    // template id so the client's merged-layer pipeline still groups the
-    // clone under the projected default group.
-    let resolvedGroupId: string | null | undefined = patch.groupId
-    if (resolvedGroupId === undefined) {
-      const templateGroupId = template.groupId ?? null
-      if (templateGroupId) {
-        const [cloneRow] = await tx
-          .select({ id: layerGroups.id })
-          .from(layerGroups)
-          .where(
-            and(
-              eq(layerGroups.userId, userId),
-              eq(layerGroups.clonedFromTemplateId, templateGroupId),
-            ),
-          )
-          .limit(1)
-        resolvedGroupId = cloneRow?.id ?? templateGroupId
-      } else {
-        resolvedGroupId = null
-      }
-    }
-
-    const [layer] = await tx
-      .insert(layers)
-      .values({
-        id: generateId(),
-        name: patch.name ?? template.name,
-        type: (patch.type ?? template.type ?? 'custom') as any,
-        engine: (patch.engine ?? template.engine ?? ['mapbox', 'maplibre']) as any,
-        showInLayerSelector:
-          patch.showInLayerSelector ?? template.showInLayerSelector,
-        visible: patch.visible ?? template.visible,
-        fadeBasemap: patch.fadeBasemap ?? template.fadeBasemap ?? false,
-        icon: patch.icon ?? template.icon ?? null,
-        order: patch.order ?? template.order,
-        groupId: resolvedGroupId,
-        configuration: patch.configuration ?? resolvedConfiguration,
-        isSubLayer: patch.isSubLayer ?? template.isSubLayer,
-        enabled: patch.enabled ?? true,
-        integrationId: patch.integrationId ?? template.integrationId ?? null,
-        clonedFromTemplateId: template.templateId,
-        userId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
-
-    // Tombstone the template so the user only sees their clone
-    await tx
-      .insert(defaultLayerUserState)
-      .values({
-        userId,
-        templateId: template.templateId,
-        type: 'layer',
-        hidden: true,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          defaultLayerUserState.userId,
-          defaultLayerUserState.templateId,
-          defaultLayerUserState.type,
-        ],
-        set: { hidden: true, updatedAt: now },
-      })
-
-    return layer
-  })
-}
-
-/**
- * Clone a default group template into a user-owned group, tombstoning the
- * original so the user only sees their owned copy.
- */
-export async function cloneDefaultGroup(
-  userId: string,
-  template: DefaultLayerGroupTemplate,
-  patch: Partial<CreateLayerGroupParams> = {},
-) {
-  return await db.transaction(async (tx) => {
-    const now = new Date()
-
-    // Resolve the cloned group's parentGroupId the same way `cloneDefaultLayer`
-    // resolves its groupId: prefer a user-owned clone of the parent template
-    // if one exists, otherwise fall back to the template id so the merged
-    // pipeline still nests correctly.
-    let resolvedParentId: string | null | undefined = patch.parentGroupId
-    if (resolvedParentId === undefined) {
-      const templateParentId = template.parentGroupId ?? null
-      if (templateParentId) {
-        const [parentClone] = await tx
-          .select({ id: layerGroups.id })
-          .from(layerGroups)
-          .where(
-            and(
-              eq(layerGroups.userId, userId),
-              eq(layerGroups.clonedFromTemplateId, templateParentId),
-            ),
-          )
-          .limit(1)
-        resolvedParentId = parentClone?.id ?? templateParentId
-      } else {
-        resolvedParentId = null
-      }
-    }
-
-    const [group] = await tx
-      .insert(layerGroups)
-      .values({
-        id: generateId(),
-        name: patch.name ?? template.name,
-        showInLayerSelector:
-          patch.showInLayerSelector ?? template.showInLayerSelector,
-        visible: patch.visible ?? template.visible,
-        fadeBasemap: patch.fadeBasemap ?? template.fadeBasemap ?? false,
-        icon: patch.icon ?? template.icon ?? null,
-        order: patch.order ?? template.order,
-        parentGroupId: resolvedParentId,
-        integrationId: patch.integrationId ?? template.integrationId ?? null,
-        clonedFromTemplateId: template.templateId,
-        userId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
-
-    await tx
-      .insert(defaultLayerUserState)
-      .values({
-        userId,
-        templateId: template.templateId,
-        type: 'group',
-        hidden: true,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: [
-          defaultLayerUserState.userId,
-          defaultLayerUserState.templateId,
-          defaultLayerUserState.type,
-        ],
-        set: { hidden: true, updatedAt: now },
-      })
-
-    return group
-  })
 }
 
 // ============================================================================

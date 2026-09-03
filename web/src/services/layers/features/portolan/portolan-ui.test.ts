@@ -117,22 +117,45 @@ describe('which place a clicked station is', () => {
   }
 
   test('the OSM object wins, so the transit label and the POI open one page', () => {
-    expect(stopTargetFor(CONEY)).toEqual({ kind: 'osm', type: 'node', id: '1683730419' })
+    expect(stopTargetFor(CONEY)).toEqual({
+      kind: 'osm',
+      type: 'node',
+      id: '1683730419',
+      complex: true,
+    })
   })
 
   test('ways and relations route as themselves', () => {
-    expect(stopTargetFor({ osm: 'way/123' })).toEqual({ kind: 'osm', type: 'way', id: '123' })
-    expect(stopTargetFor({ osm: 'relation/9' })).toEqual({ kind: 'osm', type: 'relation', id: '9' })
+    expect(stopTargetFor({ osm: 'way/123' })).toEqual({
+      kind: 'osm',
+      type: 'way',
+      id: '123',
+      complex: true,
+    })
+    expect(stopTargetFor({ osm: 'relation/9' })).toEqual({
+      kind: 'osm',
+      type: 'relation',
+      id: '9',
+      complex: true,
+    })
   })
 
   test('an unmatched station still opens its feed’s stop', () => {
     const { osm, ...noMatch } = CONEY
-    expect(stopTargetFor(noMatch)).toEqual({ kind: 'transitland', stopKey: 'f-dr5r-nyctsubway:D43' })
+    expect(stopTargetFor(noMatch)).toEqual({
+      kind: 'transitland',
+      stopKey: 'f-dr5r-nyctsubway:D43',
+      complex: true,
+    })
   })
 
   test('a complex opens the first pair, which the tiler ranked first', () => {
     const props = { gtfs_ids: 'f-dr5r-nyctsubway:635;f-dr5r-nyctsubway:418' }
-    expect(stopTargetFor(props)).toEqual({ kind: 'transitland', stopKey: 'f-dr5r-nyctsubway:635' })
+    expect(stopTargetFor(props)).toEqual({
+      kind: 'transitland',
+      stopKey: 'f-dr5r-nyctsubway:635',
+      complex: true,
+    })
   })
 
   test('a station with neither is not a link', () => {
@@ -144,5 +167,44 @@ describe('which place a clicked station is', () => {
     for (const osm of ['node', 'node/', '/1683730419', '']) {
       expect(stopTargetFor({ osm })).toBe(null)
     }
+  })
+})
+
+describe('opening a merged station', () => {
+  /**
+   * One drawn label can stand for a whole interchange: New York has six
+   * separate GTFS stations named "Canal St", and the map merges them.
+   *
+   * This was Apple's hybrid — label opens the group, marker opens its own
+   * station — until the second half turned out to be unimplementable. A marker
+   * is handed its STATION's osm id, never one of its own, so "the station it
+   * sits on" resolved to whichever of the six portolan had matched: tapping
+   * the J at Canal St opened the N/Q. Everything opens the group now.
+   */
+  test('opens the group for a merged label', () => {
+    expect(
+      stopTargetFor({ ftype: 'station', nmarkers: 3, osm: 'node/7613354754' })?.complex,
+    ).toBe(true)
+  })
+
+  test("opens the group for one corridor's marker too", () => {
+    // The case that drove this: the marker knows its station's id and nothing
+    // narrower, so opening "just this station" opens an arbitrary one.
+    expect(
+      stopTargetFor({ ftype: 'marker', nmarkers: 3, osm: 'node/1' })?.complex,
+    ).toBe(true)
+  })
+
+  test('costs nothing at a station that is not a group', () => {
+    // One station, so its group is itself.
+    expect(
+      stopTargetFor({ ftype: 'station', nmarkers: 1, osm: 'node/1' })?.complex,
+    ).toBe(true)
+  })
+
+  test('applies to a transitland target as well', () => {
+    expect(
+      stopTargetFor({ ftype: 'marker', gtfs_ids: 'f-dr5r-nyctsubway:M20' })?.complex,
+    ).toBe(true)
   })
 })

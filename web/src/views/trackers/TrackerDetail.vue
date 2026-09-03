@@ -13,17 +13,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import {
-  CarFrontIcon,
-  BikeIcon,
-  TruckIcon,
-  AccessibilityIcon,
   MapPinIcon,
   MapPinOffIcon,
   CrosshairIcon,
   ArrowRightIcon,
   SettingsIcon,
-  type LucideIcon,
 } from 'lucide-vue-next'
+import { getVehicleIcon } from '@/lib/travel-mode-icons'
 import { useI18n } from 'vue-i18n'
 import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
 
@@ -38,17 +34,6 @@ const directionsService = useDirectionsService()
 const { startPicking } = useVehicleLocationPicker()
 const { vehicles } = storeToRefs(vehiclesStore)
 
-const vehicleTypeIcons: Record<string, LucideIcon> = {
-  car: CarFrontIcon,
-  truck: TruckIcon,
-  moped: BikeIcon,
-  bike: BikeIcon,
-  'e-bike': BikeIcon,
-  scooter: BikeIcon,
-  'e-scooter': BikeIcon,
-  wheelchair: AccessibilityIcon,
-}
-
 const vehicle = computed(() =>
   vehicles.value.find((v) => v.id === props.id),
 )
@@ -58,10 +43,9 @@ const displayName = computed(() => {
   return vehicle.value.name || VEHICLE_TYPE_LABELS[vehicle.value.type as VehicleType] || vehicle.value.type
 })
 
-const IconComponent = computed(() => {
-  if (!vehicle.value) return MapPinIcon
-  return vehicleTypeIcons[vehicle.value.type] || MapPinIcon
-})
+const IconComponent = computed(() =>
+  vehicle.value ? getVehicleIcon(vehicle.value.type) : MapPinIcon,
+)
 
 const staleness = computed(() => {
   if (!vehicle.value) return 'unknown'

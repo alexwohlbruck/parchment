@@ -36,6 +36,19 @@ export enum MapProjection {
   LAMBERT_CONFORMAL_CONIC = 'lambertConformalConic',
 }
 
+/**
+ * Which projections each engine can actually draw.
+ *
+ * Mapbox has the whole list. MapLibre has two — a flat Mercator plane and a
+ * sphere — and warns and falls back to Mercator when handed anything else, so
+ * the Mapbox-only projections are kept out of its picker rather than offered
+ * and quietly ignored.
+ */
+export const ENGINE_PROJECTIONS: Record<MapEngine, MapProjection[]> = {
+  [MapEngine.MAPBOX]: Object.values(MapProjection),
+  [MapEngine.MAPLIBRE]: [MapProjection.MERCATOR, MapProjection.GLOBE],
+}
+
 export enum MapTheme {
   LIGHT = 'light',
   DARK = 'dark',
@@ -266,7 +279,19 @@ export enum LayerType {
   TRANSIT = 'transit',
   FRIENDS = 'friends',
   TRACKERS = 'trackers',
+  NOTES = 'notes',
 }
+
+/**
+ * Layer types the map engine never draws itself: their features are rendered
+ * as Vue markers by a dedicated service, which watches the layer's `visible`
+ * flag. Handing one to `addLayer` would just warn about a missing source.
+ */
+export const MARKER_RENDERED_LAYER_TYPES: ReadonlySet<LayerType> = new Set([
+  LayerType.FRIENDS,
+  LayerType.TRACKERS,
+  LayerType.NOTES,
+])
 
 /**
  * Origin describes where a layer/group's canonical definition lives.
@@ -314,8 +339,6 @@ export interface Layer {
   // Synthesized on the client when composing default templates + user state.
   // Never set for core layers or fresh custom layers.
   origin?: LayerOrigin
-  // Set on a DB row when it was created by cloning a default template.
-  clonedFromTemplateId?: string | null
   userId?: string
   createdAt?: string
   updatedAt?: string
@@ -332,7 +355,6 @@ export interface LayerGroup {
   parentGroupId?: string | null
   integrationId?: string | null
   origin?: LayerOrigin
-  clonedFromTemplateId?: string | null
   userId: string
   createdAt: string
   updatedAt: string

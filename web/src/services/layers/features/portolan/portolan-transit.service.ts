@@ -450,14 +450,21 @@ function bindListeners() {
   // map, they go dormant while the layers are absent and wake when they
   // re-appear. Which place a feature identifies is decided in
   // portolan-ui (pure, tested); this only turns it into a route.
-  const targetAt = (e: any): { name: string; params: Record<string, string> } | null => {
+  const targetAt = (
+    e: any,
+  ): { name: string; params: Record<string, string>; query?: Record<string, string> } | null => {
     const target = stopTargetFor(e.features?.[0]?.properties)
     if (!target) return null
+    // Tapping the merged label asks about the interchange, so the panel is
+    // told to open all of it; tapping one corridor's marker still opens the
+    // single station it sits on.
+    const query = target.complex ? { complex: '1' } : undefined
     return target.kind === 'osm'
-      ? { name: AppRoute.PLACE, params: { type: target.type, id: target.id } }
+      ? { name: AppRoute.PLACE, params: { type: target.type, id: target.id }, query }
       : {
           name: AppRoute.PLACE_PROVIDER,
           params: { provider: 'transitland', placeId: target.stopKey },
+          query,
         }
   }
 

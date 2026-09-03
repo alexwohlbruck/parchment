@@ -151,6 +151,7 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Mapbox-specific layers
   {
     templateId: 'default:traffic',
+    description: 'Live road congestion from Mapbox.',
     name: 'Mapbox traffic',
     type: LayerType.CUSTOM,
     engine: ['mapbox'],

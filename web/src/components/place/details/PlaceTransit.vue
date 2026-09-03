@@ -125,13 +125,23 @@ const transferStations = computed(() =>
   })).filter((s) => s.groups.length),
 )
 
-/** Open a connecting station's own page — by name and point, which is how the
- *  app addresses a place it has no OSM id for. */
+/**
+ * Open a connecting station's own page.
+ *
+ * By name and point, which is how the app addresses a place it holds no OSM id
+ * for — the server resolves that pair back to the same OSM node a tap on the
+ * map would have opened.
+ *
+ * `complex` rides along for the same reason every station tap carries it: the
+ * name names an interchange, not one platform group, and without it the page
+ * answers for whichever member the point resolved to.
+ */
 function openTransferStation(station: { name: string; lat?: number; lng?: number }) {
   if (station.lat == null || station.lng == null) return
   router.push({
     name: AppRoute.PLACE_LOCATION,
     params: { name: station.name, lat: String(station.lat), lng: String(station.lng) },
+    query: { complex: '1' },
   })
 }
 

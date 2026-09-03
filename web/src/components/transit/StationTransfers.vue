@@ -39,6 +39,7 @@ const props = defineProps<{
     name: string
     lat?: number
     lng?: number
+    osm?: string
     groups: RouteGroup[]
   }>
   /** Clock the countdowns are measured against. */
@@ -48,7 +49,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'open', line: StationLine): void
   (e: 'openRoute', routeId: string): void
-  (e: 'openStation', station: { name: string; lat?: number; lng?: number }): void
+  (e: 'openStation', station: {
+    name: string
+    lat?: number
+    lng?: number
+    osm?: string
+  }): void
 }>()
 
 const { t } = useI18n()
@@ -93,8 +99,13 @@ const hasTransfers = computed(
 const countdown = (dep: any) => (props.now ? formatCountdown(dep, props.now) : '')
 
 /** A station is only a link when we know where it is. */
-function openStation(station: { name: string; lat?: number; lng?: number }) {
-  if (station.lat == null || station.lng == null) return
+function openStation(station: {
+  name: string
+  lat?: number
+  lng?: number
+  osm?: string
+}) {
+  if (!station.osm && (station.lat == null || station.lng == null)) return
   emit('openStation', station)
 }
 </script>
@@ -112,9 +123,9 @@ function openStation(station: { name: string; lat?: number; lng?: number }) {
         <!-- One block per connecting station: its name, then what leaves it -->
         <div v-for="station in stations ?? []" :key="station.name">
           <component
-            :is="station.lat != null && station.lng != null ? 'button' : 'div'"
+            :is="station.osm || (station.lat != null && station.lng != null) ? 'button' : 'div'"
             class="flex items-center gap-1 mb-1.5 text-left group/station"
-            :class="station.lat != null && station.lng != null && 'cursor-pointer'"
+            :class="(station.osm || station.lat != null) && 'cursor-pointer'"
             @click="openStation(station)"
           >
             <span
@@ -123,7 +134,7 @@ function openStation(station: { name: string; lat?: number; lng?: number }) {
               {{ station.name }}
             </span>
             <ChevronRightIcon
-              v-if="station.lat != null && station.lng != null"
+              v-if="station.osm || (station.lat != null && station.lng != null)"
               class="h-3 w-3 text-muted-foreground/60 group-hover/station:text-foreground transition-colors"
             />
           </component>

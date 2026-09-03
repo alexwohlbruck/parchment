@@ -364,6 +364,7 @@ interface BarrelmanStopDepartures {
     /** `transfer` marks a connecting station under another name, returned
      *  because `transfers=true` was asked for. Absent means this station. */
     via?: 'station' | 'transfer'
+    osm?: string
   }
   departures: BarrelmanDeparture[]
   hasMore?: boolean
@@ -521,6 +522,7 @@ async function fetchTransitDepartures(
         stopId: rows[0].stop.stopId,
         lat: rows[0].stop.lat,
         lng: rows[0].stop.lng,
+        osm: rows.find((r) => r.stop.osm)?.stop.osm,
         departures: shapeBoard(asBoard(rows), board).departures,
       }))
       .filter((s) => s.departures.length)

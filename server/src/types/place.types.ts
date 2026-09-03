@@ -155,6 +155,10 @@ export interface TransitTransferStation {
   stopId?: string
   lat?: number
   lng?: number
+  /** The OSM object this station is, as "node/123", when Barrelman could
+   *  identify one. Opening it beats searching by name, which cannot tell
+   *  three stations called "Chambers St" apart. */
+  osm?: string
   departures: TransitDeparture[]
 }
 

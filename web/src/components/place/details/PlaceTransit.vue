@@ -114,6 +114,7 @@ const transferStations = computed(() =>
     name: station.name,
     lat: station.lat,
     lng: station.lng,
+    osm: station.osm,
     groups: groupDepartures(station.departures, currentTime.value, {
       unknownDirectionLabel: t('place.transit.unknownDirection'),
       limit: 2,
@@ -136,7 +137,24 @@ const transferStations = computed(() =>
  * name names an interchange, not one platform group, and without it the page
  * answers for whichever member the point resolved to.
  */
-function openTransferStation(station: { name: string; lat?: number; lng?: number }) {
+function openTransferStation(station: {
+  name: string
+  lat?: number
+  lng?: number
+  osm?: string
+}) {
+  // The OSM object when Barrelman identified one: it opens the station the map
+  // opens, and it is the only way to tell three stations called "Chambers St"
+  // apart — a name search ranks by importance and picked the A/C/E one 428m
+  // from the J/Z platform the rider was standing on.
+  const [type, id] = (station.osm ?? '').split('/')
+  if (type && id) {
+    router.push({ name: AppRoute.PLACE, params: { type, id }, query: { complex: '1' } })
+    return
+  }
+
+  // Otherwise the name and the point, which resolves to the same node wherever
+  // the name is unambiguous.
   if (station.lat == null || station.lng == null) return
   router.push({
     name: AppRoute.PLACE_LOCATION,

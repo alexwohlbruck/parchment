@@ -41,7 +41,6 @@ export enum IntegrationCapabilityId {
   GEOCODING = 'geocoding',
   PLACE_INFO = 'placeInfo',
   ROUTING = 'routing',
-  IMAGERY = 'imagery',
   MAP_ENGINE = 'mapEngine',
   MAP_LAYER = 'mapLayer',
   STREET_VIEW = 'streetView',

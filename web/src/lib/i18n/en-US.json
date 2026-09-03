@@ -1998,7 +1998,6 @@
         "routing": "Routing",
         "geocoding": "Geocoding",
         "placeInfo": "Place Info",
-        "imagery": "Imagery",
         "mapEngine": "Map Engine",
         "title": "Capabilities",
         "streetView": "Street View",
@@ -2013,7 +2012,7 @@
         "locationHistory": "Location History",
         "brandCatalog": "Brand Catalog",
         "transitRouting": "Transit Routing",
-        "rideshareEstimate": "Rideshare Estimate"
+        "rideshareEstimate": "Rideshare"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",

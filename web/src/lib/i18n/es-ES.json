@@ -1888,7 +1888,7 @@
         "routing": "Rutas",
         "geocoding": "Geocodificación",
         "placeInfo": "Información de Lugares",
-        "imagery": "Imágenes",
+        "mapEngine": "Motor de mapas",
         "title": "Capacidades",
         "streetView": "Vista de calle",
         "transitData": "Datos de Tránsito",
@@ -1902,7 +1902,7 @@
         "locationHistory": "Historial de ubicación",
         "brandCatalog": "Catálogo de marcas",
         "transitRouting": "Rutas de tránsito",
-        "rideshareEstimate": "Estimación de viaje compartido"
+        "rideshareEstimate": "Viajes compartidos"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",

@@ -33,7 +33,7 @@
 - If a Linear ticket was linked for the relevant work, update the status of the ticket as work progresses.
 - Use `bun` over `npm` for package management.
 - Commit messages: short (5-20 words), distinct logical commits.
-- Keep code structure clean, modular, and dry. Use concise, straightforward naming conventions and move code to appropriate modules when it isn't in the correct place. Add comments when the code is not intuitive at a glance or to convey important context/information.
+- Keep code structure clean, modular, and dry. Use concise, straightforward naming conventions and move code to appropriate modules when it isn't in the correct place. Add comments ONLY when the code is not intuitive at a glance or to convey important context/information. Do not write paragraphs of comments explaning each iterative change.
 - "Modules" represent all code components for a single entity. Users, directions, search, settings, etc are all modules. These module identities are represented throught the codebase and should contain related UI, data, and business logic for that entity. Make sure to keep new and old code nicely modularized.
 - Offer to refactor malformed code when we come across any. This is anything that doesn't follow our normal conventions or industry practices.
 - When we add new features, integrations, modules, etc, update the relevant documentation in the sibiling `parchment-docs` repo.

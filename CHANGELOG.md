@@ -63,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Trackers and friends are drawn like every other marker on the map — the same plate, ring and shadow a place wears, in the app's accent colour, at a size that keeps them above the map rather than in it. Each was previously its own hand-drawn circle, so a tracked car, a friend and the café beside them read as three unrelated marks
 * A tracker or a friend whose position is too old to trust now goes grey and stops pulsing, instead of only fading a little
 * A tracker's marker only pulses while its position is still current, rather than for a full day after the vehicle last reported
+* The integrations page no longer offers an "Imagery" capability filter, which no integration provided. The rideshare filter is now named "Rideshare" instead of "Rideshare Estimate"
 
 ### Fixed
 

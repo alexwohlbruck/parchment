@@ -119,15 +119,13 @@ export type StopTarget = (
   | { kind: 'transitland'; stopKey: string }
 ) & {
   /**
-   * The symbol stands for a whole complex rather than one station, so the
-   * panel should open all of it.
+   * Open everything at this interchange rather than one station of it.
    *
-   * Read from `nmarkers`, not from `gtfs_ids`: that prop lists every stop
-   * merged into the station — platforms AND parent records — so even a plain
-   * two-platform station carries several pairs and counting them would call
-   * everything a complex. `nmarkers` is one per ribbon bundle the station's
-   * lines snap to, which is what actually makes a drawn label cover more than
-   * one station: Canal St is one symbol over four of them.
+   * Always set. Nothing in the tiles identifies WHICH station a tapped marker
+   * belongs to — portolan matches OSM objects to the station and hands every
+   * marker the same id — so asking for one station means asking for an
+   * arbitrary one. Where the symbol covers a single station this is simply
+   * that station, so the flag costs nothing there.
    */
   complex?: boolean
 }
@@ -153,13 +151,20 @@ export type StopTarget = (
  * be a link.
  */
 export function stopTargetFor(props: any): StopTarget | null {
-  // The merged label is the whole interchange; one corridor's marker is not.
-  // Present only when true, so a plain station's target stays exactly what it
-  // has always been.
-  const complex =
-    props?.ftype === 'station' && Number(props?.nmarkers ?? 0) > 1
-      ? { complex: true as const }
-      : {}
+  // Always the whole interchange.
+  //
+  // This used to be Apple's hybrid: the merged label opened the group, one
+  // corridor's marker opened the station it sat on. That second half cannot
+  // work with what the tiles carry. Portolan matches an OSM object to the
+  // STATION, and a marker is handed its station's `osm` id rather than one of
+  // its own — so tapping the J at Canal St opened whichever of the six
+  // same-named stations portolan had matched, which is the N/Q. There is no
+  // id on a marker that says which sub-station it belongs to, so the choice is
+  // between opening the right group and opening an arbitrary member of it.
+  //
+  // Opening the group is the honest one, and it loses nothing: every line the
+  // specific station runs is in the group's list too.
+  const complex = { complex: true as const }
 
   const osm = String(props?.osm ?? '')
   const slash = osm.indexOf('/')

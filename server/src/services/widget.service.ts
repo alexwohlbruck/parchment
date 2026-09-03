@@ -1,4 +1,4 @@
-import type { Place, TransitDeparture, TransitStopInfo, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent, DisplayChip, BikeshareStatus } from '../types/place.types'
+import type { Place, TransitDeparture, TransitStopInfo, TransitTransferStation, WidgetDescriptor, WidgetResponse, SourceReference, RelatedPlacesData, RelatedPlacesStrategy, RelatedParent, DisplayChip, BikeshareStatus } from '../types/place.types'
 import { WidgetType, WidgetDataType } from '../types/place.types'
 
 import { SOURCE } from '../lib/constants'
@@ -358,7 +358,14 @@ interface BarrelmanDeparture {
 }
 
 interface BarrelmanStopDepartures {
-  stop: { stopId: string; feedId: string; name: string; code?: string; lat: number; lng: number; timezone: string; distance?: number }
+  stop: {
+    stopId: string; feedId: string; name: string; code?: string
+    lat: number; lng: number; timezone: string; distance?: number
+    /** `transfer` marks a connecting station under another name, returned
+     *  because `transfers=true` was asked for. Absent means this station. */
+    via?: 'station' | 'transfer'
+    osm?: string
+  }
   departures: BarrelmanDeparture[]
   hasMore?: boolean
 }
@@ -416,6 +423,8 @@ async function fetchTransitDepartures(
   options?: { limit?: number; windowMinutes?: number },
 ): Promise<{
   departures: TransitDeparture[]
+  /** The stations a rider can transfer to, each with its own board. */
+  transferStations: TransitTransferStation[]
   stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string }
   routes?: TransitStopInfo['routes']
   hasMore: boolean
@@ -427,7 +436,7 @@ async function fetchTransitDepartures(
   const config = resolveBarrelmanConfig()
   if (!config?.host) {
     logger.debug('[Widget/Transit] Barrelman not configured')
-    return { departures: [], hasMore: false, sources: [] }
+    return { departures: [], transferStations: [], hasMore: false, sources: [] }
   }
 
   const headers: Record<string, string> = {}
@@ -446,6 +455,9 @@ async function fetchTransitDepartures(
     if (params.name) queryParams.set('name', params.name)
     // One board per station in the interchange, for a tap on a merged label.
     if (params.complex) queryParams.set('complex', 'true')
+    // Connections are worth their times, not just their names — a rider
+    // changing here wants to know when the 4 leaves, not that it exists.
+    queryParams.set('transfers', 'true')
     if (windowMinutes) queryParams.set('windowMinutes', String(windowMinutes))
 
     const response = await fetch(`${config!.host}/transit/departures?${queryParams}`, { headers })
@@ -459,7 +471,7 @@ async function fetchTransitDepartures(
   try {
     logger.debug(`[Widget/Transit] Fetching departures from Barrelman at (${params.lat}, ${params.lng})`)
     let stopResults = await requestStops(limit, board.windowMinutes)
-    if (!stopResults) return { departures: [], hasMore: false, sources: [] }
+    if (!stopResults) return { departures: [], transferStations: [], hasMore: false, sources: [] }
 
     // Nothing at all in the window — the stop is shut for the night, or the
     // service is seasonal. Reach past the window rather than render an empty
@@ -471,16 +483,49 @@ async function fetchTransitDepartures(
       if (beyond?.some((s) => s.departures.length)) stopResults = beyond
     }
 
+    // A connecting station's runs are a different answer from this station's,
+    // so they are shaped into their own board. Merging them would put a train
+    // leaving Brooklyn Bridge–City Hall under Chambers St's departures and
+    // claim it departs from here, which is the whole distinction.
+    const ownStops = stopResults.filter((s) => s.stop.via !== 'transfer')
+    const transferStops = stopResults.filter((s) => s.stop.via === 'transfer')
+
     // Merge every nearby stop into one board — soonest first, capped per
     // route + direction so a frequent line can't crowd out an hourly one.
-    const primaryStop = stopResults[0]?.stop
-    const { departures: allDepartures, hasMore } = shapeBoard(
-      stopResults.map((stopResult) => ({
+    const primaryStop = ownStops[0]?.stop ?? stopResults[0]?.stop
+    const asBoard = (rows: BarrelmanStopDepartures[]) =>
+      rows.map((stopResult) => ({
         hasMore: stopResult.hasMore,
         departures: stopResult.departures.map((dep) => adaptDeparture(dep, stopResult.stop.timezone)),
-      })),
-      board,
-    )
+      }))
+
+    const { departures: allDepartures, hasMore } = shapeBoard(asBoard(ownStops), board)
+
+    // One entry per connecting station, not one flat list: a connection is a
+    // place, and "the R leaves in 6 minutes" only helps once you know it
+    // leaves from Court St. Stations sharing a name are the same station drawn
+    // twice — Barrelman returns a board per platform group — so they merge, on
+    // the same case-and-punctuation fold it groups by.
+    const foldName = (n: string) =>
+      n.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+
+    const byName = new Map<string, BarrelmanStopDepartures[]>()
+    for (const row of transferStops) {
+      const key = foldName(row.stop.name)
+      byName.set(key, [...(byName.get(key) ?? []), row])
+    }
+
+    const transferStations: TransitTransferStation[] = [...byName.values()]
+      .map((rows) => ({
+        name: rows[0].stop.name,
+        feedId: rows[0].stop.feedId,
+        stopId: rows[0].stop.stopId,
+        lat: rows[0].stop.lat,
+        lng: rows[0].stop.lng,
+        osm: rows.find((r) => r.stop.osm)?.stop.osm,
+        departures: shapeBoard(asBoard(rows), board).departures,
+      }))
+      .filter((s) => s.departures.length)
 
     logger.debug(`[Widget/Transit] Got ${allDepartures.length} departures from ${stopResults.length} stop(s)`)
 
@@ -542,6 +587,7 @@ async function fetchTransitDepartures(
 
     return {
       departures: allDepartures,
+      transferStations,
       stopInfo: primaryStop ? {
         name: primaryStop.name,
         code: primaryStop.code,
@@ -555,7 +601,7 @@ async function fetchTransitDepartures(
     }
   } catch (error) {
     logError('[Widget/Transit] Barrelman departure fetch failed', error)
-    return { departures: [], hasMore: false, sources: [] }
+    return { departures: [], transferStations: [], hasMore: false, sources: [] }
   }
 }
 
@@ -653,7 +699,8 @@ export async function fetchWidgetData(
         throw new Error('Missing lat/lng parameters for transit widget')
       }
 
-      const { departures, stopInfo, routes, hasMore, sources } = await fetchTransitDepartures(
+      const { departures, transferStations, stopInfo, routes, hasMore, sources } =
+        await fetchTransitDepartures(
         {
           lat,
           lng,
@@ -668,6 +715,7 @@ export async function fetchWidgetData(
 
       const transitInfo: TransitStopInfo = {
         departures,
+        transferStations,
         routes,
         hasMore,
         windowMinutes: resolveBoardWindow(windowMinutes).windowMinutes,

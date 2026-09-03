@@ -1,7 +1,7 @@
 import type dayjs from 'dayjs'
 import type { TransitDeparture } from '@/types/place.types'
 import { orderBullets } from './transit-bullets'
-import { getMinutesUntil } from '@/lib/transit'
+import { getMinutesUntil, formatDepartureTime } from '@/lib/transit'
 
 /**
  * Grouping a stop's departure board into route → direction → next few runs.
@@ -226,4 +226,29 @@ export function groupDepartures(
       }
     }),
   }))
+}
+
+/** Past this many minutes a countdown stops being useful and the clock time
+ *  is what a rider wants. */
+export const COUNTDOWN_MAX_MINUTES = 120
+
+/**
+ * How long until a run leaves, phrased the way a rider reads it.
+ *
+ * A countdown is only useful while it is short. Past an hour or so the clock
+ * time is what is wanted, and past today the day as well — "6:00 AM" alone
+ * reads as this morning when the tramway has been shut since 2am.
+ */
+export function formatCountdown(dep: BoardDeparture, now: Date | dayjs.Dayjs): string {
+  const mins = getMinutesUntil(dep, now)
+  if (mins === null) return ''
+  if (dep.dayLabel) return `${dep.dayLabel} ${formatDepartureTime(dep)}`
+  if (mins <= 0) return 'Now'
+  if (mins < 60) return `${mins} min`
+  if (mins < COUNTDOWN_MAX_MINUTES) {
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    return m > 0 ? `${h}h ${m}m` : `${h}h`
+  }
+  return formatDepartureTime(dep)
 }

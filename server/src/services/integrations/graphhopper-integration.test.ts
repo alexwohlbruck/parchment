@@ -151,7 +151,6 @@ describe('routing metadata', () => {
       'cycling',
       'motorcycle',
       'truck',
-      'wheelchair',
     ])
   })
 
@@ -295,7 +294,6 @@ describe('request assembly', () => {
       [TravelMode.WALKING, 'foot'],
       [TravelMode.MOTORCYCLE, 'motorcycle'],
       [TravelMode.TRUCK, 'truck'],
-      [TravelMode.WHEELCHAIR, 'foot'],
     ] as const) {
       calls = []
       await getRoute(configured())(routeRequest({ mode }) as any)

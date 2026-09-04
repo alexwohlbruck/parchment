@@ -271,7 +271,7 @@ describe('GET /directions/vehicle-types and /status', () => {
     expect(res.status).toBe(200)
     const types = res.body.vehicleTypes.map((v: any) => v.type)
     expect(types).toContain('car')
-    expect(types).toContain('wheelchair')
+    expect(types).toContain('truck')
   })
 
   test('declares energy types per vehicle', async () => {

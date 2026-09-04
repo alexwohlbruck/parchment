@@ -6,7 +6,7 @@ import { RoutingPreferences, SelectedMode, SortPreference } from '@/types/multim
 import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone.utils'
 
 // Mode-scoped preference storage
-export type ModeKey = 'walking' | 'biking' | 'driving' | 'transit' | 'wheelchair'
+export type ModeKey = 'walking' | 'biking' | 'driving' | 'transit'
 
 // Keys that are shared across all modes — everything else is per-mode
 const GENERAL_KEYS: ReadonlyArray<keyof RoutingPreferences> = [
@@ -49,12 +49,6 @@ const defaultModePreferences: Record<ModeKey, Partial<RoutingPreferences>> = {
     maxTransfers: 3,
     transitBufferMinutes: 2,
     wheelchairAccessible: false,
-  },
-  wheelchair: {
-    hills: 0,
-    surfaceQuality: 0.75,
-    walkingSpeed: undefined,
-    wheelchairAccessible: true,
   },
 }
 
@@ -125,17 +119,21 @@ export const useDirectionsStore = defineStore('directions', () => {
     },
   ]) // List of locations to get directions for
 
-  // Load selected mode from localStorage, default to 'multi'
+  // Load selected mode from localStorage, default to 'multi'. Unknown values —
+  // e.g. a mode that has since been removed — fall back rather than being sent
+  // to the API, which rejects them.
+  const SELECTABLE_MODES: readonly SelectedMode[] = [
+    'multi',
+    'walking',
+    'driving',
+    'biking',
+    'transit',
+    'rideshare',
+  ]
+
   const loadSelectedMode = (): SelectedMode => {
-    const stored = localStorage.getItem('selectedMode')
-    if (stored) {
-      try {
-        return stored as SelectedMode
-      } catch {
-        return 'multi'
-      }
-    }
-    return 'multi'
+    const stored = localStorage.getItem('selectedMode') as SelectedMode | null
+    return stored && SELECTABLE_MODES.includes(stored) ? stored : 'multi'
   }
 
   const selectedMode = ref<SelectedMode>(loadSelectedMode())

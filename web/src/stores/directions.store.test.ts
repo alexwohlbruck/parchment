@@ -60,11 +60,19 @@ describe('useDirectionsStore', () => {
     })
 
     test('loads mode from localStorage if available', () => {
-      localStorageMock.setItem('selectedMode', 'car')
-      
+      localStorageMock.setItem('selectedMode', 'driving')
+
       const store = useDirectionsStore()
-      
-      expect(store.selectedMode).toBe('car')
+
+      expect(store.selectedMode).toBe('driving')
+    })
+
+    test('falls back to multi when the stored mode is not selectable', () => {
+      localStorageMock.setItem('selectedMode', 'wheelchair')
+
+      const store = useDirectionsStore()
+
+      expect(store.selectedMode).toBe('multi')
     })
 
     test('starts with default routing preferences for biking (default mode)', () => {
@@ -82,9 +90,7 @@ describe('useDirectionsStore', () => {
 
       expect(store.modePreferences.walking.hills).toBe(0.5)
       expect(store.modePreferences.biking.hills).toBe(0.5)
-      expect(store.modePreferences.wheelchair.hills).toBe(0)
       expect(store.modePreferences.biking.surfaceQuality).toBe(0.25)
-      expect(store.modePreferences.wheelchair.surfaceQuality).toBe(0.75)
       expect(store.modePreferences.driving.highways).toBe(0.5)
       expect(store.modePreferences.transit.maxWalkingDistance).toBe(1000)
     })
@@ -96,9 +102,8 @@ describe('useDirectionsStore', () => {
       expect(store.routingPreferences.hills).toBe(0.5)
       expect(store.routingPreferences.ferries).toBe(0.5)
 
-      store.selectedMode = 'wheelchair'
-      expect(store.routingPreferences.hills).toBe(0)
-      expect(store.routingPreferences.surfaceQuality).toBe(0.75)
+      store.selectedMode = 'biking'
+      expect(store.routingPreferences.surfaceQuality).toBe(0.25)
 
       store.selectedMode = 'driving'
       expect(store.routingPreferences.highways).toBe(0.5)

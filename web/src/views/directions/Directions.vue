@@ -6,7 +6,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapListener } from '@/composables/useMapListener'
 import {
-  AccessibilityIcon,
   BikeIcon,
   BusFrontIcon,
   CarFrontIcon,
@@ -172,11 +171,6 @@ const modes: Array<{ type: SelectedMode; icon: any; label: string }> = [
     type: 'rideshare',
     icon: CarTaxiFrontIcon,
     label: 'Rideshare',
-  },
-  {
-    type: 'wheelchair',
-    icon: AccessibilityIcon,
-    label: 'Wheelchair',
   },
 ]
 

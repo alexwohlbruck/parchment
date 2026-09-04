@@ -698,7 +698,6 @@
       "walking": "A pie",
       "cycling": "Bicicleta",
       "driving": "Coche",
-      "wheelchair": "Silla de ruedas",
       "rideshare": "VTC",
       "transit": "Transporte público",
       "transitWalking": "Transporte y a pie",
@@ -1831,8 +1830,7 @@
         "bike": "Bicicleta",
         "e-bike": "Bicicleta eléctrica",
         "scooter": "Patinete",
-        "e-scooter": "Patinete eléctrico",
-        "wheelchair": "Silla de ruedas"
+        "e-scooter": "Patinete eléctrico"
       },
       "energyTypes": {
         "gas": "Gasolina",

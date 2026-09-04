@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Removed the wheelchair travel mode from directions. Accessible routing stays available as the "Wheelchair accessible" preference under Walking and Transit, which avoids stairs and prefers accessible stops and entrances.
+
 ### Fixed
 
 ## [0.9.0] - 2026-09-03

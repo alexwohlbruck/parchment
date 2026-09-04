@@ -30,8 +30,6 @@ export function tripSignature(segments: SignatureSegment[] | undefined): string 
       tokens.push('drive')
     } else if (seg.mode === 'cycling' || seg.mode === 'biking') {
       tokens.push('bike')
-    } else if (seg.mode === 'wheelchair') {
-      tokens.push('wheel')
     }
     // walking legs are connective tissue — every trip has them
   }

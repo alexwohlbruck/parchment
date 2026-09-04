@@ -9,7 +9,6 @@ import {
   BikeIcon,
   CarFrontIcon,
   TruckIcon,
-  AccessibilityIcon,
   TrainFrontTunnelIcon,
   type LucideIcon,
 } from 'lucide-vue-next'
@@ -43,7 +42,6 @@ const modeIcons: Record<string, LucideIcon> = {
   transit: TrainFrontIcon,
   motorcycle: CarFrontIcon,
   truck: TruckIcon,
-  wheelchair: AccessibilityIcon,
   rideshare: CarTaxiFrontIcon,
 }
 
@@ -62,7 +60,6 @@ const vehicleTypeIcons: Record<string, LucideIcon> = {
   'e-bike': BikeIcon,
   scooter: BikeIcon,
   'e-scooter': BikeIcon,
-  wheelchair: AccessibilityIcon,
 }
 
 /**

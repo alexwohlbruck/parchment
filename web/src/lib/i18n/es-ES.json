@@ -1111,7 +1111,18 @@
     "madeWith": "Hecho con ❤️ por"
   },
   "feedback": {
-    "title": "Feedback"
+    "title": "Comentarios",
+    "description": "Informa de un error o sugiere una idea. Te avisaremos cuando se publique.",
+    "titleLabel": "Resumen",
+    "titlePlaceholder": "Descríbelo brevemente",
+    "contentLabel": "Detalles",
+    "contentPlaceholder": "Añade los pasos, el contexto o las capturas que puedan ayudar",
+    "submit": "Enviar",
+    "submitted": "Gracias por tus comentarios",
+    "submittedDescription": "Te avisaremos cuando haya novedades.",
+    "viewPost": "Ver",
+    "submitFailed": "No se pudieron enviar tus comentarios. Inténtalo de nuevo.",
+    "loadFailed": "No se pudieron cargar los tableros de comentarios."
   },
   "profileMenu": {
     "shortcuts": "Atajos",

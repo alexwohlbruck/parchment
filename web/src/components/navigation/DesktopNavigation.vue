@@ -9,7 +9,6 @@ import { useAppStore } from '@/stores/app.store'
 import { capitalize } from '@/filters/text.filters'
 import { isTauri, getIsTauri } from '@/lib/api'
 import { useWindowSize } from '@vueuse/core'
-import { useExternalLink } from '@/composables/useExternalLink'
 import { useMapService } from '@/services/map.service'
 import { useUpdater } from '@/composables/useUpdater'
 import { appEventBus } from '@/lib/eventBus'
@@ -51,11 +50,12 @@ import Palette from '@/components/palette/Palette.vue'
 import { CommandDialog } from '@/components/ui/command'
 import { useCommandService } from '@/services/command.service'
 import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue'
+import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
+import { useFeedback } from '@/composables/useFeedback'
 
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
-const { openExternalLink } = useExternalLink()
 const mapService = useMapService()
 const { isFullscreen } = useFullscreen()
 const commandService = useCommandService()
@@ -67,6 +67,9 @@ const width = defineModel<number>('width', { default: SIDEBAR_WIDTH })
 const sidebarRef = ref<InstanceType<typeof Sidebar> | null>(null)
 const { width: windowWidth, height: windowHeight } = useWindowSize()
 const paletteDialogOpen = ref(false)
+const feedbackDialogOpen = ref(false)
+const { available: feedbackAvailable, ensureLoaded: loadFeedback } = useFeedback()
+loadFeedback()
 const paletteDialogRef = ref<InstanceType<typeof Palette> | null>(null)
 
 const isDashboard = computed(() => route.name === AppRoute.DASHBOARD)
@@ -374,14 +377,10 @@ defineExpose({
     <SidebarFooter>
       <SidebarMenu>
         <SidebarMenuItem
+          v-if="feedbackAvailable"
           :label="t('feedback.title')"
           :icon="MessageSquareQuoteIcon"
-          @click="
-            openExternalLink(
-              'https://github.com/alexwohlbruck/parchment/issues',
-              '_blank',
-            )
-          "
+          @click="feedbackDialogOpen = true"
         />
         <SidebarMenuItem
           :label="t('settings.title')"
@@ -396,6 +395,8 @@ defineExpose({
 
       <AccountDropdown :mini="collapsed" />
     </SidebarFooter>
+
+    <FeedbackDialog v-model:open="feedbackDialogOpen" />
 
     <SidebarRail :label="t('navigation.toggle')" />
   </Sidebar>

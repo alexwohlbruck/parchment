@@ -30,6 +30,7 @@ export default {
       { name: 'GBFS', description: 'Shared mobility docks and availability' },
       { name: 'Isochrone', description: 'Travel-time reachability polygons' },
       { name: 'Weather', description: 'Weather data' },
+      { name: 'Feedback', description: 'User feedback and feature requests' },
     ],
   },
 }

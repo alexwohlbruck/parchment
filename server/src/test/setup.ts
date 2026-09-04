@@ -38,6 +38,10 @@ const defaults: Record<string, string> = {
 
   // Keep the mailer from attempting real SMTP if a test reaches it.
   SMTP_HOST: '',
+
+  // Point feedback at a fake Quackback so the module counts as configured.
+  QUACKBACK_URL: 'https://feedback.example.com/',
+  QUACKBACK_API_KEY: 'qb_test',
   APP_TESTER_EMAIL: 'test@parchment.local',
 }
 

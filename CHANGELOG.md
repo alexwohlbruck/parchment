@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Feedback now opens a form inside the app instead of sending you to GitHub. Pick a board, describe the bug or idea, and you'll be notified when it ships.
+
 ### Changed
 
 * The routing settings popup is more compact, and the routing engine picker only appears when there is more than one engine to choose from.

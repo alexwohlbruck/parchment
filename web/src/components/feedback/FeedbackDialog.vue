@@ -107,11 +107,15 @@ async function handleSubmit() {
         </div>
 
         <template v-else-if="boards.length">
+          <!-- Not v-model: a single-select ToggleGroup deselects when you press
+               the active item, which would leave no board chosen and the form
+               silently unsubmittable. A board is required, so ignore that. -->
           <ToggleGroup
-            v-model="boardId"
+            :model-value="boardId"
             type="single"
             variant="outline"
             class="flex-wrap justify-start"
+            @update:model-value="value => value && (boardId = value as string)"
           >
             <ToggleGroupItem
               v-for="board in boards"

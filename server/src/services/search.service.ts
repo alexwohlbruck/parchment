@@ -157,6 +157,12 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
     brand = result.metadata.brand
     lat = result.metadata.brand.lat
     lng = result.metadata.brand.lng
+  } else if (
+    (result.type === 'transit_route' || result.type === 'transit_stop') &&
+    result.metadata.place
+  ) {
+    lat = result.metadata.place.geometry.value.center.lat
+    lng = result.metadata.place.geometry.value.center.lng
   }
 
   return {
@@ -172,6 +178,8 @@ function convertToAutocompleteResult(result: SearchResult): AutocompleteResult {
     lng,
     category,
     brand,
+    transitLine: result.metadata.transitLine,
+    transitStop: result.metadata.transitStop,
   }
 }
 
@@ -242,6 +250,29 @@ function convertBookmarkToSearchResult(bookmark: Bookmark): SearchResult {
  * Convert a Place object to a SearchResult
  */
 function convertPlaceToSearchResult(place: Place): SearchResult {
+  // A GTFS line or GTFS-only stop riding the place pipeline: type it so the
+  // client opens the transit views instead of the place detail view.
+  if (place.transitLine || place.transitStop) {
+    const line = place.transitLine
+    const name = place.name?.value
+    const title = line?.shortName && name && line.shortName !== name
+      ? `${line.shortName} · ${name}`
+      : name || line?.shortName || 'Transit'
+    return {
+      id: place.id,
+      type: line ? 'transit_route' : 'transit_stop',
+      title,
+      description: place.summary || place.placeType?.value,
+      icon: place.icon?.icon || 'TrainFront',
+      iconPack: place.icon?.iconPack,
+      metadata: {
+        place,
+        transitLine: line ?? undefined,
+        transitStop: place.transitStop ?? undefined,
+      },
+    }
+  }
+
   const placeType = place.placeType?.value || ''
 
   // For places, use street address as description if we have both name and address

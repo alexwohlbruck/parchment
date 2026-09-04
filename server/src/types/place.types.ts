@@ -386,6 +386,35 @@ export type PlaceCategory =
   | 'park'
   | 'default'
 
+/**
+ * A GTFS line from barrelman search — carries the (feedId, routeId) pair the
+ * /transit endpoints are keyed by, so the client can open the route detail.
+ */
+export interface TransitLineRef {
+  feedId: string
+  feedOnestopId?: string | null
+  routeId: string
+  shortName?: string | null
+  longName?: string | null
+  routeType?: number | null
+  mode?: string | null
+  color?: string | null
+  textColor?: string | null
+  agency?: string | null
+}
+
+/**
+ * A GTFS stop from barrelman search that OSM does not cover. The onestop id +
+ * stop id pair is the portolan stop-index key, letting the client double-check
+ * for an OSM object before falling back to a name+coords place view.
+ */
+export interface TransitStopRef {
+  feedId: string
+  feedOnestopId?: string | null
+  stopId: string
+  mode?: string | null
+}
+
 export interface PlaceIcon {
   category: PlaceCategory
   icon: string // e.g. 'restaurant', 'hospital', 'park'
@@ -434,6 +463,12 @@ export interface Place {
   popularHours?: AttributedValue<OpeningHours>
   transit?: AttributedValue<TransitStopInfo> | null
   relations?: AttributedValue<PlaceRelation[]> | null
+
+  // Set when this "place" is really a GTFS line or GTFS-only stop from
+  // barrelman search — the client opens these in the transit views instead
+  // of the place detail view.
+  transitLine?: TransitLineRef | null
+  transitStop?: TransitStopRef | null
 
   // Raw OSM tags (populated for OSM-sourced places)
   tags?: Record<string, string>

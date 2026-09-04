@@ -210,11 +210,6 @@ export const settingsIndex: SettingsPageDef[] = [
         ],
       },
       {
-        id: 'map-theme',
-        titleKey: 'settings.appearance.mapTheme.title',
-        keywords: ['day', 'night', 'dawn', 'dusk', 'time of day'],
-      },
-      {
         id: 'configuration',
         titleKey: 'settings.mapSettings.configuration.title',
         items: [

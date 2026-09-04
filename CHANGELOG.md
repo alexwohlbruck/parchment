@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* The routing settings popup is more compact, and the routing engine picker only appears when there is more than one engine to choose from.
+
 ### Fixed
 
 * The routing settings popup no longer overflows off screen — when its options are taller than the window, it caps at the visible height and scrolls inside.

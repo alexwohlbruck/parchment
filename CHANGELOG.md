@@ -2,6 +2,9 @@
 
 ### Added
 
+* Feedback now opens a form inside the app instead of sending you to GitHub. Pick a board, describe the bug or idea, and you'll be notified when it ships.
+* On a phone you can shake the device to open the feedback form, so reporting something you just hit takes no hunting through menus. Off by default — turn it on under Settings → Behavior.
+
 ### Changed
 
 ### Fixed
@@ -27,6 +30,7 @@
 
 ### Fixed
 
+* Pressing the already-selected board in the feedback form no longer clears the selection and leaves Submit stuck.
 * The routing settings popup no longer overflows off screen — when its options are taller than the window, it caps at the visible height and scrolls inside.
 * The layers library tab's add and store buttons no longer overlap the tab bar — they now sit at the top of the list, matching the routes tab.
 * A minimized bottom sheet stays put when you tap the map behind it, instead of springing back to half height — most visible when drawing on a canvas from a phone.

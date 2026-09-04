@@ -1114,7 +1114,18 @@
     "madeWith": "Hecho con ❤️ por"
   },
   "feedback": {
-    "title": "Feedback"
+    "title": "Comentarios",
+    "description": "Informa de un error o sugiere una idea. Te avisaremos cuando se publique.",
+    "titleLabel": "Resumen",
+    "titlePlaceholder": "Descríbelo brevemente",
+    "contentLabel": "Detalles",
+    "contentPlaceholder": "Añade los pasos, el contexto o las capturas que puedan ayudar",
+    "submit": "Enviar",
+    "submitted": "Gracias por tus comentarios",
+    "submittedDescription": "Te avisaremos cuando haya novedades.",
+    "viewPost": "Ver",
+    "submitFailed": "No se pudieron enviar tus comentarios. Inténtalo de nuevo.",
+    "loadFailed": "No se pudieron cargar los tableros de comentarios."
   },
   "profileMenu": {
     "shortcuts": "Atajos",
@@ -1651,6 +1662,10 @@
         "description": "Cómo se muestran los números de piso. Base cero cuenta la planta baja como 0 (común en Europa). Base uno cuenta la planta baja como 1 (común en las Américas).",
         "zeroBased": "Base cero (Planta baja = 0)",
         "oneBased": "Base uno (Planta baja = 1)"
+      },
+      "shakeForFeedback": {
+        "title": "Agitar para enviar comentarios",
+        "description": "Agita el teléfono para abrir el formulario de comentarios. Requiere acceso al movimiento."
       }
     },
     "appearance": {
@@ -1904,7 +1919,8 @@
         "locationHistory": "Historial de ubicación",
         "brandCatalog": "Catálogo de marcas",
         "transitRouting": "Rutas de tránsito",
-        "rideshareEstimate": "Viajes compartidos"
+        "rideshareEstimate": "Viajes compartidos",
+        "feedback": "Comentarios"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -1930,7 +1946,8 @@
         "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas",
         "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo",
         "openaq": "Datos abiertos de calidad del aire de estaciones de monitoreo terrestres",
-        "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)"
+        "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)",
+        "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios"
       },
       "scheme": {
         "endToEnd": {

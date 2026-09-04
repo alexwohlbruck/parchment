@@ -1148,7 +1148,18 @@
     "madeWith": "Made with ❤️ by"
   },
   "feedback": {
-    "title": "Feedback"
+    "title": "Feedback",
+    "description": "Report a bug or suggest an idea. You'll be notified when it ships.",
+    "titleLabel": "Summary",
+    "titlePlaceholder": "Briefly describe it",
+    "contentLabel": "Details",
+    "contentPlaceholder": "Add any steps, context, or screenshots that would help",
+    "submit": "Submit",
+    "submitted": "Thanks for the feedback",
+    "submittedDescription": "We'll let you know when there's an update.",
+    "viewPost": "View",
+    "submitFailed": "Couldn't submit your feedback. Please try again.",
+    "loadFailed": "Couldn't load the feedback boards."
   },
   "profileMenu": {
     "shortcuts": "Shortcuts",
@@ -1736,6 +1747,10 @@
         "description": "How floor numbers are displayed. Zero-based counts ground floor as 0 (common in Europe). One-based counts ground floor as 1 (common in the Americas).",
         "zeroBased": "Zero-based (Ground = 0)",
         "oneBased": "One-based (Ground = 1)"
+      },
+      "shakeForFeedback": {
+        "title": "Shake to send feedback",
+        "description": "Give your phone a shake to open the feedback form. Needs motion access."
       }
     },
     "appearance": {
@@ -2012,7 +2027,8 @@
         "locationHistory": "Location History",
         "brandCatalog": "Brand Catalog",
         "transitRouting": "Transit Routing",
-        "rideshareEstimate": "Rideshare"
+        "rideshareEstimate": "Rideshare",
+        "feedback": "Feedback"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -2039,7 +2055,8 @@
         "openstreetmap-account": "Add notes, comments, and make quick edits",
         "dawarich": "Private, encrypted location history tracking",
         "openaq": "Open air-quality data from ground monitoring stations",
-        "firms": "Active wildfire detections from satellite (VIIRS/MODIS)"
+        "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
+        "quackback": "Feedback boards, voting and roadmap for the in-app feedback form"
       },
       "scheme": {
         "endToEnd": {

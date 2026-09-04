@@ -489,6 +489,39 @@ export interface WeatherCapability {
   getWeather(lat: number, lng: number, lang?: string): Promise<WeatherData>
 }
 
+/** A board feedback can be filed against (bugs, feature requests, …). */
+export interface FeedbackBoard {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+}
+
+/** The person a post is filed on behalf of, mirrored into the provider. */
+export interface FeedbackAuthor {
+  email: string
+  name?: string
+}
+
+export interface FeedbackSubmission {
+  boardId: string
+  title: string
+  content: string
+  author: FeedbackAuthor
+}
+
+export interface SubmittedFeedback {
+  id: string
+  /** Link to the post on the provider's portal, when one can be built. */
+  url: string | null
+}
+
+/** Collect user feedback — boards, and filing a post against one. */
+export interface FeedbackCapability {
+  listBoards(): Promise<FeedbackBoard[]>
+  submitFeedback(input: FeedbackSubmission): Promise<SubmittedFeedback>
+}
+
 /** Logging / observability (e.g. OTLP export to Axiom). No methods; config-only. */
 export interface LoggingCapability {}
 
@@ -641,6 +674,7 @@ export interface IntegrationCapabilities {
   locationHistory?: LocationHistoryCapability
   transitRouting?: TransitRoutingCapability
   rideshareEstimate?: RideshareEstimateCapability
+  feedback?: FeedbackCapability
 }
 
 /**

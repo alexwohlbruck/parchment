@@ -9,7 +9,6 @@ export type VehicleType =
   | 'scooter'
   | 'e-bike'
   | 'e-scooter'
-  | 'wheelchair'
   | 'moped'
   | 'truck'
 
@@ -19,7 +18,6 @@ export type Mode =
   | 'biking'
   | 'transit'
   | 'rideshare'
-  | 'wheelchair'
   | 'paratransit'
   | 'mixed'
 
@@ -30,7 +28,6 @@ export type SelectedMode =
   | 'driving'
   | 'biking'
   | 'transit'
-  | 'wheelchair'
   | 'rideshare'
 
 export type SortPreference =

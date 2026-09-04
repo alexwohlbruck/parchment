@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  AccessibilityIcon,
   CarFrontIcon,
   BikeIcon,
   TrainIcon,
@@ -264,8 +263,6 @@ const currentModeName = computed(() => {
       return t('directions.preferences.transit')
     case 'driving':
       return t('directions.preferences.driving')
-    case 'wheelchair':
-      return t('directions.preferences.wheelchair', 'Wheelchair')
     default:
       return ''
   }
@@ -277,7 +274,6 @@ const modeToTab: Record<string, string> = {
   biking: 'biking',
   transit: 'transit',
   driving: 'driving',
-  wheelchair: 'wheelchair',
   multi: 'walking',
 }
 
@@ -341,11 +337,13 @@ const customModelError = computed(() => {
 <template>
   <div class="w-full">
     <!-- General Section -->
-    <div class="p-4 space-y-3">
+    <div class="px-4 py-3 space-y-3">
       <h2 class="font-semibold">{{ t('directions.preferences.general') }}</h2>
 
+      <!-- With a single engine there is nothing to choose; it's still applied
+           as the default in onMounted. -->
       <div
-        v-if="routingEngines.length > 0"
+        v-if="routingEngines.length > 1"
         class="flex items-center justify-between"
       >
         <Label for="routing-engine-global" class="text-sm font-normal">{{
@@ -374,7 +372,7 @@ const customModelError = computed(() => {
         </Select>
       </div>
 
-      <div class="space-y-3 pt-3">
+      <div class="space-y-3">
         <div class="flex items-center justify-between">
           <Label for="use-known-vehicle-locations" class="text-sm font-normal">
             {{ t('directions.preferences.useKnownVehicleLocations') }}
@@ -402,7 +400,7 @@ const customModelError = computed(() => {
     <Separator />
 
     <!-- Mode Title -->
-    <div class="p-4">
+    <div class="px-4 pt-3 pb-2">
       <h2 class="font-semibold">{{ currentModeName }}</h2>
     </div>
 
@@ -411,7 +409,7 @@ const customModelError = computed(() => {
       @update:model-value="handleTabChange"
       class="w-full px-2"
     >
-      <TabsList class="w-full grid grid-cols-5">
+      <TabsList class="w-full grid grid-cols-4">
         <TabsTrigger value="walking" class="text-xs" title="Walking">
           <FootprintsIcon class="size-5" />
         </TabsTrigger>
@@ -424,13 +422,10 @@ const customModelError = computed(() => {
         <TabsTrigger value="driving" class="text-xs" title="Driving">
           <CarFrontIcon class="size-5" />
         </TabsTrigger>
-        <TabsTrigger value="wheelchair" class="text-xs" title="Wheelchair">
-          <AccessibilityIcon class="size-5" />
-        </TabsTrigger>
       </TabsList>
 
       <!-- ═══════════════════ Walking ═══════════════════ -->
-      <TabsContent value="walking" class="py-4 px-2 space-y-5 mt-0">
+      <TabsContent value="walking" class="py-3 px-2 space-y-4 mt-0">
         <!-- Hills -->
         <PreferenceRow
           pref="hills"
@@ -462,12 +457,12 @@ const customModelError = computed(() => {
           :step="0.5"
         />
 
-        <!-- Wheelchair -->
+        <!-- Accessibility -->
         <PreferenceToggle pref="wheelchairAccessible" label="Wheelchair accessible" />
       </TabsContent>
 
       <!-- ═══════════════════ Cycling ═══════════════════ -->
-      <TabsContent value="biking" class="py-4 px-2 space-y-5 mt-0">
+      <TabsContent value="biking" class="py-3 px-2 space-y-4 mt-0">
         <!-- Bicycle Type -->
         <div
           v-if="isSupported('bicycleType')"
@@ -531,7 +526,7 @@ const customModelError = computed(() => {
       </TabsContent>
 
       <!-- ═══════════════════ Transit ═══════════════════ -->
-      <TabsContent value="transit" class="py-4 px-2 space-y-5 mt-0">
+      <TabsContent value="transit" class="py-3 px-2 space-y-4 mt-0">
         <div v-if="isSupported('maxWalkDistance')" class="space-y-2">
           <div class="flex items-center justify-between">
             <Label class="text-sm font-normal">Max walking distance</Label>
@@ -548,7 +543,10 @@ const customModelError = computed(() => {
           />
         </div>
 
-        <div v-if="isSupported('maxTransfers')" class="space-y-3">
+        <div
+          v-if="isSupported('maxTransfers')"
+          class="flex items-center justify-between"
+        >
           <Label for="max-transfers" class="text-sm font-normal"
             >Max transfers</Label
           >
@@ -559,6 +557,7 @@ const customModelError = computed(() => {
             min="0"
             max="10"
             step="1"
+            class="h-8 w-20 text-xs"
             @update:model-value="
               val => updatePreference('maxTransfers', Number(val))
             "
@@ -592,7 +591,7 @@ const customModelError = computed(() => {
       </TabsContent>
 
       <!-- ═══════════════════ Driving ═══════════════════ -->
-      <TabsContent value="driving" class="py-4 px-2 space-y-5 mt-0">
+      <TabsContent value="driving" class="py-3 px-2 space-y-4 mt-0">
         <!-- Highways -->
         <PreferenceRow
           pref="highways"
@@ -615,40 +614,6 @@ const customModelError = computed(() => {
 
         <!-- HOV -->
         <PreferenceToggle pref="preferHOV" label="Prefer HOV lanes" />
-      </TabsContent>
-
-      <!-- ═══════════════════ Wheelchair ═══════════════════ -->
-      <TabsContent value="wheelchair" class="py-4 px-2 space-y-5 mt-0">
-        <!-- Hills -->
-        <PreferenceRow
-          pref="hills"
-          label="Hills"
-          toggle-label="Avoid hills"
-          :on="0"
-          :off="0.5"
-          toggle-when="below"
-        />
-
-        <!-- Surface Quality -->
-        <PreferenceRow
-          pref="surfaceQuality"
-          label="Surface quality"
-          toggle-label="Prefer paved paths"
-          :on="1"
-          :off="0.25"
-          :fallback="0.25"
-        />
-
-        <!-- Walking Speed -->
-        <PreferenceValueSlider
-          v-model="walkingSpeedDisplay"
-          pref="walkingSpeed"
-          label="Walking speed"
-          :hint="`${walkingSpeedDisplay} ${speedUnit}`"
-          :min="walkingSpeedMin"
-          :max="walkingSpeedMax"
-          :step="0.5"
-        />
       </TabsContent>
     </Tabs>
 

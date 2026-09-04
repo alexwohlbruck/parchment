@@ -59,7 +59,6 @@ const tripType = computed<{ key: string; iconMode: string }>(() => {
     if (has('rideshare')) return { key: 'rideshare', iconMode: 'rideshare' }
     if (has('driving')) return { key: 'driving', iconMode: 'driving' }
     if (has('cycling')) return { key: 'cycling', iconMode: 'cycling' }
-    if (has('wheelchair')) return { key: 'wheelchair', iconMode: 'wheelchair' }
     return { key: 'walking', iconMode: 'walking' }
   }
 

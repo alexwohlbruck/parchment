@@ -5,7 +5,6 @@ import {
   FootprintsIcon,
   BikeIcon,
   TrainIcon,
-  AccessibilityIcon,
 } from 'lucide-vue-next'
 import { TravelMode } from '@server/types/unified-routing.types'
 import { getTravelModeColor } from '@/lib/travel-mode-colors'
@@ -25,8 +24,6 @@ const modeIcon = computed(() => {
       return BikeIcon
     case TravelMode.TRANSIT:
       return TrainIcon
-    case TravelMode.WHEELCHAIR:
-      return AccessibilityIcon
     case TravelMode.WALKING:
     default:
       return FootprintsIcon
@@ -45,8 +42,6 @@ const modeVerb = computed(() => {
       return 'Cycled'
     case TravelMode.TRANSIT:
       return 'Transit'
-    case TravelMode.WHEELCHAIR:
-      return 'Traveled'
     case TravelMode.WALKING:
     default:
       return 'Walked'

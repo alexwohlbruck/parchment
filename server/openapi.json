@@ -1267,10 +1267,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -1445,10 +1441,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -1648,10 +1640,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -1826,10 +1814,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -2029,10 +2013,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -2207,10 +2187,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -2442,10 +2418,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -2620,10 +2592,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -2823,10 +2791,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -3001,10 +2965,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -3204,10 +3164,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -3382,10 +3338,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -12520,6 +12472,150 @@
           "Subscriptions"
         ],
         "summary": "Get billing configuration and product info",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/webhook": {
+      "post": {
+        "operationId": "postSubscriptionsWebhook",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Handle Polar webhook events",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/checkout": {
+      "post": {
+        "parameters": [],
+        "operationId": "postSubscriptionsCheckout",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Create a Polar checkout session for subscription upgrade",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tier": {
+                    "anyOf": [
+                      {
+                        "const": "basic",
+                        "type": "string"
+                      },
+                      {
+                        "const": "premium",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "successUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tier": {
+                    "anyOf": [
+                      {
+                        "const": "basic",
+                        "type": "string"
+                      },
+                      {
+                        "const": "premium",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "successUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tier": {
+                    "anyOf": [
+                      {
+                        "const": "basic",
+                        "type": "string"
+                      },
+                      {
+                        "const": "premium",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "successUrl": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/portal": {
+      "get": {
+        "operationId": "getSubscriptionsPortal",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get Polar customer portal URL",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/status": {
+      "get": {
+        "operationId": "getSubscriptionsStatus",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get current subscription status",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/details": {
+      "get": {
+        "operationId": "getSubscriptionsDetails",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get rich subscription details from Polar",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/subscriptions/verify": {
+      "post": {
+        "operationId": "postSubscriptionsVerify",
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Verify subscription status directly with Polar",
         "responses": {
           "200": {}
         }

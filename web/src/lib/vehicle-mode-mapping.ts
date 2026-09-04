@@ -12,7 +12,6 @@ export const VEHICLE_ROUTING_MODE: Record<VehicleType, 'driving' | 'biking'> = {
   'e-bike': 'biking',
   scooter: 'biking',
   'e-scooter': 'biking',
-  wheelchair: 'driving',
 }
 
 /**
@@ -33,7 +32,6 @@ export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
   'e-bike': 'E-bike',
   scooter: 'Scooter',
   'e-scooter': 'E-scooter',
-  wheelchair: 'Wheelchair',
 }
 
 /**
@@ -47,5 +45,4 @@ export const VEHICLE_TYPE_ICONS: Record<VehicleType, string> = {
   'e-bike': 'zap',
   scooter: 'bike',
   'e-scooter': 'zap',
-  wheelchair: 'accessibility',
 }

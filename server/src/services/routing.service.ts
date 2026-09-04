@@ -163,8 +163,6 @@ export class RoutingService {
         return TravelMode.TRUCK
       case 'transit':
         return TravelMode.TRANSIT
-      case 'wheelchair':
-        return TravelMode.WHEELCHAIR
       default:
         return TravelMode.DRIVING
     }

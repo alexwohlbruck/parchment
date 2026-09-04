@@ -5,8 +5,24 @@ import { Waypoint } from '@/types/map.types'
 import { RoutingPreferences, SelectedMode, SortPreference } from '@/types/multimodal.types'
 import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone.utils'
 
+// Rideshare has no working integration yet, so the mode is hidden everywhere it
+// could be picked. Flip this to true to bring it back.
+export const RIDESHARE_ENABLED = false
+
+// Modes a user can actually select. A stored value outside this list — a mode
+// since removed, or one currently hidden — falls back to 'multi' rather than
+// being sent to the API, which rejects unknown modes.
+export const SELECTABLE_MODES: readonly SelectedMode[] = [
+  'multi',
+  'walking',
+  'driving',
+  'biking',
+  'transit',
+  ...(RIDESHARE_ENABLED ? (['rideshare'] as const) : []),
+]
+
 // Mode-scoped preference storage
-export type ModeKey = 'walking' | 'biking' | 'driving' | 'transit' | 'wheelchair'
+export type ModeKey = 'walking' | 'biking' | 'driving' | 'transit'
 
 // Keys that are shared across all modes — everything else is per-mode
 const GENERAL_KEYS: ReadonlyArray<keyof RoutingPreferences> = [
@@ -49,12 +65,6 @@ const defaultModePreferences: Record<ModeKey, Partial<RoutingPreferences>> = {
     maxTransfers: 3,
     transitBufferMinutes: 2,
     wheelchairAccessible: false,
-  },
-  wheelchair: {
-    hills: 0,
-    surfaceQuality: 0.75,
-    walkingSpeed: undefined,
-    wheelchairAccessible: true,
   },
 }
 
@@ -125,17 +135,9 @@ export const useDirectionsStore = defineStore('directions', () => {
     },
   ]) // List of locations to get directions for
 
-  // Load selected mode from localStorage, default to 'multi'
   const loadSelectedMode = (): SelectedMode => {
-    const stored = localStorage.getItem('selectedMode')
-    if (stored) {
-      try {
-        return stored as SelectedMode
-      } catch {
-        return 'multi'
-      }
-    }
-    return 'multi'
+    const stored = localStorage.getItem('selectedMode') as SelectedMode | null
+    return stored && SELECTABLE_MODES.includes(stored) ? stored : 'multi'
   }
 
   const selectedMode = ref<SelectedMode>(loadSelectedMode())

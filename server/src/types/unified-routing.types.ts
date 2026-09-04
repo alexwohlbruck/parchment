@@ -15,7 +15,6 @@ export enum TravelMode {
   TRANSIT = 'transit',
   MOTORCYCLE = 'motorcycle',
   TRUCK = 'truck',
-  WHEELCHAIR = 'wheelchair',
 }
 
 // Waypoint types for different use cases

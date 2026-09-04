@@ -846,7 +846,6 @@ const modeColors = {
   biking: 'bg-forest-500',
   transit: 'bg-parchment-500',
   truck: 'bg-compass-500',
-  wheelchair: 'bg-teal-500',
 } as const
 
 const modeTextColors: Record<string, string> = {
@@ -856,7 +855,6 @@ const modeTextColors: Record<string, string> = {
   biking: 'text-forest-500',
   transit: 'text-parchment-600',
   truck: 'text-compass-500',
-  wheelchair: 'text-teal-500',
 }
 
 watch(
@@ -1168,9 +1166,7 @@ function showSegmentChart(segment: any): boolean {
     (segment.totalElevationGain ||
       segment.totalElevationLoss ||
       segment.edgeSegments?.length) &&
-    (segment.mode === 'walking' ||
-      segment.mode === 'cycling' ||
-      segment.mode === 'wheelchair')
+    (segment.mode === 'walking' || segment.mode === 'cycling')
   )
 }
 

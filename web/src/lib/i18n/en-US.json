@@ -721,7 +721,6 @@
       "walking": "Walking",
       "cycling": "Cycling",
       "driving": "Driving",
-      "wheelchair": "Wheelchair",
       "rideshare": "Rideshare",
       "transit": "Transit",
       "transitWalking": "Transit & Walking",
@@ -746,7 +745,6 @@
       "cycling": "Cycling",
       "transit": "Transit",
       "driving": "Driving",
-      "wheelchair": "Wheelchair",
       "rideshare": "Rideshare"
     },
     "preferences": {
@@ -755,7 +753,6 @@
       "cycling": "Cycling Options",
       "transit": "Transit Options",
       "driving": "Driving Options",
-      "wheelchair": "Wheelchair Options",
       "routingEngine": "Routing Engine",
       "useKnownVehicleLocations": "Use known vehicle locations",
       "useKnownParkingLocations": "Use known parking locations"
@@ -1922,8 +1919,7 @@
         "bike": "Bike",
         "e-bike": "E-bike",
         "scooter": "Scooter",
-        "e-scooter": "E-scooter",
-        "wheelchair": "Wheelchair"
+        "e-scooter": "E-scooter"
       },
       "energyTypes": {
         "gas": "Gas",

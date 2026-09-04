@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 * The routing settings popup is more compact, and the routing engine picker only appears when there is more than one engine to choose from.
+* Removed the wheelchair travel mode from directions. Accessible routing stays available as the "Wheelchair accessible" preference under Walking and Transit, which avoids stairs and prefers accessible stops and entrances.
+* Hid the rideshare travel mode until there is a working rideshare integration behind it.
 
 ### Fixed
 

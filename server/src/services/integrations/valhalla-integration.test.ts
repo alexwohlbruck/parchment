@@ -163,7 +163,6 @@ describe('routing metadata', () => {
       'cycling',
       'motorcycle',
       'truck',
-      'wheelchair',
     ])
   })
 
@@ -509,7 +508,7 @@ describe('walking costing options', () => {
     )
   })
 
-  test('switches the pedestrian type for wheelchair routing', async () => {
+  test('switches the pedestrian type for accessible routing', async () => {
     expect(await walk({ wheelchairAccessible: true })).toMatchObject({
       type: 'wheelchair',
     })

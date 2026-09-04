@@ -289,7 +289,7 @@ export class BarrelmanIntegration
           // Boolean preferences
           shortest: 'boolean',
           preferHOV: false,             // GH has no HOV data
-          wheelchairAccessible: false,  // Use dedicated wheelchair mode instead
+          wheelchairAccessible: false,  // No accessibility routing data
 
           // Numeric/enum preferences
           cyclingSpeed: 'range',
@@ -300,7 +300,7 @@ export class BarrelmanIntegration
           maxWalkDistance: 'range',
           maxTransfers: 'range',
         },
-        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck', 'wheelchair'],
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck'],
         supportedOptimizations: ['time', 'distance'],
         features: {
           alternatives: true,
@@ -1147,8 +1147,6 @@ export class BarrelmanIntegration
         return 'car' // GraphHopper doesn't have a separate motorcycle profile
       case TravelMode.TRUCK:
         return 'car' // Use car with custom_model constraints for truck
-      case TravelMode.WHEELCHAIR:
-        return 'foot' // Use foot profile with custom_model to avoid stairs, curbs, etc.
       default:
         throw new Error(`Unsupported travel mode: ${mode}`)
     }

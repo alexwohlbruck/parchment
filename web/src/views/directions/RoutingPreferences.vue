@@ -18,7 +18,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  AccessibilityIcon,
   CarFrontIcon,
   BikeIcon,
   TrainIcon,
@@ -264,8 +263,6 @@ const currentModeName = computed(() => {
       return t('directions.preferences.transit')
     case 'driving':
       return t('directions.preferences.driving')
-    case 'wheelchair':
-      return t('directions.preferences.wheelchair', 'Wheelchair')
     default:
       return ''
   }
@@ -277,7 +274,6 @@ const modeToTab: Record<string, string> = {
   biking: 'biking',
   transit: 'transit',
   driving: 'driving',
-  wheelchair: 'wheelchair',
   multi: 'walking',
 }
 
@@ -413,7 +409,7 @@ const customModelError = computed(() => {
       @update:model-value="handleTabChange"
       class="w-full px-2"
     >
-      <TabsList class="w-full grid grid-cols-5">
+      <TabsList class="w-full grid grid-cols-4">
         <TabsTrigger value="walking" class="text-xs" title="Walking">
           <FootprintsIcon class="size-5" />
         </TabsTrigger>
@@ -425,9 +421,6 @@ const customModelError = computed(() => {
         </TabsTrigger>
         <TabsTrigger value="driving" class="text-xs" title="Driving">
           <CarFrontIcon class="size-5" />
-        </TabsTrigger>
-        <TabsTrigger value="wheelchair" class="text-xs" title="Wheelchair">
-          <AccessibilityIcon class="size-5" />
         </TabsTrigger>
       </TabsList>
 
@@ -464,7 +457,7 @@ const customModelError = computed(() => {
           :step="0.5"
         />
 
-        <!-- Wheelchair -->
+        <!-- Accessibility -->
         <PreferenceToggle pref="wheelchairAccessible" label="Wheelchair accessible" />
       </TabsContent>
 
@@ -621,40 +614,6 @@ const customModelError = computed(() => {
 
         <!-- HOV -->
         <PreferenceToggle pref="preferHOV" label="Prefer HOV lanes" />
-      </TabsContent>
-
-      <!-- ═══════════════════ Wheelchair ═══════════════════ -->
-      <TabsContent value="wheelchair" class="py-3 px-2 space-y-4 mt-0">
-        <!-- Hills -->
-        <PreferenceRow
-          pref="hills"
-          label="Hills"
-          toggle-label="Avoid hills"
-          :on="0"
-          :off="0.5"
-          toggle-when="below"
-        />
-
-        <!-- Surface Quality -->
-        <PreferenceRow
-          pref="surfaceQuality"
-          label="Surface quality"
-          toggle-label="Prefer paved paths"
-          :on="1"
-          :off="0.25"
-          :fallback="0.25"
-        />
-
-        <!-- Walking Speed -->
-        <PreferenceValueSlider
-          v-model="walkingSpeedDisplay"
-          pref="walkingSpeed"
-          label="Walking speed"
-          :hint="`${walkingSpeedDisplay} ${speedUnit}`"
-          :min="walkingSpeedMin"
-          :max="walkingSpeedMax"
-          :step="0.5"
-        />
       </TabsContent>
     </Tabs>
 

@@ -6,9 +6,9 @@ import {
 } from '@/services/feedback.service'
 
 /**
- * Feedback is optional per server (it needs a Quackback instance behind
- * QUACKBACK_URL). One probe on first use tells the navigation whether to show
- * the entry points at all, and doubles as the board prefetch for the dialog.
+ * Feedback is optional per server — it needs the Quackback system integration
+ * configured. One probe on first use tells the navigation whether to show the
+ * entry points at all, and doubles as the board prefetch for the dialog.
  */
 function feedback() {
   const boards = ref<FeedbackBoard[]>([])

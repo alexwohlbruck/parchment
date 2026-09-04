@@ -1,9 +1,23 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
-// QUACKBACK_URL / QUACKBACK_API_KEY come from src/test/setup.ts.
-const mockGet = mock((_url: string) => Promise.resolve({ data: { data: [] } }))
-const mockPost = mock((_url: string, _body?: any) =>
-  Promise.resolve({ data: { data: {} } }),
+// Feedback resolves its instance from the Quackback system integration.
+let integrationConfig: any = {
+  url: 'https://feedback.example.com/',
+  apiKey: 'qb_test',
+}
+
+mock.module('./integrations', () => ({
+  integrationManager: {
+    getConfiguredIntegrations: () =>
+      integrationConfig
+        ? [{ integrationId: 'quackback', config: integrationConfig }]
+        : [],
+  },
+}))
+
+const mockGet = mock((_url: string): Promise<any> => Promise.resolve({ data: { data: [] } }))
+const mockPost = mock(
+  (_url: string, _body?: any): Promise<any> => Promise.resolve({ data: { data: {} } }),
 )
 
 mock.module('axios', () => ({
@@ -117,6 +131,26 @@ describe('feedback.service', () => {
       })
 
       expect(result.url).toBeNull()
+    })
+  })
+
+  describe('when no Quackback instance is configured', () => {
+    test('listBoards reports the integration is missing', async () => {
+      integrationConfig = null
+      try {
+        await expect(listBoards()).rejects.toThrow('Feedback is not configured')
+      } finally {
+        integrationConfig = { url: 'https://feedback.example.com/', apiKey: 'qb_test' }
+      }
+    })
+
+    test('a half-filled integration does not count as configured', async () => {
+      integrationConfig = { url: 'https://feedback.example.com', apiKey: '  ' }
+      try {
+        await expect(listBoards()).rejects.toThrow('Feedback is not configured')
+      } finally {
+        integrationConfig = { url: 'https://feedback.example.com/', apiKey: 'qb_test' }
+      }
     })
   })
 

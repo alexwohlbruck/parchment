@@ -24,7 +24,7 @@ const submitRateLimit = makeUserRateLimit({
 app.use(requireAuth).get(
   '/boards',
   async ({ status, t }) => {
-    if (!isFeedbackConfigured) {
+    if (!isFeedbackConfigured()) {
       return status(503, { message: t('errors.feedback.unavailable') })
     }
 
@@ -50,7 +50,7 @@ app.use(requireAuth).get(
 app.use(getUser).use(submitRateLimit).post(
   '/',
   async ({ body, user, status, t }) => {
-    if (!isFeedbackConfigured) {
+    if (!isFeedbackConfigured()) {
       return status(503, { message: t('errors.feedback.unavailable') })
     }
 

@@ -21,6 +21,9 @@ import { updatePreferences } from '@/services/preferences.service'
 import { useMapStore } from '@/stores/map.store'
 import { useMapService } from '@/services/map.service'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+import { useResponsive } from '@/lib/utils'
+import { useFeedback } from '@/composables/useFeedback'
+import { useShakeGesture } from '@/composables/useShakeGesture'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -34,6 +37,7 @@ import {
 import {
   Gauge,
   GaugeIcon,
+  Smartphone,
   LanguagesIcon,
   Navigation2Icon,
   LayersIcon,
@@ -51,12 +55,32 @@ const authStore = useAuthStore()
 const commandStore = useCommandStore()
 const mapStore = useMapStore()
 const mapService = useMapService()
-const { unitSystem, floorNumbering } = storeToRefs(appStore)
+const { unitSystem, floorNumbering, shakeForFeedback } = storeToRefs(appStore)
 const { settings, controlSettings } = storeToRefs(mapStore)
 const { locale } = useI18n()
 
 const languageCommand = commandStore.useCommand(CommandName.UPDATE_LANGUAGE)
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
+
+const { isMobileScreen } = useResponsive()
+const { available: feedbackAvailable, ensureLoaded: loadFeedback } = useFeedback()
+const shake = useShakeGesture(() => {})
+loadFeedback()
+
+/**
+ * Turning the toggle on is the user gesture iOS needs to grant motion access,
+ * so ask here rather than at app start. A denial flips the switch back — the
+ * setting would otherwise read as on while nothing listens.
+ */
+async function toggleShakeForFeedback(enabled: boolean) {
+  if (!enabled) {
+    shakeForFeedback.value = false
+    return
+  }
+
+  const state = await shake.requestPermission()
+  shakeForFeedback.value = state === 'granted'
+}
 const projectionCommand = commandStore.useCommand(CommandName.MAP_PROJECTION)
 
 // Persist language and unit preferences to backend when logged in
@@ -482,6 +506,23 @@ watch(
             </SelectGroup>
           </SelectContent>
         </Select>
+      </SettingsItem>
+    </SettingsSection>
+
+    <SettingsSection
+      v-if="isMobileScreen && feedbackAvailable && shake.isSupported"
+      id="feedback"
+      :title="$t('feedback.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.behavior.shakeForFeedback.title')"
+        :description="$t('settings.behavior.shakeForFeedback.description')"
+        :icon="Smartphone"
+      >
+        <Switch
+          :model-value="shakeForFeedback"
+          @update:model-value="toggleShakeForFeedback"
+        />
       </SettingsItem>
     </SettingsSection>
   </div>

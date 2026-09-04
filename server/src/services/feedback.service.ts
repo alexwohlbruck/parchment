@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios'
-import { feedbackConfig, isFeedbackConfigured } from '../config/feedback.config'
+import { getFeedbackConfig } from '../config/feedback.config'
 import { logError } from '../lib/logger'
 
 export interface FeedbackBoard {
@@ -32,15 +32,22 @@ export class FeedbackNotConfiguredError extends Error {
   }
 }
 
-const client = () =>
-  axios.create({
-    baseURL: `${feedbackConfig.url}/api/v1`,
-    headers: { Authorization: `Bearer ${feedbackConfig.apiKey}` },
-    timeout: 10_000,
-  })
+/**
+ * Resolve the admin-configured instance per call — an admin can connect or
+ * change it at runtime, so nothing may be captured at module load.
+ */
+function client() {
+  const config = getFeedbackConfig()
+  if (!config) throw new FeedbackNotConfiguredError()
 
-function assertConfigured() {
-  if (!isFeedbackConfigured) throw new FeedbackNotConfiguredError()
+  return {
+    api: axios.create({
+      baseURL: `${config.url}/api/v1`,
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+      timeout: 10_000,
+    }),
+    url: config.url,
+  }
 }
 
 /**
@@ -51,11 +58,11 @@ const BOARDS_TTL_MS = 5 * 60_000
 let boardsCache: { boards: FeedbackBoard[]; expiresAt: number } | null = null
 
 export async function listBoards(): Promise<FeedbackBoard[]> {
-  assertConfigured()
+  const { api } = client()
 
   if (boardsCache && boardsCache.expiresAt > Date.now()) return boardsCache.boards
 
-  const { data } = await client().get('/boards')
+  const { data } = await api.get('/boards')
   const boards: FeedbackBoard[] = (data?.data ?? []).map((board: any) => ({
     id: board.id,
     name: board.name,
@@ -83,9 +90,7 @@ export async function submitFeedback({
   content,
   author,
 }: SubmitFeedbackInput): Promise<SubmittedFeedback> {
-  assertConfigured()
-
-  const api = client()
+  const { api, url } = client()
 
   const { data: identified } = await api.post('/users/identify', {
     email: author.email,
@@ -105,7 +110,7 @@ export async function submitFeedback({
 
   return {
     id,
-    url: slug && id ? `${feedbackConfig.url}/b/${slug}/posts/${id}` : null,
+    url: slug && id ? `${url}/b/${slug}/posts/${id}` : null,
   }
 }
 

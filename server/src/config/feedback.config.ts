@@ -1,18 +1,31 @@
-const url = process.env.QUACKBACK_URL?.replace(/\/+$/, '')
-const apiKey = process.env.QUACKBACK_API_KEY
+import { integrationManager } from '../services/integrations'
+import { IntegrationId } from '../types/integration.enums'
+import type { QuackbackConfig } from '../services/integrations/quackback-integration'
+
+export interface FeedbackConfig {
+  url: string
+  apiKey: string
+}
 
 /**
- * Feedback is optional. Without a Quackback instance the endpoints report 503
- * and the client hides the feedback entry points.
+ * Resolve the Quackback connection from the system integration an admin
+ * configured under Settings → Integrations. Returns null when feedback has not
+ * been set up, which is what hides the in-app entry points.
  */
-export const isFeedbackConfigured = Boolean(url && apiKey)
+export function getFeedbackConfig(): FeedbackConfig | null {
+  const record = integrationManager
+    .getConfiguredIntegrations()
+    .find(i => i.integrationId === IntegrationId.QUACKBACK)
 
-/**
- * The key must belong to an admin-role Quackback API key: attributing a post to
- * the user who wrote it (`authorPrincipalId`) is admin-gated upstream. A
- * member-role key silently files every post as the key's own principal.
- */
-export const feedbackConfig = {
-  url: url ?? '',
-  apiKey: apiKey ?? '',
+  const config = record?.config as QuackbackConfig | undefined
+  if (!config?.url?.trim() || !config?.apiKey?.trim()) return null
+
+  return {
+    url: config.url.trim().replace(/\/+$/, ''),
+    apiKey: config.apiKey.trim(),
+  }
+}
+
+export function isFeedbackConfigured(): boolean {
+  return getFeedbackConfig() !== null
 }

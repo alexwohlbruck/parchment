@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -35,6 +35,9 @@ import '@/lib/realtime-bootstrap'
 import { SIDEBAR_WIDTH } from '@/components/ui/sidebar'
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
+import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
+import { useFeedback } from '@/composables/useFeedback'
+import { useShakeGesture } from '@/composables/useShakeGesture'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
@@ -60,6 +63,29 @@ const vehiclesStore = useVehiclesStore()
 const recentsStore = useRecentsStore()
 const { isMobileScreen } = useResponsive()
 const isDev = import.meta.env.DEV
+
+// Shake to send feedback (mobile only). Opt-in via Settings → Behavior, which
+// is also where iOS gets the user gesture it needs to grant motion access.
+const feedbackDialogOpen = ref(false)
+const { available: feedbackAvailable, ensureLoaded: loadFeedback } = useFeedback()
+const shake = useShakeGesture(() => {
+  if (feedbackAvailable.value) feedbackDialogOpen.value = true
+})
+
+watchEffect(() => {
+  const wanted =
+    isMobileScreen.value && appStore.shakeForFeedback && feedbackAvailable.value
+  if (wanted && shake.canStartWithoutPrompt()) shake.start()
+  else if (!wanted) shake.stop()
+})
+
+watch(
+  () => appStore.shakeForFeedback,
+  enabled => {
+    if (enabled) loadFeedback()
+  },
+  { immediate: true },
+)
 
 // TEMPORARY: the building-lighting tuner, as a panel over the map. Opened from
 // Settings → Developer, which is a dialog that covers the very thing being
@@ -301,6 +327,8 @@ function beforeNavTransition(value: boolean) {
     <template v-else-if="!hideUI">
       <MobileNav class="z-20" />
     </template>
+
+    <FeedbackDialog v-if="isMobileScreen" v-model:open="feedbackDialogOpen" />
 
     <!-- Main content -->
     <main

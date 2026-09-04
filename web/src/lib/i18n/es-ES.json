@@ -1659,6 +1659,10 @@
         "description": "Cómo se muestran los números de piso. Base cero cuenta la planta baja como 0 (común en Europa). Base uno cuenta la planta baja como 1 (común en las Américas).",
         "zeroBased": "Base cero (Planta baja = 0)",
         "oneBased": "Base uno (Planta baja = 1)"
+      },
+      "shakeForFeedback": {
+        "title": "Agitar para enviar comentarios",
+        "description": "Agita el teléfono para abrir el formulario de comentarios. Requiere acceso al movimiento."
       }
     },
     "appearance": {

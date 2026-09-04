@@ -335,6 +335,18 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.QUACKBACK,
+    name: 'Quackback',
+    description:
+      'Back the in-app feedback form with a self-hosted Quackback instance. Leave unset to hide feedback from the app.',
+    color: '#F5C518',
+    capabilities: [],
+    paid: false,
+    cloud: true,
+    configSchema: 'quackbackSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.OPENSTREETMAP,
     name: 'OpenStreetMap',
     description:

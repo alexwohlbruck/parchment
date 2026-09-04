@@ -1746,6 +1746,10 @@
         "description": "How floor numbers are displayed. Zero-based counts ground floor as 0 (common in Europe). One-based counts ground floor as 1 (common in the Americas).",
         "zeroBased": "Zero-based (Ground = 0)",
         "oneBased": "One-based (Ground = 1)"
+      },
+      "shakeForFeedback": {
+        "title": "Shake to send feedback",
+        "description": "Give your phone a shake to open the feedback form. Needs motion access."
       }
     },
     "appearance": {

@@ -12,6 +12,7 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useInlineRename } from '@/composables/useInlineRename'
+import { useResponsive } from '@/lib/utils'
 import { Switch } from '@/components/ui/switch'
 import { IconPicker } from '@/components/ui/icon-picker'
 import {
@@ -136,16 +137,24 @@ const metrics = computed(() =>
 const label = ref(props.annotation.label ?? '')
 const labelInput = ref<InstanceType<typeof Input> | null>(null)
 
+const { isMobileScreen } = useResponsive()
+
 /**
  * A mark that has just been made is almost always about to be named, so the
  * field takes focus the moment its row opens — the same reflex Felt has when
  * it drops a pin. Selecting existing text means a rename is one keystroke.
+ *
+ * Not on a phone, though: there the focus rides in with the keyboard and
+ * drags the bottom sheet open over the map after every single mark, which
+ * turns a run of pins into a fight with the sheet. Drawing is the activity;
+ * naming waits for a tap on the field.
  */
 watch(
   () => props.expanded,
   async expanded => {
     if (!expanded) return
     label.value = props.annotation.label ?? ''
+    if (isMobileScreen.value) return
     await nextTick()
     const el = (labelInput.value?.$el ?? labelInput.value) as
       | HTMLInputElement

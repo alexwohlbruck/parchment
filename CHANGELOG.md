@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * The routing settings popup no longer overflows off screen — when its options are taller than the window, it caps at the visible height and scrolls inside.
 * The layers library tab's add and store buttons no longer overlap the tab bar — they now sit at the top of the list, matching the routes tab.
+* A minimized bottom sheet stays put when you tap the map behind it, instead of springing back to half height — most visible when drawing on a canvas from a phone.
+* Drawing on a canvas from a phone no longer pops the panel open after every mark, and the minimized panel shrinks to just the canvas's title bar.
+* On a phone, the canvas toolbar no longer floats on top of the expanded panel — the panel now slides over it. When the toolbar is too wide for the screen, it breaks into a fixed pair of rows: drawing tools above, erase and undo/redo below, stepping down a size on the narrowest phones so no tool is cut off.
 
 ## [0.9.0] - 2026-09-03
 

@@ -110,6 +110,14 @@ function toolTitle(item: ToolItem) {
     : name
 }
 
+/**
+ * Nine buttons at 32px overflow a narrow phone, and the box is clipped, so the
+ * end tools would simply be lost. The strip steps down a size instead — the
+ * grouping survives, and every tool stays reachable.
+ */
+const TOOL_BUTTON = 'size-7 min-[380px]:size-8'
+const TOOL_ICON = 'size-3.5 min-[380px]:size-4'
+
 /** Mid-draw only for the shapes that don't finish themselves. */
 const isDrawing = computed(() => props.vertexCount > 0)
 
@@ -170,13 +178,12 @@ const destinationItems = computed(() => [
         <Button
           variant="ghost"
           size="icon"
-          class="size-8"
-          :class="!tool && 'bg-secondary text-foreground'"
+          :class="[TOOL_BUTTON, !tool && 'bg-secondary text-foreground']"
           :title="t('canvases.toolbar.select')"
           :aria-label="t('canvases.toolbar.select')"
           @click="emit('arm', null)"
         >
-          <MousePointer2Icon class="size-4" />
+          <MousePointer2Icon :class="TOOL_ICON" />
         </Button>
 
         <Separator orientation="vertical" class="h-5 mx-0.5" />
@@ -186,14 +193,13 @@ const destinationItems = computed(() => [
           :key="item.id"
           variant="ghost"
           size="icon"
-          class="size-8"
-          :class="tool === item.id && 'bg-secondary text-foreground'"
+          :class="[TOOL_BUTTON, tool === item.id && 'bg-secondary text-foreground']"
           :disabled="isDisabled(item)"
           :title="toolTitle(item)"
           :aria-label="t(`canvases.toolbar.tools.${item.id}`)"
           @click="emit('arm', item.id)"
         >
-          <component :is="item.icon" class="size-4" />
+          <component :is="item.icon" :class="TOOL_ICON" />
         </Button>
       </div>
 
@@ -205,13 +211,15 @@ const destinationItems = computed(() => [
         <Button
           variant="ghost"
           size="icon"
-          class="size-8"
-          :class="tool === ERASE_TOOL.id && 'bg-secondary text-foreground'"
+          :class="[
+            TOOL_BUTTON,
+            tool === ERASE_TOOL.id && 'bg-secondary text-foreground',
+          ]"
           :title="toolTitle(ERASE_TOOL)"
           :aria-label="t(`canvases.toolbar.tools.${ERASE_TOOL.id}`)"
           @click="emit('arm', ERASE_TOOL.id)"
         >
-          <EraserIcon class="size-4" />
+          <EraserIcon :class="TOOL_ICON" />
         </Button>
 
         <!-- Where the next mark gets filed. Only worth showing once there is
@@ -227,13 +235,13 @@ const destinationItems = computed(() => [
               <Button
                 variant="ghost"
                 size="sm"
-                class="h-8 gap-1.5 px-2 max-w-36"
+                class="h-7 min-[380px]:h-8 gap-1.5 px-2 max-w-36"
                 :class="activeGroup && 'text-primary'"
                 :title="t('canvases.groups.destination')"
               >
                 <component
                   :is="activeGroup ? FolderOpenIcon : LayersIcon"
-                  class="size-4 shrink-0"
+                  :class="[TOOL_ICON, 'shrink-0']"
                 />
                 <!-- The bar is already tight on a phone; there the icon and
                      its colour carry it, and the menu names the destination. -->
@@ -254,13 +262,13 @@ const destinationItems = computed(() => [
         <Button
           variant="ghost"
           size="icon"
-          class="size-8"
+          :class="TOOL_BUTTON"
           :disabled="isDrawing ? !canUndo : !canUndoEdit"
           :title="`${t('canvases.toolbar.undoEdit')} (⌘Z)`"
           :aria-label="t('canvases.toolbar.undoEdit')"
           @click="undo"
         >
-          <UndoIcon class="size-4" />
+          <UndoIcon :class="TOOL_ICON" />
         </Button>
 
         <!-- Finishing is the only thing worth offering mid-shape, and it takes
@@ -269,25 +277,25 @@ const destinationItems = computed(() => [
           v-if="isDrawing"
           variant="ghost"
           size="icon"
-          class="size-8 text-primary hover:text-primary"
+          :class="[TOOL_BUTTON, 'text-primary hover:text-primary']"
           :disabled="!canFinish"
           :title="`${t('general.done')} (⏎)`"
           :aria-label="t('general.done')"
           @click="emit('finish')"
         >
-          <CheckIcon class="size-4" />
+          <CheckIcon :class="TOOL_ICON" />
         </Button>
         <Button
           v-else
           variant="ghost"
           size="icon"
-          class="size-8"
+          :class="TOOL_BUTTON"
           :disabled="!canRedoEdit"
           :title="`${t('canvases.toolbar.redoEdit')} (⌘⇧Z)`"
           :aria-label="t('canvases.toolbar.redoEdit')"
           @click="emit('redoEdit')"
         >
-          <RedoIcon class="size-4" />
+          <RedoIcon :class="TOOL_ICON" />
         </Button>
       </div>
     </div>

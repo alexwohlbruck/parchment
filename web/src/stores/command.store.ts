@@ -454,6 +454,27 @@ export const useCommandStore = defineStore('command', () => {
                       }
                     }
 
+                    // A transit line wears its route bullet — short name on
+                    // the line's own colour — instead of a generic icon.
+                    if (result.type === 'transit_route' && result.transitLine?.shortName) {
+                      return {
+                        identity: `place:${result.id}`,
+                        option: {
+                          value: result.id,
+                          // The bullet already says the short name; the row
+                          // reads "Broadway Express", not "Q · Broadway Express".
+                          name: result.transitLine.longName || result.title,
+                          description: result.description,
+                          bullet: {
+                            label: result.transitLine.shortName,
+                            color: result.transitLine.color,
+                            textColor: result.transitLine.textColor,
+                          },
+                          group: 'places',
+                        },
+                      }
+                    }
+
                     // GTFS-only stop: the action needs coordinates and the
                     // portolan index key, neither of which fit in a bare id —
                     // encode them like the brand payload above.

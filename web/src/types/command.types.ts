@@ -16,6 +16,9 @@ export type PaletteItem = {
   iconColor?: string
   /** When set, the item renders this image in the icon circle instead of a glyph (e.g. a brand logo). */
   imageUrl?: string
+  /** When set, the item renders a transit route bullet instead of an icon —
+   *  the line's short name on its GTFS colour, pill-shaped when it's a word. */
+  bullet?: { label: string; color?: string | null; textColor?: string | null }
 }
 
 export type Command = PaletteItem & {

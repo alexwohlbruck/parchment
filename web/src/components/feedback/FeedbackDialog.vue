@@ -100,55 +100,56 @@ async function handleSubmit() {
     :title="t('feedback.title')"
     :description="t('feedback.description')"
   >
-    <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
-      <div v-if="loadingBoards" class="flex justify-center py-6">
-        <Spinner />
-      </div>
+    <template #content>
+      <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
+        <div v-if="loadingBoards" class="flex justify-center py-6">
+          <Spinner />
+        </div>
 
-      <template v-else-if="boards.length">
-        <ToggleGroup
-          v-model="boardId"
-          type="single"
-          variant="outline"
-          class="flex-wrap justify-start"
-        >
-          <ToggleGroupItem
-            v-for="board in boards"
-            :key="board.id"
-            :value="board.id"
+        <template v-else-if="boards.length">
+          <ToggleGroup
+            v-model="boardId"
+            type="single"
+            variant="outline"
+            class="flex-wrap justify-start"
           >
-            {{ board.name }}
-          </ToggleGroupItem>
-        </ToggleGroup>
+            <ToggleGroupItem
+              v-for="board in boards"
+              :key="board.id"
+              :value="board.id"
+            >
+              {{ board.name }}
+            </ToggleGroupItem>
+          </ToggleGroup>
 
-        <p
-          v-if="selectedBoard?.description"
-          class="text-sm text-muted-foreground"
-        >
-          {{ selectedBoard.description }}
-        </p>
+          <p
+            v-if="selectedBoard?.description"
+            class="text-sm text-muted-foreground"
+          >
+            {{ selectedBoard.description }}
+          </p>
 
-        <div class="flex flex-col gap-2">
-          <Label for="feedback-title">{{ t('feedback.titleLabel') }}</Label>
-          <Input
-            id="feedback-title"
-            v-model="title"
-            :placeholder="t('feedback.titlePlaceholder')"
-            maxlength="200"
-            autofocus
-          />
-        </div>
+          <div class="flex flex-col gap-2">
+            <Label for="feedback-title">{{ t('feedback.titleLabel') }}</Label>
+            <Input
+              id="feedback-title"
+              v-model="title"
+              :placeholder="t('feedback.titlePlaceholder')"
+              maxlength="200"
+              autofocus
+            />
+          </div>
 
-        <div class="flex flex-col gap-2">
-          <Label for="feedback-content">{{ t('feedback.contentLabel') }}</Label>
-          <Textarea
-            id="feedback-content"
-            v-model="content"
-            :placeholder="t('feedback.contentPlaceholder')"
-            maxlength="10000"
-            rows="5"
-          />
-        </div>
+          <div class="flex flex-col gap-2">
+            <Label for="feedback-content">{{ t('feedback.contentLabel') }}</Label>
+            <Textarea
+              id="feedback-content"
+              v-model="content"
+              :placeholder="t('feedback.contentPlaceholder')"
+              maxlength="10000"
+              rows="5"
+            />
+          </div>
       </template>
 
       <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
@@ -162,6 +163,7 @@ async function handleSubmit() {
           {{ t('feedback.submit') }}
         </Button>
       </div>
-    </form>
+      </form>
+    </template>
   </ResponsiveDialog>
 </template>

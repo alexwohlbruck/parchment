@@ -81,6 +81,10 @@
     {
       "name": "Weather",
       "description": "Weather data"
+    },
+    {
+      "name": "Feedback",
+      "description": "User feedback and feature requests"
     }
   ],
   "paths": {
@@ -3884,6 +3888,108 @@
                   "to",
                   "timestamp",
                   "signature"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/feedback/boards": {
+      "get": {
+        "operationId": "getFeedbackBoards",
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "List feedback boards",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/feedback/": {
+      "post": {
+        "parameters": [],
+        "operationId": "postFeedback",
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Submit feedback",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "boardId": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "title": {
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "content": {
+                    "maxLength": 10000,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "boardId",
+                  "title"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "boardId": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "title": {
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "content": {
+                    "maxLength": 10000,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "boardId",
+                  "title"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "boardId": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "title": {
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "content": {
+                    "maxLength": 10000,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "boardId",
+                  "title"
                 ]
               }
             }

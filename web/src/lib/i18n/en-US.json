@@ -440,6 +440,10 @@
   },
   "layers": {
     "title": "Layers",
+    "search": {
+      "placeholder": "Search layers…",
+      "noResults": "No matching layers"
+    },
     "selector": {
       "tabs": {
         "map": "Map",
@@ -2285,6 +2289,10 @@
   },
   "canvases": {
     "title": "Canvases",
+    "search": {
+      "placeholder": "Search canvases…",
+      "noResults": "No matching canvases"
+    },
     "layerCount": "No layers | 1 layer | {count} layers",
     "showOnMap": "Show on the map",
     "saved": "Saved",

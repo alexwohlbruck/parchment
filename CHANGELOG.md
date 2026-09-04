@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* The layers and canvases library tabs now have a search box to filter the list by name.
+
 ### Changed
 
 * The routing settings popup is more compact, and the routing engine picker only appears when there is more than one engine to choose from.
@@ -16,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 * The routing settings popup no longer overflows off screen — when its options are taller than the window, it caps at the visible height and scrolls inside.
+* The layers library tab's add and store buttons no longer overlap the tab bar — they now sit at the top of the list, matching the routes tab.
 
 ## [0.9.0] - 2026-09-03
 

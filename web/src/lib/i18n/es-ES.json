@@ -434,6 +434,10 @@
   },
   "layers": {
     "title": "Capas",
+    "search": {
+      "placeholder": "Buscar capas…",
+      "noResults": "Sin capas coincidentes"
+    },
     "selector": {
       "tabs": {
         "map": "Mapa",
@@ -2162,6 +2166,10 @@
   },
   "canvases": {
     "title": "Lienzos",
+    "search": {
+      "placeholder": "Buscar lienzos…",
+      "noResults": "Sin lienzos coincidentes"
+    },
     "layerCount": "Sin capas | 1 capa | {count} capas",
     "showOnMap": "Mostrar en el mapa",
     "saved": "Guardado",

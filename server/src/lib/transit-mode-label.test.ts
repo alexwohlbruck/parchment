@@ -1,5 +1,10 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, beforeAll } from 'bun:test'
+import { initialization } from './i18n/translate'
 import { transitLineSubtitle, transitModeLabel, transitStopLabel } from './transit-mode-label'
+
+beforeAll(async () => {
+  await initialization
+})
 
 describe('transitLineSubtitle', () => {
   test('names the mode like a rider would', () => {
@@ -18,6 +23,13 @@ describe('transitLineSubtitle', () => {
     expect(transitLineSubtitle(2, 'rail', 'Amtrak')).toBe('Amtrak · Intercity rail line')
     expect(transitLineSubtitle(2, 'rail', 'Via Rail Canada')).toBe('Via Rail Canada · Intercity rail line')
     expect(transitLineSubtitle(2, 'rail', 'Metro-North Railroad')).toBe('Metro-North Railroad · Commuter rail line')
+  })
+
+  test('labels are localized; agency names ride along unchanged', () => {
+    expect(transitLineSubtitle(1, 'subway', 'MTA New York City Transit', 'es-ES'))
+      .toBe('MTA New York City Transit · Línea de metro')
+    expect(transitLineSubtitle(2, 'rail', null, 'es-ES')).toBe('Línea de cercanías')
+    expect(transitModeLabel(3, 'bus', null, 'es-ES')).toBe('Ruta de autobús')
   })
 
   test('extended codes refine the label', () => {
@@ -45,5 +57,10 @@ describe('transitStopLabel', () => {
     expect(transitStopLabel('bus')).toBe('Bus stop')
     expect(transitStopLabel('ferry')).toBe('Ferry terminal')
     expect(transitStopLabel(null)).toBe('Transit stop')
+  })
+
+  test('in Spanish too', () => {
+    expect(transitStopLabel('subway', 'es-ES')).toBe('Estación de metro')
+    expect(transitStopLabel('bus', 'es-ES')).toBe('Parada de autobús')
   })
 })

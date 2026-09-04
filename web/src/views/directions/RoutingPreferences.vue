@@ -337,11 +337,13 @@ const customModelError = computed(() => {
 <template>
   <div class="w-full">
     <!-- General Section -->
-    <div class="p-4 space-y-3">
+    <div class="px-4 py-3 space-y-3">
       <h2 class="font-semibold">{{ t('directions.preferences.general') }}</h2>
 
+      <!-- With a single engine there is nothing to choose; it's still applied
+           as the default in onMounted. -->
       <div
-        v-if="routingEngines.length > 0"
+        v-if="routingEngines.length > 1"
         class="flex items-center justify-between"
       >
         <Label for="routing-engine-global" class="text-sm font-normal">{{
@@ -370,7 +372,7 @@ const customModelError = computed(() => {
         </Select>
       </div>
 
-      <div class="space-y-3 pt-3">
+      <div class="space-y-3">
         <div class="flex items-center justify-between">
           <Label for="use-known-vehicle-locations" class="text-sm font-normal">
             {{ t('directions.preferences.useKnownVehicleLocations') }}
@@ -398,7 +400,7 @@ const customModelError = computed(() => {
     <Separator />
 
     <!-- Mode Title -->
-    <div class="p-4">
+    <div class="px-4 pt-3 pb-2">
       <h2 class="font-semibold">{{ currentModeName }}</h2>
     </div>
 
@@ -423,7 +425,7 @@ const customModelError = computed(() => {
       </TabsList>
 
       <!-- ═══════════════════ Walking ═══════════════════ -->
-      <TabsContent value="walking" class="py-4 px-2 space-y-5 mt-0">
+      <TabsContent value="walking" class="py-3 px-2 space-y-4 mt-0">
         <!-- Hills -->
         <PreferenceRow
           pref="hills"
@@ -460,7 +462,7 @@ const customModelError = computed(() => {
       </TabsContent>
 
       <!-- ═══════════════════ Cycling ═══════════════════ -->
-      <TabsContent value="biking" class="py-4 px-2 space-y-5 mt-0">
+      <TabsContent value="biking" class="py-3 px-2 space-y-4 mt-0">
         <!-- Bicycle Type -->
         <div
           v-if="isSupported('bicycleType')"
@@ -524,7 +526,7 @@ const customModelError = computed(() => {
       </TabsContent>
 
       <!-- ═══════════════════ Transit ═══════════════════ -->
-      <TabsContent value="transit" class="py-4 px-2 space-y-5 mt-0">
+      <TabsContent value="transit" class="py-3 px-2 space-y-4 mt-0">
         <div v-if="isSupported('maxWalkDistance')" class="space-y-2">
           <div class="flex items-center justify-between">
             <Label class="text-sm font-normal">Max walking distance</Label>
@@ -541,7 +543,10 @@ const customModelError = computed(() => {
           />
         </div>
 
-        <div v-if="isSupported('maxTransfers')" class="space-y-3">
+        <div
+          v-if="isSupported('maxTransfers')"
+          class="flex items-center justify-between"
+        >
           <Label for="max-transfers" class="text-sm font-normal"
             >Max transfers</Label
           >
@@ -552,6 +557,7 @@ const customModelError = computed(() => {
             min="0"
             max="10"
             step="1"
+            class="h-8 w-20 text-xs"
             @update:model-value="
               val => updatePreference('maxTransfers', Number(val))
             "
@@ -585,7 +591,7 @@ const customModelError = computed(() => {
       </TabsContent>
 
       <!-- ═══════════════════ Driving ═══════════════════ -->
-      <TabsContent value="driving" class="py-4 px-2 space-y-5 mt-0">
+      <TabsContent value="driving" class="py-3 px-2 space-y-4 mt-0">
         <!-- Highways -->
         <PreferenceRow
           pref="highways"

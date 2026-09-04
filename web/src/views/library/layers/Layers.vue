@@ -16,10 +16,12 @@ import {
   Layers3Icon,
   LayersIcon,
   PlusIcon,
+  SearchIcon,
   StoreIcon,
 } from 'lucide-vue-next'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import {
   DropdownMenu,
@@ -55,6 +57,7 @@ function newGroup() {
 
 const loading = ref(mainReorderableItems.value.length === 0)
 const storeOpen = ref(false)
+const searchQuery = ref('')
 
 onMounted(async () => {
   await layersStore.loadLayers()
@@ -86,7 +89,17 @@ const isEmpty = computed(
   </div>
 
   <div v-else class="h-full flex flex-col gap-2">
-    <div class="flex items-center justify-end gap-2">
+    <div class="flex items-center gap-2">
+      <div class="relative flex-1">
+        <SearchIcon
+          class="absolute left-2.5 top-3 size-4 text-muted-foreground"
+        />
+        <Input
+          v-model="searchQuery"
+          class="w-full pl-8"
+          :placeholder="t('layers.search.placeholder')"
+        />
+      </div>
       <Button
         variant="outline"
         size="icon"
@@ -115,7 +128,7 @@ const isEmpty = computed(
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
-    <Layers class="flex-1 min-h-0" />
+    <Layers class="flex-1 min-h-0" :filter="searchQuery" />
   </div>
 
   <LayerStoreDialog v-model:open="storeOpen" />

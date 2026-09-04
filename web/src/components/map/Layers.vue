@@ -1,21 +1,40 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useLayersStore } from '@/stores/layers.store'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import { useDragState } from '@/composables/useDragState'
 import type { Layer, LayerGroup } from '@/types/map.types'
+import { groupSubtreeMatches, matchesQuery } from '@/lib/layer-search'
 import LayerItemComponent from './layers/LayerItem.vue'
 import LayerGroupItem from './layers/LayerGroupItem.vue'
 import { FolderIcon } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
+// `filter` is the library search query. Reordering is disabled while a search
+// is active, and non-matching rows are hidden rather than removed so the drag
+// model stays intact.
+const props = defineProps<{ filter?: string }>()
+
 const layersStore = useLayersStore()
 const { mainReorderableItems, groupsWithLayers, groupTree } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
+
+const query = computed(() => (props.filter ?? '').trim().toLowerCase())
+const isFiltering = computed(() => query.value.length > 0)
+
+function itemMatches(item: Layer | LayerGroup): boolean {
+  if (!isFiltering.value) return true
+  if ('groupId' in item) return matchesQuery(item.name, query.value)
+  return groupSubtreeMatches(getGroupForElement(item), query.value)
+}
+
+const hasMatches = computed(() =>
+  !isFiltering.value || draggableItems.value.some(itemMatches),
+)
 
 // Track expanded groups
 const expandedGroups = ref(new Set<string>())
@@ -111,6 +130,7 @@ async function handleMainChange(evt: any) {
           v-if="draggableItems?.length > 0"
           v-model="draggableItems"
           v-bind="mainDragOptions"
+          :disabled="isFiltering"
           @start="onDragStart"
           @end="onDragEnd"
           @move="onDragMove"
@@ -123,6 +143,7 @@ async function handleMainChange(evt: any) {
         >
           <template #item="{ element }">
             <div
+              v-show="itemMatches(element)"
               :key="
                 'groupId' in element
                   ? getLayerKey(element)
@@ -134,6 +155,7 @@ async function handleMainChange(evt: any) {
                 v-if="!('groupId' in element)"
                 :group="getGroupForElement(element)"
                 :expanded-groups="expandedGroups"
+                :filter="filter"
                 @toggle-expanded="toggleGroup"
               />
 
@@ -150,6 +172,13 @@ async function handleMainChange(evt: any) {
         >
           <FolderIcon class="size-8 mx-auto mb-2 opacity-50" />
           <p class="text-sm">{{ t('layers.empty.message') }}</p>
+        </div>
+
+        <div
+          v-else-if="isFiltering && !hasMatches"
+          class="text-center py-8 text-muted-foreground"
+        >
+          <p class="text-sm">{{ t('layers.search.noResults') }}</p>
         </div>
       </div>
     </div>

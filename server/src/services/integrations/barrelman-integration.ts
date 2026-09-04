@@ -43,6 +43,8 @@ import type {
   OpeningHours,
   OpeningTime,
   PlaceIcon,
+  TransitLineRef,
+  TransitStopRef,
 } from '../../types/place.types'
 import { SOURCE } from '../../lib/constants'
 import { matchTags, type GeometryType } from '../../lib/osm-presets'
@@ -202,6 +204,23 @@ interface BarrelmanPlaceResult {
   // Search-specific
   text_rank?: number
   distance_m?: number | null
+  // Transit hits: search also returns GTFS lines and GTFS-only stops, marked
+  // with `kind` and carrying the ids the /transit endpoints are keyed by.
+  kind?: 'transit_route' | 'transit_stop'
+  transit?: {
+    feedId: string
+    feedOnestopId?: string | null
+    routeId?: string
+    stopId?: string
+    shortName?: string | null
+    longName?: string | null
+    routeType?: number | null
+    mode?: string | null
+    color?: string | null
+    textColor?: string | null
+    agency?: string | null
+    locationType?: number | null
+  }
   // Place detail-specific
   area_m2?: number | null
   admin_level?: number | null
@@ -736,6 +755,88 @@ export class BarrelmanIntegration
     }
   }
 
+  /**
+   * A transit search hit as a minimal pseudo-place. `transitLine` /
+   * `transitStop` is what tells the rest of the pipeline (and the client)
+   * that this row opens in the transit views, not the place detail view.
+   */
+  private adaptTransitHit(r: BarrelmanPlaceResult): Place {
+    const timestamp = new Date().toISOString()
+    const t = r.transit ?? ({} as NonNullable<BarrelmanPlaceResult['transit']>)
+    const center = r.geometry?.coordinates
+      ? { lat: r.geometry.coordinates[1], lng: r.geometry.coordinates[0] }
+      : { lat: 0, lng: 0 }
+
+    const isLine = r.kind === 'transit_route'
+    const line: TransitLineRef | null = isLine && t.routeId
+      ? {
+          feedId: t.feedId,
+          feedOnestopId: t.feedOnestopId,
+          routeId: t.routeId,
+          shortName: t.shortName,
+          longName: t.longName,
+          routeType: t.routeType,
+          mode: t.mode,
+          color: t.color,
+          textColor: t.textColor,
+          agency: t.agency,
+        }
+      : null
+    const stop: TransitStopRef | null = !isLine && t.stopId
+      ? {
+          feedId: t.feedId,
+          feedOnestopId: t.feedOnestopId,
+          stopId: t.stopId,
+          mode: t.mode,
+        }
+      : null
+
+    const mode = t.mode ?? null
+    const icons: Record<string, string> = {
+      subway: 'TrainFront', rail: 'TrainFront', monorail: 'TrainFront',
+      tram: 'TramFront', bus: 'Bus', trolleybus: 'Bus', ferry: 'Ship',
+      gondola: 'CableCar', cable_car: 'CableCar', funicular: 'CableCar',
+    }
+    const icon: PlaceIcon = {
+      category: 'default',
+      icon: (mode && icons[mode]) || (isLine ? 'TrainFront' : 'MapPin'),
+      iconPack: 'lucide',
+    }
+
+    const sourceId = SOURCE.TRANSITLAND
+    return {
+      id: r.id,
+      externalIds: { [sourceId]: r.id },
+      name: { value: r.name ?? null, sourceId, timestamp },
+      description: null,
+      placeType: {
+        value: isLine ? 'Transit line' : 'Transit stop',
+        sourceId,
+        timestamp,
+      },
+      geometry: {
+        value: { type: 'point', center },
+        sourceId,
+        timestamp,
+      },
+      photos: [],
+      address: null,
+      contactInfo: { phone: null, email: null, website: null, websites: null, socials: {} },
+      openingHours: null,
+      amenities: {},
+      tags: {},
+      summary: isLine
+        ? [t.agency, mode ? mode.replace(/_/g, ' ') : null].filter(Boolean).join(' · ') || null
+        : null,
+      transitLine: line,
+      transitStop: stop,
+      icon,
+      sources: [{ id: sourceId, name: 'Transit', url: this.config.host }],
+      lastUpdated: timestamp,
+      createdAt: timestamp,
+    }
+  }
+
   // ── Capabilities ───────────────────────────────────────────
 
   async searchPlaces(
@@ -758,7 +859,8 @@ export class BarrelmanIntegration
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
+    return (response.data || []).map((r: any) =>
+      r.kind ? this.adaptTransitHit(r) : this.adaptPlace(r, options?.language))
   }
 
   async getAutocomplete(
@@ -789,7 +891,8 @@ export class BarrelmanIntegration
       },
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
-    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
+    return (response.data || []).map((r: any) =>
+      r.kind ? this.adaptTransitHit(r) : this.adaptPlace(r, options?.language))
   }
 
   /**

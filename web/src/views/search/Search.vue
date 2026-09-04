@@ -404,8 +404,13 @@ async function performSearch(opts: { refit?: boolean } = {}) {
         autocomplete: false,
         maxResults,
       })
+      // Transit lines and GTFS-only stops ride along as pseudo-places; their
+      // cards route to the transit views via placeToDisplay.
       places = (searchResults as SearchResult[])
-        .filter(result => result.type === 'place')
+        .filter(result =>
+          result.type === 'place' ||
+          result.type === 'transit_route' ||
+          result.type === 'transit_stop')
         .map(result => result.metadata.place as unknown as Place)
     }
 

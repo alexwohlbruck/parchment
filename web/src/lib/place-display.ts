@@ -4,7 +4,7 @@ import type { Bookmark } from '@/types/library.types'
 import type { RecentPlaceEntry, RecentSearchEntry } from '@/lib/recents'
 import type { ThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
-import { getPlaceRoute, getPlaceRouteFromExternalIds, formatAddress } from '@/lib/place.utils'
+import { getPlaceRoute, getPlaceRouteFromExternalIds, getTransitStopRoute, formatAddress } from '@/lib/place.utils'
 import { getCategoryColor } from '@/lib/place-colors'
 import { frequentChipMeta } from '@/lib/frequents'
 import {
@@ -157,7 +157,17 @@ export function placeToDisplay(
     reviewCount: place.ratings?.reviewCount?.value ?? null,
     openState,
     hoursText,
-    route: place.id ? getPlaceRoute(place.id) : null,
+    // A GTFS-only stop has no OSM place to open — route to its coordinates
+    // instead (a transit-route id resolves fine through getPlaceRoute).
+    route: place.transitStop
+      ? getTransitStopRoute(
+          title,
+          place.geometry?.value?.center?.lat ?? 0,
+          place.geometry?.value?.center?.lng ?? 0,
+        )
+      : place.id
+        ? getPlaceRoute(place.id)
+        : null,
   }
 }
 

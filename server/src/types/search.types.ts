@@ -17,7 +17,7 @@ export interface CategoryResult {
   aliases?: string[]
 }
 
-import { Place } from './place.types'
+import { Place, TransitLineRef, TransitStopRef } from './place.types'
 
 /** A brand suggestion in search results ("See all McDonald's locations"). */
 export interface BrandSearchMeta {
@@ -35,7 +35,7 @@ export interface BrandSearchMeta {
 
 export interface SearchResult {
   id: string
-  type: 'bookmark' | 'place' | 'current_location' | 'category' | 'brand'
+  type: 'bookmark' | 'place' | 'current_location' | 'category' | 'brand' | 'transit_route' | 'transit_stop'
   title: string
   description?: string
   icon?: string
@@ -63,13 +63,16 @@ export interface SearchResult {
     }
     // Brand metadata
     brand?: BrandSearchMeta
+    // Transit metadata (metadata.place carries the displayable pseudo-place)
+    transitLine?: TransitLineRef
+    transitStop?: TransitStopRef
   }
 }
 
 // Lightweight autocomplete result with minimal data
 export interface AutocompleteResult {
   id: string
-  type: 'bookmark' | 'place' | 'current_location' | 'category' | 'brand'
+  type: 'bookmark' | 'place' | 'current_location' | 'category' | 'brand' | 'transit_route' | 'transit_stop'
   title: string
   description?: string
   icon?: string
@@ -87,6 +90,9 @@ export interface AutocompleteResult {
   }
   // Brand metadata for the "see all locations" browse
   brand?: BrandSearchMeta
+  // Transit metadata: how to open a GTFS line or GTFS-only stop
+  transitLine?: TransitLineRef
+  transitStop?: TransitStopRef
 }
 
 export interface SearchOptions {

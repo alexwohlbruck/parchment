@@ -1,60 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import { AppRoute } from '@/router'
 import { useLayersStore } from '@/stores/layers.store'
-import { useAppService } from '@/services/app.service'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import { useDragState } from '@/composables/useDragState'
 import type { Layer, LayerGroup } from '@/types/map.types'
-import LayerGroupConfiguration from './layers/LayerGroupConfiguration.vue'
 import LayerItemComponent from './layers/LayerItem.vue'
 import LayerGroupItem from './layers/LayerGroupItem.vue'
-import LayerStoreDialog from './layers/LayerStoreDialog.vue'
-import { Button } from '@/components/ui/button'
-import { FolderIcon, PlusIcon, LayersIcon, StoreIcon } from 'lucide-vue-next'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { FolderIcon } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
-const appService = useAppService()
-const router = useRouter()
 const layersStore = useLayersStore()
 const { mainReorderableItems, groupsWithLayers, groupTree } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
-
-const hasTeleportTarget = ref(false)
-onMounted(() => {
-  hasTeleportTarget.value = !!document.getElementById('library-tab-actions')
-})
-
-// The layer editor is a sheet view, not a dialog: it renders the draft on
-// the live map while you edit, which a modal over the map cannot do.
-function openLayerEditor(layerId?: string) {
-  router.push(
-    layerId
-      ? { name: AppRoute.LAYER_EDITOR, params: { id: layerId } }
-      : { name: AppRoute.LAYER_EDITOR_NEW },
-  )
-}
-
-function openLayerGroupConfigDialog(groupId?: string) {
-  appService.componentDialog({
-    component: LayerGroupConfiguration,
-    continueText: t('general.save'),
-    props: { groupId },
-  })
-}
-
-const storeOpen = ref(false)
 
 // Track expanded groups
 const expandedGroups = ref(new Set<string>())
@@ -143,39 +104,6 @@ async function handleMainChange(evt: any) {
 </script>
 
 <template>
-  <Teleport v-if="hasTeleportTarget" to="#library-tab-actions">
-    <DropdownMenu>
-      <DropdownMenuTrigger as-child>
-        <Button variant="ghost" size="icon" class="size-7">
-          <PlusIcon class="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem @click="openLayerEditor()">
-          <LayersIcon class="size-4" />
-          {{ t('layers.actions.newLayer') }}
-        </DropdownMenuItem>
-        <DropdownMenuItem @click="openLayerGroupConfigDialog()">
-          <FolderIcon class="size-4" />
-          {{ t('layers.actions.newGroup') }}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <!-- Sits outside `TooltipProvider`, so this one labels itself natively. -->
-    <Button
-      variant="ghost"
-      size="icon"
-      class="size-7"
-      :aria-label="t('layers.store.title')"
-      :title="t('layers.store.title')"
-      @click="storeOpen = true"
-    >
-      <StoreIcon class="size-4" />
-    </Button>
-  </Teleport>
-
-  <LayerStoreDialog v-model:open="storeOpen" />
-
   <TooltipProvider>
     <div class="h-full flex flex-col">
       <div class="space-y-1 flex-1 min-h-0">

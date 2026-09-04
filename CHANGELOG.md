@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* The layers library tab's add and store buttons no longer overlap the tab bar — they now sit at the top of the list, matching the routes tab.
+
 ## [0.9.0] - 2026-09-03
 
 ### Added

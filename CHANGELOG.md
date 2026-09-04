@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* Transit lines show up in search — type "7 train" or "Flushing Local" and open the line's route detail straight from the palette or the results page. Stations only the transit feed knows about appear too, opening on their departures
+
 ### Changed
 
 ### Fixed

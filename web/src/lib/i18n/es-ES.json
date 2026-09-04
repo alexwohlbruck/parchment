@@ -1690,17 +1690,6 @@
             "dark": "Oscuro"
           }
         }
-      },
-      "mapTheme": {
-        "title": "Tema del mapa",
-        "values": {
-          "matchTime": "Coincidir con el tema de la aplicación y la hora del día",
-          "match": "Coincidir con el tema de la aplicación",
-          "day": "Día",
-          "night": "Noche",
-          "dawn": "Amanecer",
-          "dusk": "Atardecer"
-        }
       }
     },
     "mapSettings": {

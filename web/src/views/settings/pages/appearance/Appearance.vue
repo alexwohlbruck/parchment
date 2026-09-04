@@ -36,8 +36,6 @@ import { useI18n } from 'vue-i18n'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import Layers from '@/components/map/Layers.vue'
 
-const mapTheme = ref('auto')
-
 // Theme store
 const themeStore = useThemeStore()
 const { isDark, accentColor, radius } = storeToRefs(themeStore)
@@ -138,41 +136,6 @@ const handleColorChange = (value: any) => {
             <SelectItem value="dark">
               {{ $t('settings.appearance.appTheme.theme.values.dark') }}
             </SelectItem>
-          </SelectContent>
-        </Select>
-      </SettingsItem>
-    </SettingsSection>
-
-    <SettingsSection
-      id="map-theme"
-      :title="$t('settings.appearance.mapTheme.title')"
-    >
-      <SettingsItem :title="$t('settings.appearance.mapTheme.title')">
-        <Select v-model="mapTheme">
-          <SelectTrigger class="w-fit">
-            <SelectValue placeholder="Choose an option" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="auto">
-                {{ $t('settings.appearance.mapTheme.values.matchTime') }}
-              </SelectItem>
-              <SelectItem value="match">{{
-                $t('settings.appearance.mapTheme.values.match')
-              }}</SelectItem>
-              <SelectItem value="light">{{
-                $t('settings.appearance.mapTheme.values.day')
-              }}</SelectItem>
-              <SelectItem value="dark">{{
-                $t('settings.appearance.mapTheme.values.night')
-              }}</SelectItem>
-              <SelectItem value="dawn">{{
-                $t('settings.appearance.mapTheme.values.dawn')
-              }}</SelectItem>
-              <SelectItem value="dusk">{{
-                $t('settings.appearance.mapTheme.values.dusk')
-              }}</SelectItem>
-            </SelectGroup>
           </SelectContent>
         </Select>
       </SettingsItem>

@@ -1775,17 +1775,6 @@
             "dark": "Dark"
           }
         }
-      },
-      "mapTheme": {
-        "title": "Map theme",
-        "values": {
-          "matchTime": "Match app theme and time of day",
-          "match": "Match app theme",
-          "day": "Day",
-          "night": "Night",
-          "dawn": "Dawn",
-          "dusk": "Dusk"
-        }
       }
     },
     "mapSettings": {

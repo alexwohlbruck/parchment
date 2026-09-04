@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* The routing settings popup no longer overflows off screen — when its options are taller than the window, it caps at the visible height and scrolls inside.
+
 ## [0.9.0] - 2026-09-03
 
 ### Added

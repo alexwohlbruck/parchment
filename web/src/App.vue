@@ -67,7 +67,7 @@ const isDev = import.meta.env.DEV
 // Shake to send feedback (mobile only). Opt-in via Settings → Behavior, which
 // is also where iOS gets the user gesture it needs to grant motion access.
 const feedbackDialogOpen = ref(false)
-const { available: feedbackAvailable, ensureLoaded: loadFeedback } = useFeedback()
+const { available: feedbackAvailable } = useFeedback()
 const shake = useShakeGesture(() => {
   if (feedbackAvailable.value) feedbackDialogOpen.value = true
 })
@@ -79,13 +79,6 @@ watchEffect(() => {
   else if (!wanted) shake.stop()
 })
 
-watch(
-  () => appStore.shakeForFeedback,
-  enabled => {
-    if (enabled) loadFeedback()
-  },
-  { immediate: true },
-)
 
 // TEMPORARY: the building-lighting tuner, as a panel over the map. Opened from
 // Settings → Developer, which is a dialog that covers the very thing being

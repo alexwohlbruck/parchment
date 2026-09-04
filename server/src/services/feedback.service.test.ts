@@ -1,156 +1,95 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
-// Feedback resolves its instance from the Quackback system integration.
-let integrationConfig: any = {
-  url: 'https://feedback.example.com/',
-  apiKey: 'qb_test',
-}
+/** Stand-in for whichever integration provides the feedback capability. */
+const listBoards = mock((): Promise<any> => Promise.resolve([]))
+const submitFeedback = mock((_input: any): Promise<any> => Promise.resolve({}))
+
+let records: any[] = []
+let instance: any = null
 
 mock.module('./integrations', () => ({
   integrationManager: {
-    getConfiguredIntegrations: () =>
-      integrationConfig
-        ? [{ integrationId: 'quackback', config: integrationConfig }]
-        : [],
+    getConfiguredIntegrationsByCapability: (capability: string) =>
+      capability === 'feedback' ? records : [],
+    getCachedIntegrationInstance: () => instance,
   },
 }))
 
-const mockGet = mock((_url: string): Promise<any> => Promise.resolve({ data: { data: [] } }))
-const mockPost = mock(
-  (_url: string, _body?: any): Promise<any> => Promise.resolve({ data: { data: {} } }),
-)
-
-mock.module('axios', () => ({
-  default: { create: () => ({ get: mockGet, post: mockPost }) },
-}))
-
 import {
-  listBoards,
-  submitFeedback,
-  clearBoardsCache,
+  isFeedbackConfigured,
+  listBoards as serviceListBoards,
+  submitFeedback as serviceSubmitFeedback,
   feedbackErrorMessage,
 } from './feedback.service'
 
-const BOARDS = [
-  { id: 'board_1', name: 'Bugs', slug: 'bugs', description: 'Report bugs' },
-  { id: 'board_2', name: 'Ideas', slug: 'ideas', description: null },
-]
+const PROVIDER = { capabilities: { feedback: { listBoards, submitFeedback } } }
 
 describe('feedback.service', () => {
   beforeEach(() => {
-    clearBoardsCache()
-    mockGet.mockClear()
-    mockPost.mockClear()
-    mockGet.mockImplementation(() => Promise.resolve({ data: { data: BOARDS } }))
+    listBoards.mockClear()
+    submitFeedback.mockClear()
+    records = [{ integrationId: 'quackback' }]
+    instance = PROVIDER
   })
 
-  describe('listBoards', () => {
-    test('maps the upstream envelope to boards', async () => {
-      expect(await listBoards()).toEqual([
-        { id: 'board_1', name: 'Bugs', slug: 'bugs', description: 'Report bugs' },
-        { id: 'board_2', name: 'Ideas', slug: 'ideas', description: null },
+  describe('provider resolution', () => {
+    test('is configured when an integration offers the capability', () => {
+      expect(isFeedbackConfigured()).toBe(true)
+    })
+
+    test('is unconfigured when nothing offers it', () => {
+      records = []
+      expect(isFeedbackConfigured()).toBe(false)
+    })
+
+    test('is unconfigured when the record has no live instance', () => {
+      instance = null
+      expect(isFeedbackConfigured()).toBe(false)
+    })
+
+    test('is unconfigured when the instance lacks the capability', () => {
+      instance = { capabilities: {} }
+      expect(isFeedbackConfigured()).toBe(false)
+    })
+
+    test('does not care which integration provides it', () => {
+      records = [{ integrationId: 'some-other-provider' }]
+      expect(isFeedbackConfigured()).toBe(true)
+    })
+  })
+
+  describe('delegation', () => {
+    test('lists boards through the provider', async () => {
+      listBoards.mockImplementation(() =>
+        Promise.resolve([{ id: 'board_1', name: 'Bugs', slug: 'bugs', description: null }]),
+      )
+      expect(await serviceListBoards()).toEqual([
+        { id: 'board_1', name: 'Bugs', slug: 'bugs', description: null },
       ])
     })
 
-    test('caches so repeat calls do not re-fetch', async () => {
-      await listBoards()
-      await listBoards()
-      expect(mockGet).toHaveBeenCalledTimes(1)
-    })
-
-    test('re-fetches once the cache is cleared', async () => {
-      await listBoards()
-      clearBoardsCache()
-      await listBoards()
-      expect(mockGet).toHaveBeenCalledTimes(2)
-    })
-  })
-
-  describe('submitFeedback', () => {
-    beforeEach(() => {
-      mockPost.mockImplementation((url: string) =>
-        url === '/users/identify'
-          ? Promise.resolve({ data: { data: { principalId: 'principal_9' } } })
-          : Promise.resolve({ data: { data: { id: 'post_5' } } }),
-      )
-    })
-
-    test('attributes the post to the identified author', async () => {
-      await submitFeedback({
+    test('passes the submission through untouched', async () => {
+      const input = {
         boardId: 'board_1',
-        title: 'Crash on load',
-        content: 'Steps to reproduce',
+        title: 'Title',
+        content: 'Body',
         author: { email: 'ada@example.com', name: 'Ada' },
-      })
+      }
+      submitFeedback.mockImplementation(() =>
+        Promise.resolve({ id: 'post_5', url: 'https://x.test/b/bugs/posts/post_5' }),
+      )
 
-      expect(mockPost).toHaveBeenCalledWith('/users/identify', {
-        email: 'ada@example.com',
-        name: 'Ada',
-      })
-      expect(mockPost).toHaveBeenCalledWith('/posts', {
-        boardId: 'board_1',
-        title: 'Crash on load',
-        content: 'Steps to reproduce',
-        authorPrincipalId: 'principal_9',
-      })
-    })
-
-    test('builds a portal url from the board slug, trimming the trailing slash', async () => {
-      const result = await submitFeedback({
-        boardId: 'board_2',
-        title: 'Dark mode',
-        content: '',
-        author: { email: 'ada@example.com' },
-      })
-
-      expect(result).toEqual({
+      expect(await serviceSubmitFeedback(input)).toEqual({
         id: 'post_5',
-        url: 'https://feedback.example.com/b/ideas/posts/post_5',
+        url: 'https://x.test/b/bugs/posts/post_5',
       })
+      expect(submitFeedback).toHaveBeenCalledWith(input)
     })
 
-    test('omits the name when the user has none', async () => {
-      await submitFeedback({
-        boardId: 'board_1',
-        title: 'Title',
-        content: '',
-        author: { email: 'ada@example.com' },
-      })
-
-      expect(mockPost).toHaveBeenCalledWith('/users/identify', {
-        email: 'ada@example.com',
-      })
-    })
-
-    test('returns a null url when the board is unknown', async () => {
-      const result = await submitFeedback({
-        boardId: 'board_gone',
-        title: 'Title',
-        content: '',
-        author: { email: 'ada@example.com' },
-      })
-
-      expect(result.url).toBeNull()
-    })
-  })
-
-  describe('when no Quackback instance is configured', () => {
-    test('listBoards reports the integration is missing', async () => {
-      integrationConfig = null
-      try {
-        await expect(listBoards()).rejects.toThrow('Feedback is not configured')
-      } finally {
-        integrationConfig = { url: 'https://feedback.example.com/', apiKey: 'qb_test' }
-      }
-    })
-
-    test('a half-filled integration does not count as configured', async () => {
-      integrationConfig = { url: 'https://feedback.example.com', apiKey: '  ' }
-      try {
-        await expect(listBoards()).rejects.toThrow('Feedback is not configured')
-      } finally {
-        integrationConfig = { url: 'https://feedback.example.com/', apiKey: 'qb_test' }
-      }
+    test('reports the missing provider rather than calling through', async () => {
+      records = []
+      expect(serviceListBoards()).rejects.toThrow('Feedback is not configured')
+      expect(listBoards).not.toHaveBeenCalled()
     })
   })
 

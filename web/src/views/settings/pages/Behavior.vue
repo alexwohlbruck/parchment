@@ -63,9 +63,8 @@ const languageCommand = commandStore.useCommand(CommandName.UPDATE_LANGUAGE)
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
 
 const { isMobileScreen } = useResponsive()
-const { available: feedbackAvailable, ensureLoaded: loadFeedback } = useFeedback()
+const { available: feedbackAvailable } = useFeedback()
 const shake = useShakeGesture(() => {})
-loadFeedback()
 
 /**
  * Turning the toggle on is the user gesture iOS needs to grant motion access,

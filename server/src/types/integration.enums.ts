@@ -57,4 +57,5 @@ export enum IntegrationCapabilityId {
   LOCATION_HISTORY = 'locationHistory',
   TRANSIT_ROUTING = 'transitRouting',
   RIDESHARE_ESTIMATE = 'rideshareEstimate',
+  FEEDBACK = 'feedback',
 }

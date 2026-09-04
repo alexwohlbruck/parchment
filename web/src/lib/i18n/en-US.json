@@ -2027,7 +2027,8 @@
         "locationHistory": "Location History",
         "brandCatalog": "Brand Catalog",
         "transitRouting": "Transit Routing",
-        "rideshareEstimate": "Rideshare"
+        "rideshareEstimate": "Rideshare",
+        "feedback": "Feedback"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",

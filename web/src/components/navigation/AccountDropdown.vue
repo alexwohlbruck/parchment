@@ -81,8 +81,7 @@ watch(dropdownOpen, val => {
 })
 const aboutDialogOpen = ref(false)
 const feedbackDialogOpen = ref(false)
-const { available: feedbackAvailable, ensureLoaded: loadFeedback } = useFeedback()
-loadFeedback()
+const { available: feedbackAvailable } = useFeedback()
 const latestRelease = ref<GitHubReleaseSummary | null>(null)
 
 const RELEASES_HREF = 'https://github.com/alexwohlbruck/parchment/releases'

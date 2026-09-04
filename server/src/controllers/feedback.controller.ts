@@ -2,8 +2,8 @@ import Elysia, { t } from 'elysia'
 import { requireAuth, getUser } from '../middleware/auth.middleware'
 import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
 import { i18nPlugin } from '../lib/i18n/plugin'
-import { isFeedbackConfigured } from '../config/feedback.config'
 import {
+  isFeedbackConfigured,
   listBoards,
   submitFeedback,
   feedbackErrorMessage,

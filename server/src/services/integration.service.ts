@@ -340,7 +340,9 @@ const availableIntegrations: IntegrationDefinition[] = [
     description:
       'Back the in-app feedback form with a self-hosted Quackback instance. Leave unset to hide feedback from the app.',
     color: '#F5C518',
-    capabilities: [],
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.QUACKBACK)
+    },
     paid: false,
     cloud: true,
     configSchema: 'quackbackSchema',

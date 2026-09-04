@@ -1917,7 +1917,8 @@
         "locationHistory": "Historial de ubicación",
         "brandCatalog": "Catálogo de marcas",
         "transitRouting": "Rutas de tránsito",
-        "rideshareEstimate": "Viajes compartidos"
+        "rideshareEstimate": "Viajes compartidos",
+        "feedback": "Comentarios"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",

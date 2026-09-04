@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* On a phone, the canvas toolbar no longer floats on top of the expanded panel — the panel now slides over it. When the toolbar is too wide for the screen, it breaks into a fixed pair of rows: drawing tools above, erase and undo/redo below.
+
 ## [0.9.0] - 2026-09-03
 
 ### Added

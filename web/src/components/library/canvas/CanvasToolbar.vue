@@ -69,12 +69,14 @@ const { t } = useI18n()
  * what the tool can do beyond clicking — held keys and the like — where it
  * can be found without taking up room on the bar.
  */
-const TOOLS: {
+type ToolItem = {
   id: CanvasTool
   icon: typeof MapPinIcon
   key: string
   hint?: string
-}[] = [
+}
+
+const DRAW_TOOLS: ToolItem[] = [
   { id: 'pin', icon: MapPinIcon, key: 'P' },
   { id: 'line', icon: MinusIcon, key: 'L', hint: 'straight' },
   { id: 'route', icon: WaypointsIcon, key: 'R' },
@@ -83,15 +85,24 @@ const TOOLS: {
   { id: 'circle', icon: CircleIcon, key: 'I', hint: 'radius' },
   { id: 'isochrone', icon: TimerIcon, key: 'T', hint: 'isochrone' },
   { id: 'doodle', icon: PencilIcon, key: 'D', hint: 'doodle' },
-  { id: 'erase', icon: EraserIcon, key: 'X', hint: 'erase' },
 ]
 
-function isDisabled(item: (typeof TOOLS)[number]) {
+// With the edit actions, not the draw tools: erase takes marks away, like
+// undo, and keeping it there means the phone-width wrap (draw tools on one
+// row, everything that acts on what's drawn below them) is a real grouping.
+const ERASE_TOOL: ToolItem = {
+  id: 'erase',
+  icon: EraserIcon,
+  key: 'X',
+  hint: 'erase',
+}
+
+function isDisabled(item: ToolItem) {
   // Both lean on the routing engine; neither works without one.
   return (item.id === 'route' || item.id === 'isochrone') && !props.canRoute
 }
 
-function toolTitle(item: (typeof TOOLS)[number]) {
+function toolTitle(item: ToolItem) {
   const name = `${t(`canvases.toolbar.tools.${item.id}`)} (${item.key})`
   if (isDisabled(item)) return t('canvases.toolbar.hints.routingUnavailable')
   return item.hint
@@ -150,112 +161,135 @@ const destinationItems = computed(() => [
     class="pointer-events-auto rounded-xl border bg-background/95 backdrop-blur-sm shadow-lg overflow-hidden"
   >
     <!-- Wraps rather than overflows: the box is rounded and clipped, so a
-         strip too wide for a phone would lose its last buttons entirely. -->
+         strip too wide for a phone would lose its last buttons entirely.
+         Each inner div is a unit that can't break, so the wrap always lands
+         between the draw tools and the edit actions — the same split on
+         every phone, never mid-tools wherever the width happens to run out. -->
     <div class="flex flex-wrap justify-center items-center gap-0.5 p-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :class="!tool && 'bg-secondary text-foreground'"
-        :title="t('canvases.toolbar.select')"
-        :aria-label="t('canvases.toolbar.select')"
-        @click="emit('arm', null)"
-      >
-        <MousePointer2Icon class="size-4" />
-      </Button>
-
-      <Separator orientation="vertical" class="h-5 mx-0.5" />
-
-      <Button
-        v-for="item in TOOLS"
-        :key="item.id"
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :class="tool === item.id && 'bg-secondary text-foreground'"
-        :disabled="isDisabled(item)"
-        :title="toolTitle(item)"
-        :aria-label="t(`canvases.toolbar.tools.${item.id}`)"
-        @click="emit('arm', item.id)"
-      >
-        <component :is="item.icon" class="size-4" />
-      </Button>
-
-      <!-- Where the next mark gets filed. Only worth showing once there is
-           somewhere else for it to go. -->
-      <template v-if="groups.length && !isDrawing">
-        <Separator orientation="vertical" class="h-5 mx-0.5" />
-        <ResponsiveDropdown
-          :items="destinationItems"
-          align="end"
-          :title="t('canvases.groups.destination')"
+      <div class="flex items-center gap-0.5">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-8"
+          :class="!tool && 'bg-secondary text-foreground'"
+          :title="t('canvases.toolbar.select')"
+          :aria-label="t('canvases.toolbar.select')"
+          @click="emit('arm', null)"
         >
-          <template #trigger>
-            <Button
-              variant="ghost"
-              size="sm"
-              class="h-8 gap-1.5 px-2 max-w-36"
-              :class="activeGroup && 'text-primary'"
-              :title="t('canvases.groups.destination')"
-            >
-              <component
-                :is="activeGroup ? FolderOpenIcon : LayersIcon"
-                class="size-4 shrink-0"
-              />
-              <!-- The bar is already tight on a phone; there the icon and its
-                   colour carry it, and the menu names the destination. -->
-              <span class="text-xs truncate hidden sm:inline">
-                {{ activeGroup?.name ?? t('canvases.groups.canvas') }}
-              </span>
-            </Button>
-          </template>
-        </ResponsiveDropdown>
-      </template>
+          <MousePointer2Icon class="size-4" />
+        </Button>
 
-      <!-- The trailing pair never changes shape, whatever the state.
-           The bar is centred over the map, so a button that comes and goes
-           re-centres the whole thing — which reads as flicker while you are
-           mid-shape and clicking. Undo is always undo; the second slot is
-           Redo until there is a shape to finish, and Done while there is. -->
-      <Separator orientation="vertical" class="h-5 mx-0.5" />
-      <Button
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :disabled="isDrawing ? !canUndo : !canUndoEdit"
-        :title="`${t('canvases.toolbar.undoEdit')} (⌘Z)`"
-        :aria-label="t('canvases.toolbar.undoEdit')"
-        @click="undo"
-      >
-        <UndoIcon class="size-4" />
-      </Button>
+        <Separator orientation="vertical" class="h-5 mx-0.5" />
 
-      <!-- Finishing is the only thing worth offering mid-shape, and it takes
-           the redo slot rather than a place of its own. -->
-      <Button
-        v-if="isDrawing"
-        variant="ghost"
-        size="icon"
-        class="size-8 text-primary hover:text-primary"
-        :disabled="!canFinish"
-        :title="`${t('general.done')} (⏎)`"
-        :aria-label="t('general.done')"
-        @click="emit('finish')"
-      >
-        <CheckIcon class="size-4" />
-      </Button>
-      <Button
-        v-else
-        variant="ghost"
-        size="icon"
-        class="size-8"
-        :disabled="!canRedoEdit"
-        :title="`${t('canvases.toolbar.redoEdit')} (⌘⇧Z)`"
-        :aria-label="t('canvases.toolbar.redoEdit')"
-        @click="emit('redoEdit')"
-      >
-        <RedoIcon class="size-4" />
-      </Button>
+        <Button
+          v-for="item in DRAW_TOOLS"
+          :key="item.id"
+          variant="ghost"
+          size="icon"
+          class="size-8"
+          :class="tool === item.id && 'bg-secondary text-foreground'"
+          :disabled="isDisabled(item)"
+          :title="toolTitle(item)"
+          :aria-label="t(`canvases.toolbar.tools.${item.id}`)"
+          @click="emit('arm', item.id)"
+        >
+          <component :is="item.icon" class="size-4" />
+        </Button>
+      </div>
+
+      <div class="flex items-center gap-0.5">
+        <!-- The boundary divider only makes sense while both units share a
+             row; on a wrapped row it would dangle at the front. -->
+        <Separator orientation="vertical" class="hidden sm:block h-5 mx-0.5" />
+
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-8"
+          :class="tool === ERASE_TOOL.id && 'bg-secondary text-foreground'"
+          :title="toolTitle(ERASE_TOOL)"
+          :aria-label="t(`canvases.toolbar.tools.${ERASE_TOOL.id}`)"
+          @click="emit('arm', ERASE_TOOL.id)"
+        >
+          <EraserIcon class="size-4" />
+        </Button>
+
+        <!-- Where the next mark gets filed. Only worth showing once there is
+             somewhere else for it to go. -->
+        <template v-if="groups.length && !isDrawing">
+          <Separator orientation="vertical" class="h-5 mx-0.5" />
+          <ResponsiveDropdown
+            :items="destinationItems"
+            align="end"
+            :title="t('canvases.groups.destination')"
+          >
+            <template #trigger>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 gap-1.5 px-2 max-w-36"
+                :class="activeGroup && 'text-primary'"
+                :title="t('canvases.groups.destination')"
+              >
+                <component
+                  :is="activeGroup ? FolderOpenIcon : LayersIcon"
+                  class="size-4 shrink-0"
+                />
+                <!-- The bar is already tight on a phone; there the icon and
+                     its colour carry it, and the menu names the destination. -->
+                <span class="text-xs truncate hidden sm:inline">
+                  {{ activeGroup?.name ?? t('canvases.groups.canvas') }}
+                </span>
+              </Button>
+            </template>
+          </ResponsiveDropdown>
+        </template>
+
+        <!-- The trailing pair never changes shape, whatever the state.
+             The bar is centred over the map, so a button that comes and goes
+             re-centres the whole thing — which reads as flicker while you are
+             mid-shape and clicking. Undo is always undo; the second slot is
+             Redo until there is a shape to finish, and Done while there is. -->
+        <Separator orientation="vertical" class="h-5 mx-0.5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          class="size-8"
+          :disabled="isDrawing ? !canUndo : !canUndoEdit"
+          :title="`${t('canvases.toolbar.undoEdit')} (⌘Z)`"
+          :aria-label="t('canvases.toolbar.undoEdit')"
+          @click="undo"
+        >
+          <UndoIcon class="size-4" />
+        </Button>
+
+        <!-- Finishing is the only thing worth offering mid-shape, and it takes
+             the redo slot rather than a place of its own. -->
+        <Button
+          v-if="isDrawing"
+          variant="ghost"
+          size="icon"
+          class="size-8 text-primary hover:text-primary"
+          :disabled="!canFinish"
+          :title="`${t('general.done')} (⏎)`"
+          :aria-label="t('general.done')"
+          @click="emit('finish')"
+        >
+          <CheckIcon class="size-4" />
+        </Button>
+        <Button
+          v-else
+          variant="ghost"
+          size="icon"
+          class="size-8"
+          :disabled="!canRedoEdit"
+          :title="`${t('canvases.toolbar.redoEdit')} (⌘⇧Z)`"
+          :aria-label="t('canvases.toolbar.redoEdit')"
+          @click="emit('redoEdit')"
+        >
+          <RedoIcon class="size-4" />
+        </Button>
+      </div>
     </div>
 
     <!-- What the armed tool is set to: the same box, under a divider, so

@@ -53,6 +53,7 @@ import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
 import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
 import { getTimezone } from '../../lib/timezone'
+import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
@@ -810,7 +811,7 @@ export class BarrelmanIntegration
       name: { value: r.name ?? null, sourceId, timestamp },
       description: null,
       placeType: {
-        value: isLine ? 'Transit line' : 'Transit stop',
+        value: isLine ? transitModeLabel(t.routeType, mode, t.agency) : transitStopLabel(mode),
         sourceId,
         timestamp,
       },
@@ -826,7 +827,7 @@ export class BarrelmanIntegration
       amenities: {},
       tags: {},
       summary: isLine
-        ? [t.agency, mode ? mode.replace(/_/g, ' ') : null].filter(Boolean).join(' · ') || null
+        ? transitLineSubtitle(t.routeType, mode, t.agency)
         : null,
       transitLine: line,
       transitStop: stop,

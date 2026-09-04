@@ -1943,7 +1943,8 @@
         "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas",
         "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo",
         "openaq": "Datos abiertos de calidad del aire de estaciones de monitoreo terrestres",
-        "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)"
+        "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)",
+        "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios"
       },
       "scheme": {
         "endToEnd": {

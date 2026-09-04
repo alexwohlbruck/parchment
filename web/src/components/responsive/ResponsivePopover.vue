@@ -6,6 +6,7 @@ import {
   type ResponsiveOverlayPositionProps,
 } from '@/composables/useResponsiveOverlay'
 import BottomSheet from '@/components/BottomSheet.vue'
+import { cn } from '@/lib/utils'
 import {
   Popover,
   PopoverContent,
@@ -120,7 +121,12 @@ watch(
       :align="props.align"
       :side="props.side"
       :side-offset="props.sideOffset"
-      :class="props.desktopContentClass"
+      :class="
+        cn(
+          'max-h-[var(--reka-popover-content-available-height)] overflow-y-auto',
+          props.desktopContentClass,
+        )
+      "
     >
       <slot name="content" :close="() => handleDesktopOpenChange(false)" />
     </PopoverContent>

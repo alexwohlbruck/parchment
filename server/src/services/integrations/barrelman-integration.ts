@@ -53,6 +53,7 @@ import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
 import { parseOsmHours } from '../../lib/hours.utils'
 import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
 import { getTimezone } from '../../lib/timezone'
+import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
 
 /**
  * All Barrelman HTTP traffic flows through one bounded connection pool.
@@ -760,7 +761,7 @@ export class BarrelmanIntegration
    * `transitStop` is what tells the rest of the pipeline (and the client)
    * that this row opens in the transit views, not the place detail view.
    */
-  private adaptTransitHit(r: BarrelmanPlaceResult): Place {
+  private adaptTransitHit(r: BarrelmanPlaceResult, language: Language = DEFAULT_LANGUAGE): Place {
     const timestamp = new Date().toISOString()
     const t = r.transit ?? ({} as NonNullable<BarrelmanPlaceResult['transit']>)
     const center = r.geometry?.coordinates
@@ -810,7 +811,9 @@ export class BarrelmanIntegration
       name: { value: r.name ?? null, sourceId, timestamp },
       description: null,
       placeType: {
-        value: isLine ? 'Transit line' : 'Transit stop',
+        value: isLine
+          ? transitModeLabel(t.routeType, mode, t.agency, language)
+          : transitStopLabel(mode, language),
         sourceId,
         timestamp,
       },
@@ -826,7 +829,7 @@ export class BarrelmanIntegration
       amenities: {},
       tags: {},
       summary: isLine
-        ? [t.agency, mode ? mode.replace(/_/g, ' ') : null].filter(Boolean).join(' · ') || null
+        ? transitLineSubtitle(t.routeType, mode, t.agency, language)
         : null,
       transitLine: line,
       transitStop: stop,
@@ -860,7 +863,7 @@ export class BarrelmanIntegration
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
     return (response.data || []).map((r: any) =>
-      r.kind ? this.adaptTransitHit(r) : this.adaptPlace(r, options?.language))
+      r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
   }
 
   async getAutocomplete(
@@ -892,7 +895,7 @@ export class BarrelmanIntegration
       { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
     )
     return (response.data || []).map((r: any) =>
-      r.kind ? this.adaptTransitHit(r) : this.adaptPlace(r, options?.language))
+      r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
   }
 
   /**

@@ -6,6 +6,12 @@
 
 ### Fixed
 
+## [0.10.1] - 2026-09-04
+
+### Fixed
+
+* Transit search results describe themselves the way a rider would — "MTA New York City Transit · Subway line", "Commuter rail line", "Shuttle bus route" — instead of a bare lowercase mode word
+
 ## [0.10.0] - 2026-09-04
 
 ### Added

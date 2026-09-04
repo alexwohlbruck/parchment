@@ -363,5 +363,37 @@
   "info": {
     "warning": "Aviso",
     "notice": "Aviso"
+  },
+  "transit": {
+    "label": {
+      "lightRail": "Línea de tren ligero",
+      "subway": "Línea de metro",
+      "commuterRail": "Línea de cercanías",
+      "intercityRail": "Línea de tren interurbano",
+      "train": "Línea de tren",
+      "bus": "Ruta de autobús",
+      "coach": "Ruta de autocar",
+      "expressBus": "Ruta de autobús exprés",
+      "shuttleBus": "Ruta de autobús lanzadera",
+      "schoolBus": "Ruta de autobús escolar",
+      "metro": "Línea de metro",
+      "ferry": "Línea de ferri",
+      "cableCar": "Línea de tranvía de cable",
+      "aerialTram": "Línea de teleférico",
+      "funicular": "Línea de funicular",
+      "trolleybus": "Ruta de trolebús",
+      "monorail": "Línea de monorraíl",
+      "tram": "Línea de tranvía",
+      "transit": "Línea de transporte público"
+    },
+    "stop": {
+      "subwayStation": "Estación de metro",
+      "trainStation": "Estación de tren",
+      "lightRailStation": "Estación de tren ligero",
+      "monorailStation": "Estación de monorraíl",
+      "ferryTerminal": "Terminal de ferri",
+      "busStop": "Parada de autobús",
+      "transitStop": "Parada de transporte público"
+    }
   }
 }

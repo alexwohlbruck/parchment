@@ -363,5 +363,37 @@
   "info": {
     "warning": "Warning",
     "notice": "Notice"
+  },
+  "transit": {
+    "label": {
+      "lightRail": "Light rail line",
+      "subway": "Subway line",
+      "commuterRail": "Commuter rail line",
+      "intercityRail": "Intercity rail line",
+      "train": "Train line",
+      "bus": "Bus route",
+      "coach": "Coach route",
+      "expressBus": "Express bus route",
+      "shuttleBus": "Shuttle bus route",
+      "schoolBus": "School bus route",
+      "metro": "Metro line",
+      "ferry": "Ferry line",
+      "cableCar": "Cable car line",
+      "aerialTram": "Aerial tram line",
+      "funicular": "Funicular line",
+      "trolleybus": "Trolleybus route",
+      "monorail": "Monorail line",
+      "tram": "Tram line",
+      "transit": "Transit line"
+    },
+    "stop": {
+      "subwayStation": "Subway station",
+      "trainStation": "Train station",
+      "lightRailStation": "Light rail station",
+      "monorailStation": "Monorail station",
+      "ferryTerminal": "Ferry terminal",
+      "busStop": "Bus stop",
+      "transitStop": "Transit stop"
+    }
   }
 }

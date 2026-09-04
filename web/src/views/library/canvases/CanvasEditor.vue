@@ -761,7 +761,9 @@ const saveStatus = computed(() =>
 </script>
 
 <template>
-  <DetailPanelLayout>
+  <!-- peek-header: minimized on a phone, the sheet shows just this header —
+       the map, and the toolbar over it, are the workspace while drawing. -->
+  <DetailPanelLayout peek-header>
     <template #title>
       <div class="flex items-center gap-2 min-w-0">
         <!-- A canvas saves itself, so where that got to is a property of the

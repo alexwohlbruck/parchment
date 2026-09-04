@@ -5,6 +5,22 @@ import { Waypoint } from '@/types/map.types'
 import { RoutingPreferences, SelectedMode, SortPreference } from '@/types/multimodal.types'
 import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone.utils'
 
+// Rideshare has no working integration yet, so the mode is hidden everywhere it
+// could be picked. Flip this to true to bring it back.
+export const RIDESHARE_ENABLED = false
+
+// Modes a user can actually select. A stored value outside this list — a mode
+// since removed, or one currently hidden — falls back to 'multi' rather than
+// being sent to the API, which rejects unknown modes.
+export const SELECTABLE_MODES: readonly SelectedMode[] = [
+  'multi',
+  'walking',
+  'driving',
+  'biking',
+  'transit',
+  ...(RIDESHARE_ENABLED ? (['rideshare'] as const) : []),
+]
+
 // Mode-scoped preference storage
 export type ModeKey = 'walking' | 'biking' | 'driving' | 'transit'
 
@@ -118,18 +134,6 @@ export const useDirectionsStore = defineStore('directions', () => {
       lngLat: null,
     },
   ]) // List of locations to get directions for
-
-  // Load selected mode from localStorage, default to 'multi'. Unknown values —
-  // e.g. a mode that has since been removed — fall back rather than being sent
-  // to the API, which rejects them.
-  const SELECTABLE_MODES: readonly SelectedMode[] = [
-    'multi',
-    'walking',
-    'driving',
-    'biking',
-    'transit',
-    'rideshare',
-  ]
 
   const loadSelectedMode = (): SelectedMode => {
     const stored = localStorage.getItem('selectedMode') as SelectedMode | null

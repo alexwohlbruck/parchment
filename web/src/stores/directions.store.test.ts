@@ -75,6 +75,16 @@ describe('useDirectionsStore', () => {
       expect(store.selectedMode).toBe('multi')
     })
 
+    test('falls back to multi when the stored mode is hidden', () => {
+      // Rideshare is hidden while no integration exists, so a previously
+      // selected rideshare must not be restored.
+      localStorageMock.setItem('selectedMode', 'rideshare')
+
+      const store = useDirectionsStore()
+
+      expect(store.selectedMode).toBe('multi')
+    })
+
     test('starts with default routing preferences for biking (default mode)', () => {
       const store = useDirectionsStore()
 

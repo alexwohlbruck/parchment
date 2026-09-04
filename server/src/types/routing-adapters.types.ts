@@ -382,7 +382,6 @@ export interface OpenRouteServiceRequest {
     | 'cycling-electric'
     | 'foot-walking'
     | 'foot-hiking'
-    | 'wheelchair'
   preference?: 'fastest' | 'shortest' | 'recommended'
   format?: 'json' | 'geojson' | 'gpx'
   units?: 'km' | 'mi' | 'm'

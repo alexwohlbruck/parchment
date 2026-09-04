@@ -99,7 +99,6 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
           'cycling',
           'motorcycle',
           'truck',
-          'wheelchair',
         ],
         supportedOptimizations: ['time', 'distance', 'balanced'], // distance/balanced require paid/self-hosted
         features: {
@@ -365,8 +364,6 @@ export class GraphHopperIntegration implements Integration<GraphHopperConfig> {
         return 'motorcycle'
       case TravelMode.TRUCK:
         return 'truck'
-      case TravelMode.WHEELCHAIR:
-        return 'foot' // Use foot profile with custom_model constraints
       default:
         throw new Error(`Unsupported travel mode for GraphHopper: ${mode}`)
     }

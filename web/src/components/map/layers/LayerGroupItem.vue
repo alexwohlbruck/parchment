@@ -5,6 +5,7 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useAppService } from '@/services/app.service'
 import type { LayerGroupWithLayers, LayerGroup, Layer } from '@/types/map.types'
+import { groupSubtreeMatches, matchesQuery } from '@/lib/layer-search'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import * as LucideIcons from 'lucide-vue-next'
 import LayerItemComponent from './LayerItem.vue'
@@ -47,6 +48,7 @@ interface Props {
   group: GroupTreeNode
   expandedGroups: Set<string>
   depth?: number
+  filter?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -63,7 +65,14 @@ const layersService = useLayersService()
 const appService = useAppService()
 const mapService = useMapService()
 
-const expanded = computed(() => props.expandedGroups.has(props.group.id))
+const query = computed(() => (props.filter ?? '').trim().toLowerCase())
+const isFiltering = computed(() => query.value.length > 0)
+
+// While searching, every rendered group is expanded so matches nested inside
+// it are visible without the user having to open each one.
+const expanded = computed(
+  () => props.expandedGroups.has(props.group.id) || isFiltering.value,
+)
 
 const childGroups = computed(() => props.group.children ?? [])
 
@@ -93,6 +102,15 @@ function isLayer(item: Layer | LayerGroup): item is Layer {
 
 function isGroup(item: Layer | LayerGroup): item is LayerGroup {
   return !('groupId' in item)
+}
+
+// When the group's own name matches, everything inside it stays visible;
+// otherwise only the layers and child groups that match the query show.
+function itemMatches(item: Layer | LayerGroup): boolean {
+  if (!isFiltering.value) return true
+  if (matchesQuery(props.group.name, query.value)) return true
+  if (isLayer(item)) return matchesQuery(item.name, query.value)
+  return groupSubtreeMatches(findChildTreeNode(item), query.value)
 }
 
 function getItemKey(item: Layer | LayerGroup): string {
@@ -291,6 +309,7 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
           <draggable
             v-model="mixedItems"
             v-bind="groupDragOptions"
+            :disabled="isFiltering"
             @start="onDragStart"
             @end="onDragEnd"
             @move="onDragMove"
@@ -300,13 +319,14 @@ function findChildTreeNode(group: LayerGroup): GroupTreeNode {
             tag="div"
           >
             <template #item="{ element }">
-              <div class="draggable-item">
+              <div v-show="itemMatches(element)" class="draggable-item">
                 <!-- Child Group (recursive) -->
                 <LayerGroupItem
                   v-if="isGroup(element)"
                   :group="findChildTreeNode(element)"
                   :expanded-groups="expandedGroups"
                   :depth="depth + 1"
+                  :filter="filter"
                   @toggle-expanded="(id: string) => emit('toggleExpanded', id)"
                 />
 

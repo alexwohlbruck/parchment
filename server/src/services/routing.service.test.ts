@@ -206,7 +206,6 @@ describe('getRoute — costing to travel mode', () => {
     ['motorcycle', TravelMode.MOTORCYCLE],
     ['truck', TravelMode.TRUCK],
     ['transit', TravelMode.TRANSIT],
-    ['wheelchair', TravelMode.WHEELCHAIR],
   ]
 
   for (const [costing, expected] of cases) {

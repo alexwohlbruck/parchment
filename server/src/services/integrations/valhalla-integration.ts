@@ -71,7 +71,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
           maxWalkDistance: 'full',
           maxTransfers: false,
         },
-        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck', 'wheelchair'],
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck'],
         supportedOptimizations: ['time', 'distance'],
         features: {
           alternatives: true, // alternates parameter
@@ -439,7 +439,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
       else if (preferences?.providerOptions?.walkingSpeed)
         pedestrian.walking_speed = preferences.providerOptions.walkingSpeed
 
-      // Wheelchair mode
+      // Accessible pedestrian routing
       if (preferences?.wheelchairAccessible)
         pedestrian.type = 'wheelchair'
 

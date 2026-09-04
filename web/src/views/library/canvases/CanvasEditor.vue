@@ -761,7 +761,9 @@ const saveStatus = computed(() =>
 </script>
 
 <template>
-  <DetailPanelLayout>
+  <!-- peek-header: minimized on a phone, the sheet shows just this header —
+       the map, and the toolbar over it, are the workspace while drawing. -->
+  <DetailPanelLayout peek-header>
     <template #title>
       <div class="flex items-center gap-2 min-w-0">
         <!-- A canvas saves itself, so where that got to is a property of the
@@ -905,9 +907,12 @@ const saveStatus = computed(() =>
     <Teleport v-if="canvas" to="body">
       <!-- Centred over the *map*, not the viewport: on desktop the sheet
            takes the left 26rem, and a toolbar centred on the window sits
-           half-over it and collides with the sheet's own controls. -->
+           half-over it and collides with the sheet's own controls.
+           z sits between the mobile sheet's overlay (30) and its content
+           (40), so dragging the sheet up slides it over the toolbar rather
+           than leaving the tools floating on top of the panel. -->
       <div
-        class="fixed z-40 top-3 inset-x-0 md:left-104 pointer-events-none flex justify-center px-3"
+        class="fixed z-[35] top-3 inset-x-0 md:left-104 pointer-events-none flex justify-center px-3"
       >
         <CanvasToolbar
           :tool="annotations.tool.value"

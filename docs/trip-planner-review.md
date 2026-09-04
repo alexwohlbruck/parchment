@@ -7,9 +7,12 @@
 > the rideshare `isAvailable()` typo (C1) is fixed and rideshare+transit variants are
 > now derived from intermodal results; vehicle-access queries gained origin→vehicle
 > walk legs, `useKnownVehicleLocations`/`maxWalkingDistance` handling, and
-> `parkedVehicles` tracking. Line numbers and the two-path architecture described
-> below no longer match the code — read this for the *why* behind the consolidation,
-> not as a map of the current source.
+> `parkedVehicles` tracking; and the wheelchair travel mode was **removed** —
+> `planWheelchairSegment` and the `wheelchair` mode/profile no longer exist (the
+> `wheelchairAccessible` routing preference for walking and transit remains).
+> Line numbers and the two-path architecture described below no longer match the
+> code — read this for the *why* behind the consolidation, not as a map of the
+> current source.
 
 A code-grounded walkthrough of the multimodal trip planner, end to end, followed by a
 critical review. Every claim below is traced to a specific file and line.

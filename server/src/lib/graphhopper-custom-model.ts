@@ -61,7 +61,6 @@ export function getSnapPreventions(mode: TravelMode): string[] | undefined {
     case TravelMode.CYCLING:
       return ['motorway', 'trunk', 'ferry', 'tunnel', 'bridge']
     case TravelMode.WALKING:
-    case TravelMode.WHEELCHAIR:
       return ['motorway', 'trunk', 'ferry', 'tunnel', 'bridge', 'ford']
     default:
       return undefined
@@ -79,7 +78,7 @@ export function getSnapPreventions(mode: TravelMode): string[] | undefined {
  * caller should omit `custom_model` entirely and let GraphHopper use the
  * profile's built-in defaults.
  *
- * @param mode   The travel mode (DRIVING, CYCLING, WALKING, WHEELCHAIR, etc.)
+ * @param mode   The travel mode (DRIVING, CYCLING, WALKING, etc.)
  * @param prefs  The routing preferences from the user
  */
 // A custom model is a pure function of (mode, prefs), and every consumer only
@@ -392,37 +391,6 @@ function computeGraphHopperCustomModel(
         speed.push({ if: 'true', multiply_by: factor })
       }
     }
-  }
-
-  // ── Wheelchair preferences ────────────────────────────────────
-  if (mode === TravelMode.WHEELCHAIR) {
-    priority.push({ if: 'road_class == STEPS', multiply_by: 0 })
-    priority.push({
-      if: 'average_slope >= 10 || average_slope <= -10',
-      multiply_by: 0.01,
-    })
-    priority.push({
-      if: 'average_slope >= 6 || average_slope <= -6',
-      multiply_by: 0.2,
-    })
-    speed.push({
-      if: 'average_slope >= 4 || average_slope <= -4',
-      multiply_by: 0.6,
-    })
-    priority.push({
-      if: 'surface == GRAVEL || surface == DIRT || surface == SAND',
-      multiply_by: 0.1,
-    })
-    priority.push({
-      if: 'smoothness == BAD || smoothness == VERY_BAD || smoothness == HORRIBLE',
-      multiply_by: 0.05,
-    })
-    priority.push({
-      if: 'track_type == GRADE3 || track_type == GRADE4 || track_type == GRADE5',
-      multiply_by: 0.05,
-    })
-    priority.push({ if: 'road_class == TRACK', multiply_by: 0.15 })
-    speed.push({ if: 'true', limit_to: prefs.walkingSpeed || 4 })
   }
 
   // ── Assemble ──────────────────────────────────────────────────

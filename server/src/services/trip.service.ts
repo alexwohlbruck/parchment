@@ -49,7 +49,7 @@ export class TripService {
     // When useKnownParkingLocations is on, vehicle modes (driving/biking)
     // are replaced by their parking-aware variants — you can't just teleport
     // to the destination, you need to park first. Non-vehicle modes (walking,
-    // transit, wheelchair) are unaffected.
+    // transit) are unaffected.
     const useParking = request.routingPreferences?.useKnownParkingLocations
     const parkingVehicleModes: Set<Mode> = useParking
       ? new Set(['driving', 'biking'] as Mode[])
@@ -192,8 +192,6 @@ export class TripService {
         return ['walking', 'biking']
       case 'transit':
         return ['transit']
-      case 'wheelchair':
-        return ['wheelchair']
       case 'rideshare':
         return hasRideshare ? ['rideshare'] : []
       default:
@@ -523,8 +521,6 @@ export class TripService {
           availableVehicles,
           preferences,
         )
-      case 'wheelchair':
-        return this.planWheelchairSegment(from, to, state, preferences)
       default:
         // Transit/rideshare are planned at the trip level (planTrip), not per-segment.
         return null
@@ -592,66 +588,6 @@ export class TripService {
       }
     } catch (error) {
       logError('Walking route failed', error)
-      return null
-    }
-  }
-
-  /**
-   * Plan wheelchair segment — uses foot profile with accessibility custom_model
-   */
-  private async planWheelchairSegment(
-    from: Waypoint,
-    to: Waypoint,
-    state: SegmentState,
-    preferences: any,
-  ): Promise<{ segment: TripSegment; state: SegmentState } | null> {
-    try {
-      const route = await routingService.getRoute(
-        [
-          { type: 'coordinates', value: [from.location.lat, from.location.lng] },
-          { type: 'coordinates', value: [to.location.lat, to.location.lng] },
-        ],
-        'wheelchair',
-        preferences,
-      )
-
-      if (!route.routes.length) return null
-
-      const leg = route.routes[0].legs[0]
-      if (leg.duration < 60) return null
-
-      const segment: TripSegment = {
-        segmentIndex: 0,
-        mode: 'wheelchair',
-        start: from,
-        end: to,
-        startTime: state.currentTime,
-        endTime: new Date(
-          new Date(state.currentTime).getTime() + leg.duration * 1000,
-        ).toISOString(),
-        duration: leg.duration,
-        distance: leg.distance,
-        geometry: leg.geometry,
-        instructions: leg.instructions,
-        co2: 0,
-        totalElevationGain: leg.totalElevationGain,
-        totalElevationLoss: leg.totalElevationLoss,
-        maxElevation: leg.maxElevation,
-        minElevation: leg.minElevation,
-        edgeSegments: leg.edgeSegments,
-      }
-
-      return {
-        segment,
-        state: {
-          currentTime: segment.endTime,
-          currentLocation: to.location,
-          currentMode: 'wheelchair',
-          parkedVehicles: state.parkedVehicles,
-        },
-      }
-    } catch (error) {
-      logError('Wheelchair route failed', error)
       return null
     }
   }
@@ -3724,7 +3660,6 @@ export class TripService {
     biking: 0,
     transit: 0.00005, // ~50g/km = 0.05 kg/km
     driving: 0.00024, // ~240g/km = 0.24 kg/km
-    wheelchair: 0,
   }
 
   /** Fuel cost per meter for driving (based on ~$3.50/gal, ~25 MPG → ~$0.087/km) */
@@ -3966,7 +3901,6 @@ export class TripService {
     walking: 0.7,
     biking: 0.5,
     driving: 0.6,
-    wheelchair: 0.6,
     transit: 1.0,
   }
 

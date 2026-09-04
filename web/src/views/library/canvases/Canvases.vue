@@ -13,8 +13,9 @@ import CanvasCard from '@/components/library/CanvasCard.vue'
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
-import { MapIcon, PlusIcon } from 'lucide-vue-next'
+import { MapIcon, PlusIcon, SearchIcon } from 'lucide-vue-next'
 import type { Canvas } from '@/types/canvas.types'
 
 const { t } = useI18n()
@@ -26,13 +27,9 @@ const { canvases } = storeToRefs(canvasesStore)
 const loading = ref(canvases.value.length === 0)
 const dialogOpen = ref(false)
 const editing = ref<Canvas | null>(null)
-
-// The tab strip hosts the per-tab actions; mounting order means the target
-// only exists once the Library shell has rendered.
-const hasTeleportTarget = ref(false)
+const searchQuery = ref('')
 
 onMounted(async () => {
-  hasTeleportTarget.value = !!document.getElementById('library-tab-actions')
   await canvasesService.fetchCanvases()
   loading.value = false
 })
@@ -43,6 +40,14 @@ const sorted = computed(() =>
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   ),
 )
+
+const filtered = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return sorted.value
+  return sorted.value.filter(canvas =>
+    (canvas.name ?? '').toLowerCase().includes(q),
+  )
+})
 
 function create() {
   editing.value = null
@@ -60,19 +65,6 @@ function openCreated(canvas: Canvas) {
 </script>
 
 <template>
-  <Teleport v-if="hasTeleportTarget" to="#library-tab-actions">
-    <Button
-      variant="ghost"
-      size="icon"
-      class="size-7"
-      :title="t('canvases.actions.new')"
-      :aria-label="t('canvases.actions.new')"
-      @click="create"
-    >
-      <PlusIcon class="size-4" />
-    </Button>
-  </Teleport>
-
   <CanvasDialog
     v-model:open="dialogOpen"
     :canvas="editing"
@@ -100,13 +92,42 @@ function openCreated(canvas: Canvas) {
     </EmptyState>
   </div>
 
-  <div v-else class="flex flex-col gap-2 pb-4">
-    <CanvasCard
-      v-for="canvas in sorted"
-      :key="canvas.id"
-      :canvas="canvas"
-      class="w-full"
-      @rename="rename"
-    />
+  <div v-else class="h-full flex flex-col gap-2">
+    <div class="flex items-center gap-2">
+      <div class="relative flex-1">
+        <SearchIcon
+          class="absolute left-2.5 top-3 size-4 text-muted-foreground"
+        />
+        <Input
+          v-model="searchQuery"
+          class="w-full pl-8"
+          :placeholder="t('canvases.search.placeholder')"
+        />
+      </div>
+      <Button
+        variant="outline"
+        size="icon"
+        class="h-10 w-10"
+        :aria-label="t('canvases.actions.new')"
+        :title="t('canvases.actions.new')"
+        @click="create"
+      >
+        <PlusIcon class="h-4 w-4" />
+      </Button>
+    </div>
+
+    <div v-if="filtered.length" class="flex flex-col gap-2 pb-4">
+      <CanvasCard
+        v-for="canvas in filtered"
+        :key="canvas.id"
+        :canvas="canvas"
+        class="w-full"
+        @rename="rename"
+      />
+    </div>
+
+    <div v-else class="text-center py-8 text-muted-foreground">
+      <p class="text-sm">{{ t('canvases.search.noResults') }}</p>
+    </div>
   </div>
 </template>

@@ -1267,10 +1267,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -1445,10 +1441,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -1648,10 +1640,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -1826,10 +1814,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -2029,10 +2013,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -2207,10 +2187,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -2442,10 +2418,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -2620,10 +2592,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -2823,10 +2791,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -3001,10 +2965,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {
@@ -3204,10 +3164,6 @@
                         "type": "string"
                       },
                       {
-                        "const": "wheelchair",
-                        "type": "string"
-                      },
-                      {
                         "const": "rideshare",
                         "type": "string"
                       }
@@ -3382,10 +3338,6 @@
                             },
                             {
                               "const": "e-scooter",
-                              "type": "string"
-                            },
-                            {
-                              "const": "wheelchair",
                               "type": "string"
                             },
                             {

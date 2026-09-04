@@ -627,7 +627,12 @@ function handleAnimationEnd(open: boolean) {
   isAnimating.value = false
   stopLiveTracking()
 
-  if (!open) {
+  // Only a sheet that really closed goes back to its default detent. Vaul
+  // also reports an animation end for an outside interaction that was
+  // dismissed without closing anything — a tap on the map behind a
+  // non-dismissable sheet — and resetting then yanked a minimized sheet back
+  // up, mid-draw, on every tap.
+  if (!open && !props.open) {
     setTimeout(() => {
       activeSnapPoint.value =
         snapPoints.value[props.defaultSnapPointIndex] ?? null

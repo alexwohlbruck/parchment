@@ -236,7 +236,10 @@ const router = createRouter({
             auth: true,
             // A canvas is a workspace, not a passing detail view: on mobile
             // the sheet stays put until it is closed deliberately.
-            sheet: { dismissable: false, snapPoints: ['160px', 0.6, 1] },
+            // The middle detent sits low: on a canvas the map is the work,
+            // so the half-open panel shows a few rows without burying it.
+            // The first entry is a fallback — the peek measures the header.
+            sheet: { dismissable: false, snapPoints: ['160px', 0.4, 1] },
           },
         },
         {

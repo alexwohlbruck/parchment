@@ -4,8 +4,8 @@ Technical reference for the multimodal trip planning system.
 
 ## Overview
 
-The trip planner composes routes across walking, cycling, driving, wheelchair,
-and transit modes. Transit routing uses MOTIS (a C++ RAPTOR engine) for
+The trip planner composes routes across walking, cycling, driving, and transit
+modes. Transit routing uses MOTIS (a C++ RAPTOR engine) for
 stop-to-stop itineraries while all street routing stays in GraphHopper. The
 Parchment server orchestrates access-leg + transit-core + egress-leg composition
 so MOTIS never needs an OSM graph.
@@ -41,7 +41,7 @@ MultimodalTripResponse  (ranked TripCandidate[])
 | Field | Type | Description |
 |-------|------|-------------|
 | `waypoints` | `Waypoint[]` | Min 2. Each has `location`, optional `departAfter`, `arriveBy`, `dwellTime` |
-| `selectedMode` | `SelectedMode` | `multi`, `walking`, `driving`, `biking`, `transit`, `wheelchair` |
+| `selectedMode` | `SelectedMode` | `multi`, `walking`, `driving`, `biking`, `transit` |
 | `sortPreference` | `SortPreference?` | `fastest`, `cheapest`, `fewest_transfers`, `least_walking`, `greenest` |
 | `routingPreferences` | `RoutingPreferences?` | Per-mode tuning (hills, tolls, maxWalkingDistance, etc.) |
 | `availableVehicles` | `Vehicle[]?` | Known vehicle locations for walk-to-vehicle trips |
@@ -58,7 +58,6 @@ MultimodalTripResponse  (ranked TripCandidate[])
 | `walking` | `walking` |
 | `driving` | `walking`, `driving` |
 | `biking` | `walking`, `biking` |
-| `wheelchair` | `wheelchair` |
 | (default) | `walking`, `driving`, `biking` |
 
 ### 3. Transit Composition
@@ -316,7 +315,6 @@ V = vehicle location    S = transit stop
 | 1.1 | O →[W]→ X | Walk |
 | 1.2 | O →[B]→ X | Cycle |
 | 1.3 | O →[D]→ X | Drive |
-| 1.4 | O →[Wc]→ X | Wheelchair |
 
 ### Vehicle-access trips
 

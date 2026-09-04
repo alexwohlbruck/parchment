@@ -57,9 +57,7 @@ function showSegmentChart(segment: any): boolean {
     (segment.totalElevationGain ||
       segment.totalElevationLoss ||
       segment.edgeSegments?.length) &&
-    (segment.mode === 'walking' ||
-      segment.mode === 'cycling' ||
-      segment.mode === 'wheelchair')
+    (segment.mode === 'walking' || segment.mode === 'cycling')
   )
 }
 

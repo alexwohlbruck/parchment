@@ -36,8 +36,8 @@ export interface ProfileTabDef {
  */
 export const PROFILE_TABS: ProfileTabDef[] = [
   { id: 'stress',  label: 'Bike friendly', modes: ['cycling'] as TravelMode[] },
-  { id: 'surface', label: 'Surface',       modes: ['cycling', 'walking', 'driving', 'wheelchair'] as TravelMode[] },
-  { id: 'incline', label: 'Incline',       modes: ['cycling', 'walking', 'wheelchair'] as TravelMode[] },
+  { id: 'surface', label: 'Surface',       modes: ['cycling', 'walking', 'driving'] as TravelMode[] },
+  { id: 'incline', label: 'Incline',       modes: ['cycling', 'walking'] as TravelMode[] },
 ]
 
 // ── Surface categories ──────────────────────────────────────────────

@@ -2797,64 +2797,6 @@ describe('TripService — segment planners', () => {
     })
   })
 
-  describe('planWheelchairSegment', () => {
-    test('returns segment with mode wheelchair', async () => {
-      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 480))
-
-      const result = await (tripService as any).planWheelchairSegment(
-        CHARLOTTE_ORIGIN,
-        CHARLOTTE_DEST,
-        baseState,
-        {},
-      )
-      expect(result).not.toBeNull()
-      expect(result.segment.mode).toBe('wheelchair')
-      expect(result.state.currentMode).toBe('wheelchair')
-    })
-
-    test('skips segments under 60s', async () => {
-      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(20, 30))
-
-      const result = await (tripService as any).planWheelchairSegment(
-        CHARLOTTE_ORIGIN,
-        CHARLOTTE_DEST,
-        baseState,
-        {},
-      )
-      expect(result).toBeNull()
-    })
-
-    test('returns null on routing error', async () => {
-      mockGetRoute.mockImplementation(async () => {
-        throw new Error('GraphHopper error')
-      })
-
-      const result = await (tripService as any).planWheelchairSegment(
-        CHARLOTTE_ORIGIN,
-        CHARLOTTE_DEST,
-        baseState,
-        {},
-      )
-      expect(result).toBeNull()
-    })
-
-    test('passes wheelchair profile to routing service', async () => {
-      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 480))
-
-      await (tripService as any).planWheelchairSegment(
-        CHARLOTTE_ORIGIN,
-        CHARLOTTE_DEST,
-        baseState,
-        {},
-      )
-      expect(mockGetRoute).toHaveBeenCalledWith(
-        expect.any(Array),
-        'wheelchair',
-        expect.anything(),
-      )
-    })
-  })
-
   describe('planDirectBike', () => {
     test('returns biking segment with co2: 0', async () => {
       mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(3000, 900))
@@ -3153,26 +3095,6 @@ describe('TripService — mode generation edge cases', () => {
     expect(modes).toContain('walking')
     expect(modes).not.toContain('biking')
     expect(modes).not.toContain('transit')
-  })
-
-  test('wheelchair mode generates only wheelchair', () => {
-    const modes = (tripService as any).getModesToGenerate('wheelchair')
-    expect(modes).toEqual(['wheelchair'])
-  })
-
-  test('wheelchair planTrip returns wheelchair segment', async () => {
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(500, 480))
-
-    const response = await tripService.planTrip({
-      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
-      selectedMode: 'wheelchair',
-      preferredDepartureTime: '2026-01-15T08:00:00Z',
-    })
-
-    const wheelchair = response.trips.find((t) =>
-      t.trip.segments.some((s) => s.mode === 'wheelchair'),
-    )
-    expect(wheelchair).toBeDefined()
   })
 })
 

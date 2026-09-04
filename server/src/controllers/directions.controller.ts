@@ -44,7 +44,6 @@ const VehicleSchema = t.Object({
     t.Literal('scooter'),
     t.Literal('e-bike'),
     t.Literal('e-scooter'),
-    t.Literal('wheelchair'),
     t.Literal('moped'),
     t.Literal('truck'),
   ]),
@@ -118,7 +117,6 @@ const SelectedModeSchema = t.Union([
   t.Literal('driving'),
   t.Literal('biking'),
   t.Literal('transit'),
-  t.Literal('wheelchair'),
   t.Literal('rideshare'),
 ] as const)
 
@@ -264,12 +262,6 @@ app.get(
           type: 'e-scooter',
           name: 'Electric Scooter',
           description: 'Electric scooter',
-          supportedEnergyTypes: ['electric'],
-        },
-        {
-          type: 'wheelchair',
-          name: 'Wheelchair',
-          description: 'Mobility device',
           supportedEnergyTypes: ['electric'],
         },
         {
@@ -424,7 +416,6 @@ app.get(
           'biking',
           'transit',
           'rideshare',
-          'wheelchair',
           'paratransit',
           'mixed',
         ],
@@ -434,7 +425,6 @@ app.get(
           'scooter',
           'e-bike',
           'e-scooter',
-          'wheelchair',
           'moped',
           'truck',
         ],

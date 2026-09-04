@@ -12,7 +12,6 @@ export const VEHICLE_ROUTING_MODE: Record<VehicleType, 'driving' | 'biking'> = {
   'e-bike': 'biking',
   scooter: 'biking',
   'e-scooter': 'biking',
-  wheelchair: 'driving', // Uses road routing
 }
 
 /**

@@ -3,7 +3,11 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
-import { getPlaceRoute } from '@/lib/place.utils'
+import { getPlaceRoute, getTransitStopRoute } from '@/lib/place.utils'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
 import {
   ChevronsRightIcon,
   CogIcon,
@@ -182,8 +186,34 @@ export const useCommandStore = defineStore('command', () => {
                 ...(payload.name ? { brandName: payload.name } : {}),
               },
             })
+          } else if (itemId.startsWith('transit-stop:')) {
+            // A GTFS-only stop. Barrelman already skipped stops portolan
+            // matched to OSM, but the client-side index is re-checked here —
+            // it may be fresher than the server's — before falling back to a
+            // name+coords place view with the transit widget expanded.
+            const payload = JSON.parse(
+              decodeURIComponent(itemId.slice('transit-stop:'.length)),
+            )
+            await ensureStopIndexAt(payload.lat, payload.lng)
+            const osm = osmForStop(
+              payload.feedOnestopId,
+              payload.stopId,
+              payload.lat,
+              payload.lng,
+            )
+            if (osm) {
+              const [type, id] = osm.split('/')
+              router.push({
+                name: AppRoute.PLACE,
+                params: { type, id },
+                query: { complex: '1' },
+              })
+            } else {
+              router.push(getTransitStopRoute(payload.name, payload.lat, payload.lng))
+            }
           } else {
-            // Regular place navigation
+            // Regular place navigation (transit-route/ ids resolve to the
+            // transit route detail view inside getPlaceRoute).
             const route = getPlaceRoute(itemId)
             router.push(route)
           }
@@ -420,6 +450,54 @@ export const useCommandStore = defineStore('command', () => {
                           iconColor: getCategoryColor('default', isDark.value),
                           imageUrl: result.brand.logoUrl,
                           group: 'brands',
+                        },
+                      }
+                    }
+
+                    // A transit line wears its route bullet — short name on
+                    // the line's own colour — instead of a generic icon.
+                    if (result.type === 'transit_route' && result.transitLine?.shortName) {
+                      return {
+                        identity: `place:${result.id}`,
+                        option: {
+                          value: result.id,
+                          // The bullet already says the short name; the row
+                          // reads "Broadway Express", not "Q · Broadway Express".
+                          name: result.transitLine.longName || result.title,
+                          description: result.description,
+                          bullet: {
+                            label: result.transitLine.shortName,
+                            color: result.transitLine.color,
+                            textColor: result.transitLine.textColor,
+                          },
+                          group: 'places',
+                        },
+                      }
+                    }
+
+                    // GTFS-only stop: the action needs coordinates and the
+                    // portolan index key, neither of which fit in a bare id —
+                    // encode them like the brand payload above.
+                    if (result.type === 'transit_stop') {
+                      const payload = encodeURIComponent(
+                        JSON.stringify({
+                          name: result.title,
+                          lat: result.lat,
+                          lng: result.lng,
+                          feedOnestopId: result.transitStop?.feedOnestopId,
+                          stopId: result.transitStop?.stopId,
+                        }),
+                      )
+                      return {
+                        identity: `place:${result.id}`,
+                        option: {
+                          value: `transit-stop:${payload}`,
+                          name: result.title,
+                          description: result.description,
+                          iconName: result.icon || 'MapPin',
+                          iconPack: (result.iconPack || 'lucide') as 'lucide' | 'maki',
+                          iconColor: getCategoryColor('default', isDark.value),
+                          group: 'places',
                         },
                       }
                     }

@@ -32,6 +32,7 @@ import {
   SettingsIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
+import RouteBullet from '@/components/transit/RouteBullet.vue'
 import { PlaceCard } from '@/components/place/card'
 import { makePlaceDisplay } from '@/lib/place-display'
 import { Badge } from '@/components/ui/badge'
@@ -644,8 +645,22 @@ const filterFunction = computed(() => {
                 class="flex gap-2"
                 @select="onArgumentSelected(argumentOption.value)"
               >
+                <!-- A transit line wears its own bullet. Centered in the icon
+                     column; a wordy short name widens into a pill, exactly as
+                     it does on departure boards. -->
+                <span
+                  v-if="argumentOption.bullet"
+                  class="flex items-center justify-center min-w-8 shrink-0"
+                >
+                  <RouteBullet
+                    :label="argumentOption.bullet.label"
+                    :color="argumentOption.bullet.color"
+                    :text-color="argumentOption.bullet.textColor"
+                    size="md"
+                  />
+                </span>
                 <ItemIcon
-                  v-if="argumentOption.iconName || argumentOption.iconColor || argumentOption.imageUrl"
+                  v-else-if="argumentOption.iconName || argumentOption.iconColor || argumentOption.imageUrl"
                   :icon="argumentOption.iconName"
                   :icon-pack="argumentOption.iconPack"
                   :custom-color="argumentOption.iconColor"

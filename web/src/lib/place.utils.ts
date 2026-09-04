@@ -49,6 +49,20 @@ export function getPlaceRoute(placeId: string): RouteLocationRaw {
     }
   }
 
+  // A GTFS line from barrelman search: "transit-route/<feedId>:<routeId>".
+  // Opens the transit route detail view, which is keyed by exactly that pair.
+  // Split on the first colon only — GTFS route ids may contain colons.
+  if (placeId.startsWith('transit-route/')) {
+    const rest = placeId.slice('transit-route/'.length)
+    const sep = rest.indexOf(':')
+    if (sep > 0) {
+      return {
+        name: AppRoute.TRANSIT_ROUTE,
+        params: { feedId: rest.slice(0, sep), routeId: rest.slice(sep + 1) },
+      }
+    }
+  }
+
   // OSM format: "osm/node/123456789"
   if (placeId.startsWith('osm/')) {
     const parts = placeId.substring(4).split('/')
@@ -120,6 +134,23 @@ export function getPlaceRoute(placeId: string): RouteLocationRaw {
       provider: 'google',
       placeId,
     },
+  }
+}
+
+/**
+ * Route for a GTFS-only stop (no OSM object to open): the location place view
+ * at its coordinates with the transit widget expanded — the same treatment a
+ * transfer station without an OSM pair gets (PlaceTransitPage).
+ */
+export function getTransitStopRoute(
+  name: string,
+  lat: number,
+  lng: number,
+): RouteLocationRaw {
+  return {
+    name: AppRoute.PLACE_LOCATION,
+    params: { name: name || 'Station', lat: String(lat), lng: String(lng) },
+    query: { complex: '1' },
   }
 }
 

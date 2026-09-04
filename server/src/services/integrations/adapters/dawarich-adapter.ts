@@ -435,8 +435,6 @@ export class DawarichAdapter {
         return TravelMode.MOTORCYCLE
       case 'truck':
         return TravelMode.TRUCK
-      case 'wheelchair':
-        return TravelMode.WHEELCHAIR
       case 'driving':
       case 'automotive':
       case 'car':

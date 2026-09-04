@@ -6,7 +6,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapListener } from '@/composables/useMapListener'
 import {
-  AccessibilityIcon,
   BikeIcon,
   BusFrontIcon,
   CarFrontIcon,
@@ -19,7 +18,7 @@ import {
   TrainIcon,
   XIcon,
 } from 'lucide-vue-next'
-import { useDirectionsStore } from '@/stores/directions.store'
+import { useDirectionsStore, RIDESHARE_ENABLED } from '@/stores/directions.store'
 import { storeToRefs } from 'pinia'
 import WaypointInput from './WaypointInput.vue'
 import TripsList from './TripsList.vue'
@@ -142,7 +141,7 @@ onUnmounted(() => {
   directionsStore.unsetTrips()
 })
 
-const modes: Array<{ type: SelectedMode; icon: any; label: string }> = [
+const allModes: Array<{ type: SelectedMode; icon: any; label: string }> = [
   {
     type: 'multi',
     icon: ShuffleIcon,
@@ -173,12 +172,11 @@ const modes: Array<{ type: SelectedMode; icon: any; label: string }> = [
     icon: CarTaxiFrontIcon,
     label: 'Rideshare',
   },
-  {
-    type: 'wheelchair',
-    icon: AccessibilityIcon,
-    label: 'Wheelchair',
-  },
 ]
+
+const modes = allModes.filter(
+  m => m.type !== 'rideshare' || RIDESHARE_ENABLED,
+)
 
 // Override default click behavior to add waypoints instead of navigating
 useMapListener(

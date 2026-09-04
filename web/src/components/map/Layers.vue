@@ -1,60 +1,40 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import { AppRoute } from '@/router'
 import { useLayersStore } from '@/stores/layers.store'
-import { useAppService } from '@/services/app.service'
 import { useDragAndDrop } from '@/composables/useDragAndDrop'
 import { useDragState } from '@/composables/useDragState'
 import type { Layer, LayerGroup } from '@/types/map.types'
-import LayerGroupConfiguration from './layers/LayerGroupConfiguration.vue'
+import { groupSubtreeMatches, matchesQuery } from '@/lib/layer-search'
 import LayerItemComponent from './layers/LayerItem.vue'
 import LayerGroupItem from './layers/LayerGroupItem.vue'
-import LayerStoreDialog from './layers/LayerStoreDialog.vue'
-import { Button } from '@/components/ui/button'
-import { FolderIcon, PlusIcon, LayersIcon, StoreIcon } from 'lucide-vue-next'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { FolderIcon } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
-const appService = useAppService()
-const router = useRouter()
+// `filter` is the library search query. Reordering is disabled while a search
+// is active, and non-matching rows are hidden rather than removed so the drag
+// model stays intact.
+const props = defineProps<{ filter?: string }>()
+
 const layersStore = useLayersStore()
 const { mainReorderableItems, groupsWithLayers, groupTree } = storeToRefs(layersStore)
 const { t } = useI18n()
 const { isDragActive } = useDragState()
 
-const hasTeleportTarget = ref(false)
-onMounted(() => {
-  hasTeleportTarget.value = !!document.getElementById('library-tab-actions')
-})
+const query = computed(() => (props.filter ?? '').trim().toLowerCase())
+const isFiltering = computed(() => query.value.length > 0)
 
-// The layer editor is a sheet view, not a dialog: it renders the draft on
-// the live map while you edit, which a modal over the map cannot do.
-function openLayerEditor(layerId?: string) {
-  router.push(
-    layerId
-      ? { name: AppRoute.LAYER_EDITOR, params: { id: layerId } }
-      : { name: AppRoute.LAYER_EDITOR_NEW },
-  )
+function itemMatches(item: Layer | LayerGroup): boolean {
+  if (!isFiltering.value) return true
+  if ('groupId' in item) return matchesQuery(item.name, query.value)
+  return groupSubtreeMatches(getGroupForElement(item), query.value)
 }
 
-function openLayerGroupConfigDialog(groupId?: string) {
-  appService.componentDialog({
-    component: LayerGroupConfiguration,
-    continueText: t('general.save'),
-    props: { groupId },
-  })
-}
-
-const storeOpen = ref(false)
+const hasMatches = computed(() =>
+  !isFiltering.value || draggableItems.value.some(itemMatches),
+)
 
 // Track expanded groups
 const expandedGroups = ref(new Set<string>())
@@ -143,39 +123,6 @@ async function handleMainChange(evt: any) {
 </script>
 
 <template>
-  <Teleport v-if="hasTeleportTarget" to="#library-tab-actions">
-    <DropdownMenu>
-      <DropdownMenuTrigger as-child>
-        <Button variant="ghost" size="icon" class="size-7">
-          <PlusIcon class="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem @click="openLayerEditor()">
-          <LayersIcon class="size-4" />
-          {{ t('layers.actions.newLayer') }}
-        </DropdownMenuItem>
-        <DropdownMenuItem @click="openLayerGroupConfigDialog()">
-          <FolderIcon class="size-4" />
-          {{ t('layers.actions.newGroup') }}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <!-- Sits outside `TooltipProvider`, so this one labels itself natively. -->
-    <Button
-      variant="ghost"
-      size="icon"
-      class="size-7"
-      :aria-label="t('layers.store.title')"
-      :title="t('layers.store.title')"
-      @click="storeOpen = true"
-    >
-      <StoreIcon class="size-4" />
-    </Button>
-  </Teleport>
-
-  <LayerStoreDialog v-model:open="storeOpen" />
-
   <TooltipProvider>
     <div class="h-full flex flex-col">
       <div class="space-y-1 flex-1 min-h-0">
@@ -183,6 +130,7 @@ async function handleMainChange(evt: any) {
           v-if="draggableItems?.length > 0"
           v-model="draggableItems"
           v-bind="mainDragOptions"
+          :disabled="isFiltering"
           @start="onDragStart"
           @end="onDragEnd"
           @move="onDragMove"
@@ -195,6 +143,7 @@ async function handleMainChange(evt: any) {
         >
           <template #item="{ element }">
             <div
+              v-show="itemMatches(element)"
               :key="
                 'groupId' in element
                   ? getLayerKey(element)
@@ -206,6 +155,7 @@ async function handleMainChange(evt: any) {
                 v-if="!('groupId' in element)"
                 :group="getGroupForElement(element)"
                 :expanded-groups="expandedGroups"
+                :filter="filter"
                 @toggle-expanded="toggleGroup"
               />
 
@@ -222,6 +172,13 @@ async function handleMainChange(evt: any) {
         >
           <FolderIcon class="size-8 mx-auto mb-2 opacity-50" />
           <p class="text-sm">{{ t('layers.empty.message') }}</p>
+        </div>
+
+        <div
+          v-else-if="isFiltering && !hasMatches"
+          class="text-center py-8 text-muted-foreground"
+        >
+          <p class="text-sm">{{ t('layers.search.noResults') }}</p>
         </div>
       </div>
     </div>

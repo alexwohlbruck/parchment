@@ -1,7 +1,24 @@
 [build]
   base = "web"
   publish = "dist"
-  command = "source ~/.nvm/nvm.sh && nvm install 22 && nvm use 22 && bun install && cd ../server && bun install --ignore-scripts && cd ../web && bun run build"
+  # NODE_VERSION below is honoured natively, so there is no nvm step. The server
+  # install is still needed: web imports types, enums and constants from
+  # ../server/src, and typechecking those needs the server's own dependencies.
+  #
+  # build:ci is `vue-tsc && vite build` — it deliberately omits the unit tests
+  # that `bun run build` runs, because CI already runs them on every push. Type
+  # errors still fail the deploy.
+  command = "bun install && cd ../server && bun install --ignore-scripts && cd ../web && bun run build:ci"
+
+  # Skip the build when nothing the bundle is made of changed. This is a
+  # monorepo, so most server-only work (controllers, services, migrations)
+  # cannot affect the web output and should not spend build minutes.
+  #
+  # Paths are relative to `base`. `git diff --quiet` exits 0 when there is no
+  # difference, which is exactly Netlify's "skip" signal; it exits non-zero when
+  # something changed, or when CACHED_COMMIT_REF is missing on a first build, so
+  # the failure mode is a build rather than a silently stale deploy.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ../server/src/types ../server/src/lib ../server/src/schema"
 
 [build.environment]
-  NODE_VERSION = "22" 
+  NODE_VERSION = "22"

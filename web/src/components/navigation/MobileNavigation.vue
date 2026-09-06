@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
+import { SheetFooter } from '@/components/sheet'
 
 const route = useRoute()
 const activeSnapPoint = ref<number | string | null>(null)
@@ -63,10 +64,16 @@ watch(
       class="flex flex-col min-h-full p-2 bg-muted shadow-md rounded-b-none border-0"
     >
       <DashboardHome @update:palette-focused="v => paletteFocused = v" />
-
-      <div v-show="!paletteFocused" class="mt-auto pt-4 px-1">
-        <AccountDropdown @update:open="open => { if (open) minimizeSheet() }" />
-      </div>
     </Card>
+
+    <!-- The recents list below is endless, so the account row is pinned rather
+         than parked at the bottom of it — scrolling to the end to reach your
+         own account was never going to work. -->
+    <SheetFooter
+      v-if="!paletteFocused"
+      class="bg-muted border-t border-border/60 px-3 py-2"
+    >
+      <AccountDropdown @update:open="open => { if (open) minimizeSheet() }" />
+    </SheetFooter>
   </bottom-sheet>
 </template>

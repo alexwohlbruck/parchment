@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SheetHeader } from '@/components/sheet'
+import { useSheetPeek } from '@/composables/useSheetPeek'
 import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '@/components/ui/empty-state'
 import ItemIcon from '@/components/ui/item-icon/ItemIcon.vue'
@@ -48,6 +49,12 @@ const mapService = useMapService()
 const portolanStore = usePortolanTransitStore()
 const canvasesStore = useCanvasesStore()
 const { t } = useI18n()
+
+// The collapsed sheet fits the whole picker — tabs plus whatever the active
+// tab currently shows — so it rests around its content instead of an arbitrary
+// height, and re-snaps as groups expand. Capped below the full detent by the
+// host sheet. No-op on desktop.
+const { peekRef } = useSheetPeek()
 
 const {
   layers,
@@ -286,7 +293,7 @@ function findGroupNode(id: string, tree: any[]): any {
         </TabsList>
       </SheetHeader>
 
-      <div class="min-h-[260px]">
+      <div ref="peekRef" class="min-h-[260px]">
         <TabsContent value="map" class="m-0 space-y-3 p-3 focus-visible:ring-0">
           <section class="space-y-2">
             <p class="px-0.5 text-xs font-medium text-muted-foreground">

@@ -5,8 +5,11 @@
 ### Changed
 
 * Releases now deploy the API themselves instead of waiting up to an hour for the server to notice a new image.
+* Your account row stays pinned to the bottom of the mobile dashboard, so you can reach it without scrolling past every recent place.
 
 ### Fixed
+
+* Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
 
 ## [0.10.4] - 2026-09-06
 

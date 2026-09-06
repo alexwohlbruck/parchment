@@ -233,6 +233,7 @@ function recentSubtitle(subtitle: string | null | undefined, at: number): string
         <Palette
           ref="paletteRef"
           search-on-open
+          fill
           @input-focused="onPaletteInputFocused"
           @update:open="val => { if (!val) onPaletteClosed() }"
         />

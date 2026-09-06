@@ -14,7 +14,7 @@ import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue
     :side-offset="12"
     desktop-content-class="w-[380px] max-w-[calc(100vw-3.75rem)] max-h-[min(460px,calc(100vh-10rem))] overflow-y-auto rounded-md p-0 shadow-xl"
     mobile-content-class="p-0 pt-11"
-    :fit-content="true"
+    :custom-snap-points="['400px', 0.7, 1]"
   >
     <template #trigger>
       <Button variant="outline" size="icon-sm" class="rounded-md size-11">

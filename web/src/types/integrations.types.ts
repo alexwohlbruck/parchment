@@ -33,6 +33,25 @@ export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
       },
     },
   },
+  quackbackSchema: {
+    fieldConfig: {
+      url: {
+        label: 'Instance URL',
+        description: 'Base URL of your Quackback instance',
+        inputProps: {
+          placeholder: 'https://feedback.example.com',
+        },
+      },
+      apiKey: {
+        label: 'API Key',
+        description:
+          'Must be an admin-role key — attributing a post to its author is admin-gated, and a member key files everything under itself.',
+        inputProps: {
+          placeholder: 'qb_...',
+        },
+      },
+    },
+  },
   openstreetmapSystemSchema: {
     fieldConfig: {
       server: {
@@ -113,6 +132,11 @@ export const configSchemas: Record<
     clientId: z.string().min(1, 'Client ID is required'),
     clientSecret: z.string().optional(),
     redirectUri: z.string().url('Please enter a valid URL').optional(),
+  }),
+
+  quackbackSchema: z.object({
+    url: z.string().url('Please enter a valid URL'),
+    apiKey: z.string().min(1, 'API key is required'),
   }),
 
   nominatimSchema: z.object({

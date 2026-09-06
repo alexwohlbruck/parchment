@@ -317,6 +317,10 @@ export const useAppStore = defineStore('app', () => {
   // Floor numbering preference (zero-based vs one-based)
   const floorNumbering = useStorage<FloorNumbering>('floor-numbering', FloorNumbering.ZERO_BASED)
 
+  // Shake the phone to open the feedback form. Off by default: it needs motion
+  // access, and turning it on is the user gesture iOS requires to ask for it.
+  const shakeForFeedback = useStorage<boolean>('shake-for-feedback', false)
+
   // Width (px) of the peek-out area left by the collapsed left drawer's
   // floating buttons. Map widgets in the top-left should add this much
   // horizontal buffer to avoid being covered. 0 when drawer is expanded or
@@ -345,6 +349,7 @@ export const useAppStore = defineStore('app', () => {
     clearManualBounds,
     unitSystem,
     floorNumbering,
+    shakeForFeedback,
     leftSheetOverlayWidth,
     leftSheetHidden,
   }

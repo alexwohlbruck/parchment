@@ -183,6 +183,11 @@
     },
     "vehicle": {
       "notFound": "Vehicle not found"
+    },
+    "feedback": {
+      "unavailable": "Feedback is not available on this server",
+      "fetchFailed": "Failed to load feedback boards",
+      "submitFailed": "Failed to submit feedback"
     }
   },
   "chips": {

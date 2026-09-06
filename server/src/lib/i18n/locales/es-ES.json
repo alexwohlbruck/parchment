@@ -183,6 +183,11 @@
     },
     "vehicle": {
       "notFound": "Vehículo no encontrado"
+    },
+    "feedback": {
+      "unavailable": "Los comentarios no están disponibles en este servidor",
+      "fetchFailed": "No se pudieron cargar los tableros de comentarios",
+      "submitFailed": "No se pudieron enviar los comentarios"
     }
   },
   "chips": {

@@ -30,17 +30,25 @@ import { ref, inject, watch, onUnmounted, type Ref } from 'vue'
  * the title and action buttons but nothing pins.
  */
 export function useSheetPeek(): { peekRef: Ref<HTMLElement | null> } {
-  const register = inject<((el: HTMLElement | null) => void) | null>(
-    'sheetPeekRegister',
-    null,
-  )
+  const register = inject<
+    ((owner: symbol, el: HTMLElement | null) => void) | null
+  >('sheetPeekRegister', null)
   const peekRef = ref<HTMLElement | null>(null)
 
   if (register) {
+    // Each caller registers under its own identity, so clearing only clears if
+    // this caller is the one currently holding the anchor. Views legitimately
+    // overlap — a `<SheetHeader peek="false">` above content that anchors the
+    // peek itself, or a pushed sub-page over the view it came from — and
+    // without this the later mount (or the earlier unmount) wins by accident.
+    const owner = Symbol('sheet-peek')
     // Register on mount and whenever the element swaps (v-if regions). The
     // immediate run covers the case where the ref is already populated.
-    watch(peekRef, el => register(el), { immediate: true, flush: 'post' })
-    onUnmounted(() => register(null))
+    watch(peekRef, el => register(owner, el), {
+      immediate: true,
+      flush: 'post',
+    })
+    onUnmounted(() => register(owner, null))
   }
 
   return { peekRef }

@@ -465,8 +465,16 @@ watch(
 const DYNAMIC_PEEK_BUFFER = 12
 
 const peekEl = ref<HTMLElement | null>(null)
-provide('sheetPeekRegister', (el: HTMLElement | null) => {
-  peekEl.value = el
+let peekOwner: symbol | null = null
+provide('sheetPeekRegister', (owner: symbol, el: HTMLElement | null) => {
+  if (el) {
+    peekOwner = owner
+    peekEl.value = el
+  } else if (peekOwner === owner) {
+    // Only the holder can give the anchor up — see `useSheetPeek`.
+    peekOwner = null
+    peekEl.value = null
+  }
 })
 
 // useElementSize gives us a reactive trigger whenever the peek content's box

@@ -4,6 +4,8 @@
 
 ### Changed
 
+* Releases now deploy the API themselves instead of waiting up to an hour for the server to notice a new image.
+
 ### Fixed
 
 ## [0.10.4] - 2026-09-06

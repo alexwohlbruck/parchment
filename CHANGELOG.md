@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* Transit lines show faintly through the buildings they pass behind again, instead of disappearing into the block.
+
 ## [0.10.1] - 2026-09-04
 
 ### Fixed

@@ -831,8 +831,6 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
     }
   }
 
-  addSymbolLayers()
-
   ribbonAnchor = anchor
   addSymbolLayers()
 }

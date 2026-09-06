@@ -12643,6 +12643,18 @@
         }
       }
     },
+    "/transit/resolve-route": {
+      "get": {
+        "operationId": "getTransitResolve-route",
+        "tags": [
+          "Transit"
+        ],
+        "summary": "Resolve a bare GTFS route id at a location",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/transit/departures": {
       "get": {
         "operationId": "getTransitDepartures",

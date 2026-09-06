@@ -64,16 +64,18 @@
  * the content's layout. (A `fit-content` sheet is sized to its content and
  * genuinely sits on the viewport bottom, so its footer stays in flow.)
  *
- * The scroll surface reserves `--sheet-footer-height` of bottom padding so the
- * last row can still be scrolled clear of the footer, and the peek detent
- * grows by the same amount so a collapsed sheet shows its peek content *and*
- * its footer rather than one on top of the other.
+ * The peek detent belongs to the peek content alone: a collapsed sheet shows
+ * exactly that, with the footer parked below the fold. The footer slides up as
+ * the sheet is dragged open and is fully in once there is its own height to
+ * spare above the peek. The scroll surface reserves `--sheet-footer-height` of
+ * bottom padding so the last row can still be scrolled clear of it.
  *
  * ── CSS custom properties published to hosted views ─────────────────────────
  *
  *   --sheet-sticky-top      where a sticky header docks (below the chrome bar)
  *   --sheet-visible-height  how much of the sheet is currently on screen
  *   --sheet-footer-height   height of the pinned footer, 0 when there is none
+ *   --sheet-footer-space    how much of that footer has been revealed
  */
 import type { HTMLAttributes } from 'vue'
 import {
@@ -113,9 +115,9 @@ const props = withDefaults(
   defineProps<{
     class?: HTMLAttributes['class']
     /**
-     * Collapsed detent. A pinned footer's height is added on top, so the peek
-     * shows the peek content *and* the footer; `dynamicPeek` replaces the value
-     * entirely with a measured one.
+     * Collapsed detent — what the sheet shows when minimized. A pinned footer
+     * stays below it and slides in as the sheet opens, so the peek is the peek
+     * content and nothing else. `dynamicPeek` measures this instead.
      */
     peekHeight?: number | string
     modal?: boolean
@@ -546,16 +548,14 @@ const userSnapPoints = computed<SnapPoint[]>(() => {
     props.dynamicPeek && dynamicPeekPx.value != null
       ? `${dynamicPeekPx.value}px`
       : base[0]
-  // The collapsed detent clears the pinned footer as well as the peek content,
-  // otherwise the footer just covers what the peek was meant to show. The
-  // footer carries the bottom safe area, so `adjustForSafeArea` stands down.
-  const footerAllowance = hasFooter.value ? footerHeight.value : 0
-  return [clampPeek(addPixels(peek, footerAllowance)), ...base.slice(1)]
+  // The peek fits the peek content and nothing else — the footer is parked
+  // below the fold at this detent and slides up as the sheet grows.
+  return [clampPeek(peek), ...base.slice(1)]
 })
 
 // Keep the peek strictly below the next detent so snap points stay monotonic
-// (Vaul's drag math assumes ascending heights). On a short screen a tall
-// header plus a footer would otherwise overshoot the 0.5 detent.
+// (Vaul's drag math assumes ascending heights). On a short screen a tall header
+// would otherwise overshoot the 0.5 detent.
 function clampPeek(point: SnapPoint): SnapPoint {
   if (typeof point !== 'string' || !point.endsWith('px')) return point
   const next = baseSnapPoints.value[1]
@@ -574,11 +574,8 @@ function adjustForSafeArea(point: SnapPoint, index: number): SnapPoint {
     return (windowHeight.value - safeAreaInsetTop.value) / windowHeight.value
   }
 
-  // First snap point (peek) → add bottom safe area (home indicator), unless a
-  // pinned footer is already holding that space open.
-  if (index === 0 && !hasFooter.value) {
-    return addPixels(point, safeAreaInsetBottom.value)
-  }
+  // First snap point (peek) → add bottom safe area (home indicator)
+  if (index === 0) return addPixels(point, safeAreaInsetBottom.value)
 
   return point
 }
@@ -616,6 +613,16 @@ const visibleHeight = computed(() => {
   }
   const point = activeSnapPoint.value ?? snapPoints.value[snapIndex.value]
   return point == null ? 0 : snapPointToPixels(point)
+})
+
+// Room the footer has to occupy: everything the sheet shows beyond its peek.
+// The peek belongs to the peek content alone, so a collapsed sheet shows just
+// that — the footer is parked below the fold and slides up as the sheet is
+// dragged open, arriving fully once there's its own height to spare.
+const footerSpace = computed(() => {
+  const peek = snapPoints.value[0]
+  const peekPx = peek == null ? 0 : snapPointToPixels(peek)
+  return Math.max(0, visibleHeight.value - peekPx)
 })
 
 // ==================== SNAP POINT SYNCING ====================
@@ -838,6 +845,7 @@ function handleAnimationEnd(open: boolean) {
             '0 -4px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
           '--sheet-visible-height': `${visibleHeight}px`,
           '--sheet-footer-height': `${footerHeight}px`,
+          '--sheet-footer-space': `${footerSpace}px`,
         }"
         :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
@@ -942,7 +950,7 @@ function handleAnimationEnd(open: boolean) {
             :class="hasFooter ? 'pb-[env(safe-area-inset-bottom)]' : ''"
             :style="{
               transform:
-                'translateY(max(0px, calc(var(--sheet-footer-height) - var(--sheet-visible-height))))',
+                'translateY(max(0px, calc(var(--sheet-footer-height) - var(--sheet-footer-space))))',
             }"
           ></div>
         </div>

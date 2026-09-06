@@ -2,6 +2,8 @@
 
 ### Added
 
+* Route bullets on the transit map are tappable — tap the line's bullet where it rides its track to open that line's route detail, the same page a bullet in a station header opens.
+
 ### Changed
 
 ### Fixed

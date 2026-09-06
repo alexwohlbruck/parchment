@@ -4,9 +4,13 @@
 
 ### Changed
 
-* Removed the non-functional "map theme" dropdown from appearance settings.
-
 ### Fixed
+
+## [0.10.2] - 2026-09-06
+
+### Changed
+
+* Removed the non-functional "map theme" dropdown from appearance settings.
 
 ## [0.10.1] - 2026-09-04
 

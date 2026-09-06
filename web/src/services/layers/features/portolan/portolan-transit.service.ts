@@ -78,6 +78,7 @@ import {
 import { cssFontFor, drawPortolanImage, estRows, estRowsFromAdvances } from './portolan-images'
 import { glyphAdvances } from './portolan-glyphs'
 import { TRANSIT_GROUP_ID, stopTargetFor } from './portolan-ui'
+import { firstLabelLayerId } from './portolan-anchors'
 
 const FLAG_KEY = 'parchment.portolan-transit'
 
@@ -556,12 +557,11 @@ let ribbonAnchor: string | undefined
  * The basemap's first label layer. Ribbons go UNDER it: a route drawn over
  * the street names and shop names it passes is ink on top of the map
  * rather than part of it, and the label is the thing a reader needs.
+ *
+ * `after` names a layer the anchor has to clear — see `firstLabelLayerId`.
  */
-function firstLabelLayer(): string | undefined {
-  for (const l of map?.getStyle?.()?.layers ?? []) {
-    if (l.type === 'symbol' && !l.id.startsWith('portolan-')) return l.id
-  }
-  return undefined
+function firstLabelLayer(after?: string): string | undefined {
+  return firstLabelLayerId(map?.getStyle?.()?.layers ?? [], after)
 }
 
 /**
@@ -682,7 +682,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
         'line-opacity': ['*', opacity, OCCLUDED_OPACITY] as unknown as Expr,
       },
     },
-    ghostAnchorOr(labels),
+    ghostAnchorOr(firstLabelLayer(buildings)),
   )
 }
 

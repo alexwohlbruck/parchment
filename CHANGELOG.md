@@ -10,6 +10,7 @@
 ### Fixed
 
 * Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
+* The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.
 
 ## [0.10.4] - 2026-09-06
 

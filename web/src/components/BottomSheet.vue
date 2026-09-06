@@ -908,6 +908,10 @@ function handleAnimationEnd(open: boolean) {
           :class="
             cn('pb-[env(safe-area-inset-bottom)]', {
               'flex-1 h-[200vh]': !props.fitContent,
+              // A content-sized sheet is capped by its own max-height, so the
+              // surface has to be allowed to shrink under its content before it
+              // will scroll rather than overflow the drawer.
+              'min-h-0': props.fitContent,
               'overflow-y-auto': isFullyExpanded,
               'overflow-y-hidden': !isFullyExpanded,
             })

@@ -77,7 +77,7 @@ function openCreated(canvas: Canvas) {
 
   <div
     v-else-if="!sorted.length"
-    class="h-full flex items-start justify-center p-4"
+    class="min-h-full flex items-start justify-center p-4"
   >
     <EmptyState
       :icon="MapIcon"
@@ -92,7 +92,7 @@ function openCreated(canvas: Canvas) {
     </EmptyState>
   </div>
 
-  <div v-else class="h-full flex flex-col gap-2">
+  <div v-else class="min-h-full flex flex-col gap-2">
     <div class="flex items-center gap-2">
       <div class="relative flex-1">
         <SearchIcon

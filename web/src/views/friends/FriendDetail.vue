@@ -259,14 +259,14 @@ watch([isLoading, friend], ([loading, f]) => {
 </script>
 
 <template>
-  <div v-if="isLoading" class="h-full flex items-center justify-center">
+  <div v-if="isLoading" class="min-h-full flex items-center justify-center">
     <div class="animate-pulse text-muted-foreground">
       {{ t('general.loading') }}
     </div>
   </div>
 
-  <div v-else-if="friend" class="h-full flex flex-col">
-    <div class="flex-1 overflow-y-auto pt-2 pb-4">
+  <div v-else-if="friend" class="min-h-full flex flex-col">
+    <div class="flex-1 pt-2 pb-4">
       <div class="px-4">
 
     <!-- Hero profile -->

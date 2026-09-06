@@ -12,9 +12,10 @@ import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue
     side="left"
     align="end"
     :side-offset="12"
-    desktop-content-class="w-[380px] max-w-[calc(100vw-3.75rem)] overflow-hidden rounded-md p-0 shadow-xl"
-    mobile-content-class="p-0 pt-8"
-    :fit-content="true"
+    desktop-content-class="w-[380px] max-w-[calc(100vw-3.75rem)] max-h-[min(460px,calc(100vh-10rem))] overflow-y-auto rounded-md p-0 shadow-xl"
+    mobile-content-class="p-0 pt-11"
+    :custom-snap-points="['400px', 1]"
+    dynamic-peek
   >
     <template #trigger>
       <Button variant="outline" size="icon-sm" class="rounded-md size-11">

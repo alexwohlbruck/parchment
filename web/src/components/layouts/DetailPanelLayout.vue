@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { ref, watchEffect } from 'vue'
 import { Button } from '@/components/ui/button'
 import { ArrowLeftIcon } from 'lucide-vue-next'
-import { useSheetPeek } from '@/composables/useSheetPeek'
+import { SheetHeader } from '@/components/sheet'
 
 /**
- * Sheet layout with a sticky header containing back button, title, and optional actions.
- * Use this for detail views that need navigation.
+ * Sheet layout with a sticky header containing back button, title, and optional
+ * actions. Use this for detail views that need navigation.
+ *
+ * Like every panel layout this is a plain column that grows with its content —
+ * the host sheet owns the scroll surface. See the layout contract in
+ * `components/BottomSheet.vue`.
  */
-const props = defineProps<{
+defineProps<{
   title?: string
   showBackButton?: boolean
   /**
@@ -22,20 +25,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   back: []
 }>()
-
-const headerEl = ref<HTMLElement | null>(null)
-const { peekRef } = useSheetPeek()
-watchEffect(() => {
-  peekRef.value = props.peekHeader ? headerEl.value : null
-})
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
-    <!-- Header -->
-    <div
-      ref="headerEl"
-      class="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border/50"
+  <div class="min-h-full flex flex-col">
+    <SheetHeader
+      :peek="!!peekHeader"
+      :solid="false"
+      class="bg-background/80 backdrop-blur-xl border-b border-border/50"
     >
       <div class="flex items-center gap-3 px-4 py-3">
         <Button
@@ -57,14 +54,13 @@ watchEffect(() => {
 
         <slot name="actions" />
       </div>
-    </div>
+    </SheetHeader>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto pt-2 pb-4">
+    <div class="flex-1 pt-2 pb-4">
       <div class="px-4">
         <slot />
       </div>
     </div>
   </div>
 </template>
-

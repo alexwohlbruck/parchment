@@ -74,7 +74,7 @@ const isEmpty = computed(
     <Spinner />
   </div>
 
-  <div v-else-if="isEmpty" class="h-full flex items-start justify-center p-4">
+  <div v-else-if="isEmpty" class="min-h-full flex items-start justify-center p-4">
     <EmptyState
       :icon="Layers3Icon"
       :title="t('layers.empty.title')"
@@ -88,7 +88,7 @@ const isEmpty = computed(
     </EmptyState>
   </div>
 
-  <div v-else class="h-full flex flex-col gap-2">
+  <div v-else class="min-h-full flex flex-col gap-2">
     <div class="flex items-center gap-2">
       <div class="relative flex-1">
         <SearchIcon

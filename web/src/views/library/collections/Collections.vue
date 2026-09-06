@@ -29,7 +29,7 @@ const loading = computed(() => {
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
+  <div class="min-h-full flex flex-col">
     <EmptyState
       v-if="showEmptyState"
       :icon="FolderIcon"

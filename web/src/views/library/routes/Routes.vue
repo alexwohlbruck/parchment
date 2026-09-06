@@ -27,7 +27,7 @@ const loading = computed(
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
+  <div class="min-h-full flex flex-col">
     <div
       v-if="showEmptyState"
       class="flex-1 flex flex-col items-center gap-3 mt-32"

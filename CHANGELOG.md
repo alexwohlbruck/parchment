@@ -6,11 +6,14 @@
 
 * Releases now deploy the API themselves instead of waiting up to an hour for the server to notice a new image.
 * Your account row stays pinned to the bottom of the mobile dashboard, so you can reach it without scrolling past every recent place.
+* Search suggestions run the full height of the panel instead of stopping half way down with empty space beneath them.
+* The layer picker opens as a sheet you can drag up to full screen again.
 
 ### Fixed
 
 * Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
 * The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.
+* Lists leave room for the on-screen keyboard, so you can scroll to the end of your results without dismissing it first.
 
 ## [0.10.4] - 2026-09-06
 

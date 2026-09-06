@@ -2,10 +2,16 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.10.3] - 2026-09-06
+
+### Added
+
 * Feedback now opens a form inside the app instead of sending you to GitHub. Pick a board, describe the bug or idea, and you'll be notified when it ships.
 * On a phone you can shake the device to open the feedback form, so reporting something you just hit takes no hunting through menus. Off by default — turn it on under Settings → Behavior.
-
-### Changed
 
 ### Fixed
 

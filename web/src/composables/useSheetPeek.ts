@@ -23,6 +23,11 @@ import { ref, inject, watch, onUnmounted, type Ref } from 'vue'
  *
  * No-op when there is no host sheet (desktop LeftSheet, or any BottomSheet that
  * hasn't opted into `dynamic-peek`) — the inject simply resolves to null.
+ *
+ * Most views don't need this directly: `<SheetHeader>` registers itself as the
+ * peek anchor, which is the common case. Reach for the composable when the peek
+ * region isn't the sticky header — e.g. Place, where the collapsed detent fits
+ * the title and action buttons but nothing pins.
  */
 export function useSheetPeek(): { peekRef: Ref<HTMLElement | null> } {
   const register = inject<((el: HTMLElement | null) => void) | null>(

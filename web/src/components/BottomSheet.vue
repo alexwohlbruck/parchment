@@ -1,6 +1,90 @@
 <script setup lang="ts">
+/**
+ * ============================================================================
+ * SHEET LAYOUT CONTRACT
+ * ============================================================================
+ *
+ * Every sheet is made of the same three regions. All of them are optional, and
+ * a view opts into each one where it needs it:
+ *
+ *   ┌──────────────────────────────┐
+ *   │ chrome (drag handle, actions)│  owned by this component, floats over all
+ *   ├──────────────────────────────┤
+ *   │ STICKY HEADER   <SheetHeader>│  pins to the top; sizes the peek detent
+ *   ├──────────────────────────────┤
+ *   │                              │
+ *   │ SCROLLABLE CONTENT   default │  the one and only scroll surface
+ *   │  (may contain horizontally   │
+ *   │   scrolling rows)            │
+ *   ├──────────────────────────────┤
+ *   │ PINNED FOOTER   <SheetFooter>│  rides the sheet's visible bottom edge
+ *   └──────────────────────────────┘
+ *
+ * ── The one-scroll-surface rule ─────────────────────────────────────────────
+ *
+ * The sheet owns exactly one vertical scroll surface: the element below tagged
+ * `data-sheet-scroll`. A view rendered inside a sheet must NOT create its own
+ * (`h-full` + `flex-1 overflow-y-auto` is the shape to look out for). Nested
+ * scrollers fight the drag gesture on touch: the inner one swallows the
+ * upward pan, so the sheet can neither be expanded from inside its content nor
+ * dragged back down once you've scrolled, and the sheet's own at-top detection
+ * (which gates `data-vaul-no-drag` and the touchmove guard) is reading the
+ * wrong element.
+ *
+ * So a hosted view is a plain, unbounded column that grows as tall as its
+ * content — normally `<PanelLayout>`, which is `min-h-full` (fill a short
+ * sheet) and never `h-full` (which would cap it at one viewport and unstick
+ * sticky children once content scrolled past).
+ *
+ * Views that need the scrolling element itself — to save/restore a position,
+ * or to drive infinite scroll — resolve it with `findScrollAncestor()` from
+ * `@/lib/scroll` rather than assuming a particular ancestor. Horizontally
+ * scrolling rows (photo galleries, chip rows) are fine anywhere inside: they
+ * only take over the x axis, so vertical pans still reach the sheet.
+ *
+ * ── How the drag and the scroll cooperate ───────────────────────────────────
+ *
+ * Below the top detent the surface is `overflow-hidden` with `touch-action:
+ * none`, so every vertical pan is a sheet drag. At the top detent it becomes
+ * scrollable, and two guards hand the gesture back: `data-vaul-no-drag` once
+ * scrolled off the top (Vaul stops treating pans as drags), and a touchmove
+ * guard that swallows the overscroll at `scrollTop === 0` so a downward pull
+ * collapses the sheet instead of rubber-banding the page.
+ *
+ * ── Why the footer has to be portaled ───────────────────────────────────────
+ *
+ * A snap-point sheet is a full-viewport-tall panel translated down by the
+ * detent, so only its top `activeSnapPoint` pixels are on screen and its own
+ * bottom edge sits far below the fold. The sheet's visible bottom edge is
+ * therefore the *viewport* bottom, which nothing in the content flow can
+ * reach — `position: sticky; bottom: 0` sticks to the off-screen edge. So this
+ * component keeps a thin layer sized to `--sheet-visible-height` and pins the
+ * footer to the bottom of that; `<SheetFooter>` teleports into it. The layer
+ * holds only the footer, so the per-frame resize during a drag never touches
+ * the content's layout. (A `fit-content` sheet is sized to its content and
+ * genuinely sits on the viewport bottom, so its footer stays in flow.)
+ *
+ * The scroll surface reserves `--sheet-footer-height` of bottom padding so the
+ * last row can still be scrolled clear of the footer, and the peek detent
+ * grows by the same amount so a collapsed sheet shows its peek content *and*
+ * its footer rather than one on top of the other.
+ *
+ * ── CSS custom properties published to hosted views ─────────────────────────
+ *
+ *   --sheet-sticky-top      where a sticky header docks (below the chrome bar)
+ *   --sheet-visible-height  how much of the sheet is currently on screen
+ *   --sheet-footer-height   height of the pinned footer, 0 when there is none
+ */
 import type { HTMLAttributes } from 'vue'
-import { ref, computed, watch, onMounted, onUnmounted, provide, nextTick } from 'vue'
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  provide,
+  nextTick,
+} from 'vue'
 import { cn } from '@/lib/utils'
 import {
   useWindowSize,
@@ -28,6 +112,11 @@ import { useMapToolsStore } from '@/stores/map-tools.store'
 const props = withDefaults(
   defineProps<{
     class?: HTMLAttributes['class']
+    /**
+     * Collapsed detent. A pinned footer's height is added on top, so the peek
+     * shows the peek content *and* the footer; `dynamicPeek` replaces the value
+     * entirely with a measured one.
+     */
     peekHeight?: number | string
     modal?: boolean
     dismissable?: boolean
@@ -50,15 +139,22 @@ const props = withDefaults(
     parentId?: string
     zIndexOffset?: number
     respectSafeArea?: boolean
+    /**
+     * Size the sheet to its content and sit it on the viewport bottom, instead
+     * of the full-height snap-point panel. Popover-style sheets use this; a
+     * pinned footer then needs no portal, since the sheet really does end where
+     * it looks like it ends.
+     */
     fitContent?: boolean
     /**
      * When true, the peek (first) snap point is sized to fit a registered
      * peek element instead of the static `peekHeight`. A hosted view marks
-     * the bottom of its peek region with `useSheetPeek()`; we measure from
-     * the drawer top to that element's bottom and drive the first snap point
-     * from it. Async content that resizes the region re-snaps with the
-     * normal Vaul transition, so the sheet glides between heights. Opt-in:
-     * views without a registered element fall back to `peekHeight`.
+     * the bottom of its peek region with `useSheetPeek()` — or, more usually,
+     * just wraps it in `<SheetHeader>`; we measure from the drawer top to that
+     * element's bottom and drive the first snap point from it. Async content
+     * that resizes the region re-snaps with the normal Vaul transition, so the
+     * sheet glides between heights. Opt-in: views without a registered element
+     * fall back to `peekHeight`.
      */
     dynamicPeek?: boolean
   }>(),
@@ -86,12 +182,44 @@ const drawerContentRef = ref<InstanceType<typeof DrawerContent> | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const headerRef = ref<HTMLElement | null>(null)
 
+// ==================== PINNED FOOTER ====================
+//
+// `<SheetFooter>` teleports into `footerHost`. It also registers itself, so we
+// know whether a footer exists before it has painted — the empty host must not
+// contribute a safe-area strip or a border to a sheet that has no footer.
+
+const footerHost = ref<HTMLElement | null>(null)
+const footerCount = ref(0)
+const hasFooter = computed(() => footerCount.value > 0)
+provide('sheetFooter', {
+  target: footerHost,
+  register: () => (footerCount.value += 1),
+  unregister: () => (footerCount.value -= 1),
+})
+
+const { height: footerHeight } = useElementSize(footerHost, undefined, {
+  box: 'border-box',
+})
+
 // A hosted view opts into the opaque in-flow chrome bar when it pins its own
 // header to the scroll surface (e.g. Directions) — content then scrolls
 // cleanly beneath it. Plain scrolling views (Place, etc.) leave it off and
 // keep the original transparent chrome with content near the top.
+//
+// Two ways in: a view can drive the flag itself (a header that comes and goes
+// with its data), or `<SheetHeader>` claims the bar for as long as it is
+// mounted. The claims are counted, so a sub-page's header releasing the bar
+// can't switch it off underneath the view it was pushed from.
 const chromeBarEnabled = ref(false)
+const chromeBarClaims = ref(0)
+const showChromeBar = computed(
+  () => chromeBarEnabled.value || chromeBarClaims.value > 0,
+)
 provide('sheetChromeBar', chromeBarEnabled)
+provide('sheetChromeBarClaim', {
+  acquire: () => (chromeBarClaims.value += 1),
+  release: () => (chromeBarClaims.value -= 1),
+})
 const activeSnapPoint = ref<number | string | null>(
   props.activeSnapPoint ?? null,
 )
@@ -359,16 +487,11 @@ function measureDynamicPeek() {
   if (!contentEl || typeof contentEl.getBoundingClientRect !== 'function') return
   const top = contentEl.getBoundingClientRect().top
   const bottom = peekEl.value.getBoundingClientRect().bottom
-  let h = bottom - top + DYNAMIC_PEEK_BUFFER
+  const h = bottom - top + DYNAMIC_PEEK_BUFFER
   if (h <= 0) return
 
-  // Keep the peek strictly below the next detent so snap points stay
-  // monotonic (Vaul's drag math assumes ascending heights). On a short
-  // screen a tall header would otherwise overshoot the 0.5 detent.
-  const nextPoint = props.customSnapPoints?.[1] ?? 0.5
-  const maxPeek = snapPointToPixels(nextPoint) - 24
-  if (maxPeek > 0) h = Math.min(h, maxPeek)
-
+  // `clampPeek` keeps the result below the next detent once the footer
+  // allowance has been folded in.
   dynamicPeekPx.value = Math.round(h)
 }
 
@@ -381,7 +504,7 @@ watch(
     peekContentHeight,
     peekEl,
     windowHeight,
-    () => chromeBarEnabled.value,
+    () => showChromeBar.value,
     () => safeAreaInsetBottom.value,
     () => props.dynamicPeek,
     // Re-measure when the sheet returns to the top, picking up any content
@@ -401,15 +524,46 @@ const baseSnapPoints = computed<SnapPoint[]>(
   () => props.customSnapPoints ?? [props.peekHeight, 0.5, 1],
 )
 
+// Grow a snap point by a pixel amount, preserving whichever format it came in
+// as. Non-pixel strings (e.g. '50%') pass through untouched.
+function addPixels(point: SnapPoint, px: number): SnapPoint {
+  if (px <= 0) return point
+  if (typeof point === 'string') {
+    return point.endsWith('px') ? `${parseFloat(point) + px}px` : point
+  }
+  if (point > 0 && point <= 1) {
+    return (point * windowHeight.value + px) / windowHeight.value
+  }
+  return point + px
+}
+
 // User-provided snap points, with the measured peek height swapped into the
 // first slot when dynamic peek is active and we have a measurement.
 const userSnapPoints = computed<SnapPoint[]>(() => {
   const base = baseSnapPoints.value
-  if (props.dynamicPeek && dynamicPeekPx.value != null && base.length > 0) {
-    return [`${dynamicPeekPx.value}px`, ...base.slice(1)]
-  }
-  return base
+  if (!base.length) return base
+  const peek =
+    props.dynamicPeek && dynamicPeekPx.value != null
+      ? `${dynamicPeekPx.value}px`
+      : base[0]
+  // The collapsed detent clears the pinned footer as well as the peek content,
+  // otherwise the footer just covers what the peek was meant to show. The
+  // footer carries the bottom safe area, so `adjustForSafeArea` stands down.
+  const footerAllowance = hasFooter.value ? footerHeight.value : 0
+  return [clampPeek(addPixels(peek, footerAllowance)), ...base.slice(1)]
 })
+
+// Keep the peek strictly below the next detent so snap points stay monotonic
+// (Vaul's drag math assumes ascending heights). On a short screen a tall
+// header plus a footer would otherwise overshoot the 0.5 detent.
+function clampPeek(point: SnapPoint): SnapPoint {
+  if (typeof point !== 'string' || !point.endsWith('px')) return point
+  const next = baseSnapPoints.value[1]
+  if (next === undefined) return point
+  const max = snapPointToPixels(next) - 24
+  if (max <= 0) return point
+  return `${Math.min(parseFloat(point), max)}px`
+}
 
 // Apply safe area adjustments to a snap point
 function adjustForSafeArea(point: SnapPoint, index: number): SnapPoint {
@@ -420,20 +574,10 @@ function adjustForSafeArea(point: SnapPoint, index: number): SnapPoint {
     return (windowHeight.value - safeAreaInsetTop.value) / windowHeight.value
   }
 
-  // First snap point (peek) → add bottom safe area (home indicator)
-  if (index === 0 && safeAreaInsetBottom.value > 0) {
-    if (typeof point === 'string' && point.endsWith('px')) {
-      return `${parseFloat(point) + safeAreaInsetBottom.value}px`
-    }
-    if (typeof point === 'number') {
-      if (point > 0 && point <= 1) {
-        return (
-          (point * windowHeight.value + safeAreaInsetBottom.value) /
-          windowHeight.value
-        )
-      }
-      return point + safeAreaInsetBottom.value
-    }
+  // First snap point (peek) → add bottom safe area (home indicator), unless a
+  // pinned footer is already holding that space open.
+  if (index === 0 && !hasFooter.value) {
+    return addPixels(point, safeAreaInsetBottom.value)
   }
 
   return point
@@ -458,6 +602,20 @@ const activeSnapPointIndex = computed(() => {
 const isFullyExpanded = computed(() => {
   if (props.fitContent) return props.open
   return activeSnapPoint.value === snapPoints.value.at(-1)
+})
+
+// How much of the sheet is actually on screen. The drawer element is a full
+// viewport-height panel translated down by the detent, so this is what its
+// height *looks* like — and where the pinned footer has to sit. Live bounds
+// while dragging or animating, the target detent at rest (see the bounds
+// tracking above for why the target rather than the measured rect).
+const visibleHeight = computed(() => {
+  if (!props.open && !isAnimating.value) return 0
+  if (liveBounds.value) {
+    return Math.max(0, windowHeight.value - liveBounds.value.y)
+  }
+  const point = activeSnapPoint.value ?? snapPoints.value[snapIndex.value]
+  return point == null ? 0 : snapPointToPixels(point)
 })
 
 // ==================== SNAP POINT SYNCING ====================
@@ -678,13 +836,15 @@ function handleAnimationEnd(open: boolean) {
           zIndex: 40 + props.zIndexOffset,
           '--tw-shadow':
             '0 -4px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+          '--sheet-visible-height': `${visibleHeight}px`,
+          '--sheet-footer-height': `${footerHeight}px`,
         }"
         :data-vaul-no-drag="!isAtTop ? '' : undefined"
       >
         <!-- Chrome: drag handle + action buttons. Always an overlay that takes
              no layout space, so content sits high near the handle at rest. A
              view that pins its own header opts into the chrome bar (sets
-             `chromeBarEnabled`): its opaque backing then fades in as you scroll
+             the chrome bar): its opaque backing then fades in as you scroll
              so content reads cleanly under the handle / buttons, and the pinned
              header docks below the bar via `--sheet-sticky-top`. -->
         <!-- z above the trip-row content (dots/caps at z-20) so it hides
@@ -694,12 +854,12 @@ function handleAnimationEnd(open: boolean) {
           v-if="props.showDragHandle || $slots.actions"
           ref="headerRef"
           class="absolute top-0 left-0 right-0 z-[22] grid grid-cols-[1fr_auto_1fr] items-start pointer-events-none"
-          :class="chromeBarEnabled ? 'min-h-[2.75rem]' : ''"
+          :class="showChromeBar ? 'min-h-[2.75rem]' : ''"
         >
           <!-- Opaque backing (chrome views only) — fades in with scroll so the
                pinned header / content reads cleanly under the handle. -->
           <div
-            v-if="chromeBarEnabled"
+            v-if="showChromeBar"
             class="absolute inset-0 bg-background"
             :style="{ opacity: chromeFade }"
           />
@@ -748,7 +908,7 @@ function handleAnimationEnd(open: boolean) {
             touchAction: isFullyExpanded ? 'pan-y' : 'none',
             overscrollBehavior: 'none',
             // Sticky headers in chrome views dock just below the overlay bar.
-            '--sheet-sticky-top': chromeBarEnabled ? '2.75rem' : '0px',
+            '--sheet-sticky-top': showChromeBar ? '2.75rem' : '0px',
           }"
           @touchstart="handleTouchStart"
           @touchmove="handleTouchMove"
@@ -757,6 +917,34 @@ function handleAnimationEnd(open: boolean) {
           <slot />
           <!-- Spacer to account for safe area inset bottom -->
           <div class="w-full h-[env(safe-area-inset-bottom)]"></div>
+          <!-- Clear the pinned footer so the last row can still be read. -->
+          <div v-if="hasFooter" :style="{ height: `${footerHeight}px` }"></div>
+        </div>
+
+        <!-- Pinned footer. A fit-content sheet really does end at the viewport
+             bottom, so its footer is just the last child in the column. A
+             snap-point sheet does not, so the footer rides a layer sized to the
+             visible height, and slides away with the sheet once the sheet gets
+             shorter than the footer itself (closing, or dragged below peek). -->
+        <div
+          v-if="props.fitContent"
+          ref="footerHost"
+          :class="hasFooter ? 'shrink-0 pb-[env(safe-area-inset-bottom)]' : ''"
+        ></div>
+        <div
+          v-else
+          class="pointer-events-none absolute inset-x-0 top-0 z-[23]"
+          :style="{ height: 'var(--sheet-visible-height)' }"
+        >
+          <div
+            ref="footerHost"
+            class="pointer-events-auto absolute inset-x-0 bottom-0"
+            :class="hasFooter ? 'pb-[env(safe-area-inset-bottom)]' : ''"
+            :style="{
+              transform:
+                'translateY(max(0px, calc(var(--sheet-footer-height) - var(--sheet-visible-height))))',
+            }"
+          ></div>
         </div>
       </DrawerContent>
     </DrawerPortal>

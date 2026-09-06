@@ -76,6 +76,10 @@
  *   --sheet-visible-height  how much of the sheet is currently on screen
  *   --sheet-footer-height   height of the pinned footer, 0 when there is none
  *   --sheet-footer-space    how much of that footer has been revealed
+ *
+ * `--keyboard-inset-height` (from `useVirtualKeyboard`, published app-wide) is
+ * respected too: the scroll surface reserves that much extra room at the end
+ * and the footer rides above the keyboard rather than under it.
  */
 import type { HTMLAttributes } from 'vue'
 import {
@@ -931,6 +935,9 @@ function handleAnimationEnd(open: boolean) {
           <div class="w-full h-[env(safe-area-inset-bottom)]"></div>
           <!-- Clear the pinned footer so the last row can still be read. -->
           <div v-if="hasFooter" :style="{ height: `${footerHeight}px` }"></div>
+          <!-- And clear the on-screen keyboard, so reaching the end of a list
+               doesn't mean dismissing the keyboard you're typing into. -->
+          <div class="w-full h-[var(--keyboard-inset-height,0px)]"></div>
         </div>
 
         <!-- Pinned footer. A fit-content sheet really does end at the viewport
@@ -954,7 +961,7 @@ function handleAnimationEnd(open: boolean) {
             :class="hasFooter ? 'pb-[env(safe-area-inset-bottom)]' : ''"
             :style="{
               transform:
-                'translateY(max(0px, calc(var(--sheet-footer-height) - var(--sheet-footer-space))))',
+                'translateY(calc(max(0px, calc(var(--sheet-footer-height) - var(--sheet-footer-space))) - var(--keyboard-inset-height, 0px)))',
             }"
           ></div>
         </div>

@@ -17,6 +17,7 @@ import { useStorage } from '@vueuse/core'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
+import { useVirtualKeyboard } from '@/composables/useVirtualKeyboard'
 import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
 import { useTrackerLocationsLayer } from '@/composables/useTrackerLocationsLayer'
 import { useVehiclesStore } from '@/stores/vehicles.store'
@@ -57,6 +58,9 @@ const layersStore = useLayersStore()
 const bookmarksService = useBookmarksService()
 const collectionsService = useCollectionsService()
 const appStore = useAppStore()
+// Publishes `--keyboard-inset-height` app-wide; sheets and lists pad to it.
+useVirtualKeyboard()
+
 const friendLocationsLayer = useFriendLocationsLayer()
 const trackerLocationsLayer = useTrackerLocationsLayer()
 const vehiclesStore = useVehiclesStore()

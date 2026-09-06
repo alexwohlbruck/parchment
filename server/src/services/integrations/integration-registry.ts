@@ -24,6 +24,7 @@ import { UberIntegration } from './uber-integration'
 import { LyftIntegration } from './lyft-integration'
 import { OpenAqIntegration } from './openaq-integration'
 import { FirmsIntegration } from './firms-integration'
+import { QuackbackIntegration } from './quackback-integration'
 
 /**
  * Registry for all integrations
@@ -63,6 +64,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new LyftIntegration())
     this.registerIntegration(new OpenAqIntegration())
     this.registerIntegration(new FirmsIntegration())
+    this.registerIntegration(new QuackbackIntegration())
   }
 
   /**

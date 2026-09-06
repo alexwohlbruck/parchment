@@ -38,6 +38,7 @@ const defaults: Record<string, string> = {
 
   // Keep the mailer from attempting real SMTP if a test reaches it.
   SMTP_HOST: '',
+
   APP_TESTER_EMAIL: 'test@parchment.local',
 }
 

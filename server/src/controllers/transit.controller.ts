@@ -37,6 +37,14 @@ app.get('/route-detail', ({ query }) =>
   { detail: { tags: ['Transit'], summary: 'Route detail with stops and shape' } },
 )
 
+// A route id off a map tile belongs to a feed the tile never names, and
+// every other transit endpoint is keyed by the pair — so the map resolves
+// it here before it can open anything.
+app.get('/resolve-route', ({ query }) =>
+  requestBarrelman('/transit/resolve-route', query, { cacheControl: 'public, max-age=3600' }),
+  { detail: { tags: ['Transit'], summary: 'Resolve a bare GTFS route id at a location' } },
+)
+
 app.get('/departures', ({ query }) =>
   requestBarrelman('/transit/departures', query, { cacheControl: 'public, max-age=30' }),
   { detail: { tags: ['Transit'], summary: 'Upcoming departures at a stop' } },

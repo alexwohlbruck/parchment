@@ -79,6 +79,7 @@ import { cssFontFor, drawPortolanImage, estRows, estRowsFromAdvances } from './p
 import { glyphAdvances } from './portolan-glyphs'
 import { TRANSIT_GROUP_ID, stopTargetFor } from './portolan-ui'
 import { firstLabelLayerId } from './portolan-anchors'
+import { resolveRouteRef, routeRefFor } from './portolan-routes'
 
 const FLAG_KEY = 'parchment.portolan-transit'
 
@@ -106,6 +107,12 @@ const STOP_CLICK_LAYERS = [
   'portolan-station-labels',
   'portolan-station-labels-hi',
 ]
+
+// Layers whose features ARE a route: the caterpillar bullets riding the
+// ribbons and the word labels set along them. Each names exactly one
+// route, which is what makes it a link where a station's bullet strip —
+// one composed image for the whole row — cannot be.
+const ROUTE_CLICK_LAYERS = ['portolan-cats', 'portolan-cat-text']
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] } as any
 
@@ -472,7 +479,7 @@ function bindListeners() {
   const onStopEnter = (e: any) => {
     if (targetAt(e)) map.getCanvas().style.cursor = 'pointer'
   }
-  const onStopLeave = () => {
+  const onLeave = () => {
     if (map) map.getCanvas().style.cursor = ''
   }
   const onStopClick = (e: any) => {
@@ -480,11 +487,60 @@ function bindListeners() {
     if (!target) return
     router.push(target as any)
   }
-  boundLayerHandlers = STOP_CLICK_LAYERS.flatMap(layer => [
-    { event: 'mouseenter', layer, fn: onStopEnter },
-    { event: 'mouseleave', layer, fn: onStopLeave },
-    { event: 'click', layer, fn: onStopClick },
-  ])
+  // Route clicks → the line's own detail, the way tapping a bullet in a
+  // station header opens it. The pair that page is keyed by has to be
+  // resolved first (portolan-routes), so a hover warms the answer and the
+  // tap that follows navigates with nothing in front of it.
+  const refAt = (e: any) => {
+    const f = e.features?.[0]
+    return routeRefFor(f?.properties, f?.geometry?.coordinates)
+  }
+
+  /** Whether a stop that would open a place sits under this same point. */
+  const stopUnder = (e: any) => {
+    const layers = STOP_CLICK_LAYERS.filter(l => map.getLayer(l))
+    if (!layers.length) return false
+    return map
+      .queryRenderedFeatures(e.point, { layers })
+      .some((f: any) => stopTargetFor(f.properties))
+  }
+
+  const onRouteEnter = (e: any) => {
+    const ref = refAt(e)
+    if (!ref) return
+    map.getCanvas().style.cursor = 'pointer'
+    void resolveRouteRef(ref)
+  }
+  const onRouteClick = async (e: any) => {
+    const ref = refAt(e)
+    if (!ref) return
+    // A station's symbols are drawn above the bullets, and both layers get
+    // the click when they overlap. The one on top is the one being
+    // pointed at, so a bullet lying under a stop label yields to it —
+    // otherwise the two handlers would both navigate, ours last.
+    if (stopUnder(e)) return
+    const target = await resolveRouteRef(ref)
+    // No feed claims this id here — the pyramid draws a line barrelman has
+    // no timetable for. Nothing to open, and nothing to say about it.
+    if (!target) return
+    router.push({
+      name: AppRoute.TRANSIT_ROUTE,
+      params: { feedId: target.feedId, routeId: target.routeId },
+    })
+  }
+
+  boundLayerHandlers = [
+    ...STOP_CLICK_LAYERS.flatMap(layer => [
+      { event: 'mouseenter', layer, fn: onStopEnter },
+      { event: 'mouseleave', layer, fn: onLeave },
+      { event: 'click', layer, fn: onStopClick },
+    ]),
+    ...ROUTE_CLICK_LAYERS.flatMap(layer => [
+      { event: 'mouseenter', layer, fn: onRouteEnter },
+      { event: 'mouseleave', layer, fn: onLeave },
+      { event: 'click', layer, fn: onRouteClick },
+    ]),
+  ]
   for (const { event, layer, fn } of boundLayerHandlers) map.on(event, layer, fn)
 }
 

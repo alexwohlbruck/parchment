@@ -44,6 +44,9 @@ app.get('/trip-stops', ({ query }) =>
  *
  * Only route ids come back. The boards are large and the caller is asking a
  * yes/no question about each line.
+ *
+ * Each board covers the whole station complex, so the answer can be
+ * compared against the complex-wide list of lines the panel draws.
  */
 app.get('/service-at-stops', async ({ query, set }) => {
   const feedId = String(query.feedId ?? '')
@@ -65,7 +68,20 @@ app.get('/service-at-stops', async ({ query, set }) => {
     while (next < wanted.length) {
       const stopId = wanted[next++]
       try {
-        const res = await requestBarrelman('/transit/departures', { feedId, stopId })
+        // The whole complex, not one platform. The bullets being judged are
+        // every line a rider reaches from this stop — the station's own
+        // (`via: 'station'`, which spans the complex) and the ones
+        // transfers.txt joins to it — so a board for a single platform
+        // marked the rest "not running": at Atlantic Av the BMT platform
+        // knows nothing of the IRT 2/4 one level down. `complex` adds the
+        // same-named siblings and `transfers` the joined ones, which is the
+        // same expansion route-detail used to list the bullets.
+        const res = await requestBarrelman('/transit/departures', {
+          feedId,
+          stopId,
+          complex: 'true',
+          transfers: 'true',
+        })
         if (!res.ok) continue
         const groups = (await res.json()) as Array<{
           stop?: { feedOnestopId?: string }

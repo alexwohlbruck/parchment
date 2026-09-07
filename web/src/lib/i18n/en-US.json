@@ -1243,8 +1243,7 @@
       "nearby": "Nearby",
       "transfer": "transfer",
       "notRunning": "not running now",
-      "notStoppingHere": "The {route} is not stopping here right now",
-      "someStopsNotServed": "Dimmed stops are not being served right now."
+      "notStoppingHere": "The {route} is not stopping here right now"
     },
     "header": {
       "showMore": "Show more",

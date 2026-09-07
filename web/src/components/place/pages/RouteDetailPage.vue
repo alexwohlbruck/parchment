@@ -388,12 +388,6 @@ function servesStop(stop: RouteDetailStop): boolean {
   return runningAt.value.get(stop.stopId)?.has(props.routeId) ?? true
 }
 
-/** True once any stop is known NOT to be served — the only condition under
- *  which the timeline says anything about it. */
-const hasUnservedStops = computed(() =>
-  displayStops.value.some(s => !servesStop(s)),
-)
-
 /**
  * The spine, cut into one segment per gap between stops.
  *
@@ -593,12 +587,6 @@ onUnmounted(() => {
       <!-- ── Stop timeline ─────────────────────────────── -->
       <div>
         <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
-
-        <!-- Said once, in words, rather than left for a rider to infer from
-             a dashed line. Only when a stop is actually known to be skipped. -->
-        <p v-if="hasUnservedStops" class="text-xs text-muted-foreground mb-2">
-          {{ t('place.transit.someStopsNotServed') }}
-        </p>
 
         <div ref="listEl" class="relative" style="padding-left: 32px">
           <!-- The route line, one segment per gap between stops. Solid in

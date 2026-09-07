@@ -9,6 +9,11 @@
 import { Elysia } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
 import { requestBarrelman } from '../services/barrelman.service'
+import {
+  routesRunningAt,
+  SERVICE_BOARD_EVENTS,
+  type ServiceBoard,
+} from '../lib/service-window'
 
 const app = new Elysia({ prefix: '/transit' }).use(requireAuth)
 
@@ -48,7 +53,8 @@ app.get('/trip-stops', ({ query }) =>
  * Each board covers the whole station complex, so the answer can be
  * compared against the complex-wide list of lines the panel draws. A stop
  * present with an empty list has no departures at all; a stop absent
- * altogether could not be reached.
+ * altogether could not be answered — either the call failed, or the board
+ * came back too short to mean anything (see `service-window`).
  */
 app.get('/service-at-stops', async ({ query, set }) => {
   const feedId = String(query.feedId ?? '')
@@ -83,24 +89,27 @@ app.get('/service-at-stops', async ({ query, set }) => {
           stopId,
           complex: 'true',
           transfers: 'true',
+          // Deliberately untrimmed: asking barrelman for a window would hide
+          // how far the page actually reached, and that reach is what says
+          // whether an absent line is missing or merely off the end.
+          n: String(SERVICE_BOARD_EVENTS),
         })
         if (!res.ok) continue
-        const groups = (await res.json()) as Array<{
+        const groups = (await res.json()) as Array<ServiceBoard & {
           stop?: { feedOnestopId?: string }
-          departures?: Array<{ route?: { id?: string } }>
         }>
-        const ids = new Set<string>()
-        for (const g of Array.isArray(groups) ? groups : []) {
+        const boards = Array.isArray(groups) ? groups : []
+        for (const g of boards) {
           if (g.stop?.feedOnestopId && !feedOnestopId) feedOnestopId = g.stop.feedOnestopId
-          for (const d of g.departures ?? []) if (d.route?.id) ids.add(d.route.id)
         }
-        // A board that came back EMPTY is not the same as one that never
-        // came back. Upstream answered and named nothing departing here,
-        // which is exactly what a stop looks like when the line has stopped
-        // calling at it — the 5's Dyre Av branch at three in the morning.
-        // Reported as an empty list; a stop is omitted only when the call
-        // itself failed, and only that is missing evidence.
-        running[stopId] = [...ids]
+        // A board that came back EMPTY is not the same as one that never came
+        // back. Upstream answered and named nothing departing here, which is
+        // exactly what a stop looks like when the line has stopped calling at
+        // it — the 5's Dyre Av branch at three in the morning. Reported as an
+        // empty list; a stop is omitted when the call failed or when the board
+        // was too short to judge, and only those are missing evidence.
+        const ids = routesRunningAt(boards, Date.now())
+        if (ids) running[stopId] = ids
       } catch {
         // one unreachable board must not fail the rest, and must not be
         // mistaken for one that answered

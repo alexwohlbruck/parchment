@@ -22,7 +22,7 @@
 * On the dark map, the rest of the network stays more visible behind an opened line.
 * An opened line sits on its own track rather than beside it, with stop dots sized to the line and drawn in its colour — no more white bundle markers or dots left in a lane the line no longer runs in.
 * An opened line shows its stop names and connection bullets at every zoom, including the whole-route overview.
-* Route bullets on the map fade for lines that aren't running at a station, matching the stop list. The map used to go by the timetable alone, which on a holiday or a reroute day says every line is running.
+* Route bullets on the map fade for lines that aren't running at a station, matching the stop list and the station header. The map used to go by the timetable alone, which reads the wrong day on a holiday — Labor Day runs a Sunday service, and the map still showed you Monday's.
 * A line's alerts now read in three tiers: disruptions in effect keep their full-width cards, service notices condense to one line each, and scheduled work stays folded away. Rows in effect no longer all repeat "Now".
 
 ### Fixed
@@ -33,6 +33,7 @@
 * Live trains show on a line's stop timeline again, at the right point along it — they had collected at the top, taking the route line with them, once the list dropped the stops a line isn't running.
 * A line's page shows the trains that are actually running. On the 4 that meant 2 of the 21 in service, because most trains are only named by the part of the realtime feed we ignored — and a server running ten minutes slow discarded most of the rest.
 * Alerts for another railway no longer appear on a subway line. Metro-North and the LIRR each number a route "4" too, and all three share one alert feed.
+* An opened line keeps the map's own stations and bullets while you pan. Panning off the route could swap them for plain dots and labels partway through looking at it.
 * An isolated line ends where the trains really turn. When every 4 stops at Crown Hts–Utica Av, the map's line stops there too, instead of running on down a branch the schedule says it serves.
 * The train picker counts what it lists. It used to announce a train that was heading the other way and then offer nothing to select; trains running the other direction now live behind the direction toggle.
 * Connection bullets in a line's stop list fade when the line they name isn't running, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.

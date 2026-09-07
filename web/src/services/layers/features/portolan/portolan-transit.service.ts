@@ -199,20 +199,35 @@ let classesOff = new Set<string>()
 /**
  * The one route the map is showing, or null for the whole network.
  *
- * Isolation is a FILTER here, not a second drawing of the line: the
- * ribbons, bullets, stations and labels already on the map are the ones
- * portolan drew, so narrowing them to a single route keeps its geometry,
- * its colour and its stops exactly as the network view had them. It also
- * makes the path TRUE for the hour — the per-route mask drops the
- * stretches this line does not run at this time, and the stations along
- * them go with it, because a stop nobody stops at is not a stop.
+ * Isolation is a DIM here, not a second drawing of the line and not a
+ * filter: the ribbons, bullets, stations and labels already on the map
+ * are the ones portolan drew, so lifting one route out of them keeps its
+ * geometry, its colour and its stops exactly as the network view had
+ * them. What the rest of the network gets is a step back rather than the
+ * door — a line you are following through a city still reads as part of
+ * that city, and the ribbons around it are the context that makes the
+ * transfer at the next junction visible.
+ *
+ * Full strength is reserved for the route AS IT RUNS at this hour: the
+ * per-route mask decides, so a stretch this line does not run right now
+ * dims back into the network with everything else.
  */
 let isolatedRoute: string | null = null
+
+/** How far the rest of the network steps back while one route is
+ *  isolated. Low enough to read as background, high enough that the
+ *  network is still legibly there. */
+const ISOLATION_DIM = 0.3
 
 // each ribbon layer's STRUCTURAL filter (band_min/kind), recorded at
 // creation: the time/class clauses combine with it via ['all', …] and
 // detach by restoring exactly this (MapView.vue:162-165)
 const structuralFilter = new Map<string, Expr>()
+
+// each ribbon layer's base colour and opacity as it was built, so the
+// isolation dim can be re-derived from the original rather than stacked
+// on the last dimmed value
+const ribbonPaint = new Map<string, { color: Expr; opacity: Expr; ghost: boolean }>()
 
 // ── hydration state (MapView.vue:1588-1613) ────────────────────────────
 // querySourceFeatures only sees the tiles renderable at this instant, and
@@ -268,7 +283,7 @@ function setIsolatedRoute(routeId: string | null) {
   const next = routeId || null
   if (isolatedRoute === next) return
   isolatedRoute = next
-  applyTileFilters()
+  applyRibbonDim()
   applyStations()
 }
 
@@ -373,6 +388,7 @@ function teardownPortolanTransit() {
   inkDark = null
   rowsKey = ''
   structuralFilter.clear()
+  ribbonPaint.clear()
 }
 
 /** Filter every portolan layer to the service running at `date`
@@ -380,6 +396,7 @@ function teardownPortolanTransit() {
 function setServiceTime(date: Date | null) {
   serviceTime = date && !Number.isNaN(date.getTime()) ? date : null
   applyTileFilters()
+  applyRibbonDim()
   applyStations()
 }
 
@@ -668,6 +685,7 @@ async function sync() {
   remeasureRows()
   applyStations()
   applyTileFilters()
+  applyRibbonDim()
   requestHydrate()
 }
 
@@ -690,6 +708,11 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
   const labels = firstLabelLayer()
   const buildings = buildingLayer()
   structuralFilter.set(spec.id, structural)
+  ribbonPaint.set(spec.id, {
+    color: spec.paint['line-color'],
+    opacity,
+    ghost: false,
+  })
 
   if (engine === MapEngine.MAPBOX) {
     // Two things Mapbox needs that nothing else does.
@@ -710,7 +733,10 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
       slot: 'middle',
       paint: {
         ...spec.paint,
-        'line-color': ribbonColorWithAlpha(spec.paint['line-color'], opacity),
+        'line-color': ribbonColorWithAlpha(
+          spec.paint['line-color'],
+          isolationOpacity(opacity, false),
+        ),
         'line-opacity': 1,
         'line-occlusion-opacity': OCCLUDED_OPACITY,
         ...emissive('line'),
@@ -722,20 +748,29 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
   map.addLayer(
     {
       ...spec,
-      paint: { ...spec.paint, 'line-opacity': opacity, ...emissive('line') },
+      paint: {
+        ...spec.paint,
+        'line-opacity': isolationOpacity(opacity, false),
+        ...emissive('line'),
+      },
     },
     buildings ?? ribbonAnchorOr(labels),
   )
   if (!buildings) return
   const gid = ghostId(spec.id)
   structuralFilter.set(gid, structural)
+  ribbonPaint.set(gid, {
+    color: spec.paint['line-color'],
+    opacity,
+    ghost: true,
+  })
   map.addLayer(
     {
       ...spec,
       id: gid,
       paint: {
         ...spec.paint,
-        'line-opacity': ['*', opacity, OCCLUDED_OPACITY] as unknown as Expr,
+        'line-opacity': isolationOpacity(opacity, true),
       },
     },
     ghostAnchorOr(firstLabelLayer(buildings)),
@@ -839,6 +874,7 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
   // never came back after switching to dark.
   clearMounts()
   structuralFilter.clear()
+  ribbonPaint.clear()
 
   // one GeoJSON source per band for the hydrated transitions/bridges —
   // lineMetrics is the whole point: without it there is no line-progress.
@@ -998,6 +1034,7 @@ function unmountFeed(feed: string) {
     if (l.source === srcTiles(feed) || id.endsWith(`-${feed}`) || id.startsWith(`${srcTiles(feed)}-`)) {
       if (map.getLayer(id)) map.removeLayer(id)
       structuralFilter.delete(id)
+      ribbonPaint.delete(id)
     }
   }
   if (map.getSource(srcTiles(feed))) map.removeSource(srcTiles(feed))
@@ -1437,19 +1474,50 @@ function applyTileFilters() {
   // or a nudge of the time slider would quietly do nothing.
   if (!hydrationReady()) return
   const clauses: Expr[] = []
-  if (isolatedRoute) {
-    // this clause subsumes the network's own acts test: it asks whether
-    // THIS route is awake here, where the other asks whether any is
-    clauses.push(routeFilterExpr(isolatedRoute, isolationTime()))
-  } else {
-    const acts = actsFilterExpr(serviceTime)
-    if (acts) clauses.push(acts)
-  }
+  // Isolation deliberately does NOT narrow this: the network stays drawn
+  // and steps back in applyRibbonDim instead.
+  const acts = actsFilterExpr(serviceTime)
+  if (acts) clauses.push(acts)
   const cls = classFilterExpr(classesOff)
   if (cls) clauses.push(cls)
   for (const [id, structural] of structuralFilter) {
     if (!map.getLayer(id)) continue
     map.setFilter(id, composeFilter(structural, clauses))
+  }
+}
+
+/**
+ * A ribbon layer's opacity with the isolation dim folded in.
+ *
+ * The dim is per-feature, not per-layer: one steady layer carries every
+ * route in its band, so the only place the isolated line can be told
+ * apart from the network it runs alongside is inside the expression.
+ */
+function isolationOpacity(base: Expr, ghost: boolean): Expr {
+  const occluded: Expr = ghost
+    ? (['*', base, OCCLUDED_OPACITY] as unknown as Expr)
+    : base
+  if (!isolatedRoute) return occluded
+  return [
+    '*',
+    occluded,
+    ['case', routeFilterExpr(isolatedRoute, isolationTime()), 1, ISOLATION_DIM],
+  ] as unknown as Expr
+}
+
+/** Re-derive every ribbon's opacity from the paint it was built with. */
+function applyRibbonDim() {
+  if (!hydrationReady()) return
+  for (const [id, p] of ribbonPaint) {
+    if (!map.getLayer(id)) continue
+    const o = isolationOpacity(p.opacity, p.ghost)
+    if (engine === MapEngine.MAPBOX) {
+      // Mapbox keeps the alpha in the colour so line-opacity can stay
+      // constant for line-occlusion-opacity (see addRibbonLayer).
+      map.setPaintProperty(id, 'line-color', ribbonColorWithAlpha(p.color, o))
+    } else {
+      map.setPaintProperty(id, 'line-opacity', o)
+    }
   }
 }
 
@@ -1722,9 +1790,12 @@ function applyStations() {
     src.setData(EMPTY_FC)
     return
   }
-  // Isolation asks the stations the same question it asks the track: is
-  // THIS route awake here, now. A stop the line does not reach at this
-  // hour is not drawn, and its label goes with it.
+  // Stations are the one thing isolation still NARROWS rather than dims.
+  // The track can be dimmed and stay readable as background; a name and a
+  // bullet strip at 30% is just noise competing with the ones that matter,
+  // and the labels the route's own stops need are the scarce resource.
+  // The question is the same one the track is asked: is THIS route awake
+  // here, now — a stop the line does not reach at this hour goes too.
   if (isolatedRoute) {
     const at = isolationTime()
     const feats = stationsRaw.features

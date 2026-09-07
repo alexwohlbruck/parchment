@@ -524,9 +524,19 @@ function syncIsolatedLine() {
  */
 let stopService: Map<string, Set<string>> | null = null
 let stopServiceSig = ''
+/** Per publisher, so an opened line and an opened station can both answer
+ *  without erasing each other on the way in or out. */
+const stopServiceBySource = new Map<string, Map<string, Set<string>>>()
 
-function setStopService(running: Map<string, Set<string>> | null) {
-  const next = running && running.size ? running : null
+function setStopService(source: string, running: Map<string, Set<string>> | null) {
+  if (running?.size) stopServiceBySource.set(source, running)
+  else stopServiceBySource.delete(source)
+
+  const merged = new Map<string, Set<string>>()
+  for (const entries of stopServiceBySource.values()) {
+    for (const [stopId, routes] of entries) merged.set(stopId, routes)
+  }
+  const next = merged.size ? merged : null
   const sig = next
     ? [...next].map(([k, v]) => `${k}:${[...v].sort().join('+')}`).sort().join(';')
     : ''

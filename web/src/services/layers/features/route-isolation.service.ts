@@ -112,7 +112,7 @@ export function useRouteIsolationService() {
     // not running exactly where the stop list fades them.
     serviceWatchStop = watch(
       () => routeDetailStore.stopRunningRoutes,
-      (running) => portolan.setStopService(running.size ? running : null),
+      (running) => portolan.setStopService('route', running.size ? running : null),
       { immediate: true },
     )
 

@@ -7,8 +7,9 @@
  *     Headsign     Now, 7 min  📶
  *     Headsign     12, 25 min  📶
  */
-import { computed, markRaw, onBeforeUnmount, watch } from 'vue'
+import { computed, markRaw, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { setPlaceTransitLines, usePlaceTransferLines, type StationLine } from '@/composables/usePlaceTransitLines'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,6 +58,8 @@ const hasTransitData = computed(() => {
   return transitInfo.value && (transitInfo.value.onestopId || transitInfo.value.stopId || transitInfo.value.departures?.length)
 })
 
+const portolan = usePortolanTransitService()
+
 const departures = computed((): TransitDeparture[] => {
   return transitInfo.value?.departures || []
 })
@@ -93,6 +96,28 @@ watch(
     }),
   { immediate: true },
 )
+
+/**
+ * The same reading, given to the map, so this station's bullets there fade
+ * exactly as the ones under the title do.
+ *
+ * The map's own answer comes from the tiles' activity masks, which are a
+ * WEEKLY timetable: today is a Monday, so they report the Monday service
+ * even when the agency is running a Sunday one for the holiday. Only a
+ * board knows that, and this is a board.
+ */
+watch(
+  [() => transitInfo.value?.stopId, runningRouteIds],
+  ([stopId, running]) => {
+    portolan.setStopService(
+      'place',
+      stopId && running.size ? new Map([[stopId, running]]) : null,
+    )
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => portolan.setStopService('place', null))
 
 /** The bullets the map draws for these routes: portolan's curated shape,
  *  colour and label, resolved against the stop's own coordinates. */

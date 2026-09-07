@@ -255,30 +255,56 @@ onUnmounted(() => {
            away, and "which line is this" is the one thing you still need at
            the bottom of it.
 
-           The margin cancels PanelLayout's top inset and re-adds the line this
-           header docks on, so its natural position IS that line. Any higher and
-           sticky would shove it down without reflowing its siblings, hiding the
-           top of the content below; any lower and the panel's unpainted inset
-           shows as a gap above the band (0 on desktop, the chrome bar on
-           mobile). The breathing room lives inside the band instead, and -mx-3
-           lets the backing and rule span the panel. -->
+           The margin puts the header's natural position exactly on the line
+           it docks to — the chrome bar on mobile, 0 on desktop, where it also
+           cancels the panel's inset. Any higher and sticky would shove it down
+           without reflowing its siblings, hiding the top of the content below;
+           any lower and unpainted panel background shows as a gap above the
+           band. -mx-3 lets the backing and rule span the panel. -->
       <SheetHeader
         v-slot="{ stuck }"
-        class="-mx-3 mb-3 mt-[calc(var(--sheet-sticky-top,0px)_-_1.5rem)] md:mt-[calc(var(--sheet-sticky-top,0px)_-_1rem)]"
+        class="-mx-3 mb-3 mt-[var(--sheet-sticky-top,0px)] md:mt-[calc(var(--sheet-sticky-top,0px)_-_1rem)]"
       >
         <div
-          class="flex items-start gap-3 px-3 md:pt-4 pb-3 border-b transition-colors duration-200"
+          class="px-3 md:pt-4 pb-3 border-b transition-colors duration-200"
           :class="stuck ? 'border-border/60' : 'border-transparent'"
         >
-          <div
-            class="flex items-center justify-center min-w-10 h-10 px-2.5 rounded-lg font-bold text-lg shrink-0"
-            :style="{ background: bgColor, color: textColor }"
-          >
-            {{ route.routeShortName || '' }}
+          <div class="flex items-start gap-3">
+            <div
+              class="flex items-center justify-center min-w-10 h-10 px-2.5 rounded-lg font-bold text-lg shrink-0"
+              :style="{ background: bgColor, color: textColor }"
+            >
+              {{ route.routeShortName || '' }}
+            </div>
+            <div class="flex flex-col min-w-0 pt-0.5">
+              <span class="font-semibold text-base leading-tight truncate">{{ fullName }}</span>
+              <!-- Only when the picker below isn't already naming the
+                   direction — otherwise the same string reads twice. -->
+              <span
+                v-if="activeDirection && directions.length <= 1"
+                class="text-sm text-muted-foreground truncate"
+              >
+                {{ activeDirection }}
+              </span>
+            </div>
           </div>
-          <div class="flex flex-col min-w-0 pt-0.5">
-            <span class="font-semibold text-base leading-tight truncate">{{ fullName }}</span>
-            <span v-if="activeDirection" class="text-sm text-muted-foreground truncate">{{ activeDirection }}</span>
+
+          <!-- Pinned with the header: which way the line is running is part of
+               reading the stop list, so it stays reachable from the bottom of it. -->
+          <div v-if="directions.length > 1" class="mt-3">
+            <Select
+              :modelValue="activeDirection ?? undefined"
+              @update:modelValue="(v) => store.setDirection(String(v))"
+            >
+              <SelectTrigger class="w-full h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="dir in directions" :key="dir" :value="dir">
+                  {{ dir }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </SheetHeader>
@@ -289,23 +315,6 @@ onUnmounted(() => {
         :title="t('place.transit.alerts.onThisLine')"
         class="mb-3"
       />
-
-      <!-- ── Direction selector ──────────────────────────── -->
-      <div v-if="directions.length > 1" class="mb-3">
-        <Select
-          :modelValue="activeDirection ?? undefined"
-          @update:modelValue="(v) => store.setDirection(String(v))"
-        >
-          <SelectTrigger class="w-full h-9">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="dir in directions" :key="dir" :value="dir">
-              {{ dir }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       <!-- ── Departures ────────────────────────────────── -->
       <div v-if="upcoming.length > 0" class="mb-3">

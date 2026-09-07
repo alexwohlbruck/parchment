@@ -19,6 +19,12 @@ import type { FitBoundsFn } from '@/types/map.types'
 
 const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
+const EXT_SOURCE_ID = 'route-isolation-extension'
+const EXT_LAYER_ID = 'route-isolation-extension-line'
+
+/** A path stop further than this from every vertex of the route's own
+ *  ribbon has no track drawn for it. */
+const EXT_COVER_M = 250
 const STOPS_SOURCE_ID = 'route-detail-stops'
 const STOPS_LAYER_ID = 'route-detail-stops-circles'
 const STOPS_LABELS_LAYER_ID = 'route-detail-stops-labels'
@@ -78,6 +84,7 @@ export function useRouteIsolationService() {
   let fitBoundsFn: FitBoundsFn | null = null
   let watchStop: WatchStopHandle | null = null
   let stopsWatchStop: WatchStopHandle | null = null
+  let extensionSig = ''
   let isIsolated = false
   /** True while portolan's own layers are carrying the isolation, so the
    *  teardown knows to widen them again rather than un-fade them. */
@@ -144,6 +151,125 @@ export function useRouteIsolationService() {
    * this overlay is drawn on, with its own station dots and labels beside
    * ours. Only one of them may be on the map at a time.
    */
+  function removeExtensionOverlay() {
+    removeLayerIfExists(EXT_LAYER_ID)
+    removeSourceIfExists(EXT_SOURCE_ID)
+    extensionSig = ''
+  }
+
+  /**
+   * Draw the stretch of the running path the tiles have no ribbon for.
+   *
+   * On a reroute day the agency can put a line on track it never runs in
+   * the static data — parade-day 4s continue past Utica to New Lots — and
+   * portolan's pyramid, built from that data, simply has no 4-ribbon
+   * there: the stations know the 4, the track does not. No filter can
+   * light geometry that was never drawn, so the missing stretch is drawn
+   * here, chained through the path's own stops in the route's colour and
+   * the ribbons' width curve. Between subway stations a few hundred
+   * metres apart the chords are indistinguishable from the track.
+   *
+   * Coverage is measured against the ribbon vertices actually rendered,
+   * so it runs only once the fit has settled; a viewport with none of the
+   * route's ribbon in it says nothing, and the overlay is left alone.
+   */
+  function syncExtensionOverlay(token: string, color: string | null) {
+    if (!mapInstance) return
+    const stops = routeDetailStore.servedStops
+    if (!routeDetailStore.alertExtendsService || stops.length < 2) {
+      removeExtensionOverlay()
+      return
+    }
+
+    const ribbonLayers = (mapInstance.getStyle()?.layers ?? [])
+      .filter((l: any) => l.type === 'line' && /^portolan-ribbon/.test(l.id))
+      .map((l: any) => l.id)
+    if (!ribbonLayers.length) return
+    let feats: any[] = []
+    try {
+      feats = mapInstance.queryRenderedFeatures(undefined, { layers: ribbonLayers })
+    } catch {
+      return
+    }
+    const needle = `,${token},`
+    const verts: [number, number][] = []
+    for (const f of feats) {
+      if (!`,${f.properties?.routes ?? ''},`.includes(needle)) continue
+      const parts =
+        f.geometry?.type === 'MultiLineString'
+          ? f.geometry.coordinates
+          : [f.geometry?.coordinates ?? []]
+      for (const part of parts) for (const c of part) verts.push(c as [number, number])
+    }
+    if (!verts.length) return
+
+    const covered = (stop: RouteDetailStop) => {
+      const kx = 111_320 * Math.cos((stop.lat * Math.PI) / 180)
+      for (const [lng, lat] of verts) {
+        const dx = (lng - stop.lng) * kx
+        const dy = (lat - stop.lat) * 110_540
+        if (dx * dx + dy * dy <= EXT_COVER_M * EXT_COVER_M) return true
+      }
+      return false
+    }
+
+    // Maximal runs of uncovered stops, each anchored to a covered
+    // neighbour so the chain meets the ribbon it continues.
+    const lines: [number, number][][] = []
+    let run: RouteDetailStop[] = []
+    const flush = (nextCovered: RouteDetailStop | null) => {
+      if (!run.length) return
+      const chain = [...run]
+      if (nextCovered) chain.push(nextCovered)
+      if (chain.length >= 2) lines.push(chain.map(st => [st.lng, st.lat]))
+      run = []
+    }
+    for (const stop of stops) {
+      if (covered(stop)) {
+        flush(stop)
+      } else {
+        if (!run.length) {
+          const prev = stops[stops.indexOf(stop) - 1]
+          if (prev && covered(prev)) run.push(prev)
+        }
+        run.push(stop)
+      }
+    }
+    flush(null)
+
+    const sig = lines.map(l => l.map(c => c.join(',')).join(';')).join('|') + '|' + token
+    if (sig === extensionSig) return
+    extensionSig = sig
+    removeLayerIfExists(EXT_LAYER_ID)
+    removeSourceIfExists(EXT_SOURCE_ID)
+    if (!lines.length) return
+
+    mapInstance.addSource(EXT_SOURCE_ID, {
+      type: 'geojson',
+      tolerance: 0,
+      buffer: 128,
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'MultiLineString',
+          coordinates: lines.map(l => densifyLine(l)),
+        },
+      },
+    })
+    mapInstance.addLayer({
+      id: EXT_LAYER_ID,
+      type: 'line',
+      source: EXT_SOURCE_ID,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: {
+        'line-color': color ? `#${color}` : '#007cbf',
+        'line-width': widthExpr(1),
+        'line-opacity': 1,
+      },
+    })
+  }
+
   function removeRouteOverlay() {
     removeLayerIfExists(STOPS_LABELS_LAYER_ID)
     removeLayerIfExists(STOPS_LAYER_ID)
@@ -183,11 +309,13 @@ export function useRouteIsolationService() {
         fadeTransitLayers(NETWORK_DIM(), { skipPortolan: true })
       }
       removeRouteOverlay()
+      syncExtensionOverlay(token, route.routeColor)
     }
 
     /** No pyramid draws this route: the shape-and-circles overlay is the
      *  only view there is. */
     const renderViaOverlay = () => {
+      removeExtensionOverlay()
       if (portolanIsolated) {
         portolan.setIsolatedRoute(null)
         portolanIsolated = false
@@ -306,6 +434,7 @@ export function useRouteIsolationService() {
     fadeTransitLayers(null)
 
     removeRouteOverlay()
+    removeExtensionOverlay()
 
     isIsolated = false
   }

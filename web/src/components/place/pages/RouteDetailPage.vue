@@ -110,10 +110,11 @@ function isRouteRunningAt(stop: RouteDetailStop, r: StopTransferRoute): boolean 
   return runningAt.value.get(stop.stopId)?.has(r.routeId) ?? true
 }
 
-// One request for the line, as soon as its stops are known — see the
-// store. Only stops that actually show connections are asked about.
+// One request for the line, as soon as its stops are known — see the store.
+// Asked of the FULL list: the answer decides which stops the timeline draws,
+// so asking only about the drawn ones would let the path narrow itself.
 watch(
-  displayStops,
+  () => store.routeStops,
   stops => {
     const ids = stops.filter(s => s.routes?.length).map(s => s.stopId)
     if (ids.length) void store.loadStopService(props.feedId, ids)
@@ -225,21 +226,29 @@ const selectedVehicleOnRoute = computed(() =>
   vehiclesOnRoute.value.find(vr => vr.vehicleId === selectedId.value) ?? null,
 )
 
-/** Stop index (in displayStops) that the selected vehicle has passed. */
+/**
+ * Has the selected vehicle already gone past this stop?
+ *
+ * Compared as distance along the route, which both sides carry, rather than
+ * by turning a row's position in the list into a fraction. That only held
+ * while the list was the whole line: it now draws the path the train is
+ * taking, so row 3 of 15 is nowhere near a fifth of the way along the route.
+ */
 function isStopPassedBySelected(displayIndex: number): boolean {
   const sv = selectedVehicleOnRoute.value
-  if (!sv) return false
-  // The vehicle is near stop sv.nearestStopIndex in the original stop list.
-  // In display order, routeFraction tells us where it is 0→1.
-  // Stops before that fraction are "passed".
-  const stopFraction = displayIndex / Math.max(1, displayStops.value.length - 1)
-  return stopFraction < sv.routeFraction - 0.01
+  const stop = displayStops.value[displayIndex]
+  if (!sv || !stop) return false
+  return store.isReversed
+    ? stop.distanceAlongRoute > sv.distanceAlongRoute
+    : stop.distanceAlongRoute < sv.distanceAlongRoute
 }
 
 // ── Vehicle helpers ──────────────────────────────────────────
 
 function vehicleLabel(vr: VehicleOnRoute): string {
-  const stops = displayStops.value
+  // Indexed against the full stop list, which is what the vehicle was
+  // projected onto — the drawn list may be a short working of it.
+  const stops = store.routeStops
   if (!stops.length) return displayName.value
   const stop = stops[vr.nearestStopIndex]
   return stop ? `Near ${stop.stopName}` : displayName.value
@@ -373,28 +382,10 @@ const spineBottom = computed(
 )
 
 /**
- * Does THIS line call at this stop right now?
- *
- * The board that judges the connection bullets answers this too — the
- * route being viewed is just another id on it. Unknown stays true: an
- * absent board is missing evidence, and a line drawn as "not stopping
- * here" on no evidence is worse than one drawn plainly.
- *
- * This is what the 5 looks like at night, when it runs Dyre Av to E 180
- * St as a shuttle and the rest of the line is the 2's.
- */
-function servesStop(stop: RouteDetailStop): boolean {
-  if (!serviceKnown.value.has(stop.stopId)) return true
-  return runningAt.value.get(stop.stopId)?.has(props.routeId) ?? true
-}
-
-/**
  * The spine, cut into one segment per gap between stops.
  *
- * Drawn per gap rather than as one bar because a segment now carries
- * meaning: solid where the line runs, and a faint dashed rule across the
- * stretch it is not serving, so a rider sees WHERE it stops running rather
- * than reading a uniform line past stations no train will call at.
+ * Drawn per gap rather than as one bar so the stretch behind the selected
+ * vehicle can grey out on its own.
  *
  * Falls back to one whole-length segment before the rows have been
  * measured, so the timeline is never a column of unconnected dots.
@@ -408,7 +399,6 @@ const spineSegments = computed(() => {
         key: 'whole',
         top: spineTop.value,
         height: Math.max(0, spineBottom.value - spineTop.value),
-        served: true,
         passed: false,
       },
     ]
@@ -417,25 +407,35 @@ const spineSegments = computed(() => {
     key: stops[i].stopId,
     top,
     height: centers[i + 1] - top,
-    // a gap is only "running" when both of its ends are
-    served: servesStop(stops[i]) && servesStop(stops[i + 1]),
     passed: isStopPassedBySelected(i),
   }))
 })
 
 /**
- * Top offset in px for a vehicle at the given routeFraction.
+ * Top offset in px for a vehicle, placed between the two stops it is
+ * actually between.
  *
- * `routeFraction` is a position along the stop SEQUENCE, so it interpolates
- * between the two dots it falls between rather than scaling a total height
- * the rows no longer share.
+ * Located by distance along the route rather than by a fraction of the row
+ * count: the timeline draws the path being run, which can be a short working
+ * of the line the vehicle was projected onto, and three quarters of the way
+ * down a fifteen-row shuttle is not three quarters of the way along the R.
+ * A train off the drawn path pins to the end it is nearest.
  */
 function vehicleTopPx(vr: VehicleOnRoute): number {
   const centers = dotCenters.value
-  if (centers.length < 2) return spineTop.value
-  const span = (centers.length - 1) * Math.min(Math.max(vr.routeFraction, 0), 1)
-  const i = Math.min(Math.floor(span), centers.length - 2)
-  return centers[i] + (centers[i + 1] - centers[i]) * (span - i)
+  const stops = displayStops.value
+  if (centers.length < 2 || centers.length !== stops.length) return spineTop.value
+
+  const along = stops.map(s => s.distanceAlongRoute)
+  const d = Math.min(Math.max(vr.distanceAlongRoute, Math.min(...along)), Math.max(...along))
+  for (let i = 0; i < along.length - 1; i++) {
+    const lo = Math.min(along[i], along[i + 1])
+    const hi = Math.max(along[i], along[i + 1])
+    if (d < lo || d > hi) continue
+    const t = hi === lo ? 0 : (d - lo) / (hi - lo)
+    return centers[i] + (centers[i + 1] - centers[i]) * (along[i] <= along[i + 1] ? t : 1 - t)
+  }
+  return centers[centers.length - 1]
 }
 
 // ── Lifecycle ────────────────────────────────────────────────
@@ -589,29 +589,18 @@ onUnmounted(() => {
         <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
 
         <div ref="listEl" class="relative" style="padding-left: 32px">
-          <!-- The route line, one segment per gap between stops. Solid in
-               the line's colour where it runs; a faint dashed rule across
-               any stretch it is not serving right now, so the break is
-               something the timeline SAYS rather than something it omits.
-               Grey behind the selected vehicle, as before. -->
+          <!-- The route line, one segment per gap between stops, so the
+               stretch behind the selected vehicle can grey out. -->
           <div
             v-for="seg in spineSegments"
             :key="seg.key"
-            class="absolute z-0"
-            :class="seg.served ? 'rounded-full' : ''"
+            class="absolute z-0 rounded-full"
             :style="{
               left: '12px',
               top: `${seg.top}px`,
               width: '3px',
               height: `${seg.height}px`,
-              ...(seg.served
-                ? { background: seg.passed ? 'hsl(var(--muted-foreground))' : bgColor }
-                : {
-                    opacity: 0.45,
-                    backgroundImage: `repeating-linear-gradient(to bottom, ${
-                      seg.passed ? 'hsl(var(--muted-foreground))' : bgColor
-                    } 0 4px, transparent 4px 8px)`,
-                  }),
+              background: seg.passed ? 'hsl(var(--muted-foreground))' : bgColor,
             }"
           />
 
@@ -655,9 +644,6 @@ onUnmounted(() => {
                 top: `${STOP_DOT_CENTER_Y - ((i === 0 || i === displayStops.length - 1) ? 11 : 9) / 2}px`,
                 borderColor: isStopPassedBySelected(i) ? 'hsl(var(--muted-foreground))' : bgColor,
                 background: isStopPassedBySelected(i) ? 'hsl(var(--muted))' : 'hsl(var(--background))',
-                // a stop the line is not calling at reads as background,
-                // like the dashed rule running past it
-                opacity: servesStop(stop) ? 1 : 0.45,
               }"
             />
 
@@ -667,9 +653,8 @@ onUnmounted(() => {
                 class="text-sm min-w-0 truncate leading-6 text-left hover:underline"
                 :class="{
                   'font-semibold': i === 0 || i === displayStops.length - 1,
-                  'text-muted-foreground': isStopPassedBySelected(i) || !servesStop(stop),
+                  'text-muted-foreground': isStopPassedBySelected(i),
                 }"
-                :title="servesStop(stop) ? undefined : t('place.transit.notStoppingHere', { route: displayName })"
                 @click="openStop(stop)"
               >
                 {{ stop.stopName }}

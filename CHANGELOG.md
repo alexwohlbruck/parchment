@@ -23,7 +23,8 @@
 
 ### Fixed
 
-* A line's stop list now shows where the line isn't currently stopping: those stops fade and the line between them runs as a dashed rule, so an overnight short-working reads at a glance. Connection bullets fade on the same rule, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.
+* A line's stop list draws the path it is actually running. After midnight the R lists the Whitehall St–Bay Ridge shuttle instead of thirty stations no train will call at.
+* Connection bullets in a line's stop list fade when the line they name isn't running, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.
 * Whether a line is running at a stop is judged over the same span of time everywhere. It used to depend on how busy the station was, so the overnight R appeared to skip alternate stops down Broadway instead of simply not running north of Whitehall St.
 * The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
 * Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.

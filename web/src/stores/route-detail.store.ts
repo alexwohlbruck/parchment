@@ -79,6 +79,9 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   const selectedVehicleId = ref<string | null>(null)
   const selectedDirection = ref<string | null>(null)
 
+  const stopRunningRoutes = ref(new Map<string, Set<string>>())
+  const stopServiceKnown = ref(new Set<string>())
+
   /** Stop times for the selected vehicle's trip (from TripUpdate data). */
   interface TripStopTime {
     stopId: string
@@ -181,11 +184,40 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     return directions.value.indexOf(activeDirection.value) === 1
   })
 
-  /** Stops in display order (reversed for the second direction). */
-  const displayStops = computed(() => {
-    const stops = activeRoute.value?.stops ?? []
-    return isReversed.value ? [...stops].reverse() : stops
+  /** Every stop the line calls at on its full timetable, in route order.
+   *  What the service boards are asked about — never the filtered list, or
+   *  narrowing it would narrow the next answer, and so on down to nothing. */
+  const routeStops = computed(() => activeRoute.value?.stops ?? [])
+
+  /**
+   * The stops on the path the train is actually taking.
+   *
+   * A line's full timetable is not what it is doing at three in the morning.
+   * The R's list runs Forest Hills to Bay Ridge, but overnight the R is the
+   * Whitehall–Bay Ridge shuttle, and a timeline that draws the other thirty
+   * stations is describing a train that isn't there.
+   *
+   * A stop is on the path unless its board came back and did not name this
+   * line. Unknown keeps it: an unread board is missing evidence, not a
+   * closed station. And if no stop is known to be served the whole line is
+   * drawn, because a path of nothing describes nothing.
+   */
+  const servedStops = computed(() => {
+    const stops = routeStops.value
+    const routeId = activeRoute.value?.routeId
+    if (!routeId || !stopServiceKnown.value.size) return stops
+    const onPath = stops.filter(
+      s =>
+        !stopServiceKnown.value.has(s.stopId) ||
+        (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? true),
+    )
+    return onPath.length ? onPath : stops
   })
+
+  /** Stops in display order (reversed for the second direction). */
+  const displayStops = computed(() =>
+    isReversed.value ? [...servedStops.value].reverse() : servedStops.value,
+  )
 
   /** Active direction (auto-selects first if not set). */
   const activeDirection = computed(() => {
@@ -315,8 +347,6 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
    * stop calling at it. A stop ABSENT could not be reached, and nothing is
    * claimed about it.
    */
-  const stopRunningRoutes = ref(new Map<string, Set<string>>())
-  const stopServiceKnown = ref(new Set<string>())
   /** The feed's onestop id as the boards report it — the key portolan's
    *  stop index needs, which route detail itself does not carry. */
   const feedOnestopId = ref<string | null>(null)
@@ -616,6 +646,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     upcomingDepartures,
     headwayMinutes,
     isReversed,
+    routeStops,
     displayStops,
     directionFilteredVehicleIds,
     selectedDirection,

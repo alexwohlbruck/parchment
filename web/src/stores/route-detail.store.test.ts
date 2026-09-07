@@ -140,6 +140,89 @@ describe('displayStops direction reversal', () => {
   })
 })
 
+/**
+ * The timeline draws the path the train is taking, not the timetable it
+ * belongs to. The anchor is the R after midnight: its list runs Forest Hills
+ * to Bay Ridge, but the train is the Whitehall–Bay Ridge shuttle.
+ */
+describe('displayStops follows the running path', () => {
+  const openRoute = (store: ReturnType<typeof useRouteDetailStore>) => {
+    ;(store as any).activeRoute = {
+      feedId: '5',
+      routeId: 'R',
+      routeShortName: 'R',
+      routeLongName: 'Broadway Local',
+      routeColor: null,
+      routeTextColor: null,
+      routeType: 1,
+      agencyName: null,
+      stops: [
+        makeStop('R16', 'Times Sq', 40.75, -73.98, 0),
+        makeStop('R23', 'Canal St', 40.71, -74.0, 500),
+        makeStop('R27', 'Whitehall St', 40.70, -74.01, 1000),
+        makeStop('R31', 'Atlantic Av', 40.68, -73.97, 1500),
+      ],
+      coordinates: null,
+      relatedRouteIds: [],
+    }
+  }
+
+  /** What loadStopService leaves behind: a board read at each stop. */
+  const boardsSay = (
+    store: ReturnType<typeof useRouteDetailStore>,
+    answers: Record<string, string[]>,
+  ) => {
+    store.stopRunningRoutes = new Map(
+      Object.entries(answers).map(([stopId, ids]) => [stopId, new Set(ids)]),
+    )
+    store.stopServiceKnown = new Set(Object.keys(answers))
+  }
+
+  test('drops the stops the line is not calling at', () => {
+    const store = useRouteDetailStore()
+    openRoute(store)
+    boardsSay(store, {
+      R16: ['N', 'Q'],
+      R23: ['N', 'Q'],
+      R27: ['R', 'N'],
+      R31: ['R', 'D'],
+    })
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['R27', 'R31'])
+  })
+
+  test('keeps a stop whose board was never read', () => {
+    const store = useRouteDetailStore()
+    openRoute(store)
+    boardsSay(store, { R16: ['N'], R27: ['R'] })
+    // R23 and R31 are unanswered — missing evidence, not a closed station.
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['R23', 'R27', 'R31'])
+  })
+
+  test('draws the whole line when nothing is running', () => {
+    const store = useRouteDetailStore()
+    openRoute(store)
+    boardsSay(store, { R16: ['N'], R23: ['N'], R27: ['N'], R31: ['D'] })
+    // A path of no stops describes nothing; the timetable is the better answer.
+    expect(store.displayStops).toHaveLength(4)
+  })
+
+  test('routeStops stays the whole line, so the next board is asked in full', () => {
+    const store = useRouteDetailStore()
+    openRoute(store)
+    boardsSay(store, { R16: ['N'], R23: ['N'], R27: ['R'], R31: ['R'] })
+    expect(store.displayStops).toHaveLength(2)
+    expect(store.routeStops).toHaveLength(4)
+  })
+
+  test('the running path reverses with the direction', () => {
+    const store = useRouteDetailStore()
+    openRoute(store)
+    boardsSay(store, { R16: ['N'], R23: ['N'], R27: ['R'], R31: ['R'] })
+    store.setDirection(store.directions[1])
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['R31', 'R27'])
+  })
+})
+
 describe('vehicle projection', () => {
   test('vehiclesOnRoute is empty when no vehicles', () => {
     const store = useRouteDetailStore()

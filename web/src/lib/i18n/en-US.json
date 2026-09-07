@@ -1242,8 +1242,7 @@
       "transfers": "Transfers",
       "nearby": "Nearby",
       "transfer": "transfer",
-      "notRunning": "not running now",
-      "notStoppingHere": "The {route} is not stopping here right now"
+      "notRunning": "not running now"
     },
     "header": {
       "showMore": "Show more",

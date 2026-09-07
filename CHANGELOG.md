@@ -22,6 +22,7 @@
 * On the dark map, the rest of the network stays more visible behind an opened line.
 * An opened line sits on its own track rather than beside it, with stop dots sized to the line and drawn in its colour — no more white bundle markers or dots left in a lane the line no longer runs in.
 * An opened line shows its stop names and connection bullets at every zoom, including the whole-route overview.
+* Route bullets on the map fade for lines that aren't running at a station, matching the stop list. The map used to go by the timetable alone, which on a holiday or a reroute day says every line is running.
 * A line's alerts now read in three tiers: disruptions in effect keep their full-width cards, service notices condense to one line each, and scheduled work stays folded away. Rows in effect no longer all repeat "Now".
 
 ### Fixed

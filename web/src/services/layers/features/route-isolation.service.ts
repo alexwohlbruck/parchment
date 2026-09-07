@@ -79,6 +79,7 @@ export function useRouteIsolationService() {
   let fitBoundsFn: FitBoundsFn | null = null
   let watchStop: WatchStopHandle | null = null
   let stopsWatchStop: WatchStopHandle | null = null
+  let serviceWatchStop: WatchStopHandle | null = null
   let isIsolated = false
   /** True while portolan's own layers are carrying the isolation, so the
    *  teardown knows to widen them again rather than un-fade them. */
@@ -104,6 +105,14 @@ export function useRouteIsolationService() {
           removeIsolation()
         }
       },
+      { immediate: true },
+    )
+
+    // What the boards said, so the map's bullets fade the lines that are
+    // not running exactly where the stop list fades them.
+    serviceWatchStop = watch(
+      () => routeDetailStore.stopRunningRoutes,
+      (running) => portolan.setStopService(running.size ? running : null),
       { immediate: true },
     )
 
@@ -627,6 +636,8 @@ export function useRouteIsolationService() {
     watchStop = null
     stopsWatchStop?.()
     stopsWatchStop = null
+    serviceWatchStop?.()
+    serviceWatchStop = null
     mapInstance = null
     fitBoundsFn = null
   }

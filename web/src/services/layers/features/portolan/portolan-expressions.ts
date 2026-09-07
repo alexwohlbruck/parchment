@@ -364,26 +364,45 @@ export const bulletId = (label: string, hex: string, shape = '') =>
 export const isVariantLabel = (l: string, all: string[]) =>
   l.length >= 2 && l.endsWith('X') && all.includes(l.slice(0, -1))
 
+/** Marks a bullet as drawn for a line that is not running here now. Rides
+ *  on the id because the strip is ONE composed image — there is no
+ *  per-bullet paint property to fade. */
+export const DIM_SUFFIX = '~'
+
 /** Bullets a station label shows: EVERY distinct (label, color) pair,
  *  and only for classes where a bullet means something. No count cap —
- *  the strip renderer wraps long sets into rows instead of truncating. */
-export function bulletIdsOf(p: any): string[] {
+ *  the strip renderer wraps long sets into rows instead of truncating.
+ *
+ *  `notRunning`, when given, is asked about each route by its index in the
+ *  feature's own lists; the bullets it names come back suffixed. Two routes
+ *  can share one bullet (a line and its express variant), and one of them
+ *  running is enough to keep it lit. */
+export function bulletIdsOf(
+  p: any,
+  notRunning?: (routeIndex: number) => boolean,
+): string[] {
   const labels = String(p.labels ?? '').split(',')
   const colors = String(p.route_colors ?? '').split(',')
   const modes = String(p.modes ?? '').split(',')
   const shapes = String(p.shapes ?? '').split(',')
   const seen = new Set<string>()
   const out: string[] = []
+  const dim = new Map<string, boolean>()
   labels.forEach((l, i) => {
     if (!l || l.length > 8) return
     if (modes[i] === 'regional' || modes[i] === 'bus') return
     if (isVariantLabel(l, labels)) return
     const id = bulletId(l, colors[i], shapes[i] ?? '')
-    if (seen.has(id)) return
+    const off = notRunning ? notRunning(i) : false
+    if (seen.has(id)) {
+      if (!off) dim.set(id, false)
+      return
+    }
     seen.add(id)
     out.push(id)
+    dim.set(id, off)
   })
-  return out
+  return out.map(id => (dim.get(id) ? id + DIM_SUFFIX : id))
 }
 
 

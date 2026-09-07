@@ -294,6 +294,7 @@ export function usePortolanTransitService() {
     setIsolatedRoute,
     setIsolatedRouteStops,
     setIsolatedRouteGeometry,
+    setStopService,
     portolanRouteToken,
     portolanTransitActive,
   }
@@ -505,6 +506,74 @@ function syncIsolatedLine() {
     },
     firstLabelLayer(buildings),
   )
+}
+
+/**
+ * Which lines are running at which stops, as the departure boards answer it.
+ *
+ * The tiles carry the TIMETABLE — an activity mask per route, baked at build
+ * time — and that is the wrong authority on the days worth asking about. At
+ * Crown Hts–Utica Av the masks say the 2, 3, 4 and 5 are all awake at six on
+ * a Monday evening, which is what the schedule says; the boards say a holiday
+ * timetable and a parade reroute leave the 3 and the 4. The stop list has
+ * believed the boards for a while now. This is how the map hears them.
+ *
+ * Keyed by bare stop id — a station's `gtfs_ids` carry the feed's own ids for
+ * the station and both its platforms, so either level matches. A stop absent
+ * from the map was never asked about, and nothing is claimed about it.
+ */
+let stopService: Map<string, Set<string>> | null = null
+let stopServiceSig = ''
+
+function setStopService(running: Map<string, Set<string>> | null) {
+  const next = running && running.size ? running : null
+  const sig = next
+    ? [...next].map(([k, v]) => `${k}:${[...v].sort().join('+')}`).sort().join(';')
+    : ''
+  if (sig === stopServiceSig) return
+  stopServiceSig = sig
+  stopService = next
+  applyStations()
+}
+
+/** The routes a station's own ids say are running, or null when no board
+ *  covering it has answered. */
+function serviceAt(props: any): Set<string> | null {
+  if (!stopService) return null
+  for (const raw of String(props?.gtfs_ids ?? '').split(';')) {
+    if (!raw) continue
+    // "f-dr5r-nyctsubway:250N" — the feed's own id after the onestop id.
+    const id = raw.slice(raw.indexOf(':') + 1)
+    const running = stopService.get(id)
+    if (running) return running
+  }
+  return null
+}
+
+/** Portolan tokens are prefixed per feed (`f3:2`); a board names the route
+ *  the feed does (`2`). */
+const bareRouteId = (token: string) => token.replace(/^f\d+:/, '')
+
+/**
+ * A station's bullets, with the lines not running here faded.
+ *
+ * Leaves the feature untouched when no board covers it, so a map with no
+ * service loaded looks exactly as it always did.
+ */
+function serviceDimmedBullets(f: any): any {
+  const p = f.properties
+  const labeled = p.ftype === 'station' || (p.ftype === 'marker' && p.nmarkers > 1)
+  if (!labeled) return f
+  const running = serviceAt(p)
+  if (!running) return f
+
+  const routes = routesOf(p)
+  const ids = bulletIdsOf(p, i => {
+    const id = routes[i] ? bareRouteId(routes[i]) : ''
+    return !!id && !running.has(id)
+  })
+  if (!ids.length) return f
+  return { ...f, properties: { ...p, brow: 'row-' + ids.join('|') } }
 }
 
 /** A tile station further than this from every stop on the path is not on
@@ -2252,18 +2321,23 @@ function applyStations() {
           : stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, at),
       )
       .map((f: any) => timeFilteredBullets(f, at, classesOff))
+      .map((f: any) => serviceDimmedBullets(f))
       .map((f: any) => isolatedMarkerFeature(f, isolatedRoute!))
     src.setData({ type: 'FeatureCollection', features: feats })
     return
   }
   const date = serviceTime
   const off = classesOff
-  const feats =
+  const filtered =
     date || off.size
       ? stationsRaw.features
           .filter((f: any) => stationVisible(f.properties, NO_MASKS, date, off))
           .map((f: any) => timeFilteredBullets(f, date, off))
       : stationsRaw.features
+  // The boards outrank the timetable wherever they have spoken, so this
+  // runs last and on every view — an opened station dims its own bullets
+  // the same way a route's stops do.
+  const feats = stopService ? filtered.map((f: any) => serviceDimmedBullets(f)) : filtered
   src.setData({ type: 'FeatureCollection', features: feats })
 }
 

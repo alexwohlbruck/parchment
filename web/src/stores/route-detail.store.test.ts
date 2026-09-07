@@ -295,6 +295,27 @@ describe('displayStops follows the running path', () => {
     expect(store.pathLeavesTrack).toBe(false)
   })
 
+  test('an alert skip empties a stop the board still lists', () => {
+    // Parade day at Eastern Pkwy: the board reads the schedule and lists
+    // 2s and 3s; the agency's detour says all three lines skip it.
+    const store = useRouteDetailStore()
+    openRoute(store)
+    ;(store as any).activeRoute.stops = [
+      makeStop('R16', 'Atlantic Av', 40.68, -73.98, 0),
+      { ...makeStop('238N', 'Eastern Pkwy', 40.67, -73.96, 500), parentStation: '238' },
+      makeStop('R31', 'Utica Av', 40.66, -73.93, 1000),
+    ]
+    boardsSay(store, { R16: ['R'], '238N': ['R', '2'], R31: ['R'] })
+    store.setStopSkips(new Map([['238', new Set(['R', '2'])]]))
+    // matched through the parent: the alert names the station, the board
+    // answered for the platform
+    expect(store.runningAtStops.get('238N')?.size).toBe(0)
+    expect(store.runningAtStops.get('R16')?.has('R')).toBe(true)
+    // and the path drops the stop, because the board's effective answer
+    // no longer names this line there
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['R16', 'R31'])
+  })
+
   test('the running path reverses with the direction', () => {
     const store = useRouteDetailStore()
     openRoute(store)

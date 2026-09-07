@@ -47,7 +47,7 @@ const EMPTY_CTX: StationLinesContext = { known: false }
 export function setPlaceTransitLines(
   placeId: string | undefined,
   routes: StationRoute[] | undefined,
-  ctx?: { feedId?: string; runningRouteIds?: Iterable<string> },
+  ctx?: { feedId?: string; runningRouteIds?: Iterable<string>; serviceKnown?: boolean },
 ) {
   if (!placeId || !routes?.length) return
   const running = new Set(ctx?.runningRouteIds ?? [])
@@ -58,8 +58,11 @@ export function setPlaceTransitLines(
       feedId: ctx?.feedId,
       // Nothing running at all means the board is empty or absent, and an
       // absent board says nothing about the schedule — dimming every
-      // bullet on it would be an assertion we cannot make.
-      known: running.size > 0,
+      // bullet on it would be an assertion we cannot make. Unless the
+      // caller says otherwise: a station every line is skipping today has
+      // an empty running set the board DID vouch for, and every bullet
+      // dimmed is exactly the truth.
+      known: ctx?.serviceKnown ?? running.size > 0,
     },
   }
 }

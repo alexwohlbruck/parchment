@@ -67,3 +67,27 @@ export function alertServiceOverrides(
 
   return { serves, skips }
 }
+
+/**
+ * Every (stop, route) pair the in-effect alerts say is being skipped —
+ * ACROSS routes, unlike `alertServiceOverrides`, which reads one line's
+ * page. The map and a station's header judge every line at once, and the
+ * detour that empties Eastern Pkwy names the 2, the 3 and the 4 in a
+ * single alert.
+ *
+ * Keyed by the id the ALERT used (the MTA names stations, "238"); callers
+ * match a stop by its own id or its parent's, same as the overrides.
+ */
+export function alertStopSkips(alerts: ServiceAlert[]): Map<string, Set<string>> {
+  const skips = new Map<string, Set<string>>()
+  for (const alert of alerts) {
+    if (!SKIP_EFFECTS.has(alert.effect)) continue
+    for (const entity of alert.informedEntities ?? []) {
+      if (!entity.routeId || !entity.stopId) continue
+      const at = skips.get(entity.stopId) ?? new Set()
+      at.add(entity.routeId)
+      skips.set(entity.stopId, at)
+    }
+  }
+  return skips
+}

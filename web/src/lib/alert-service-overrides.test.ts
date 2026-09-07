@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { alertServiceOverrides } from './alert-service-overrides'
+import { alertServiceOverrides, alertStopSkips } from './alert-service-overrides'
 import type { ServiceAlert } from '@/types/transit.types'
 
 const alert = (
@@ -100,5 +100,39 @@ describe('alertServiceOverrides', () => {
     )
     expect(serves.has('238')).toBe(true)
     expect(skips.has('238')).toBe(true) // the caller lets skip win
+  })
+})
+
+describe('alertStopSkips', () => {
+  it('collects every route the skip alert names at each stop', () => {
+    // The Labor Day detour: one alert, three routes, one emptied station.
+    const skips = alertStopSkips([
+      alert('DETOUR', [
+        { routeId: '2', stopId: '238' },
+        { routeId: '3', stopId: '238' },
+        { routeId: '4', stopId: '238' },
+      ]),
+    ])
+    expect([...skips.get('238')!].sort()).toEqual(['2', '3', '4'])
+  })
+
+  it('keeps skips at different stops apart', () => {
+    const skips = alertStopSkips([
+      alert('NO_SERVICE', [
+        { routeId: '4', stopId: '640' },
+        { routeId: '4', stopId: '238' },
+      ]),
+    ])
+    expect(skips.get('640')!.has('4')).toBe(true)
+    expect(skips.get('238')!.has('4')).toBe(true)
+    expect(skips.size).toBe(2)
+  })
+
+  it('ignores effects that add service and entities missing a pair', () => {
+    const skips = alertStopSkips([
+      alert('MODIFIED_SERVICE', [{ routeId: '4', stopId: '237' }]),
+      alert('DETOUR', [{ routeId: '4' }, { stopId: '238' }]),
+    ])
+    expect(skips.size).toBe(0)
   })
 })

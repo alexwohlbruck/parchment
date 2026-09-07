@@ -111,7 +111,7 @@ export function useRouteIsolationService() {
     // What the boards said, so the map's bullets fade the lines that are
     // not running exactly where the stop list fades them.
     serviceWatchStop = watch(
-      () => routeDetailStore.stopRunningRoutes,
+      () => routeDetailStore.runningAtStops,
       (running) => portolan.setStopService('route', running.size ? running : null),
       { immediate: true },
     )

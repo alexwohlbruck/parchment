@@ -28,7 +28,10 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="min-h-full flex flex-col">
+  <!-- pt: start content on the header's dock line, never above it — see
+       PanelLayout for why a sticky header that gets pushed down covers the
+       content after it. -->
+  <div class="min-h-full flex flex-col pt-[var(--sheet-sticky-top,0px)]">
     <SheetHeader
       :peek="!!peekHeader"
       :solid="false"

@@ -27,7 +27,7 @@
 
 * A line's stop list draws the path it is actually running. After midnight the R lists the Whitehall St–Bay Ridge shuttle instead of thirty stations no train will call at.
 * A rerouted line shows the stops it is really making. When the MTA sends the 4 local down Eastern Pkwy for a parade, its page gains Bergen St, Grand Army Plaza and the rest from the agency's own alert — and drops the stop the alert says everyone is skipping.
-* The map follows a reroute too: the isolated line's stations and drawn track match the running path, including stretches whose tiles didn't know the line runs there.
+* The map follows a reroute too: an isolated line's stations match the path it is running, and the line stays at full strength along it.
 * Connection bullets in a line's stop list fade when the line they name isn't running, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.
 * Whether a line is running at a stop is judged over the same span of time everywhere. It used to depend on how busy the station was, so the overnight R appeared to skip alternate stops down Broadway instead of simply not running north of Whitehall St.
 * The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.

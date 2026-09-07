@@ -111,12 +111,16 @@ function isRouteRunningAt(stop: RouteDetailStop, r: StopTransferRoute): boolean 
 }
 
 // One request for the line, as soon as its stops are known — see the store.
-// Asked of the FULL list: the answer decides which stops the timeline draws,
-// so asking only about the drawn ones would let the path narrow itself.
+//
+// Asked of the FULL list, and of every stop on it. The answer decides which
+// stops the timeline draws, so asking only about the drawn ones would let the
+// path narrow itself a step at a time. And it used to skip stops with no
+// connections to judge, which left a stop with no other line at it permanently
+// unanswered — and so permanently drawn, however little was running there.
 watch(
   () => store.routeStops,
   stops => {
-    const ids = stops.filter(s => s.routes?.length).map(s => s.stopId)
+    const ids = stops.map(s => s.stopId)
     if (ids.length) void store.loadStopService(props.feedId, ids)
   },
   { immediate: true },

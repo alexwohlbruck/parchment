@@ -196,12 +196,22 @@ export function useRouteIsolationService() {
     // turns out to be nothing shows nothing for a moment; drawing the
     // overlay over ribbons that turn out to draw the route shows the line
     // twice, in two styles — so lean portolan whenever it is on at all.
-    // The stop pins the answer to THIS route's geometry: several feeds can
-    // share the bare id (the subway's 1, an LIRR branch's fN:1), and only
-    // one of their ribbons passes the route's own first stop.
-    const near: [number, number] | undefined = route.stops[0]
-      ? [route.stops[0].lng, route.stops[0].lat]
-      : undefined
+    // Points spread along THIS route pin the answer to its geometry: several
+    // feeds can share a bare id, and a shared terminal (LIRR and Metro-North
+    // both reach Grand Central) means one stop cannot tell them apart. Ends
+    // and middles can.
+    const along: [number, number][] = (() => {
+      const stops = route.stops
+      if (!stops.length) return []
+      const want = Math.min(8, stops.length)
+      const step = (stops.length - 1) / Math.max(1, want - 1)
+      const out: [number, number][] = []
+      for (let i = 0; i < want; i++) {
+        const s = stops[Math.round(i * step)]
+        if (s) out.push([s.lng, s.lat])
+      }
+      return out
+    })()
 
     // The question is whether portolan is TURNED ON, not whether it has
     // finished hydrating: on a cold load it is enabled but not ready for a
@@ -216,7 +226,7 @@ export function useRouteIsolationService() {
         portolanIsolated = true
         // the id as portolan knows it: a group pyramid prefixes every feed
         // after the first, so the 2 is `f3:2` there and plain `2` alone
-        portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId, near) ?? route.routeId)
+        portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId, along) ?? route.routeId)
         fadeTransitLayers(NETWORK_DIM(), { skipPortolan: true })
       }
       // else: hydration still coming — hold the frame for the reconciler
@@ -244,7 +254,7 @@ export function useRouteIsolationService() {
         }
         return
       }
-      const token = portolan.portolanRouteToken(route.routeId!, near)
+      const token = portolan.portolanRouteToken(route.routeId!, along)
       if (token) {
         renderViaPortolan(token)
         return detachReconciler()

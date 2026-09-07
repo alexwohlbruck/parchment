@@ -71,6 +71,7 @@ import {
   perFeedO,
   perFeedW,
   routeFilterExpr,
+  pickRouteToken,
   routesOf,
   stationServesRoute,
   stationVisible,
@@ -313,16 +314,17 @@ function setIsolatedRoute(routeId: string | null) {
  * Show the isolated route's stops well below their usual zooms.
  *
  * The union map earns its gates — hundreds of stations would swamp a city
- * view — but isolation leaves a few dozen along one line, and the whole
- * point of the overview fit (~z10) is to read the line: without this it
- * shows an unlabelled string. Collision still thins the labels, so the
- * overview gets the major names rather than all of them.
+ * view — but isolation leaves only the stops of one line, which is never
+ * enough to swamp anything. So the gates come off entirely: the stops are
+ * the subject of the view at every zoom the route is readable at, including
+ * the overview fit. Collision still thins the labels, so a zoomed-out line
+ * shows the names that fit rather than all of them.
  */
 const STATION_ZOOM = {
-  'portolan-station-markers': { usual: 11, isolated: 9 },
-  'portolan-station-labels': { usual: 11, isolated: 9 },
+  'portolan-station-markers': { usual: 11, isolated: 0 },
+  'portolan-station-labels': { usual: 11, isolated: 0 },
 } as const
-const BULLET_ROW_STEP = { usual: 13.5, isolated: 10.5 }
+const BULLET_ROW_STEP = { usual: 13.5, isolated: 0 }
 
 function applyStationZoomRelax() {
   if (!map?.getStyle()) return
@@ -367,51 +369,66 @@ function portolanTransitActive(): boolean {
  * shape-and-circles view and drew every stop it has ever called at,
  * Livonia Av included.
  */
-function portolanRouteToken(routeId: string, near?: [number, number]): string | null {
+function portolanRouteToken(
+  routeId: string,
+  along?: [number, number][],
+): string | null {
   if (!routeId || !map || !hydrationReady()) return null
   const suffix = `:${routeId}`
-  // Collect every candidate before choosing. Returning the first hit made
-  // the answer depend on tile iteration order: the subway's plain `1` and
-  // an LIRR branch's `fN:1` both match, and whichever ribbon happened to be
-  // scanned first won — so a rescan after the camera moved could flip an
-  // isolated 1 train into a commuter-rail line mid-view.
-  let exact: string | null = null
-  let exactNear: string | null = null
-  let prefixed: string | null = null
-  let prefixedNear: string | null = null
-  const isNear = (f: any) => {
-    if (!near) return false
+
+  // Several feeds can share a bare id — the subway's 1 and an LIRR branch's
+  // fN:1 — so the id alone cannot pick one, and the FIRST match found is
+  // whatever tile order happened to yield. Score candidates instead, by how
+  // much of the route's own path each ribbon actually covers.
+  //
+  // One stop is not enough: LIRR reaches Grand Central too, so the Harlem
+  // line's first stop matches both. Points spread along the whole route do
+  // separate them — nothing else runs to Wassaic.
+  const hits = new Map<string, number>()
+  const seen = new Map<string, boolean>()
+  const covers = (f: any, pts: [number, number][]) => {
+    if (!pts.length) return 0
     const g = f.geometry
     const parts: any[] =
       g?.type === 'MultiLineString' ? g.coordinates : [g?.coordinates ?? []]
-    for (const line of parts) {
-      for (const [lng, lat] of line) {
-        // ~1.5km at mid latitudes — same station area, not same city
-        if (Math.abs(lng - near[0]) < 0.02 && Math.abs(lat - near[1]) < 0.015) {
-          return true
+    let n = 0
+    for (const [plng, plat] of pts) {
+      let near = false
+      for (const line of parts) {
+        for (const [lng, lat] of line) {
+          // ~1.5km at mid latitudes: the same station, not the same city
+          if (Math.abs(lng - plng) < 0.02 && Math.abs(lat - plat) < 0.015) {
+            near = true
+            break
+          }
         }
+        if (near) break
       }
+      if (near) n++
     }
-    return false
+    return n
   }
+
   for (const sid of tileSourceIds()) {
     if (!map.getSource(sid)) continue
     for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
       for (const token of String(f.properties?.routes ?? '').split(',')) {
-        if (token === routeId) {
-          exact = exact ?? token
-          if (!exactNear && isNear(f)) exactNear = token
-        } else if (token.endsWith(suffix)) {
-          prefixed = prefixed ?? token
-          if (!prefixedNear && isNear(f)) prefixedNear = token
-        }
+        const exact = token === routeId
+        if (!exact && !token.endsWith(suffix)) continue
+        if (!seen.has(token)) seen.set(token, exact)
+        hits.set(token, (hits.get(token) ?? 0) + covers(f, along ?? []))
       }
     }
   }
-  // a token whose ribbon passes the route's own stop beats everything;
-  // then a feed's own bare id beats another feed's prefixed one
-  return exactNear ?? prefixedNear ?? exact ?? prefixed
+  return pickRouteToken(
+    [...seen].map(([token, exact]) => ({
+      token,
+      exact,
+      covered: hits.get(token) ?? 0,
+    })),
+  )
 }
+
 
 /** ON when the Transit layer group's master switch is (its visibility is
  *  the product toggle — portolan.store watches it for init/teardown), OR

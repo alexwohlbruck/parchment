@@ -16,13 +16,13 @@
 * A line's page header shows the line's real bullet — the same chip the map draws — instead of a plain colored square.
 * Stops in a line's timeline size to their own content, so a stop with several connections no longer overlaps the name below it and a plain stop no longer sits in wasted space.
 * On the dark map, the rest of the network stays more visible behind an opened line.
-* An opened line shows its stop names and connection bullets from the route overview zoom, not only when zoomed in close.
+* An opened line shows its stop names and connection bullets at every zoom, including the whole-route overview.
 
 ### Fixed
 
 * The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
 * Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.
-* An isolated numbered line stays itself — the 1 no longer flips into a commuter-rail branch sharing its number once the map settles.
+* An isolated line stays itself — a route no longer flips to a different railroad that happens to share its number, even where the two meet at the same terminal.
 * Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway, however the panel was already positioned.
 * The stop list's line runs through the middle of every stop dot instead of floating past the last one.
 * An opened transit line is drawn once, by the transit map itself, instead of a second copy alongside it with duplicate stop names.

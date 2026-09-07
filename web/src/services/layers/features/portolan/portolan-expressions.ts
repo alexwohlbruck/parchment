@@ -584,3 +584,45 @@ export function labelPaintFor(
     'text-halo-width': width ?? 1.4,
   }
 }
+
+
+// ── route token disambiguation ─────────────────────────────────────────
+
+/**
+ * Choose which portolan token a bare GTFS route id means.
+ *
+ * A group pyramid prefixes every feed after the first, so `1` can be the
+ * subway's own id AND the tail of an LIRR branch's `fN:1`. The id alone
+ * cannot separate them, and picking the first match found makes the answer
+ * depend on tile iteration order — the same route resolving differently
+ * from one rescan to the next.
+ *
+ * `covered` is how many points sampled along the route's own path lie on
+ * that token's ribbons. Real coverage decides; an exact id breaks a tie;
+ * the token itself breaks what remains, so the result is a pure function of
+ * the candidate set.
+ *
+ * Returns null when the candidates are genuinely ambiguous — more than one,
+ * none with any coverage. That is "ask again once more tiles are in", not
+ * "pick one and hope": guessing here is what put a commuter-rail line on
+ * screen in place of the subway.
+ */
+export function pickRouteToken(
+  candidates: Array<{ token: string; exact: boolean; covered: number }>,
+): string | null {
+  if (!candidates.length) return null
+  if (candidates.length === 1) return candidates[0].token
+  const scored = candidates.some(c => c.covered > 0)
+  if (!scored) return null
+  let best = candidates[0]
+  for (const c of candidates.slice(1)) {
+    const better =
+      c.covered !== best.covered
+        ? c.covered > best.covered
+        : c.exact !== best.exact
+          ? c.exact
+          : c.token < best.token
+    if (better) best = c
+  }
+  return best.token
+}

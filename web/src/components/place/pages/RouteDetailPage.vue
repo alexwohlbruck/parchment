@@ -16,6 +16,7 @@ import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
 import { Separator } from '@/components/ui/separator'
+import { SheetHeader } from '@/components/sheet'
 import {
   Select,
   SelectContent,
@@ -250,18 +251,37 @@ onUnmounted(() => {
 
     <div v-else-if="route" class="flex flex-col pb-6">
       <!-- ── Route header ──────────────────────────────── -->
-      <div class="flex items-start gap-3 mb-3">
+      <!-- Pinned: the stop list is long enough to scroll the line's identity
+           away, and "which line is this" is the one thing you still need at
+           the bottom of it.
+
+           The margin cancels PanelLayout's top inset and re-adds the line this
+           header docks on, so its natural position IS that line. Any higher and
+           sticky would shove it down without reflowing its siblings, hiding the
+           top of the content below; any lower and the panel's unpainted inset
+           shows as a gap above the band (0 on desktop, the chrome bar on
+           mobile). The breathing room lives inside the band instead, and -mx-3
+           lets the backing and rule span the panel. -->
+      <SheetHeader
+        v-slot="{ stuck }"
+        class="-mx-3 mb-3 mt-[calc(var(--sheet-sticky-top,0px)_-_1.5rem)] md:mt-[calc(var(--sheet-sticky-top,0px)_-_1rem)]"
+      >
         <div
-          class="flex items-center justify-center min-w-10 h-10 px-2.5 rounded-lg font-bold text-lg shrink-0"
-          :style="{ background: bgColor, color: textColor }"
+          class="flex items-start gap-3 px-3 pt-2 md:pt-4 pb-3 border-b transition-colors duration-200"
+          :class="stuck ? 'border-border/60' : 'border-transparent'"
         >
-          {{ route.routeShortName || '' }}
+          <div
+            class="flex items-center justify-center min-w-10 h-10 px-2.5 rounded-lg font-bold text-lg shrink-0"
+            :style="{ background: bgColor, color: textColor }"
+          >
+            {{ route.routeShortName || '' }}
+          </div>
+          <div class="flex flex-col min-w-0 pt-0.5">
+            <span class="font-semibold text-base leading-tight truncate">{{ fullName }}</span>
+            <span v-if="activeDirection" class="text-sm text-muted-foreground truncate">{{ activeDirection }}</span>
+          </div>
         </div>
-        <div class="flex flex-col min-w-0 pt-0.5">
-          <span class="font-semibold text-base leading-tight">{{ fullName }}</span>
-          <span v-if="activeDirection" class="text-sm text-muted-foreground">{{ activeDirection }}</span>
-        </div>
-      </div>
+      </SheetHeader>
 
       <!-- ── Service alerts ────────────────────────────── -->
       <ServiceAlerts

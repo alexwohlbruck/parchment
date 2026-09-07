@@ -10,6 +10,7 @@
 * The layer picker opens as a sheet you can drag up to full screen again.
 * Opening a transit line now dims the rest of the network instead of hiding it, so you can still see where the line crosses everything else.
 * A transit line's page drops its own back arrow and uses the sheet's floating one, matching place detail.
+* A transit line's name and direction stay pinned at the top while you scroll its stops.
 
 ### Fixed
 

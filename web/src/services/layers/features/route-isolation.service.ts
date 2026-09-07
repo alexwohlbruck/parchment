@@ -13,6 +13,7 @@
 import { watch, type WatchStopHandle } from 'vue'
 import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail.store'
 import { densifyLine } from '@/lib/geo-densify'
+import { projectAlong, sliceAlong } from '@/lib/geo-line'
 import { widthExpr } from '@/services/layers/features/portolan/portolan-expressions'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import type { FitBoundsFn } from '@/types/map.types'
@@ -108,13 +109,18 @@ export function useRouteIsolationService() {
 
     // The running path, pushed as it settles (boards answering, alerts
     // landing) so the map's stations track the panel's timeline. Portolan
-    // holds it and applies it only while a route is isolated.
+    // holds it and applies it only while a route is isolated — and when the
+    // path turns out to end short of the line, the whole render is redone,
+    // because which renderer draws the line depends on it.
     stopsWatchStop = watch(
-      () => [routeDetailStore.servedStops, routeDetailStore.alertExtendsService] as const,
-      ([stops, extended]) => portolan.setIsolatedRouteStops(
-        stops.length ? stops.map(s => [s.lng, s.lat] as [number, number]) : null,
-        extended,
-      ),
+      () => routeDetailStore.servedStops,
+      (stops) => {
+        portolan.setIsolatedRouteStops(
+          stops.length ? stops.map(s => [s.lng, s.lat] as [number, number]) : null,
+        )
+        const route = routeDetailStore.activeRoute
+        if (isIsolated && route) render(route, isolationGeneration)
+      },
       { immediate: true },
     )
   }
@@ -152,12 +158,43 @@ export function useRouteIsolationService() {
     removeSourceIfExists(ROUTE_SOURCE_ID)
   }
 
-  function applyIsolation(route: {
+  type IsolatableRoute = {
     routeId?: string
     routeColor: string | null
     coordinates: [number, number][] | null
     stops: RouteDetailStop[]
-  }) {
+  }
+
+  /** Signature of the last render, so the served-stops watcher can re-ask
+   *  for the same picture repeatedly without redrawing it. */
+  let renderedSig = ''
+
+  /**
+   * The route's shape cut down to the span between the running path's two
+   * end stops, or null when there is nothing to cut with. The ends are
+   * found by the stops' own distance-along metric, then projected onto the
+   * shape so cut and stop land in the same place; a path spanning the full
+   * shape slices to the whole thing, which is what a mere branch-break
+   * (canonical shape already right, ribbon wrong) needs.
+   */
+  function runningSlice(route: IsolatableRoute): [number, number][] | null {
+    const coords = route.coordinates
+    if (!coords || coords.length < 2) return null
+    const served = routeDetailStore.servedStops
+    if (served.length < 2) return null
+    let lo = served[0]
+    let hi = served[0]
+    for (const s of served) {
+      if (s.distanceAlongRoute < lo.distanceAlongRoute) lo = s
+      if (s.distanceAlongRoute > hi.distanceAlongRoute) hi = s
+    }
+    const a = projectAlong(coords, [lo.lng, lo.lat])
+    const b = projectAlong(coords, [hi.lng, hi.lat])
+    const sliced = sliceAlong(coords, Math.min(a, b), Math.max(a, b))
+    return sliced.length >= 2 ? sliced : null
+  }
+
+  function applyIsolation(route: IsolatableRoute) {
     if (!mapInstance) return
 
     // A previous pass may have left the overlay or its reconciler up —
@@ -171,6 +208,24 @@ export function useRouteIsolationService() {
 
     const generation = ++isolationGeneration
     isIsolated = true
+    renderedSig = ''
+    render(route, generation)
+  }
+
+  /**
+   * Draw the isolated route from what is knowable right now. Re-entrant:
+   * the served-stops watcher re-runs it as the boards and alerts land,
+   * because their answer can change WHICH renderer draws the line.
+   */
+  function render(route: IsolatableRoute, generation: number) {
+    if (!mapInstance || generation !== isolationGeneration) return
+    const broken = routeDetailStore.pathLeavesTrack
+    const sig =
+      (broken ? 'break' : 'full') +
+      '|' + routeDetailStore.servedStops.map(s => s.stopId).join(',')
+    if (sig === renderedSig) return
+    renderedSig = sig
+    detachReconciler()
 
     /** Portolan draws the route: dim everything else and stand the overlay
      *  down. Idempotent — the reconciler may land here repeatedly. */
@@ -185,8 +240,13 @@ export function useRouteIsolationService() {
       removeRouteOverlay()
     }
 
-    /** No pyramid draws this route: the shape-and-circles overlay is the
-     *  only view there is. */
+    /** The shape-and-circles overlay, drawn on the running span. Two roads
+     *  lead here: no pyramid draws this route at all, or the route is
+     *  running short of its ends and the ribbon — whose hours are baked
+     *  from the timetable — cannot be made to stop there. In the second
+     *  case the route's own ribbon dims with the rest of the network,
+     *  which reads exactly right: the track exists, and nothing is
+     *  running on it. */
     const renderViaOverlay = () => {
       if (portolanIsolated) {
         portolan.setIsolatedRoute(null)
@@ -194,12 +254,23 @@ export function useRouteIsolationService() {
         fadeTransitLayers(null)
       }
       fadeTransitLayers(NETWORK_DIM())
-      if (route.coordinates && route.coordinates.length >= 2) {
-        addRouteShape(route.coordinates, route.routeColor)
+      const coords = runningSlice(route) ?? route.coordinates
+      if (coords && coords.length >= 2) {
+        addRouteShape(coords, route.routeColor)
       }
-      if (route.stops.length > 0) {
-        addStationMarkers(route.stops, route.routeColor)
+      const stops = routeDetailStore.servedStops.length
+        ? routeDetailStore.servedStops
+        : route.stops
+      if (stops.length > 0) {
+        addStationMarkers(stops, route.routeColor)
       }
+    }
+
+    // A confirmed break overrides the pyramid: the ribbon can only draw
+    // the timetable's line, and the timetable is what the break disproves.
+    if (broken) {
+      renderViaOverlay()
+      return
     }
 
     // First paint, from what is knowable right now. Optimistic about
@@ -295,6 +366,7 @@ export function useRouteIsolationService() {
   function removeIsolation() {
     if (!mapInstance || !isIsolated) return
     isolationGeneration++
+    renderedSig = ''
     detachReconciler()
 
     if (portolanIsolated) {

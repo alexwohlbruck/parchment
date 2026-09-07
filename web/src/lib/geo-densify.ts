@@ -9,6 +9,8 @@
  * so the full line always renders. Interpolation is linear (lng/lat) — fine
  * at these distances and only adds collinear points, never changing the path.
  */
+import { haversineMeters } from './geo-line'
+
 export function densifyLine(
   coordinates: [number, number][],
   maxMeters = 120,
@@ -29,16 +31,4 @@ export function densifyLine(
     out.push(coordinates[i])
   }
   return out
-}
-
-function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(a))
 }

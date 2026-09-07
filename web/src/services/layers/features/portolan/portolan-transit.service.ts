@@ -314,9 +314,6 @@ function setIsolatedRoute(routeId: string | null) {
 
 /** Stops on the isolated route's RUNNING path, [lng, lat]. */
 let isolatedStops: [number, number][] | null = null
-/** True when the agency's alerts put stops on the path the timetable
- *  lacks — the signal that the tiles' hour masks are stale today. */
-let isolatedStopsExtended = false
 let isolatedStopsSig = ''
 
 /**
@@ -334,20 +331,13 @@ let isolatedStopsSig = ''
  * Matching is by distance, because the tiles' merged stations and the
  * feed's platforms share no id — only a place.
  */
-function setIsolatedRouteStops(
-  points: [number, number][] | null,
-  extendedByAlerts = false,
-) {
+function setIsolatedRouteStops(points: [number, number][] | null) {
   const next = points && points.length ? points : null
-  const sig = (extendedByAlerts ? 'x|' : '') + (next ? next.map(p => p.join(',')).join(';') : '')
+  const sig = next ? next.map(p => p.join(',')).join(';') : ''
   if (sig === isolatedStopsSig) return
   isolatedStopsSig = sig
   isolatedStops = next
-  isolatedStopsExtended = extendedByAlerts
-  if (isolatedRoute) {
-    applyStations()
-    applyRibbonDim()
-  }
+  if (isolatedRoute) applyStations()
 }
 
 /** A tile station further than this from every stop on the path is not on
@@ -1675,22 +1665,6 @@ function isolationTime(): Date {
   return serviceTime ?? new Date()
 }
 
-/**
- * The hour the RIBBON's isolation asks about — or no hour at all.
- *
- * The tiles' activity masks answer "is this route awake on this segment
- * now" from the timetable they were built from. When the agency's alerts
- * have extended the line beyond that timetable — parade-day 4s running
- * past Utica to New Lots — the masks are known stale, and trusting them
- * draws a line that stops short of its own station dots. So an
- * agency-extended path relaxes the ribbon to structural: the whole track
- * the route ever runs, which today it does. An ordinary day keeps the
- * masks, which is what lets the overnight R's ribbon end at Whitehall.
- */
-function ribbonIsolationTime(): Date | null {
-  return isolatedStops && isolatedStopsExtended ? null : isolationTime()
-}
-
 function applyTileFilters() {
   // Same reason hydration cannot wait on isStyleLoaded(): with a source
   // per pyramid the style is almost never "loaded", and a class toggle
@@ -1724,7 +1698,7 @@ function isolationOpacity(base: Expr, ghost: boolean): Expr {
   return [
     '*',
     occluded,
-    ['case', routeFilterExpr(isolatedRoute, ribbonIsolationTime()), 1, isolationDim()],
+    ['case', routeFilterExpr(isolatedRoute, isolationTime()), 1, isolationDim()],
   ] as unknown as Expr
 }
 
@@ -1745,7 +1719,7 @@ function isolationWidth(base: Expr): Expr {
   if (!isolatedRoute) return base
   const boost: Expr = [
     'case',
-    routeFilterExpr(isolatedRoute, ribbonIsolationTime()),
+    routeFilterExpr(isolatedRoute, isolationTime()),
     ISOLATION_WIDTH,
     ISOLATION_THIN,
   ] as unknown as Expr
@@ -1778,7 +1752,7 @@ function isolationOffset(base: Expr): Expr {
   const pick = (out: any): Expr =>
     [
       'case',
-      routeFilterExpr(isolatedRoute!, ribbonIsolationTime()),
+      routeFilterExpr(isolatedRoute!, isolationTime()),
       0,
       out,
     ] as unknown as Expr

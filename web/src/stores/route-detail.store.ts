@@ -94,10 +94,6 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     alertOverrides.value = overrides
   }
 
-  /** The agency has put stops on the path the timetable lacks — reroute
-   *  day. The map uses this to stop trusting the tiles' baked hours. */
-  const alertExtendsService = computed(() => alertOverrides.value.serves.size > 0)
-
   /** Stop times for the selected vehicle's trip (from TripUpdate data). */
   interface TripStopTime {
     stopId: string
@@ -306,6 +302,35 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       )
     })
     return onPath.length ? onPath : stops
+  })
+
+  /**
+   * Whether the running path leaves some of the line's track uncovered —
+   * an end cut short, or a branch not being run — as opposed to mere
+   * middle skips, which a train passes over the same rails.
+   *
+   * The map switches renderers on this. Portolan's ribbon can only draw
+   * the timetable's line, and this is precisely the timetable being wrong:
+   * on parade day the Sunday schedule ran the 4 to New Lots while every
+   * train turned at Utica, so the ribbon overshot the line's real end by
+   * a branch.
+   */
+  const pathLeavesTrack = computed(() => {
+    const all = routeStops.value
+    const served = servedStops.value
+    if (!all.length || served.length === all.length) return false
+    const ids = new Set(served.map((s) => s.stopId))
+    let lo = Infinity
+    let hi = -Infinity
+    for (const s of served) {
+      if (s.distanceAlongRoute < lo) lo = s.distanceAlongRoute
+      if (s.distanceAlongRoute > hi) hi = s.distanceAlongRoute
+    }
+    return all.some(
+      (s) =>
+        !ids.has(s.stopId) &&
+        (!onOwnTrack(s) || s.distanceAlongRoute < lo || s.distanceAlongRoute > hi),
+    )
   })
 
   /** Stops in display order (reversed for the second direction). */
@@ -743,7 +768,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     isReversed,
     routeStops,
     servedStops,
-    alertExtendsService,
+    pathLeavesTrack,
     displayStops,
     directionFilteredVehicleIds,
     selectedDirection,

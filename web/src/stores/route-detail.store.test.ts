@@ -257,6 +257,44 @@ describe('displayStops follows the running path', () => {
     expect(store.displayStops.map(s => s.stopId)).toEqual(['R16', '250N'])
   })
 
+  test('pathLeavesTrack: an end cut short is a break', () => {
+    // The overnight R: everything north of Whitehall unserved. The ribbon's
+    // masks may or may not know; the map must not rely on them.
+    const store = useRouteDetailStore()
+    openRoute(store)
+    boardsSay(store, { R16: ['N'], R23: ['N'], R27: ['R'], R31: ['R'] })
+    expect(store.pathLeavesTrack).toBe(true)
+  })
+
+  test('pathLeavesTrack: a branch off the running track is a break', () => {
+    // Parade day: the Sunday timetable runs the 4 to New Lots, the boards
+    // say every train turns at Utica. The branch stops sit a kilometre off
+    // the canonical shape yet inside the list's distance span.
+    const store = useRouteDetailStore()
+    openRoute(store)
+    ;(store as any).activeRoute.stops = [
+      makeStop('250N', 'Crown Hts-Utica Av', 40.6689, -73.9329, 0),
+      makeStop('251N', 'Sutter Av', 40.6646, -73.9226, 0),
+      makeStop('239N', 'Grand Army Plaza', 40.6751, -73.9710, 500),
+      makeStop('R16', 'Atlantic Av', 40.6841, -73.9779, 1000),
+    ]
+    ;(store as any).activeRoute.coordinates = [
+      [-73.9329, 40.6689], [-73.9710, 40.6751], [-73.9779, 40.6841],
+    ]
+    boardsSay(store, { '250N': ['R'], '251N': ['3'], '239N': ['R'], R16: ['R'] })
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['250N', '239N', 'R16'])
+    expect(store.pathLeavesTrack).toBe(true)
+  })
+
+  test('pathLeavesTrack: a middle skip is not a break', () => {
+    // A skipped stop is passed on the same rails — the line is unbroken.
+    const store = useRouteDetailStore()
+    openRoute(store)
+    boardsSay(store, { R16: ['R'], R23: ['N'], R27: ['R'], R31: ['R'] })
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['R16', 'R27', 'R31'])
+    expect(store.pathLeavesTrack).toBe(false)
+  })
+
   test('the running path reverses with the direction', () => {
     const store = useRouteDetailStore()
     openRoute(store)

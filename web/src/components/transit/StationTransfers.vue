@@ -59,12 +59,13 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const styleOf = (line: StationLine) => bulletFor(line.id, props.lat, props.lng, line.type)
+const styleOf = (line: StationLine) =>
+  bulletFor(line.id, props.lat, props.lng, line.type, line.shortName || line.longName)
 
 /** The same lookup for a departure group's route, which carries `type`
  *  under a different name than a StationLine does. */
 const bulletForRoute = (route: RouteGroup['route']) =>
-  bulletFor(route.id, props.lat, props.lng, route.type)
+  bulletFor(route.id, props.lat, props.lng, route.type, route.shortName || route.longName)
 
 /**
  * Two lists, because they are two different promises.

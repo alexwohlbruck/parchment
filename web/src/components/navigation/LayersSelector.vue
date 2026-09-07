@@ -262,7 +262,8 @@ function findGroupNode(id: string, tree: any[]): any {
   <!-- A plain column: the host owns the scrolling — the bottom sheet's surface
        on mobile, the hover card's on desktop. See the layout contract in
        `components/BottomSheet.vue`. -->
-  <div class="flex min-w-0 flex-col">
+  <!-- pt: start content on the pinned tab row's dock line — see PanelLayout. -->
+  <div class="flex min-w-0 flex-col pt-[var(--sheet-sticky-top,0px)]">
     <Tabs default-value="map">
       <!-- Tabs pin while the layer tree scrolls under them. `peek` off: this
            sheet is content-sized, so it has no peek detent to drive. -->

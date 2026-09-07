@@ -32,14 +32,14 @@ const props = withDefaults(
     textColor?: string | null
     /** Portolan's curated outline; anything unknown reads as a circle. */
     shape?: BulletShape | string | null
-    size?: 'sm' | 'md'
+    size?: 'sm' | 'md' | 'lg'
     title?: string
   }>(),
   { size: 'sm' },
 )
 
-/** The baker's box heights, in CSS px. */
-const HEIGHT = { sm: 22, md: 26 } as const
+/** The baker's box heights, in CSS px. `lg` carries a page header. */
+const HEIGHT = { sm: 22, md: 26, lg: 34 } as const
 
 const shape = computed<BulletShape>(() =>
   isBulletShape(props.shape) ? props.shape : 'circle',
@@ -76,7 +76,7 @@ const clipped = computed(() => !!geometry.value.clipPath)
     :class="[
       clipped ? '' : 'border border-white/15 depth-raised',
       shape === 'circle' && compact ? 'rounded-full' : '',
-      size === 'md' ? 'px-2 text-sm' : 'px-1.5 text-xs',
+      size === 'lg' ? 'px-2.5 text-lg' : size === 'md' ? 'px-2 text-sm' : 'px-1.5 text-xs',
     ]"
     :style="{
       background,

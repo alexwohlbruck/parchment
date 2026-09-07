@@ -123,14 +123,23 @@ export async function ensureBulletsAt(lat?: number, lng?: number): Promise<void>
  * every Lexington Avenue bullet in a station header came back as a
  * Ronkonkoma, Montauk or Long Beach Branch pill. Passing the route's GTFS
  * `route_type` narrows the match to bullets of the same mode class, which
- * is what separates a metro 4 from a regional one. Omit it and the match
- * is as loose as it ever was.
+ * is what separates a metro 4 from a regional one.
+ *
+ * Mode is not enough between two railroads. Metro-North's Harlem line and
+ * an LIRR branch are both regional and both answer to `2`, so the first
+ * `:2` in key order won — which is how the Harlem line came up lettered
+ * "Hempstead Branch". Pass `name` (the route's own short or long name) and
+ * a cross-agency match must AGREE with it. When several candidates remain
+ * and none agrees, the answer is null rather than a guess: an uncurated
+ * circle in the feed's own colours is right, and another railroad's pill
+ * is not.
  */
 export function bulletFor(
   routeId: string,
   lat?: number,
   lng?: number,
   routeType?: number | null,
+  name?: string | null,
 ): PortolanBullet | null {
   // touch the generation so Vue re-evaluates when a fetch lands
   void state.generation
@@ -141,15 +150,27 @@ export function bulletFor(
   // A bullet that never declared a mode can't contradict one — take it.
   const usable = (b?: PortolanBullet) =>
     !!b && (!wanted || !b.mode || b.mode === wanted)
+  const norm = (v?: string | null) => (v ?? '').trim().toLowerCase()
+  const wantedName = norm(name)
+  const agrees = (b: PortolanBullet) => !!wantedName && norm(b.label) === wantedName
   const suffix = `:${routeId}`
   for (const feed of feeds) {
     const idx = indexes[feed]
     if (!idx) continue
+    // The feed's own id is unambiguous — no other agency can own it here.
     const exact = idx[routeId]
     if (usable(exact)) return exact
-    for (const id of Object.keys(idx)) {
-      if (id.endsWith(suffix) && usable(idx[id])) return idx[id]
-    }
+
+    const candidates = Object.keys(idx)
+      .filter(id => id.endsWith(suffix))
+      .map(id => idx[id])
+      .filter(usable) as PortolanBullet[]
+    if (!candidates.length) continue
+    const named = candidates.filter(agrees)
+    if (named.length) return named[0]
+    // Exactly one possibility is not a guess; several without agreement is.
+    if (candidates.length === 1) return candidates[0]
+    return null
   }
   return null
 }

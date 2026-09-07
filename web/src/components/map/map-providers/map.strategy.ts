@@ -151,6 +151,23 @@ export class MapStrategy {
   isGlobeRendering(): boolean {
     return false
   }
+
+  /**
+   * Whether the sphere reads as an OBJECT — a disc with an edge and an
+   * obvious centre — rather than merely being drawn by the globe render
+   * path. The two part ways on MapLibre, which keeps easing the globe into
+   * Mercator until street zooms: at z8 its render path is still spherical,
+   * but the screen shows what anyone would call a flat map.
+   *
+   * Padding asks this one. Moving the focal point off-centre is invisible on
+   * a map that covers the canvas, and glaring on a disc — so padding is
+   * dropped only while a disc is what the rider sees. Keying it on the
+   * render path instead made MapLibre's padding snap on and off at z12,
+   * shifting the map sideways on an ordinary city zoom.
+   */
+  isSphereVisible(): boolean {
+    return this.isGlobeRendering()
+  }
   /**
    * Draw the top-down view orthographically rather than in perspective, so a
    * flat-on view has no vanishing point: building walls stop splaying outward

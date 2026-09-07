@@ -2,6 +2,9 @@
 
 ### Added
 
+* Tap any bullet in a line's stop list to open that line's own page.
+* Tap a stop in a line's list to open that station's page.
+
 ### Changed
 
 * Highway shields dim to match the night map — dark plaques with light numerals, and muted interstate and US route colours — instead of glowing white.
@@ -10,9 +13,37 @@
 * Your account row stays pinned to the bottom of the mobile dashboard, so you can reach it without scrolling past every recent place.
 * Search suggestions run the full height of the panel instead of stopping half way down with empty space beneath them.
 * The layer picker opens as a sheet you can drag up to full screen again.
+* Opening a transit line now dims the rest of the network instead of hiding it, so you can still see where the line crosses everything else. The line itself draws thicker and the network steps further back, so it reads as the subject of the map.
+* A transit line's page drops its own back arrow and uses the sheet's floating one, matching place detail.
+* A transit line's name and direction stay pinned at the top while you scroll its stops.
+* Connection bullets in a line's stop list use the same order as the station page.
+* A line's page header shows the line's real bullet — the same chip the map draws — instead of a plain colored square.
+* Stops in a line's timeline size to their own content, so a stop with several connections no longer overlaps the name below it and a plain stop no longer sits in wasted space.
+* On the dark map, the rest of the network stays more visible behind an opened line.
+* An opened line sits on its own track rather than beside it, with stop dots sized to the line and drawn in its colour — no more white bundle markers or dots left in a lane the line no longer runs in.
+* An opened line shows its stop names and connection bullets at every zoom, including the whole-route overview.
+* Route bullets on the map fade for lines that aren't running at a station, matching the stop list. The map used to go by the timetable alone, which on a holiday or a reroute day says every line is running.
+* A line's alerts now read in three tiers: disruptions in effect keep their full-width cards, service notices condense to one line each, and scheduled work stays folded away. Rows in effect no longer all repeat "Now".
 
 ### Fixed
 
+* A line's stop list draws the path it is actually running. After midnight the R lists the Whitehall St–Bay Ridge shuttle instead of thirty stations no train will call at.
+* A rerouted line shows the stops it is really making. When the MTA sends the 4 local down Eastern Pkwy for a parade, its page gains Bergen St, Grand Army Plaza and the rest from the agency's own alert — and drops the stop the alert says everyone is skipping.
+* The map follows a reroute too: an isolated line's stations match the path it is running, and the line stays at full strength along it.
+* Live trains show on a line's stop timeline again, at the right point along it — they had collected at the top, taking the route line with them, once the list dropped the stops a line isn't running.
+* A line's page shows the trains that are actually running. On the 4 that meant 2 of the 21 in service, because most trains are only named by the part of the realtime feed we ignored — and a server running ten minutes slow discarded most of the rest.
+* Alerts for another railway no longer appear on a subway line. Metro-North and the LIRR each number a route "4" too, and all three share one alert feed.
+* An isolated line ends where the trains really turn. When every 4 stops at Crown Hts–Utica Av, the map's line stops there too, instead of running on down a branch the schedule says it serves.
+* The train picker counts what it lists. It used to announce a train that was heading the other way and then offer nothing to select; trains running the other direction now live behind the direction toggle.
+* Connection bullets in a line's stop list fade when the line they name isn't running, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.
+* Whether a line is running at a stop is judged over the same span of time everywhere. It used to depend on how busy the station was, so the overnight R appeared to skip alternate stops down Broadway instead of simply not running north of Whitehall St.
+* The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
+* Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.
+* An isolated line stays itself — opening a route no longer briefly highlights a different railroad that shares its number, and never settles on one.
+* Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway, however the panel was already positioned.
+* The stop list's line runs through the middle of every stop dot instead of floating past the last one.
+* An opened transit line is drawn once, by the transit map itself, instead of a second copy alongside it with duplicate stop names.
+* Opening a line on a cold load no longer flashes plain stop labels before the proper ones with route bullets arrive.
 * Motorway exit numbers no longer litter the map from far out — they wait for street-level zoom where the junction layer draws them.
 * Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
 * The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.

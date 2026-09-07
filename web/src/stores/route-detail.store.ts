@@ -10,6 +10,7 @@ import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import type { TransitDeparture } from '@/types/place.types'
+import type { AlertServiceOverrides } from '@/lib/alert-service-overrides'
 
 /** Another line available at a stop on this route. `station` calls there;
  *  `transfer` is reached from it without leaving the paid area. */
@@ -27,6 +28,9 @@ export interface StopTransferRoute {
 export interface RouteDetailStop {
   stopId: string
   stopName: string
+  /** GTFS parent station, when the stop is a platform of one. What GTFS-RT
+   *  alerts name — they inform stations, not platforms. */
+  parentStation?: string
   lat: number
   lng: number
   distanceAlongRoute: number
@@ -78,6 +82,17 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   const vehicles = ref<Map<string, TransitVehiclePosition>>(new Map())
   const selectedVehicleId = ref<string | null>(null)
   const selectedDirection = ref<string | null>(null)
+
+  const stopRunningRoutes = ref(new Map<string, Set<string>>())
+  const stopServiceKnown = ref(new Set<string>())
+
+  /** Per-stop serve/skip pairs off the agency's in-effect alerts — the page
+   *  computes them from the alerts it already fetches for display, so path
+   *  and alert cards can never disagree about what the agency said. */
+  const alertOverrides = ref<AlertServiceOverrides>({ serves: new Set(), skips: new Set() })
+  function setAlertOverrides(overrides: AlertServiceOverrides) {
+    alertOverrides.value = overrides
+  }
 
   /** Stop times for the selected vehicle's trip (from TripUpdate data). */
   interface TripStopTime {
@@ -181,11 +196,147 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     return directions.value.indexOf(activeDirection.value) === 1
   })
 
-  /** Stops in display order (reversed for the second direction). */
-  const displayStops = computed(() => {
-    const stops = activeRoute.value?.stops ?? []
-    return isReversed.value ? [...stops].reverse() : stops
+  /** How far a stop may sit from the route's drawn shape and still count
+   *  as on its track. Grand Army Plaza is metres from the 4's line under
+   *  Eastern Pkwy; the New Lots branch is a kilometre off it. */
+  const OWN_TRACK_M = 300
+
+  /** Distance from each stop to the route's shape, computed once per
+   *  route. No shape means no basis to judge, so every stop passes. */
+  const shapeDistance = computed(() => {
+    const coords = activeRoute.value?.coordinates
+    const map = new Map<string, number>()
+    if (!coords || coords.length < 2) return map
+    for (const s of activeRoute.value?.stops ?? []) {
+      const kx = 111_320 * Math.cos((s.lat * Math.PI) / 180)
+      const ky = 110_540
+      let best = Infinity
+      for (let i = 1; i < coords.length; i++) {
+        const [ax, ay] = coords[i - 1]
+        const [bx, by] = coords[i]
+        const dx = (bx - ax) * kx
+        const dy = (by - ay) * ky
+        const px = (s.lng - ax) * kx
+        const py = (s.lat - ay) * ky
+        const len = dx * dx + dy * dy
+        const t = len ? Math.max(0, Math.min(1, (px * dx + py * dy) / len)) : 0
+        const ddx = px - t * dx
+        const ddy = py - t * dy
+        const d = ddx * ddx + ddy * ddy
+        if (d < best) best = d
+      }
+      map.set(s.stopId, Math.sqrt(best))
+    }
+    return map
   })
+
+  const onOwnTrack = (s: RouteDetailStop) => {
+    const d = shapeDistance.value.get(s.stopId)
+    return d === undefined || d <= OWN_TRACK_M
+  }
+
+  /** Every stop the line calls at on its full timetable, in route order.
+   *  What the service boards are asked about — never the filtered list, or
+   *  narrowing it would narrow the next answer, and so on down to nothing. */
+  const routeStops = computed(() => activeRoute.value?.stops ?? [])
+
+  /**
+   * The stops on the path the train is actually taking.
+   *
+   * A line's full timetable is not what it is doing at three in the morning.
+   * The R's list runs Forest Hills to Bay Ridge, but overnight the R is the
+   * Whitehall–Bay Ridge shuttle, and a timeline that draws the other thirty
+   * stations is describing a train that isn't there.
+   *
+   * Two sources answer it, each trusted for what it actually says:
+   *
+   * The departure boards are the spine. A stop is on the path unless its
+   * board came back and did not name this line. Unknown keeps it: an unread
+   * board is missing evidence, not a closed station.
+   *
+   * The agency's alerts refine the middle of that spine. A planned reroute
+   * often never reaches the boards — when the 4 ran local for a parade,
+   * Grand Army Plaza's board went on answering "2, 3" — and the alert names
+   * each (route, stop) pair it adds or skips. But an informed entity is
+   * only "this alert concerns this stop", and the MTA attaches them
+   * generously: the parade alert named the whole New Lots branch while its
+   * own text said "between Atlantic Av and Crown Hts–Utica Av". So a named
+   * stop is only ADDED when it lies ON the route's own track (an
+   * express-to-local reroute serves stops along the line it already runs;
+   * an extension leaves it) and between stops the boards confirm — filling
+   * in a run's middle, never extending a terminus. A named skip applies
+   * anywhere: removing on the agency's word risks a missing dot, not a
+   * phantom train. Alerts name stations while this list carries platforms,
+   * so a stop matches by its own id or its parent's.
+   *
+   * If no stop is known to be served at all, the whole line is drawn,
+   * because a path of nothing describes nothing.
+   */
+  const servedStops = computed(() => {
+    const stops = routeStops.value
+    const routeId = activeRoute.value?.routeId
+    if (!routeId) return stops
+    const { serves, skips } = alertOverrides.value
+    const named = (set: Set<string>, s: RouteDetailStop) =>
+      set.has(s.stopId) || (s.parentStation != null && set.has(s.parentStation))
+    if (!stopServiceKnown.value.size && !serves.size && !skips.size) return stops
+
+    const boardServes = (s: RouteDetailStop) =>
+      stopServiceKnown.value.has(s.stopId) &&
+      (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? false)
+    let first = stops.findIndex(boardServes)
+    let last = -1
+    for (let i = stops.length - 1; i >= 0; i--) {
+      if (boardServes(stops[i])) { last = i; break }
+    }
+    // No board has confirmed the line anywhere yet — no span to bound
+    // additions by, so alerts may fill in anywhere for now.
+    if (first < 0) { first = 0; last = stops.length - 1 }
+
+    const onPath = stops.filter((s, i) => {
+      if (named(skips, s)) return false
+      if (named(serves, s) && i >= first && i <= last && onOwnTrack(s)) return true
+      return (
+        !stopServiceKnown.value.has(s.stopId) ||
+        (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? true)
+      )
+    })
+    return onPath.length ? onPath : stops
+  })
+
+  /**
+   * Whether the running path leaves some of the line's track uncovered —
+   * an end cut short, or a branch not being run — as opposed to mere
+   * middle skips, which a train passes over the same rails.
+   *
+   * The map switches renderers on this. Portolan's ribbon can only draw
+   * the timetable's line, and this is precisely the timetable being wrong:
+   * on parade day the Sunday schedule ran the 4 to New Lots while every
+   * train turned at Utica, so the ribbon overshot the line's real end by
+   * a branch.
+   */
+  const pathLeavesTrack = computed(() => {
+    const all = routeStops.value
+    const served = servedStops.value
+    if (!all.length || served.length === all.length) return false
+    const ids = new Set(served.map((s) => s.stopId))
+    let lo = Infinity
+    let hi = -Infinity
+    for (const s of served) {
+      if (s.distanceAlongRoute < lo) lo = s.distanceAlongRoute
+      if (s.distanceAlongRoute > hi) hi = s.distanceAlongRoute
+    }
+    return all.some(
+      (s) =>
+        !ids.has(s.stopId) &&
+        (!onOwnTrack(s) || s.distanceAlongRoute < lo || s.distanceAlongRoute > hi),
+    )
+  })
+
+  /** Stops in display order (reversed for the second direction). */
+  const displayStops = computed(() =>
+    isReversed.value ? [...servedStops.value].reverse() : servedStops.value,
+  )
 
   /** Active direction (auto-selects first if not set). */
   const activeDirection = computed(() => {
@@ -266,6 +417,11 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   }
 
   function closeRoute() {
+    serviceFetchId++
+    stopRunningRoutes.value = new Map()
+    stopServiceKnown.value = new Set()
+    alertOverrides.value = { serves: new Set(), skips: new Set() }
+    feedOnestopId.value = null
     stopVehiclePolling()
     activeRoute.value = null
     departureContext.value = null
@@ -290,6 +446,55 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
           : vehicle.tripId
         void fetchTripStopTimes(vehicle.feedId, rawTripId, vehicleId)
       }
+    }
+  }
+
+  /**
+   * Which lines are actually running at each stop, keyed by stop id.
+   *
+   * The same judgement the station header makes, from the same evidence: a
+   * stop's departure board names the routes with a run inside its window,
+   * and a line that calls here but is absent from it is not running now
+   * (the 3 at Eastern Pkwy after the evening).
+   *
+   * ONE request for the whole line. Per-stop boards were one request each,
+   * fired as the rider scrolled, so the bullets faded in a ragged cascade
+   * down the list; the server fans out instead and answers once, and the
+   * whole list settles together.
+   *
+   * A stop PRESENT with an empty set is known: upstream answered and named
+   * nothing departing, which is what a station looks like once the lines
+   * stop calling at it. A stop ABSENT could not be reached, and nothing is
+   * claimed about it.
+   */
+  /** The feed's onestop id as the boards report it — the key portolan's
+   *  stop index needs, which route detail itself does not carry. */
+  const feedOnestopId = ref<string | null>(null)
+  let serviceFetchId = 0
+
+  async function loadStopService(feedId: string, stopIds: string[]) {
+    if (!feedId || !stopIds.length) return
+    const fetchId = ++serviceFetchId
+    try {
+      const { data } = await api.get<{
+        running?: Record<string, string[]>
+        feedOnestopId?: string
+      }>('/transit/service-at-stops', {
+        params: { feedId, stopIds: stopIds.join(',') },
+      })
+      // A route the rider has already navigated away from must not land.
+      if (fetchId !== serviceFetchId) return
+      const running = new Map<string, Set<string>>()
+      const known = new Set<string>()
+      for (const [stopId, ids] of Object.entries(data?.running ?? {})) {
+        running.set(stopId, new Set(ids))
+        known.add(stopId)
+      }
+      stopRunningRoutes.value = running
+      stopServiceKnown.value = known
+      if (data?.feedOnestopId) feedOnestopId.value = data.feedOnestopId
+    } catch {
+      // No answer — every stop stays unknown and nothing is dimmed.
     }
   }
 
@@ -561,6 +766,9 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     upcomingDepartures,
     headwayMinutes,
     isReversed,
+    routeStops,
+    servedStops,
+    pathLeavesTrack,
     displayStops,
     directionFilteredVehicleIds,
     selectedDirection,
@@ -569,6 +777,11 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     stopTimeMap,
     openRoute,
     closeRoute,
+    stopRunningRoutes,
+    stopServiceKnown,
+    feedOnestopId,
+    loadStopService,
+    setAlertOverrides,
     selectVehicle,
     setDirection,
   }

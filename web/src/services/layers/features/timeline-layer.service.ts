@@ -8,6 +8,7 @@ import {
   MapboxLayerType,
   MapEngine,
   type Layer,
+  type FitBoundsFn,
 } from '@/types/map.types'
 import {
   TRAVEL_MODE_COLORS,
@@ -76,11 +77,6 @@ function modeColorExpression(kind: 'main' | 'case'): any[] {
   expr.push(fallback)
   return expr
 }
-
-type FitBoundsFn = (
-  bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
-  options?: any,
-) => void
 
 /**
  * Renders the active timeline on the map: numbered stop markers and per-segment

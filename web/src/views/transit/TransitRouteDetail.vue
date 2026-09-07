@@ -5,17 +5,28 @@
  * Dedicated route at /transit/route/:feedId/:routeId
  * Query params: ?direction=...&vehicle=...
  */
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRouteDetailStore } from '@/stores/route-detail.store'
+import { useAppStore } from '@/stores/app.store'
 import RouteDetailPage from '@/components/place/pages/RouteDetailPage.vue'
 
 const route = useRoute()
 const router = useRouter()
 const store = useRouteDetailStore()
 
-const feedId = route.params.feedId as string
-const routeId = route.params.routeId as string
+// Opening a route IS asking to see this panel. With the drawer left hidden,
+// the camera fits the route to the full viewport — and expanding the drawer
+// afterwards covers the western half of the line with no re-fit coming. The
+// unhide starts the slide now, so the fit's settle logic frames the route
+// against the drawer it will actually be read next to.
+useAppStore().leftSheetHidden = false
+
+// Reactive, because a bullet inside the page navigates to ANOTHER route on
+// the same path — the router reuses this component, and the key below is
+// what makes the page remount for the new line.
+const feedId = computed(() => route.params.feedId as string)
+const routeId = computed(() => route.params.routeId as string)
 
 // Restore direction immediately (doesn't depend on data)
 const initialDirection = (route.query.direction as string) || undefined
@@ -61,6 +72,8 @@ watch(
 
 <template>
   <RouteDetailPage
+    v-if="feedId && routeId"
+    :key="`${feedId}/${routeId}`"
     :feedId="feedId"
     :routeId="routeId"
   />

@@ -71,6 +71,7 @@ import {
   perFeedO,
   perFeedW,
   routeFilterExpr,
+  routesOf,
   stationServesRoute,
   stationVisible,
   widthExpr,
@@ -217,12 +218,16 @@ let isolatedRoute: string | null = null
 /** How far the rest of the network steps back while one route is
  *  isolated. Low enough to read as background, high enough that the
  *  network is still legibly there. */
-const ISOLATION_DIM = 0.12
+const ISOLATION_DIM = 0.25
 
 /** How much wider the isolated route draws than it normally would. The
  *  dim alone leaves it the same weight as everything else, just brighter;
  *  the extra weight is what makes it read as the subject of the map. */
-const ISOLATION_WIDTH = 1.6
+const ISOLATION_WIDTH = 2.0
+
+/** And the dimmed network thins as well as fades — weight is what pulls
+ *  the eye, so the background keeps its colour but loses its bulk. */
+const ISOLATION_THIN = 0.65
 
 // each ribbon layer's STRUCTURAL filter (band_min/kind), recorded at
 // creation: the time/class clauses combine with it via ['all', …] and
@@ -1534,7 +1539,7 @@ function isolationWidth(base: Expr): Expr {
     'case',
     routeFilterExpr(isolatedRoute, isolationTime()),
     ISOLATION_WIDTH,
-    1,
+    ISOLATION_THIN,
   ] as unknown as Expr
 
   if (Array.isArray(base)) {
@@ -1848,6 +1853,7 @@ function applyStations() {
     const feats = stationsRaw.features
       .filter((f: any) => stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, at))
       .map((f: any) => timeFilteredBullets(f, at, classesOff))
+      .map((f: any) => isolatedMarkerFeature(f, isolatedRoute!))
     src.setData({ type: 'FeatureCollection', features: feats })
     return
   }
@@ -1860,6 +1866,36 @@ function applyStations() {
           .map((f: any) => timeFilteredBullets(f, date, off))
       : stationsRaw.features
   src.setData({ type: 'FeatureCollection', features: feats })
+}
+
+/**
+ * A surviving marker with the isolated route's OWN dot, not the corridor's.
+ *
+ * A marker's icon is one precomputed image — dots with colours baked in —
+ * so a marker that survives isolation because one of its lines is the
+ * subject would still show other lines' colours (an orange dot riding along
+ * with an isolated yellow Q). The dots do NOT align with the routes list:
+ * a station's marker can carry one dot for a whole corridor while naming
+ * every route in the complex. So the route's own colour is the anchor:
+ * keep the dots already in that colour, and when there are none, recolour
+ * the marker's dot in place — same anchor, same slot offset, the route's
+ * colour. Only a marker whose route colour is unknowable keeps its union
+ * image; a wrong-coloured dot beats a missing stop.
+ */
+function isolatedMarkerFeature(f: any, routeId: string): any {
+  const p = f.properties
+  if (p.ftype !== 'marker' || !p.dots) return f
+  const i = routesOf(p).indexOf(routeId)
+  if (i < 0) return f
+  const hex = String(p.route_colors ?? '').split(',')[i]?.toUpperCase()
+  if (!/^[0-9A-F]{6}$/.test(hex ?? '')) return f
+  const dots = String(p.dots).split(';')
+  let kept = dots.filter(d => d.split('@')[0].toUpperCase() === hex)
+  if (!kept.length) {
+    // no dot in this colour — recolour the first one where it stands
+    kept = [`${hex}@${dots[0].split('@')[1] ?? 0}`]
+  }
+  return { ...f, properties: { ...p, icon: `dots-${kept.join(';')}` } }
 }
 
 /** A surviving station's bullet strip shows only the routes awake at the

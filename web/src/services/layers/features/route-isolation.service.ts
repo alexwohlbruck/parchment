@@ -55,7 +55,7 @@ const TRANSIT_LAYER_IDS = [
 /** How far the rest of the network steps back while a route is isolated —
  *  dimmed, not hidden, so the line still reads inside its network. Matches
  *  portolan's own ISOLATION_DIM — keep the two in step. */
-const NETWORK_DIM = 0.12
+const NETWORK_DIM = 0.25
 
 /** Which opacity paint props carry a layer type's fade. */
 const OPACITY_PROPS: Record<string, string[]> = {

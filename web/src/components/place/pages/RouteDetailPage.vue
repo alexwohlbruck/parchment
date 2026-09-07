@@ -20,6 +20,8 @@ import {
 } from '@/services/layers/features/portolan/portolan-stops'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
+import { useTransitAlerts } from '@/composables/useTransitAlerts'
+import { alertServiceOverrides } from '@/lib/alert-service-overrides'
 import { Separator } from '@/components/ui/separator'
 import { SheetHeader } from '@/components/sheet'
 import {
@@ -187,6 +189,17 @@ const alertQuery = computed(() => ({
   routeIds: [props.routeId],
   includeUpcoming: true,
 }))
+
+// The same alerts the cards below render (the store dedupes the fetch),
+// folded into per-stop overrides so the timeline draws the path the agency
+// says the line is on — the 4 running local down Eastern Pkwy for a parade
+// gains its local stops here, boards notwithstanding.
+const { inEffect: alertsInEffect } = useTransitAlerts(alertQuery)
+watch(
+  alertsInEffect,
+  alerts => store.setAlertOverrides(alertServiceOverrides(alerts, props.routeId)),
+  { immediate: true },
+)
 
 const routeTypeIcon = computed(() => {
   switch (route.value?.routeType) {

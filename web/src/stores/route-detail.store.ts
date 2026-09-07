@@ -10,6 +10,7 @@ import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import type { TransitDeparture } from '@/types/place.types'
+import type { AlertServiceOverrides } from '@/lib/alert-service-overrides'
 
 /** Another line available at a stop on this route. `station` calls there;
  *  `transfer` is reached from it without leaving the paid area. */
@@ -27,6 +28,9 @@ export interface StopTransferRoute {
 export interface RouteDetailStop {
   stopId: string
   stopName: string
+  /** GTFS parent station, when the stop is a platform of one. What GTFS-RT
+   *  alerts name — they inform stations, not platforms. */
+  parentStation?: string
   lat: number
   lng: number
   distanceAlongRoute: number
@@ -81,6 +85,14 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
   const stopRunningRoutes = ref(new Map<string, Set<string>>())
   const stopServiceKnown = ref(new Set<string>())
+
+  /** Per-stop serve/skip pairs off the agency's in-effect alerts — the page
+   *  computes them from the alerts it already fetches for display, so path
+   *  and alert cards can never disagree about what the agency said. */
+  const alertOverrides = ref<AlertServiceOverrides>({ serves: new Set(), skips: new Set() })
+  function setAlertOverrides(overrides: AlertServiceOverrides) {
+    alertOverrides.value = overrides
+  }
 
   /** Stop times for the selected vehicle's trip (from TripUpdate data). */
   interface TripStopTime {
@@ -197,20 +209,37 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
    * Whitehall–Bay Ridge shuttle, and a timeline that draws the other thirty
    * stations is describing a train that isn't there.
    *
-   * A stop is on the path unless its board came back and did not name this
-   * line. Unknown keeps it: an unread board is missing evidence, not a
-   * closed station. And if no stop is known to be served the whole line is
-   * drawn, because a path of nothing describes nothing.
+   * Two sources answer it, in order of authority:
+   *
+   * The agency's own alerts, where a stop is named. A planned reroute often
+   * never reaches the boards — when the 4 ran local for a parade, Grand Army
+   * Plaza's board went on answering "2, 3" — but the alert names each
+   * (route, stop) pair it adds or skips, and that word is final. Alerts name
+   * stations while this list carries platforms, so a stop matches by its own
+   * id or its parent's.
+   *
+   * The departure boards, for every stop the alerts don't name. A stop is on
+   * the path unless its board came back and did not name this line. Unknown
+   * keeps it: an unread board is missing evidence, not a closed station. And
+   * if no stop is known to be served the whole line is drawn, because a path
+   * of nothing describes nothing.
    */
   const servedStops = computed(() => {
     const stops = routeStops.value
     const routeId = activeRoute.value?.routeId
-    if (!routeId || !stopServiceKnown.value.size) return stops
-    const onPath = stops.filter(
-      s =>
+    if (!routeId) return stops
+    const { serves, skips } = alertOverrides.value
+    const named = (set: Set<string>, s: RouteDetailStop) =>
+      set.has(s.stopId) || (s.parentStation != null && set.has(s.parentStation))
+    if (!stopServiceKnown.value.size && !serves.size && !skips.size) return stops
+    const onPath = stops.filter(s => {
+      if (named(skips, s)) return false
+      if (named(serves, s)) return true
+      return (
         !stopServiceKnown.value.has(s.stopId) ||
-        (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? true),
-    )
+        (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? true)
+      )
+    })
     return onPath.length ? onPath : stops
   })
 
@@ -301,6 +330,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     serviceFetchId++
     stopRunningRoutes.value = new Map()
     stopServiceKnown.value = new Set()
+    alertOverrides.value = { serves: new Set(), skips: new Set() }
     feedOnestopId.value = null
     stopVehiclePolling()
     activeRoute.value = null
@@ -659,6 +689,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     stopServiceKnown,
     feedOnestopId,
     loadStopService,
+    setAlertOverrides,
     selectVehicle,
     setDirection,
   }

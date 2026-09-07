@@ -214,6 +214,23 @@ describe('displayStops follows the running path', () => {
     expect(store.routeStops).toHaveLength(4)
   })
 
+  test('an alert naming a stop overrides its board', () => {
+    // The parade day: Grand Army Plaza's board answers "2, 3" because the
+    // reroute never reached the schedule, but the agency's alert names the
+    // stop. Alerts name stations ("237"); the list carries platforms.
+    const store = useRouteDetailStore()
+    openRoute(store)
+    ;(store as any).activeRoute.stops = [
+      makeStop('R16', 'Times Sq', 40.75, -73.98, 0),
+      { ...makeStop('237N', 'Grand Army Plaza', 40.68, -73.97, 500), parentStation: '237' },
+      { ...makeStop('238N', 'Eastern Pkwy', 40.67, -73.96, 1000), parentStation: '238' },
+    ]
+    boardsSay(store, { R16: ['R'], '237N': ['2', '3'], '238N': ['2', '3'] })
+    store.setAlertOverrides({ serves: new Set(['237', '238']), skips: new Set(['238']) })
+    // 237 forced on by the alert; 238 named by both, and the skip wins.
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['R16', '237N'])
+  })
+
   test('the running path reverses with the direction', () => {
     const store = useRouteDetailStore()
     openRoute(store)

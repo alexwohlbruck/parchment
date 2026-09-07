@@ -18,6 +18,9 @@ vi.mock('@/lib/api', () => ({
 vi.mock('@/services/layers/features/portolan/portolan-bullets', () => ({
   bulletFor: () => null,
   ensureBulletsAt: () => Promise.resolve(),
+  // portolan-stops reads this one; without it the page's stop-index
+  // lookup throws into an unhandled rejection that CI counts as a failure.
+  feedsAt: () => [],
 }))
 
 function stop(i: number, withRoutes = false) {

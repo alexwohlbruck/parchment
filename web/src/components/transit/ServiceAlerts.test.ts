@@ -187,7 +187,11 @@ describe('ServiceAlerts', () => {
 
     expect(rows(w)[0].text()).not.toContain('Now')
     expect(chips(w)[0].text()).not.toContain('Now')
-    expect(chips(w)[0].text()).toMatch(/\d{1,2}:\d{2}/)
+    // A clock time most of the day, "Tomorrow" when four hours from now
+    // has crossed midnight. Either one dates the chip, which is the point;
+    // pinning it to one form only passes in the half of the day it was
+    // written in.
+    expect(chips(w)[0].text()).toMatch(/\d{1,2}:\d{2}|Tomorrow/)
   })
 
   it('says when something nearly over lifts, rather than "Now"', async () => {

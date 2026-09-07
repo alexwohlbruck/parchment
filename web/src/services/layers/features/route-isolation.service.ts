@@ -240,13 +240,9 @@ export function useRouteIsolationService() {
       removeRouteOverlay()
     }
 
-    /** The shape-and-circles overlay, drawn on the running span. Two roads
-     *  lead here: no pyramid draws this route at all, or the route is
-     *  running short of its ends and the ribbon — whose hours are baked
-     *  from the timetable — cannot be made to stop there. In the second
-     *  case the route's own ribbon dims with the rest of the network,
-     *  which reads exactly right: the track exists, and nothing is
-     *  running on it. */
+    /** No pyramid draws this route: the shape-and-circles overlay is the
+     *  only view there is. It too draws the running span, not the full
+     *  timetable line. */
     const renderViaOverlay = () => {
       if (portolanIsolated) {
         portolan.setIsolatedRoute(null)
@@ -266,12 +262,15 @@ export function useRouteIsolationService() {
       }
     }
 
-    // A confirmed break overrides the pyramid: the ribbon can only draw
-    // the timetable's line, and the timetable is what the break disproves.
-    if (broken) {
-      renderViaOverlay()
-      return
-    }
+    // A confirmed break does not change WHO renders — portolan keeps the
+    // stations, bullets and labels — only what the line's geometry is.
+    // The tiles can only draw the timetable's line, and the timetable is
+    // what the break disproves, so portolan is handed the running span
+    // and draws that as the isolated ribbon instead.
+    portolan.setIsolatedRouteGeometry(
+      broken ? runningSlice(route) : null,
+      route.routeColor,
+    )
 
     // First paint, from what is knowable right now. Optimistic about
     // portolan: asking for the token this instant would answer "no" for a
@@ -373,6 +372,7 @@ export function useRouteIsolationService() {
       portolan.setIsolatedRoute(null)
       portolanIsolated = false
     }
+    portolan.setIsolatedRouteGeometry(null)
 
     // Restore transit layer opacity
     fadeTransitLayers(null)

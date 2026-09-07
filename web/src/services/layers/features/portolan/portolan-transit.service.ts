@@ -45,6 +45,7 @@
 import { getVersion } from 'maplibre-gl'
 import router, { AppRoute } from '@/router'
 import { api } from '@/lib/api'
+import { densifyLine } from '@/lib/geo-densify'
 import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
@@ -87,6 +88,9 @@ const FLAG_KEY = 'parchment.portolan-transit'
 
 // ── ids ────────────────────────────────────────────────────────────────
 const SRC_STATIONS = 'portolan-stations'
+const SRC_ISOLATED_LINE = 'portolan-isolated-line'
+const ISOLATED_LINE = 'portolan-isolated-line'
+const ISOLATED_LINE_GHOST = 'portolan-isolated-line-ghost'
 const srcTiles = (feed: string) => `portolan-tiles-${feed}`
 const srcBuild = (band: number) => `portolan-build-${band}`
 const twinId = (band: number, kind: string) => `portolan-ribbon-${band}-${kind}`
@@ -289,6 +293,7 @@ export function usePortolanTransitService() {
     setClassVisibility,
     setIsolatedRoute,
     setIsolatedRouteStops,
+    setIsolatedRouteGeometry,
     portolanRouteToken,
     portolanTransitActive,
   }
@@ -306,6 +311,7 @@ function setIsolatedRoute(routeId: string | null) {
   const next = routeId || null
   if (isolatedRoute === next) return
   isolatedRoute = next
+  syncIsolatedLine()
   applyRibbonDim()
   applyStations()
   applyStationZoomRelax()
@@ -338,6 +344,167 @@ function setIsolatedRouteStops(points: [number, number][] | null) {
   isolatedStopsSig = sig
   isolatedStops = next
   if (isolatedRoute) applyStations()
+}
+
+/** The running span's geometry, when it differs from the tiles', plus a
+ *  colour to fall back on if no loaded tile feature carries the route. */
+let isolatedGeometry: [number, number][] | null = null
+let isolatedGeometryColor: string | null = null
+let isolatedGeometrySig = ''
+
+/**
+ * Hand portolan the isolated line's REAL geometry, when the tiles' own is
+ * wrong.
+ *
+ * The tiles draw every track the timetable gives the route, which is
+ * right until the day the timetable is the thing that's wrong: a Sunday
+ * schedule ran the 4 to New Lots while the parade turned every train at
+ * Utica. No filter can end a tile feature early, so when a break is
+ * confirmed the ribbon boost stands down (the route's tile ribbon dims
+ * into the network with everything else) and portolan draws the span
+ * itself — same colour, same class width and opacity, same isolation
+ * boost, same place in the layer stack. The stations, bullets, labels and
+ * taps never leave portolan at all.
+ */
+function setIsolatedRouteGeometry(
+  coords: [number, number][] | null,
+  fallbackColor?: string | null,
+) {
+  const next = coords && coords.length >= 2 ? coords : null
+  const sig = next
+    ? `${next.length}:${next[0].join(',')}:${next[next.length - 1].join(',')}`
+    : ''
+  // Re-sync even on an unchanged span if the layers are gone — a style
+  // teardown removes them without this module hearing about it.
+  if (sig === isolatedGeometrySig && (!next || map?.getLayer(ISOLATED_LINE))) return
+  isolatedGeometrySig = sig
+  isolatedGeometry = next
+  isolatedGeometryColor = fallbackColor ? `#${fallbackColor.replace(/^#/, '')}` : null
+  if (hydrationReady()) {
+    syncIsolatedLine()
+    applyRibbonDim()
+  }
+}
+
+/** The paint the tiles would have given this line: its colour from the
+ *  ribbon feature that carries the token, its width/opacity from the
+ *  owning feed's class manifest. */
+function isolatedLineStyle(): { color: string; w: number; o: number } {
+  const fallback = { color: isolatedGeometryColor ?? '#007cbf', w: 1, o: 1 }
+  if (!map || !isolatedRoute) return fallback
+  for (const sid of tileSourceIds()) {
+    if (!map.getSource(sid)) continue
+    for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
+      const routes = `,${f.properties?.routes ?? ''},`
+      if (!routes.includes(`,${isolatedRoute},`)) continue
+      const st = styleForFeed(sid.slice('portolan-tiles-'.length))
+      const m = st?.modes?.[f.properties?.mode as string]
+      return {
+        color: f.properties?.route_color
+          ? `#${f.properties.route_color}`
+          : fallback.color,
+        w: m?.width ?? 1,
+        o: m?.opacity ?? 1,
+      }
+    }
+  }
+  return fallback
+}
+
+function removeIsolatedLine() {
+  if (!map) return
+  for (const id of [ISOLATED_LINE_GHOST, ISOLATED_LINE]) {
+    if (map.getLayer(id)) map.removeLayer(id)
+  }
+  if (map.getSource(SRC_ISOLATED_LINE)) map.removeSource(SRC_ISOLATED_LINE)
+}
+
+/**
+ * Keep the override line in step with (isolatedRoute, isolatedGeometry).
+ *
+ * Built the way addRibbonLayer builds a ribbon — same caps, the ribbons'
+ * width curve at the class width with the isolation boost folded in, the
+ * class opacity, and on MapLibre the same solid-below-buildings /
+ * ghost-above-buildings pair (Mapbox gets the slot + occlusion form).
+ * Inserted at the top of the ribbon stack, under every symbol, so the
+ * line reads as one more ribbon and the stations keep drawing over it.
+ */
+function syncIsolatedLine() {
+  if (!map) return
+  if (!isolatedRoute || !isolatedGeometry) {
+    removeIsolatedLine()
+    return
+  }
+  const { color, w, o } = isolatedLineStyle()
+  const data = {
+    type: 'Feature' as const,
+    properties: {},
+    geometry: {
+      type: 'LineString' as const,
+      // densify + tolerance:0, or the geojson→tile step drops sparse
+      // GTFS segments crossing vertex-less tiles (see addRouteShape)
+      coordinates: densifyLine(isolatedGeometry),
+    },
+  }
+  removeIsolatedLine()
+  map.addSource(SRC_ISOLATED_LINE, {
+    type: 'geojson',
+    tolerance: 0,
+    buffer: 128,
+    data,
+  })
+  const width = widthExpr(w * ISOLATION_WIDTH)
+  const layout = { 'line-cap': 'round', 'line-join': 'round' }
+
+  if (engine === MapEngine.MAPBOX) {
+    map.addLayer({
+      id: ISOLATED_LINE,
+      type: 'line',
+      source: SRC_ISOLATED_LINE,
+      slot: 'middle',
+      layout,
+      paint: {
+        'line-color': ribbonColorWithAlpha(color as unknown as Expr, o as unknown as Expr),
+        'line-width': width,
+        'line-opacity': 1,
+        'line-occlusion-opacity': OCCLUDED_OPACITY,
+        ...emissive('line'),
+      },
+    })
+    return
+  }
+
+  const buildings = buildingLayer()
+  map.addLayer(
+    {
+      id: ISOLATED_LINE,
+      type: 'line',
+      source: SRC_ISOLATED_LINE,
+      layout,
+      paint: {
+        'line-color': color,
+        'line-width': width,
+        'line-opacity': o,
+        ...emissive('line'),
+      },
+    },
+    buildings ?? firstLabelLayer(),
+  )
+  if (!buildings) return
+  map.addLayer(
+    {
+      id: ISOLATED_LINE_GHOST,
+      type: 'line',
+      source: SRC_ISOLATED_LINE,
+      layout,
+      paint: {
+        'line-color': color,
+        'line-width': width,
+        'line-opacity': o * OCCLUDED_OPACITY,
+      },
+    },
+    firstLabelLayer(buildings),
+  )
 }
 
 /** A tile station further than this from every stop on the path is not on
@@ -1695,6 +1862,12 @@ function isolationOpacity(base: Expr, ghost: boolean): Expr {
     ? (['*', base, OCCLUDED_OPACITY] as unknown as Expr)
     : base
   if (!isolatedRoute) return occluded
+  // With a geometry override up, the override line IS the route on the
+  // map: the tile ribbon's copy of it dims into the network like
+  // everything else, because its geometry is what the override corrects.
+  if (isolatedGeometry) {
+    return ['*', occluded, isolationDim()] as unknown as Expr
+  }
   return [
     '*',
     occluded,
@@ -1717,12 +1890,14 @@ function isolationOpacity(base: Expr, ghost: boolean): Expr {
  */
 function isolationWidth(base: Expr): Expr {
   if (!isolatedRoute) return base
-  const boost: Expr = [
-    'case',
-    routeFilterExpr(isolatedRoute, isolationTime()),
-    ISOLATION_WIDTH,
-    ISOLATION_THIN,
-  ] as unknown as Expr
+  const boost: Expr = isolatedGeometry
+    ? (ISOLATION_THIN as unknown as Expr)
+    : ([
+        'case',
+        routeFilterExpr(isolatedRoute, isolationTime()),
+        ISOLATION_WIDTH,
+        ISOLATION_THIN,
+      ] as unknown as Expr)
 
   if (Array.isArray(base)) {
     if (base[0] !== 'interpolate') return base
@@ -1749,6 +1924,9 @@ function isolationWidth(base: Expr): Expr {
  */
 function isolationOffset(base: Expr): Expr {
   if (!isolatedRoute || base === undefined) return base
+  // Overridden: the tile ribbon stays dimmed in its slot; the override
+  // line owns the centreline.
+  if (isolatedGeometry) return base
   const pick = (out: any): Expr =>
     [
       'case',

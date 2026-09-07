@@ -8,9 +8,13 @@
 * Your account row stays pinned to the bottom of the mobile dashboard, so you can reach it without scrolling past every recent place.
 * Search suggestions run the full height of the panel instead of stopping half way down with empty space beneath them.
 * The layer picker opens as a sheet you can drag up to full screen again.
+* Opening a transit line now dims the rest of the network instead of hiding it, so you can still see where the line crosses everything else.
+* A transit line's page drops its own back arrow and uses the sheet's floating one, matching place detail.
 
 ### Fixed
 
+* Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway.
+* The stop list's line runs through the middle of every stop dot instead of floating past the last one.
 * Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
 * The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.
 * Lists leave room for the on-screen keyboard, so you can scroll to the end of your results without dismissing it first.

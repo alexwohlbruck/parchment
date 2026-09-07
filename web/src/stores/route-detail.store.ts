@@ -266,9 +266,9 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   }
 
   function closeRoute() {
+    serviceFetchId++
     stopRunningRoutes.value = new Map()
     stopServiceKnown.value = new Set()
-    stopServiceInFlight.clear()
     feedOnestopId.value = null
     stopVehiclePolling()
     activeRoute.value = null
@@ -298,58 +298,49 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   }
 
   /**
-   * Which lines are actually running at a stop, keyed by stop id.
+   * Which lines are actually running at each stop, keyed by stop id.
    *
    * The same judgement the station header makes, from the same evidence: a
    * stop's departure board names the routes with a run inside its window,
    * and a line that calls here but is absent from it is not running now
-   * (the 3 at Eastern Pkwy after the evening). A board that comes back
-   * empty is NOT evidence — it may simply be missing — so the stop is left
-   * out of `stopServiceKnown` and nothing about it is dimmed.
+   * (the 3 at Eastern Pkwy after the evening).
    *
-   * Fetched per stop because the departures endpoint is per stop, and only
-   * for stops the rider has actually scrolled to. Cached for the life of
-   * the panel: one board per stop, never refetched.
+   * ONE request for the whole line. Per-stop boards were one request each,
+   * fired as the rider scrolled, so the bullets faded in a ragged cascade
+   * down the list; the server fans out instead and answers once, and the
+   * whole list settles together. A stop missing from `running` has no
+   * board — missing evidence, not a closed line — and is left alone.
    */
   const stopRunningRoutes = ref(new Map<string, Set<string>>())
   const stopServiceKnown = ref(new Set<string>())
-  /** The feed's onestop id, as the board reports it — the key portolan's
+  /** The feed's onestop id as the boards report it — the key portolan's
    *  stop index needs, which route detail itself does not carry. */
   const feedOnestopId = ref<string | null>(null)
-  const stopServiceInFlight = new Set<string>()
+  let serviceFetchId = 0
 
-  /** `/transit/departures` answers with one group per stop, not a bare
-   *  list: a query by point can land on several. */
-  type DepartureGroup = {
-    stop?: { stopId?: string; feedOnestopId?: string }
-    departures?: TransitDeparture[]
-  }
-
-  async function ensureStopService(feedId: string, stopId: string) {
-    if (!feedId || !stopId) return
-    if (stopServiceInFlight.has(stopId) || stopRunningRoutes.value.has(stopId)) return
-    stopServiceInFlight.add(stopId)
+  async function loadStopService(feedId: string, stopIds: string[]) {
+    if (!feedId || !stopIds.length) return
+    const fetchId = ++serviceFetchId
     try {
-      const { data } = await api.get<DepartureGroup[]>('/transit/departures', {
-        params: { feedId, stopId },
+      const { data } = await api.get<{
+        running?: Record<string, string[]>
+        feedOnestopId?: string
+      }>('/transit/service-at-stops', {
+        params: { feedId, stopIds: stopIds.join(',') },
       })
-      const running = new Set<string>()
-      for (const group of Array.isArray(data) ? data : []) {
-        if (group.stop?.feedOnestopId && !feedOnestopId.value) {
-          feedOnestopId.value = group.stop.feedOnestopId
-        }
-        for (const d of group.departures ?? []) if (d.route?.id) running.add(d.route.id)
+      // A route the rider has already navigated away from must not land.
+      if (fetchId !== serviceFetchId) return
+      const running = new Map<string, Set<string>>()
+      const known = new Set<string>()
+      for (const [stopId, ids] of Object.entries(data?.running ?? {})) {
+        running.set(stopId, new Set(ids))
+        known.add(stopId)
       }
-      stopRunningRoutes.value.set(stopId, running)
-      // An empty board says nothing about the schedule.
-      if (running.size) stopServiceKnown.value.add(stopId)
-      // reassign so the template re-reads them
-      stopRunningRoutes.value = new Map(stopRunningRoutes.value)
-      stopServiceKnown.value = new Set(stopServiceKnown.value)
+      stopRunningRoutes.value = running
+      stopServiceKnown.value = known
+      if (data?.feedOnestopId) feedOnestopId.value = data.feedOnestopId
     } catch {
-      // No board — the stop stays unknown and nothing is dimmed.
-    } finally {
-      stopServiceInFlight.delete(stopId)
+      // No answer — every stop stays unknown and nothing is dimmed.
     }
   }
 
@@ -632,7 +623,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     stopRunningRoutes,
     stopServiceKnown,
     feedOnestopId,
-    ensureStopService,
+    loadStopService,
     selectVehicle,
     setDirection,
   }

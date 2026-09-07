@@ -109,10 +109,16 @@ function isRouteRunningAt(stop: RouteDetailStop, r: StopTransferRoute): boolean 
   return runningAt.value.get(stop.stopId)?.has(r.routeId) ?? true
 }
 
-/** Read a stop's board once it is on screen — see the store's cache. */
-function loadStopService(stop: RouteDetailStop) {
-  if (stop.routes?.length) void store.ensureStopService(props.feedId, stop.stopId)
-}
+// One request for the line, as soon as its stops are known — see the
+// store. Only stops that actually show connections are asked about.
+watch(
+  displayStops,
+  stops => {
+    const ids = stops.filter(s => s.routes?.length).map(s => s.stopId)
+    if (ids.length) void store.loadStopService(props.feedId, ids)
+  },
+  { immediate: true },
+)
 
 /**
  * Open a stop's own page.
@@ -321,7 +327,6 @@ function measureRows() {
 }
 
 let rowObserver: ResizeObserver | null = null
-let visObserver: IntersectionObserver | null = null
 watch(
   () => [listEl.value, displayStops.value.length] as const,
   async () => {
@@ -335,34 +340,13 @@ watch(
     rowObserver = new ResizeObserver(() => measureRows())
     rowObserver.observe(listEl.value)
     for (const el of rowEls.value) if (el) rowObserver.observe(el)
-
-    // Read a stop's board only once it is worth reading — the boards are
-    // one request each, and a long line has forty stops the rider may
-    // never scroll to.
-    visObserver?.disconnect()
-    if (typeof IntersectionObserver === 'undefined') return
-    visObserver = new IntersectionObserver(
-      entries => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue
-          const i = rowEls.value.indexOf(e.target as HTMLElement)
-          const stop = displayStops.value[i]
-          if (stop) loadStopService(stop)
-        }
-      },
-      { rootMargin: '200px' },
-    )
-    for (const el of rowEls.value) if (el) visObserver.observe(el)
   },
   { flush: 'post' },
 )
 // Content changes (a name resolving, bullets arriving) relayout the rows
 // without resizing the container, and ResizeObserver is not everywhere.
 onUpdated(measureRows)
-onUnmounted(() => {
-  rowObserver?.disconnect()
-  visObserver?.disconnect()
-})
+onUnmounted(() => rowObserver?.disconnect())
 
 /** Where the spine starts and ends: the first and last dot centres. */
 const spineTop = computed(() => dotCenters.value[0] ?? STOP_DOT_CENTER_Y)

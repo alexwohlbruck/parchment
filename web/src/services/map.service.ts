@@ -525,9 +525,12 @@ function mapService() {
         placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
       })
 
-      // Initialize marker layers - they will automatically sync with store state
+      // Initialize marker layers - they will automatically sync with store
+      // state. The smart `fitBounds` goes with them so route isolation frames
+      // a transit line inside the visible map area rather than under the
+      // LeftSheet, and re-fits once the drawer stops animating.
       initStep('markers', () =>
-        markerLayersService.initializeMarkerLayers(mapStrategy),
+        markerLayersService.initializeMarkerLayers(mapStrategy, fitBounds),
       )
 
       // Initialize notes layer for OSM notes overlay

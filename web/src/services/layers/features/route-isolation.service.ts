@@ -2,7 +2,7 @@
  * Route Isolation Service
  *
  * When a route detail is active, this service:
- *   1. Fades all existing transit layers to low opacity
+ *   1. Dims the rest of the transit network (it stays on the map)
  *   2. Adds a highlighted route shape to the map (bold, route-colored)
  *   3. Adds station markers along the route
  *   4. Cleans up when the route is deactivated
@@ -15,6 +15,7 @@ import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail
 import { densifyLine } from '@/lib/geo-densify'
 import { widthExpr } from '@/services/layers/features/portolan/portolan-expressions'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
+import type { FitBoundsFn } from '@/types/map.types'
 
 const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
@@ -51,6 +52,11 @@ const TRANSIT_LAYER_IDS = [
   'transitland-stops-labels',
 ]
 
+/** How far the rest of the network steps back while a route is isolated —
+ *  dimmed, not hidden, so the line still reads inside its network. Matches
+ *  portolan's own ISOLATION_DIM. */
+const NETWORK_DIM = 0.3
+
 /** Which opacity paint props carry a layer type's fade. */
 const OPACITY_PROPS: Record<string, string[]> = {
   line: ['line-opacity'],
@@ -62,6 +68,7 @@ export function useRouteIsolationService() {
   const routeDetailStore = useRouteDetailStore()
   const portolan = usePortolanTransitService()
   let mapInstance: any = null
+  let fitBoundsFn: FitBoundsFn | null = null
   let watchStop: WatchStopHandle | null = null
   let isIsolated = false
   /** True while portolan's own layers are carrying the isolation, so the
@@ -72,8 +79,9 @@ export function useRouteIsolationService() {
    *  nothing at all. */
   let isolationGeneration = 0
 
-  function initialize(map: any) {
+  function initialize(map: any, fitBounds?: FitBoundsFn) {
     mapInstance = map
+    fitBoundsFn = fitBounds ?? null
 
     watchStop = watch(
       () => routeDetailStore.activeRoute,
@@ -89,16 +97,17 @@ export function useRouteIsolationService() {
   }
 
   /**
-   * Isolate by NARROWING portolan rather than drawing over it.
+   * Isolate by LIFTING the route out of portolan rather than drawing over
+   * it.
    *
    * Where portolan draws the route, its own ribbons already have the
    * geometry, the colour, the stations and the labels — and, uniquely,
    * the hours: a per-route mask on every segment, which is the only thing
    * on this map that knows the 5 runs a fraction of its route at night or
-   * that the B stops running at all. Filtering those layers to one route
-   * at one instant therefore shows the path as it IS, not the canonical
-   * full-length shape, and the stops on the parts that are not running
-   * disappear with the track rather than floating over blank ground.
+   * that the B stops running at all. So the route keeps full strength
+   * exactly where it runs at this hour, and the rest of the network dims
+   * behind it instead of disappearing: a line is followed through a city,
+   * and the ribbons it crosses are what make the next transfer visible.
    *
    * Where portolan does not draw it — a bus in a city with no pyramid —
    * the shape-and-circles view is still the only view there is.
@@ -127,7 +136,7 @@ export function useRouteIsolationService() {
       // after the first, so the 2 is `f3:2` there and plain `2` alone
       portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId) ?? route.routeId)
       // everything that is not portolan still steps back
-      fadeTransitLayers(0.15, { skipPortolan: true })
+      fadeTransitLayers(NETWORK_DIM, { skipPortolan: true })
       isIsolated = true
       mapInstance.once('idle', () => {
         if (generation !== isolationGeneration || !portolanIsolated) return
@@ -142,7 +151,7 @@ export function useRouteIsolationService() {
         portolan.setIsolatedRoute(null)
         portolanIsolated = false
         fadeTransitLayers(null)
-        fadeTransitLayers(0.15)
+        fadeTransitLayers(NETWORK_DIM)
         if (route.coordinates && route.coordinates.length >= 2) {
           addRouteShape(route.coordinates, route.routeColor)
         }
@@ -154,7 +163,7 @@ export function useRouteIsolationService() {
     }
 
     // Fade existing transit layers
-    fadeTransitLayers(0.15)
+    fadeTransitLayers(NETWORK_DIM)
 
     // Add route shape
     if (route.coordinates && route.coordinates.length >= 2) {
@@ -219,9 +228,23 @@ export function useRouteIsolationService() {
     if (north === -90) return
 
     try {
+      // The obstruction-aware wrapper, not the raw camera call. Two reasons,
+      // and both of them are why a route sometimes opened half-framed: the
+      // panel's width is not ours to guess (420 was a guess), and the sheet
+      // is still sliding in when this fires — every frame of that slide calls
+      // `setPadding`, which stops the in-flight animation dead, leaving the
+      // camera wherever the ease had got to. The wrapper fits again once the
+      // drawer settles, against the padding it settled at.
+      if (fitBoundsFn) {
+        fitBoundsFn(
+          { minLng: west, minLat: south, maxLng: east, maxLat: north },
+          { padding: 40, maxZoom: 15, duration: 800 },
+        )
+        return
+      }
       mapInstance.fitBounds(
         [[west, south], [east, north]],
-        { padding: { top: 60, bottom: 60, left: 420, right: 60 }, duration: 800 },
+        { padding: 60, duration: 800 },
       )
     } catch { /* fitBounds can throw on degenerate bounds */ }
   }
@@ -423,6 +446,7 @@ export function useRouteIsolationService() {
     watchStop?.()
     watchStop = null
     mapInstance = null
+    fitBoundsFn = null
   }
 
   return {

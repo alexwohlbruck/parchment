@@ -54,8 +54,8 @@ const TRANSIT_LAYER_IDS = [
 
 /** How far the rest of the network steps back while a route is isolated —
  *  dimmed, not hidden, so the line still reads inside its network. Matches
- *  portolan's own ISOLATION_DIM. */
-const NETWORK_DIM = 0.3
+ *  portolan's own ISOLATION_DIM — keep the two in step. */
+const NETWORK_DIM = 0.12
 
 /** Which opacity paint props carry a layer type's fade. */
 const OPACITY_PROPS: Record<string, string[]> = {
@@ -112,6 +112,23 @@ export function useRouteIsolationService() {
    * Where portolan does not draw it — a bus in a city with no pyramid —
    * the shape-and-circles view is still the only view there is.
    */
+  /**
+   * Tear down the shape-and-circles overlay.
+   *
+   * It and portolan's ribbon are two renderings of the same line, and they
+   * can never agree on screen: portolan draws bundled routes at parallel
+   * slot offsets (`line-offset`), so its ribbon sits beside the centreline
+   * this overlay is drawn on, with its own station dots and labels beside
+   * ours. Only one of them may be on the map at a time.
+   */
+  function removeRouteOverlay() {
+    removeLayerIfExists(STOPS_LABELS_LAYER_ID)
+    removeLayerIfExists(STOPS_LAYER_ID)
+    removeSourceIfExists(STOPS_SOURCE_ID)
+    removeLayerIfExists(ROUTE_LAYER_ID)
+    removeSourceIfExists(ROUTE_SOURCE_ID)
+  }
+
   function applyIsolation(route: {
     routeId?: string
     routeColor: string | null
@@ -119,6 +136,11 @@ export function useRouteIsolationService() {
     stops: RouteDetailStop[]
   }) {
     if (!mapInstance) return
+
+    // A previous pass may have left the overlay up — switching direction or
+    // reopening re-runs this, and portolan may answer differently the second
+    // time now that its tiles have arrived.
+    removeRouteOverlay()
 
     // Fit map to route bounds
     fitToRoute(route)
@@ -144,6 +166,9 @@ export function useRouteIsolationService() {
         if (token) {
           // the tiles that answer may only have arrived with the fit
           portolan.setIsolatedRoute(token)
+          // portolan owns the drawing now — its ribbon carries the stations
+          // and the bulleted labels, so ours must not double them.
+          removeRouteOverlay()
           return
         }
         // portolan has no such route here — a bus in a city with no
@@ -190,14 +215,7 @@ export function useRouteIsolationService() {
     // Restore transit layer opacity
     fadeTransitLayers(null)
 
-    // Remove route shape layers
-    removeLayerIfExists(ROUTE_LAYER_ID)
-    removeSourceIfExists(ROUTE_SOURCE_ID)
-
-    // Remove station markers
-    removeLayerIfExists(STOPS_LABELS_LAYER_ID)
-    removeLayerIfExists(STOPS_LAYER_ID)
-    removeSourceIfExists(STOPS_SOURCE_ID)
+    removeRouteOverlay()
 
     isIsolated = false
   }

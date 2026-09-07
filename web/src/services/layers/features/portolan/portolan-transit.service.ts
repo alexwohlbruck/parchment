@@ -217,17 +217,25 @@ let isolatedRoute: string | null = null
 /** How far the rest of the network steps back while one route is
  *  isolated. Low enough to read as background, high enough that the
  *  network is still legibly there. */
-const ISOLATION_DIM = 0.3
+const ISOLATION_DIM = 0.12
+
+/** How much wider the isolated route draws than it normally would. The
+ *  dim alone leaves it the same weight as everything else, just brighter;
+ *  the extra weight is what makes it read as the subject of the map. */
+const ISOLATION_WIDTH = 1.6
 
 // each ribbon layer's STRUCTURAL filter (band_min/kind), recorded at
 // creation: the time/class clauses combine with it via ['all', …] and
 // detach by restoring exactly this (MapView.vue:162-165)
 const structuralFilter = new Map<string, Expr>()
 
-// each ribbon layer's base colour and opacity as it was built, so the
-// isolation dim can be re-derived from the original rather than stacked
-// on the last dimmed value
-const ribbonPaint = new Map<string, { color: Expr; opacity: Expr; ghost: boolean }>()
+// each ribbon layer's base colour, opacity and width as it was built, so
+// the isolation dim and width boost re-derive from the original rather
+// than stacking on the last dimmed value
+const ribbonPaint = new Map<
+  string,
+  { color: Expr; opacity: Expr; width: Expr; ghost: boolean }
+>()
 
 // ── hydration state (MapView.vue:1588-1613) ────────────────────────────
 // querySourceFeatures only sees the tiles renderable at this instant, and
@@ -711,6 +719,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
   ribbonPaint.set(spec.id, {
     color: spec.paint['line-color'],
     opacity,
+    width: spec.paint['line-width'],
     ghost: false,
   })
 
@@ -762,6 +771,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
   ribbonPaint.set(gid, {
     color: spec.paint['line-color'],
     opacity,
+    width: spec.paint['line-width'],
     ghost: true,
   })
   map.addLayer(
@@ -1505,11 +1515,48 @@ function isolationOpacity(base: Expr, ghost: boolean): Expr {
   ] as unknown as Expr
 }
 
-/** Re-derive every ribbon's opacity from the paint it was built with. */
+/**
+ * A ribbon layer's width with the isolation boost folded in.
+ *
+ * `line-width` is a top-level zoom `interpolate` (see `widthExpr`), and a
+ * zoom expression may not be nested inside another one — so the boost cannot
+ * wrap the width. It goes INSIDE, multiplying each of the interpolate's
+ * outputs, which leaves the zoom curve top-level and legal.
+ *
+ * Anything that is not a plain interpolate or a constant is returned
+ * untouched: a wrong guess at its shape would throw and take the layer's
+ * paint with it, and an unboosted ribbon is a far better failure than a
+ * missing one.
+ */
+function isolationWidth(base: Expr): Expr {
+  if (!isolatedRoute) return base
+  const boost: Expr = [
+    'case',
+    routeFilterExpr(isolatedRoute, isolationTime()),
+    ISOLATION_WIDTH,
+    1,
+  ] as unknown as Expr
+
+  if (Array.isArray(base)) {
+    if (base[0] !== 'interpolate') return base
+    const out: any[] = base.slice(0, 3)
+    for (let i = 3; i < base.length; i += 2) {
+      out.push(base[i], ['*', base[i + 1], boost])
+    }
+    return out as unknown as Expr
+  }
+  return ['*', base, boost] as unknown as Expr
+}
+
+/** Re-derive every ribbon's opacity and width from the paint it was built
+ *  with. */
 function applyRibbonDim() {
   if (!hydrationReady()) return
   for (const [id, p] of ribbonPaint) {
     if (!map.getLayer(id)) continue
+    if (p.width !== undefined) {
+      map.setPaintProperty(id, 'line-width', isolationWidth(p.width))
+    }
     const o = isolationOpacity(p.opacity, p.ghost)
     if (engine === MapEngine.MAPBOX) {
       // Mapbox keeps the alpha in the colour so line-opacity can stay

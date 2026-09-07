@@ -12,7 +12,6 @@ import {
   bulletFor,
   ensureBulletsAt,
 } from '@/services/layers/features/portolan/portolan-bullets'
-import { useRouter } from 'vue-router'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
@@ -33,7 +32,6 @@ import {
   ShipIcon,
   TramFrontIcon,
   MapPinIcon,
-  ArrowLeftIcon,
 } from 'lucide-vue-next'
 import type { TransitDeparture } from '@/types/place.types'
 import { Spinner } from '@/components/ui/spinner'
@@ -47,7 +45,6 @@ const props = defineProps<{
 }>()
 
 const store = useRouteDetailStore()
-const router = useRouter()
 const { t } = useI18n()
 const currentTime = useTransitClock()
 
@@ -205,10 +202,26 @@ const STOP_ROW_HEIGHT = computed(() =>
   displayStops.value.some((s) => s.routes?.length) ? 52 : 32,
 )
 
+/**
+ * Distance from a row's top to the centre of its stop dot.
+ *
+ * Everything on the spine — the line itself, the dots, the vehicles — is
+ * placed off this one number, so they stay threaded on each other whatever
+ * the row height is. It lands on the middle of the stop name's first line
+ * (2px row padding + half a 20px line box), which is where the eye expects
+ * the dot for that stop to be.
+ */
+const STOP_DOT_CENTER_Y = 12
+
 /** Top offset in px for a vehicle at the given routeFraction. */
 function vehicleTopPx(vr: VehicleOnRoute): number {
   const totalHeight = (displayStops.value.length - 1) * STOP_ROW_HEIGHT.value
   return vr.routeFraction * totalHeight
+}
+
+/** Top offset in px for the dot of the stop at `index`. */
+function stopDotTopPx(index: number, size: number): number {
+  return index * STOP_ROW_HEIGHT.value + STOP_DOT_CENTER_Y - size / 2
 }
 
 // ── Lifecycle ────────────────────────────────────────────────
@@ -231,14 +244,6 @@ onUnmounted(() => {
 
 <template>
   <PanelLayout>
-    <!-- Header -->
-    <div class="flex items-center gap-2 py-2">
-      <button class="p-1 -ml-1 rounded-md hover:bg-muted" @click="router.back()">
-        <ArrowLeftIcon class="h-4 w-4" />
-      </button>
-      <span class="text-sm font-medium truncate">{{ displayName }}</span>
-    </div>
-
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <Spinner size="sm" />
     </div>
@@ -345,7 +350,7 @@ onUnmounted(() => {
             class="absolute z-0 rounded-full"
             :style="{
               left: '12px',
-              top: `${STOP_ROW_HEIGHT / 2}px`,
+              top: `${STOP_DOT_CENTER_Y}px`,
               width: '3px',
               height: `${vehicleTopPx(selectedVehicleOnRoute)}px`,
               background: 'hsl(var(--muted-foreground))',
@@ -356,8 +361,8 @@ onUnmounted(() => {
             :style="{
               left: '12px',
               top: selectedVehicleOnRoute
-                ? `${STOP_ROW_HEIGHT / 2 + vehicleTopPx(selectedVehicleOnRoute)}px`
-                : `${STOP_ROW_HEIGHT / 2}px`,
+                ? `${STOP_DOT_CENTER_Y + vehicleTopPx(selectedVehicleOnRoute)}px`
+                : `${STOP_DOT_CENTER_Y}px`,
               width: '3px',
               height: selectedVehicleOnRoute
                 ? `${(displayStops.length - 1) * STOP_ROW_HEIGHT - vehicleTopPx(selectedVehicleOnRoute)}px`
@@ -373,7 +378,7 @@ onUnmounted(() => {
             class="absolute z-20 cursor-pointer"
             :style="{
               left: '2px',
-              top: `${vehicleTopPx(vr) + STOP_ROW_HEIGHT / 2 - 11}px`,
+              top: `${vehicleTopPx(vr) + STOP_DOT_CENTER_Y - 11}px`,
             }"
             @click.stop="onSelectVehicle(vr.vehicleId)"
           >
@@ -400,6 +405,7 @@ onUnmounted(() => {
                 width: (i === 0 || i === displayStops.length - 1) ? '11px' : '9px',
                 height: (i === 0 || i === displayStops.length - 1) ? '11px' : '9px',
                 left: (i === 0 || i === displayStops.length - 1) ? '8px' : '9px',
+                top: `${stopDotTopPx(i, (i === 0 || i === displayStops.length - 1) ? 11 : 9)}px`,
                 borderColor: isStopPassedBySelected(i) ? 'hsl(var(--muted-foreground))' : bgColor,
                 background: isStopPassedBySelected(i) ? 'hsl(var(--muted))' : 'hsl(var(--background))',
               }"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUpdate, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
 import {
   useRouteDetailStore,
   type DepartureContext,
@@ -360,18 +360,28 @@ const listEl = ref<HTMLElement | null>(null)
 const rowEls = ref<HTMLElement[]>([])
 const dotCenters = ref<number[]>([])
 
+// Vue fills a v-for ref array but never empties it, so a list that
+// SHRINKS keeps the tail entries of the longer one. That left more dot
+// centres than stops — the count check below then failed, and with it went
+// the per-gap spine and every vehicle's placement.
+onBeforeUpdate(() => { rowEls.value = [] })
+
 function measureRows() {
   const list = listEl.value
   if (!list) return
   const top = list.getBoundingClientRect().top
-  dotCenters.value = rowEls.value
-    .filter(Boolean)
-    .map(el => el.getBoundingClientRect().top - top + STOP_DOT_CENTER_Y)
+  const rows = rowEls.value.filter(Boolean)
+  // A half-built list measures to nonsense; the spine and the vehicles
+  // would rather keep the last good numbers than take them.
+  if (rows.length !== displayStops.value.length) return
+  dotCenters.value = rows.map(
+    el => el.getBoundingClientRect().top - top + STOP_DOT_CENTER_Y,
+  )
 }
 
 let rowObserver: ResizeObserver | null = null
 watch(
-  () => [listEl.value, displayStops.value.length] as const,
+  () => [listEl.value, displayStops.value.map(s => s.stopId).join(',')] as const,
   async () => {
     await nextTick()
     measureRows()

@@ -179,6 +179,18 @@ export function useRouteIsolationService() {
   let renderedSig = ''
 
   /**
+   * Who is drawing this isolation — decided ONCE, and never revisited.
+   *
+   * The test for "does portolan draw this route" reads the tiles loaded
+   * right now, so it answers no whenever the map has panned off the route.
+   * Re-running it on every settle (boards answering, alerts landing) let a
+   * pan tear portolan's ribbon, stations and bullets down and replace them
+   * mid-view with the plain shape-and-circles overlay. A later render may
+   * change WHAT is drawn; it may not change WHO draws it.
+   */
+  let renderer: 'portolan' | 'overlay' | null = null
+
+  /**
    * The route's shape cut down to the span between the running path's two
    * end stops, or null when there is nothing to cut with. The ends are
    * found by the stops' own distance-along metric, then projected onto the
@@ -218,6 +230,7 @@ export function useRouteIsolationService() {
     const generation = ++isolationGeneration
     isIsolated = true
     renderedSig = ''
+    renderer = null
     render(route, generation)
   }
 
@@ -239,6 +252,7 @@ export function useRouteIsolationService() {
     /** Portolan draws the route: dim everything else and stand the overlay
      *  down. Idempotent — the reconciler may land here repeatedly. */
     const renderViaPortolan = (token: string) => {
+      renderer = 'portolan'
       portolan.setIsolatedRoute(token)
       if (!portolanIsolated) {
         portolanIsolated = true
@@ -253,6 +267,7 @@ export function useRouteIsolationService() {
      *  only view there is. It too draws the running span, not the full
      *  timetable line. */
     const renderViaOverlay = () => {
+      renderer = 'overlay'
       if (portolanIsolated) {
         portolan.setIsolatedRoute(null)
         portolanIsolated = false
@@ -280,6 +295,14 @@ export function useRouteIsolationService() {
       broken ? runningSlice(route) : null,
       route.routeColor,
     )
+
+    // Settled already: the renderer stands, and the geometry above is the
+    // only thing this pass had to say.
+    if (renderer === 'portolan') return
+    if (renderer === 'overlay') {
+      renderViaOverlay()
+      return
+    }
 
     // First paint, from what is knowable right now. Optimistic about
     // portolan: asking for the token this instant would answer "no" for a
@@ -375,6 +398,7 @@ export function useRouteIsolationService() {
     if (!mapInstance || !isIsolated) return
     isolationGeneration++
     renderedSig = ''
+    renderer = null
     detachReconciler()
 
     if (portolanIsolated) {

@@ -4,6 +4,8 @@
 
 ### Changed
 
+* Highway shields dim to match the night map — dark plaques with light numerals, and muted interstate and US route colours — instead of glowing white.
+* Fewer route shields at low zooms: only motorways carry them when zoomed out, with trunk and primary routes joining as you zoom in.
 * Releases now deploy the API themselves instead of waiting up to an hour for the server to notice a new image.
 * Your account row stays pinned to the bottom of the mobile dashboard, so you can reach it without scrolling past every recent place.
 * Search suggestions run the full height of the panel instead of stopping half way down with empty space beneath them.
@@ -11,6 +13,7 @@
 
 ### Fixed
 
+* Motorway exit numbers no longer litter the map from far out — they wait for street-level zoom where the junction layer draws them.
 * Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
 * The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.
 * Lists leave room for the on-screen keyboard, so you can scroll to the end of your results without dismissing it first.

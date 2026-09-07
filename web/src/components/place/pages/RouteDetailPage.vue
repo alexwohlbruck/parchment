@@ -8,6 +8,7 @@ import {
   type StopTransferRoute,
 } from '@/stores/route-detail.store'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
+import { orderBullets } from '@/lib/transit-bullets'
 import {
   bulletFor,
   ensureBulletsAt,
@@ -282,6 +283,23 @@ function isStopInPast(stop: { stopId: string }): boolean {
 const stopBullet = (route: StopTransferRoute, stop: RouteDetailStop) =>
   bulletFor(route.routeId, stop.lat, stop.lng, route.routeType, route.routeShortName || route.routeLongName)
 
+/**
+ * A stop's connections in the same order the station header puts them.
+ *
+ * The server returns them by its own SQL sort (station-before-transfer,
+ * then route type and short name), which reads as a different system from
+ * the one the header shows for the same station. `orderBullets` is that
+ * shared rule — it sorts by the bullet's own glyph and colour, which is
+ * what a rider is actually scanning.
+ */
+const stopRoutes = (stop: RouteDetailStop): StopTransferRoute[] =>
+  orderBullets(stop.routes ?? [], r => ({
+    label:
+      stopBullet(r, stop)?.label || r.routeShortName || r.routeLongName || '',
+    color: stopBullet(r, stop)?.color || r.routeColor,
+    id: r.routeId,
+  }))
+
 // Curated styles are fetched per feed and per session. Ask once the stops
 // land, using the first one as the point — a route stays inside one city.
 watch(
@@ -353,6 +371,63 @@ const spineTop = computed(() => dotCenters.value[0] ?? STOP_DOT_CENTER_Y)
 const spineBottom = computed(
   () => dotCenters.value[dotCenters.value.length - 1] ?? STOP_DOT_CENTER_Y,
 )
+
+/**
+ * Does THIS line call at this stop right now?
+ *
+ * The board that judges the connection bullets answers this too — the
+ * route being viewed is just another id on it. Unknown stays true: an
+ * absent board is missing evidence, and a line drawn as "not stopping
+ * here" on no evidence is worse than one drawn plainly.
+ *
+ * This is what the 5 looks like at night, when it runs Dyre Av to E 180
+ * St as a shuttle and the rest of the line is the 2's.
+ */
+function servesStop(stop: RouteDetailStop): boolean {
+  if (!serviceKnown.value.has(stop.stopId)) return true
+  return runningAt.value.get(stop.stopId)?.has(props.routeId) ?? true
+}
+
+/** True once any stop is known NOT to be served — the only condition under
+ *  which the timeline says anything about it. */
+const hasUnservedStops = computed(() =>
+  displayStops.value.some(s => !servesStop(s)),
+)
+
+/**
+ * The spine, cut into one segment per gap between stops.
+ *
+ * Drawn per gap rather than as one bar because a segment now carries
+ * meaning: solid where the line runs, and a faint dashed rule across the
+ * stretch it is not serving, so a rider sees WHERE it stops running rather
+ * than reading a uniform line past stations no train will call at.
+ *
+ * Falls back to one whole-length segment before the rows have been
+ * measured, so the timeline is never a column of unconnected dots.
+ */
+const spineSegments = computed(() => {
+  const centers = dotCenters.value
+  const stops = displayStops.value
+  if (centers.length < 2 || centers.length !== stops.length) {
+    return [
+      {
+        key: 'whole',
+        top: spineTop.value,
+        height: Math.max(0, spineBottom.value - spineTop.value),
+        served: true,
+        passed: false,
+      },
+    ]
+  }
+  return centers.slice(0, -1).map((top, i) => ({
+    key: stops[i].stopId,
+    top,
+    height: centers[i + 1] - top,
+    // a gap is only "running" when both of its ends are
+    served: servesStop(stops[i]) && servesStop(stops[i + 1]),
+    passed: isStopPassedBySelected(i),
+  }))
+})
 
 /**
  * Top offset in px for a vehicle at the given routeFraction.
@@ -519,35 +594,36 @@ onUnmounted(() => {
       <div>
         <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
 
+        <!-- Said once, in words, rather than left for a rider to infer from
+             a dashed line. Only when a stop is actually known to be skipped. -->
+        <p v-if="hasUnservedStops" class="text-xs text-muted-foreground mb-2">
+          {{ t('place.transit.someStopsNotServed') }}
+        </p>
+
         <div ref="listEl" class="relative" style="padding-left: 32px">
-          <!-- Vertical route line, from the first dot centre to the last:
-               split into passed (grey) and active (coloured) at the selected
-               vehicle. Both ends read measured positions, so a row that grew
-               to fit its bullets carries the spine with it. -->
+          <!-- The route line, one segment per gap between stops. Solid in
+               the line's colour where it runs; a faint dashed rule across
+               any stretch it is not serving right now, so the break is
+               something the timeline SAYS rather than something it omits.
+               Grey behind the selected vehicle, as before. -->
           <div
-            v-if="selectedVehicleOnRoute"
-            class="absolute z-0 rounded-full"
+            v-for="seg in spineSegments"
+            :key="seg.key"
+            class="absolute z-0"
+            :class="seg.served ? 'rounded-full' : ''"
             :style="{
               left: '12px',
-              top: `${spineTop}px`,
+              top: `${seg.top}px`,
               width: '3px',
-              height: `${Math.max(0, vehicleTopPx(selectedVehicleOnRoute) - spineTop)}px`,
-              background: 'hsl(var(--muted-foreground))',
-            }"
-          />
-          <div
-            class="absolute z-0 rounded-full"
-            :style="{
-              left: '12px',
-              top: selectedVehicleOnRoute
-                ? `${vehicleTopPx(selectedVehicleOnRoute)}px`
-                : `${spineTop}px`,
-              width: '3px',
-              height: `${Math.max(
-                0,
-                spineBottom - (selectedVehicleOnRoute ? vehicleTopPx(selectedVehicleOnRoute) : spineTop),
-              )}px`,
-              background: bgColor,
+              height: `${seg.height}px`,
+              ...(seg.served
+                ? { background: seg.passed ? 'hsl(var(--muted-foreground))' : bgColor }
+                : {
+                    opacity: 0.45,
+                    backgroundImage: `repeating-linear-gradient(to bottom, ${
+                      seg.passed ? 'hsl(var(--muted-foreground))' : bgColor
+                    } 0 4px, transparent 4px 8px)`,
+                  }),
             }"
           />
 
@@ -591,6 +667,9 @@ onUnmounted(() => {
                 top: `${STOP_DOT_CENTER_Y - ((i === 0 || i === displayStops.length - 1) ? 11 : 9) / 2}px`,
                 borderColor: isStopPassedBySelected(i) ? 'hsl(var(--muted-foreground))' : bgColor,
                 background: isStopPassedBySelected(i) ? 'hsl(var(--muted))' : 'hsl(var(--background))',
+                // a stop the line is not calling at reads as background,
+                // like the dashed rule running past it
+                opacity: servesStop(stop) ? 1 : 0.45,
               }"
             />
 
@@ -600,8 +679,9 @@ onUnmounted(() => {
                 class="text-sm min-w-0 truncate leading-6 text-left hover:underline"
                 :class="{
                   'font-semibold': i === 0 || i === displayStops.length - 1,
-                  'text-muted-foreground': isStopPassedBySelected(i),
+                  'text-muted-foreground': isStopPassedBySelected(i) || !servesStop(stop),
                 }"
+                :title="servesStop(stop) ? undefined : t('place.transit.notStoppingHere', { route: displayName })"
                 @click="openStop(stop)"
               >
                 {{ stop.stopName }}
@@ -616,7 +696,7 @@ onUnmounted(() => {
                    same mistake; the two now agree. -->
               <div v-if="stop.routes?.length" class="flex items-center gap-1 flex-wrap">
                 <button
-                  v-for="r in stop.routes"
+                  v-for="r in stopRoutes(stop)"
                   :key="r.routeId"
                   type="button"
                   class="cursor-pointer transition-transform hover:scale-110"

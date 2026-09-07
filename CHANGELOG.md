@@ -14,6 +14,7 @@
 * Opening a transit line now dims the rest of the network instead of hiding it, so you can still see where the line crosses everything else. The line itself draws thicker and the network steps further back, so it reads as the subject of the map.
 * A transit line's page drops its own back arrow and uses the sheet's floating one, matching place detail.
 * A transit line's name and direction stay pinned at the top while you scroll its stops.
+* Connection bullets in a line's stop list use the same order as the station page.
 * A line's page header shows the line's real bullet — the same chip the map draws — instead of a plain colored square.
 * Stops in a line's timeline size to their own content, so a stop with several connections no longer overlaps the name below it and a plain stop no longer sits in wasted space.
 * On the dark map, the rest of the network stays more visible behind an opened line.
@@ -22,7 +23,7 @@
 
 ### Fixed
 
-* Connection bullets in a line's stop list now fade only when that line isn't running at that stop, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.
+* A line's stop list now shows where the line isn't currently stopping: those stops fade and the line between them runs as a dashed rule, so an overnight short-working reads at a glance. Connection bullets fade on the same rule, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.
 * The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
 * Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.
 * An isolated line stays itself — opening a route no longer briefly highlights a different railroad that shares its number, and never settles on one.

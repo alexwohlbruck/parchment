@@ -308,8 +308,12 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
    * ONE request for the whole line. Per-stop boards were one request each,
    * fired as the rider scrolled, so the bullets faded in a ragged cascade
    * down the list; the server fans out instead and answers once, and the
-   * whole list settles together. A stop missing from `running` has no
-   * board — missing evidence, not a closed line — and is left alone.
+   * whole list settles together.
+   *
+   * A stop PRESENT with an empty set is known: upstream answered and named
+   * nothing departing, which is what a station looks like once the lines
+   * stop calling at it. A stop ABSENT could not be reached, and nothing is
+   * claimed about it.
    */
   const stopRunningRoutes = ref(new Map<string, Set<string>>())
   const stopServiceKnown = ref(new Set<string>())

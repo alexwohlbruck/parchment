@@ -117,19 +117,36 @@ describe('RouteDetailPage stop timeline', () => {
   })
 
   // The point of measuring: rows of different heights each carry their dot,
-  // and the spine ends on the real first and last centres rather than on
-  // index × an assumed row height.
+  // and the spine's segments join the real centres rather than index × an
+  // assumed row height.
   it('spans uneven rows from the first measured dot to the last', async () => {
     const wrapper = await mountWithStops(true)
     await layOutRows(wrapper, [32, 70, 32, 54])
 
-    const style = wrapper.find('.absolute.z-0').attributes('style') ?? ''
-    const top = px(style, 'top')
-    const height = px(style, 'height')
+    const segs = wrapper.findAll('.absolute.z-0').map(w => {
+      const style = w.attributes('style') ?? ''
+      return { top: px(style, 'top'), height: px(style, 'height') }
+    })
+    // one per gap between four stops
+    expect(segs.length).toBe(3)
 
     // rows start at 100; centres are row-top - list-top + 12
-    expect(top).toBeCloseTo(12, 5)
-    // last row starts 32+70+32 = 134 below the first
-    expect(top + height).toBeCloseTo(134 + 12, 5)
+    expect(segs[0].top).toBeCloseTo(12, 5)
+    // and each segment is exactly its own row's height
+    expect(segs[0].height).toBeCloseTo(32, 5)
+    expect(segs[1].height).toBeCloseTo(70, 5)
+    expect(segs[2].height).toBeCloseTo(32, 5)
+    // the last one ends on the last dot: 32+70+32 below the first centre
+    const last = segs[segs.length - 1]
+    expect(last.top + last.height).toBeCloseTo(134 + 12, 5)
+  })
+
+  // Before the rows are measured there is nothing to segment, and a column
+  // of unconnected dots reads as "the line does not run here" — which is a
+  // claim the panel has no basis for. One whole-length line instead.
+  it('still draws a connected line before the rows are measured', async () => {
+    const wrapper = await mountWithStops(false)
+    const segs = wrapper.findAll('.absolute.z-0')
+    expect(segs.length).toBe(1)
   })
 })

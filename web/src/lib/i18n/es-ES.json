@@ -1195,7 +1195,9 @@
       "transfers": "Transbordos",
       "nearby": "Cerca",
       "transfer": "transbordo",
-      "notRunning": "sin servicio ahora"
+      "notRunning": "sin servicio ahora",
+      "notStoppingHere": "El {route} no para aquí ahora mismo",
+      "someStopsNotServed": "Las paradas atenuadas no tienen servicio ahora mismo."
     },
     "header": {
       "showMore": "Ver más",

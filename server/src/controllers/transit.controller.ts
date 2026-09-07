@@ -46,7 +46,9 @@ app.get('/trip-stops', ({ query }) =>
  * yes/no question about each line.
  *
  * Each board covers the whole station complex, so the answer can be
- * compared against the complex-wide list of lines the panel draws.
+ * compared against the complex-wide list of lines the panel draws. A stop
+ * present with an empty list has no departures at all; a stop absent
+ * altogether could not be reached.
  */
 app.get('/service-at-stops', async ({ query, set }) => {
   const feedId = String(query.feedId ?? '')
@@ -92,12 +94,16 @@ app.get('/service-at-stops', async ({ query, set }) => {
           if (g.stop?.feedOnestopId && !feedOnestopId) feedOnestopId = g.stop.feedOnestopId
           for (const d of g.departures ?? []) if (d.route?.id) ids.add(d.route.id)
         }
-        // An empty board is missing evidence, not a closed line, and the
-        // caller has to tell those apart — so it is omitted rather than
-        // reported as "nothing runs here".
-        if (ids.size) running[stopId] = [...ids]
+        // A board that came back EMPTY is not the same as one that never
+        // came back. Upstream answered and named nothing departing here,
+        // which is exactly what a stop looks like when the line has stopped
+        // calling at it — the 5's Dyre Av branch at three in the morning.
+        // Reported as an empty list; a stop is omitted only when the call
+        // itself failed, and only that is missing evidence.
+        running[stopId] = [...ids]
       } catch {
-        // one unreachable board must not fail the rest
+        // one unreachable board must not fail the rest, and must not be
+        // mistaken for one that answered
       }
     }
   }

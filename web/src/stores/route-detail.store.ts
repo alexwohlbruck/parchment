@@ -213,20 +213,27 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
    * Whitehall–Bay Ridge shuttle, and a timeline that draws the other thirty
    * stations is describing a train that isn't there.
    *
-   * Two sources answer it, in order of authority:
+   * Two sources answer it, each trusted for what it actually says:
    *
-   * The agency's own alerts, where a stop is named. A planned reroute often
-   * never reaches the boards — when the 4 ran local for a parade, Grand Army
-   * Plaza's board went on answering "2, 3" — but the alert names each
-   * (route, stop) pair it adds or skips, and that word is final. Alerts name
-   * stations while this list carries platforms, so a stop matches by its own
-   * id or its parent's.
+   * The departure boards are the spine. A stop is on the path unless its
+   * board came back and did not name this line. Unknown keeps it: an unread
+   * board is missing evidence, not a closed station.
    *
-   * The departure boards, for every stop the alerts don't name. A stop is on
-   * the path unless its board came back and did not name this line. Unknown
-   * keeps it: an unread board is missing evidence, not a closed station. And
-   * if no stop is known to be served the whole line is drawn, because a path
-   * of nothing describes nothing.
+   * The agency's alerts refine the middle of that spine. A planned reroute
+   * often never reaches the boards — when the 4 ran local for a parade,
+   * Grand Army Plaza's board went on answering "2, 3" — and the alert names
+   * each (route, stop) pair it adds or skips. But an informed entity is
+   * only "this alert concerns this stop", and the MTA attaches them
+   * generously: the parade alert named the whole New Lots branch while its
+   * own text said "between Atlantic Av and Crown Hts–Utica Av". So a named
+   * stop is only ADDED when it lies between stops the boards confirm —
+   * express-to-local fills in a run's middle; it never extends a terminus.
+   * A named skip applies anywhere: removing on the agency's word risks a
+   * missing dot, not a phantom train. Alerts name stations while this list
+   * carries platforms, so a stop matches by its own id or its parent's.
+   *
+   * If no stop is known to be served at all, the whole line is drawn,
+   * because a path of nothing describes nothing.
    */
   const servedStops = computed(() => {
     const stops = routeStops.value
@@ -236,9 +243,22 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     const named = (set: Set<string>, s: RouteDetailStop) =>
       set.has(s.stopId) || (s.parentStation != null && set.has(s.parentStation))
     if (!stopServiceKnown.value.size && !serves.size && !skips.size) return stops
-    const onPath = stops.filter(s => {
+
+    const boardServes = (s: RouteDetailStop) =>
+      stopServiceKnown.value.has(s.stopId) &&
+      (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? false)
+    let first = stops.findIndex(boardServes)
+    let last = -1
+    for (let i = stops.length - 1; i >= 0; i--) {
+      if (boardServes(stops[i])) { last = i; break }
+    }
+    // No board has confirmed the line anywhere yet — no span to bound
+    // additions by, so alerts may fill in anywhere for now.
+    if (first < 0) { first = 0; last = stops.length - 1 }
+
+    const onPath = stops.filter((s, i) => {
       if (named(skips, s)) return false
-      if (named(serves, s)) return true
+      if (named(serves, s) && i >= first && i <= last) return true
       return (
         !stopServiceKnown.value.has(s.stopId) ||
         (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? true)

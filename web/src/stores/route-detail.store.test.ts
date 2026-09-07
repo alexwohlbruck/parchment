@@ -214,21 +214,41 @@ describe('displayStops follows the running path', () => {
     expect(store.routeStops).toHaveLength(4)
   })
 
-  test('an alert naming a stop overrides its board', () => {
+  test('an alert naming a stop overrides its board — inside the run', () => {
     // The parade day: Grand Army Plaza's board answers "2, 3" because the
     // reroute never reached the schedule, but the agency's alert names the
-    // stop. Alerts name stations ("237"); the list carries platforms.
+    // stop, and it lies between stops the boards confirm. Alerts name
+    // stations ("237"); the list carries platforms.
     const store = useRouteDetailStore()
     openRoute(store)
     ;(store as any).activeRoute.stops = [
       makeStop('R16', 'Times Sq', 40.75, -73.98, 0),
       { ...makeStop('237N', 'Grand Army Plaza', 40.68, -73.97, 500), parentStation: '237' },
       { ...makeStop('238N', 'Eastern Pkwy', 40.67, -73.96, 1000), parentStation: '238' },
+      makeStop('250N', 'Crown Hts-Utica Av', 40.66, -73.93, 1500),
     ]
-    boardsSay(store, { R16: ['R'], '237N': ['2', '3'], '238N': ['2', '3'] })
+    boardsSay(store, { R16: ['R'], '237N': ['2', '3'], '238N': ['2', '3'], '250N': ['R'] })
     store.setAlertOverrides({ serves: new Set(['237', '238']), skips: new Set(['238']) })
     // 237 forced on by the alert; 238 named by both, and the skip wins.
-    expect(store.displayStops.map(s => s.stopId)).toEqual(['R16', '237N'])
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['R16', '237N', '250N'])
+  })
+
+  test('an alert cannot extend the line past its board-confirmed end', () => {
+    // The same parade alert named the whole New Lots branch in its informed
+    // entities while its text said "between Atlantic Av and Crown Hts-Utica
+    // Av" — and no board ever saw a 4 past Utica. Entities beyond the last
+    // confirmed stop are the agency's filing habit, not a service claim.
+    const store = useRouteDetailStore()
+    openRoute(store)
+    ;(store as any).activeRoute.stops = [
+      makeStop('R16', 'Atlantic Av', 40.68, -73.98, 0),
+      { ...makeStop('250N', 'Crown Hts-Utica Av', 40.66, -73.93, 500), parentStation: '250' },
+      { ...makeStop('251N', 'Sutter Av', 40.66, -73.92, 1000), parentStation: '251' },
+      { ...makeStop('257N', 'New Lots Av', 40.66, -73.88, 1500), parentStation: '257' },
+    ]
+    boardsSay(store, { R16: ['R'], '250N': ['R'], '251N': ['2', '3'], '257N': ['2', '3'] })
+    store.setAlertOverrides({ serves: new Set(['251', '257']), skips: new Set() })
+    expect(store.displayStops.map(s => s.stopId)).toEqual(['R16', '250N'])
   })
 
   test('the running path reverses with the direction', () => {

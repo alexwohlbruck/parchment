@@ -1169,6 +1169,7 @@
         "tomorrow": "Mañana",
         "untilTime": "Hasta las {time}",
         "scheduledCount": "{n} cambio programado | {n} cambios programados",
+        "moreNotices": "{n} aviso más | {n} avisos más",
         "showMore": "Ver más",
         "showLess": "Ver menos",
         "moreInfo": "Más información",

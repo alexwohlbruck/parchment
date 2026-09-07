@@ -1216,6 +1216,7 @@
         "tomorrow": "Tomorrow",
         "untilTime": "Until {time}",
         "scheduledCount": "{n} scheduled change | {n} scheduled changes",
+        "moreNotices": "{n} more notice | {n} more notices",
         "showMore": "Show more",
         "showLess": "Show less",
         "moreInfo": "More info",

@@ -6,25 +6,31 @@
  * a stop, a trip — rather than wiring up a store. Renders nothing at all when
  * there are no alerts, so it can sit unconditionally in a layout.
  *
- * ── Two tiers, because they are not the same news ────────────────────
+ * ── Three tiers, because they are not the same news ──────────────────
  * A New York line routinely carries a dozen alerts and typically one or two
  * are actually running; the rest is overnight work scheduled weeks out. Giving
  * all of them the same weight made a page shout identically whether a rider's
  * train was detoured right now or nothing at all was happening.
  *
- * So what is in effect gets full-width tinted rows — few, prominent, readable
- * without a tap. Scheduled work collapses to one quiet line that opens into a
- * row of small chips. A line with nothing running wrong shows no colour at
- * all, just "10 scheduled changes", which is the honest summary.
+ * 1. DISRUPTIONS in effect — a suspension, a detour, delays. Full-width
+ *    tinted rows: few, prominent, readable without a tap.
+ * 2. NOTICES in effect — running local, a holiday timetable. True, and none
+ *    of it stops anyone travelling. One line each, no surface of their own;
+ *    past a handful they fold behind a count.
+ * 3. SCHEDULED work — one quiet line that opens into a row of small chips.
+ *
+ * A line with nothing wrong shows no colour at all, just "10 scheduled
+ * changes", which is the honest summary.
  */
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronRightIcon } from 'lucide-vue-next'
 import ServiceAlertRow from './ServiceAlertRow.vue'
+import ServiceAlertNotice from './ServiceAlertNotice.vue'
 import ServiceAlertChip from './ServiceAlertChip.vue'
 import ServiceAlertCard from './ServiceAlertCard.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
-import { isInEffect, nextStart, currentEnd } from '@/lib/transit-alerts'
+import { isInEffect, nextStart, currentEnd, alertTone } from '@/lib/transit-alerts'
 import { useTransitClock } from '@/composables/useTransitClock'
 import type { AlertQuery } from '@/stores/transit-alerts.store'
 import type { ServiceAlert } from '@/types/transit.types'
@@ -50,6 +56,18 @@ const now = useTransitClock()
 
 const { inEffect, upcoming } = useTransitAlerts(computed(() => props.query))
 
+/** In effect and stopping someone travelling. */
+const disruptions = computed(() => inEffect.value.filter(a => alertTone(a) !== 'info'))
+/** In effect and merely worth knowing. */
+const notices = computed(() => inEffect.value.filter(a => alertTone(a) === 'info'))
+
+/** Past this many, the notices fold — a list this long is a paragraph. */
+const NOTICES_SHOWN = 3
+const showAllNotices = ref(false)
+const visibleNotices = computed(() =>
+  showAllNotices.value ? notices.value : notices.value.slice(0, NOTICES_SHOWN),
+)
+
 const ordered = computed(() => [...inEffect.value, ...upcoming.value])
 
 const openId = ref<string | null>(null)
@@ -65,7 +83,13 @@ watch(ordered, (list) => {
   if (openId.value && !list.some(a => a.id === openId.value)) openId.value = null
 })
 
-// Folding the scheduled list away takes its open alert with it.
+// Folding either list away takes its open alert with it.
+watch(showAllNotices, (shown) => {
+  if (shown) return
+  const hidden = notices.value.slice(NOTICES_SHOWN)
+  if (hidden.some(a => a.id === openId.value)) openId.value = null
+})
+
 watch(showScheduled, (shown) => {
   if (!shown && openScheduled.value) openId.value = null
 })
@@ -86,11 +110,12 @@ function when(alert: ServiceAlert): string | null {
 
   if (isInEffect(alert, current)) {
     const ends = currentEnd(alert, current)
-    // Something ending within the hour is nearly over; say so rather than "now".
+    // Only an end worth planning around earns the space. "Now" on every row
+    // of a list of things in effect is a word repeated, not information.
     if (ends && ends.getTime() - current < 60 * 60_000) {
       return t('place.transit.alerts.untilTime', { time: clock(ends) })
     }
-    return t('place.transit.alerts.now')
+    return null
   }
 
   const start = nextStart(alert, current)
@@ -121,8 +146,8 @@ function calendarDaysApart(from: Date, to: Date): number {
 
     <!-- In effect: few, full width, and the detail opens directly beneath the
          row it belongs to rather than at the bottom of the section. -->
-    <div v-if="inEffect.length" class="space-y-1.5">
-      <template v-for="alert in inEffect" :key="alert.id">
+    <div v-if="disruptions.length" class="space-y-1.5">
+      <template v-for="alert in disruptions" :key="alert.id">
         <ServiceAlertRow
           :alert="alert"
           :when="when(alert)"
@@ -131,6 +156,36 @@ function calendarDaysApart(from: Date, to: Date): number {
         />
         <ServiceAlertCard v-if="alert.id === openId" :alert="alert" />
       </template>
+    </div>
+
+    <!-- In effect, but nothing a rider has to work around. -->
+    <div v-if="notices.length" class="space-y-0.5">
+      <template v-for="alert in visibleNotices" :key="alert.id">
+        <ServiceAlertNotice
+          :alert="alert"
+          :when="when(alert)"
+          :expanded="alert.id === openId"
+          @toggle="toggle(alert)"
+        />
+        <ServiceAlertCard v-if="alert.id === openId" :alert="alert" />
+      </template>
+
+      <button
+        v-if="notices.length > NOTICES_SHOWN"
+        type="button"
+        data-testid="notices-toggle"
+        class="flex items-center gap-1 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        :aria-expanded="showAllNotices"
+        @click="showAllNotices = !showAllNotices"
+      >
+        <ChevronRightIcon
+          class="size-3.5 transition-transform"
+          :class="showAllNotices && 'rotate-90'"
+        />
+        {{ showAllNotices
+          ? t('place.transit.alerts.showLess')
+          : t('place.transit.alerts.moreNotices', notices.length - NOTICES_SHOWN) }}
+      </button>
     </div>
 
     <!-- Scheduled: one quiet line. On a clear day this is the whole section. -->

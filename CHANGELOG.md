@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.11.0] - 2026-09-07
+
+### Added
+
 * Tap any bullet in a line's stop list to open that line's own page.
 * Tap a stop in a line's list to open that station's page.
 

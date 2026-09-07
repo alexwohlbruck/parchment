@@ -298,6 +298,40 @@ function setIsolatedRoute(routeId: string | null) {
   isolatedRoute = next
   applyRibbonDim()
   applyStations()
+  applyStationZoomRelax()
+}
+
+/**
+ * Show the isolated route's stops well below their usual zooms.
+ *
+ * The union map earns its gates — hundreds of stations would swamp a city
+ * view — but isolation leaves a few dozen along one line, and the whole
+ * point of the overview fit (~z10) is to read the line: without this it
+ * shows an unlabelled string. Collision still thins the labels, so the
+ * overview gets the major names rather than all of them.
+ */
+const STATION_ZOOM = {
+  'portolan-station-markers': { usual: 11, isolated: 9 },
+  'portolan-station-labels': { usual: 11, isolated: 9 },
+} as const
+const BULLET_ROW_STEP = { usual: 13.5, isolated: 10.5 }
+
+function applyStationZoomRelax() {
+  if (!map?.getStyle()) return
+  for (const [id, z] of Object.entries(STATION_ZOOM)) {
+    if (!map.getLayer(id)) continue
+    map.setLayerZoomRange(id, isolatedRoute ? z.isolated : z.usual, 24)
+  }
+  // the connection bullets under each name follow the same relaxation
+  if (map.getLayer('portolan-station-labels')) {
+    map.setLayoutProperty('portolan-station-labels', 'icon-image', [
+      'step',
+      ['zoom'],
+      '',
+      isolatedRoute ? BULLET_ROW_STEP.isolated : BULLET_ROW_STEP.usual,
+      ['coalesce', ['get', 'brow'], ''],
+    ])
+  }
 }
 
 /** Whether the portolan layers are on the map at all — the cheap check,
@@ -1450,6 +1484,9 @@ function addSymbolLayers() {
     },
     paint: labelPaint,
   })
+
+  // a style rebuild mid-isolation must come up already relaxed
+  applyStationZoomRelax()
 }
 
 function removeAll() {

@@ -2,6 +2,8 @@
 
 ### Added
 
+* Tap any bullet in a line's stop list to open that line's own page.
+
 ### Changed
 
 * Releases now deploy the API themselves instead of waiting up to an hour for the server to notice a new image.
@@ -11,10 +13,13 @@
 * Opening a transit line now dims the rest of the network instead of hiding it, so you can still see where the line crosses everything else. The line itself draws thicker and the network steps further back, so it reads as the subject of the map.
 * A transit line's page drops its own back arrow and uses the sheet's floating one, matching place detail.
 * A transit line's name and direction stay pinned at the top while you scroll its stops.
+* A line's page header shows the line's real bullet — the same chip the map draws — instead of a plain colored square.
+* An opened line shows its stop names and connection bullets from the route overview zoom, not only when zoomed in close.
 
 ### Fixed
 
 * The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
+* Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.
 * Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway, however the panel was already positioned.
 * The stop list's line runs through the middle of every stop dot instead of floating past the last one.
 * An opened transit line is drawn once, by the transit map itself, instead of a second copy alongside it with duplicate stop names.

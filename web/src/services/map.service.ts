@@ -288,8 +288,6 @@ function mapService() {
 
     mapEventBus.on('moveend', data => {
       mapStore.setMapCamera(data)
-      // The camera is still — safe to apply any padding held during a fit.
-      paddingHold.end()
     })
 
     // When the user finishes a manual rotation, snap to north and/or the local
@@ -757,7 +755,53 @@ function mapService() {
    * right for the whole flight; ours only has to be correct once the camera is
    * still again.
    */
-  const paddingHold = createAnimationHold(() => updateMapPadding())
+  const paddingHold = createAnimationHold(() => {
+    const padding = effectiveMapPadding()
+    if (!padding) return
+    setPaddingPreservingScreen({
+      top: padding.top ?? 0,
+      bottom: padding.bottom ?? 0,
+      left: padding.left ?? 0,
+      right: padding.right ?? 0,
+    })
+  })
+
+  /**
+   * Change the transform padding without moving anything on screen.
+   *
+   * `setPadding` keeps the geographic centre pinned to the (moving) focal
+   * point, so applying it shifts the whole scene by half the padding delta.
+   * That is wanted when a drawer slides over a map at rest — the world steps
+   * aside — and exactly wrong around a fit, which has already framed its
+   * bounds for the final layout: the engines size `cameraForBounds` against
+   * the CURRENT transform padding plus the options padding, so the fit bakes
+   * the obstruction in and a later ordinary `setPadding` would shift the
+   * framed route out from where the fit put it. This compensates the centre
+   * by the focal-point delta so the padding lands and the pixels stay put.
+   */
+  function setPaddingPreservingScreen(padding: {
+    top: number
+    bottom: number
+    left: number
+    right: number
+  }) {
+    const m = mapStrategy?.mapInstance
+    if (!m) return
+    if (!m.getPadding || !m.project || !m.unproject) {
+      m.setPadding?.(padding)
+      return
+    }
+    const old = m.getPadding()
+    const dx = (padding.left - padding.right - ((old.left ?? 0) - (old.right ?? 0))) / 2
+    const dy = (padding.top - padding.bottom - ((old.top ?? 0) - (old.bottom ?? 0))) / 2
+    if (!dx && !dy) {
+      m.setPadding(padding)
+      return
+    }
+    const at = m.project(m.getCenter())
+    const center = m.unproject([at.x + dx, at.y + dy])
+    m.jumpTo({ center, padding })
+  }
 
   function _fitBoundsNow(
     bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
@@ -807,13 +851,19 @@ function mapService() {
       },
     }
 
-    // Both strategies fall back to 1000ms when a caller omits it. `moveend`
-    // normally ends the hold first; the duration is the backstop for a fit
-    // that resolves without one (a no-op camera change fires nothing).
-    const strategy = mapStrategy
-    paddingHold.begin((finalOptions.duration ?? 1000) + 100, () =>
-      strategy.fitBounds(bounds, finalOptions),
-    )
+    // The obstruction is baked into the options above, so any transform
+    // padding still on the map would be counted twice — both engines size
+    // `cameraForBounds` against transform padding PLUS options padding.
+    // Clear it (without moving the scene); the hold's release restores it
+    // the same way once the ease has landed.
+    setPaddingPreservingScreen({ top: 0, bottom: 0, left: 0, right: 0 })
+
+    // Both strategies fall back to 1000ms when a caller omits it. The hold is
+    // strictly time-based — see createAnimationHold for why `moveend` cannot
+    // be trusted to mean the ease is over.
+    paddingHold.begin((finalOptions.duration ?? 1000) + 100)
+
+    mapStrategy.fitBounds(bounds, finalOptions)
   }
 
   function fitBounds(

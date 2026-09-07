@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/select'
 import { useTransitClock } from '@/composables/useTransitClock'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
 import { formatDepartureTime, getMinutesUntil } from '@/lib/transit'
 import {
   TrainFrontIcon,
@@ -47,6 +49,7 @@ const props = defineProps<{
 
 const store = useRouteDetailStore()
 const { t } = useI18n()
+const router = useRouter()
 const currentTime = useTransitClock()
 
 const route = computed(() => store.activeRoute)
@@ -73,6 +76,24 @@ const bgColor = computed(() =>
 const textColor = computed(() =>
   route.value?.routeTextColor ? `#${route.value.routeTextColor}` : 'hsl(var(--background))',
 )
+
+/** The page's own bullet, curated like every other bullet for this line —
+ *  the header must show the same chip the map and the stop rows do. */
+const headerBullet = computed(() => {
+  const r = route.value
+  const first = displayStops.value[0]
+  if (!r || !first) return null
+  return bulletFor(r.routeId, first.lat, first.lng, r.routeType)
+})
+
+/** A tapped bullet opens that line's own page. */
+function openRouteDetail(r: StopTransferRoute) {
+  if (r.routeId === props.routeId) return
+  router.push({
+    name: AppRoute.TRANSIT_ROUTE,
+    params: { feedId: props.feedId, routeId: r.routeId },
+  })
+}
 
 /** Everything the agency has published about this line. */
 const alertQuery = computed(() => ({
@@ -271,12 +292,14 @@ onUnmounted(() => {
           :class="stuck ? 'border-border/60' : 'border-transparent'"
         >
           <div class="flex items-start gap-3">
-            <div
-              class="flex items-center justify-center min-w-10 h-10 px-2.5 rounded-lg font-bold text-lg shrink-0"
-              :style="{ background: bgColor, color: textColor }"
-            >
-              {{ route.routeShortName || '' }}
-            </div>
+            <RouteBullet
+              :label="headerBullet?.label || route.routeShortName || route.routeId"
+              :color="headerBullet?.color || route.routeColor"
+              :shape="headerBullet?.shape"
+              :text-color="headerBullet?.color ? null : route.routeTextColor"
+              size="lg"
+              class="mt-0.5"
+            />
             <div class="flex flex-col min-w-0 pt-0.5">
               <span class="font-semibold text-base leading-tight truncate">{{ fullName }}</span>
               <!-- Only when the picker below isn't already naming the
@@ -455,15 +478,22 @@ onUnmounted(() => {
               <!-- Other lines here. Transfers are dimmed: they are a walk
                    across the interchange, not a train on this platform. -->
               <div v-if="stop.routes?.length" class="flex items-center gap-1 flex-wrap">
-                <RouteBullet
+                <button
                   v-for="r in stop.routes"
                   :key="r.routeId"
-                  :label="stopBullet(r, stop)?.label || r.routeShortName || r.routeLongName || ''"
-                  :color="stopBullet(r, stop)?.color || r.routeColor"
-                  :shape="stopBullet(r, stop)?.shape"
-                  :text-color="stopBullet(r, stop)?.color ? null : r.routeTextColor"
-                  :class="r.via === 'transfer' && 'opacity-60'"
-                />
+                  type="button"
+                  class="cursor-pointer transition-transform hover:scale-110"
+                  :title="r.routeLongName || r.routeShortName || r.routeId"
+                  @click="openRouteDetail(r)"
+                >
+                  <RouteBullet
+                    :label="stopBullet(r, stop)?.label || r.routeShortName || r.routeLongName || ''"
+                    :color="stopBullet(r, stop)?.color || r.routeColor"
+                    :shape="stopBullet(r, stop)?.shape"
+                    :text-color="stopBullet(r, stop)?.color ? null : r.routeTextColor"
+                    :class="r.via === 'transfer' && 'opacity-60'"
+                  />
+                </button>
               </div>
             </div>
 

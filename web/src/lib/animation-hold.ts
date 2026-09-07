@@ -7,30 +7,27 @@
  * camera wherever the ease had got to. Wrapping such an update in a hold lets
  * the animation finish and applies the update once, when the camera is still.
  *
+ * The hold is TIME-based: it runs for the animation's declared duration and
+ * ends on its own. It deliberately does not listen for the engine's "camera
+ * at rest" events — MapLibre emits a spontaneous `moveend` mid-ease when the
+ * globe render path flattens at its zoom threshold, and a hold released on
+ * that event applies the deferred update into the animation it was
+ * protecting, killing it at exactly that zoom. Waiting out the clock costs
+ * at most the tail of an already-declared duration.
+ *
  * The work runs at most once per hold, and only if something was actually
  * deferred — an untouched hold ends silently.
  */
 export function createAnimationHold(run: () => void): {
   readonly active: boolean
-  begin: (duration: number, start?: () => void) => void
+  begin: (duration: number) => void
   defer: () => void
-  end: () => void
 } {
   let timer: ReturnType<typeof setTimeout> | null = null
   let owed = false
-  let starting = false
 
   function end() {
-    // Starting an animation over a running one makes the engine stop the old
-    // one, which fires `moveend` synchronously. That event belongs to the
-    // animation being replaced, not to a camera that has come to rest, so it
-    // must not end the hold the new animation just took out — doing so would
-    // apply the very update the hold exists to keep out of its way.
-    if (starting) return
-    if (timer) {
-      clearTimeout(timer)
-      timer = null
-    }
+    timer = null
     if (!owed) return
     owed = false
     run()
@@ -40,27 +37,14 @@ export function createAnimationHold(run: () => void): {
     get active() {
       return timer !== null
     },
-    /**
-     * Hold for up to `duration` ms, then start the animation via `start`.
-     * A non-positive duration is not an animation to protect, so it holds
-     * nothing — but `start` still runs.
-     */
-    begin(duration: number, start?: () => void) {
-      if (duration > 0) {
-        if (timer) clearTimeout(timer)
-        timer = setTimeout(end, duration)
-      }
-      if (!start) return
-      starting = true
-      try {
-        start()
-      } finally {
-        starting = false
-      }
+    /** A non-positive duration is not an animation to protect. */
+    begin(duration: number) {
+      if (!(duration > 0)) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(end, duration)
     },
     defer() {
       owed = true
     },
-    end,
   }
 }

@@ -86,6 +86,17 @@ const headerBullet = computed(() => {
   return bulletFor(r.routeId, first.lat, first.lng, r.routeType, r.routeShortName || r.routeLongName)
 })
 
+/**
+ * A bullet's tooltip. The transfer relationship is worth saying — it is a
+ * walk across the interchange rather than the same platform — but it is a
+ * fact about GEOGRAPHY, so it belongs in words and not in a dimmed bullet
+ * that a rider reads as "not running".
+ */
+function bulletTitle(r: StopTransferRoute): string {
+  const name = r.routeLongName || r.routeShortName || r.routeId
+  return r.via === 'transfer' ? `${name} — transfer` : name
+}
+
 /** A tapped bullet opens that line's own page. */
 function openRouteDetail(r: StopTransferRoute) {
   if (r.routeId === props.routeId) return
@@ -523,15 +534,20 @@ onUnmounted(() => {
                 {{ stop.stopName }}
               </span>
 
-              <!-- Other lines here. Transfers are dimmed: they are a walk
-                   across the interchange, not a train on this platform. -->
+              <!-- Every line a rider can reach here, all at full strength.
+                   These used to dim `via: 'transfer'`, which is a SPATIAL
+                   fact — the line calls at a station transfers.txt joins to
+                   this one — and reads as "not running". The station header
+                   made the same mistake and dropped it: dimming is reserved
+                   for a line that stops here and is not running, and nothing
+                   in this payload knows that (see openRouteDetail). -->
               <div v-if="stop.routes?.length" class="flex items-center gap-1 flex-wrap">
                 <button
                   v-for="r in stop.routes"
                   :key="r.routeId"
                   type="button"
                   class="cursor-pointer transition-transform hover:scale-110"
-                  :title="r.routeLongName || r.routeShortName || r.routeId"
+                  :title="bulletTitle(r)"
                   @click="openRouteDetail(r)"
                 >
                   <RouteBullet
@@ -539,7 +555,6 @@ onUnmounted(() => {
                     :color="stopBullet(r, stop)?.color || r.routeColor"
                     :shape="stopBullet(r, stop)?.shape"
                     :text-color="stopBullet(r, stop)?.color ? null : r.routeTextColor"
-                    :class="r.via === 'transfer' && 'opacity-60'"
                   />
                 </button>
               </div>

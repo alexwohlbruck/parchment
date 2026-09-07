@@ -32,6 +32,7 @@ import { useTimelineLayerService } from '@/services/layers/features/timeline-lay
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useAppStore } from '../stores/app.store'
+import { createAnimationHold } from '@/lib/animation-hold'
 import {
   calculateFitPadding,
   toContainerRect,
@@ -287,6 +288,8 @@ function mapService() {
 
     mapEventBus.on('moveend', data => {
       mapStore.setMapCamera(data)
+      // The camera is still — safe to apply any padding held during a fit.
+      paddingHold.end()
     })
 
     // When the user finishes a manual rotation, snap to north and/or the local
@@ -739,6 +742,23 @@ function mapService() {
     settleTimer: any
   } | null = null
 
+  /**
+   * Padding is held while a fit is easing, then applied once it lands.
+   *
+   * `map.setPadding()` is a `jumpTo` underneath on both engines, and `jumpTo`
+   * calls `stop()` — so applying padding mid-flight kills the animation
+   * wherever the ease had got to. A drawer slide does exactly that: it
+   * republishes `visibleMapArea` every frame, and each frame would cancel the
+   * fit that opened alongside it, which is why a route framed correctly only
+   * when the panel happened to be open already.
+   *
+   * Nothing is lost by waiting. A fit resolves padding into the camera it is
+   * easing toward and interpolates it along the way, so the padding is already
+   * right for the whole flight; ours only has to be correct once the camera is
+   * still again.
+   */
+  const paddingHold = createAnimationHold(() => updateMapPadding())
+
   function _fitBoundsNow(
     bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
     options: any,
@@ -787,7 +807,13 @@ function mapService() {
       },
     }
 
-    mapStrategy.fitBounds(bounds, finalOptions)
+    // Both strategies fall back to 1000ms when a caller omits it. `moveend`
+    // normally ends the hold first; the duration is the backstop for a fit
+    // that resolves without one (a no-op camera change fires nothing).
+    const strategy = mapStrategy
+    paddingHold.begin((finalOptions.duration ?? 1000) + 100, () =>
+      strategy.fitBounds(bounds, finalOptions),
+    )
   }
 
   function fitBounds(
@@ -1072,6 +1098,13 @@ function mapService() {
    */
   function updateMapPadding() {
     if (!mapStrategy || !mapContainer || !isMapReady.value) return
+
+    // A fit is easing: applying padding now would stop it dead. Note that one
+    // is owed and let the hold apply it when the camera lands.
+    if (paddingHold.active) {
+      paddingHold.defer()
+      return
+    }
 
     const padding = effectiveMapPadding()
     if (!padding) return

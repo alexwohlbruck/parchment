@@ -14,7 +14,7 @@
 
 ### Fixed
 
-* Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway.
+* Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway, however the panel was already positioned.
 * The stop list's line runs through the middle of every stop dot instead of floating past the last one.
 * Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
 * The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.

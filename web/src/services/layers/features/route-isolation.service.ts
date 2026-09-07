@@ -78,6 +78,9 @@ export function useRouteIsolationService() {
    *  belongs to a route the rider has already navigated away from does
    *  nothing at all. */
   let isolationGeneration = 0
+  /** The idle-driven reconciler for the current isolation, so teardown can
+   *  unhook it. */
+  let reconciler: (() => void) | null = null
 
   function initialize(map: any, fitBounds?: FitBoundsFn) {
     mapInstance = map
@@ -137,75 +140,101 @@ export function useRouteIsolationService() {
   }) {
     if (!mapInstance) return
 
-    // A previous pass may have left the overlay up — switching direction or
-    // reopening re-runs this, and portolan may answer differently the second
-    // time now that its tiles have arrived.
+    // A previous pass may have left the overlay or its reconciler up —
+    // switching direction or reopening re-runs this, and portolan may answer
+    // differently the second time now that its tiles have arrived.
+    detachReconciler()
     removeRouteOverlay()
 
     // Fit map to route bounds
     fitToRoute(route)
 
-    // Try portolan first, and confirm rather than pre-check: the tiles
-    // this route lives in may not be loaded at the instant the panel
-    // opens — the fit above is an 800ms animation — so asking now would
-    // answer "no" for a route portolan draws perfectly well. Narrowing
-    // the layers is harmless while we wait: at worst they show one route
-    // that turns out to be nothing, for one frame.
     const generation = ++isolationGeneration
+    isIsolated = true
+
+    /** Portolan draws the route: dim everything else and stand the overlay
+     *  down. Idempotent — the reconciler may land here repeatedly. */
+    const renderViaPortolan = (token: string) => {
+      portolan.setIsolatedRoute(token)
+      if (!portolanIsolated) {
+        portolanIsolated = true
+        // re-derive: the overlay pass faded portolan's layers flat
+        fadeTransitLayers(null)
+        fadeTransitLayers(NETWORK_DIM, { skipPortolan: true })
+      }
+      removeRouteOverlay()
+    }
+
+    /** No pyramid draws this route: the shape-and-circles overlay is the
+     *  only view there is. */
+    const renderViaOverlay = () => {
+      if (portolanIsolated) {
+        portolan.setIsolatedRoute(null)
+        portolanIsolated = false
+        fadeTransitLayers(null)
+      }
+      fadeTransitLayers(NETWORK_DIM)
+      if (route.coordinates && route.coordinates.length >= 2) {
+        addRouteShape(route.coordinates, route.routeColor)
+      }
+      if (route.stops.length > 0) {
+        addStationMarkers(route.stops, route.routeColor)
+      }
+    }
+
+    // First paint, from what is knowable right now. Optimistic about
+    // portolan: asking for the token this instant would answer "no" for a
+    // route it draws perfectly well, because the tiles that answer are
+    // still arriving with the fit. Narrowing the ribbons to a route that
+    // turns out to be nothing shows nothing for a moment; drawing the
+    // overlay over ribbons that turn out to draw the route shows the line
+    // twice, in two styles — so lean portolan whenever it is on at all.
     if (route.routeId && portolan.portolanTransitActive()) {
       portolanIsolated = true
       // the id as portolan knows it: a group pyramid prefixes every feed
       // after the first, so the 2 is `f3:2` there and plain `2` alone
       portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId) ?? route.routeId)
-      // everything that is not portolan still steps back
       fadeTransitLayers(NETWORK_DIM, { skipPortolan: true })
-      isIsolated = true
-      mapInstance.once('idle', () => {
-        if (generation !== isolationGeneration || !portolanIsolated) return
-        const token = portolan.portolanRouteToken(route.routeId!)
-        if (token) {
-          // the tiles that answer may only have arrived with the fit
-          portolan.setIsolatedRoute(token)
-          // portolan owns the drawing now — its ribbon carries the stations
-          // and the bulleted labels, so ours must not double them.
-          removeRouteOverlay()
-          return
-        }
-        // portolan has no such route here — a bus in a city with no
-        // pyramid. Hand it back to the shape-and-circles view.
-        portolan.setIsolatedRoute(null)
-        portolanIsolated = false
-        fadeTransitLayers(null)
-        fadeTransitLayers(NETWORK_DIM)
-        if (route.coordinates && route.coordinates.length >= 2) {
-          addRouteShape(route.coordinates, route.routeColor)
-        }
-        if (route.stops.length > 0) {
-          addStationMarkers(route.stops, route.routeColor)
-        }
-      })
-      return
+    } else {
+      renderViaOverlay()
     }
 
-    // Fade existing transit layers
-    fadeTransitLayers(NETWORK_DIM)
-
-    // Add route shape
-    if (route.coordinates && route.coordinates.length >= 2) {
-      addRouteShape(route.coordinates, route.routeColor)
+    // Then reconcile on every idle until the answer is definitive. One
+    // idle was never enough: the first can fire before the route's tiles
+    // arrive (the fit is an 800ms ease), and portolan's own hydration can
+    // finish long after the panel opened — the decide-once version of this
+    // is exactly how a route ended up drawn twice.
+    if (!route.routeId) return
+    let missesWhileReady = 0
+    const reconcile = () => {
+      if (generation !== isolationGeneration) return detachReconciler()
+      if (!portolan.portolanTransitActive()) return // hydration still coming
+      const token = portolan.portolanRouteToken(route.routeId!)
+      if (token) {
+        renderViaPortolan(token)
+        return detachReconciler()
+      }
+      // Ready, tiles idle, still unknown. Once the fit has landed and the
+      // tiles under it have answered a few times, that IS the answer: no
+      // pyramid draws this route here.
+      if (++missesWhileReady >= 3) {
+        renderViaOverlay()
+        detachReconciler()
+      }
     }
+    reconciler = reconcile
+    mapInstance.on('idle', reconcile)
+  }
 
-    // Add station markers
-    if (route.stops.length > 0) {
-      addStationMarkers(route.stops, route.routeColor)
-    }
-
-    isIsolated = true
+  function detachReconciler() {
+    if (reconciler && mapInstance) mapInstance.off('idle', reconciler)
+    reconciler = null
   }
 
   function removeIsolation() {
     if (!mapInstance || !isIsolated) return
     isolationGeneration++
+    detachReconciler()
 
     if (portolanIsolated) {
       portolan.setIsolatedRoute(null)

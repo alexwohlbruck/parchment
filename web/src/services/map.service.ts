@@ -321,15 +321,15 @@ function mapService() {
       }
     })
 
-    // Whether padding applies depends on the globe being on screen, and that
+    // Whether padding applies depends on the sphere being on screen, and that
     // answer changes with zoom alone — no panel moves, so nothing else would
     // re-run it. Only on the crossing: `setPadding` rebuilds every matrix, and
     // `move` fires continuously through a gesture.
     wasGlobeRendering = null
     mapEventBus.on('move', () => {
-      const globe = mapStrategy?.isGlobeRendering() ?? false
-      if (globe === wasGlobeRendering) return
-      wasGlobeRendering = globe
+      const sphere = mapStrategy?.isSphereVisible() ?? false
+      if (sphere === wasGlobeRendering) return
+      wasGlobeRendering = sphere
       updateMapPadding()
     })
 
@@ -1116,20 +1116,21 @@ function mapService() {
    * The padding the map should be using right now.
    *
    * Normally the visible area's, so the point the map is centred on stays out
-   * from behind a panel. Zeroed while a sphere is on screen: padding works by
-   * moving the focal point off the middle of the viewport, which is invisible
-   * on a flat map that covers the canvas edge to edge, and glaring on a globe,
-   * which is a discrete object with an obvious centre — a 400px panel leaves
-   * it sitting 200px right of the middle.
+   * from behind a panel. Zeroed while the sphere reads as an object: padding
+   * works by moving the focal point off the middle of the viewport, which is
+   * invisible on a flat map that covers the canvas edge to edge, and glaring
+   * on a disc with an obvious centre — a 400px panel leaves it sitting 200px
+   * right of the middle.
    *
-   * Nothing is lost by dropping it there. Padding exists to keep a place from
-   * landing under a panel, and both engines have flattened to Mercator long
-   * before the zoom at which you would be looking at one.
+   * `isSphereVisible`, not `isGlobeRendering`: MapLibre's globe render path
+   * runs to z12, and keying on it snapped padding off at city zooms — the
+   * map shifted sideways crossing z12, and a route fit landing below it was
+   * followed by a jump as its padding was taken away.
    */
   function effectiveMapPadding(): MapCamera['padding'] | null {
     const result = calculateMapPadding()
     if (!result) return null
-    if (mapStrategy?.isGlobeRendering()) {
+    if (mapStrategy?.isSphereVisible()) {
       return { top: 0, bottom: 0, left: 0, right: 0 }
     }
     return result.padding

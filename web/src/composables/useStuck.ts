@@ -2,11 +2,13 @@ import { ref, watch, onUnmounted, type Ref } from 'vue'
 import { findScrollAncestor } from '@/lib/scroll'
 
 /**
- * Tracks whether a `position: sticky` element has actually pinned.
+ * Tracks whether a `position: sticky` element is actually covering content.
  *
- * `stuck` flips true exactly when the element can rise no higher than its
- * docked line — not merely when scrolling begins — so a backing, border or
- * shadow fades in only once the element really is covering content.
+ * `stuck` needs both halves to be true: the element can rise no higher than
+ * its docked line, and the surface has scrolled at all. The second half
+ * matters for a header whose resting position already IS its dock line — it
+ * is pinned from the moment it mounts, so without it a border meant to appear
+ * on scroll would simply never be off.
  *
  * Pass the element ref you already have, or attach the returned one:
  *
@@ -36,7 +38,9 @@ export function useStuck(target?: Ref<HTMLElement | null>): {
     // rather than assuming the element docks at the scroll root's own top.
     const dockTop = parseFloat(getComputedStyle(el).top) || 0
     const rootTop = scrollRoot.getBoundingClientRect().top
-    stuck.value = el.getBoundingClientRect().top <= rootTop + dockTop + 0.5
+    stuck.value =
+      scrollRoot.scrollTop > 0 &&
+      el.getBoundingClientRect().top <= rootTop + dockTop + 0.5
   }
 
   function onScroll() {

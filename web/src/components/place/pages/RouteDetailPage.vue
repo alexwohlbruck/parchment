@@ -267,7 +267,7 @@ onUnmounted(() => {
         class="-mx-3 mb-3 mt-[calc(var(--sheet-sticky-top,0px)_-_1.5rem)] md:mt-[calc(var(--sheet-sticky-top,0px)_-_1rem)]"
       >
         <div
-          class="flex items-start gap-3 px-3 pt-2 md:pt-4 pb-3 border-b transition-colors duration-200"
+          class="flex items-start gap-3 px-3 md:pt-4 pb-3 border-b transition-colors duration-200"
           :class="stuck ? 'border-border/60' : 'border-transparent'"
         >
           <div

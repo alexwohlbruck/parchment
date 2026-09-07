@@ -30,12 +30,14 @@ afterEach(() => {
   wrapper = null
 })
 
-async function mountAt(rootTop: number, elTop: number) {
+async function mountAt(rootTop: number, elTop: number, scrollTop = 120) {
   wrapper = mount(Host, { attachTo: document.body })
   const root = wrapper.element as HTMLElement
   const el = root.firstElementChild as HTMLElement
   root.getBoundingClientRect = rect(rootTop)
   el.getBoundingClientRect = rect(elTop)
+  // jsdom lays nothing out, so scrollTop never moves on its own.
+  Object.defineProperty(root, 'scrollTop', { value: scrollTop, writable: true })
   root.dispatchEvent(new Event('scroll'))
   await new Promise(r => requestAnimationFrame(() => r(null)))
   await nextTick()
@@ -58,6 +60,14 @@ describe('useStuck', () => {
   // against the dock line is that a header 1px into a scroll is still inline.
   it('stays unstuck for a scroll that has not reached the dock line', async () => {
     const w = await mountAt(100, 145)
+    expect((w.vm as unknown as { stuck: boolean }).stuck).toBe(false)
+  })
+
+  // A header whose resting position already IS its dock line sits pinned from
+  // the moment it mounts. Reporting that as stuck leaves a scroll-triggered
+  // border showing over untouched content.
+  it('is not stuck while docked at rest, before anything has scrolled', async () => {
+    const w = await mountAt(100, 144, 0)
     expect((w.vm as unknown as { stuck: boolean }).stuck).toBe(false)
   })
 })

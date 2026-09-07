@@ -677,6 +677,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     headwayMinutes,
     isReversed,
     routeStops,
+    servedStops,
     displayStops,
     directionFilteredVehicleIds,
     selectedDirection,

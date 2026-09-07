@@ -77,6 +77,7 @@ export function useRouteIsolationService() {
   let mapInstance: any = null
   let fitBoundsFn: FitBoundsFn | null = null
   let watchStop: WatchStopHandle | null = null
+  let stopsWatchStop: WatchStopHandle | null = null
   let isIsolated = false
   /** True while portolan's own layers are carrying the isolation, so the
    *  teardown knows to widen them again rather than un-fade them. */
@@ -102,6 +103,17 @@ export function useRouteIsolationService() {
           removeIsolation()
         }
       },
+      { immediate: true },
+    )
+
+    // The running path, pushed as it settles (boards answering, alerts
+    // landing) so the map's stations track the panel's timeline. Portolan
+    // holds it and applies it only while a route is isolated.
+    stopsWatchStop = watch(
+      () => routeDetailStore.servedStops,
+      stops => portolan.setIsolatedRouteStops(
+        stops.length ? stops.map(s => [s.lng, s.lat] as [number, number]) : null,
+      ),
       { immediate: true },
     )
   }
@@ -540,6 +552,8 @@ export function useRouteIsolationService() {
     removeIsolation()
     watchStop?.()
     watchStop = null
+    stopsWatchStop?.()
+    stopsWatchStop = null
     mapInstance = null
     fitBoundsFn = null
   }

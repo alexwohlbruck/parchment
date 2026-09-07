@@ -288,6 +288,7 @@ export function usePortolanTransitService() {
     setServiceTime,
     setClassVisibility,
     setIsolatedRoute,
+    setIsolatedRouteStops,
     portolanRouteToken,
     portolanTransitActive,
   }
@@ -309,6 +310,54 @@ function setIsolatedRoute(routeId: string | null) {
   applyStations()
   applyStationZoomRelax()
   applyStationScale()
+}
+
+/** Stops on the isolated route's RUNNING path, [lng, lat]. */
+let isolatedStops: [number, number][] | null = null
+let isolatedStopsSig = ''
+
+/**
+ * Tell the map which stops the isolated line is actually making.
+ *
+ * The tiles answer "is this route awake here" from activity masks baked at
+ * build time, which is right every ordinary day and wrong on the
+ * interesting ones — a parade sends the 4 local down Eastern Pkwy and no
+ * tile knows it. The route panel already computes the real path from the
+ * boards and the agency's alerts, so the map takes that as the authority
+ * while a route is isolated: a station shows when it structurally carries
+ * the route AND sits on the path. Without a path (none loaded yet), the
+ * masks keep answering.
+ *
+ * Matching is by distance, because the tiles' merged stations and the
+ * feed's platforms share no id — only a place.
+ */
+function setIsolatedRouteStops(points: [number, number][] | null) {
+  const next = points && points.length ? points : null
+  const sig = next ? next.map(p => p.join(',')).join(';') : ''
+  if (sig === isolatedStopsSig) return
+  isolatedStopsSig = sig
+  isolatedStops = next
+  if (isolatedRoute) applyStations()
+}
+
+/** A tile station further than this from every stop on the path is not on
+ *  the path. Wide enough for a platform-to-station-entrance offset, narrow
+ *  enough not to bleed into the next station. */
+const PATH_MATCH_M = 160
+
+function onIsolatedPath(f: any): boolean {
+  const pts = isolatedStops
+  if (!pts) return true
+  const [lng, lat] = f.geometry?.coordinates ?? []
+  if (lng == null) return false
+  const kx = 111_320 * Math.cos((lat * Math.PI) / 180)
+  const ky = 110_540
+  for (const [plng, plat] of pts) {
+    const dx = (lng - plng) * kx
+    const dy = (lat - plat) * ky
+    if (dx * dx + dy * dy <= PATH_MATCH_M * PATH_MATCH_M) return true
+  }
+  return false
 }
 
 /**
@@ -2016,8 +2065,14 @@ function applyStations() {
   // here, now — a stop the line does not reach at this hour goes too.
   if (isolatedRoute) {
     const at = isolationTime()
+    // With a running path in hand, the path IS the temporal answer and the
+    // masks only vouch for structure; without one, the masks answer both.
     const feats = stationsRaw.features
-      .filter((f: any) => stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, at))
+      .filter((f: any) =>
+        isolatedStops
+          ? stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, null) && onIsolatedPath(f)
+          : stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, at),
+      )
       .map((f: any) => timeFilteredBullets(f, at, classesOff))
       .map((f: any) => isolatedMarkerFeature(f, isolatedRoute!))
     src.setData({ type: 'FeatureCollection', features: feats })

@@ -94,6 +94,10 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     alertOverrides.value = overrides
   }
 
+  /** The agency has put stops on the path the timetable lacks — reroute
+   *  day. The map uses this to stop trusting the tiles' baked hours. */
+  const alertExtendsService = computed(() => alertOverrides.value.serves.size > 0)
+
   /** Stop times for the selected vehicle's trip (from TripUpdate data). */
   interface TripStopTime {
     stopId: string
@@ -678,6 +682,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     isReversed,
     routeStops,
     servedStops,
+    alertExtendsService,
     displayStops,
     directionFilteredVehicleIds,
     selectedDirection,

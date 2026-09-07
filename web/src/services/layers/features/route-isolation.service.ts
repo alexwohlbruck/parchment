@@ -110,9 +110,10 @@ export function useRouteIsolationService() {
     // landing) so the map's stations track the panel's timeline. Portolan
     // holds it and applies it only while a route is isolated.
     stopsWatchStop = watch(
-      () => routeDetailStore.servedStops,
-      stops => portolan.setIsolatedRouteStops(
+      () => [routeDetailStore.servedStops, routeDetailStore.alertExtendsService] as const,
+      ([stops, extended]) => portolan.setIsolatedRouteStops(
         stops.length ? stops.map(s => [s.lng, s.lat] as [number, number]) : null,
+        extended,
       ),
       { immediate: true },
     )

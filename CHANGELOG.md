@@ -35,8 +35,8 @@
 
 ### Fixed
 
-* A skipped station reads as skipped everywhere. The agency's "trains skip this stop" alert now dims the lines on a station's own page, its map bullets, and a line's stop list alike — the boards go on listing scheduled runs a planned skip never removes.
 
+* A skipped station reads as skipped everywhere. The agency's "trains skip this stop" alert now dims the lines on a station's own page, its map bullets, and a line's stop list alike — the boards go on listing scheduled runs a planned skip never removes.
 * A line's stop list draws the path it is actually running. After midnight the R lists the Whitehall St–Bay Ridge shuttle instead of thirty stations no train will call at.
 * A rerouted line shows the stops it is really making. When the MTA sends the 4 local down Eastern Pkwy for a parade, its page gains Bergen St, Grand Army Plaza and the rest from the agency's own alert — and drops the stop the alert says everyone is skipping.
 * The map follows a reroute too: an isolated line's stations match the path it is running, and the line stays at full strength along it.

@@ -359,20 +359,50 @@ function portolanTransitActive(): boolean {
  * shape-and-circles view and drew every stop it has ever called at,
  * Livonia Av included.
  */
-function portolanRouteToken(routeId: string): string | null {
+function portolanRouteToken(routeId: string, near?: [number, number]): string | null {
   if (!routeId || !map || !hydrationReady()) return null
   const suffix = `:${routeId}`
+  // Collect every candidate before choosing. Returning the first hit made
+  // the answer depend on tile iteration order: the subway's plain `1` and
+  // an LIRR branch's `fN:1` both match, and whichever ribbon happened to be
+  // scanned first won — so a rescan after the camera moved could flip an
+  // isolated 1 train into a commuter-rail line mid-view.
+  let exact: string | null = null
+  let exactNear: string | null = null
+  let prefixed: string | null = null
+  let prefixedNear: string | null = null
+  const isNear = (f: any) => {
+    if (!near) return false
+    const g = f.geometry
+    const parts: any[] =
+      g?.type === 'MultiLineString' ? g.coordinates : [g?.coordinates ?? []]
+    for (const line of parts) {
+      for (const [lng, lat] of line) {
+        // ~1.5km at mid latitudes — same station area, not same city
+        if (Math.abs(lng - near[0]) < 0.02 && Math.abs(lat - near[1]) < 0.015) {
+          return true
+        }
+      }
+    }
+    return false
+  }
   for (const sid of tileSourceIds()) {
     if (!map.getSource(sid)) continue
     for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
       for (const token of String(f.properties?.routes ?? '').split(',')) {
-        // exact first: a feed's own ids win over another's prefixed ones
-        if (token === routeId) return token
-        if (token.endsWith(suffix)) return token
+        if (token === routeId) {
+          exact = exact ?? token
+          if (!exactNear && isNear(f)) exactNear = token
+        } else if (token.endsWith(suffix)) {
+          prefixed = prefixed ?? token
+          if (!prefixedNear && isNear(f)) prefixedNear = token
+        }
       }
     }
   }
-  return null
+  // a token whose ribbon passes the route's own stop beats everything;
+  // then a feed's own bare id beats another feed's prefixed one
+  return exactNear ?? prefixedNear ?? exact ?? prefixed
 }
 
 /** ON when the Transit layer group's master switch is (its visibility is

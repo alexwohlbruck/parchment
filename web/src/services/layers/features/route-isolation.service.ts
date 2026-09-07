@@ -189,11 +189,18 @@ export function useRouteIsolationService() {
     // turns out to be nothing shows nothing for a moment; drawing the
     // overlay over ribbons that turn out to draw the route shows the line
     // twice, in two styles — so lean portolan whenever it is on at all.
+    // The stop pins the answer to THIS route's geometry: several feeds can
+    // share the bare id (the subway's 1, an LIRR branch's fN:1), and only
+    // one of their ribbons passes the route's own first stop.
+    const near: [number, number] | undefined = route.stops[0]
+      ? [route.stops[0].lng, route.stops[0].lat]
+      : undefined
+
     if (route.routeId && portolan.portolanTransitActive()) {
       portolanIsolated = true
       // the id as portolan knows it: a group pyramid prefixes every feed
       // after the first, so the 2 is `f3:2` there and plain `2` alone
-      portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId) ?? route.routeId)
+      portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId, near) ?? route.routeId)
       fadeTransitLayers(NETWORK_DIM, { skipPortolan: true })
     } else {
       renderViaOverlay()
@@ -209,7 +216,7 @@ export function useRouteIsolationService() {
     const reconcile = () => {
       if (generation !== isolationGeneration) return detachReconciler()
       if (!portolan.portolanTransitActive()) return // hydration still coming
-      const token = portolan.portolanRouteToken(route.routeId!)
+      const token = portolan.portolanRouteToken(route.routeId!, near)
       if (token) {
         renderViaPortolan(token)
         return detachReconciler()

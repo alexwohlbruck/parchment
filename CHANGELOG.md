@@ -20,6 +20,7 @@
 
 * The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
 * Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.
+* An isolated numbered line stays itself — the 1 no longer flips into a commuter-rail branch sharing its number once the map settles.
 * Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway, however the panel was already positioned.
 * The stop list's line runs through the middle of every stop dot instead of floating past the last one.
 * An opened transit line is drawn once, by the transit map itself, instead of a second copy alongside it with duplicate stop names.

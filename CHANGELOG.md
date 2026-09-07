@@ -14,6 +14,8 @@
 * A transit line's page drops its own back arrow and uses the sheet's floating one, matching place detail.
 * A transit line's name and direction stay pinned at the top while you scroll its stops.
 * A line's page header shows the line's real bullet — the same chip the map draws — instead of a plain colored square.
+* Stops in a line's timeline size to their own content, so a stop with several connections no longer overlaps the name below it and a plain stop no longer sits in wasted space.
+* On the dark map, the rest of the network stays more visible behind an opened line.
 * An opened line shows its stop names and connection bullets from the route overview zoom, not only when zoomed in close.
 
 ### Fixed

@@ -215,10 +215,18 @@ let classesOff = new Set<string>()
  */
 let isolatedRoute: string | null = null
 
-/** How far the rest of the network steps back while one route is
- *  isolated. Low enough to read as background, high enough that the
- *  network is still legibly there. */
-const ISOLATION_DIM = 0.25
+/**
+ * How far the rest of the network steps back while one route is isolated.
+ * Low enough to read as background, high enough that the network is still
+ * legibly there.
+ *
+ * Higher on a dark map: the same alpha buys far less contrast against a
+ * near-black basemap than against a pale one, so a dim that reads as
+ * "stepped back" in daylight reads as "gone" at night.
+ */
+const ISOLATION_DIM_LIGHT = 0.25
+const ISOLATION_DIM_DARK = 0.42
+const isolationDim = () => (themeDark ? ISOLATION_DIM_DARK : ISOLATION_DIM_LIGHT)
 
 /** How much wider the isolated route draws than it normally would. The
  *  dim alone leaves it the same weight as everything else, just brighter;
@@ -433,6 +441,9 @@ function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
   // Both engines render the network; only the fork renders it in full.
   engine = mapStrategy.options.engine
   themeDark = mapStrategy.options.theme === MapTheme.DARK
+  // the dim is theme-dependent — re-derive it rather than leave the light
+  // value painted on a dark map
+  if (isolatedRoute) applyRibbonDim()
   const fork =
     mapStrategy.options.engine === MapEngine.MAPLIBRE &&
     getVersion().includes('transit')
@@ -1583,7 +1594,7 @@ function isolationOpacity(base: Expr, ghost: boolean): Expr {
   return [
     '*',
     occluded,
-    ['case', routeFilterExpr(isolatedRoute, isolationTime()), 1, ISOLATION_DIM],
+    ['case', routeFilterExpr(isolatedRoute, isolationTime()), 1, isolationDim()],
   ] as unknown as Expr
 }
 

@@ -62,6 +62,28 @@ async function mountWithStops(withRoutes: boolean) {
   return wrapper
 }
 
+/**
+ * Give the list and its rows real geometry. jsdom lays nothing out, so the
+ * component's measurement would otherwise read zeros and every assertion
+ * below would hold trivially. Rows are deliberately UNEVEN — that is the
+ * case the fixed-height version could not draw.
+ */
+async function layOutRows(wrapper: Awaited<ReturnType<typeof mountWithStops>>, heights: number[]) {
+  const list = wrapper.find('.relative[style*="padding-left"]').element as HTMLElement
+  const rows = wrapper.findAll('.relative.flex.items-start').map(w => w.element as HTMLElement)
+  list.getBoundingClientRect = () => ({ top: 100 }) as DOMRect
+  let y = 100
+  for (const [i, row] of rows.entries()) {
+    const top = y
+    row.getBoundingClientRect = () => ({ top }) as DOMRect
+    y += heights[i]
+  }
+  // the component measures on a post-flush watcher
+  ;(wrapper.vm as unknown as { $forceUpdate: () => void }).$forceUpdate()
+  await wrapper.vm.$nextTick()
+  return rows
+}
+
 describe('RouteDetailPage stop timeline', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
@@ -82,14 +104,32 @@ describe('RouteDetailPage stop timeline', () => {
     const spineTop = px(spineStyle, 'top')
     const spineBottom = spineTop + px(spineStyle, 'height')
 
-    const centerOf = (i: number) => {
+    // Every dot sits at the same offset WITHIN its own row, and the spine
+    // runs between the first and last of them.
+    const offsetOf = (i: number) => {
       const style = dots[i].attributes('style') ?? ''
       return px(style, 'top') + px(style, 'height') / 2
     }
+    for (let i = 1; i < 4; i++) {
+      expect(offsetOf(i)).toBeCloseTo(offsetOf(0), 5)
+    }
+    expect(spineBottom).toBeGreaterThanOrEqual(spineTop)
+  })
 
-    expect(centerOf(0)).toBeCloseTo(spineTop, 5)
-    expect(centerOf(3)).toBeCloseTo(spineBottom, 5)
-    // and the intermediate dots sit at even intervals along it
-    expect(centerOf(1) - centerOf(0)).toBeCloseTo(centerOf(2) - centerOf(1), 5)
+  // The point of measuring: rows of different heights each carry their dot,
+  // and the spine ends on the real first and last centres rather than on
+  // index × an assumed row height.
+  it('spans uneven rows from the first measured dot to the last', async () => {
+    const wrapper = await mountWithStops(true)
+    await layOutRows(wrapper, [32, 70, 32, 54])
+
+    const style = wrapper.find('.absolute.z-0').attributes('style') ?? ''
+    const top = px(style, 'top')
+    const height = px(style, 'height')
+
+    // rows start at 100; centres are row-top - list-top + 12
+    expect(top).toBeCloseTo(12, 5)
+    // last row starts 32+70+32 = 134 below the first
+    expect(top + height).toBeCloseTo(134 + 12, 5)
   })
 })

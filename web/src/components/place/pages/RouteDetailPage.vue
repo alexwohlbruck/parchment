@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
 import {
   useRouteDetailStore,
   type DepartureContext,
@@ -213,37 +213,78 @@ watch(
 )
 
 /**
- * Height of each stop row in px (must match the CSS).
- *
- * The same for every row on purpose. The spine and the vehicle markers are
- * placed by index x this height, so a row that grew to fit its own bullets
- * would slide every marker below it out of position. When any stop on the
- * route has bullets to draw, the whole list gets the taller row instead.
- */
-const STOP_ROW_HEIGHT = computed(() =>
-  displayStops.value.some((s) => s.routes?.length) ? 52 : 32,
-)
-
-/**
  * Distance from a row's top to the centre of its stop dot.
  *
- * Everything on the spine — the line itself, the dots, the vehicles — is
- * placed off this one number, so they stay threaded on each other whatever
- * the row height is. It lands on the middle of the stop name's first line
- * (2px row padding + half a 20px line box), which is where the eye expects
- * the dot for that stop to be.
+ * The dot sits on the middle of the stop name's first line (2px row padding
+ * + half a 20px line box), which is where the eye expects it — whatever
+ * else that row carries below the name.
  */
 const STOP_DOT_CENTER_Y = 12
 
-/** Top offset in px for a vehicle at the given routeFraction. */
-function vehicleTopPx(vr: VehicleOnRoute): number {
-  const totalHeight = (displayStops.value.length - 1) * STOP_ROW_HEIGHT.value
-  return vr.routeFraction * totalHeight
+/**
+ * Each row's dot centre, measured, in px from the top of the list.
+ *
+ * Rows size to their own content: a stop with two rows of transfer bullets
+ * is taller than a bare one, and forcing every row to the tallest left the
+ * sparse ones swimming in space while a long bullet strip still overflowed
+ * into the name below it. Nothing can be placed by index × a fixed height
+ * any more, so the spine's ends and the vehicle markers read the real
+ * layout instead — re-measured whenever it changes.
+ */
+const listEl = ref<HTMLElement | null>(null)
+const rowEls = ref<HTMLElement[]>([])
+const dotCenters = ref<number[]>([])
+
+function measureRows() {
+  const list = listEl.value
+  if (!list) return
+  const top = list.getBoundingClientRect().top
+  dotCenters.value = rowEls.value
+    .filter(Boolean)
+    .map(el => el.getBoundingClientRect().top - top + STOP_DOT_CENTER_Y)
 }
 
-/** Top offset in px for the dot of the stop at `index`. */
-function stopDotTopPx(index: number, size: number): number {
-  return index * STOP_ROW_HEIGHT.value + STOP_DOT_CENTER_Y - size / 2
+let rowObserver: ResizeObserver | null = null
+watch(
+  () => [listEl.value, displayStops.value.length] as const,
+  async () => {
+    await nextTick()
+    measureRows()
+    rowObserver?.disconnect()
+    if (!listEl.value || typeof ResizeObserver === 'undefined') return
+    // Fires for the container AND every row: bullets arrive asynchronously
+    // (portolan's curated set lands after the stops do) and a row grows
+    // when they do.
+    rowObserver = new ResizeObserver(() => measureRows())
+    rowObserver.observe(listEl.value)
+    for (const el of rowEls.value) if (el) rowObserver.observe(el)
+  },
+  { flush: 'post' },
+)
+// Content changes (a name resolving, bullets arriving) relayout the rows
+// without resizing the container, and ResizeObserver is not everywhere.
+onUpdated(measureRows)
+onUnmounted(() => rowObserver?.disconnect())
+
+/** Where the spine starts and ends: the first and last dot centres. */
+const spineTop = computed(() => dotCenters.value[0] ?? STOP_DOT_CENTER_Y)
+const spineBottom = computed(
+  () => dotCenters.value[dotCenters.value.length - 1] ?? STOP_DOT_CENTER_Y,
+)
+
+/**
+ * Top offset in px for a vehicle at the given routeFraction.
+ *
+ * `routeFraction` is a position along the stop SEQUENCE, so it interpolates
+ * between the two dots it falls between rather than scaling a total height
+ * the rows no longer share.
+ */
+function vehicleTopPx(vr: VehicleOnRoute): number {
+  const centers = dotCenters.value
+  if (centers.length < 2) return spineTop.value
+  const span = (centers.length - 1) * Math.min(Math.max(vr.routeFraction, 0), 1)
+  const i = Math.min(Math.floor(span), centers.length - 2)
+  return centers[i] + (centers[i + 1] - centers[i]) * (span - i)
 }
 
 // ── Lifecycle ────────────────────────────────────────────────
@@ -396,16 +437,19 @@ onUnmounted(() => {
       <div>
         <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
 
-        <div class="relative" style="padding-left: 32px">
-          <!-- Vertical route line: split into passed (grey) and active (colored) segments -->
+        <div ref="listEl" class="relative" style="padding-left: 32px">
+          <!-- Vertical route line, from the first dot centre to the last:
+               split into passed (grey) and active (coloured) at the selected
+               vehicle. Both ends read measured positions, so a row that grew
+               to fit its bullets carries the spine with it. -->
           <div
             v-if="selectedVehicleOnRoute"
             class="absolute z-0 rounded-full"
             :style="{
               left: '12px',
-              top: `${STOP_DOT_CENTER_Y}px`,
+              top: `${spineTop}px`,
               width: '3px',
-              height: `${vehicleTopPx(selectedVehicleOnRoute)}px`,
+              height: `${Math.max(0, vehicleTopPx(selectedVehicleOnRoute) - spineTop)}px`,
               background: 'hsl(var(--muted-foreground))',
             }"
           />
@@ -414,12 +458,13 @@ onUnmounted(() => {
             :style="{
               left: '12px',
               top: selectedVehicleOnRoute
-                ? `${STOP_DOT_CENTER_Y + vehicleTopPx(selectedVehicleOnRoute)}px`
-                : `${STOP_DOT_CENTER_Y}px`,
+                ? `${vehicleTopPx(selectedVehicleOnRoute)}px`
+                : `${spineTop}px`,
               width: '3px',
-              height: selectedVehicleOnRoute
-                ? `${(displayStops.length - 1) * STOP_ROW_HEIGHT - vehicleTopPx(selectedVehicleOnRoute)}px`
-                : `${(displayStops.length - 1) * STOP_ROW_HEIGHT}px`,
+              height: `${Math.max(
+                0,
+                spineBottom - (selectedVehicleOnRoute ? vehicleTopPx(selectedVehicleOnRoute) : spineTop),
+              )}px`,
               background: bgColor,
             }"
           />
@@ -431,7 +476,7 @@ onUnmounted(() => {
             class="absolute z-20 cursor-pointer"
             :style="{
               left: '2px',
-              top: `${vehicleTopPx(vr) + STOP_DOT_CENTER_Y - 11}px`,
+              top: `${vehicleTopPx(vr) - 11}px`,
             }"
             @click.stop="onSelectVehicle(vr.vehicleId)"
           >
@@ -445,28 +490,31 @@ onUnmounted(() => {
           </div>
 
           <!-- Stop rows -->
+          <!-- Rows size to their content. `min-h` keeps a bare stop from
+               collapsing tighter than the timeline reads well at; a stop
+               with bullets simply takes the room it needs. -->
           <div
             v-for="(stop, i) in displayStops"
+            :ref="el => { if (el) rowEls[i] = el as HTMLElement }"
             :key="stop.stopId"
-            class="flex items-start justify-between gap-2 py-0.5"
-            :style="{ height: `${STOP_ROW_HEIGHT}px` }"
+            class="relative flex items-start justify-between gap-2 py-0.5 min-h-[32px]"
           >
-            <!-- Stop dot -->
+            <!-- Stop dot, on this row rather than placed by index -->
             <div
               class="absolute rounded-full border-2 z-10"
               :style="{
                 width: (i === 0 || i === displayStops.length - 1) ? '11px' : '9px',
                 height: (i === 0 || i === displayStops.length - 1) ? '11px' : '9px',
-                left: (i === 0 || i === displayStops.length - 1) ? '8px' : '9px',
-                top: `${stopDotTopPx(i, (i === 0 || i === displayStops.length - 1) ? 11 : 9)}px`,
+                left: (i === 0 || i === displayStops.length - 1) ? '-24px' : '-23px',
+                top: `${STOP_DOT_CENTER_Y - ((i === 0 || i === displayStops.length - 1) ? 11 : 9) / 2}px`,
                 borderColor: isStopPassedBySelected(i) ? 'hsl(var(--muted-foreground))' : bgColor,
                 background: isStopPassedBySelected(i) ? 'hsl(var(--muted))' : 'hsl(var(--background))',
               }"
             />
 
-            <div class="min-w-0 flex flex-col justify-center gap-1">
+            <div class="min-w-0 flex flex-col gap-1">
               <span
-                class="text-sm min-w-0 truncate"
+                class="text-sm min-w-0 truncate leading-6"
                 :class="{
                   'font-semibold': i === 0 || i === displayStops.length - 1,
                   'text-muted-foreground': isStopPassedBySelected(i),

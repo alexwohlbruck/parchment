@@ -55,7 +55,14 @@ const TRANSIT_LAYER_IDS = [
 /** How far the rest of the network steps back while a route is isolated —
  *  dimmed, not hidden, so the line still reads inside its network. Matches
  *  portolan's own ISOLATION_DIM — keep the two in step. */
-const NETWORK_DIM = 0.25
+const NETWORK_DIM_LIGHT = 0.25
+const NETWORK_DIM_DARK = 0.42
+/** Theme-dependent for the same reason portolan's is: the same alpha reads
+ *  as "gone" against a near-black basemap. */
+const NETWORK_DIM = () =>
+  document.documentElement.classList.contains('dark')
+    ? NETWORK_DIM_DARK
+    : NETWORK_DIM_LIGHT
 
 /** Which opacity paint props carry a layer type's fade. */
 const OPACITY_PROPS: Record<string, string[]> = {
@@ -160,7 +167,7 @@ export function useRouteIsolationService() {
         portolanIsolated = true
         // re-derive: the overlay pass faded portolan's layers flat
         fadeTransitLayers(null)
-        fadeTransitLayers(NETWORK_DIM, { skipPortolan: true })
+        fadeTransitLayers(NETWORK_DIM(), { skipPortolan: true })
       }
       removeRouteOverlay()
     }
@@ -173,7 +180,7 @@ export function useRouteIsolationService() {
         portolanIsolated = false
         fadeTransitLayers(null)
       }
-      fadeTransitLayers(NETWORK_DIM)
+      fadeTransitLayers(NETWORK_DIM())
       if (route.coordinates && route.coordinates.length >= 2) {
         addRouteShape(route.coordinates, route.routeColor)
       }
@@ -201,7 +208,7 @@ export function useRouteIsolationService() {
       // the id as portolan knows it: a group pyramid prefixes every feed
       // after the first, so the 2 is `f3:2` there and plain `2` alone
       portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId, near) ?? route.routeId)
-      fadeTransitLayers(NETWORK_DIM, { skipPortolan: true })
+      fadeTransitLayers(NETWORK_DIM(), { skipPortolan: true })
     } else {
       renderViaOverlay()
     }

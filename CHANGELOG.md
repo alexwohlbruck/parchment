@@ -22,7 +22,7 @@
 
 * The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
 * Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.
-* An isolated line stays itself — a route no longer flips to a different railroad that happens to share its number, even where the two meet at the same terminal.
+* An isolated line stays itself — opening a route no longer briefly highlights a different railroad that shares its number, and never settles on one.
 * Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway, however the panel was already positioned.
 * The stop list's line runs through the middle of every stop dot instead of floating past the last one.
 * An opened transit line is drawn once, by the transit map itself, instead of a second copy alongside it with duplicate stop names.

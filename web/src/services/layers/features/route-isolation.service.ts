@@ -222,14 +222,17 @@ export function useRouteIsolationService() {
     // answer, and the overlay is still there for feeds portolan does not
     // draw.
     if (route.routeId && portolan.isPortolanTransitEnabled()) {
-      if (portolan.portolanTransitActive()) {
-        portolanIsolated = true
-        // the id as portolan knows it: a group pyramid prefixes every feed
-        // after the first, so the 2 is `f3:2` there and plain `2` alone
-        portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId, along) ?? route.routeId)
-        fadeTransitLayers(NETWORK_DIM(), { skipPortolan: true })
-      }
-      // else: hydration still coming — hold the frame for the reconciler
+      // ONLY a resolved token may be isolated. The bare GTFS id is not a
+      // portolan token: tokens are prefixed per feed (`f3:2`) for every feed
+      // after the first, so an UNPREFIXED id addresses the first feed's
+      // route of that number — isolating Metro-North's 2 on the bare `2`
+      // lit up the LIRR. There is no safe guess here; when the token cannot
+      // be verified the reconciler asks again, and until it can, nothing is
+      // isolated at all.
+      const token = portolan.portolanTransitActive()
+        ? portolan.portolanRouteToken(route.routeId, along)
+        : null
+      if (token) renderViaPortolan(token)
     } else {
       renderViaOverlay()
     }

@@ -200,6 +200,45 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     return directions.value.indexOf(activeDirection.value) === 1
   })
 
+  /** How far a stop may sit from the route's drawn shape and still count
+   *  as on its track. Grand Army Plaza is metres from the 4's line under
+   *  Eastern Pkwy; the New Lots branch is a kilometre off it. */
+  const OWN_TRACK_M = 300
+
+  /** Distance from each stop to the route's shape, computed once per
+   *  route. No shape means no basis to judge, so every stop passes. */
+  const shapeDistance = computed(() => {
+    const coords = activeRoute.value?.coordinates
+    const map = new Map<string, number>()
+    if (!coords || coords.length < 2) return map
+    for (const s of activeRoute.value?.stops ?? []) {
+      const kx = 111_320 * Math.cos((s.lat * Math.PI) / 180)
+      const ky = 110_540
+      let best = Infinity
+      for (let i = 1; i < coords.length; i++) {
+        const [ax, ay] = coords[i - 1]
+        const [bx, by] = coords[i]
+        const dx = (bx - ax) * kx
+        const dy = (by - ay) * ky
+        const px = (s.lng - ax) * kx
+        const py = (s.lat - ay) * ky
+        const len = dx * dx + dy * dy
+        const t = len ? Math.max(0, Math.min(1, (px * dx + py * dy) / len)) : 0
+        const ddx = px - t * dx
+        const ddy = py - t * dy
+        const d = ddx * ddx + ddy * ddy
+        if (d < best) best = d
+      }
+      map.set(s.stopId, Math.sqrt(best))
+    }
+    return map
+  })
+
+  const onOwnTrack = (s: RouteDetailStop) => {
+    const d = shapeDistance.value.get(s.stopId)
+    return d === undefined || d <= OWN_TRACK_M
+  }
+
   /** Every stop the line calls at on its full timetable, in route order.
    *  What the service boards are asked about — never the filtered list, or
    *  narrowing it would narrow the next answer, and so on down to nothing. */
@@ -226,11 +265,13 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
    * only "this alert concerns this stop", and the MTA attaches them
    * generously: the parade alert named the whole New Lots branch while its
    * own text said "between Atlantic Av and Crown Hts–Utica Av". So a named
-   * stop is only ADDED when it lies between stops the boards confirm —
-   * express-to-local fills in a run's middle; it never extends a terminus.
-   * A named skip applies anywhere: removing on the agency's word risks a
-   * missing dot, not a phantom train. Alerts name stations while this list
-   * carries platforms, so a stop matches by its own id or its parent's.
+   * stop is only ADDED when it lies ON the route's own track (an
+   * express-to-local reroute serves stops along the line it already runs;
+   * an extension leaves it) and between stops the boards confirm — filling
+   * in a run's middle, never extending a terminus. A named skip applies
+   * anywhere: removing on the agency's word risks a missing dot, not a
+   * phantom train. Alerts name stations while this list carries platforms,
+   * so a stop matches by its own id or its parent's.
    *
    * If no stop is known to be served at all, the whole line is drawn,
    * because a path of nothing describes nothing.
@@ -258,7 +299,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
     const onPath = stops.filter((s, i) => {
       if (named(skips, s)) return false
-      if (named(serves, s) && i >= first && i <= last) return true
+      if (named(serves, s) && i >= first && i <= last && onOwnTrack(s)) return true
       return (
         !stopServiceKnown.value.has(s.stopId) ||
         (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? true)

@@ -227,6 +227,10 @@ describe('displayStops follows the running path', () => {
       { ...makeStop('238N', 'Eastern Pkwy', 40.67, -73.96, 1000), parentStation: '238' },
       makeStop('250N', 'Crown Hts-Utica Av', 40.66, -73.93, 1500),
     ]
+    // The named stops sit on the line's own track.
+    ;(store as any).activeRoute.coordinates = [
+      [-73.98, 40.75], [-73.97, 40.68], [-73.96, 40.67], [-73.93, 40.66],
+    ]
     boardsSay(store, { R16: ['R'], '237N': ['2', '3'], '238N': ['2', '3'], '250N': ['R'] })
     store.setAlertOverrides({ serves: new Set(['237', '238']), skips: new Set(['238']) })
     // 237 forced on by the alert; 238 named by both, and the skip wins.
@@ -243,9 +247,11 @@ describe('displayStops follows the running path', () => {
     ;(store as any).activeRoute.stops = [
       makeStop('R16', 'Atlantic Av', 40.68, -73.98, 0),
       { ...makeStop('250N', 'Crown Hts-Utica Av', 40.66, -73.93, 500), parentStation: '250' },
-      { ...makeStop('251N', 'Sutter Av', 40.66, -73.92, 1000), parentStation: '251' },
-      { ...makeStop('257N', 'New Lots Av', 40.66, -73.88, 1500), parentStation: '257' },
+      { ...makeStop('251N', 'Sutter Av', 40.63, -73.92, 1000), parentStation: '251' },
+      { ...makeStop('257N', 'New Lots Av', 40.63, -73.88, 1500), parentStation: '257' },
     ]
+    // The shape ends at Utica; the branch stops are far off it.
+    ;(store as any).activeRoute.coordinates = [[-73.98, 40.68], [-73.93, 40.66]]
     boardsSay(store, { R16: ['R'], '250N': ['R'], '251N': ['2', '3'], '257N': ['2', '3'] })
     store.setAlertOverrides({ serves: new Set(['251', '257']), skips: new Set() })
     expect(store.displayStops.map(s => s.stopId)).toEqual(['R16', '250N'])

@@ -16,6 +16,7 @@
 * A line's page header shows the line's real bullet — the same chip the map draws — instead of a plain colored square.
 * Stops in a line's timeline size to their own content, so a stop with several connections no longer overlaps the name below it and a plain stop no longer sits in wasted space.
 * On the dark map, the rest of the network stays more visible behind an opened line.
+* An opened line sits on its own track rather than beside it, with stop dots sized to the line and drawn in its colour — no more white bundle markers or dots left in a lane the line no longer runs in.
 * An opened line shows its stop names and connection bullets at every zoom, including the whole-route overview.
 
 ### Fixed
@@ -27,7 +28,6 @@
 * The stop list's line runs through the middle of every stop dot instead of floating past the last one.
 * An opened transit line is drawn once, by the transit map itself, instead of a second copy alongside it with duplicate stop names.
 * Opening a line on a cold load no longer flashes plain stop labels before the proper ones with route bullets arrive.
-* An opened line's stop dots take the line's own colour, so an isolated yellow Q no longer shows an orange dot at a shared station.
 * Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
 * The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.
 * Lists leave room for the on-screen keyboard, so you can scroll to the end of your results without dismissing it first.

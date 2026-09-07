@@ -83,7 +83,7 @@ const headerBullet = computed(() => {
   const r = route.value
   const first = displayStops.value[0]
   if (!r || !first) return null
-  return bulletFor(r.routeId, first.lat, first.lng, r.routeType)
+  return bulletFor(r.routeId, first.lat, first.lng, r.routeType, r.routeShortName || r.routeLongName)
 })
 
 /** A tapped bullet opens that line's own page. */
@@ -200,7 +200,7 @@ function isStopInPast(stop: { stopId: string }): boolean {
  * matching a commuter-rail one.
  */
 const stopBullet = (route: StopTransferRoute, stop: RouteDetailStop) =>
-  bulletFor(route.routeId, stop.lat, stop.lng, route.routeType)
+  bulletFor(route.routeId, stop.lat, stop.lng, route.routeType, route.routeShortName || route.routeLongName)
 
 // Curated styles are fetched per feed and per session. Ask once the stops
 // land, using the first one as the point — a route stays inside one city.

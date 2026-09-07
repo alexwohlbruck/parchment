@@ -248,7 +248,7 @@ const structuralFilter = new Map<string, Expr>()
 // than stacking on the last dimmed value
 const ribbonPaint = new Map<
   string,
-  { color: Expr; opacity: Expr; width: Expr; ghost: boolean }
+  { color: Expr; opacity: Expr; width: Expr; offset: Expr; ghost: boolean }
 >()
 
 // ── hydration state (MapView.vue:1588-1613) ────────────────────────────
@@ -308,6 +308,7 @@ function setIsolatedRoute(routeId: string | null) {
   applyRibbonDim()
   applyStations()
   applyStationZoomRelax()
+  applyStationScale()
 }
 
 /**
@@ -325,6 +326,39 @@ const STATION_ZOOM = {
   'portolan-station-labels': { usual: 11, isolated: 0 },
 } as const
 const BULLET_ROW_STEP = { usual: 13.5, isolated: 0 }
+
+/** The marker icon's base zoom curve, before any isolation scaling. */
+const MARKER_SIZE: Expr = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  11,
+  0.38,
+  12,
+  0.5,
+  14,
+  1,
+] as unknown as Expr
+
+/**
+ * Station dots follow the width of the line they sit on.
+ *
+ * The isolated route draws ISOLATION_WIDTH wider, and a dot sized for the
+ * normal ribbon reads as a pinprick on it. The markers left on the map all
+ * belong to the isolated route, so the whole layer scales together — no
+ * per-feature case needed.
+ */
+function applyStationScale() {
+  if (!map?.getLayer?.('portolan-station-markers')) return
+  const out: any[] = MARKER_SIZE.slice(0, 3)
+  for (let i = 3; i < MARKER_SIZE.length; i += 2) {
+    out.push(
+      MARKER_SIZE[i],
+      isolatedRoute ? MARKER_SIZE[i + 1] * ISOLATION_WIDTH : MARKER_SIZE[i + 1],
+    )
+  }
+  map.setLayoutProperty('portolan-station-markers', 'icon-size', out)
+}
 
 function applyStationZoomRelax() {
   if (!map?.getStyle()) return
@@ -817,6 +851,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
     color: spec.paint['line-color'],
     opacity,
     width: spec.paint['line-width'],
+    offset: spec.paint['line-offset'],
     ghost: false,
   })
 
@@ -869,6 +904,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
     color: spec.paint['line-color'],
     opacity,
     width: spec.paint['line-width'],
+    offset: spec.paint['line-offset'],
     ghost: true,
   })
   map.addLayer(
@@ -1331,6 +1367,7 @@ function addSymbolLayers() {
       // by styleimagemissing. A dot's slot offset is baked into its image
       // so icon-rotate carries it to the correct side of the corridor.
       'icon-image': ['get', 'icon'],
+      // grows with the ribbon it marks — see applyStationScale
       'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.38, 12, 0.5, 14, 1],
       'icon-rotate': ['get', 'bearing'],
       'icon-rotation-alignment': 'map',
@@ -1545,6 +1582,7 @@ function addSymbolLayers() {
 
   // a style rebuild mid-isolation must come up already relaxed
   applyStationZoomRelax()
+  applyStationScale()
 }
 
 function removeAll() {
@@ -1648,14 +1686,47 @@ function isolationWidth(base: Expr): Expr {
   return ['*', base, boost] as unknown as Expr
 }
 
-/** Re-derive every ribbon's opacity and width from the paint it was built
- *  with. */
+/**
+ * The isolated route drawn on its own centreline rather than in its slot.
+ *
+ * A bundled route rides a lateral offset so the lines sharing a trunk read
+ * as separate. Alone, that offset only puts the line beside the corridor it
+ * IS — and beside its own stations, whose dots are drawn at the same slot.
+ * Zeroing both is what makes an isolated route sit on its track.
+ *
+ * Built like the width boost, and for the same reason: the offset is a
+ * top-level zoom `interpolate`, so the per-route case goes INSIDE its
+ * outputs. An unrecognised shape is left alone.
+ */
+function isolationOffset(base: Expr): Expr {
+  if (!isolatedRoute || base === undefined) return base
+  const pick = (out: any): Expr =>
+    [
+      'case',
+      routeFilterExpr(isolatedRoute!, isolationTime()),
+      0,
+      out,
+    ] as unknown as Expr
+  if (Array.isArray(base)) {
+    if (base[0] !== 'interpolate') return base
+    const out: any[] = base.slice(0, 3)
+    for (let i = 3; i < base.length; i += 2) out.push(base[i], pick(base[i + 1]))
+    return out as unknown as Expr
+  }
+  return pick(base)
+}
+
+/** Re-derive every ribbon's opacity, width and offset from the paint it was
+ *  built with. */
 function applyRibbonDim() {
   if (!hydrationReady()) return
   for (const [id, p] of ribbonPaint) {
     if (!map.getLayer(id)) continue
     if (p.width !== undefined) {
       map.setPaintProperty(id, 'line-width', isolationWidth(p.width))
+    }
+    if (p.offset !== undefined) {
+      map.setPaintProperty(id, 'line-offset', isolationOffset(p.offset))
     }
     const o = isolationOpacity(p.opacity, p.ghost)
     if (engine === MapEngine.MAPBOX) {
@@ -1971,26 +2042,26 @@ function applyStations() {
  * subject would still show other lines' colours (an orange dot riding along
  * with an isolated yellow Q). The dots do NOT align with the routes list:
  * a station's marker can carry one dot for a whole corridor while naming
- * every route in the complex. So the route's own colour is the anchor:
- * keep the dots already in that colour, and when there are none, recolour
- * the marker's dot in place — same anchor, same slot offset, the route's
- * colour. Only a marker whose route colour is unknowable keeps its union
- * image; a wrong-coloured dot beats a missing stop.
+ * every route in the complex. So the route's own colour is the anchor, and
+ * what is left is a single dot in it, on the centreline. Only a marker
+ * whose route colour is unknowable keeps its union image; a wrong-coloured
+ * dot beats a missing stop.
  */
 function isolatedMarkerFeature(f: any, routeId: string): any {
   const p = f.properties
-  if (p.ftype !== 'marker' || !p.dots) return f
+  // No `p.dots` guard: a bundle whose lines fill it entirely is drawn as a
+  // white PILL instead, and that pill says "every line here" — a statement
+  // about a bundle isolation has just taken off the map. Alone it reads as
+  // a foreign white lozenge lying across a coloured line, so it becomes a
+  // dot like any other marker.
+  if (p.ftype !== 'marker') return f
   const i = routesOf(p).indexOf(routeId)
   if (i < 0) return f
   const hex = String(p.route_colors ?? '').split(',')[i]?.toUpperCase()
   if (!/^[0-9A-F]{6}$/.test(hex ?? '')) return f
-  const dots = String(p.dots).split(';')
-  let kept = dots.filter(d => d.split('@')[0].toUpperCase() === hex)
-  if (!kept.length) {
-    // no dot in this colour — recolour the first one where it stands
-    kept = [`${hex}@${dots[0].split('@')[1] ?? 0}`]
-  }
-  return { ...f, properties: { ...p, icon: `dots-${kept.join(';')}` } }
+  // `@0`: a dot's slot offset is baked into its image, and the isolated
+  // ribbon no longer rides its slot (see isolationOffset).
+  return { ...f, properties: { ...p, icon: `dots-${hex}@0` } }
 }
 
 /** A surviving station's bullet strip shows only the routes awake at the

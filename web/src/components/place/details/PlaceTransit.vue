@@ -104,8 +104,19 @@ watch(
   },
   { immediate: true },
 )
-const styleOfRoute = (route: { id: string; type?: number }) =>
-  bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng, route.type)
+const styleOfRoute = (route: {
+  id: string
+  type?: number
+  shortName?: string
+  longName?: string
+}) =>
+  bulletFor(
+    route.id,
+    transitInfo.value?.lat,
+    transitInfo.value?.lng,
+    route.type,
+    route.shortName || route.longName,
+  )
 
 /**
  * The connecting stations, each with its own grouped board.

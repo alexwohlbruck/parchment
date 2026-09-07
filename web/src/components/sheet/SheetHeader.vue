@@ -9,6 +9,7 @@ import {
 } from 'vue'
 import { cn } from '@/lib/utils'
 import { useSheetPeek } from '@/composables/useSheetPeek'
+import { useStuck } from '@/composables/useStuck'
 
 /**
  * Sticky header region of a sheet — see the layout contract in
@@ -22,6 +23,10 @@ import { useSheetPeek } from '@/composables/useSheetPeek'
  * Renders in place — it never portals — so it works the same from a routed
  * view inside the mobile sheet, from a direct child, and inside the desktop
  * LeftSheet (where the sticky top is simply 0 and there is no peek).
+ *
+ * The default slot receives `stuck` — true once the header has actually
+ * pinned — for headers that reveal a border or shadow only while they cover
+ * content.
  */
 const props = withDefaults(
   defineProps<{
@@ -42,6 +47,7 @@ const props = withDefaults(
 )
 
 const el = ref<HTMLElement | null>(null)
+const { stuck } = useStuck(el)
 const { peekRef } = useSheetPeek()
 watchEffect(() => {
   peekRef.value = props.peek ? el.value : null
@@ -66,6 +72,6 @@ onUnmounted(() => chromeBar?.release())
     :class="cn('sticky z-20', props.solid && 'bg-background', props.class)"
     :style="{ top: 'var(--sheet-sticky-top, 0px)' }"
   >
-    <slot />
+    <slot :stuck="stuck" />
   </div>
 </template>

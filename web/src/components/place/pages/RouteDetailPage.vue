@@ -255,15 +255,16 @@ onUnmounted(() => {
            away, and "which line is this" is the one thing you still need at
            the bottom of it.
 
-           The margin puts the header's natural position exactly on the line
-           it docks to — the chrome bar on mobile, 0 on desktop, where it also
-           cancels the panel's inset. Any higher and sticky would shove it down
-           without reflowing its siblings, hiding the top of the content below;
-           any lower and unpainted panel background shows as a gap above the
-           band. -mx-3 lets the backing and rule span the panel. -->
+           PanelLayout's inset stays on by default — it is what keeps a view
+           without a pinned header out from under the sheet's floating handle.
+           This header cancels it and re-adds the line it docks to, so its
+           natural position IS that line. Any higher and sticky would shove it
+           down without reflowing its siblings, hiding the top of the content
+           below; any lower and the panel's unpainted inset shows as a gap
+           above the band. -mx-3 lets the backing and rule span the panel. -->
       <SheetHeader
         v-slot="{ stuck }"
-        class="-mx-3 mb-3 mt-[var(--sheet-sticky-top,0px)] md:mt-[calc(var(--sheet-sticky-top,0px)_-_1rem)]"
+        class="-mx-3 mb-3 mt-[calc(var(--sheet-sticky-top,0px)_-_var(--panel-inset-top,0px))]"
       >
         <div
           class="px-3 md:pt-4 pb-3 border-b transition-colors duration-200"

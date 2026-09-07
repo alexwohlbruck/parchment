@@ -13,16 +13,13 @@
   <!-- min-h-full (not h-full): fills the sheet when content is short, but
        GROWS with tall content so it stays the containing block for sticky
        children. With h-full the box capped at one viewport and sticky headers
-       unstuck once content scrolled past it.
-
-       The mobile inset only exists to keep the first row out from under the
-       sheet's floating handle and buttons. A view that pins a header claims
-       the chrome bar instead — which both paints that strip and raises
-       `--sheet-sticky-top` — so the inset gives way to it exactly then, and
-       the header docks with nothing above it. -->
+       unstuck once content scrolled past it. -->
+  <!-- The top inset is published as a variable so a child that takes over the
+       job — a pinned header, which paints its own opaque band — can cancel
+       exactly this much without copying the number or the breakpoint. -->
   <div
-    class="min-h-full flex flex-col pb-4 px-3
-           pt-[max(0px,calc(1.5rem_-_var(--sheet-sticky-top,0px)))] md:pt-4"
+    class="min-h-full flex flex-col pb-4 px-3 pt-[var(--panel-inset-top)]
+           [--panel-inset-top:1.5rem] md:[--panel-inset-top:1rem]"
   >
     <slot />
   </div>

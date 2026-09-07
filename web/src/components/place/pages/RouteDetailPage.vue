@@ -61,7 +61,6 @@ const currentTime = useTransitClock()
 
 const route = computed(() => store.activeRoute)
 const isLoading = computed(() => store.isLoading)
-const vehicles = computed(() => store.vehicleList)
 const vehiclesOnRoute = computed(() => store.vehiclesOnRoute)
 const selectedId = computed(() => store.selectedVehicleId)
 const stopTimeMap = computed(() => store.stopTimeMap)
@@ -568,9 +567,12 @@ onUnmounted(() => {
       </div>
 
       <!-- ── Vehicle dropdown ──────────────────────────── -->
-      <div v-if="vehicles.length > 0" class="mb-3">
+      <!-- Counts what the list below holds — the viewed direction only.
+           A train the other way is one the direction toggle reveals, not
+           a value this dropdown owes. -->
+      <div v-if="vehiclesOnRoute.length > 0" class="mb-3">
         <div class="text-sm font-semibold mb-1.5">
-          {{ t('place.transit.activeVehicles', { count: vehicles.length, type: t(`place.transit.vehicleType.${vehicleTypeKey}`, vehicles.length) }) }}
+          {{ t('place.transit.activeVehicles', { count: vehiclesOnRoute.length, type: t(`place.transit.vehicleType.${vehicleTypeKey}`, vehiclesOnRoute.length) }) }}
         </div>
         <Select
           :modelValue="selectedId || undefined"

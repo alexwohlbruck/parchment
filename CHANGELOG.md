@@ -26,6 +26,7 @@
 * Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway, however the panel was already positioned.
 * The stop list's line runs through the middle of every stop dot instead of floating past the last one.
 * An opened transit line is drawn once, by the transit map itself, instead of a second copy alongside it with duplicate stop names.
+* Opening a line on a cold load no longer flashes plain stop labels before the proper ones with route bullets arrive.
 * An opened line's stop dots take the line's own colour, so an isolated yellow Q no longer shows an orange dot at a shared station.
 * Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
 * The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.

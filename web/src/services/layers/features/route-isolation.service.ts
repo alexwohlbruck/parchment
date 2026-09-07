@@ -203,12 +203,23 @@ export function useRouteIsolationService() {
       ? [route.stops[0].lng, route.stops[0].lat]
       : undefined
 
-    if (route.routeId && portolan.portolanTransitActive()) {
-      portolanIsolated = true
-      // the id as portolan knows it: a group pyramid prefixes every feed
-      // after the first, so the 2 is `f3:2` there and plain `2` alone
-      portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId, near) ?? route.routeId)
-      fadeTransitLayers(NETWORK_DIM(), { skipPortolan: true })
+    // The question is whether portolan is TURNED ON, not whether it has
+    // finished hydrating: on a cold load it is enabled but not ready for a
+    // second or so, and drawing the overlay in that gap put the plain
+    // shape-and-circles labels on screen only to replace them with
+    // portolan's bulleted ones a moment later. Nothing at all is the better
+    // first frame — the reconciler fills it in as soon as the tiles can
+    // answer, and the overlay is still there for feeds portolan does not
+    // draw.
+    if (route.routeId && portolan.isPortolanTransitEnabled()) {
+      if (portolan.portolanTransitActive()) {
+        portolanIsolated = true
+        // the id as portolan knows it: a group pyramid prefixes every feed
+        // after the first, so the 2 is `f3:2` there and plain `2` alone
+        portolan.setIsolatedRoute(portolan.portolanRouteToken(route.routeId, near) ?? route.routeId)
+        fadeTransitLayers(NETWORK_DIM(), { skipPortolan: true })
+      }
+      // else: hydration still coming — hold the frame for the reconciler
     } else {
       renderViaOverlay()
     }
@@ -220,9 +231,19 @@ export function useRouteIsolationService() {
     // is exactly how a route ended up drawn twice.
     if (!route.routeId) return
     let missesWhileReady = 0
+    let waitsForHydration = 0
     const reconcile = () => {
       if (generation !== isolationGeneration) return detachReconciler()
-      if (!portolan.portolanTransitActive()) return // hydration still coming
+      if (!portolan.portolanTransitActive()) {
+        // Hydration still coming. It normally lands within a couple of
+        // idles; if it never does, fall back rather than leave the route
+        // undrawn entirely.
+        if (++waitsForHydration >= 6) {
+          renderViaOverlay()
+          detachReconciler()
+        }
+        return
+      }
       const token = portolan.portolanRouteToken(route.routeId!, near)
       if (token) {
         renderViaPortolan(token)

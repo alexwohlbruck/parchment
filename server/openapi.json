@@ -12631,6 +12631,18 @@
         }
       }
     },
+    "/transit/service-at-stops": {
+      "get": {
+        "operationId": "getTransitService-at-stops",
+        "tags": [
+          "Transit"
+        ],
+        "summary": "Route ids with a departure at each of several stops",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/transit/route-detail": {
       "get": {
         "operationId": "getTransitRoute-detail",

@@ -1240,7 +1240,9 @@
       "openRouteDetail": "Show {name}",
       "notInServiceNamed": "{name} isn't running now",
       "transfers": "Transfers",
-      "nearby": "Nearby"
+      "nearby": "Nearby",
+      "transfer": "transfer",
+      "notRunning": "not running now"
     },
     "header": {
       "showMore": "Show more",

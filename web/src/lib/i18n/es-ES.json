@@ -1193,7 +1193,9 @@
       "openRouteDetail": "Ver {name}",
       "notInServiceNamed": "{name} no circula ahora",
       "transfers": "Transbordos",
-      "nearby": "Cerca"
+      "nearby": "Cerca",
+      "transfer": "transbordo",
+      "notRunning": "sin servicio ahora"
     },
     "header": {
       "showMore": "Ver más",

@@ -13,6 +13,10 @@ import {
   ensureBulletsAt,
 } from '@/services/layers/features/portolan/portolan-bullets'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
 import { Separator } from '@/components/ui/separator'
@@ -86,15 +90,74 @@ const headerBullet = computed(() => {
   return bulletFor(r.routeId, first.lat, first.lng, r.routeType, r.routeShortName || r.routeLongName)
 })
 
+// ── stop service + links ─────────────────────────────────────
+
+const runningAt = computed(() => store.stopRunningRoutes)
+const serviceKnown = computed(() => store.stopServiceKnown)
+
+/**
+ * Is this line running at this stop right now?
+ *
+ * Unknown until the stop's board has been read, and unknown is NOT "no":
+ * an absent or empty board is missing evidence, not a closed line. Only a
+ * board that named other routes and not this one dims it — the same rule
+ * the station header applies, so the two pages agree about the 3 at
+ * Eastern Pkwy.
+ */
+function isRouteRunningAt(stop: RouteDetailStop, r: StopTransferRoute): boolean {
+  if (!serviceKnown.value.has(stop.stopId)) return true
+  return runningAt.value.get(stop.stopId)?.has(r.routeId) ?? true
+}
+
+/** Read a stop's board once it is on screen — see the store's cache. */
+function loadStopService(stop: RouteDetailStop) {
+  if (stop.routes?.length) void store.ensureStopService(props.feedId, stop.stopId)
+}
+
+/**
+ * Open a stop's own page.
+ *
+ * Portolan's own OSM join when it can be keyed — the only exact answer,
+ * and the one a tap on the map uses. It needs the feed's ONESTOP id, which
+ * route detail does not carry but a departure board does, so a stop whose
+ * board has been read links exactly and the rest fall back to the name and
+ * the point (which the server resolves to the same node wherever the name
+ * is unambiguous).
+ *
+ * `complex` rides along because a station name names an interchange, not
+ * one platform group.
+ */
+function openStop(stop: RouteDetailStop) {
+  const osm = osmForStop(
+    store.feedOnestopId ?? undefined,
+    stop.stopId,
+    stop.lat,
+    stop.lng,
+  )
+  const [type, id] = (osm ?? '').split('/')
+  if (type && id) {
+    router.push({ name: AppRoute.PLACE, params: { type, id }, query: { complex: '1' } })
+    return
+  }
+  router.push({
+    name: AppRoute.PLACE_LOCATION,
+    params: { name: stop.stopName, lat: String(stop.lat), lng: String(stop.lng) },
+    query: { complex: '1' },
+  })
+}
+
 /**
  * A bullet's tooltip. The transfer relationship is worth saying — it is a
  * walk across the interchange rather than the same platform — but it is a
  * fact about GEOGRAPHY, so it belongs in words and not in a dimmed bullet
  * that a rider reads as "not running".
  */
-function bulletTitle(r: StopTransferRoute): string {
+function bulletTitle(stop: RouteDetailStop, r: StopTransferRoute): string {
   const name = r.routeLongName || r.routeShortName || r.routeId
-  return r.via === 'transfer' ? `${name} — transfer` : name
+  const parts = [name]
+  if (r.via === 'transfer') parts.push(t('place.transit.transfer'))
+  if (!isRouteRunningAt(stop, r)) parts.push(t('place.transit.notRunning'))
+  return parts.join(' — ')
 }
 
 /** A tapped bullet opens that line's own page. */
@@ -218,7 +281,9 @@ const stopBullet = (route: StopTransferRoute, stop: RouteDetailStop) =>
 watch(
   () => displayStops.value[0],
   (first) => {
-    if (first) void ensureBulletsAt(first.lat, first.lng)
+    if (!first) return
+    void ensureBulletsAt(first.lat, first.lng)
+    void ensureStopIndexAt(first.lat, first.lng)
   },
   { immediate: true },
 )
@@ -256,6 +321,7 @@ function measureRows() {
 }
 
 let rowObserver: ResizeObserver | null = null
+let visObserver: IntersectionObserver | null = null
 watch(
   () => [listEl.value, displayStops.value.length] as const,
   async () => {
@@ -269,13 +335,34 @@ watch(
     rowObserver = new ResizeObserver(() => measureRows())
     rowObserver.observe(listEl.value)
     for (const el of rowEls.value) if (el) rowObserver.observe(el)
+
+    // Read a stop's board only once it is worth reading — the boards are
+    // one request each, and a long line has forty stops the rider may
+    // never scroll to.
+    visObserver?.disconnect()
+    if (typeof IntersectionObserver === 'undefined') return
+    visObserver = new IntersectionObserver(
+      entries => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue
+          const i = rowEls.value.indexOf(e.target as HTMLElement)
+          const stop = displayStops.value[i]
+          if (stop) loadStopService(stop)
+        }
+      },
+      { rootMargin: '200px' },
+    )
+    for (const el of rowEls.value) if (el) visObserver.observe(el)
   },
   { flush: 'post' },
 )
 // Content changes (a name resolving, bullets arriving) relayout the rows
 // without resizing the container, and ResizeObserver is not everywhere.
 onUpdated(measureRows)
-onUnmounted(() => rowObserver?.disconnect())
+onUnmounted(() => {
+  rowObserver?.disconnect()
+  visObserver?.disconnect()
+})
 
 /** Where the spine starts and ends: the first and last dot centres. */
 const spineTop = computed(() => dotCenters.value[0] ?? STOP_DOT_CENTER_Y)
@@ -524,30 +611,32 @@ onUnmounted(() => {
             />
 
             <div class="min-w-0 flex flex-col gap-1">
-              <span
-                class="text-sm min-w-0 truncate leading-6"
+              <button
+                type="button"
+                class="text-sm min-w-0 truncate leading-6 text-left hover:underline"
                 :class="{
                   'font-semibold': i === 0 || i === displayStops.length - 1,
                   'text-muted-foreground': isStopPassedBySelected(i),
                 }"
+                @click="openStop(stop)"
               >
                 {{ stop.stopName }}
-              </span>
+              </button>
 
-              <!-- Every line a rider can reach here, all at full strength.
-                   These used to dim `via: 'transfer'`, which is a SPATIAL
-                   fact — the line calls at a station transfers.txt joins to
-                   this one — and reads as "not running". The station header
-                   made the same mistake and dropped it: dimming is reserved
-                   for a line that stops here and is not running, and nothing
-                   in this payload knows that (see openRouteDetail). -->
+              <!-- Every line a rider can reach here. Dimming means one
+                   thing only: this line calls here and has no run on the
+                   stop's board right now. It used to mean `via: 'transfer'`
+                   — a SPATIAL fact about which platform — which read as
+                   "switched off" for lines that were running fine one
+                   passage away. The station header made and dropped the
+                   same mistake; the two now agree. -->
               <div v-if="stop.routes?.length" class="flex items-center gap-1 flex-wrap">
                 <button
                   v-for="r in stop.routes"
                   :key="r.routeId"
                   type="button"
                   class="cursor-pointer transition-transform hover:scale-110"
-                  :title="bulletTitle(r)"
+                  :title="bulletTitle(stop, r)"
                   @click="openRouteDetail(r)"
                 >
                   <RouteBullet
@@ -555,6 +644,7 @@ onUnmounted(() => {
                     :color="stopBullet(r, stop)?.color || r.routeColor"
                     :shape="stopBullet(r, stop)?.shape"
                     :text-color="stopBullet(r, stop)?.color ? null : r.routeTextColor"
+                    :class="!isRouteRunningAt(stop, r) && 'opacity-40 saturate-50'"
                   />
                 </button>
               </div>

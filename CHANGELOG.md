@@ -3,6 +3,7 @@
 ### Added
 
 * Tap any bullet in a line's stop list to open that line's own page.
+* Tap a stop in a line's list to open that station's page.
 
 ### Changed
 
@@ -21,7 +22,7 @@
 
 ### Fixed
 
-* Connection bullets in a line's stop list no longer look switched off. They were dimmed for being reachable by transfer — a fact about the walk between platforms, not about whether the line is running.
+* Connection bullets in a line's stop list now fade only when that line isn't running at that stop, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.
 * The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
 * Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.
 * An isolated line stays itself — opening a route no longer briefly highlights a different railroad that shares its number, and never settles on one.

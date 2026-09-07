@@ -21,7 +21,7 @@ import {
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
-import { alertServiceOverrides } from '@/lib/alert-service-overrides'
+import { alertServiceOverrides, alertStopSkips } from '@/lib/alert-service-overrides'
 import { Separator } from '@/components/ui/separator'
 import { SheetHeader } from '@/components/sheet'
 import {
@@ -94,7 +94,7 @@ const headerBullet = computed(() => {
 
 // ── stop service + links ─────────────────────────────────────
 
-const runningAt = computed(() => store.stopRunningRoutes)
+const runningAt = computed(() => store.runningAtStops)
 const serviceKnown = computed(() => store.stopServiceKnown)
 
 /**
@@ -196,7 +196,10 @@ const alertQuery = computed(() => ({
 const { inEffect: alertsInEffect } = useTransitAlerts(alertQuery)
 watch(
   alertsInEffect,
-  alerts => store.setAlertOverrides(alertServiceOverrides(alerts, props.routeId)),
+  alerts => {
+    store.setAlertOverrides(alertServiceOverrides(alerts, props.routeId))
+    store.setStopSkips(alertStopSkips(alerts))
+  },
   { immediate: true },
 )
 

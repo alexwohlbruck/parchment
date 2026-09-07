@@ -94,6 +94,46 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     alertOverrides.value = overrides
   }
 
+  /** (stop → routes) pairs the alerts skip, across EVERY line — the page
+   *  computes them from the same fetch as the overrides. Alerts name
+   *  stations; matching is by a stop's own id or its parent's. */
+  const stopSkips = ref(new Map<string, Set<string>>())
+  function setStopSkips(skips: Map<string, Set<string>>) {
+    stopSkips.value = skips
+  }
+
+  /**
+   * The boards' answers with the agency's skips subtracted.
+   *
+   * The boards read MOTIS, which reads the schedule plus whatever realtime
+   * reached it — and a planned skip often never does. On parade day the
+   * board at Eastern Pkwy went on listing 2s and 3s at a station all three
+   * lines were skipping. The alert is the agency saying so in as many
+   * words, and it outranks a scheduled departure. Everything that judges
+   * "is this line running here" — the panel's bullets, the running path,
+   * the map — reads this, so no view can disagree with another.
+   */
+  const runningAtStops = computed(() => {
+    const skips = stopSkips.value
+    const raw = stopRunningRoutes.value
+    if (!skips.size || !raw.size) return raw
+    const parents = new Map(
+      routeStops.value.map((s) => [s.stopId, s.parentStation] as const),
+    )
+    const out = new Map<string, Set<string>>()
+    for (const [stopId, routes] of raw) {
+      const skipped = new Set([
+        ...(skips.get(stopId) ?? []),
+        ...(skips.get(parents.get(stopId) ?? '') ?? []),
+      ])
+      out.set(
+        stopId,
+        skipped.size ? new Set([...routes].filter((r) => !skipped.has(r))) : routes,
+      )
+    }
+    return out
+  })
+
   /** Stop times for the selected vehicle's trip (from TripUpdate data). */
   interface TripStopTime {
     stopId: string
@@ -283,7 +323,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
 
     const boardServes = (s: RouteDetailStop) =>
       stopServiceKnown.value.has(s.stopId) &&
-      (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? false)
+      (runningAtStops.value.get(s.stopId)?.has(routeId) ?? false)
     let first = stops.findIndex(boardServes)
     let last = -1
     for (let i = stops.length - 1; i >= 0; i--) {
@@ -298,7 +338,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
       if (named(serves, s) && i >= first && i <= last && onOwnTrack(s)) return true
       return (
         !stopServiceKnown.value.has(s.stopId) ||
-        (stopRunningRoutes.value.get(s.stopId)?.has(routeId) ?? true)
+        (runningAtStops.value.get(s.stopId)?.has(routeId) ?? true)
       )
     })
     return onPath.length ? onPath : stops
@@ -782,6 +822,8 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     feedOnestopId,
     loadStopService,
     setAlertOverrides,
+    setStopSkips,
+    runningAtStops,
     selectVehicle,
     setDirection,
   }

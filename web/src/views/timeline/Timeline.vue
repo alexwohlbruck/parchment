@@ -346,7 +346,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Body -->
-    <div class="flex-1 overflow-y-auto -mx-4">
+    <div class="flex-1 -mx-4">
       <div v-if="loading" class="flex justify-center py-12">
         <Spinner />
       </div>

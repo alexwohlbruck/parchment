@@ -365,6 +365,8 @@ interface BarrelmanStopDepartures {
      *  because `transfers=true` was asked for. Absent means this station. */
     via?: 'station' | 'transfer'
     feedOnestopId?: string
+    /** GTFS parent station, when the board's stop is a platform of one. */
+    parentStation?: string
   }
   departures: BarrelmanDeparture[]
   hasMore?: boolean
@@ -425,7 +427,7 @@ async function fetchTransitDepartures(
   departures: TransitDeparture[]
   /** The stations a rider can transfer to, each with its own board. */
   transferStations: TransitTransferStation[]
-  stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; timezone?: string }
+  stopInfo?: { name?: string; code?: string; feedId?: string; stopId?: string; parentStation?: string; timezone?: string }
   routes?: TransitStopInfo['routes']
   hasMore: boolean
   sources: SourceReference[]
@@ -593,6 +595,7 @@ async function fetchTransitDepartures(
         code: primaryStop.code,
         feedId: primaryStop.feedId,
         stopId: primaryStop.stopId,
+        parentStation: primaryStop.parentStation,
         timezone: primaryStop.timezone,
       } : undefined,
       routes,
@@ -723,6 +726,7 @@ export async function fetchWidgetData(
         code: stopInfo?.code,
         feedId: stopInfo?.feedId,
         stopId: stopInfo?.stopId,
+        parentStation: stopInfo?.parentStation,
         timezone: stopInfo?.timezone,
         lat,
         lng,

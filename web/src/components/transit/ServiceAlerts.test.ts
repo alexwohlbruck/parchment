@@ -75,9 +75,9 @@ describe('ServiceAlerts', () => {
   /** The disclosure line, and the chips it hides. */
   const disclosure = (w: any) => w.find('[data-testid="scheduled-toggle"]')
   const chips = (w: any) => w.findAll('[data-testid="alert-row"] button')
-  const rows = (w: any) => w.findAll('[aria-expanded]').filter(
-    (b: any) => b.attributes('data-testid') !== 'scheduled-toggle',
-  )
+  const rows = (w: any) => w.findAll('[data-testid="alert-disruption"]')
+  const notices = (w: any) => w.findAll('[data-testid="alert-notice"]')
+  const moreNotices = (w: any) => w.find('[data-testid="notices-toggle"]')
 
   it('renders nothing at all when a line is clear', async () => {
     const w = await render()
@@ -128,14 +128,70 @@ describe('ServiceAlerts', () => {
     expect(chips(w)).toHaveLength(0)
   })
 
-  it('marks a live alert "Now" and a scheduled one with when it starts', async () => {
+  it('separates a live disruption from a live notice', async () => {
+    // Labor Day on the 4: three things actually stopping people (a detour,
+    // a suspended stretch) filed beside "Subways are running on a Sunday
+    // Schedule". Given the same card, the sixth buries the first.
+    alerts.push(
+      live('detour'),
+      live('sunday', { effect: 'MODIFIED_SERVICE', severity: 'INFO' }),
+    )
+
+    const w = await render()
+
+    expect(rows(w)).toHaveLength(1)
+    expect(rows(w)[0].text()).toContain('Headline for detour')
+    expect(notices(w)).toHaveLength(1)
+    expect(notices(w)[0].text()).toContain('Headline for sunday')
+  })
+
+  it('folds notices past the third away, and back', async () => {
+    const notice = (id: string) =>
+      live(id, { effect: 'MODIFIED_SERVICE', severity: 'INFO' })
+    alerts.push(notice('a'), notice('b'), notice('c'), notice('d'), notice('e'))
+
+    const w = await render()
+    expect(notices(w)).toHaveLength(3)
+    expect(moreNotices(w).text()).toContain('2 more notices')
+
+    await moreNotices(w).trigger('click')
+    expect(notices(w)).toHaveLength(5)
+
+    await moreNotices(w).trigger('click')
+    expect(notices(w)).toHaveLength(3)
+  })
+
+  it('closes a folded-away notice rather than leaving it open', async () => {
+    const notice = (id: string) =>
+      live(id, { effect: 'MODIFIED_SERVICE', severity: 'INFO' })
+    alerts.push(notice('a'), notice('b'), notice('c'), notice('d'))
+
+    const w = await render()
+    await moreNotices(w).trigger('click')
+    await notices(w)[3].trigger('click')
+    expect(w.text()).toContain('In effect since')
+
+    await moreNotices(w).trigger('click')
+    expect(notices(w)).toHaveLength(3)
+    expect(w.text()).not.toContain('In effect since')
+  })
+
+  it('leaves a live alert undated and dates a scheduled one', async () => {
+    // Everything in the live section is in effect, so stamping each row
+    // "Now" repeats the section rather than saying anything. A scheduled
+    // chip has to carry when it starts — that is what makes it scheduled.
     alerts.push(live('a'), scheduled('b'))
 
     const w = await render()
     await disclosure(w).trigger('click')
 
-    expect(rows(w)[0].text()).toContain('Now')
+    expect(rows(w)[0].text()).not.toContain('Now')
     expect(chips(w)[0].text()).not.toContain('Now')
+    // A clock time most of the day, "Tomorrow" when four hours from now
+    // has crossed midnight. Either one dates the chip, which is the point;
+    // pinning it to one form only passes in the half of the day it was
+    // written in.
+    expect(chips(w)[0].text()).toMatch(/\d{1,2}:\d{2}|Tomorrow/)
   })
 
   it('says when something nearly over lifts, rather than "Now"', async () => {

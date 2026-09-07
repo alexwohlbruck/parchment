@@ -45,6 +45,7 @@
 import { getVersion } from 'maplibre-gl'
 import router, { AppRoute } from '@/router'
 import { api } from '@/lib/api'
+import { densifyLine } from '@/lib/geo-densify'
 import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
@@ -71,6 +72,8 @@ import {
   perFeedO,
   perFeedW,
   routeFilterExpr,
+  pickRouteToken,
+  routesOf,
   stationServesRoute,
   stationVisible,
   widthExpr,
@@ -85,6 +88,9 @@ const FLAG_KEY = 'parchment.portolan-transit'
 
 // ── ids ────────────────────────────────────────────────────────────────
 const SRC_STATIONS = 'portolan-stations'
+const SRC_ISOLATED_LINE = 'portolan-isolated-line'
+const ISOLATED_LINE = 'portolan-isolated-line'
+const ISOLATED_LINE_GHOST = 'portolan-isolated-line-ghost'
 const srcTiles = (feed: string) => `portolan-tiles-${feed}`
 const srcBuild = (band: number) => `portolan-build-${band}`
 const twinId = (band: number, kind: string) => `portolan-ribbon-${band}-${kind}`
@@ -199,20 +205,55 @@ let classesOff = new Set<string>()
 /**
  * The one route the map is showing, or null for the whole network.
  *
- * Isolation is a FILTER here, not a second drawing of the line: the
- * ribbons, bullets, stations and labels already on the map are the ones
- * portolan drew, so narrowing them to a single route keeps its geometry,
- * its colour and its stops exactly as the network view had them. It also
- * makes the path TRUE for the hour — the per-route mask drops the
- * stretches this line does not run at this time, and the stations along
- * them go with it, because a stop nobody stops at is not a stop.
+ * Isolation is a DIM here, not a second drawing of the line and not a
+ * filter: the ribbons, bullets, stations and labels already on the map
+ * are the ones portolan drew, so lifting one route out of them keeps its
+ * geometry, its colour and its stops exactly as the network view had
+ * them. What the rest of the network gets is a step back rather than the
+ * door — a line you are following through a city still reads as part of
+ * that city, and the ribbons around it are the context that makes the
+ * transfer at the next junction visible.
+ *
+ * Full strength is reserved for the route AS IT RUNS at this hour: the
+ * per-route mask decides, so a stretch this line does not run right now
+ * dims back into the network with everything else.
  */
 let isolatedRoute: string | null = null
+
+/**
+ * How far the rest of the network steps back while one route is isolated.
+ * Low enough to read as background, high enough that the network is still
+ * legibly there.
+ *
+ * Higher on a dark map: the same alpha buys far less contrast against a
+ * near-black basemap than against a pale one, so a dim that reads as
+ * "stepped back" in daylight reads as "gone" at night.
+ */
+const ISOLATION_DIM_LIGHT = 0.25
+const ISOLATION_DIM_DARK = 0.42
+const isolationDim = () => (themeDark ? ISOLATION_DIM_DARK : ISOLATION_DIM_LIGHT)
+
+/** How much wider the isolated route draws than it normally would. The
+ *  dim alone leaves it the same weight as everything else, just brighter;
+ *  the extra weight is what makes it read as the subject of the map. */
+const ISOLATION_WIDTH = 2.0
+
+/** And the dimmed network thins as well as fades — weight is what pulls
+ *  the eye, so the background keeps its colour but loses its bulk. */
+const ISOLATION_THIN = 0.65
 
 // each ribbon layer's STRUCTURAL filter (band_min/kind), recorded at
 // creation: the time/class clauses combine with it via ['all', …] and
 // detach by restoring exactly this (MapView.vue:162-165)
 const structuralFilter = new Map<string, Expr>()
+
+// each ribbon layer's base colour, opacity and width as it was built, so
+// the isolation dim and width boost re-derive from the original rather
+// than stacking on the last dimmed value
+const ribbonPaint = new Map<
+  string,
+  { color: Expr; opacity: Expr; width: Expr; offset: Expr; ghost: boolean }
+>()
 
 // ── hydration state (MapView.vue:1588-1613) ────────────────────────────
 // querySourceFeatures only sees the tiles renderable at this instant, and
@@ -251,6 +292,9 @@ export function usePortolanTransitService() {
     setServiceTime,
     setClassVisibility,
     setIsolatedRoute,
+    setIsolatedRouteStops,
+    setIsolatedRouteGeometry,
+    setStopService,
     portolanRouteToken,
     portolanTransitActive,
   }
@@ -268,8 +312,365 @@ function setIsolatedRoute(routeId: string | null) {
   const next = routeId || null
   if (isolatedRoute === next) return
   isolatedRoute = next
-  applyTileFilters()
+  syncIsolatedLine()
+  applyRibbonDim()
   applyStations()
+  applyStationZoomRelax()
+  applyStationScale()
+}
+
+/** Stops on the isolated route's RUNNING path, [lng, lat]. */
+let isolatedStops: [number, number][] | null = null
+let isolatedStopsSig = ''
+
+/**
+ * Tell the map which stops the isolated line is actually making.
+ *
+ * The tiles answer "is this route awake here" from activity masks baked at
+ * build time, which is right every ordinary day and wrong on the
+ * interesting ones — a parade sends the 4 local down Eastern Pkwy and no
+ * tile knows it. The route panel already computes the real path from the
+ * boards and the agency's alerts, so the map takes that as the authority
+ * while a route is isolated: a station shows when it structurally carries
+ * the route AND sits on the path. Without a path (none loaded yet), the
+ * masks keep answering.
+ *
+ * Matching is by distance, because the tiles' merged stations and the
+ * feed's platforms share no id — only a place.
+ */
+function setIsolatedRouteStops(points: [number, number][] | null) {
+  const next = points && points.length ? points : null
+  const sig = next ? next.map(p => p.join(',')).join(';') : ''
+  if (sig === isolatedStopsSig) return
+  isolatedStopsSig = sig
+  isolatedStops = next
+  if (isolatedRoute) applyStations()
+}
+
+/** The running span's geometry, when it differs from the tiles', plus a
+ *  colour to fall back on if no loaded tile feature carries the route. */
+let isolatedGeometry: [number, number][] | null = null
+let isolatedGeometryColor: string | null = null
+let isolatedGeometrySig = ''
+
+/**
+ * Hand portolan the isolated line's REAL geometry, when the tiles' own is
+ * wrong.
+ *
+ * The tiles draw every track the timetable gives the route, which is
+ * right until the day the timetable is the thing that's wrong: a Sunday
+ * schedule ran the 4 to New Lots while the parade turned every train at
+ * Utica. No filter can end a tile feature early, so when a break is
+ * confirmed the ribbon boost stands down (the route's tile ribbon dims
+ * into the network with everything else) and portolan draws the span
+ * itself — same colour, same class width and opacity, same isolation
+ * boost, same place in the layer stack. The stations, bullets, labels and
+ * taps never leave portolan at all.
+ */
+function setIsolatedRouteGeometry(
+  coords: [number, number][] | null,
+  fallbackColor?: string | null,
+) {
+  const next = coords && coords.length >= 2 ? coords : null
+  const sig = next
+    ? `${next.length}:${next[0].join(',')}:${next[next.length - 1].join(',')}`
+    : ''
+  // Re-sync even on an unchanged span if the layers are gone — a style
+  // teardown removes them without this module hearing about it.
+  if (sig === isolatedGeometrySig && (!next || map?.getLayer(ISOLATED_LINE))) return
+  isolatedGeometrySig = sig
+  isolatedGeometry = next
+  isolatedGeometryColor = fallbackColor ? `#${fallbackColor.replace(/^#/, '')}` : null
+  if (hydrationReady()) {
+    syncIsolatedLine()
+    applyRibbonDim()
+  }
+}
+
+/** The paint the tiles would have given this line: its colour from the
+ *  ribbon feature that carries the token, its width/opacity from the
+ *  owning feed's class manifest. */
+function isolatedLineStyle(): { color: string; w: number; o: number } {
+  const fallback = { color: isolatedGeometryColor ?? '#007cbf', w: 1, o: 1 }
+  if (!map || !isolatedRoute) return fallback
+  for (const sid of tileSourceIds()) {
+    if (!map.getSource(sid)) continue
+    for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
+      const routes = `,${f.properties?.routes ?? ''},`
+      if (!routes.includes(`,${isolatedRoute},`)) continue
+      const st = styleForFeed(sid.slice('portolan-tiles-'.length))
+      const m = st?.modes?.[f.properties?.mode as string]
+      return {
+        color: f.properties?.route_color
+          ? `#${f.properties.route_color}`
+          : fallback.color,
+        w: m?.width ?? 1,
+        o: m?.opacity ?? 1,
+      }
+    }
+  }
+  return fallback
+}
+
+function removeIsolatedLine() {
+  if (!map) return
+  for (const id of [ISOLATED_LINE_GHOST, ISOLATED_LINE]) {
+    if (map.getLayer(id)) map.removeLayer(id)
+  }
+  if (map.getSource(SRC_ISOLATED_LINE)) map.removeSource(SRC_ISOLATED_LINE)
+}
+
+/**
+ * Keep the override line in step with (isolatedRoute, isolatedGeometry).
+ *
+ * Built the way addRibbonLayer builds a ribbon — same caps, the ribbons'
+ * width curve at the class width with the isolation boost folded in, the
+ * class opacity, and on MapLibre the same solid-below-buildings /
+ * ghost-above-buildings pair (Mapbox gets the slot + occlusion form).
+ * Inserted at the top of the ribbon stack, under every symbol, so the
+ * line reads as one more ribbon and the stations keep drawing over it.
+ */
+function syncIsolatedLine() {
+  if (!map) return
+  if (!isolatedRoute || !isolatedGeometry) {
+    removeIsolatedLine()
+    return
+  }
+  const { color, w, o } = isolatedLineStyle()
+  const data = {
+    type: 'Feature' as const,
+    properties: {},
+    geometry: {
+      type: 'LineString' as const,
+      // densify + tolerance:0, or the geojson→tile step drops sparse
+      // GTFS segments crossing vertex-less tiles (see addRouteShape)
+      coordinates: densifyLine(isolatedGeometry),
+    },
+  }
+  removeIsolatedLine()
+  map.addSource(SRC_ISOLATED_LINE, {
+    type: 'geojson',
+    tolerance: 0,
+    buffer: 128,
+    data,
+  })
+  const width = widthExpr(w * ISOLATION_WIDTH)
+  const layout = { 'line-cap': 'round', 'line-join': 'round' }
+
+  if (engine === MapEngine.MAPBOX) {
+    map.addLayer({
+      id: ISOLATED_LINE,
+      type: 'line',
+      source: SRC_ISOLATED_LINE,
+      slot: 'middle',
+      layout,
+      paint: {
+        'line-color': ribbonColorWithAlpha(color as unknown as Expr, o as unknown as Expr),
+        'line-width': width,
+        'line-opacity': 1,
+        'line-occlusion-opacity': OCCLUDED_OPACITY,
+        ...emissive('line'),
+      },
+    })
+    return
+  }
+
+  const buildings = buildingLayer()
+  map.addLayer(
+    {
+      id: ISOLATED_LINE,
+      type: 'line',
+      source: SRC_ISOLATED_LINE,
+      layout,
+      paint: {
+        'line-color': color,
+        'line-width': width,
+        'line-opacity': o,
+        ...emissive('line'),
+      },
+    },
+    buildings ?? firstLabelLayer(),
+  )
+  if (!buildings) return
+  map.addLayer(
+    {
+      id: ISOLATED_LINE_GHOST,
+      type: 'line',
+      source: SRC_ISOLATED_LINE,
+      layout,
+      paint: {
+        'line-color': color,
+        'line-width': width,
+        'line-opacity': o * OCCLUDED_OPACITY,
+      },
+    },
+    firstLabelLayer(buildings),
+  )
+}
+
+/**
+ * Which lines are running at which stops, as the departure boards answer it.
+ *
+ * The tiles carry the TIMETABLE — an activity mask per route, baked at build
+ * time — and that is the wrong authority on the days worth asking about. At
+ * Crown Hts–Utica Av the masks say the 2, 3, 4 and 5 are all awake at six on
+ * a Monday evening, which is what the schedule says; the boards say a holiday
+ * timetable and a parade reroute leave the 3 and the 4. The stop list has
+ * believed the boards for a while now. This is how the map hears them.
+ *
+ * Keyed by bare stop id — a station's `gtfs_ids` carry the feed's own ids for
+ * the station and both its platforms, so either level matches. A stop absent
+ * from the map was never asked about, and nothing is claimed about it.
+ */
+let stopService: Map<string, Set<string>> | null = null
+let stopServiceSig = ''
+/** Per publisher, so an opened line and an opened station can both answer
+ *  without erasing each other on the way in or out. */
+const stopServiceBySource = new Map<string, Map<string, Set<string>>>()
+
+function setStopService(source: string, running: Map<string, Set<string>> | null) {
+  if (running?.size) stopServiceBySource.set(source, running)
+  else stopServiceBySource.delete(source)
+
+  const merged = new Map<string, Set<string>>()
+  for (const entries of stopServiceBySource.values()) {
+    for (const [stopId, routes] of entries) merged.set(stopId, routes)
+  }
+  const next = merged.size ? merged : null
+  const sig = next
+    ? [...next].map(([k, v]) => `${k}:${[...v].sort().join('+')}`).sort().join(';')
+    : ''
+  if (sig === stopServiceSig) return
+  stopServiceSig = sig
+  stopService = next
+  applyStations()
+}
+
+/** The routes a station's own ids say are running, or null when no board
+ *  covering it has answered. */
+function serviceAt(props: any): Set<string> | null {
+  if (!stopService) return null
+  for (const raw of String(props?.gtfs_ids ?? '').split(';')) {
+    if (!raw) continue
+    // "f-dr5r-nyctsubway:250N" — the feed's own id after the onestop id.
+    const id = raw.slice(raw.indexOf(':') + 1)
+    const running = stopService.get(id)
+    if (running) return running
+  }
+  return null
+}
+
+/** Portolan tokens are prefixed per feed (`f3:2`); a board names the route
+ *  the feed does (`2`). */
+const bareRouteId = (token: string) => token.replace(/^f\d+:/, '')
+
+/**
+ * A station's bullets, with the lines not running here faded.
+ *
+ * Leaves the feature untouched when no board covers it, so a map with no
+ * service loaded looks exactly as it always did.
+ */
+function serviceDimmedBullets(f: any): any {
+  const p = f.properties
+  const labeled = p.ftype === 'station' || (p.ftype === 'marker' && p.nmarkers > 1)
+  if (!labeled) return f
+  const running = serviceAt(p)
+  if (!running) return f
+
+  const routes = routesOf(p)
+  const ids = bulletIdsOf(p, i => {
+    const id = routes[i] ? bareRouteId(routes[i]) : ''
+    return !!id && !running.has(id)
+  })
+  if (!ids.length) return f
+  return { ...f, properties: { ...p, brow: 'row-' + ids.join('|') } }
+}
+
+/** A tile station further than this from every stop on the path is not on
+ *  the path. Wide enough for a platform-to-station-entrance offset, narrow
+ *  enough not to bleed into the next station. */
+const PATH_MATCH_M = 160
+
+function onIsolatedPath(f: any): boolean {
+  const pts = isolatedStops
+  if (!pts) return true
+  const [lng, lat] = f.geometry?.coordinates ?? []
+  if (lng == null) return false
+  const kx = 111_320 * Math.cos((lat * Math.PI) / 180)
+  const ky = 110_540
+  for (const [plng, plat] of pts) {
+    const dx = (lng - plng) * kx
+    const dy = (lat - plat) * ky
+    if (dx * dx + dy * dy <= PATH_MATCH_M * PATH_MATCH_M) return true
+  }
+  return false
+}
+
+/**
+ * Show the isolated route's stops well below their usual zooms.
+ *
+ * The union map earns its gates — hundreds of stations would swamp a city
+ * view — but isolation leaves only the stops of one line, which is never
+ * enough to swamp anything. So the gates come off entirely: the stops are
+ * the subject of the view at every zoom the route is readable at, including
+ * the overview fit. Collision still thins the labels, so a zoomed-out line
+ * shows the names that fit rather than all of them.
+ */
+const STATION_ZOOM = {
+  'portolan-station-markers': { usual: 11, isolated: 0 },
+  'portolan-station-labels': { usual: 11, isolated: 0 },
+} as const
+const BULLET_ROW_STEP = { usual: 13.5, isolated: 0 }
+
+/** The marker icon's base zoom curve, before any isolation scaling. */
+const MARKER_SIZE: Expr = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  11,
+  0.38,
+  12,
+  0.5,
+  14,
+  1,
+] as unknown as Expr
+
+/**
+ * Station dots follow the width of the line they sit on.
+ *
+ * The isolated route draws ISOLATION_WIDTH wider, and a dot sized for the
+ * normal ribbon reads as a pinprick on it. The markers left on the map all
+ * belong to the isolated route, so the whole layer scales together — no
+ * per-feature case needed.
+ */
+function applyStationScale() {
+  if (!map?.getLayer?.('portolan-station-markers')) return
+  const out: any[] = MARKER_SIZE.slice(0, 3)
+  for (let i = 3; i < MARKER_SIZE.length; i += 2) {
+    out.push(
+      MARKER_SIZE[i],
+      isolatedRoute ? MARKER_SIZE[i + 1] * ISOLATION_WIDTH : MARKER_SIZE[i + 1],
+    )
+  }
+  map.setLayoutProperty('portolan-station-markers', 'icon-size', out)
+}
+
+function applyStationZoomRelax() {
+  if (!map?.getStyle()) return
+  for (const [id, z] of Object.entries(STATION_ZOOM)) {
+    if (!map.getLayer(id)) continue
+    map.setLayerZoomRange(id, isolatedRoute ? z.isolated : z.usual, 24)
+  }
+  // the connection bullets under each name follow the same relaxation
+  if (map.getLayer('portolan-station-labels')) {
+    map.setLayoutProperty('portolan-station-labels', 'icon-image', [
+      'step',
+      ['zoom'],
+      '',
+      isolatedRoute ? BULLET_ROW_STEP.isolated : BULLET_ROW_STEP.usual,
+      ['coalesce', ['get', 'brow'], ''],
+    ])
+  }
 }
 
 /** Whether the portolan layers are on the map at all — the cheap check,
@@ -297,21 +698,66 @@ function portolanTransitActive(): boolean {
  * shape-and-circles view and drew every stop it has ever called at,
  * Livonia Av included.
  */
-function portolanRouteToken(routeId: string): string | null {
+function portolanRouteToken(
+  routeId: string,
+  along?: [number, number][],
+): string | null {
   if (!routeId || !map || !hydrationReady()) return null
   const suffix = `:${routeId}`
+
+  // Several feeds can share a bare id — the subway's 1 and an LIRR branch's
+  // fN:1 — so the id alone cannot pick one, and the FIRST match found is
+  // whatever tile order happened to yield. Score candidates instead, by how
+  // much of the route's own path each ribbon actually covers.
+  //
+  // One stop is not enough: LIRR reaches Grand Central too, so the Harlem
+  // line's first stop matches both. Points spread along the whole route do
+  // separate them — nothing else runs to Wassaic.
+  const hits = new Map<string, number>()
+  const seen = new Map<string, boolean>()
+  const covers = (f: any, pts: [number, number][]) => {
+    if (!pts.length) return 0
+    const g = f.geometry
+    const parts: any[] =
+      g?.type === 'MultiLineString' ? g.coordinates : [g?.coordinates ?? []]
+    let n = 0
+    for (const [plng, plat] of pts) {
+      let near = false
+      for (const line of parts) {
+        for (const [lng, lat] of line) {
+          // ~1.5km at mid latitudes: the same station, not the same city
+          if (Math.abs(lng - plng) < 0.02 && Math.abs(lat - plat) < 0.015) {
+            near = true
+            break
+          }
+        }
+        if (near) break
+      }
+      if (near) n++
+    }
+    return n
+  }
+
   for (const sid of tileSourceIds()) {
     if (!map.getSource(sid)) continue
     for (const f of map.querySourceFeatures(sid, { sourceLayer: 'ribbons' })) {
       for (const token of String(f.properties?.routes ?? '').split(',')) {
-        // exact first: a feed's own ids win over another's prefixed ones
-        if (token === routeId) return token
-        if (token.endsWith(suffix)) return token
+        const exact = token === routeId
+        if (!exact && !token.endsWith(suffix)) continue
+        if (!seen.has(token)) seen.set(token, exact)
+        hits.set(token, (hits.get(token) ?? 0) + covers(f, along ?? []))
       }
     }
   }
-  return null
+  return pickRouteToken(
+    [...seen].map(([token, exact]) => ({
+      token,
+      exact,
+      covered: hits.get(token) ?? 0,
+    })),
+  )
 }
+
 
 /** ON when the Transit layer group's master switch is (its visibility is
  *  the product toggle — portolan.store watches it for init/teardown), OR
@@ -341,6 +787,9 @@ function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
   // Both engines render the network; only the fork renders it in full.
   engine = mapStrategy.options.engine
   themeDark = mapStrategy.options.theme === MapTheme.DARK
+  // the dim is theme-dependent — re-derive it rather than leave the light
+  // value painted on a dark map
+  if (isolatedRoute) applyRibbonDim()
   const fork =
     mapStrategy.options.engine === MapEngine.MAPLIBRE &&
     getVersion().includes('transit')
@@ -373,6 +822,7 @@ function teardownPortolanTransit() {
   inkDark = null
   rowsKey = ''
   structuralFilter.clear()
+  ribbonPaint.clear()
 }
 
 /** Filter every portolan layer to the service running at `date`
@@ -380,6 +830,7 @@ function teardownPortolanTransit() {
 function setServiceTime(date: Date | null) {
   serviceTime = date && !Number.isNaN(date.getTime()) ? date : null
   applyTileFilters()
+  applyRibbonDim()
   applyStations()
 }
 
@@ -668,6 +1119,7 @@ async function sync() {
   remeasureRows()
   applyStations()
   applyTileFilters()
+  applyRibbonDim()
   requestHydrate()
 }
 
@@ -690,6 +1142,13 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
   const labels = firstLabelLayer()
   const buildings = buildingLayer()
   structuralFilter.set(spec.id, structural)
+  ribbonPaint.set(spec.id, {
+    color: spec.paint['line-color'],
+    opacity,
+    width: spec.paint['line-width'],
+    offset: spec.paint['line-offset'],
+    ghost: false,
+  })
 
   if (engine === MapEngine.MAPBOX) {
     // Two things Mapbox needs that nothing else does.
@@ -710,7 +1169,10 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
       slot: 'middle',
       paint: {
         ...spec.paint,
-        'line-color': ribbonColorWithAlpha(spec.paint['line-color'], opacity),
+        'line-color': ribbonColorWithAlpha(
+          spec.paint['line-color'],
+          isolationOpacity(opacity, false),
+        ),
         'line-opacity': 1,
         'line-occlusion-opacity': OCCLUDED_OPACITY,
         ...emissive('line'),
@@ -722,20 +1184,31 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
   map.addLayer(
     {
       ...spec,
-      paint: { ...spec.paint, 'line-opacity': opacity, ...emissive('line') },
+      paint: {
+        ...spec.paint,
+        'line-opacity': isolationOpacity(opacity, false),
+        ...emissive('line'),
+      },
     },
     buildings ?? ribbonAnchorOr(labels),
   )
   if (!buildings) return
   const gid = ghostId(spec.id)
   structuralFilter.set(gid, structural)
+  ribbonPaint.set(gid, {
+    color: spec.paint['line-color'],
+    opacity,
+    width: spec.paint['line-width'],
+    offset: spec.paint['line-offset'],
+    ghost: true,
+  })
   map.addLayer(
     {
       ...spec,
       id: gid,
       paint: {
         ...spec.paint,
-        'line-opacity': ['*', opacity, OCCLUDED_OPACITY] as unknown as Expr,
+        'line-opacity': isolationOpacity(opacity, true),
       },
     },
     ghostAnchorOr(firstLabelLayer(buildings)),
@@ -839,6 +1312,7 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
   // never came back after switching to dark.
   clearMounts()
   structuralFilter.clear()
+  ribbonPaint.clear()
 
   // one GeoJSON source per band for the hydrated transitions/bridges —
   // lineMetrics is the whole point: without it there is no line-progress.
@@ -998,6 +1472,7 @@ function unmountFeed(feed: string) {
     if (l.source === srcTiles(feed) || id.endsWith(`-${feed}`) || id.startsWith(`${srcTiles(feed)}-`)) {
       if (map.getLayer(id)) map.removeLayer(id)
       structuralFilter.delete(id)
+      ribbonPaint.delete(id)
     }
   }
   if (map.getSource(srcTiles(feed))) map.removeSource(srcTiles(feed))
@@ -1187,6 +1662,7 @@ function addSymbolLayers() {
       // by styleimagemissing. A dot's slot offset is baked into its image
       // so icon-rotate carries it to the correct side of the corridor.
       'icon-image': ['get', 'icon'],
+      // grows with the ribbon it marks — see applyStationScale
       'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.38, 12, 0.5, 14, 1],
       'icon-rotate': ['get', 'bearing'],
       'icon-rotation-alignment': 'map',
@@ -1398,6 +1874,10 @@ function addSymbolLayers() {
     },
     paint: labelPaint,
   })
+
+  // a style rebuild mid-isolation must come up already relaxed
+  applyStationZoomRelax()
+  applyStationScale()
 }
 
 function removeAll() {
@@ -1437,19 +1917,131 @@ function applyTileFilters() {
   // or a nudge of the time slider would quietly do nothing.
   if (!hydrationReady()) return
   const clauses: Expr[] = []
-  if (isolatedRoute) {
-    // this clause subsumes the network's own acts test: it asks whether
-    // THIS route is awake here, where the other asks whether any is
-    clauses.push(routeFilterExpr(isolatedRoute, isolationTime()))
-  } else {
-    const acts = actsFilterExpr(serviceTime)
-    if (acts) clauses.push(acts)
-  }
+  // Isolation deliberately does NOT narrow this: the network stays drawn
+  // and steps back in applyRibbonDim instead.
+  const acts = actsFilterExpr(serviceTime)
+  if (acts) clauses.push(acts)
   const cls = classFilterExpr(classesOff)
   if (cls) clauses.push(cls)
   for (const [id, structural] of structuralFilter) {
     if (!map.getLayer(id)) continue
     map.setFilter(id, composeFilter(structural, clauses))
+  }
+}
+
+/**
+ * A ribbon layer's opacity with the isolation dim folded in.
+ *
+ * The dim is per-feature, not per-layer: one steady layer carries every
+ * route in its band, so the only place the isolated line can be told
+ * apart from the network it runs alongside is inside the expression.
+ */
+function isolationOpacity(base: Expr, ghost: boolean): Expr {
+  const occluded: Expr = ghost
+    ? (['*', base, OCCLUDED_OPACITY] as unknown as Expr)
+    : base
+  if (!isolatedRoute) return occluded
+  // With a geometry override up, the override line IS the route on the
+  // map: the tile ribbon's copy of it dims into the network like
+  // everything else, because its geometry is what the override corrects.
+  if (isolatedGeometry) {
+    return ['*', occluded, isolationDim()] as unknown as Expr
+  }
+  return [
+    '*',
+    occluded,
+    ['case', routeFilterExpr(isolatedRoute, isolationTime()), 1, isolationDim()],
+  ] as unknown as Expr
+}
+
+/**
+ * A ribbon layer's width with the isolation boost folded in.
+ *
+ * `line-width` is a top-level zoom `interpolate` (see `widthExpr`), and a
+ * zoom expression may not be nested inside another one — so the boost cannot
+ * wrap the width. It goes INSIDE, multiplying each of the interpolate's
+ * outputs, which leaves the zoom curve top-level and legal.
+ *
+ * Anything that is not a plain interpolate or a constant is returned
+ * untouched: a wrong guess at its shape would throw and take the layer's
+ * paint with it, and an unboosted ribbon is a far better failure than a
+ * missing one.
+ */
+function isolationWidth(base: Expr): Expr {
+  if (!isolatedRoute) return base
+  const boost: Expr = isolatedGeometry
+    ? (ISOLATION_THIN as unknown as Expr)
+    : ([
+        'case',
+        routeFilterExpr(isolatedRoute, isolationTime()),
+        ISOLATION_WIDTH,
+        ISOLATION_THIN,
+      ] as unknown as Expr)
+
+  if (Array.isArray(base)) {
+    if (base[0] !== 'interpolate') return base
+    const out: any[] = base.slice(0, 3)
+    for (let i = 3; i < base.length; i += 2) {
+      out.push(base[i], ['*', base[i + 1], boost])
+    }
+    return out as unknown as Expr
+  }
+  return ['*', base, boost] as unknown as Expr
+}
+
+/**
+ * The isolated route drawn on its own centreline rather than in its slot.
+ *
+ * A bundled route rides a lateral offset so the lines sharing a trunk read
+ * as separate. Alone, that offset only puts the line beside the corridor it
+ * IS — and beside its own stations, whose dots are drawn at the same slot.
+ * Zeroing both is what makes an isolated route sit on its track.
+ *
+ * Built like the width boost, and for the same reason: the offset is a
+ * top-level zoom `interpolate`, so the per-route case goes INSIDE its
+ * outputs. An unrecognised shape is left alone.
+ */
+function isolationOffset(base: Expr): Expr {
+  if (!isolatedRoute || base === undefined) return base
+  // Overridden: the tile ribbon stays dimmed in its slot; the override
+  // line owns the centreline.
+  if (isolatedGeometry) return base
+  const pick = (out: any): Expr =>
+    [
+      'case',
+      routeFilterExpr(isolatedRoute!, isolationTime()),
+      0,
+      out,
+    ] as unknown as Expr
+  if (Array.isArray(base)) {
+    if (base[0] !== 'interpolate') return base
+    const out: any[] = base.slice(0, 3)
+    for (let i = 3; i < base.length; i += 2) out.push(base[i], pick(base[i + 1]))
+    return out as unknown as Expr
+  }
+  return pick(base)
+}
+
+/** Re-derive every ribbon's opacity, width and offset from the paint it was
+ *  built with. */
+function applyRibbonDim() {
+  if (!hydrationReady()) return
+  for (const [id, p] of ribbonPaint) {
+    if (!map.getLayer(id)) continue
+    if (p.width !== undefined) {
+      map.setPaintProperty(id, 'line-width', isolationWidth(p.width))
+    }
+    if (p.offset !== undefined) {
+      map.setPaintProperty(id, 'line-offset', isolationOffset(p.offset))
+    }
+    const o = isolationOpacity(p.opacity, p.ghost)
+    if (engine === MapEngine.MAPBOX) {
+      // Mapbox keeps the alpha in the colour so line-opacity can stay
+      // constant for line-occlusion-opacity (see addRibbonLayer).
+      map.setPaintProperty(id, 'line-color', ribbonColorWithAlpha(p.color, o))
+    } else {
+      map.setPaintProperty(id, 'line-opacity', o)
+    }
   }
 }
 
@@ -1722,26 +2314,71 @@ function applyStations() {
     src.setData(EMPTY_FC)
     return
   }
-  // Isolation asks the stations the same question it asks the track: is
-  // THIS route awake here, now. A stop the line does not reach at this
-  // hour is not drawn, and its label goes with it.
+  // Stations are the one thing isolation still NARROWS rather than dims.
+  // The track can be dimmed and stay readable as background; a name and a
+  // bullet strip at 30% is just noise competing with the ones that matter,
+  // and the labels the route's own stops need are the scarce resource.
+  // The question is the same one the track is asked: is THIS route awake
+  // here, now — a stop the line does not reach at this hour goes too.
   if (isolatedRoute) {
     const at = isolationTime()
+    // With a running path in hand, the path IS the temporal answer and the
+    // masks only vouch for structure; without one, the masks answer both.
     const feats = stationsRaw.features
-      .filter((f: any) => stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, at))
+      .filter((f: any) =>
+        isolatedStops
+          ? stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, null) && onIsolatedPath(f)
+          : stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, at),
+      )
       .map((f: any) => timeFilteredBullets(f, at, classesOff))
+      .map((f: any) => serviceDimmedBullets(f))
+      .map((f: any) => isolatedMarkerFeature(f, isolatedRoute!))
     src.setData({ type: 'FeatureCollection', features: feats })
     return
   }
   const date = serviceTime
   const off = classesOff
-  const feats =
+  const filtered =
     date || off.size
       ? stationsRaw.features
           .filter((f: any) => stationVisible(f.properties, NO_MASKS, date, off))
           .map((f: any) => timeFilteredBullets(f, date, off))
       : stationsRaw.features
+  // The boards outrank the timetable wherever they have spoken, so this
+  // runs last and on every view — an opened station dims its own bullets
+  // the same way a route's stops do.
+  const feats = stopService ? filtered.map((f: any) => serviceDimmedBullets(f)) : filtered
   src.setData({ type: 'FeatureCollection', features: feats })
+}
+
+/**
+ * A surviving marker with the isolated route's OWN dot, not the corridor's.
+ *
+ * A marker's icon is one precomputed image — dots with colours baked in —
+ * so a marker that survives isolation because one of its lines is the
+ * subject would still show other lines' colours (an orange dot riding along
+ * with an isolated yellow Q). The dots do NOT align with the routes list:
+ * a station's marker can carry one dot for a whole corridor while naming
+ * every route in the complex. So the route's own colour is the anchor, and
+ * what is left is a single dot in it, on the centreline. Only a marker
+ * whose route colour is unknowable keeps its union image; a wrong-coloured
+ * dot beats a missing stop.
+ */
+function isolatedMarkerFeature(f: any, routeId: string): any {
+  const p = f.properties
+  // No `p.dots` guard: a bundle whose lines fill it entirely is drawn as a
+  // white PILL instead, and that pill says "every line here" — a statement
+  // about a bundle isolation has just taken off the map. Alone it reads as
+  // a foreign white lozenge lying across a coloured line, so it becomes a
+  // dot like any other marker.
+  if (p.ftype !== 'marker') return f
+  const i = routesOf(p).indexOf(routeId)
+  if (i < 0) return f
+  const hex = String(p.route_colors ?? '').split(',')[i]?.toUpperCase()
+  if (!/^[0-9A-F]{6}$/.test(hex ?? '')) return f
+  // `@0`: a dot's slot offset is baked into its image, and the isolated
+  // ribbon no longer rides its slot (see isolationOffset).
+  return { ...f, properties: { ...p, icon: `dots-${hex}@0` } }
 }
 
 /** A surviving station's bullet strip shows only the routes awake at the

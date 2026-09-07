@@ -74,6 +74,7 @@ watch(
       :modal="props.modal"
       :peek-height="props.peekHeight"
       :custom-snap-points="props.customSnapPoints"
+      :dynamic-peek="props.dynamicPeek"
       :fit-content="props.fitContent"
       :show-drag-handle="props.showDragHandle"
       :show-close-button="props.showCloseButton"

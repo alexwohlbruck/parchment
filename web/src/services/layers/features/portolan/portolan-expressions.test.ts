@@ -243,6 +243,54 @@ describe('bulletIdsOf', () => {
     // A dedupes, 6X folds into 6, LIRR is regional, 42 is bus
     expect(ids).toEqual(['blt-0039a6--A', 'blt-00933c--6'])
   })
+
+  // Crown Hts-Utica Av on Labor Day: the boards leave the 3 and the 4
+  // running and the 2 and the 5 not. The stop list fades those two; the
+  // map has to fade the same two, and the strip is one baked image, so
+  // the fade rides on the id.
+  test('marks the bullets of lines that are not running', () => {
+    const off = new Set([0, 3])
+    const ids = bulletIdsOf(
+      {
+        labels: '2,3,4,5',
+        route_colors: 'd82233,d82233,009952,009952',
+        modes: 'metro,metro,metro,metro',
+        shapes: ',,,',
+      },
+      i => off.has(i),
+    )
+    expect(ids).toEqual([
+      'blt-d82233--2~',
+      'blt-d82233--3',
+      'blt-009952--4',
+      'blt-009952--5~',
+    ])
+  })
+
+  test('one running line keeps a shared bullet lit', () => {
+    // The 6 and the 6X share a bullet. The 6X not running says nothing
+    // about the 6, and the strip only has the one chip to say it with.
+    const ids = bulletIdsOf(
+      {
+        labels: '6,6X',
+        route_colors: '00933c,00933c',
+        modes: 'metro,metro',
+        shapes: ',',
+      },
+      i => i === 1,
+    )
+    expect(ids).toEqual(['blt-00933c--6'])
+  })
+
+  test('says nothing about service when nobody asks', () => {
+    const ids = bulletIdsOf({
+      labels: '2,3',
+      route_colors: 'd82233,d82233',
+      modes: 'metro,metro',
+      shapes: ',',
+    })
+    expect(ids).toEqual(['blt-d82233--2', 'blt-d82233--3'])
+  })
 })
 
 describe('cssFontFor', () => {

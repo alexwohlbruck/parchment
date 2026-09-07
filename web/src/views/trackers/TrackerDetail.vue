@@ -111,12 +111,12 @@ watch(vehicle, (v) => {
 </script>
 
 <template>
-  <div v-if="!vehicle" class="h-full flex items-center justify-center">
+  <div v-if="!vehicle" class="min-h-full flex items-center justify-center">
     <div class="animate-pulse text-muted-foreground">Loading...</div>
   </div>
 
-  <div v-else class="h-full flex flex-col">
-    <div class="flex-1 overflow-y-auto pt-2 pb-4">
+  <div v-else class="min-h-full flex flex-col">
+    <div class="flex-1 pt-2 pb-4">
       <div class="px-4">
 
         <!-- Hero -->

@@ -1169,6 +1169,7 @@
         "tomorrow": "Mañana",
         "untilTime": "Hasta las {time}",
         "scheduledCount": "{n} cambio programado | {n} cambios programados",
+        "moreNotices": "{n} aviso más | {n} avisos más",
         "showMore": "Ver más",
         "showLess": "Ver menos",
         "moreInfo": "Más información",
@@ -1193,7 +1194,9 @@
       "openRouteDetail": "Ver {name}",
       "notInServiceNamed": "{name} no circula ahora",
       "transfers": "Transbordos",
-      "nearby": "Cerca"
+      "nearby": "Cerca",
+      "transfer": "transbordo",
+      "notRunning": "sin servicio ahora"
     },
     "header": {
       "showMore": "Ver más",

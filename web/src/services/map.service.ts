@@ -32,6 +32,7 @@ import { useTimelineLayerService } from '@/services/layers/features/timeline-lay
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useAppStore } from '../stores/app.store'
+import { createAnimationHold } from '@/lib/animation-hold'
 import {
   calculateFitPadding,
   toContainerRect,
@@ -318,15 +319,15 @@ function mapService() {
       }
     })
 
-    // Whether padding applies depends on the globe being on screen, and that
+    // Whether padding applies depends on the sphere being on screen, and that
     // answer changes with zoom alone — no panel moves, so nothing else would
     // re-run it. Only on the crossing: `setPadding` rebuilds every matrix, and
     // `move` fires continuously through a gesture.
     wasGlobeRendering = null
     mapEventBus.on('move', () => {
-      const globe = mapStrategy?.isGlobeRendering() ?? false
-      if (globe === wasGlobeRendering) return
-      wasGlobeRendering = globe
+      const sphere = mapStrategy?.isSphereVisible() ?? false
+      if (sphere === wasGlobeRendering) return
+      wasGlobeRendering = sphere
       updateMapPadding()
     })
 
@@ -525,9 +526,12 @@ function mapService() {
         placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
       })
 
-      // Initialize marker layers - they will automatically sync with store state
+      // Initialize marker layers - they will automatically sync with store
+      // state. The smart `fitBounds` goes with them so route isolation frames
+      // a transit line inside the visible map area rather than under the
+      // LeftSheet, and re-fits once the drawer stops animating.
       initStep('markers', () =>
-        markerLayersService.initializeMarkerLayers(mapStrategy),
+        markerLayersService.initializeMarkerLayers(mapStrategy, fitBounds),
       )
 
       // Initialize notes layer for OSM notes overlay
@@ -736,6 +740,69 @@ function mapService() {
     settleTimer: any
   } | null = null
 
+  /**
+   * Padding is held while a fit is easing, then applied once it lands.
+   *
+   * `map.setPadding()` is a `jumpTo` underneath on both engines, and `jumpTo`
+   * calls `stop()` — so applying padding mid-flight kills the animation
+   * wherever the ease had got to. A drawer slide does exactly that: it
+   * republishes `visibleMapArea` every frame, and each frame would cancel the
+   * fit that opened alongside it, which is why a route framed correctly only
+   * when the panel happened to be open already.
+   *
+   * Nothing is lost by waiting. A fit resolves padding into the camera it is
+   * easing toward and interpolates it along the way, so the padding is already
+   * right for the whole flight; ours only has to be correct once the camera is
+   * still again.
+   */
+  const paddingHold = createAnimationHold(() => {
+    const padding = effectiveMapPadding()
+    if (!padding) return
+    setPaddingPreservingScreen({
+      top: padding.top ?? 0,
+      bottom: padding.bottom ?? 0,
+      left: padding.left ?? 0,
+      right: padding.right ?? 0,
+    })
+  })
+
+  /**
+   * Change the transform padding without moving anything on screen.
+   *
+   * `setPadding` keeps the geographic centre pinned to the (moving) focal
+   * point, so applying it shifts the whole scene by half the padding delta.
+   * That is wanted when a drawer slides over a map at rest — the world steps
+   * aside — and exactly wrong around a fit, which has already framed its
+   * bounds for the final layout: the engines size `cameraForBounds` against
+   * the CURRENT transform padding plus the options padding, so the fit bakes
+   * the obstruction in and a later ordinary `setPadding` would shift the
+   * framed route out from where the fit put it. This compensates the centre
+   * by the focal-point delta so the padding lands and the pixels stay put.
+   */
+  function setPaddingPreservingScreen(padding: {
+    top: number
+    bottom: number
+    left: number
+    right: number
+  }) {
+    const m = mapStrategy?.mapInstance
+    if (!m) return
+    if (!m.getPadding || !m.project || !m.unproject) {
+      m.setPadding?.(padding)
+      return
+    }
+    const old = m.getPadding()
+    const dx = (padding.left - padding.right - ((old.left ?? 0) - (old.right ?? 0))) / 2
+    const dy = (padding.top - padding.bottom - ((old.top ?? 0) - (old.bottom ?? 0))) / 2
+    if (!dx && !dy) {
+      m.setPadding(padding)
+      return
+    }
+    const at = m.project(m.getCenter())
+    const center = m.unproject([at.x + dx, at.y + dy])
+    m.jumpTo({ center, padding })
+  }
+
   function _fitBoundsNow(
     bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
     options: any,
@@ -783,6 +850,18 @@ function mapService() {
         left: basePadding.left + extraPadding.left,
       },
     }
+
+    // The obstruction is baked into the options above, so any transform
+    // padding still on the map would be counted twice — both engines size
+    // `cameraForBounds` against transform padding PLUS options padding.
+    // Clear it (without moving the scene); the hold's release restores it
+    // the same way once the ease has landed.
+    setPaddingPreservingScreen({ top: 0, bottom: 0, left: 0, right: 0 })
+
+    // Both strategies fall back to 1000ms when a caller omits it. The hold is
+    // strictly time-based — see createAnimationHold for why `moveend` cannot
+    // be trusted to mean the ease is over.
+    paddingHold.begin((finalOptions.duration ?? 1000) + 100)
 
     mapStrategy.fitBounds(bounds, finalOptions)
   }
@@ -1070,6 +1149,13 @@ function mapService() {
   function updateMapPadding() {
     if (!mapStrategy || !mapContainer || !isMapReady.value) return
 
+    // A fit is easing: applying padding now would stop it dead. Note that one
+    // is owed and let the hold apply it when the camera lands.
+    if (paddingHold.active) {
+      paddingHold.defer()
+      return
+    }
+
     const padding = effectiveMapPadding()
     if (!padding) return
 
@@ -1080,20 +1166,21 @@ function mapService() {
    * The padding the map should be using right now.
    *
    * Normally the visible area's, so the point the map is centred on stays out
-   * from behind a panel. Zeroed while a sphere is on screen: padding works by
-   * moving the focal point off the middle of the viewport, which is invisible
-   * on a flat map that covers the canvas edge to edge, and glaring on a globe,
-   * which is a discrete object with an obvious centre — a 400px panel leaves
-   * it sitting 200px right of the middle.
+   * from behind a panel. Zeroed while the sphere reads as an object: padding
+   * works by moving the focal point off the middle of the viewport, which is
+   * invisible on a flat map that covers the canvas edge to edge, and glaring
+   * on a disc with an obvious centre — a 400px panel leaves it sitting 200px
+   * right of the middle.
    *
-   * Nothing is lost by dropping it there. Padding exists to keep a place from
-   * landing under a panel, and both engines have flattened to Mercator long
-   * before the zoom at which you would be looking at one.
+   * `isSphereVisible`, not `isGlobeRendering`: MapLibre's globe render path
+   * runs to z12, and keying on it snapped padding off at city zooms — the
+   * map shifted sideways crossing z12, and a route fit landing below it was
+   * followed by a jump as its padding was taken away.
    */
   function effectiveMapPadding(): MapCamera['padding'] | null {
     const result = calculateMapPadding()
     if (!result) return null
-    if (mapStrategy?.isGlobeRendering()) {
+    if (mapStrategy?.isSphereVisible()) {
       return { top: 0, bottom: 0, left: 0, right: 0 }
     }
     return result.padding

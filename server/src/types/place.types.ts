@@ -170,6 +170,9 @@ export interface TransitStopInfo {
   onestopIds?: string[]
   /** GTFS stop ID (from Barrelman/MOTIS) */
   stopId?: string
+  /** GTFS parent station, when the stop is a platform of one. What the
+   *  agency's alerts name — they inform stations, not platforms. */
+  parentStation?: string
   /** GTFS feed ID (from Barrelman/MOTIS) */
   feedId?: string
   /** Coordinates for spatial stop lookup */

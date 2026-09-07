@@ -53,12 +53,30 @@ const props = withDefaults(
     searchOnOpen?: boolean
     open?: boolean
     showHints?: boolean
+    /**
+     * Let the results run to their natural length and hand the scrolling to
+     * whatever panel the palette sits in — the bottom sheet on mobile, the side
+     * panel on desktop — so a long list fills the screen instead of stopping
+     * half way down with empty space beneath it. Leave off inside a floating
+     * overlay (the ⌘K dialog), where the list has to bound itself.
+     */
+    fill?: boolean
   }>(),
   {
     searchOnOpen: false,
     open: true,
     showHints: false,
+    fill: false,
   },
+)
+
+// Inline, not a class: this has to beat CommandList's own `max-h-[50vh]`, and
+// which of two competing utility classes wins comes down to stylesheet order.
+// Both axes go visible together — CSS promotes a lone `overflow-y: visible`
+// back to `auto` when the other axis is clipped, which would quietly leave the
+// list a scroller again. Runaway width is caught by the Command root's clip.
+const listStyle = computed(() =>
+  props.fill ? { maxHeight: 'none', overflow: 'visible' } : undefined,
 )
 
 const { t } = useI18n()
@@ -502,7 +520,7 @@ const filterFunction = computed(() => {
 
       <template v-if="showResults">
         <!-- Top-level commands list -->
-        <CommandList v-if="!activeArgument">
+        <CommandList v-if="!activeArgument" :style="listStyle">
           <CommandGroup v-if="filteredCommands.length" heading="Commands">
             <CommandItem
               v-for="command in filteredCommands"
@@ -562,6 +580,7 @@ const filterFunction = computed(() => {
              no query typed so the empty state can show recents + shortcuts. -->
         <CommandList
           v-if="activeArgument && (!isSearch || query.length || (groupedArgumentOptions && groupedArgumentOptions.length > 0))"
+          :style="listStyle"
         >
           <div v-if="loadingOptions" class="py-6 text-center">
             <Spinner size="icon" class="mx-auto opacity-50" />

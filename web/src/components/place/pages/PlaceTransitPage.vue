@@ -73,8 +73,19 @@ watch(
   },
   { immediate: true },
 )
-const styleOfRoute = (route: { id: string; type?: number }) =>
-  bulletFor(route.id, props.transitInfo?.lat, props.transitInfo?.lng, route.type)
+const styleOfRoute = (route: {
+  id: string
+  type?: number
+  shortName?: string
+  longName?: string
+}) =>
+  bulletFor(
+    route.id,
+    props.transitInfo?.lat,
+    props.transitInfo?.lng,
+    route.type,
+    route.shortName || route.longName,
+  )
 
 /** Lines an in-station transfer reaches — listed below the board, since they
  *  do not depart from here. */

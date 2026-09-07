@@ -27,6 +27,7 @@ import { PermissionId } from '@/types/auth.types'
 import { newViewFraction } from '@/lib/map-bounds.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { Spinner } from '@/components/ui/spinner'
+import { findScrollAncestor } from '@/lib/scroll'
 
 const route = useRoute()
 const router = useRouter()
@@ -494,15 +495,34 @@ async function loadMoreResults() {
   }
 }
 
-// Infinite scroll: pull the next page when the list nears the bottom.
-function onResultsScroll(e: Event) {
-  const el = e.target as HTMLElement
-  if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
-    loadMoreResults()
-  }
+/**
+ * Infinite scroll. The scroll surface belongs to the host sheet (see the layout
+ * contract in `components/BottomSheet.vue`), so this listens to it rather than
+ * to a scroller of its own.
+ */
+const RESULTS_LOAD_MARGIN = 400
+const rootEl = ref<HTMLElement | null>(null)
+let scrollEl: HTMLElement | null = null
+
+function onResultsScroll() {
+  if (!scrollEl) return
+  const remaining =
+    scrollEl.scrollHeight - scrollEl.clientHeight - scrollEl.scrollTop
+  if (remaining < RESULTS_LOAD_MARGIN) loadMoreResults()
 }
 
+// A page that doesn't fill the sheet leaves nothing to scroll, and so no way to
+// ask for the next one. `loadMoreResults` stops itself once the server says
+// there is no more.
+watch(
+  () => searchStore.searchResults.length,
+  () => nextTick(onResultsScroll),
+)
+
 onMounted(async () => {
+  scrollEl = findScrollAncestor(rootEl.value)
+  scrollEl?.addEventListener('scroll', onResultsScroll, { passive: true })
+
   // Listen for search result clicks from map markers
   searchClickHandler = (event: Event) => {
     const customEvent = event as CustomEvent
@@ -536,6 +556,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  scrollEl?.removeEventListener('scroll', onResultsScroll)
+
   // Clear search results when leaving the page
   // This will automatically hide the search results layer and clear its data
   // via the reactive watchers in the layers service
@@ -581,7 +603,7 @@ watch(
 </script>
 
 <template>
-  <div class="h-full flex flex-col gap-3 pt-4 px-4">
+  <div ref="rootEl" class="min-h-full flex flex-col gap-3 pt-4 px-4">
     <!-- Search Header -->
     <div
       v-if="!searchStore.isLoading || searchStore.hasResults"
@@ -673,8 +695,7 @@ watch(
     <!-- Results take up remaining space -->
     <div
       v-if="searchStore.hasResults || searchStore.isLoading"
-      class="flex-1 overflow-auto"
-      @scroll.passive="onResultsScroll"
+      class="flex-1"
     >
       <div class="max-w-4xl mx-auto">
         <PlaceList

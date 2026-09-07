@@ -12,7 +12,8 @@ import { toRaw } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { SheetHeader } from '@/components/sheet'
+import { useSheetPeek } from '@/composables/useSheetPeek'
 import { Switch } from '@/components/ui/switch'
 import { EmptyState } from '@/components/ui/empty-state'
 import ItemIcon from '@/components/ui/item-icon/ItemIcon.vue'
@@ -48,6 +49,12 @@ const mapService = useMapService()
 const portolanStore = usePortolanTransitStore()
 const canvasesStore = useCanvasesStore()
 const { t } = useI18n()
+
+// The collapsed sheet fits the whole picker — tabs plus whatever the active
+// tab currently shows — so it rests around its content instead of an arbitrary
+// height, and re-snaps as groups expand. Capped below the full detent by the
+// host sheet. No-op on desktop.
+const { peekRef } = useSheetPeek()
 
 const {
   layers,
@@ -252,9 +259,18 @@ function findGroupNode(id: string, tree: any[]): any {
 </script>
 
 <template>
-  <div class="flex min-w-0 flex-col overflow-hidden">
-    <Tabs default-value="map" class="min-h-0">
-      <div class="flex items-end border-b px-3 pt-2.5">
+  <!-- A plain column: the host owns the scrolling — the bottom sheet's surface
+       on mobile, the hover card's on desktop. See the layout contract in
+       `components/BottomSheet.vue`. -->
+  <!-- pt: start content on the pinned tab row's dock line — see PanelLayout. -->
+  <div class="flex min-w-0 flex-col pt-[var(--sheet-sticky-top,0px)]">
+    <Tabs default-value="map">
+      <!-- Tabs pin while the layer tree scrolls under them. `peek` off: this
+           sheet is content-sized, so it has no peek detent to drive. -->
+      <SheetHeader
+        :peek="false"
+        class="flex items-end border-b px-3 pt-2.5"
+      >
         <TabsList variant="linear" class="w-full gap-2 border-b-0 sm:gap-5">
           <TabsTrigger value="map" variant="linear" class="flex-1">
             {{ t('layers.selector.tabs.map') }}
@@ -276,9 +292,9 @@ function findGroupNode(id: string, tree: any[]): any {
             {{ t('layers.selector.tabs.canvases') }}
           </TabsTrigger>
         </TabsList>
-      </div>
+      </SheetHeader>
 
-      <ScrollArea class="h-[min(460px,calc(100vh-10rem))] min-h-[260px]">
+      <div ref="peekRef" class="min-h-[260px]">
         <TabsContent value="map" class="m-0 space-y-3 p-3 focus-visible:ring-0">
           <section class="space-y-2">
             <p class="px-0.5 text-xs font-medium text-muted-foreground">
@@ -439,7 +455,7 @@ function findGroupNode(id: string, tree: any[]): any {
             variant="inline"
           />
         </TabsContent>
-      </ScrollArea>
+      </div>
     </Tabs>
   </div>
 </template>

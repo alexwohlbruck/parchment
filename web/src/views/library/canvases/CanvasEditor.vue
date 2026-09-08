@@ -23,6 +23,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { AppRoute } from '@/router'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { useSyncStore } from '@/stores/sync.store'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useMapStore } from '@/stores/map.store'
@@ -113,6 +114,24 @@ const collectionsService = useCollectionsService()
 const routesService = useRoutesService()
 const mapStore = useMapStore()
 const { canvases } = storeToRefs(canvasesStore)
+
+const syncStore = useSyncStore()
+
+/**
+ * A canvas created offline opens under its temporary id. Once its queued
+ * create replays, follow the id the server gave it — otherwise the URL
+ * points at a canvas that no longer exists and a reload lands nowhere.
+ */
+watch(
+  () => syncStore.resolveId(props.id),
+  resolved => {
+    if (resolved === props.id) return
+    router.replace({
+      name: AppRoute.CANVAS_EDITOR,
+      params: { id: resolved },
+    })
+  },
+)
 
 const canvas = computed(() => canvases.value.find(c => c.id === props.id))
 

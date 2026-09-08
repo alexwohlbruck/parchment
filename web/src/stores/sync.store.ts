@@ -93,20 +93,47 @@ export const useSyncStore = defineStore('sync', () => {
     return id
   }
 
+  /**
+   * Queue a mutation that supersedes any pending one with the same key.
+   * For repeated saves of the same thing, only the newest matters.
+   */
+  function enqueueLatest(
+    type: string,
+    key: string,
+    payload: unknown,
+    label: string,
+  ): string {
+    const existing = queue.value.find(
+      entry => entry.key === key && entry.status === 'pending',
+    )
+    if (existing) {
+      patch(existing.id, { payload, label, createdAt: Date.now() })
+      if (!isOffline.value) void flush()
+      return existing.id
+    }
+    const id = enqueue(type, payload, label)
+    patch(id, { key })
+    return id
+  }
+
   async function flush(): Promise<void> {
     if (isFlushing.value) return
     isFlushing.value = true
     try {
+      // Entries whose handler this build doesn't know about are skipped
+      // rather than dropped — a later build may still be able to replay
+      // them — but must not be retried in a loop within one flush.
+      const skipped = new Set<string>()
       while (!isOffline.value) {
-        const item = queue.value.find(entry => entry.status === 'pending')
+        const item = queue.value.find(
+          entry => entry.status === 'pending' && !skipped.has(entry.id),
+        )
         if (!item) break
 
         const handler = getMutationHandler(item.type)
         if (!handler) {
-          // A queue entry from a build that no longer has this handler.
-          // Nothing can replay it; drop it rather than wedging the queue.
           console.warn('[sync] no handler for queued mutation', item.type)
-          remove(item.id)
+          skipped.add(item.id)
           continue
         }
 
@@ -138,6 +165,23 @@ export const useSyncStore = defineStore('sync', () => {
     } finally {
       isFlushing.value = false
     }
+  }
+
+  /**
+   * Drop a queued create for an entity that has since been deleted locally.
+   * Returns true when one was found — the caller then has nothing to send,
+   * because the server never heard of it in the first place.
+   */
+  function cancelPendingCreate(type: string, entityId: string): boolean {
+    const item = queue.value.find(
+      entry =>
+        entry.type === type &&
+        entry.status !== 'syncing' &&
+        (entry.payload as { tempId?: string })?.tempId === entityId,
+    )
+    if (!item) return false
+    remove(item.id)
+    return true
   }
 
   /** Cancel a pending mutation: undo its optimistic change and drop it. */
@@ -183,8 +227,10 @@ export const useSyncStore = defineStore('sync', () => {
     hasWork,
     isFlushing,
     enqueue,
+    enqueueLatest,
     flush,
     cancel,
+    cancelPendingCreate,
     retry,
     dismiss,
     clear,

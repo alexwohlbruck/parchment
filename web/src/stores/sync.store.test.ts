@@ -234,4 +234,55 @@ describe('sync store', () => {
     const store = useSyncStore()
     expect(store.queue[0].status).toBe('pending')
   })
+
+  test('enqueueLatest coalesces repeated saves of the same thing', async () => {
+    const type = uniqueType()
+    const executed: unknown[] = []
+    registerMutationHandler(type, {
+      execute: async (payload: { body: string }) => {
+        executed.push(payload.body)
+      },
+    })
+
+    reportServerUnreachable()
+    const store = useSyncStore()
+    store.enqueueLatest(type, 'canvas:1', { body: 'v1' }, 'Canvas')
+    store.enqueueLatest(type, 'canvas:1', { body: 'v2' }, 'Canvas')
+    store.enqueueLatest(type, 'canvas:1', { body: 'v3' }, 'Canvas')
+    // A different key is its own entry.
+    store.enqueueLatest(type, 'canvas:2', { body: 'other' }, 'Canvas')
+
+    expect(store.queue).toHaveLength(2)
+
+    reportServerReachable()
+    await store.flush()
+    expect(executed).toEqual(['v3', 'other'])
+  })
+
+  test('cancelPendingCreate drops a create that never reached the server', () => {
+    const type = uniqueType()
+    registerMutationHandler(type, { execute: vi.fn() })
+
+    reportServerUnreachable()
+    const store = useSyncStore()
+    store.enqueue(type, { tempId: 'offline-1' }, 'Create')
+
+    expect(store.cancelPendingCreate(type, 'offline-1')).toBe(true)
+    expect(store.queue).toHaveLength(0)
+    // Nothing queued for an id that was never created offline.
+    expect(store.cancelPendingCreate(type, 'server-1')).toBe(false)
+  })
+
+  test('keeps entries whose handler this build does not know', async () => {
+    reportServerUnreachable()
+    const store = useSyncStore()
+    store.enqueue('unknown:mutation', {}, 'Mystery')
+
+    reportServerReachable()
+    await store.flush()
+
+    // Dropping it would silently lose the user's change; a later build may
+    // still know how to replay it.
+    expect(store.queue).toHaveLength(1)
+  })
 })

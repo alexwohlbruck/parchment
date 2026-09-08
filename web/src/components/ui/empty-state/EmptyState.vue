@@ -38,8 +38,15 @@ const props = withDefaults(
      */
     variant?: 'panel' | 'inline' | 'card'
     offline?: boolean
+    /**
+     * Keep the action slot in offline mode. Actions are hidden by default
+     * because most need the network, but anything that works offline —
+     * creating a canvas or route, which the sync queue holds until there's
+     * a connection — should stay available.
+     */
+    offlineActions?: boolean
   }>(),
-  { variant: 'panel', offline: false },
+  { variant: 'panel', offline: false, offlineActions: false },
 )
 
 const emit = defineEmits<{ retry: [] }>()
@@ -100,9 +107,12 @@ function retry() {
       </p>
     </div>
 
-    <Button v-if="offline" size="sm" variant="outline" @click="retry">
-      {{ t('offline.retry') }}
-    </Button>
+    <template v-if="offline">
+      <slot v-if="offlineActions" />
+      <Button size="sm" variant="outline" @click="retry">
+        {{ t('offline.retry') }}
+      </Button>
+    </template>
     <slot v-else />
   </div>
 </template>

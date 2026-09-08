@@ -21,8 +21,6 @@ import { newOfflineId } from '@/lib/sync/offline-id'
 import { closestThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
 import { type FrequentType } from '@/lib/frequents'
-// Register the replayable bookmark mutations with the sync queue.
-import './bookmarks.sync'
 import type {
   CreateBookmarkMutation,
   RemoveBookmarkMutation,

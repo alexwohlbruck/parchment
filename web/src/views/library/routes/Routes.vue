@@ -50,6 +50,7 @@ const loading = computed(
         )
       "
       :offline="showOffline"
+      offline-actions
       class="mt-24"
       @retry="load"
     >

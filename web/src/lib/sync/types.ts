@@ -8,6 +8,12 @@ export interface QueuedMutation<P = unknown> {
   payload: P
   /** Localized, human-readable description for the sync UI. */
   label: string
+  /**
+   * Coalescing key. Entries sharing one supersede each other while pending
+   * — repeatedly saving a canvas queues one entry carrying the latest
+   * body, not one per edit.
+   */
+  key?: string
   createdAt: number
   attempts: number
   status: MutationStatus

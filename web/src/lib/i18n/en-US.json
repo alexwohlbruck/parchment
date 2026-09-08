@@ -2635,7 +2635,9 @@
       "labels": {
         "save": "Save \"{name}\"",
         "update": "Update \"{name}\"",
-        "remove": "Remove \"{name}\""
+        "remove": "Remove \"{name}\"",
+        "create": "Create \"{name}\"",
+        "delete": "Delete \"{name}\""
       }
     },
     "viewUnavailable": {

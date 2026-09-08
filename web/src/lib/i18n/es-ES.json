@@ -2514,7 +2514,9 @@
       "labels": {
         "save": "Guardar «{name}»",
         "update": "Actualizar «{name}»",
-        "remove": "Eliminar «{name}»"
+        "remove": "Eliminar «{name}»",
+        "create": "Crear «{name}»",
+        "delete": "Eliminar «{name}»"
       }
     },
     "viewUnavailable": {

@@ -17,6 +17,7 @@ import VueVirtualScroller from 'vue-virtual-scroller'
 import { initVaulChromeWorkaround } from '@/lib/vaulChromeWorkaround'
 import { setupPWA } from '@/lib/pwa'
 import { prefetchRouteChunks } from '@/lib/route-prefetch'
+import '@/services/library/sync-bootstrap'
 import { install as installGpxSimulator } from '@/dev/gpx-simulator'
 
 import '@morev/vue-transitions/styles'

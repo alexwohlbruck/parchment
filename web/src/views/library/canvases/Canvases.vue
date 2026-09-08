@@ -94,6 +94,7 @@ function openCreated(canvas: Canvas) {
       :title="t('canvases.empty.title')"
       :description="t('canvases.empty.description')"
       :offline="showOffline"
+      offline-actions
       class="mt-20"
       @retry="load"
     >

@@ -11,6 +11,7 @@
 * Picking your current location as a stop shows it as a chip in the field,
   so it reads as a value rather than typed-in text
 * "Details" and "Advanced" toggles are big enough to tap on a phone
+* A trip's duration and times stay pinned while its timeline scrolls
 
 ### Fixed
 

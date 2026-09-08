@@ -29,7 +29,6 @@ import {
   ChevronDownIcon,
   ClockIcon,
   ExternalLinkIcon,
-  FlagIcon,
   AccessibilityIcon,
   LogInIcon,
   LogOutIcon,
@@ -68,6 +67,7 @@ import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
 import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import { SheetHeader } from '@/components/sheet'
 import { useUnits } from '@/composables/useUnits'
 import { formatDurationCompact } from '@/lib/time.utils'
 import { useI18n } from 'vue-i18n'
@@ -1257,9 +1257,23 @@ function showSegmentChart(segment: any): boolean {
 
     <!-- Trip content -->
     <div v-else-if="trip">
-      <!-- Hero. Actions sit at the BOTTOM of the block (items-end) so they
-           clear the sheet's back/close nav, which occupies the top-right
-           chrome zone; the stats stay at the top. -->
+      <!-- Hero, pinned. How long the trip takes and when it leaves is what the
+           rest of the panel is read against, so it stays on screen while the
+           timeline scrolls under it — the same contract the transit route
+           detail uses. The margin cancels PanelLayout's inset and re-adds the
+           dock line, so the header's natural position IS where it sticks; see
+           `RouteDetailPage` for why any other value breaks. -->
+      <SheetHeader
+        v-slot="{ stuck }"
+        class="-mx-3 mb-3 mt-[calc(var(--sheet-sticky-top,0px)_-_var(--panel-inset-top,0px))]"
+      >
+      <div
+        class="px-3 md:pt-4 pb-3 border-b transition-colors duration-200"
+        :class="stuck ? 'border-border/60' : 'border-transparent'"
+      >
+      <!-- Actions sit at the BOTTOM of the block (items-end) so they clear the
+           sheet's back/close nav, which occupies the top-right chrome zone;
+           the stats stay at the top. -->
       <div class="flex items-end justify-between gap-4">
         <div>
           <div class="flex items-baseline gap-2">
@@ -1306,6 +1320,8 @@ function showSegmentChart(segment: any): boolean {
           </Button>
         </div>
       </div>
+      </div>
+      </SheetHeader>
 
       <!-- Timezone warning -->
       <div
@@ -1363,8 +1379,13 @@ function showSegmentChart(segment: any): boolean {
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[18px] bottom-[-2px]"
                 :class="getRailColor(i, 'above')"
               />
+              <!-- Every stop but the start wears a marker: its own POI glyph
+                   where it has one, the marker system's pin where it doesn't.
+                   The end of a trip is a place like any other — it does not
+                   need a flag of its own to say so, and the arrival time
+                   beside it already does. -->
               <ItemIcon
-                v-if="entry.wp.ownIcon"
+                v-if="entry.waypointIndex > 0 || entry.wp.ownIcon"
                 :icon="entry.wp.display.icon"
                 :icon-pack="entry.wp.display.iconPack"
                 :color="entry.wp.display.color"
@@ -1375,32 +1396,17 @@ function showSegmentChart(segment: any): boolean {
                 shape="circle"
                 class="relative z-10 mt-1 !size-7 shrink-0 ring-2 ring-muted-light"
               />
-              <!-- Nothing to draw: a plain point still has to say where the
-                   trip starts, ends and stops along the way. It stays a small
-                   mark — the box around it only exists to put its centre on
-                   the rail where a glyph's would be. Blown up to glyph size an
-                   empty ring is just a large hole. -->
+              <!-- The start of a trip is the one point that isn't a place —
+                   it's where you are. It keeps the open ring, small: the box
+                   around it only exists to put its centre on the rail where a
+                   glyph's would be. -->
               <div
                 v-else
                 class="relative z-10 mt-1 size-7 flex items-center justify-center shrink-0"
               >
                 <div
-                  class="size-4 rounded-full flex items-center justify-center ring-2 ring-muted-light"
-                  :class="entry.waypointIndex === 0
-                    ? 'bg-background border-[1.5px] border-foreground/60'
-                    : 'bg-primary'"
-                >
-                  <FlagIcon
-                    v-if="entry.wp.role === 'destination'"
-                    class="size-2.5 text-primary-foreground"
-                  />
-                  <span
-                    v-else-if="entry.waypointIndex > 0"
-                    class="text-[9px] font-bold text-primary-foreground"
-                  >
-                    {{ entry.waypointIndex }}
-                  </span>
-                </div>
+                  class="size-4 rounded-full bg-background border-[1.5px] border-foreground/60 ring-2 ring-muted-light"
+                />
               </div>
             </template>
 

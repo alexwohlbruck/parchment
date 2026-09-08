@@ -18,6 +18,10 @@
 
 * A shared directions link keeps what each stop actually is. Reloading one
   used to leave every stop as a bare name
+* Escape closes a trip's details on the first press. It used to take two — the
+  first only wiped the route off the map
+* Switching the Transit layer off clears its lines and stations from the map,
+  and switching it back on draws them again without waiting for a pan
 
 ## [0.11.2] - 2026-09-07
 

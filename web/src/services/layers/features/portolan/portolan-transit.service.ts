@@ -850,8 +850,10 @@ function stopBulletClock() {
 
 function teardownPortolanTransit() {
   stopBulletClock()
+  cancelResync()
   unbindListeners()
-  if (map?.style && map.isStyleLoaded()) removeAll()
+  // Not gated on isStyleLoaded() — see styleReady.
+  if (map?.style) removeAll()
   map = null
   isolatedRoute = null
   clearHydration()
@@ -1123,29 +1125,55 @@ function buildingLayer(): string | undefined {
 const OCCLUDED_OPACITY = 0.28
 const ghostId = (id: string) => `${id}-ghost`
 
-/** Guards the one deferred re-run sync() schedules when the style is still
- *  loading, so a burst of style.loads cannot stack listeners. */
-let resyncPending = false
+/**
+ * Can this style take layers yet? Parsed, not fully fetched: that is all
+ * addLayer and the label/building anchors need, and isStyleLoaded() is
+ * false while any one pyramid has a tile in flight (see hydrationReady).
+ * serialize() throws before the stylesheet is read, hence the catch.
+ */
+function styleReady(m: any): boolean {
+  try {
+    return !!m.getStyle()?.layers?.length
+  } catch {
+    return false
+  }
+}
+
+/** The one deferred re-run sync() schedules while the style is unusable. */
+let resyncTimer: ReturnType<typeof setTimeout> | null = null
+const RESYNC_MS = 250
+const RESYNC_TRIES = 40
+
+/** Re-run sync() once the style can take layers. Polls rather than waiting
+ *  on 'idle', which a map that has already settled never fires again;
+ *  moveend and style.load are the long-stop once the tries run out. */
+function scheduleResync(m: any) {
+  if (resyncTimer) return
+  let tries = 0
+  const tick = () => {
+    resyncTimer = null
+    if (map !== m) return
+    if (styleReady(m)) return void sync()
+    if (++tries > RESYNC_TRIES) return
+    resyncTimer = setTimeout(tick, RESYNC_MS)
+  }
+  resyncTimer = setTimeout(tick, RESYNC_MS)
+}
+
+function cancelResync() {
+  if (resyncTimer) clearTimeout(resyncTimer)
+  resyncTimer = null
+}
 
 async function sync() {
   const m = map
   if (!m) return
   const regions = await ensureRegions()
   if (!regions.length || map !== m) return
-  // Those awaits take longer than the style does to load on a cold cache:
-  // the index plus one manifest per pyramid, ~90 requests before the first
-  // ribbon. Waiting on "the next style.load" is not enough — on a first
-  // paint there isn't one, and the whole feature stayed invisible until
-  // something else happened to reload the style. Finish the job ourselves
-  // when the map next goes idle.
-  if (!m.isStyleLoaded()) {
-    if (!resyncPending) {
-      resyncPending = true
-      m.once('idle', () => {
-        resyncPending = false
-        if (map === m) void sync()
-      })
-    }
+  // Those awaits outlast the style on a cold cache — ~90 requests before the
+  // first ribbon — and a first paint has no style.load left to wait for.
+  if (!styleReady(m)) {
+    scheduleResync(m)
     return
   }
   addSourcesAndLayers(regions)

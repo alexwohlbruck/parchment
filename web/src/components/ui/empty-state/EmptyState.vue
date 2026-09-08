@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { WifiOffIcon } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import { useConnectivity } from '@/composables/useConnectivity'
 
 /**
  * "There's nothing here" — one shape for every list, panel and search result
@@ -12,6 +16,13 @@ import { computed, type Component } from 'vue'
  *
  * Actions go in the default slot rather than being props, since they vary from
  * nothing at all to a full button row.
+ *
+ * `offline` switches the component to its offline mode: the caller's copy is
+ * replaced with "you're offline" messaging, the action slot is hidden (its
+ * actions usually need the network), and a retry button nudges a
+ * connectivity check and emits `retry` so the screen can refetch. Callers
+ * pass `offline` when they have no data *because the fetch couldn't run* —
+ * an empty list the server actually returned should render the normal state.
  */
 const props = withDefaults(
   defineProps<{
@@ -26,9 +37,15 @@ const props = withDefaults(
      * rather than as the page having nothing to say.
      */
     variant?: 'panel' | 'inline' | 'card'
+    offline?: boolean
   }>(),
-  { variant: 'panel' },
+  { variant: 'panel', offline: false },
 )
+
+const emit = defineEmits<{ retry: [] }>()
+
+const { t } = useI18n()
+const { checkNow } = useConnectivity()
 
 /** Everything but `panel` is the small treatment; `card` just adds the frame. */
 const compact = computed(() => props.variant !== 'panel')
@@ -39,6 +56,19 @@ const containerClass = computed(() => {
     return 'rounded-lg border border-dashed px-4 py-6 gap-2'
   return 'py-6 gap-2'
 })
+
+const displayIcon = computed(() => (props.offline ? WifiOffIcon : props.icon))
+const displayTitle = computed(() =>
+  props.offline ? t('offline.emptyState.title') : props.title,
+)
+const displayDescription = computed(() =>
+  props.offline ? t('offline.emptyState.description') : props.description,
+)
+
+function retry() {
+  checkNow()
+  emit('retry')
+}
 </script>
 
 <template>
@@ -47,12 +77,12 @@ const containerClass = computed(() => {
     :class="containerClass"
   >
     <div
-      v-if="icon"
+      v-if="displayIcon"
       class="flex items-center justify-center rounded-full bg-muted/50"
       :class="compact ? 'size-9' : 'size-12'"
     >
       <component
-        :is="icon"
+        :is="displayIcon"
         class="text-muted-foreground"
         :class="compact ? 'size-4' : 'size-6'"
       />
@@ -63,13 +93,16 @@ const containerClass = computed(() => {
         class="font-semibold text-foreground"
         :class="compact ? 'text-sm' : 'text-base'"
       >
-        {{ title }}
+        {{ displayTitle }}
       </p>
-      <p v-if="description" class="text-sm text-muted-foreground">
-        {{ description }}
+      <p v-if="displayDescription" class="text-sm text-muted-foreground">
+        {{ displayDescription }}
       </p>
     </div>
 
-    <slot />
+    <Button v-if="offline" size="sm" variant="outline" @click="retry">
+      {{ t('offline.retry') }}
+    </Button>
+    <slot v-else />
   </div>
 </template>

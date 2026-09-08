@@ -10,13 +10,17 @@ const props = withDefaults(defineProps<{
   places: Place[]
   loading?: boolean
   showIcon?: boolean
+  /** The list is empty because the app is offline, not because the search found nothing. */
+  offline?: boolean
 }>(), {
   showIcon: true,
+  offline: false,
 })
 
 const emit = defineEmits<{
   'place-hover': [placeId: string]
   'place-leave': []
+  retry: []
 }>()
 </script>
 
@@ -32,6 +36,8 @@ const emit = defineEmits<{
       :icon="SearchXIcon"
       title="No places found"
       description="Try adjusting your search or exploring a different area"
+      :offline="offline"
+      @retry="emit('retry')"
     />
 
     <!-- Results List -->

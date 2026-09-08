@@ -12,6 +12,7 @@ import { AppRoute } from '@/router'
 import CanvasCard from '@/components/library/CanvasCard.vue'
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -24,15 +25,24 @@ const canvasesStore = useCanvasesStore()
 const canvasesService = useCanvasesService()
 const { canvases } = storeToRefs(canvasesStore)
 
+const { isOffline, onReconnected } = useConnectivity()
 const loading = ref(canvases.value.length === 0)
 const dialogOpen = ref(false)
 const editing = ref<Canvas | null>(null)
 const searchQuery = ref('')
 
-onMounted(async () => {
+async function load() {
   await canvasesService.fetchCanvases()
   loading.value = false
-})
+}
+
+onMounted(load)
+onReconnected(load)
+
+// Nothing to show and no way to fetch — offline state, not "no canvases".
+const showOffline = computed(
+  () => isOffline.value && !loading.value && canvases.value.length === 0,
+)
 
 const sorted = computed(() =>
   [...canvases.value].sort(
@@ -83,7 +93,9 @@ function openCreated(canvas: Canvas) {
       :icon="MapIcon"
       :title="t('canvases.empty.title')"
       :description="t('canvases.empty.description')"
+      :offline="showOffline"
       class="mt-20"
+      @retry="load"
     >
       <Button size="sm" variant="outline" class="gap-1.5" @click="create">
         <PlusIcon class="size-3" />

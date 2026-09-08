@@ -144,12 +144,53 @@ describe('RouteDetailPage stop timeline', () => {
     expect(last.top + last.height).toBeCloseTo(134 + 12, 5)
   })
 
-  // Before the rows are measured there is nothing to segment, and a column
-  // of unconnected dots reads as "the line does not run here" — which is a
-  // claim the panel has no basis for. One whole-length line instead.
-  it('still draws a connected line before the rows are measured', async () => {
-    const wrapper = await mountWithStops(false)
-    const segs = wrapper.findAll('.absolute.z-0')
+  // The list shortens under the panel — alerts land and the run turns out
+  // to end early — and the spine has to shorten with it. It used to keep the
+  // longer list's measurements and run on past the last stop, off the bottom
+  // of the page.
+  it('does not outrun the last stop when the list shortens', async () => {
+    const wrapper = await mountWithStops(true)
+    const store = useRouteDetailStore()
+    await layOutRows(wrapper, [32, 70, 32, 54])
+
+    store.activeRoute = { ...store.activeRoute!, stops: [0, 1].map(i => stop(i, true)) }
+    await wrapper.vm.$nextTick()
+    await layOutRows(wrapper, [32, 70])
+
+    const dots = wrapper.findAll('.rounded-full.border-2')
+    expect(dots.length).toBe(2)
+    const segs = wrapper.findAll('.absolute.z-0').map(w => {
+      const style = w.attributes('style') ?? ''
+      return px(style, 'top') + px(style, 'height')
+    })
+    // one gap between two stops, ending on the second dot — not the fourth
     expect(segs.length).toBe(1)
+    expect(segs[0]).toBeCloseTo(12 + 32, 5)
+  })
+
+  // A train sits where it is along the line. When measurement went stale
+  // every one of them pinned to the top of the list instead, which read as
+  // a fleet parked at the terminus.
+  it('places a vehicle by its distance along the route', async () => {
+    const wrapper = await mountWithStops(false)
+    const store = useRouteDetailStore()
+    store.vehicles = new Map([
+      ['v1', {
+        vehicleId: 'v1',
+        feedId: 'f',
+        routeId: 'F',
+        position: { lat: 40.025, lng: -73 },
+        bearing: 0,
+        timestamp: new Date().toISOString(),
+      } as never],
+    ])
+    await wrapper.vm.$nextTick()
+    await layOutRows(wrapper, [40, 40, 40, 40])
+
+    const marker = wrapper.find('.absolute.z-20')
+    expect(marker.exists()).toBe(true)
+    // halfway between the third and fourth dots (12 + 40*2 = 92, next 132),
+    // and in any case well clear of the top of the list
+    expect(px(marker.attributes('style') ?? '', 'top')).toBeGreaterThan(60)
   })
 })

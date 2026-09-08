@@ -6,6 +6,19 @@
 
 ### Fixed
 
+## [0.11.2] - 2026-09-07
+
+### Fixed
+
+* Live trains sit where they are on a route's timeline. They were pinned to
+  the top of the stop list, and the line ran on past the last stop, whenever
+  the list shortened under the panel
+* A route's map shows only that line's own trains. The 4 drew the 5s and 6s
+  too, since all three are the same green
+* Picking a train fills the stop list with its times again
+* The train picker sits with the direction picker in the pinned header, and a
+  train no longer rides over that header while scrolling
+
 ## [0.11.1] - 2026-09-07
 
 ### Fixed

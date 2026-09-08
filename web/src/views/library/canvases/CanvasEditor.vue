@@ -92,6 +92,7 @@ import {
 import {
   BookmarkIcon,
   CloudUploadIcon,
+  CloudOffIcon,
   DatabaseIcon,
   Layers3Icon,
   FolderPlusIcon,
@@ -774,9 +775,22 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
 
 /** Anything still to write, whether it is in flight or waiting on the debounce. */
 const pending = computed(() => saving.value || isDirty.value)
-const saveStatus = computed(() =>
-  pending.value ? t('canvases.saving') : t('canvases.saved'),
+
+/**
+ * Saved on this device but not yet on the server — the edit is in the
+ * queue, waiting for a connection. Distinct from "Saved", which claims the
+ * work is backed up; saying that offline would be a lie about where the
+ * only copy lives.
+ */
+const savedLocally = computed(
+  () => !pending.value && syncStore.hasPendingFor(props.id),
 )
+
+const saveStatus = computed(() => {
+  if (pending.value) return t('canvases.saving')
+  if (savedLocally.value) return t('canvases.savedLocally')
+  return t('canvases.saved')
+})
 </script>
 
 <template>
@@ -798,6 +812,10 @@ const saveStatus = computed(() =>
             class="absolute -bottom-1 -right-1 rounded-full bg-background p-0.5 text-muted-foreground"
           >
             <CloudUploadIcon v-if="pending" class="size-3 animate-pulse" />
+            <CloudOffIcon
+              v-else-if="savedLocally"
+              class="size-3 text-amber-600 dark:text-amber-500"
+            />
             <CloudCheckIcon v-else class="size-3" />
           </span>
           <span class="sr-only" aria-live="polite">{{ saveStatus }}</span>

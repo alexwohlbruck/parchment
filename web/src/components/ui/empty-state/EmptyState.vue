@@ -39,10 +39,11 @@ const props = withDefaults(
     variant?: 'panel' | 'inline' | 'card'
     offline?: boolean
     /**
-     * Keep the action slot in offline mode. Actions are hidden by default
-     * because most need the network, but anything that works offline —
-     * creating a canvas or route, which the sync queue holds until there's
-     * a connection — should stay available.
+     * Keep the action slot in offline mode, in place of the retry button.
+     * Actions are hidden by default because most need the network, but
+     * anything that works offline — creating a canvas or route, which the
+     * sync queue holds until there's a connection — is a better thing to
+     * offer than asking the user to retry something that retries itself.
      */
     offlineActions?: boolean
   }>(),
@@ -68,9 +69,13 @@ const displayIcon = computed(() => (props.offline ? WifiOffIcon : props.icon))
 const displayTitle = computed(() =>
   props.offline ? t('offline.emptyState.title') : props.title,
 )
-const displayDescription = computed(() =>
-  props.offline ? t('offline.emptyState.description') : props.description,
-)
+const displayDescription = computed(() => {
+  if (!props.offline) return props.description
+  // Don't say "go back online" next to a button they can press right now.
+  return props.offlineActions
+    ? t('offline.emptyState.descriptionCreatable')
+    : t('offline.emptyState.description')
+})
 
 function retry() {
   checkNow()
@@ -107,9 +112,12 @@ function retry() {
       </p>
     </div>
 
+    <!-- One action, never two. Connectivity recovers on its own and the
+         view refetches with it, so "Try again" is only worth offering when
+         there's nothing else to do here. -->
     <template v-if="offline">
       <slot v-if="offlineActions" />
-      <Button size="sm" variant="outline" @click="retry">
+      <Button v-else size="sm" variant="outline" @click="retry">
         {{ t('offline.retry') }}
       </Button>
     </template>

@@ -168,6 +168,18 @@ export const useSyncStore = defineStore('sync', () => {
   }
 
   /**
+   * Is there queued work for this entity? Lets a screen say "saved here,
+   * not yet backed up" rather than claiming it's safely on the server.
+   */
+  function hasPendingFor(entityId: string): boolean {
+    return queue.value.some(entry => {
+      if (entry.status === 'failed') return false
+      const payload = entry.payload as { id?: string; tempId?: string }
+      return payload?.id === entityId || payload?.tempId === entityId
+    })
+  }
+
+  /**
    * Drop a queued create for an entity that has since been deleted locally.
    * Returns true when one was found — the caller then has nothing to send,
    * because the server never heard of it in the first place.
@@ -231,6 +243,7 @@ export const useSyncStore = defineStore('sync', () => {
     flush,
     cancel,
     cancelPendingCreate,
+    hasPendingFor,
     retry,
     dismiss,
     clear,

@@ -2460,7 +2460,8 @@
       "destination": "Dónde van las nuevas marcas",
       "canvas": "Lienzo",
       "delete": "Eliminar grupo"
-    }
+    },
+    "savedLocally": "Guardado en este dispositivo · se respaldará al reconectar"
   },
   "colors": {
     "compass": "Brújula",
@@ -2498,7 +2499,8 @@
     "reconnecting": "Reconectando…",
     "emptyState": {
       "title": "Estás sin conexión",
-      "description": "Vuelve a conectarte para ver esto"
+      "description": "Vuelve a conectarte para ver esto",
+      "descriptionCreatable": "Lo que crees ahora se sincronizará cuando vuelvas a estar en línea"
     },
     "retry": "Reintentar",
     "sync": {

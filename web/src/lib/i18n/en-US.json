@@ -2581,7 +2581,8 @@
       "destination": "Where new marks go",
       "canvas": "Canvas",
       "delete": "Delete group"
-    }
+    },
+    "savedLocally": "Saved on this device · backs up when you reconnect"
   },
   "colors": {
     "compass": "Compass",
@@ -2619,7 +2620,8 @@
     "reconnecting": "Reconnecting…",
     "emptyState": {
       "title": "You're offline",
-      "description": "Go back online to view this"
+      "description": "Go back online to view this",
+      "descriptionCreatable": "Anything you make now syncs when you're back online"
     },
     "retry": "Try again",
     "sync": {

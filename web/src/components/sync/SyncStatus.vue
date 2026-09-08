@@ -39,6 +39,9 @@ const label = computed(() => {
 const countSuffix = computed(() =>
   pendingCount.value > 0 ? String(pendingCount.value) : '',
 )
+
+/** Everything still to sync, failures included — the whole backlog. */
+const badgeCount = computed(() => syncStore.queue.length)
 </script>
 
 <template>
@@ -69,12 +72,15 @@ const countSuffix = computed(() =>
             class="size-5 text-destructive"
           />
           <WifiOffIcon v-else class="size-5 text-muted-foreground" />
+          <!-- Collapsed, the rail is the only place the queue is visible, so
+               it carries the count rather than an anonymous dot. -->
           <span
-            v-if="pendingCount > 0 || hasFailures"
-            class="absolute -top-0.5 -right-0.5 size-1.5 rounded-full ring-2 ring-muted"
+            v-if="badgeCount"
+            class="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium leading-none tabular-nums text-primary-foreground ring-2 ring-muted"
             :class="hasFailures ? 'bg-destructive' : 'bg-primary'"
-            aria-hidden
-          />
+          >
+            {{ badgeCount > 99 ? '99+' : badgeCount }}
+          </span>
         </span>
       </button>
 

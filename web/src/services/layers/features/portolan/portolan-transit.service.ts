@@ -567,21 +567,35 @@ const bareRouteId = (token: string) => token.replace(/^f\d+:/, '')
 /**
  * A station's bullets, with the lines not running here faded.
  *
- * Leaves the feature untouched when no board covers it, so a map with no
- * service loaded looks exactly as it always did.
+ * Two authorities, in rank order. A departure board, where one has been
+ * read (an open station or line) — realtime, and the only source that
+ * knows a holiday timetable or a reroute. Everywhere else, the tiles'
+ * own activity masks at `at`: the timetable, which is what makes the B's
+ * bullet step back at 3am on a map nobody has asked anything of. A
+ * bullet is faded, never dropped — its absence reads as "wrong station",
+ * not "not now".
  */
-function serviceDimmedBullets(f: any): any {
+function serviceDimmedBullets(f: any, at: Date | null): any {
   const p = f.properties
   const labeled = p.ftype === 'station' || (p.ftype === 'marker' && p.nmarkers > 1)
   if (!labeled) return f
-  const running = serviceAt(p)
-  if (!running) return f
 
-  const routes = routesOf(p)
-  const ids = bulletIdsOf(p, i => {
-    const id = routes[i] ? bareRouteId(routes[i]) : ''
-    return !!id && !running.has(id)
-  })
+  const running = serviceAt(p)
+  if (running) {
+    const routes = routesOf(p)
+    const ids = bulletIdsOf(p, i => {
+      const id = routes[i] ? bareRouteId(routes[i]) : ''
+      return !!id && !running.has(id)
+    })
+    if (!ids.length) return f
+    return { ...f, properties: { ...p, brow: 'row-' + ids.join('|') } }
+  }
+
+  if (!at) return f
+  const idx = activeRouteIdx(p, NO_MASKS, at, classesOff)
+  if (!idx) return f // every line awake, or nothing to judge by
+  const awake = new Set(idx)
+  const ids = bulletIdsOf(p, i => !awake.has(i))
   if (!ids.length) return f
   return { ...f, properties: { ...p, brow: 'row-' + ids.join('|') } }
 }
@@ -809,10 +823,33 @@ function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
     clearMounts()
     bindListeners()
   }
+  startBulletClock()
   void sync()
 }
 
+/** The bullets fade by the wall clock when no slider is set, and a mask's
+ *  resolution is the hour — so re-apply once each hour turns over. */
+let bulletClockTimer: ReturnType<typeof setInterval> | null = null
+let bulletClockHour = -1
+
+function startBulletClock() {
+  if (bulletClockTimer) return
+  bulletClockHour = new Date().getHours()
+  bulletClockTimer = setInterval(() => {
+    const hour = new Date().getHours()
+    if (hour === bulletClockHour) return
+    bulletClockHour = hour
+    if (!serviceTime) applyStations()
+  }, 60_000)
+}
+
+function stopBulletClock() {
+  if (bulletClockTimer) clearInterval(bulletClockTimer)
+  bulletClockTimer = null
+}
+
 function teardownPortolanTransit() {
+  stopBulletClock()
   unbindListeners()
   if (map?.style && map.isStyleLoaded()) removeAll()
   map = null
@@ -2330,8 +2367,7 @@ function applyStations() {
           ? stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, null) && onIsolatedPath(f)
           : stationServesRoute(f.properties, isolatedRoute!, NO_MASKS, at),
       )
-      .map((f: any) => timeFilteredBullets(f, at, classesOff))
-      .map((f: any) => serviceDimmedBullets(f))
+      .map((f: any) => serviceDimmedBullets(f, at))
       .map((f: any) => isolatedMarkerFeature(f, isolatedRoute!))
     src.setData({ type: 'FeatureCollection', features: feats })
     return
@@ -2340,14 +2376,17 @@ function applyStations() {
   const off = classesOff
   const filtered =
     date || off.size
-      ? stationsRaw.features
-          .filter((f: any) => stationVisible(f.properties, NO_MASKS, date, off))
-          .map((f: any) => timeFilteredBullets(f, date, off))
+      ? stationsRaw.features.filter((f: any) =>
+          stationVisible(f.properties, NO_MASKS, date, off),
+        )
       : stationsRaw.features
-  // The boards outrank the timetable wherever they have spoken, so this
-  // runs last and on every view — an opened station dims its own bullets
-  // the same way a route's stops do.
-  const feats = stopService ? filtered.map((f: any) => serviceDimmedBullets(f)) : filtered
+  // Bullet fade runs on EVERY view: boards outrank the timetable where one
+  // has been read, and the timetable's clock answers everywhere else — the
+  // slider's hour when it is set, the wall clock when it is not. The
+  // stations themselves keep the network view's rule (all hours drawn);
+  // only the bullets say what is awake.
+  const at = date ?? new Date()
+  const feats = filtered.map((f: any) => serviceDimmedBullets(f, at))
   src.setData({ type: 'FeatureCollection', features: feats })
 }
 
@@ -2381,28 +2420,3 @@ function isolatedMarkerFeature(f: any, routeId: string): any {
   return { ...f, properties: { ...p, icon: `dots-${hex}@0` } }
 }
 
-/** A surviving station's bullet strip shows only the routes awake at the
- *  chosen time (and in enabled classes) — the 2am map must not advertise
- *  lines that stopped at midnight. Pure: filtered features are copies,
- *  the cached data stays the union. */
-function timeFilteredBullets(f: any, date: Date | null, off: Set<string>): any {
-  const p = f.properties
-  const labeled = p.ftype === 'station' || (p.ftype === 'marker' && p.nmarkers > 1)
-  if (!labeled) return f
-  const idx = activeRouteIdx(p, NO_MASKS, date, off)
-  if (!idx) return f
-  const pick = (s: string) => {
-    const all = String(s ?? '').split(',')
-    return idx.map(i => all[i]).join(',')
-  }
-  const ids = bulletIdsOf({
-    labels: pick(p.labels),
-    route_colors: pick(p.route_colors),
-    modes: pick(p.modes),
-    shapes: pick(p.shapes),
-  })
-  const props = { ...p }
-  if (ids.length) props.brow = 'row-' + ids.join('|')
-  else delete props.brow
-  return { ...f, properties: props }
-}

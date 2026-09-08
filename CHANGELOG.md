@@ -6,6 +6,7 @@
 
 ### Fixed
 
+* Station bullets on the map fade with the timetable's clock everywhere, not only where a page has been opened — the B's bullet steps back at 3am on a map nobody asked anything of. A read board still outranks the clock, and the time slider's hour applies when it is set.
 ## [0.11.0] - 2026-09-07
 
 ### Added

@@ -987,8 +987,14 @@ interface RouteWaypointDisplay {
   displayName: string
   time: Date | null
   place?: Partial<Place> | null
-  /** What the timeline's place card renders from. */
+  /** What the timeline renders the stop from. */
   display: PlaceDisplay
+  /**
+   * Whether `display.icon` is the stop's own — a POI's glyph, the locate mark
+   * for current location. False for a stop that is just a point on the map,
+   * which keeps the rail's start/stop marks instead.
+   */
+  ownIcon: boolean
 }
 
 /**
@@ -1007,26 +1013,35 @@ interface RouteWaypointDisplay {
 function waypointDisplay(
   place: Partial<Place> | null | undefined,
   fallbackName: string,
-): PlaceDisplay {
+): { display: PlaceDisplay; ownIcon: boolean } {
   if (place?.id === 'current-location') {
-    return makePlaceDisplay({
-      title: place.name?.value || translate('directions.currentLocation'),
-      icon: 'Locate',
-    })
+    return {
+      display: makePlaceDisplay({
+        title: place.name?.value || translate('directions.currentLocation'),
+        icon: 'Locate',
+      }),
+      ownIcon: true,
+    }
   }
 
   if (!place || !isPoiCard(place)) {
-    return makePlaceDisplay({
-      title: place ? getSearchResultName(place as Place) || fallbackName : fallbackName,
-      icon: 'MapPin',
-    })
+    return {
+      display: makePlaceDisplay({
+        title: place ? getSearchResultName(place as Place) || fallbackName : fallbackName,
+        icon: 'MapPin',
+      }),
+      ownIcon: false,
+    }
   }
 
   const display = placeToDisplay(place as Place, {
     isDark: themeStore.isDark,
     t: translate,
   })
-  return display.title ? display : { ...display, title: fallbackName }
+  return {
+    display: display.title ? display : { ...display, title: fallbackName },
+    ownIcon: true,
+  }
 }
 
 const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
@@ -1055,7 +1070,7 @@ const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
       displayName: wp.name?.trim() || fallbackName,
       time: isOrigin ? t.startTime : isDestination ? t.endTime : null,
       place,
-      display: waypointDisplay(place, wp.name?.trim() || fallbackName),
+      ...waypointDisplay(place, wp.name?.trim() || fallbackName),
     }
   })
 })
@@ -1101,7 +1116,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       role: 'origin',
       displayName: '',
       time: segs[0]?.startTime ?? t.startTime,
-      display: waypointDisplay(null, 'Origin'),
+      ...waypointDisplay(null, 'Origin'),
     },
   })
 
@@ -1140,7 +1155,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       role: 'destination',
       displayName: '',
       time: segs[segs.length - 1]?.endTime ?? t.endTime,
-      display: waypointDisplay(null, 'Destination'),
+      ...waypointDisplay(null, 'Destination'),
     },
   })
 
@@ -1330,36 +1345,52 @@ function showSegmentChart(segment: any): boolean {
           >
 
             <!-- ── Waypoint rail ── -->
+            <!-- The stop's own glyph is the rail node. A stop is a place, and
+                 drawing a dot on the rail *and* an icon beside it made two
+                 marks for one thing. Sized to the segment icons so the rail
+                 keeps one rhythm down the trip. -->
             <template v-if="entry.kind === 'waypoint'">
-              <!-- Line above dot: from top of entry (with 2px overlap) to dot center -->
+              <!-- Line above the node: from the top of the entry (2px overlap)
+                   to the node's centre at 18px. -->
               <div
                 v-if="i > 0"
-                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[26px]"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[20px]"
                 :class="getRailColor(i, 'above')"
               />
-              <!-- Line below dot: from dot center to bottom of entry (with 2px overlap) -->
+              <!-- Line below the node -->
               <div
                 v-if="i < timelineEntries.length - 1"
-                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[24px] bottom-[-2px]"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[18px] bottom-[-2px]"
                 :class="getRailColor(i, 'above')"
               />
-              <!-- Dot — centred on the place card's icon (8px of card padding
-                   plus half of a 32px icon), so the rail runs through the row
-                   rather than clipping its top edge. Origin: open ring.
-                   Destination: filled with a flag. Intermediate vias: number. -->
+              <ItemIcon
+                v-if="entry.wp.ownIcon"
+                :icon="entry.wp.display.icon"
+                :icon-pack="entry.wp.display.iconPack"
+                :color="entry.wp.display.color"
+                :custom-color="entry.wp.display.customColor"
+                :image-url="entry.wp.display.imageUrl ?? undefined"
+                size="sm"
+                variant="solid"
+                shape="circle"
+                class="relative z-10 mt-1 !size-7 shrink-0 ring-2 ring-muted-light"
+              />
+              <!-- Nothing to draw: a plain point still has to say where the
+                   trip starts, ends and stops along the way. -->
               <div
-                class="relative z-10 mt-4 size-4 rounded-full flex items-center justify-center shrink-0"
+                v-else
+                class="relative z-10 mt-1 size-7 rounded-full flex items-center justify-center shrink-0 ring-2 ring-muted-light"
                 :class="entry.waypointIndex === 0
                   ? 'bg-background border-[1.5px] border-foreground/60'
                   : 'bg-primary'"
               >
                 <FlagIcon
                   v-if="entry.wp.role === 'destination'"
-                  class="size-2.5 text-primary-foreground"
+                  class="size-3.5 text-primary-foreground"
                 />
                 <span
                   v-else-if="entry.waypointIndex > 0"
-                  class="text-[9px] font-bold text-primary-foreground"
+                  class="text-xs font-bold text-primary-foreground"
                 >
                   {{ entry.waypointIndex }}
                 </span>
@@ -1368,25 +1399,26 @@ function showSegmentChart(segment: any): boolean {
 
             <!-- ── Place stop rail (parking, etc.) ── -->
             <template v-else-if="entry.kind === 'place-stop'">
-              <!-- Aligned to the card's icon centre, like the waypoint rail -->
               <div
                 v-if="i > 0"
-                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[25px]"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[20px]"
                 :class="getRailColor(i, 'above')"
                 :style="getRailStyle(i, 'above')"
               />
               <div
                 v-if="i < timelineEntries.length - 1"
-                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[23px] bottom-[-2px]"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[18px] bottom-[-2px]"
                 :class="getRailColor(i, 'below')"
                 :style="getRailStyle(i, 'below')"
               />
-              <!-- A node rather than the POI glyph: the card beside it already
-                   carries the place's own icon. -->
-              <div
-                class="relative z-10 mt-[18px] size-2.5 rounded-full shrink-0 ring-2 ring-background"
-                :class="getRailColor(i, 'above')"
-                :style="getRailStyle(i, 'above')"
+              <ItemIcon
+                :icon="getSearchResultIconName(entry.place)"
+                :icon-pack="getSearchResultIconPack(entry.place)"
+                :custom-color="getCategoryColor(getSearchResultCategory(entry.place), themeStore.isDark)"
+                size="sm"
+                variant="solid"
+                shape="circle"
+                class="relative z-10 mt-1 !size-7 shrink-0 ring-2 ring-muted-light"
               />
             </template>
 
@@ -1427,19 +1459,22 @@ function showSegmentChart(segment: any): boolean {
             class="flex-1 min-w-0"
             :class="isTransitCard(entry)
               ? 'pb-5'
-              : entry.kind === 'segment' ? 'pl-2.5 pb-5' : 'pl-3 pb-4'"
+              : entry.kind === 'segment' ? 'pl-2.5 pb-5' : 'pl-2.5 pb-4'"
           >
             <!-- ═══ Waypoint content ═══ -->
-            <!-- A stop is a place, so it renders as one: the same card the app
-                 uses for a search hit or a saved place, with the scheduled time
-                 in the slot a rating would otherwise take. -->
+            <!-- The name and type a place card derives, without the card: the
+                 rail already carries the icon, and a box around every stop
+                 fought the segments between them. `plain` keeps the hover and
+                 the link; the negative inset lets the highlight run the width
+                 of the row while the text still lines up with the segments. -->
             <template v-if="entry.kind === 'waypoint'">
               <PlaceCard
                 :display="entry.wp.display"
-                variant="inline"
+                variant="plain"
                 size="sm"
                 density="compact"
-                icon-variant="ghost"
+                :show-icon="false"
+                class="-mx-2"
               >
                 <template v-if="entry.wp.time" #title-trailing>
                   <span class="text-xs font-medium tabular-nums text-muted-foreground shrink-0">
@@ -1454,10 +1489,11 @@ function showSegmentChart(segment: any): boolean {
               <PlaceCard
                 :place="entry.place"
                 :title="entry.label || undefined"
-                variant="inline"
+                variant="plain"
                 size="sm"
                 density="compact"
-                icon-variant="ghost"
+                :show-icon="false"
+                class="-mx-2"
               >
                 <template v-if="entry.time" #title-trailing>
                   <span class="text-xs font-medium tabular-nums text-muted-foreground shrink-0">
@@ -1655,11 +1691,12 @@ function showSegmentChart(segment: any): boolean {
                       v-slot="{ open }"
                       class="relative"
                     >
-                      <!-- Same pill treatment as the leg's Details toggle, offset
-                           past the rail column so the label keeps its place. -->
-                      <CollapsibleTrigger class="group/stops flex w-full text-xs text-muted-foreground transition-colors cursor-pointer select-none">
+                      <!-- Same full-width control as the leg's Details toggle,
+                           offset past the rail column so it lines up with the
+                           cards above and below it. -->
+                      <CollapsibleTrigger class="group/stops flex w-full transition-colors cursor-pointer select-none">
                         <div class="w-7 shrink-0" />
-                        <span class="flex items-center gap-1.5 ml-0.5 px-2 min-h-8 pointer-coarse:min-h-11 rounded-md group-hover/stops:text-foreground group-hover/stops:bg-muted/60 transition-colors">
+                        <span class="flex flex-1 items-center gap-1.5 ml-2.5 px-2.5 min-h-9 pointer-coarse:min-h-11 rounded-md border bg-card text-xs font-medium text-muted-foreground group-hover/stops:text-foreground group-hover/stops:bg-secondary/40 transition-colors">
                           <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
                           <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
                         </span>

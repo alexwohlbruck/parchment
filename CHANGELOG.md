@@ -4,9 +4,10 @@
 
 ### Changed
 
-* Stops in a trip's timeline show as place cards — the place's own icon,
-  category and hours, with the scheduled time beside the name
-* Route stops on the map wear their own POI icon instead of a numbered dot
+* A trip's timeline draws each stop as the place it is — the POI's own icon on
+  the route line, its name and type beside it, and the scheduled time
+* Route stops on the map wear their own POI icon and name instead of a
+  numbered dot
 * Picking your current location as a stop shows it as a chip in the field,
   so it reads as a value rather than typed-in text
 * "Details" and "Advanced" toggles are big enough to tap on a phone

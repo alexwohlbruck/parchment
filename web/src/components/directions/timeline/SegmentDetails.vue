@@ -94,12 +94,13 @@ const instructionKey = (index: number) => `${props.segmentIndex}-${index}`
     v-slot="{ open }"
     class="mt-2"
   >
-    <!-- A pill rather than a line of text: on a phone this is the control that
+    <!-- A full-width control rather than a line of text: on a phone this is what
          opens the turn-by-turn, and a 16px-tall run of words is not something
-         you can reliably hit. The negative margin keeps the label sitting where
-         it did — the target grows around it rather than pushing it over. -->
+         you can reliably hit. It takes the card surface so the target is
+         visible before you reach for it, but no elevation — it's a control
+         between the stops, not another stop. -->
     <CollapsibleTrigger
-      class="flex items-center gap-1.5 -mx-2 px-2 min-h-8 pointer-coarse:min-h-11 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 active:bg-muted transition-colors cursor-pointer select-none"
+      class="flex w-full items-center gap-1.5 px-2.5 min-h-9 pointer-coarse:min-h-11 rounded-md border bg-card text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors cursor-pointer select-none"
     >
       <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
       <span>{{ open ? 'Hide details' : 'Details' }}</span>

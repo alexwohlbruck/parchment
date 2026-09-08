@@ -16,6 +16,9 @@
 
 ### Fixed
 
+* On mobile, the layer and locate buttons stay reachable when a sheet is open —
+  they ride its top edge instead of hiding behind it
+
 * A shared directions link keeps what each stop actually is. Reloading one
   used to leave every stop as a bare name
 * Escape closes a trip's details on the first press. It used to take two — the

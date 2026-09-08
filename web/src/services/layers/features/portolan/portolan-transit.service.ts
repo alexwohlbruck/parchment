@@ -83,6 +83,8 @@ import { glyphAdvances } from './portolan-glyphs'
 import { TRANSIT_GROUP_ID, stopTargetFor } from './portolan-ui'
 import { firstLabelLayerId } from './portolan-anchors'
 import { resolveRouteRef, routeRefFor } from './portolan-routes'
+import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
+import { useMapToolsStore } from '@/stores/map-tools.store'
 
 const FLAG_KEY = 'parchment.portolan-transit'
 
@@ -140,6 +142,7 @@ const LABEL_FONT_ITALIC = ['Geist Regular']
 
 // ── module state (one map at a time, like the other layer services) ────
 let map: any = null
+let activeStrategy: MapStrategy | null = null
 
 /**
  * Whether the engine under us can ease `line-offset` along
@@ -798,6 +801,7 @@ function isPortolanTransitEnabled(): boolean {
  *  services re-registered from map.service's onStyleLoad). */
 function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
   if (!mapStrategy?.mapInstance || !isPortolanTransitEnabled()) return
+  activeStrategy = mapStrategy
   // Both engines render the network; only the fork renders it in full.
   engine = mapStrategy.options.engine
   themeDark = mapStrategy.options.theme === MapTheme.DARK
@@ -855,6 +859,7 @@ function teardownPortolanTransit() {
   // Not gated on isStyleLoaded() — see styleReady.
   if (map?.style) removeAll()
   map = null
+  activeStrategy = null
   isolatedRoute = null
   clearHydration()
   clearMounts()
@@ -967,15 +972,24 @@ function bindListeners() {
   }
 
   const onStopEnter = (e: any) => {
-    if (targetAt(e)) map.getCanvas().style.cursor = 'pointer'
+    if (
+      targetAt(e)
+      && mapPoiClickPolicy.enabled
+      && !useMapToolsStore().rawClickCapture
+    ) {
+      map.getCanvas().style.cursor = 'pointer'
+    }
   }
   const onLeave = () => {
-    if (map) map.getCanvas().style.cursor = ''
+    if (map && !useMapToolsStore().rawClickCapture) {
+      map.getCanvas().style.cursor = ''
+    }
   }
   const onStopClick = (e: any) => {
+    if (useMapToolsStore().rawClickCapture) return
     const target = targetAt(e)
-    if (!target) return
-    router.push(target as any)
+    if (!target || !activeStrategy) return
+    activeStrategy.dispatchPoiClick(e, () => router.push(target as any))
   }
   // Route clicks → the line's own detail, the way tapping a bullet in a
   // station header opens it. The pair that page is keyed by has to be
@@ -2447,4 +2461,3 @@ function isolatedMarkerFeature(f: any, routeId: string): any {
   // ribbon no longer rides its slot (see isolationOffset).
   return { ...f, properties: { ...p, icon: `dots-${hex}@0` } }
 }
-

@@ -26,6 +26,7 @@ import type { Layer } from '@/types/map.types'
 import { ensureIconImages } from '@/lib/map-icon-images'
 import { themeColorToHex } from '@/lib/utils'
 import { getPlaceRouteFromExternalIds } from '@/lib/place.utils'
+import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
 import {
   selectSavedPlaces,
   buildSavedPlacesGeoJSON,
@@ -150,17 +151,21 @@ export function useBookmarksLayerService() {
     // Hover changes the cursor and nothing else — a dot that grows under the
     // pointer shifts the thing you're aiming at.
     map.on('mouseenter', BOOKMARKS_CIRCLES_LAYER_ID, () => {
-      canvas.style.cursor = 'pointer'
+      if (
+        !useMapToolsStore().rawClickCapture
+        && mapPoiClickPolicy.enabled
+      ) canvas.style.cursor = 'pointer'
     })
 
     map.on('mouseleave', BOOKMARKS_CIRCLES_LAYER_ID, () => {
-      canvas.style.cursor = ''
+      if (!useMapToolsStore().rawClickCapture) canvas.style.cursor = ''
     })
 
     map.on('click', BOOKMARKS_CIRCLES_LAYER_ID, (e: any) => {
       // Measuring takes precedence: a click there is placing a vertex, not
       // opening a place. Mirrors the basemap POI handler.
-      if (useMapToolsStore().activeTool === 'measure') return
+      const mapTools = useMapToolsStore()
+      if (mapTools.activeTool === 'measure' || mapTools.rawClickCapture) return
 
       const id = e.features?.[0]?.properties?.id
       if (typeof id !== 'string') return
@@ -172,9 +177,11 @@ export function useBookmarksLayerService() {
       const target = getPlaceRouteFromExternalIds(place.externalIds)
       if (!target) return
 
-      // Stop the generic map click from also firing and dropping a pin.
-      e.originalEvent?.stopPropagation?.()
-      router.push(target)
+      const accepted = mapStrategy.dispatchPoiClick(e, () => router.push(target))
+      if (accepted) {
+        // Stop the generic map click from also firing and dropping a pin.
+        e.originalEvent?.stopPropagation?.()
+      }
     })
   }
 

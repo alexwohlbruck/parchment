@@ -184,6 +184,14 @@ export type MapEvents = {
       name?: string
     }
   }
+  /** Emitted while a touch POI action waits for the double-tap window. */
+  'poi:preview': {
+    poi: {
+      osmId: string
+      poiType: 'node' | 'way' | 'relation'
+      name?: string
+    }
+  }
   // TODO: Fold this into 'click' event
   'click:mapillary-image': {
     lngLat: LngLat

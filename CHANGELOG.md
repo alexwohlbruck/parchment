@@ -6,6 +6,9 @@
 
 ### Fixed
 
+* One-finger double-tap zoom no longer opens a place underneath the gesture,
+  and points of interest stay inactive throughout canvas editing
+
 ## [0.11.3] - 2026-09-08
 
 ### Added

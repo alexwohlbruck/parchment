@@ -16,6 +16,11 @@ import { Component } from 'vue'
 import { destroyVueMarkerElement } from '@/lib/vue-marker.utils'
 import { mapEventBus } from '@/lib/eventBus'
 import { impactFeedback } from '@tauri-apps/plugin-haptics'
+import {
+  mapPoiClickPolicy,
+  PoiTapController,
+  type PoiPointerEvent,
+} from '@/lib/map-poi-interaction'
 
 export class MapStrategy {
   mapInstance: any
@@ -25,6 +30,8 @@ export class MapStrategy {
   markers: Map<string, any> = new Map() // Track active markers
   protected longPressTimer: ReturnType<typeof setTimeout> | null = null
   protected touchStartPoint: { x: number; y: number } | null = null
+  protected clickDebounceTimer: number | null = null
+  private poiTapController: PoiTapController | null = null
 
   constructor(container, options: MapSettings, accessToken?: string) {
     this.container = container
@@ -112,6 +119,45 @@ export class MapStrategy {
     canvas.addEventListener('touchmove', handleTouchMove)
     canvas.addEventListener('touchend', handleTouchEnd)
     canvas.addEventListener('touchcancel', handleTouchEnd)
+  }
+
+  /** Attach the shared single/double/drag tap recognizer after map creation. */
+  protected setupPoiClickHandling() {
+    this.poiTapController?.destroy()
+    const element = this.mapInstance.getCanvasContainer?.()
+      ?? this.mapInstance.getCanvas()
+    this.poiTapController = new PoiTapController(element)
+  }
+
+  /**
+   * Run a place-like map action through the shared policy and tap recognizer.
+   * False leaves the generic map click available to a drawing/capture tool.
+   */
+  dispatchPoiClick(
+    event: PoiPointerEvent,
+    action: () => void,
+    prefetch?: () => void,
+  ) {
+    if (!mapPoiClickPolicy.enabled) return false
+    if (!this.poiTapController) {
+      action()
+      this.cancelPendingMapClick()
+      return true
+    }
+    const accepted = this.poiTapController.handle(event, action, prefetch)
+    if (accepted) this.cancelPendingMapClick()
+    return accepted
+  }
+
+  protected destroyPoiClickHandling() {
+    this.cancelPendingMapClick()
+    this.poiTapController?.destroy()
+    this.poiTapController = null
+  }
+
+  private cancelPendingMapClick() {
+    if (this.clickDebounceTimer) clearTimeout(this.clickDebounceTimer)
+    this.clickDebounceTimer = null
   }
 
   resize() {}

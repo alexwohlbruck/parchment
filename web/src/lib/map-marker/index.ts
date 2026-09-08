@@ -23,7 +23,7 @@ export {
   markerGlyphSizeForRadius,
 } from './marker-metrics.mjs'
 
-export { markerPaint, type MarkerPaint } from './marker-paint'
+export { markerPaint, MARKER_HALO, type MarkerPaint } from './marker-paint'
 export { markerCss, type MarkerCss } from './marker-css'
 export {
   markerLayers,

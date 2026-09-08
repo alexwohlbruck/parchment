@@ -58,6 +58,54 @@ function placeService() {
   }
 
   /**
+   * Fetch a place record without adopting it as the place the user is looking
+   * at — no `currentPlace`, no recents entry, no loading spinner.
+   *
+   * Background enrichment (a directions waypoint filling in its own type,
+   * hours and rating) needs the record but must not disturb the place view or
+   * write a view the user never made.
+   */
+  async function lookupPlace(
+    queryParams: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<Place | null> {
+    const cacheKey = buildPlaceCacheKey(queryParams)
+    const cached = placeCache.get(cacheKey)
+    if (cached) return cached.data
+
+    try {
+      return await fetchPlaceFromApi(cacheKey, queryParams, signal)
+    } catch (e) {
+      if (!axios.isCancel(e)) console.warn('Place lookup failed:', e)
+      return null
+    }
+  }
+
+  /**
+   * Look up a place by the composite id the app routes on ("osm/node/123",
+   * "coords/35.2/-80.8", "google/<id>"). Mirrors `getPlaceRoute`'s parsing:
+   * everything before the first slash is the source, the rest is the id.
+   * Returns null for ids nothing can be fetched for (current location,
+   * bookmarks, locally-minted stubs).
+   */
+  const UNFETCHABLE_ID_PREFIXES = ['current-location', 'shared-wp-', 'coords/']
+
+  async function lookupPlaceById(
+    placeId: string,
+    signal?: AbortSignal,
+  ): Promise<Place | null> {
+    if (UNFETCHABLE_ID_PREFIXES.some(prefix => placeId.startsWith(prefix))) {
+      return null
+    }
+    const slash = placeId.indexOf('/')
+    if (slash <= 0) return null
+    return lookupPlace(
+      { source: placeId.slice(0, slash), id: placeId.slice(slash + 1) },
+      signal,
+    )
+  }
+
+  /**
    * Stale-while-revalidate fetch shared by both the source/id and
    * coordinate lookup paths.
    *
@@ -282,6 +330,8 @@ function placeService() {
     currentPlace,
     loading,
     fetchPlaceDetails,
+    lookupPlace,
+    lookupPlaceById,
     fetchPlaceDetailsByName,
     fetchPlaceDetailsByCoordinates,
     setPartialPlace,

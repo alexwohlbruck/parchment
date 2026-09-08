@@ -621,7 +621,7 @@ const customModelError = computed(() => {
     <Separator />
 
     <Collapsible v-model:open="advancedOpen" class="px-4 py-3">
-      <CollapsibleTrigger class="flex items-center gap-2 w-full text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+      <CollapsibleTrigger class="flex items-center gap-2 w-full -mx-2 px-2 min-h-8 pointer-coarse:min-h-11 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 active:bg-muted transition-colors cursor-pointer select-none">
         <ChevronRightIcon
           class="size-4 transition-transform duration-200"
           :class="advancedOpen && 'rotate-90'"

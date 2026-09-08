@@ -724,6 +724,8 @@
     "planRoute": "Planificar ruta",
     "to": "A",
     "from": "Desde",
+    "currentLocation": "Ubicación actual",
+    "useCurrentLocation": "Usar tu ubicación actual",
     "addStop": "Añadir parada"
   },
   "library": {

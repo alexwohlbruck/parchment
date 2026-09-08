@@ -13,7 +13,7 @@ import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue
     align="end"
     :side-offset="12"
     desktop-content-class="w-[380px] max-w-[calc(100vw-3.75rem)] max-h-[min(460px,calc(100vh-10rem))] overflow-y-auto rounded-md p-0 shadow-xl"
-    mobile-content-class="p-0 pt-11"
+    mobile-content-class="p-0"
     :custom-snap-points="['400px', 1]"
     dynamic-peek
   >

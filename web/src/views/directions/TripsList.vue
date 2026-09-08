@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router'
 import type { TripsResponse, TripOption } from '@/types/directions.types'
 import TripItem from './TripItem.vue'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { serializeDirectionsQuery } from '@/lib/directions-url'
+import { serializeDirectionsQuery, shareableWaypointId } from '@/lib/directions-url'
 import { tripSignature } from '@/lib/trip-signature'
 import { api } from '@/lib/api'
 
@@ -179,6 +179,7 @@ function navigateToTripDetail(trip: TripOption) {
         lat: wp.coordinate.lat,
         lng: wp.coordinate.lng,
         label: wp.name || undefined,
+        id: shareableWaypointId(wp.place),
       })),
       mode: directionsStore.selectedMode,
       sort: directionsStore.sortPreference || undefined,

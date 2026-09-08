@@ -29,9 +29,25 @@
   stored contents of a collection
 * Your friends, vehicles and recent searches are kept on the device, so they
   are there on a cold or offline start
-
+* A trip's timeline draws each stop as the place it is — the POI's own icon on
+  the route line, its name and type beside it, and the scheduled time
+* Route stops wear their own POI icon everywhere they appear — the waypoint
+  fields, the timeline and the map — instead of a numbered dot. The map shows
+  each stop's name beside it too
+* Picking your current location as a stop shows it as a chip in the field,
+  so it reads as a value rather than typed-in text
+* "Details" and "Advanced" toggles are big enough to tap on a phone
+* A trip's duration and times stay pinned while its timeline scrolls
+* On mobile, the layer and locate buttons stay reachable when a sheet is open —
+  they ride its top edge instead of hiding behind it
+* A shared directions link keeps what each stop actually is. Reloading one
+  used to leave every stop as a bare name
 * Escape closes a trip's details on the first press. It used to take two — the
   first only wiped the route off the map
+* Switching the Transit layer off clears its lines and stations from the map,
+  and switching it back on draws them again without waiting for a pan
+* The layer picker's tabs sit just under the drag handle on mobile, instead of
+  a band of empty space above them
 
 ## [0.11.2] - 2026-09-07
 

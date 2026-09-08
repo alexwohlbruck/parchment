@@ -40,6 +40,9 @@ export class WaypointsLayer extends BaseMarkerLayer {
               : index === waypoints.length - 1
               ? 'destination'
               : 'waypoint',
+            // The marker draws the place's own icon when it has one, so the
+            // record has to reach it.
+            place: waypoint.place ?? null,
           },
           dragOptions: {
             onDragEnd: (lngLat) => {
@@ -60,7 +63,19 @@ export class WaypointsLayer extends BaseMarkerLayer {
       const fullId = `${this.idPrefix}${markerData.id}`
       newMarkerIds.add(fullId)
 
-      const snapshot = `${markerData.props.index}|${markerData.props.totalWaypoints}|${markerData.props.type}`
+      // Includes the place identity: a waypoint's record is filled in after
+      // the fact (reverse geocode, background lookup), and the marker has to
+      // be rebuilt when it is, or it keeps the numbered dot it was born with.
+      const place = markerData.props.place
+      const snapshot = [
+        markerData.props.index,
+        markerData.props.totalWaypoints,
+        markerData.props.type,
+        place?.id ?? '',
+        place?.icon?.icon ?? '',
+        place?.name?.value ?? '',
+        place?.placeType?.value ?? '',
+      ].join('|')
       const previous = this.markerSnapshots.get(fullId)
 
       if (this.mapAPI.hasMarker(fullId) && previous === snapshot) {

@@ -19,7 +19,7 @@ import IntegrationsSetupStep from './IntegrationsSetupStep.vue'
 import ThemeStep from './ThemeStep.vue'
 import SubscriptionStep from './SubscriptionStep.vue'
 import { validateKey, type StepValidateFn } from './types'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 
 type StepId = 'profile' | 'theme' | 'recovery-key' | 'passkey' | 'subscription' | 'integrations'
 

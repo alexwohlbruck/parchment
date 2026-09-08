@@ -1,5 +1,5 @@
 import { createSharedComposable } from '@vueuse/core'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'

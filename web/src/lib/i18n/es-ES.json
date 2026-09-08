@@ -1406,6 +1406,10 @@
       "previousPhoto": "Foto anterior",
       "nextPhoto": "Foto siguiente",
       "failedToLoad": "No se pudo cargar la imagen"
+    },
+    "unavailable": {
+      "title": "Lugar no disponible",
+      "description": "No pudimos cargar este lugar"
     }
   },
   "settings": {
@@ -2494,7 +2498,7 @@
     "reconnecting": "Reconectando…",
     "emptyState": {
       "title": "Estás sin conexión",
-      "description": "Este contenido necesita conexión y se cargará cuando vuelvas a estar en línea"
+      "description": "Vuelve a conectarte para ver esto"
     },
     "retry": "Reintentar",
     "sync": {

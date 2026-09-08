@@ -11,7 +11,7 @@ import { useAuthService } from '@/services/auth.service'
 import { useAppService } from '@/services/app.service'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useResponsive } from '@/lib/utils'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 
 import { H4 } from '@/components/ui/typography'
 import DataTable from '@/components/table/DataTable.vue'

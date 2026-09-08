@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useStorage } from '@vueuse/core'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { v4 as uuidv4 } from 'uuid'
 import { i18n } from '@/lib/i18n'
 import { isOffline, onReconnected } from '@/lib/connectivity'

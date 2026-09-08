@@ -10,9 +10,9 @@
 
 ### Changed
 
-* Being offline is no longer an error: requests pause instead of failing
-  loudly, screens say "You're offline" instead of "nothing here", and
-  everything resumes on its own when the connection returns
+* Being offline is no longer an error: instead of error messages, the screen
+  you're on says "You're offline" and offers to try again, and everything
+  resumes on its own when the connection returns
 * Failed requests now say what actually went wrong — offline, server
   unreachable, or timed out — instead of one generic "Network error", and
   repeated connection errors collapse into a single message

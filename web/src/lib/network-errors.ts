@@ -33,15 +33,25 @@ export enum NetworkErrorKind {
  * Thrown by the request interceptor when a read is suppressed because the
  * app is offline. Carries the config so callers can inspect what was
  * skipped. Classified as `Offline`, and never toasted.
+ *
+ * The message is deliberately plain English rather than a description of
+ * the request: some catch blocks render `error.message` straight into the
+ * UI, and "Request suppressed while offline: get /places/details" is not
+ * something to say to a person. `method` and `url` carry the detail for
+ * the console.
  */
 export class OfflineRequestError extends Error {
   readonly kind = NetworkErrorKind.Offline
   readonly config: InternalAxiosRequestConfig
+  readonly method?: string
+  readonly url?: string
 
   constructor(config: InternalAxiosRequestConfig) {
-    super(`Request suppressed while offline: ${config.method} ${config.url}`)
+    super("You're offline")
     this.name = 'OfflineRequestError'
     this.config = config
+    this.method = config.method
+    this.url = config.url
   }
 }
 

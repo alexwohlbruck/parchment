@@ -1456,6 +1456,10 @@
       "previousPhoto": "Previous photo",
       "nextPhoto": "Next photo",
       "failedToLoad": "Failed to load image"
+    },
+    "unavailable": {
+      "title": "Place unavailable",
+      "description": "We couldn't load this place"
     }
   },
   "settings": {
@@ -2615,7 +2619,7 @@
     "reconnecting": "Reconnecting…",
     "emptyState": {
       "title": "You're offline",
-      "description": "This content needs a connection and will load when you're back online"
+      "description": "Go back online to view this"
     },
     "retry": "Try again",
     "sync": {

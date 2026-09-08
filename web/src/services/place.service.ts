@@ -107,7 +107,9 @@ function placeService() {
     } catch (e) {
       if (axios.isCancel(e)) return null
       console.error('Error fetching place details:', e)
-      toast.error(e instanceof Error ? e.message : 'An error occurred')
+      toast.error(e instanceof Error ? e.message : 'An error occurred', {
+        cause: e,
+      })
       currentPlace.value = null
       return null
     } finally {

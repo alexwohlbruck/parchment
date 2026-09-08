@@ -1,7 +1,7 @@
 import { capitalize } from '@/filters/text.filters'
 import axios, { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { useStorage } from '@vueuse/core'
 import { watchEffect, ref, computed } from 'vue'
 import { DEFAULT_SERVER_URL, APP_NAME_SHORT } from '@/lib/constants'

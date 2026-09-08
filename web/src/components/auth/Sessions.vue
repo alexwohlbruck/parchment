@@ -12,7 +12,7 @@ import { useAppService } from '@/services/app.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { useResponsive } from '@/lib/utils'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 
 import { Session as OriginalSession } from '@/types/session.types'
 import { Button } from '@/components/ui/button'

@@ -1,5 +1,5 @@
 import { createSharedComposable } from '@vueuse/core'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { api } from '@/lib/api'
 import { getSeed } from '@/lib/key-storage'
 import { useAuthStore } from '@/stores/auth.store'

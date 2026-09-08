@@ -318,7 +318,7 @@ function authService() {
     // Imports are dynamic to avoid circular init between auth and
     // identity stores (identity store calls useAuthService()).
     const { useIdentityStore } = await import('@/stores/identity.store')
-    const { toast } = await import('vue-sonner')
+    const { toast } = await import('@/lib/toast')
     const { i18n: i18nInstance } = await import('@/lib/i18n')
     // Cast to dodge vue-i18n's "excessively deep" inference for the
     // typed schema.

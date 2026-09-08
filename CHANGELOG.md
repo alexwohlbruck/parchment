@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Escape closes a trip's details on the first press. It used to take two — the
+  first only wiped the route off the map
 * Switching the Transit layer off clears its lines and stations from the map,
   and switching it back on draws them again without waiting for a pan
 

@@ -739,6 +739,8 @@
     "planRoute": "Plan route",
     "to": "To",
     "from": "From",
+    "currentLocation": "Current Location",
+    "useCurrentLocation": "Use your current location",
     "addStop": "Add stop",
     "modes": {
       "walking": "Walking",

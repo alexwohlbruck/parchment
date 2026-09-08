@@ -57,7 +57,9 @@ const isLink = computed(() => !!props.to)
 
 const hoverClass = computed(() => {
   if (!isLink.value && !props.interactive) return ''
-  return props.variant === 'inline'
+  // Surfaceless rows tint toward the muted well rather than the secondary
+  // fill, so hovering one doesn't look like a card appearing under the cursor.
+  return props.variant === 'inline' || props.variant === 'plain'
     ? 'hover:bg-muted/70 cursor-pointer'
     : 'hover:bg-secondary/40 cursor-pointer'
 })

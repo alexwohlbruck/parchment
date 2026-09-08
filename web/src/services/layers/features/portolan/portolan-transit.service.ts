@@ -851,7 +851,13 @@ function stopBulletClock() {
 function teardownPortolanTransit() {
   stopBulletClock()
   unbindListeners()
-  if (map?.style && map.isStyleLoaded()) removeAll()
+  // Removal must NOT wait on isStyleLoaded(): that is a claim about every
+  // source cache in the style (see hydrationReady), and with one vector
+  // source per pyramid it reads false whenever a tile is in flight — which
+  // is precisely the moment someone switches the group off. Gating on it
+  // left the whole network painted, and `map = null` below meant nothing
+  // could ever come back for it.
+  if (map?.style) removeAll()
   map = null
   isolatedRoute = null
   clearHydration()

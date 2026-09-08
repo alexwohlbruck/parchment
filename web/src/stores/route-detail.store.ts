@@ -137,19 +137,27 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   /** Stop times for the selected vehicle's trip (from TripUpdate data). */
   interface TripStopTime {
     stopId: string
+    /** GTFS parent station, when the run predicts against a platform. */
+    parentStation?: string
     arrivalTime?: string
     departureTime?: string
   }
   const tripStopTimes = ref<TripStopTime[]>([])
 
-  /** Map of stopId → time string for the selected vehicle's trip. */
+  /**
+   * stopId → time for the selected vehicle's trip.
+   *
+   * Filed under the platform AND its station: the MTA predicts against
+   * `250N`, while this route's stop list — like every station-level view —
+   * carries `250`, so keying on one id alone showed no times at all.
+   */
   const stopTimeMap = computed(() => {
     const map = new Map<string, string>()
     for (const st of tripStopTimes.value) {
       const time = st.departureTime || st.arrivalTime
-      if (time && st.stopId) {
-        map.set(st.stopId, time)
-      }
+      if (!time) continue
+      if (st.stopId) map.set(st.stopId, time)
+      if (st.parentStation) map.set(st.parentStation, time)
     }
     return map
   })
@@ -541,7 +549,7 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
   async function fetchTripStopTimes(feedId: string, tripId: string, forVehicleId: string) {
     const fetchId = tripStopFetchId
     try {
-      const { data } = await api.get<{ stops: Array<{ stopId: string; arrivalTime?: string; departureTime?: string }> }>(
+      const { data } = await api.get<{ stops: TripStopTime[] }>(
         '/transit/trip-stops',
         { params: { feedId, tripId } },
       )

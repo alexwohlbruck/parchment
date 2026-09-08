@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUpdate, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
 import {
   useRouteDetailStore,
   type DepartureContext,
@@ -360,23 +360,31 @@ const STOP_DOT_CENTER_Y = 12
  * layout instead — re-measured whenever it changes.
  */
 const listEl = ref<HTMLElement | null>(null)
-const rowEls = ref<HTMLElement[]>([])
 const dotCenters = ref<number[]>([])
 
-// Vue fills a v-for ref array but never empties it, so a list that
-// SHRINKS keeps the tail entries of the longer one. That left more dot
-// centres than stops — the count check below then failed, and with it went
-// the per-gap spine and every vehicle's placement.
-onBeforeUpdate(() => { rowEls.value = [] })
+/**
+ * The rows, read from the DOM.
+ *
+ * Not from a `v-for` ref array: Vue fills one but never empties it, so a
+ * list that SHRANK kept the tail entries of the longer one — and once the
+ * count stopped matching, measurement bailed and left the old, longer
+ * numbers standing. That is what pinned every train to the top of the
+ * timeline and ran the line on past the last stop. The DOM cannot be stale.
+ */
+const rowEls = () =>
+  Array.from(listEl.value?.querySelectorAll<HTMLElement>('[data-stop-row]') ?? [])
 
 function measureRows() {
   const list = listEl.value
   if (!list) return
+  const rows = rowEls()
+  // A half-built list measures to nonsense, and numbers belonging to a
+  // different list are worse than none: drop them rather than draw with them.
+  if (rows.length !== displayStops.value.length) {
+    if (dotCenters.value.length !== displayStops.value.length) dotCenters.value = []
+    return
+  }
   const top = list.getBoundingClientRect().top
-  const rows = rowEls.value.filter(Boolean)
-  // A half-built list measures to nonsense; the spine and the vehicles
-  // would rather keep the last good numbers than take them.
-  if (rows.length !== displayStops.value.length) return
   dotCenters.value = rows.map(
     el => el.getBoundingClientRect().top - top + STOP_DOT_CENTER_Y,
   )
@@ -385,8 +393,10 @@ function measureRows() {
 let rowObserver: ResizeObserver | null = null
 watch(
   () => [listEl.value, displayStops.value.map(s => s.stopId).join(',')] as const,
-  async () => {
-    await nextTick()
+  () => {
+    // `flush: 'post'` — the rows this measures are already in the DOM, so
+    // measuring now rather than a tick later leaves no frame in which the
+    // spine has no numbers to draw from.
     measureRows()
     rowObserver?.disconnect()
     if (!listEl.value || typeof ResizeObserver === 'undefined') return
@@ -395,7 +405,7 @@ watch(
     // when they do.
     rowObserver = new ResizeObserver(() => measureRows())
     rowObserver.observe(listEl.value)
-    for (const el of rowEls.value) if (el) rowObserver.observe(el)
+    for (const el of rowEls()) rowObserver.observe(el)
   },
   { flush: 'post' },
 )
@@ -414,24 +424,14 @@ const spineBottom = computed(
  * The spine, cut into one segment per gap between stops.
  *
  * Drawn per gap rather than as one bar so the stretch behind the selected
- * vehicle can grey out on its own.
- *
- * Falls back to one whole-length segment before the rows have been
- * measured, so the timeline is never a column of unconnected dots.
+ * vehicle can grey out on its own. Empty until the rows have been measured —
+ * one frame, and a line drawn from numbers that do not match the rows on
+ * screen is worse than no line at all.
  */
 const spineSegments = computed(() => {
   const centers = dotCenters.value
   const stops = displayStops.value
-  if (centers.length < 2 || centers.length !== stops.length) {
-    return [
-      {
-        key: 'whole',
-        top: spineTop.value,
-        height: Math.max(0, spineBottom.value - spineTop.value),
-        passed: false,
-      },
-    ]
-  }
+  if (centers.length < 2 || centers.length !== stops.length) return []
   return centers.slice(0, -1).map((top, i) => ({
     key: stops[i].stopId,
     top,
@@ -534,8 +534,9 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Pinned with the header: which way the line is running is part of
-               reading the stop list, so it stays reachable from the bottom of it. -->
+          <!-- Pinned with the header: which way the line is running, and which
+               train you are following, are both part of reading the stop list,
+               so they stay reachable from the bottom of it. -->
           <div v-if="directions.length > 1" class="mt-3">
             <Select
               :modelValue="activeDirection ?? undefined"
@@ -547,6 +548,42 @@ onUnmounted(() => {
               <SelectContent>
                 <SelectItem v-for="dir in directions" :key="dir" :value="dir">
                   {{ dir }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <!-- Unpicked, the trigger reads as the count of what the list below
+               holds — the viewed direction only. A train the other way is one
+               the direction picker reveals, not a value this one owes. -->
+          <div v-if="vehiclesOnRoute.length > 0" class="mt-2">
+            <Select
+              :modelValue="selectedId || undefined"
+              @update:modelValue="(v) => onSelectVehicle(v as string)"
+            >
+              <SelectTrigger class="w-full h-9">
+                <div class="flex items-center gap-2 min-w-0">
+                  <div
+                    class="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    :style="{ background: bgColor }"
+                  >
+                    <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
+                  </div>
+                  <SelectValue
+                    :placeholder="t('place.transit.activeVehicles', {
+                      count: vehiclesOnRoute.length,
+                      type: t(`place.transit.vehicleType.${vehicleTypeKey}`, vehiclesOnRoute.length),
+                    })"
+                  />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="vr in vehiclesOnRoute"
+                  :key="vr.vehicleId"
+                  :value="vr.vehicleId"
+                >
+                  <span class="truncate">{{ vehicleLabel(vr) }}</span>
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -579,40 +616,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- ── Vehicle dropdown ──────────────────────────── -->
-      <!-- Counts what the list below holds — the viewed direction only.
-           A train the other way is one the direction toggle reveals, not
-           a value this dropdown owes. -->
-      <div v-if="vehiclesOnRoute.length > 0" class="mb-3">
-        <div class="text-sm font-semibold mb-1.5">
-          {{ t('place.transit.activeVehicles', { count: vehiclesOnRoute.length, type: t(`place.transit.vehicleType.${vehicleTypeKey}`, vehiclesOnRoute.length) }) }}
-        </div>
-        <Select
-          :modelValue="selectedId || undefined"
-          @update:modelValue="(v) => onSelectVehicle(v as string)"
-        >
-          <SelectTrigger class="w-full h-9">
-            <div class="flex items-center gap-2">
-              <div
-                class="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                :style="{ background: bgColor }"
-              >
-                <component :is="routeTypeIcon" class="h-3 w-3" :style="{ color: textColor }" />
-              </div>
-              <SelectValue :placeholder="t('place.transit.selectVehicle', { type: t(`place.transit.vehicleType.${vehicleTypeKey}`, 1) })" />
-            </div>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem
-              v-for="vr in vehiclesOnRoute"
-              :key="vr.vehicleId"
-              :value="vr.vehicleId"
-            >
-              <span class="truncate">{{ vehicleLabel(vr) }}</span>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
       <Separator class="mb-3" />
 
@@ -620,7 +623,10 @@ onUnmounted(() => {
       <div>
         <div class="text-sm font-semibold mb-2">{{ t('place.transit.stops') }}</div>
 
-        <div ref="listEl" class="relative" style="padding-left: 32px">
+        <!-- `isolate`: the markers below stack above the spine and the dots,
+             but the pinned header outranks the whole timeline — without a
+             stacking context of its own a train rode over it. -->
+        <div ref="listEl" class="relative isolate" style="padding-left: 32px">
           <!-- The route line, one segment per gap between stops, so the
                stretch behind the selected vehicle can grey out. -->
           <div
@@ -662,8 +668,8 @@ onUnmounted(() => {
                with bullets simply takes the room it needs. -->
           <div
             v-for="(stop, i) in displayStops"
-            :ref="el => { if (el) rowEls[i] = el as HTMLElement }"
             :key="stop.stopId"
+            data-stop-row
             class="relative flex items-start justify-between gap-2 py-0.5 min-h-[32px]"
           >
             <!-- Stop dot, on this row rather than placed by index -->

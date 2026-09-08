@@ -6,6 +6,10 @@
 
 ### Fixed
 
+## [0.11.2] - 2026-09-07
+
+### Fixed
+
 * Live trains sit where they are on a route's timeline. They were pinned to
   the top of the stop list, and the line ran on past the last stop, whenever
   the list shortened under the panel

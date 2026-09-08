@@ -73,6 +73,8 @@ export class WaypointsLayer extends BaseMarkerLayer {
         markerData.props.type,
         place?.id ?? '',
         place?.icon?.icon ?? '',
+        place?.name?.value ?? '',
+        place?.placeType?.value ?? '',
       ].join('|')
       const previous = this.markerSnapshots.get(fullId)
 

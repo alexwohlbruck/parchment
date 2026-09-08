@@ -351,14 +351,18 @@ function isCurrentLocationChip(index: number): boolean {
  * two different things.
  */
 const waypointMarks = computed(() =>
-  waypoints.value.map(waypoint => {
+  waypoints.value.map((waypoint, index) => {
     const { display, ownIcon } = waypointToDisplay(waypoint.place, {
       isDark: themeStore.isDark,
       t,
     })
     return {
       display,
-      showGlyph: ownIcon && waypoint.place?.id !== 'current-location',
+      // The origin is the one field that isn't a place; everything else shows
+      // a mark, its own glyph or the pin. Current location is the exception:
+      // the chip inside the field already carries that mark.
+      showGlyph:
+        (ownIcon || index > 0) && waypoint.place?.id !== 'current-location',
     }
   }),
 )
@@ -491,13 +495,12 @@ defineExpose({
                         shape="circle"
                         class="group-hover:opacity-0 transition-opacity"
                       />
+                      <!-- Where the trip starts. Every other field holds a
+                           place, and shows it. -->
                       <div
                         v-else
-                        class="size-4 rounded-full flex items-center justify-center group-hover:opacity-0 transition-opacity"
-                        :class="index === 0 ? 'bg-background border-[1.5px] border-foreground/60' : 'bg-primary border-[1.5px] border-white'"
-                      >
-                        <span v-if="index > 0" class="text-[9px] font-bold text-white">{{ index }}</span>
-                      </div>
+                        class="size-4 rounded-full bg-background border-[1.5px] border-foreground/60 group-hover:opacity-0 transition-opacity"
+                      />
                       <GripVerticalIcon class="size-4 text-muted-foreground absolute opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                     <!-- Current location isn't typed text, so it sits in the

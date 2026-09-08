@@ -3,14 +3,9 @@ import { computed } from 'vue'
 import * as LucideIcons from 'lucide-vue-next'
 import { MapPinIcon } from 'lucide-vue-next'
 import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
-import {
-  getSearchResultIconName,
-  getSearchResultIconPack,
-  getSearchResultCategory,
-  getSearchResultName,
-} from '@/lib/search.utils'
-import { categoryMarkerPaint } from '@/lib/place-colors'
-import { markerCss, MARKER_HALO, MARKER_PLATE_SIZE } from '@/lib/map-marker'
+import { useI18n } from 'vue-i18n'
+import { waypointToDisplay } from '@/lib/place-display'
+import { markerPaint, markerCss, MARKER_HALO, MARKER_PLATE_SIZE } from '@/lib/map-marker'
 import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
 
@@ -36,16 +31,24 @@ const props = defineProps<{
 }>()
 
 const themeStore = useThemeStore()
+const { t } = useI18n()
 
-/** Only a place with a resolved category icon has a marker worth drawing. */
-const poi = computed(() => (props.place?.icon ? (props.place as Place) : null))
+/**
+ * The same derivation the waypoint fields and the trip timeline read, so a
+ * stop is the same mark wherever it is drawn — including when it has no place
+ * of its own and falls back to the pin.
+ */
+const mark = computed(() =>
+  waypointToDisplay(props.place, { isDark: themeStore.isDark, t }),
+)
 
-const iconName = computed(() =>
-  poi.value ? getSearchResultIconName(poi.value) : '',
+/** The origin is the one stop that isn't a place; the rest all draw a plate. */
+const drawsPlate = computed(
+  () => mark.value.ownIcon || (props.index > 0 && props.type !== 'origin'),
 )
-const iconPack = computed(() =>
-  poi.value ? getSearchResultIconPack(poi.value) : 'lucide',
-)
+
+const iconName = computed(() => mark.value.display.icon)
+const iconPack = computed(() => mark.value.display.iconPack)
 
 /**
  * The stop's name, when it has one worth showing. An unnamed pin falls back to
@@ -55,16 +58,17 @@ const iconPack = computed(() =>
 const label = computed(() => {
   const place = props.place
   if (!place?.name?.value && !place?.bookmark) return ''
-  return getSearchResultName(place as Place)
+  return mark.value.display.title
 })
 
-const paint = computed(() =>
-  poi.value
-    ? categoryMarkerPaint(getSearchResultCategory(poi.value), themeStore.isDark)
+const css = computed(() =>
+  drawsPlate.value && mark.value.display.customColor
+    ? markerCss(
+        markerPaint(mark.value.display.customColor, 'disc', themeStore.isDark),
+        'disc',
+      )
     : null,
 )
-
-const css = computed(() => (paint.value ? markerCss(paint.value, 'disc') : null))
 
 /**
  * `text-color` is the badge's glyph colour and `text-halo-color` the basemap's
@@ -76,7 +80,7 @@ const css = computed(() => (paint.value ? markerCss(paint.value, 'disc') : null)
  * the width to put 1px of halo outside the letter.
  */
 const labelStyle = computed(() => ({
-  color: paint.value?.ink ?? 'var(--color-foreground)',
+  color: css.value ? css.value.glyph.color : 'var(--color-foreground)',
   paintOrder: 'stroke fill',
   WebkitTextStrokeWidth: '2px',
   WebkitTextStrokeColor: themeStore.isDark ? MARKER_HALO.dark : MARKER_HALO.light,
@@ -109,18 +113,11 @@ const lucideIcon = computed(() => {
       />
       <component v-else :is="lucideIcon" :style="css.glyph" />
     </div>
-    <!-- Origin: hollow circle -->
-    <div
-      v-else-if="index === 0 || type === 'origin'"
-      class="size-4 rounded-full bg-background border-2 border-foreground/70 shadow-md"
-    />
-    <!-- Stops: primary circle with number -->
+    <!-- Where the trip starts, drawn as the fields and the timeline draw it -->
     <div
       v-else
-      class="size-5 rounded-full bg-primary border-[1.5px] border-white flex items-center justify-center shadow-md"
-    >
-      <span class="text-[10px] font-bold text-white">{{ index }}</span>
-    </div>
+      class="size-4 rounded-full bg-background border-[1.5px] border-foreground/60 shadow-md"
+    />
 
     <!-- Out of flow, so the mark stays centred on the coordinate however long
          the name is, and inert, so it never swallows a drag meant for the

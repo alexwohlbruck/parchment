@@ -337,6 +337,12 @@ export function waypointToDisplay(
         title:
           (place ? getSearchResultName(place as Place) : '') || fallbackTitle,
         icon: 'MapPin',
+        // Spelled out rather than left to whatever each surface defaults to:
+        // `ItemIcon` falls back to cobalt, so an unstyled pin came out blue in
+        // the timeline while the same stop was a neutral plate on the map. The
+        // uncategorised colour is what the marker system already paints a
+        // place it can't categorise.
+        customColor: getCategoryColor('default', isDark),
       }),
       ownIcon: false,
     }

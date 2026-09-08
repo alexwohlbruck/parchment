@@ -2,9 +2,25 @@
 
 ### Added
 
+* Parchment installs as an app and opens without a connection — previously
+  visited screens and recently viewed map areas keep working offline
+* Saving, updating and removing places works offline: changes apply
+  immediately and sync when the connection returns. A quiet sidebar chip
+  shows what's pending, syncing or failed, with per-change cancel and retry
+
 ### Changed
 
+* Being offline is no longer an error: requests pause instead of failing
+  loudly, screens say "You're offline" instead of "nothing here", and
+  everything resumes on its own when the connection returns
+* Failed requests now say what actually went wrong — offline, server
+  unreachable, or timed out — instead of one generic "Network error", and
+  repeated connection errors collapse into a single message
+
 ### Fixed
+
+* Launching the app offline no longer signs you out and wipes your cached
+  library
 
 * Escape closes a trip's details on the first press. It used to take two — the
   first only wiped the route off the map

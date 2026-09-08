@@ -115,3 +115,45 @@ describe('portolan teardown', () => {
     expect(() => service.teardownPortolanTransit()).not.toThrow()
   })
 })
+
+describe('portolan rebuild', () => {
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+  afterEach(() => {
+    localStorage.removeItem(FLAG_KEY)
+    vi.unstubAllGlobals()
+  })
+
+  test('retries a style that could not take layers instead of waiting for an idle', async () => {
+    // The feed index is probed once per module instance, so this test takes
+    // its own copy of the service rather than inheriting a cached empty one.
+    vi.resetModules()
+    localStorage.setItem(FLAG_KEY, '1')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve([{ feed: 'nyc', bounds: [-74.3, 40.5, -73.6, 41], maxzoom: 16 }]),
+        }),
+      ),
+    )
+    const { usePortolanTransitService: freshService } = await import(
+      './portolan-transit.service'
+    )
+
+    // A style still being parsed: no layers, so nothing to insert beneath.
+    const unparsed = { ...fakeMap(), getStyle: vi.fn(() => ({ layers: [], sources: {} })) }
+    const service = freshService()
+    service.initializePortolanTransit(strategyFor(unparsed))
+    await sleep(50)
+
+    expect(unparsed.once).not.toHaveBeenCalled()
+    const firstLook = unparsed.getStyle.mock.calls.length
+    await sleep(400)
+    expect(unparsed.getStyle.mock.calls.length).toBeGreaterThan(firstLook)
+
+    service.teardownPortolanTransit()
+  })
+})

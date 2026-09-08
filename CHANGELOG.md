@@ -6,6 +6,9 @@
 
 ### Fixed
 
+* Switching the Transit layer off clears its lines and stations from the map,
+  and switching it back on draws them again without waiting for a pan
+
 ## [0.11.2] - 2026-09-07
 
 ### Fixed

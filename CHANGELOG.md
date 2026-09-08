@@ -10,6 +10,8 @@
   first only wiped the route off the map
 * Switching the Transit layer off clears its lines and stations from the map,
   and switching it back on draws them again without waiting for a pan
+* The layer picker's tabs sit just under the drag handle on mobile, instead of
+  a band of empty space above them
 
 ## [0.11.2] - 2026-09-07
 

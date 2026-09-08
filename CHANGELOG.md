@@ -6,6 +6,14 @@
 
 ### Fixed
 
+## [0.11.4] - 2026-09-08
+
+### Fixed
+
+* One-finger double-tap-and-drag zoom no longer opens a place or jumps an
+  extra level when released, and points of interest stay inactive throughout
+  canvas editing
+
 ## [0.11.3] - 2026-09-08
 
 ### Added

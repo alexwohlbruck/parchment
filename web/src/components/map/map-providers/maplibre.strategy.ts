@@ -49,6 +49,7 @@ import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import { palette } from '@/lib/palette'
 import { mapEventBus } from '@/lib/eventBus'
+import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
 import {
   mapboxLayerToMaplibreLayer,
   parsePlanetilerOsmId,
@@ -248,7 +249,6 @@ export class MaplibreStrategy extends MapStrategy {
   private tileServerUrl?: string
   private tileKey?: string
   private currentBasemap: Basemap = 'standard'
-  private clickDebounceTimer: number | null = null
   private poiHandlerCleanup: (() => void) | null = null
   /** The two switches gating the building lighting; see `applyBuildingShade`. */
   private buildingShade = true
@@ -333,6 +333,7 @@ export class MaplibreStrategy extends MapStrategy {
     // the resolver survives a style swap and every flavor needs it.
     registerPoiBadges(this.mapInstance as unknown as BadgeHost)
 
+    this.setupPoiClickHandling()
     this.addControls()
     this.configureEventListeners()
 
@@ -475,18 +476,27 @@ export class MaplibreStrategy extends MapStrategy {
     // Touch-and-hold for mobile context menu
     this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
-      mapEventBus.emit('click:mapillary-image', {
+      if (useMapToolsStore().rawClickCapture) return
+      const data = {
         lngLat: e.lngLat,
         point: e.point,
         image: (e.features?.[0]?.properties as MapillaryImage) || undefined,
+      }
+      this.dispatchPoiClick(e, () => {
+        mapEventBus.emit('click:mapillary-image', data)
       })
     })
     // Change pointers on hover
     this.mapInstance.on('mouseenter', 'mapillary-image', () => {
-      this.mapInstance.getCanvas().style.cursor = 'pointer'
+      if (
+        !useMapToolsStore().rawClickCapture
+        && mapPoiClickPolicy.enabled
+      ) this.mapInstance.getCanvas().style.cursor = 'pointer'
     })
     this.mapInstance.on('mouseleave', 'mapillary-image', () => {
-      this.mapInstance.getCanvas().style.cursor = ''
+      if (!useMapToolsStore().rawClickCapture) {
+        this.mapInstance.getCanvas().style.cursor = ''
+      }
     })
   }
 
@@ -1344,6 +1354,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   destroy() {
     try {
+      this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()
       this.poiHandlerCleanup = null
       this.unwatchTheme?.()
@@ -1567,13 +1578,20 @@ export class MaplibreStrategy extends MapStrategy {
     // sets its own for the whole map, and letting a POI hover flip it meant
     // the crosshair vanished whenever you crossed a label.
     const onEnter = () => {
-      if (hoverCount++ === 0 && !useMapToolsStore().rawClickCapture) {
+      if (
+        hoverCount++ === 0
+        && !useMapToolsStore().rawClickCapture
+        && mapPoiClickPolicy.enabled
+      ) {
         canvas.style.cursor = 'pointer'
       }
     }
     const onLeave = () => {
       hoverCount = Math.max(0, hoverCount - 1)
-      if (hoverCount === 0 && !useMapToolsStore().rawClickCapture) {
+      if (
+        hoverCount === 0
+        && !useMapToolsStore().rawClickCapture
+      ) {
         canvas.style.cursor = ''
       }
     }
@@ -1590,14 +1608,8 @@ export class MaplibreStrategy extends MapStrategy {
       const { osmId, poiType } = parsePlanetilerOsmId(feature.id)
       if (poiType === 'unknown') return
 
-      // Cancel the debounced generic click so we don't double-fire
-      if (this.clickDebounceTimer) {
-        clearTimeout(this.clickDebounceTimer)
-        this.clickDebounceTimer = null
-      }
-
       const poiName = feature.properties?.name
-      mapEventBus.emit('click', {
+      const data = {
         lngLat: layerEvent.lngLat,
         point: layerEvent.point,
         poi: {
@@ -1605,7 +1617,12 @@ export class MaplibreStrategy extends MapStrategy {
           poiType,
           name: typeof poiName === 'string' ? poiName : undefined,
         },
-      })
+      }
+      this.dispatchPoiClick(
+        layerEvent,
+        () => mapEventBus.emit('click', data),
+        () => mapEventBus.emit('poi:preview', { poi: data.poi }),
+      )
     }
 
     for (const id of allPoiLayerIds) {

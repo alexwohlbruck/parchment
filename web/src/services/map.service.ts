@@ -366,6 +366,15 @@ function mapService() {
       }
     })
 
+    // Warm details while a touch action waits through the double-tap window.
+    mapEventBus.on('poi:preview', async ({ poi }) => {
+      const { usePlaceService } = await import('@/services/place.service')
+      void usePlaceService().prefetchPlaceDetails(
+        `${poi.poiType}/${poi.osmId}`,
+        'osm',
+      )
+    })
+
     mapEventBus.on('click', async data => {
       // Only handle POI clicks — ignore empty map clicks
       if (!data.poi) return
@@ -422,6 +431,7 @@ function mapService() {
     mapEventBus.off('moveend')
     mapEventBus.off('rotateend')
     mapEventBus.off('click')
+    mapEventBus.off('poi:preview')
     mapEventBus.off('click:mapillary-image')
   }
 

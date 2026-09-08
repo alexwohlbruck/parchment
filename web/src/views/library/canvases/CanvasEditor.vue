@@ -34,6 +34,7 @@ import { useCanvasDrawStyle } from '@/composables/useCanvasDrawStyle'
 import { useAnnotationEditing } from '@/composables/useAnnotationEditing'
 import { useCanvasHistory } from '@/composables/useCanvasHistory'
 import { useCanvasMapSettings } from '@/composables/useCanvasMapSettings'
+import { useMapPoiClickSuppression } from '@/composables/useMapPoiClickSuppression'
 import type { CanvasMapSettings } from '@/types/canvas.types'
 import CanvasContextMenu from '@/components/library/canvas/CanvasContextMenu.vue'
 import { useDrawOverlay } from '@/composables/useDrawOverlay'
@@ -104,6 +105,10 @@ import {
   ShapesIcon,
   UsersIcon,
 } from 'lucide-vue-next'
+
+// The editor owns map interaction even between drawing tools: basemap and
+// saved-place POIs must never navigate away from the canvas being edited.
+useMapPoiClickSuppression()
 
 const props = defineProps<{ id: string }>()
 

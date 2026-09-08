@@ -17,6 +17,7 @@ function placeService() {
   const loading = ref(false)
   const { toast } = useAppService()
   const placeCache = usePlaceCacheStore()
+  const inFlightPlaceRequests = new Map<string, Promise<Place | null>>()
 
   /**
    * Log a foreground place resolve into the user's (encrypted) recents.
@@ -49,12 +50,37 @@ function placeService() {
     queryParams: Record<string, string>,
     signal?: AbortSignal,
   ): Promise<Place | null> {
-    const response = await api.get<Place>('/places/details', {
-      params: queryParams,
-      signal,
-    })
-    placeCache.set(cacheKey, response.data)
-    return response.data
+    const pending = inFlightPlaceRequests.get(cacheKey)
+    if (pending) return pending
+
+    const request = api
+      .get<Place>('/places/details', { params: queryParams, signal })
+      .then(response => {
+        placeCache.set(cacheKey, response.data)
+        return response.data
+      })
+      .finally(() => inFlightPlaceRequests.delete(cacheKey))
+
+    inFlightPlaceRequests.set(cacheKey, request)
+    return request
+  }
+
+  /** Warm place details without changing the visible place or loading state. */
+  async function prefetchPlaceDetails(
+    id: string,
+    source: SourceId = SOURCE.OSM,
+  ) {
+    const queryParams = { source, id }
+    const cacheKey = buildPlaceCacheKey(queryParams)
+    const cached = placeCache.get(cacheKey)
+    if (cached && !placeCache.isStale(cached)) return cached.data
+
+    try {
+      return await fetchPlaceFromApi(cacheKey, queryParams)
+    } catch (error) {
+      if (!axios.isCancel(error)) console.warn('Place prefetch failed:', error)
+      return null
+    }
   }
 
   /**
@@ -329,6 +355,7 @@ function placeService() {
   return {
     currentPlace,
     loading,
+    prefetchPlaceDetails,
     fetchPlaceDetails,
     lookupPlace,
     lookupPlaceById,

@@ -12,6 +12,8 @@ import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { isTransitStopLayer } from '@/lib/transit.utils'
 import { useThemeStore } from '@/stores/theme.store'
+import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
+import { useMapToolsStore } from '@/stores/map-tools.store'
 
 export function useTransitLayersService() {
   const router = useRouter()
@@ -31,28 +33,35 @@ export function useTransitLayersService() {
     if (!mapStrategy?.mapInstance) return
 
     const handleClick = (event: any) => {
+      if (useMapToolsStore().rawClickCapture) return
       const feature = event.features?.[0]
       if (feature && feature.properties) {
         const onestopId =
           feature.properties.onestop_id || feature.properties.stop_id
         if (onestopId) {
-          router.push({
-            name: AppRoute.PLACE_PROVIDER,
-            params: {
-              provider: 'transitland',
-              placeId: onestopId,
-            },
+          mapStrategy.dispatchPoiClick(event, () => {
+            router.push({
+              name: AppRoute.PLACE_PROVIDER,
+              params: {
+                provider: 'transitland',
+                placeId: onestopId,
+              },
+            })
           })
         }
       }
     }
 
     const handleMouseEnter = () => {
-      mapStrategy.mapInstance.getCanvas().style.cursor = 'pointer'
+      if (mapPoiClickPolicy.enabled && !useMapToolsStore().rawClickCapture) {
+        mapStrategy.mapInstance.getCanvas().style.cursor = 'pointer'
+      }
     }
 
     const handleMouseLeave = () => {
-      mapStrategy.mapInstance.getCanvas().style.cursor = ''
+      if (!useMapToolsStore().rawClickCapture) {
+        mapStrategy.mapInstance.getCanvas().style.cursor = ''
+      }
     }
 
     // Add all handlers

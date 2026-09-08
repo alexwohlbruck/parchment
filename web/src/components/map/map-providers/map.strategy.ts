@@ -32,6 +32,20 @@ export class MapStrategy {
   protected touchStartPoint: { x: number; y: number } | null = null
   protected clickDebounceTimer: number | null = null
   private poiTapController: PoiTapController | null = null
+  private cancelPendingDoubleTapZoom = (event: {
+    originalEvent?: { type?: string; touches?: { length: number } }
+  }) => {
+    const touchEvent = event.originalEvent
+    if (touchEvent?.type !== 'touchmove' || touchEvent.touches?.length !== 1) {
+      return
+    }
+
+    const doubleClickZoom = this.mapInstance?.doubleClickZoom
+    if (!doubleClickZoom?.isEnabled?.()) return
+
+    doubleClickZoom.disable()
+    doubleClickZoom.enable()
+  }
 
   constructor(container, options: MapSettings, accessToken?: string) {
     this.container = container
@@ -124,9 +138,11 @@ export class MapStrategy {
   /** Attach the shared single/double/drag tap recognizer after map creation. */
   protected setupPoiClickHandling() {
     this.poiTapController?.destroy()
+    this.mapInstance.off?.('zoomstart', this.cancelPendingDoubleTapZoom)
     const element = this.mapInstance.getCanvasContainer?.()
       ?? this.mapInstance.getCanvas()
     this.poiTapController = new PoiTapController(element)
+    this.mapInstance.on?.('zoomstart', this.cancelPendingDoubleTapZoom)
   }
 
   /**
@@ -151,6 +167,7 @@ export class MapStrategy {
 
   protected destroyPoiClickHandling() {
     this.cancelPendingMapClick()
+    this.mapInstance?.off?.('zoomstart', this.cancelPendingDoubleTapZoom)
     this.poiTapController?.destroy()
     this.poiTapController = null
   }

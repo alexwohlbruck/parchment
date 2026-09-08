@@ -4,4 +4,16 @@
   command = "source ~/.nvm/nvm.sh && nvm install 22 && nvm use 22 && bun install && cd ../server && bun install --ignore-scripts && cd ../web && bun run build"
 
 [build.environment]
-  NODE_VERSION = "22" 
+  NODE_VERSION = "22"
+
+# The service worker must never be served stale, or updates take two visits
+# plus the previous worker's lifetime to reach users.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json" 

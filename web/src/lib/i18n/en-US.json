@@ -376,7 +376,11 @@
         "title": "Network error",
         "description": "Try connecting to a different {appName} server"
       },
-      "validation": "{type} error"
+      "validation": "{type} error",
+      "timeout": {
+        "title": "Request timed out",
+        "description": "The server is taking too long to respond"
+      }
     },
     "coordinatesCopied": "Coordinates copied to clipboard",
     "addressCopied": "Address copied to clipboard",

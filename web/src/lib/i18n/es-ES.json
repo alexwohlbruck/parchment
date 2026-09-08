@@ -370,7 +370,11 @@
         "title": "Error de red",
         "description": "Intenta conectarte a un servidor {appName} diferente"
       },
-      "validation": "Error de {type}"
+      "validation": "Error de {type}",
+      "timeout": {
+        "title": "Tiempo de espera agotado",
+        "description": "El servidor tarda demasiado en responder"
+      }
     },
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
     "addressCopied": "Dirección copiada al portapapeles",

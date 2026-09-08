@@ -172,10 +172,13 @@ async function bootstrapAuthenticatedUser() {
   if (authBootstrapped || !authStore.me) return
   authBootstrapped = true
 
-  // These calls return immediately if cached, refreshing data in background
-  await integrationService.fetchAvailableIntegrations()
+  // These calls return immediately if cached, refreshing data in background.
+  // Neither may abort the bootstrap: on an offline launch with no cache they
+  // reject instantly, and the steps below (and the realtime connect, which
+  // recovers everything once the network returns) still have to run.
+  await integrationService.fetchAvailableIntegrations().catch(() => {})
   // Load user-owned layers + default templates + user state sidecar
-  await layersStore.loadLayers()
+  await layersStore.loadLayers().catch(() => {})
   // Hydrate the full bookmark list. Covers frequents (standalone, in no
   // collection) and everything the saved-places map layer draws, neither of
   // which the per-collection hydrate would surface.

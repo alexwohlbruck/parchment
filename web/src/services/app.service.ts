@@ -1,4 +1,4 @@
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { useAppStore } from '@/stores/app.store'
 import {
   AutoFormDialogOptions,

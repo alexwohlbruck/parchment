@@ -23,6 +23,7 @@ import { ItemRow, ITEM_ROW_SIZES } from '@/components/ui/item-row'
  *  - `row`    full-width card; search results, saved lists, related places
  *  - `tile`   fixed-width card for horizontal scrollers (set the width via `class`)
  *  - `inline` borderless, for embedding inside another card (trip timelines)
+ *  - `plain`  no surface at all, for lists that draw their own structure
  *  - `chip`   single-line pill
  *
  * `size` scales the icon, type and padding together; `density` decides how many
@@ -36,7 +37,7 @@ const props = withDefaults(
     /** Pre-adapted record, for sources that are neither a Place nor a Bookmark. */
     display?: PlaceDisplay
 
-    variant?: 'row' | 'tile' | 'inline' | 'chip'
+    variant?: 'row' | 'tile' | 'inline' | 'plain' | 'chip'
     size?: 'xs' | 'sm' | 'md' | 'lg'
     /**
      * How much detail to show.
@@ -202,15 +203,19 @@ function onClick() {
       />
     </template>
 
-    <!-- Rating sits opposite the title rather than in the detail stack -->
-    <template v-if="showRating" #title-trailing>
-      <div class="flex items-center gap-1 shrink-0">
-        <StarIcon :class="scale.detailIcon" class="text-amber-500 fill-amber-500" />
-        <span class="text-xs font-medium text-foreground">{{ formattedRating }}</span>
-        <span v-if="item.reviewCount" class="text-xs text-muted-foreground">
-          ({{ item.reviewCount.toLocaleString() }})
-        </span>
-      </div>
+    <!-- Opposite the title rather than in the detail stack. The rating is what
+         normally sits here; a caller can claim the spot for something the card
+         can't derive — a trip timeline puts the arrival time there. -->
+    <template v-if="showRating || $slots['title-trailing']" #title-trailing>
+      <slot name="title-trailing">
+        <div class="flex items-center gap-1 shrink-0">
+          <StarIcon :class="scale.detailIcon" class="text-amber-500 fill-amber-500" />
+          <span class="text-xs font-medium text-foreground">{{ formattedRating }}</span>
+          <span v-if="item.reviewCount" class="text-xs text-muted-foreground">
+            ({{ item.reviewCount.toLocaleString() }})
+          </span>
+        </div>
+      </slot>
     </template>
 
     <template #details>

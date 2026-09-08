@@ -13,10 +13,12 @@ import type { Place } from '@/types/place.types'
 import { useGeocodingService } from './geocoding.service'
 import { getSearchResultName } from '@/lib/search.utils'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import { usePlaceService } from '@/services/place.service'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
   directionsQueryEquals,
+  shareableWaypointId,
 } from '@/lib/directions-url'
 
 const MIN_WAYPOINTS = 2
@@ -152,17 +154,20 @@ function directionsService() {
       const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
       const response: TripsResponse = {
         request: {
-          waypoints: validWaypoints.map((wp, i) => ({
-            id: `wp-${i}`,
-            coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
-            type:
-              i === 0 || i === validWaypoints.length - 1
-                ? WaypointType.STOP
-                : WaypointType.VIA,
-            name: (wp.place ? getSearchResultName(wp.place as Place) : '') || serverWaypoints[i]?.label || '',
-            // Pass through the full Place for POI rendering in the trip timeline
-            ...(wp.place ? { place: wp.place } : {}),
-          })),
+          waypoints: validWaypoints.map((wp, i) => {
+            const place = wp.place
+            return {
+              id: `wp-${i}`,
+              coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
+              type:
+                i === 0 || i === validWaypoints.length - 1
+                  ? WaypointType.STOP
+                  : WaypointType.VIA,
+              name: (place ? getSearchResultName(place as Place) : '') || serverWaypoints[i]?.label || '',
+              // Pass through the full Place for POI rendering in the trip timeline
+              ...(place ? { place } : {}),
+            }
+          }),
           availableVehicles: availableVehicles.map(v => v.type),
           maxOptions: 5,
           includeWalking: true,
@@ -366,6 +371,39 @@ function directionsService() {
   }
 
   /**
+   * Fill in everything a waypoint's place record is missing.
+   *
+   * A waypoint arrives holding whatever the surface that set it happened to
+   * know: an autocomplete row carries a name, coordinates and an icon; a
+   * shared link carries a name and an id. The trip timeline and the map
+   * markers render from that record, so a thin one shows a grey pin and a
+   * bare name where the place has a category, hours and a rating. Look the
+   * full record up in the background and swap it in — the place cache makes
+   * a repeat lookup free.
+   */
+  /**
+   * Ids already looked up. A waypoint's record is replaced by the lookup's
+   * result, which triggers the watcher again — and the surfaces that set
+   * waypoints do so on every keystroke-driven selection, so without this the
+   * same place would be fetched over and over.
+   */
+  const hydratedPlaceIds = new Set<string>()
+
+  async function hydrateWaypointPlace(index: number, placeId: string) {
+    const { lookupPlaceById } = usePlaceService()
+    const full = await lookupPlaceById(placeId)
+    if (!full) return
+
+    const current = waypoints.value[index]
+    // The waypoint may have moved on while the lookup was in flight.
+    if (current?.place?.id !== placeId) return
+
+    // The waypoint's own coordinates win: the user picked that point, and a
+    // POI's canonical centre can sit metres away from it.
+    store.setWaypoint(index, { ...current, place: full })
+  }
+
+  /**
    * Helper function to set a waypoint and reverse geocode if needed
    * This ensures consistent behavior across all waypoint-setting functions
    */
@@ -399,12 +437,6 @@ function directionsService() {
             place: place,
           }
           store.setWaypoint(index, updatedWaypoint)
-
-          // Patch the stored trip response if it already exists
-          const trips = store.trips
-          if (trips?.request?.waypoints?.[index]) {
-            trips.request.waypoints[index].name = getSearchResultName(place as Place)
-          }
         } else {
           console.log('[Directions] No reverse geocoding results found')
         }
@@ -529,6 +561,49 @@ function directionsService() {
     await setWaypointWithGeocoding(1, waypoint)
   }
 
+  // Every surface that sets a waypoint — the picker, a map click, a shared
+  // link, the place page's Directions button — routes through the store, so
+  // hydration hangs off the store rather than off each of them remembering to
+  // ask for it.
+  watch(
+    waypoints,
+    wps => {
+      wps.forEach((wp, index) => {
+        const id = wp.place?.id
+        if (!id || hydratedPlaceIds.has(id)) return
+        hydratedPlaceIds.add(id)
+        hydrateWaypointPlace(index, id)
+      })
+    },
+    { deep: true, immediate: true },
+  )
+
+  /**
+   * Keep the planned trip's stops pointing at the places the store now holds.
+   *
+   * A plan echoes back the waypoints it was built from, but a waypoint's place
+   * record keeps improving after the fact — reverse geocoding a dropped pin,
+   * looking up a stop restored from a link, filling in a thin autocomplete
+   * row. Whether that lands before the plan, during it, or against a cached
+   * plan restored whole, the trip has to end up rendering the record the user
+   * would see anywhere else, without re-planning the route to get it.
+   */
+  watch(
+    [waypoints, () => store.trips],
+    () => {
+      const planned = store.trips?.request?.waypoints
+      if (!planned) return
+      const settled = waypoints.value.filter(wp => wp.lngLat)
+      planned.forEach((entry, i) => {
+        const place = settled[i]?.place
+        if (!place || entry.place === place) return
+        entry.place = place
+        entry.name = getSearchResultName(place as Place)
+      })
+    },
+    { deep: true, immediate: true },
+  )
+
   // ── Shareable URL state ─────────────────────────────────────────────
   // Directions inputs live in the query string (?wp=lat,lng,label&mode=…)
   // so links can be bookmarked, shared, and reproduced exactly.
@@ -540,12 +615,15 @@ function directionsService() {
     const state = parseDirectionsQuery(route.query)
     if (!state) return false
 
+    // A shared link carries a label and, where the waypoint had one, a place
+    // id. The stub renders immediately; the id (when present) then fetches the
+    // real record so a reloaded trip looks like the one that was planned.
     const wps = state.waypoints.map((w, i) => ({
       lngLat: new LngLat(w.lng, w.lat),
-      place: w.label
+      place: w.label || w.id
         ? ({
-            id: `shared-wp-${i}`,
-            name: { value: w.label },
+            id: w.id || `shared-wp-${i}`,
+            name: { value: w.label ?? '' },
             geometry: {
               value: { type: 'point', center: { lat: w.lat, lng: w.lng } },
             },
@@ -574,13 +652,14 @@ function directionsService() {
           lat: w.lngLat!.lat,
           lng: w.lngLat!.lng,
           label: (w.place ? getSearchResultName(w.place as Place) : '') || undefined,
+          id: shareableWaypointId(w.place),
         })),
       mode: selectedMode.value,
       sort: sortPreference.value || undefined,
       depart: departureTime.value || undefined,
     })
     if (directionsQueryEquals(q, route.query)) return
-    const { wp: _wp, mode: _mode, sort: _sort, depart: _depart, ...rest } = route.query
+    const { wp: _wp, wpid: _wpid, mode: _mode, sort: _sort, depart: _depart, ...rest } = route.query
     router.replace({ query: { ...rest, ...q } }).catch(() => {})
   }
 

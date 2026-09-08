@@ -31,6 +31,9 @@ import SeeAllBrand from './SeeAllBrand.vue'
 import PlaceDisplayChips from './PlaceDisplayChips.vue'
 import PanelLayout from '@/components/layouts/PanelLayout.vue'
 import SheetPageHost from './SheetPageHost.vue'
+import { EmptyState } from '@/components/ui/empty-state'
+import { useConnectivity } from '@/composables/useConnectivity'
+import { MapPinOffIcon } from 'lucide-vue-next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useI18n } from 'vue-i18n'
 import { providePlaceTabs } from '@/composables/usePlaceTabs'
@@ -40,6 +43,10 @@ const props = defineProps<{
   place: Partial<Place> | null
   loading: boolean
 }>()
+
+const emit = defineEmits<{ retry: [] }>()
+
+const { isOffline } = useConnectivity()
 
 // The collapsed (peek) detent fits the header + actions + chips — everything
 // below is revealed on expand. No-op on desktop / non-dynamic sheets.
@@ -392,6 +399,18 @@ function handleBrandLogoError() {
           </template>
         </div>
       </template>
+
+      <!-- Nothing to show: offline with no cached copy of this place, or a
+           place that genuinely couldn't be loaded. Without this the panel
+           rendered blank. -->
+      <EmptyState
+        v-else-if="!loading"
+        :icon="MapPinOffIcon"
+        :title="t('place.unavailable.title')"
+        :description="t('place.unavailable.description')"
+        :offline="isOffline"
+        @retry="emit('retry')"
+      />
     </PanelLayout>
   </SheetPageHost>
 </template>

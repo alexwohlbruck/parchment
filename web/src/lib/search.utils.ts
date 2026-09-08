@@ -200,22 +200,55 @@ export function getSearchResultTypeIcon(type: SearchResultType): Component {
 }
 
 /**
+ * Everything an autocomplete row knows that a `Place` can hold.
+ *
+ * Autocomplete rows are deliberately thin — the server sends only what a
+ * suggestion list needs — but the record they become is what downstream
+ * surfaces render from, so anything the row does carry (its resolved icon,
+ * category colour, transit refs) has to survive the conversion. Dropping
+ * them here is what left a waypoint picked from the directions input with a
+ * grey pin instead of its own POI glyph.
+ */
+function autocompleteIcon(result: AutocompleteResult) {
+  if (!result.icon) return undefined
+  return {
+    icon: result.icon,
+    iconPack: result.iconPack ?? 'lucide',
+    category: (result.iconCategory as PlaceCategory) ?? 'default',
+  }
+}
+
+/** Transit refs, present only on GTFS line / stop suggestions. */
+function autocompleteTransit(result: AutocompleteResult) {
+  return {
+    ...(result.transitLine ? { transitLine: result.transitLine } : {}),
+    ...(result.transitStop ? { transitStop: result.transitStop } : {}),
+  }
+}
+
+/**
  * Convert an AutocompleteResult object to a legacy Place object for compatibility
  */
 export function autocompleteResultToPlace(result: AutocompleteResult): Place {
-  if (result.type === 'bookmark') {
-    return {
-      id: result.id,
-      name: { value: result.title },
-      geometry: {
-        value: {
-          type: 'point',
-          center: {
-            lat: result.lat,
-            lng: result.lng,
-          },
+  const shared = {
+    geometry: {
+      value: {
+        type: 'point',
+        center: {
+          lat: result.lat,
+          lng: result.lng,
         },
       },
+    },
+    icon: autocompleteIcon(result),
+    ...autocompleteTransit(result),
+  }
+
+  if (result.type === 'bookmark') {
+    return {
+      ...shared,
+      id: result.id,
+      name: { value: result.title },
       externalIds: {},
       address: result.description
         ? { value: { formatted: result.description } }
@@ -232,36 +265,33 @@ export function autocompleteResultToPlace(result: AutocompleteResult): Place {
 
   if (result.type === 'current_location') {
     return {
+      ...shared,
       id: 'current-location',
       name: { value: result.title },
-      geometry: {
-        value: {
-          type: 'point',
-          center: {
-            lat: result.lat,
-            lng: result.lng,
-          },
-        },
-      },
       externalIds: {},
       address: null,
       placeType: { value: 'current_location' },
     } as unknown as Place
   }
 
+  if (result.type === 'transit_stop' || result.type === 'transit_route') {
+    return {
+      ...shared,
+      id: result.id,
+      name: { value: result.title },
+      externalIds: {},
+      address: result.description
+        ? { value: { formatted: result.description } }
+        : null,
+      placeType: { value: result.type },
+    } as unknown as Place
+  }
+
   // Default for 'place' type and fallback
   return {
+    ...shared,
     id: result.id,
     name: { value: result.title },
-    geometry: {
-      value: {
-        type: 'point',
-        center: {
-          lat: result.lat,
-          lng: result.lng,
-        },
-      },
-    },
     externalIds: {},
     address: result.description
       ? { value: { formatted: result.description } }

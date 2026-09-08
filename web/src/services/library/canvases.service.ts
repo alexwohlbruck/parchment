@@ -1,6 +1,20 @@
 import { createSharedComposable } from '@vueuse/core'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { api } from '@/lib/api'
+import { isOffline } from '@/lib/connectivity'
+import {
+  getNetworkErrorKind,
+  isRetriableNetworkError,
+} from '@/lib/network-errors'
+import { newOfflineId } from '@/lib/sync/offline-id'
+import { useSyncStore } from '@/stores/sync.store'
+import { i18n } from '@/lib/i18n'
+import type {
+  CreateCanvasMutation,
+  DeleteCanvasMutation,
+  SaveCanvasBodyMutation,
+  UpdateCanvasMutation,
+} from './canvases.sync'
 import { getSeed } from '@/lib/key-storage'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
@@ -100,6 +114,9 @@ async function hydrateCanvas(
 }
 
 export const useCanvasesService = createSharedComposable(() => {
+  const syncStore = useSyncStore()
+  const t = (key: string, named?: Record<string, unknown>) =>
+    (i18n.global as any).t(key, named ?? {})
   const canvasesStore = useCanvasesStore()
   const authStore = useAuthStore()
 
@@ -192,40 +209,90 @@ export const useCanvasesService = createSharedComposable(() => {
     }
   }
 
+  /**
+   * The server side of creating a canvas, with no offline handling — used
+   * directly when online, and replayed from the sync queue for one created
+   * offline. The metadata envelope derives from the id the server mints, so
+   * this can only run with a connection; that's why an offline create is
+   * deferred whole rather than partially prepared.
+   */
+  async function replayCreate(
+    params: CreateCanvasParams,
+  ): Promise<Canvas> {
+    const scheme = params.scheme ?? 'server-key'
+      // An e2ee canvas can't be finished without a key, and failing after the
+      // POST would leave an unnamed orphan row behind — so check first.
+    // An e2ee canvas can't be finished without a key, and failing after the
+    // POST would leave an unnamed orphan row behind — so check first.
+    if (scheme === 'user-e2ee') await requireIdentity()
+
+    // 1. Mint the row — the id is what the per-canvas keys derive from.
+    const { data: created } = await api.post('/library/canvases', { scheme })
+    const canvas = created as Canvas
+
+    // 2. Fill it with the metadata and an empty body.
+    const metadata = await buildMetadataPayload(canvas.id, scheme, {
+      name: params.name,
+      description: params.description,
+      icon: params.icon,
+      iconColor: params.iconColor,
+    })
+    const content = await buildContentPayload(
+      canvas.id,
+      scheme,
+      emptyCanvasBody(),
+    )
+    const { data: filled } = await api.put(
+      `/library/canvases/${canvas.id}`,
+      { ...metadata, ...content },
+    )
+
+    const hydrated = await hydrateCanvas(filled as Canvas, authStore.me?.id)
+    canvasesStore.upsertCanvas(hydrated)
+    return hydrated
+  }
+
+  /** Build the local stand-in for a canvas created without a connection. */
+  function localCanvas(params: CreateCanvasParams): Canvas {
+    const now = new Date().toISOString()
+    return {
+      id: newOfflineId(),
+      name: params.name,
+      description: params.description,
+      icon: params.icon,
+      iconColor: params.iconColor,
+      scheme: params.scheme ?? 'server-key',
+      userId: authStore.me?.id ?? '',
+      createdAt: now,
+      updatedAt: now,
+      body: emptyCanvasBody(),
+    } as unknown as Canvas
+  }
+
   async function createCanvas(
     params: CreateCanvasParams,
   ): Promise<Canvas | null> {
+    // Offline: keep the canvas locally under a temporary id and let the
+    // queue create it for real on reconnect.
+    function createOffline(): Canvas {
+      const canvas = localCanvas(params)
+      canvasesStore.upsertCanvas(canvas)
+      syncStore.enqueue(
+        'canvas:create',
+        { tempId: canvas.id, params } satisfies CreateCanvasMutation,
+        t('offline.sync.labels.create', { name: params.name }),
+      )
+      return canvas
+    }
+
+    if (isOffline.value) return createOffline()
+
     try {
-      const scheme = params.scheme ?? 'server-key'
-      // An e2ee canvas can't be finished without a key, and failing after the
-      // POST would leave an unnamed orphan row behind — so check first.
-      if (scheme === 'user-e2ee') await requireIdentity()
-
-      // 1. Mint the row — the id is what the per-canvas keys derive from.
-      const { data: created } = await api.post('/library/canvases', { scheme })
-      const canvas = created as Canvas
-
-      // 2. Fill it with the metadata and an empty body.
-      const metadata = await buildMetadataPayload(canvas.id, scheme, {
-        name: params.name,
-        description: params.description,
-        icon: params.icon,
-        iconColor: params.iconColor,
-      })
-      const content = await buildContentPayload(
-        canvas.id,
-        scheme,
-        emptyCanvasBody(),
-      )
-      const { data: filled } = await api.put(
-        `/library/canvases/${canvas.id}`,
-        { ...metadata, ...content },
-      )
-
-      const hydrated = await hydrateCanvas(filled as Canvas, authStore.me?.id)
-      canvasesStore.upsertCanvas(hydrated)
-      return hydrated
+      return await replayCreate(params)
     } catch (error) {
+      if (isRetriableNetworkError(getNetworkErrorKind(error))) {
+        return createOffline()
+      }
       console.error('Failed to create canvas', error)
       toast.error(
         error instanceof Error && error.message.includes('seed')
@@ -237,10 +304,53 @@ export const useCanvasesService = createSharedComposable(() => {
   }
 
   /** Rename / re-icon a canvas. Rewrites the metadata envelope. */
+  /** Server side of a metadata save; replayed from the queue when offline. */
+  async function replayUpdateMetadata(
+    canvasId: string,
+    metadata: CanvasMetadata,
+  ): Promise<Canvas> {
+    const canvas =
+      canvasesStore.canvases.find(c => c.id === canvasId) ??
+      ({ id: canvasId, scheme: 'server-key' } as Canvas)
+    const merged: CanvasMetadata = {
+      name: canvas.name,
+      description: canvas.description,
+      icon: canvas.icon ?? undefined,
+      iconColor: canvas.iconColor ?? undefined,
+      ...metadata,
+    }
+    const payload = await buildMetadataPayload(canvas.id, canvas.scheme, merged)
+    const { data } = await api.put(`/library/canvases/${canvas.id}`, payload)
+    const hydrated = await hydrateCanvas(data as Canvas, authStore.me?.id)
+    // The server sends back only what it stores, so the decrypted body we
+    // already hold has to be carried across.
+    hydrated.body = canvas.body
+    canvasesStore.upsertCanvas(hydrated)
+    return hydrated
+  }
+
   async function updateMetadata(
     canvas: Canvas,
     metadata: CanvasMetadata,
   ): Promise<Canvas | null> {
+    // Offline: apply the rename locally and queue the save.
+    function updateOffline(): Canvas {
+      const updated = {
+        ...canvas,
+        ...metadata,
+        updatedAt: new Date().toISOString(),
+      } as Canvas
+      canvasesStore.upsertCanvas(updated)
+      syncStore.enqueue(
+        'canvas:update',
+        { id: canvas.id, metadata, previous: canvas } satisfies UpdateCanvasMutation,
+        t('offline.sync.labels.update', { name: updated.name ?? '' }),
+      )
+      return updated
+    }
+
+    if (isOffline.value) return updateOffline()
+
     try {
       const merged: CanvasMetadata = {
         name: canvas.name,
@@ -261,17 +371,56 @@ export const useCanvasesService = createSharedComposable(() => {
       hydrated.body = canvas.body
       canvasesStore.upsertCanvas(hydrated)
       return hydrated
-    } catch {
+    } catch (error) {
+      if (isRetriableNetworkError(getNetworkErrorKind(error))) {
+        return updateOffline()
+      }
       toast.error('Failed to save canvas')
       return null
     }
   }
 
   /** Persist the layer stack. */
+  /** Server side of a body save; replayed from the queue when offline. */
+  async function replaySaveBody(
+    canvasId: string,
+    body: CanvasBody,
+  ): Promise<Canvas> {
+    const canvas =
+      canvasesStore.canvases.find(c => c.id === canvasId) ??
+      ({ id: canvasId, scheme: 'server-key' } as Canvas)
+    const content = await buildContentPayload(canvas.id, canvas.scheme, body)
+    const { data } = await api.put(`/library/canvases/${canvas.id}`, content)
+    const hydrated = await hydrateCanvas(data as Canvas, authStore.me?.id)
+    hydrated.body = body
+    canvasesStore.upsertCanvas(hydrated)
+    return hydrated
+  }
+
   async function saveBody(
     canvas: Canvas,
     body: CanvasBody,
   ): Promise<Canvas | null> {
+    // Offline: the edit lives in the (persisted) store, and one queued save
+    // per canvas carries the latest body to the server on reconnect.
+    function saveOffline(): Canvas {
+      const updated = {
+        ...canvas,
+        body,
+        updatedAt: new Date().toISOString(),
+      } as Canvas
+      canvasesStore.upsertCanvas(updated)
+      syncStore.enqueueLatest(
+        'canvas:saveBody',
+        `canvas:saveBody:${canvas.id}`,
+        { id: canvas.id, body } satisfies SaveCanvasBodyMutation,
+        t('offline.sync.labels.update', { name: canvas.name ?? '' }),
+      )
+      return updated
+    }
+
+    if (isOffline.value) return saveOffline()
+
     try {
       const content = await buildContentPayload(canvas.id, canvas.scheme, body)
       const { data } = await api.put(
@@ -282,7 +431,10 @@ export const useCanvasesService = createSharedComposable(() => {
       hydrated.body = body
       canvasesStore.upsertCanvas(hydrated)
       return hydrated
-    } catch {
+    } catch (error) {
+      if (isRetriableNetworkError(getNetworkErrorKind(error))) {
+        return saveOffline()
+      }
       toast.error('Failed to save canvas')
       return null
     }
@@ -385,12 +537,38 @@ export const useCanvasesService = createSharedComposable(() => {
     }
   }
 
+  /** Server side of a delete; replayed from the queue when offline. */
+  async function replayDelete(id: string): Promise<void> {
+    await api.delete(`/library/canvases/${id}`)
+    canvasesStore.removeCanvas(id)
+  }
+
   async function deleteCanvas(id: string): Promise<boolean> {
-    try {
-      await api.delete(`/library/canvases/${id}`)
+    const existing = canvasesStore.canvases.find(c => c.id === id)
+
+    function deleteOffline(): boolean {
       canvasesStore.removeCanvas(id)
+      // A canvas that only ever existed locally just disappears — its
+      // create is dropped from the queue rather than round-tripped.
+      if (!syncStore.cancelPendingCreate('canvas:create', id)) {
+        syncStore.enqueue(
+          'canvas:delete',
+          { id, previous: existing } satisfies DeleteCanvasMutation,
+          t('offline.sync.labels.delete', { name: existing?.name ?? '' }),
+        )
+      }
       return true
-    } catch {
+    }
+
+    if (isOffline.value) return deleteOffline()
+
+    try {
+      await replayDelete(id)
+      return true
+    } catch (error) {
+      if (isRetriableNetworkError(getNetworkErrorKind(error))) {
+        return deleteOffline()
+      }
       toast.error('Failed to delete canvas')
       return false
     }
@@ -401,6 +579,10 @@ export const useCanvasesService = createSharedComposable(() => {
     fetchCanvases,
     fetchCanvasById,
     createCanvas,
+    replayCreate,
+    replayUpdateMetadata,
+    replaySaveBody,
+    replayDelete,
     updateMetadata,
     saveBody,
     changeScheme,

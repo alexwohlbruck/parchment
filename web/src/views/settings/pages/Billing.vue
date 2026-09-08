@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ExternalLink, AlertCircle } from 'lucide-vue-next'
 import { useSubscriptionService } from '@/services/subscription.service'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import PlanSelector from '@/components/subscription/PlanSelector.vue'
 
 const { t } = useI18n()

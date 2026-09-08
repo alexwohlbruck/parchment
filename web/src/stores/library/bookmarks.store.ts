@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Bookmark } from '@/types/library.types'
+import { isOfflineId } from '@/lib/sync/offline-id'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 
 export const useBookmarksStore = defineStore('bookmarks', () => {
@@ -30,7 +31,27 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
   })
 
   function setBookmarks(places: Bookmark[]) {
-    bookmarks.value = places
+    // A wholesale refresh from the server must not erase rows created
+    // offline — their queued creates haven't replayed yet, so the server
+    // doesn't know about them.
+    const offlineRows = bookmarks.value.filter(
+      b => isOfflineId(b.id) && !places.some(p => p.id === b.id),
+    )
+    bookmarks.value = [...places, ...offlineRows]
+  }
+
+  /**
+   * Swap an offline-created row for the server's version once its queued
+   * create replays, carrying the id change into collection membership.
+   */
+  function replaceBookmark(oldId: string, bookmark: Bookmark) {
+    const index = bookmarks.value.findIndex(b => b.id === oldId)
+    if (index !== -1) {
+      bookmarks.value[index] = mergeBookmark(bookmark, bookmarks.value[index])
+    } else {
+      addBookmark(bookmark)
+    }
+    collectionsStore.remapBookmarkId(oldId, bookmark.id)
   }
 
 /**
@@ -89,6 +110,7 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     setBookmarks,
     addBookmark,
     updateBookmark,
+    replaceBookmark,
     removeBookmark,
   }
 })

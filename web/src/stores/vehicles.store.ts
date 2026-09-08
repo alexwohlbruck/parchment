@@ -1,11 +1,18 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { useStorage } from '@vueuse/core'
 import { api } from '@/lib/api'
+import {
+  getNetworkErrorKind,
+  isQuietNetworkError,
+} from '@/lib/network-errors'
 import type { UserVehicle, LocationStaleness } from '@/types/multimodal.types'
 import { getRoutingMode } from '@/lib/vehicle-mode-mapping'
 
 export const useVehiclesStore = defineStore('vehicles', () => {
-  const vehicles = ref<UserVehicle[]>([])
+  // Persisted: trip planning reads these, and a cold or offline start
+  // otherwise has no vehicles at all.
+  const vehicles = useStorage<UserVehicle[]>('vehicles', [])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -49,8 +56,10 @@ export const useVehiclesStore = defineStore('vehicles', () => {
     error.value = null
     try {
       const { data } = await api.get<{ vehicles: UserVehicle[] }>('/vehicles/')
-      vehicles.value = data.vehicles
+      vehicles.value = data.vehicles ?? []
     } catch (e: any) {
+      // Offline isn't an error to show — the cached list stands.
+      if (isQuietNetworkError(getNetworkErrorKind(e))) return
       error.value = e.message || 'Failed to fetch vehicles'
     } finally {
       loading.value = false

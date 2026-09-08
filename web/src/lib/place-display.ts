@@ -2,6 +2,7 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { Place, PlaceCategory } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import type { RecentPlaceEntry, RecentSearchEntry } from '@/lib/recents'
+import type { AutocompleteResult } from '@/types/search.types'
 import type { ThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
 import { getPlaceRoute, getPlaceRouteFromExternalIds, getTransitStopRoute, formatAddress } from '@/lib/place.utils'
@@ -252,6 +253,106 @@ export function recentSearchToDisplay(
     imageUrl: entry.brandLogoUrl ?? null,
     route: recentSearchRoute(entry),
   })
+}
+
+/**
+ * An autocomplete suggestion. Thin by design — a title, a description and an
+ * icon — so most detail lines are simply unavailable; the description is the
+ * one subtitle the row carries.
+ *
+ * Adapting here rather than at the call site is what lets the directions
+ * waypoint picker draw the same rows as search: a maki glyph stays a maki
+ * glyph, and a category keeps its colour.
+ */
+export function autocompleteToDisplay(
+  result: AutocompleteResult,
+  { isDark }: Pick<PlaceDisplayOptions, 'isDark'>,
+): PlaceDisplay {
+  const isCurrentLocation = result.type === 'current_location'
+
+  return makePlaceDisplay({
+    title: result.title,
+    icon: isCurrentLocation ? 'Locate' : result.icon || 'MapPin',
+    iconPack: result.iconPack ?? 'lucide',
+    // A bookmark's colour is fixed by its type and set on the row itself;
+    // everything else takes its category's colour, as search results do.
+    ...(result.color && result.type === 'bookmark'
+      ? { color: result.color as ThemeColor }
+      : {
+          customColor: getCategoryColor(
+            (result.iconCategory || 'default') as PlaceCategory,
+            isDark,
+          ),
+        }),
+    address: result.description ?? null,
+  })
+}
+
+/**
+ * Place types that name a point rather than a place: a plain address, a
+ * dropped pin, a coordinate, a link's own stub. They have no identity to draw
+ * an icon from — the surface showing them says "a stop is here" some other
+ * way, with a start ring or an ordinal.
+ */
+const POINT_PLACE_TYPES = new Set([
+  'area',
+  'address',
+  'coordinates',
+  'shared_location',
+  'current_location',
+])
+
+/**
+ * A directions waypoint.
+ *
+ * Every surface that draws a stop — the waypoint inputs, the trip timeline,
+ * the map markers — has to make the same three-way call: does this stop have
+ * an icon of its own, is it your current position, or is it just a point? They
+ * used to each decide separately, and drifted: a stop drawn as a restaurant on
+ * the map was a numbered disc in the input.
+ *
+ * `ownIcon` says whether `display.icon` is the stop's own, so a caller can
+ * fall back to its own start/stop marks rather than draw a generic pin.
+ */
+export function waypointToDisplay(
+  place: Partial<Place> | null | undefined,
+  { isDark, t, fallbackTitle = '' }: PlaceDisplayOptions & { fallbackTitle?: string },
+): { display: PlaceDisplay; ownIcon: boolean } {
+  if (place?.id === 'current-location') {
+    return {
+      display: makePlaceDisplay({
+        title: place.name?.value || t('directions.currentLocation'),
+        icon: 'Locate',
+      }),
+      ownIcon: true,
+    }
+  }
+
+  const type = place?.placeType?.value?.toLowerCase?.().trim()
+  const isPoint = !place?.id || (!!type && POINT_PLACE_TYPES.has(type))
+
+  if (isPoint) {
+    return {
+      display: makePlaceDisplay({
+        title:
+          (place ? getSearchResultName(place as Place) : '') || fallbackTitle,
+        icon: 'MapPin',
+        // Spelled out rather than left to whatever each surface defaults to:
+        // `ItemIcon` falls back to cobalt, so an unstyled pin came out blue in
+        // the timeline while the same stop was a neutral plate on the map. The
+        // uncategorised colour is what the marker system already paints a
+        // place it can't categorise.
+        customColor: getCategoryColor('default', isDark),
+      }),
+      ownIcon: false,
+    }
+  }
+
+  const display = placeToDisplay(place as Place, { isDark, t })
+  return {
+    display: display.title ? display : { ...display, title: fallbackTitle },
+    ownIcon: true,
+  }
 }
 
 /**

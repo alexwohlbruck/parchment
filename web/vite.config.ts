@@ -2,6 +2,7 @@ import path from 'path'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig, type Plugin } from 'vite'
 import svgLoader from 'vite-svg-loader'
+import { VitePWA } from 'vite-plugin-pwa'
 import { readFileSync } from 'fs'
 import { createRequire } from 'module'
 
@@ -77,6 +78,51 @@ export default defineConfig({
     }),
     maplibreWorkerChunk(),
     previewTitle(),
+    // Offline-capable PWA. Custom worker (src/sw.ts) precaches only the app
+    // shell — the full dist is ~24MB across 1600+ files, mostly lazy chunks
+    // that runtime caching picks up as they're used. Registration happens in
+    // src/lib/pwa.ts (production web only, not Tauri).
+    VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      registerType: 'autoUpdate',
+      injectRegister: false,
+      manifest: {
+        name: 'Parchment',
+        short_name: 'Parchment',
+        description: 'Maps, places, directions, and transit',
+        id: '/',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#ffffff',
+        theme_color: '#ffffff',
+        icons: [
+          { src: '/icons/pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/pwa-512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: '/icons/maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      injectManifest: {
+        globPatterns: [
+          'index.html',
+          'assets/index-*.{js,css}',
+          'assets/maplibre-gl-*.mjs',
+          'favicon.svg',
+          'parchment.svg',
+          'icons/*.png',
+        ],
+        // The single entry chunk is ~8MB; the default 2MB cap would silently
+        // drop it from the precache and break offline startup.
+        maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
+      },
+    }),
   ],
   resolve: {
     alias: {

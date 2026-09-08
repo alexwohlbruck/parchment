@@ -45,8 +45,12 @@ const VARIANT: Record<MarkerShape, 'solid' | 'ghost'> = {
   glyph: 'ghost',
 }
 
-/** The halo behind a bare glyph, per flavor — the basemap's own `poi_halo`. */
-const GLYPH_HALO = { light: '#FFFFFF', dark: '#0D0D0D' }
+/**
+ * The halo behind a bare glyph or a marker's label, per flavor — the basemap's
+ * own `poi_halo`. Exported because a DOM label has to draw the same halo the
+ * style layer does, and two copies of it drift.
+ */
+export const MARKER_HALO = { light: '#FFFFFF', dark: '#0D0D0D' }
 
 /**
  * The plate, glyph and ring a colour tints to for a given marker shape.
@@ -60,7 +64,7 @@ export function markerPaint(
   shape: MarkerShape,
   isDark: boolean,
 ): MarkerPaint {
-  const halo = isDark ? GLYPH_HALO.dark : GLYPH_HALO.light
+  const halo = isDark ? MARKER_HALO.dark : MARKER_HALO.light
   const tint = getCustomColorTint(color, VARIANT[shape], isDark)
 
   if (shape === 'glyph') {

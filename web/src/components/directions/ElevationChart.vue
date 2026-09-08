@@ -482,10 +482,13 @@ const activeSummary = computed(() =>
     </div>
 
     <!-- Chart area -->
+    <!-- `isolate`: the badges and the hover rule inside stack against the
+         chart, not against the page. Without it their z-20 tied with the
+         sheet's sticky header and painted over it. -->
     <div
       v-if="hasElevationData"
       ref="chartContainerRef"
-      class="relative cursor-crosshair select-none rounded-lg bg-muted/30 overflow-hidden"
+      class="relative isolate cursor-crosshair select-none rounded-lg bg-muted/30 overflow-hidden"
       @mousemove="onMouseMove"
       @mouseleave="onMouseLeave"
     >

@@ -33,7 +33,12 @@
 - If a Linear ticket was linked for the relevant work, update the status of the ticket as work progresses.
 - Use `bun` over `npm` for package management.
 - Commit messages: short (5-20 words), distinct logical commits.
-- Keep code structure clean, modular, and dry. Use concise, straightforward naming conventions and move code to appropriate modules when it isn't in the correct place. Add comments ONLY when the code is not intuitive at a glance or to convey important context/information. Do not write paragraphs of comments explaning each iterative change.
+- Keep code structure clean, modular, and dry. Use concise, straightforward naming conventions and move code to appropriate modules when it isn't in the correct place.
+- Comments are a last resort, not a deliverable. Default to none: clear names and small functions carry the meaning. Write one only when the code cannot say it itself — a non-obvious constraint, a gotcha in an external API, a why that the how doesn't show.
+  - Hard cap: one or two lines. If it needs a paragraph, the code needs the work instead.
+  - Never narrate the change: no "used to be X", no bug history, no explaining the fix to a reviewer. That belongs in the commit message and the PR body, which are the durable record. A comment that only makes sense next to the diff is dead the moment the diff lands.
+  - Never restate the code, the test name, or the function name in prose.
+  - Do not match the comment density of a heavily-commented file. Some existing files over-comment; that is not the standard to copy.
 - "Modules" represent all code components for a single entity. Users, directions, search, settings, etc are all modules. These module identities are represented throught the codebase and should contain related UI, data, and business logic for that entity. Make sure to keep new and old code nicely modularized.
 - Offer to refactor malformed code when we come across any. This is anything that doesn't follow our normal conventions or industry practices.
 - When we add new features, integrations, modules, etc, update the relevant documentation in the sibiling `parchment-docs` repo.

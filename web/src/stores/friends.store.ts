@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { useStorage } from '@vueuse/core'
 import {
   getFriends,
   getInvitations,
@@ -19,10 +20,18 @@ import { useIdentityStore } from './identity.store'
 export const useFriendsStore = defineStore('friends', () => {
   const identityStore = useIdentityStore()
 
-  // State
-  const friends = ref<Friendship[]>([])
-  const incomingInvitations = ref<FriendInvitation[]>([])
-  const outgoingInvitations = ref<FriendInvitation[]>([])
+  // State. Persisted so the friends list renders on a cold or offline
+  // start instead of appearing empty until the fetch lands; every write
+  // below only assigns on success, so the cache survives a failed refresh.
+  const friends = useStorage<Friendship[]>('friends', [])
+  const incomingInvitations = useStorage<FriendInvitation[]>(
+    'friend-invitations-incoming',
+    [],
+  )
+  const outgoingInvitations = useStorage<FriendInvitation[]>(
+    'friend-invitations-outgoing',
+    [],
+  )
   const isLoading = ref(false)
   const resolvedUsers = ref<Map<string, RemoteUserInfo>>(new Map())
 

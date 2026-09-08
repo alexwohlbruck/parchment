@@ -2,8 +2,33 @@
 
 ### Added
 
+* Parchment installs as an app and opens without a connection — your screens
+  and recently viewed map areas keep working offline, including ones you
+  haven't opened yet this session
+* Saving places, and creating, renaming, editing and deleting canvases and
+  routes, all work offline: changes apply immediately and sync when the
+  connection returns. A quiet sidebar chip shows what's pending, syncing or
+  failed, with per-change cancel and retry
+
 ### Changed
 
+* Being offline is no longer an error: instead of error messages, the screen
+  you're on says "You're offline" and offers to try again, and everything
+  resumes on its own when the connection returns
+* Failed requests now say what actually went wrong — offline, server
+  unreachable, or timed out — instead of one generic "Network error", and
+  repeated connection errors collapse into a single message
+
+### Fixed
+
+* Launching the app offline no longer signs you out and wipes your cached
+  library
+* Offline, the collection picker shows which collections a place is already
+  saved to, instead of appearing to be in none
+* Changing which collections a place belongs to no longer corrupts the
+  stored contents of a collection
+* Your friends, vehicles and recent searches are kept on the device, so they
+  are there on a cold or offline start
 * A trip's timeline draws each stop as the place it is — the POI's own icon on
   the route line, its name and type beside it, and the scheduled time
 * Route stops wear their own POI icon everywhere they appear — the waypoint
@@ -13,12 +38,8 @@
   so it reads as a value rather than typed-in text
 * "Details" and "Advanced" toggles are big enough to tap on a phone
 * A trip's duration and times stay pinned while its timeline scrolls
-
-### Fixed
-
 * On mobile, the layer and locate buttons stay reachable when a sheet is open —
   they ride its top edge instead of hiding behind it
-
 * A shared directions link keeps what each stop actually is. Reloading one
   used to leave every stop as a bare name
 * Escape closes a trip's details on the first press. It used to take two — the

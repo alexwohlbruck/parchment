@@ -370,7 +370,11 @@
         "title": "Error de red",
         "description": "Intenta conectarte a un servidor {appName} diferente"
       },
-      "validation": "Error de {type}"
+      "validation": "Error de {type}",
+      "timeout": {
+        "title": "Tiempo de espera agotado",
+        "description": "El servidor tarda demasiado en responder"
+      }
     },
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
     "addressCopied": "Dirección copiada al portapapeles",
@@ -1404,6 +1408,10 @@
       "previousPhoto": "Foto anterior",
       "nextPhoto": "Foto siguiente",
       "failedToLoad": "No se pudo cargar la imagen"
+    },
+    "unavailable": {
+      "title": "Lugar no disponible",
+      "description": "No pudimos cargar este lugar"
     }
   },
   "settings": {
@@ -2454,7 +2462,8 @@
       "destination": "Dónde van las nuevas marcas",
       "canvas": "Lienzo",
       "delete": "Eliminar grupo"
-    }
+    },
+    "savedLocally": "Guardado en este dispositivo · se respaldará al reconectar"
   },
   "colors": {
     "compass": "Brújula",
@@ -2485,6 +2494,38 @@
       "lucide": "Lucide",
       "maki": "Maki",
       "color": "Color"
+    }
+  },
+  "offline": {
+    "badge": "Sin conexión",
+    "reconnecting": "Reconectando…",
+    "emptyState": {
+      "title": "Estás sin conexión",
+      "description": "Vuelve a conectarte para ver esto",
+      "descriptionCreatable": "Lo que crees ahora se sincronizará cuando vuelvas a estar en línea"
+    },
+    "retry": "Reintentar",
+    "sync": {
+      "title": "Cambios pendientes",
+      "pendingCount": "{count} cambio pendiente | {count} cambios pendientes",
+      "willSync": "Tus cambios se sincronizarán cuando te reconectes",
+      "syncing": "Sincronizando…",
+      "failed": "No se pudo sincronizar",
+      "failedToast": "No se pudo sincronizar «{label}»",
+      "cancel": "Cancelar",
+      "retryAction": "Reintentar",
+      "dismiss": "Descartar",
+      "labels": {
+        "save": "Guardar «{name}»",
+        "update": "Actualizar «{name}»",
+        "remove": "Eliminar «{name}»",
+        "create": "Crear «{name}»",
+        "delete": "Eliminar «{name}»"
+      }
+    },
+    "viewUnavailable": {
+      "title": "Esta vista debe cargarse primero",
+      "description": "No se pudo cargar. Inténtalo de nuevo cuando vuelvas a estar en línea"
     }
   }
 }

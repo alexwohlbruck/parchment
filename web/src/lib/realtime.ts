@@ -23,6 +23,7 @@
 
 import { ref, readonly, type Ref } from 'vue'
 import { api, useServerUrl } from './api'
+import { isOffline, onReconnected } from './connectivity'
 import { dispatch } from './realtime-events'
 
 export type ConnectionState = 'idle' | 'connecting' | 'open' | 'closed'
@@ -66,6 +67,9 @@ function buildWsUrl(serverUrl: string, ticket: string): string {
 
 function scheduleReconnect(): void {
   if (!desiredConnected || reconnectTimer) return
+  // While offline there's nothing to retry against; the connectivity
+  // subscription below reconnects the moment the network returns.
+  if (isOffline.value) return
   const delay = backoffMs(reconnectAttempts)
   reconnectAttempts += 1
   reconnectTimer = setTimeout(() => {
@@ -73,6 +77,19 @@ function scheduleReconnect(): void {
     void openSocket()
   }, delay)
 }
+
+// Connectivity returning is a far stronger signal than a backoff timer —
+// drop any pending delay and reconnect immediately.
+onReconnected(() => {
+  if (!desiredConnected) return
+  if (socket && socket.readyState !== WebSocket.CLOSED) return
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  reconnectAttempts = 0
+  void openSocket()
+})
 
 async function openSocket(): Promise<void> {
   if (!desiredConnected) return

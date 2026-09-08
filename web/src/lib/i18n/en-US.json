@@ -376,7 +376,11 @@
         "title": "Network error",
         "description": "Try connecting to a different {appName} server"
       },
-      "validation": "{type} error"
+      "validation": "{type} error",
+      "timeout": {
+        "title": "Request timed out",
+        "description": "The server is taking too long to respond"
+      }
     },
     "coordinatesCopied": "Coordinates copied to clipboard",
     "addressCopied": "Address copied to clipboard",
@@ -1454,6 +1458,10 @@
       "previousPhoto": "Previous photo",
       "nextPhoto": "Next photo",
       "failedToLoad": "Failed to load image"
+    },
+    "unavailable": {
+      "title": "Place unavailable",
+      "description": "We couldn't load this place"
     }
   },
   "settings": {
@@ -2575,7 +2583,8 @@
       "destination": "Where new marks go",
       "canvas": "Canvas",
       "delete": "Delete group"
-    }
+    },
+    "savedLocally": "Saved on this device · backs up when you reconnect"
   },
   "colors": {
     "compass": "Compass",
@@ -2606,6 +2615,38 @@
       "lucide": "Lucide",
       "maki": "Maki",
       "color": "Color"
+    }
+  },
+  "offline": {
+    "badge": "Offline",
+    "reconnecting": "Reconnecting…",
+    "emptyState": {
+      "title": "You're offline",
+      "description": "Go back online to view this",
+      "descriptionCreatable": "Anything you make now syncs when you're back online"
+    },
+    "retry": "Try again",
+    "sync": {
+      "title": "Pending changes",
+      "pendingCount": "{count} pending change | {count} pending changes",
+      "willSync": "Your changes will sync when you reconnect",
+      "syncing": "Syncing…",
+      "failed": "Couldn't sync",
+      "failedToast": "Couldn't sync \"{label}\"",
+      "cancel": "Cancel",
+      "retryAction": "Retry",
+      "dismiss": "Dismiss",
+      "labels": {
+        "save": "Save \"{name}\"",
+        "update": "Update \"{name}\"",
+        "remove": "Remove \"{name}\"",
+        "create": "Create \"{name}\"",
+        "delete": "Delete \"{name}\""
+      }
+    },
+    "viewUnavailable": {
+      "title": "This view needs to load first",
+      "description": "It couldn't be loaded. Try again once you're back online"
     }
   }
 }

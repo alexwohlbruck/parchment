@@ -6,6 +6,7 @@
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useCategoryStore } from '@/stores/category.store'
+import { useSyncStore } from '@/stores/sync.store'
 
 /**
  * Clear all cached user data from localStorage and Pinia stores.
@@ -15,11 +16,14 @@ export function clearAllUserCaches() {
   const integrationsStore = useIntegrationsStore()
   const layersStore = useLayersStore()
   const categoryStore = useCategoryStore()
-  
+  const syncStore = useSyncStore()
+
   // Clear all store caches
   integrationsStore.clearCache()
   layersStore.clearCache()
   categoryStore.clearCache()
+  // Un-replayed offline writes belong to the signed-out session.
+  syncStore.clear()
   
   // Clear any other localStorage keys that should be removed on sign out
   // Add additional keys here as needed
@@ -31,6 +35,12 @@ export function clearAllUserCaches() {
     'parchment-layer-groups',
     'integration-configurations',
     'available-integrations',
+    'friends',
+    'friend-invitations-incoming',
+    'friend-invitations-outgoing',
+    'vehicles',
+    'recents-search-history',
+    'recents-recent-places',
   ]
   
   keysToRemove.forEach(key => {

@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search.store'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { useMapService } from '@/services/map.service'
 import { useMapCamera } from '@/composables/useMapCamera'
 import { useMapListener } from '@/composables/useMapListener'
@@ -35,6 +36,7 @@ const { t } = useI18n()
 const searchService = useSearchService()
 const mapService = useMapService()
 const searchStore = useSearchStore()
+const { isOffline } = useConnectivity()
 const { setPartialPlace } = usePlaceService()
 
 const geolocationService = useGeolocationService()
@@ -694,13 +696,19 @@ watch(
 
     <!-- Results take up remaining space -->
     <div
-      v-if="searchStore.hasResults || searchStore.isLoading"
+      v-if="
+        searchStore.hasResults ||
+        searchStore.isLoading ||
+        (isOffline && !!searchStore.searchQuery)
+      "
       class="flex-1"
     >
       <div class="max-w-4xl mx-auto">
         <PlaceList
           :places="searchStore.filteredSearchResults"
           :loading="searchStore.isSearching && !searchStore.hasResults"
+          :offline="isOffline && !searchStore.hasResults"
+          @retry="performSearch()"
           @place-hover="searchStore.setHoveredPlace($event)"
           @place-leave="searchStore.setHoveredPlace(null)"
         />

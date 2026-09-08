@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import DashboardHome from '@/components/dashboard/DashboardHome.vue'
 import BottomSheet from '@/components/BottomSheet.vue'
 import AccountDropdown from '@/components/navigation/AccountDropdown.vue'
+import SyncStatus from '@/components/sync/SyncStatus.vue'
 import { SheetFooter } from '@/components/sheet'
 
 const route = useRoute()
@@ -73,6 +74,9 @@ watch(
       v-if="!paletteFocused"
       class="bg-muted border-t border-border/60 px-3 py-2"
     >
+      <div class="mb-1.5 empty:hidden">
+        <SyncStatus />
+      </div>
       <AccountDropdown @update:open="open => { if (open) minimizeSheet() }" />
     </SheetFooter>
   </bottom-sheet>

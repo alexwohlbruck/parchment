@@ -8,6 +8,7 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createRecentsStore } from './recents-store'
+import { loadBlob } from '../personal-blob'
 
 let savedBlobs: Record<string, any[]> = {}
 let loadedValue: any = null
@@ -34,9 +35,14 @@ function makeStore(maxEntries = 100) {
   })
 }
 
+const loadBlobMock = vi.mocked(loadBlob)
+
 beforeEach(() => {
   savedBlobs = {}
   loadedValue = null
+  // Entries are mirrored to localStorage so recents survive offline; each
+  // test starts from a device that has never seen any.
+  localStorage.clear()
   vi.clearAllMocks()
 })
 
@@ -205,5 +211,36 @@ describe('recents-store debounced flush', () => {
     expect(savedBlobs.u1).toBeUndefined()
     await vi.advanceTimersByTimeAsync(1500)
     expect(savedBlobs.u1?.[0].entries[0].query).toBe('burgers')
+  })
+
+  test('keeps mirrored entries when the server cannot be reached', async () => {
+    const store = makeStore()
+    await store.hydrate('u1')
+    store.record({ query: 'ramen', at: 1 }, 'u1')
+
+    // A new instance on the same device, now offline: the blob load fails
+    // with a retriable network error.
+    const offline = makeStore()
+    const networkError = Object.assign(new Error('Network Error'), {
+      networkErrorKind: 'offline',
+    })
+    loadBlobMock.mockRejectedValueOnce(networkError)
+
+    const entries = await offline.hydrate('u1')
+    expect(entries.map(e => e.query)).toEqual(['ramen'])
+  })
+
+  test('does not mirror one user\'s entries onto another', async () => {
+    const store = makeStore()
+    await store.hydrate('u1')
+    store.record({ query: 'ramen', at: 1 }, 'u1')
+
+    const other = makeStore()
+    const networkError = Object.assign(new Error('Network Error'), {
+      networkErrorKind: 'offline',
+    })
+    loadBlobMock.mockRejectedValueOnce(networkError)
+
+    expect((await other.hydrate('u2')).map(e => e.query)).toEqual([])
   })
 })

@@ -1,12 +1,24 @@
 import { capitalize } from '@/filters/text.filters'
 import axios, { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { useStorage } from '@vueuse/core'
 import { watchEffect, ref, computed } from 'vue'
 import { DEFAULT_SERVER_URL, APP_NAME_SHORT } from '@/lib/constants'
 import router, { AppRoute } from '@/router'
 import { i18n, storedLocale } from '@/lib/i18n'
+import {
+  configureConnectivityProbe,
+  isOffline,
+  reportServerReachable,
+  reportServerUnreachable,
+} from '@/lib/connectivity'
+import {
+  NetworkErrorKind,
+  OfflineRequestError,
+  classifyNetworkError,
+  tagNetworkError,
+} from '@/lib/network-errors'
 
 // Detect Tauri environment using the Tauri API
 // Try to use @tauri-apps/api/os for reliable detection
@@ -133,6 +145,30 @@ api.interceptors.request.use(config => {
   return config
 })
 
+// While offline, don't attempt reads at all — fail them instantly with a
+// typed, quiet error so callers fall back to cached data instead of each
+// burning a 15s timeout. Writes pass through: they're either queued by the
+// sync layer before reaching axios or allowed to fail loudly. Opt out with
+// `allowOffline: true` (e.g. connectivity probes).
+api.interceptors.request.use(config => {
+  const isRead = (config.method ?? 'get').toLowerCase() === 'get'
+  if (isRead && isOffline.value && !config.allowOffline) {
+    return Promise.reject(new OfflineRequestError(config))
+  }
+  return config
+})
+
+// The probe used to recover from "server unreachable": any HTTP response,
+// including an error status, proves the wire works again.
+configureConnectivityProbe(async () => {
+  try {
+    await api.get('/', { allowOffline: true, silent: true, timeout: 5000 })
+    return true
+  } catch (error) {
+    return axios.isAxiosError(error) && error.response !== undefined
+  }
+})
+
 /**
  * Set the server URL
  */
@@ -147,14 +183,24 @@ export function useServerUrl() {
   return serverUrl
 }
 
-function getErrorMessage(error: AxiosError): {
+function getErrorMessage(
+  error: AxiosError,
+  kind: NetworkErrorKind,
+): {
   title: string
   description?: string
 } {
-  const { response, request, code } = error
+  const { response } = error
   const data = response?.data as any
 
-  if (!response && (request || code === 'ERR_NETWORK')) {
+  if (kind === NetworkErrorKind.Timeout) {
+    return {
+      title: (i18n.global as any).t('messages.error.timeout.title'),
+      description: (i18n.global as any).t('messages.error.timeout.description'),
+    }
+  }
+
+  if (kind === NetworkErrorKind.Unreachable) {
     return {
       title: (i18n.global as any).t('messages.error.network.title'),
       description: (i18n.global as any).t(
@@ -198,11 +244,33 @@ function getErrorMessage(error: AxiosError): {
 
 api.interceptors.response.use(
   response => {
+    reportServerReachable()
     return response
   },
   error => {
-    // Cancelled requests (AbortController.abort()) are intentional — no toast
-    if (axios.isCancel(error)) return Promise.reject(error)
+    const kind = classifyNetworkError(error)
+    tagNetworkError(error, kind)
+
+    // A response — any response — proves the server is reachable; the
+    // opposite means it isn't and the connectivity layer should start
+    // probing for its return.
+    if (error?.response) {
+      reportServerReachable()
+    } else if (
+      kind === NetworkErrorKind.Unreachable ||
+      kind === NetworkErrorKind.Timeout
+    ) {
+      reportServerUnreachable()
+    }
+
+    // Being offline is a state, not an error — the connectivity layer and
+    // offline UI own communicating it. Cancels are intentional.
+    if (
+      kind === NetworkErrorKind.Offline ||
+      kind === NetworkErrorKind.Cancelled
+    ) {
+      return Promise.reject(error)
+    }
 
     const status = error.response?.status as number | undefined
 
@@ -211,7 +279,7 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    const { title, description } = getErrorMessage(error)
+    const { title, description } = getErrorMessage(error, kind)
 
     if (status === 401) {
       router.push({ name: AppRoute.SIGNIN })
@@ -231,7 +299,15 @@ api.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    toast.error(title, { description })
+    // Unreachable/timeout failures tend to arrive in bursts (every feature
+    // that had a request in flight). Share one toast id so they collapse
+    // into a single message instead of stacking.
+    const connectionProblem =
+      kind === NetworkErrorKind.Unreachable || kind === NetworkErrorKind.Timeout
+    toast.error(title, {
+      description,
+      ...(connectionProblem ? { id: 'network-error' } : {}),
+    })
 
     return Promise.reject(error)
   },

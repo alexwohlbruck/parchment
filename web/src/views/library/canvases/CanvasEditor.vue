@@ -23,6 +23,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { AppRoute } from '@/router'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { useSyncStore } from '@/stores/sync.store'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useMapStore } from '@/stores/map.store'
@@ -91,6 +92,7 @@ import {
 import {
   BookmarkIcon,
   CloudUploadIcon,
+  CloudOffIcon,
   DatabaseIcon,
   Layers3Icon,
   FolderPlusIcon,
@@ -113,6 +115,24 @@ const collectionsService = useCollectionsService()
 const routesService = useRoutesService()
 const mapStore = useMapStore()
 const { canvases } = storeToRefs(canvasesStore)
+
+const syncStore = useSyncStore()
+
+/**
+ * A canvas created offline opens under its temporary id. Once its queued
+ * create replays, follow the id the server gave it — otherwise the URL
+ * points at a canvas that no longer exists and a reload lands nowhere.
+ */
+watch(
+  () => syncStore.resolveId(props.id),
+  resolved => {
+    if (resolved === props.id) return
+    router.replace({
+      name: AppRoute.CANVAS_EDITOR,
+      params: { id: resolved },
+    })
+  },
+)
 
 const canvas = computed(() => canvases.value.find(c => c.id === props.id))
 
@@ -755,9 +775,22 @@ const displayName = computed(() => canvasesService.displayName(canvas.value))
 
 /** Anything still to write, whether it is in flight or waiting on the debounce. */
 const pending = computed(() => saving.value || isDirty.value)
-const saveStatus = computed(() =>
-  pending.value ? t('canvases.saving') : t('canvases.saved'),
+
+/**
+ * Saved on this device but not yet on the server — the edit is in the
+ * queue, waiting for a connection. Distinct from "Saved", which claims the
+ * work is backed up; saying that offline would be a lie about where the
+ * only copy lives.
+ */
+const savedLocally = computed(
+  () => !pending.value && syncStore.hasPendingFor(props.id),
 )
+
+const saveStatus = computed(() => {
+  if (pending.value) return t('canvases.saving')
+  if (savedLocally.value) return t('canvases.savedLocally')
+  return t('canvases.saved')
+})
 </script>
 
 <template>
@@ -779,6 +812,10 @@ const saveStatus = computed(() =>
             class="absolute -bottom-1 -right-1 rounded-full bg-background p-0.5 text-muted-foreground"
           >
             <CloudUploadIcon v-if="pending" class="size-3 animate-pulse" />
+            <CloudOffIcon
+              v-else-if="savedLocally"
+              class="size-3 text-amber-600 dark:text-amber-500"
+            />
             <CloudCheckIcon v-else class="size-3" />
           </span>
           <span class="sr-only" aria-live="polite">{{ saveStatus }}</span>

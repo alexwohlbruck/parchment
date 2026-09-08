@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { useStorage } from '@vueuse/core'
+import { isOfflineId } from '@/lib/sync/offline-id'
 import type { Route } from '@/types/routes.types'
 
 /**
@@ -17,7 +18,29 @@ export const useRoutesStore = defineStore('routes', () => {
   })
 
   function setRoutes(newRoutes: Route[]) {
-    routes.value = newRoutes
+    // Routes created offline aren't on the server yet, so a refresh must not
+    // drop them; their queued create replaces them once it replays.
+    const pending = routes.value.filter(
+      r => isOfflineId(r.id) && !newRoutes.some(n => n.id === r.id),
+    )
+    routes.value = [...pending, ...newRoutes]
+  }
+
+  /**
+   * Swap an offline-created route for the server's version.
+   *
+   * The replayed create has already upserted the server row, so drop that
+   * copy first — otherwise the temp row becomes a second, identical entry.
+   */
+  function replaceRoute(oldId: string, route: Route) {
+    const rest = routes.value.filter((r) => r.id !== route.id)
+    const index = rest.findIndex((r) => r.id === oldId)
+    if (index !== -1) {
+      rest[index] = route
+      routes.value = rest
+    } else {
+      routes.value = [route, ...rest]
+    }
   }
 
   function upsertRoute(route: Route) {
@@ -38,6 +61,7 @@ export const useRoutesStore = defineStore('routes', () => {
     getRouteById,
     setRoutes,
     upsertRoute,
+    replaceRoute,
     removeRoute,
   }
 })

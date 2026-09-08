@@ -3,7 +3,7 @@ import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
 import { capitalize } from '@/filters/text.filters'
@@ -40,6 +40,7 @@ import {
   TelescopeIcon,
 } from 'lucide-vue-next'
 import UpdateBanner from '@/components/navigation/UpdateBanner.vue'
+import SyncStatus from '@/components/sync/SyncStatus.vue'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useFullscreen } from '@/composables/useFullscreen'
 import { CommandName } from '@/stores/command.store'
@@ -319,6 +320,7 @@ defineExpose({
 
     <!-- Slot for custom banner alerts. Default: the Tauri update banner. -->
     <div class="px-2">
+      <SyncStatus :collapsed="collapsed" />
       <slot name="banner">
         <template
           v-if="

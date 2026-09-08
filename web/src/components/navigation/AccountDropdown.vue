@@ -48,6 +48,8 @@ import {
 } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import AboutDialog from '@/components/dialogs/AboutDialog.vue'
+import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
+import { useFeedback } from '@/composables/useFeedback'
 
 const props = defineProps<{
   mini?: boolean
@@ -78,6 +80,8 @@ watch(dropdownOpen, val => {
   }
 })
 const aboutDialogOpen = ref(false)
+const feedbackDialogOpen = ref(false)
+const { available: feedbackAvailable } = useFeedback()
 const latestRelease = ref<GitHubReleaseSummary | null>(null)
 
 const RELEASES_HREF = 'https://github.com/alexwohlbruck/parchment/releases'
@@ -173,13 +177,19 @@ const menuItems = computed((): MenuItemDefinition[] => {
       trailing: ExternalLinkIcon,
       trailingProps: { class: 'size-4 text-muted-foreground shrink-0' },
     },
-    {
-      type: 'item',
-      id: 'feedback',
-      label: t('feedback.title'),
-      icon: MessageSquareQuoteIcon,
-      href: 'https://github.com/alexwohlbruck/parchment/issues',
-    },
+    ...(feedbackAvailable.value
+      ? [
+          {
+            type: 'item' as const,
+            id: 'feedback',
+            label: t('feedback.title'),
+            icon: MessageSquareQuoteIcon,
+            onSelect: () => {
+              feedbackDialogOpen.value = true
+            },
+          },
+        ]
+      : []),
     {
       type: 'item',
       id: 'settings',
@@ -340,4 +350,5 @@ const menuItems = computed((): MenuItemDefinition[] => {
   </ResponsiveDropdown>
 
   <AboutDialog v-model:open="aboutDialogOpen" />
+  <FeedbackDialog v-model:open="feedbackDialogOpen" />
 </template>

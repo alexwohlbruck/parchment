@@ -205,6 +205,10 @@ interface InternalTransform {
  * written for the flat one applies again.
  */
 const GLOBE_FLATTENS_AT = 12
+/** Below this the sphere's edge can be on screen and it reads as a disc;
+ *  above it the view is a flat map whatever the render path is doing.
+ *  Matches where the Mapbox engine flattens outright. */
+const SPHERE_READS_AS_OBJECT = 6
 
 /** Degrees of pitch over which the plan-view roof outline fades out. */
 const ROOF_EDGE_FADE_PITCH = 8
@@ -1060,6 +1064,15 @@ export class MaplibreStrategy extends MapStrategy {
     return (
       this.options.projection === MapProjection.GLOBE &&
       this.mapInstance.getZoom() < GLOBE_FLATTENS_AT
+    )
+  }
+
+  /** The sphere reads as an object only well below the zoom at which the
+   *  render path goes flat — the same place Mapbox flattens outright. */
+  override isSphereVisible(): boolean {
+    return (
+      this.options.projection === MapProjection.GLOBE &&
+      this.mapInstance.getZoom() < SPHERE_READS_AS_OBJECT
     )
   }
 

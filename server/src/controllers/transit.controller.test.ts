@@ -67,6 +67,7 @@ describe('authentication', () => {
     '/transit/route-vehicles',
     '/transit/trip-stops',
     '/transit/route-detail',
+    '/transit/resolve-route',
     '/transit/departures',
     '/transit/bikes-allowed',
     '/transit/nearest-entrance',
@@ -175,6 +176,7 @@ describe('caching', () => {
     // Topology only changes on a feed import.
     ['/transit/shapes', 'public, max-age=86400'],
     ['/transit/route-detail', 'public, max-age=3600'],
+    ['/transit/resolve-route', 'public, max-age=3600'],
     ['/transit/bikes-allowed', 'public, max-age=3600'],
     ['/transit/nearest-entrance', 'public, max-age=3600'],
     // Departures move, but not second to second.

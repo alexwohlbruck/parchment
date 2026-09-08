@@ -376,7 +376,11 @@
         "title": "Network error",
         "description": "Try connecting to a different {appName} server"
       },
-      "validation": "{type} error"
+      "validation": "{type} error",
+      "timeout": {
+        "title": "Request timed out",
+        "description": "The server is taking too long to respond"
+      }
     },
     "coordinatesCopied": "Coordinates copied to clipboard",
     "addressCopied": "Address copied to clipboard",
@@ -739,6 +743,8 @@
     "planRoute": "Plan route",
     "to": "To",
     "from": "From",
+    "currentLocation": "Current Location",
+    "useCurrentLocation": "Use your current location",
     "addStop": "Add stop",
     "modes": {
       "walking": "Walking",
@@ -1148,7 +1154,18 @@
     "madeWith": "Made with ❤️ by"
   },
   "feedback": {
-    "title": "Feedback"
+    "title": "Feedback",
+    "description": "Report a bug or suggest an idea. You'll be notified when it ships.",
+    "titleLabel": "Summary",
+    "titlePlaceholder": "Briefly describe it",
+    "contentLabel": "Details",
+    "contentPlaceholder": "Add any steps, context, or screenshots that would help",
+    "submit": "Submit",
+    "submitted": "Thanks for the feedback",
+    "submittedDescription": "We'll let you know when there's an update.",
+    "viewPost": "View",
+    "submitFailed": "Couldn't submit your feedback. Please try again.",
+    "loadFailed": "Couldn't load the feedback boards."
   },
   "profileMenu": {
     "shortcuts": "Shortcuts",
@@ -1205,6 +1222,7 @@
         "tomorrow": "Tomorrow",
         "untilTime": "Until {time}",
         "scheduledCount": "{n} scheduled change | {n} scheduled changes",
+        "moreNotices": "{n} more notice | {n} more notices",
         "showMore": "Show more",
         "showLess": "Show less",
         "moreInfo": "More info",
@@ -1229,7 +1247,9 @@
       "openRouteDetail": "Show {name}",
       "notInServiceNamed": "{name} isn't running now",
       "transfers": "Transfers",
-      "nearby": "Nearby"
+      "nearby": "Nearby",
+      "transfer": "transfer",
+      "notRunning": "not running now"
     },
     "header": {
       "showMore": "Show more",
@@ -1438,6 +1458,10 @@
       "previousPhoto": "Previous photo",
       "nextPhoto": "Next photo",
       "failedToLoad": "Failed to load image"
+    },
+    "unavailable": {
+      "title": "Place unavailable",
+      "description": "We couldn't load this place"
     }
   },
   "settings": {
@@ -1736,6 +1760,10 @@
         "description": "How floor numbers are displayed. Zero-based counts ground floor as 0 (common in Europe). One-based counts ground floor as 1 (common in the Americas).",
         "zeroBased": "Zero-based (Ground = 0)",
         "oneBased": "One-based (Ground = 1)"
+      },
+      "shakeForFeedback": {
+        "title": "Shake to send feedback",
+        "description": "Give your phone a shake to open the feedback form. Needs motion access."
       }
     },
     "appearance": {
@@ -2001,7 +2029,8 @@
         "locationHistory": "Location History",
         "brandCatalog": "Brand Catalog",
         "transitRouting": "Transit Routing",
-        "rideshareEstimate": "Rideshare"
+        "rideshareEstimate": "Rideshare",
+        "feedback": "Feedback"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -2028,7 +2057,8 @@
         "openstreetmap-account": "Add notes, comments, and make quick edits",
         "dawarich": "Private, encrypted location history tracking",
         "openaq": "Open air-quality data from ground monitoring stations",
-        "firms": "Active wildfire detections from satellite (VIIRS/MODIS)"
+        "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
+        "quackback": "Feedback boards, voting and roadmap for the in-app feedback form"
       },
       "scheme": {
         "endToEnd": {
@@ -2553,7 +2583,8 @@
       "destination": "Where new marks go",
       "canvas": "Canvas",
       "delete": "Delete group"
-    }
+    },
+    "savedLocally": "Saved on this device · backs up when you reconnect"
   },
   "colors": {
     "compass": "Compass",
@@ -2584,6 +2615,38 @@
       "lucide": "Lucide",
       "maki": "Maki",
       "color": "Color"
+    }
+  },
+  "offline": {
+    "badge": "Offline",
+    "reconnecting": "Reconnecting…",
+    "emptyState": {
+      "title": "You're offline",
+      "description": "Go back online to view this",
+      "descriptionCreatable": "Anything you make now syncs when you're back online"
+    },
+    "retry": "Try again",
+    "sync": {
+      "title": "Pending changes",
+      "pendingCount": "{count} pending change | {count} pending changes",
+      "willSync": "Your changes will sync when you reconnect",
+      "syncing": "Syncing…",
+      "failed": "Couldn't sync",
+      "failedToast": "Couldn't sync \"{label}\"",
+      "cancel": "Cancel",
+      "retryAction": "Retry",
+      "dismiss": "Dismiss",
+      "labels": {
+        "save": "Save \"{name}\"",
+        "update": "Update \"{name}\"",
+        "remove": "Remove \"{name}\"",
+        "create": "Create \"{name}\"",
+        "delete": "Delete \"{name}\""
+      }
+    },
+    "viewUnavailable": {
+      "title": "This view needs to load first",
+      "description": "It couldn't be loaded. Try again once you're back online"
     }
   }
 }

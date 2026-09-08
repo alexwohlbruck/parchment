@@ -11,6 +11,7 @@
  * and :559-580 (estRows). All images render at 2x (pixelRatio 2); sizes
  * are CSS px at full zoom (z14+, where the slot pitch is its full 6 px).
  */
+import { DIM_SUFFIX } from './portolan-expressions'
 
 // dot diameter; also the pill height and its corner radius x2
 const DOT_D = 7
@@ -79,8 +80,18 @@ const lumaOf = (hex: string) => {
 
 /** One bullet as a canvas: MTA-style circle for 1-2 char labels, a
  *  rounded-corner word pill (the Chicago 'Red'/'Brown' shape) for longer. */
+/** How far a not-running bullet steps back. Matches the stop list's
+ *  `opacity-40`, so the two views fade a line by the same amount. */
+const DIM_ALPHA = 0.4
+
 function bulletCanvas(id: string): HTMLCanvasElement | null {
-  const m = id.match(/^blt-([0-9a-fA-F]{6})-([a-z]*)-(.+)$/)
+  // A line that is not running here is drawn, not dropped: a rider looks
+  // for the bullet they know, and its absence reads as "wrong station"
+  // rather than "not now". Faded says the second thing. Matches the stop
+  // list, which fades the same bullet rather than removing it.
+  const dim = id.endsWith(DIM_SUFFIX)
+  const m = (dim ? id.slice(0, -DIM_SUFFIX.length) : id)
+    .match(/^blt-([0-9a-fA-F]{6})-([a-z]*)-(.+)$/)
   if (!m) return null
   const hex = m[1]
   const shape = m[2] || 'circle'
@@ -102,6 +113,9 @@ function bulletCanvas(id: string): HTMLCanvasElement | null {
   cv.height = hh * 2
   ctx = cv.getContext('2d')!
   ctx.scale(2, 2)
+  // Faded whole — fill and numeral together — so the bullet keeps its
+  // shape and stays legible while plainly stepping back.
+  if (dim) ctx.globalAlpha = DIM_ALPHA
   ctx.fillStyle = '#' + hex
   ctx.beginPath()
   if (!compact && (shape === 'circle' || !SHAPE_PAD[shape])) ctx.roundRect(0, 0, w, hh, 3.5)
@@ -168,7 +182,10 @@ export function drawPortolanImage(id: string): ImageData | null {
     // strip wraps into balanced centered rows — never truncate a strip;
     // that lies about who stops here. The icon anchors 'top', so extra
     // rows grow downward.
-    const parts = m[1].split('|').map(bulletCanvas).filter(Boolean) as HTMLCanvasElement[]
+    const parts = m[1]
+      .split('|')
+      .map(bulletCanvas)
+      .filter(Boolean) as HTMLCanvasElement[]
     if (!parts.length) return null
     const gap = 3 * 2
     const nrows = Math.ceil(parts.length / 8)

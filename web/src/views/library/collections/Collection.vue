@@ -59,7 +59,7 @@ function handleCollectionDelete() {
 </script>
 
 <template>
-  <div v-if="loading" class="h-full flex items-center justify-center">
+  <div v-if="loading" class="min-h-full flex items-center justify-center">
     <div class="text-muted-foreground">
       {{ t('library.loading.collection') }}
     </div>

@@ -7,8 +7,11 @@
  *     Headsign     Now, 7 min  📶
  *     Headsign     12, 25 min  📶
  */
-import { computed, markRaw, onBeforeUnmount, watch } from 'vue'
+import { computed, markRaw, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { setPlaceTransitLines, usePlaceTransferLines, type StationLine } from '@/composables/usePlaceTransitLines'
+import { useTransitAlerts } from '@/composables/useTransitAlerts'
+import { alertStopSkips, filterSkippedDepartures } from '@/lib/alert-service-overrides'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,8 +60,18 @@ const hasTransitData = computed(() => {
   return transitInfo.value && (transitInfo.value.onestopId || transitInfo.value.stopId || transitInfo.value.departures?.length)
 })
 
+const portolan = usePortolanTransitService()
+
+// The board with the runs a skip alert disowns removed — a station closed
+// for a parade until 9:30 must not list a 2 "in 5 minutes". Judged per run
+// against the alert's window, so the trains after it stay: their times ARE
+// the reopening.
 const departures = computed((): TransitDeparture[] => {
-  return transitInfo.value?.departures || []
+  const raw = transitInfo.value?.departures || []
+  return filterSkippedDepartures(raw, stopAlertsInEffect.value, [
+    transitInfo.value?.stopId,
+    transitInfo.value?.parentStation,
+  ])
 })
 
 /** Every line serving this station, across its whole transfer complex.
@@ -84,15 +97,69 @@ const runningRouteIds = computed(() => {
   return ids
 })
 
+// The stop's own alerts. The board reads MOTIS — the schedule plus what
+// realtime reached it — and a planned skip often never does: on parade day
+// Eastern Pkwy's board went on listing 2s and 3s at a station all three
+// lines were skipping. The agency's skip alert outranks a scheduled run.
+const stopAlertQuery = computed(() => {
+  const feedId = transitInfo.value?.feedId
+  const stopId = transitInfo.value?.stopId
+  return feedId && stopId ? { feedId, stopIds: [stopId] } : null
+})
+const { inEffect: stopAlertsInEffect } = useTransitAlerts(stopAlertQuery)
+
+/** Board answers minus alert skips — what is truly calling here now. */
+const servedRouteIds = computed(() => {
+  const running = runningRouteIds.value
+  if (!running.size) return running
+  const stopId = transitInfo.value?.stopId
+  const parent = transitInfo.value?.parentStation
+  const skips = alertStopSkips(stopAlertsInEffect.value)
+  const skipped = new Set([
+    ...(stopId ? skips.get(stopId) ?? [] : []),
+    ...(parent ? skips.get(parent) ?? [] : []),
+  ])
+  if (!skipped.size) return running
+  return new Set([...running].filter((id) => !skipped.has(id)))
+})
+
 watch(
-  [stationLines, runningRouteIds],
+  [stationLines, servedRouteIds],
   ([lines, running]) =>
     setPlaceTransitLines(props.place?.id, lines, {
       feedId: transitInfo.value?.feedId,
       runningRouteIds: running,
+      // The board vouched even when the skips emptied it: a station every
+      // line passes today should show every bullet dimmed, not all lit.
+      serviceKnown: runningRouteIds.value.size > 0,
     }),
   { immediate: true },
 )
+
+/**
+ * The same reading, given to the map, so this station's bullets there fade
+ * exactly as the ones under the title do.
+ *
+ * The map's own answer comes from the tiles' activity masks, which are a
+ * WEEKLY timetable: today is a Monday, so they report the Monday service
+ * even when the agency is running a Sunday one for the holiday. Only a
+ * board knows that, and this is a board.
+ */
+watch(
+  [() => transitInfo.value?.stopId, servedRouteIds],
+  ([stopId, running]) => {
+    // An emptied set still publishes — the map should dim every bullet at
+    // a station the boards answered for and the alerts emptied. Only a
+    // board that never answered publishes nothing.
+    portolan.setStopService(
+      'place',
+      stopId && runningRouteIds.value.size ? new Map([[stopId, running]]) : null,
+    )
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => portolan.setStopService('place', null))
 
 /** The bullets the map draws for these routes: portolan's curated shape,
  *  colour and label, resolved against the stop's own coordinates. */
@@ -104,8 +171,19 @@ watch(
   },
   { immediate: true },
 )
-const styleOfRoute = (route: { id: string; type?: number }) =>
-  bulletFor(route.id, transitInfo.value?.lat, transitInfo.value?.lng, route.type)
+const styleOfRoute = (route: {
+  id: string
+  type?: number
+  shortName?: string
+  longName?: string
+}) =>
+  bulletFor(
+    route.id,
+    transitInfo.value?.lat,
+    transitInfo.value?.lng,
+    route.type,
+    route.shortName || route.longName,
+  )
 
 /**
  * The connecting stations, each with its own grouped board.

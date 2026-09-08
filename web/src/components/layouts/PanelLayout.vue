@@ -14,7 +14,13 @@
        GROWS with tall content so it stays the containing block for sticky
        children. With h-full the box capped at one viewport and sticky headers
        unstuck once content scrolled past it. -->
-  <div class="min-h-full flex flex-col pt-6 md:pt-4 pb-4 px-3">
+  <!-- The top inset is published as a variable so a child that takes over the
+       job — a pinned header, which paints its own opaque band — can cancel
+       exactly this much without copying the number or the breakpoint. -->
+  <div
+    class="min-h-full flex flex-col pb-4 px-3 pt-[var(--panel-inset-top)]
+           [--panel-inset-top:1.5rem] md:[--panel-inset-top:1rem]"
+  >
     <slot />
   </div>
 </template>

@@ -7,7 +7,7 @@
  */
 
 export type ItemRowSize = 'xs' | 'sm' | 'md' | 'lg'
-export type ItemRowVariant = 'row' | 'tile' | 'inline' | 'chip'
+export type ItemRowVariant = 'row' | 'tile' | 'inline' | 'plain' | 'chip'
 
 export interface ItemRowScale {
   /** ItemIcon size for a title-only row. */
@@ -88,10 +88,16 @@ export const ITEM_ROW_SIZES: Record<ItemRowSize, ItemRowScale> = {
  * drop shadow — and is what `components/ui/card` applies. Every free-standing
  * surface takes it. `inline` is the exception: it's a well nested inside
  * another card, and lighting it would read as a card floating on a card.
+ *
+ * `plain` has no surface of its own. It's for rows sitting in a list that
+ * already draws the structure — a trip timeline's rail, a combobox's own
+ * highlight — where a second background reads as a box inside a box. It still
+ * takes the shared scale and hover, so it stays the same row as the others.
  */
 export const ITEM_ROW_SURFACES: Record<ItemRowVariant, string> = {
   row: 'w-full rounded-lg border bg-card depth',
   tile: 'shrink-0 rounded-lg border bg-card depth',
   inline: 'w-full rounded-md bg-muted/40',
+  plain: 'w-full rounded-md',
   chip: 'rounded-full border bg-card depth',
 }

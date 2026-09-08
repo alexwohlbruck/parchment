@@ -370,7 +370,11 @@
         "title": "Error de red",
         "description": "Intenta conectarte a un servidor {appName} diferente"
       },
-      "validation": "Error de {type}"
+      "validation": "Error de {type}",
+      "timeout": {
+        "title": "Tiempo de espera agotado",
+        "description": "El servidor tarda demasiado en responder"
+      }
     },
     "coordinatesCopied": "Coordenadas copiadas al portapapeles",
     "addressCopied": "Dirección copiada al portapapeles",
@@ -720,6 +724,8 @@
     "planRoute": "Planificar ruta",
     "to": "A",
     "from": "Desde",
+    "currentLocation": "Ubicación actual",
+    "useCurrentLocation": "Usar tu ubicación actual",
     "addStop": "Añadir parada"
   },
   "library": {
@@ -1114,7 +1120,18 @@
     "madeWith": "Hecho con ❤️ por"
   },
   "feedback": {
-    "title": "Feedback"
+    "title": "Comentarios",
+    "description": "Informa de un error o sugiere una idea. Te avisaremos cuando se publique.",
+    "titleLabel": "Resumen",
+    "titlePlaceholder": "Descríbelo brevemente",
+    "contentLabel": "Detalles",
+    "contentPlaceholder": "Añade los pasos, el contexto o las capturas que puedan ayudar",
+    "submit": "Enviar",
+    "submitted": "Gracias por tus comentarios",
+    "submittedDescription": "Te avisaremos cuando haya novedades.",
+    "viewPost": "Ver",
+    "submitFailed": "No se pudieron enviar tus comentarios. Inténtalo de nuevo.",
+    "loadFailed": "No se pudieron cargar los tableros de comentarios."
   },
   "profileMenu": {
     "shortcuts": "Atajos",
@@ -1158,6 +1175,7 @@
         "tomorrow": "Mañana",
         "untilTime": "Hasta las {time}",
         "scheduledCount": "{n} cambio programado | {n} cambios programados",
+        "moreNotices": "{n} aviso más | {n} avisos más",
         "showMore": "Ver más",
         "showLess": "Ver menos",
         "moreInfo": "Más información",
@@ -1182,7 +1200,9 @@
       "openRouteDetail": "Ver {name}",
       "notInServiceNamed": "{name} no circula ahora",
       "transfers": "Transbordos",
-      "nearby": "Cerca"
+      "nearby": "Cerca",
+      "transfer": "transbordo",
+      "notRunning": "sin servicio ahora"
     },
     "header": {
       "showMore": "Ver más",
@@ -1388,6 +1408,10 @@
       "previousPhoto": "Foto anterior",
       "nextPhoto": "Foto siguiente",
       "failedToLoad": "No se pudo cargar la imagen"
+    },
+    "unavailable": {
+      "title": "Lugar no disponible",
+      "description": "No pudimos cargar este lugar"
     }
   },
   "settings": {
@@ -1651,6 +1675,10 @@
         "description": "Cómo se muestran los números de piso. Base cero cuenta la planta baja como 0 (común en Europa). Base uno cuenta la planta baja como 1 (común en las Américas).",
         "zeroBased": "Base cero (Planta baja = 0)",
         "oneBased": "Base uno (Planta baja = 1)"
+      },
+      "shakeForFeedback": {
+        "title": "Agitar para enviar comentarios",
+        "description": "Agita el teléfono para abrir el formulario de comentarios. Requiere acceso al movimiento."
       }
     },
     "appearance": {
@@ -1893,7 +1921,8 @@
         "locationHistory": "Historial de ubicación",
         "brandCatalog": "Catálogo de marcas",
         "transitRouting": "Rutas de tránsito",
-        "rideshareEstimate": "Viajes compartidos"
+        "rideshareEstimate": "Viajes compartidos",
+        "feedback": "Comentarios"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -1919,7 +1948,8 @@
         "openstreetmap-account": "Agregar notas, comentarios y hacer ediciones rápidas",
         "dawarich": "Conecta tu instancia autoalojada de Dawarich — cifrada en tu dispositivo",
         "openaq": "Datos abiertos de calidad del aire de estaciones de monitoreo terrestres",
-        "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)"
+        "firms": "Detecciones de incendios activos por satélite (VIIRS/MODIS)",
+        "quackback": "Tableros de comentarios, votaciones y hoja de ruta para el formulario de comentarios"
       },
       "scheme": {
         "endToEnd": {
@@ -2432,7 +2462,8 @@
       "destination": "Dónde van las nuevas marcas",
       "canvas": "Lienzo",
       "delete": "Eliminar grupo"
-    }
+    },
+    "savedLocally": "Guardado en este dispositivo · se respaldará al reconectar"
   },
   "colors": {
     "compass": "Brújula",
@@ -2463,6 +2494,38 @@
       "lucide": "Lucide",
       "maki": "Maki",
       "color": "Color"
+    }
+  },
+  "offline": {
+    "badge": "Sin conexión",
+    "reconnecting": "Reconectando…",
+    "emptyState": {
+      "title": "Estás sin conexión",
+      "description": "Vuelve a conectarte para ver esto",
+      "descriptionCreatable": "Lo que crees ahora se sincronizará cuando vuelvas a estar en línea"
+    },
+    "retry": "Reintentar",
+    "sync": {
+      "title": "Cambios pendientes",
+      "pendingCount": "{count} cambio pendiente | {count} cambios pendientes",
+      "willSync": "Tus cambios se sincronizarán cuando te reconectes",
+      "syncing": "Sincronizando…",
+      "failed": "No se pudo sincronizar",
+      "failedToast": "No se pudo sincronizar «{label}»",
+      "cancel": "Cancelar",
+      "retryAction": "Reintentar",
+      "dismiss": "Descartar",
+      "labels": {
+        "save": "Guardar «{name}»",
+        "update": "Actualizar «{name}»",
+        "remove": "Eliminar «{name}»",
+        "create": "Crear «{name}»",
+        "delete": "Eliminar «{name}»"
+      }
+    },
+    "viewUnavailable": {
+      "title": "Esta vista debe cargarse primero",
+      "description": "No se pudo cargar. Inténtalo de nuevo cuando vuelvas a estar en línea"
     }
   }
 }

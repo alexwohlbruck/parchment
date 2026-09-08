@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -17,6 +17,7 @@ import { useStorage } from '@vueuse/core'
 import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
+import { useVirtualKeyboard } from '@/composables/useVirtualKeyboard'
 import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
 import { useTrackerLocationsLayer } from '@/composables/useTrackerLocationsLayer'
 import { useVehiclesStore } from '@/stores/vehicles.store'
@@ -35,6 +36,9 @@ import '@/lib/realtime-bootstrap'
 import { SIDEBAR_WIDTH } from '@/components/ui/sidebar'
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
+import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
+import { useFeedback } from '@/composables/useFeedback'
+import { useShakeGesture } from '@/composables/useShakeGesture'
 import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
@@ -54,12 +58,31 @@ const layersStore = useLayersStore()
 const bookmarksService = useBookmarksService()
 const collectionsService = useCollectionsService()
 const appStore = useAppStore()
+// Publishes `--keyboard-inset-height` app-wide; sheets and lists pad to it.
+useVirtualKeyboard()
+
 const friendLocationsLayer = useFriendLocationsLayer()
 const trackerLocationsLayer = useTrackerLocationsLayer()
 const vehiclesStore = useVehiclesStore()
 const recentsStore = useRecentsStore()
 const { isMobileScreen } = useResponsive()
 const isDev = import.meta.env.DEV
+
+// Shake to send feedback (mobile only). Opt-in via Settings → Behavior, which
+// is also where iOS gets the user gesture it needs to grant motion access.
+const feedbackDialogOpen = ref(false)
+const { available: feedbackAvailable } = useFeedback()
+const shake = useShakeGesture(() => {
+  if (feedbackAvailable.value) feedbackDialogOpen.value = true
+})
+
+watchEffect(() => {
+  const wanted =
+    isMobileScreen.value && appStore.shakeForFeedback && feedbackAvailable.value
+  if (wanted && shake.canStartWithoutPrompt()) shake.start()
+  else if (!wanted) shake.stop()
+})
+
 
 // TEMPORARY: the building-lighting tuner, as a panel over the map. Opened from
 // Settings → Developer, which is a dialog that covers the very thing being
@@ -149,10 +172,13 @@ async function bootstrapAuthenticatedUser() {
   if (authBootstrapped || !authStore.me) return
   authBootstrapped = true
 
-  // These calls return immediately if cached, refreshing data in background
-  await integrationService.fetchAvailableIntegrations()
+  // These calls return immediately if cached, refreshing data in background.
+  // Neither may abort the bootstrap: on an offline launch with no cache they
+  // reject instantly, and the steps below (and the realtime connect, which
+  // recovers everything once the network returns) still have to run.
+  await integrationService.fetchAvailableIntegrations().catch(() => {})
   // Load user-owned layers + default templates + user state sidecar
-  await layersStore.loadLayers()
+  await layersStore.loadLayers().catch(() => {})
   // Hydrate the full bookmark list. Covers frequents (standalone, in no
   // collection) and everything the saved-places map layer draws, neither of
   // which the per-collection hydrate would surface.
@@ -301,6 +327,8 @@ function beforeNavTransition(value: boolean) {
     <template v-else-if="!hideUI">
       <MobileNav class="z-20" />
     </template>
+
+    <FeedbackDialog v-if="isMobileScreen" v-model:open="feedbackDialogOpen" />
 
     <!-- Main content -->
     <main

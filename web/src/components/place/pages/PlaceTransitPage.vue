@@ -14,6 +14,7 @@ import {
 import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
 import ServiceAlertBadge from '@/components/transit/ServiceAlertBadge.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
+import { filterSkippedDepartures } from '@/lib/alert-service-overrides'
 import { alertsFor, worstAlert } from '@/lib/transit-alerts'
 import { api } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
@@ -60,8 +61,14 @@ watch(
   () => { laterDepartures.value = null },
 )
 
+// Same rule the widget applies: runs a skip alert disowns come off the
+// board; the ones after the window stay, because they say when it lifts.
 const departures = computed((): TransitDeparture[] => {
-  return laterDepartures.value || props.transitInfo?.departures || []
+  const raw = laterDepartures.value || props.transitInfo?.departures || []
+  return filterSkippedDepartures(raw, stopAlerts.value, [
+    props.transitInfo?.stopId,
+    props.transitInfo?.parentStation,
+  ])
 })
 
 /** Same curated bullets as the card this page expands. */
@@ -73,8 +80,19 @@ watch(
   },
   { immediate: true },
 )
-const styleOfRoute = (route: { id: string; type?: number }) =>
-  bulletFor(route.id, props.transitInfo?.lat, props.transitInfo?.lng, route.type)
+const styleOfRoute = (route: {
+  id: string
+  type?: number
+  shortName?: string
+  longName?: string
+}) =>
+  bulletFor(
+    route.id,
+    props.transitInfo?.lat,
+    props.transitInfo?.lng,
+    route.type,
+    route.shortName || route.longName,
+  )
 
 /** Lines an in-station transfer reaches — listed below the board, since they
  *  do not depart from here. */
@@ -173,7 +191,13 @@ const alertQuery = computed(() => {
   return {
     feedId,
     stopIds: [stopId],
-    routeIds: [...new Set(departures.value.map((d) => d.route?.id).filter(Boolean) as string[])],
+    // Off the RAW board, not the filtered one — the filter reads these
+    // alerts, and a query that read the filter back would chase itself.
+    routeIds: [...new Set(
+      (laterDepartures.value || props.transitInfo?.departures || [])
+        .map((d) => d.route?.id)
+        .filter(Boolean) as string[],
+    )],
     includeUpcoming: true,
   }
 })

@@ -80,11 +80,12 @@ const FALLBACK_CATEGORY_COLORS: Record<FlavorId, Record<PlaceCategoryId, string>
 }
 
 /**
- * Session-stable cache-buster: changes on each page load to bypass stale
- * cached tile responses, but stays constant within a session so MapLibre's
- * in-memory tile cache works normally.
+ * Release-stable cache-buster: busts stale cached tile responses on each app
+ * release, but stays constant across sessions so the service worker's
+ * opportunistic tile cache (and the browser's) keeps working between visits —
+ * a per-load value would make every reopened session start from a cold map.
  */
-const cacheBuster = String(Date.now())
+const cacheBuster = __APP_VERSION__
 
 export const SOURCE = 'openmaptiles'
 

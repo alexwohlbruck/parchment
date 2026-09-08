@@ -4,9 +4,155 @@
 
 ### Changed
 
-* Removed the non-functional "map theme" dropdown from appearance settings.
+### Fixed
+
+## [0.11.3] - 2026-09-08
+
+### Added
+
+* Parchment installs as an app and opens without a connection — your screens
+  and recently viewed map areas keep working offline, including ones you
+  haven't opened yet this session
+* Saving places, and creating, renaming, editing and deleting canvases and
+  routes, all work offline: changes apply immediately and sync when the
+  connection returns. A quiet sidebar chip shows what's pending, syncing or
+  failed, with per-change cancel and retry
+
+### Changed
+
+* Being offline is no longer an error: instead of error messages, the screen
+  you're on says "You're offline" and offers to try again, and everything
+  resumes on its own when the connection returns
+* Failed requests now say what actually went wrong — offline, server
+  unreachable, or timed out — instead of one generic "Network error", and
+  repeated connection errors collapse into a single message
 
 ### Fixed
+
+* Launching the app offline no longer signs you out and wipes your cached
+  library
+* Offline, the collection picker shows which collections a place is already
+  saved to, instead of appearing to be in none
+* Changing which collections a place belongs to no longer corrupts the
+  stored contents of a collection
+* Your friends, vehicles and recent searches are kept on the device, so they
+  are there on a cold or offline start
+* A trip's timeline draws each stop as the place it is — the POI's own icon on
+  the route line, its name and type beside it, and the scheduled time
+* Route stops wear their own POI icon everywhere they appear — the waypoint
+  fields, the timeline and the map — instead of a numbered dot. The map shows
+  each stop's name beside it too
+* Picking your current location as a stop shows it as a chip in the field,
+  so it reads as a value rather than typed-in text
+* "Details" and "Advanced" toggles are big enough to tap on a phone
+* A trip's duration and times stay pinned while its timeline scrolls
+* On mobile, the layer and locate buttons stay reachable when a sheet is open —
+  they ride its top edge instead of hiding behind it
+* A shared directions link keeps what each stop actually is. Reloading one
+  used to leave every stop as a bare name
+* Escape closes a trip's details on the first press. It used to take two — the
+  first only wiped the route off the map
+* Switching the Transit layer off clears its lines and stations from the map,
+  and switching it back on draws them again without waiting for a pan
+* The layer picker's tabs sit just under the drag handle on mobile, instead of
+  a band of empty space above them
+
+## [0.11.2] - 2026-09-07
+
+### Fixed
+
+* Live trains sit where they are on a route's timeline. They were pinned to
+  the top of the stop list, and the line ran on past the last stop, whenever
+  the list shortened under the panel
+* A route's map shows only that line's own trains. The 4 drew the 5s and 6s
+  too, since all three are the same green
+* Picking a train fills the stop list with its times again
+* The train picker sits with the direction picker in the pinned header, and a
+  train no longer rides over that header while scrolling
+
+## [0.11.1] - 2026-09-07
+
+### Fixed
+
+* A departure board no longer lists trains an alert says will skip the station. The runs after the skip window stay — their times are what say when the station reopens.
+* Station bullets on the map fade with the timetable's clock everywhere, not only where a page has been opened — the B's bullet steps back at 3am on a map nobody asked anything of. A read board still outranks the clock, and the time slider's hour applies when it is set.
+
+## [0.11.0] - 2026-09-07
+
+### Added
+
+* Tap any bullet in a line's stop list to open that line's own page.
+* Tap a stop in a line's list to open that station's page.
+
+### Changed
+
+* Highway shields dim to match the night map — dark plaques with light numerals, and muted interstate and US route colours — instead of glowing white.
+* Fewer route shields at low zooms: only motorways carry them when zoomed out, with trunk and primary routes joining as you zoom in.
+* Releases now deploy the API themselves instead of waiting up to an hour for the server to notice a new image.
+* Your account row stays pinned to the bottom of the mobile dashboard, so you can reach it without scrolling past every recent place.
+* Search suggestions run the full height of the panel instead of stopping half way down with empty space beneath them.
+* The layer picker opens as a sheet you can drag up to full screen again.
+* Opening a transit line now dims the rest of the network instead of hiding it, so you can still see where the line crosses everything else. The line itself draws thicker and the network steps further back, so it reads as the subject of the map.
+* A transit line's page drops its own back arrow and uses the sheet's floating one, matching place detail.
+* A transit line's name and direction stay pinned at the top while you scroll its stops.
+* Connection bullets in a line's stop list use the same order as the station page.
+* A line's page header shows the line's real bullet — the same chip the map draws — instead of a plain colored square.
+* Stops in a line's timeline size to their own content, so a stop with several connections no longer overlaps the name below it and a plain stop no longer sits in wasted space.
+* On the dark map, the rest of the network stays more visible behind an opened line.
+* An opened line sits on its own track rather than beside it, with stop dots sized to the line and drawn in its colour — no more white bundle markers or dots left in a lane the line no longer runs in.
+* An opened line shows its stop names and connection bullets at every zoom, including the whole-route overview.
+* Route bullets on the map fade for lines that aren't running at a station, matching the stop list and the station header. The map used to go by the timetable alone, which reads the wrong day on a holiday — Labor Day runs a Sunday service, and the map still showed you Monday's.
+* A line's alerts now read in three tiers: disruptions in effect keep their full-width cards, service notices condense to one line each, and scheduled work stays folded away. Rows in effect no longer all repeat "Now".
+
+### Fixed
+
+
+* A skipped station reads as skipped everywhere. The agency's "trains skip this stop" alert now dims the lines on a station's own page, its map bullets, and a line's stop list alike — the boards go on listing scheduled runs a planned skip never removes.
+* A line's stop list draws the path it is actually running. After midnight the R lists the Whitehall St–Bay Ridge shuttle instead of thirty stations no train will call at.
+* A rerouted line shows the stops it is really making. When the MTA sends the 4 local down Eastern Pkwy for a parade, its page gains Bergen St, Grand Army Plaza and the rest from the agency's own alert — and drops the stop the alert says everyone is skipping.
+* The map follows a reroute too: an isolated line's stations match the path it is running, and the line stays at full strength along it.
+* Live trains show on a line's stop timeline again, at the right point along it — they had collected at the top, taking the route line with them, once the list dropped the stops a line isn't running.
+* A line's page shows the trains that are actually running. On the 4 that meant 2 of the 21 in service, because most trains are only named by the part of the realtime feed we ignored — and a server running ten minutes slow discarded most of the rest.
+* Alerts for another railway no longer appear on a subway line. Metro-North and the LIRR each number a route "4" too, and all three share one alert feed.
+* An opened line keeps the map's own stations and bullets while you pan. Panning off the route could swap them for plain dots and labels partway through looking at it.
+* An isolated line ends where the trains really turn. When every 4 stops at Crown Hts–Utica Av, the map's line stops there too, instead of running on down a branch the schedule says it serves.
+* The train picker counts what it lists. It used to announce a train that was heading the other way and then offer nothing to select; trains running the other direction now live behind the direction toggle.
+* Connection bullets in a line's stop list fade when the line they name isn't running, matching the station page. They used to fade for being reachable by transfer — a fact about the walk between platforms, not about service.
+* Whether a line is running at a stop is judged over the same span of time everywhere. It used to depend on how busy the station was, so the overnight R appeared to skip alternate stops down Broadway instead of simply not running north of Whitehall St.
+* The map no longer shifts sideways when zooming across city scale with a panel open, and the camera no longer jumps after framing a route.
+* Opening a line with the side panel hidden brings the panel back and centers the route beside it, instead of framing it under where the panel will be.
+* An isolated line stays itself — opening a route no longer briefly highlights a different railroad that shares its number, and never settles on one.
+* Opening a transit line frames the whole route again — the sheet sliding in no longer cuts the camera short partway, however the panel was already positioned.
+* The stop list's line runs through the middle of every stop dot instead of floating past the last one.
+* An opened transit line is drawn once, by the transit map itself, instead of a second copy alongside it with duplicate stop names.
+* Opening a line on a cold load no longer flashes plain stop labels before the proper ones with route bullets arrive.
+* Motorway exit numbers no longer litter the map from far out — they wait for street-level zoom where the junction layer draws them.
+* Panels inside the mobile sheet scroll with the sheet instead of trapping the drag — search results, the timeline, collections, notes and friend and tracker details all pan and expand properly again.
+* The layer picker's tabs stay put while you scroll the list, and the sheet itself drags instead of fighting an inner scrollbar.
+* Lists leave room for the on-screen keyboard, so you can scroll to the end of your results without dismissing it first.
+
+## [0.10.4] - 2026-09-06
+
+### Added
+
+* Route bullets on the transit map are tappable — tap the line's bullet where it rides its track to open that line's route detail, the same page a bullet in a station header opens.
+
+## [0.10.3] - 2026-09-06
+
+### Added
+
+* Feedback now opens a form inside the app instead of sending you to GitHub. Pick a board, describe the bug or idea, and you'll be notified when it ships.
+* On a phone you can shake the device to open the feedback form, so reporting something you just hit takes no hunting through menus. Off by default — turn it on under Settings → Behavior.
+
+### Fixed
+
+* Transit lines show faintly through the buildings they pass behind again, instead of disappearing into the block.
+
+## [0.10.2] - 2026-09-06
+
+### Changed
+
+* Removed the non-functional "map theme" dropdown from appearance settings.
 
 ## [0.10.1] - 2026-09-04
 
@@ -29,6 +175,7 @@
 
 ### Fixed
 
+* Pressing the already-selected board in the feedback form no longer clears the selection and leaves Submit stuck.
 * The routing settings popup no longer overflows off screen — when its options are taller than the window, it caps at the visible height and scrolls inside.
 * The layers library tab's add and store buttons no longer overlap the tab bar — they now sit at the top of the list, matching the routes tab.
 * A minimized bottom sheet stays put when you tap the map behind it, instead of springing back to half height — most visible when drawing on a canvas from a phone.

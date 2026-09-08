@@ -122,10 +122,29 @@ const POINTED_WIDTHS = { 1: 18, 2: 21, 3: 25, 4: 30 }
 const SHIELD_COLORS = {
   interstateField: '#1B54A8',
   interstateCrown: '#D22E3F',
-  white: '#FFFFFF',
-  ink: '#3D3D3D',
+  ring: '#FFFFFF',
+  border: '#3D3D3D',
+  field: '#FFFFFF',
   rule: '#9A9A9A',
   exit: '#2A7D4A',
+}
+
+/**
+ * The dark flavor gets its own cut of every marker, `{name}-dark`, which the
+ * style selects via the `@shield_variant` token. A white plaque over a night
+ * basemap is the brightest thing on screen, so the plaques go charcoal with a
+ * hairline rule and light numerals (the dark `shield_ink` token), while the
+ * pointed markers keep their legislated hues pulled down to map weight — still
+ * an interstate at a glance, no longer a lamp.
+ */
+const SHIELD_COLORS_DARK = {
+  interstateField: '#2B4A7C',
+  interstateCrown: '#8F3040',
+  ring: '#A9B2C0',
+  border: '#8E97A6',
+  field: '#232833',
+  rule: '#4A5160',
+  exit: '#1E5C3C',
 }
 
 const svgDoc = (w, h, body) =>
@@ -138,16 +157,16 @@ const svgDoc = (w, h, body) =>
  * top third is red. The crown is drawn as a full shield clipped to a band, so
  * the red meets the white border on the same curve the blue does.
  */
-function interstateSvg(w) {
+function interstateSvg(w, colors) {
   const h = SHIELD_HEIGHT
   const path = shieldPath(INTERSTATE_OUTLINE, w, h, 0.5)
   const inner = shieldPath(INTERSTATE_OUTLINE, w, h, 0.5 + BORDER * 1.4)
-  const { interstateField, interstateCrown, white } = SHIELD_COLORS
+  const { interstateField, interstateCrown, ring } = colors
   return svgDoc(
     w,
     h,
     `<defs><clipPath id="c"><path d="${inner}"/></clipPath></defs>` +
-      `<path d="${path}" fill="${white}"/>` +
+      `<path d="${path}" fill="${ring}"/>` +
       `<path d="${inner}" fill="${interstateField}"/>` +
       `<rect x="0" y="0" width="${w}" height="${h * 0.34}" fill="${interstateCrown}" clip-path="url(#c)"/>`,
   )
@@ -157,14 +176,14 @@ function interstateSvg(w) {
  * The US route marker (MUTCD M1-4): a white escutcheon with a black border and
  * black numerals. Same silhouette as the interstate, cut the other way round.
  */
-function usRouteSvg(w) {
+function usRouteSvg(w, colors) {
   const h = SHIELD_HEIGHT
-  const { white, ink } = SHIELD_COLORS
+  const { field, border } = colors
   return svgDoc(
     w,
     h,
-    `<path d="${shieldPath(US_ROUTE_OUTLINE, w, h, 0.5)}" fill="${ink}"/>` +
-      `<path d="${shieldPath(US_ROUTE_OUTLINE, w, h, 0.5 + BORDER)}" fill="${white}"/>`,
+    `<path d="${shieldPath(US_ROUTE_OUTLINE, w, h, 0.5)}" fill="${border}"/>` +
+      `<path d="${shieldPath(US_ROUTE_OUTLINE, w, h, 0.5 + BORDER)}" fill="${field}"/>`,
   )
 }
 
@@ -227,23 +246,25 @@ function plaqueSvg(width, { fill, stroke, radius = 3 }) {
 
 function shieldArt() {
   const art = new Map()
-  for (const [len, width] of Object.entries(POINTED_WIDTHS)) {
-    art.set(`us-interstate-${len}`, interstateSvg(width))
-    art.set(`us-highway-${len}`, usRouteSvg(width))
-  }
-  for (const [len, width] of Object.entries(PLAQUE_WIDTHS)) {
-    art.set(`us-state-${len}`, plaqueSvg(width, {
-      fill: SHIELD_COLORS.white,
-      stroke: SHIELD_COLORS.ink,
-      radius: 2,
-    }))
-    art.set(`default-${len}`, plaqueSvg(width, {
-      fill: SHIELD_COLORS.white,
-      stroke: SHIELD_COLORS.rule,
-    }))
-    // Exit tabs carry white numerals, so the plaque is the green of a US exit
-    // sign rather than white; Standard hard-codes the same text colour.
-    art.set(`motorway-exit-${len}`, plaqueSvg(width, { fill: SHIELD_COLORS.exit }))
+  for (const [flavor, colors] of [['', SHIELD_COLORS], ['-dark', SHIELD_COLORS_DARK]]) {
+    for (const [len, width] of Object.entries(POINTED_WIDTHS)) {
+      art.set(`us-interstate-${len}${flavor}`, interstateSvg(width, colors))
+      art.set(`us-highway-${len}${flavor}`, usRouteSvg(width, colors))
+    }
+    for (const [len, width] of Object.entries(PLAQUE_WIDTHS)) {
+      art.set(`us-state-${len}${flavor}`, plaqueSvg(width, {
+        fill: colors.field,
+        stroke: colors.border,
+        radius: 2,
+      }))
+      art.set(`default-${len}${flavor}`, plaqueSvg(width, {
+        fill: colors.field,
+        stroke: colors.rule,
+      }))
+      // Exit tabs carry white numerals, so the plaque is the green of a US exit
+      // sign rather than white; Standard hard-codes the same text colour.
+      art.set(`motorway-exit-${len}${flavor}`, plaqueSvg(width, { fill: colors.exit }))
+    }
   }
   return art
 }
@@ -554,7 +575,7 @@ async function collectIcons() {
 }
 
 /** Shields are the sheet's only full-colour art; see `shieldArt`. */
-const isShield = name => SHIELD_NETWORKS.some(n => new RegExp(`^${n}-\\d$`).test(name))
+const isShield = name => SHIELD_NETWORKS.some(n => new RegExp(`^${n}-\\d(-dark)?$`).test(name))
 const SHIELD_NETWORKS = ['us-interstate', 'us-highway', 'us-state', 'default', 'motorway-exit']
 
 async function buildSheet(icons, ratio) {

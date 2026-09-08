@@ -20,6 +20,7 @@ import {
   StoreIcon,
 } from 'lucide-vue-next'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useConnectivity } from '@/composables/useConnectivity'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
@@ -55,18 +56,25 @@ function newGroup() {
   })
 }
 
+const { isOffline, onReconnected } = useConnectivity()
 const loading = ref(mainReorderableItems.value.length === 0)
 const storeOpen = ref(false)
 const searchQuery = ref('')
 
-onMounted(async () => {
-  await layersStore.loadLayers()
+async function load() {
+  // Offline with no cache the fetch rejects instantly — land on the offline
+  // empty state rather than a spinner that never resolves.
+  await layersStore.loadLayers().catch(() => {})
   loading.value = false
-})
+}
+
+onMounted(load)
+onReconnected(load)
 
 const isEmpty = computed(
   () => !loading.value && mainReorderableItems.value.length === 0,
 )
+const showOffline = computed(() => isEmpty.value && isOffline.value)
 </script>
 
 <template>
@@ -74,12 +82,14 @@ const isEmpty = computed(
     <Spinner />
   </div>
 
-  <div v-else-if="isEmpty" class="h-full flex items-start justify-center p-4">
+  <div v-else-if="isEmpty" class="min-h-full flex items-start justify-center p-4">
     <EmptyState
       :icon="Layers3Icon"
       :title="t('layers.empty.title')"
       :description="t('layers.empty.description')"
+      :offline="showOffline"
       class="mt-20"
+      @retry="load"
     >
       <Button size="sm" variant="outline" class="gap-1.5" @click="storeOpen = true">
         <StoreIcon class="size-3" />
@@ -88,7 +98,7 @@ const isEmpty = computed(
     </EmptyState>
   </div>
 
-  <div v-else class="h-full flex flex-col gap-2">
+  <div v-else class="min-h-full flex flex-col gap-2">
     <div class="flex items-center gap-2">
       <div class="relative flex-1">
         <SearchIcon

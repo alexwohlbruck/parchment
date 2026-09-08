@@ -74,7 +74,7 @@ function handleTabChange(tabId: string | number) {
       <Tabs
         :model-value="tabValue"
         @update:model-value="handleTabChange"
-        class="w-full h-full flex flex-col"
+        class="w-full min-h-full flex flex-col"
       >
         <div class="-mx-3 px-3 flex items-end border-b" style="width: calc(100% + 1.5rem)">
           <TabsList variant="linear" class="border-b-0">

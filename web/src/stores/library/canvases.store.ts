@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useStorage } from '@vueuse/core'
+import { isOfflineId } from '@/lib/sync/offline-id'
 import type { Canvas } from '@/types/canvas.types'
 
 /**
@@ -38,7 +39,32 @@ export const useCanvasesStore = defineStore('canvases', () => {
   )
 
   function setCanvases(next: Canvas[]) {
-    canvases.value = next
+    // Canvases created offline aren't on the server yet, so a refresh must
+    // not drop them; their queued create replaces them once it replays.
+    const pending = canvases.value.filter(
+      c => isOfflineId(c.id) && !next.some(n => n.id === c.id),
+    )
+    canvases.value = [...pending, ...next]
+  }
+
+  /**
+   * Swap an offline-created canvas for the server's version.
+   *
+   * The replayed create has already upserted the server row, so drop that
+   * copy first — otherwise the temp row becomes a second, identical entry.
+   */
+  function replaceCanvas(oldId: string, canvas: Canvas) {
+    const rest = canvases.value.filter(c => c.id !== canvas.id)
+    const index = rest.findIndex(c => c.id === oldId)
+    if (index !== -1) {
+      rest[index] = canvas
+      canvases.value = rest
+    } else {
+      canvases.value = [canvas, ...rest]
+    }
+    activeCanvasIds.value = [
+      ...new Set(activeCanvasIds.value.map(id => (id === oldId ? canvas.id : id))),
+    ]
   }
 
   function upsertCanvas(canvas: Canvas) {
@@ -74,6 +100,7 @@ export const useCanvasesStore = defineStore('canvases', () => {
     getCanvasById,
     setCanvases,
     upsertCanvas,
+    replaceCanvas,
     removeCanvas,
     setActive,
     isActive,

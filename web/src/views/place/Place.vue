@@ -190,5 +190,5 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <Place :place="currentPlace" :loading="loading" />
+  <Place :place="currentPlace" :loading="loading" @retry="loadPlace" />
 </template>

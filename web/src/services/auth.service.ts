@@ -16,6 +16,10 @@ import { Session } from '@/types/session.types'
 import { PermissionId, PermissionRule, User } from '@/types/auth.types'
 import { auth as deviceStore } from '@/lib/device-store'
 import { i18n } from '@/lib/i18n'
+import {
+  getNetworkErrorKind,
+  isRetriableNetworkError,
+} from '@/lib/network-errors'
 
 function setAuthHeader(token: string | null) {
   if (token) {
@@ -90,7 +94,13 @@ function authService() {
             authStore.unsetAuthenticatedUser()
           }
         })
-        .catch(() => {
+        .catch(error => {
+          // Only an actual server verdict invalidates the session. A
+          // validation attempt that failed because the device is offline
+          // or the server is unreachable says nothing about the session —
+          // signing out here would wipe every cache exactly when the user
+          // needs them most (offline launch).
+          if (isRetriableNetworkError(getNetworkErrorKind(error))) return
           clearAllUserCaches()
           authStore.unsetAuthenticatedUser()
         })
@@ -308,7 +318,7 @@ function authService() {
     // Imports are dynamic to avoid circular init between auth and
     // identity stores (identity store calls useAuthService()).
     const { useIdentityStore } = await import('@/stores/identity.store')
-    const { toast } = await import('vue-sonner')
+    const { toast } = await import('@/lib/toast')
     const { i18n: i18nInstance } = await import('@/lib/i18n')
     // Cast to dodge vue-i18n's "excessively deep" inference for the
     // typed schema.

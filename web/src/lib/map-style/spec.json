@@ -4331,7 +4331,8 @@
        "get",
        "ref_length"
       ]
-     ]
+     ],
+     "@shield_variant"
     ],
     "icon-rotation-alignment": "viewport",
     "icon-size": 1,
@@ -4405,7 +4406,8 @@
          "get",
          "ref_length"
         ]
-       ]
+       ],
+       "@shield_variant"
       ]
      ],
      [
@@ -4419,7 +4421,8 @@
          "get",
          "ref_length"
         ]
-       ]
+       ],
+       "@shield_variant"
       ]
      ]
     ],
@@ -4444,9 +4447,11 @@
       "zoom"
      ],
      11,
-     400,
-     14,
-     600
+     350,
+     13,
+     200,
+     16,
+     150
     ],
     "text-field": [
      "get",
@@ -4508,18 +4513,78 @@
      6
     ],
     [
-     "match",
+     "!=",
      [
-      "get",
-      "class"
+      "coalesce",
+      [
+       "get",
+       "subclass"
+      ],
+      ""
+     ],
+     "junction"
+    ],
+    [
+     "step",
+     [
+      "zoom"
      ],
      [
-      "pedestrian",
-      "service",
-      "path"
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      true,
+      false
      ],
-     false,
-     true
+     8,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway",
+       "trunk"
+      ],
+      true,
+      false
+     ],
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway",
+       "trunk",
+       "primary"
+      ],
+      true,
+      false
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "pedestrian",
+       "service",
+       "path"
+      ],
+      false,
+      true
+     ]
     ]
    ]
   },

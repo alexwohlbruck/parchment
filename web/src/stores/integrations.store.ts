@@ -206,6 +206,21 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     ),
   )
 
+  /**
+   * Whether anything can collect user feedback. Provider-agnostic on purpose —
+   * the in-app feedback entry points check this rather than naming Quackback,
+   * so a second provider needs no change here.
+   */
+  const isFeedbackActive = computed(() =>
+    safeConfigurationsArray().some(config =>
+      config.capabilities?.some(
+        capability =>
+          capability.id === IntegrationCapabilityId.FEEDBACK &&
+          capability.active,
+      ),
+    ),
+  )
+
   // Check if a location-history-capable integration is configured and active.
   // Dawarich is the only provider today; extend this list when others land.
   const isLocationHistoryActive = computed(() => {
@@ -283,6 +298,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     getIntegrationConfigValue,
     isCapabilityActive,
     isRoutingActive,
+    isFeedbackActive,
     osmProfile,
     clearCache,
   }

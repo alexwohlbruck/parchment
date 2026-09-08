@@ -9,10 +9,17 @@ import { EmptyState as BaseEmptyState } from '@/components/ui/empty-state'
  * The library's flavour of `EmptyState`: the wording and the Add action are
  * derived from the entity id, so a tab only has to name what it lists.
  */
-defineProps<{
-  icon: LucideIcon
-  entityId: string
-}>()
+withDefaults(
+  defineProps<{
+    icon: LucideIcon
+    entityId: string
+    /** The list is empty because the fetch couldn't run, not truly empty. */
+    offline?: boolean
+  }>(),
+  { offline: false },
+)
+
+const emit = defineEmits<{ retry: [] }>()
 
 const { t } = useI18n()
 </script>
@@ -20,6 +27,8 @@ const { t } = useI18n()
 <template>
   <BaseEmptyState
     :icon="icon"
+    :offline="offline"
+    @retry="emit('retry')"
     :title="
       capitalize(
         t('library.empty.message', {

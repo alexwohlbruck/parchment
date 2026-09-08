@@ -31,6 +31,8 @@ export enum IntegrationId {
   OPENAQ = 'openaq',
   /** NASA FIRMS — active-fire satellite detections (Environment wildfire overlay). */
   FIRMS = 'firms',
+  /** Quackback — backend for the in-app feedback form. System-only, config-only. */
+  QUACKBACK = 'quackback',
 }
 
 export enum IntegrationCapabilityId {
@@ -55,4 +57,5 @@ export enum IntegrationCapabilityId {
   LOCATION_HISTORY = 'locationHistory',
   TRANSIT_ROUTING = 'transitRouting',
   RIDESHARE_ESTIMATE = 'rideshareEstimate',
+  FEEDBACK = 'feedback',
 }

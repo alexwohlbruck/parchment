@@ -31,11 +31,21 @@ import { useAbortController } from '@/composables/useAbortController'
 import { cn, useResponsive } from '@/lib/utils'
 import { useDebounceFn } from '@vueuse/core'
 import { Spinner } from '@/components/ui/spinner'
-import { getSearchResultName } from '@/lib/search.utils'
+import {
+  getSearchResultName,
+  autocompleteResultToPlace,
+} from '@/lib/search.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useI18n } from 'vue-i18n'
+import { PlaceCard } from '@/components/place/card'
+import {
+  autocompleteToDisplay,
+  makePlaceDisplay,
+  waypointToDisplay,
+} from '@/lib/place-display'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { type ThemeColor, fuzzyFilter } from '@/lib/utils'
+import { useThemeStore } from '@/stores/theme.store'
+import { fuzzyFilter } from '@/lib/utils'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { frequentChipMeta, type FrequentType } from '@/lib/frequents'
 import type { Bookmark } from '@/types/library.types'
@@ -47,6 +57,7 @@ const { t } = useI18n()
 
 const directionsService = useDirectionsService()
 const bookmarksStore = useBookmarksStore()
+const themeStore = useThemeStore()
 const { isMobileScreen } = useResponsive()
 
 // Home / Work / School as quick destinations. A category can hold several
@@ -188,6 +199,9 @@ function updateTimeConstraint(index: number, constraint: WaypointTimeConstraint 
 }
 
 function getWaypointName(waypoint: Waypoint) {
+  // Current location renders as a chip beside the caret, so the field itself
+  // stays empty — see `isCurrentLocationChip`.
+  if (waypoint.place?.id === 'current-location') return ''
   if (waypoint.place) {
     const placeName = getSearchResultName(waypoint.place as Place)
     // If place exists but has no name, fall back to coordinates
@@ -204,7 +218,7 @@ function getWaypointName(waypoint: Waypoint) {
   return ''
 }
 
-function selectPlace(index: number, place: Place, result?: AutocompleteResult) {
+function selectPlace(index: number, place: Place) {
   const newWaypoints = [...waypoints.value]
 
   // Create waypoint with place and coordinates - all place types follow the same pattern
@@ -220,7 +234,7 @@ function selectPlace(index: number, place: Place, result?: AutocompleteResult) {
   emit('update:modelValue', newWaypoints)
 
   // Update input text to show the selected place name
-  inputTexts.value[index] = result ? result.title : getSearchResultName(place)
+  inputTexts.value[index] = getWaypointName(newWaypoints[index])
 
   // Clear user-modified flag since we're setting a system value
   userModifiedInputs.value.delete(index)
@@ -314,92 +328,56 @@ const getAutocomplete = useDebounceFn(async (index: number, value: string) => {
   }
 }, 150)
 
-// Convert AutocompleteResult to Place object
-function autocompleteResultToPlace(result: AutocompleteResult): Place {
-  if (result.type === 'current_location') {
-    return {
-      id: 'current-location',
-      name: { value: result.title },
-      geometry: {
-        value: {
-          type: 'point',
-          center: {
-            lat: result.lat,
-            lng: result.lng,
-          },
-        },
-      },
-      externalIds: {},
-      address: null,
-      placeType: { value: 'current_location' },
-    } as unknown as Place // TODO: Fix this
-  }
-
-  if (result.type === 'bookmark') {
-    return {
-      id: result.id,
-      name: { value: result.title },
-      geometry: {
-        value: {
-          type: 'point',
-          center: {
-            lat: result.lat,
-            lng: result.lng,
-          },
-        },
-      },
-      externalIds: {},
-      address: result.description
-        ? { value: { formatted: result.description } }
-        : null,
-      placeType: { value: 'bookmark' },
-      bookmark: {
-        id: result.id,
-        name: result.title,
-        icon: result.icon || 'map-pin',
-        iconColor: result.color || 'magenta',
-      },
-    } as unknown as Place
-  }
-
-  // Default for 'place' type and fallback
-  return {
-    id: result.id,
-    name: { value: result.title },
-    geometry: {
-      value: {
-        type: 'point',
-        center: {
-          lat: result.lat,
-          lng: result.lng,
-        },
-      },
-    },
-    externalIds: {},
-    address: result.description
-      ? { value: { formatted: result.description } }
-      : null,
-    placeType: { value: 'place' },
-  } as unknown as Place
+/**
+ * Current location is not a place you can type, so the field shows it as a
+ * chip rather than as text: a value the user chose, not a query they wrote.
+ *
+ * The chip stands in for the input's contents, so it holds only while the
+ * field is empty — the first keystroke is the user replacing it, and the chip
+ * gives way to what they are typing.
+ */
+function isCurrentLocationChip(index: number): boolean {
+  return (
+    waypoints.value[index]?.place?.id === 'current-location' &&
+    !inputTexts.value[index]
+  )
 }
 
-// Check if current location is already used in any waypoint that hasn't been edited
-const isCurrentLocationUsed = computed(() => {
-  return waypoints.value.some((waypoint, index) => {
-    // Current location is considered "used" only if:
-    // 1. The waypoint has current location as its place
-    // 2. The input text matches the current location name (user hasn't started editing)
-    if (waypoint.place?.id === 'current-location') {
-      const currentLocationName = t(
-        'directions.currentLocation',
-        'Current Location',
-      )
-      const inputText = inputTexts.value[index] || ''
-      return inputText === currentLocationName
+/**
+ * The mark in front of each field: the stop's own POI glyph where it has one,
+ * so a field holding a restaurant looks like the restaurant it will be on the
+ * map and in the trip. Current location is the exception — the chip inside the
+ * field already carries that mark, and drawing it twice on one row reads as
+ * two different things.
+ */
+const waypointMarks = computed(() =>
+  waypoints.value.map((waypoint, index) => {
+    const { display, ownIcon } = waypointToDisplay(waypoint.place, {
+      isDark: themeStore.isDark,
+      t,
+    })
+    return {
+      display,
+      // The origin is the one field that isn't a place; everything else shows
+      // a mark, its own glyph or the pin. Current location is the exception:
+      // the chip inside the field already carries that mark.
+      showGlyph:
+        (ownIcon || index > 0) && waypoint.place?.id !== 'current-location',
     }
-    return false
-  })
-})
+  }),
+)
+
+const currentLocationDisplay = computed(() =>
+  makePlaceDisplay({
+    title: t('directions.currentLocation', 'Current Location'),
+    icon: 'Locate',
+  }),
+)
+
+// Don't offer current location again while a field is already holding it.
+const isCurrentLocationUsed = computed(() =>
+  waypoints.value.some((_, index) => isCurrentLocationChip(index)),
+)
 
 // Create current location autocomplete result
 const createCurrentLocationResult = (): AutocompleteResult | null => {
@@ -449,7 +427,7 @@ function locateUser(index: number) {
   if (!isGeolocationSupported.value || !coords.value.latitude || !coords.value.longitude) return
   const result = createCurrentLocationResult()
   if (result) {
-    selectPlace(index, autocompleteResultToPlace(result), result)
+    selectPlace(index, autocompleteResultToPlace(result))
   }
 }
 
@@ -473,7 +451,7 @@ defineExpose({
             <!-- Connecting line between icons -->
             <div
               v-if="index < waypoints.length - 1"
-              class="absolute left-[1.19rem] top-full w-px h-2 bg-border z-0"
+              class="absolute left-[1.375rem] top-full w-px h-2 bg-border z-0"
             />
 
             <Combobox
@@ -484,7 +462,7 @@ defineExpose({
             >
               <ComboboxAnchor>
                 <ComboboxInput
-                  :placeholder="index === 0 ? $t('directions.from') : $t('directions.to')"
+                  :placeholder="isCurrentLocationChip(index) ? '' : index === 0 ? $t('directions.from') : $t('directions.to')"
                   :model-value="inputTexts[index] || ''"
                   :class="blurPhase[index] === 'out' ? 'animate-blur-out' : blurPhase[index] === 'wipe' ? 'animate-wipe-in' : ''"
                   hide-search-icon
@@ -504,15 +482,40 @@ defineExpose({
                   "
                 >
                   <template #prefix>
-                    <div class="shrink-0 flex items-center justify-center handle cursor-grab active:cursor-grabbing relative">
+                    <div class="shrink-0 size-5 flex items-center justify-center handle cursor-grab active:cursor-grabbing relative">
+                      <ItemIcon
+                        v-if="waypointMarks[index]?.showGlyph"
+                        :icon="waypointMarks[index].display.icon"
+                        :icon-pack="waypointMarks[index].display.iconPack"
+                        :color="waypointMarks[index].display.color"
+                        :custom-color="waypointMarks[index].display.customColor"
+                        :image-url="waypointMarks[index].display.imageUrl ?? undefined"
+                        size="xs"
+                        variant="solid"
+                        shape="circle"
+                        class="group-hover:opacity-0 transition-opacity"
+                      />
+                      <!-- Where the trip starts. Every other field holds a
+                           place, and shows it. -->
                       <div
-                        class="size-4 rounded-full flex items-center justify-center group-hover:opacity-0 transition-opacity"
-                        :class="index === 0 ? 'bg-background border-[1.5px] border-foreground/60' : 'bg-primary border-[1.5px] border-white'"
-                      >
-                        <span v-if="index > 0" class="text-[9px] font-bold text-white">{{ index }}</span>
-                      </div>
+                        v-else
+                        class="size-4 rounded-full bg-background border-[1.5px] border-foreground/60 group-hover:opacity-0 transition-opacity"
+                      />
                       <GripVerticalIcon class="size-4 text-muted-foreground absolute opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
+                    <!-- Current location isn't typed text, so it sits in the
+                         field as a chip rather than as a value that looks
+                         editable. Typing replaces it; the caret is already
+                         waiting after it. -->
+                    <PlaceCard
+                      v-if="isCurrentLocationChip(index)"
+                      :display="currentLocationDisplay"
+                      variant="chip"
+                      size="xs"
+                      icon-variant="ghost"
+                      :navigate="false"
+                      class="shrink-0 -ml-0.5 pointer-events-none"
+                    />
                   </template>
                   <template #postfix>
                     <!-- Desktop: icon buttons hidden until row hover -->
@@ -615,32 +618,22 @@ defineExpose({
                   <ComboboxItem
                     v-for="result in combinedResults"
                     :key="result.id"
+                    class="p-0"
                     :value="autocompleteResultToPlace(result)"
-                    @select="selectPlace(index, autocompleteResultToPlace(result), result)"
+                    @select="selectPlace(index, autocompleteResultToPlace(result))"
                   >
-                    <div class="flex items-center gap-2 flex-1">
-                      <ItemIcon
-                        :icon="
-                          result.type === 'current_location'
-                            ? 'Locate'
-                            : result.type === 'bookmark'
-                              ? result.icon || 'MapPin'
-                              : 'MapPin'
-                        "
-                        :color="(result.color as ThemeColor) || 'parchment'"
-                        size="sm"
-                        class="size-4"
-                      />
-                      <div class="flex flex-col flex-1">
-                        <span>{{ result.title }}</span>
-                        <span v-if="result.description" class="text-sm text-muted-foreground">
-                          {{ result.description }}
-                        </span>
-                      </div>
-                    </div>
+                    <PlaceCard
+                      :display="autocompleteToDisplay(result, { isDark: themeStore.isDark })"
+                      variant="plain"
+                      size="sm"
+                      density="compact"
+                      icon-variant="ghost"
+                      :navigate="false"
+                      class="flex-1 min-w-0"
+                    />
 
                     <ComboboxItemIndicator>
-                      <Check :class="cn('ml-auto h-4 w-4')" />
+                      <Check :class="cn('mr-2 h-4 w-4')" />
                     </ComboboxItemIndicator>
                   </ComboboxItem>
                 </ComboboxGroup>

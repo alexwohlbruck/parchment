@@ -22,3 +22,15 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+# The service worker must never be served stale, or updates take two visits
+# plus the previous worker's lifetime to reach users.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json" 

@@ -3,6 +3,7 @@ import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
   directionsQueryEquals,
+  shareableWaypointId,
 } from './directions-url'
 
 describe('directions-url', () => {
@@ -64,5 +65,62 @@ describe('directions-url', () => {
     expect(
       directionsQueryEquals(q, { wp: '1.000000,2.000000', mode: 'driving' } as never),
     ).toBe(false)
+  })
+
+  it('carries place ids alongside the waypoints they belong to', () => {
+    const q = serializeDirectionsQuery({
+      waypoints: [
+        { lat: 40.6702, lng: -73.955, label: 'Current Location' },
+        { lat: 40.684397, lng: -73.97644, label: 'Target', id: 'osm/node/6308438190' },
+      ],
+    })
+    expect(q.wpid).toEqual(['', 'osm/node/6308438190'])
+
+    const parsed = parseDirectionsQuery(q as never)!
+    expect(parsed.waypoints[0].id).toBeUndefined()
+    expect(parsed.waypoints[1].id).toBe('osm/node/6308438190')
+  })
+
+  it('omits the id list when no waypoint has one', () => {
+    const q = serializeDirectionsQuery({
+      waypoints: [
+        { lat: 40.6702, lng: -73.955 },
+        { lat: 40.684397, lng: -73.97644 },
+      ],
+    })
+    expect(q.wpid).toBeUndefined()
+  })
+
+  // A malformed wp is dropped but still holds its slot, so the ids after it
+  // stay attached to the right stops.
+  it('keeps ids aligned when a waypoint is unparseable', () => {
+    const parsed = parseDirectionsQuery({
+      wp: ['not-a-coord', '40.684397,-73.976440,Target'],
+      wpid: ['osm/node/1', 'osm/node/2'],
+    } as never)!
+    expect(parsed.waypoints).toHaveLength(1)
+    expect(parsed.waypoints[0].id).toBe('osm/node/2')
+  })
+
+  it('treats the id list as part of the query when comparing', () => {
+    const q = serializeDirectionsQuery({
+      waypoints: [{ lat: 1, lng: 2, id: 'osm/node/1' }],
+    })
+    expect(directionsQueryEquals(q, { wp: q.wp } as never)).toBe(false)
+    expect(directionsQueryEquals(q, q as never)).toBe(true)
+  })
+})
+
+describe('shareableWaypointId', () => {
+  it('shares ids that name a source', () => {
+    expect(shareableWaypointId({ id: 'osm/node/6308438190' })).toBe('osm/node/6308438190')
+  })
+
+  it('withholds ids that mean nothing on another device', () => {
+    expect(shareableWaypointId(null)).toBeUndefined()
+    expect(shareableWaypointId({ id: 'current-location' })).toBeUndefined()
+    expect(shareableWaypointId({ id: 'shared-wp-0' })).toBeUndefined()
+    // A bookmark id is a bare uuid — private to the user who saved it.
+    expect(shareableWaypointId({ id: 'vAzo3WtqLXuZu7Oe4FW6ok6a' })).toBeUndefined()
   })
 })

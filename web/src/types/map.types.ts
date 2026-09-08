@@ -431,3 +431,14 @@ export enum UnitSystem {
   METRIC = 'metric',
   IMPERIAL = 'imperial',
 }
+
+/**
+ * `mapService.fitBounds` — the obstruction-aware wrapper, not the raw
+ * strategy call. Services that frame content take it as a parameter so the
+ * fit lands inside the visible map area (not under the sheets) and re-fires
+ * once a drawer animation settles.
+ */
+export type FitBoundsFn = (
+  bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+  options?: any,
+) => void

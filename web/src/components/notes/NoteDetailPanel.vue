@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
+import { SheetFooter } from '@/components/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -84,8 +85,8 @@ function handleReopen() {
 </script>
 
 <template>
-  <div class="h-full flex flex-col">
-    <DetailPanelLayout class="flex-1 min-h-0">
+  <div class="min-h-full flex flex-col">
+    <DetailPanelLayout class="flex-1">
       <template #title>
         <div class="flex items-center gap-2">
           <div class="relative shrink-0">
@@ -163,10 +164,11 @@ function handleReopen() {
       </template>
     </DetailPanelLayout>
 
-    <!-- Fixed footer -->
-    <div
+    <!-- Pinned footer — the comment box stays reachable however long the
+         thread gets. -->
+    <SheetFooter
       v-if="!loading && note"
-      class="shrink-0 border-t border-border/50 bg-background/80 backdrop-blur-xl px-4 py-3 space-y-3"
+      class="border-t border-border/50 bg-background/80 backdrop-blur-xl px-4 py-3 space-y-3"
     >
       <template v-if="isAuthenticated">
         <!-- Open note: comment box + comment/resolve buttons -->
@@ -221,6 +223,6 @@ function handleReopen() {
           </Button>
         </div>
       </template>
-    </div>
+    </SheetFooter>
   </div>
 </template>

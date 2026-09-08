@@ -22,6 +22,7 @@ import {
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
 import { useRouteIsolationService } from '@/services/layers/features/route-isolation.service'
+import type { FitBoundsFn } from '@/types/map.types'
 import { watch, Component, type WatchStopHandle } from 'vue'
 
 export function useMarkerLayersService() {
@@ -49,7 +50,7 @@ export function useMarkerLayersService() {
    * Initialize marker layers with map strategy
    * Call this after map is loaded
    */
-  function initializeMarkerLayers(mapStrategy: MapStrategy) {
+  function initializeMarkerLayers(mapStrategy: MapStrategy, fitBounds?: FitBoundsFn) {
     // Destroy any existing layers first (style.load fires on basemap/theme
     // changes, not just initial load — without this, old layers leak watchers
     // and orphan markers).
@@ -117,7 +118,7 @@ export function useMarkerLayersService() {
 
     // Route isolation: highlights active transit route on the map
     routeIsolation = useRouteIsolationService()
-    routeIsolation.initialize(mapStrategy.mapInstance)
+    routeIsolation.initialize(mapStrategy.mapInstance, fitBounds)
 
     // Set up watchers for reactive updates
     setupMarkerLayerWatchers()

@@ -53,6 +53,7 @@ const label = computed(() => {
 <template>
   <button
     type="button"
+    data-testid="alert-disruption"
     class="w-full flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors cursor-pointer"
     :class="surfaceClass"
     :aria-expanded="expanded"

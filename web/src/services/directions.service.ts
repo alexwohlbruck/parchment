@@ -13,6 +13,7 @@ import type { Place } from '@/types/place.types'
 import { useGeocodingService } from './geocoding.service'
 import { getSearchResultName } from '@/lib/search.utils'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import { usePlaceService } from '@/services/place.service'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
@@ -366,6 +367,39 @@ function directionsService() {
   }
 
   /**
+   * Fill in everything a waypoint's place record is missing.
+   *
+   * A waypoint arrives holding whatever the surface that set it happened to
+   * know: an autocomplete row carries a name, coordinates and an icon; a
+   * shared link carries a name and an id. The trip timeline and the map
+   * markers render from that record, so a thin one shows a grey pin and a
+   * bare name where the place has a category, hours and a rating. Look the
+   * full record up in the background and swap it in — the place cache makes
+   * a repeat lookup free.
+   */
+  async function hydrateWaypointPlace(index: number, placeId: string) {
+    const { lookupPlaceById } = usePlaceService()
+    const full = await lookupPlaceById(placeId)
+    if (!full) return
+
+    const current = waypoints.value[index]
+    // The waypoint may have moved on while the lookup was in flight.
+    if (current?.place?.id !== placeId) return
+
+    // The waypoint's own coordinates win: the user picked that point, and a
+    // POI's canonical centre can sit metres away from it.
+    store.setWaypoint(index, { ...current, place: full })
+
+    // Patch an already-planned trip in place so the timeline it is currently
+    // rendering picks the richer record up without a re-plan.
+    const requestWaypoint = store.trips?.request?.waypoints?.[index]
+    if (requestWaypoint) {
+      requestWaypoint.name = getSearchResultName(full)
+      requestWaypoint.place = full
+    }
+  }
+
+  /**
    * Helper function to set a waypoint and reverse geocode if needed
    * This ensures consistent behavior across all waypoint-setting functions
    */
@@ -404,6 +438,7 @@ function directionsService() {
           const trips = store.trips
           if (trips?.request?.waypoints?.[index]) {
             trips.request.waypoints[index].name = getSearchResultName(place as Place)
+            trips.request.waypoints[index].place = place
           }
         } else {
           console.log('[Directions] No reverse geocoding results found')
@@ -412,8 +447,8 @@ function directionsService() {
         console.error('[Directions] Failed to reverse geocode waypoint:', error)
         // Continue without place info if geocoding fails
       })
-    } else if (waypoint.place) {
-      console.log('[Directions] Waypoint already has place info:', waypoint.place.name?.value)
+    } else if (waypoint.place?.id) {
+      hydrateWaypointPlace(index, waypoint.place.id)
     }
   }
 
@@ -540,12 +575,15 @@ function directionsService() {
     const state = parseDirectionsQuery(route.query)
     if (!state) return false
 
+    // A shared link carries a label and, where the waypoint had one, a place
+    // id. The stub renders immediately; the id (when present) then fetches the
+    // real record so a reloaded trip looks like the one that was planned.
     const wps = state.waypoints.map((w, i) => ({
       lngLat: new LngLat(w.lng, w.lat),
-      place: w.label
+      place: w.label || w.id
         ? ({
-            id: `shared-wp-${i}`,
-            name: { value: w.label },
+            id: w.id || `shared-wp-${i}`,
+            name: { value: w.label ?? '' },
             geometry: {
               value: { type: 'point', center: { lat: w.lat, lng: w.lng } },
             },
@@ -561,7 +599,23 @@ function directionsService() {
     if (state.sort) store.sortPreference = state.sort as typeof sortPreference.value
     if (state.depart) store.departureTime = state.depart
     store.setWaypoints(wps)
+    state.waypoints.forEach((w, i) => {
+      if (w.id) hydrateWaypointPlace(i, w.id)
+    })
     return true
+  }
+
+  /**
+   * The waypoint's place id, when it is one a recipient of the link can look
+   * up. Ids minted locally — current location, a bookmark row, an earlier
+   * link's own stub — mean nothing on another device, so they are left out
+   * rather than shared as dead references.
+   */
+  function shareableWaypointId(place: Partial<Place> | null | undefined) {
+    const id = place?.id
+    if (!id || !id.includes('/')) return undefined
+    if (id.startsWith('shared-wp-')) return undefined
+    return id
   }
 
   /** Reflect the current inputs into the URL (replace — no history spam). */
@@ -574,13 +628,14 @@ function directionsService() {
           lat: w.lngLat!.lat,
           lng: w.lngLat!.lng,
           label: (w.place ? getSearchResultName(w.place as Place) : '') || undefined,
+          id: shareableWaypointId(w.place),
         })),
       mode: selectedMode.value,
       sort: sortPreference.value || undefined,
       depart: departureTime.value || undefined,
     })
     if (directionsQueryEquals(q, route.query)) return
-    const { wp: _wp, mode: _mode, sort: _sort, depart: _depart, ...rest } = route.query
+    const { wp: _wp, wpid: _wpid, mode: _mode, sort: _sort, depart: _depart, ...rest } = route.query
     router.replace({ query: { ...rest, ...q } }).catch(() => {})
   }
 

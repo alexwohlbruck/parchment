@@ -2,6 +2,7 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { Place, PlaceCategory } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import type { RecentPlaceEntry, RecentSearchEntry } from '@/lib/recents'
+import type { AutocompleteResult } from '@/types/search.types'
 import type { ThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
 import { getPlaceRoute, getPlaceRouteFromExternalIds, getTransitStopRoute, formatAddress } from '@/lib/place.utils'
@@ -251,6 +252,39 @@ export function recentSearchToDisplay(
     ),
     imageUrl: entry.brandLogoUrl ?? null,
     route: recentSearchRoute(entry),
+  })
+}
+
+/**
+ * An autocomplete suggestion. Thin by design — a title, a description and an
+ * icon — so most detail lines are simply unavailable; the description is the
+ * one subtitle the row carries.
+ *
+ * Adapting here rather than at the call site is what lets the directions
+ * waypoint picker draw the same rows as search: a maki glyph stays a maki
+ * glyph, and a category keeps its colour.
+ */
+export function autocompleteToDisplay(
+  result: AutocompleteResult,
+  { isDark }: Pick<PlaceDisplayOptions, 'isDark'>,
+): PlaceDisplay {
+  const isCurrentLocation = result.type === 'current_location'
+
+  return makePlaceDisplay({
+    title: result.title,
+    icon: isCurrentLocation ? 'Locate' : result.icon || 'MapPin',
+    iconPack: result.iconPack ?? 'lucide',
+    // A bookmark's colour is fixed by its type and set on the row itself;
+    // everything else takes its category's colour, as search results do.
+    ...(result.color && result.type === 'bookmark'
+      ? { color: result.color as ThemeColor }
+      : {
+          customColor: getCategoryColor(
+            (result.iconCategory || 'default') as PlaceCategory,
+            isDark,
+          ),
+        }),
+    address: result.description ?? null,
   })
 }
 

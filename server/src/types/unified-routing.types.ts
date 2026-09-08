@@ -1,6 +1,8 @@
 // Unified Routing Types for Parchment
 // Supports: Valhalla, OSRM, GraphHopper, OpenRouteService, OpenTripPlanner, Google Maps
 
+import type { Place } from './place.types'
+
 export interface Coordinate {
   lng: number
   lat: number
@@ -30,6 +32,12 @@ export interface RouteWaypoint {
   coordinate: Coordinate
   type: WaypointType
   name?: string
+  /**
+   * The place this stop stands for, when it is one. Carried through the plan
+   * so the trip timeline and the map markers can render the stop the way the
+   * rest of the app renders a place, rather than as a numbered dot.
+   */
+  place?: Partial<Place> | null
 
   // Time constraints
   arrivalTime?: Date

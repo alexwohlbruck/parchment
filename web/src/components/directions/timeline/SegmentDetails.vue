@@ -94,10 +94,14 @@ const instructionKey = (index: number) => `${props.segmentIndex}-${index}`
     v-slot="{ open }"
     class="mt-2"
   >
+    <!-- A pill rather than a line of text: on a phone this is the control that
+         opens the turn-by-turn, and a 16px-tall run of words is not something
+         you can reliably hit. The negative margin keeps the label sitting where
+         it did — the target grows around it rather than pushing it over. -->
     <CollapsibleTrigger
-      class="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+      class="flex items-center gap-1.5 -mx-2 px-2 min-h-8 pointer-coarse:min-h-11 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 active:bg-muted transition-colors cursor-pointer select-none"
     >
-      <ChevronDownIcon class="size-3 transition-transform" :class="open && 'rotate-180'" />
+      <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
       <span>{{ open ? 'Hide details' : 'Details' }}</span>
       <span
         v-if="!open && segment.instructions?.length"

@@ -869,20 +869,14 @@ watch(
 
 onBeforeRouteLeave(to => {
   mapService.setRouteProfile(null)
-  // Going back to the results list: keep this trip drawn beneath it.
   if (to.name === AppRoute.DIRECTIONS && tripId.value) {
     mapService.setVisibleTrips([tripId.value])
   }
 })
 
-// Tear down on unmount rather than in the leave guard: the guard runs
-// mid-navigation while the route is still /directions/trip, so clearing
-// waypoints there fires the service's syncUrl watcher, whose router.replace
-// cancels the outgoing navigation — esc wiped the route off the map but left
-// the panel open until a second press. By onUnmounted the route has committed,
-// so syncUrl bails on its /directions path guard. Unmount also skips a
-// same-route id swap (the canonicalising replace above), which the guard did
-// not. `route.name` is the committed destination here.
+// Tear down on unmount, not in the leave guard: clearing waypoints there fires
+// the service's syncUrl watcher, whose router.replace cancels the outgoing
+// navigation. `route.name` is the committed destination here.
 onUnmounted(() => {
   if (route.name === AppRoute.DIRECTIONS) return
   directionsService.clearWaypoints()

@@ -208,6 +208,30 @@ const streetPeekStyle = computed<CSSProperties>(() => {
   const bottom = Math.max(PEEK_INSET, window.innerHeight - sheetTop + PEEK_INSET)
   return { position: 'fixed', left: `${PEEK_INSET}px`, bottom: `${bottom}px` }
 })
+// Keep the bottom-right controls reachable while the mobile sheet is up:
+// ride its top edge (live bounds update each frame during drags), and once
+// the sheet covers most of the screen fade them out — the map is hidden, so
+// stacking them mid-screen would only add noise.
+const mapFabsHidden = computed(() => {
+  if (!isMobileScreen.value) return false
+  const sheet = appStore.componentDimensions.get('map-content-sheet')
+  if (!sheet) return false
+  return window.innerHeight - sheet.y > window.innerHeight * 0.7
+})
+
+// 4.5rem = the cluster's resting offset (overlay p-2 + mb-16); min() keeps
+// the transform from pushing the buttons down when the sheet sits below it.
+const mapFabsLiftStyle = computed<CSSProperties>(() => {
+  if (!isMobileScreen.value) return {}
+  const sheet = appStore.componentDimensions.get('map-content-sheet')
+  if (!sheet) return {}
+  const visible = Math.round(window.innerHeight - sheet.y)
+  if (visible <= 0) return {}
+  return {
+    transform: `translateY(min(0px, calc(4.5rem + env(safe-area-inset-bottom) - ${visible + PEEK_INSET}px)))`,
+  }
+})
+
 // Canvases the user has switched on render over the basemap for as long as
 // they are on. Which ones those are comes from the layer store's projection
 // rather than straight off the canvases store, so the "Canvases" group's
@@ -552,8 +576,14 @@ defineExpose({
 
               <!-- Right bottom -->
               <div
-                class="pointer-events-auto flex flex-col gap-2"
-                :class="{ 'mb-16': isMobileScreen }"
+                class="flex flex-col gap-2 transition-opacity duration-200"
+                :class="[
+                  isMobileScreen && 'mb-16',
+                  mapFabsHidden
+                    ? 'opacity-0 pointer-events-none'
+                    : 'pointer-events-auto',
+                ]"
+                :style="mapFabsLiftStyle"
               >
                 <StreetViewControl />
                 <LayerControl />

@@ -1376,24 +1376,31 @@ function showSegmentChart(segment: any): boolean {
                 class="relative z-10 mt-1 !size-7 shrink-0 ring-2 ring-muted-light"
               />
               <!-- Nothing to draw: a plain point still has to say where the
-                   trip starts, ends and stops along the way. -->
+                   trip starts, ends and stops along the way. It stays a small
+                   mark — the box around it only exists to put its centre on
+                   the rail where a glyph's would be. Blown up to glyph size an
+                   empty ring is just a large hole. -->
               <div
                 v-else
-                class="relative z-10 mt-1 size-7 rounded-full flex items-center justify-center shrink-0 ring-2 ring-muted-light"
-                :class="entry.waypointIndex === 0
-                  ? 'bg-background border-[1.5px] border-foreground/60'
-                  : 'bg-primary'"
+                class="relative z-10 mt-1 size-7 flex items-center justify-center shrink-0"
               >
-                <FlagIcon
-                  v-if="entry.wp.role === 'destination'"
-                  class="size-3.5 text-primary-foreground"
-                />
-                <span
-                  v-else-if="entry.waypointIndex > 0"
-                  class="text-xs font-bold text-primary-foreground"
+                <div
+                  class="size-4 rounded-full flex items-center justify-center ring-2 ring-muted-light"
+                  :class="entry.waypointIndex === 0
+                    ? 'bg-background border-[1.5px] border-foreground/60'
+                    : 'bg-primary'"
                 >
-                  {{ entry.waypointIndex }}
-                </span>
+                  <FlagIcon
+                    v-if="entry.wp.role === 'destination'"
+                    class="size-2.5 text-primary-foreground"
+                  />
+                  <span
+                    v-else-if="entry.waypointIndex > 0"
+                    class="text-[9px] font-bold text-primary-foreground"
+                  >
+                    {{ entry.waypointIndex }}
+                  </span>
+                </div>
               </div>
             </template>
 

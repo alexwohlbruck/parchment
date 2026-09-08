@@ -56,6 +56,7 @@ import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
+import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
 
 /**
  * The zoom at which the globe has finished becoming a flat map.
@@ -141,7 +142,6 @@ export class MapboxStrategy extends MapStrategy {
   mapInstance: MapboxMap
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
-  private clickDebounceTimer: number | null = null
   layerGroups: Map<string, MapLayerGroup> = new Map()
   private currentLanguage?: string
   private hdRoadsEnabled: boolean = false
@@ -193,6 +193,7 @@ export class MapboxStrategy extends MapStrategy {
     // makes every rendering question a guess instead of a check.
     if (import.meta.env.DEV) (window as any).__parchmentMap = this.mapInstance
 
+    this.setupPoiClickHandling()
     this.addControls()
     this.configureEventListeners()
 
@@ -279,10 +280,14 @@ export class MapboxStrategy extends MapStrategy {
     // Touch-and-hold for mobile context menu
     this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
-      mapEventBus.emit('click:mapillary-image', {
+      if (useMapToolsStore().rawClickCapture) return
+      const data = {
         lngLat: e.lngLat,
         point: e.point,
         image: (e.features?.[0]?.properties as MapillaryImage) || undefined,
+      }
+      this.dispatchPoiClick(e, () => {
+        mapEventBus.emit('click:mapillary-image', data)
       })
     })
     // Change pointers on hover
@@ -313,7 +318,10 @@ export class MapboxStrategy extends MapStrategy {
    * across a label, which is most of the time in a city.
    */
   private setHoverCursor(cursor: string) {
-    if (useMapToolsStore().rawClickCapture) return
+    if (
+      cursor
+      && (useMapToolsStore().rawClickCapture || !mapPoiClickPolicy.enabled)
+    ) return
     this.mapInstance.getCanvas().style.cursor = cursor
   }
 
@@ -351,20 +359,13 @@ export class MapboxStrategy extends MapStrategy {
         const center = e.feature.properties?.center
 
         if (poiType !== 'unknown') {
-          // Cancel the debounced regular click
-          if (this.clickDebounceTimer) {
-            clearTimeout(this.clickDebounceTimer)
-            this.clickDebounceTimer = null
-          }
-
           // For ways/relations, use center point if available
           const lngLat = center
             ? { lng: center[0], lat: center[1] }
             : { lng: coordinates[0], lat: coordinates[1] }
 
-          // Emit unified click event with POI data
           const poiName = e.feature.properties?.name
-          mapEventBus.emit('click', {
+          const data = {
             lngLat,
             point: e.point,
             poi: {
@@ -372,7 +373,12 @@ export class MapboxStrategy extends MapStrategy {
               poiType,
               name: typeof poiName === 'string' ? poiName : undefined,
             },
-          })
+          }
+          this.dispatchPoiClick(
+            e,
+            () => mapEventBus.emit('click', data),
+            () => mapEventBus.emit('poi:preview', { poi: data.poi }),
+          )
         }
       },
     })
@@ -868,6 +874,7 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   destroy() {
+    this.destroyPoiClickHandling()
     // Clean up theme watcher
     if (this.unwatchTheme) {
       this.unwatchTheme()

@@ -869,14 +869,18 @@ watch(
 
 onBeforeRouteLeave(to => {
   mapService.setRouteProfile(null)
-  if (to.name === AppRoute.DIRECTIONS) {
-    if (tripId.value) {
-      mapService.setVisibleTrips([tripId.value])
-    }
-  } else {
-    directionsService.clearWaypoints()
-    directionsStore.unsetTrips()
+  if (to.name === AppRoute.DIRECTIONS && tripId.value) {
+    mapService.setVisibleTrips([tripId.value])
   }
+})
+
+// Tear down on unmount, not in the leave guard: clearing waypoints there fires
+// the service's syncUrl watcher, whose router.replace cancels the outgoing
+// navigation. `route.name` is the committed destination here.
+onUnmounted(() => {
+  if (route.name === AppRoute.DIRECTIONS) return
+  directionsService.clearWaypoints()
+  directionsStore.unsetTrips()
 })
 
 function onInstructionHover(

@@ -52,11 +52,7 @@ import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
-import {
-  placeToDisplay,
-  makePlaceDisplay,
-  type PlaceDisplay,
-} from '@/lib/place-display'
+import { waypointToDisplay, type PlaceDisplay } from '@/lib/place-display'
 import SegmentDetails from '@/components/directions/timeline/SegmentDetails.vue'
 import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/RouteBullet.vue'
@@ -747,23 +743,6 @@ function entrancePhrase(
   return ''
 }
 
-/** Generic, non-POI place types — a plain address or shared pin just repeats
- *  the waypoint title, so it gets no tap-to-open place card. */
-const GENERIC_PLACE_TYPES = new Set([
-  'area',
-  'address',
-  'coordinates',
-  'shared_location',
-  'current_location',
-])
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isPoiCard(place: any): boolean {
-  if (!place?.id) return false
-  const type = place.placeType?.value?.toLowerCase?.().trim()
-  return !type || !GENERIC_PLACE_TYPES.has(type)
-}
-
 const hoveredInstructionKey = ref<string | null>(null)
 
 const tripId = computed(() => route.params.id as string)
@@ -997,53 +976,6 @@ interface RouteWaypointDisplay {
   ownIcon: boolean
 }
 
-/**
- * A stop rendered the way the rest of the app renders a place.
- *
- * Every stop goes through `PlaceDisplay` so the timeline gets the same icon,
- * category colour and detail lines a search result or a bookmark would — a
- * waypoint is a place, and used to be the one surface that spelled that out
- * itself. The two cases the place adapter can't cover:
- *
- *  - current location, which is a position rather than a record, so it takes
- *    the locate glyph and goes nowhere when tapped
- *  - a stop with no place at all (a dropped pin, a link with only a label),
- *    which gets a pin and, likewise, no destination
- */
-function waypointDisplay(
-  place: Partial<Place> | null | undefined,
-  fallbackName: string,
-): { display: PlaceDisplay; ownIcon: boolean } {
-  if (place?.id === 'current-location') {
-    return {
-      display: makePlaceDisplay({
-        title: place.name?.value || translate('directions.currentLocation'),
-        icon: 'Locate',
-      }),
-      ownIcon: true,
-    }
-  }
-
-  if (!place || !isPoiCard(place)) {
-    return {
-      display: makePlaceDisplay({
-        title: place ? getSearchResultName(place as Place) || fallbackName : fallbackName,
-        icon: 'MapPin',
-      }),
-      ownIcon: false,
-    }
-  }
-
-  const display = placeToDisplay(place as Place, {
-    isDark: themeStore.isDark,
-    t: translate,
-  })
-  return {
-    display: display.title ? display : { ...display, title: fallbackName },
-    ownIcon: true,
-  }
-}
-
 const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
   const waypoints = directionsStore.trips?.request?.waypoints
   const t = trip.value
@@ -1070,7 +1002,11 @@ const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
       displayName: wp.name?.trim() || fallbackName,
       time: isOrigin ? t.startTime : isDestination ? t.endTime : null,
       place,
-      ...waypointDisplay(place, wp.name?.trim() || fallbackName),
+      ...waypointToDisplay(place, {
+        isDark: themeStore.isDark,
+        t: translate,
+        fallbackTitle: wp.name?.trim() || fallbackName,
+      }),
     }
   })
 })
@@ -1116,7 +1052,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       role: 'origin',
       displayName: '',
       time: segs[0]?.startTime ?? t.startTime,
-      ...waypointDisplay(null, 'Origin'),
+      ...waypointToDisplay(null, { isDark: themeStore.isDark, t: translate, fallbackTitle: 'Origin' }),
     },
   })
 
@@ -1155,7 +1091,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       role: 'destination',
       displayName: '',
       time: segs[segs.length - 1]?.endTime ?? t.endTime,
-      ...waypointDisplay(null, 'Destination'),
+      ...waypointToDisplay(null, { isDark: themeStore.isDark, t: translate, fallbackTitle: 'Destination' }),
     },
   })
 

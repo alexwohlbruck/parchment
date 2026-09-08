@@ -41,7 +41,9 @@ import { PlaceCard } from '@/components/place/card'
 import {
   autocompleteToDisplay,
   makePlaceDisplay,
+  waypointToDisplay,
 } from '@/lib/place-display'
+import { ItemIcon } from '@/components/ui/item-icon'
 import { useThemeStore } from '@/stores/theme.store'
 import { fuzzyFilter } from '@/lib/utils'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
@@ -341,6 +343,26 @@ function isCurrentLocationChip(index: number): boolean {
   )
 }
 
+/**
+ * The mark in front of each field: the stop's own POI glyph where it has one,
+ * so a field holding a restaurant looks like the restaurant it will be on the
+ * map and in the trip. Current location is the exception — the chip inside the
+ * field already carries that mark, and drawing it twice on one row reads as
+ * two different things.
+ */
+const waypointMarks = computed(() =>
+  waypoints.value.map(waypoint => {
+    const { display, ownIcon } = waypointToDisplay(waypoint.place, {
+      isDark: themeStore.isDark,
+      t,
+    })
+    return {
+      display,
+      showGlyph: ownIcon && waypoint.place?.id !== 'current-location',
+    }
+  }),
+)
+
 const currentLocationDisplay = computed(() =>
   makePlaceDisplay({
     title: t('directions.currentLocation', 'Current Location'),
@@ -425,7 +447,7 @@ defineExpose({
             <!-- Connecting line between icons -->
             <div
               v-if="index < waypoints.length - 1"
-              class="absolute left-[1.19rem] top-full w-px h-2 bg-border z-0"
+              class="absolute left-[1.375rem] top-full w-px h-2 bg-border z-0"
             />
 
             <Combobox
@@ -456,8 +478,21 @@ defineExpose({
                   "
                 >
                   <template #prefix>
-                    <div class="shrink-0 flex items-center justify-center handle cursor-grab active:cursor-grabbing relative">
+                    <div class="shrink-0 size-5 flex items-center justify-center handle cursor-grab active:cursor-grabbing relative">
+                      <ItemIcon
+                        v-if="waypointMarks[index]?.showGlyph"
+                        :icon="waypointMarks[index].display.icon"
+                        :icon-pack="waypointMarks[index].display.iconPack"
+                        :color="waypointMarks[index].display.color"
+                        :custom-color="waypointMarks[index].display.customColor"
+                        :image-url="waypointMarks[index].display.imageUrl ?? undefined"
+                        size="xs"
+                        variant="solid"
+                        shape="circle"
+                        class="group-hover:opacity-0 transition-opacity"
+                      />
                       <div
+                        v-else
                         class="size-4 rounded-full flex items-center justify-center group-hover:opacity-0 transition-opacity"
                         :class="index === 0 ? 'bg-background border-[1.5px] border-foreground/60' : 'bg-primary border-[1.5px] border-white'"
                       >

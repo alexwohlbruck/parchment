@@ -6,8 +6,9 @@
 
 * A trip's timeline draws each stop as the place it is — the POI's own icon on
   the route line, its name and type beside it, and the scheduled time
-* Route stops on the map wear their own POI icon and name instead of a
-  numbered dot
+* Route stops wear their own POI icon everywhere they appear — the waypoint
+  fields, the timeline and the map — instead of a numbered dot. The map shows
+  each stop's name beside it too
 * Picking your current location as a stop shows it as a chip in the field,
   so it reads as a value rather than typed-in text
 * "Details" and "Advanced" toggles are big enough to tap on a phone

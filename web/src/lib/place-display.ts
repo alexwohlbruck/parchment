@@ -289,6 +289,67 @@ export function autocompleteToDisplay(
 }
 
 /**
+ * Place types that name a point rather than a place: a plain address, a
+ * dropped pin, a coordinate, a link's own stub. They have no identity to draw
+ * an icon from — the surface showing them says "a stop is here" some other
+ * way, with a start ring or an ordinal.
+ */
+const POINT_PLACE_TYPES = new Set([
+  'area',
+  'address',
+  'coordinates',
+  'shared_location',
+  'current_location',
+])
+
+/**
+ * A directions waypoint.
+ *
+ * Every surface that draws a stop — the waypoint inputs, the trip timeline,
+ * the map markers — has to make the same three-way call: does this stop have
+ * an icon of its own, is it your current position, or is it just a point? They
+ * used to each decide separately, and drifted: a stop drawn as a restaurant on
+ * the map was a numbered disc in the input.
+ *
+ * `ownIcon` says whether `display.icon` is the stop's own, so a caller can
+ * fall back to its own start/stop marks rather than draw a generic pin.
+ */
+export function waypointToDisplay(
+  place: Partial<Place> | null | undefined,
+  { isDark, t, fallbackTitle = '' }: PlaceDisplayOptions & { fallbackTitle?: string },
+): { display: PlaceDisplay; ownIcon: boolean } {
+  if (place?.id === 'current-location') {
+    return {
+      display: makePlaceDisplay({
+        title: place.name?.value || t('directions.currentLocation'),
+        icon: 'Locate',
+      }),
+      ownIcon: true,
+    }
+  }
+
+  const type = place?.placeType?.value?.toLowerCase?.().trim()
+  const isPoint = !place?.id || (!!type && POINT_PLACE_TYPES.has(type))
+
+  if (isPoint) {
+    return {
+      display: makePlaceDisplay({
+        title:
+          (place ? getSearchResultName(place as Place) : '') || fallbackTitle,
+        icon: 'MapPin',
+      }),
+      ownIcon: false,
+    }
+  }
+
+  const display = placeToDisplay(place as Place, { isDark, t })
+  return {
+    display: display.title ? display : { ...display, title: fallbackTitle },
+    ownIcon: true,
+  }
+}
+
+/**
  * A saved bookmark. Frequents (Home/Work/School and user-named ones) render
  * with the look fixed by their type; everything else keeps the saved POI's own
  * icon and colour.

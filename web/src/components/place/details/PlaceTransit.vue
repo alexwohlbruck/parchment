@@ -10,7 +10,7 @@
 import { computed, markRaw, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { setPlaceTransitLines, usePlaceTransferLines, type StationLine } from '@/composables/usePlaceTransitLines'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
-import { alertStopSkips } from '@/lib/alert-service-overrides'
+import { alertStopSkips, filterSkippedDepartures } from '@/lib/alert-service-overrides'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
@@ -62,8 +62,16 @@ const hasTransitData = computed(() => {
 
 const portolan = usePortolanTransitService()
 
+// The board with the runs a skip alert disowns removed — a station closed
+// for a parade until 9:30 must not list a 2 "in 5 minutes". Judged per run
+// against the alert's window, so the trains after it stay: their times ARE
+// the reopening.
 const departures = computed((): TransitDeparture[] => {
-  return transitInfo.value?.departures || []
+  const raw = transitInfo.value?.departures || []
+  return filterSkippedDepartures(raw, stopAlertsInEffect.value, [
+    transitInfo.value?.stopId,
+    transitInfo.value?.parentStation,
+  ])
 })
 
 /** Every line serving this station, across its whole transfer complex.

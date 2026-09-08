@@ -8,7 +8,11 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { alertServiceOverrides, alertStopSkips } from './alert-service-overrides'
+import {
+  alertServiceOverrides,
+  alertStopSkips,
+  filterSkippedDepartures,
+} from './alert-service-overrides'
 import type { ServiceAlert } from '@/types/transit.types'
 
 const alert = (
@@ -134,5 +138,61 @@ describe('alertStopSkips', () => {
       alert('DETOUR', [{ routeId: '4' }, { stopId: '238' }]),
     ])
     expect(skips.size).toBe(0)
+  })
+})
+
+describe('filterSkippedDepartures', () => {
+  const HOUR = 3_600_000
+  const iso = (ms: number) => new Date(ms).toISOString()
+  const dep = (routeId: string, at: number) => ({
+    route: { id: routeId },
+    departureAt: iso(at),
+  })
+  // The parade: 2/3/4 skip stop 238 from an hour ago until an hour from now.
+  const skip = {
+    ...alert('DETOUR', [
+      { routeId: '2', stopId: '238' },
+      { routeId: '3', stopId: '238' },
+      { routeId: '4', stopId: '238' },
+    ]),
+    activePeriods: [{ start: iso(Date.now() - HOUR), end: iso(Date.now() + HOUR) }],
+  }
+
+  it('drops runs inside the window and keeps the ones after it', () => {
+    const now = Date.now()
+    const out = filterSkippedDepartures(
+      [dep('2', now + 5 * 60_000), dep('4', now + 2 * HOUR)],
+      [skip],
+      ['238'],
+    )
+    // The 2 "in 5 minutes" is a train that will not stop; the 4 two hours
+    // out departs after the station reopens.
+    expect(out.map(d => d.route!.id)).toEqual(['4'])
+  })
+
+  it('leaves other routes and other stops alone', () => {
+    const now = Date.now()
+    const out = filterSkippedDepartures(
+      [dep('5', now + 5 * 60_000)],
+      [skip],
+      ['238'],
+    )
+    expect(out).toHaveLength(1)
+    expect(filterSkippedDepartures([dep('2', now)], [skip], ['999'])).toHaveLength(1)
+  })
+
+  it('matches through any of the stop ids given (platform or parent)', () => {
+    const now = Date.now()
+    const out = filterSkippedDepartures([dep('3', now)], [skip], ['238N', '238'])
+    expect(out).toHaveLength(0)
+  })
+
+  it('keeps a run it cannot time', () => {
+    const out = filterSkippedDepartures(
+      [{ route: { id: '2' } }],
+      [skip],
+      ['238'],
+    )
+    expect(out).toHaveLength(1)
   })
 })

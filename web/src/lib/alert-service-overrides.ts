@@ -1,4 +1,5 @@
 import type { ServiceAlert } from '@/types/transit.types'
+import { isInEffect } from './transit-alerts'
 
 /**
  * What the agency's alerts say about which stops a line is serving right now.
@@ -90,4 +91,41 @@ export function alertStopSkips(alerts: ServiceAlert[]): Map<string, Set<string>>
     }
   }
   return skips
+}
+
+/**
+ * A departure board with the runs a skip alert disowns removed.
+ *
+ * The board reads MOTIS — the schedule plus whatever realtime reached it —
+ * and a planned skip often never does: a station closed for a parade until
+ * 9:30 went on listing 2s "in 5 minutes". Each run is judged at ITS OWN
+ * time against the alert's window, not the current one, so the trains that
+ * resume after the window stay on the board — which is exactly what tells
+ * a rider when the station reopens.
+ */
+export function filterSkippedDepartures<
+  T extends { route?: { id?: string }; departureAt?: string; arrivalAt?: string },
+>(
+  departures: T[],
+  alerts: ServiceAlert[],
+  stopIds: Array<string | null | undefined>,
+): T[] {
+  const ids = new Set(stopIds.filter(Boolean) as string[])
+  const skips = alerts.filter(
+    a => SKIP_EFFECTS.has(a.effect) &&
+      (a.informedEntities ?? []).some(e => e.routeId && e.stopId && ids.has(e.stopId)),
+  )
+  if (!ids.size || !skips.length) return departures
+
+  return departures.filter(d => {
+    const routeId = d.route?.id
+    const at = Date.parse(d.departureAt || d.arrivalAt || '')
+    if (!routeId || Number.isNaN(at)) return true
+    return !skips.some(
+      a => isInEffect(a, at) &&
+        (a.informedEntities ?? []).some(
+          e => e.routeId === routeId && e.stopId && ids.has(e.stopId),
+        ),
+    )
+  })
 }

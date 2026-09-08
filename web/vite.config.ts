@@ -78,14 +78,14 @@ export default defineConfig({
     }),
     maplibreWorkerChunk(),
     previewTitle(),
-    // Offline-capable PWA. Custom worker (src/sw.ts) precaches only the app
+    // Offline-capable PWA. Custom worker (src/service-worker.ts) precaches only the app
     // shell — the full dist is ~24MB across 1600+ files, mostly lazy chunks
     // that runtime caching picks up as they're used. Registration happens in
     // src/lib/pwa.ts (production web only, not Tauri).
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
-      filename: 'sw.ts',
+      filename: 'service-worker.ts',
       registerType: 'autoUpdate',
       injectRegister: false,
       manifest: {

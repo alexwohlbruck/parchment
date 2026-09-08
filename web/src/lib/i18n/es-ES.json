@@ -2516,6 +2516,10 @@
         "update": "Actualizar «{name}»",
         "remove": "Eliminar «{name}»"
       }
+    },
+    "viewUnavailable": {
+      "title": "Esta vista debe cargarse primero",
+      "description": "No se pudo cargar. Inténtalo de nuevo cuando vuelvas a estar en línea"
     }
   }
 }

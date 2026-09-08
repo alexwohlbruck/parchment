@@ -19,14 +19,17 @@ import Developer from '@/views/settings/pages/Developer.vue'
 import Library from '@/views/library/Library.vue'
 import Collection from '@/views/library/collections/Collection.vue'
 import NotFound from '@/views/NotFound.vue'
+import OfflineView from '@/views/OfflineView.vue'
 import Collections from '@/views/library/collections/Collections.vue'
 import Layers from '@/views/library/layers/Layers.vue'
 import Integrations from '@/views/settings/pages/Integrations.vue'
 import Lookout from '@/views/lookout/Lookout.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
+import { isChunkLoadError } from '@/lib/network-errors'
 
 export enum AppRoute {
+  OFFLINE = 'offline',
   SIGNIN = 'signin',
   MAP = 'map',
   PLACE = 'place',
@@ -112,6 +115,11 @@ const router = createRouter({
         auth: true,
       },
       children: [
+        {
+          path: '/offline',
+          name: AppRoute.OFFLINE,
+          component: OfflineView,
+        },
         {
           path: '/dashboard',
           name: AppRoute.DASHBOARD,
@@ -433,7 +441,11 @@ const router = createRouter({
 
 router.beforeEach(async (to, from) => {
   const authStore = useAuthStore()
-  if (to.name !== AppRoute.SIGNIN) authStore.stashPath(to.path)
+  // The offline fallback is a dead end to return to after signing in — it
+  // only makes sense alongside the route that failed.
+  if (to.name !== AppRoute.SIGNIN && to.name !== AppRoute.OFFLINE) {
+    authStore.stashPath(to.path)
+  }
   if (to.meta.auth) {
     // Wait for current user response (or timeout) so we don't block forever
     if (authStore.me === undefined) {
@@ -448,6 +460,16 @@ router.beforeEach(async (to, from) => {
         name: AppRoute.SIGNIN,
       }
   }
+})
+
+// A lazily-loaded view whose chunk can't be fetched would otherwise abort
+// the navigation and leave the previous view on screen with no explanation.
+// Land on the offline fallback instead, remembering where the user was
+// headed so it can retry.
+router.onError((error, to) => {
+  if (!isChunkLoadError(error)) return
+  console.warn('[router] view failed to load', to.fullPath, error)
+  router.replace({ name: AppRoute.OFFLINE, query: { from: to.fullPath } })
 })
 
 export default router

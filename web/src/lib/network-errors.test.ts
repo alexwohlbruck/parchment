@@ -5,6 +5,7 @@ import {
   OfflineRequestError,
   classifyNetworkError,
   getNetworkErrorKind,
+  isChunkLoadError,
   isQuietNetworkError,
   isRetriableNetworkError,
   tagNetworkError,
@@ -117,5 +118,26 @@ describe('kind groupings', () => {
     expect(isQuietNetworkError(NetworkErrorKind.Offline)).toBe(true)
     expect(isQuietNetworkError(NetworkErrorKind.Cancelled)).toBe(true)
     expect(isQuietNetworkError(NetworkErrorKind.Unreachable)).toBe(false)
+  })
+})
+
+describe('isChunkLoadError', () => {
+  it('recognises the browsers’ wordings for a failed view chunk', () => {
+    expect(
+      isChunkLoadError(
+        new Error('Failed to fetch dynamically imported module: /assets/Dashboard-a1b2.js'),
+      ),
+    ).toBe(true)
+    expect(
+      isChunkLoadError(new Error('Importing a module script failed.')),
+    ).toBe(true)
+    expect(
+      isChunkLoadError(new TypeError('error loading dynamically imported module')),
+    ).toBe(true)
+  })
+
+  it('ignores unrelated errors', () => {
+    expect(isChunkLoadError(new Error('Network Error'))).toBe(false)
+    expect(isChunkLoadError(undefined)).toBe(false)
   })
 })

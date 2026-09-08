@@ -119,6 +119,18 @@ export function isRetriableNetworkError(kind: NetworkErrorKind): boolean {
   )
 }
 
+/**
+ * A dynamic `import()` of a view chunk that never arrived — offline before
+ * that view was ever opened, or a stale chunk hash after a deploy. Browsers
+ * word this differently, hence the alternatives.
+ */
+export function isChunkLoadError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /dynamically imported module|Importing a module script failed|error loading dynamically imported/i.test(
+    message,
+  )
+}
+
 /** Kinds that should never produce a user-facing error message. */
 export function isQuietNetworkError(kind: NetworkErrorKind): boolean {
   return kind === NetworkErrorKind.Offline || kind === NetworkErrorKind.Cancelled

@@ -2,8 +2,9 @@
 
 ### Added
 
-* Parchment installs as an app and opens without a connection — previously
-  visited screens and recently viewed map areas keep working offline
+* Parchment installs as an app and opens without a connection — your screens
+  and recently viewed map areas keep working offline, including ones you
+  haven't opened yet this session
 * Saving, updating and removing places works offline: changes apply
   immediately and sync when the connection returns. A quiet sidebar chip
   shows what's pending, syncing or failed, with per-change cancel and retry

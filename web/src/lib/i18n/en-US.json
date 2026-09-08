@@ -2637,6 +2637,10 @@
         "update": "Update \"{name}\"",
         "remove": "Remove \"{name}\""
       }
+    },
+    "viewUnavailable": {
+      "title": "This view needs to load first",
+      "description": "It couldn't be loaded. Try again once you're back online"
     }
   }
 }

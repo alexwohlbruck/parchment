@@ -16,6 +16,7 @@ import { MotionPlugin } from '@vueuse/motion'
 import VueVirtualScroller from 'vue-virtual-scroller'
 import { initVaulChromeWorkaround } from '@/lib/vaulChromeWorkaround'
 import { setupPWA } from '@/lib/pwa'
+import { prefetchRouteChunks } from '@/lib/route-prefetch'
 import { install as installGpxSimulator } from '@/dev/gpx-simulator'
 
 import '@morev/vue-transitions/styles'
@@ -56,3 +57,7 @@ effectScope().run(() => useGeolocationService())
 void setupPWA()
 
 app.mount('#app')
+
+// Pull the lazily-loaded views in while there's a connection, so they can
+// still be opened once there isn't.
+prefetchRouteChunks(router)

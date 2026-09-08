@@ -19,6 +19,10 @@
  */
 
 import { loadBlob, saveBlob } from '../personal-blob'
+import {
+  getNetworkErrorKind,
+  isRetriableNetworkError,
+} from '../network-errors'
 
 export interface RecentsStoreConfig<T> {
   /**
@@ -64,6 +68,37 @@ export function createRecentsStore<T>(
   config: RecentsStoreConfig<T>,
 ): RecentsStore<T> {
   const debounceMs = config.debounceMs ?? 1500
+  /**
+   * Local mirror of the decrypted list.
+   *
+   * The server blob is the source of truth, but it can't be read offline,
+   * so recents would be empty exactly when the search palette is most
+   * useful. Mirroring what we've already decrypted keeps them there; the
+   * next successful hydrate merges and overwrites it.
+   */
+  const localKey = `recents-${config.blobType}`
+
+  function readLocal(userId: string): T[] | null {
+    try {
+      const raw = localStorage.getItem(localKey)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as { userId?: string; entries?: T[] }
+      return parsed?.userId === userId ? (parsed.entries ?? null) : null
+    } catch {
+      return null
+    }
+  }
+
+  function writeLocal(userId: string): void {
+    try {
+      localStorage.setItem(
+        localKey,
+        JSON.stringify({ userId, entries: cache ?? [] }),
+      )
+    } catch {
+      // Quota or private mode — the server blob still holds the truth.
+    }
+  }
 
   let cache: T[] | null = null // oldest → newest
   let loadedForUserId: string | null = null
@@ -97,7 +132,26 @@ export function createRecentsStore<T>(
   async function hydrate(userId: string): Promise<T[]> {
     if (hydratedFromServer && loadedForUserId === userId) return snapshot()
 
-    const blob = await loadBlob<RecentsBlob<T>>(config.blobType, userId)
+    // Seed from the local mirror first, so recents render immediately and
+    // survive a hydrate that can't reach the server.
+    if (!cache || loadedForUserId !== userId) {
+      const mirrored = readLocal(userId)
+      if (mirrored) {
+        cache = mirrored
+        loadedForUserId = userId
+      }
+    }
+
+    let blob: RecentsBlob<T> | null
+    try {
+      blob = await loadBlob<RecentsBlob<T>>(config.blobType, userId)
+    } catch (error) {
+      if (!isRetriableNetworkError(getNetworkErrorKind(error))) throw error
+      // Offline or unreachable: keep the mirrored entries and stay
+      // un-hydrated so the next call tries the server again.
+      loadedForUserId = userId
+      return snapshot()
+    }
     const loaded = blob?.entries ?? []
     // Merge server entries with anything recorded locally before this first
     // server hydrate, so a view logged pre-hydrate isn't dropped. Local entries
@@ -106,6 +160,7 @@ export function createRecentsStore<T>(
     cache = cap(dedupeByIdentity([...loaded, ...local]))
     loadedForUserId = userId
     hydratedFromServer = true
+    writeLocal(userId)
     return snapshot()
   }
 
@@ -126,6 +181,7 @@ export function createRecentsStore<T>(
     cache.push(item)
     cache = cap(cache)
 
+    writeLocal(userId)
     scheduleFlush(userId)
   }
 
@@ -161,6 +217,7 @@ export function createRecentsStore<T>(
     cache = []
     loadedForUserId = userId
     hydratedFromServer = true
+    writeLocal(userId)
     if (flushTimer) {
       clearTimeout(flushTimer)
       flushTimer = null
@@ -176,6 +233,13 @@ export function createRecentsStore<T>(
     cache = null
     loadedForUserId = null
     hydratedFromServer = false
+    // The local mirror is part of the store's state — leaving it behind
+    // would seed the next test with the previous one's entries.
+    try {
+      localStorage.removeItem(localKey)
+    } catch {
+      /* no storage in this environment */
+    }
     if (flushTimer) {
       clearTimeout(flushTimer)
       flushTimer = null

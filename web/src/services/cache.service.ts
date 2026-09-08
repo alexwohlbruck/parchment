@@ -35,6 +35,12 @@ export function clearAllUserCaches() {
     'parchment-layer-groups',
     'integration-configurations',
     'available-integrations',
+    'friends',
+    'friend-invitations-incoming',
+    'friend-invitations-outgoing',
+    'vehicles',
+    'recents-search-history',
+    'recents-recent-places',
   ]
   
   keysToRemove.forEach(key => {

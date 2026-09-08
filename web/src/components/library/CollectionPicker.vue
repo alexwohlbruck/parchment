@@ -24,6 +24,8 @@ import type {
 import type { Place } from '@/types/place.types'
 import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { isOffline } from '@/lib/connectivity'
+import { isOfflineId } from '@/lib/sync/offline-id'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 
@@ -94,6 +96,24 @@ onMounted(async () => {
   }
 })
 
+/**
+ * Which collections this bookmark is in.
+ *
+ * Local state answers this on its own — the app already holds every
+ * collection and the bookmark's membership — so show that immediately and
+ * treat the server only as a refresh. It used to fetch first and blank the
+ * list on any failure, so offline the picker claimed a saved place belonged
+ * to nothing, and one tap would have removed it from collections it was
+ * still in.
+ */
+function applyCollectionIds(ids: string[]) {
+  bookmarkCollectionIds.value = ids
+  // Re-sync the parent's cached collection set in case it drifted — the
+  // badge on the bookmark button reads from there, and a stale count would
+  // mislead until the next toggle.
+  emit('collections-changed', ids)
+}
+
 async function fetchCollectionsForBookmark() {
   const id = currentBookmark.value?.id
   if (!id) {
@@ -101,22 +121,27 @@ async function fetchCollectionsForBookmark() {
     return
   }
 
+  applyCollectionIds(collectionsStore.getCollectionIdsForBookmark(id))
+
+  // Offline reads are suppressed; local state is already correct and the
+  // sync queue owns any pending changes.
+  if (isOffline.value || isOfflineId(id)) return
+
   try {
     const response = await api.get(
       `/library/bookmarks/${id}/collections`,
     )
     const ids = response.data.map((collection: Collection) => collection.id)
-    bookmarkCollectionIds.value = ids
-    // Re-sync the parent's cached collection set in case it drifted —
-    // the badge on the bookmark button reads from there, and a stale
-    // count would mislead until the next toggle.
-    emit('collections-changed', ids)
+    applyCollectionIds(ids)
+    // Keep the store in step with the server's answer so the next open
+    // renders instantly and correctly.
+    collectionsStore.updateBookmarkCollections(id, ids)
   } catch (error) {
     console.error(
       `[CollectionPicker] Error fetching collections for bookmark ${id}:`,
       error,
     )
-    bookmarkCollectionIds.value = []
+    // Keep what local state told us rather than falsely showing none.
   }
 }
 

@@ -38,14 +38,28 @@ export const useCollectionsStore = defineStore('collections', () => {
         bookmarks?: Bookmark[]
       }
 
-      // Hydrate the bookmarks
-      if (collection.bookmarkIds && collection.bookmarkIds.length > 0) {
-        const bookmarksStore = useBookmarksStore()
-        result.bookmarks = collection.bookmarkIds
-          .map(id => {
-            return bookmarksStore.bookmarks.find(bm => bm.id === id)
-          })
-          .filter(bookmark => bookmark !== undefined) as Bookmark[]
+      // Hydrate the bookmarks from both sides of the relation. A
+      // collection whose contents were never opened has no `bookmarkIds`,
+      // but the bookmarks themselves know what they belong to — offline
+      // that's the only way its places can be listed at all. Ordering
+      // follows `bookmarkIds` (the server's order) with anything known
+      // only from the bookmark side appended.
+      const bookmarksStore = useBookmarksStore()
+      const ordered = (collection.bookmarkIds ?? [])
+        .map(bookmarkId =>
+          bookmarksStore.bookmarks.find(bm => bm.id === bookmarkId),
+        )
+        .filter((bookmark): bookmark is Bookmark => bookmark !== undefined)
+
+      const seen = new Set(ordered.map(bookmark => bookmark.id))
+      const fromBookmarks = bookmarksStore.bookmarks.filter(
+        bookmark =>
+          !seen.has(bookmark.id) &&
+          bookmark.collectionIds?.includes(collection.id),
+      )
+
+      if (ordered.length > 0 || fromBookmarks.length > 0) {
+        result.bookmarks = [...ordered, ...fromBookmarks]
       }
 
       return result
@@ -179,16 +193,56 @@ export const useCollectionsStore = defineStore('collections', () => {
     }
   }
 
+  /**
+   * Which collections a bookmark belongs to, from local state alone.
+   *
+   * Both sides of the relation are stored — `collection.bookmarkIds` and
+   * `bookmark.collectionIds` — and neither is complete on its own: a
+   * collection whose contents were never opened has no `bookmarkIds`, and a
+   * bookmark row from a single-bookmark response has no `collectionIds`.
+   * Union them, and keep only ids we actually hold a collection for.
+   */
+  function getCollectionIdsForBookmark(bookmarkId: string): string[] {
+    const fromCollections = collections.value
+      .filter(c => c.bookmarkIds?.includes(bookmarkId))
+      .map(c => c.id)
+
+    const bookmarksStore = useBookmarksStore()
+    const fromBookmark =
+      bookmarksStore.getBookmarkById(bookmarkId)?.collectionIds ?? []
+
+    const known = new Set(collections.value.map(c => c.id))
+    return [...new Set([...fromCollections, ...fromBookmark])].filter(id =>
+      known.has(id),
+    )
+  }
+
+  /**
+   * Set a bookmark's collection membership, syncing both sides of the
+   * relation.
+   *
+   * This used to find the first collection containing the bookmark and
+   * assign `bookmarkIds = newCollectionIds` — writing collection ids into a
+   * list of bookmark ids, so one membership change corrupted a collection's
+   * contents. It went unnoticed while the picker asked the server for
+   * membership; offline it has to be right, because local state is the only
+   * source there is.
+   */
   function updateBookmarkCollections(
     bookmarkId: string,
     newCollectionIds: string[],
   ) {
-    const collection = collections.value.find(c =>
-      c.bookmarkIds?.includes(bookmarkId),
-    )
-    if (collection) {
-      collection.bookmarkIds = newCollectionIds
-    }
+    collections.value.forEach(collection => {
+      const shouldContain = newCollectionIds.includes(collection.id)
+      const contains = collection.bookmarkIds?.includes(bookmarkId) ?? false
+      if (shouldContain && !contains) {
+        collection.bookmarkIds = [...(collection.bookmarkIds ?? []), bookmarkId]
+      } else if (!shouldContain && contains) {
+        collection.bookmarkIds = collection.bookmarkIds!.filter(
+          id => id !== bookmarkId,
+        )
+      }
+    })
   }
 
   return {
@@ -199,6 +253,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     setCollections,
     updateCollection,
     remapBookmarkId,
+    getCollectionIdsForBookmark,
     removeCollection,
     removeBookmarkFromCollections,
     addBookmarkToCollection,

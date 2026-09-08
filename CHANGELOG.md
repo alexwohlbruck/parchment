@@ -22,6 +22,12 @@
 
 * Launching the app offline no longer signs you out and wipes your cached
   library
+* Offline, the collection picker shows which collections a place is already
+  saved to, instead of appearing to be in none
+* Changing which collections a place belongs to no longer corrupts the
+  stored contents of a collection
+* Your friends, vehicles and recent searches are kept on the device, so they
+  are there on a cold or offline start
 
 * Escape closes a trip's details on the first press. It used to take two — the
   first only wiped the route off the map

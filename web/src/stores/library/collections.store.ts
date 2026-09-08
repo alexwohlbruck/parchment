@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Collection, Bookmark } from '@/types/library.types'
+import { isOfflineId } from '@/lib/sync/offline-id'
 import { useBookmarksStore } from './bookmarks.store'
 
 interface NormalizedCollection extends Omit<Collection, 'places'> {
@@ -80,10 +81,37 @@ export const useCollectionsStore = defineStore('collections', () => {
   function setCollections(
     newCollections: (Collection & { bookmarks?: Bookmark[] })[],
   ) {
-    const normalizedCollections = newCollections.map(collection =>
-      normalizeCollection(collection),
-    )
+    // Carry offline-created bookmark links over the refresh: the server
+    // can't return what its queue hasn't received yet.
+    const previousById = new Map(collections.value.map(c => [c.id, c]))
+    const normalizedCollections = newCollections.map(collection => {
+      const normalized = normalizeCollection(collection)
+      const offlineIds =
+        previousById
+          .get(normalized.id)
+          ?.bookmarkIds?.filter(
+            id => isOfflineId(id) && !normalized.bookmarkIds?.includes(id),
+          ) ?? []
+      if (offlineIds.length > 0) {
+        normalized.bookmarkIds = [
+          ...(normalized.bookmarkIds ?? []),
+          ...offlineIds,
+        ]
+      }
+      return normalized
+    })
     collections.value = normalizedCollections
+  }
+
+  /** Swap an offline temp bookmark id for its server id everywhere. */
+  function remapBookmarkId(oldId: string, newId: string) {
+    if (oldId === newId) return
+    collections.value.forEach(collection => {
+      if (!collection.bookmarkIds?.includes(oldId)) return
+      collection.bookmarkIds = collection.bookmarkIds.map(id =>
+        id === oldId ? newId : id,
+      )
+    })
   }
 
   // Add or update a collection
@@ -170,6 +198,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     getCollectionById,
     setCollections,
     updateCollection,
+    remapBookmarkId,
     removeCollection,
     removeBookmarkFromCollections,
     addBookmarkToCollection,

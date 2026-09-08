@@ -2609,5 +2609,30 @@
       "maki": "Maki",
       "color": "Color"
     }
+  },
+  "offline": {
+    "badge": "Offline",
+    "reconnecting": "Reconnecting…",
+    "emptyState": {
+      "title": "You're offline",
+      "description": "This content needs a connection and will load when you're back online"
+    },
+    "retry": "Try again",
+    "sync": {
+      "title": "Pending changes",
+      "pendingCount": "{count} pending change | {count} pending changes",
+      "willSync": "Your changes will sync when you reconnect",
+      "syncing": "Syncing…",
+      "failed": "Couldn't sync",
+      "failedToast": "Couldn't sync \"{label}\"",
+      "cancel": "Cancel",
+      "retryAction": "Retry",
+      "dismiss": "Dismiss",
+      "labels": {
+        "save": "Save \"{name}\"",
+        "update": "Update \"{name}\"",
+        "remove": "Remove \"{name}\""
+      }
+    }
   }
 }

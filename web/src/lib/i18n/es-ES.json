@@ -2488,5 +2488,30 @@
       "maki": "Maki",
       "color": "Color"
     }
+  },
+  "offline": {
+    "badge": "Sin conexión",
+    "reconnecting": "Reconectando…",
+    "emptyState": {
+      "title": "Estás sin conexión",
+      "description": "Este contenido necesita conexión y se cargará cuando vuelvas a estar en línea"
+    },
+    "retry": "Reintentar",
+    "sync": {
+      "title": "Cambios pendientes",
+      "pendingCount": "{count} cambio pendiente | {count} cambios pendientes",
+      "willSync": "Tus cambios se sincronizarán cuando te reconectes",
+      "syncing": "Sincronizando…",
+      "failed": "No se pudo sincronizar",
+      "failedToast": "No se pudo sincronizar «{label}»",
+      "cancel": "Cancelar",
+      "retryAction": "Reintentar",
+      "dismiss": "Descartar",
+      "labels": {
+        "save": "Guardar «{name}»",
+        "update": "Actualizar «{name}»",
+        "remove": "Eliminar «{name}»"
+      }
+    }
   }
 }

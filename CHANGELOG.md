@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.11.3] - 2026-09-08
+
+### Added
+
 * Parchment installs as an app and opens without a connection — your screens
   and recently viewed map areas keep working offline, including ones you
   haven't opened yet this session

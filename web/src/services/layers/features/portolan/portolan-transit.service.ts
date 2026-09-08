@@ -852,12 +852,7 @@ function teardownPortolanTransit() {
   stopBulletClock()
   cancelResync()
   unbindListeners()
-  // Removal must NOT wait on isStyleLoaded(): that is a claim about every
-  // source cache in the style (see hydrationReady), and with one vector
-  // source per pyramid it reads false whenever a tile is in flight — which
-  // is precisely the moment someone switches the group off. Gating on it
-  // left the whole network painted, and `map = null` below meant nothing
-  // could ever come back for it.
+  // Not gated on isStyleLoaded() — see styleReady.
   if (map?.style) removeAll()
   map = null
   isolatedRoute = null
@@ -1131,15 +1126,10 @@ const OCCLUDED_OPACITY = 0.28
 const ghostId = (id: string) => `${id}-ghost`
 
 /**
- * Can this style take layers yet?
- *
- * Not `isStyleLoaded()` — that is the whole-style claim hydrationReady
- * explains away, false while any one of ninety pyramids has a tile in
- * flight. Building only needs the style PARSED: addLayer throws before
- * that, and the basemap layers a ribbon is inserted beneath (labels,
- * buildings) have to be there to insert beneath. A non-empty layer list
- * is exactly that, and it is public API — serialize() throws while the
- * stylesheet is still being read, hence the catch.
+ * Can this style take layers yet? Parsed, not fully fetched: that is all
+ * addLayer and the label/building anchors need, and isStyleLoaded() is
+ * false while any one pyramid has a tile in flight (see hydrationReady).
+ * serialize() throws before the stylesheet is read, hence the catch.
  */
 function styleReady(m: any): boolean {
   try {
@@ -1154,18 +1144,9 @@ let resyncTimer: ReturnType<typeof setTimeout> | null = null
 const RESYNC_MS = 250
 const RESYNC_TRIES = 40
 
-/**
- * Re-run sync() once the style can take layers.
- *
- * The wait used to be `once('idle')`, and an idle is owed to no one: a
- * map that has already settled — the ordinary case a moment after the
- * Transit group is switched back on — never fires another one, so the
- * rebuild never ran and the network stayed dark until the rider panned.
- * Worse, the guard flag it set was cleared only by that same handler, so
- * one missed idle latched the feature off for the rest of the session.
- * Polling briefly cannot miss an edge, and moveend/style.load remain the
- * long-stop if the style is still unusable when the tries run out.
- */
+/** Re-run sync() once the style can take layers. Polls rather than waiting
+ *  on 'idle', which a map that has already settled never fires again;
+ *  moveend and style.load are the long-stop once the tries run out. */
 function scheduleResync(m: any) {
   if (resyncTimer) return
   let tries = 0
@@ -1189,11 +1170,8 @@ async function sync() {
   if (!m) return
   const regions = await ensureRegions()
   if (!regions.length || map !== m) return
-  // Those awaits take longer than the style does to load on a cold cache:
-  // the index plus one manifest per pyramid, ~90 requests before the first
-  // ribbon. Waiting on "the next style.load" is not enough — on a first
-  // paint there isn't one — so finish the job ourselves once the style is
-  // parsed enough to take the layers.
+  // Those awaits outlast the style on a cold cache — ~90 requests before the
+  // first ribbon — and a first paint has no style.load left to wait for.
   if (!styleReady(m)) {
     scheduleResync(m)
     return

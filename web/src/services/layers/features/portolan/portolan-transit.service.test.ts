@@ -1,13 +1,7 @@
 /**
- * Switching the Transit group off has to take the network off the map, and
- * switching it back on has to put it there again.
- *
- * Both halves used to hang on one misreading of `isStyleLoaded()`, which is
- * a claim about every source cache in the style and so reads false whenever
- * any one of ninety pyramids has a tile in flight — which is exactly the
- * moment a rider touches the switch. Teardown skipped its removal and left
- * the whole network painted; the rebuild deferred itself to an `idle` event
- * that a map with nothing left to draw never fires.
+ * Switching the Transit group off takes the network off the map, and
+ * switching it back on puts it there again — both while isStyleLoaded() is
+ * false, which it is whenever any pyramid has a tile in flight.
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -37,8 +31,8 @@ function fakeMap(opts: { styleLoaded?: boolean } = {}) {
   return {
     style: {},
     isStyleLoaded: () => opts.styleLoaded ?? false,
-    // Both engines serialize on getStyle(); copies, or removal would be
-    // walking the array it is splicing.
+    // Both engines serialize on getStyle(); copies, or removal walks the
+    // array it is splicing.
     getStyle: () => ({ layers: [...layers], sources: { ...sources } }),
     getLayer: (id: string) => layers.find(l => l.id === id),
     getSource: (id: string) => sources[id],
@@ -71,7 +65,7 @@ const portolanIds = (map: ReturnType<typeof fakeMap>) => ({
 
 describe('portolan teardown', () => {
   beforeEach(() => {
-    // The dev flag is the enablement path that needs no pinia.
+    // The enablement path that needs no pinia.
     localStorage.setItem(FLAG_KEY, '1')
     vi.stubGlobal(
       'fetch',
@@ -125,8 +119,7 @@ describe('portolan rebuild', () => {
   })
 
   test('retries a style that could not take layers instead of waiting for an idle', async () => {
-    // The feed index is probed once per module instance, so this test takes
-    // its own copy of the service rather than inheriting a cached empty one.
+    // The feed index is probed once per module instance — take a fresh one.
     vi.resetModules()
     localStorage.setItem(FLAG_KEY, '1')
     vi.stubGlobal(
@@ -143,7 +136,7 @@ describe('portolan rebuild', () => {
       './portolan-transit.service'
     )
 
-    // A style still being parsed: no layers, so nothing to insert beneath.
+    // Still being parsed: no layers, so nothing to insert beneath.
     const unparsed = { ...fakeMap(), getStyle: vi.fn(() => ({ layers: [], sources: {} })) }
     const service = freshService()
     service.initializePortolanTransit(strategyFor(unparsed))

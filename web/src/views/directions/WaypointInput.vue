@@ -436,7 +436,7 @@ defineExpose({
             >
               <ComboboxAnchor>
                 <ComboboxInput
-                  :placeholder="index === 0 ? $t('directions.from') : $t('directions.to')"
+                  :placeholder="isCurrentLocationChip(index) ? '' : index === 0 ? $t('directions.from') : $t('directions.to')"
                   :model-value="inputTexts[index] || ''"
                   :class="blurPhase[index] === 'out' ? 'animate-blur-out' : blurPhase[index] === 'wipe' ? 'animate-wipe-in' : ''"
                   hide-search-icon

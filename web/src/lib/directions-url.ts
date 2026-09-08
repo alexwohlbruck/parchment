@@ -38,6 +38,22 @@ export interface DirectionsUrlState {
 
 const COORD_PRECISION = 6
 
+/**
+ * The place id worth putting in a link, or nothing.
+ *
+ * Ids minted locally — current location, a bookmark row, an earlier link's own
+ * stub — mean nothing on another device, so they are left out rather than
+ * shared as dead references. A real one always names its source first
+ * ("osm/node/123").
+ */
+export function shareableWaypointId(
+  place: { id?: string } | null | undefined,
+): string | undefined {
+  const id = place?.id
+  if (!id || !id.includes('/') || id.startsWith('shared-wp-')) return undefined
+  return id
+}
+
 export function serializeDirectionsQuery(
   state: DirectionsUrlState,
 ): Record<string, string | string[]> {

@@ -18,6 +18,7 @@ import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
   directionsQueryEquals,
+  shareableWaypointId,
 } from '@/lib/directions-url'
 
 const MIN_WAYPOINTS = 2
@@ -153,17 +154,20 @@ function directionsService() {
       const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
       const response: TripsResponse = {
         request: {
-          waypoints: validWaypoints.map((wp, i) => ({
-            id: `wp-${i}`,
-            coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
-            type:
-              i === 0 || i === validWaypoints.length - 1
-                ? WaypointType.STOP
-                : WaypointType.VIA,
-            name: (wp.place ? getSearchResultName(wp.place as Place) : '') || serverWaypoints[i]?.label || '',
-            // Pass through the full Place for POI rendering in the trip timeline
-            ...(wp.place ? { place: wp.place } : {}),
-          })),
+          waypoints: validWaypoints.map((wp, i) => {
+            const place = wp.place
+            return {
+              id: `wp-${i}`,
+              coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
+              type:
+                i === 0 || i === validWaypoints.length - 1
+                  ? WaypointType.STOP
+                  : WaypointType.VIA,
+              name: (place ? getSearchResultName(place as Place) : '') || serverWaypoints[i]?.label || '',
+              // Pass through the full Place for POI rendering in the trip timeline
+              ...(place ? { place } : {}),
+            }
+          }),
           availableVehicles: availableVehicles.map(v => v.type),
           maxOptions: 5,
           includeWalking: true,
@@ -377,6 +381,14 @@ function directionsService() {
    * full record up in the background and swap it in — the place cache makes
    * a repeat lookup free.
    */
+  /**
+   * Ids already looked up. A waypoint's record is replaced by the lookup's
+   * result, which triggers the watcher again — and the surfaces that set
+   * waypoints do so on every keystroke-driven selection, so without this the
+   * same place would be fetched over and over.
+   */
+  const hydratedPlaceIds = new Set<string>()
+
   async function hydrateWaypointPlace(index: number, placeId: string) {
     const { lookupPlaceById } = usePlaceService()
     const full = await lookupPlaceById(placeId)
@@ -389,14 +401,6 @@ function directionsService() {
     // The waypoint's own coordinates win: the user picked that point, and a
     // POI's canonical centre can sit metres away from it.
     store.setWaypoint(index, { ...current, place: full })
-
-    // Patch an already-planned trip in place so the timeline it is currently
-    // rendering picks the richer record up without a re-plan.
-    const requestWaypoint = store.trips?.request?.waypoints?.[index]
-    if (requestWaypoint) {
-      requestWaypoint.name = getSearchResultName(full)
-      requestWaypoint.place = full
-    }
   }
 
   /**
@@ -433,13 +437,6 @@ function directionsService() {
             place: place,
           }
           store.setWaypoint(index, updatedWaypoint)
-
-          // Patch the stored trip response if it already exists
-          const trips = store.trips
-          if (trips?.request?.waypoints?.[index]) {
-            trips.request.waypoints[index].name = getSearchResultName(place as Place)
-            trips.request.waypoints[index].place = place
-          }
         } else {
           console.log('[Directions] No reverse geocoding results found')
         }
@@ -447,8 +444,8 @@ function directionsService() {
         console.error('[Directions] Failed to reverse geocode waypoint:', error)
         // Continue without place info if geocoding fails
       })
-    } else if (waypoint.place?.id) {
-      hydrateWaypointPlace(index, waypoint.place.id)
+    } else if (waypoint.place) {
+      console.log('[Directions] Waypoint already has place info:', waypoint.place.name?.value)
     }
   }
 
@@ -564,6 +561,49 @@ function directionsService() {
     await setWaypointWithGeocoding(1, waypoint)
   }
 
+  // Every surface that sets a waypoint — the picker, a map click, a shared
+  // link, the place page's Directions button — routes through the store, so
+  // hydration hangs off the store rather than off each of them remembering to
+  // ask for it.
+  watch(
+    waypoints,
+    wps => {
+      wps.forEach((wp, index) => {
+        const id = wp.place?.id
+        if (!id || hydratedPlaceIds.has(id)) return
+        hydratedPlaceIds.add(id)
+        hydrateWaypointPlace(index, id)
+      })
+    },
+    { deep: true, immediate: true },
+  )
+
+  /**
+   * Keep the planned trip's stops pointing at the places the store now holds.
+   *
+   * A plan echoes back the waypoints it was built from, but a waypoint's place
+   * record keeps improving after the fact — reverse geocoding a dropped pin,
+   * looking up a stop restored from a link, filling in a thin autocomplete
+   * row. Whether that lands before the plan, during it, or against a cached
+   * plan restored whole, the trip has to end up rendering the record the user
+   * would see anywhere else, without re-planning the route to get it.
+   */
+  watch(
+    [waypoints, () => store.trips],
+    () => {
+      const planned = store.trips?.request?.waypoints
+      if (!planned) return
+      const settled = waypoints.value.filter(wp => wp.lngLat)
+      planned.forEach((entry, i) => {
+        const place = settled[i]?.place
+        if (!place || entry.place === place) return
+        entry.place = place
+        entry.name = getSearchResultName(place as Place)
+      })
+    },
+    { deep: true, immediate: true },
+  )
+
   // ── Shareable URL state ─────────────────────────────────────────────
   // Directions inputs live in the query string (?wp=lat,lng,label&mode=…)
   // so links can be bookmarked, shared, and reproduced exactly.
@@ -599,23 +639,7 @@ function directionsService() {
     if (state.sort) store.sortPreference = state.sort as typeof sortPreference.value
     if (state.depart) store.departureTime = state.depart
     store.setWaypoints(wps)
-    state.waypoints.forEach((w, i) => {
-      if (w.id) hydrateWaypointPlace(i, w.id)
-    })
     return true
-  }
-
-  /**
-   * The waypoint's place id, when it is one a recipient of the link can look
-   * up. Ids minted locally — current location, a bookmark row, an earlier
-   * link's own stub — mean nothing on another device, so they are left out
-   * rather than shared as dead references.
-   */
-  function shareableWaypointId(place: Partial<Place> | null | undefined) {
-    const id = place?.id
-    if (!id || !id.includes('/')) return undefined
-    if (id.startsWith('shared-wp-')) return undefined
-    return id
   }
 
   /** Reflect the current inputs into the URL (replace — no history spam). */

@@ -7,6 +7,7 @@ import {
   recentSearchToDisplay,
   recentSearchRoute,
   makePlaceDisplay,
+  autocompleteToDisplay,
 } from './place-display'
 import type { Place } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
@@ -243,5 +244,55 @@ describe('recentSearchToDisplay', () => {
     )
     expect(d.imageUrl).toBe('https://example.com/target.svg')
     expect(d.icon).toBe('Store')
+  })
+})
+
+describe('autocompleteToDisplay', () => {
+  it('keeps the row’s own glyph and icon pack', () => {
+    const d = autocompleteToDisplay(
+      {
+        id: 'osm/node/6308438190',
+        type: 'place',
+        title: 'Target',
+        description: 'Department Store · 139 Flatbush Avenue',
+        icon: 'shop',
+        iconPack: 'maki',
+        iconCategory: 'store',
+        lat: 40.684397,
+        lng: -73.97644,
+      },
+      { isDark: false },
+    )
+    expect(d.title).toBe('Target')
+    expect(d.icon).toBe('shop')
+    expect(d.iconPack).toBe('maki')
+    expect(d.address).toBe('Department Store · 139 Flatbush Avenue')
+    expect(d.customColor).toBeTruthy()
+  })
+
+  it('gives current location the locate glyph rather than a pin', () => {
+    const d = autocompleteToDisplay(
+      { id: 'current-location', type: 'current_location', title: 'Current Location' },
+      { isDark: false },
+    )
+    expect(d.icon).toBe('Locate')
+  })
+
+  // A bookmark's colour is chosen by the user, so it wins over its category.
+  it('keeps a bookmark’s own colour', () => {
+    const d = autocompleteToDisplay(
+      {
+        id: 'bk1',
+        type: 'bookmark',
+        title: 'Home',
+        icon: 'Home',
+        color: 'cobalt',
+        lat: 1,
+        lng: 2,
+      },
+      { isDark: false },
+    )
+    expect(d.color).toBe('cobalt')
+    expect(d.customColor).toBeUndefined()
   })
 })

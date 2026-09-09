@@ -4,7 +4,7 @@ import {
   TERRAIN_EXAGGERATION,
   terrainSource,
 } from '@/lib/map-style/terrain'
-import { MapLayerGroup, TripGroup } from '@/lib/map/layer-group'
+import { MapLayerGroup, TripGroup } from '@/services/map/providers/layer-group'
 import {
   Basemap,
   Layer,

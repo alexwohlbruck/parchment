@@ -5,7 +5,7 @@ import { useNotesStore, parseBbox } from '@/stores/notes.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useNotesService } from '@/services/notes.service'
 import { LayerType } from '@/types/map.types'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import NoteMarker from '@/components/map/markers/NoteMarker.vue'
 import type { OsmNote } from '@/types/notes.types'
 

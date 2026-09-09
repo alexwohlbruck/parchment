@@ -1,4 +1,4 @@
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 // `IndoorControl` is only reachable through the default export — mapbox-gl's
 // typings don't re-export the experimental indoor API as a named binding.
 import mapboxgl, {
@@ -40,7 +40,7 @@ import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman.u
 import { parseMapboxToOsmId } from '@/lib/map/map.utils'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { MapLayerGroup, TripGroup } from '@/lib/map/layer-group'
+import { MapLayerGroup, TripGroup } from '@/services/map/providers/layer-group'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,

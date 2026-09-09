@@ -1,4 +1,4 @@
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
   NavigationControl,
@@ -57,7 +57,7 @@ import {
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman.utils'
-import { MapLayerGroup, TripGroup } from '@/lib/map/layer-group'
+import { MapLayerGroup, TripGroup } from '@/services/map/providers/layer-group'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/map/vue-marker.utils'
 import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'

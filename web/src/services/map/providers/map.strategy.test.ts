@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 
 class TestMapStrategy extends MapStrategy {
   setup(map: unknown) {

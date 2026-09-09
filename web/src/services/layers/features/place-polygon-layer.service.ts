@@ -7,7 +7,7 @@
 
 import type { Layer } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   PLACE_POLYGON_SOURCE_ID,
   PLACE_POLYGON_FILL_LAYER_ID,

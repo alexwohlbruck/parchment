@@ -21,7 +21,7 @@ import { mapEventBus } from '@/lib/event-bus'
 import { useI18n } from 'vue-i18n'
 import { formatTimeAgo } from '@/lib/time.utils'
 import { MARKER_LIVE_PLATE_SIZE } from '@/lib/map-marker'
-import { categoryMarkerPaint } from '@/lib/place/place-colors'
+import { categoryMarkerPaint } from '@/services/place/place-colors'
 import { useAccentMarkerPaint } from '@/composables/map/useAccentMarkerPaint'
 import { useThemeStore } from '@/stores/theme.store'
 

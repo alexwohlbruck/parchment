@@ -15,7 +15,7 @@
 
 import { watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'

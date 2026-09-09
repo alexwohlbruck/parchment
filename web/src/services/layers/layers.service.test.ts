@@ -11,7 +11,7 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { useLayersService } from '@/services/layers/layers.service'
 import type { Layer } from '@/types/map.types'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 
 // Mock specialized services
 const mockSearchResultsService = {

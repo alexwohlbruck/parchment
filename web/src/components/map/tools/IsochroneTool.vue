@@ -30,7 +30,7 @@ import {
   TrainIcon,
 } from 'lucide-vue-next'
 import type { IsochroneMode } from '@server/types/isochrone.types'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIsochroneStore } from '@/stores/isochrone.store'
 import { useAppStore } from '@/stores/app.store'

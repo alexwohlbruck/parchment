@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { mapEventBus } from '@/lib/event-bus'
 import { useHotkeys } from '@/composables/useHotkeys'

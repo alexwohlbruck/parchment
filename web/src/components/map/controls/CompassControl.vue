@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { Button } from '@/components/ui/button'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useMapCamera } from '@/composables/map/useMapCamera'
 import { useMapStore } from '@/stores/map.store'
 import { ControlVisibility } from '@/types/map.types'

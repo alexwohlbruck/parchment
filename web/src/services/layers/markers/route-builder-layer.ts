@@ -16,7 +16,7 @@ import { BaseMarkerLayer, type MarkerData } from './base-marker-layer'
 import { useRouteBuilderStore } from '@/stores/route-builder.store'
 import { useRouteBuilderService } from '@/services/route-builder.service'
 import { getTravelModeColor, getTravelModeCaseColor } from '@/lib/directions/travel-mode-colors'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import RouteBuilderWaypointMarker from '@/components/map/markers/RouteBuilderWaypointMarker.vue'
 import RouteBuilderTurnaroundMarker from '@/components/map/markers/RouteBuilderTurnaroundMarker.vue'
 

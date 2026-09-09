@@ -7,7 +7,7 @@ import { useMapService } from '@/services/map.service'
 import { useAppService } from '@/services/app.service'
 import { LngLat } from '@/types/map.types'
 import { AppRoute } from '@/router'
-import CreateNoteMarker from '@/components/map/CreateNoteMarker.vue'
+import CreateNoteMarker from '@/components/map/markers/CreateNoteMarker.vue'
 import CreateNotePanel from '@/components/notes/CreateNotePanel.vue'
 
 const route = useRoute()

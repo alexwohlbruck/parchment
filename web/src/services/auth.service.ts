@@ -11,7 +11,7 @@ import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 import {
   hydratePrfExtensionInPlace,
   extractPrfOutputFromAssertion,
-} from '@/lib/passkey-prf-support'
+} from '@/lib/identity/passkey-prf-support'
 import { Session } from '@/types/session.types'
 import { PermissionId, PermissionRule, User } from '@/types/auth.types'
 import { auth as deviceStore } from '@/lib/device-store'
@@ -386,7 +386,7 @@ function authService() {
    * require a re-unlock.
    */
   async function signOutOtherDevices() {
-    const { getOrCreateDeviceId } = await import('@/lib/device-id')
+    const { getOrCreateDeviceId } = await import('@/lib/identity/device-id')
     const deviceId = getOrCreateDeviceId()
     await api.delete('/auth/sessions/others', { data: { deviceId } })
   }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { MessageSquareIcon, SendIcon } from 'lucide-vue-next'

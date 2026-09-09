@@ -33,9 +33,9 @@ import {
 import { AppRoute } from '@/router'
 import { useAppService } from '@/services/app.service'
 import { useLayersStore } from '@/stores/layers.store'
-import Layers from '@/components/map/Layers.vue'
-import LayerStoreDialog from '@/components/map/layers/LayerStoreDialog.vue'
-import LayerGroupConfiguration from '@/components/map/layers/LayerGroupConfiguration.vue'
+import Layers from '@/components/library/layers/LayerList.vue'
+import LayerStoreDialog from '@/components/library/layers/LayerStoreDialog.vue'
+import LayerGroupConfiguration from '@/components/library/layers/LayerGroupConfiguration.vue'
 
 const { t } = useI18n()
 const router = useRouter()

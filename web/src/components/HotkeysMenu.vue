@@ -16,7 +16,7 @@ import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { useHotkeyStore } from '@/stores/hotkey.store'
 import type { Command } from '@/types/command.types'
 import { useHotkeys } from '@/composables/useHotkeys'
-import { appEventBus } from '@/lib/eventBus'
+import { appEventBus } from '@/lib/event-bus'
 
 const commandService = useCommandService()
 const commandStore = useCommandStore()

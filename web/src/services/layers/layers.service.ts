@@ -16,7 +16,7 @@ import type { Layer, LayerGroup } from '@/types/map.types'
 import { MARKER_RENDERED_LAYER_TYPES } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { toRaw } from 'vue'
-import { isTransitStopLayer } from '@/lib/transit.utils'
+import { isTransitStopLayer } from '@/lib/transit/transit.utils'
 
 /** Check if a layer is compatible with the current map engine */
 function isLayerCompatible(layer: Layer, mapStrategy: MapStrategy): boolean {
@@ -35,11 +35,11 @@ function isMarkerRendered(layer: Layer): boolean {
 }
 
 // Import specialized services
-import { useLayerCrudService } from './core/layer-crud.service'
-import { useLayerVisibilityService } from './core/layer-visibility.service'
-import { useSearchResultsLayerService } from './features/search-results-layer.service'
-import { useTransitLayersService } from './features/transit-layers.service'
-import { useDayNightLayerService } from './features/daynight-layer.service'
+import { useLayerCrudService } from '@/services/layers/core/layer-crud.service'
+import { useLayerVisibilityService } from '@/services/layers/core/layer-visibility.service'
+import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
+import { useTransitLayersService } from '@/services/layers/features/transit-layers.service'
+import { useDayNightLayerService } from '@/services/layers/features/daynight-layer.service'
 
 export function useLayersService() {
   // Initialize specialized services

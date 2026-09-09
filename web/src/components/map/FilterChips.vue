@@ -9,7 +9,7 @@ import {
 import ResponsiveDropdown, { type MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import type { FilterDef, SortDef } from '@/config/search-filters'
+import type { FilterDef, SortDef } from '@/lib/search/search-filters'
 import type { ChipOption } from '@/components/ui/chip'
 import { computed, ref } from 'vue'
 

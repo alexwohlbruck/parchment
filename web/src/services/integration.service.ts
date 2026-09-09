@@ -14,7 +14,7 @@ import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useAuthStore } from '@/stores/auth.store'
-import { saveBlob, decryptBlobEnvelope } from '@/lib/personal-blob'
+import { saveBlob, decryptBlobEnvelope } from '@/lib/identity/personal-blob'
 
 // Personal-blob type namespace for user-e2ee integration configs. Kept in
 // sync with INTEGRATION_CONFIG_BLOB_PREFIX on the server.

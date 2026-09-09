@@ -6,7 +6,7 @@ import { createPinia } from 'pinia'
 import CanvasStackList from './CanvasStackList.vue'
 import CanvasGroupRow from './CanvasGroupRow.vue'
 import { CANVAS_STACK, type CanvasStackContext } from './canvas-stack-context'
-import type { StackEntry } from '@/lib/canvas-stack'
+import type { StackEntry } from '@/lib/canvas/canvas-stack'
 import en from '@/lib/i18n/en-US.json'
 import type { CanvasAnnotation, CanvasLayer } from '@/types/canvas.types'
 

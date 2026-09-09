@@ -9,9 +9,9 @@ import type {
   RelatedPlacesData,
   RelatedParent,
 } from '@/types/place.types'
-import PlaceListItem from '@/components/place/PlaceListItem.vue'
+import PlaceListItem from '@/components/place/card/PlaceListItem.vue'
 import { usePlaceTabs } from '@/composables/usePlaceTabs'
-import RelatedPlacesPage from '@/components/place/pages/RelatedPlacesPage.vue'
+import RelatedPlacesPage from '@/components/place/widgets/RelatedPlacesPage.vue'
 
 const { t } = useI18n()
 

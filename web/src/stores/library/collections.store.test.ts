@@ -5,8 +5,8 @@
  */
 import { describe, test, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useCollectionsStore } from './collections.store'
-import { useBookmarksStore } from './bookmarks.store'
+import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import type { Bookmark, Collection } from '@/types/library.types'
 
 function bookmark(id: string, collectionIds?: string[]): Bookmark {

@@ -1,6 +1,6 @@
 import type { Layer } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { renderDayNightCanvas } from '@/lib/daynight.utils'
+import { renderDayNightCanvas } from '@/lib/map/daynight-canvas'
 
 const DAYNIGHT_SOURCE_ID = 'daynight'
 const DAYNIGHT_LAYER_ID = 'daynight-overlay'

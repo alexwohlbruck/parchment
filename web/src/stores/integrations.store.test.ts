@@ -10,7 +10,7 @@
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useIntegrationsStore } from './integrations.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId, IntegrationCapabilityId } from '@server/types/integration.types'
 import type { IntegrationRecord } from '@server/types/integration.types'
 

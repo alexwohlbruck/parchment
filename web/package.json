@@ -38,7 +38,7 @@
     "@morev/vue-transitions"
   ],
   "dependencies": {
-    "@alexwohlbruck/vaul-vue": "^0.4.4",
+    "@alexwohlbruck/vaul-vue": "^0.4.5",
     "@fontsource/geist-mono": "^5.2.8",
     "@fontsource/geist-sans": "^5.2.5",
     "@internationalized/date": "^3.5.4",
@@ -62,8 +62,6 @@
     "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.3.4",
     "@types/suncalc": "^1.9.2",
-    "@unovis/ts": "^1.6.4",
-    "@unovis/vue": "^1.6.4",
     "@vee-validate/zod": "^4.12.8",
     "@vueuse/core": "^13.5.0",
     "@vueuse/gesture": "^2.0.0",

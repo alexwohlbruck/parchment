@@ -9,7 +9,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
-import { useLayerVisibilityService } from './layer-visibility.service'
+import { useLayerVisibilityService } from '@/services/layers/core/layer-visibility.service'
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { LayerType, MapColorTheme } from '@/types/map.types'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'

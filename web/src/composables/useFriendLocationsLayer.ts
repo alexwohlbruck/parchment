@@ -19,7 +19,7 @@ import { useFriendsStore } from '@/stores/friends.store'
 import { useFriendLocations } from '@/composables/useFriendLocations'
 import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast'
 import { useMapService } from '@/services/map.service'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { AppRoute } from '@/router'
 
 function friendLocationsLayerComposable() {

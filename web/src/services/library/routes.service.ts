@@ -14,8 +14,8 @@ import type {
   DeleteRouteMutation,
   RouteUpdates,
   UpdateRouteMutation,
-} from './routes.sync'
-import { getSeed } from '@/lib/key-storage'
+} from '@/services/library/routes.sync'
+import { getSeed } from '@/lib/identity/key-storage'
 import { useAuthStore } from '@/stores/auth.store'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import {
@@ -24,7 +24,7 @@ import {
   encryptRouteBody,
   decryptRouteBody,
   type RouteMetadata,
-} from '@/lib/library-crypto'
+} from '@/lib/identity/library-crypto'
 import type {
   Route,
   RouteBody,

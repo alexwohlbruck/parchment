@@ -27,7 +27,7 @@ import {
   XIcon,
 } from 'lucide-vue-next'
 import { SettingsSection, SettingsItem } from '@/components/settings'
-import BuildingShadeSection from './developer/BuildingShadeSection.vue'
+import BuildingShadeSection from '@/components/settings/developer/BuildingShadeSection.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'

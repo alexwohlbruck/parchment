@@ -6,7 +6,6 @@ import {
   ConfirmDialogOptions,
   DialogType,
   PromptDialogOptions,
-  DrawerOptions,
 } from '@/types/app.types'
 import { createSharedComposable } from '@vueuse/core'
 
@@ -29,16 +28,12 @@ function appService() {
     return appStore.createDialog(DialogType.AutoForm, options)
   }
 
-  function drawer(options: DrawerOptions) {
-    return appStore.createDialog(DialogType.Drawer, options)
-  }
 
   return {
     componentDialog,
     confirm,
     prompt,
     promptForm,
-    drawer,
     toast,
   }
 }

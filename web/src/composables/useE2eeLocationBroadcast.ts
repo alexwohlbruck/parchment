@@ -11,7 +11,7 @@ import {
   importPublicKey,
   type FriendShareBinding,
   type LocationData,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 
 // Broadcast cadence is driven by GPS movement, not a fixed timer. Three
 // gates keep traffic sane:

@@ -25,13 +25,13 @@ import MarkerShapePicker from './MarkerShapePicker.vue'
 import {
   annotationStyle,
   DEFAULT_ANNOTATION_COLOR,
-} from '@/lib/canvas-annotations'
+} from '@/lib/canvas/canvas-annotations'
 import {
   hasStyleOption,
   percentLabel,
   STYLE_RANGES,
   type DrawOption,
-} from '@/lib/canvas-draw-style'
+} from '@/lib/canvas/canvas-draw-style'
 import type { MarkerShape } from '@/lib/map-marker'
 import {
   ANNOTATION_STROKE_CAPS,

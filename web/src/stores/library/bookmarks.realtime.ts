@@ -12,9 +12,9 @@
  * twice is a no-op.
  */
 
-import { useBookmarksStore } from './bookmarks.store'
-import { useCollectionsStore } from './collections.store'
-import { registerRealtimeHandlers } from '@/lib/realtime-events'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useCollectionsStore } from '@/stores/library/collections.store'
+import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 import type { Bookmark } from '@/types/library.types'
 
 /**

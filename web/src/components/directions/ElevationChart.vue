@@ -21,7 +21,7 @@ import {
   PROFILE_TABS,
   CATEGORY_MAPS,
   getEdgeCategory,
-} from '@/lib/route-profile-colors'
+} from '@/lib/directions/route-profile-colors'
 
 interface Props {
   /** Index of this segment within the trip — used to scope map updates */

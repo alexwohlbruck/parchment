@@ -41,12 +41,12 @@ import {
   buildSignableMessageV2,
   generateNonce as generateFederationNonce,
   sign as signEd25519,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 import {
   upgradeCollectionToE2ee,
   downgradeCollectionToServerKey,
-} from '@/lib/collection-scheme-switch'
-import { rotateCollectionKey } from '@/lib/collection-rotation'
+} from '@/lib/identity/collection-scheme-switch'
+import { rotateCollectionKey } from '@/lib/identity/collection-rotation'
 import type { Collection, ShareRole } from '@/types/library.types'
 
 /**

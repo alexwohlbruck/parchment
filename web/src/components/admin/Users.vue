@@ -39,7 +39,7 @@ import AvatarFallback from '@/components/ui/avatar/AvatarFallback.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 import { UserIcon, MinusIcon } from 'lucide-vue-next'
 import { SettingsSection } from '@/components/settings'
-import { registerRealtimeHandlers } from '@/lib/realtime-events'
+import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 
 dayjs.extend(localizedFormat)
 

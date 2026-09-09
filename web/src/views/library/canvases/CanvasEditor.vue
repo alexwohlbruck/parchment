@@ -38,9 +38,9 @@ import { useMapPoiClickSuppression } from '@/composables/useMapPoiClickSuppressi
 import type { CanvasMapSettings } from '@/types/canvas.types'
 import CanvasContextMenu from '@/components/library/canvas/CanvasContextMenu.vue'
 import { useDrawOverlay } from '@/composables/useDrawOverlay'
-import { annotationFeature } from '@/lib/canvas-annotations'
+import { annotationFeature } from '@/lib/canvas/canvas-annotations'
 import { useRoutesService } from '@/services/library/routes.service'
-import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
+import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 import AddCanvasLayerDialog from '@/components/library/canvas/AddCanvasLayerDialog.vue'
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
 import CanvasDataLayerSettings from '@/components/library/canvas/CanvasDataLayerSettings.vue'
@@ -58,8 +58,8 @@ import {
   countGeometries,
   defaultStyleFor,
   inferRender,
-} from '@/lib/map-style/data-presets'
-import type { DataSourceDefinition } from '@/lib/data-sources/catalogue'
+} from '@/lib/canvas/data-presets'
+import type { DataSourceDefinition } from '@/lib/canvas/data-source-catalogue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { SectionHeader } from '@/components/ui/section-header'
 import { Button } from '@/components/ui/button'
@@ -89,7 +89,7 @@ import {
   type StackAnnotation,
   type StackChange,
   type StackLayer,
-} from '@/lib/canvas-stack'
+} from '@/lib/canvas/canvas-stack'
 import {
   BookmarkIcon,
   CloudUploadIcon,

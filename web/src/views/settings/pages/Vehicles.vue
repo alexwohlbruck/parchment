@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { getRoutingMode, VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
+import { getRoutingMode, VEHICLE_TYPE_LABELS } from '@/lib/transit/vehicle-mode-mapping'
 import type { UserVehicle, VehicleType, EnergyType } from '@/types/multimodal.types'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import { Button } from '@/components/ui/button'
@@ -37,7 +37,7 @@ import {
   CheckIcon,
   CrosshairIcon,
 } from 'lucide-vue-next'
-import { getVehicleIcon } from '@/lib/travel-mode-icons'
+import { getVehicleIcon } from '@/lib/directions/travel-mode-icons'
 
 const { t, te } = useI18n()
 

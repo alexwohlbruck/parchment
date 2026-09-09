@@ -9,7 +9,7 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useBookmarksStore } from './bookmarks.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import type { Bookmark } from '@/types/library.types'
 
 // Mock collections store

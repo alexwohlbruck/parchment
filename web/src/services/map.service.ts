@@ -19,7 +19,7 @@ import {
   GridSnapMode,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
-import { useMapStore } from '../stores/map.store'
+import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { usePlacePolygonLayerService } from '@/services/layers/features/place-polygon-layer.service'
@@ -31,19 +31,20 @@ import { useEnvironmentDataService } from '@/services/layers/features/environmen
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
-import { useAppStore } from '../stores/app.store'
-import { createAnimationHold } from '@/lib/animation-hold'
+import { useAppStore } from '@/stores/app.store'
+import { createAnimationHold } from '@/lib/map/animation-hold'
 import {
+  calculateCameraPadding,
   calculateFitPadding,
   toContainerRect,
   type Padding,
-} from '@/lib/map-padding'
+} from '@/lib/map/map-padding'
 import {
   findGriddedCity,
   gridOrientations,
   angularDistanceDeg,
   GRID_SNAP_THRESHOLD_DEG,
-} from '@/lib/grid-orientation'
+} from '@/lib/geo/grid-orientation'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -52,7 +53,7 @@ import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strategy'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
@@ -273,31 +274,43 @@ function mapService() {
    * All listeners registered here must also be removed by unbindMapEvents()
    * in destroy(), otherwise we'll accumulate duplicates across engine swaps.
    */
+  // mitt's off(type) with no handler drops every listener for that type,
+  // including other modules'. Track ours so we can remove exactly those.
+  const mapEventUnbinders: (() => void)[] = []
+
+  function bindMapEvent<K extends keyof MapEvents>(
+    event: K,
+    handler: (data: MapEvents[K]) => void,
+  ) {
+    mapEventBus.on(event, handler)
+    mapEventUnbinders.push(() => mapEventBus.off(event, handler))
+  }
+
   function bindMapEvents() {
-    mapEventBus.on('load', async () => {
+    bindMapEvent('load', async () => {
       onMapLoad()
     })
 
-    mapEventBus.on('style.load', async () => {
+    bindMapEvent('style.load', async () => {
       onStyleLoad()
     })
 
-    mapEventBus.on('move', data => {
+    bindMapEvent('move', data => {
       mapStore.emit('move', data)
     })
 
-    mapEventBus.on('moveend', data => {
+    bindMapEvent('moveend', data => {
       mapStore.setMapCamera(data)
     })
 
     // When the user finishes a manual rotation, snap to north and/or the local
     // city's street grid, per the snap settings.
-    mapEventBus.on('rotateend', () => {
+    bindMapEvent('rotateend', () => {
       snapRotation()
     })
 
     // Track rotation/pitch state for conditional control visibility
-    mapEventBus.on('move', data => {
+    bindMapEvent('move', data => {
       const { bearing, pitch } = data
       const wasRotatedOrPitched = isRotatedOrPitched.value
       isRotatedOrPitched.value =
@@ -324,7 +337,7 @@ function mapService() {
     // re-run it. Only on the crossing: `setPadding` rebuilds every matrix, and
     // `move` fires continuously through a gesture.
     wasGlobeRendering = null
-    mapEventBus.on('move', () => {
+    bindMapEvent('move', () => {
       const sphere = mapStrategy?.isSphereVisible() ?? false
       if (sphere === wasGlobeRendering) return
       wasGlobeRendering = sphere
@@ -333,7 +346,7 @@ function mapService() {
 
     // Track zoom state for conditional control visibility
     previousZoom = null
-    mapEventBus.on('move', data => {
+    bindMapEvent('move', data => {
       const { zoom } = data
       if (previousZoom !== null && Math.abs(zoom - previousZoom) > 0.01) {
         isCurrentlyZooming.value = true
@@ -345,7 +358,7 @@ function mapService() {
       previousZoom = zoom
     })
 
-    mapEventBus.on('click:mapillary-image', ({ lngLat, image }) => {
+    bindMapEvent('click:mapillary-image', ({ lngLat, image }) => {
       if (image) {
         mapStrategy.flyTo({
           center: lngLat,
@@ -367,7 +380,7 @@ function mapService() {
     })
 
     // Warm details while a touch action waits through the double-tap window.
-    mapEventBus.on('poi:preview', async ({ poi }) => {
+    bindMapEvent('poi:preview', async ({ poi }) => {
       const { usePlaceService } = await import('@/services/place.service')
       void usePlaceService().prefetchPlaceDetails(
         `${poi.poiType}/${poi.osmId}`,
@@ -375,7 +388,7 @@ function mapService() {
       )
     })
 
-    mapEventBus.on('click', async data => {
+    bindMapEvent('click', async data => {
       // Only handle POI clicks — ignore empty map clicks
       if (!data.poi) return
 
@@ -425,14 +438,8 @@ function mapService() {
    * a stale listener that still references the destroyed strategy.
    */
   function unbindMapEvents() {
-    mapEventBus.off('load')
-    mapEventBus.off('style.load')
-    mapEventBus.off('move')
-    mapEventBus.off('moveend')
-    mapEventBus.off('rotateend')
-    mapEventBus.off('click')
-    mapEventBus.off('poi:preview')
-    mapEventBus.off('click:mapillary-image')
+    for (const unbind of mapEventUnbinders) unbind()
+    mapEventUnbinders.length = 0
   }
 
   // null = jumpTo (instant), undefined = Mapbox default flyTo (distance-based, no cap), number = fixed ms
@@ -638,65 +645,16 @@ function mapService() {
 
   let isInitializingGroups = false
 
-  /**
-   * Calculate padding values based on visible map area
-   * Extracted utility function to avoid code duplication
-   */
-  function calculateMapPadding(): {
-    padding: MapCamera['padding']
-    isFullyVisible: boolean
-  } | null {
-    if (!mapContainer) {
-      return null
-    }
-
-    // Obstruction bounds are viewport-space; everything below is relative to
-    // the canvas, which the sidebar has already pushed off the viewport edge.
-    const visibleArea = toContainerRect(
-      appStore.visibleMapArea,
-      mapContainer.getBoundingClientRect(),
+  function calculateMapPadding() {
+    if (!mapContainer) return null
+    return calculateCameraPadding(
+      toContainerRect(
+        appStore.visibleMapArea,
+        mapContainer.getBoundingClientRect(),
+      ),
+      mapContainer.clientWidth,
+      mapContainer.clientHeight,
     )
-    const mapWidth = mapContainer.clientWidth
-    const mapHeight = mapContainer.clientHeight
-
-    // Check if we have valid dimensions
-    if (!mapWidth || !mapHeight) {
-      return null
-    }
-
-    // Check if the full map is visible
-    const isFullyVisible =
-      visibleArea.width === mapWidth && visibleArea.height === mapHeight
-
-    if (isFullyVisible) {
-      return {
-        padding: { top: 0, bottom: 0, left: 0, right: 0 },
-        isFullyVisible: true,
-      }
-    }
-
-    // Calculate padding values, then cap each side at 50% of its dimension
-    // so the vanishing point never crosses the viewport midpoint. Concrete
-    // reason: the mobile bottom sheet can expand to 100% of the screen,
-    // but we never want to pin the map's effective center below the middle
-    // of the viewport — past 50% the drawer is just reading content, and
-    // the map's displayed center should stop where it is.
-    const halfW = mapWidth / 2
-    const halfH = mapHeight / 2
-    const padding = {
-      left: Math.min(halfW, Math.max(0, visibleArea.x)),
-      top: Math.min(halfH, Math.max(0, visibleArea.y)),
-      right: Math.min(
-        halfW,
-        Math.max(0, mapWidth - (visibleArea.x + visibleArea.width)),
-      ),
-      bottom: Math.min(
-        halfH,
-        Math.max(0, mapHeight - (visibleArea.y + visibleArea.height)),
-      ),
-    }
-
-    return { padding, isFullyVisible: false }
   }
 
   // Helper function to adjust camera center based on visible map area
@@ -1085,60 +1043,35 @@ function mapService() {
     mapStrategy?.setPoiLabels(value)
   })
 
-  function toggleRoadLabels(value?: boolean) {
-    mapStore.settings.roadLabels = value ?? !mapStore.settings.roadLabels
+  // Each of these is the same shape: flip a stored flag, push it at the
+  // strategy. Kept as a table so a new one cannot land with a mismatched pair.
+  const STRATEGY_TOGGLES = {
+    roadLabels: (v: boolean) => mapStrategy?.setRoadLabels(v),
+    transitLabels: (v: boolean) => mapStrategy?.setTransitLabels(v),
+    placeLabels: (v: boolean) => mapStrategy?.setPlaceLabels(v),
+    hdRoads: (v: boolean) => mapStrategy?.setHdRoads(v),
+    indoorMaps: (v: boolean) => mapStrategy?.setIndoorMaps(v),
+  } as const
+
+  type StrategyToggle = keyof typeof STRATEGY_TOGGLES
+
+  function setStrategyToggle(key: StrategyToggle, value?: boolean) {
+    mapStore.settings[key] = value ?? !mapStore.settings[key]
   }
 
-  watch(
-    () => mapStore.settings.roadLabels,
-    value => {
-      mapStrategy?.setRoadLabels(value)
-    },
-  )
-
-  function toggleTransitLabels(value?: boolean) {
-    mapStore.settings.transitLabels = value ?? !mapStore.settings.transitLabels
+  for (const [key, apply] of Object.entries(STRATEGY_TOGGLES)) {
+    watch(
+      () => mapStore.settings[key as StrategyToggle],
+      value => apply(value),
+    )
   }
 
-  watch(
-    () => mapStore.settings.transitLabels,
-    value => {
-      mapStrategy?.setTransitLabels(value)
-    },
-  )
-
-  function togglePlaceLabels(value?: boolean) {
-    mapStore.settings.placeLabels = value ?? !mapStore.settings.placeLabels
-  }
-
-  watch(
-    () => mapStore.settings.placeLabels,
-    value => {
-      mapStrategy?.setPlaceLabels(value)
-    },
-  )
-
-  function toggleHdRoads(value?: boolean) {
-    mapStore.settings.hdRoads = value ?? !mapStore.settings.hdRoads
-  }
-
-  watch(
-    () => mapStore.settings.hdRoads,
-    value => {
-      mapStrategy?.setHdRoads(value)
-    },
-  )
-
-  function toggleIndoorMaps(value?: boolean) {
-    mapStore.settings.indoorMaps = value ?? !mapStore.settings.indoorMaps
-  }
-
-  watch(
-    () => mapStore.settings.indoorMaps,
-    value => {
-      mapStrategy?.setIndoorMaps(value)
-    },
-  )
+  const toggleRoadLabels = (v?: boolean) => setStrategyToggle('roadLabels', v)
+  const toggleTransitLabels = (v?: boolean) =>
+    setStrategyToggle('transitLabels', v)
+  const togglePlaceLabels = (v?: boolean) => setStrategyToggle('placeLabels', v)
+  const toggleHdRoads = (v?: boolean) => setStrategyToggle('hdRoads', v)
+  const toggleIndoorMaps = (v?: boolean) => setStrategyToggle('indoorMaps', v)
 
   function toggleNorthUpSnap(value?: boolean) {
     // Default-on: a persisted settings object may predate this key.
@@ -1597,12 +1530,12 @@ function mapService() {
     showOnlyWaypoints,
     showTripOnHover,
     showDefaultTrip,
-    setRouteProfile: (profile: import('@/lib/route-profile-colors').RouteProfileType | null) =>
+    setRouteProfile: (profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null) =>
       mapStrategy?.setRouteProfile(profile),
     setSegmentRouteProfile: (
       tripId: string,
       segmentIndex: number,
-      profile: import('@/lib/route-profile-colors').RouteProfileType | null,
+      profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null,
     ) => mapStrategy?.setSegmentRouteProfile(tripId, segmentIndex, profile),
     // Expose mapStrategy for layers service
     get mapStrategy() {

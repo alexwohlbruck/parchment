@@ -31,7 +31,7 @@ export async function syncPreferencesFromBackend(): Promise<void> {
     const { data } = await api.get<UserPreferences>('/users/me/preferences')
     storedLocale.value = toLocale(data.language)
     const appStore = useAppStore()
-    ;((appStore.unitSystem as unknown) as { value: UnitSystem }).value = toUnitSystem(data.unitSystem)
+    appStore.unitSystem = toUnitSystem(data.unitSystem)
   } catch {
     // Not authenticated or network error – keep current local values
   }
@@ -51,7 +51,7 @@ export async function updatePreferences(updates: {
   const { data } = await api.put<UserPreferences>('/users/me/preferences', body)
   storedLocale.value = toLocale(data.language)
   const appStore = useAppStore()
-  ;((appStore.unitSystem as unknown) as { value: UnitSystem }).value = toUnitSystem(data.unitSystem)
+  appStore.unitSystem = toUnitSystem(data.unitSystem)
   return data
 }
 

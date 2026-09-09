@@ -16,7 +16,7 @@ import {
   adoptStyle,
   type DrawStyle,
   type DrawStyles,
-} from '@/lib/canvas-draw-style'
+} from '@/lib/canvas/canvas-draw-style'
 
 export function useCanvasDrawStyle() {
   const styles = ref<DrawStyles>({})

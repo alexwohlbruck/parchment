@@ -13,7 +13,7 @@ import type {
   CanvasGroup,
   CanvasLayer,
 } from '@/types/canvas.types'
-import type { StackAnnotation, StackChange, StackLayer } from '@/lib/canvas-stack'
+import type { StackAnnotation, StackChange, StackLayer } from '@/lib/canvas/canvas-stack'
 
 /** Everything `CanvasLayerRow` binds to, as the editor hands it over. */
 export interface LayerRowProps {

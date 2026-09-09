@@ -8,12 +8,12 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createRecentsStore } from './recents-store'
-import { loadBlob } from '../personal-blob'
+import { loadBlob } from '@/lib/identity/personal-blob'
 
 let savedBlobs: Record<string, any[]> = {}
 let loadedValue: any = null
 
-vi.mock('../personal-blob', () => ({
+vi.mock('@/lib/identity/personal-blob', () => ({
   loadBlob: vi.fn(async () => loadedValue),
   saveBlob: vi.fn(async (_type: string, userId: string, value: any) => {
     savedBlobs[userId] = (savedBlobs[userId] ?? []).concat(value)

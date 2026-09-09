@@ -29,7 +29,7 @@ vi.mock('@/stores/integrations.store', () => ({
 }))
 
 // Import after mocks
-import { useSearchService } from './search.service'
+import { useSearchService } from '@/services/search.service'
 
 describe('useSearchService', () => {
   beforeEach(() => {

@@ -19,7 +19,7 @@ import { useThemeStore } from '@/stores/theme.store'
 import { useAuthService } from '@/services/auth.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { APP_VERSION } from '@/lib/constants'
-import { appEventBus } from '@/lib/eventBus'
+import { appEventBus } from '@/lib/event-bus'
 import { fetchLatestRelease } from '@/composables/useGitHubReleases'
 import type { GitHubReleaseSummary } from '@/composables/useGitHubReleases'
 

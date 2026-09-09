@@ -1,4 +1,4 @@
-import { capitalize } from '@/filters/text.filters'
+import { capitalize } from '@/lib/string.utils'
 import axios, { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
 import { toast } from '@/lib/toast'

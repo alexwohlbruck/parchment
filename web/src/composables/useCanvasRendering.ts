@@ -42,26 +42,26 @@ import {
   buildSavedPlacesGeoJSON,
   savedPlaceIconSpecs,
   type CollectionStyle,
-} from '@/lib/saved-places-features'
-import { ensureIconImages } from '@/lib/map-icon-images'
-import { resolveSpecBounds } from '@/lib/map-style/bounds'
+} from '@/lib/map/saved-places-features'
+import { ensureIconImages } from '@/lib/map/map-icon-images'
+import { resolveSpecBounds } from '@/lib/layer-editor/bounds'
 import {
   annotationIconSpecs,
   annotationMarkerSpecs,
   annotationsCollection,
   annotationStyle,
-} from '@/lib/canvas-annotations'
+} from '@/lib/canvas/canvas-annotations'
 import {
   ensureMarkerImages,
   markerLayers,
   type MarkerShape,
 } from '@/lib/map-marker'
-import { canvasStack, stackDrawOrder } from '@/lib/canvas-stack'
+import { canvasStack, stackDrawOrder } from '@/lib/canvas/canvas-stack'
 import type {
   AnnotationStrokeCap,
   AnnotationStrokeStyle,
 } from '@/types/canvas.types'
-import { presetLayers } from '@/lib/map-style/data-presets'
+import { presetLayers } from '@/lib/canvas/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
 import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
 import { themeColorToHex } from '@/lib/utils'

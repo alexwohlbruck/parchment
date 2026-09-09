@@ -1971,7 +1971,9 @@
       "viewDocs": "Ver documentación",
       "degraded": {
         "label": "Sin respuesta",
-        "hint": "Las solicitudes a este servicio están fallando. Revisa su configuración de conexión."
+        "hint": "Las solicitudes a este servicio están fallando. Revisa su configuración de conexión.",
+        "bannerTitle": "{names} no responde | Algunas integraciones no responden: {names}",
+        "bannerBody": "Comprueba que el servicio esté funcionando y luego ábrelo abajo y prueba la conexión. | Comprueba que los servicios estén funcionando y luego ábrelos abajo y prueba sus conexiones."
       }
     },
     "users": {

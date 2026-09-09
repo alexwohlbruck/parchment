@@ -47,6 +47,7 @@ import {
   CalendarIcon,
 } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
+import IntegrationHealthDot from '@/components/integration/IntegrationHealthDot.vue'
 import AboutDialog from '@/components/dialogs/AboutDialog.vue'
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
 import { useFeedback } from '@/composables/useFeedback'
@@ -196,6 +197,7 @@ const menuItems = computed((): MenuItemDefinition[] => {
       label: t('settings.title'),
       icon: SettingsIcon,
       to: '/settings',
+      trailing: markRaw(IntegrationHealthDot),
     },
     {
       type: 'separator',

@@ -82,12 +82,19 @@ const shortcutProps = computed(() =>
           "
           @click="$emit('click', $event)"
         >
-          <component
-            :is="icon"
-            v-if="icon"
-            class="size-5 shrink-0 transition-colors"
-            :class="isActive ? 'text-primary' : 'text-current'"
-          />
+          <span v-if="icon" class="relative shrink-0">
+            <component
+              :is="icon"
+              class="size-5 transition-colors"
+              :class="isActive ? 'text-primary' : 'text-current'"
+            />
+            <span
+              v-if="$slots.indicator"
+              class="absolute -top-0.5 -right-0.5"
+            >
+              <slot name="indicator" />
+            </span>
+          </span>
           <span
             class="flex-1 text-left whitespace-nowrap transition-opacity duration-150"
             :class="collapsed ? 'opacity-0' : 'opacity-100'"

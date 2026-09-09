@@ -2080,7 +2080,9 @@
       "viewDocs": "View documentation",
       "degraded": {
         "label": "Not responding",
-        "hint": "Requests to this service are failing. Check its connection settings."
+        "hint": "Requests to this service are failing. Check its connection settings.",
+        "bannerTitle": "{names} isn't responding | Some integrations aren't responding: {names}",
+        "bannerBody": "Check that the service is running, then open it below and test the connection. | Check that the services are running, then open them below and test their connections."
       }
     },
     "users": {

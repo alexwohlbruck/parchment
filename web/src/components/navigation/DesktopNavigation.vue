@@ -52,6 +52,7 @@ import { CommandDialog } from '@/components/ui/command'
 import { useCommandService } from '@/services/command.service'
 import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue'
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
+import IntegrationHealthDot from '@/components/integration/IntegrationHealthDot.vue'
 import { useFeedback } from '@/composables/useFeedback'
 
 const router = useRouter()
@@ -389,7 +390,11 @@ defineExpose({
           to="/settings"
           :hotkey="SETTINGS_HOTKEY"
           @click="handleNavClick($event, '/settings')"
-        />
+        >
+          <template #indicator>
+            <IntegrationHealthDot />
+          </template>
+        </SidebarMenuItem>
       </SidebarMenu>
 
       <SidebarSeparator />

@@ -18,13 +18,13 @@
  * before, which is a worse link rather than none.
  */
 import { reactive } from 'vue'
+import { proxyBase } from './portolan-client'
 import { api } from '@/lib/api'
 import { feedsAt } from './portolan-bullets'
 
 /** `<feed-onestop>:<stop_id>` → `"node/123"`. */
 type StopIndex = Record<string, string>
 
-const proxyBase = () => `${api.defaults.baseURL}/proxy/portolan`
 
 /** Loaded stop indexes, per feed. `null` marks a feed that publishes none. */
 const indexes = reactive<Record<string, StopIndex | null>>({})

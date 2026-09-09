@@ -8,13 +8,21 @@
 * Transit directions now offer park-and-ride and bike-to-station options
   without needing a vehicle saved in the app. Saving one still improves them —
   the trip starts by walking you to where you actually parked.
+* You can now get trips that take your bike onto transit and park it near
+  where you're going, on services that allow bikes on board.
 
 ### Changed
+
+* The combined travel mode now shows one trip per kind rather than several of
+  whichever kind ranks best. Transit directions still list the alternative
+  departures.
 
 ### Fixed
 
 * Trips that ride a bike to transit now park it at a real bike rack and walk
   you in, instead of leaving the bike unaccounted for once you board.
+* Park-and-ride options no longer go missing on trips where the drive plus the
+  walk from the car park take more than fifteen minutes.
 
 ## [0.11.5] - 2026-09-09
 

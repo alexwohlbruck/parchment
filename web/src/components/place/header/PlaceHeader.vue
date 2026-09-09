@@ -22,7 +22,7 @@ import {
   usePlaceTransitLinesContext,
   type StationLine,
 } from '@/composables/usePlaceTransitLines'
-import RouteBullet from '@/components/transit/RouteBullet.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { getRouteBulletLabel } from '@/lib/transit'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import {

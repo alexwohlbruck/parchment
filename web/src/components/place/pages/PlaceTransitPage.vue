@@ -4,15 +4,15 @@ import { useI18n } from 'vue-i18n'
 import type { TransitDeparture, TransitStopInfo, WidgetResponse } from '@/types/place.types'
 import { WidgetType } from '@/types/place.types'
 import { ClockIcon, ExternalLinkIcon } from 'lucide-vue-next'
-import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
-import RouteBullet from '@/components/transit/RouteBullet.vue'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   ensureStopIndexAt,
   osmForStop,
 } from '@/services/layers/features/portolan/portolan-stops'
-import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
-import ServiceAlertBadge from '@/components/transit/ServiceAlertBadge.vue'
+import ServiceAlerts from '@/components/transit/alerts/ServiceAlerts.vue'
+import ServiceAlertBadge from '@/components/transit/alerts/ServiceAlertBadge.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
 import { filterSkippedDepartures } from '@/lib/alert-service-overrides'
 import { alertsFor, worstAlert } from '@/lib/transit-alerts'
@@ -21,7 +21,7 @@ import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
 import { groupDepartures, type BoardDeparture } from '@/lib/transit-departures'
 import { transferLinesOf, type StationLine } from '@/composables/usePlaceTransitLines'
-import StationTransfers from '@/components/transit/StationTransfers.vue'
+import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
 import {
   formatDepartureTime,
   getMinutesUntil,

@@ -16,8 +16,8 @@ import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronRightIcon } from 'lucide-vue-next'
-import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
-import RouteBullet from '@/components/transit/RouteBullet.vue'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   ensureStopIndexAt,
@@ -32,7 +32,7 @@ import {
   type RouteGroup,
 } from '@/lib/transit-departures'
 import { formatDepartureTime, getMinutesUntil, getRouteBulletLabel } from '@/lib/transit'
-import StationTransfers from '@/components/transit/StationTransfers.vue'
+import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
 import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'

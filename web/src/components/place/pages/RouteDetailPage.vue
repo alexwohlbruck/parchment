@@ -7,7 +7,7 @@ import {
   type RouteDetailStop,
   type StopTransferRoute,
 } from '@/stores/route-detail.store'
-import RouteBullet from '@/components/transit/RouteBullet.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { orderBullets } from '@/lib/transit-bullets'
 import {
   bulletFor,
@@ -18,8 +18,8 @@ import {
   ensureStopIndexAt,
   osmForStop,
 } from '@/services/layers/features/portolan/portolan-stops'
-import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
-import ServiceAlerts from '@/components/transit/ServiceAlerts.vue'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import ServiceAlerts from '@/components/transit/alerts/ServiceAlerts.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
 import { alertServiceOverrides, alertStopSkips } from '@/lib/alert-service-overrides'
 import { Separator } from '@/components/ui/separator'

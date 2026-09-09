@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import RouteBullet from '@/components/transit/RouteBullet.vue'
-import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
-import ServiceAlertBadge from '@/components/transit/ServiceAlertBadge.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import ServiceAlertBadge from '@/components/transit/alerts/ServiceAlertBadge.vue'
 import type { ServiceAlert } from '@/types/transit.types'
 
 /**

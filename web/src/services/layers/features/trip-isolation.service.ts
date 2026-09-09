@@ -1,9 +1,14 @@
 /**
  * Trip Isolation Service
  *
- * Steps the transit network back while an itinerary is on the map, so the
- * trip's own polyline reads as the subject instead of competing with
- * every line it crosses.
+ * Decides what the transit network does while an itinerary is on the map,
+ * hovered in the list or opened.
+ *
+ * A trip that rides transit steps the network back, so the trip's own
+ * polyline reads as the subject instead of competing with every line it
+ * crosses. A trip that rides none takes it off the map altogether: there
+ * the ribbons are not context for a walking or driving line, just clutter
+ * beside it.
  *
  * That is all it does. The route panel lifts its line out of portolan's
  * ribbons; a trip must not, because portolan draws bundled routes at
@@ -21,7 +26,10 @@
  */
 
 import { watch, type WatchStopHandle } from 'vue'
-import { useTransitFocusStore } from '@/stores/transit-focus.store'
+import {
+  useTransitFocusStore,
+  type TransitNetworkMode,
+} from '@/stores/transit-focus.store'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import {
   fadeTransitNetwork,
@@ -34,29 +42,28 @@ export function useTripIsolationService() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mapInstance: any = null
   let watchStop: WatchStopHandle | null = null
-  let dimmed = false
+  let mode: TransitNetworkMode = 'normal'
 
-  function apply(active: boolean) {
-    if (!mapInstance || active === dimmed) return
-    dimmed = active
-    portolan.setNetworkDim(active)
-    fadeTransitNetwork(mapInstance, active ? networkDimOpacity() : null, {
-      skipPortolan: true,
-    })
+  function apply(next: TransitNetworkMode) {
+    if (!mapInstance || next === mode) return
+    mode = next
+    portolan.setNetworkDim(next === 'dimmed')
+    portolan.setNetworkHidden(next === 'hidden')
+    // The retired transitland layers have no renderer of their own to ask,
+    // so they take the flat override — zero opacity is how they hide.
+    const opacity =
+      next === 'dimmed' ? networkDimOpacity() : next === 'hidden' ? 0 : null
+    fadeTransitNetwork(mapInstance, opacity, { skipPortolan: true })
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function initialize(map: any) {
     mapInstance = map
-    watchStop = watch(
-      () => focus.source === 'trip',
-      apply,
-      { immediate: true },
-    )
+    watchStop = watch(() => focus.networkMode, apply, { immediate: true })
   }
 
   function destroy() {
-    apply(false)
+    apply('normal')
     watchStop?.()
     watchStop = null
     mapInstance = null

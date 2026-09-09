@@ -66,6 +66,11 @@ export const useTripFocusStore = defineStore('trip-focus', () => {
     })),
   )
 
+  /** A trip is on the map at all — hovered in the list or opened — whether
+   *  or not any of it is ridden on transit. */
+  const hasFocusedTrip = computed(() => !!focusedTrip.value)
+
+  /** ...and some of it is transit, which is what the map has to react to. */
   const isActive = computed(() => legs.value.length > 0)
 
   /**
@@ -137,6 +142,7 @@ export const useTripFocusStore = defineStore('trip-focus', () => {
   return {
     focusedTrip,
     legs,
+    hasFocusedTrip,
     isActive,
     vehicles,
     visibleVehicleIds,

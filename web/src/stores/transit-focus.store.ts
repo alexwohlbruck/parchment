@@ -24,6 +24,16 @@ import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
 export type TransitFocusSource = 'route' | 'trip'
 
+/**
+ * What the transit network should be doing behind whatever is on top of it.
+ *
+ * `hidden` is for a trip that rides no transit at all: the ribbons are not
+ * context for a walking or driving line, just clutter beside it. A trip
+ * that does ride transit gets `dimmed`, because there the surrounding
+ * network is what makes the next transfer legible.
+ */
+export type TransitNetworkMode = 'normal' | 'dimmed' | 'hidden'
+
 const NO_IDS: ReadonlySet<string> = new Set()
 const NO_VEHICLES: ReadonlyMap<string, TransitVehiclePosition> = new Map()
 
@@ -36,6 +46,13 @@ export const useTransitFocusStore = defineStore('transit-focus', () => {
   )
 
   const isActive = computed(() => source.value !== null)
+
+  const networkMode = computed<TransitNetworkMode>(() => {
+    // The route panel runs its own isolation over the same layers.
+    if (routeDetail.isActive) return 'normal'
+    if (!tripFocus.hasFocusedTrip) return 'normal'
+    return tripFocus.isActive ? 'dimmed' : 'hidden'
+  })
 
   /** Where the vehicles on screen come from. Each owner polls its own
    *  routes, so neither has to care about the viewport. */
@@ -100,6 +117,7 @@ export const useTransitFocusStore = defineStore('transit-focus', () => {
   return {
     source,
     isActive,
+    networkMode,
     vehicles,
     visibleVehicleIds,
     emphasizedVehicleIds,

@@ -237,6 +237,13 @@ let isolatedRoute: string | null = null
 let networkDimmed = false
 
 /**
+ * Whether the network is out of the way entirely, rather than merely
+ * stepped back — a trip that rides no transit at all, where the ribbons
+ * are not context for the line on top of them but clutter beside it.
+ */
+let networkHidden = false
+
+/**
  * How far the rest of the network steps back while one route is isolated.
  * Low enough to read as background, high enough that the network is still
  * legibly there.
@@ -309,6 +316,7 @@ export function usePortolanTransitService() {
     setClassVisibility,
     setIsolatedRoute,
     setNetworkDim,
+    setNetworkHidden,
     setIsolatedRouteStops,
     setIsolatedRouteGeometry,
     setStopService,
@@ -342,6 +350,35 @@ function setNetworkDim(on: boolean) {
   networkDimmed = on
   applyRibbonDim()
   applyStationDim()
+}
+
+/** Take the whole network off the map, or put it back. */
+function setNetworkHidden(on: boolean) {
+  if (networkHidden === on) return
+  networkHidden = on
+  applyNetworkVisibility()
+}
+
+/** Nothing else in the renderer touches layout visibility, so this can own
+ *  it outright: class toggles gate through filters, station zooms through
+ *  setLayerZoomRange. */
+function applyNetworkVisibility() {
+  if (!map) return
+  const v = networkHidden ? 'none' : 'visible'
+  let layers: any[] = []
+  try {
+    layers = map.getStyle()?.layers ?? []
+  } catch {
+    return // style not ready — the mount path re-applies
+  }
+  for (const layer of layers) {
+    if (!layer.id.startsWith('portolan-')) continue
+    try {
+      map.setLayoutProperty(layer.id, 'visibility', v)
+    } catch {
+      // layer went away mid-sweep
+    }
+  }
 }
 
 /** Stops on the isolated route's RUNNING path, [lng, lat]. */
@@ -884,7 +921,6 @@ function teardownPortolanTransit() {
   map = null
   activeStrategy = null
   isolatedRoute = null
-  networkDimmed = false
   clearHydration()
   clearMounts()
   inkDark = null
@@ -1466,6 +1502,9 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
 
   ribbonAnchor = anchor
   addSymbolLayers()
+  // Freshly mounted layers know nothing of a dim or a hide already in force.
+  if (networkDimmed) applyStationDim()
+  if (networkHidden) applyNetworkVisibility()
 }
 
 /**

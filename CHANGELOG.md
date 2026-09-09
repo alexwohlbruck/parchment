@@ -8,6 +8,8 @@
   taking stands out, matching how a line's own page already looks
 * A trip now shows just the train or bus you're actually catching on each leg,
   instead of every vehicle running those lines
+* Trips that don't ride transit at all now hide the transit network entirely
+  rather than dimming it, including while you hover a suggestion in the list
 
 ### Fixed
 

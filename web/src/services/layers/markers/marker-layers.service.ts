@@ -22,6 +22,7 @@ import {
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
 import { useRouteIsolationService } from '@/services/layers/features/route-isolation.service'
+import { useTripIsolationService } from '@/services/layers/features/trip-isolation.service'
 import type { FitBoundsFn } from '@/types/map.types'
 import { watch, Component, type WatchStopHandle } from 'vue'
 
@@ -41,6 +42,7 @@ export function useMarkerLayersService() {
   let watchStops: WatchStopHandle[] = []
   let moveEndCleanup: (() => void) | null = null
   let routeIsolation: ReturnType<typeof useRouteIsolationService> | null = null
+  let tripIsolation: ReturnType<typeof useTripIsolationService> | null = null
 
   // ============================================================================
   // INITIALIZATION
@@ -120,6 +122,10 @@ export function useMarkerLayersService() {
     routeIsolation = useRouteIsolationService()
     routeIsolation.initialize(mapStrategy.mapInstance, fitBounds)
 
+    // Trip isolation: dims the network behind an open itinerary's line
+    tripIsolation = useTripIsolationService()
+    tripIsolation.initialize(mapStrategy.mapInstance)
+
     // Set up watchers for reactive updates
     setupMarkerLayerWatchers()
   }
@@ -178,6 +184,8 @@ export function useMarkerLayersService() {
     moveEndCleanup = null
     routeIsolation?.destroy()
     routeIsolation = null
+    tripIsolation?.destroy()
+    tripIsolation = null
 
     waypointsLayer?.destroy()
     friendLocationsLayer?.destroy()

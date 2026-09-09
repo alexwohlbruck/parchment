@@ -13,6 +13,9 @@
 
 ### Fixed
 
+* Trips that ride a bike to transit now park it at a real bike rack and walk
+  you in, instead of leaving the bike unaccounted for once you board.
+
 ## [0.11.5] - 2026-09-09
 
 ### Added

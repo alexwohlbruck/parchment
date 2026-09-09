@@ -18,7 +18,7 @@ import {
   contourDurations,
   maxMinutesForMode,
   toIsochroneBands,
-} from '@/lib/directions/isochrone.utils'
+} from '@/lib/directions/isochrone'
 import type {
   IsochroneFeature,
   IsochronePolygon,
@@ -61,7 +61,7 @@ function areaOf(geometry: IsochronePolygon): number {
   return turf.area(turf.feature(geometry as GeoJSON.Polygon))
 }
 
-describe('isochrone.utils', () => {
+describe('isochrone', () => {
   describe('contourDurations', () => {
     test('spaces contours evenly from zero, in seconds', () => {
       expect(contourDurations(30, 3)).toEqual([600, 1200, 1800])

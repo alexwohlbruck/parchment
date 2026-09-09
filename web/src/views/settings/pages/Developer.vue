@@ -45,7 +45,7 @@ import { useAppService } from '@/services/app.service'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { User } from '@/types/auth.types'
-import { formatStopwatch } from '@/lib/time.utils'
+import { formatStopwatch } from '@/lib/time-format'
 
 const state = ref<SimulatorState>(simulatorStore.getState())
 const errorMsg = ref<string | null>(null)

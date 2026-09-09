@@ -32,7 +32,7 @@ import { useMapService } from '@/services/map/map.service'
 import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { Route } from '@/types/routes.types'
-import { formatDurationLong } from '@/lib/time.utils'
+import { formatDurationLong } from '@/lib/time-format'
 import { StatRow, type StatRowItem } from '@/components/ui/stat'
 
 const props = defineProps<{ id: string }>()

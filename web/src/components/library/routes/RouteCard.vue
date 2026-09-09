@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { capitalize } from '@/lib/string.utils'
+import { capitalize } from '@/lib/string'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ItemIcon } from '@/components/ui/item-icon'

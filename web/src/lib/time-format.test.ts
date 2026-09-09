@@ -7,7 +7,7 @@ import {
   formatClockTime,
   timeAgoParts,
   formatTimeAgo,
-} from '@/lib/time.utils'
+} from '@/lib/time-format'
 
 const t = (key: string, named?: Record<string, unknown>) =>
   named ? `${key}:${JSON.stringify(named)}` : key

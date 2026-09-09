@@ -80,3 +80,35 @@ export interface VehicleOnRoute {
   /** True if the vehicle is moving in the original stop-list direction (start→end). */
   isForwardDirection: boolean
 }
+
+/** GTFS route types. @see https://gtfs.org/schedule/reference/#routestxt */
+export enum TransitRouteType {
+  TRAM = 0,
+  SUBWAY = 1,
+  RAIL = 2,
+  BUS = 3,
+  FERRY = 4,
+  CABLE_TRAM = 5,
+  AERIAL_LIFT = 6,
+  FUNICULAR = 7,
+  TROLLEYBUS = 11,
+  MONORAIL = 12,
+}
+
+/** Transitland route properties as they arrive on a tile feature. */
+export interface TransitRoute {
+  route_id?: string
+  route_short_name?: string
+  route_long_name?: string
+  route_color?: string
+  route_type: TransitRouteType
+}
+
+export interface TransitStop {
+  onestop_id: string
+  stop_name: string
+  stop_id: string
+  /** GTFS location_type: 0 stop, 1 station, 2 entrance, 3 node, 4 boarding area. */
+  location_type: number
+  routes?: TransitRoute[]
+}

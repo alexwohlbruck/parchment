@@ -11,7 +11,7 @@ import type {
   TripsResponse,
 } from '@/types/directions.types'
 import { TravelMode } from '@/types/directions.types'
-import { formatDurationParts } from '@/lib/time.utils'
+import { formatDurationParts } from '@/lib/time-format'
 
 interface Props {
   trip: TripOption

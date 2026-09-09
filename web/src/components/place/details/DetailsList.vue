@@ -25,7 +25,7 @@ import {
   resolveOpeningStatus,
   getTimezoneDifference,
   formatRawHours,
-} from '@/lib/place/place-open.utils'
+} from '@/lib/place/place-hours'
 import { resolveIconByName } from '@/lib/place/osm-tag-icons'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
@@ -34,7 +34,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import { Button } from '@/components/ui/button'
-import { formatClockTime } from '@/lib/time.utils'
+import { formatClockTime } from '@/lib/time-format'
 import { getOsmTagLabel } from '@/lib/place/osm-tag-labels'
 
 const props = defineProps<{

@@ -1,7 +1,7 @@
 import type { Component } from 'vue'
 import type { Place } from '@/types/place.types'
 import type { FilterOption } from '@/types/search.types'
-import { isPlaceOpenNow } from '@/lib/place/place-open.utils'
+import { isPlaceOpenNow } from '@/lib/place/place-hours'
 import { getOsmTagLabel } from '@/lib/place/osm-tag-labels'
 import * as turf from '@turf/turf'
 import {

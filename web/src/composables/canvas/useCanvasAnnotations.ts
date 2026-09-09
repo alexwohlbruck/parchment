@@ -25,7 +25,7 @@ import { SUPERSEDED, useLatestRequest } from '@/composables/useLatestRequest'
 import type { RouteMode } from '@/types/routes.types'
 import type { IsochroneMode } from '@server/types/isochrone.types'
 import { fetchIsochroneBands } from '@/lib/directions/isochrone-request'
-import { contourDurations } from '@/lib/directions/isochrone.utils'
+import { contourDurations } from '@/lib/directions/isochrone'
 import type { LngLat, MapEvents } from '@/types/map.types'
 import type {
   AnnotationTool,

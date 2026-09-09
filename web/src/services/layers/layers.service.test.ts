@@ -59,7 +59,7 @@ vi.mock('./core/layer-visibility.service', () => ({
   }),
 }))
 
-vi.mock('@/lib/transit/transit.utils', () => ({
+vi.mock('@/lib/transit/transitland-layers', () => ({
   isTransitStopLayer: (id: string) => id?.includes('transit-stops'),
 }))
 

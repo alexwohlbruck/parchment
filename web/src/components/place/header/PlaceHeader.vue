@@ -9,13 +9,13 @@ import {
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
 import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
-import { getSearchResultCategory } from '@/lib/search/search.utils'
+import { getSearchResultCategory } from '@/lib/search/search-result'
 import { haversineMeters } from '@/lib/geo/geo-line'
 import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place/place-open.utils'
+import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place/place-hours'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
 import {
@@ -32,7 +32,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { formatClockTime } from '@/lib/time.utils'
+import { formatClockTime } from '@/lib/time-format'
 
 const props = defineProps<{
   place: Partial<Place>

@@ -1,5 +1,5 @@
 import type { RouteLocationRaw } from 'vue-router'
-import { capitalize } from '@/lib/string.utils'
+import { capitalize } from '@/lib/string'
 import type { Place, PlaceCategory } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import type { RecentPlaceEntry, RecentSearchEntry } from '@/lib/recents'
@@ -14,7 +14,7 @@ import {
   getSearchResultIconPack,
   getSearchResultCategory,
   getSearchResultName,
-} from '@/lib/search/search.utils'
+} from '@/lib/search/search-result'
 
 /**
  * The normalized shape every place-like surface renders from.

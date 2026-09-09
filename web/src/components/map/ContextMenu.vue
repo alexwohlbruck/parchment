@@ -64,7 +64,7 @@ import {
   INSERT_THRESHOLD_PX,
   CLOSE_LOOP_THRESHOLD_PX,
   VERTEX_NEAR_PX,
-} from '@/lib/measure/measure.utils'
+} from '@/lib/measure/measure'
 import { AppRoute } from '@/router'
 
 const router = useRouter()

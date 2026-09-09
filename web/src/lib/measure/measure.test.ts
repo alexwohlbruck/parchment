@@ -15,11 +15,11 @@ import {
   distancePx,
   formatMeasureDistance,
   formatMeasureArea,
-} from '@/lib/measure/measure.utils'
+} from '@/lib/measure/measure'
 import type { LngLat } from '@/types/map.types'
-import type { Point2D } from '@/lib/measure/measure.utils'
+import type { Point2D } from '@/lib/measure/measure'
 
-describe('measure.utils', () => {
+describe('measure', () => {
   describe('distanceMeters', () => {
     test('is symmetric and returns positive distance for distinct points', () => {
       const a: LngLat = { lng: -122.4194, lat: 37.7749 }

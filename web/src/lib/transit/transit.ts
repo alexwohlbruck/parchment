@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { capitalize } from '@/lib/string.utils'
+import { capitalize } from '@/lib/string'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import { TrainIcon, BusIcon } from 'lucide-vue-next'
 import type { Component } from 'vue'

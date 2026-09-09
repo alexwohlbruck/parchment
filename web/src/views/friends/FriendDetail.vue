@@ -47,7 +47,7 @@ import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { appEventBus } from '@/lib/event-bus'
 import { useUnits } from '@/composables/useUnits'
-import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
+import { formatTimeAgo as sharedTimeAgo } from '@/lib/time-format'
 
 const props = defineProps<{
   handle: string

@@ -34,7 +34,7 @@ import { Spinner } from '@/components/ui/spinner'
 import {
   getSearchResultName,
   autocompleteResultToPlace,
-} from '@/lib/search/search.utils'
+} from '@/lib/search/search-result'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useI18n } from 'vue-i18n'
 import { PlaceCard } from '@/components/place/card'

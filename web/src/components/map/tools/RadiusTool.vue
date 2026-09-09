@@ -14,8 +14,8 @@ import {
   distanceMeters,
   circleCircumferenceMeters,
   circleAreaSquareMeters,
-} from '@/lib/measure/measure.utils'
-import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure.utils'
+} from '@/lib/measure/measure'
+import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'

@@ -17,7 +17,7 @@ import {
 import ElevationChart from '@/components/directions/ElevationChart.vue'
 import { useUnits } from '@/composables/useUnits'
 import { StatTile } from '@/components/ui/stat'
-import { formatDurationCompact } from '@/lib/time.utils'
+import { formatDurationCompact } from '@/lib/time-format'
 import type { RouteInstruction } from '@/types/directions.types'
 
 /**

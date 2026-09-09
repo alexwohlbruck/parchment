@@ -12,7 +12,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { api } from '@/lib/api'
 import { useIsochroneStore } from '@/stores/isochrone.store'
 import type { IsochroneResponse } from '@server/types/isochrone.types'
-import { MAX_CONTOUR_MINUTES, maxMinutesForMode } from '@/lib/directions/isochrone.utils'
+import { MAX_CONTOUR_MINUTES, maxMinutesForMode } from '@/lib/directions/isochrone'
 
 vi.mock('@/lib/api', () => ({
   api: { get: vi.fn() },

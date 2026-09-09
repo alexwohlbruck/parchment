@@ -1,5 +1,5 @@
 import { MapPinIcon, LocateIcon } from 'lucide-vue-next'
-import { capitalize } from '@/lib/string.utils'
+import { capitalize } from '@/lib/string'
 import * as LucideIcons from 'lucide-vue-next'
 import { Component } from 'vue'
 import { Place, type PlaceCategory } from '@/types/place.types'

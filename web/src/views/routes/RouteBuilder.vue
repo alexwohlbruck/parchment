@@ -46,7 +46,7 @@ import { useMapListener } from '@/composables/map/useMapListener'
 import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { RouteMode } from '@/types/routes.types'
-import { formatDurationLong } from '@/lib/time.utils'
+import { formatDurationLong } from '@/lib/time-format'
 import { Spinner } from '@/components/ui/spinner'
 
 const props = defineProps<{ id?: string }>()

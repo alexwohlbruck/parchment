@@ -60,7 +60,7 @@ import {
   getSearchResultIconPack,
   getSearchResultCategory,
   getSearchResultName,
-} from '@/lib/search/search.utils'
+} from '@/lib/search/search-result'
 import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
@@ -78,7 +78,7 @@ import type { ServiceAlert } from '@/types/transit.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { SheetHeader } from '@/components/sheet'
 import { useUnits } from '@/composables/useUnits'
-import { formatDurationCompact } from '@/lib/time.utils'
+import { formatDurationCompact } from '@/lib/time-format'
 import { useI18n } from 'vue-i18n'
 
 const route = useRoute()

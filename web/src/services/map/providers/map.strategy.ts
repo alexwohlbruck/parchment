@@ -20,7 +20,7 @@ import {
 } from '@/types/map.types'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
-import { destroyVueMarkerElement } from '@/lib/map/vue-marker.utils'
+import { destroyVueMarkerElement } from '@/lib/map/vue-marker'
 import { mapEventBus } from '@/lib/event-bus'
 import { impactFeedback } from '@tauri-apps/plugin-haptics'
 import {

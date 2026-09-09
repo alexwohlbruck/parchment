@@ -16,7 +16,7 @@ import {
   isPlaceOpenNow,
   getTimezoneDifference,
   formatRawHours,
-} from '@/lib/place/place-open.utils'
+} from '@/lib/place/place-hours'
 import type { OpeningHours, OpeningTime } from '@/types/place.types'
 
 function hours(regularHours: OpeningTime[], over: Partial<OpeningHours> = {}): OpeningHours {

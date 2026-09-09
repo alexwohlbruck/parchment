@@ -18,8 +18,8 @@ import {
   INSERT_THRESHOLD_PX,
   CLOSE_LOOP_THRESHOLD_PX,
   VERTEX_NEAR_PX,
-} from '@/lib/measure/measure.utils'
-import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure.utils'
+} from '@/lib/measure/measure'
+import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'

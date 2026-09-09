@@ -21,7 +21,7 @@ import {
 } from 'lucide-vue-next'
 import { getVehicleIcon } from '@/lib/directions/travel-mode-icons'
 import { useI18n } from 'vue-i18n'
-import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
+import { formatTimeAgo as sharedTimeAgo } from '@/lib/time-format'
 
 const props = defineProps<{
   id: string

@@ -18,7 +18,7 @@ import { useDrawingSurface } from '@/composables/canvas/useDrawingSurface'
 import { snapWaypointsToPath } from '@/lib/directions/route-snapping'
 import { SUPERSEDED, useLatestRequest } from '@/composables/useLatestRequest'
 import { fetchIsochroneBands } from '@/lib/directions/isochrone-request'
-import { contourDurations } from '@/lib/directions/isochrone.utils'
+import { contourDurations } from '@/lib/directions/isochrone'
 import type { IsochroneMode } from '@server/types/isochrone.types'
 import type { CanvasAnnotation } from '@/types/canvas.types'
 import type { OverlayHandle, OverlayScene } from '@/composables/canvas/useDrawOverlay'
@@ -26,7 +26,7 @@ import {
   distancePx,
   INSERT_THRESHOLD_PX,
   VERTEX_NEAR_PX,
-} from '@/lib/measure/measure.utils'
+} from '@/lib/measure/measure'
 import {
   annotationFeature,
   annotationMidpoints,

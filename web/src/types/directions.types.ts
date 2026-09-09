@@ -8,6 +8,7 @@ export type {
   TripsRequest,
   TripsResponse,
   TripOption,
+  TripLegOptions,
   TimelineSegment,
   RouteWaypoint,
   RoutingPreferences,

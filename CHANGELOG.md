@@ -10,6 +10,9 @@
   the trip starts by walking you to where you actually parked.
 * You can now get trips that take your bike onto transit and park it near
   where you're going, on services that allow bikes on board.
+* Every stop on a multi-stop trip now offers its own ways of getting to the
+  next one, so you can take the subway to one errand and bike to the next.
+  Picking a different one re-plans the rest of the trip from it.
 
 ### Changed
 
@@ -23,6 +26,10 @@
   you in, instead of leaving the bike unaccounted for once you board.
 * Park-and-ride options no longer go missing on trips where the drive plus the
   walk from the car park take more than fifteen minutes.
+* Each leg of a multi-stop trip can now use bikes, park-and-ride and shared
+  vehicles, rather than only walking to and from transit.
+* Stops on a multi-stop trip now appear at the right point in the timeline
+  when a leg takes more than one segment to get there.
 
 ## [0.11.5] - 2026-09-09
 

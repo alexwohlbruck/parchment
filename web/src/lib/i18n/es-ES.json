@@ -726,7 +726,15 @@
     "from": "Desde",
     "currentLocation": "Ubicación actual",
     "useCurrentLocation": "Usar tu ubicación actual",
-    "addStop": "Añadir parada"
+    "addStop": "Añadir parada",
+    "legOptions": {
+      "waysTo": "{count} formas de llegar a {stop}",
+      "carried": {
+        "driving": "El coche se queda contigo",
+        "cycling": "La bici se queda contigo"
+      },
+      "nextStop": "la siguiente parada"
+    }
   },
   "library": {
     "title": "Biblioteca",
@@ -1957,7 +1965,7 @@
           "formNote": "Cifrado de extremo a extremo. Tu URL y token de API se cifran en este dispositivo antes de subirse — el servidor de Parchment nunca los ve."
         },
         "setupRequired": "Configura tus claves de cifrado antes de configurar esta integración.",
-          "setupRequiredAction": "Configurar"
+        "setupRequiredAction": "Configurar"
       },
       "osm": {
         "connected": "Cuenta de OpenStreetMap conectada exitosamente",

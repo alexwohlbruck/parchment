@@ -67,6 +67,7 @@ import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
 import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
+import LegOptionPicker from '@/components/directions/LegOptionPicker.vue'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import DepartureBoard from '@/components/transit/departures/DepartureBoard.vue'
@@ -950,6 +951,30 @@ const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
   })
 })
 
+// ── Per-leg options ────────────────────────────────────────────────
+
+/** The leg that sets off from this stop, when it has more than one way. */
+function legStartingAt(waypointIndex: number) {
+  return directionsStore.trips?.legs?.find(l => l.legIndex === waypointIndex)
+}
+
+/** Where the leg leaving this stop is headed, for the picker's label. */
+function legDestinationName(waypointIndex: number): string {
+  const next = routeWaypoints.value[waypointIndex + 1]
+  return next?.displayName || translate('directions.legOptions.nextStop')
+}
+
+const swappingLeg = ref(false)
+
+async function swapLeg(legIndex: number, optionId: string) {
+  swappingLeg.value = true
+  try {
+    await directionsService.selectLegOption(legIndex, optionId)
+  } finally {
+    swappingLeg.value = false
+  }
+}
+
 // ── Unified timeline ───────────────────────────────────────────────
 
 interface TimelineWaypointEntry {
@@ -1002,8 +1027,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
     // consecutive segments. The backend attaches a full Place object to the
     // segment end waypoint when it represents an OSM POI like a bike rack.
     const seg = segs[i]
-    const nextSeg = segs[i + 1]
-    if (nextSeg && seg.end?.place) {
+    if (segs[i + 1] && seg.end?.place) {
       entries.push({
         kind: 'place-stop',
         place: seg.end.place as Place,
@@ -1012,8 +1036,11 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
       })
     }
 
-    const viaIndex = i + 1
-    if (viaIndex < wps.length - 1) {
+    // A stop sits at the end of its leg, not after every segment — a leg
+    // that walks to a station and rides on has several.
+    const nextSeg = segs[i + 1]
+    const viaIndex = nextSeg ? nextSeg.legIndex ?? 0 : null
+    if (viaIndex !== null && viaIndex !== (seg.legIndex ?? 0) && viaIndex < wps.length - 1) {
       const via = wps[viaIndex]
       if (via?.role === 'via') {
         entries.push({ kind: 'waypoint', wp: via, waypointIndex: viaIndex })
@@ -1329,6 +1356,16 @@ function showSegmentChart(segment: any): boolean {
                   </span>
                 </template>
               </PlaceCard>
+              <!-- Each stop offers the ways on from it. A multi-stop trip is
+                   a chain of independent hops, so one can be swapped without
+                   re-planning the ones before it. -->
+              <LegOptionPicker
+                v-if="legStartingAt(entry.waypointIndex)"
+                :leg="legStartingAt(entry.waypointIndex)!"
+                :destination="legDestinationName(entry.waypointIndex)"
+                :busy="swappingLeg"
+                @select="id => swapLeg(entry.waypointIndex, id)"
+              />
             </template>
 
             <!-- ═══ Place stop content (parking, etc.) ═══ -->

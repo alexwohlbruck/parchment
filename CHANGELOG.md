@@ -4,6 +4,9 @@
 
 ### Changed
 
+* The "set up your encryption keys" warning on an integration now links
+  straight to the setup screen
+
 ### Fixed
 
 * Dragging the bottom sheet upward and releasing now lands on the next

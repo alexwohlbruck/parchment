@@ -82,3 +82,9 @@ export type DialogOptions =
   | AutoFormDialogOptions
   | TemplateDialogOptions
   | DrawerOptions
+
+/** Route-level shaping of the sheet a view opens in (see router `meta.sheet`). */
+export interface SheetMeta {
+  dismissable?: boolean
+  snapPoints?: (number | string)[]
+}

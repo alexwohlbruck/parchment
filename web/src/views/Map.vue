@@ -95,12 +95,7 @@ function handleHome() {
  * (the canvas editor) opts out of swipe-to-dismiss so a stray drag can't
  * discard unsaved work, and picks its own detents.
  */
-const sheetMeta = computed(
-  () =>
-    route.meta.sheet as
-      | { dismissable?: boolean; snapPoints?: (number | string)[] }
-      | undefined,
-)
+const sheetMeta = computed(() => route.meta.sheet)
 
 const MOBILE_SNAP_POINTS = computed<(number | string)[]>(() => {
   if (sheetMeta.value?.snapPoints) return sheetMeta.value.snapPoints

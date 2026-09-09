@@ -6,6 +6,9 @@
 
 ### Fixed
 
+* A failing integration (like an unreachable location history server) no
+  longer shows repeated error popups — it's flagged with a warning badge in
+  Settings → Integrations so you can repair it
 * Dragging the bottom sheet upward and releasing now lands on the next
   position instead of always expanding all the way
 * The measure, radius and isochrone tools keep working after a theme, basemap

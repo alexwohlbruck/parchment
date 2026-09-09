@@ -11,6 +11,7 @@ import { SearchIcon, XIcon, CornerDownLeftIcon } from 'lucide-vue-next'
 import { useSettingsIndex } from '@/composables/useSettingsIndex'
 import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
 import { getThemeColorGhostClasses } from '@/lib/utils'
+import { useIntegrationsStore } from '@/stores/integrations.store'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +19,11 @@ const { isMobileScreen } = useResponsive()
 const { t } = useI18n()
 const { allowedPages, sectionsByPage, search } = useSettingsIndex()
 const { activeSectionId, navigateToSection } = useSettingsScrollTarget()
+const integrationsStore = useIntegrationsStore()
+
+function pageNeedsAttention(pageId: string) {
+  return pageId === 'integrations' && integrationsStore.hasDegradedIntegrations
+}
 
 const SUBNAV_EXPAND_DURATION_MS = 180
 
@@ -237,9 +243,14 @@ onBeforeUnmount(() => {
           </span>
           <span class="flex-1 min-w-0 flex flex-col gap-0.5">
             <span
-              class="text-[15px] font-semibold tracking-tight leading-tight truncate"
+              class="text-[15px] font-semibold tracking-tight leading-tight truncate flex items-center gap-1.5"
             >
               {{ t(`settings.${page.pageId}.title`) }}
+              <span
+                v-if="pageNeedsAttention(page.pageId)"
+                class="size-2 rounded-full bg-orange-500 shrink-0"
+                :aria-label="t('settings.integrations.degraded.label')"
+              />
             </span>
             <span
               v-if="subtitleFor(page.pageId)"
@@ -271,6 +282,11 @@ onBeforeUnmount(() => {
               <span class="flex-1 text-left">
                 {{ t(`settings.${page.pageId}.title`) }}
               </span>
+              <span
+                v-if="pageNeedsAttention(page.pageId)"
+                class="size-2 rounded-full bg-orange-500 shrink-0"
+                :aria-label="t('settings.integrations.degraded.label')"
+              />
             </router-link>
           </Button>
 

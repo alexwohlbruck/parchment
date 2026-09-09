@@ -2,7 +2,13 @@
 import { Card } from '@/components/ui/card'
 import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
-import { CloudIcon, HardDriveIcon, UserIcon, LogOutIcon } from 'lucide-vue-next'
+import {
+  CloudIcon,
+  HardDriveIcon,
+  UserIcon,
+  LogOutIcon,
+  TriangleAlertIcon,
+} from 'lucide-vue-next'
 import {
   Integration,
   IntegrationDefinition,
@@ -430,6 +436,12 @@ const isIntegrationEnabled = computed(() => {
   return props.integration.capabilities.some(isCapabilityEnabled)
 })
 
+const isDegraded = computed(
+  () =>
+    !!props.configuration &&
+    integrationsStore.isIntegrationDegraded(props.integration.id),
+)
+
 const statusColors = computed(() => {
   if (!props.configuration) {
     return {
@@ -443,6 +455,13 @@ const statusColors = computed(() => {
       bg: '#FDE68A',
       border: '#EAB308',
       label: t('settings.integrations.filter.disabled'),
+    }
+  }
+  if (isDegraded.value) {
+    return {
+      bg: '#FDBA74',
+      border: '#F97316',
+      label: t('settings.integrations.degraded.label'),
     }
   }
   return {
@@ -487,6 +506,16 @@ const icon = computed(() => {
       </div>
       <TooltipProvider>
         <div class="flex gap-1 items-center">
+          <Tooltip v-if="isDegraded">
+            <TooltipTrigger as-child>
+              <span class="text-[10px] p-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 flex items-center">
+                <TriangleAlertIcon class="size-3" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" :side-offset="4">
+              {{ t('settings.integrations.degraded.hint') }}
+            </TooltipContent>
+          </Tooltip>
           <Tooltip v-if="integration.paid">
             <TooltipTrigger as-child>
               <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 font-semibold">

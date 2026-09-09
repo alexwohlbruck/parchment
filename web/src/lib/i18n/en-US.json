@@ -944,7 +944,8 @@
       "totalDistance": "{distance} km",
       "totalStops": "{n} stop | {n} stops",
       "dailyDistance": "Daily distance"
-    }
+    },
+    "checkIntegration": "Check your location history integration in Settings"
   },
   "friends": {
     "title": "Friends",
@@ -2076,7 +2077,11 @@
         "configureOAuthApp": "Configure OAuth application on OSM server",
         "devCallbackInstructions": "Dev mode: After authorizing in the browser, copy the full redirect URL and run window.__osmDevCallback('URL') in the console"
       },
-      "viewDocs": "View documentation"
+      "viewDocs": "View documentation",
+      "degraded": {
+        "label": "Not responding",
+        "hint": "Requests to this service are failing. Check its connection settings."
+      }
     },
     "users": {
       "title": "Users & Roles",

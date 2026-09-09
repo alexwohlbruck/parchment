@@ -910,7 +910,8 @@
       "totalDistance": "{distance} km",
       "totalStops": "{n} parada | {n} paradas",
       "dailyDistance": "Distancia diaria"
-    }
+    },
+    "checkIntegration": "Revisa tu integración de historial de ubicaciones en Ajustes"
   },
   "friends": {
     "title": "Amigos",
@@ -1967,7 +1968,11 @@
         "configureOAuthApp": "Configurar aplicación OAuth en el servidor OSM",
         "devCallbackInstructions": "Modo dev: Después de autorizar en el navegador, copia la URL de redirección completa y ejecuta window.__osmDevCallback('URL') en la consola"
       },
-      "viewDocs": "Ver documentación"
+      "viewDocs": "Ver documentación",
+      "degraded": {
+        "label": "Sin respuesta",
+        "hint": "Las solicitudes a este servicio están fallando. Revisa su configuración de conexión."
+      }
     },
     "users": {
       "title": "Usuarios y Roles",

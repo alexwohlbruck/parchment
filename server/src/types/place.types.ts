@@ -1,0 +1,512 @@
+import { SOURCE } from '../lib/constants'
+import { Bookmark } from './library.types'
+
+export type SourceId = (typeof SOURCE)[keyof typeof SOURCE] | string
+
+export interface SourceReference {
+  id: SourceId
+  name: string
+  url: string
+  updated?: string // ISO date string
+  updatedBy?: string
+}
+
+export interface AttributedValue<T> {
+  value: T
+  sourceId: SourceId
+  timestamp?: string
+  updatedBy?: string
+}
+
+export interface Coordinates {
+  lat: number
+  lng: number
+}
+
+export interface PlaceGeometry {
+  type: 'point' | 'linestring' | 'polygon' | 'multipolygon'
+  center: Coordinates
+  plusCode?: string
+  bounds?: {
+    minLat: number
+    minLng: number
+    maxLat: number
+    maxLng: number
+  }
+  nodes?: Coordinates[] // For linestrings and simple polygon exterior rings
+  rings?: Coordinates[][] // For polygons with holes: array of rings (first is exterior, subsequent are holes)
+  polygons?: Coordinates[][][] // For multipolygons: array of polygons, each polygon is array of rings (first is exterior, subsequent are holes)
+}
+
+export interface PlacePhoto {
+  url: string
+  sourceId: SourceId
+  width?: number
+  height?: number
+  alt?: string
+  isPrimary?: boolean
+  isCover?: boolean
+  isLogo?: boolean
+}
+
+export interface Review {
+  id: string // Provider-native review/tip id (used for dedup + list keys)
+  text: string
+  /** 0–1 normalized per-review rating. Omitted when the source has no
+   *  per-review score (e.g. Foursquare tips, which are unrated snippets). */
+  rating?: number
+  /** Display name of the author, when the source exposes one. */
+  authorName?: string
+  authorUrl?: string
+  createdAt?: string // ISO 8601
+  language?: string // BCP-47 / ISO language code
+  /** Upvotes / "agree" count, when the source tracks review helpfulness. */
+  helpfulCount?: number
+  /** Link to the review on the source site. */
+  url?: string
+}
+
+export interface Address {
+  street1?: string
+  street2?: string
+  neighborhood?: string
+  locality?: string // City/town
+  region?: string // State/province
+  postalCode?: string
+  country?: string
+  countryCode?: string // ISO country code
+  formatted?: string // Full formatted address as a single string
+}
+
+export interface OpeningTime {
+  day: number // 0-6, starting Sunday
+  open: string // 24h format "HH:mm"
+  close: string // 24h format "HH:mm"
+}
+
+export interface OpeningHours {
+  regularHours: OpeningTime[] // Array of regular opening hours
+  isOpen24_7: boolean // True if the place is always open
+  isPermanentlyClosed: boolean // True if the place is permanently closed
+  isTemporarilyClosed: boolean // True if the place is temporarily closed
+  holidayHours?: Record<string, OpeningTime[]> // Key is ISO date
+  rawText?: string // Original text format from source
+  nextOpenDate?: string // ISO date string for when temporarily closed places will reopen
+}
+
+export interface Amenity {
+  key: string
+  value: string | boolean | number
+  displayName?: string
+}
+
+export interface TransitDeparture {
+  arrivalTime?: string // ISO time string
+  departureTime?: string // ISO time string
+  /**
+   * Absolute ISO 8601 timestamp combining service_date + departureTime
+   * (or arrivalTime). Lets the client compute "minutes until / since"
+   * without the bare HH:mm:ss having to be disambiguated as today vs
+   * tomorrow. Optional for back-compat with adapters that don't supply it.
+   */
+  arrivalAt?: string
+  departureAt?: string
+  /** Service date the departure belongs to, in the stop's local timezone (YYYY-MM-DD). */
+  serviceDate?: string
+  /** IANA timezone of the stop, used to interpret HH:mm:ss correctly. */
+  timezone?: string
+  scheduledArrivalTime?: string
+  scheduledDepartureTime?: string
+  delay?: number // in seconds
+  realTime?: boolean
+  headsign?: string
+  direction?: string
+  stopSequence?: number
+  trip: {
+    id: string
+    shortName?: string
+    headsign?: string
+    directionId?: number
+    blockId?: string
+    routeId: string
+  }
+  route: {
+    id: string
+    shortName?: string
+    longName?: string
+    color?: string
+    textColor?: string
+    type?: number // GTFS route type
+    agencyId?: string
+  }
+  agency?: {
+    id: string
+    name?: string
+    url?: string
+    timezone?: string
+    phone?: string
+  }
+}
+
+/** A station reachable on foot from this one, with what leaves from it. */
+export interface TransitTransferStation {
+  name: string
+  feedId?: string
+  stopId?: string
+  lat?: number
+  lng?: number
+  /** The feed's transit.land onestop id. Portolan keys its station index by
+   *  `<onestop>:<stop_id>`, so this plus `stopId` is what resolves this
+   *  station to the OSM object the map opens — a name cannot, since three
+   *  stations are called "Chambers St". */
+  feedOnestopId?: string
+  departures: TransitDeparture[]
+}
+
+export interface TransitStopInfo {
+  /** @deprecated Use stopId/feedId or coordinates instead */
+  onestopId?: string
+  /** @deprecated Use stopId/feedId or coordinates instead */
+  onestopIds?: string[]
+  /** GTFS stop ID (from Barrelman/MOTIS) */
+  stopId?: string
+  /** GTFS parent station, when the stop is a platform of one. What the
+   *  agency's alerts name — they inform stations, not platforms. */
+  parentStation?: string
+  /** GTFS feed ID (from Barrelman/MOTIS) */
+  feedId?: string
+  /** Coordinates for spatial stop lookup */
+  lat?: number
+  lng?: number
+  name?: string
+  code?: string
+  description?: string
+  timezone?: string
+  wheelchairBoarding?: number
+  departures?: TransitDeparture[]
+  /** The stations a rider can transfer to, each with its own board.
+   *
+   *  Kept per-station rather than merged into one list: a connection is a
+   *  place, and "the R leaves in 6 minutes" is only useful once you know it
+   *  leaves from Court St. Stations sharing a name are one entry, since that
+   *  is the same station drawn twice. */
+  transferStations?: TransitTransferStation[]
+  /** How far ahead `departures` reaches, in minutes. */
+  windowMinutes?: number
+  /** More runs exist past the window — the board can offer to load them. */
+  hasMore?: boolean
+  routes?: Array<{
+    id: string
+    shortName?: string
+    longName?: string
+    color?: string
+    textColor?: string
+    type?: number
+    /** `station` — the line calls here. `transfer` — it calls at a station
+     *  connected to this one, reachable without leaving the paid area.
+     *  `nearby` — it calls at a stop within walking distance that no feed
+     *  joins to this station, which is the only way a subway station's bus
+     *  connections can be found: `transfers.txt` is scoped to one feed, so
+     *  neither operator's file can reference the other's stops. Says nothing
+     *  about whether the connection is free. */
+    via?: 'station' | 'transfer' | 'nearby'
+    /** Metres to the stop, for `nearby` lines only. */
+    distanceM?: number
+  }>
+}
+
+/**
+ * Live availability for a shared-mobility dock (bikeshare / scootershare),
+ * sourced from a GBFS `station_status` feed via Barrelman. Powers the
+ * bikeshare widget on a rental-dock place detail.
+ */
+export interface BikeshareStatus {
+  systemId: string
+  stationId: string
+  name: string
+  /** Network/operator label for attribution, e.g. "Citi Bike". */
+  systemName?: string | null
+  operator?: string | null
+  /** Total docks at the station (bikes + free docks), when known. */
+  capacity: number | null
+  /** Classic (human-powered) bikes ready to rent. */
+  bikesAvailable: number
+  /** Electric bikes ready to rent. */
+  ebikesAvailable: number
+  /** Scooters ready to rent (for scooter docks). */
+  scootersAvailable: number
+  /** Empty docks available to return a vehicle. */
+  docksAvailable: number
+  isRenting: boolean
+  isReturning: boolean
+  /** ISO timestamp the operator last reported this station. */
+  lastReported: string | null
+}
+
+export interface PlaceRelation {
+  id: string // OSM ID (e.g., "relation/123456")
+  type: 'relation' | 'way' | 'node'
+  name?: string
+  placeType?: string
+  role?: string // Role in the relation (e.g., "platform", "stop_area", "building")
+  relationshipType: 'parent' | 'child' | 'member' // How this relates to the main place
+  tags?: Record<string, string> // Relevant OSM tags
+}
+
+export enum WidgetType {
+  TRANSIT = 'transit',
+  RELATED_PLACES = 'related_places',
+  OSM_TAGS = 'osm_tags',
+  BIKESHARE = 'bikeshare',
+}
+
+/**
+ * Nearest street-level image to a place, resolved from Mapillary's image
+ * radius search. Powers the street imagery preview on the place detail panel.
+ */
+export interface StreetImageryPreview {
+  imageId: string
+  thumbUrl: string // ~1024px preview suitable for a card thumbnail
+  isPano: boolean
+  capturedAt?: number // epoch ms the image was captured
+  compassAngle?: number // camera heading in degrees
+  lat: number
+  lng: number
+  distanceMeters?: number // distance from the place center
+}
+
+/**
+ * Widget data source types.
+ *
+ * STATIC — data is serialised into the descriptor at resolve time.
+ *   The client renders immediately with no extra round-trip.
+ *
+ * ASYNC — data is fetched from /places/widgets/:type after page load.
+ *   The client shows a skeleton placeholder while waiting.
+ */
+export enum WidgetDataType {
+  STATIC = 'static',
+  ASYNC = 'async',
+}
+
+export type RelatedPlacesStrategy = 'children' | 'parent' | 'admin'
+
+export interface RelatedParent {
+  id: string // OSM ID like "relation/123"
+  name: string
+  placeType: string // e.g., "Shopping Mall", "City"
+  icon?: PlaceIcon // Resolved icon for display
+  tags?: Record<string, string>
+}
+
+export interface RelatedPlacesData {
+  strategy: RelatedPlacesStrategy
+  children: Place[] // POIs inside this area (children strategy)
+  parents: RelatedParent[] // Containing areas (parent/admin strategy)
+  centerLat: number // Parent place center (for client-side distance display)
+  centerLng: number
+  hasMore?: boolean // Whether more children are available (for pagination)
+  offset?: number // Current offset (for client-side pagination)
+}
+
+export interface WidgetDescriptor {
+  type: WidgetType
+  dataType: WidgetDataType
+  title: string
+  estimatedHeight: number // px, for skeleton placeholder on client (only used for ASYNC widgets)
+  params: Record<string, string | number | boolean>
+}
+
+export interface WidgetResponse<T = unknown> {
+  type: WidgetType
+  data: AttributedValue<T>
+  sources: SourceReference[]
+}
+
+export type ChipSentiment = 'positive' | 'negative' | 'neutral'
+
+export type ChipCategory =
+  | 'accessibility'
+  | 'cost'
+  | 'restrooms'
+  | 'internet'
+  | 'seating'
+  | 'smoking'
+  | 'food_service'
+  | 'offerings'
+  | 'water'
+  | 'family'
+  | 'lgbtq'
+  | 'payment'
+  | 'automation'
+  | 'diet'
+  | 'facilities'
+  | 'recreation'
+  | 'services'
+  | 'cycling'
+  | 'timing'
+
+export interface DisplayChip {
+  key: string           // OSM tag key (e.g. 'wheelchair')
+  value: string         // OSM tag value (e.g. 'yes')
+  label: string         // Pre-computed display label (e.g. 'Accessible')
+  icon: string          // Lucide icon name (e.g. 'accessibility')
+  sentiment: ChipSentiment
+  section?: 'diet'      // Optional: route to a specific UI section
+  category?: ChipCategory // Grouping category for future UI use
+}
+
+export interface NearbyCategory {
+  presetId: string // OSM preset ID, e.g. "amenity/cafe"
+  name: string // Display label, e.g. "Cafes"
+  icon?: string // Resolved icon name
+  iconPack?: 'lucide' | 'maki'
+  iconCategory?: PlaceCategory // For color theming
+}
+
+/**
+ * The brand a place belongs to (from OSM brand / brand:wikidata tags). Powers
+ * the "See all {brand} locations" affordance on the place detail.
+ */
+export interface PlaceBrand {
+  /** brand:wikidata QID (e.g. "Q38076") or "name:<lower>" when no QID. */
+  brandKey: string
+  name: string // Display name, e.g. "McDonald's"
+  wikidata?: string // brand:wikidata QID, when present
+  locationCount?: number // Total locations of this brand (from the catalog)
+  category?: string // Representative OSM category, e.g. "amenity/fast_food"
+  logoUrl?: string // Brand logo (Wikidata P154), when resolved
+}
+
+export type PlaceCategory =
+  | 'food_and_drink'
+  | 'education'
+  | 'medical'
+  | 'sport_and_leisure'
+  | 'store'
+  | 'arts_and_entertainment'
+  | 'commercial_services'
+  | 'park'
+  | 'default'
+
+/**
+ * A GTFS line from barrelman search — carries the (feedId, routeId) pair the
+ * /transit endpoints are keyed by, so the client can open the route detail.
+ */
+export interface TransitLineRef {
+  feedId: string
+  feedOnestopId?: string | null
+  routeId: string
+  shortName?: string | null
+  longName?: string | null
+  routeType?: number | null
+  mode?: string | null
+  color?: string | null
+  textColor?: string | null
+  agency?: string | null
+}
+
+/**
+ * A GTFS stop from barrelman search that OSM does not cover. The onestop id +
+ * stop id pair is the portolan stop-index key, letting the client double-check
+ * for an OSM object before falling back to a name+coords place view.
+ */
+export interface TransitStopRef {
+  feedId: string
+  feedOnestopId?: string | null
+  stopId: string
+  mode?: string | null
+}
+
+export interface PlaceIcon {
+  category: PlaceCategory
+  icon: string // e.g. 'restaurant', 'hospital', 'park'
+  iconPack: 'lucide' | 'maki'
+  presetId?: string // OSM preset ID, e.g. 'amenity/cafe'
+}
+
+export interface ContactInfo {
+  phone?: string
+  formattedPhone?: string
+  email?: string
+  website?: string
+  socials?: Record<string, string> // platform -> URL
+}
+
+export interface Place {
+  id: string // A unique identifier
+  externalIds: Record<SourceId, string> // Source -> external ID mapping
+
+  name: AttributedValue<string | null>
+  description: AttributedValue<string> | null
+  placeType: AttributedValue<string>
+  geometry: AttributedValue<PlaceGeometry>
+  photos: AttributedValue<PlacePhoto>[]
+  address: AttributedValue<Address> | null
+  contactInfo: {
+    phone: AttributedValue<string> | null
+    email: AttributedValue<string> | null
+    /** Primary website URL (first / most prominent) */
+    website: AttributedValue<string> | null
+    /** All website URLs associated with the place (primary + sub-keys like website:menu). Optional — only populated by integrations that have multi-URL data. */
+    websites?: AttributedValue<string[]> | null
+    socials: Record<string, AttributedValue<string>>
+  }
+  openingHours: AttributedValue<OpeningHours> | null
+  amenities: Record<string, AttributedValue<string | boolean | number>>
+  ratings?: {
+    rating: AttributedValue<number>
+    reviewCount: AttributedValue<number>
+  }
+  // Individual reviews, each attributed to its source (e.g. Foursquare tips).
+  reviews?: AttributedValue<Review>[]
+  // Foot-traffic popularity, 0–1 (e.g. Foursquare popularity).
+  popularity?: AttributedValue<number>
+  // Typical busy hours, same shape as openingHours (e.g. Foursquare hours_popular).
+  popularHours?: AttributedValue<OpeningHours>
+  transit?: AttributedValue<TransitStopInfo> | null
+  relations?: AttributedValue<PlaceRelation[]> | null
+
+  // Set when this "place" is really a GTFS line or GTFS-only stop from
+  // barrelman search — the client opens these in the transit views instead
+  // of the place detail view.
+  transitLine?: TransitLineRef | null
+  transitStop?: TransitStopRef | null
+
+  // Raw OSM tags (populated for OSM-sourced places)
+  tags?: Record<string, string>
+
+  // Short human-readable summary derived from tags (e.g. "6 bicycles · Covered")
+  // Generated server-side; used in search result list items
+  summary?: string | null
+
+  // Widget descriptors for additional data sections
+  widgets?: WidgetDescriptor[]
+
+  // Server-computed display chips for amenity tags
+  displayChips?: DisplayChip[]
+
+  // Nearby category chips for contextual exploration
+  nearbyCategories?: NearbyCategory[]
+
+  // Brand this place belongs to (from brand / brand:wikidata tags), for the
+  // "See all {brand} locations" affordance
+  brand?: PlaceBrand | null
+
+  // Icon/category for display
+  icon?: PlaceIcon
+
+  // IANA timezone resolved from coordinates (e.g. "America/New_York")
+  timezone?: string
+
+  // All sources that contributed data
+  sources: SourceReference[]
+
+  // Metadata
+  lastUpdated: string // ISO date string
+  createdAt: string // ISO date string
+
+  // User-specific data
+  bookmark?: Bookmark
+  collectionIds?: string[]
+}

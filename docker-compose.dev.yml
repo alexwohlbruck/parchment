@@ -1,0 +1,106 @@
+name: parchment
+
+volumes:
+  server-db:
+  server:
+  osm-data:
+
+networks:
+  default:
+    external: true
+    name: parchment-network
+
+services:
+  # # OSM imported data DB
+  # osm-db:
+  #   container_name: osm-data
+  #   image: postgis/postgis:latest
+  #   environment:
+  #     POSTGRES_DB: osm_data
+  #     POSTGRES_USER: osm_user
+  #     POSTGRES_PASSWORD: osm_password
+  #   volumes:
+  #     - osm-db:/var/lib/postgresql/data
+  #   ports:
+  #     - '5433:5432'
+
+  # Parchment backend server DB
+  parchment-db:
+    container_name: parchment-db
+    image: kartoza/postgis:latest
+    network_mode: host
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # kartoza/postgis keeps its cluster at /var/lib/postgresql/<major>, not
+      # the stock postgres /var/lib/postgresql/data — without pinning DATADIR
+      # onto the mounted volume, every container recreate silently wipes all
+      # databases (the volume stays empty while data lives in the container
+      # layer).
+      DATADIR: /var/lib/postgresql/data
+    volumes:
+      - server-db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Parchment backend (Elysia)
+  parchment-server:
+    container_name: parchment-server
+    build:
+      context: .
+      dockerfile: server/Dockerfile.dev
+    network_mode: host
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}
+      SERVER_ORIGIN: ${SERVER_ORIGIN}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-}
+      # Crypto keys — two INDEPENDENT base64 32-byte values, REQUIRED.
+      # The server refuses to start without these (no ephemeral fallback).
+      # Generate each with: openssl rand -base64 32
+      SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY}
+      PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY}
+      # Registration mode: 'invite' (admin creates users) or 'open' (self-register)
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-invite}
+      # Self-hosted mode: grant all users full permissions without a subscription.
+      # Only effective when billing is not configured.
+      PARCHMENT_SELF_HOSTED: ${PARCHMENT_SELF_HOSTED:-false}
+      # Billing (optional — omit to run in self-hosted mode)
+      PARCHMENT_LICENSE: ${PARCHMENT_LICENSE:-}
+      POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN:-}
+      POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET:-}
+      POLAR_ORGANIZATION_ID: ${POLAR_ORGANIZATION_ID:-}
+      POLAR_BASIC_PRODUCT_ID: ${POLAR_BASIC_PRODUCT_ID:-}
+      POLAR_PREMIUM_PRODUCT_ID: ${POLAR_PREMIUM_PRODUCT_ID:-}
+      POLAR_SANDBOX: ${POLAR_SANDBOX:-false}
+    depends_on:
+      - parchment-db
+    volumes:
+      - ./server:/app/server
+      - /app/server/node_modules
+
+  # Web frontend (Vue)
+  parchment-web:
+    container_name: parchment-web
+    build:
+      context: .
+      dockerfile: web/Dockerfile.dev
+    network_mode: host
+    environment:
+      VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app/web
+      - /app/web/node_modules
+      - ./server/src/types:/app/server/src/types
+    depends_on:
+      - parchment-server

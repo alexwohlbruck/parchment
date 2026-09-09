@@ -1,0 +1,87 @@
+name: parchment
+
+volumes:
+  server-db:
+  server-data:
+
+services:
+  # Parchment backend server DB
+  parchment-db:
+    container_name: parchment-db
+    image: kartoza/postgis:latest
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # kartoza/postgis keeps its cluster at /var/lib/postgresql/<major>, not
+      # the stock postgres /var/lib/postgresql/data — without pinning DATADIR
+      # onto the mounted volume, every container recreate silently wipes all
+      # databases. On an EXISTING deployment, dump the database BEFORE
+      # recreating with this change: the live cluster is in the old
+      # container's writable layer, not the volume.
+      DATADIR: /var/lib/postgresql/data
+    volumes:
+      - server-db:/var/lib/postgresql/data
+      - ./server/scripts/init-postgis.sh:/docker-entrypoint-initdb.d/init-postgis.sh
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  # Parchment backend (Elysia)
+  parchment-server:
+    container_name: parchment-server
+    image: alexwohlbruck/parchment-server:latest
+    environment:
+      NODE_ENV: production
+      # Barrelman Martin tile server (host:port reachable from this container)
+      MARTIN_HOST: ${MARTIN_HOST:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@parchment-db:5432/${POSTGRES_DB}
+      SERVER_ORIGIN: ${SERVER_ORIGIN}
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-}
+      # Crypto keys — two INDEPENDENT base64 32-byte values, required in prod.
+      # Generate each with: openssl rand -base64 32
+      # In production the server refuses to boot without these.
+      SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY}
+      PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY}
+      # Registration mode: 'invite' (admin creates users) or 'open' (self-register)
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-invite}
+      # Self-hosted mode: grant all users full permissions without a subscription.
+      # Only effective when billing is not configured.
+      PARCHMENT_SELF_HOSTED: ${PARCHMENT_SELF_HOSTED:-false}
+      # Subscription billing — Parchment Cloud only. Requires a signed
+      # PARCHMENT_LICENSE that self-hosted instances cannot obtain, so these
+      # have no effect when self-hosting (use PARCHMENT_SELF_HOSTED above).
+      # POLAR_WEBHOOK_SECRET is required when billing is enabled.
+      PARCHMENT_LICENSE: ${PARCHMENT_LICENSE:-}
+      POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN:-}
+      POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET:-}
+      POLAR_ORGANIZATION_ID: ${POLAR_ORGANIZATION_ID:-}
+      POLAR_BASIC_PRODUCT_ID: ${POLAR_BASIC_PRODUCT_ID:-}
+      POLAR_PREMIUM_PRODUCT_ID: ${POLAR_PREMIUM_PRODUCT_ID:-}
+      POLAR_SANDBOX: ${POLAR_SANDBOX:-false}
+    ports:
+      - "5000:5000"
+    volumes:
+      - server-data:/app/data
+    depends_on:
+      - parchment-db
+    restart: unless-stopped
+
+  # Web frontend (Vue)
+  parchment-web:
+    container_name: parchment-web
+    image: alexwohlbruck/parchment-web:latest
+    environment:
+      VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - parchment-server
+    restart: unless-stopped

@@ -1,0 +1,790 @@
+/**
+ * Sharing Service
+ *
+ * Handles E2EE resource sharing between users (same-server and cross-server)
+ */
+
+import { and, eq, or } from 'drizzle-orm'
+import { db } from '../db'
+import {
+  shares,
+  incomingShares,
+  Share,
+  NewShare,
+  IncomingShare,
+  NewIncomingShare,
+  ShareRole,
+} from '../schema/shares.schema'
+import { collections } from '../schema/library.schema'
+import { friendships } from '../schema/friendships.schema'
+import { users } from '../schema/users.schema'
+import { generateId } from '../util'
+import {
+  isLocalHandle,
+  sendFederationMessage,
+  buildHandle,
+} from './federation.service'
+import { parseHandle } from '../lib/crypto'
+import { publish } from './realtime/event-bus.service'
+import { logError } from '../lib/logger'
+
+export type ResourceType = 'collection' | 'route' | 'map' | 'layer'
+
+export type { ShareRole }
+
+/**
+ * Whether the recipient handle lives on this server. Thin re-export so
+ * controllers don't have to import the federation service just for this
+ * one check.
+ */
+export function isLocalRecipient(handle: string): boolean {
+  return isLocalHandle(handle)
+}
+
+export interface CreateShareParams {
+  userId: string
+  recipientHandle: string
+  resourceType: ResourceType
+  resourceId: string
+  encryptedData?: string
+  nonce?: string
+  role?: ShareRole
+  /**
+   * Envelope the client signed over to authorize a cross-server delivery.
+   * All three fields must be present together — they match the v2 canonical
+   * envelope the remote peer will verify. Unused on same-server shares.
+   */
+  federationSignature?: string
+  federationNonce?: string
+  federationTimestamp?: string
+}
+
+// ============================================================================
+// Outgoing Shares (from local user)
+// ============================================================================
+
+/**
+ * Create a share for a resource
+ */
+export async function createShare(params: CreateShareParams): Promise<Share> {
+  // Check if recipient is local
+  const isLocal = isLocalHandle(params.recipientHandle)
+  let recipientUserId: string | null = null
+
+  if (isLocal) {
+    const parsed = parseHandle(params.recipientHandle)
+    if (parsed) {
+      const [localUser] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.alias, parsed.alias))
+        .limit(1)
+      recipientUserId = localUser?.id || null
+    }
+  }
+
+  const role: ShareRole = params.role ?? 'viewer'
+
+  // Same-server shares auto-accept — there's no accept/reject UI for v1 and
+  // the share is already authenticated (the sender's session). Cross-server
+  // shares stay 'pending' until the recipient server processes them.
+  const status = isLocal && recipientUserId ? 'accepted' : 'pending'
+
+  const newShare: NewShare = {
+    id: generateId(),
+    userId: params.userId,
+    recipientHandle: params.recipientHandle,
+    recipientUserId,
+    resourceType: params.resourceType,
+    resourceId: params.resourceId,
+    encryptedData: params.encryptedData || null,
+    nonce: params.nonce || null,
+    role,
+    status,
+  }
+
+  const [share] = await db.insert(shares).values(newShare).returning()
+
+  // If cross-server, send federation message using the signed envelope the
+  // client produced. The nonce, timestamp, and signature cover the same
+  // payload the recipient will verify under v2 canonical serialization —
+  // the server is a forwarder here, not a signer.
+  if (!isLocal && params.encryptedData && params.nonce) {
+    await sendShareToRemote(share, {
+      signature: params.federationSignature,
+      nonce: params.federationNonce,
+      timestamp: params.federationTimestamp,
+    })
+  } else if (
+    isLocal &&
+    recipientUserId &&
+    params.encryptedData &&
+    params.nonce
+  ) {
+    // For local users, create incoming share directly. Auto-accepted so
+    // the recipient sees it in their library immediately.
+    await createIncomingShare({
+      userId: recipientUserId,
+      senderHandle: await getLocalUserHandle(params.userId),
+      resourceType: params.resourceType,
+      resourceId: params.resourceId,
+      encryptedData: params.encryptedData,
+      nonce: params.nonce,
+      role,
+      autoAccept: true,
+    })
+  }
+
+  // Emit to both sides of the new share so their UIs update in place:
+  //   - the owner (their other tabs/devices see the new access row)
+  //   - the recipient (if local — their library grows a shared entry)
+  // Cross-server recipients flow through the federation subscriber
+  // (Phase 4) which looks at `remoteHandles`.
+  const recipients = {
+    localUserIds: recipientUserId
+      ? [params.userId, recipientUserId]
+      : [params.userId],
+    remoteHandles: !isLocal ? [params.recipientHandle] : [],
+  }
+  publish('share:created', share, recipients)
+
+  return share
+}
+
+/**
+ * Get all outgoing shares for a user
+ */
+export async function getOutgoingShares(userId: string): Promise<Share[]> {
+  return await db.select().from(shares).where(eq(shares.userId, userId))
+}
+
+/**
+ * Get shares for a specific resource
+ */
+export async function getSharesForResource(
+  userId: string,
+  resourceType: ResourceType,
+  resourceId: string,
+): Promise<Share[]> {
+  return await db
+    .select()
+    .from(shares)
+    .where(
+      and(
+        eq(shares.userId, userId),
+        eq(shares.resourceType, resourceType),
+        eq(shares.resourceId, resourceId),
+      ),
+    )
+}
+
+/**
+ * Revoke a share.
+ *
+ * Hard-deletes the outgoing `shares` row AND the same-server recipient's
+ * mirrored `incoming_shares` row in one transaction. A soft-revoke would
+ * leave the unique `(user_id, recipient_handle, resource_type, resource_id)`
+ * row in place, which blocks re-sharing to the same person later (23505 on
+ * insert) and keeps a ghost entry in the recipient's library. For e2ee
+ * collections the caller is still responsible for following up with
+ * `rotateCollectionKey` to actually revoke decrypt access.
+ */
+export async function revokeShare(
+  userId: string,
+  shareId: string,
+): Promise<boolean> {
+  const deletedRow = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .delete(shares)
+      .where(and(eq(shares.id, shareId), eq(shares.userId, userId)))
+      .returning()
+    if (!row) return null
+
+    // Same-server mirror: if the recipient is on this server, drop their
+    // incoming row too. Matched by (recipient user, resource, sender handle)
+    // because incoming_shares doesn't carry the outgoing share id.
+    if (row.recipientUserId) {
+      const senderHandle = await getLocalUserHandle(row.userId)
+      await tx
+        .delete(incomingShares)
+        .where(
+          and(
+            eq(incomingShares.userId, row.recipientUserId),
+            eq(incomingShares.senderHandle, senderHandle),
+            eq(incomingShares.resourceType, row.resourceType),
+            eq(incomingShares.resourceId, row.resourceId),
+          ),
+        )
+    }
+    return row
+  })
+
+  if (deletedRow) {
+    // Tell both sides so the recipient's library drops the shared entry
+    // and the owner's other tabs drop the access-list row.
+    publish(
+      'share:revoked',
+      { id: deletedRow.id, resourceId: deletedRow.resourceId },
+      {
+        localUserIds: deletedRow.recipientUserId
+          ? [deletedRow.userId, deletedRow.recipientUserId]
+          : [deletedRow.userId],
+        remoteHandles: deletedRow.recipientUserId
+          ? []
+          : [deletedRow.recipientHandle],
+      },
+    )
+  }
+
+  return !!deletedRow
+}
+
+/**
+ * Delete a share. Hard-delete, same as `revokeShare`. Retained as a
+ * separate method so the API surface can differentiate "sender chose to
+ * revoke" from "sender wants the record gone" if we later want audit
+ * trails or webhooks on one but not the other.
+ */
+export async function deleteShare(
+  userId: string,
+  shareId: string,
+): Promise<boolean> {
+  return await revokeShare(userId, shareId)
+}
+
+/**
+ * Replace the encrypted share envelope for an existing share. Used when
+ * the owner changes collection metadata and wants recipients to see the
+ * new name / icon without re-creating the share. Updates both the
+ * outgoing row and the same-server recipient's mirrored incoming row
+ * so they never diverge.
+ *
+ * Scoped by recipient handle rather than share id so the owner-side
+ * caller doesn't need to remember specific share ids — they just iterate
+ * their share list and refresh envelopes.
+ */
+export async function updateShareEnvelope(
+  userId: string,
+  recipientHandle: string,
+  resourceType: ResourceType,
+  resourceId: string,
+  encryptedData: string,
+  nonce: string,
+): Promise<Share | null> {
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(shares)
+      .set({ encryptedData, nonce })
+      .where(
+        and(
+          eq(shares.userId, userId),
+          eq(shares.recipientHandle, recipientHandle),
+          eq(shares.resourceType, resourceType),
+          eq(shares.resourceId, resourceId),
+        ),
+      )
+      .returning()
+    if (!row) return null
+
+    if (row.recipientUserId) {
+      const senderHandle = await getLocalUserHandle(row.userId)
+      await tx
+        .update(incomingShares)
+        .set({ encryptedData, nonce })
+        .where(
+          and(
+            eq(incomingShares.userId, row.recipientUserId),
+            eq(incomingShares.senderHandle, senderHandle),
+            eq(incomingShares.resourceType, row.resourceType),
+            eq(incomingShares.resourceId, row.resourceId),
+          ),
+        )
+    }
+    return row
+  })
+
+  if (updated) {
+    // Emit a generic `share:envelope-updated` event so the recipient's
+    // client refetches the affected resource (metadata decrypted from
+    // the new envelope).
+    publish('share:envelope-updated', updated, {
+      localUserIds: updated.recipientUserId
+        ? [updated.userId, updated.recipientUserId]
+        : [updated.userId],
+      remoteHandles: updated.recipientUserId ? [] : [updated.recipientHandle],
+    })
+  }
+
+  return updated
+}
+
+/**
+ * Change the role on an existing share. Updates both the outgoing row and
+ * the same-server recipient's mirrored incoming row atomically so they
+ * never diverge.
+ */
+export async function updateShareRole(
+  userId: string,
+  shareId: string,
+  newRole: ShareRole,
+): Promise<Share | null> {
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(shares)
+      .set({ role: newRole })
+      .where(and(eq(shares.id, shareId), eq(shares.userId, userId)))
+      .returning()
+    if (!row) return null
+
+    if (row.recipientUserId) {
+      const senderHandle = await getLocalUserHandle(row.userId)
+      await tx
+        .update(incomingShares)
+        .set({ role: newRole })
+        .where(
+          and(
+            eq(incomingShares.userId, row.recipientUserId),
+            eq(incomingShares.senderHandle, senderHandle),
+            eq(incomingShares.resourceType, row.resourceType),
+            eq(incomingShares.resourceId, row.resourceId),
+          ),
+        )
+    }
+    return row
+  })
+
+  if (updated) {
+    publish('share:role-updated', updated, {
+      localUserIds: updated.recipientUserId
+        ? [updated.userId, updated.recipientUserId]
+        : [updated.userId],
+      remoteHandles: updated.recipientUserId ? [] : [updated.recipientHandle],
+    })
+  }
+
+  return updated
+}
+
+// ============================================================================
+// Incoming Shares (to local user)
+// ============================================================================
+
+interface CreateIncomingShareParams {
+  userId: string
+  senderHandle: string
+  resourceType: string
+  resourceId: string
+  encryptedData: string
+  nonce: string
+  signature?: string
+  role?: ShareRole
+  /** Skip the pending step — used when the caller has already authenticated
+   *  the sender (same-server create). Cross-server shares pass through as
+   *  pending so a future accept/reject UI can intervene. */
+  autoAccept?: boolean
+}
+
+/**
+ * Create an incoming share
+ */
+export async function createIncomingShare(
+  params: CreateIncomingShareParams,
+): Promise<IncomingShare> {
+  const now = new Date()
+  const newIncoming: NewIncomingShare = {
+    id: generateId(),
+    userId: params.userId,
+    senderHandle: params.senderHandle,
+    resourceType: params.resourceType,
+    resourceId: params.resourceId,
+    encryptedData: params.encryptedData,
+    nonce: params.nonce,
+    signature: params.signature || null,
+    role: params.role ?? 'viewer',
+    status: params.autoAccept ? 'accepted' : 'pending',
+    acceptedAt: params.autoAccept ? now : null,
+  }
+
+  const [incoming] = await db
+    .insert(incomingShares)
+    .values(newIncoming)
+    .returning()
+  return incoming
+}
+
+/**
+ * Get all incoming shares for a user
+ */
+export async function getIncomingShares(
+  userId: string,
+): Promise<IncomingShare[]> {
+  return await db
+    .select()
+    .from(incomingShares)
+    .where(eq(incomingShares.userId, userId))
+}
+
+/**
+ * Get pending incoming shares
+ */
+export async function getPendingIncomingShares(
+  userId: string,
+): Promise<IncomingShare[]> {
+  return await db
+    .select()
+    .from(incomingShares)
+    .where(
+      and(
+        eq(incomingShares.userId, userId),
+        eq(incomingShares.status, 'pending'),
+      ),
+    )
+}
+
+/**
+ * Accept an incoming share
+ */
+export async function acceptIncomingShare(
+  userId: string,
+  shareId: string,
+): Promise<IncomingShare | null> {
+  const [updated] = await db
+    .update(incomingShares)
+    .set({
+      status: 'accepted',
+      acceptedAt: new Date(),
+    })
+    .where(
+      and(eq(incomingShares.id, shareId), eq(incomingShares.userId, userId)),
+    )
+    .returning()
+
+  if (updated) {
+    publish('incoming-share:accepted', updated, {
+      localUserIds: [userId],
+      remoteHandles: [],
+    })
+  }
+
+  return updated || null
+}
+
+/**
+ * Reject an incoming share
+ */
+export async function rejectIncomingShare(
+  userId: string,
+  shareId: string,
+): Promise<boolean> {
+  const [updated] = await db
+    .update(incomingShares)
+    .set({ status: 'rejected' })
+    .where(
+      and(eq(incomingShares.id, shareId), eq(incomingShares.userId, userId)),
+    )
+    .returning()
+
+  if (updated) {
+    publish('incoming-share:rejected', updated, {
+      localUserIds: [userId],
+      remoteHandles: [],
+    })
+  }
+
+  return !!updated
+}
+
+/**
+ * Delete an incoming share
+ */
+export async function deleteIncomingShare(
+  userId: string,
+  shareId: string,
+): Promise<boolean> {
+  const result = await db
+    .delete(incomingShares)
+    .where(
+      and(eq(incomingShares.id, shareId), eq(incomingShares.userId, userId)),
+    )
+    .returning()
+
+  if (result[0]) {
+    publish(
+      'incoming-share:deleted',
+      { id: result[0].id, resourceId: result[0].resourceId },
+      { localUserIds: [userId], remoteHandles: [] },
+    )
+  }
+
+  return result.length > 0
+}
+
+// ============================================================================
+// Federation Helpers
+// ============================================================================
+
+/**
+ * Send share to remote server
+ */
+interface RemoteSendEnvelope {
+  signature?: string
+  nonce?: string
+  timestamp?: string
+}
+
+async function sendShareToRemote(
+  share: Share,
+  envelope?: RemoteSendEnvelope,
+): Promise<boolean> {
+  try {
+    const senderHandle = await getLocalUserHandle(share.userId)
+
+    if (!envelope?.signature || !envelope.nonce || !envelope.timestamp) {
+      // A cross-server share without a complete client-signed envelope is
+      // rejected — we'd send an unsigned message that the remote peer would
+      // discard anyway, so surface the error to the caller instead.
+      logError(
+        'Refusing to send remote share without a signed v2 envelope',
+        undefined,
+        { shareId: share.id },
+      )
+      return false
+    }
+
+    const { getProtocolVersion } = await import('../lib/server-identity')
+
+    // Forward the envelope verbatim. The nonce + timestamp the client signed
+    // over MUST be the same values sent on the wire — the remote peer
+    // re-canonicalizes them into the v2 signable to verify. `role` lives
+    // inside `payload` so the signature binds it.
+    await sendFederationMessage(share.recipientHandle, {
+      protocol_version: getProtocolVersion(),
+      message_type: 'RESOURCE_SHARE',
+      message_version: 1,
+      from: senderHandle,
+      to: share.recipientHandle,
+      nonce: envelope.nonce,
+      timestamp: envelope.timestamp,
+      signature: envelope.signature,
+      payload: {
+        resourceType: share.resourceType,
+        resourceId: share.resourceId,
+        encryptedData: share.encryptedData || undefined,
+        nonce: share.nonce || undefined,
+        role: share.role,
+      },
+    })
+
+    return true
+  } catch (error) {
+    logError('Failed to send share to remote', error)
+    return false
+  }
+}
+
+/**
+ * Get local user's handle
+ */
+async function getLocalUserHandle(userId: string): Promise<string> {
+  const [user] = await db
+    .select({ alias: users.alias })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+
+  if (!user?.alias) {
+    throw new Error('User has no alias')
+  }
+
+  return buildHandle(user.alias)
+}
+
+/**
+ * Verify share is from a friend
+ */
+export async function verifyShareFromFriend(
+  userId: string,
+  senderHandle: string,
+): Promise<boolean> {
+  const [friendship] = await db
+    .select()
+    .from(friendships)
+    .where(
+      and(
+        eq(friendships.userId, userId),
+        eq(friendships.friendHandle, senderHandle),
+        eq(friendships.status, 'accepted'),
+      ),
+    )
+    .limit(1)
+
+  return !!friendship
+}
+
+// ============================================================================
+// Federation Handlers - Called by federation.service when receiving messages
+// ============================================================================
+
+/**
+ * Handle incoming resource share from a remote friend
+ */
+export async function handleIncomingResourceShare(
+  senderHandle: string,
+  recipientAlias: string,
+  resourceType: string,
+  resourceId: string,
+  encryptedData: string,
+  nonce: string,
+  signature: string,
+  role?: ShareRole,
+): Promise<{ success: boolean; error?: string }> {
+  const { getLocalUserIdByAlias } = await import('./user.service')
+  const { isFriend } = await import('./friends.service')
+
+  const localUserId = await getLocalUserIdByAlias(recipientAlias)
+  if (!localUserId) {
+    return { success: false, error: 'Recipient not found' }
+  }
+
+  const areFriends = await isFriend(localUserId, senderHandle)
+  if (!areFriends) {
+    return { success: false, error: 'Not a friend' }
+  }
+
+  // Default to 'viewer' for messages from older senders that don't emit a
+  // role field. Sender-controlled role is covered by the signed envelope
+  // (see federation-canonical.ts) so a peer can't silently upgrade it.
+  const effectiveRole: ShareRole = role === 'editor' ? 'editor' : 'viewer'
+
+  await createIncomingShare({
+    userId: localUserId,
+    senderHandle: senderHandle,
+    resourceType: resourceType as ResourceType,
+    resourceId: resourceId,
+    encryptedData: encryptedData,
+    nonce: nonce,
+    signature: signature,
+    role: effectiveRole,
+  })
+
+  return { success: true }
+}
+
+// ============================================================================
+// Access-check helpers (for write-gate enforcement)
+// ============================================================================
+
+/**
+ * The effective role a user has on a collection. Owners always get
+ * `'owner'` regardless of any explicit share row. Non-members return null.
+ */
+export type EffectiveRole = 'owner' | 'editor' | 'viewer'
+
+/**
+ * Resolve a user's effective role on a given collection.
+ *
+ * Checks ownership first (always wins), then looks for an `accepted`
+ * incoming_shares row. Returns null if the user has no access at all.
+ *
+ * Used by controllers that need to decide whether to allow a write, or
+ * to compute the right set of write-enabled UI elements on the client.
+ */
+export async function getEffectiveRoleOnCollection(
+  userId: string,
+  collectionId: string,
+): Promise<EffectiveRole | null> {
+  const [collection] = await db
+    .select()
+    .from(collections)
+    .where(eq(collections.id, collectionId))
+    .limit(1)
+  if (!collection) return null
+
+  if (collection.userId === userId) return 'owner'
+
+  // Recipient side: look up the incoming share. Accept both 'accepted' and
+  // 'pending' statuses so the share grants read/write as soon as the
+  // sender creates it — v1 has no explicit accept UI. Rejected rows don't
+  // count. If the recipient later rejects it they lose access.
+  const [share] = await db
+    .select()
+    .from(incomingShares)
+    .where(
+      and(
+        eq(incomingShares.userId, userId),
+        eq(incomingShares.resourceType, 'collection'),
+        eq(incomingShares.resourceId, collectionId),
+        or(
+          eq(incomingShares.status, 'accepted'),
+          eq(incomingShares.status, 'pending'),
+        ),
+      ),
+    )
+    .limit(1)
+  if (!share) return null
+
+  return share.role === 'editor' ? 'editor' : 'viewer'
+}
+
+/**
+ * Thrown by `requireWriteAccessToCollection` when the caller is a viewer
+ * or has no role. Controllers catch this and turn it into a 403.
+ */
+export class InsufficientRoleError extends Error {
+  constructor(public readonly effectiveRole: EffectiveRole | null) {
+    super('Insufficient role for write operation on this collection')
+    this.name = 'InsufficientRoleError'
+  }
+}
+
+/**
+ * Thrown when the collection doesn't exist or the caller has zero access.
+ * Mapped to 404 so we don't leak existence to unauthorized users.
+ */
+export class CollectionAccessDeniedError extends Error {
+  constructor() {
+    super('Collection not found')
+    this.name = 'CollectionAccessDeniedError'
+  }
+}
+
+/**
+ * Guard that every write-path endpoint on a collection should call. Owners
+ * always pass. Editors pass. Viewers throw `InsufficientRoleError` (→ 403).
+ * Users with no role throw `CollectionAccessDeniedError` (→ 404, so the
+ * collection's existence isn't disclosed).
+ */
+export async function requireWriteAccessToCollection(
+  userId: string,
+  collectionId: string,
+): Promise<EffectiveRole> {
+  const role = await getEffectiveRoleOnCollection(userId, collectionId)
+  if (role === null) throw new CollectionAccessDeniedError()
+  if (role === 'viewer') throw new InsufficientRoleError(role)
+  return role
+}
+
+/**
+ * Can this user create a new share on this collection?
+ *
+ * Owner can always share. Editors can share only when the collection's
+ * resharingPolicy is `editors-can-share`. Viewers can never share.
+ */
+export async function canShareCollection(
+  userId: string,
+  collectionId: string,
+): Promise<{ allowed: boolean; asRole: EffectiveRole | null }> {
+  const [collection] = await db
+    .select()
+    .from(collections)
+    .where(eq(collections.id, collectionId))
+    .limit(1)
+  if (!collection) return { allowed: false, asRole: null }
+
+  const role = await getEffectiveRoleOnCollection(userId, collectionId)
+  if (role === 'owner') return { allowed: true, asRole: 'owner' }
+  if (role === 'editor' && collection.resharingPolicy === 'editors-can-share') {
+    return { allowed: true, asRole: 'editor' }
+  }
+  return { allowed: false, asRole: role }
+}

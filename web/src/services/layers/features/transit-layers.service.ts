@@ -1,0 +1,133 @@
+/**
+ * Transit Layers Service
+ *
+ * Handles transit-specific layer operations including bulk visibility toggles
+ * and transit stop click handlers for navigation.
+ */
+
+import type { Layer } from '@/types/map.types'
+import { LayerType, MapColorTheme } from '@/types/map.types'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
+import { isTransitStopLayer } from '@/lib/transit/transit.utils'
+import { useThemeStore } from '@/stores/theme.store'
+import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
+import { useMapToolsStore } from '@/stores/map-tools.store'
+
+export function useTransitLayersService() {
+  const router = useRouter()
+  const themeStore = useThemeStore()
+
+  // ============================================================================
+  // TRANSIT STOP CLICK HANDLERS
+  // ============================================================================
+
+  /**
+   * Add click handlers for transit stops to open place detail view
+   */
+  function addTransitStopClickHandlers(
+    mapStrategy: MapStrategy,
+    layerId: string,
+  ) {
+    if (!mapStrategy?.mapInstance) return
+
+    const handleClick = (event: any) => {
+      if (useMapToolsStore().rawClickCapture) return
+      const feature = event.features?.[0]
+      if (feature && feature.properties) {
+        const onestopId =
+          feature.properties.onestop_id || feature.properties.stop_id
+        if (onestopId) {
+          mapStrategy.dispatchPoiClick(event, () => {
+            router.push({
+              name: AppRoute.PLACE_PROVIDER,
+              params: {
+                provider: 'transitland',
+                placeId: onestopId,
+              },
+            })
+          })
+        }
+      }
+    }
+
+    const handleMouseEnter = () => {
+      if (mapPoiClickPolicy.enabled && !useMapToolsStore().rawClickCapture) {
+        mapStrategy.mapInstance.getCanvas().style.cursor = 'pointer'
+      }
+    }
+
+    const handleMouseLeave = () => {
+      if (!useMapToolsStore().rawClickCapture) {
+        mapStrategy.mapInstance.getCanvas().style.cursor = ''
+      }
+    }
+
+    // Add all handlers
+    mapStrategy.mapInstance.on('click', layerId, handleClick)
+    mapStrategy.mapInstance.on('mouseenter', layerId, handleMouseEnter)
+    mapStrategy.mapInstance.on('mouseleave', layerId, handleMouseLeave)
+  }
+
+  // ============================================================================
+  // BULK VISIBILITY OPERATIONS
+  // ============================================================================
+
+  /**
+   * Toggle visibility for all transit layers
+   *
+   * Also updates the visibility of any parent groups so that the layer
+   * selector UI (which reads `group.visible`) stays in sync when transit
+   * layers are toggled externally.
+   */
+  async function toggleTransitLayers(
+    layers: Layer[],
+    layersStore: any,
+    mapStrategy?: MapStrategy,
+    visible?: boolean,
+  ) {
+    const newState = visible ?? false
+
+    const transitLayers = layers.filter(
+      layer => layer.type === LayerType.TRANSIT,
+    )
+
+    const affectedGroupIds = new Set<string>()
+
+    for (const layer of transitLayers) {
+      // Visibility is ephemeral UI state — always route through the store's
+      // local override map (localStorage-backed) rather than the server CRUD
+      // path. This keeps toggles cheap and cross-device sync is intentionally
+      // not a goal for visibility.
+      layersStore.updateLayerVisibility(layer.id, newState)
+
+      if (layer.groupId) {
+        affectedGroupIds.add(layer.groupId)
+      }
+
+      if (mapStrategy) {
+        mapStrategy.toggleLayerVisibility(layer.configuration.id, newState)
+      }
+    }
+
+    // Keep parent groups in sync so the layer selector reflects the change.
+    for (const groupId of affectedGroupIds) {
+      layersStore.toggleLayerGroupVisibility(groupId, newState)
+    }
+
+    // Apply basemap fade and transit label visibility
+    if (mapStrategy) {
+      const shouldUseFaded = newState && !themeStore.isDark
+      mapStrategy.setMapColorTheme(
+        shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+      )
+      mapStrategy.setTransitLabels(!newState)
+    }
+  }
+
+  return {
+    addTransitStopClickHandlers,
+    toggleTransitLayers,
+  }
+}

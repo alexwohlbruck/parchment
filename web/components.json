@@ -1,0 +1,16 @@
+{
+  "style": "default",
+  "typescript": true,
+  "tailwind": {
+    "css": "src/style.css",
+    "baseColor": "zinc",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "composables": "@/composables"
+  }
+}

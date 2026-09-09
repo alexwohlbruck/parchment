@@ -1,0 +1,81 @@
+<script setup lang="ts">
+import { cva } from 'class-variance-authority'
+import { computed } from 'vue'
+import { type Hotkey } from '@/types/command.types'
+import { useCommandService } from '@/services/command.service'
+import { useHotkeyStore } from '@/stores/hotkey.store'
+import { isApplePlatform } from '@/lib/platform'
+
+const commandService = useCommandService()
+const hotkeyStore = useHotkeyStore()
+
+type KbdProps = {
+  as?: string
+  size?: 'xs' | 'sm' | 'md'
+} & (
+  | { hotkey: Hotkey; commandId?: never; hotkeyId?: never }
+  | { commandId: string; hotkey?: never; hotkeyId?: never }
+  | { hotkeyId: string; hotkey?: never; commandId?: never }
+)
+
+const props = withDefaults(defineProps<KbdProps>(), {
+  as: 'kbd',
+  size: 'sm',
+})
+
+const kbdClass = computed(() => {
+  return cva(
+    'inline-flex items-center whitespace-nowrap pointer-events-none h-5 select-none items-center gap-1 rounded border border-foreground/15 bg-muted text-nowrap font-sans font-medium',
+    {
+      variants: {
+        size: {
+          xs: 'min-h-[16px] text-[10px] h-4 px-1',
+          sm: 'min-h-[20px] text-[11px] h-5 px-1',
+          md: 'min-h-[24px] text-[12px] h-6 px-1.5',
+        },
+      },
+    },
+  )({
+    size: props.size,
+  })
+})
+
+const hotkey = computed(() => {
+  if (props.hotkey) {
+    return props.hotkey
+  } else if (props.hotkeyId) {
+    return hotkeyStore.getHotkeyById(props.hotkeyId) ?? []
+  } else if (props.commandId) {
+    return commandService.getHotkey(props.commandId) ?? []
+  }
+  return []
+})
+
+const displayString = computed(() => {
+  if (!hotkey?.value?.map) return ''
+  return hotkey.value
+    .map(key => {
+      // `mod` is mousetrap's platform-aware modifier: ⌘ on macOS, Ctrl elsewhere
+      if (key === 'mod') return isApplePlatform() ? '⌘' : 'Ctrl'
+      if (key === 'meta') return '⌘'
+      if (key === 'ctrl') return 'Ctrl'
+      if (key === 'shift') return 'Shift'
+      if (key === 'alt') return 'Alt'
+      if (key === 'enter' || key === 'return') return 'RETURN'
+      if (key === 'escape' || key === 'esc') return 'ESC'
+      if (key === 'up' || key === 'arrowup') return '↑'
+      if (key === 'down' || key === 'arrowdown') return '↓'
+      if (key === 'left' || key === 'arrowleft') return '←'
+      if (key === 'right' || key === 'arrowright') return '→'
+      return key.toUpperCase()
+    })
+    .join(' ')
+})
+</script>
+
+<template>
+  <!-- An id that resolves to nothing would otherwise render an empty keycap. -->
+  <component v-if="displayString" :is="props.as" :class="kbdClass">
+    {{ displayString }}
+  </component>
+</template>

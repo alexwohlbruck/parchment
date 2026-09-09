@@ -1,0 +1,15 @@
+<script setup lang="ts">
+import { AlertDialogTitle, type AlertDialogTitleProps } from 'reka-ui'
+import { cn } from '@/lib/utils'
+
+const props = defineProps<AlertDialogTitleProps & { class?: string }>()
+</script>
+
+<template>
+  <AlertDialogTitle
+    :as-child="props.asChild"
+    :class="cn('text-lg text-foreground', props.class)"
+  >
+    <slot />
+  </AlertDialogTitle>
+</template>

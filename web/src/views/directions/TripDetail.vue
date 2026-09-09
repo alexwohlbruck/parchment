@@ -1,0 +1,1811 @@
+<script setup lang="ts">
+import { computed, onUnmounted, ref, watch } from 'vue'
+import {
+  TRIP_MODE_COLORS,
+  depCountdown,
+  entrancePhrase,
+  formatClockCompact,
+  formatCo2,
+  joinStatus,
+  movingDuration,
+  railColorAt,
+  railStyleAt,
+  segmentRail,
+  waitMinutes,
+} from '@/lib/directions/trip-display'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
+import { api } from '@/lib/api'
+import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { useDirectionsService } from '@/services/directions.service'
+import { useMapService } from '@/services/map.service'
+import { useGeolocationService } from '@/services/geolocation.service'
+import {
+  departureReachability,
+  remainingAccessWalkSec,
+  type DepartureReachability,
+} from '@/lib/transit/transit-reachability'
+import { Button } from '@/components/ui/button'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Caption } from '@/components/ui/typography'
+import {
+  AlertTriangleIcon,
+  ArrowLeft,
+  BikeIcon,
+  CarTaxiFrontIcon,
+  ArrowRight,
+  BookmarkIcon,
+  ChevronDownIcon,
+  ClockIcon,
+  ExternalLinkIcon,
+  AccessibilityIcon,
+  LogInIcon,
+  LogOutIcon,
+  ShareIcon,
+} from 'lucide-vue-next'
+import { AppRoute } from '@/router'
+import { tripSignature } from '@/lib/directions/trip-signature'
+import type { RouteInstruction } from '@/types/directions.types'
+import type { Place } from '@/types/place.types'
+import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
+import type { SharedMobilityDetails } from '@/types/multimodal.types'
+import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
+import { getPlaceRoute } from '@/lib/place/place.utils'
+import {
+  getSearchResultIconName,
+  getSearchResultIconPack,
+  getSearchResultCategory,
+  getSearchResultName,
+} from '@/lib/search/search.utils'
+import { getCategoryColor } from '@/lib/place/place-colors'
+import { useThemeStore } from '@/stores/theme.store'
+import { ItemIcon } from '@/components/ui/item-icon'
+import { PlaceCard } from '@/components/place/card'
+import { waypointToDisplay, type PlaceDisplay } from '@/lib/place/place-display'
+import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import DepartureBoard from '@/components/transit/departures/DepartureBoard.vue'
+import ServiceAlertRow from '@/components/transit/alerts/ServiceAlertRow.vue'
+import ServiceAlertCard from '@/components/transit/alerts/ServiceAlertCard.vue'
+import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
+import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit/transit-alerts'
+import type { ServiceAlert } from '@/types/transit.types'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
+import { SheetHeader } from '@/components/sheet'
+import { useUnits } from '@/composables/useUnits'
+import { formatDurationCompact } from '@/lib/time.utils'
+import { useI18n } from 'vue-i18n'
+
+const route = useRoute()
+const router = useRouter()
+const directionsStore = useDirectionsStore()
+const directionsService = useDirectionsService()
+const mapService = useMapService()
+const themeStore = useThemeStore()
+const { t: translate } = useI18n()
+// Live position, so the approach walk on the departure board decays as the
+// rider actually closes on the stop.
+const geo = useGeolocationService()
+const { formatDistance, formatElevation } = useUnits()
+
+// ── Upcoming departures per transit segment ─────────────────────────
+// Shows the rider their options beyond the planned departure ("also at
+// 2:21, 2:51"), Transit-app style. Fetched per boarding stop, filtered to
+// the same line and direction. Clicking a later one re-plans the trip
+// anchored to that departure.
+interface DepartureOption {
+  ms: number
+  label: string
+  /** True when the time comes from a GTFS-RT prediction, not the schedule. */
+  realTime: boolean
+  /** Signed seconds against the timetable (+late, -early); realtime runs only. */
+  delaySec?: number
+  /** Timetabled departure, shown struck beside the live time when they differ. */
+  scheduledMs?: number
+  /** The operator has pulled this run. Kept on the board as an explanation
+   *  rather than silently vanishing. */
+  cancelled?: boolean
+  /** Which route this departure is — shown on merged "4 or 5" boards so the
+   *  rider knows whether each run is the 4 or the 5. */
+  route?: { shortName?: string; color?: string; textColor?: string }
+  /** The run's GTFS trip, so a trip-scoped service alert can find its chip. */
+  tripId?: string
+}
+const segmentDepartures = ref<Record<number, DepartureOption[]>>({})
+// Full fetched schedule per segment (superset of the chips) — rebooking
+// resolves runs from this synchronously, so switching departures is instant.
+const segmentSchedule = ref<Record<number, DepartureOption[]>>({})
+
+// How far back to fetch + keep already-departed runs, so the board carries
+// recent past departures (shown struck) as context and they survive a rebook.
+const DEPARTURE_PAST_WINDOW_MS = 30 * 60_000
+// On first entry we default the selection to the soonest catchable run; this
+// guards that to once per trip (refreshes/rebooks must not re-trigger it).
+const didAutoSelectDeparture = ref(false)
+
+// Clock driving the departed/hurry chip states (and the decaying approach
+// walk behind them); departures re-fetch keeps the
+// realtime predictions fresh as vehicles move.
+const nowMs = ref(Date.now())
+const tickTimer = setInterval(() => { nowMs.value = Date.now() }, 10_000)
+const refreshTimer = setInterval(() => { void loadDepartures() }, 30_000)
+onUnmounted(() => {
+  clearInterval(tickTimer)
+  clearInterval(refreshTimer)
+})
+
+// ── Service alerts per transit leg ──────────────────────────────────
+// What the agency has published about the line you're about to ride, on the
+// leg it affects. MOTIS hands us feed-prefixed ids ("mta-nyct_B48"); alerts
+// are keyed by the feed-local half, so every id is split before it's asked
+// about.
+const alertsStore = useTransitAlertsStore()
+const segmentAlerts = ref<Record<number, ServiceAlert[]>>({})
+
+/** What this leg is, in the terms an alert feed is keyed by. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function alertQueryForSegment(seg: any): {
+  feedId: string
+  routeIds: string[]
+  stopIds: string[]
+  tripIds: string[]
+} | null {
+  const td = seg.transitDetails
+  const routeId: string | undefined = td?.route?.id
+  if (!routeId) return null
+
+  const { feedId, localId } = splitFeedId(routeId)
+  if (!feedId) return null
+
+  const local = (id?: string) => (id ? splitFeedId(id).localId : null)
+
+  // Interchangeable lines (the 4 and the 5) are one leg to the rider, so an
+  // alert on either of them belongs on this card.
+  const routeIds = [
+    localId,
+    ...((td?.routeOptions ?? []) as Array<{ id?: string }>)
+      .map((r) => local(r.id))
+      .filter(Boolean) as string[],
+  ]
+
+  const stopIds = [td?.departureStop?.id, td?.arrivalStop?.id]
+    .map((id) => local(id))
+    .filter(Boolean) as string[]
+
+  const tripIds = [local(td?.trip?.id)].filter(Boolean) as string[]
+
+  return {
+    feedId,
+    routeIds: [...new Set(routeIds)],
+    stopIds: [...new Set(stopIds)],
+    tripIds,
+  }
+}
+
+async function loadAlerts() {
+  const t = trip.value
+  if (!t) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const next: Record<number, ServiceAlert[]> = {}
+
+  await Promise.all(
+    segs.map(async (seg, idx) => {
+      if (seg.mode !== 'transit') return
+      const query = alertQueryForSegment(seg)
+      if (!query) return
+      // Each run on the board carries its own trip; a trip-scoped alert only
+      // reaches a chip if we asked about that trip.
+      const boardTripIds = (segmentDepartures.value[idx] ?? [])
+        .map((d) => (d.tripId ? splitFeedId(d.tripId).localId : null))
+        .filter(Boolean) as string[]
+
+      const alerts = await alertsStore.fetchAlerts({
+        ...query,
+        tripIds: [...new Set([...query.tripIds, ...boardTripIds])],
+      })
+      if (alerts.length) next[idx] = alerts
+    }),
+  )
+
+  segmentAlerts.value = next
+}
+
+/** The one leg alert whose full text is open, at most. */
+const openLegAlertId = ref<string | null>(null)
+
+function toggleLegAlert(alert: ServiceAlert) {
+  openLegAlertId.value = openLegAlertId.value === alert.id ? null : alert.id
+}
+
+/**
+ * Alerts about the leg itself — the line or the stops, not one specific run.
+ * Those are the ones worth showing on the trip; per-run ones badge their chip.
+ *
+ * Only what is in effect for the ride: a line's scheduled overnight work is a
+ * wall of cards on a trip you are taking this afternoon, and the rider cannot
+ * act on it. The route page is where the full list lives.
+ */
+function legAlerts(segmentIndex: number): ServiceAlert[] {
+  const alerts = segmentAlerts.value[segmentIndex] ?? []
+  return sortByRelevance(
+    alerts.filter((a) => a.informedEntities.some((e) => !e.tripId) && isInEffect(a)),
+  )
+}
+
+async function loadDepartures() {
+  const t = trip.value
+  if (!t) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const nextChips: Record<number, DepartureOption[]> = {}
+  const nextSched: Record<number, DepartureOption[]> = {}
+  await Promise.all(
+    segs.map(async (seg, idx) => {
+      if (seg.mode !== 'transit' || !seg.departureStop?.location) return
+      try {
+        const startMs = new Date(seg.startTime).getTime()
+
+        // Earliest run the rider could physically board: mid-trip you can
+        // only board out of the existing platform wait (arrival on foot);
+        // for the first boarding, leaving home earlier is bounded by the
+        // requested departure time (or now).
+        const hasEarlierTransit = segs
+          .slice(0, idx)
+          .some((s) => s.mode === 'transit')
+        let floorMs: number
+        if (hasEarlierTransit) {
+          const prev = segs[idx - 1]
+          floorMs = prev?.mode === 'walking'
+            ? new Date(prev.endTime).getTime() - (prev.waitSeconds ?? 0) * 1000
+            : startMs
+        } else {
+          const requestedMs = directionsStore.departureTime
+            ? new Date(directionsStore.departureTime).getTime()
+            : Date.now()
+          floorMs = requestedMs + (startMs - new Date(t.startTime).getTime())
+        }
+
+        // Fetch from a fixed past window (anchored on now, not the selected
+        // run) so recent departures are always included and don't drop out when
+        // the rider picks a later train.
+        const fetchFromMs =
+          Math.min(floorMs, startMs, nowMs.value) - DEPARTURE_PAST_WINDOW_MS
+        const { data } = await api.get('/transit/departures', {
+          params: {
+            lat: seg.departureStop.location.lat,
+            lng: seg.departureStop.location.lng,
+            radius: 50,
+            n: 60,
+            time: new Date(fetchFromMs).toISOString(),
+          },
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const all: any[] = (Array.isArray(data) ? data : []).flatMap(
+          (s: { departures?: unknown[] }) => s.departures ?? [],
+        )
+        // Merged "4 or 5" legs match any of their interchangeable routes.
+        const routeNames: (string | undefined)[] = seg.routeOptions?.length
+          ? seg.routeOptions.map((o: { shortName?: string }) => o.shortName)
+          : [seg.lineName]
+        // Cancelled runs stay in the pool — a train vanishing off the board
+        // with no explanation is worse than one struck through as cancelled.
+        const sameLine = all.filter((d) => routeNames.includes(d.route?.shortName))
+        // Same direction: by GTFS direction_id when present (reliable across
+        // the 4 and 5, which carry different headsigns), else by headsign.
+        let pool: typeof sameLine
+        if (seg.directionId != null) {
+          const sameDir = sameLine.filter(
+            (d) => String(d.directionId) === String(seg.directionId),
+          )
+          pool = sameDir.length ? sameDir : sameLine
+        } else {
+          const sameDir = sameLine.filter(
+            (d) => d.headsign?.toLowerCase() === seg.headsign?.toLowerCase(),
+          )
+          pool = sameDir.length >= 2 ? sameDir : sameLine
+        }
+        // Dedup by minute; a run is "live" when any source row carries a
+        // GTFS-RT prediction for it. Keep the route so a merged board can show
+        // which train each run is.
+        const byMs = new Map<
+          number,
+          {
+            realTime: boolean
+            delaySec?: number
+            scheduledMs?: number
+            cancelled: boolean
+            route?: DepartureOption['route']
+            tripId?: string
+          }
+        >()
+        for (const d of pool) {
+          const depMs = new Date(d.departureTime).getTime()
+          // Keep already-departed runs (down to the past window) — they show as
+          // departed and give the rider useful "just missed it" context.
+          if (depMs < fetchFromMs) continue
+          const prev = byMs.get(depMs)
+          const schedMs = d.scheduledDepartureTime
+            ? new Date(d.scheduledDepartureTime).getTime()
+            : undefined
+          byMs.set(depMs, {
+            realTime: (prev?.realTime ?? false) || d.realTime === true,
+            delaySec: prev?.delaySec ?? (typeof d.delay === 'number' ? d.delay : undefined),
+            scheduledMs: prev?.scheduledMs ?? schedMs,
+            // A run only counts as cancelled when no source still runs it.
+            cancelled: (prev?.cancelled ?? true) && d.cancelled === true,
+            route:
+              prev?.route ??
+              (d.route
+                ? { shortName: d.route.shortName, color: d.route.color, textColor: d.route.textColor }
+                : undefined),
+            tripId: prev?.tripId ?? d.trip?.id,
+          })
+        }
+        const runs: DepartureOption[] = [...byMs.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([ms, info]) => ({
+            ms,
+            realTime: info.realTime,
+            delaySec: info.delaySec,
+            scheduledMs: info.scheduledMs,
+            cancelled: info.cancelled,
+            route: info.route,
+            tripId: info.tripId,
+            label: formatTime(new Date(ms)),
+          }))
+        nextSched[idx] = runs
+        // Window on NOW (not the selected run): a tail of recently-departed
+        // runs (struck context) stays put when the rider picks a later train,
+        // plus the next ~hour of upcoming service — always extended through the
+        // planned run so the selection is never sliced out of view.
+        const cutoff = nowMs.value - 30_000
+        const upcoming = runs.filter((d) => d.ms >= cutoff)
+        const selIdx = upcoming.findIndex((d) => Math.abs(d.ms - startMs) < 30_000)
+        const earlier = runs.filter((d) => d.ms < cutoff).slice(-8)
+        const current = upcoming.slice(0, Math.max(12, selIdx + 2))
+        nextChips[idx] = [...earlier, ...current]
+      } catch {
+        // Departures are an enhancement — skip on failure
+      }
+    }),
+  )
+  // Atomic swap — no flicker on the periodic refresh
+  segmentDepartures.value = nextChips
+  segmentSchedule.value = nextSched
+
+  // Alerts ride on the departures they annotate: a run-scoped alert can only
+  // find its chip once we know which trips are on the board. The store's TTL
+  // keeps the 30s refresh from re-asking the feed every time.
+  void loadAlerts()
+
+  // On first entry, default the selection to the SOONEST catchable departure of
+  // the first transit leg (which may be a tight "hurry" connection) — the
+  // planner often defaults to a later run.
+  if (!didAutoSelectDeparture.value) {
+    didAutoSelectDeparture.value = true
+    selectFirstAvailableDeparture()
+  }
+}
+
+/** Default the first transit leg to its earliest catchable run — including a
+ *  "hurry" one, so the rider lands on the soonest train they can still make.
+ *  Runs once per trip; a no-op when that's already the planned run. (This is
+ *  only the default: the rider can still pick any run on the board.) */
+function selectFirstAvailableDeparture() {
+  const t = trip.value
+  if (!t) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const idx = segs.findIndex(
+    (s) => s.mode === 'transit' && s.departureStop?.location,
+  )
+  if (idx < 0) return
+  const firstCatchable = (segmentDepartures.value[idx] ?? []).find((d) => {
+    if (d.cancelled) return false
+    const state = depState(idx, d)
+    return state === 'ok' || state === 'hurry'
+  })
+  if (firstCatchable && !isCurrentDeparture(segs[idx], firstCatchable.ms)) {
+    void chooseDeparture(idx, firstCatchable.ms)
+  }
+}
+
+/** Is this run the one the trip currently boards? */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isCurrentDeparture(segment: any, ms: number): boolean {
+  return Math.abs(ms - asMs(segment.startTime)) < 30_000
+}
+
+function departuresFor(segmentIndex: number): DepartureOption[] {
+  return segmentDepartures.value[segmentIndex] ?? []
+}
+
+
+// ── Departure rebooking ──────────────────────────────────────────────
+// Choosing a later run is pure schedule math on the existing plan — no
+// re-planning. The chosen leg moves to the chosen run; legs before it
+// either shift later (first boarding: leave home later) or keep their
+// schedule with the extra wait absorbed at the platform; legs after keep
+// their planned runs when the connection still holds, otherwise roll to
+// the next departure of the same line.
+const rebooking = ref(false)
+
+function asMs(v: string | Date): number {
+  return new Date(v).getTime()
+}
+
+/** Next run of this segment's line departing at/after minMs. Resolves from
+ *  the prefetched schedule (instant); only goes to the API when the needed
+ *  run falls outside the cached window. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function nextDepartureAfter(seg: any, segmentIndex: number, minMs: number): Promise<number | null> {
+  const sched = segmentSchedule.value[segmentIndex] ?? []
+  // The cache yields the earliest run >= minMs only when it actually begins
+  // at/before minMs. After a forward rebook the cache was refetched around the
+  // bumped (later) time, so rolling back to an earlier connection needs runs
+  // ahead of the cached window — fall through to the API in that case.
+  if (sched.length > 0 && sched[0].ms <= minMs) {
+    // Never auto-roll a downstream connection onto a cancelled run — the rider
+    // may knowingly pick one on the board, but we won't choose it for them.
+    const cached = sched.find((d) => d.ms >= minMs && !d.cancelled)
+    if (cached) return cached.ms
+  }
+  try {
+    const { data } = await api.get('/transit/departures', {
+      params: {
+        lat: seg.departureStop.location.lat,
+        lng: seg.departureStop.location.lng,
+        radius: 50,
+        n: 20,
+        time: new Date(minMs).toISOString(),
+      },
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all: any[] = (Array.isArray(data) ? data : []).flatMap(
+      (s: { departures?: unknown[] }) => s.departures ?? [],
+    )
+    return (
+      all
+        .filter(
+          (d) =>
+            (seg.routeOptions?.length
+              ? seg.routeOptions.some(
+                  (o: { shortName?: string }) => o.shortName === d.route?.shortName,
+                )
+              : d.route?.shortName === seg.lineName) &&
+            (seg.directionId == null ||
+              String(d.directionId) === String(seg.directionId)) &&
+            !d.cancelled,
+        )
+        .map((d) => new Date(d.departureTime).getTime())
+        .filter((m) => m >= minMs)
+        .sort((a, b) => a - b)[0] ?? null
+    )
+  } catch {
+    return null
+  }
+}
+
+async function chooseDeparture(segmentIndex: number, departureMs: number) {
+  const t = trip.value
+  if (!t || rebooking.value) return
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+
+  rebooking.value = true
+  try {
+    const changed = await applyDepartureChange(
+      segs,
+      segmentIndex,
+      departureMs,
+      (i, minMs) => nextDepartureAfter(segs[i], i, minMs),
+    )
+    if (!changed) return
+
+    // Trip-level rollup
+    t.startTime = new Date(asMs(segs[0].startTime))
+    t.endTime = new Date(asMs(segs[segs.length - 1].endTime))
+    t.summary.totalDuration = (asMs(t.endTime) - asMs(t.startTime)) / 1000
+
+    // Refresh chips in the background — the rebooking math is already
+    // applied from the cached schedule, so the UI updates instantly.
+    void loadDepartures()
+  } finally {
+    rebooking.value = false
+  }
+}
+
+// ── Departure chip states (Transit-app style) ────────────────────────
+// departed: the vehicle is gone. unreachable: still upcoming, but not on
+// foot from where the rider is. hurry: catchable, but only just — the walk
+// leaves under 3 minutes of slack. live: time comes from GTFS-RT.
+// All of these are hints; none of them block a rebook.
+
+/** Approach walk still ahead of the rider for this boarding, when it's the
+ *  trip's first transit leg (0 otherwise — mid-trip positions depend on
+ *  earlier legs, so only "departed" can be judged there). Decays as the rider
+ *  actually closes on the stop rather than staying pinned to the plan. */
+function remainingWalkSec(segmentIndex: number): number {
+  const t = trip.value
+  if (!t) return 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  const isFirst = !segs.slice(0, segmentIndex).some((s) => s.mode === 'transit')
+  if (!isFirst) return 0
+  const prev = segs[segmentIndex - 1]
+  if (prev?.mode !== 'walking') return 0
+  const planned = movingDuration(prev)
+  // Arrival at the stop excludes the platform wait folded into the walk leg.
+  const arrivalMs = asMs(prev.endTime) - (prev.waitSeconds ?? 0) * 1000
+  return remainingAccessWalkSec(
+    {
+      plannedSec: planned,
+      arrivalMs,
+      distanceM: prev.distance,
+      stop: segs[segmentIndex]?.departureStop?.location ?? null,
+      position: geo.lngLat.value,
+      accuracyM: geo.accuracy.value,
+    },
+    nowMs.value,
+  )
+}
+
+/** The rider's "arrive early" margin, in seconds. Read from the transit slice
+ *  directly rather than the merged `routingPreferences` — a multimodal trip
+ *  resolves those against the biking slice, which carries no transit keys. */
+const graceSec = computed(
+  () => (directionsStore.modePreferences.transit?.transitBufferMinutes ?? 2) * 60,
+)
+
+function depState(segmentIndex: number, dep: DepartureOption): DepartureReachability {
+  return departureReachability(
+    dep.ms,
+    nowMs.value,
+    remainingWalkSec(segmentIndex),
+    graceSec.value,
+  )
+}
+
+/** Minutes late (positive) or early (negative) worth telling the rider about.
+ *  Under a minute is timetable noise, not news. */
+const DELAY_NOTICE_SEC = 60
+
+/** What is true about a run. Purely factual — how any of it *looks* is the
+ *  board's business, not this view's:
+ *   • planned     — the run the trip currently boards
+ *   • departed    — already gone
+ *   • unreachable — upcoming, but probably not on foot in time
+ *   • hurry       — you'd make it with less than your margin spare
+ *   • arriving    — imminent, i.e. "now"
+ *   • cancelled   — pulled by the operator
+ *   • live        — the time is a GTFS-RT prediction rather than the schedule
+ *   • delaySec    — how far that prediction sits off the timetable
+ *  Every card stays selectable regardless — the rider may well know something
+ *  the estimate doesn't. */
+interface DepCard {
+  planned: boolean
+  departed: boolean
+  unreachable: boolean
+  hurry: boolean
+  arriving: boolean
+  cancelled: boolean
+  /** Published about this specific run, not the whole leg. */
+  alert?: ServiceAlert
+  live: boolean
+  clickable: boolean
+  lead: string
+  sub: string
+  /** Timetabled time, when a live prediction has superseded it. */
+  scheduledSub?: string
+  delaySec?: number
+  route?: DepartureOption['route']
+  title: string
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepCard {
+  const planned = isCurrentDeparture(segment, dep.ms)
+  const state = depState(segmentIndex, dep)
+  const departed = state === 'departed'
+  // The reachability hints stand even on the selected card — you still have to
+  // rush for (or have likely missed) it — so `planned` doesn't suppress them.
+  const unreachable = state === 'unreachable'
+  const hurry = state === 'hurry'
+  const cancelled = dep.cancelled === true
+  const { lead, sub } = depCountdown(dep.ms, nowMs.value)
+  const arriving = !departed && !cancelled && lead === 'now'
+  const name = dep.route?.shortName ?? segment.lineName
+  const switchTo = `Switch to the ${name} at ${dep.label}`
+
+  // Only worth showing the timetable alongside the prediction when they
+  // actually disagree — otherwise every live card grows a redundant second time.
+  const delaySec = dep.delaySec
+  const offSchedule =
+    delaySec != null &&
+    Math.abs(delaySec) >= DELAY_NOTICE_SEC &&
+    dep.scheduledMs != null
+  const scheduledSub = offSchedule
+    ? formatClockCompact(new Date(dep.scheduledMs!))
+    : undefined
+  const delayPhrase = offSchedule
+    ? delaySec! > 0
+      ? `${Math.round(delaySec! / 60)} min late`
+      : `${Math.round(-delaySec! / 60)} min early`
+    : null
+
+  // Only alerts naming this exact run — the leg's own alerts already have a
+  // card above the board, and repeating them on twelve chips is noise.
+  const runAlert = dep.tripId
+    ? (segmentAlerts.value[segmentIndex] ?? []).find((a) =>
+        a.informedEntities.some(
+          (e) => e.tripId && e.tripId === splitFeedId(dep.tripId!).localId,
+        ),
+      )
+    : undefined
+
+  return {
+    planned,
+    departed,
+    unreachable,
+    hurry,
+    arriving,
+    cancelled,
+    alert: runAlert,
+    live: dep.realTime,
+    clickable: !planned,
+    lead,
+    sub,
+    scheduledSub,
+    delaySec,
+    route: dep.route,
+    // The tooltip spells out what each badge means the first time someone
+    // hovers one, and always says the run is still selectable — the badges
+    // are a read on your chances, not a refusal.
+    title: cancelled
+      ? `Cancelled — the ${name} at ${dep.label} isn't running`
+      : planned
+        ? joinStatus('Planned departure', delayPhrase)
+        : departed
+          ? `Departed at ${dep.label}`
+          : unreachable
+            ? `You may miss this one — the ${name} leaves at ${dep.label}, sooner than you can reach the stop. Pick it anyway if you're closer than we think`
+            : hurry
+              ? `Catchable if you hurry — the ${name} leaves at ${dep.label}`
+              : joinStatus(switchTo, delayPhrase),
+  }
+}
+
+
+/** Per-segment board cards, each enriched with its visual state. Recomputes off
+ *  the nowMs tick and whenever fresh departures land. */
+const boardCards = computed(() => {
+  const t = trip.value
+  const out: Record<number, Array<DepartureOption & { card: DepCard }>> = {}
+  if (!t) return out
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+  for (const [key, deps] of Object.entries(segmentDepartures.value)) {
+    const idx = Number(key)
+    const seg = segs[idx]
+    if (!seg) continue
+    out[idx] = deps.map((dep) => ({ ...dep, card: depCard(seg, idx, dep) }))
+  }
+  return out
+})
+
+
+
+
+const hoveredInstructionKey = ref<string | null>(null)
+
+const tripId = computed(() => route.params.id as string)
+const isLoading = ref(false)
+const error = ref<string | null>(null)
+
+// Server-persisted snapshot (the `pt` capability token in the URL): the
+// exact trip as originally planned, immune to schedule drift. Fetched when
+// the in-memory plan can't supply the trip — refresh, another device.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const persistedTrip = ref<any | null>(null)
+const recovering = ref(false)
+
+async function recoverPersistedTrip() {
+  const pt = route.query.pt as string | undefined
+  if (!pt || persistedTrip.value || recovering.value) return
+  recovering.value = true
+  try {
+    const { data } = await api.get(`/directions/trips/${pt}`)
+    persistedTrip.value = data.trip
+  } catch {
+    // Unknown/expired snapshot — the sig/re-plan path may still recover it
+  } finally {
+    recovering.value = false
+  }
+}
+
+// Trip lookup, most faithful source first:
+// 1. exact id in the in-memory plan (same session, or session-cache restore)
+// 2. the persisted snapshot (refresh / shared link — exact times)
+// 3. signature match against a fresh re-plan (best effort, ids re-minted)
+const trip = computed(() => {
+  const list = directionsStore.trips?.trips
+  const byId = list?.find(t => t.id === tripId.value)
+  if (byId) return byId
+  if (persistedTrip.value) return persistedTrip.value
+  const sig = route.query.sig as string | undefined
+  if (!sig || !list) return null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return list.find(t => tripSignature((t as any).segments) === sig) || null
+})
+
+watch(
+  () => [tripId.value, route.query.pt],
+  () => {
+    const list = directionsStore.trips?.trips
+    if (!list?.some(t => t.id === tripId.value)) void recoverPersistedTrip()
+  },
+  { immediate: true },
+)
+
+watch(
+  trip,
+  () => {
+    // A new trip gets its own first-entry default selection + board scroll.
+    didAutoSelectDeparture.value = false
+    void loadDepartures()
+  },
+  { immediate: true },
+)
+
+// Keep the URL's id canonical after a signature match, so departure
+// rebooking and further shares reference the live trip object.
+watch(trip, (t) => {
+  if (t && t.id !== tripId.value) {
+    router.replace({ params: { id: t.id }, query: route.query }).catch(() => {})
+  }
+})
+
+// Only bail back to the planner when results have settled and the trip is
+// genuinely absent — never mid-recovery while the snapshot fetch or the
+// re-plan is in flight.
+watch(
+  [trip, () => directionsStore.isLoading, recovering],
+  ([newTrip, loading, busy]) => {
+    if (newTrip === null && !loading && !busy && directionsStore.trips) {
+      router.push({ name: AppRoute.DIRECTIONS, query: route.query })
+    }
+  },
+  { immediate: true },
+)
+
+
+
+const modeTextColors: Record<string, string> = {
+  walking: 'text-cobalt-500',
+  driving: 'text-violet-500',
+  cycling: 'text-forest-500',
+  biking: 'text-forest-500',
+  transit: 'text-parchment-600',
+  truck: 'text-compass-500',
+}
+
+watch(
+  trip,
+  newTrip => {
+    if (newTrip) {
+      mapService.setVisibleTrips([newTrip.id])
+    }
+  },
+  { immediate: true },
+)
+
+onBeforeRouteLeave(to => {
+  mapService.setRouteProfile(null)
+  if (to.name === AppRoute.DIRECTIONS && tripId.value) {
+    mapService.setVisibleTrips([tripId.value])
+  }
+})
+
+// Tear down on unmount, not in the leave guard: clearing waypoints there fires
+// the service's syncUrl watcher, whose router.replace cancels the outgoing
+// navigation. `route.name` is the committed destination here.
+onUnmounted(() => {
+  if (route.name === AppRoute.DIRECTIONS) return
+  directionsService.clearWaypoints()
+  directionsStore.unsetTrips()
+})
+
+function onInstructionHover(
+  segmentIndex: number,
+  instrIndex: number,
+  instruction: string | RouteInstruction,
+) {
+  hoveredInstructionKey.value = `${segmentIndex}-${instrIndex}`
+  if (typeof instruction === 'object' && instruction.coordinate) {
+    mapService.highlightInstructionPoint(segmentIndex, instrIndex)
+  }
+}
+
+function onInstructionLeave() {
+  hoveredInstructionKey.value = null
+  mapService.clearHighlightedInstructionPoint()
+}
+
+function getInstructionKey(segmentIndex: number, instrIndex: number): string {
+  return `${segmentIndex}-${instrIndex}`
+}
+
+const heroDuration = computed(() => {
+  if (!trip.value) return { main: '', suffix: '' }
+  const s = trip.value.summary.totalDuration
+  const hours = Math.floor(s / 3600)
+  const minutes = Math.floor((s % 3600) / 60)
+  if (hours > 0) return { main: `${hours}h ${minutes}m`, suffix: '' }
+  return { main: String(minutes), suffix: 'min' }
+})
+
+
+const formatDistanceDisplay = (meters: number | undefined): string => {
+  if (!meters) return formatDistance(0)
+  return formatDistance(meters)
+}
+
+const formatTime = (date: Date): string => {
+  return new Date(date).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+
+function onRouteProfileChange(
+  segmentIndex: number,
+  profile: RouteProfileType | null,
+) {
+  if (!trip.value) return
+  mapService.setSegmentRouteProfile(trip.value.id, segmentIndex, profile)
+}
+
+const formatCurrency = (cost: { currency: string; amount: number }): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: cost.currency,
+  }).format(cost.amount)
+}
+
+type RentalPricing = NonNullable<SharedMobilityDetails['pricing']>
+
+/** "≈ $12.12" — estimated single-ride fare. */
+const formatRentalFare = (p: RentalPricing): string =>
+  `≈ ${formatCurrency({ currency: p.currency, amount: p.estimatedCost })}`
+
+/** "$4.99 unlock + $0.41/min" — the rate card behind the estimate. */
+const formatFareBreakdown = (p: RentalPricing): string => {
+  const unlock = `${formatCurrency({ currency: p.currency, amount: p.unlockPrice })} unlock`
+  if (p.perMinuteRate > 0) {
+    const rate = formatCurrency({ currency: p.currency, amount: p.perMinuteRate })
+    return `${unlock} + ${rate}/min`
+  }
+  return unlock
+}
+
+
+
+// ── Route waypoints ────────────────────────────────────────────────
+
+interface RouteWaypointDisplay {
+  id: string
+  role: 'origin' | 'via' | 'destination'
+  displayName: string
+  time: Date | null
+  place?: Partial<Place> | null
+  /** What the timeline renders the stop from. */
+  display: PlaceDisplay
+  /**
+   * Whether `display.icon` is the stop's own — a POI's glyph, the locate mark
+   * for current location. False for a stop that is just a point on the map,
+   * which keeps the rail's start/stop marks instead.
+   */
+  ownIcon: boolean
+}
+
+const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
+  const waypoints = directionsStore.trips?.request?.waypoints
+  const t = trip.value
+  if (!waypoints || waypoints.length === 0 || !t) return []
+
+  let viaCounter = 0
+  return waypoints.map((wp, i) => {
+    const isOrigin = i === 0
+    const isDestination = i === waypoints.length - 1
+    const role: 'origin' | 'via' | 'destination' = isOrigin
+      ? 'origin'
+      : isDestination
+        ? 'destination'
+        : 'via'
+    const fallbackName = isOrigin
+      ? 'Origin'
+      : isDestination
+        ? 'Destination'
+        : `Stop ${++viaCounter}`
+    const place = wp.place ?? null
+    return {
+      id: wp.id || `wp-${i}`,
+      role,
+      displayName: wp.name?.trim() || fallbackName,
+      time: isOrigin ? t.startTime : isDestination ? t.endTime : null,
+      place,
+      ...waypointToDisplay(place, {
+        isDark: themeStore.isDark,
+        t: translate,
+        fallbackTitle: wp.name?.trim() || fallbackName,
+      }),
+    }
+  })
+})
+
+// ── Unified timeline ───────────────────────────────────────────────
+
+interface TimelineWaypointEntry {
+  kind: 'waypoint'
+  wp: RouteWaypointDisplay
+  waypointIndex: number
+}
+
+interface TimelineSegmentEntry {
+  kind: 'segment'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  segment: any
+  segmentIndex: number
+}
+
+interface TimelinePlaceStopEntry {
+  kind: 'place-stop'
+  place: Place
+  label: string
+  time: Date | null
+}
+
+type TimelineEntry = TimelineWaypointEntry | TimelineSegmentEntry | TimelinePlaceStopEntry
+
+const timelineEntries = computed<TimelineEntry[]>(() => {
+  const t = trip.value
+  if (!t) return []
+  const entries: TimelineEntry[] = []
+  const wps = routeWaypoints.value
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segs = t.segments as any[]
+
+  const origin = wps.find(w => w.role === 'origin')
+  entries.push({
+    kind: 'waypoint',
+    waypointIndex: 0,
+    wp: origin ?? {
+      id: 'origin',
+      role: 'origin',
+      displayName: '',
+      time: segs[0]?.startTime ?? t.startTime,
+      ...waypointToDisplay(null, { isDark: themeStore.isDark, t: translate, fallbackTitle: 'Origin' }),
+    },
+  })
+
+  for (let i = 0; i < segs.length; i++) {
+    entries.push({ kind: 'segment', segment: segs[i], segmentIndex: i })
+
+    // Check for a place-bearing intermediate waypoint (e.g. parking) between
+    // consecutive segments. The backend attaches a full Place object to the
+    // segment end waypoint when it represents an OSM POI like a bike rack.
+    const seg = segs[i]
+    const nextSeg = segs[i + 1]
+    if (nextSeg && seg.end?.place) {
+      entries.push({
+        kind: 'place-stop',
+        place: seg.end.place as Place,
+        label: seg.end.label || seg.end.place.name?.value || 'Stop',
+        time: seg.endTime ?? null,
+      })
+    }
+
+    const viaIndex = i + 1
+    if (viaIndex < wps.length - 1) {
+      const via = wps[viaIndex]
+      if (via?.role === 'via') {
+        entries.push({ kind: 'waypoint', wp: via, waypointIndex: viaIndex })
+      }
+    }
+  }
+
+  const dest = wps.find(w => w.role === 'destination')
+  entries.push({
+    kind: 'waypoint',
+    waypointIndex: Math.max(wps.length - 1, 1),
+    wp: dest ?? {
+      id: 'destination',
+      role: 'destination',
+      displayName: '',
+      time: segs[segs.length - 1]?.endTime ?? t.endTime,
+      ...waypointToDisplay(null, { isDark: themeStore.isDark, t: translate, fallbackTitle: 'Destination' }),
+    },
+  })
+
+  return entries
+})
+
+// ── Rail color helper ──────────────────────────────────────────────
+
+
+
+// ── Transit card rail ──────────────────────────────────────────────
+
+/**
+ * A transit leg on a named line renders as a card that the trip rail runs
+ * *through* rather than beside: the card spans the whole row and carries the
+ * line in its own 28px gutter, so the boarding stop, the intermediate stops
+ * and the alighting stop are nodes on the journey's one timeline. Rows for
+ * these entries therefore skip the shared rail column.
+ */
+function isTransitCard(entry: TimelineEntry): boolean {
+  return (
+    entry.kind === 'segment' &&
+    entry.segment.mode === 'transit' &&
+    !!entry.segment.lineName
+  )
+}
+
+
+// ── Segment helpers ────────────────────────────────────────────────
+
+function showSegmentChart(segment: any): boolean {
+  return !!(
+    segment.geometry &&
+    (segment.totalElevationGain ||
+      segment.totalElevationLoss ||
+      segment.edgeSegments?.length) &&
+    (segment.mode === 'walking' || segment.mode === 'cycling')
+  )
+}
+
+</script>
+
+<template>
+  <!-- PanelLayout: the standard sheet content wrapper — flows into the host
+       sheet's single scroll surface with the standard insets, like every other
+       sheet page (no nested overflow, which broke drag-to-scroll on mobile). -->
+  <PanelLayout>
+    <!-- Loading (own state, the snapshot fetch, or the shared planner
+         re-creating the trip from a refreshed/shared URL) -->
+    <div v-if="isLoading || (!trip && (recovering || directionsStore.isLoading))" class="flex items-center justify-center py-8">
+      <Caption>Loading trip details...</Caption>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="py-4">
+      <Caption class="text-destructive">{{ error }}</Caption>
+    </div>
+
+    <!-- Trip content -->
+    <div v-else-if="trip">
+      <!-- Hero, pinned. How long the trip takes and when it leaves is what the
+           rest of the panel is read against, so it stays on screen while the
+           timeline scrolls under it — the same contract the transit route
+           detail uses. The margin cancels PanelLayout's inset and re-adds the
+           dock line, so the header's natural position IS where it sticks; see
+           `RouteDetailPage` for why any other value breaks. -->
+      <SheetHeader
+        v-slot="{ stuck }"
+        class="-mx-3 mb-3 mt-[calc(var(--sheet-sticky-top,0px)_-_var(--panel-inset-top,0px))]"
+      >
+      <div
+        class="px-3 md:pt-4 pb-3 border-b transition-colors duration-200"
+        :class="stuck ? 'border-border/60' : 'border-transparent'"
+      >
+      <!-- Actions sit at the BOTTOM of the block (items-end) so they clear the
+           sheet's back/close nav, which occupies the top-right chrome zone;
+           the stats stay at the top. -->
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <div class="flex items-baseline gap-2">
+            <span class="font-display text-[36px] leading-none tracking-tight">
+              {{ heroDuration.main }}
+            </span>
+            <span
+              v-if="heroDuration.suffix"
+              class="font-display text-[22px] leading-none text-muted-foreground"
+            >
+              {{ heroDuration.suffix }}
+            </span>
+            <span class="text-sm text-muted-foreground">
+              {{ formatDistanceDisplay(trip.summary.totalDistance) }}
+            </span>
+          </div>
+
+          <!-- Leave – arrive -->
+          <div class="mt-1 text-sm text-muted-foreground tabular-nums">
+            {{ formatTime(trip.startTime) }} – {{ formatTime(trip.endTime) }}
+          </div>
+
+          <!-- Cost / CO2 -->
+          <div
+            v-if="trip.cost?.total || trip.co2Emissions"
+            class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"
+          >
+            <span v-if="trip.cost?.total">
+              {{ formatCurrency(trip.cost.total) }}
+            </span>
+            <span v-if="trip.co2Emissions">
+              {{ formatCo2(trip.co2Emissions) }} CO₂
+            </span>
+          </div>
+        </div>
+
+        <!-- Share + Save -->
+        <div class="flex gap-0.5 shrink-0 -mr-2 -mb-1">
+          <Button variant="ghost" size="icon-sm">
+            <ShareIcon class="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon-sm">
+            <BookmarkIcon class="size-4" />
+          </Button>
+        </div>
+      </div>
+      </div>
+      </SheetHeader>
+
+      <!-- Timezone warning -->
+      <div
+        v-if="directionsStore.timezoneWarning"
+        class="mt-3 flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg text-sm"
+      >
+        <ClockIcon class="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+        <span class="text-amber-800 dark:text-amber-200">
+          Your destination is in a different time zone ({{ directionsStore.timezoneWarning.offsetDifferenceText }})
+        </span>
+      </div>
+
+      <!-- ── Unified timeline ─────────────────────────────────── -->
+      <!--
+        Layout: each entry is a flex row [rail | content].
+        Rail is 28px wide, icons are top-aligned with text via shared pt.
+        Lines are absolute-positioned behind icons (z-10) with overlap
+        to eliminate sub-pixel gaps between entries.
+
+        Waypoint dot: 16px (size-4), center at 10px from entry top (2px mt + 8px half).
+        Segment icon: 28px (size-7), center at 19px from entry top (5px mt + 14px half).
+          The 5px mt centers the icon against the full header (~38px: title + subtitle).
+        Line overlap: 2px past entry edges to guarantee seamless joins.
+      -->
+      <div class="mt-4">
+        <div
+          v-for="(entry, i) in timelineEntries"
+          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
+          class="flex"
+          :class="!isTransitCard(entry) && 'pl-2'"
+        >
+          <!-- Rail column — fixed width, relative for absolute lines.
+               Transit cards draw the rail themselves, through the card. -->
+          <div
+            v-if="!isTransitCard(entry)"
+            class="relative flex flex-col items-center w-7 shrink-0"
+          >
+
+            <!-- ── Waypoint rail ── -->
+            <!-- The stop's own glyph is the rail node. A stop is a place, and
+                 drawing a dot on the rail *and* an icon beside it made two
+                 marks for one thing. Sized to the segment icons so the rail
+                 keeps one rhythm down the trip. -->
+            <template v-if="entry.kind === 'waypoint'">
+              <!-- Line above the node: from the top of the entry (2px overlap)
+                   to the node's centre at 18px. -->
+              <div
+                v-if="i > 0"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[20px]"
+                :class="railColorAt(timelineEntries, i, 'above')"
+              />
+              <!-- Line below the node -->
+              <div
+                v-if="i < timelineEntries.length - 1"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[18px] bottom-[-2px]"
+                :class="railColorAt(timelineEntries, i, 'above')"
+              />
+              <!-- Every stop but the start wears a marker: its own POI glyph
+                   where it has one, the marker system's pin where it doesn't.
+                   The end of a trip is a place like any other — it does not
+                   need a flag of its own to say so, and the arrival time
+                   beside it already does. -->
+              <ItemIcon
+                v-if="entry.waypointIndex > 0 || entry.wp.ownIcon"
+                :icon="entry.wp.display.icon"
+                :icon-pack="entry.wp.display.iconPack"
+                :color="entry.wp.display.color"
+                :custom-color="entry.wp.display.customColor"
+                :image-url="entry.wp.display.imageUrl ?? undefined"
+                size="sm"
+                variant="solid"
+                shape="circle"
+                class="relative z-10 mt-1 !size-7 shrink-0 ring-2 ring-muted-light"
+              />
+              <!-- The start of a trip is the one point that isn't a place —
+                   it's where you are. It keeps the open ring, small: the box
+                   around it only exists to put its centre on the rail where a
+                   glyph's would be. -->
+              <div
+                v-else
+                class="relative z-10 mt-1 size-7 flex items-center justify-center shrink-0"
+              >
+                <div
+                  class="size-4 rounded-full bg-background border-[1.5px] border-foreground/60 ring-2 ring-muted-light"
+                />
+              </div>
+            </template>
+
+            <!-- ── Place stop rail (parking, etc.) ── -->
+            <template v-else-if="entry.kind === 'place-stop'">
+              <div
+                v-if="i > 0"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[20px]"
+                :class="railColorAt(timelineEntries, i, 'above')"
+                :style="railStyleAt(timelineEntries, i, 'above')"
+              />
+              <div
+                v-if="i < timelineEntries.length - 1"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[18px] bottom-[-2px]"
+                :class="railColorAt(timelineEntries, i, 'below')"
+                :style="railStyleAt(timelineEntries, i, 'below')"
+              />
+              <ItemIcon
+                :icon="getSearchResultIconName(entry.place)"
+                :icon-pack="getSearchResultIconPack(entry.place)"
+                :custom-color="getCategoryColor(getSearchResultCategory(entry.place), themeStore.isDark)"
+                size="sm"
+                variant="solid"
+                shape="circle"
+                class="relative z-10 mt-1 !size-7 shrink-0 ring-2 ring-muted-light"
+              />
+            </template>
+
+            <!-- ── Segment rail ── -->
+            <template v-else-if="entry.kind === 'segment'">
+              <!-- Line above icon: previous segment's color, from top (with overlap) to icon center -->
+              <div
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[21px]"
+                :class="railColorAt(timelineEntries, i, 'above')"
+                :style="railStyleAt(timelineEntries, i, 'above')"
+              />
+              <!-- Line below icon: this segment's color, from icon center to bottom (with overlap) -->
+              <div
+                v-if="i < timelineEntries.length - 1"
+                class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[19px] bottom-[-2px]"
+                :class="!entry.segment.lineColor && (TRIP_MODE_COLORS[entry.segment.mode as keyof typeof TRIP_MODE_COLORS] || 'bg-parchment-500')"
+                :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}` } : {}"
+              />
+              <!-- Mode icon — mt-[5px] centers 28px icon against ~38px header (title + subtitle) -->
+              <div
+                class="relative z-10 mt-[5px] shrink-0 size-7 rounded-full flex items-center justify-center text-white"
+                :class="!entry.segment.lineColor && (TRIP_MODE_COLORS[entry.segment.mode as keyof typeof TRIP_MODE_COLORS] || 'bg-parchment-500')"
+                :style="entry.segment.lineColor ? {
+                  background: `#${entry.segment.lineColor}`,
+                  color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                } : {}"
+              >
+                <component
+                  :is="getSegmentIcon(entry.segment.mode, entry.segment.routeType)"
+                  class="size-3.5"
+                />
+              </div>
+            </template>
+          </div>
+
+          <!-- Content column -->
+          <div
+            class="flex-1 min-w-0"
+            :class="isTransitCard(entry)
+              ? 'pb-5'
+              : entry.kind === 'segment' ? 'pl-2.5 pb-5' : 'pl-2.5 pb-4'"
+          >
+            <!-- ═══ Waypoint content ═══ -->
+            <!-- The name and type a place card derives, without the card: the
+                 rail already carries the icon, and a box around every stop
+                 fought the segments between them. `plain` keeps the hover and
+                 the link; the negative inset lets the highlight run the width
+                 of the row while the text still lines up with the segments. -->
+            <template v-if="entry.kind === 'waypoint'">
+              <PlaceCard
+                :display="entry.wp.display"
+                variant="plain"
+                size="sm"
+                density="compact"
+                :show-icon="false"
+                class="-mx-2"
+              >
+                <template v-if="entry.wp.time" #title-trailing>
+                  <span class="text-xs font-medium tabular-nums text-muted-foreground shrink-0">
+                    {{ formatTime(entry.wp.time) }}
+                  </span>
+                </template>
+              </PlaceCard>
+            </template>
+
+            <!-- ═══ Place stop content (parking, etc.) ═══ -->
+            <template v-else-if="entry.kind === 'place-stop'">
+              <PlaceCard
+                :place="entry.place"
+                :title="entry.label || undefined"
+                variant="plain"
+                size="sm"
+                density="compact"
+                :show-icon="false"
+                class="-mx-2"
+              >
+                <template v-if="entry.time" #title-trailing>
+                  <span class="text-xs font-medium tabular-nums text-muted-foreground shrink-0">
+                    {{ formatTime(entry.time) }}
+                  </span>
+                </template>
+              </PlaceCard>
+            </template>
+
+            <!-- ═══ Segment content ═══ -->
+            <template v-else-if="entry.kind === 'segment'">
+              <!-- ── Transit segment card ── -->
+              <!--
+                The trip's rail runs *through* this card rather than beside it:
+                the card spans the full row and paints the line in its own 28px
+                gutter, at the same x as the rail on every other entry (half of
+                the w-7 rail column). So the mode icon, the boarding stop, the
+                intermediate stops and the alighting stop are all nodes on one
+                continuous line.
+
+                The line changes to this segment's colour at the mode icon, as
+                it does elsewhere on the timeline, so the header paints two
+                slices and the rest of the card one. Every slice overlaps 2px
+                into its neighbour to hide sub-pixel seams — including across
+                the card's own border, which is why the card doesn't clip: the
+                mode icon fills the gutter and rides that border.
+
+                Rows inside the card keep the timeline's gutter — the w-7 rail
+                column plus pl-2.5 — so stop names line up with the text of the
+                walking legs above and below.
+
+                The card runs the full width of the timeline while every other
+                row is indented 8px (pl-2), and the card gives that 8px back to
+                its own rows. So the rail still lands in the same place, and the
+                mode icon clears the card's edge by 8px — which sets the corner
+                radius at 22px (the icon's 14px radius plus that gap) so the
+                corner runs concentric with the icon.
+              -->
+              <div v-if="entry.segment.mode === 'transit' && entry.segment.lineName">
+                <!-- The outline is a ring, not a border: a border would push the card's
+                     content — and so the rail running through it — 1px right of
+                     the rail on every other entry. The ring sits outside the box,
+                     so the header's tint can't cover it either. -->
+                <div class="rounded-[22px] ring-1 ring-border bg-card">
+                  <!-- Line header — tinted with the line colour, mode icon on the rail -->
+                  <div
+                    class="flex items-stretch rounded-t-[22px] pl-2"
+                    :class="!entry.segment.lineColor && 'bg-muted/40'"
+                    :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}1f` } : {}"
+                  >
+                    <div class="relative flex flex-col items-center justify-center w-7 shrink-0">
+                      <!-- Above the icon: the colour of whatever came before -->
+                      <div
+                        class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[calc(50%+2px)]"
+                        :class="railColorAt(timelineEntries, i, 'above')"
+                        :style="railStyleAt(timelineEntries, i, 'above')"
+                      />
+                      <!-- Below the icon: this line's colour, on down the card -->
+                      <div
+                        class="absolute left-1/2 -translate-x-1/2 w-0.5 top-1/2 bottom-[-2px]"
+                        v-bind="segmentRail(entry.segment)"
+                      />
+                      <div
+                        class="relative z-10 size-7 rounded-full flex items-center justify-center text-white shrink-0"
+                        :class="!entry.segment.lineColor && (TRIP_MODE_COLORS[entry.segment.mode as keyof typeof TRIP_MODE_COLORS] || 'bg-parchment-500')"
+                        :style="entry.segment.lineColor ? {
+                          background: `#${entry.segment.lineColor}`,
+                          color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
+                        } : {}"
+                      >
+                        <component
+                          :is="getSegmentIcon(entry.segment.mode, entry.segment.routeType)"
+                          class="size-3.5"
+                        />
+                      </div>
+                    </div>
+                    <div class="flex-1 min-w-0 flex items-center gap-2 py-2 pl-2.5 pr-3">
+                    <!-- Interchangeable routes (4/5, N/Q/R/W) render as a tight
+                         cluster of bullets — any of them works for this leg. -->
+                    <div
+                      v-if="(entry.segment.routeOptions?.length ?? 0) > 1"
+                      class="flex items-center gap-1 shrink-0"
+                    >
+                      <RouteBullet
+                        v-for="opt in (entry.segment.routeOptions as { shortName?: string; color?: string; textColor?: string }[])"
+                        :key="opt.shortName"
+                        size="md"
+                        :label="opt.shortName"
+                        :color="opt.color"
+                        :text-color="opt.textColor"
+                      />
+                    </div>
+                    <RouteBullet
+                      v-else
+                      size="md"
+                      :label="entry.segment.lineName"
+                      :color="entry.segment.lineColor"
+                      :text-color="entry.segment.lineTextColor"
+                    />
+                    <ArrowRight class="size-3.5 text-muted-foreground shrink-0" />
+                    <span class="text-sm font-semibold text-foreground truncate">
+                      {{ entry.segment.headsign || entry.segment.lineLongName }}
+                    </span>
+                    <RealtimeIndicator
+                      v-if="entry.segment.realTimeData"
+                      :real-time="true"
+                      :delay="entry.segment.delay"
+                      :color="entry.segment.lineColor ? `#${entry.segment.lineColor}` : undefined"
+                      class="ml-auto shrink-0"
+                    />
+                    </div>
+                  </div>
+
+                  <!-- Card body — the rail carries straight on behind every row,
+                       so each row only has to place its own node on it.
+                       Node centres, measured from each row's top:
+                         board / alight — 10px (5px mt + 5px half of size-2.5)
+                         intermediate   —  8px (5px mt + 3px half of size-1.5) -->
+                  <div class="relative py-2.5 pl-2 pr-3">
+                    <!-- The rail sits outside the spaced rows: `space-y` margins
+                         apply to every non-last child, and on an absolutely
+                         positioned element that margin shortens the line. -->
+                    <div
+                      class="absolute left-[22px] -translate-x-1/2 w-0.5 top-[-2px] bottom-[-2px]"
+                      v-bind="segmentRail(entry.segment)"
+                    />
+                    <div class="space-y-2">
+
+                    <!-- Board -->
+                    <div v-if="entry.segment.departureStop" class="relative flex">
+                      <div class="flex flex-col items-center w-7 shrink-0">
+                        <div
+                          class="mt-[5px] size-2.5 rounded-full shrink-0"
+                          v-bind="segmentRail(entry.segment)"
+                        />
+                      </div>
+                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2.5">
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium text-foreground leading-snug">
+                            {{ entry.segment.departureStop.name }}
+                          </div>
+                          <div class="text-[11px] text-muted-foreground mt-px">
+                            Board<span v-if="entry.segment.departureStop.platformCode"> · Platform {{ entry.segment.departureStop.platformCode }}</span>
+                          </div>
+                        </div>
+                        <div class="text-sm font-semibold tabular-nums shrink-0">
+                          {{ formatTime(entry.segment.startTime) }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- What the agency has published about this line, above
+                         the board of runs it applies to. Keeps the card's
+                         gutter so it lines up with the stops either side. -->
+                    <div v-if="legAlerts(entry.segmentIndex).length" class="relative flex">
+                      <div class="w-7 shrink-0" />
+                      <div class="flex-1 min-w-0 pl-2.5 space-y-1.5">
+                        <template
+                          v-for="alert in legAlerts(entry.segmentIndex)"
+                          :key="alert.id"
+                        >
+                          <ServiceAlertRow
+                            :alert="alert"
+                            :when="null"
+                            :expanded="alert.id === openLegAlertId"
+                            @toggle="toggleLegAlert(alert)"
+                          />
+                          <ServiceAlertCard
+                            v-if="alert.id === openLegAlertId"
+                            :alert="alert"
+                          />
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- Other departures on this line -->
+                    <div v-if="departuresFor(entry.segmentIndex).length > 1" class="relative flex">
+                      <div class="w-7 shrink-0" />
+                      <div class="flex-1 min-w-0 pl-2.5">
+                        <DepartureBoard
+                          :key="`${trip.id}-${entry.segmentIndex}`"
+                          :cards="boardCards[entry.segmentIndex] ?? []"
+                          :line-color="entry.segment.lineColor"
+                          :line-text-color="entry.segment.lineTextColor"
+                          :line-name="entry.segment.lineName"
+                          :busy="rebooking"
+                          @choose="ms => chooseDeparture(entry.segmentIndex, ms)"
+                        />
+                      </div>
+                    </div>
+
+                    <!-- Intermediate stops — they open onto the same rail -->
+                    <Collapsible
+                      v-if="entry.segment.intermediateStops?.length"
+                      v-slot="{ open }"
+                      class="relative"
+                    >
+                      <!-- Same full-width control as the leg's Details toggle,
+                           offset past the rail column so it lines up with the
+                           cards above and below it. -->
+                      <CollapsibleTrigger class="group/stops flex w-full transition-colors cursor-pointer select-none">
+                        <div class="w-7 shrink-0" />
+                        <span class="flex flex-1 items-center gap-1.5 ml-2.5 px-2.5 min-h-9 pointer-coarse:min-h-11 rounded-md border bg-card text-xs font-medium text-muted-foreground group-hover/stops:text-foreground group-hover/stops:bg-secondary/40 transition-colors">
+                          <ChevronDownIcon class="size-3.5 transition-transform" :class="open && 'rotate-180'" />
+                          <span>{{ entry.segment.intermediateStops.length }} stops · {{ formatDurationCompact(entry.segment.duration) }}</span>
+                        </span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div class="pt-1.5 space-y-1">
+                          <div
+                            v-for="stop in entry.segment.intermediateStops"
+                            :key="stop.id || stop.name"
+                            class="flex"
+                          >
+                            <div class="flex flex-col items-center w-7 shrink-0">
+                              <div
+                                class="mt-[5px] size-1.5 rounded-full shrink-0"
+                                v-bind="segmentRail(entry.segment)"
+                              />
+                            </div>
+                            <div class="flex-1 min-w-0 flex items-center gap-2 pl-2.5 text-xs text-muted-foreground">
+                              <span class="flex-1 truncate">{{ stop.name }}</span>
+                              <span v-if="stop.arrivalTime" class="text-[10px] tabular-nums shrink-0">
+                                {{ formatTime(new Date(stop.arrivalTime)) }}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    <!-- Alight -->
+                    <div v-if="entry.segment.arrivalStop" class="relative flex">
+                      <div class="flex flex-col items-center w-7 shrink-0">
+                        <div
+                          class="mt-[5px] size-2.5 rounded-full shrink-0"
+                          v-bind="segmentRail(entry.segment)"
+                        />
+                      </div>
+                      <div class="flex-1 min-w-0 flex items-start justify-between gap-3 pl-2.5">
+                        <div class="min-w-0">
+                          <div class="text-sm font-medium text-foreground leading-snug">
+                            {{ entry.segment.arrivalStop.name }}
+                          </div>
+                          <div class="text-[11px] text-muted-foreground mt-px">
+                            Alight<span v-if="entry.segment.arrivalStop.platformCode"> · Platform {{ entry.segment.arrivalStop.platformCode }}</span>
+                          </div>
+                        </div>
+                        <span class="text-sm font-semibold tabular-nums shrink-0">
+                          {{ formatTime(entry.segment.endTime) }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Transit alerts -->
+                    <div
+                      v-for="(alert, ai) in entry.segment.transitDetails?.alerts ?? []"
+                      :key="ai"
+                      class="ml-[38px] flex gap-2 p-2 rounded-md text-xs"
+                      :class="alert.severity === 'severe'
+                        ? 'bg-destructive/10 text-destructive'
+                        : alert.severity === 'warning'
+                          ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'
+                          : 'bg-muted text-muted-foreground'"
+                    >
+                      <AlertTriangleIcon class="size-3.5 shrink-0 mt-0.5" />
+                      <div>
+                        <div v-if="alert.headerText" class="font-medium">{{ alert.headerText }}</div>
+                        <div v-if="alert.descriptionText" class="mt-0.5 line-clamp-3">{{ alert.descriptionText }}</div>
+                      </div>
+                    </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Meta under the card — the rail leaves the card here and
+                     carries on to the next entry, so this slice covers the gap
+                     below the card as well as the row's own bottom padding. -->
+                <div class="relative mt-1.5 pl-[46px]">
+                  <div
+                    v-if="i < timelineEntries.length - 1"
+                    class="absolute left-[22px] -translate-x-1/2 w-0.5 top-[-8px] bottom-[-22px]"
+                    v-bind="segmentRail(entry.segment)"
+                  />
+                  <div class="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                    <span class="tabular-nums">{{ formatDurationCompact(entry.segment.duration) }} · {{ formatDistanceDisplay(entry.segment.distance) }}</span>
+                    <span v-if="entry.segment.agencyName">· {{ entry.segment.agencyName }}</span>
+                    <span
+                      v-if="entry.segment.carryingVehicle"
+                      class="inline-flex items-center gap-1 text-forest-600 dark:text-forest-400"
+                    >
+                      <BikeIcon class="size-3" /> Bring bike on board
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ── Rideshare segment header ── -->
+              <div v-else-if="entry.segment.mode === 'rideshare' && entry.segment.rideshareDetails">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span class="inline-flex items-center gap-1.5 text-sm font-semibold">
+                    <CarTaxiFrontIcon class="size-4" />
+                    {{ entry.segment.rideshareDetails.provider }}
+                    <span v-if="entry.segment.rideshareDetails.productName" class="font-normal text-muted-foreground">
+                      {{ entry.segment.rideshareDetails.productName }}
+                    </span>
+                  </span>
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <span v-if="entry.segment.rideshareDetails.priceRange" class="font-semibold text-foreground">
+                    ${{ entry.segment.rideshareDetails.priceRange.low.value.toFixed(0) }}–${{ entry.segment.rideshareDetails.priceRange.high.value.toFixed(0) }}
+                  </span>
+                  <span v-if="entry.segment.rideshareDetails.surgeMultiplier && entry.segment.rideshareDetails.surgeMultiplier > 1"
+                    class="text-amber-500 font-medium"
+                  >
+                    {{ entry.segment.rideshareDetails.surgeMultiplier.toFixed(1) }}× surge
+                  </span>
+                  <span v-if="entry.segment.rideshareDetails.pickupEta" class="inline-flex items-center gap-1">
+                    <ClockIcon class="size-3" />
+                    {{ Math.ceil(entry.segment.rideshareDetails.pickupEta / 60) }} min pickup
+                  </span>
+                  <span>{{ formatDurationCompact(entry.segment.duration) }}</span>
+                </div>
+                <a
+                  v-if="entry.segment.rideshareDetails.bookingUrl"
+                  :href="entry.segment.rideshareDetails.bookingUrl"
+                  target="_blank"
+                  class="mt-1.5 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  Book in {{ entry.segment.rideshareDetails.provider }} →
+                </a>
+              </div>
+
+              <!-- ── Non-transit segment header ── -->
+              <div v-else>
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span
+                    :class="[
+                      'text-sm font-semibold capitalize',
+                      modeTextColors[entry.segment.mode] || 'text-foreground',
+                    ]"
+                  >
+                    {{ entry.segment.ownership === 'shared'
+                      ? (entry.segment.sharedMobilityDetails?.vehicleType === 'scooter' ? 'Scootershare' : 'Bikeshare')
+                      : entry.segment.mode }}
+                  </span>
+                  <span
+                    v-if="entry.segment.ownership === 'shared'"
+                    class="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300"
+                  >
+                    Shared
+                  </span>
+                  <span class="text-sm text-muted-foreground">
+                    {{ formatDurationCompact(movingDuration(entry.segment)) }} · {{ formatDistanceDisplay(entry.segment.distance) }}
+                  </span>
+                </div>
+                <!-- Station entrance/exit this walk uses -->
+                <div
+                  v-if="entrancePhrase(entry.segment.stationEntrance)"
+                  class="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground"
+                >
+                  <component
+                    :is="entry.segment.stationEntrance.accessType === 'elevator'
+                      ? AccessibilityIcon
+                      : entry.segment.stationEntrance.role === 'exit'
+                        ? LogOutIcon
+                        : LogInIcon"
+                    class="size-3 shrink-0"
+                  />
+                  <span>{{ entrancePhrase(entry.segment.stationEntrance) }}</span>
+                </div>
+                <!-- Walk times are implied by the surrounding stops; show the
+                     clock only for vehicle modes -->
+                <div
+                  v-if="entry.segment.mode !== 'walking' && entry.segment.startTime && entry.segment.endTime"
+                  class="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums"
+                >
+                  <ClockIcon class="size-3" />
+                  {{ formatTime(entry.segment.startTime) }} – {{ formatTime(entry.segment.endTime) }}
+                </div>
+                <div
+                  v-if="waitMinutes(entry.segment)"
+                  class="mt-0.5 text-xs text-muted-foreground"
+                >
+                  then wait {{ waitMinutes(entry.segment) }} min
+                </div>
+              </div>
+
+              <!-- Shared mobility station info -->
+              <div
+                v-if="entry.segment.sharedMobilityDetails"
+                class="mt-2 rounded-lg border bg-teal-50 dark:bg-teal-900/20 p-3 space-y-2"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div v-if="entry.segment.sharedMobilityDetails.stationName" class="text-sm font-medium">
+                      {{ entry.segment.sharedMobilityDetails.stationName }}
+                      <template v-if="entry.segment.sharedMobilityDetails.toStationName">
+                        <ArrowRight class="inline size-3 mx-0.5 text-muted-foreground" />
+                        {{ entry.segment.sharedMobilityDetails.toStationName }}
+                      </template>
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                      {{ entry.segment.sharedMobilityDetails.provider }}
+                      <span v-if="entry.segment.sharedMobilityDetails.propulsionType === 'electric_assist'"> · e-bike</span>
+                    </div>
+                  </div>
+                  <div
+                    v-if="entry.segment.sharedMobilityDetails.availableVehicles != null"
+                    class="text-xs text-teal-700 dark:text-teal-300 font-medium"
+                  >
+                    {{ entry.segment.sharedMobilityDetails.availableVehicles }} available
+                  </div>
+                </div>
+                <!-- GBFS fare estimate -->
+                <div
+                  v-if="entry.segment.sharedMobilityDetails.pricing"
+                  class="flex items-baseline justify-between gap-2 border-t border-teal-200/60 dark:border-teal-800/40 pt-2"
+                >
+                  <span class="text-sm font-semibold text-teal-800 dark:text-teal-200">
+                    {{ formatRentalFare(entry.segment.sharedMobilityDetails.pricing) }}
+                  </span>
+                  <span class="text-xs text-muted-foreground text-right">
+                    {{ formatFareBreakdown(entry.segment.sharedMobilityDetails.pricing) }}
+                  </span>
+                </div>
+                <a
+                  v-if="entry.segment.sharedMobilityDetails.unlockUri"
+                  :href="entry.segment.sharedMobilityDetails.unlockUri"
+                  target="_blank"
+                  rel="noopener"
+                  class="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium transition-colors"
+                >
+                  Unlock in {{ entry.segment.sharedMobilityDetails.provider }}
+                  <ExternalLinkIcon class="size-3.5" />
+                </a>
+              </div>
+
+              <SegmentDetails
+                :segment="entry.segment"
+                :segment-index="entry.segmentIndex"
+                :hovered-key="hoveredInstructionKey"
+                @hover-instruction="onInstructionHover"
+                @leave-instruction="onInstructionLeave"
+                @update:route-profile="onRouteProfileChange"
+              />
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- No trip found — and no way to recreate it (the URL carries no
+         planning inputs). Recoverable URLs never land here: the shared
+         service re-plans from the query and the signature re-finds the trip. -->
+    <div v-else class="py-6 flex flex-col items-start gap-3">
+      <Caption>This trip is no longer available.</Caption>
+      <Button variant="outline" size="sm" @click="router.push({ name: AppRoute.DIRECTIONS, query: route.query })">
+        <ArrowLeft class="size-4 mr-1" />
+        Back to the planner
+      </Button>
+    </div>
+  </PanelLayout>
+</template>
+
+<style scoped>
+/* Departure board — clean horizontal scroll, no visible scrollbar */
+</style>

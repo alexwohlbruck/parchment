@@ -1,0 +1,199 @@
+/**
+ * Layers Service (Main Coordinator)
+ * 
+ * Central coordinator for all layer-related operations. Delegates to specialized services
+ * for specific functionality while providing a unified interface.
+ * 
+ * This service acts as a facade, composing functionality from:
+ * - Core services (CRUD, visibility)
+ * - Feature services (transit - for click handlers)
+ * 
+ * Note: Other feature-specific services (search results, place polygons, street view, markers)
+ * are now called directly where they're used, rather than re-exported through this service.
+ */
+
+import type { Layer, LayerGroup } from '@/types/map.types'
+import { MARKER_RENDERED_LAYER_TYPES } from '@/types/map.types'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { toRaw } from 'vue'
+import { isTransitStopLayer } from '@/lib/transit/transit.utils'
+
+/** Check if a layer is compatible with the current map engine */
+function isLayerCompatible(layer: Layer, mapStrategy: MapStrategy): boolean {
+  if (!layer.engine || layer.engine.length === 0) return true
+  return layer.engine.includes(mapStrategy.options.engine)
+}
+
+/**
+ * Friends, trackers and OSM notes are drawn as Vue markers by their own
+ * services, which watch the layer's `visible` flag. Their configurations name
+ * a source the style never has, so handing one to `addLayer` only produces a
+ * "source does not exist" warning.
+ */
+function isMarkerRendered(layer: Layer): boolean {
+  return MARKER_RENDERED_LAYER_TYPES.has(layer.type)
+}
+
+// Import specialized services
+import { useLayerCrudService } from '@/services/layers/core/layer-crud.service'
+import { useLayerVisibilityService } from '@/services/layers/core/layer-visibility.service'
+import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
+import { useTransitLayersService } from '@/services/layers/features/transit-layers.service'
+import { useDayNightLayerService } from '@/services/layers/features/daynight-layer.service'
+
+export function useLayersService() {
+  // Initialize specialized services
+  const crudService = useLayerCrudService()
+  const visibilityService = useLayerVisibilityService()
+  const searchResultsService = useSearchResultsLayerService()
+  const transitService = useTransitLayersService()
+  const dayNightService = useDayNightLayerService()
+
+  // ============================================================================
+  // CORE CRUD OPERATIONS
+  // Delegated to layer-crud.service.ts
+  // ============================================================================
+
+  const {
+    getLayers,
+    createLayer,
+    updateLayer,
+    deleteLayer,
+    getLayerGroups,
+    createLayerGroup,
+    updateLayerGroup,
+    deleteLayerGroup,
+    reorderLayers,
+    moveLayer,
+    moveLayerGroup,
+    getDefaultTemplates,
+    getDefaultUserState,
+    upsertDefaultUserState,
+    clearDefaultUserState,
+  } = crudService
+
+  // ============================================================================
+  // MAP INTEGRATION
+  // ============================================================================
+
+  /**
+   * Initialize all layers on the map
+   * This is called when the map loads or when the style changes
+   */
+  function initializeLayers(layers: Layer[], mapStrategy?: MapStrategy) {
+    if (!mapStrategy) return
+
+    layers.forEach(layer => {
+      // Convert reactive proxy to plain object to avoid proxy issues
+      const plainLayer = toRaw(layer)
+
+      // Skip layers not compatible with the current map engine
+      if (!isLayerCompatible(plainLayer, mapStrategy)) return
+      if (isMarkerRendered(plainLayer)) return
+
+      // Special handling for search results layer: source + symbol layer are
+      // both added inside initializeSearchResultsLayer so they stay in sync.
+      if (plainLayer.id === searchResultsService.createSearchResultsLayer().id) {
+        searchResultsService.initializeSearchResultsLayer(mapStrategy)
+        return
+      }
+
+      // Day/night layer needs a dynamic image source managed by its service
+      if (dayNightService.isDayNightLayer(plainLayer)) {
+        dayNightService.initializeDayNightLayer(mapStrategy, plainLayer)
+        return
+      }
+
+      // Add transit stop click handlers for transit stop layers
+      if (isTransitStopLayer(plainLayer.configuration?.id)) {
+        transitService.addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
+      }
+
+      // Add the layer to the map
+      mapStrategy.addLayer(plainLayer)
+    })
+  }
+
+  /**
+   * Add a single layer to the map
+   */
+  function addLayerToMap(layer: Layer, mapStrategy?: MapStrategy) {
+    if (!mapStrategy) return
+    const plainLayer = toRaw(layer)
+    if (!isLayerCompatible(plainLayer, mapStrategy)) return
+    if (isMarkerRendered(plainLayer)) return
+
+    if (dayNightService.isDayNightLayer(plainLayer)) {
+      dayNightService.initializeDayNightLayer(mapStrategy, plainLayer)
+      return
+    }
+
+    // Add transit stop click handlers for dynamically added transit stop layers
+    if (isTransitStopLayer(plainLayer.configuration?.id)) {
+      transitService.addTransitStopClickHandlers(mapStrategy, plainLayer.configuration.id)
+    }
+
+    mapStrategy.addLayer(plainLayer)
+  }
+
+  /**
+   * Remove a layer from the map
+   */
+  function removeLayerFromMap(
+    layerId: Layer['configuration']['id'],
+    mapStrategy?: MapStrategy,
+  ) {
+    if (!mapStrategy) return
+    mapStrategy.removeLayer(layerId)
+  }
+
+  // ============================================================================
+  // VISIBILITY MANAGEMENT
+  // Delegated to layer-visibility.service.ts
+  // ============================================================================
+
+  const {
+    toggleLayerVisibility,
+    setLayerVisibility,
+    toggleLayerGroupVisibility,
+    setLayerShownInSelector,
+    setGroupShownInSelector,
+  } = visibilityService
+
+  // ============================================================================
+  // PUBLIC API
+  // ============================================================================
+
+  return {
+    // Core CRUD operations
+    getLayers,
+    createLayer,
+    updateLayer,
+    deleteLayer,
+    getLayerGroups,
+    createLayerGroup,
+    updateLayerGroup,
+    deleteLayerGroup,
+    reorderLayers,
+    moveLayer,
+    moveLayerGroup,
+
+    // Default layer operations
+    getDefaultTemplates,
+    getDefaultUserState,
+    upsertDefaultUserState,
+    clearDefaultUserState,
+
+    // Map integration
+    initializeLayers,
+    addLayerToMap,
+    removeLayerFromMap,
+
+    // Visibility management
+    toggleLayerVisibility,
+    setLayerVisibility,
+    toggleLayerGroupVisibility,
+    setLayerShownInSelector,
+    setGroupShownInSelector,
+  }
+}

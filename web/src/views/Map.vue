@@ -1,0 +1,675 @@
+<script setup lang="ts">
+import { ref, onMounted, nextTick, watch, computed, type CSSProperties } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
+import { useResponsive } from '@/lib/utils'
+
+import { TransitionSlide } from '@morev/vue-transitions'
+import { useAppStore } from '@/stores/app.store'
+import Map from '@/components/map/MapCanvas.vue'
+import StreetView from '@/components/map/street-view/StreetView.vue'
+import LayerControl from '@/components/map/controls/LayerControl.vue'
+import StreetViewControl from '@/components/map/street-view/StreetViewControl.vue'
+import ZoomControl from '@/components/map/controls/ZoomControl.vue'
+import CompassControl from '@/components/map/controls/CompassControl.vue'
+import LocateControl from '@/components/map/controls/LocateControl.vue'
+import ScaleControl from '@/components/map/controls/ScaleControl.vue'
+import AttributionControl from '@/components/map/controls/AttributionControl.vue'
+import BottomSheet from '@/components/sheet/BottomSheet.vue'
+import LeftSheet from '@/components/sheet/LeftSheet.vue'
+import SheetActionButtons from '@/components/sheet/SheetActionButtons.vue'
+import StreetViewPip from '@/components/map/street-view/StreetViewPip.vue'
+import StreetImageryPeek from '@/components/map/street-view/StreetImageryPeek.vue'
+import { useMapService } from '@/services/map.service'
+import { useLayersStore } from '@/stores/layers.store'
+import { storeToRefs } from 'pinia'
+import { useStreetViewLayersService } from '@/services/layers/features/street-view-layers.service'
+
+import WeatherControl from '@/components/weather/WeatherControl.vue'
+import MeasureTool from '@/components/map/tools/MeasureTool.vue'
+import RadiusTool from '@/components/map/tools/RadiusTool.vue'
+import IsochroneTool from '@/components/map/tools/IsochroneTool.vue'
+import { useMapToolsStore } from '@/stores/map-tools.store'
+import { useSearchStore } from '@/stores/search.store'
+import { useVehiclesStore } from '@/stores/vehicles.store'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { useCanvasRendering } from '@/composables/useCanvasRendering'
+import { emptyCanvasBody, type Canvas } from '@/types/canvas.types'
+import { LayerType } from '@/types/map.types'
+import { usePlaceService } from '@/services/place.service'
+import { SearchIcon } from 'lucide-vue-next'
+
+const route = useRoute()
+const router = useRouter()
+const { isMobileScreen } = useResponsive()
+const appStore = useAppStore()
+const mapService = useMapService()
+const layersStore = useLayersStore()
+const { layers } = storeToRefs(layersStore)
+const streetViewLayersService = useStreetViewLayersService()
+const mapToolsStore = useMapToolsStore()
+const searchStore = useSearchStore()
+const vehiclesStore = useVehiclesStore()
+const directionsStore = useDirectionsStore()
+const canvasesStore = useCanvasesStore()
+const { currentPlace } = usePlaceService()
+const isBottomSheetView = computed(() => {
+  const isSubview = route.matched.length > 1 && route.name !== AppRoute.MAP
+  const isNotDialog = !route.meta.dialog
+  return isSubview && isNotDialog
+})
+
+// Back button mirrors browser-back behavior. vue-router stores the previous
+// path in window.history.state.back. Show the back arrow only when going back
+// would land on another drawer view — if the previous entry is the root path
+// (or missing), the button visually becomes a "close drawer" X instead.
+const canGoBack = ref(false)
+
+function refreshCanGoBack() {
+  const back = window.history.state?.back as string | null | undefined
+  canGoBack.value = !!back && back !== '/'
+}
+
+watch(() => route.fullPath, refreshCanGoBack, { immediate: true })
+
+// Only called when canGoBack is true — the back button is hidden otherwise.
+function handleBack() {
+  router.back()
+}
+
+// Always navigates to map root — wired to the dedicated close button.
+function handleHome() {
+  router.push({ name: AppRoute.MAP })
+}
+
+// Mobile bottom sheet snap state. The user collapses / expands by dragging
+// the handle (no dedicated toggle button on mobile), but we still track the
+// index so we can reset to the default snap point whenever a new drawer
+// view opens.
+// Directions uses peek (inputs) ↔ full only — the half detent isn't useful
+// there. Other views keep peek / half / full.
+/**
+ * A route can shape the sheet it opens in via `meta.sheet` — a workspace view
+ * (the canvas editor) opts out of swipe-to-dismiss so a stray drag can't
+ * discard unsaved work, and picks its own detents.
+ */
+const sheetMeta = computed(() => route.meta.sheet)
+
+const MOBILE_SNAP_POINTS = computed<(number | string)[]>(() => {
+  if (sheetMeta.value?.snapPoints) return sheetMeta.value.snapPoints
+  return route.name === AppRoute.DIRECTIONS ? ['125px', 1] : ['125px', 0.5, 1]
+})
+const MOBILE_DEFAULT_SNAP_INDEX = 1
+const bottomSheetSnapIndex = ref(MOBILE_DEFAULT_SNAP_INDEX)
+
+const bottomSheetActiveSnapPoint = computed<number | string | null>(
+  () => MOBILE_SNAP_POINTS.value[bottomSheetSnapIndex.value] ?? null,
+)
+
+function onBottomSheetSnapIndexChange(idx: number) {
+  if (idx >= 0) bottomSheetSnapIndex.value = idx
+}
+
+// Snap mobile bottom sheet to minimum when the vehicle location picker is
+// active so the map is fully visible for placing the marker.
+watch(
+  () => vehiclesStore.pickingLocationForVehicleId,
+  (picking) => {
+    if (!isMobileScreen.value) return
+    bottomSheetSnapIndex.value = picking
+      ? 0 // snap to minimum (peek height)
+      : MOBILE_DEFAULT_SNAP_INDEX
+  },
+)
+
+watch(
+  () => route.name,
+  (name) => {
+    // Directions opens at peek (just the inputs) and expands to full once
+    // suggestions load — see the watcher below. Other views open at half.
+    bottomSheetSnapIndex.value =
+      name === AppRoute.DIRECTIONS ? 0 : MOBILE_DEFAULT_SNAP_INDEX
+  },
+)
+
+// Directions: rest at the peek detent (just the inputs, via the dynamic peek)
+// until a search starts, then expand to full — as soon as loading begins, so
+// the expansion tracks the search, not the results landing. Stays full while
+// results are present; collapses back to peek when they're cleared (e.g. a
+// waypoint is removed).
+watch(
+  () =>
+    [route.name, directionsStore.trips, directionsStore.isLoading] as const,
+  ([name, trips, loading]) => {
+    if (name !== AppRoute.DIRECTIONS || !isMobileScreen.value) return
+    if (loading || trips?.trips?.length) {
+      bottomSheetSnapIndex.value = MOBILE_SNAP_POINTS.value.length - 1 // full
+    } else {
+      bottomSheetSnapIndex.value = 0 // peek — just the inputs
+    }
+  },
+  { immediate: true },
+)
+
+const pipSwapped = ref(false)
+const mountTeleports = ref(false)
+const streetView = ref(false)
+const mapUIArea = computed(() => appStore.mapUIArea)
+const hideUI = computed(() => !!route.meta?.hideUI)
+
+// ── Floating street imagery peek (Apple "Look Around" style) ──────────────────
+// Tracks whether entering street view auto-enabled the street view layer group,
+// so we only switch it back off on exit if the user didn't have it on already.
+let autoEnabledStreetView = false
+
+const PLACE_ROUTES = new Set<string | symbol>([
+  AppRoute.PLACE,
+  AppRoute.PLACE_PROVIDER,
+  AppRoute.PLACE_LOCATION,
+  AppRoute.PLACE_COORDS,
+])
+
+// Show the peek on a place detail (never over street view itself).
+const showStreetPeek = computed(
+  () => !!route.name && PLACE_ROUTES.has(route.name) && !streetView.value,
+)
+
+// Fade away once the mobile sheet covers more than half the screen. Driven by
+// the sheet's live bounds (published each frame while dragging) so the fade
+// tracks the drag in real time rather than waiting for the snap to settle.
+const streetPeekFaded = computed(() => {
+  if (!isMobileScreen.value) return false
+  const sheet = appStore.componentDimensions.get('map-content-sheet')
+  if (!sheet) return false
+  return window.innerHeight - sheet.y > window.innerHeight * 0.5
+})
+
+// Anchor the peek to the bottom-left of the map (viewport-fixed) with a uniform
+// inset, clearing whichever sheet is open. On desktop sit just right of the
+// left sheet panel; on mobile float just above the bottom sheet's top edge.
+// Reading componentDimensions keeps this reactive as the sheets slide/drag.
+const PEEK_INSET = 8
+const streetPeekStyle = computed<CSSProperties>(() => {
+  const dims = appStore.componentDimensions
+  if (!isMobileScreen.value) {
+    const panel = document.querySelector('.bg-muted-light')
+    const right = panel ? panel.getBoundingClientRect().right : 0
+    return { position: 'fixed', left: `${right + PEEK_INSET}px`, bottom: `${PEEK_INSET}px` }
+  }
+  const sheet = dims.get('map-content-sheet')
+  const sheetTop = sheet ? sheet.y : window.innerHeight
+  const bottom = Math.max(PEEK_INSET, window.innerHeight - sheetTop + PEEK_INSET)
+  return { position: 'fixed', left: `${PEEK_INSET}px`, bottom: `${bottom}px` }
+})
+// Keep the bottom-right controls reachable while the mobile sheet is up:
+// ride its top edge (live bounds update each frame during drags), and once
+// the sheet covers most of the screen fade them out — the map is hidden, so
+// stacking them mid-screen would only add noise.
+const mapFabsHidden = computed(() => {
+  if (!isMobileScreen.value) return false
+  const sheet = appStore.componentDimensions.get('map-content-sheet')
+  if (!sheet) return false
+  return window.innerHeight - sheet.y > window.innerHeight * 0.7
+})
+
+// 4.5rem = the cluster's resting offset (overlay p-2 + mb-16); min() keeps
+// the transform from pushing the buttons down when the sheet sits below it.
+const mapFabsLiftStyle = computed<CSSProperties>(() => {
+  if (!isMobileScreen.value) return {}
+  const sheet = appStore.componentDimensions.get('map-content-sheet')
+  if (!sheet) return {}
+  const visible = Math.round(window.innerHeight - sheet.y)
+  if (visible <= 0) return {}
+  return {
+    transform: `translateY(min(0px, calc(4.5rem + env(safe-area-inset-bottom) - ${visible + PEEK_INSET}px)))`,
+  }
+})
+
+// Canvases the user has switched on render over the basemap for as long as
+// they are on. Which ones those are comes from the layer store's projection
+// rather than straight off the canvases store, so the "Canvases" group's
+// master switch in the layer selector actually takes them off the map — the
+// projection is also what already drops the one open in the editor.
+useCanvasRendering(
+  computed(() =>
+    layersStore.visibleCanvasIds
+      .map(id => canvasesStore.getCanvasById(id))
+      .filter((c): c is Canvas => !!c)
+      .map(c => ({ id: c.id, body: c.body ?? emptyCanvasBody() })),
+  ),
+  { key: 'map' },
+)
+
+const bottomSheetOpen = ref(false)
+const isNavTransitioning = ref(isMobileScreen.value)
+
+function navTransitioning(value: boolean) {
+  isNavTransitioning.value = value
+}
+
+// Open bottom sheet when a map subview is opened
+watch(isBottomSheetView, async isOpen => {
+  if (isOpen) {
+    // Small delay to allow other drawers to start their close animation
+    // This works in conjunction with useDrawerCoordination to prevent race conditions
+    await new Promise(resolve => setTimeout(resolve, 10))
+    bottomSheetOpen.value = isOpen
+  } else {
+    bottomSheetOpen.value = isOpen
+    // Don't redirect to MAP when leaving the bottom sheet by navigating to a
+    // dialog route (e.g. /settings/integrations) or a full-screen takeover
+    // (e.g. /street/:id street view). The user wants to stay there; pushing to
+    // MAP here would bounce them back immediately.
+    if (!route.meta.dialog && !route.meta.hideUI) {
+      router.push({ name: AppRoute.MAP })
+    }
+  }
+})
+
+// Navigate back to map when the bottom sheet is dismissed — but not when it
+// closed because we navigated to a dialog route or a full-screen takeover
+// (e.g. /street/:id). Mirrors the isBottomSheetView watcher; without this the
+// sheet's close event would bounce mobile street view straight back to the map.
+function onOpenChange(value: boolean) {
+  bottomSheetOpen.value = value
+  if (!value && !route.meta.dialog && !route.meta.hideUI) {
+    router.push({ name: AppRoute.MAP })
+  }
+}
+
+// Detect if left sidebar is visible
+const isDrawerOpen = computed(() => {
+  return appStore.obstructingComponentsMap.has('left-sheet')
+})
+
+// When the left drawer is collapsed, its floating buttons peek out over the
+// top-left of the map. Reserve matching horizontal space so widgets like the
+// weather + scale controls don't get covered. The widgets' outer container
+// already provides 0.5rem (8px) of left padding via p-2/safe-area-inset, so
+// subtract it — that way the gap from the sidenav to the expand button and
+// from the button to the first widget both equal the button column's p-2
+// (matching the widgets' own gap-2).
+const topLeftBufferStyle = computed(() => {
+  const overlay = appStore.leftSheetOverlayWidth
+  return {
+    paddingLeft: `${Math.max(0, overlay - 8)}px`,
+  }
+})
+
+// Left-side obstruction width within the map container.
+// Used to offset the "Search this area" button so it centers in the
+// visible (unobstructed) map area via padding + justify-center.
+const mapLeftObstruction = computed(() => {
+  const dims = appStore.componentDimensions
+  const leftSheet = dims.get('left-sheet')
+  // Left sheet sits inside mainContent — its width is the obstruction.
+  // When closed, no obstruction (desktop nav is outside mainContent).
+  return leftSheet?.width ?? 0
+})
+
+onMounted(() => {
+  nextTick(() => {
+    mountTeleports.value = true
+  })
+})
+
+watch(
+  () => route.name,
+  async (name, oldName) => {
+    nextTick(async () => {
+      const enteringStreetView = name === AppRoute.STREET
+      streetView.value = enteringStreetView
+
+      if (enteringStreetView) {
+        // Open with street view large and the map demoted to the pip.
+        pipSwapped.value = true
+
+        // Auto-enable the street view layer group, remembering whether it was
+        // already on so we can leave it untouched if the user toggled it.
+        const alreadyVisible = layers.value.some(
+          layer => layer.type === LayerType.STREET_VIEW && layer.visible,
+        )
+        autoEnabledStreetView = !alreadyVisible
+        if (autoEnabledStreetView) {
+          await streetViewLayersService.toggleStreetViewLayers(
+            layers.value,
+            layersStore,
+            mapService.mapStrategy,
+            true,
+          )
+        }
+      } else if (oldName === AppRoute.STREET) {
+        pipSwapped.value = false
+
+        // Only switch the layer back off if street view turned it on.
+        if (autoEnabledStreetView) {
+          await streetViewLayersService.toggleStreetViewLayers(
+            layers.value,
+            layersStore,
+            mapService.mapStrategy,
+            false,
+          )
+          autoEnabledStreetView = false
+        }
+      }
+    })
+  },
+  { immediate: true },
+)
+
+watch(
+  () => route.params.id,
+  id => {
+    if (!id) {
+      pipSwapped.value = false
+    }
+  },
+)
+
+defineExpose({
+  navTransitioning,
+})
+</script>
+
+<template>
+  <!-- Debug overlay for obstructing components -->
+  <div
+    v-if="appStore.debugObstructingComponents"
+    class="fixed inset-0 pointer-events-none z-[100]"
+  >
+    <!-- Show map UI area -->
+    <div
+      class="absolute border-4 border-forest-500 bg-forest-500/10"
+      :style="{
+        left: `${mapUIArea.x}px`,
+        top: `${mapUIArea.y}px`,
+        width: `${mapUIArea.width}px`,
+        height: `${mapUIArea.height}px`,
+      }"
+    >
+      <div
+        class="absolute top-2 left-2 bg-forest-500 text-white px-2 py-1 text-xs font-mono rounded"
+      >
+        Map UI Area: {{ Math.round(mapUIArea.width) }}x{{
+          Math.round(mapUIArea.height)
+        }}
+      </div>
+    </div>
+
+    <!-- Show each obstructing component -->
+    <div
+      v-for="[key, dimensions] in appStore.componentDimensions"
+      :key="key"
+      class="absolute border-2 border-coral-500 bg-coral-500/10"
+      :style="{
+        left: `${dimensions.x}px`,
+        top: `${dimensions.y}px`,
+        width: `${dimensions.width}px`,
+        height: `${dimensions.height}px`,
+      }"
+    >
+      <div
+        class="absolute top-1 left-1 bg-coral-500 text-white px-1 py-0.5 text-[10px] font-mono rounded"
+      >
+        {{ key }}: {{ Math.round(dimensions.width) }}x{{
+          Math.round(dimensions.height)
+        }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Search palette -->
+
+  <div class="flex flex-1 h-full relative overflow-hidden">
+    <!-- Mobile bottom sheet container -->
+    <template v-if="isMobileScreen">
+      <bottom-sheet
+        parent-id="map"
+        :open="bottomSheetOpen"
+        @update:open="onOpenChange"
+        :custom-snap-points="MOBILE_SNAP_POINTS"
+        :default-snap-point-index="MOBILE_DEFAULT_SNAP_INDEX"
+        :active-snap-point="bottomSheetActiveSnapPoint"
+        @update:active-snap-point-index="onBottomSheetSnapIndexChange"
+        :dismissable="sheetMeta?.dismissable !== false"
+        show-drag-handle
+        dynamic-peek
+        adjust-map-padding
+        obstructing-key="map-content-sheet"
+      >
+        <template #actions>
+          <SheetActionButtons
+            :can-go-back="canGoBack"
+            direction="bottom"
+            class="pointer-events-auto"
+            @back="handleBack"
+            @home="handleHome"
+          />
+        </template>
+        <router-view />
+      </bottom-sheet>
+    </template>
+
+    <!-- Desktop left sheet container -->
+    <!--
+      LeftSheet is permanently mounted on desktop. Its `show` prop drives
+      a reactive animation (via useTransition) that slides the element
+      on/off screen and publishes bounds each frame so the map padding
+      stays in lockstep with the visual slide. The router-view inside the
+      slot handles proper mount/unmount of the content views (Place,
+      Directions, etc.) via their route lifecycle — no component leaks.
+    -->
+    <template v-else>
+      <LeftSheet
+        :show="!route.meta.dialog && isBottomSheetView"
+        :can-go-back="canGoBack"
+        @back="handleBack"
+        @home="handleHome"
+      >
+        <router-view />
+      </LeftSheet>
+    </template>
+
+    <!-- Map canvas -->
+    <div id="mainContent" class="flex-1 relative w-full h-full">
+      <!-- Map UI controls positioned within map container -->
+      <template v-if="!hideUI">
+        <!-- z-50 above drawers -->
+        <div
+          class="absolute z-50 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"
+        >
+          <!-- Left section -->
+          <div class="flex flex-col items-start gap-2">
+            <!-- Left top -->
+            <transition-slide appear no-opacity :offset="[0, '-130%']">
+              <div
+                v-if="isNavTransitioning && !isMobileScreen"
+                class="pointer-events-auto flex gap-2"
+              >
+              </div>
+            </transition-slide>
+          </div>
+          <!-- Right section (top) -->
+          <div class="flex flex-col items-end gap-2" />
+          <!-- Center (top): centered within visible (unobstructed) map area -->
+          <div
+            class="absolute inset-0 flex items-start justify-center pointer-events-none pt-2"
+            :style="{ paddingLeft: `${mapLeftObstruction}px` }"
+          >
+            <Transition
+              enter-active-class="transition-all duration-200 ease-out"
+              enter-from-class="opacity-0 -translate-y-2"
+              enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition-all duration-150 ease-in"
+              leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 -translate-y-2"
+            >
+              <button
+                v-if="searchStore.pendingAreaSearch && !searchStore.isLoading"
+                class="pointer-events-auto flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium bg-background text-foreground border shadow-md hover:bg-accent active:scale-95 transition-all"
+                @click="searchStore.requestAreaSearch()"
+              >
+                <SearchIcon class="w-3.5 h-3.5" />
+                {{ $t('map.searchThisArea') }}
+              </button>
+            </Transition>
+          </div>
+        </div>
+
+        <!-- z-20 below drawers -->
+        <div
+          class="absolute z-20 p-2 flex justify-between gap-2 pointer-events-none inset-0 safe-area-inset"
+        >
+          <!-- Left section -->
+          <div class="flex flex-col items-start gap-2">
+            <!-- Left top -->
+            <transition-slide appear no-opacity :offset="[0, '-130%']">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto flex gap-2 items-start transition-[padding] duration-300 ease-out"
+                :style="topLeftBufferStyle"
+              >
+                <WeatherControl />
+                <ScaleControl />
+              </div>
+            </transition-slide>
+
+            <!-- Left middle -->
+            <transition-slide appear no-opacity :offset="['-130%', 0]">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto flex flex-col"
+              ></div>
+            </transition-slide>
+
+            <!-- Left bottom -->
+            <transition-slide appear no-opacity :offset="[0, '130%']">
+              <div
+                v-if="isNavTransitioning"
+                class="pointer-events-auto mt-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <AttributionControl />
+              </div>
+            </transition-slide>
+          </div>
+
+          <!-- Right section -->
+          <transition-slide appear no-opacity :offset="['130%', 0]">
+            <div
+              v-if="isNavTransitioning"
+              class="flex flex-col items-end justify-between pointer-events-auto"
+            >
+              <!-- Right top -->
+              <div class="pointer-events-auto flex flex-col gap-2">
+                <ZoomControl />
+                <CompassControl />
+              </div>
+
+              <!-- Right bottom -->
+              <div
+                class="flex flex-col gap-2 transition-opacity duration-200"
+                :class="[
+                  isMobileScreen && 'mb-16',
+                  mapFabsHidden
+                    ? 'opacity-0 pointer-events-none'
+                    : 'pointer-events-auto',
+                ]"
+                :style="mapFabsLiftStyle"
+              >
+                <StreetViewControl />
+                <LayerControl />
+                <LocateControl />
+              </div>
+            </div>
+          </transition-slide>
+
+          <!-- Center (bottom): same padding/safe area as left/right -->
+          <div
+            class="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center justify-end pointer-events-none p-2 safe-area-inset"
+          >
+            <TransitionSlide
+              appear
+              no-opacity
+              :offset="[0, '110%']"
+              :duration="350"
+            >
+              <div
+                v-if="mapToolsStore.activeTool === 'measure'"
+                class="pointer-events-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <MeasureTool />
+              </div>
+              <div
+                v-else-if="mapToolsStore.activeTool === 'radius'"
+                class="pointer-events-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <RadiusTool />
+              </div>
+              <div
+                v-else-if="mapToolsStore.activeTool === 'isochrone'"
+                class="pointer-events-auto flex flex-col gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
+              >
+                <IsochroneTool />
+              </div>
+            </TransitionSlide>
+          </div>
+        </div>
+      </template>
+
+      <!-- Floating street imagery peek (Apple "Look Around" style).
+           Wrapper stays pointer-events-none so it never blocks the map when no
+           imagery exists; the inner button re-enables pointer events. -->
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="opacity-0 translate-y-2"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-2"
+      >
+        <div
+          v-if="showStreetPeek"
+          class="pointer-events-none absolute z-20 h-24 w-36 transition-opacity duration-300 safe-area-inset"
+          :class="streetPeekFaded ? 'opacity-0' : 'opacity-100'"
+          :style="streetPeekStyle"
+        >
+          <StreetImageryPeek />
+        </div>
+      </Transition>
+
+      <template v-if="mountTeleports">
+        <Teleport
+          :to="pipSwapped && streetView ? '#pipContent' : '#mainContent'"
+        >
+          <Map :pip-swapped="pipSwapped" />
+        </Teleport>
+      </template>
+    </div>
+  </div>
+
+  <!-- Street view pip -->
+  <StreetViewPip v-model:pip-swapped="pipSwapped">
+    <template v-if="mountTeleports && streetView">
+      <Teleport :to="pipSwapped ? '#mainContent' : '#pipContent'">
+        <StreetView class="w-full h-full" :pip-swapped="pipSwapped" />
+      </Teleport>
+    </template>
+  </StreetViewPip>
+</template>
+
+<style scoped>
+.safe-area-inset {
+  padding-top: calc(0.5rem + env(safe-area-inset-top));
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  padding-left: calc(0.5rem + env(safe-area-inset-left));
+  padding-right: calc(0.5rem + env(safe-area-inset-right));
+}
+</style>
+
+
+

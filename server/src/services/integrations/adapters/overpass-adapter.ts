@@ -1,0 +1,412 @@
+import type {
+  Place,
+  AttributedValue,
+  Address,
+  OpeningHours,
+  TransitStopInfo,
+} from '../../../types/place.types'
+import { SOURCE } from '../../../lib/constants'
+import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
+import { matchTags } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
+import { parseOpeningHours } from '../../../lib/opening-hours'
+import { isPermanentlyClosedByOsmTags } from '../../../lib/osm-lifecycle'
+import { calculateOSMCenter } from '../../../util/geometry-conversion'
+import { extractTransitIdentifiers, isTransitStopType, createTransitInfo } from '../../../lib/transit-utils'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
+
+// TODO: Move this type def to a shared types file
+export interface OverpassElement {
+  type: 'node' | 'way' | 'relation'
+  id: number
+  lat?: number
+  lon?: number
+  tags?: Record<string, string>
+  geometry?: Array<{ lat: number; lon: number }>
+  bounds?: {
+    minlat: number
+    maxlat: number
+    minlon: number
+    maxlon: number
+  }
+  center?: { lat: number; lon: number }
+}
+
+/**
+ * Adapter for transforming Overpass/OSM API data to unified formats
+ */
+export class OverpassAdapter {
+  // Capability-specific adapters
+  placeInfo = {
+    adaptPlaceDetails: (
+      data: OverpassElement,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      // Use the new ID format: source/providerId
+      const osmId = `${data.type}/${data.id}`
+      const primaryId = id || `${SOURCE.OSM}/${osmId}`
+
+      // Calculate center if not provided
+      const center = calculateOSMCenter(data)
+
+      // Match tags to get preset and build icon.
+      // Ways and relations are area features — use 'area' geometry so presets like
+      // building/apartments are matched correctly instead of falling back to building_point.
+      const geometryHint = (data.type === 'way' || data.type === 'relation') ? 'area' : 'point'
+      const presetMatch = matchTags(data.tags || {}, geometryHint)
+      const icon = buildPlaceIcon(presetMatch)
+
+      return {
+        id: primaryId,
+        externalIds: {
+          [SOURCE.OSM]: osmId,
+        },
+        name: {
+          value: getLocalizedName(data.tags, language, this.extractName(data.tags)) ?? null,
+          sourceId: SOURCE.OSM,
+        },
+        placeType: {
+          value: getPlaceType(data.tags || {}, language, geometryHint) || 'unknown',
+          sourceId: SOURCE.OSM,
+        },
+        icon,
+        geometry: {
+          value: {
+            type: 'point' as const,
+            center: center || { lat: 0, lng: 0 },
+          },
+          sourceId: SOURCE.OSM,
+        },
+        photos: [], // OSM doesn't typically have photos
+        address: this.extractOsmAddress(data.tags),
+        contactInfo: this.extractContactInfo(data.tags),
+        openingHours: this.extractOpeningHours(data.tags, center),
+        amenities: this.extractAmenities(data.tags),
+        description: this.extractDescription(data.tags),
+        ...this.getTransitField(data),
+        sources: [
+          {
+            id: SOURCE.OSM,
+            name: 'OpenStreetMap',
+            url: `https://www.openstreetmap.org/${data.type}/${data.id}`,
+          },
+        ],
+        lastUpdated: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      }
+    },
+  }
+
+  /**
+   * Extract the name from OSM tags
+   * @param tags OSM tags object
+   * @returns The place name
+   */
+  private extractName(tags?: Record<string, string>): string | null {
+    if (!tags) return null
+
+    // Priority order for name extraction
+    return (
+      tags.name ||
+      tags['name:en'] ||
+      tags.brand ||
+      tags['brand:name'] ||
+      tags.operator ||
+      tags.ref ||
+      null
+    )
+  }
+
+  /**
+   * Extract description from OSM tags
+   * @param tags OSM tags object
+   * @returns Description if available
+   */
+  private extractDescription(
+    tags?: Record<string, string>,
+  ): AttributedValue<string> | null {
+    if (!tags) return null
+
+    const description =
+      tags.description ||
+      tags['description:en'] ||
+      tags.note ||
+      tags.comment ||
+      null
+
+    if (!description) return null
+
+    return {
+      value: description,
+      sourceId: SOURCE.OSM,
+    }
+  }
+
+  /**
+   * Extract address from OSM tags
+   * @param tags OSM tags object
+   * @returns Formatted address object
+   */
+  private extractOsmAddress(
+    tags?: Record<string, string>,
+  ): AttributedValue<Address> | null {
+    if (!tags) return null
+
+    const street = tags['addr:street']
+    const houseNumber = tags['addr:housenumber']
+    const city = tags['addr:city']
+    const state = tags['addr:state']
+    const postcode = tags['addr:postcode']
+    const country = tags['addr:country']
+
+    // If we don't have any address components, return null
+    if (!street && !city && !postcode && !country) {
+      return null
+    }
+
+    // Build formatted address string
+    const parts = []
+    if (street && houseNumber) {
+      parts.push(`${houseNumber} ${street}`)
+    } else if (street) {
+      parts.push(street)
+    }
+
+    if (city) {
+      parts.push(city)
+    }
+
+    if (state && postcode) {
+      parts.push(`${state} ${postcode}`)
+    } else if (state) {
+      parts.push(state)
+    } else if (postcode) {
+      parts.push(postcode)
+    }
+
+    if (country) {
+      parts.push(country)
+    }
+
+    return {
+      value: {
+        street1:
+          street && houseNumber
+            ? `${houseNumber} ${street}`
+            : street || undefined,
+        street2: undefined,
+        neighborhood: tags['addr:suburb'] || undefined,
+        locality:
+          city || tags['addr:town'] || tags['addr:village'] || undefined,
+        region: state || tags['addr:county'] || undefined,
+        postalCode: postcode || undefined,
+        country: country || undefined,
+        countryCode: tags['addr:country']
+          ? tags['addr:country'].toUpperCase()
+          : undefined,
+        formatted: parts.join(', '),
+      },
+      sourceId: SOURCE.OSM,
+    }
+  }
+
+  /**
+   * Extract contact information from OSM tags
+   * @param tags OSM tags object
+   * @returns Contact information
+   */
+  private extractContactInfo(tags?: Record<string, string>) {
+    const contactInfo: {
+      phone: AttributedValue<string> | null
+      email: AttributedValue<string> | null
+      website: AttributedValue<string> | null
+      socials: Record<string, AttributedValue<string>>
+    } = {
+      phone: null,
+      email: null,
+      website: null,
+      socials: {},
+    }
+
+    if (!tags) return contactInfo
+
+    // Phone
+    if (tags.phone || tags['contact:phone']) {
+      contactInfo.phone = {
+        value: tags.phone || tags['contact:phone'] || '',
+        sourceId: SOURCE.OSM,
+      }
+    }
+
+    // Email
+    if (tags.email || tags['contact:email']) {
+      contactInfo.email = {
+        value: tags.email || tags['contact:email'] || '',
+        sourceId: SOURCE.OSM,
+      }
+    }
+
+    // Website
+    if (tags.website || tags['contact:website'] || tags.url) {
+      contactInfo.website = {
+        value: tags.website || tags['contact:website'] || tags.url || '',
+        sourceId: SOURCE.OSM,
+      }
+    }
+
+    // Social media
+    const socialPlatforms = [
+      'facebook',
+      'instagram',
+      'twitter',
+      'linkedin',
+      'youtube',
+      'tiktok',
+    ]
+
+    for (const platform of socialPlatforms) {
+      const value = tags[platform] || tags[`contact:${platform}`]
+      if (value) {
+        contactInfo.socials[platform] = {
+          value,
+          sourceId: SOURCE.OSM,
+        }
+      }
+    }
+
+    return contactInfo
+  }
+
+  /**
+   * Extract opening hours from OSM tags
+   * @param tags OSM tags object
+   * @returns Opening hours object
+   */
+  private extractOpeningHours(
+    tags?: Record<string, string>,
+    center?: { lat: number; lng: number } | null,
+  ): AttributedValue<OpeningHours> | null {
+    if (!tags) return null
+
+    const isPermanentlyClosed = isPermanentlyClosedByOsmTags(tags)
+
+    // A closed place is worth reporting even with no hours to show — otherwise
+    // the place page stays silent instead of saying the place is gone.
+    if (!tags.opening_hours && !isPermanentlyClosed) return null
+
+    const openingHours = tags.opening_hours
+
+    // Hours left over from when the place was alive would read as "Open now",
+    // so a permanently closed place reports the status and nothing else.
+    const parsed = isPermanentlyClosed
+      ? null
+      : parseOpeningHours(openingHours, {
+          lat: center?.lat,
+          lng: center?.lng,
+          countryCode: tags['addr:country'],
+          region: tags['addr:state'],
+        })
+
+    return {
+      value: {
+        regularHours: parsed?.regularHours ?? [],
+        isOpen24_7: parsed?.isOpen24_7 ?? false,
+        isPermanentlyClosed,
+        isTemporarilyClosed: !isPermanentlyClosed && openingHours === 'closed',
+        rawText: openingHours,
+      },
+      sourceId: SOURCE.OSM,
+    }
+  }
+
+  /**
+   * Extract amenities from OSM tags
+   * @param tags OSM tags object
+   * @returns Amenities object
+   */
+  private extractAmenities(tags?: Record<string, string>): Record<string, any> {
+    const amenities: Record<string, any> = {}
+
+    if (!tags) return amenities
+
+    // Add place types as amenities
+    if (tags.amenity) {
+      amenities[`type:${tags.amenity}`] = tags.amenity
+    }
+    if (tags.shop) {
+      amenities[`type:${tags.shop}`] = tags.shop
+    }
+    if (tags.tourism) {
+      amenities[`type:${tags.tourism}`] = tags.tourism
+    }
+    if (tags.leisure) {
+      amenities[`type:${tags.leisure}`] = tags.leisure
+    }
+
+    // Common amenity flags in OSM
+    const amenityFlags = [
+      'wheelchair',
+      'toilets', 'toilets:wheelchair', 'toilets:access',
+      'wifi',
+      'internet_access', 'internet_access:ssid', 'internet_access:fee', 'internet_access:password',
+      'outdoor_seating', 'indoor_seating',
+      'smoking',
+      'takeaway',
+      'delivery',
+      'drive_through',
+      'reservation',
+      'air_conditioning',
+      'heated',
+      'payment:credit_cards', 'payment:debit_cards', 'payment:cash',
+      'payment:contactless', 'payment:apple_pay', 'payment:google_pay',
+      'cuisine',
+      'diet:vegan', 'diet:vegetarian', 'diet:halal', 'diet:kosher', 'diet:gluten_free',
+      'diet:lactose_free', 'diet:pescetarian', 'diet:dairy_free',
+      'dog', 'pets_allowed',
+      'kids_area', 'highchair',
+      'changing_table',
+      'lgbtq',
+      'self_service', 'automated',
+      'live_music', 'cocktails', 'bar', 'breakfast',
+      'microbrewery',
+      'bulk_purchase', 'second_hand',
+    ]
+
+    for (const flag of amenityFlags) {
+      const value = tags[flag]
+      if (value) {
+        // Convert 'yes'/'no' to boolean, otherwise keep as string
+        const boolValue =
+          value === 'yes' ? true : value === 'no' ? false : value
+        amenities[flag] = String(boolValue)
+      }
+    }
+
+    return amenities
+  }
+
+  /**
+   * Get transit field for Place object (only includes if there's meaningful transit data)
+   */
+  private getTransitField(data: OverpassElement): { transit: AttributedValue<TransitStopInfo> } | {} {
+    const transitInfo = this.extractTransitInfo(data)
+    // Only include transit field if we have an onestop ID or other meaningful identifiers
+    if (transitInfo && (transitInfo.value.onestopId || transitInfo.value.code)) {
+      return { transit: transitInfo }
+    }
+    return {}
+  }
+
+  /**
+   * Extract transit information from OSM tags
+   */
+  private extractTransitInfo(data: OverpassElement): AttributedValue<TransitStopInfo> | null {
+    const tags = data.tags || {}
+    return createTransitInfo(
+      tags,
+      this.extractName(tags),
+      tags.description
+    )
+  }
+}

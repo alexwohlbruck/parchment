@@ -1,4 +1,4 @@
-import { GRIDDED_CITIES, type GriddedCity } from '@/constants/gridded-cities'
+import { GRIDDED_CITIES, type GriddedCity } from '@/lib/geo/gridded-cities'
 import { GridSnapMode } from '@/types/map.types'
 
 /**

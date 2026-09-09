@@ -5,7 +5,7 @@ import {
   MEASURE_SOURCE_ID,
   MEASURE_LAYER_ID,
   MEASURE_POINTS_LAYER_ID,
-} from '@/constants/layer.constants'
+} from '@/constants/layers'
 import { useIsochroneStore } from '@/stores/isochrone.store'
 
 export type MapToolId = 'none' | 'measure' | 'radius' | 'isochrone'

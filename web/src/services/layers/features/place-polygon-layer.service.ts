@@ -17,7 +17,7 @@ import {
   EMPTY_PLACE_POLYGON_GEOJSON,
   getPlacePolygonFillColor,
   getPlacePolygonStrokeColor,
-} from '@/constants/layer.constants'
+} from '@/constants/layers'
 
 export function usePlacePolygonLayerService() {
   // Store the last place so we can re-apply after layer (re-)initialization

@@ -20,7 +20,7 @@ import {
   SEARCH_RESULTS_LAYER_CONFIG,
   EMPTY_SEARCH_RESULTS_GEOJSON,
   searchResultLabelPaint,
-} from '@/constants/layer.constants'
+} from '@/constants/layers'
 
 export function useSearchResultsLayerService() {
   // State tracking

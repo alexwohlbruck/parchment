@@ -30,7 +30,7 @@ import {
   EMPTY_RADIUS_GEOJSON,
   RADIUS_FILL_LAYER_SPEC,
   RADIUS_LINE_LAYER_SPEC,
-} from '@/constants/layer.constants'
+} from '@/constants/layers'
 
 const mapService = useMapService()
 const mapToolsStore = useMapToolsStore()

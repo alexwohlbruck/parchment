@@ -56,7 +56,7 @@ import {
   ISOCHRONE_LINE_LAYER_ID,
   ISOCHRONE_LINE_LAYER_SPEC,
   ISOCHRONE_SOURCE_ID,
-} from '@/constants/layer.constants'
+} from '@/constants/layers'
 import MeasureDot from './MeasureDot.vue'
 import MeasureToolPanel from './MeasureToolPanel.vue'
 import { Button } from '@/components/ui/button'

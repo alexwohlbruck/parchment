@@ -37,7 +37,7 @@ import {
   MEASURE_FILL_LAYER_SPEC,
   MEASURE_LINE_CASE_LAYER_SPEC,
   MEASURE_LINE_LAYER_SPEC,
-} from '@/constants/layer.constants'
+} from '@/constants/layers'
 
 const mapService = useMapService()
 const mapToolsStore = useMapToolsStore()

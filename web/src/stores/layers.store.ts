@@ -16,7 +16,7 @@ import {
   CORE_LAYERS,
   CORE_LAYER_IDS,
   serverUrl,
-} from '@/constants/layer.constants'
+} from '@/constants/layers'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { WidgetResponse, BikeshareStatus, Place } from '@/types/place.types'
-import PlaceBikeshare from '@/components/place/details/PlaceBikeshare.vue'
+import PlaceBikeshare from '@/components/place/widgets/PlaceBikeshare.vue'
 
 defineProps<{
   data: WidgetResponse<BikeshareStatus | null>

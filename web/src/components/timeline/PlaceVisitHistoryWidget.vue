@@ -13,7 +13,7 @@ import {
   MissingDawarichConfigError,
 } from '@/services/timeline.service'
 import { usePlaceTabs } from '@/composables/usePlaceTabs'
-import PlaceVisitHistoryPage from '@/components/place/pages/PlaceVisitHistoryPage.vue'
+import PlaceVisitHistoryPage from '@/components/timeline/PlaceVisitHistoryPage.vue'
 import type { Place } from '@/types/place.types'
 import type { PlaceVisitHistory } from '@server/types/location-history.types'
 

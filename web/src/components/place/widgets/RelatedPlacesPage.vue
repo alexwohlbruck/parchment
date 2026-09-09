@@ -8,7 +8,7 @@ import type {
   RelatedPlacesData,
   RelatedParent,
 } from '@/types/place.types'
-import PlaceListItem from '@/components/place/PlaceListItem.vue'
+import PlaceListItem from '@/components/place/card/PlaceListItem.vue'
 import { api } from '@/lib/api'
 import { WidgetType } from '@/types/place.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'

@@ -54,7 +54,7 @@ import {
 } from 'lucide-vue-next'
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
-import PlaceCategoryIcon from '@/components/place/PlaceCategoryIcon.vue'
+import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
 import { formatAddress, getPlaceRouteFromExternalIds } from '@/lib/place.utils'
 import type { Place } from '@/types/place.types'
 import {

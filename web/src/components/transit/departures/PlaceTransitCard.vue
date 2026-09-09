@@ -33,7 +33,7 @@ import {
 } from '@/lib/transit-departures'
 import { formatDepartureTime, getMinutesUntil, getRouteBulletLabel } from '@/lib/transit'
 import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
-import PlaceTransitPage from '@/components/place/pages/PlaceTransitPage.vue'
+import StopDeparturesPage from '@/components/transit/departures/StopDeparturesPage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 
@@ -301,7 +301,7 @@ watch(
       register({
         id: TAB_ID,
         label: t('place.transit.departures'),
-        component: markRaw(PlaceTransitPage),
+        component: markRaw(StopDeparturesPage),
         props: { transitInfo: transitInfo.value, widgetParams: props.widgetParams },
         order: 10,
       })

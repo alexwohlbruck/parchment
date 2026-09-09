@@ -20,15 +20,15 @@ import { Skeleton, SkeletonText } from '@/components/ui/skeleton'
 
 import PlaceHeader from './header/PlaceHeader.vue'
 import PlaceGallery from './gallery/PlaceGallery.vue'
-import PlaceActions from './actions/PlaceActions.vue'
+import PlaceActions from './header/PlaceActions.vue'
 import PlaceSources from './sources/PlaceSources.vue'
 import DetailsList from './details/DetailsList.vue'
 import ReviewsSection from './reviews/ReviewsSection.vue'
 import PlaceWidgets from './widgets/PlaceWidgets.vue'
-import PlaceVisitHistoryWidget from './widgets/PlaceVisitHistoryWidget.vue'
-import NearbyCategories from './NearbyCategories.vue'
-import SeeAllBrand from './SeeAllBrand.vue'
-import PlaceDisplayChips from './PlaceDisplayChips.vue'
+import PlaceVisitHistoryWidget from '@/components/timeline/PlaceVisitHistoryWidget.vue'
+import NearbyCategories from './details/NearbyCategories.vue'
+import BrandSeeAllChip from './details/BrandSeeAllChip.vue'
+import PlaceDisplayChips from './details/PlaceDisplayChips.vue'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import SheetPageHost from '@/components/sheet/SheetPageHost.vue'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -376,7 +376,7 @@ function handleBrandLogoError() {
                 <DetailsList :place="place" />
                 <PlaceVisitHistoryWidget :place="place" />
                 <PlaceWidgets :place="place" />
-                <SeeAllBrand :place="place" />
+                <BrandSeeAllChip :place="place" />
                 <NearbyCategories :place="place" />
               </TabsContent>
 

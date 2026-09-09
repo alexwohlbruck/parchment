@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import RouteDetailPage from './RouteDetailPage.vue'
+import TransitRouteDetailPanel from './TransitRouteDetailPanel.vue'
 import { useRouteDetailStore } from '@/stores/route-detail.store'
 
 vi.mock('vue-i18n', async importOriginal => ({
@@ -42,7 +42,7 @@ function px(style: string, prop: string): number {
 
 async function mountWithStops(withRoutes: boolean) {
   setActivePinia(createPinia())
-  const wrapper = mount(RouteDetailPage, {
+  const wrapper = mount(TransitRouteDetailPanel, {
     props: { feedId: 'f', routeId: 'F' },
     global: { stubs: { Select: true, SelectContent: true, SelectItem: true, SelectTrigger: true, SelectValue: true, ServiceAlerts: true, RouteBullet: true } },
   })
@@ -87,7 +87,7 @@ async function layOutRows(wrapper: Awaited<ReturnType<typeof mountWithStops>>, h
   return rows
 }
 
-describe('RouteDetailPage stop timeline', () => {
+describe('TransitRouteDetailPanel stop timeline', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
   // The spine and the dots are placed by two independent bits of arithmetic;

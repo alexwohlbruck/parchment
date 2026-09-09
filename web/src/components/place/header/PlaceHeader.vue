@@ -8,7 +8,7 @@ import {
 } from 'lucide-vue-next'
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
-import PlaceCategoryIcon from '@/components/place/PlaceCategoryIcon.vue'
+import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
 import { getSearchResultCategory } from '@/lib/search.utils'
 import { getCategoryColor } from '@/lib/place-colors'
 import { useThemeStore } from '@/stores/theme.store'

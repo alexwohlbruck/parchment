@@ -6,8 +6,8 @@
 
 * Viewing a trip now fades the surrounding transit network so the route you're
   taking stands out, matching how a line's own page already looks
-* Live vehicles on a trip are limited to the lines it rides, with the specific
-  train or bus you're catching held at full strength and the rest faded back
+* A trip now shows just the train or bus you're actually catching on each leg,
+  instead of every vehicle running those lines
 
 ### Fixed
 

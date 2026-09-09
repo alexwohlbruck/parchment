@@ -3,7 +3,6 @@ import {
   focusedLegs,
   routeIdsByFeed,
   localTripId,
-  vehiclesOnFocusedRoutes,
   yourVehicleIds,
 } from './transit-focus'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
@@ -114,26 +113,6 @@ describe('localTripId', () => {
     expect(localTripId(vehicle({ tripId: 'f1_trip-7' }))).toBe('trip-7')
     expect(localTripId(vehicle({ tripId: 'f2_trip-7' }))).toBe('f2_trip-7')
     expect(localTripId(vehicle({}))).toBeNull()
-  })
-})
-
-describe('vehiclesOnFocusedRoutes', () => {
-  const legs = focusedLegs({ segments: [transitSegment({ route: { id: 'f1_A' } })] })
-
-  it('matches by route id or by the short name the feed publishes', () => {
-    const ids = vehiclesOnFocusedRoutes(legs, [
-      vehicle({ vehicleId: 'byId', routeId: 'A' }),
-      vehicle({ vehicleId: 'byName', routeShortName: 'A' }),
-      vehicle({ vehicleId: 'otherLine', routeId: 'C' }),
-    ])
-    expect(ids).toEqual(new Set(['byId', 'byName']))
-  })
-
-  it('will not match another feed\'s line of the same name', () => {
-    const ids = vehiclesOnFocusedRoutes(legs, [
-      vehicle({ vehicleId: 'wrongFeed', feedId: 'f2', routeId: 'A' }),
-    ])
-    expect(ids.size).toBe(0)
   })
 })
 

@@ -19,7 +19,6 @@ import { fetchVehiclesOnRoutes } from '@/lib/transit-vehicle-fetch'
 import {
   focusedLegs,
   routeIdsByFeed,
-  vehiclesOnFocusedRoutes,
   yourVehicleIds,
   type FocusedLeg,
 } from '@/lib/transit-focus'
@@ -69,13 +68,19 @@ export const useTripFocusStore = defineStore('trip-focus', () => {
 
   const isActive = computed(() => legs.value.length > 0)
 
-  const visibleVehicleIds = computed(() =>
-    vehiclesOnFocusedRoutes(legs.value, vehicles.value.values()),
-  )
-
+  /**
+   * Only the runs the rider is actually catching — one per leg.
+   *
+   * The whole line's service is fetched (it is how the rider's own run is
+   * found at all), but drawing it turned the map into a field of trains
+   * with the relevant one somewhere among them. A leg whose run cannot be
+   * named contributes nothing rather than falling back to its whole line.
+   */
   const emphasizedVehicleIds = computed(() =>
     yourVehicleIds(legs.value, vehicles.value.values()),
   )
+
+  const visibleVehicleIds = emphasizedVehicleIds
 
   // ── polling ──────────────────────────────────────────────────────
   let pollTimer: ReturnType<typeof setInterval> | null = null

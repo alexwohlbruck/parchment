@@ -104,33 +104,13 @@ export function localTripId(vehicle: TransitVehiclePosition): string | null {
     : vehicle.tripId
 }
 
-/** Vehicles running any of the trip's lines, on the feeds that publish them. */
-export function vehiclesOnFocusedRoutes(
-  legs: FocusedLeg[],
-  vehicles: Iterable<TransitVehiclePosition>,
-): Set<string> {
-  const wanted = new Map<string, Set<string>>()
-  for (const [feedId, ids] of routeIdsByFeed(legs)) wanted.set(feedId, new Set(ids))
-
-  const out = new Set<string>()
-  for (const v of vehicles) {
-    const routes = wanted.get(v.feedId)
-    if (!routes) continue
-    if ((v.routeId && routes.has(v.routeId)) ||
-        (v.routeShortName && routes.has(v.routeShortName))) {
-      out.add(v.vehicleId)
-    }
-  }
-  return out
-}
-
 /**
  * The vehicles the rider is actually catching — one per leg, matched by
  * the run's trip id.
  *
- * Empty when no leg can be matched, and the caller must read that as "do
- * not dim anything": every A train on screen is better than three of them
- * faded behind a fourth that is not the rider's.
+ * Empty when no leg can be matched. Showing the whole line's service
+ * instead is not the fallback: it puts a field of trains on the map with
+ * the rider's somewhere among them, which is what this replaced.
  */
 export function yourVehicleIds(
   legs: FocusedLeg[],

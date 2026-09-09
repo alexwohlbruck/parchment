@@ -27,6 +27,21 @@ import { hasPermission, getPermissions } from '../services/auth.service'
 import { logger } from '../lib/logger'
 import { refreshObservability } from '../services/observability.config'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { publish } from '../services/realtime/event-bus.service'
+
+// Other devices of the same user refetch on this; system-scoped rows have no
+// single owner to notify, so they rely on the next fetch.
+function emitIntegrationUpdated(
+  userId: string | null | undefined,
+  integrationId: string,
+): void {
+  if (!userId) return
+  publish(
+    'integration:updated',
+    { integrationId },
+    { localUserIds: [userId], remoteHandles: [] },
+  )
+}
 
 /**
  * Public routes live on their own instance. `.use(requireAuth)` mutates the
@@ -364,6 +379,7 @@ app.post(
       // without a server restart.
       if (integrationId === IntegrationId.AXIOM) await refreshObservability()
 
+      emitIntegrationUpdated(userId, integrationId)
       return integration
     } catch (err: unknown) {
       if (err instanceof IntegrationSchemeConflictError) {
@@ -484,6 +500,7 @@ app.put(
         await refreshObservability()
       }
 
+      emitIntegrationUpdated(userId, integration!.integrationId)
       return updatedIntegration
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -650,6 +667,7 @@ app.delete(
         await refreshObservability()
       }
 
+      emitIntegrationUpdated(userId, integration!.integrationId)
       set.status = 204
       return null
     } catch (err: unknown) {

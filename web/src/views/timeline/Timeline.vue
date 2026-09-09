@@ -13,6 +13,7 @@ import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useTimelineStore } from '@/stores/timeline.store'
 import { useMapService } from '@/services/map/map.service'
 import type { LocationHistoryStop, LocationHistoryEntry } from '@server/types/location-history.types'
+import { IntegrationId } from '@server/types/integration.types'
 import TimelineStopRow from '@/components/timeline/TimelineStopRow.vue'
 import TimelineSegmentRow from '@/components/timeline/TimelineSegmentRow.vue'
 import DailyDistanceChart from '@/components/timeline/DailyDistanceChart.vue'
@@ -355,6 +356,13 @@ onBeforeUnmount(() => {
         class="text-center py-12 text-sm text-destructive"
       >
         {{ t('timeline.loadFailed') }}
+        <router-link
+          v-if="integrationsStore.isIntegrationDegraded(IntegrationId.DAWARICH)"
+          to="/settings/integrations"
+          class="block mt-1.5 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          {{ t('timeline.checkIntegration') }}
+        </router-link>
       </div>
       <div
         v-else-if="entries.length === 0"

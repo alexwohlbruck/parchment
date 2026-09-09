@@ -2,6 +2,8 @@
 
 ### Added
 
+* Integration changes and outages now sync instantly across your open devices
+
 ### Changed
 
 * The "set up your encryption keys" warning on an integration now links
@@ -9,6 +11,9 @@
 
 ### Fixed
 
+* A failing integration (like an unreachable location history server) no
+  longer shows repeated error popups — warning badges in settings and on the
+  Settings menu lead you to a banner explaining how to repair it
 * Dragging the bottom sheet upward and releasing now lands on the next
   position instead of always expanding all the way
 * The measure, radius and isochrone tools keep working after a theme, basemap

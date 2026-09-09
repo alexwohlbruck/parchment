@@ -10,6 +10,13 @@ import {
 } from '@server/types/integration.types'
 import { jsonSerializer } from '@/lib/storage-serializer'
 import {
+  clearAllIntegrationHealth,
+  clearIntegrationDegraded,
+  degradedIntegrations,
+  isIntegrationDegraded,
+  markIntegrationDegraded,
+} from '@/lib/integration-health'
+import {
   siFoursquare,
   siGooglemaps,
   siMapillary,
@@ -67,7 +74,7 @@ export const useIntegrationsStore = defineStore('integrations', () => {
   )
   
   // Helper to safely get array value (handles corrupted cache data)
-  const safeConfigurationsArray = () => 
+  const safeConfigurationsArray = () =>
     Array.isArray(integrationConfigurations.value) ? integrationConfigurations.value : []
   const safeAvailableArray = () => 
     Array.isArray(availableIntegrations.value) ? availableIntegrations.value : []
@@ -270,10 +277,18 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     )
   }
 
+  // Disconnected integrations don't count — no config means nothing to repair.
+  const hasDegradedIntegrations = computed(() =>
+    safeConfigurationsArray().some(
+      config => config.integrationId in degradedIntegrations.value,
+    ),
+  )
+
   // Clear all cached data (used on sign out)
   function clearCache() {
     integrationConfigurations.value = null
     availableIntegrations.value = null
+    clearAllIntegrationHealth()
   }
 
   return {
@@ -300,6 +315,10 @@ export const useIntegrationsStore = defineStore('integrations', () => {
     isRoutingActive,
     isFeedbackActive,
     osmProfile,
+    markIntegrationDegraded,
+    clearIntegrationDegraded,
+    isIntegrationDegraded,
+    hasDegradedIntegrations,
     clearCache,
   }
 })

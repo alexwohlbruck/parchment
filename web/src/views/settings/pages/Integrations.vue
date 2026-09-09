@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import IntegrationTile from '@/components/integration/IntegrationTile.vue'
 import {
   SearchIcon,
+  TriangleAlertIcon,
   ArrowUpDownIcon,
   ArrowUpIcon,
   ArrowDownIcon,
@@ -31,6 +32,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { SettingsSection } from '@/components/settings'
 import {
   DropdownMenu,
@@ -77,6 +79,17 @@ const {
   removeFilter,
   clearAllFilters,
 } = useIntegrationFilters()
+
+const degradedNames = computed(() => [
+  ...new Set(
+    integrationStore.allIntegrations
+      .filter(
+        ({ integration, config }) =>
+          config && integrationStore.isIntegrationDegraded(integration.id),
+      )
+      .map(({ integration }) => integration.name),
+  ),
+])
 
 // Write access depends on the integration's scope, not on system write alone.
 // A read-only admin role holds integrations:read:system but still configures
@@ -132,6 +145,25 @@ onMounted(async () => {
         :frame="false"
         :shadow="false"
       >
+        <Alert
+          v-if="degradedNames.length > 0"
+          class="mb-4 border-orange-500/40 bg-orange-500/10 text-orange-900 dark:text-orange-200 [&>svg]:text-orange-600 dark:[&>svg]:text-orange-400"
+        >
+          <TriangleAlertIcon class="size-4" />
+          <AlertTitle>
+            {{
+              t(
+                'settings.integrations.degraded.bannerTitle',
+                { names: degradedNames.join(', ') },
+                degradedNames.length,
+              )
+            }}
+          </AlertTitle>
+          <AlertDescription class="text-orange-800/90 dark:text-orange-200/80">
+            {{ t('settings.integrations.degraded.bannerBody', degradedNames.length) }}
+          </AlertDescription>
+        </Alert>
+
         <!-- Toolbar -->
         <div class="flex flex-col gap-3">
           <!-- Search, filter, and sort row -->

@@ -13,7 +13,7 @@ import { toast } from '@/lib/toast'
 import { Check, Pencil } from 'lucide-vue-next'
 import Passkeys from '@/components/auth/Passkeys.vue'
 import Sessions from '@/components/auth/Sessions.vue'
-import IdentitySettings from '@/components/friends/IdentitySettings.vue'
+import IdentitySettings from '@/components/identity/IdentitySettings.vue'
 import Billing from '@/views/settings/pages/Billing.vue'
 
 const authService = useAuthService()

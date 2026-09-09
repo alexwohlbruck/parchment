@@ -43,7 +43,7 @@ import DialogView from '@/views/DialogView.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
 import OnboardingDialog from '@/components/onboarding/OnboardingDialog.vue'
-import KeyRestoreDialog from '@/components/onboarding/KeyRestoreDialog.vue'
+import KeyRestoreDialog from '@/components/identity/KeyRestoreDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { TransitionSlide } from '@morev/vue-transitions'
 

@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useIdentityStore } from '@/stores/identity.store'
-import RecoveryKeyDialog from '@/components/friends/RecoveryKeyDialog.vue'
+import RecoveryKeyDialog from '@/components/identity/RecoveryKeyDialog.vue'
 
 const SESSION_KEY = 'parchment:key-restore-dismissed'
 

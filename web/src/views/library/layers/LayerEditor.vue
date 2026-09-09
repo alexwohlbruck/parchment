@@ -17,7 +17,7 @@ import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { useAppService } from '@/services/app.service'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
-import { useLayerPreview } from '@/composables/useLayerPreview'
+import { useLayerPreview } from '@/composables/map/useLayerPreview'
 import {
   createLayerDraft,
   draftToLayerFields,

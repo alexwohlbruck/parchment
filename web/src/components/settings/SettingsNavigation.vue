@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input'
 import { useI18n } from 'vue-i18n'
 
 import { SearchIcon, XIcon, CornerDownLeftIcon } from 'lucide-vue-next'
-import { useSettingsIndex } from '@/composables/useSettingsIndex'
-import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
+import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
+import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 import { getThemeColorGhostClasses } from '@/lib/utils'
+import IntegrationHealthDot from '@/components/integration/IntegrationHealthDot.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -237,9 +238,13 @@ onBeforeUnmount(() => {
           </span>
           <span class="flex-1 min-w-0 flex flex-col gap-0.5">
             <span
-              class="text-[15px] font-semibold tracking-tight leading-tight truncate"
+              class="text-[15px] font-semibold tracking-tight leading-tight truncate flex items-center gap-1.5"
             >
               {{ t(`settings.${page.pageId}.title`) }}
+              <IntegrationHealthDot
+                v-if="page.pageId === 'integrations'"
+                class="shrink-0"
+              />
             </span>
             <span
               v-if="subtitleFor(page.pageId)"
@@ -271,6 +276,10 @@ onBeforeUnmount(() => {
               <span class="flex-1 text-left">
                 {{ t(`settings.${page.pageId}.title`) }}
               </span>
+              <IntegrationHealthDot
+                v-if="page.pageId === 'integrations'"
+                class="shrink-0"
+              />
             </router-link>
           </Button>
 

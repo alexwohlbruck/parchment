@@ -4,6 +4,11 @@ import { PermissionId } from '../types/auth.types'
 import { requireIntegrationCredentials } from '../middleware/integration-credentials.middleware'
 import { logger } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { IntegrationId } from '../types/integration.enums'
+import {
+  reportIntegrationFailure,
+  reportIntegrationSuccess,
+} from '../services/integrations/integration-health.service'
 
 const locationHistoryRouter = new Elysia({ prefix: '/location-history' }).use(i18nPlugin).use(
   permissions(PermissionId.LOCATION_SHARING),
@@ -26,7 +31,7 @@ const locationHistoryRouter = new Elysia({ prefix: '/location-history' }).use(i1
  */
 locationHistoryRouter.use(requireIntegrationCredentials).get(
   '/',
-  async ({ integrationCredentials, query, status, t }) => {
+  async ({ integrationCredentials, query, status, t, user }) => {
     const start = new Date(query.start)
     const end = new Date(query.end)
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -51,16 +56,16 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
 
     try {
       const { integrationManager } = await import('../services/integrations')
-      const { IntegrationId } = await import('../types/integration.enums')
       const integration = integrationManager
         .getIntegrationRegistry()
         .getIntegration(IntegrationId.DAWARICH)
 
       if (!integration?.capabilities.locationHistory) {
+        reportIntegrationFailure(user.id, IntegrationId.DAWARICH)
         return status(503, { message: t('errors.integration.unavailable') })
       }
 
-      return await integration.capabilities.locationHistory.getLocationHistory(
+      const result = await integration.capabilities.locationHistory.getLocationHistory(
         integrationCredentials,
         {
           range: { start, end },
@@ -68,6 +73,8 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
           timezone: query.timezone,
         },
       )
+      reportIntegrationSuccess(user.id, IntegrationId.DAWARICH)
+      return result
     } catch (err: any) {
       // Don't surface upstream error details — they may include URL fragments
       // or token fingerprints from the underlying axios error.
@@ -75,6 +82,7 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
         { err: { message: err?.message, code: err?.code, status: err?.response?.status } },
         'location-history fetch failed',
       )
+      reportIntegrationFailure(user.id, IntegrationId.DAWARICH)
       return status(502, { message: t('errors.integration.failed') })
     }
   },
@@ -98,7 +106,7 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
  */
 locationHistoryRouter.use(requireIntegrationCredentials).get(
   '/place',
-  async ({ integrationCredentials, query, status, t }) => {
+  async ({ integrationCredentials, query, status, t, user }) => {
     const lat = Number.parseFloat(query.lat)
     const lng = Number.parseFloat(query.lng)
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -136,16 +144,16 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
 
     try {
       const { integrationManager } = await import('../services/integrations')
-      const { IntegrationId } = await import('../types/integration.enums')
       const integration = integrationManager
         .getIntegrationRegistry()
         .getIntegration(IntegrationId.DAWARICH)
 
       if (!integration?.capabilities.locationHistory) {
+        reportIntegrationFailure(user.id, IntegrationId.DAWARICH)
         return status(503, { message: t('errors.integration.unavailable') })
       }
 
-      return await integration.capabilities.locationHistory.getPlaceVisitHistory(
+      const result = await integration.capabilities.locationHistory.getPlaceVisitHistory(
         integrationCredentials,
         {
           lat,
@@ -157,6 +165,8 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
             : {}),
         },
       )
+      reportIntegrationSuccess(user.id, IntegrationId.DAWARICH)
+      return result
     } catch (err: any) {
       logger.error(
         {
@@ -168,6 +178,7 @@ locationHistoryRouter.use(requireIntegrationCredentials).get(
         },
         'place-visit-history fetch failed',
       )
+      reportIntegrationFailure(user.id, IntegrationId.DAWARICH)
       return status(502, { message: t('errors.integration.failed') })
     }
   },

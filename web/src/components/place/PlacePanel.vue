@@ -36,8 +36,8 @@ import { useConnectivity } from '@/composables/useConnectivity'
 import { MapPinOffIcon } from 'lucide-vue-next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useI18n } from 'vue-i18n'
-import { providePlaceTabs } from '@/composables/usePlaceTabs'
-import { useSheetPeek } from '@/composables/useSheetPeek'
+import { providePlaceTabs } from '@/composables/place/usePlaceTabs'
+import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 
 const props = defineProps<{
   place: Partial<Place> | null

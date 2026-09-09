@@ -11,9 +11,9 @@ import { TripsResponse, WaypointType } from '@/types/directions.types'
 import { LngLat } from 'mapbox-gl'
 import type { Place } from '@/types/place.types'
 import { useGeocodingService } from '@/services/geocoding.service'
-import { getSearchResultName } from '@/lib/search/search.utils'
+import { getSearchResultName } from '@/lib/search/search-result'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { usePlaceService } from '@/services/place.service'
+import { usePlaceService } from '@/services/place/place.service'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,

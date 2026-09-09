@@ -2,7 +2,7 @@
 import { toRef } from 'vue'
 import type { Place } from '@/types/place.types'
 import { WidgetDataType } from '@/types/place.types'
-import { useWidgets } from '@/composables/useWidgets'
+import { useWidgets } from '@/composables/place/useWidgets'
 import { widgetComponents } from './index'
 import { Skeleton } from '@/components/ui/skeleton'
 

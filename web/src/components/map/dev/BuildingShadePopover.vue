@@ -16,7 +16,7 @@ import {
   useBuildingShadeTuner,
   SHADE_GROUPS,
   SHADE_POPOVER_KEY,
-} from '@/composables/useBuildingShadeTuner'
+} from '@/composables/map/useBuildingShadeTuner'
 
 const { state, toggles, isMaplibre, copied, setLever, reset, copyDefaults } = useBuildingShadeTuner()
 

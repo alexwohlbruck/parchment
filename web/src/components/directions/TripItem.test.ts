@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import TripItem from './TripItem.vue'
 
 // ── Stub the heavy, environment-coupled dependencies ─────────────────────────
-vi.mock('@/services/map.service', () => ({
+vi.mock('@/services/map/map.service', () => ({
   useMapService: () => ({ showTripOnHover: vi.fn() }),
 }))
 vi.mock('@/composables/useUnits', () => ({

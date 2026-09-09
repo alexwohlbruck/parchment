@@ -12,5 +12,11 @@ declare module 'axios' {
      * fall back to cache instead of burning a timeout per call.
      */
     allowOffline?: boolean
+    /**
+     * Third-party integration this request depends on. Upstream failures
+     * (502/503) flag it as degraded in settings instead of toasting;
+     * a success clears the flag.
+     */
+    integrationId?: string
   }
 }

@@ -13,18 +13,18 @@ import {
 } from '@/services/layers/features/portolan/portolan-stops'
 import ServiceAlerts from '@/components/transit/alerts/ServiceAlerts.vue'
 import ServiceAlertBadge from '@/components/transit/alerts/ServiceAlertBadge.vue'
-import { useTransitAlerts } from '@/composables/useTransitAlerts'
+import { useTransitAlerts } from '@/composables/transit/useTransitAlerts'
 import { filterSkippedDepartures } from '@/lib/transit/alert-service-overrides'
 import { alertsFor, worstAlert } from '@/lib/transit/transit-alerts'
 import { api } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
-import { useTransitClock } from '@/composables/useTransitClock'
+import { useTransitClock } from '@/composables/transit/useTransitClock'
 import {
   groupDepartures,
   formatCountdown,
   type BoardDeparture,
 } from '@/lib/transit/transit-departures'
-import { transferLinesOf, type StationLine } from '@/composables/usePlaceTransitLines'
+import { transferLinesOf, type StationLine } from '@/composables/transit/usePlaceTransitLines'
 import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
 import {
   formatDepartureTime,

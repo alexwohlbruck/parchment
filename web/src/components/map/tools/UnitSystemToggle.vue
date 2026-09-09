@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure.utils'
+import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure'
 
 /**
  * Metric ⟷ imperial for a measuring panel. Labelled on both sides rather than

@@ -12,7 +12,7 @@ import type {
   IsochroneMode,
   IsochroneResponse,
 } from '@server/types/isochrone.types'
-import { toIsochroneBands, type IsochroneBand } from '@/lib/directions/isochrone.utils'
+import { toIsochroneBands, type IsochroneBand } from '@/lib/directions/isochrone'
 
 /**
  * Isochrones outrun the client's 15s default: a transit contour fans out to

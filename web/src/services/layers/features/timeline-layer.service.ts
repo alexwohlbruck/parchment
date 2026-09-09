@@ -1,7 +1,7 @@
 import { watch, markRaw } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTimelineStore } from '@/stores/timeline.store'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import TimelineStopMarker from '@/components/map/markers/TimelineStopMarker.vue'
 import {
   LayerType,

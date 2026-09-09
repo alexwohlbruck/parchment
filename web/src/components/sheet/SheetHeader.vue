@@ -8,7 +8,7 @@ import {
   type HTMLAttributes,
 } from 'vue'
 import { cn } from '@/lib/utils'
-import { useSheetPeek } from '@/composables/useSheetPeek'
+import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { useStuck } from '@/composables/useStuck'
 
 /**

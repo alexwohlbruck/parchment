@@ -12,7 +12,7 @@ import {
   MapColorTheme,
   MARKER_RENDERED_LAYER_TYPES,
 } from '@/types/map.types'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useThemeStore } from '@/stores/theme.store'
 
 export function useLayerVisibilityService() {

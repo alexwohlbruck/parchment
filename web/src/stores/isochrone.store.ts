@@ -18,7 +18,7 @@ import {
   contourDurations,
   maxMinutesForMode,
   type IsochroneBand,
-} from '@/lib/directions/isochrone.utils'
+} from '@/lib/directions/isochrone'
 import { fetchIsochroneBands } from '@/lib/directions/isochrone-request'
 
 /** Debounce on control changes, so dragging a slider fires one request. */

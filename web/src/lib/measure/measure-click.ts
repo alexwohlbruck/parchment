@@ -6,7 +6,7 @@ import {
   CLOSE_LOOP_THRESHOLD_PX,
   VERTEX_NEAR_PX,
   type ProjectFn,
-} from '@/lib/measure/measure.utils'
+} from '@/lib/measure/measure'
 import type { LngLat } from '@/types/map.types'
 
 export interface MeasureClick {

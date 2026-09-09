@@ -2,8 +2,8 @@
 import { computed, onMounted, onUnmounted, onActivated, useTemplateRef, watch, nextTick } from 'vue'
 import { useMapStore } from '@/stores/map.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
-import { useMapService } from '@/services/map.service'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { useMapService } from '@/services/map/map.service'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { MapEngine } from '@/types/map.types'
 import { IntegrationId } from '@server/types/integration.types'
 

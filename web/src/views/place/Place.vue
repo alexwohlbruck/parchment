@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { MarkerIds } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
-import { usePlaceService } from '@/services/place.service'
+import { usePlaceService } from '@/services/place/place.service'
 import { useAbortController } from '@/composables/useAbortController'
 import Place from '@/components/place/PlacePanel.vue'
 import { AppRoute } from '@/router'

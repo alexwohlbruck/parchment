@@ -14,9 +14,9 @@
 
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { MARKER_RENDERED_LAYER_TYPES } from '@/types/map.types'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { toRaw } from 'vue'
-import { isTransitStopLayer } from '@/lib/transit/transit.utils'
+import { isTransitStopLayer } from '@/lib/transit/transitland-layers'
 
 /** Check if a layer is compatible with the current map engine */
 function isLayerCompatible(layer: Layer, mapStrategy: MapStrategy): boolean {

@@ -6,8 +6,8 @@ import {
   getSearchResultIconName,
   getSearchResultIconPack,
   getSearchResultCategory,
-} from '@/lib/search/search.utils'
-import { getCategoryColor } from '@/lib/place/place-colors'
+} from '@/lib/search/search-result'
+import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 
 /**

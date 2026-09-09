@@ -15,6 +15,7 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useNotesStore } from '@/stores/notes.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { saveBlob, decryptBlobEnvelope } from '@/lib/identity/personal-blob'
+import { clearIntegrationDegraded } from '@/lib/integration-health'
 
 // Personal-blob type namespace for user-e2ee integration configs. Kept in
 // sync with INTEGRATION_CONFIG_BLOB_PREFIX on the server.
@@ -104,6 +105,7 @@ export function useIntegrationService() {
       await fetchConfiguredIntegrations()
       await fetchAvailableIntegrations()
       await refreshLayersIfNeeded(integrationId)
+      clearIntegrationDegraded(integrationId)
       return created
     }
 
@@ -121,6 +123,7 @@ export function useIntegrationService() {
     await fetchConfiguredIntegrations()
     await fetchAvailableIntegrations()
     await refreshLayersIfNeeded(integrationId)
+    clearIntegrationDegraded(integrationId)
     return response.data
   }
 
@@ -161,6 +164,7 @@ export function useIntegrationService() {
       await fetchConfiguredIntegrations()
       await refreshLayersIfNeeded(existing.integrationId)
       clearNotesCacheIfNeeded(existing.integrationId)
+      clearIntegrationDegraded(existing.integrationId)
       return existing
     }
 
@@ -171,6 +175,7 @@ export function useIntegrationService() {
     const updated = configsAfterUpdate.find(i => i.id === id)
     await refreshLayersIfNeeded(updated?.integrationId)
     clearNotesCacheIfNeeded(updated?.integrationId)
+    if (updated) clearIntegrationDegraded(updated.integrationId)
     return response.data
   }
 

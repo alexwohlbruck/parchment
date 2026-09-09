@@ -12,7 +12,7 @@ import { useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import { useAppService } from '@/services/app.service'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { useGeocodingService } from '@/services/geocoding.service'
 import { mapEventBus } from '@/lib/event-bus'
@@ -55,7 +55,8 @@ import {
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
-import { formatAddress, getPlaceRouteFromExternalIds } from '@/lib/place/place.utils'
+import { getPlaceRouteFromExternalIds } from '@/lib/place/place-route'
+import { formatAddress } from '@/lib/place/place-details'
 import type { Place } from '@/types/place.types'
 import {
   findSegmentToInsert,
@@ -64,7 +65,7 @@ import {
   INSERT_THRESHOLD_PX,
   CLOSE_LOOP_THRESHOLD_PX,
   VERTEX_NEAR_PX,
-} from '@/lib/measure/measure.utils'
+} from '@/lib/measure/measure'
 import { AppRoute } from '@/router'
 
 const router = useRouter()

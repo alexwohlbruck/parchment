@@ -3,9 +3,9 @@ import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
-import { useVehicleLocationPicker } from '@/composables/useVehicleLocationPicker'
+import { useVehicleLocationPicker } from '@/composables/transit/useVehicleLocationPicker'
 import { VEHICLE_TYPE_LABELS } from '@/lib/transit/vehicle-mode-mapping'
 import type { VehicleType } from '@/types/multimodal.types'
 import { AppRoute } from '@/router'
@@ -21,7 +21,7 @@ import {
 } from 'lucide-vue-next'
 import { getVehicleIcon } from '@/lib/directions/travel-mode-icons'
 import { useI18n } from 'vue-i18n'
-import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
+import { formatTimeAgo as sharedTimeAgo } from '@/lib/time-format'
 
 const props = defineProps<{
   id: string

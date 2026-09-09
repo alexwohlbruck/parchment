@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 import Signin from '@/views/auth/Signin.vue'
 import Map from '@/views/Map.vue'
@@ -9,40 +9,80 @@ import Settings from '@/views/settings/Settings.vue'
 import Account from '@/views/settings/pages/Account.vue'
 import Behavior from '@/views/settings/pages/Behavior.vue'
 import Appearance from '@/views/settings/pages/appearance/Appearance.vue'
-import MapSettings from '@/views/settings/pages/MapSettings.vue'
 import Users from '@/views/settings/pages/Users.vue'
 import Library from '@/views/library/Library.vue'
-import Collection from '@/views/library/Collection.vue'
+import Collection from '@/views/library/collections/Collection.vue'
 import NotFound from '@/views/NotFound.vue'
-import Collections from '@/views/library/Collections.vue'
+import OfflineView from '@/views/OfflineView.vue'
+import Collections from '@/views/library/collections/Collections.vue'
+import Layers from '@/views/library/layers/Layers.vue'
 import Integrations from '@/views/settings/pages/Integrations.vue'
+import Lookout from '@/views/lookout/Lookout.vue'
 
 import { useAuthStore } from '@/stores/auth.store'
+import { isChunkLoadError } from '@/lib/network-errors'
 
 export enum AppRoute {
+  OFFLINE = 'offline',
   SIGNIN = 'signin',
   MAP = 'map',
   PLACE = 'place',
   PLACE_PROVIDER = 'place-provider',
   PLACE_LOCATION = 'place-location',
+  PLACE_COORDS = 'place-coords',
   STREET = 'street',
   DIRECTIONS = 'directions',
   TRIP = 'trip',
+  SEARCH_RESULTS = 'search-results',
   LIBRARY = 'library',
   LIBRARY_COLLECTIONS = 'library-collections',
   LIBRARY_ROUTES = 'library-routes',
   LIBRARY_LAYERS = 'library-layers',
-  LIBRARY_MAPS = 'library-maps',
+  LIBRARY_CANVASES = 'library-canvases',
+  LAYER_EDITOR_NEW = 'layer-editor-new',
+  LAYER_EDITOR = 'layer-editor',
+  CANVAS_EDITOR = 'canvas-editor',
+  CANVAS_PUBLIC = 'canvas-public',
   COLLECTION = 'collection',
+  ROUTE_BUILDER = 'route-builder',
+  ROUTE_BUILDER_EDIT = 'route-builder-edit',
+  ROUTE_DETAIL = 'route-detail',
   SETTINGS = 'settings',
   ACCOUNT = 'account',
   BEHAVIOR = 'behavior',
   APPEARANCE = 'appearance',
-  MAP_SETTINGS = 'mapSettings',
   USERS = 'users',
+  USER_DETAIL = 'user-detail',
+  ROLES = 'roles',
+  ROLE_DETAIL = 'role-detail',
+  PERMISSIONS_PAGE = 'permissions',
+  PERMISSION_DETAIL = 'permission-detail',
+  VEHICLES = 'vehicles',
   INTEGRATIONS = 'integrations',
+  DEVELOPER = 'developer',
+  NOTE = 'note',
+  NOTE_CREATE = 'note-create',
+  LOOKOUT = 'lookout',
+  FRIEND_DETAIL = 'friend-detail',
+  TRACKER_DETAIL = 'tracker-detail',
+  TRANSIT_ROUTE = 'transit-route',
+  DASHBOARD = 'dashboard',
+  TIMELINE = 'timeline',
   NOT_FOUND = 'not-found',
 }
+
+// Dev-only. `import.meta.env.DEV` is statically replaced, so production builds
+// drop this route and everything it reaches (`@/dev/gpx-simulator`, the
+// impersonation controls). See `@/dev/gpx-simulator/index.ts`.
+const DEV_ROUTES: RouteRecordRaw[] = import.meta.env.DEV
+  ? [
+      {
+        path: '/settings/developer',
+        name: AppRoute.DEVELOPER,
+        component: () => import('@/views/settings/pages/Developer.vue'),
+      },
+    ]
+  : []
 
 function keepDefaultView(to, from) {
   if (from.matched.length) {
@@ -52,28 +92,67 @@ function keepDefaultView(to, from) {
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  // Settings hash navigation is handled inside useSettingsScrollTarget
+  // because the same Settings tree is rendered twice in the DOM (dialog
+  // + LeftSheet) and Vue Router's `document.querySelector(hash)` would
+  // hit the off-screen copy.
   routes: [
     {
       path: '/signin',
       name: AppRoute.SIGNIN,
       component: Signin,
+      meta: {
+        hideUI: true,
+        transition: 'slide',
+      },
     },
     {
       path: '/',
       name: AppRoute.MAP,
       component: Map,
       meta: {
-        layout: 'floating',
+        transition: 'slide',
+        // Gates the whole map subtree — children inherit it through the
+        // merged `to.meta`. Signed-out visitors used to be bounced here by a
+        // side effect instead: App.vue fetches configured integrations on
+        // mount for every visitor, that request 401'd, and the global 401
+        // interceptor in lib/api.ts pushed them to /signin. Once the endpoint
+        // became public (as its contract always said it was), that accident
+        // stopped firing, so the redirect is declared properly here.
         auth: true,
       },
       children: [
+        {
+          path: '/offline',
+          name: AppRoute.OFFLINE,
+          component: OfflineView,
+        },
+        {
+          path: '/dashboard',
+          name: AppRoute.DASHBOARD,
+          component: () => import('@/views/Dashboard.vue'),
+          meta: {
+            auth: true,
+          },
+        },
         {
           path: '/directions',
           name: AppRoute.DIRECTIONS,
           component: Directions,
         },
         {
-          path: '/trip/:id',
+          path: '/search',
+          name: AppRoute.SEARCH_RESULTS,
+          component: () => import('@/views/search/Search.vue'),
+          props: route => ({
+            query: route.query.q,
+            categoryId: route.query.categoryId,
+            categoryName: route.query.categoryName,
+            overpassQuery: route.query.overpassQuery,
+          }),
+        },
+        {
+          path: '/directions/trip/:id',
           name: AppRoute.TRIP,
           component: TripDetail,
           props: true,
@@ -94,6 +173,28 @@ const router = createRouter({
           component: Place,
         },
         {
+          path: '/place/coords/:lat/:lng',
+          name: AppRoute.PLACE_COORDS,
+          component: Place,
+        },
+        {
+          path: '/transit/route/:feedId/:routeId',
+          name: AppRoute.TRANSIT_ROUTE,
+          component: () => import('@/views/transit/TransitRouteDetail.vue'),
+          props: true,
+        },
+        {
+          path: '/note/create',
+          name: AppRoute.NOTE_CREATE,
+          component: () => import('@/views/notes/CreateNote.vue'),
+        },
+        {
+          path: '/note/:id',
+          name: AppRoute.NOTE,
+          component: () => import('@/views/notes/NoteDetail.vue'),
+          props: true,
+        },
+        {
           path: '/library',
           name: AppRoute.LIBRARY,
           component: Library,
@@ -110,17 +211,17 @@ const router = createRouter({
             {
               path: 'routes',
               name: AppRoute.LIBRARY_ROUTES,
-              component: () => import('@/views/library/EmptyTab.vue'),
+              component: () => import('@/views/library/routes/Routes.vue'),
             },
             {
               path: 'layers',
               name: AppRoute.LIBRARY_LAYERS,
-              component: () => import('@/views/library/EmptyTab.vue'),
+              component: Layers,
             },
             {
-              path: 'maps',
-              name: AppRoute.LIBRARY_MAPS,
-              component: () => import('@/views/library/EmptyTab.vue'),
+              path: 'canvases',
+              name: AppRoute.LIBRARY_CANVASES,
+              component: () => import('@/views/library/canvases/Canvases.vue'),
             },
           ],
         },
@@ -130,10 +231,122 @@ const router = createRouter({
           component: Collection,
           props: true,
         },
+        {
+          path: '/layers/new',
+          name: AppRoute.LAYER_EDITOR_NEW,
+          component: () => import('@/views/library/layers/LayerEditor.vue'),
+        },
+        {
+          path: '/layers/:id/edit',
+          name: AppRoute.LAYER_EDITOR,
+          component: () => import('@/views/library/layers/LayerEditor.vue'),
+          props: true,
+        },
+        {
+          path: '/canvases/:id',
+          name: AppRoute.CANVAS_EDITOR,
+          component: () => import('@/views/library/canvases/CanvasEditor.vue'),
+          props: true,
+          meta: {
+            auth: true,
+            // A canvas is a workspace, not a passing detail view: on mobile
+            // the sheet stays put until it is closed deliberately.
+            // The middle detent sits low: on a canvas the map is the work,
+            // so the half-open panel shows a few rows without burying it.
+            // The first entry is a fallback — the peek measures the header.
+            sheet: { dismissable: false, snapPoints: ['160px', 0.4, 1] },
+          },
+        },
+        {
+          path: '/c/:token',
+          name: AppRoute.CANVAS_PUBLIC,
+          component: () => import('@/views/library/canvases/PublicCanvas.vue'),
+          props: true,
+          meta: {
+            // A public link has to open for someone who isn't signed in —
+            // overrides the map subtree's own `auth: true`.
+            auth: false,
+          },
+        },
+        {
+          path: '/routes/new',
+          name: AppRoute.ROUTE_BUILDER,
+          component: () => import('@/views/routes/RouteBuilder.vue'),
+        },
+        {
+          path: '/routes/:id/edit',
+          name: AppRoute.ROUTE_BUILDER_EDIT,
+          component: () => import('@/views/routes/RouteBuilder.vue'),
+          props: true,
+        },
+        {
+          path: '/routes/:id',
+          name: AppRoute.ROUTE_DETAIL,
+          component: () => import('@/views/routes/RouteDetail.vue'),
+          props: true,
+        },
+        {
+          path: '/lookout',
+          name: AppRoute.LOOKOUT,
+          component: Lookout,
+          meta: {
+            auth: true,
+          },
+        },
+        {
+          path: '/lookout/friend/:handle',
+          name: AppRoute.FRIEND_DETAIL,
+          component: () => import('@/views/friends/FriendDetail.vue'),
+          props: true,
+          meta: {
+            auth: true,
+          },
+        },
+        {
+          path: '/lookout/tracker/:id',
+          name: AppRoute.TRACKER_DETAIL,
+          component: () => import('@/views/trackers/TrackerDetail.vue'),
+          props: true,
+          meta: {
+            auth: true,
+          },
+        },
+        // Redirects from old paths
+        {
+          path: '/friends',
+          redirect: '/lookout',
+        },
+        {
+          path: '/friends/:handle',
+          redirect: to => ({
+            name: AppRoute.FRIEND_DETAIL,
+            params: { handle: to.params.handle },
+          }),
+        },
+        {
+          path: '/trackers',
+          redirect: '/lookout',
+        },
+        {
+          path: '/trackers/:id',
+          redirect: to => ({
+            name: AppRoute.TRACKER_DETAIL,
+            params: { id: to.params.id },
+          }),
+        },
+        {
+          path: '/timeline',
+          name: AppRoute.TIMELINE,
+          component: () => import('@/views/timeline/Timeline.vue'),
+          meta: {
+            auth: true,
+          },
+        },
       ],
     },
     {
       path: '/settings',
+      name: AppRoute.SETTINGS,
       components: {
         default: Map,
         dialogContent: Settings,
@@ -141,7 +354,6 @@ const router = createRouter({
       meta: {
         auth: true,
         dialog: true,
-        layout: 'floating',
       },
       beforeEnter: [keepDefaultView],
       children: [
@@ -162,8 +374,12 @@ const router = createRouter({
         },
         {
           path: '/settings/map',
-          name: AppRoute.MAP_SETTINGS,
-          component: MapSettings,
+          redirect: '/settings/appearance',
+        },
+        {
+          path: '/settings/vehicles',
+          name: AppRoute.VEHICLES,
+          component: () => import('@/views/settings/pages/Vehicles.vue'),
         },
         {
           path: '/settings/users',
@@ -171,10 +387,36 @@ const router = createRouter({
           component: Users,
         },
         {
+          path: '/settings/users/:id',
+          name: AppRoute.USER_DETAIL,
+          component: () => import('@/views/settings/pages/UserDetail.vue'),
+        },
+        {
+          path: '/settings/roles',
+          name: AppRoute.ROLES,
+          component: () => import('@/views/settings/pages/RolesPage.vue'),
+        },
+        {
+          path: '/settings/roles/:id',
+          name: AppRoute.ROLE_DETAIL,
+          component: () => import('@/views/settings/pages/RoleDetail.vue'),
+        },
+        {
+          path: '/settings/permissions',
+          name: AppRoute.PERMISSIONS_PAGE,
+          component: () => import('@/views/settings/pages/PermissionsPage.vue'),
+        },
+        {
+          path: '/settings/permissions/:id',
+          name: AppRoute.PERMISSION_DETAIL,
+          component: () => import('@/views/settings/pages/PermissionDetail.vue'),
+        },
+        {
           path: '/settings/integrations',
           name: AppRoute.INTEGRATIONS,
           component: Integrations,
         },
+        ...DEV_ROUTES,
       ],
     },
     {
@@ -183,6 +425,7 @@ const router = createRouter({
       component: Map,
       meta: {
         auth: true,
+        hideUI: true,
       },
       beforeEnter: async (to, from) => {
         const id = to.params.id
@@ -201,15 +444,35 @@ const router = createRouter({
 
 router.beforeEach(async (to, from) => {
   const authStore = useAuthStore()
-  if (to.name !== AppRoute.SIGNIN) authStore.stashPath(to.path)
+  // The offline fallback is a dead end to return to after signing in — it
+  // only makes sense alongside the route that failed.
+  if (to.name !== AppRoute.SIGNIN && to.name !== AppRoute.OFFLINE) {
+    authStore.stashPath(to.path)
+  }
   if (to.meta.auth) {
-    // Wait for current user response to come back before checking auth
-    if (authStore.me === undefined) await authStore.authenticatedUserPromise
+    // Wait for current user response (or timeout) so we don't block forever
+    if (authStore.me === undefined) {
+      try {
+        await authStore.authenticatedUserPromise
+      } catch {
+        // Timeout or network error – treat as not authenticated
+      }
+    }
     if (!authStore.me)
       return {
         name: AppRoute.SIGNIN,
       }
   }
+})
+
+// A lazily-loaded view whose chunk can't be fetched would otherwise abort
+// the navigation and leave the previous view on screen with no explanation.
+// Land on the offline fallback instead, remembering where the user was
+// headed so it can retry.
+router.onError((error, to) => {
+  if (!isChunkLoadError(error)) return
+  console.warn('[router] view failed to load', to.fullPath, error)
+  router.replace({ name: AppRoute.OFFLINE, query: { from: to.fullPath } })
 })
 
 export default router

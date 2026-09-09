@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import fuzzysort from 'fuzzysort'
 import {
   Dialog,
@@ -13,9 +13,14 @@ import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
 import Span from '@/components/ui/typography/Span.vue'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
+import { useHotkeyStore } from '@/stores/hotkey.store'
+import type { Command } from '@/types/command.types'
+import { useHotkeys } from '@/composables/useHotkeys'
+import { appEventBus } from '@/lib/event-bus'
 
 const commandService = useCommandService()
 const commandStore = useCommandStore()
+const hotkeyStore = useHotkeyStore()
 
 const open = ref(false)
 const query = ref('')
@@ -24,10 +29,31 @@ function openHotkeysMenu() {
   open.value = true
 }
 
+onMounted(() => {
+  appEventBus.on('hotkeys:open', openHotkeysMenu)
+})
+
+onUnmounted(() => {
+  appEventBus.off('hotkeys:open', openHotkeysMenu)
+})
+
+// Combine command hotkeys and ephemeral hotkeys
 const hotkeys = computed(() => {
-  return commandStore.commands.filter(command => {
-    return !!command.hotkey
-  })
+  const commandHotkeys: Array<Command & { id: string }> = commandStore.commands
+    .filter(command => !!command.hotkey)
+    .map(command => ({
+      ...command,
+      id: command.id,
+    }))
+
+  const ephemeralHotkeys = hotkeyStore.getAllEphemeralHotkeys().map(hotkey => ({
+    id: hotkey.id,
+    name: hotkey.name,
+    description: hotkey.description,
+    hotkey: hotkey.hotkey,
+  }))
+
+  return [...commandHotkeys, ...ephemeralHotkeys]
 })
 
 const searchResults = computed(() => {
@@ -43,10 +69,15 @@ watch(open, value => {
   if (!value) query.value = ''
 })
 
-commandService.bindCommandToFunction(
-  CommandName.OPEN_HOTKEYS_MENU,
-  openHotkeysMenu,
-)
+useHotkeys([
+  {
+    id: 'open-hotkeys-menu',
+    key: ['h'],
+    name: 'Open hotkeys menu',
+    description: 'Open the hotkeys menu',
+    handler: openHotkeysMenu,
+  },
+])
 </script>
 
 <template>
@@ -78,4 +109,3 @@ commandService.bindCommandToFunction(
     </DialogContent>
   </Dialog>
 </template>
-@/components/ui/dialog-backup

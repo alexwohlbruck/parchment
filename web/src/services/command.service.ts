@@ -1,9 +1,10 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import mousetrap from 'mousetrap'
 import { CommandName, useCommandStore } from '@/stores/command.store'
 import { ArgumentType, Command } from '@/types/command.types'
 import { type Command as TCommand } from '@/types/command.types'
 import { createSharedComposable } from '@vueuse/core'
+import { appEventBus } from '@/lib/event-bus'
 
 const activeCommand = ref<TCommand | null>(null)
 const activeArgumentIndex = ref<number | null>(null)
@@ -18,7 +19,7 @@ const argumentsList = ref<ArgumentType[]>([])
 function commandService() {
   const commandStore = useCommandStore()
 
-  function executeCommand(command: TCommand, ...args: ArgumentType[]) {
+  async function executeCommand(command: TCommand, ...args: ArgumentType[]) {
     if (!command.action) return
 
     activeCommand.value = command
@@ -30,8 +31,13 @@ function commandService() {
       : true
 
     if (argsFilled) {
-      command.action(...argumentsList.value)
-      reset()
+      try {
+        await command.action(...argumentsList.value)
+      } catch (error) {
+        console.error('Error executing command:', error)
+      } finally {
+        reset()
+      }
     }
   }
 
@@ -65,16 +71,6 @@ function commandService() {
     })
   }
 
-  function bindCommandToFunction(id: CommandName, f: Function) {
-    const command = commandStore.commands.find(c => c.id === id)
-    if (command && !commandStore.commandIsAvailable(command)) return
-
-    commandStore.bindCommandToFunction(id, f)
-    if (command) {
-      bindHotkeyToCommand(command.id)
-    }
-  }
-
   function getHotkey(id: string) {
     const command = commandStore.commands.find(c => c.id === id)
     return command?.hotkey
@@ -87,6 +83,13 @@ function commandService() {
     return query
   }
 
+  // Watch for active argument changes and emit event to open palette
+  watch(activeArgument, (newVal, prevVal) => {
+    if (newVal) {
+      appEventBus.emit('palette:open')
+    }
+  })
+
   return {
     executeCommand,
     activeCommand,
@@ -97,7 +100,6 @@ function commandService() {
 
     bindHotkeyToCommand,
     bindAllHotkeysToCommands,
-    bindCommandToFunction,
     getHotkey,
     updateSearchQuery,
     currentSearchQuery,

@@ -32,7 +32,7 @@ watch(isOpen, value => {
 
 <template>
   <AlertDialog :open="isOpen" @update:open="isOpen = $event">
-    <AlertDialogContent>
+    <AlertDialogContent class="p-6">
       <AlertDialogHeader v-if="props.title || props.description">
         <AlertDialogTitle v-if="props.title">{{
           props.title
@@ -42,7 +42,7 @@ watch(isOpen, value => {
         </AlertDialogDescription>
       </AlertDialogHeader>
 
-      <AlertDialogFooter>
+      <AlertDialogFooter class="flex flex-col sm:flex-row gap-2">
         <Button
           @click="isOpen = false"
           variant="outline"

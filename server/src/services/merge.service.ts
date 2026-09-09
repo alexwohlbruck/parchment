@@ -5,6 +5,8 @@ import type { Place } from '../types/place.types'
 import { cloneDeep, groupBy } from 'lodash'
 import * as fuzz from 'fuzzball'
 import type { Feature, Point } from 'geojson'
+import { isPermanentlyClosedByOsmTags } from '../lib/osm-lifecycle'
+import { getPlaceOsmTags } from '../lib/place-tags'
 
 /**
  * Gets the priority of a data source
@@ -12,6 +14,43 @@ import type { Feature, Point } from 'geojson'
  */
 export function getSourcePriority(sourceId: string): number {
   return SOURCE_PRIORITIES[sourceId as keyof typeof SOURCE_PRIORITIES] || 0
+}
+
+/**
+ * Extract Commons filename from various URL formats
+ * Returns normalized filename (with underscores) or null if not a Commons URL
+ */
+export function extractCommonsFilename(url: string): string | null {
+  try {
+    let filename: string | null = null
+
+    // Commons direct upload URL: https://upload.wikimedia.org/wikipedia/commons/e/ec/EastWest_Blvd.jpg
+    const uploadMatch = url.match(/\/wikipedia\/commons\/[^\/]+\/[^\/]+\/([^?]+)/)
+    if (uploadMatch) {
+      filename = decodeURIComponent(uploadMatch[1])
+    }
+
+    // Commons FilePath URL: https://commons.wikimedia.org/wiki/Special:FilePath/EastWest%20Blvd.jpg
+    if (!filename) {
+      const filePathMatch = url.match(/\/Special:FilePath\/([^?]+)/)
+      if (filePathMatch) {
+        filename = decodeURIComponent(filePathMatch[1]).replace(/%20/g, ' ')
+      }
+    }
+
+    // Commons File page URL: https://commons.wikimedia.org/wiki/File:EastWest_Blvd.jpg
+    if (!filename) {
+      const filePageMatch = url.match(/\/wiki\/File:([^?]+)/)
+      if (filePageMatch) {
+        filename = decodeURIComponent(filePageMatch[1]).replace(/%20/g, ' ')
+      }
+    }
+
+    // Normalize spaces to underscores for consistent comparison
+    return filename ? filename.replace(/ /g, '_') : null
+  } catch (error) {
+    return null
+  }
 }
 
 /**
@@ -60,25 +99,32 @@ export function extractNumbers(text: string): string[] {
 
 /**
  * Improved address similarity that handles structured data, formatted addresses, and missing data
- * Returns 0 if either place has no address data (as requested)
  * Focuses on street name and number only - simple and fast
+ *
+ * Return value distinguishes "no information" from "the addresses disagree":
+ * - `null` when there is nothing to compare (one or both places lack usable
+ *   address data). Absence of evidence, not evidence of a mismatch.
+ * - `0` when the addresses genuinely conflict (both places have house numbers
+ *   and they differ, or the street names have nothing in common). That is a
+ *   positive signal that these are two different places.
+ * - otherwise a 0-1 street name similarity score.
  */
 export function calculateAddressSimilarity(
   place1: Place,
   place2: Place,
-): number {
+): number | null {
   const address1 = place1.address?.value
   const address2 = place2.address?.value
 
-  // Return 0% match if either place has no address data
-  if (!address1 || !address2) return 0
+  // Nothing to compare if either place has no address data
+  if (!address1 || !address2) return null
 
   // Get street strings from both addresses
   const street1 = getStreetString(address1)
   const street2 = getStreetString(address2)
 
-  // If we can't extract street info from either, return 0
-  if (!street1 || !street2) return 0
+  // Nothing to compare if we can't extract street info from either
+  if (!street1 || !street2) return null
 
   // Extract and compare house numbers first
   const numbers1 = extractNumbers(street1)
@@ -255,6 +301,12 @@ function mergeAttributedRecord<T>(
  * Determines if two places should be merged based on name, address, and distance similarity
  */
 function shouldMergePlaces(place1: Place, place2: Place): boolean {
+  // Never merge intersections with non-intersections (e.g. a tram stop named
+  // "Hawthorne & 8th" co-located with the road intersection)
+  const isIntersection1 = place1.placeType?.value === 'Intersection'
+  const isIntersection2 = place2.placeType?.value === 'Intersection'
+  if (isIntersection1 !== isIntersection2) return false
+
   const point1 = createTurfPoint(place1)
   const point2 = createTurfPoint(place2)
   const distanceMeters = turf.distance(point1, point2, { units: 'meters' })
@@ -266,8 +318,8 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
   const distanceSimilarity = 1 / (1 + Math.pow(distanceMeters / 100, 2))
 
   const nameSimilarity = calculateTextSimilarity(
-    place1.name.value,
-    place2.name.value,
+    place1.name.value || '',
+    place2.name.value || '',
   )
   const addressSimilarity = calculateAddressSimilarity(place1, place2)
 
@@ -278,10 +330,15 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
   // Early rejection if name similarity is too low
   if (nameSimilarity < requiredNameSimilarity) return false
 
+  // Conflicting addresses (different house numbers on the same street, or
+  // unrelated streets) mean these are different places regardless of how close
+  // together or similarly named they are
+  if (addressSimilarity === 0) return false
+
   // For very close places with addresses, require address match
   if (
     distanceSimilarity > 0.5 &&
-    addressSimilarity > 0 && // Has address data
+    addressSimilarity !== null && // Has address data
     addressSimilarity < 0.7
   ) {
     return false
@@ -290,7 +347,7 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
   // Calculate weighted merge score
   let mergeScore: number
 
-  if (addressSimilarity > 0) {
+  if (addressSimilarity !== null) {
     // With addresses: name 50%, distance 25%, address 25%
     mergeScore =
       nameSimilarity * 0.5 +
@@ -309,6 +366,38 @@ function shouldMergePlaces(place1: Place, place2: Place): boolean {
 }
 
 /**
+ * Force the permanently-closed status when the place's own OSM tags retire it.
+ *
+ * Directories keep serving a shut-down business's old schedule long after the
+ * fact — PAR-287 is a `disused:amenity=cafe` node carrying no OSM hours at all,
+ * whose "Open now" came entirely from a third-party listing. Source priority
+ * happens to favour OSM today, but a closure is a fact about the place rather
+ * than a field for the highest-priority source to win, so it is applied after
+ * the merge instead of competing inside it.
+ */
+function applyPermanentClosure(place: Place): Place {
+  if (!isPermanentlyClosedByOsmTags(getPlaceOsmTags(place))) return place
+
+  const existing = place.openingHours
+
+  place.openingHours = {
+    ...existing,
+    value: {
+      ...existing?.value,
+      // Hours from when the place was trading are what render as "Open now".
+      regularHours: [],
+      isOpen24_7: false,
+      isTemporarilyClosed: false,
+      isPermanentlyClosed: true,
+    },
+    sourceId: existing?.sourceId ?? SOURCE.OSM,
+    timestamp: existing?.timestamp ?? new Date().toISOString(),
+  }
+
+  return place
+}
+
+/**
  * Merges multiple Place objects into one, prioritizing data based on source priorities
  */
 export function mergePlaces(
@@ -316,7 +405,9 @@ export function mergePlaces(
   ...additionalPlaces: (Place | null)[]
 ): Place {
   const validPlaces = additionalPlaces.filter((p): p is Place => p !== null)
-  if (validPlaces.length === 0) return cloneDeep(primaryPlace)
+  if (validPlaces.length === 0) {
+    return applyPermanentClosure(cloneDeep(primaryPlace))
+  }
 
   const result = cloneDeep(primaryPlace)
 
@@ -372,6 +463,40 @@ export function mergePlaces(
     )
     result.amenities = mergeAttributedRecord(result.amenities, place.amenities)
 
+    // Merge raw OSM tags: fill keys the primary lacks, never overwrite. Since
+    // places are merged highest-priority-first, this is extend-don't-overwrite
+    // (OSM stays authoritative; lower-priority sources like Foursquare only
+    // fill gaps). This is what carries Foursquare-mapped attribute tags into
+    // the DisplayChips pipeline, which reads `place.tags`.
+    if (place.tags) {
+      if (!result.tags) result.tags = {}
+      for (const [key, value] of Object.entries(place.tags)) {
+        if (result.tags[key] === undefined) result.tags[key] = value
+      }
+    }
+
+    // Merge popularity metrics (higher-priority source wins)
+    if (place.popularity) {
+      result.popularity =
+        mergeAttributedValue(result.popularity ?? null, place.popularity) ??
+        undefined
+    }
+    if (place.popularHours) {
+      result.popularHours =
+        mergeAttributedValue(result.popularHours ?? null, place.popularHours) ??
+        undefined
+    }
+
+    // Merge icon (keep first available)
+    if (!result.icon && place.icon) {
+      result.icon = cloneDeep(place.icon)
+    }
+
+    // Merge transit data (prioritize sources with richer transit information)
+    if (place.transit) {
+      result.transit = mergeAttributedValue(result.transit || null, place.transit)
+    }
+
     // Merge ratings
     if (place.ratings) {
       if (!result.ratings) {
@@ -392,16 +517,86 @@ export function mergePlaces(
       }
     }
 
-    // Merge photos without duplicates
+    // Merge reviews without duplicates (dedup by provider review id)
+    if (place.reviews?.length) {
+      if (!result.reviews) result.reviews = []
+      const existingReviewIds = new Set(
+        result.reviews.map((review) => review.value.id),
+      )
+      for (const review of place.reviews) {
+        if (existingReviewIds.has(review.value.id)) continue
+        result.reviews.push(cloneDeep(review))
+        existingReviewIds.add(review.value.id)
+      }
+    }
+
+    // Merge photos without duplicates (including Commons filename deduplication)
     if (place.photos.length > 0) {
       const existingUrls = new Set(
         result.photos.map((photo) => photo.value.url),
       )
+      const existingCommonsFiles = new Set(
+        result.photos
+          .map((photo) => extractCommonsFilename(photo.value.url))
+          .filter((filename): filename is string => filename !== null)
+      )
+      
       for (const photo of place.photos) {
-        if (!existingUrls.has(photo.value.url)) {
-          result.photos.push(cloneDeep(photo))
+        const photoUrl = photo.value.url
+        const commonsFilename = extractCommonsFilename(photoUrl)
+        
+        // Skip if we already have this exact URL
+        if (existingUrls.has(photoUrl)) {
+          continue
+        }
+        
+        // Skip if we already have this Commons file (but keep the higher priority source)
+        if (commonsFilename && existingCommonsFiles.has(commonsFilename)) {
+          // Find the existing photo with this Commons file
+          const existingPhotoIndex = result.photos.findIndex(existingPhoto => 
+            extractCommonsFilename(existingPhoto.value.url) === commonsFilename
+          )
+          
+          if (existingPhotoIndex !== -1) {
+            const existingPhoto = result.photos[existingPhotoIndex]
+            const newSourcePriority = getSourcePriority(photo.sourceId)
+            const existingSourcePriority = getSourcePriority(existingPhoto.sourceId)
+            
+            // Replace with higher priority source
+            if (newSourcePriority > existingSourcePriority) {
+              result.photos[existingPhotoIndex] = cloneDeep(photo)
+            }
+          }
+          continue
+        }
+        
+        // Add new photo if it's not a duplicate
+        result.photos.push(cloneDeep(photo))
+        if (commonsFilename) {
+          existingCommonsFiles.add(commonsFilename)
+        }
+        existingUrls.add(photoUrl)
+      }
+    }
+
+    // Ensure only one photo is marked as primary (highest priority source wins)
+    if (result.photos.length > 0) {
+      // Find the photo with the highest source priority
+      let primaryPhotoIndex = 0
+      let highestPriority = getSourcePriority(result.photos[0].sourceId)
+      
+      for (let i = 1; i < result.photos.length; i++) {
+        const priority = getSourcePriority(result.photos[i].sourceId)
+        if (priority > highestPriority) {
+          highestPriority = priority
+          primaryPhotoIndex = i
         }
       }
+      
+      // Set primary status
+      result.photos.forEach((photo, index) => {
+        photo.value.isPrimary = index === primaryPhotoIndex
+      })
     }
 
     // Merge sources
@@ -413,7 +608,7 @@ export function mergePlaces(
     }
   }
 
-  return result
+  return applyPermanentClosure(result)
 }
 
 // TODO: This can be optimized to never merge places from the same source
@@ -421,7 +616,13 @@ export function mergePlaces(
  * Merges and deduplicates places from multiple sources
  */
 export function mergePlacesCollection(places: Place[]): Place[] {
-  if (places.length <= 1) return places
+  // A lone place skips the merge, but not the closure check — every place
+  // leaving here has had its lifecycle tags honoured. Applied in place so the
+  // caller still gets its own array back; a live place is left untouched.
+  if (places.length <= 1) {
+    places.forEach(applyPermanentClosure)
+    return places
+  }
 
   const groups: Place[][] = []
 

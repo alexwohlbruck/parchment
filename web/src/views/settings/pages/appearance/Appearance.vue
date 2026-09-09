@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import {
   Select,
   SelectContent,
@@ -11,23 +11,42 @@ import {
 import { Span } from '@/components/ui/typography'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
-import { CheckIcon } from 'lucide-vue-next'
+import { Switch } from '@/components/ui/switch'
 import {
-  allRadii,
-  useThemeStore,
-  allColors,
-} from '@/stores/settings/theme.store'
-import { colors } from '@/lib/registry/colors'
+  CheckIcon,
+  MountainSnowIcon,
+  Building2Icon,
+  TreePineIcon,
+  MapIcon,
+  MilestoneIcon,
+  InfoIcon,
+  TrainIcon,
+  MapPinIcon,
+  RouteIcon,
+  DoorOpenIcon,
+} from 'lucide-vue-next'
+import { useThemeStore, allColors } from '@/stores/theme.store'
+import { useMapStore } from '@/stores/map.store'
+import { useMapService } from '@/services/map.service'
+import { MapEngine, type MapStyleId, type PoiStyleId } from '@/types/map.types'
+import { palette } from '@/lib/palette'
+import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SettingsSection, SettingsItem } from '@/components/settings'
-
-const mapTheme = ref('auto')
+import Layers from '@/components/library/layers/LayerList.vue'
 
 // Theme store
 const themeStore = useThemeStore()
 const { isDark, accentColor, radius } = storeToRefs(themeStore)
 const { toggleDark, setAccentColor, setRadius } = themeStore
+
+// Map store
+const mapStore = useMapStore()
+const mapService = useMapService()
+const { settings } = storeToRefs(mapStore)
+
+const isMaplibre = computed(() => settings.value.engine === MapEngine.MAPLIBRE)
 
 // Convert radius to slider format (array)
 const sliderRadius = ref([radius.value])
@@ -45,16 +64,17 @@ const updateRadius = (value: number[] | undefined) => {
 }
 
 // Function to handle theme color selection
-const handleColorChange = (value: string) => {
-  // The setAccentColor function expects a value from allColors
-  // This cast is safe since we're only passing values from allColors in the UI
+const handleColorChange = (value: any) => {
   setAccentColor(value as (typeof allColors)[number])
 }
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 w-fit">
-    <SettingsSection :title="$t('settings.appearance.appTheme.title')">
+  <div class="flex flex-col gap-4">
+    <SettingsSection
+      id="app-theme"
+      :title="$t('settings.appearance.appTheme.title')"
+    >
       <SettingsItem :title="$t('settings.appearance.appTheme.color.title')">
         <Select
           :model-value="accentColor"
@@ -73,7 +93,7 @@ const handleColorChange = (value: string) => {
                 <div class="flex items-center gap-2">
                   <div
                     class="w-2.5 h-2.5 rounded-full"
-                    :style="{ backgroundColor: colors[color][5].rgb }"
+                    :style="{ backgroundColor: palette[color as PaletteColor]?.[500] }"
                   ></div>
                   <Span>{{
                     $t(`settings.appearance.appTheme.color.values.${color}`)
@@ -121,36 +141,178 @@ const handleColorChange = (value: string) => {
       </SettingsItem>
     </SettingsSection>
 
-    <SettingsSection :title="$t('settings.appearance.mapTheme.title')">
-      <SettingsItem :title="$t('settings.appearance.mapTheme.title')">
-        <Select v-model="mapTheme">
+    <!-- Map configuration -->
+    <SettingsSection
+      id="configuration"
+      :title="$t('settings.mapSettings.configuration.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.3dBuildings')"
+        :icon="Building2Icon"
+      >
+        <Switch
+          :model-value="settings.buildings3d"
+          @update:model-value="mapService.toggle3dBuildings()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPLIBRE"
+        :title="$t('settings.mapSettings.configuration.3dObjects')"
+        :description="
+          $t('settings.mapSettings.configuration.3dObjectsDescription')
+        "
+        :icon="TreePineIcon"
+      >
+        <Switch
+          :model-value="settings.objects3d"
+          @update:model-value="mapService.toggle3dObjects()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.3dTerrain')"
+        :icon="MountainSnowIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
+      >
+        <Switch
+          :model-value="settings.terrain3d"
+          @update:model-value="mapService.toggle3dTerrain()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.hdRoads')"
+        :description="
+          $t('settings.mapSettings.configuration.hdRoadsDescription')
+        "
+        :icon="RouteIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
+      >
+        <Switch
+          :model-value="settings.hdRoads"
+          @update:model-value="mapService.toggleHdRoads()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="settings.engine === MapEngine.MAPBOX"
+        :title="$t('settings.mapSettings.configuration.indoorMaps')"
+        :description="
+          $t('settings.mapSettings.configuration.indoorMapsDescription')
+        "
+        :icon="DoorOpenIcon"
+        :badge="$t('settings.mapSettings.configuration.experimental')"
+      >
+        <Switch
+          :model-value="settings.indoorMaps"
+          @update:model-value="mapService.toggleIndoorMaps()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.poiLabels')"
+        :icon="InfoIcon"
+      >
+        <Switch
+          :model-value="settings.poiLabels"
+          @update:model-value="mapService.togglePoiLabels()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.roadLabels')"
+        :icon="MilestoneIcon"
+      >
+        <Switch
+          :model-value="settings.roadLabels"
+          @update:model-value="mapService.toggleRoadLabels()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.transitLabels')"
+        :icon="TrainIcon"
+      >
+        <Switch
+          :model-value="settings.transitLabels"
+          @update:model-value="mapService.toggleTransitLabels()"
+        />
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.configuration.placeLabels')"
+        :icon="MapPinIcon"
+      >
+        <Switch
+          :model-value="settings.placeLabels"
+          @update:model-value="mapService.togglePlaceLabels()"
+        />
+      </SettingsItem>
+    </SettingsSection>
+
+    <SettingsSection
+      id="style"
+      :title="$t('settings.mapSettings.style.title')"
+    >
+      <SettingsItem
+        :title="$t('settings.mapSettings.style.mapStyle')"
+        :description="
+          isMaplibre
+            ? $t('settings.mapSettings.style.descriptionMaplibre')
+            : $t('settings.mapSettings.style.descriptionMapbox')
+        "
+        :icon="MapIcon"
+      >
+        <Select
+          :model-value="
+            isMaplibre ? settings.mapStyle : 'mapbox-standard'
+          "
+          :disabled="!isMaplibre"
+          @update:model-value="
+            v => mapStore.setMapStyle(v as MapStyleId)
+          "
+        >
           <SelectTrigger class="w-fit">
-            <SelectValue placeholder="Choose an option" />
+            <SelectValue :placeholder="$t('settings.mapSettings.style.placeholder')" />
           </SelectTrigger>
           <SelectContent>
-            <SelectGroup>
-              <SelectItem value="auto">
-                {{ $t('settings.appearance.mapTheme.values.matchTime') }}
-              </SelectItem>
-              <SelectItem value="match">{{
-                $t('settings.appearance.mapTheme.values.match')
-              }}</SelectItem>
-              <SelectItem value="light">{{
-                $t('settings.appearance.mapTheme.values.day')
-              }}</SelectItem>
-              <SelectItem value="dark">{{
-                $t('settings.appearance.mapTheme.values.night')
-              }}</SelectItem>
-              <SelectItem value="dawn">{{
-                $t('settings.appearance.mapTheme.values.dawn')
-              }}</SelectItem>
-              <SelectItem value="dusk">{{
-                $t('settings.appearance.mapTheme.values.dusk')
-              }}</SelectItem>
-            </SelectGroup>
+            <SelectItem v-if="!isMaplibre" value="mapbox-standard">
+              Mapbox Standard
+            </SelectItem>
+            <SelectItem value="parchment">Parchment</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        v-if="isMaplibre"
+        :title="$t('settings.mapSettings.style.poiStyle')"
+        :description="$t('settings.mapSettings.style.poiStyleDescription')"
+        :icon="MapPinIcon"
+      >
+        <Select
+          :model-value="settings.poiStyle"
+          @update:model-value="v => mapStore.setPoiStyle(v as PoiStyleId)"
+        >
+          <SelectTrigger class="w-fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="badge">
+              {{ $t('settings.mapSettings.style.poiStyleBadge') }}
+            </SelectItem>
+            <SelectItem value="glyph">
+              {{ $t('settings.mapSettings.style.poiStyleGlyph') }}
+            </SelectItem>
           </SelectContent>
         </Select>
       </SettingsItem>
     </SettingsSection>
+
+    <!-- Layers configuration -->
+    <Layers />
   </div>
 </template>

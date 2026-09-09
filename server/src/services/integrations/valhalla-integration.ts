@@ -17,6 +17,7 @@ import {
   RouteInstruction,
   RouteSummary,
 } from '../../types/unified-routing.types'
+import { getLanguageCode } from '../../lib/i18n'
 import type {
   ValhallaConfig,
   ValhallaResponse,
@@ -24,6 +25,11 @@ import type {
   ValhallaManeuver,
 } from '../../types/valhalla.types'
 import { ValhallaAdapter } from './adapters/valhalla-adapter'
+import {
+  mapManeuverType,
+  mapManeuverModifier,
+} from '../../lib/valhalla-maneuvers'
+import { logError, logger } from '../../lib/logger'
 
 /**
  * Valhalla integration for routing
@@ -40,6 +46,46 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   readonly capabilities = {
     routing: {
       getRoute: this.getRoute.bind(this),
+      metadata: {
+        supportedPreferences: {
+          // Range preferences (Valhalla supports 0-1 floats natively)
+          highways: 'range',
+          tolls: 'range',
+          ferries: 'range',
+          hills: 'range',
+          surfaceQuality: 'range',
+          litPaths: 'range',
+          safetyVsSpeed: 'range',
+
+          // Boolean preferences
+          shortest: 'boolean',
+          preferHOV: 'boolean',
+          wheelchairAccessible: 'boolean',
+
+          // Numeric/enum preferences
+          cyclingSpeed: 'range',
+          walkingSpeed: 'range',
+          bicycleType: 'full',
+
+          // Transit
+          maxWalkDistance: 'full',
+          maxTransfers: false,
+        },
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck'],
+        supportedOptimizations: ['time', 'distance'],
+        features: {
+          alternatives: true, // alternates parameter
+          traffic: true, // speed_types with current/predicted/constrained
+          elevation: true, // elevation_interval
+          instructions: true, // directions_type
+          matrix: true, // Matrix API available
+          transit: false, // Transit not fully supported yet
+        },
+        limits: {
+          maxWaypoints: 20,
+          maxAlternatives: 3,
+        },
+      },
     } as RoutingCapability,
   }
 
@@ -113,7 +159,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Valhalla API:', error)
+      logError('Error testing Valhalla API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Valhalla server',
@@ -148,6 +194,7 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
         : this.config.host
       const url = `${host}/route`
 
+      const lang = request.language ? getLanguageCode(request.language) : 'en'
       const requestBody = {
         locations: request.waypoints.map((waypoint) => ({
           lat: waypoint.coordinate.lat,
@@ -161,14 +208,12 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
           units: 'kilometers',
           narrative: request.includeInstructions ?? true,
           format: 'json',
+          ...(lang && { language: lang }),
         },
       }
 
-      console.log('Valhalla request URL:', url)
-      console.log(
-        'Valhalla request body:',
-        JSON.stringify(requestBody, null, 2),
-      )
+      logger.debug({ url }, 'Valhalla request URL')
+      logger.debug({ requestBody }, 'Valhalla request body')
 
       const response = await fetch(url, {
         method: 'POST',
@@ -180,7 +225,10 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('Valhalla error response:', response.status, errorText)
+        logError('Valhalla error response', undefined, {
+          status: response.status,
+          errorText,
+        })
         throw new Error(
           `Valhalla routing error: ${response.status} - ${errorText}`,
         )
@@ -245,33 +293,189 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
     const preferences = request.preferences
     const vehicle = request.vehicle
 
+    // ── Auto / Driving ───────────────────────────────────────────
     if (request.mode === TravelMode.DRIVING) {
-      options.auto = {
-        use_tolls: preferences?.avoidTolls ? 0 : 1,
-        use_highways: preferences?.avoidHighways ? 0 : 1,
-        use_ferry: preferences?.avoidFerries ? 0 : 1,
+      const auto: Record<string, any> = {}
+
+      // Range preferences (new numeric fields, fallback to legacy booleans)
+      if (preferences?.tolls !== undefined)
+        auto.use_tolls = preferences.tolls
+      else if (preferences?.avoidTolls !== undefined)
+        auto.use_tolls = preferences.avoidTolls ? 0 : 0.5
+
+      if (preferences?.highways !== undefined)
+        auto.use_highways = preferences.highways
+      else if (preferences?.avoidHighways !== undefined)
+        auto.use_highways = preferences.avoidHighways ? 0 : 0.5
+
+      if (preferences?.ferries !== undefined)
+        auto.use_ferry = preferences.ferries
+      else if (preferences?.avoidFerries !== undefined)
+        auto.use_ferry = preferences.avoidFerries ? 0 : 0.5
+
+      if (preferences?.avoidUnpaved)
+        auto.exclude_unpaved = true
+
+      // HOV lanes
+      if (preferences?.preferHOV) {
+        auto.include_hov2 = true
+        auto.include_hov3 = true
+        auto.include_hot = true
       }
 
-      if (vehicle) {
-        if (vehicle.height) options.auto.height = vehicle.height
-        if (vehicle.width) options.auto.width = vehicle.width
-        if (vehicle.weight) options.auto.weight = vehicle.weight
-      }
-    } else if (request.mode === TravelMode.CYCLING) {
-      options.bicycle = {
-        use_ferry: preferences?.avoidFerries ? 0 : 1,
+      // Vehicle physical dimensions
+      if (vehicle?.height) auto.height = vehicle.height
+      if (vehicle?.width) auto.width = vehicle.width
+      if (vehicle?.weight) auto.weight = vehicle.weight
+
+      // Top speed cap
+      if (preferences?.providerOptions?.topSpeed)
+        auto.top_speed = preferences.providerOptions.topSpeed
+
+      if (Object.keys(auto).length) options.auto = auto
+    }
+
+    // ── Truck ────────────────────────────────────────────────────
+    if (request.mode === TravelMode.TRUCK) {
+      const truck: Record<string, any> = {}
+
+      if (preferences?.tolls !== undefined)
+        truck.use_tolls = preferences.tolls
+      else if (preferences?.avoidTolls !== undefined)
+        truck.use_tolls = preferences.avoidTolls ? 0 : 0.5
+
+      if (preferences?.highways !== undefined)
+        truck.use_highways = preferences.highways
+      else if (preferences?.avoidHighways !== undefined)
+        truck.use_highways = preferences.avoidHighways ? 0 : 0.5
+
+      if (preferences?.ferries !== undefined)
+        truck.use_ferry = preferences.ferries
+      else if (preferences?.avoidFerries !== undefined)
+        truck.use_ferry = preferences.avoidFerries ? 0 : 0.5
+
+      if (preferences?.avoidUnpaved)
+        truck.exclude_unpaved = true
+
+      // Vehicle constraints
+      if (vehicle?.height) truck.height = vehicle.height
+      if (vehicle?.width) truck.width = vehicle.width
+      if (vehicle?.weight) truck.weight = vehicle.weight
+      if (vehicle?.length) truck.length = vehicle.length
+      if (vehicle?.axleLoad) truck.axle_load = vehicle.axleLoad
+      if (preferences?.providerOptions?.hazmat) truck.hazmat = true
+
+      if (Object.keys(truck).length) options.truck = truck
+    }
+
+    // ── Bicycle ──────────────────────────────────────────────────
+    if (request.mode === TravelMode.CYCLING) {
+      const bicycle: Record<string, any> = {}
+
+      // Range preferences (new numeric fields, fallback to legacy booleans)
+      if (preferences?.ferries !== undefined)
+        bicycle.use_ferry = preferences.ferries
+      else if (preferences?.avoidFerries !== undefined)
+        bicycle.use_ferry = preferences.avoidFerries ? 0 : 0.5
+
+      if (preferences?.hills !== undefined)
+        bicycle.use_hills = preferences.hills
+      else if (preferences?.avoidHills !== undefined)
+        bicycle.use_hills = preferences.avoidHills ? 0 : 0.5
+
+      // Surface quality: 0=any surface, 1=paved only → maps to avoid_bad_surfaces directly
+      if (preferences?.surfaceQuality !== undefined)
+        bicycle.avoid_bad_surfaces = preferences.surfaceQuality
+      else if (preferences?.preferPavedPaths)
+        bicycle.avoid_bad_surfaces = 0.8
+
+      // Safety vs Speed → use_roads (0=safest/prefer paths, 1=fastest/prefer roads)
+      if (preferences?.safetyVsSpeed !== undefined)
+        bicycle.use_roads = preferences.safetyVsSpeed
+      else if (preferences?.providerOptions?.useRoads !== undefined)
+        bicycle.use_roads = preferences.providerOptions.useRoads
+
+      // Cycling speed override (kph)
+      if (preferences?.cyclingSpeed)
+        bicycle.cycling_speed = preferences.cyclingSpeed
+      else if (preferences?.providerOptions?.cyclingSpeed)
+        bicycle.cycling_speed = preferences.providerOptions.cyclingSpeed
+
+      // Bicycle type: Road, Hybrid, Mountain, Cross, BMX
+      if (preferences?.bicycleType)
+        bicycle.bicycle_type = preferences.bicycleType
+      else if (preferences?.providerOptions?.bicycleType)
+        bicycle.bicycle_type = preferences.providerOptions.bicycleType
+
+      // Lower the penalty for service roads / driveways so the router
+      // considers cutting through them as shortcuts to bike lanes.
+      bicycle.service_penalty = 0
+      bicycle.service_factor = 0
+
+      // Allow bicycle routing on pedestrian-only paths (sidewalks, footways)
+      // with a penalty. 0=disallow (Valhalla default), 1=no penalty.
+      bicycle.use_pedestrian_paths = 0.5
+
+      if (Object.keys(bicycle).length) options.bicycle = bicycle
+    }
+
+    // ── Pedestrian / Walking ─────────────────────────────────────
+    if (request.mode === TravelMode.WALKING) {
+      const pedestrian: Record<string, any> = {}
+
+      if (preferences?.hills !== undefined)
+        pedestrian.use_hills = preferences.hills
+      else if (preferences?.avoidHills !== undefined)
+        pedestrian.use_hills = preferences.avoidHills ? 0 : 0.5
+
+      if (preferences?.litPaths !== undefined)
+        pedestrian.use_lit = preferences.litPaths
+      else if (preferences?.providerOptions?.preferLitPaths)
+        pedestrian.use_lit = 1
+
+      // Walking speed override (kph)
+      if (preferences?.walkingSpeed)
+        pedestrian.walking_speed = preferences.walkingSpeed
+      else if (preferences?.providerOptions?.walkingSpeed)
+        pedestrian.walking_speed = preferences.providerOptions.walkingSpeed
+
+      // Accessible pedestrian routing
+      if (preferences?.wheelchairAccessible)
+        pedestrian.type = 'wheelchair'
+
+      // Max walking distance (meters → km for Valhalla)
+      if (preferences?.maxWalkDistance) {
+        pedestrian.max_distance = preferences.maxWalkDistance / 1000
+        pedestrian.transit_start_end_max_distance = preferences.maxWalkDistance
+        pedestrian.transit_transfer_max_distance = preferences.maxWalkDistance
       }
 
-      if (preferences?.providerOptions?.cyclingSpeed) {
-        options.bicycle.cycling_speed = preferences.providerOptions.cyclingSpeed
-      }
-    } else if (request.mode === TravelMode.WALKING) {
-      options.pedestrian = {}
+      if (Object.keys(pedestrian).length) options.pedestrian = pedestrian
+    }
 
-      if (preferences?.providerOptions?.walkingSpeed) {
-        options.pedestrian.walking_speed =
-          preferences.providerOptions.walkingSpeed
-      }
+    // ── Motorcycle ───────────────────────────────────────────────
+    if (request.mode === TravelMode.MOTORCYCLE) {
+      const motorcycle: Record<string, any> = {}
+
+      if (preferences?.highways !== undefined)
+        motorcycle.use_highways = preferences.highways
+      else if (preferences?.avoidHighways !== undefined)
+        motorcycle.use_highways = preferences.avoidHighways ? 0 : 0.5
+
+      if (preferences?.ferries !== undefined)
+        motorcycle.use_ferry = preferences.ferries
+      else if (preferences?.avoidFerries !== undefined)
+        motorcycle.use_ferry = preferences.avoidFerries ? 0 : 0.5
+
+      if (preferences?.tolls !== undefined)
+        motorcycle.use_tolls = preferences.tolls
+      else if (preferences?.avoidTolls !== undefined)
+        motorcycle.use_tolls = preferences.avoidTolls ? 0 : 0.5
+
+      if (preferences?.providerOptions?.useTrails !== undefined)
+        motorcycle.use_trails = preferences.providerOptions.useTrails
+
+      if (Object.keys(motorcycle).length) options.motorcycle = motorcycle
     }
 
     return Object.keys(options).length > 0 ? options : undefined
@@ -339,6 +543,9 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   ): RouteLeg {
     const startWaypoint = request.waypoints[legIndex]
     const endWaypoint = request.waypoints[legIndex + 1]
+    
+    // Decode geometry once for use in instructions
+    const geometry = this.decodePolyline(leg.shape)
 
     return {
       startWaypoint,
@@ -346,9 +553,9 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
       mode: request.mode,
       distance: leg.summary.length * 1000, // Convert km to meters
       duration: leg.summary.time,
-      geometry: this.decodePolyline(leg.shape),
+      geometry,
       instructions: leg.maneuvers.map((maneuver) =>
-        this.buildRouteInstruction(maneuver),
+        this.buildRouteInstruction(maneuver, geometry),
       ),
       hasTolls: leg.summary.has_toll,
       hasHighways: leg.summary.has_highway,
@@ -359,102 +566,24 @@ export class ValhallaIntegration implements Integration<ValhallaConfig> {
   /**
    * Build route instruction from Valhalla maneuver
    */
-  private buildRouteInstruction(maneuver: ValhallaManeuver): RouteInstruction {
+  private buildRouteInstruction(maneuver: ValhallaManeuver, geometry: { lat: number; lng: number }[]): RouteInstruction {
+    // Extract coordinate from geometry using begin_shape_index
+    let coordinate = { lat: 0, lng: 0 }
+    if (maneuver.begin_shape_index !== undefined && geometry[maneuver.begin_shape_index]) {
+      coordinate = geometry[maneuver.begin_shape_index]
+    }
+    
     return {
-      type: this.mapManeuverType(maneuver.type),
+      type: mapManeuverType(maneuver.type),
       text: maneuver.instruction,
-      coordinate: {
-        lat: 0, // Valhalla doesn't provide lat/lng in maneuvers
-        lng: 0, // Would need to decode from shape
-      },
+      coordinate,
       distance: maneuver.length * 1000, // Convert km to meters
       duration: maneuver.time,
       streetName: maneuver.street_names?.[0],
-      modifier: this.mapManeuverModifier(maneuver.type),
+      modifier: mapManeuverModifier(maneuver.type),
       exitNumber: maneuver.sign?.exit_number
         ? parseInt(maneuver.sign.exit_number)
         : undefined,
-    }
-  }
-
-  /**
-   * Map Valhalla maneuver type to unified instruction type
-   */
-  private mapManeuverType(type: number): string {
-    // Valhalla maneuver type mappings
-    switch (type) {
-      case 1:
-        return 'start'
-      case 2:
-      case 3:
-      case 4:
-      case 5:
-      case 6:
-        return 'turn'
-      case 7:
-      case 8:
-        return 'continue'
-      case 9:
-      case 10:
-        return 'merge'
-      case 11:
-      case 12:
-      case 13:
-      case 14:
-      case 15:
-      case 16:
-      case 17:
-      case 18:
-      case 19:
-      case 20:
-      case 21:
-      case 22:
-      case 23:
-      case 24:
-      case 25:
-      case 26:
-        return 'roundabout'
-      case 27:
-        return 'ramp'
-      case 4:
-        return 'destination'
-      default:
-        return 'continue'
-    }
-  }
-
-  /**
-   * Map Valhalla maneuver type to turn modifier
-   */
-  private mapManeuverModifier(
-    type: number,
-  ):
-    | 'left'
-    | 'right'
-    | 'straight'
-    | 'slight-left'
-    | 'slight-right'
-    | 'u-turn'
-    | undefined {
-    switch (type) {
-      case 2:
-        return 'straight'
-      case 3:
-        return 'slight-right'
-      case 4:
-        return 'right'
-      case 5:
-        return 'right' // sharp-right -> right
-      case 6:
-        return 'u-turn'
-      case 7:
-        return 'left' // sharp-left -> left
-      case 8:
-        return 'left'
-      case 9:
-        return 'slight-left'
-      default:
-        return undefined
     }
   }
 

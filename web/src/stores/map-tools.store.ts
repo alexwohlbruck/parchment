@@ -1,0 +1,181 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { LngLat } from '@/types/map.types'
+import {
+  MEASURE_SOURCE_ID,
+  MEASURE_LAYER_ID,
+  MEASURE_POINTS_LAYER_ID,
+} from '@/constants/layers'
+import { useIsochroneStore } from '@/stores/isochrone.store'
+
+export type MapToolId = 'none' | 'measure' | 'radius' | 'isochrone'
+
+export const useMapToolsStore = defineStore('map-tools', () => {
+  const activeTool = ref<MapToolId>('none')
+
+  /**
+   * Set while something is capturing raw map clicks — the measure tool, or a
+   * canvas drawing tool.
+   *
+   * The basemap's POI interaction normally wins a click and re-emits it at the
+   * POI's own centre, which is right for "open this cafe" and wrong for
+   * "put a vertex here": the point would jump to the nearest label. Anything
+   * placing geometry sets this so the plain map click fires instead, with the
+   * coordinates actually clicked.
+   */
+  const rawClickCapture = ref(false)
+
+  /**
+   * Set while a map tool wants Escape for itself.
+   *
+   * Escape is bound in several places at once — the drawing tools, the left
+   * sheet, the bottom sheet — and every binding fires. Without this, one
+   * press both disarms the tool and closes the view behind it, which is never
+   * what was meant: mid-shape, Escape means "get me out of this tool".
+   */
+  const escapeCapture = ref(false)
+
+  // Measure tool state: points in order, and history for undo/redo
+  const measurePoints = ref<LngLat[]>([])
+
+  // Radius tool state: center, edge point (where user set radius), radius in meters, and whether user confirmed
+  const radiusCenter = ref<LngLat | null>(null)
+  const radiusEdgePoint = ref<LngLat | null>(null)
+  const radiusMeters = ref(0)
+  const radiusConfirmed = ref(false)
+  const measureHistory = ref<LngLat[][]>([])
+  const measureHistoryIndex = ref(-1)
+
+  const canUndo = computed(() => measureHistoryIndex.value > 0)
+  const canRedo = computed(
+    () => measureHistoryIndex.value < measureHistory.value.length - 1,
+  )
+
+  const isMeasureClosed = computed(() => {
+    const points = measurePoints.value
+    if (points.length < 3) return false
+    const first = points[0]
+    const last = points[points.length - 1]
+    const tol = 1e-9
+    return (
+      Math.abs(first.lng - last.lng) < tol && Math.abs(first.lat - last.lat) < tol
+    )
+  })
+
+  function setActiveTool(tool: MapToolId) {
+    activeTool.value = tool
+    if (tool !== 'measure') {
+      clearMeasure()
+    }
+    if (tool !== 'radius') {
+      clearRadius()
+    }
+    if (tool !== 'isochrone') {
+      // Isochrone state lives in its own store — the fetch, abort and result
+      // handling would swamp this one. Resolved lazily so the dependency stays
+      // one-way and this store keeps loading without it.
+      useIsochroneStore().clear()
+    }
+  }
+
+  function setRadiusCenter(center: LngLat | null) {
+    radiusCenter.value = center
+    if (!center) {
+      radiusEdgePoint.value = null
+      radiusMeters.value = 0
+      radiusConfirmed.value = false
+    }
+  }
+
+  function setRadiusEdgePoint(point: LngLat | null) {
+    radiusEdgePoint.value = point
+  }
+
+  function setRadiusMeters(meters: number) {
+    radiusMeters.value = meters
+  }
+
+  function confirmRadius() {
+    radiusConfirmed.value = true
+  }
+
+  function clearRadius() {
+    radiusCenter.value = null
+    radiusEdgePoint.value = null
+    radiusMeters.value = 0
+    radiusConfirmed.value = false
+  }
+
+  function clearMeasure() {
+    measurePoints.value = []
+    measureHistory.value = []
+    measureHistoryIndex.value = -1
+  }
+
+  function pushMeasureState(points: LngLat[]) {
+    const next = [...points]
+    const history = measureHistory.value
+    const idx = measureHistoryIndex.value
+    if (history.length === 0 && idx === -1) {
+      measureHistory.value = [[], next]
+      measureHistoryIndex.value = 1
+      measurePoints.value = next
+      return
+    }
+    measureHistory.value = history.slice(0, idx + 1).concat([next])
+    measureHistoryIndex.value = measureHistory.value.length - 1
+    measurePoints.value = next
+  }
+
+  function setMeasurePoints(points: LngLat[]) {
+    measurePoints.value = [...points]
+  }
+
+  function measureUndo() {
+    const history = measureHistory.value
+    const idx = measureHistoryIndex.value
+    if (idx <= 0) return
+    const prev = history[idx - 1]
+    measureHistoryIndex.value = idx - 1
+    measurePoints.value = [...prev]
+  }
+
+  function measureRedo() {
+    const history = measureHistory.value
+    const idx = measureHistoryIndex.value
+    if (idx >= history.length - 1) return
+    const next = history[idx + 1]
+    measureHistoryIndex.value = idx + 1
+    measurePoints.value = [...next]
+  }
+
+  return {
+    activeTool,
+    rawClickCapture,
+    escapeCapture,
+    measurePoints,
+    measureHistory,
+    measureHistoryIndex,
+    canUndo,
+    canRedo,
+    isMeasureClosed,
+    radiusCenter,
+    radiusEdgePoint,
+    radiusMeters,
+    radiusConfirmed,
+    setActiveTool,
+    clearMeasure,
+    pushMeasureState,
+    setMeasurePoints,
+    measureUndo,
+    measureRedo,
+    setRadiusCenter,
+    setRadiusEdgePoint,
+    setRadiusMeters,
+    confirmRadius,
+    clearRadius,
+    MEASURE_SOURCE_ID,
+    MEASURE_LAYER_ID,
+    MEASURE_POINTS_LAYER_ID,
+  }
+})

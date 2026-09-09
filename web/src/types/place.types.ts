@@ -5,13 +5,35 @@ import type {
   Address,
   OpeningHours,
   PlacePhoto,
+  Review,
   SourceReference,
   SourceId,
   Coordinates,
   OpeningTime,
   Amenity,
   AttributedValue,
+  TransitDeparture,
+  TransitStopInfo,
+  TransitLineRef,
+  TransitStopRef,
+  PlaceRelation,
+  PlaceCategory,
+  PlaceIcon,
+  WidgetDescriptor,
+  WidgetResponse,
+  BikeshareStatus,
+  StreetImageryPreview,
+  NearbyCategory,
+  PlaceBrand,
+  RelatedPlacesData,
+  RelatedPlacesStrategy,
+  RelatedParent,
+  DisplayChip,
+  ChipSentiment,
+  ChipCategory,
 } from '@server/types/place.types'
+
+import { WidgetType, WidgetDataType } from '@server/types/place.types'
 
 // Re-export for use in client code
 export type {
@@ -20,22 +42,46 @@ export type {
   Address,
   OpeningHours,
   PlacePhoto,
+  Review,
   SourceReference,
   SourceId,
   Coordinates,
   OpeningTime,
   Amenity,
   AttributedValue,
+  TransitDeparture,
+  TransitStopInfo,
+  TransitLineRef,
+  TransitStopRef,
+  PlaceRelation,
+  PlaceCategory,
+  PlaceIcon,
+  WidgetDescriptor,
+  WidgetResponse,
+  BikeshareStatus,
+  StreetImageryPreview,
+  NearbyCategory,
+  PlaceBrand,
+  RelatedPlacesData,
+  RelatedPlacesStrategy,
+  RelatedParent,
+  DisplayChip,
+  ChipSentiment,
+  ChipCategory,
 }
 
+export { WidgetType, WidgetDataType }
+
 // TODO: Move out of types
-export function getPrimaryPhoto(place: Place): PlacePhoto | null {
+export function getPrimaryPhoto(place: Partial<Place> | null): PlacePhoto | null {
+  if (!place?.photos) return null
   const primaryPhoto = place.photos.find(photo => photo.value.isPrimary)
   return primaryPhoto ? primaryPhoto.value : null
 }
 
 // TODO: Move out of types
-export function getLogoPhoto(place: Place): PlacePhoto | null {
+export function getLogoPhoto(place: Partial<Place> | null): PlacePhoto | null {
+  if (!place?.photos) return null
   const logoPhoto = place.photos.find(photo => photo.value.isLogo)
   return logoPhoto ? logoPhoto.value : null
 }

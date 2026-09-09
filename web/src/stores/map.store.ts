@@ -1,68 +1,130 @@
 import mitt from 'mitt'
-import { computed, ref } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import { defineStore } from 'pinia'
 import {
   Basemap,
   MapEngine,
-  MapOptions,
+  MapSettings,
   MapEvents,
-  Layer,
   MapCamera,
   MapTheme,
+  MapStyleId,
+  PoiStyleId,
   Pegman,
   MapProjection,
+  MapControlSettings,
+  ControlVisibility,
+  LocateFlySpeed,
+  StartupLocation,
+  GridSnapMode,
 } from '@/types/map.types'
-import { layers as defaultLayers } from '@/components/map/layers/layers'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { useStorage } from '@vueuse/core'
 
 const emitter = mitt<MapEvents>()
 
+const defaultSettings: MapSettings = {
+  theme: MapTheme.LIGHT,
+  engine: MapEngine.MAPBOX,
+  projection: MapProjection.GLOBE,
+  basemap: 'standard',
+  mapStyle: 'parchment',
+  poiStyle: 'badge',
+  terrain3d: false,
+  buildings3d: true,
+  objects3d: true,
+  poiLabels: true,
+  roadLabels: true,
+  transitLabels: true,
+  placeLabels: true,
+  hdRoads: false,
+  indoorMaps: false,
+  northUpSnap: true,
+  gridSnapMode: GridSnapMode.NORTH_UP,
+  locateFlySpeed: LocateFlySpeed.NORMAL,
+  startupLocation: StartupLocation.LAST_VISITED,
+}
+
+// Compute default control settings based on screen size (mobile vs desktop)
+// This only runs on first load when no saved settings exist
+function getDefaultControlSettings(): MapControlSettings {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768 // md breakpoint
+
+  return {
+    zoom: isMobile ? ControlVisibility.NEVER : ControlVisibility.ALWAYS,
+    compass: isMobile
+      ? ControlVisibility.WHILE_ROTATING
+      : ControlVisibility.ALWAYS,
+    scale: isMobile
+      ? ControlVisibility.WHILE_ZOOMING
+      : ControlVisibility.ALWAYS,
+    streetView: isMobile
+      ? ControlVisibility.WHILE_ACTIVE
+      : ControlVisibility.ALWAYS,
+    locate: ControlVisibility.ALWAYS,
+    weather: ControlVisibility.ALWAYS,
+  }
+}
+
 export const useMapStore = defineStore('map', () => {
   let mapStrategy: MapStrategy
+
   function setMapStrategy(map: MapStrategy) {
     mapStrategy = map
   }
 
-  const mapEngine = ref<MapEngine>(MapEngine.MAPBOX)
-  function setMapEngine(engine: MapEngine) {
-    mapEngine.value = engine
+  /**
+   * The live map strategy, or undefined before the map has loaded. Kept out
+   * of reactive state deliberately — it wraps a mapbox/maplibre instance,
+   * and making that a Pinia ref would have Vue walk the whole map object on
+   * every change.
+   */
+  function getMapStrategy(): MapStrategy | undefined {
+    return mapStrategy
   }
 
-  const mapProjection = ref<MapProjection>(MapProjection.GLOBE)
-  function setMapProjection(projection: MapProjection) {
-    mapProjection.value = projection
+  const settings = useStorage<MapSettings>('map', defaultSettings)
+
+  /**
+   * The user's own appearance settings, parked while a canvas overrides them.
+   *
+   * Overrides are applied by writing into `settings`, so every watcher and
+   * strategy call that already reacts to them keeps working — there is no
+   * second path to the map. That leaves one hazard: `settings` is persisted,
+   * so a tab closed mid-canvas would leave the canvas's choices looking like
+   * the user's. Parking the originals here, persisted too, means the next
+   * start can always hand them back.
+   */
+  // Empty rather than null: `useStorage` picks its serializer from the
+  // default, and a null default gets the one that stringifies with `String()`
+  // — an object written through it comes back as "[object Object]".
+  const parkedSettings = useStorage<Partial<MapSettings>>(
+    'map-parked-settings',
+    {},
+  )
+
+  // Anything still parked at startup was never handed back — the tab went
+  // away while a canvas had the map. Give it back now, BEFORE the migration
+  // below: while a canvas holds the map, `settings` carries the canvas's
+  // choices, and deriving the 3D split from those would hand the user back a
+  // skyline the canvas asked for rather than the one they set.
+  if (Object.keys(parkedSettings.value).length) {
+    Object.assign(settings.value, parkedSettings.value)
+    parkedSettings.value = {}
   }
 
-  const map3dTerrain = ref<boolean>(false)
-  function setMap3dTerrain(value?: boolean) {
-    map3dTerrain.value = value ?? !map3dTerrain.value
+  // One-time split of the single "3D objects" switch into buildings and scene
+  // objects. `useStorage` returns the stored object as-is rather than merging
+  // new defaults into it, so without this an existing install would come back
+  // with `buildings3d` undefined and its skyline flat.
+  if (settings.value.buildings3d === undefined) {
+    settings.value.buildings3d = settings.value.objects3d ?? true
   }
-
-  const map3dBuildings = ref<boolean>(true)
-  function setMap3dBuildings(value?: boolean) {
-    map3dBuildings.value = value ?? !map3dBuildings.value
-  }
-
-  const mapPoiLabels = ref<boolean>(true)
-  function setMapPoiLabels(value?: boolean) {
-    mapPoiLabels.value = value ?? !mapPoiLabels.value
-  }
-
-  const mapRoadLabels = ref<boolean>(true)
-  function setMapRoadLabels(value?: boolean) {
-    mapRoadLabels.value = value ?? !mapRoadLabels.value
-  }
-
-  const mapTransitLabels = ref<boolean>(true)
-  function setMapTransitLabels(value?: boolean) {
-    mapTransitLabels.value = value ?? !mapTransitLabels.value
-  }
-
-  const mapPlaceLabels = ref<boolean>(true)
-  function setMapPlaceLabels(value?: boolean) {
-    mapPlaceLabels.value = value ?? !mapPlaceLabels.value
-  }
+  if (settings.value.objects3d === undefined) settings.value.objects3d = true
+  const controlSettings = useStorage<MapControlSettings>(
+    'map-controls',
+    getDefaultControlSettings(),
+  )
 
   const mapCamera = useStorage<MapCamera>('map-camera', {
     center: [-44.808291513887866, 21.851187958608364],
@@ -70,15 +132,22 @@ export const useMapStore = defineStore('map', () => {
     bearing: 0,
     pitch: 0,
   })
+
   function setMapCamera(camera: MapCamera) {
     mapCamera.value = camera
   }
 
-  const mapOptions = ref<MapOptions>({
-    projection: 'web-mercator',
-    theme: MapTheme.LIGHT,
-    basemap: 'standard',
-  })
+  function setBasemap(basemap: Basemap) {
+    settings.value.basemap = basemap
+  }
+
+  function setMapStyle(styleId: MapStyleId) {
+    settings.value.mapStyle = styleId
+  }
+
+  function setPoiStyle(poiStyle: PoiStyleId) {
+    settings.value.poiStyle = poiStyle
+  }
 
   // Event methods
   function on<K extends keyof MapEvents>(
@@ -99,86 +168,6 @@ export const useMapStore = defineStore('map', () => {
     emitter.emit(event, data)
   }
 
-  function setBasemap(map: Basemap) {
-    mapOptions.value.basemap = map
-  }
-
-  const layers = ref<Layer[]>(defaultLayers)
-
-  const enabledLayers = computed(() =>
-    layers.value.filter(
-      layer => layer.enabled && layer.engine.includes(mapEngine.value),
-    ),
-  )
-
-  function initializeLayers(layers_: Layer[]) {
-    layers_.forEach(layer => {
-      mapStrategy?.addLayer(layer)
-    })
-  }
-
-  function addLayer(layer: Layer) {
-    layers.value.push(layer)
-    if (layer.enabled) {
-      mapStrategy?.addLayer(layer)
-    }
-  }
-
-  function removeLayer(layerId: Layer['configuration']['id']) {
-    const index = layers.value.findIndex(
-      layer => layer.configuration.id === layerId,
-    )
-    if (index !== -1) {
-      const layer = layers.value[index]
-      if (layer.enabled) {
-        mapStrategy?.removeLayer(layerId)
-      }
-      layers.value.splice(index, 1)
-    }
-  }
-
-  function updateLayer(updatedLayer: Layer) {
-    const layer = layers.value.find(
-      layer => layer.configuration.id === updatedLayer.configuration.id,
-    )
-    if (!layer) return
-
-    // Update properties of existing layer object to maintain reactivity
-    Object.assign(layer, updatedLayer)
-
-    mapStrategy?.removeLayer(layer.configuration.id)
-    if (typeof layer.configuration.source === 'object') {
-      mapStrategy?.removeSource(layer.configuration.source.id)
-    }
-    mapStrategy?.addLayer(layer)
-  }
-
-  function toggleLayer(
-    layerId: Layer['configuration']['id'],
-    enabled?: boolean,
-  ) {
-    const layer = layers.value.find(layer => layer.configuration.id === layerId)
-    if (!layer) return
-
-    const newEnabled = enabled ?? !layer.enabled
-    const updatedLayer = { ...layer, enabled: newEnabled }
-
-    updateLayer(updatedLayer)
-  }
-
-  function toggleLayerVisibility(
-    layerId: Layer['configuration']['id'],
-    visible: boolean,
-  ) {
-    const layer = layers.value.find(layer => layer.configuration.id === layerId)
-    if (layer) {
-      layer.visible = visible
-      if (layer.enabled) {
-        mapStrategy?.toggleLayerVisibility(layerId, visible)
-      }
-    }
-  }
-
   const pegman = ref<Pegman | null>(null)
 
   function setPegman(pegman_: Pegman) {
@@ -190,38 +179,20 @@ export const useMapStore = defineStore('map', () => {
   }
 
   return {
+    parkedSettings,
+
     setMapStrategy,
-    mapEngine,
-    setMapEngine,
-    mapProjection,
-    setMapProjection,
-    map3dTerrain,
-    setMap3dTerrain,
-    map3dBuildings,
-    setMap3dBuildings,
-    mapPoiLabels,
-    setMapPoiLabels,
-    mapRoadLabels,
-    setMapRoadLabels,
-    mapTransitLabels,
-    setMapTransitLabels,
-    mapPlaceLabels,
-    setMapPlaceLabels,
+    getMapStrategy,
+    settings,
+    controlSettings,
     mapCamera,
     setMapCamera,
+    setBasemap,
+    setMapStyle,
+    setPoiStyle,
     on,
     off,
     emit,
-    mapOptions,
-    setBasemap,
-    layers,
-    enabledLayers,
-    initializeLayers,
-    addLayer,
-    removeLayer,
-    updateLayer,
-    toggleLayer,
-    toggleLayerVisibility,
     pegman,
     setPegman,
     clearPegman,

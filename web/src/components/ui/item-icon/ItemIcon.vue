@@ -1,25 +1,47 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
+import {
+  getThemeColorClasses,
+  getThemeColorGhostClasses,
+  getCustomColorTint,
+  type ThemeColor,
+} from '@/lib/utils'
 import * as LucideIcons from 'lucide-vue-next'
 import { FolderIcon } from 'lucide-vue-next'
+import MakiIcon from './MakiIcon.vue'
+import { useThemeStore } from '@/stores/theme.store'
+
+const themeStore = useThemeStore()
 
 const props = withDefaults(
   defineProps<{
     icon?: string
     color?: ThemeColor
-    size?: 'sm' | 'md' | 'lg'
+    size?: 'xs' | 'sm' | 'md' | 'lg'
+    variant?: 'solid' | 'ghost'
     plain?: boolean
+    iconPack?: 'lucide' | 'maki'
+    customColor?: string // Direct CSS color value (overrides ThemeColor)
+    shape?: 'square' | 'circle' // Shape of the container
+    imageUrl?: string // When set, renders this image instead of an icon glyph (e.g. a brand logo)
   }>(),
   {
     icon: 'Folder',
-    color: 'blue',
+    color: 'cobalt',
     size: 'md',
+    variant: 'solid',
     plain: false,
+    iconPack: 'lucide',
+    shape: 'square',
   },
 )
 
+const hasImage = computed(() => !!props.imageUrl)
+const isMaki = computed(() => props.iconPack === 'maki')
+
 const iconComponent = computed(() => {
+  if (isMaki.value) return null
+
   const fullName = props.icon.endsWith('Icon')
     ? props.icon
     : `${props.icon}Icon`
@@ -33,12 +55,57 @@ const iconComponent = computed(() => {
     : FolderIcon
 })
 
+const useCustomColor = computed(() => !!props.customColor && !props.plain)
+
 const colorClasses = computed(() => {
+  // A logo image sits on a neutral surface so transparent logos read cleanly.
+  if (hasImage.value) return 'bg-background border overflow-hidden'
+  if (props.plain || useCustomColor.value) return ''
+
+  if (props.variant === 'ghost') {
+    return getThemeColorGhostClasses(props.color as ThemeColor)
+  }
+
   return getThemeColorClasses(props.color as ThemeColor)
+})
+
+/**
+ * A custom colour is tinted the same way a themed one is: a light background
+ * with a dark glyph of the same hue, inverted in dark mode. Previously the
+ * solid variant painted the raw colour behind a flat white or black glyph,
+ * which read as a different design language from the themed (bookmark) tiles
+ * sitting beside it in the same lists.
+ */
+const customColorStyle = computed(() => {
+  if (hasImage.value) return {}
+  if (!useCustomColor.value) return {}
+
+  const color = props.customColor!
+  const tint = getCustomColorTint(color, props.variant, themeStore.isDark)
+  // Unparseable colour — fall back to painting it raw rather than rendering
+  // an untinted, invisible glyph.
+  if (!tint) return { backgroundColor: color, color: '#fff' }
+
+  if (props.variant === 'ghost') {
+    // Translucent wash rather than an opaque tint, so the tile settles onto
+    // whatever surface it sits on. Matches `bg-{c}-500/10` and its dark /20.
+    return {
+      backgroundColor: `color-mix(in srgb, ${color} ${themeStore.isDark ? 20 : 10}%, transparent)`,
+      color: tint.foreground,
+    }
+  }
+
+  return { backgroundColor: tint.background!, color: tint.foreground }
+})
+
+const shapeClass = computed(() => {
+  return props.shape === 'circle' ? 'rounded-full' : 'rounded-md'
 })
 
 const containerSizeClass = computed(() => {
   switch (props.size) {
+    case 'xs':
+      return 'size-5'
     case 'sm':
       return 'size-8'
     case 'lg':
@@ -51,6 +118,8 @@ const containerSizeClass = computed(() => {
 
 const iconSizeClass = computed(() => {
   switch (props.size) {
+    case 'xs':
+      return 'size-3'
     case 'sm':
       return 'size-4'
     case 'lg':
@@ -64,9 +133,26 @@ const iconSizeClass = computed(() => {
 
 <template>
   <div
-    class="rounded-md flex items-center justify-center shrink-0"
-    :class="[containerSizeClass, props.plain ? '' : colorClasses]"
+    class="flex items-center justify-center shrink-0"
+    :class="[containerSizeClass, colorClasses, shapeClass]"
+    :style="customColorStyle"
   >
-    <component :is="iconComponent as any" :class="iconSizeClass" />
+    <img
+      v-if="hasImage"
+      :src="imageUrl"
+      alt=""
+      class="w-full h-full object-contain p-0.5"
+    />
+    <MakiIcon
+      v-else-if="isMaki"
+      :name="icon"
+      :size="size"
+      class="fill-current"
+    />
+    <component
+      v-else
+      :is="iconComponent as any"
+      :class="iconSizeClass"
+    />
   </div>
 </template>

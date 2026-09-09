@@ -1,0 +1,126 @@
+/**
+ * Tests for the integration-credential encryption wrapper.
+ *
+ * Round-trip correctness, tamper detection, and key-version gating.
+ * We can't unit-test the "prod must have env var" branch without mutating
+ * NODE_ENV — done via a single explicit test below.
+ */
+
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import {
+  encryptIntegrationConfig,
+  decryptIntegrationConfig,
+  getCurrentKeyVersion,
+  integrationEncryptionInternals,
+} from './integration-encryption'
+
+const originalKey = process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
+const originalNodeEnv = process.env.NODE_ENV
+
+beforeEach(() => {
+  integrationEncryptionInternals.resetCache()
+})
+
+afterEach(() => {
+  if (originalKey === undefined)
+    delete process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
+  else process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY = originalKey
+  if (originalNodeEnv === undefined) delete process.env.NODE_ENV
+  else process.env.NODE_ENV = originalNodeEnv
+  integrationEncryptionInternals.resetCache()
+})
+
+function setTestKey() {
+  // 32 bytes of 0x42.
+  const key = Buffer.alloc(32, 0x42).toString('base64')
+  process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY = key
+}
+
+describe('integration-encryption', () => {
+  test('round-trips a config object', () => {
+    setTestKey()
+    const config = {
+      apiKey: 'sk_live_abcdef123',
+      host: 'https://api.example.com',
+    }
+    const blob = encryptIntegrationConfig(config)
+    expect(blob.keyVersion).toBe(getCurrentKeyVersion())
+    const out = decryptIntegrationConfig(blob)
+    expect(out).toEqual(config)
+  })
+
+  test('two encrypts of the same config produce different ciphertexts', () => {
+    setTestKey()
+    const a = encryptIntegrationConfig({ apiKey: 'x' })
+    const b = encryptIntegrationConfig({ apiKey: 'x' })
+    expect(a.ciphertext).not.toBe(b.ciphertext)
+    expect(a.nonce).not.toBe(b.nonce)
+  })
+
+  test('tampered ciphertext throws', () => {
+    setTestKey()
+    const blob = encryptIntegrationConfig({ apiKey: 'secret' })
+    // Flip a bit in the base64 ciphertext.
+    const bytes = Buffer.from(blob.ciphertext, 'base64')
+    bytes[bytes.length - 3] ^= 0x01
+    const tampered = { ...blob, ciphertext: bytes.toString('base64') }
+    expect(() => decryptIntegrationConfig(tampered)).toThrow()
+  })
+
+  test('tampered nonce throws', () => {
+    setTestKey()
+    const blob = encryptIntegrationConfig({ apiKey: 'secret' })
+    const bytes = Buffer.from(blob.nonce, 'base64')
+    bytes[0] ^= 0x01
+    const tampered = { ...blob, nonce: bytes.toString('base64') }
+    expect(() => decryptIntegrationConfig(tampered)).toThrow()
+  })
+
+  test('wrong key throws', () => {
+    setTestKey()
+    const blob = encryptIntegrationConfig({ apiKey: 'secret' })
+
+    // Swap in a different key and try to decrypt.
+    process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY = Buffer.alloc(
+      32,
+      0x99,
+    ).toString('base64')
+    integrationEncryptionInternals.resetCache()
+
+    expect(() => decryptIntegrationConfig(blob)).toThrow()
+  })
+
+  test('rejects unsupported keyVersion', () => {
+    setTestKey()
+    const blob = encryptIntegrationConfig({ apiKey: 'x' })
+    expect(() =>
+      decryptIntegrationConfig({ ...blob, keyVersion: 99 }),
+    ).toThrow(/keyVersion/)
+  })
+
+  test('rejects a wrong-length env key', () => {
+    process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY = Buffer.alloc(
+      16,
+      0,
+    ).toString('base64')
+    integrationEncryptionInternals.resetCache()
+    expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/32 bytes/)
+  })
+
+  test('missing env var throws in production', () => {
+    delete process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
+    process.env.NODE_ENV = 'production'
+    integrationEncryptionInternals.resetCache()
+    expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/is not set/)
+  })
+
+  test('missing env var also throws in development (no silent ephemeral fallback)', () => {
+    // Ephemeral fallback was removed — silently generating a key on first
+    // boot and losing every integration credential on the next restart is
+    // a footgun. Fail loud instead.
+    delete process.env.PARCHMENT_INTEGRATION_ENCRYPTION_KEY
+    process.env.NODE_ENV = 'development'
+    integrationEncryptionInternals.resetCache()
+    expect(() => encryptIntegrationConfig({ x: 1 })).toThrow(/is not set/)
+  })
+})

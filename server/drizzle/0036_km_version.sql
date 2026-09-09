@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "km_version" integer DEFAULT 1 NOT NULL;

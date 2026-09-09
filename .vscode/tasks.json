@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "E2E: Open Playwright UI",
+      "type": "shell",
+      "command": "bun run test:e2e:ui",
+      "options": {
+        "cwd": "${workspaceFolder}/web",
+        "env": {
+          "PLAYWRIGHT_SKIP_SERVER": "0"
+        }
+      },
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "E2E: Run all tests",
+      "type": "shell",
+      "command": "bun run test:e2e",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+<script setup lang="ts">
+import { computed, markRaw, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { Button } from '@/components/ui/button'
+import {
+  MoreVerticalIcon,
+  Pencil,
+  Trash,
+  Share2Icon,
+} from 'lucide-vue-next'
+import { useCollectionsService } from '@/services/library/collections.service'
+import { useAppService } from '@/services/app.service'
+import { openCollectionDialog } from './collection-dialog'
+import ShareDialog from '@/components/sharing/ShareDialog.vue'
+import ResponsiveDropdown, {
+  type MenuItemDefinition,
+} from '@/components/responsive/ResponsiveDropdown.vue'
+import type { Collection } from '@/types/library.types'
+
+const props = defineProps<{
+  collection: Collection
+  onDeleteSuccess?: () => void
+}>()
+
+const emit = defineEmits<{
+  (e: 'edit'): void
+}>()
+
+// Share dialog lives alongside the menu so closing the menu doesn't
+// tear down the dialog state. `isShareOpen` toggles independently.
+const isShareOpen = ref(false)
+
+/**
+ * Refetch the collections list after the share dialog emits `changed`.
+ * A scheme switch or public-link mint changes fields on the collection
+ * row (scheme, public_token, metadataKeyVersion) that the dialog reads
+ * on next open — stale data would misrepresent current state to the
+ * user.
+ */
+async function onShareChanged() {
+  try {
+    await collectionsService.fetchCollections()
+  } catch (err) {
+    console.error('Failed to refresh collections after share change', err)
+  }
+}
+
+const { t } = useI18n()
+const collectionsService = useCollectionsService()
+const appService = useAppService()
+
+async function editCollection() {
+  const params = await openCollectionDialog(props.collection)
+  if (!params) return
+  await collectionsService.updateCollection(props.collection.id, params)
+  emit('edit')
+}
+
+async function deleteCollection() {
+  const confirmed = await appService.confirm({
+    title: t('library.dialog.deleteCollection.title'),
+    description: t('library.dialog.deleteCollection.description', {
+      name: collectionsService.getCollectionDisplayName(props.collection),
+    }),
+    continueText: t('general.delete'),
+    cancelText: t('general.cancel'),
+    destructive: true,
+  })
+
+  if (confirmed) {
+    await collectionsService.deleteCollection(props.collection.id)
+  }
+}
+
+const menuItems = computed<MenuItemDefinition[]>(() => {
+  const items: MenuItemDefinition[] = [
+    {
+      type: 'item',
+      id: 'edit',
+      label: t('general.edit'),
+      icon: markRaw(Pencil),
+      onSelect: editCollection,
+    },
+    {
+      type: 'item',
+      id: 'share',
+      label: t('general.share'),
+      icon: markRaw(Share2Icon),
+      onSelect: () => {
+        isShareOpen.value = true
+      },
+    },
+  ]
+
+  items.push({
+    type: 'item',
+    id: 'delete',
+    label: t('general.delete'),
+    icon: markRaw(Trash),
+    variant: 'destructive',
+    onSelect: deleteCollection,
+  })
+
+  return items
+})
+</script>
+
+<template>
+  <ResponsiveDropdown
+    align="end"
+    :items="menuItems"
+    :custom-snap-points="['300px', 0.5]"
+  >
+    <template #trigger="{ open }">
+      <Button variant="ghost" size="icon" class="size-8" @click.stop="open">
+        <MoreVerticalIcon class="size-4" />
+      </Button>
+    </template>
+  </ResponsiveDropdown>
+
+  <ShareDialog
+    v-model:open="isShareOpen"
+    :collection="collection"
+    @changed="onShareChanged"
+  />
+</template>

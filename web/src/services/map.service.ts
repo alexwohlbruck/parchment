@@ -1,49 +1,94 @@
 import {
+  ENGINE_PROJECTIONS,
   MapCamera,
   MapEngine,
   MapProjection,
   MapTheme,
+  MapColorTheme,
   StreetViewType,
   type Layer,
   type MapEvents,
+  type MapBounds,
   MarkerIds,
   type MarkerId,
   type LngLat,
   LayerType,
+  MapSettings,
+  LocateFlySpeed,
+  StartupLocation,
+  GridSnapMode,
 } from '@/types/map.types'
-import { useMapStore } from '../stores/map.store'
-import { useAppStore } from '../stores/app.store'
+import type { Place } from '@/types/place.types'
+import { useMapStore } from '@/stores/map.store'
+import { useLayersStore } from '@/stores/layers.store'
+import { useLayersService } from '@/services/layers/layers.service'
+import { usePlacePolygonLayerService } from '@/services/layers/features/place-polygon-layer.service'
+import { useSearchResultsLayerService } from '@/services/layers/features/search-results-layer.service'
+import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
+import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
+import { useBookmarksLayerService } from '@/services/layers/features/bookmarks-layer.service'
+import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
+import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
+import { usePortolanTransitStore } from '@/stores/portolan.store'
+import { useAppStore } from '@/stores/app.store'
+import { createAnimationHold } from '@/lib/map/animation-hold'
+import {
+  calculateCameraPadding,
+  calculateFitPadding,
+  toContainerRect,
+  type Padding,
+} from '@/lib/map/map-padding'
+import {
+  findGriddedCity,
+  gridOrientations,
+  angularDistanceDeg,
+  GRID_SNAP_THRESHOLD_DEG,
+} from '@/lib/geo/grid-orientation'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@server/types/integration.types'
 import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strategy'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { watch } from 'vue'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
-import { ref } from 'vue'
-import { Component } from 'vue'
+import { ref, toRaw, watch, computed, Component } from 'vue'
+import { storedLocale } from '@/lib/i18n'
+import { useGeolocationService } from '@/services/geolocation.service'
+import { useOrientationService } from '@/services/orientation.service'
+import { useSearchStore } from '@/stores/search.store'
+import { api } from '@/lib/api'
+import { useAuthService } from '@/services/auth.service'
+import { PermissionId } from '@/types/auth.types'
 
 const dark = useDark()
 
-// TODO: Move to constants file
-// Constants for map padding behavior
-const MAP_PADDING_CONFIG = {
-  CHANGE_THRESHOLD: 5, // pixels
-  TRANSITION_DELAY: 150, // ms - delay for UI transitions
-  INIT_DELAY: 100, // ms - delay for map initialization
-} as const
 
 function mapService() {
   const mapStore = useMapStore()
+  const layersStore = useLayersStore()
+  const layersService = useLayersService()
+  const placePolygonLayerService = usePlacePolygonLayerService()
+  const searchResultsLayerService = useSearchResultsLayerService()
+  const markerLayersService = useMarkerLayersService()
+  const notesLayerService = useNotesLayerService()
+  const bookmarksLayerService = useBookmarksLayerService()
+  const environmentDataService = useEnvironmentDataService()
+  const timelineLayerService = useTimelineLayerService()
+  const portolanTransitService = usePortolanTransitService()
   const appStore = useAppStore()
   const directionsStore = useDirectionsStore()
   const integrationsStore = useIntegrationsStore()
-  const { enabledLayers } = storeToRefs(mapStore)
+  const themeStore = useThemeStore()
+  const authService = useAuthService()
+  const { settings } = storeToRefs(mapStore)
+  const { layers } = storeToRefs(layersStore)
+  const { accentColor, isDark } = storeToRefs(themeStore)
   const router = useRouter()
   let mapStrategy: MapStrategy
   let mapContainer: HTMLElement
@@ -53,28 +98,71 @@ function mapService() {
   const queuedTrips = ref<{ trips: any; visibleTripIds: Set<string> } | null>(
     null,
   )
+  let isReinitializingForLanguage = false
 
-  // Debounced padding update to prevent excessive calls
-  let paddingUpdateTimeout: NodeJS.Timeout | null = null
+  // Track map interaction states for conditional control visibility
+  const isRotatedOrPitched = ref(false)
+  const isCurrentlyRotating = ref(false)
+  const isCurrentlyZooming = ref(false)
+  let rotatingHideTimeout: ReturnType<typeof setTimeout> | null = null
+  let zoomingHideTimeout: ReturnType<typeof setTimeout> | null = null
+  const CONTROL_HIDE_DELAY = 1500 // ms before hiding controls after interaction stops
+
+  // Watch for theme changes to update polygon colors and basemap fade
+  watch([accentColor, isDark], () => {
+    if (mapStrategy && isMapReady.value) {
+      placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
+
+      // Re-evaluate basemap fade when dark mode changes
+      const fadeBasemapGroupIds = new Set(
+        layersStore.allLayerGroups
+          .filter(g => g.fadeBasemap && g.visible)
+          .map(g => g.id),
+      )
+      const hasFadeBasemapLayers = layers.value.some(
+        l => (l.fadeBasemap || (l.groupId && fadeBasemapGroupIds.has(l.groupId))) && l.visible,
+      )
+      if (hasFadeBasemapLayers) {
+        const shouldUseFaded = !themeStore.isDark
+        mapStrategy.setMapColorTheme(
+          shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+        )
+      }
+    }
+  })
 
   function getMapStrategy(
     container: string | HTMLElement,
     mapEngine: MapEngine,
     accessToken?: string,
+    language?: string,
   ) {
-    const { mapOptions, mapCamera } = mapStore
+    const { settings, mapCamera } = mapStore
 
     const options = {
-      ...mapOptions,
+      ...settings,
       theme: dark.value ? MapTheme.DARK : MapTheme.LIGHT,
       camera: mapCamera,
     }
 
+    // Convert locale to language code (e.g., 'en-US' -> 'en')
+    const languageCode = language ? language.split('-')[0] : undefined
+
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return new MapboxStrategy(container, options, accessToken)
-      case MapEngine.MAPLIBRE:
-        return new MaplibreStrategy(container, options, accessToken)
+        return new MapboxStrategy(container, options, accessToken, languageCode)
+      case MapEngine.MAPLIBRE: {
+        // Route tile requests through the Parchment server's proxy to avoid
+        // CORS issues with the Barrelman tile server.  The proxy handles
+        // auth (appends tileKey server-side) and caching headers.
+        const proxyBaseUrl = `${api.defaults.baseURL}/proxy/barrelman`
+        return new MaplibreStrategy(
+          container,
+          options,
+          accessToken,
+          proxyBaseUrl,
+        )
+      }
     }
   }
 
@@ -97,10 +185,34 @@ function mapService() {
     }
   }
 
+  const canUseMapboxEngine = computed(() =>
+    authService.hasPermission(PermissionId.PREMIUM_LAYERS),
+  )
+
+  /**
+   * Resolve the effective engine, falling back to MapLibre when the user
+   * does not have premium access to Mapbox.
+   */
+  function resolveEngine(requested: MapEngine): MapEngine {
+    if (requested === MapEngine.MAPBOX && !canUseMapboxEngine.value) {
+      return MapEngine.MAPLIBRE
+    }
+    return requested
+  }
+
+  // Auto-switch engine when premium status changes
+  watch(canUseMapboxEngine, (canUse) => {
+    if (canUse && mapStore.settings.engine === MapEngine.MAPLIBRE) {
+      setMapEngine(MapEngine.MAPBOX)
+    } else if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
+      setMapEngine(MapEngine.MAPLIBRE)
+    }
+  })
+
   function canInitializeMapEngine(mapEngine: MapEngine): boolean {
     switch (mapEngine) {
       case MapEngine.MAPBOX:
-        return !!getMapEngineCredentials(mapEngine)
+        return integrationsStore.isMapboxEngineActive && canUseMapboxEngine.value
       case MapEngine.MAPLIBRE:
         return true // MapLibre always works
       default:
@@ -111,184 +223,438 @@ function mapService() {
   function initializeMap(container: HTMLElement, mapEngine: MapEngine) {
     mapContainer = container as HTMLElement
 
+    // Fall back to MapLibre if user doesn't have premium access to Mapbox
+    const effectiveEngine = resolveEngine(mapEngine)
+    if (effectiveEngine !== mapEngine) {
+      mapStore.settings.engine = effectiveEngine
+    }
+
     // Check if we can initialize this map engine
-    if (!canInitializeMapEngine(mapEngine)) {
+    if (!canInitializeMapEngine(effectiveEngine)) {
       console.warn(
-        `Cannot initialize ${mapEngine}: missing credentials or unsupported engine`,
+        `Cannot initialize ${effectiveEngine}: missing credentials or unsupported engine`,
       )
       return null
     }
 
     // Get credentials for the map engine
-    const accessToken = getMapEngineCredentials(mapEngine)
+    const accessToken = getMapEngineCredentials(effectiveEngine)
 
-    mapStrategy = getMapStrategy(container, mapEngine, accessToken)
+    // Get current language for initialization
+    const currentLanguage = storedLocale.value
+
+    mapStrategy = getMapStrategy(
+      container,
+      effectiveEngine,
+      accessToken,
+      currentLanguage,
+    )
     mapStore.setMapStrategy(mapStrategy)
 
-    mapEventBus.on('load', () => {
-      console.log('Map loaded, setting isMapReady to true')
-      isMapReady.value = true
-      mapStore.initializeLayers(enabledLayers.value)
-
-      // Show waypoint markers immediately when map loads
-      const waypoints = directionsStore.waypoints
-      if (waypoints && waypoints.length > 0) {
-        console.log('Map loaded, showing initial waypoint markers')
-        mapStrategy?.setWaypointMarkers(waypoints)
-      }
-
-      // Process any queued trips
-      if (queuedTrips.value) {
-        console.log('Processing queued trips after map load')
-        mapStrategy?.setTrips(
-          queuedTrips.value.trips,
-          queuedTrips.value.visibleTripIds,
-        )
-        queuedTrips.value = null
-      }
-    })
-
-    mapEventBus.on('style.load', () => {
-      console.log('Map style loaded, setting isMapReady to true')
-      isMapReady.value = true
-      mapStore.initializeLayers(enabledLayers.value)
-
-      // Show waypoint markers immediately when style loads
-      const waypoints = directionsStore.waypoints
-      if (waypoints && waypoints.length > 0) {
-        console.log('Map style loaded, showing initial waypoint markers')
-        mapStrategy?.setWaypointMarkers(waypoints)
-      }
-
-      // Process any queued trips
-      if (queuedTrips.value) {
-        console.log('Processing queued trips after style load')
-        mapStrategy?.setTrips(
-          queuedTrips.value.trips,
-          queuedTrips.value.visibleTripIds,
-        )
-        queuedTrips.value = null
-      }
-    })
-
-    mapEventBus.on('move', data => {
-      mapStore.emit('move', data)
-    })
-
-    mapEventBus.on('moveend', data => {
-      mapStore.setMapCamera(data)
-    })
-
-    mapEventBus.on('click:mapillary-image', ({ lngLat, image }) => {
-      if (image) {
-        mapStrategy.flyTo({
-          center: lngLat,
-        })
-        router.push({
-          name: AppRoute.STREET,
-          params: {
-            id: image.id,
-          },
-        })
-      }
-    })
-
-    mapEventBus.on('click:poi', ({ osmId, poiType, lngLat }) => {
-      if (lngLat) {
-        // Remove any existing POI markers
-        mapStrategy.removeAllMarkers()
-
-        // Add marker at clicked location
-        mapStrategy.addMarker(MarkerIds.SELECTED_POI, lngLat)
-      }
-
-      router.push({
-        name: AppRoute.PLACE,
-        params: {
-          type: poiType,
-          id: osmId,
-        },
-      })
-    })
+    bindMapEvents()
 
     return mapStrategy
   }
 
+  // Tracks per-zoom state that is closed over by a 'move' listener.
+  // Scoped to the module so that rebinding on engine switch resets it cleanly.
+  let previousZoom: number | null = null
+  /** Last known globe state, so padding is only reset when it flips. */
+  let wasGlobeRendering: boolean | null = null
+
   /**
-   * Calculate padding values based on visible map area
-   * Extracted utility function to avoid code duplication
+   * Bind all mapEventBus listeners used by the service.
+   *
+   * This is split out of initializeMap() so setMapEngine() can call it after
+   * recreating the strategy. Without this, switching engines leaves the bus
+   * with no listeners (destroy() unbinds them) — which is why layers were
+   * "forgotten" after an engine switch: onStyleLoad() never fired, so
+   * initializeLayers() was never called on the new map.
+   *
+   * All listeners registered here must also be removed by unbindMapEvents()
+   * in destroy(), otherwise we'll accumulate duplicates across engine swaps.
    */
-  function calculateMapPadding(): {
-    padding: MapCamera['padding']
-    isFullyVisible: boolean
-  } | null {
-    if (!mapContainer) {
-      return null
-    }
+  // mitt's off(type) with no handler drops every listener for that type,
+  // including other modules'. Track ours so we can remove exactly those.
+  const mapEventUnbinders: (() => void)[] = []
 
-    const visibleArea = appStore.visibleMapArea
-    const mapWidth = mapContainer.clientWidth
-    const mapHeight = mapContainer.clientHeight
+  function bindMapEvent<K extends keyof MapEvents>(
+    event: K,
+    handler: (data: MapEvents[K]) => void,
+  ) {
+    mapEventBus.on(event, handler)
+    mapEventUnbinders.push(() => mapEventBus.off(event, handler))
+  }
 
-    // Check if we have valid dimensions
-    if (!mapWidth || !mapHeight) {
-      return null
-    }
+  function bindMapEvents() {
+    bindMapEvent('load', async () => {
+      onMapLoad()
+    })
 
-    // Check if the full map is visible
-    const isFullyVisible =
-      visibleArea.width === mapWidth && visibleArea.height === mapHeight
+    bindMapEvent('style.load', async () => {
+      onStyleLoad()
+    })
 
-    if (isFullyVisible) {
-      return {
-        padding: { top: 0, bottom: 0, left: 0, right: 0 },
-        isFullyVisible: true,
+    bindMapEvent('move', data => {
+      mapStore.emit('move', data)
+    })
+
+    bindMapEvent('moveend', data => {
+      mapStore.setMapCamera(data)
+    })
+
+    // When the user finishes a manual rotation, snap to north and/or the local
+    // city's street grid, per the snap settings.
+    bindMapEvent('rotateend', () => {
+      snapRotation()
+    })
+
+    // Track rotation/pitch state for conditional control visibility
+    bindMapEvent('move', data => {
+      const { bearing, pitch } = data
+      const wasRotatedOrPitched = isRotatedOrPitched.value
+      isRotatedOrPitched.value =
+        Math.abs(bearing) > 0.5 || Math.abs(pitch) > 0.5
+
+      // Detect if user is actively rotating
+      if (
+        wasRotatedOrPitched !== isRotatedOrPitched.value ||
+        Math.abs(bearing) > 0.5 ||
+        Math.abs(pitch) > 0.5
+      ) {
+        isCurrentlyRotating.value = true
+        if (rotatingHideTimeout) clearTimeout(rotatingHideTimeout)
+        rotatingHideTimeout = setTimeout(() => {
+          if (!isRotatedOrPitched.value) {
+            isCurrentlyRotating.value = false
+          }
+        }, CONTROL_HIDE_DELAY)
+      }
+    })
+
+    // Whether padding applies depends on the sphere being on screen, and that
+    // answer changes with zoom alone — no panel moves, so nothing else would
+    // re-run it. Only on the crossing: `setPadding` rebuilds every matrix, and
+    // `move` fires continuously through a gesture.
+    wasGlobeRendering = null
+    bindMapEvent('move', () => {
+      const sphere = mapStrategy?.isSphereVisible() ?? false
+      if (sphere === wasGlobeRendering) return
+      wasGlobeRendering = sphere
+      updateMapPadding()
+    })
+
+    // Track zoom state for conditional control visibility
+    previousZoom = null
+    bindMapEvent('move', data => {
+      const { zoom } = data
+      if (previousZoom !== null && Math.abs(zoom - previousZoom) > 0.01) {
+        isCurrentlyZooming.value = true
+        if (zoomingHideTimeout) clearTimeout(zoomingHideTimeout)
+        zoomingHideTimeout = setTimeout(() => {
+          isCurrentlyZooming.value = false
+        }, CONTROL_HIDE_DELAY)
+      }
+      previousZoom = zoom
+    })
+
+    bindMapEvent('click:mapillary-image', ({ lngLat, image }) => {
+      if (image) {
+        mapStrategy.flyTo({
+          center: lngLat,
+        })
+        const location = {
+          name: AppRoute.STREET,
+          params: { id: image.id },
+        }
+        // Moving between panos while already in street view replaces the URL,
+        // so hopping along the map dots doesn't pile up browser-history
+        // entries — otherwise Close would step back through every pano visited
+        // instead of exiting street view.
+        if (router.currentRoute.value.name === AppRoute.STREET) {
+          router.replace(location)
+        } else {
+          router.push(location)
+        }
+      }
+    })
+
+    // Warm details while a touch action waits through the double-tap window.
+    bindMapEvent('poi:preview', async ({ poi }) => {
+      const { usePlaceService } = await import('@/services/place.service')
+      void usePlaceService().prefetchPlaceDetails(
+        `${poi.poiType}/${poi.osmId}`,
+        'osm',
+      )
+    })
+
+    bindMapEvent('click', async data => {
+      // Only handle POI clicks — ignore empty map clicks
+      if (!data.poi) return
+
+      const { usePlaceService } = await import('@/services/place.service')
+      const placeService = usePlaceService()
+
+      const partialPlace: Partial<Place> = {
+        id: `osm/${data.poi.poiType}/${data.poi.osmId}`,
+        externalIds: { osm: `${data.poi.poiType}/${data.poi.osmId}` },
+        name: data.poi.name
+          ? {
+              value: data.poi.name,
+              sourceId: 'osm',
+              timestamp: new Date().toISOString(),
+            }
+          : undefined,
+        geometry: {
+          value: {
+            type: 'point',
+            center: data.lngLat,
+          },
+          sourceId: 'osm',
+          timestamp: new Date().toISOString(),
+        },
+        placeType: {
+          value: 'poi',
+          sourceId: 'osm',
+          timestamp: new Date().toISOString(),
+        },
+      }
+
+      placeService.setPartialPlace(partialPlace)
+
+      router.push({
+        name: AppRoute.PLACE,
+        params: {
+          type: data.poi.poiType,
+          id: data.poi.osmId,
+        },
+      })
+    })
+  }
+
+  /**
+   * Symmetric counterpart to bindMapEvents(). Must unbind every event that
+   * bindMapEvents() subscribed to — otherwise each engine switch will leak
+   * a stale listener that still references the destroyed strategy.
+   */
+  function unbindMapEvents() {
+    for (const unbind of mapEventUnbinders) unbind()
+    mapEventUnbinders.length = 0
+  }
+
+  // null = jumpTo (instant), undefined = Mapbox default flyTo (distance-based, no cap), number = fixed ms
+  const LOCATE_FLY_DURATIONS: Record<LocateFlySpeed, number | null | undefined> = {
+    [LocateFlySpeed.INSTANT]: null,
+    [LocateFlySpeed.FAST]: 500,
+    [LocateFlySpeed.NORMAL]: 1500,
+    [LocateFlySpeed.SLOW]: undefined,
+  }
+
+  function locateUser() {
+    const geo = useGeolocationService()
+    // Called from the locate button — a user gesture — so this is our chance
+    // to prompt for compass access on iOS, which powers the direction beam.
+    void useOrientationService().requestPermission()
+    const speed = mapStore.settings.locateFlySpeed ?? LocateFlySpeed.NORMAL
+    const duration = LOCATE_FLY_DURATIONS[speed]
+
+    function goToLocation() {
+      const center: [number, number] = [geo.lngLat.value!.lng, geo.lngLat.value!.lat]
+      if (duration === null) {
+        jumpTo({ center, zoom: 16 })
+      } else if (duration === undefined) {
+        flyTo({ center, zoom: 16 }) // Mapbox default: distance-based speed, no fixed cap
+      } else {
+        flyTo({ center, zoom: 16, duration })
       }
     }
 
-    // Calculate padding values
-    const padding = {
-      left: Math.max(0, visibleArea.x),
-      top: Math.max(0, visibleArea.y),
-      right: Math.max(0, mapWidth - (visibleArea.x + visibleArea.width)),
-      bottom: Math.max(0, mapHeight - (visibleArea.y + visibleArea.height)),
+    if (geo.hasLocation.value) {
+      goToLocation()
+    } else {
+      geo.resume()
+      const stopWatch = watch(geo.hasLocation, (has) => {
+        if (has) {
+          goToLocation()
+          stopWatch()
+        }
+      })
     }
-
-    return { padding, isFullyVisible: false }
   }
 
-  /**
-   * Check if two padding objects are significantly different
-   */
-  function hasPaddingChanged(
-    oldPadding: MapCamera['padding'],
-    newPadding: MapCamera['padding'],
-  ): boolean {
-    if (!oldPadding || !newPadding) return true
+  function onMapLoad() {
+    // NOTE: Layer initialization happens in onStyleLoad() after style is fully loaded
+    // This function only handles map-level setup that doesn't require the style to be loaded
 
-    const threshold = MAP_PADDING_CONFIG.CHANGE_THRESHOLD
-    return (
-      Math.abs((oldPadding.left || 0) - (newPadding.left || 0)) > threshold ||
-      Math.abs((oldPadding.top || 0) - (newPadding.top || 0)) > threshold ||
-      Math.abs((oldPadding.right || 0) - (newPadding.right || 0)) > threshold ||
-      Math.abs((oldPadding.bottom || 0) - (newPadding.bottom || 0)) > threshold
+    isMapReady.value = true
+
+    // Ensure map container is properly sized after load
+    resize()
+
+  }
+
+  function onStyleLoad() {
+    // Wait for style to be fully loaded before initializing layers
+    const initializeAfterStyleLoad = () => {
+      if (!mapStrategy?.mapInstance?.isStyleLoaded()) {
+        // Style not fully loaded yet, wait a bit and try again
+        setTimeout(initializeAfterStyleLoad, 50)
+        return
+      }
+
+      // Check if any fadeBasemap layers are visible
+      const hasVisibleFadeBasemapLayers = layers.value.some(l => {
+        if (!l.visible) return false
+        if (l.fadeBasemap) return true
+        if (l.groupId) {
+          const group = layersStore.allLayerGroups.find(g => g.id === l.groupId)
+          return group?.fadeBasemap ?? false
+        }
+        return false
+      })
+
+      // Include search results layer with regular layers
+      const allLayers = [
+        searchResultsLayerService.createSearchResultsLayer(),
+        ...layers.value,
+      ]
+      // Each overlay initializes independently, so one that throws must not
+      // take the rest of the map with it. They used to run as a bare
+      // sequence: a marker component that threw on mount (a tracker whose
+      // own Vue app had no i18n) aborted the whole chain, and every feature
+      // queued behind it — notes, bookmarks, timeline, the portolan ribbons
+      // — was simply absent, with nothing in the UI to say why.
+      const initStep = (name: string, run: () => void) => {
+        try {
+          run()
+        } catch (error) {
+          console.error(`[map] ${name} failed to initialize`, error)
+        }
+      }
+
+      initStep('layers', () =>
+        layersService.initializeLayers(allLayers, mapStrategy),
+      )
+
+      // Initialize place polygon layers
+      initStep('place polygons', () => {
+        placePolygonLayerService.initializePlacePolygonLayers(mapStrategy)
+        // Update polygon colors to match current theme
+        placePolygonLayerService.updatePlacePolygonColors(mapStrategy)
+      })
+
+      // Initialize marker layers - they will automatically sync with store
+      // state. The smart `fitBounds` goes with them so route isolation frames
+      // a transit line inside the visible map area rather than under the
+      // LeftSheet, and re-fits once the drawer stops animating.
+      initStep('markers', () =>
+        markerLayersService.initializeMarkerLayers(mapStrategy, fitBounds),
+      )
+
+      // Initialize notes layer for OSM notes overlay
+      initStep('notes', () =>
+        notesLayerService.initializeNotesLayer(mapStrategy),
+      )
+
+      // Initialize the saved places overlay (bookmarks + decrypted E2EE
+      // points). Runs on every style.load because setStyle drops the source,
+      // the layers AND the registered icon images.
+      initStep('bookmarks', () =>
+        bookmarksLayerService.initializeBookmarksLayer(mapStrategy),
+      )
+
+      // Fill the Environment vector layers (perimeters, smoke) with data —
+      // the layers themselves are default-layer templates that render natively.
+      initStep('environment', () =>
+        environmentDataService.initializeEnvironmentData(mapStrategy),
+      )
+
+      // Initialize timeline layer (stops + path lines) — rendered when the
+      // /timeline page populates the timeline store. Pass the smart
+      // `fitBounds` so the route is framed inside the visible map area (not
+      // under the LeftSheet drawer) and re-fits once the drawer settles.
+      initStep('timeline', () =>
+        timelineLayerService.initializeTimelineLayer(mapStrategy, fitBounds),
+      )
+
+      // Portolan transit ribbons (streamed from Barrelman through the
+      // server proxy). Requires the maplibre-gl transit fork; the service
+      // no-ops on other engines. The Transit layer group's master switch
+      // owns the toggle; the store re-applies the service-time and class
+      // filters the style reload just dropped.
+      initStep('portolan transit', () =>
+        usePortolanTransitStore().handleStyleLoad(mapStrategy),
+      )
+
+      // Apply config properties AFTER all sources/layers are added,
+      // because setConfigProperties modifies the map style (e.g. removeImport)
+      // which can temporarily make isStyleLoaded() return false and cause
+      // deferred addSource calls to lose their layers.
+      setConfigProperties()
+
+      // Apply faded basemap if any fadeBasemap layers are visible
+      if (hasVisibleFadeBasemapLayers && mapStrategy) {
+        const themeStore = useThemeStore()
+        const shouldUseFaded = !themeStore.isDark
+        mapStrategy.setMapColorTheme(
+          shouldUseFaded ? MapColorTheme.FADED : MapColorTheme.DEFAULT,
+        )
+      }
+
+      // Hide native transit labels if any transit layers are visible
+      const hasVisibleTransitLayers = layers.value.some(
+        l => l.type === LayerType.TRANSIT && l.visible,
+      )
+      if (hasVisibleTransitLayers && mapStrategy) {
+        mapStrategy.setTransitLabels(false)
+      }
+
+      // Show queued trips if any
+      if (queuedTrips.value) {
+        mapStrategy?.setTrips(
+          queuedTrips.value.trips,
+          queuedTrips.value.visibleTripIds,
+        )
+        queuedTrips.value = null
+      }
+
+      // Note: Waypoint markers are automatically managed by WaypointsLayer
+
+      // Trigger geolocation flyTo after style + layers are fully ready
+      if (mapStore.settings.startupLocation === StartupLocation.LOCATE_ME) {
+        locateUser()
+      }
+    }
+
+    // Start the initialization process
+    initializeAfterStyleLoad()
+  }
+
+  function setConfigProperties() {
+    mapStrategy?.setPoiLabels(mapStore.settings.poiLabels)
+    mapStrategy?.setRoadLabels(mapStore.settings.roadLabels)
+    mapStrategy?.setTransitLabels(mapStore.settings.transitLabels)
+    mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
+    mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
+    mapStrategy?.setMap3dTerrain(mapStore.settings.terrain3d)
+    mapStrategy?.setMap3dBuildings(mapStore.settings.buildings3d)
+    mapStrategy?.setMap3dObjects(mapStore.settings.objects3d)
+    mapStrategy?.setHdRoads(mapStore.settings.hdRoads)
+    mapStrategy?.setIndoorMaps(mapStore.settings.indoorMaps)
+  }
+
+  let isInitializingGroups = false
+
+  function calculateMapPadding() {
+    if (!mapContainer) return null
+    return calculateCameraPadding(
+      toContainerRect(
+        appStore.visibleMapArea,
+        mapContainer.getBoundingClientRect(),
+      ),
+      mapContainer.clientWidth,
+      mapContainer.clientHeight,
     )
-  }
-
-  /**
-   * Debounced update of map padding
-   */
-  function debouncedUpdateMapPadding(
-    delay: number = MAP_PADDING_CONFIG.TRANSITION_DELAY,
-  ) {
-    if (paddingUpdateTimeout) {
-      clearTimeout(paddingUpdateTimeout)
-    }
-
-    paddingUpdateTimeout = setTimeout(() => {
-      updateMapPadding()
-      paddingUpdateTimeout = null
-    }, delay)
   }
 
   // Helper function to adjust camera center based on visible map area
@@ -312,7 +678,7 @@ function mapService() {
       }
 
       // Set padding to ensure the camera operation respects the visible area
-      adjustedCamera.padding = paddingResult.padding
+      adjustedCamera.padding = effectiveMapPadding() ?? paddingResult.padding
       return adjustedCamera
     } catch (error) {
       console.warn('Error adjusting camera for visible map area:', error)
@@ -330,11 +696,234 @@ function mapService() {
     mapStrategy.jumpTo(adjustedCamera)
   }
 
+  // Tracks the in-flight fitBounds so we can cancel/re-fire if the
+  // `visibleMapArea` keeps changing (e.g. the mobile bottom sheet is still
+  // animating open when the caller fits).
+  let pendingFit: {
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number }
+    options: any
+    lastRefitKey: string
+    stopWatch: (() => void) | null
+    stopTimer: any
+    settleTimer: any
+  } | null = null
+
+  /**
+   * Padding is held while a fit is easing, then applied once it lands.
+   *
+   * `map.setPadding()` is a `jumpTo` underneath on both engines, and `jumpTo`
+   * calls `stop()` — so applying padding mid-flight kills the animation
+   * wherever the ease had got to. A drawer slide does exactly that: it
+   * republishes `visibleMapArea` every frame, and each frame would cancel the
+   * fit that opened alongside it, which is why a route framed correctly only
+   * when the panel happened to be open already.
+   *
+   * Nothing is lost by waiting. A fit resolves padding into the camera it is
+   * easing toward and interpolates it along the way, so the padding is already
+   * right for the whole flight; ours only has to be correct once the camera is
+   * still again.
+   */
+  const paddingHold = createAnimationHold(() => {
+    const padding = effectiveMapPadding()
+    if (!padding) return
+    setPaddingPreservingScreen({
+      top: padding.top ?? 0,
+      bottom: padding.bottom ?? 0,
+      left: padding.left ?? 0,
+      right: padding.right ?? 0,
+    })
+  })
+
+  /**
+   * Change the transform padding without moving anything on screen.
+   *
+   * `setPadding` keeps the geographic centre pinned to the (moving) focal
+   * point, so applying it shifts the whole scene by half the padding delta.
+   * That is wanted when a drawer slides over a map at rest — the world steps
+   * aside — and exactly wrong around a fit, which has already framed its
+   * bounds for the final layout: the engines size `cameraForBounds` against
+   * the CURRENT transform padding plus the options padding, so the fit bakes
+   * the obstruction in and a later ordinary `setPadding` would shift the
+   * framed route out from where the fit put it. This compensates the centre
+   * by the focal-point delta so the padding lands and the pixels stay put.
+   */
+  function setPaddingPreservingScreen(padding: {
+    top: number
+    bottom: number
+    left: number
+    right: number
+  }) {
+    const m = mapStrategy?.mapInstance
+    if (!m) return
+    if (!m.getPadding || !m.project || !m.unproject) {
+      m.setPadding?.(padding)
+      return
+    }
+    const old = m.getPadding()
+    const dx = (padding.left - padding.right - ((old.left ?? 0) - (old.right ?? 0))) / 2
+    const dy = (padding.top - padding.bottom - ((old.top ?? 0) - (old.bottom ?? 0))) / 2
+    if (!dx && !dy) {
+      m.setPadding(padding)
+      return
+    }
+    const at = m.project(m.getCenter())
+    const center = m.unproject([at.x + dx, at.y + dy])
+    m.jumpTo({ center, padding })
+  }
+
+  function _fitBoundsNow(
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+    options: any,
+  ) {
+    if (!mapStrategy || !mapContainer) return
+
+    // Obstruction-aware, viewport-proportional padding. Callers can pass
+    // `options.padding` (number or per-side object) for ADDITIONAL margin
+    // on top of the computed one — useful for cases that want an extra
+    // buffer around the fitted content beyond the default breathing room.
+    const basePadding = calculateFitPadding(
+      toContainerRect(
+        appStore.visibleMapArea,
+        mapContainer.getBoundingClientRect(),
+      ),
+      mapContainer.clientWidth,
+      mapContainer.clientHeight,
+    )
+
+    let extraPadding: Padding = { top: 0, right: 0, bottom: 0, left: 0 }
+    if (options?.padding !== undefined) {
+      if (typeof options.padding === 'number') {
+        const v = options.padding
+        extraPadding = { top: v, right: v, bottom: v, left: v }
+      } else if (typeof options.padding === 'object') {
+        extraPadding = {
+          top: options.padding.top ?? 0,
+          right: options.padding.right ?? 0,
+          bottom: options.padding.bottom ?? 0,
+          left: options.padding.left ?? 0,
+        }
+      }
+    }
+
+    const finalOptions = {
+      // Cap at building-level zoom so fitting to a tiny geometry (single
+      // POI polygon, short route segment) doesn't rocket past street
+      // level. Callers can override via `options.maxZoom`.
+      maxZoom: 19,
+      ...options,
+      padding: {
+        top: basePadding.top + extraPadding.top,
+        right: basePadding.right + extraPadding.right,
+        bottom: basePadding.bottom + extraPadding.bottom,
+        left: basePadding.left + extraPadding.left,
+      },
+    }
+
+    // The obstruction is baked into the options above, so any transform
+    // padding still on the map would be counted twice — both engines size
+    // `cameraForBounds` against transform padding PLUS options padding.
+    // Clear it (without moving the scene); the hold's release restores it
+    // the same way once the ease has landed.
+    setPaddingPreservingScreen({ top: 0, bottom: 0, left: 0, right: 0 })
+
+    // Both strategies fall back to 1000ms when a caller omits it. The hold is
+    // strictly time-based — see createAnimationHold for why `moveend` cannot
+    // be trusted to mean the ease is over.
+    paddingHold.begin((finalOptions.duration ?? 1000) + 100)
+
+    mapStrategy.fitBounds(bounds, finalOptions)
+  }
+
+  function fitBounds(
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+    options?: any,
+  ) {
+    if (!mapStrategy || !mapContainer) return
+
+    // Fire once against the current visibleMapArea. If a drawer is still
+    // animating (mobile bottom sheet opening, desktop left sheet sliding
+    // in), we also queue a deferred "final" re-fit: we let the drawer
+    // settle, then fit again against the final padding. Unlike flyTo
+    // (which only sets center + zoom and lets the runtime `setPadding`
+    // watcher shift the visual center later), fitBounds bakes the
+    // padding into the resolved camera — if we only fit once against a
+    // partial area, the polygon lands off-center in the final state.
+    _fitBoundsNow(bounds, options)
+
+    // Tear down any in-flight pending re-fit from a previous call.
+    if (pendingFit?.stopWatch) pendingFit.stopWatch()
+    if (pendingFit?.stopTimer) clearTimeout(pendingFit.stopTimer)
+    if (pendingFit?.settleTimer) clearTimeout(pendingFit.settleTimer)
+
+    const areaKey = (a: typeof appStore.visibleMapArea) =>
+      `${Math.round(a.x)}_${Math.round(a.y)}_${Math.round(a.width)}_${Math.round(a.height)}`
+    const initialKey = areaKey(appStore.visibleMapArea)
+
+    // Watch for visibleMapArea changes for a settle window. On each
+    // change, reset a stability timer; when the timer fires (no change
+    // for SETTLE_MS), re-fit if the area moved meaningfully from the
+    // initial call. Re-fitting mid-animation would interrupt the in-
+    // flight Mapbox camera animation and cause a visible jerk, so we
+    // only re-fit once things are still.
+    const SETTLE_MS = 120
+    const MAX_WAIT_MS = 600
+
+    const triggerSettledRefit = () => {
+      if (!pendingFit) return
+      const currentKey = areaKey(appStore.visibleMapArea)
+      if (currentKey !== pendingFit.lastRefitKey) {
+        pendingFit.lastRefitKey = currentKey
+        _fitBoundsNow(pendingFit.bounds, pendingFit.options)
+      }
+      // Keep watching in case another drawer animation starts; the
+      // maxWait timer below caps total work.
+    }
+
+    const stopWatch = watch(
+      () => appStore.visibleMapArea,
+      () => {
+        if (!pendingFit) return
+        if (pendingFit.settleTimer) clearTimeout(pendingFit.settleTimer)
+        pendingFit.settleTimer = setTimeout(triggerSettledRefit, SETTLE_MS)
+      },
+      { deep: true, flush: 'post' },
+    )
+
+    const stopTimer = setTimeout(() => {
+      if (!pendingFit) return
+      if (pendingFit.settleTimer) clearTimeout(pendingFit.settleTimer)
+      pendingFit.stopWatch?.()
+      pendingFit = null
+    }, MAX_WAIT_MS)
+
+    pendingFit = {
+      bounds,
+      options,
+      lastRefitKey: initialKey,
+      stopWatch,
+      stopTimer,
+      settleTimer: null,
+    }
+  }
+
   function setMapEngine(mapEngine: MapEngine) {
+    // User explicitly selecting Mapbox without premium → redirect to account billing
+    if (mapEngine === MapEngine.MAPBOX && !canUseMapboxEngine.value) {
+      router.push({ name: AppRoute.ACCOUNT, hash: '#plan' })
+      return
+    }
+
     destroy()
     isMapReady.value = false // Reset map ready state
     queuedTrips.value = null // Clear any queued trips
-    mapStore.setMapEngine(mapEngine)
+    mapStore.settings.engine = mapEngine
+
+    // The two engines draw different sets of projections. Carrying a
+    // Mapbox-only one into MapLibre would leave the setting naming a shape the
+    // map is not drawing, and its picker with nothing selected.
+    if (!ENGINE_PROJECTIONS[mapEngine].includes(mapStore.settings.projection)) {
+      mapStore.settings.projection = MapProjection.MERCATOR
+    }
 
     // Only initialize map if we have a container
     if (!mapContainer) {
@@ -353,187 +942,246 @@ function mapService() {
     // Get credentials for the map engine
     const accessToken = getMapEngineCredentials(mapEngine)
 
-    mapStrategy = getMapStrategy(mapContainer, mapEngine, accessToken)
+    // Get current language for initialization
+    const currentLanguage = storedLocale.value
+
+    mapStrategy = getMapStrategy(
+      mapContainer,
+      mapEngine,
+      accessToken,
+      currentLanguage,
+    )
     mapStore.setMapStrategy(mapStrategy)
+
+    // Re-bind bus listeners for the new strategy. destroy() above removed
+    // all listeners, so without this the new map would never fire
+    // onMapLoad / onStyleLoad and layers would never be re-registered.
+    bindMapEvents()
+  }
+
+  /**
+   * Reinitialize the map with current engine settings.
+   * Useful when integration configuration changes.
+   */
+  function reinitializeMap() {
+    const currentEngine = mapStore.settings.engine
+    setMapEngine(currentEngine)
   }
 
   function setMapProjection(projection: MapProjection) {
-    mapStore.setMapProjection(projection)
+    mapStore.settings.projection = projection
   }
 
   watch(
-    () => mapStore.mapProjection,
+    () => mapStore.settings.projection,
     projection => {
       mapStrategy?.setMapProjection(projection)
     },
   )
 
   function toggle3dTerrain(value?: boolean) {
-    mapStore.setMap3dTerrain(value)
+    const newValue = value ?? !mapStore.settings.terrain3d
+    mapStore.settings.terrain3d = newValue
+
+    // Raised ground with flat buildings reads as a bug, so terrain brings the
+    // skyline with it.
+    if (newValue && !mapStore.settings.buildings3d) {
+      toggle3dBuildings(true)
+    }
+  }
+
+  function toggle3dBuildings(value?: boolean) {
+    const newValue = value ?? !mapStore.settings.buildings3d
+    mapStore.settings.buildings3d = newValue
+
+    if (!newValue && mapStore.settings.terrain3d) {
+      toggle3dTerrain(false)
+    }
+  }
+
+  /**
+   * The scene's repeated objects — trees, and whatever joins them. Independent
+   * of the buildings: they are a different kind of thing and a different cost.
+   */
+  function toggle3dObjects(value?: boolean) {
+    mapStore.settings.objects3d = value ?? !mapStore.settings.objects3d
   }
 
   watch(
-    () => mapStore.map3dTerrain,
+    () => mapStore.settings.terrain3d,
     value => {
       mapStrategy?.setMap3dTerrain(value)
     },
   )
 
-  function toggle3dBuildings(value?: boolean) {
-    mapStore.setMap3dBuildings(value)
-  }
-
   watch(
-    () => mapStore.map3dBuildings,
+    () => mapStore.settings.buildings3d,
     value => {
       mapStrategy?.setMap3dBuildings(value)
     },
   )
 
+  watch(
+    () => mapStore.settings.objects3d,
+    value => {
+      mapStrategy?.setMap3dObjects(value)
+    },
+  )
+
   function togglePoiLabels(value?: boolean) {
-    mapStore.setMapPoiLabels(value)
+    mapStore.settings.poiLabels = value ?? !mapStore.settings.poiLabels
   }
 
-  watch(
-    () => mapStore.mapPoiLabels,
-    value => {
-      mapStrategy?.setPoiLabels(value)
-    },
+  // POI labels are suppressed while search results are visible so they don't
+  // compete visually with the search result markers and labels.  When results
+  // are cleared the user's stored preference takes effect again automatically.
+  const searchStore = useSearchStore()
+  const effectivePoiLabels = computed(
+    () => mapStore.settings.poiLabels && !searchStore.hasResults,
   )
+  watch(effectivePoiLabels, value => {
+    mapStrategy?.setPoiLabels(value)
+  })
 
-  function toggleRoadLabels(value?: boolean) {
-    mapStore.setMapRoadLabels(value)
+  // Each of these is the same shape: flip a stored flag, push it at the
+  // strategy. Kept as a table so a new one cannot land with a mismatched pair.
+  const STRATEGY_TOGGLES = {
+    roadLabels: (v: boolean) => mapStrategy?.setRoadLabels(v),
+    transitLabels: (v: boolean) => mapStrategy?.setTransitLabels(v),
+    placeLabels: (v: boolean) => mapStrategy?.setPlaceLabels(v),
+    hdRoads: (v: boolean) => mapStrategy?.setHdRoads(v),
+    indoorMaps: (v: boolean) => mapStrategy?.setIndoorMaps(v),
+  } as const
+
+  type StrategyToggle = keyof typeof STRATEGY_TOGGLES
+
+  function setStrategyToggle(key: StrategyToggle, value?: boolean) {
+    mapStore.settings[key] = value ?? !mapStore.settings[key]
   }
 
-  watch(
-    () => mapStore.mapRoadLabels,
-    value => {
-      mapStrategy?.setRoadLabels(value)
-    },
-  )
-
-  function toggleTransitLabels(value?: boolean) {
-    mapStore.setMapTransitLabels(value)
+  for (const [key, apply] of Object.entries(STRATEGY_TOGGLES)) {
+    watch(
+      () => mapStore.settings[key as StrategyToggle],
+      value => apply(value),
+    )
   }
 
-  watch(
-    () => mapStore.mapTransitLabels,
-    value => {
-      mapStrategy?.setTransitLabels(value)
-    },
-  )
+  const toggleRoadLabels = (v?: boolean) => setStrategyToggle('roadLabels', v)
+  const toggleTransitLabels = (v?: boolean) =>
+    setStrategyToggle('transitLabels', v)
+  const togglePlaceLabels = (v?: boolean) => setStrategyToggle('placeLabels', v)
+  const toggleHdRoads = (v?: boolean) => setStrategyToggle('hdRoads', v)
+  const toggleIndoorMaps = (v?: boolean) => setStrategyToggle('indoorMaps', v)
 
-  function togglePlaceLabels(value?: boolean) {
-    mapStore.setMapPlaceLabels(value)
+  function toggleNorthUpSnap(value?: boolean) {
+    // Default-on: a persisted settings object may predate this key.
+    const enabled = mapStore.settings.northUpSnap !== false
+    mapStore.settings.northUpSnap = value ?? !enabled
   }
-
-  watch(
-    () => mapStore.mapPlaceLabels,
-    value => {
-      mapStrategy?.setPlaceLabels(value)
-    },
-  )
 
   function resize() {
     mapStrategy?.resize()
   }
 
   /**
-   * Update map padding to keep orbit point centered in unobstructed area
-   * Uses easeTo with padding to smoothly adjust the map's effective viewport
+   * Update map padding to keep the vanishing point inside the unobstructed
+   * area. Applied with setPadding (no camera animation) so changes happen
+   * frame-by-frame and stay synchronized with any UI transition driving the
+   * bounds change (drawer slide, sheet drag, etc.).
    */
   function updateMapPadding() {
-    if (!mapStrategy || !mapContainer) {
-      console.warn('Cannot update map padding: map not ready')
+    if (!mapStrategy || !mapContainer || !isMapReady.value) return
+
+    // A fit is easing: applying padding now would stop it dead. Note that one
+    // is owed and let the hold apply it when the camera lands.
+    if (paddingHold.active) {
+      paddingHold.defer()
       return
     }
 
-    try {
-      const paddingResult = calculateMapPadding()
+    const padding = effectiveMapPadding()
+    if (!padding) return
 
-      if (!paddingResult) {
-        console.warn('Cannot calculate map padding: invalid dimensions')
-        return
-      }
-
-      // Apply the padding using flyTo for smooth transition
-      mapStrategy.flyTo({
-        padding: paddingResult.padding,
-      })
-
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Updated map padding:', {
-          padding: paddingResult.padding,
-          isFullyVisible: paddingResult.isFullyVisible,
-          visibleArea: appStore.visibleMapArea,
-          mapDimensions: {
-            width: mapContainer.clientWidth,
-            height: mapContainer.clientHeight,
-          },
-        })
-      }
-    } catch (error) {
-      console.error('Error updating map padding:', error)
-    }
+    mapStrategy.mapInstance?.setPadding(padding as any)
   }
 
-  // Watch for changes in the visible map area and automatically adjust padding
-  watch(
-    () => appStore.visibleMapArea,
-    (newVisibleArea, oldVisibleArea) => {
-      // Only update if the map is ready and we have valid areas
-      if (
-        !isMapReady.value ||
-        !mapStrategy ||
-        !newVisibleArea ||
-        !oldVisibleArea
-      ) {
-        return
-      }
+  /**
+   * The padding the map should be using right now.
+   *
+   * Normally the visible area's, so the point the map is centred on stays out
+   * from behind a panel. Zeroed while the sphere reads as an object: padding
+   * works by moving the focal point off the middle of the viewport, which is
+   * invisible on a flat map that covers the canvas edge to edge, and glaring
+   * on a disc with an obvious centre — a 400px panel leaves it sitting 200px
+   * right of the middle.
+   *
+   * `isSphereVisible`, not `isGlobeRendering`: MapLibre's globe render path
+   * runs to z12, and keying on it snapped padding off at city zooms — the
+   * map shifted sideways crossing z12, and a route fit landing below it was
+   * followed by a jump as its padding was taken away.
+   */
+  function effectiveMapPadding(): MapCamera['padding'] | null {
+    const result = calculateMapPadding()
+    if (!result) return null
+    if (mapStrategy?.isSphereVisible()) {
+      return { top: 0, bottom: 0, left: 0, right: 0 }
+    }
+    return result.padding
+  }
 
-      // Calculate old and new padding to check for significant changes
-      const oldPaddingResult = calculateMapPadding()
-      if (!oldPaddingResult) return
-
-      // Use a more sophisticated change detection based on actual padding values
-      const hasSignificantChange =
-        Math.abs(newVisibleArea.x - oldVisibleArea.x) >
-          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
-        Math.abs(newVisibleArea.y - oldVisibleArea.y) >
-          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
-        Math.abs(newVisibleArea.width - oldVisibleArea.width) >
-          MAP_PADDING_CONFIG.CHANGE_THRESHOLD ||
-        Math.abs(newVisibleArea.height - oldVisibleArea.height) >
-          MAP_PADDING_CONFIG.CHANGE_THRESHOLD
-
-      if (hasSignificantChange) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(
-            'Visible area changed significantly, updating map padding:',
-            {
-              old: oldVisibleArea,
-              new: newVisibleArea,
-            },
-          )
-        }
-
-        // Use debounced update to prevent excessive calls during animations
-        debouncedUpdateMapPadding()
-      }
-    },
-    { deep: true },
-  )
+  // Watch for changes in the visible map area and apply padding immediately.
+  watch(() => appStore.visibleMapArea, updateMapPadding, {
+    deep: true,
+    flush: 'post',
+  })
 
   // Also update padding when map becomes ready
   watch(isMapReady, ready => {
-    if (ready) {
-      // Use init delay to ensure map is fully initialized
-      debouncedUpdateMapPadding(MAP_PADDING_CONFIG.INIT_DELAY)
-    }
+    if (ready) updateMapPadding()
   })
 
   watch(dark, newDark => {
     mapStrategy?.setMapTheme(newDark ? MapTheme.DARK : MapTheme.LIGHT)
+  })
+
+  // Watch for language preference changes and update map labels
+  watch(storedLocale, newLocale => {
+    // Skip if we're currently reinitializing for a language change
+    if (isReinitializingForLanguage) {
+      return
+    }
+
+    if (mapStrategy) {
+      const needsReinit = mapStrategy.setMapLanguage(newLocale)
+
+      // If the map needs to be reinitialized (e.g., Mapbox Standard style),
+      // reinitialize with the new language
+      if (needsReinit) {
+        const currentEngine = mapStore.settings.engine
+
+        // Only get camera if map is ready, otherwise use stored camera
+        if (isMapReady.value) {
+          const currentCamera = {
+            center: mapStrategy.mapInstance.getCenter(),
+            zoom: mapStrategy.mapInstance.getZoom(),
+            bearing: mapStrategy.mapInstance.getBearing(),
+            pitch: mapStrategy.mapInstance.getPitch(),
+          }
+          mapStore.setMapCamera(currentCamera)
+        }
+
+        // Set flag to prevent watcher from firing during reinitialization
+        isReinitializingForLanguage = true
+
+        // Reinitialize the map with the new language
+        setMapEngine(currentEngine)
+
+        // Reset flag after reinitialization
+        setTimeout(() => {
+          isReinitializingForLanguage = false
+        }, 100)
+      }
+    }
   })
 
   watch(
@@ -555,9 +1203,18 @@ function mapService() {
   )
 
   watch(
-    () => mapStore.mapOptions.basemap,
+    () => mapStore.settings.basemap,
     basemap => {
       mapStrategy?.setBasemap(basemap)
+    },
+  )
+
+  watch(
+    () => mapStore.settings.mapStyle,
+    styleId => {
+      if (styleId) {
+        mapStrategy?.setMapStyle(styleId)
+      }
     },
   )
 
@@ -572,17 +1229,11 @@ function mapService() {
     },
   )
 
-  // Watch for trip changes
+  // Watch for trip changes - handles route rendering
+  // Note: Instruction markers are automatically managed by layers.service
   watch(
     () => directionsStore.trips,
     trips => {
-      console.log(
-        'Trips changed in map service:',
-        !!trips,
-        'isMapReady:',
-        isMapReady.value,
-      )
-
       if (trips) {
         // Show the first trip by default (recommended or first in list)
         const firstTrip =
@@ -592,14 +1243,11 @@ function mapService() {
           : new Set<string>()
 
         if (isMapReady.value && mapStrategy) {
-          console.log('Map is ready, showing first trip and waypoints')
           mapStrategy.setTrips(trips, defaultTripIds)
         } else {
-          console.log('Map not ready, queuing first trip and waypoints')
           queuedTrips.value = { trips, visibleTripIds: defaultTripIds }
         }
       } else {
-        console.log('Trips cleared, unsetting trips')
         if (mapStrategy) {
           mapStrategy.unsetTrips()
         }
@@ -608,79 +1256,48 @@ function mapService() {
     },
   )
 
-  // Watch for waypoint changes and always show waypoint markers
-  watch(
-    () => directionsStore.waypoints,
-    waypoints => {
-      console.log('Waypoints changed in map service:', waypoints.length)
-
-      if (isMapReady.value && mapStrategy) {
-        console.log('Map is ready, updating waypoint markers')
-        mapStrategy.setWaypointMarkers(waypoints)
-      }
-      // Note: We don't queue waypoint markers since they're managed separately
-    },
-    { deep: true },
-  )
-
-  // Watch for selected trip changes
-  watch(
-    () => directionsStore.selectedTripId,
-    (selectedTripId, oldSelectedTripId) => {
-      const trips = directionsStore.trips
-      if (!trips || !selectedTripId) return
-
-      console.log('Selected trip changed:', selectedTripId)
-
-      const visibleTripIds = new Set([selectedTripId])
-
-      if (isMapReady.value && mapStrategy) {
-        mapStrategy.setTrips(trips, visibleTripIds)
-      } else {
-        queuedTrips.value = { trips, visibleTripIds }
-      }
-    },
-  )
-
-  function toggleLayer(layerId: Layer['configuration']['id'], state?: boolean) {
-    mapStore.toggleLayer(layerId, state)
-  }
-
-  function toggleLayerVisibility(
-    layerId: Layer['configuration']['id'],
-    state?: boolean,
-  ) {
-    if (state === undefined) {
-      state = !mapStore.layers.find(layer => layer.configuration.id === layerId)
-        ?.visible
-    }
-    mapStore.toggleLayerVisibility(layerId, state)
-  }
-
-  function toggleStreetViewLayers(visible?: boolean) {
-    mapStore.layers.forEach(layer => {
-      if (layer.type === LayerType.STREET_VIEW) {
-        toggleLayerVisibility(layer.configuration.id, visible)
-      }
-    })
-  }
+  // Note: selectedTripId changes are handled by setVisibleTrips(), showAllTrips(), 
+  // and showOnlyWaypoints() which explicitly call mapStrategy.setTrips().
+  // Instruction markers are automatically managed by marker-layers.service via its own watcher.
 
   function destroy() {
     // Reset state
     isMapReady.value = false
     queuedTrips.value = null
+    isRotatedOrPitched.value = false
+    isCurrentlyRotating.value = false
+    isCurrentlyZooming.value = false
 
-    // Clear any pending padding updates
-    if (paddingUpdateTimeout) {
-      clearTimeout(paddingUpdateTimeout)
-      paddingUpdateTimeout = null
+    // Clear any pending timeouts
+    if (rotatingHideTimeout) {
+      clearTimeout(rotatingHideTimeout)
+      rotatingHideTimeout = null
+    }
+    if (zoomingHideTimeout) {
+      clearTimeout(zoomingHideTimeout)
+      zoomingHideTimeout = null
+    }
+    if (pendingFit) {
+      pendingFit.stopWatch?.()
+      if (pendingFit.stopTimer) clearTimeout(pendingFit.stopTimer)
+      if (pendingFit.settleTimer) clearTimeout(pendingFit.settleTimer)
+      pendingFit = null
     }
 
-    // Remove event listeners
-    // TODO: Automatically remove all listeners without explicitly naming them
-    mapEventBus.off('load')
-    mapEventBus.off('style.load')
-    mapEventBus.off('move')
+    // Destroy marker layers
+    markerLayersService.destroyMarkerLayers()
+
+    // Clean up search results layer
+    if (mapStrategy) {
+      searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
+      bookmarksLayerService.removeBookmarksLayer(mapStrategy)
+    }
+
+    // Unbind the portolan renderer's map listeners and drop its layers
+    portolanTransitService.teardownPortolanTransit()
+
+    // Remove every listener registered by bindMapEvents().
+    unbindMapEvents()
     mapStrategy?.destroy() // Remove map instance
   }
 
@@ -694,6 +1311,15 @@ function mapService() {
     }
 
     const visibleTripIds = new Set(tripIds)
+
+    // Update selectedTripId to trigger instruction markers update
+    if (visibleTripIds.size === 1) {
+      const [tripId] = visibleTripIds
+      directionsStore.setSelectedTripId(tripId)
+    } else {
+      // Clear selected trip when showing multiple or no trips
+      directionsStore.setSelectedTripId(null)
+    }
 
     if (isMapReady.value && mapStrategy) {
       mapStrategy.setTrips(trips, visibleTripIds)
@@ -709,13 +1335,14 @@ function mapService() {
     const trips = directionsStore.trips
     if (!trips) return
 
-    const allTripIds = new Set(trips.trips.map(trip => trip.id))
+    const allTripIds = new Set<string>(trips.trips.map(trip => trip.id))
+
+    // Clear selected trip when showing all trips (no instruction markers)
+    directionsStore.setSelectedTripId(null)
 
     if (isMapReady.value && mapStrategy) {
-      console.log('Showing all trips')
       mapStrategy.setTrips(trips, allTripIds)
     } else {
-      console.log('Map not ready, queuing all trips')
       queuedTrips.value = { trips, visibleTripIds: allTripIds }
     }
   }
@@ -731,27 +1358,22 @@ function mapService() {
     const noTripIds = new Set<string>()
 
     if (isMapReady.value && mapStrategy) {
-      console.log('Showing only waypoints')
       mapStrategy.setTrips(trips, noTripIds)
       // Reset selected trip to null when showing only waypoints
       directionsStore.setSelectedTripId(null)
     } else {
-      console.log('Map not ready, queuing waypoints only')
       queuedTrips.value = { trips, visibleTripIds: noTripIds }
     }
   }
 
   /**
-   * Show specific trip on hover
+   * Show specific trip on hover (route line + instruction markers)
    */
   function showTripOnHover(tripId: string) {
     const trips = directionsStore.trips
     if (!trips) return
 
-    console.log('Showing trip on hover:', tripId)
-
-    // Update selected trip in store
-    directionsStore.setSelectedTripId(tripId)
+    setVisibleTrips([tripId])
   }
 
   /**
@@ -801,23 +1423,75 @@ function mapService() {
     mapStrategy?.resetNorth()
   }
 
+  /**
+   * Snap the map's rotation when a manual rotation gesture ends: to true north
+   * (if "snap to north" is enabled) and/or to the local city's street grid (if
+   * enabled and over a known gridded city), whichever aligned bearing is
+   * closest. We disable the engine's built-in bearingSnap and do north snapping
+   * here too, so both toggles take effect live without recreating the map.
+   * Invoked on a user rotateend and from the compass drag handler.
+   */
+  function snapRotation() {
+    const map = mapStrategy?.mapInstance
+    if (!map) return
+
+    const current = map.getBearing()
+    const targets: number[] = []
+
+    // North-up snap (replaces the engine's native bearingSnap).
+    if (mapStore.settings.northUpSnap !== false) {
+      targets.push(0)
+    }
+
+    // City street-grid snap.
+    const mode = mapStore.settings.gridSnapMode ?? GridSnapMode.NORTH_UP
+    if (mode !== GridSnapMode.OFF) {
+      const center = map.getCenter()
+      const city = center
+        ? findGriddedCity({ lng: center.lng, lat: center.lat })
+        : null
+      if (city) targets.push(...gridOrientations(city.bearing, mode))
+    }
+
+    if (targets.length === 0) return
+
+    // Snap to the nearest enabled target, if within threshold and not already
+    // aligned (a redundant easeTo would needlessly re-fire rotate events).
+    let best = targets[0]
+    let bestDelta = Infinity
+    for (const target of targets) {
+      const delta = angularDistanceDeg(current, target)
+      if (delta < bestDelta) {
+        bestDelta = delta
+        best = target
+      }
+    }
+
+    if (bestDelta > GRID_SNAP_THRESHOLD_DEG || bestDelta < 0.1) return
+
+    map.easeTo({ bearing: best, duration: 300 })
+  }
+
   return {
     initializeMap,
     resize,
     updateMapPadding,
-    toggleLayer,
-    toggleLayerVisibility,
-    toggleStreetViewLayers,
     flyTo,
     jumpTo,
+    fitBounds,
     setMapEngine,
+    reinitializeMap,
     setMapProjection,
     toggle3dTerrain,
     toggle3dBuildings,
+    toggle3dObjects,
     togglePoiLabels,
     toggleRoadLabels,
     toggleTransitLabels,
     togglePlaceLabels,
+    toggleHdRoads,
+    toggleIndoorMaps,
+    toggleNorthUpSnap,
     destroy,
     on,
     off,
@@ -831,18 +1505,117 @@ function mapService() {
       lngLat: LngLat,
       component: Component,
       props: Record<string, any> = {},
-    ) => mapStrategy?.addVueMarker(id, lngLat, component, props),
+      zIndex?: number,
+      dragOptions?: {
+        onDragEnd: (lngLat: LngLat) => void
+        onDrag?: (lngLat: LngLat) => void
+      },
+    ) => mapStrategy?.addVueMarker(id, lngLat, component, props, zIndex, dragOptions),
+    removeMarker: (id: string) => mapStrategy?.removeMarker(id),
+    setMarkerLngLat: (id: string, lngLat: LngLat) =>
+      mapStrategy?.setMarkerLngLat(id, lngLat),
+    removeMarkersByPrefix: (prefix: string) =>
+      mapStrategy?.removeMarkersByPrefix(prefix),
     removeAllMarkers: () => mapStrategy?.removeAllMarkers(),
+    updatePlacePolygon: (place: Place | null) =>
+      placePolygonLayerService.updatePlacePolygon(mapStrategy, place),
     zoomIn,
     zoomOut,
     resetNorth,
-    locate: () => mapStrategy?.locate(),
+    snapRotation,
+    locate: () => locateUser(),
     setMapContainer,
     setVisibleTrips,
     showAllTrips,
     showOnlyWaypoints,
     showTripOnHover,
     showDefaultTrip,
+    setRouteProfile: (profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null) =>
+      mapStrategy?.setRouteProfile(profile),
+    setSegmentRouteProfile: (
+      tripId: string,
+      segmentIndex: number,
+      profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null,
+    ) => mapStrategy?.setSegmentRouteProfile(tripId, segmentIndex, profile),
+    // Expose mapStrategy for layers service
+    get mapStrategy() {
+      return mapStrategy
+    },
+
+    // Get current map bounds (full viewport)
+    getBounds() {
+      return mapStrategy?.getBounds() || null
+    },
+
+    /**
+     * Get the geographic bounds of the visible (unobstructed) map area.
+     * Uses appStore.visibleMapArea to account for left sheet, bottom sheet,
+     * and other obstructing components, then unprojects the corners to
+     * geographic coordinates. Falls back to full viewport bounds.
+     */
+    getVisibleBounds(): MapBounds | null {
+      const map = mapStrategy?.mapInstance
+      if (!map?.unproject) return mapStrategy?.getBounds() || null
+
+      const viewportArea = appStore.visibleMapArea
+      if (!viewportArea || !viewportArea.width || !viewportArea.height) {
+        return mapStrategy?.getBounds() || null
+      }
+
+      // `unproject` reads container-relative pixels, and the obstruction
+      // bounds are viewport-relative — on desktop the sidebar sits between
+      // the two origins.
+      const visibleArea = mapContainer
+        ? toContainerRect(viewportArea, mapContainer.getBoundingClientRect())
+        : viewportArea
+
+      // Unproject the four corners of the visible area rect (pixel → lng/lat)
+      const nw = map.unproject([visibleArea.x, visibleArea.y])
+      const ne = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y])
+      const sw = map.unproject([visibleArea.x, visibleArea.y + visibleArea.height])
+      const se = map.unproject([visibleArea.x + visibleArea.width, visibleArea.y + visibleArea.height])
+
+      if (!nw || !ne || !sw || !se) return mapStrategy?.getBounds() || null
+
+      return {
+        north: Math.max(nw.lat, ne.lat, sw.lat, se.lat),
+        south: Math.min(nw.lat, ne.lat, sw.lat, se.lat),
+        east: Math.max(nw.lng, ne.lng, sw.lng, se.lng),
+        west: Math.min(nw.lng, ne.lng, sw.lng, se.lng),
+      }
+    },
+
+    // Get current map center
+    getCenter() {
+      return mapStrategy?.mapInstance?.getCenter() || null
+    },
+
+    // Get current map zoom level
+    getZoom() {
+      return mapStrategy?.mapInstance?.getZoom() || null
+    },
+
+    /** Project lng/lat to map container pixel coordinates (for measure tool hit testing). */
+    project(lngLat: LngLat): { x: number; y: number } | null {
+      const map = mapStrategy?.mapInstance
+      if (!map?.project) return null
+      const p = map.project([lngLat.lng, lngLat.lat])
+      return p && typeof p.x === 'number' && typeof p.y === 'number' ? { x: p.x, y: p.y } : null
+    },
+
+    // Reactive state for conditional control visibility
+    isMapReady,
+    isRotatedOrPitched,
+    isCurrentlyRotating,
+    isCurrentlyZooming,
+
+    // Instruction marker highlights (for UI interactions like hovering)
+    // Delegated to marker layers service which manages marker layers
+    highlightInstructionPoint: markerLayersService.highlightInstructionPoint,
+    clearHighlightedInstructionPoint:
+      markerLayersService.clearHighlightedInstructionPoint,
+
+    canUseMapboxEngine,
   }
 }
 

@@ -8,6 +8,18 @@ import { Place } from '@/types/place.types'
 // import { LayerSpecification, VectorSourceSpecification } from 'mapbox-gl'
 
 export type Basemap = 'standard' | 'satellite' | 'hybrid' | 'google-3d'
+/** Basemap style. Light/dark is driven by the app theme, not by this. */
+export type MapStyleId = 'parchment'
+
+/**
+ * How points of interest are drawn on the basemap.
+ *
+ * `badge` — a category-coloured disc with the glyph knocked out, matching the
+ * markers search results and saved places use.
+ * `glyph` — a tinted glyph on a halo and nothing else, in MapTiler Streets'
+ * own family palette.
+ */
+export type PoiStyleId = 'badge' | 'glyph'
 
 export enum MapEngine {
   MAPBOX = 'mapbox',
@@ -24,16 +36,97 @@ export enum MapProjection {
   LAMBERT_CONFORMAL_CONIC = 'lambertConformalConic',
 }
 
+/**
+ * Which projections each engine can actually draw.
+ *
+ * Mapbox has the whole list. MapLibre has two — a flat Mercator plane and a
+ * sphere — and warns and falls back to Mercator when handed anything else, so
+ * the Mapbox-only projections are kept out of its picker rather than offered
+ * and quietly ignored.
+ */
+export const ENGINE_PROJECTIONS: Record<MapEngine, MapProjection[]> = {
+  [MapEngine.MAPBOX]: Object.values(MapProjection),
+  [MapEngine.MAPLIBRE]: [MapProjection.MERCATOR, MapProjection.GLOBE],
+}
+
 export enum MapTheme {
   LIGHT = 'light',
   DARK = 'dark',
 }
 
-export type MapOptions = {
-  projection: string
+export enum MapColorTheme {
+  DEFAULT = 'default',
+  FADED = 'faded',
+  MONOCHROME = 'monochrome',
+}
+
+export enum LocateFlySpeed {
+  INSTANT = 'instant',
+  FAST = 'fast',
+  NORMAL = 'normal',
+  SLOW = 'slow',
+}
+
+export enum StartupLocation {
+  LOCATE_ME = 'locateMe',
+  LAST_VISITED = 'lastVisited',
+  URL_PARAMS = 'urlParams',
+}
+
+export enum GridSnapMode {
+  // Don't snap to city grids at all.
+  OFF = 'off',
+  // Snap only to the grid's upright (nearest-to-north) orientation.
+  NORTH_UP = 'north-up',
+  // Snap to any of the grid's four 90°-rotated orientations.
+  ALL = 'all',
+}
+
+export enum FloorNumbering {
+  ZERO_BASED = 'zero-based',
+  ONE_BASED = 'one-based',
+}
+
+export interface MapSettings {
   theme: MapTheme
+  engine: MapEngine
   basemap: Basemap
+  mapStyle: MapStyleId
+  poiStyle: PoiStyleId
   camera?: MapCamera
+  projection: MapProjection
+  terrain3d: boolean
+  /** Extrude the basemap's buildings. */
+  buildings3d: boolean
+  /**
+   * Draw the scene's repeated objects — trees today, street furniture later —
+   * as models rather than as the flat marks that stand in for them. Split from
+   * `buildings3d`, which used to carry both.
+   */
+  objects3d: boolean
+  poiLabels: boolean
+  roadLabels: boolean
+  transitLabels: boolean
+  placeLabels: boolean
+  hdRoads: boolean
+  /**
+   * Render indoor floor plans (airports, malls, stadiums) with a floor
+   * selector. Mapbox Standard style only, and only from zoom 16.
+   */
+  indoorMaps: boolean
+  /**
+   * When true, snaps the map upright when a rotation ends close to north. This
+   * is our own reimplementation — the engine's native `bearingSnap` is disabled
+   * so the behavior can be toggled live (see map.service `snapRotation`).
+   */
+  northUpSnap: boolean
+  /**
+   * Snap map rotation to a known city street grid when near one: off, the
+   * grid's upright orientation only, or any of its four 90° rotations.
+   */
+  gridSnapMode: GridSnapMode
+  locateFlySpeed: LocateFlySpeed
+  startupLocation: StartupLocation
 }
 
 export type MapCamera = {
@@ -47,6 +140,7 @@ export type MapCamera = {
     left?: number
     right?: number
   } // Padding around the viewport edges when considering visible content
+  duration?: number // Animation duration in ms (passed through to flyTo)
 }
 
 export type MapInstance = MapboxMap | MaplibreMap
@@ -56,10 +150,26 @@ export type LngLat = {
   lat: number
 }
 
-// TODO: Use optional fields
+export type MapBounds = {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
+export type WaypointTimeMode = 'departAfter' | 'arriveBy'
+
+export type WaypointTimeConstraint = {
+  mode: WaypointTimeMode
+  time: string // ISO 8601
+  dwellTime?: number // minutes to spend at this stop
+}
+
 export type Waypoint = {
   lngLat: LngLat | null
-  place?: Place | null
+  place?: Partial<Place> | null
+  /** Per-waypoint time constraint (depart after / arrive by + optional dwell). */
+  timeConstraint?: WaypointTimeConstraint | null
 }
 
 export type MapillaryImage = Image // TODO: Use custom type
@@ -68,7 +178,21 @@ export type MapEvents = {
   click: {
     lngLat: LngLat
     point: { x: number; y: number }
+    poi?: {
+      osmId: string
+      poiType: 'node' | 'way' | 'relation'
+      name?: string
+    }
   }
+  /** Emitted while a touch POI action waits for the double-tap window. */
+  'poi:preview': {
+    poi: {
+      osmId: string
+      poiType: 'node' | 'way' | 'relation'
+      name?: string
+    }
+  }
+  // TODO: Fold this into 'click' event
   'click:mapillary-image': {
     lngLat: LngLat
     point: { x: number; y: number }
@@ -77,23 +201,30 @@ export type MapEvents = {
   load: MapInstance
   moveend: MapCamera
   move: MapCamera
+  // Fired only when the user finishes a manual rotation gesture (not for
+  // programmatic camera moves). Drives the north-up and city-grid snap.
+  rotateend: MapCamera
   'style.load': MapInstance
   contextmenu: {
     lngLat: LngLat
     point: { x: number; y: number }
   }
-  'click:poi': {
-    osmId: string
-    poiType: 'node' | 'way' | 'relation'
-    lngLat: LngLat
-    point: { x: number; y: number }
+  // TODO: Fold this into 'click' event
+  'click:friend-marker': {
+    friendHandle: string
+  }
+  'click:tracker-marker': {
+    trackerId: string
   }
 }
 
 export enum SourceType {
-  RASTER = 'raster',
   VECTOR = 'vector',
+  RASTER = 'raster',
   RASTER_DEM = 'raster-dem',
+  GEOJSON = 'geojson',
+  IMAGE = 'image',
+  VIDEO = 'video',
 }
 
 export type TileSource = {
@@ -109,20 +240,16 @@ export type TileSource = {
 
 // TODO: Rename to MapboxLayerType
 export enum MapboxLayerType {
-  LINE = 'line',
   FILL = 'fill',
+  LINE = 'line',
   SYMBOL = 'symbol',
   CIRCLE = 'circle',
   HEATMAP = 'heatmap',
   FILL_EXTRUSION = 'fill-extrusion',
   RASTER = 'raster',
-  RASTER_PARTICLE = 'raster-particle',
   HILLSHADE = 'hillshade',
-  MODEL = 'model',
   BACKGROUND = 'background',
   SKY = 'sky',
-  SLOT = 'slot',
-  CLIP = 'clip',
 }
 
 export enum MaplibreLayerType {
@@ -157,21 +284,93 @@ export type MaplibreLayerConfiguration = {
 export enum LayerType {
   CUSTOM = 'custom',
   STREET_VIEW = 'street-view',
+  TRANSIT = 'transit',
+  FRIENDS = 'friends',
+  TRACKERS = 'trackers',
+  NOTES = 'notes',
 }
 
-// TODO: Make MapboxLayer extend Layer
-export type Layer = {
+/**
+ * Layer types the map engine never draws itself: their features are rendered
+ * as Vue markers by a dedicated service, which watches the layer's `visible`
+ * flag. Handing one to `addLayer` would just warn about a missing source.
+ */
+export const MARKER_RENDERED_LAYER_TYPES: ReadonlySet<LayerType> = new Set([
+  LayerType.FRIENDS,
+  LayerType.TRACKERS,
+  LayerType.NOTES,
+])
+
+/**
+ * Origin describes where a layer/group's canonical definition lives.
+ * - 'default': projected from a server-side template (no DB row per user)
+ * - 'custom':  user-created or cloned-from-default DB row, fully user-owned
+ * - 'core':    hardcoded client-side layer (search results, place polygons, etc.)
+ */
+/**
+ * Where a layer came from.
+ *
+ * `virtual` layers have no `layers` row and never will: they are projected
+ * client-side from other state (today, the user's collections). Their names
+ * are E2EE, so persisting them would hand the server plaintext it is not
+ * supposed to have. Every mutation path must skip them.
+ */
+export type LayerOrigin = 'default' | 'custom' | 'core' | 'virtual'
+
+export interface Layer {
+  id: string
   name: string
-  icon?: Icon
   type: LayerType
-  enabled: boolean
-  visible: boolean
   engine: MapEngine[]
-  configuration: MapboxLayerConfiguration
+  showInLayerSelector: boolean
+  visible: boolean
+  fadeBasemap?: boolean
+  icon?: string | null
+  order: number
+  groupId: string | null
+  configuration: {
+    id: string
+    type: MapboxLayerType
+    source:
+      | string
+      | {
+          id: string
+          type: SourceType
+          [key: string]: any
+        }
+    slot?: string
+    [key: string]: any
+  }
+  isSubLayer?: boolean
+  enabled?: boolean
+  integrationId?: string | null
+  // Synthesized on the client when composing default templates + user state.
+  // Never set for core layers or fresh custom layers.
+  origin?: LayerOrigin
+  userId?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
-export type MaplibreLayer = Layer & {
-  configuration: MaplibreLayerConfiguration
+export interface LayerGroup {
+  id: string
+  name: string
+  showInLayerSelector: boolean
+  visible: boolean
+  fadeBasemap?: boolean
+  icon?: string
+  order: number
+  parentGroupId?: string | null
+  integrationId?: string | null
+  origin?: LayerOrigin
+  userId: string
+  createdAt: string
+  updatedAt: string
+}
+
+// Simplified type for groups with their layers
+export interface LayerGroupWithLayers extends LayerGroup {
+  layers: Layer[]
 }
 
 export enum StreetViewType {
@@ -208,3 +407,46 @@ export const MarkerIds = {
 } as const
 
 export type MarkerId = (typeof MarkerIds)[keyof typeof MarkerIds]
+
+// Map control visibility settings
+export enum ControlVisibility {
+  ALWAYS = 'always',
+  NEVER = 'never',
+  WHILE_ROTATING = 'while-rotating', // for compass
+  WHILE_ZOOMING = 'while-zooming', // for scale
+  WHILE_ACTIVE = 'while-active', // for street view (when toggled on)
+}
+
+export interface MapControlSettings {
+  zoom: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+  compass:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ROTATING
+    | ControlVisibility.NEVER
+  scale:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ZOOMING
+    | ControlVisibility.NEVER
+  streetView:
+    | ControlVisibility.ALWAYS
+    | ControlVisibility.WHILE_ACTIVE
+    | ControlVisibility.NEVER
+  locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+  weather: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+}
+
+export enum UnitSystem {
+  METRIC = 'metric',
+  IMPERIAL = 'imperial',
+}
+
+/**
+ * `mapService.fitBounds` — the obstruction-aware wrapper, not the raw
+ * strategy call. Services that frame content take it as a parameter so the
+ * fit lands inside the visible map area (not under the sheets) and re-fires
+ * once a drawer animation settles.
+ */
+export type FitBoundsFn = (
+  bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+  options?: any,
+) => void

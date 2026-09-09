@@ -5,9 +5,12 @@ import { useIntegrationService } from '@/services/integration.service'
 import {
   IntegrationDefinition,
   IntegrationRecord,
+  IntegrationScheme,
+  schemaConfigs,
 } from '@/types/integrations.types'
 import { ZodObject } from 'zod'
 import { AutoForm } from '@/components/ui/auto-form'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
@@ -16,13 +19,19 @@ import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { TransitionExpand } from '@morev/vue-transitions'
+import { useServerUrl } from '@/lib/api'
+import { ExternalLinkIcon, ShieldCheckIcon } from 'lucide-vue-next'
 
-const props = defineProps<{
-  integration: IntegrationDefinition
-  config?: IntegrationRecord
-  schema: ZodObject<any>
-  isConfigured: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    integration: IntegrationDefinition
+    config?: IntegrationRecord
+    schema: ZodObject<any>
+    isConfigured: boolean
+    scheme?: IntegrationScheme
+  }>(),
+  { scheme: 'server-key' },
+)
 
 const emit = defineEmits<{
   (e: 'update:valid', valid: boolean): void
@@ -31,7 +40,40 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useAppService()
 const integrationService = useIntegrationService()
+const serverUrl = useServerUrl()
 const formRef = ref(null)
+
+const DOCS_BASE = 'https://docs.parchment.app/usage/integrations'
+
+/** Trim all string values in a flat config object */
+function trimConfigStrings(config: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {}
+  for (const [key, value] of Object.entries(config)) {
+    result[key] = typeof value === 'string' ? value.trim() : value
+  }
+  return result
+}
+
+const docsUrl = computed(() => {
+  return `${DOCS_BASE}/${props.integration.id}`
+})
+
+const isOsmSystemSchema = computed(
+  () => props.integration.configSchema === 'openstreetmapSystemSchema',
+)
+
+const defaultRedirectUri = computed(() => {
+  const base = serverUrl.value
+  // OSM requires HTTPS redirect URIs. In dev mode (http://localhost),
+  // use https:// so the URI is accepted by OSM for registration.
+  // The dev workaround handles the redirect failure.
+  const httpsBase = base.replace(/^http:\/\//, 'https://')
+  return `${httpsBase}/integrations/osm/callback`
+})
+
+const currentSchemaConfig = computed(() =>
+  schemaConfigs[props.integration.configSchema] ?? {},
+)
 
 interface FormValues {
   config: Record<string, any>
@@ -171,7 +213,7 @@ async function testConnection() {
   try {
     const result = await integrationService.testIntegrationConfig(
       props.integration.id,
-      configForm.values,
+      trimConfigStrings(configForm.values),
     )
 
     testResult.value = result
@@ -195,7 +237,7 @@ async function submit() {
   if (!isValid.value) return null
 
   return {
-    config: configForm.values,
+    config: trimConfigStrings(configForm.values),
     capabilities: values.capabilities.map(cap => ({
       id: cap.id,
       active: cap.active,
@@ -267,6 +309,13 @@ onMounted(() => {
       validateConfigForm()
     }, 0)
   }
+
+  // Pre-fill default redirect URI for new OSM system integrations
+  if (isOsmSystemSchema.value && !props.isConfigured) {
+    setTimeout(() => {
+      configForm.setFieldValue('redirectUri', defaultRedirectUri.value)
+    }, 0)
+  }
 })
 
 defineExpose({ submit })
@@ -274,11 +323,32 @@ defineExpose({ submit })
 
 <template>
   <div class="space-y-6">
+    <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <ExternalLinkIcon class="size-3.5 shrink-0" />
+      <a
+        :href="docsUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="underline hover:text-foreground transition-colors"
+      >
+        {{ t('settings.integrations.viewDocs') }}
+      </a>
+    </div>
+
+    <Alert v-if="scheme === 'user-e2ee'" variant="info">
+      <ShieldCheckIcon class="size-4" />
+      <AlertDescription>
+        {{ t('settings.integrations.scheme.endToEnd.formNote') }}
+      </AlertDescription>
+    </Alert>
+
     <!-- TODO: Add "show secrets" toggle to text fields -->
     <AutoForm
       ref="formRef"
       :schema="schema"
       :form="configForm"
+      :field-config="currentSchemaConfig.fieldConfig"
+      :dependencies="currentSchemaConfig.dependencies"
       class="space-y-4"
     />
 
@@ -303,49 +373,50 @@ defineExpose({ submit })
       </div>
     </div>
 
-    <div class="flex items-center justify-between">
-      <div class="block text-sm font-medium text-foreground">
-        {{ t('general.enabled') }}
-      </div>
-      <Switch
-        id="capability-all"
-        :model-value="allCapabilitiesEnabled"
-        @update:model-value="enabled => (allCapabilitiesEnabled = enabled)"
-        :disabled="isEnabledToggleDisabled"
-      />
-    </div>
-
-    <TransitionExpand :duration="300" :delay="150">
-      <div v-if="integration.capabilities?.length > 0" class="space-y-2">
+    <template v-if="integration.capabilities?.length > 0">
+      <div class="flex items-center justify-between">
         <div class="block text-sm font-medium text-foreground">
-          {{ t('settings.integrations.capabilities.title') }}
+          {{ t('general.enabled') }}
         </div>
-        <div class="space-y-3 p-3 border border-border rounded-md">
-          <div
-            v-for="capability in values.capabilities"
-            :key="capability.id"
-            class="flex items-center justify-between"
-          >
-            <div>
-              <Label
-                :for="`capability-${capability.id}`"
-                class="cursor-pointer"
-              >
-                {{ t(`settings.integrations.capabilities.${capability.id}`) }}
-              </Label>
+        <Switch
+          id="capability-all"
+          :model-value="allCapabilitiesEnabled"
+          @update:model-value="enabled => (allCapabilitiesEnabled = enabled)"
+          :disabled="isEnabledToggleDisabled"
+        />
+      </div>
+
+      <TransitionExpand :duration="300" :delay="150">
+        <div class="space-y-2">
+          <div class="block text-sm font-medium text-foreground">
+            {{ t('settings.integrations.capabilities.title') }}
+          </div>
+          <div class="space-y-3 p-3 border rounded-md">
+            <div
+              v-for="capability in values.capabilities"
+              :key="capability.id"
+              class="flex items-center justify-between"
+            >
+              <div>
+                <Label
+                  :for="`capability-${capability.id}`"
+                  class="cursor-pointer"
+                >
+                  {{ t(`settings.integrations.capabilities.${capability.id}`) }}
+                </Label>
+              </div>
+              <Switch
+                :id="`capability-${capability.id}`"
+                :model-value="capability.active"
+                @update:model-value="
+                  enabled => toggleCapability(capability.id, enabled)
+                "
+                :disabled="isEnabledToggleDisabled"
+              />
             </div>
-            <Switch
-              :id="`capability-${capability.id}`"
-              :model-value="capability.active"
-              @update:model-value="
-                enabled => toggleCapability(capability.id, enabled)
-              "
-              :disabled="isEnabledToggleDisabled"
-            />
           </div>
         </div>
-      </div>
-    </TransitionExpand>
+      </TransitionExpand>
+    </template>
   </div>
 </template>
-@/components/ui/switch_old

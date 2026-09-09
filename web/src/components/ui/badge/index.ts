@@ -9,10 +9,14 @@ export const badgeVariants = cva(
       variant: {
         default:
           'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
+        primary:
+          'border-transparent bg-primary-100 text-primary-900 dark:bg-primary-950 dark:text-primary-100 hover:bg-primary-200 dark:hover:bg-primary-800',
         secondary:
           'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
         destructive:
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
+        success:
+          'border-transparent bg-forest-100 text-forest-900 dark:bg-forest-900/30 dark:text-forest-200 hover:bg-forest-200 dark:hover:bg-forest-900/50',
         outline: 'text-foreground',
       },
     },

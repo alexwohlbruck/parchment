@@ -1,8 +1,9 @@
-import { MapStrategy } from './map.strategy'
-import {
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+// `IndoorControl` is only reachable through the default export — mapbox-gl's
+// typings don't re-export the experimental indoor API as a named binding.
+import mapboxgl, {
   Map as MapboxMap,
   NavigationControl,
-  GeolocateControl,
   AttributionControl,
   ScaleControl,
   Projection,
@@ -18,34 +19,58 @@ import {
   Basemap,
   Layer,
   MapCamera,
-  MapOptions,
+  MapSettings,
   MapTheme,
+  MapColorTheme,
   MapillaryImage,
   Pegman,
   PEGMAN_LAYERS,
   MapProjection,
   LngLat,
   Waypoint,
+  LayerType,
 } from '@/types/map.types'
 import standardStyle from '@/components/map/styles/standard.json'
 
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
-import colors from 'tailwindcss/colors'
-import { mapEventBus } from '@/lib/eventBus'
-import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
-import { parseMapboxToOsmId } from '@/lib/map.utils'
+import { palette } from '@/lib/palette'
+import { mapEventBus } from '@/lib/event-bus'
+import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman.utils'
+import { parseMapboxToOsmId } from '@/lib/map/map.utils'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { LayerGroup, TripGroup } from '@/lib/layer-group'
-import { Component } from 'vue'
-import { createVueMarkerElement } from '@/lib/vue-marker.utils'
-import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import { MapLayerGroup, TripGroup } from '@/lib/map/layer-group'
+import {
+  terrainSource,
+  TERRAIN_SOURCE_ID,
+  TERRAIN_EXAGGERATION,
+} from '@/lib/map-style/terrain'
+import { MAX_PITCH } from '@/lib/map-style'
+import { Component, watch } from 'vue'
+import { createVueMarkerElement } from '@/lib/map/vue-marker.utils'
+import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
+import InstructionPointMarker from '@/components/map/markers/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
-
-// Import deck.gl modules directly
+import { calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
+import { useThemeStore } from '@/stores/theme.store'
+import { useMapToolsStore } from '@/stores/map-tools.store'
+import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
+import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import { Deck } from '@deck.gl/core'
 import { Tile3DLayer } from '@deck.gl/geo-layers'
+
+/**
+ * The zoom at which the globe has finished becoming a flat map.
+ *
+ * Mapbox interpolates the two across `globeToMercatorTransition`, a smoothstep
+ * from zoom 5 to zoom 6, rather than drawing a sphere at every zoom. Past this
+ * point a globe map and a Mercator map are the same map.
+ *
+ * MapLibre holds its sphere a good deal longer — see `GLOBE_FLATTENS_AT` in
+ * its strategy — so each engine keeps its own number rather than sharing one.
+ */
+const GLOBE_FLATTENS_AT = 6
 
 const basemapUrls: {
   [key in Basemap]: string
@@ -54,7 +79,7 @@ const basemapUrls: {
   standard: 'mapbox://styles/mapbox/standard',
   hybrid: 'mapbox://styles/mapbox/satellite-streets-v11',
   satellite: 'mapbox://styles/mapbox/satellite-v9',
-  'google-3d': 'mapbox://styles/mapbox/satellite-v9', // Base style for 3D tiles overlay
+  'google-3d': 'mapbox://styles/mapbox/satellite-v9',
 }
 
 declare module 'mapbox-gl' {
@@ -67,60 +92,121 @@ declare module 'mapbox-gl' {
   }
 }
 
+// Whether the loaded style imports the Standard `basemap` fragment. Config
+// properties (lightPreset, showIndoor, …) only exist on that import — the
+// satellite styles have none, so setting them there throws.
+function hasBasemapImport(map: MapboxMap): boolean {
+  return !!(map.style as any).fragments?.some((f: any) => f.id === 'basemap')
+}
+
 // Guard decorator to ensure the basemap is loaded
 function ifBasemapLoaded(target, name, descriptor) {
   const original = descriptor.value
   descriptor.value = function (...args) {
-    if (
-      this.mapInstance.style.fragments?.some((f: any) => f.id === 'basemap')
-    ) {
+    if (hasBasemapImport(this.mapInstance)) {
       original.apply(this, args)
     }
   }
   return descriptor
 }
 
+function buildStreetViewPaint(configuration: any) {
+  const primary = getPrimaryThemeHex()
+  const fill = adjustLightness(primary, 8) // brighter fill
+  const stroke = adjustLightness(primary, -18) // darker outline for contrast
+
+  const paint: any = { ...(configuration?.paint || {}) }
+  if (configuration.type === 'circle') {
+    paint['circle-color'] = fill
+    paint['circle-opacity'] = paint['circle-opacity'] ?? 0.85
+    paint['circle-stroke-color'] = stroke
+    paint['circle-stroke-width'] = paint['circle-stroke-width'] ?? 1.5
+    paint['circle-stroke-opacity'] = paint['circle-stroke-opacity'] ?? 0.9
+    paint['circle-emissive-strength'] = paint['circle-emissive-strength'] ?? 1
+  }
+
+  if (configuration.type === 'line') {
+    paint['line-color'] = stroke
+    paint['line-opacity'] = paint['line-opacity'] ?? 0.8
+    paint['line-emissive-strength'] = paint['line-emissive-strength'] ?? 1
+  }
+  return paint
+}
+
+function applyThemedStreetViewStyling(layer: Layer): Layer {
+  if (layer.type !== LayerType.STREET_VIEW) return layer
+
+  const cloned: Layer = JSON.parse(JSON.stringify(layer))
+  cloned.configuration.paint = buildStreetViewPaint(cloned.configuration)
+  return cloned
+}
+
 export class MapboxStrategy extends MapStrategy {
   mapInstance: MapboxMap
-  geolocateControl: GeolocateControl
-  layerGroups: Map<string, LayerGroup> = new Map()
-  deckOverlay: any = null // Deck.gl overlay for 3D tiles
+  private streetViewLayerIds: Set<string> = new Set()
+  private unwatchTheme?: () => void
+  private currentLanguage?: string
+  private hdRoadsEnabled: boolean = false
+  private indoorControl?: InstanceType<typeof mapboxgl.IndoorControl>
 
-  constructor(container, options: MapOptions, accessToken?: string) {
+  constructor(
+    container,
+    options: MapSettings,
+    accessToken?: string,
+    language?: string,
+  ) {
     super(container, options, accessToken)
 
     const { center, zoom, bearing, pitch } = options.camera || {}
+    const { projection } = options
 
-    // TODO: Move to ref
-    const projection: Projection['name'] =
-      (localStorage.getItem('projection') as Projection['name']) || 'globe'
+    // Store the current language
+    this.currentLanguage = language
 
+    // Detect if running in automated test environment
+    const isTestEnvironment = 
+      import.meta.env.MODE === 'test' || 
+      (typeof navigator !== 'undefined' && navigator.webdriver) ||
+      (typeof window !== 'undefined' && (window as any).__playwright)
+    
     this.mapInstance = new MapboxMap({
       accessToken: accessToken || import.meta.env.VITE_MAPBOX_ACCESS_TOKEN,
       container,
-      style: basemapUrls.standard, //standardStyle as any,
+      style: basemapUrls[options.basemap || 'standard'],
+      language: language, // Set language during initialization for Standard style
       center: center as LngLatLike,
       bearing,
       pitch,
       zoom,
+      maxPitch: MAX_PITCH,
       attributionControl: false,
+      // Disable the engine's built-in north snap — we do north + grid snapping
+      // ourselves in map.service (snapRotation) so both settings toggle live.
+      bearingSnap: 0,
       projection: {
         name: projection,
       },
+      // Enable test mode for automated tests (Playwright, etc.)
+      // This prevents API calls and WebGL rendering issues in headless browsers
+      testMode: isTestEnvironment,
     })
 
-    // Add geolocate control but hide it off-screen
-    this.geolocateControl = new GeolocateControl({
-      positionOptions: {
-        enableHighAccuracy: true,
-      },
-      trackUserLocation: true,
-      showUserLocation: true,
-      showAccuracyCircle: true,
-    })
+    // Dev only: the map is otherwise unreachable from the console, which
+    // makes every rendering question a guess instead of a check.
+    if (import.meta.env.DEV) (window as any).__parchmentMap = this.mapInstance
 
+    this.setupPoiClickHandling()
     this.addControls()
     this.configureEventListeners()
+
+    // Watch theme changes and update street view layers dynamically
+    const theme = useThemeStore()
+    this.unwatchTheme = watch(
+      () => theme.accentColor,
+      () => {
+        this.updateStreetViewColors()
+      },
+    )
   }
 
   addControls() {
@@ -130,7 +216,6 @@ export class MapboxStrategy extends MapStrategy {
       }),
       'bottom-left',
     )
-    this.mapInstance.addControl(this.geolocateControl, 'top-left')
   }
 
   configureEventListeners() {
@@ -140,6 +225,7 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.on('style.load', () => {
       mapEventBus.emit('style.load', this.mapInstance)
       this.setMapTheme(this.options.theme)
+      this.updateCameraProjection()
     })
     this.mapInstance.on('move', () => {
       mapEventBus.emit('move', {
@@ -157,11 +243,33 @@ export class MapboxStrategy extends MapStrategy {
         pitch: this.mapInstance.getPitch(),
       })
     })
-    this.mapInstance.on('click', e => {
-      mapEventBus.emit('click', {
-        lngLat: e.lngLat,
-        point: e.point,
+    // Surface user-driven rotation gestures so the service can apply the
+    // city-grid orientation snap. Programmatic camera moves (compass-drag
+    // jumpTo, the snap easeTo itself) carry no originalEvent — skip them so we
+    // only snap when the user finishes rotating by hand, and never loop.
+    this.mapInstance.on('rotateend', (e: any) => {
+      if (!e?.originalEvent) return
+      mapEventBus.emit('rotateend', {
+        center: this.mapInstance.getCenter(),
+        zoom: this.mapInstance.getZoom(),
+        bearing: this.mapInstance.getBearing(),
+        pitch: this.mapInstance.getPitch(),
       })
+    })
+    this.mapInstance.on('click', e => {
+      // Debounce to allow POI interaction to fire first
+      if (this.clickDebounceTimer) {
+        clearTimeout(this.clickDebounceTimer)
+      }
+
+      this.clickDebounceTimer = window.setTimeout(() => {
+        // Emit regular click without POI data
+        mapEventBus.emit('click', {
+          lngLat: e.lngLat,
+          point: e.point,
+        })
+        this.clickDebounceTimer = null
+      }, 50)
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
@@ -170,11 +278,18 @@ export class MapboxStrategy extends MapStrategy {
         point: e.point,
       })
     })
+
+    // Touch-and-hold for mobile context menu
+    this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
-      mapEventBus.emit('click:mapillary-image', {
+      if (useMapToolsStore().rawClickCapture) return
+      const data = {
         lngLat: e.lngLat,
         point: e.point,
         image: (e.features?.[0]?.properties as MapillaryImage) || undefined,
+      }
+      this.dispatchPoiClick(e, () => {
+        mapEventBus.emit('click:mapillary-image', data)
       })
     })
     // Change pointers on hover
@@ -183,33 +298,49 @@ export class MapboxStrategy extends MapStrategy {
       type: 'mouseenter',
       target: { layerId: 'mapillary-image' },
       handler: () => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
+        this.setHoverCursor('pointer')
       },
     })
     this.mapInstance.addInteraction('mapillary-mouseleave', {
       type: 'mouseleave',
       target: { layerId: 'mapillary-image' },
       handler: () => {
-        this.mapInstance.getCanvas().style.cursor = ''
+        this.setHoverCursor('')
       },
     })
     this.listenPOIClick()
+  }
+
+  /**
+   * Hover cursors, ignored while a tool owns the pointer.
+   *
+   * A drawing tool sets its own cursor for the whole map; letting a POI
+   * hover flip it to a pointer — and letting the matching leave handler
+   * reset it to nothing — meant the crosshair vanished the moment you moved
+   * across a label, which is most of the time in a city.
+   */
+  private setHoverCursor(cursor: string) {
+    if (
+      cursor
+      && (useMapToolsStore().rawClickCapture || !mapPoiClickPolicy.enabled)
+    ) return
+    this.mapInstance.getCanvas().style.cursor = cursor
   }
 
   listenPOIClick() {
     this.mapInstance.addInteraction('poi-mouseenter', {
       type: 'mouseenter',
       target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = 'pointer'
+      handler: () => {
+        this.setHoverCursor('pointer')
       },
     })
 
     this.mapInstance.addInteraction('poi-mouseleave', {
       type: 'mouseleave',
       target: { featuresetId: 'poi', importId: 'basemap' },
-      handler: e => {
-        this.mapInstance.getCanvas().style.cursor = ''
+      handler: () => {
+        this.setHoverCursor('')
       },
     })
 
@@ -217,6 +348,12 @@ export class MapboxStrategy extends MapStrategy {
       type: 'click',
       target: { featuresetId: 'poi', importId: 'basemap' },
       handler: e => {
+        // When measure tool is active, ignore POI clicks so the debounced map click
+        // fires and the click is treated as a regular map click (add measure point).
+        // Anything placing geometry needs the raw click, at the coordinates the
+        // user actually clicked — see `rawClickCapture`.
+        const mapTools = useMapToolsStore()
+        if (mapTools.activeTool === 'measure' || mapTools.rawClickCapture) return
         if (!e.feature?.id) return
 
         const { osmId, poiType } = parseMapboxToOsmId(e.feature.id)
@@ -229,28 +366,29 @@ export class MapboxStrategy extends MapStrategy {
             ? { lng: center[0], lat: center[1] }
             : { lng: coordinates[0], lat: coordinates[1] }
 
-          mapEventBus.emit('click:poi', {
-            osmId,
-            poiType,
+          const poiName = e.feature.properties?.name
+          const data = {
             lngLat,
             point: e.point,
-          })
+            poi: {
+              osmId,
+              poiType,
+              name: typeof poiName === 'string' ? poiName : undefined,
+            },
+          }
+          this.dispatchPoiClick(
+            e,
+            () => mapEventBus.emit('click', data),
+            () => mapEventBus.emit('poi:preview', { poi: data.poi }),
+          )
         }
       },
     })
   }
 
-  resize() {
-    this.mapInstance.resize()
-  }
 
-  flyTo(camera: Partial<CameraOptions>) {
-    this.mapInstance.flyTo(camera)
-  }
 
-  jumpTo(camera: Partial<CameraOptions>) {
-    this.mapInstance.jumpTo(camera)
-  }
+
 
   setDirections(directions: Directions) {
     this.unsetDirections()
@@ -279,9 +417,10 @@ export class MapboxStrategy extends MapStrategy {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.green[600],
+          'line-color': palette.forest[600],
           'line-width': 8,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
         slot: 'middle',
       })
@@ -295,9 +434,10 @@ export class MapboxStrategy extends MapStrategy {
           'line-cap': 'round',
         },
         paint: {
-          'line-color': colors.green[400],
+          'line-color': palette.forest[400],
           'line-width': 5,
           'line-emissive-strength': 1,
+          'line-occlusion-opacity': 0.5,
         },
         slot: 'middle',
       })
@@ -308,7 +448,7 @@ export class MapboxStrategy extends MapStrategy {
       this.addVueMarker(
         `route-stop-${index}`,
         { lat: location.lat, lng: location.lon },
-        WaypointMapIcon,
+        WaypointMarker,
         {
           index,
           totalWaypoints: directions.locations.length,
@@ -316,24 +456,25 @@ export class MapboxStrategy extends MapStrategy {
             index === 0
               ? 'origin'
               : index === directions.locations.length - 1
-              ? 'destination'
-              : 'waypoint',
+                ? 'destination'
+                : 'waypoint',
         },
       )
     })
 
     // Get all route coordinates
-    const allCoordinates: mapboxgl.LngLatLike[] = directions.legs.flatMap(
-      leg => {
-        const shape = decodeShape(leg.shape)
-        return shape.map(([lat, lon]) => [lon, lat] as mapboxgl.LngLatLike)
-      },
-    )
+    const allCoordinates: LngLatLike[] = directions.legs.flatMap(leg => {
+      const shape = decodeShape(leg.shape)
+      return shape.map(([lat, lon]) => [lon, lat] as LngLatLike)
+    })
 
     // Create a bounds object that encompasses all coordinates
-    const bounds = allCoordinates.reduce((bounds, coord) => {
-      return bounds.extend(coord)
-    }, new LngLatBounds(allCoordinates[0], allCoordinates[0]))
+    const bounds = allCoordinates.reduce(
+      (bounds, coord) => {
+        return bounds.extend(coord)
+      },
+      new LngLatBounds(allCoordinates[0], allCoordinates[0]),
+    )
 
     // Fit the map to show the entire route with padding
     this.mapInstance.fitBounds(bounds, {
@@ -344,33 +485,6 @@ export class MapboxStrategy extends MapStrategy {
     })
   }
 
-  unsetDirections() {
-    const style = this.mapInstance.getStyle()
-    if (!style) return
-    const mapLayers = style.layers
-    const ids = mapLayers.map(layer => layer.id)
-
-    // Remove route layers
-    ids.forEach(id => {
-      if (id.startsWith('route-')) {
-        this.mapInstance.removeLayer(id)
-      }
-    })
-
-    // Remove route sources
-    const sources = Object.keys(this.mapInstance.getStyle()?.sources || {})
-    sources.forEach(source => {
-      if (source.startsWith('route-')) {
-        this.mapInstance.removeSource(source)
-      }
-    })
-
-    // Remove route stop markers
-    const markersToRemove = Array.from(this.markers.keys()).filter(id =>
-      id.startsWith('route-stop-'),
-    )
-    markersToRemove.forEach(id => this.removeMarker(id))
-  }
 
   setPegman(pegman: Pegman) {
     if (!this.mapInstance.getSource('pegman')) {
@@ -383,17 +497,6 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
-  removePegman() {
-    if (this.mapInstance.getLayer('pegman-fov')) {
-      this.mapInstance.removeLayer('pegman-fov')
-    }
-    if (this.mapInstance.getLayer('pegman-position')) {
-      this.mapInstance.removeLayer('pegman-position')
-    }
-    if (this.mapInstance.getSource('pegman')) {
-      this.mapInstance.removeSource('pegman')
-    }
-  }
 
   setPoiLabels(value: boolean) {
     this.mapInstance.setConfigProperty(
@@ -415,23 +518,46 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.setConfigProperty('basemap', 'showPlaceLabels', value)
   }
 
+  setLandmarkIcons(value: boolean) {
+    this.mapInstance.setConfigProperty('basemap', 'showLandmarkIcons', value)
+    this.mapInstance.setConfigProperty(
+      'basemap',
+      'showLandmarkIconLabels',
+      value,
+    )
+  }
+
+  /**
+   * Mapbox has a real orthographic camera, and decides for itself when to use
+   * it: `camera-projection: orthographic` means "orthographic below 15° of
+   * pitch", falling back to perspective above that. So there is nothing to do
+   * on pitch — but it is a STYLE property rather than a map option, so a
+   * basemap or theme switch drops it and it has to be set again.
+   *
+   * Not supported under the globe projection, where the engine keeps
+   * perspective regardless of this setting.
+   */
+  override updateCameraProjection() {
+    this.mapInstance.setCamera({ 'camera-projection': 'orthographic' })
+  }
+
   setMapProjection(projection: MapProjection) {
+    this.options.projection = projection
     this.mapInstance.setProjection(projection)
   }
 
-  setMap3dTerrain(value: boolean) {
-    const existingTerrainSource = this.mapInstance.getSource('mapbox-dem')
-    if (!existingTerrainSource) {
-      this.mapInstance.addSource('mapbox-dem', {
-        type: 'raster-dem',
-        url: 'mapbox://mapbox.terrain-rgb',
-      })
-    }
-    this.mapInstance.setTerrain({
-      source: 'mapbox-dem',
-      exaggeration: value ? 1 : 0,
-    })
+  /**
+   * Mapbox eases the globe into Mercator across `GLOBE_FLATTENS_AT`, so past
+   * that zoom a globe map is a flat map and the sphere is only on screen
+   * below it.
+   */
+  override isGlobeRendering(): boolean {
+    return (
+      this.options.projection === MapProjection.GLOBE &&
+      this.mapInstance.getZoom() < GLOBE_FLATTENS_AT
+    )
   }
+
 
   setMap3dBuildings(value: boolean) {
     this.mapInstance.setConfigProperty('basemap', 'show3dObjects', value)
@@ -447,127 +573,82 @@ export class MapboxStrategy extends MapStrategy {
     this.mapInstance.setConfigProperty('basemap', 'lightPreset', lightPreset)
   }
 
-  async initializeGoogle3DTiles() {
-    try {
-      // Create a canvas element for deck.gl overlay first
-      const deckCanvas = document.createElement('canvas')
-      deckCanvas.id = 'deck-canvas'
-      deckCanvas.style.position = 'absolute'
-      deckCanvas.style.top = '0'
-      deckCanvas.style.left = '0'
-      deckCanvas.style.pointerEvents = 'none'
-      deckCanvas.style.zIndex = '1'
-      deckCanvas.style.width = '100%'
-      deckCanvas.style.height = '100%'
-      
-      this.container.style.position = 'relative'
-      this.container.appendChild(deckCanvas)
+  setMapColorTheme(theme: MapColorTheme) {
+    this.mapInstance.setConfigProperty('basemap', 'theme', theme)
+  }
 
-      const deckOverlay = new Deck({
-        canvas: deckCanvas, // Use the actual canvas element, not ID
-        width: this.container.clientWidth,
-        height: this.container.clientHeight,
-        controller: false, // Let Mapbox handle controls
-        initialViewState: {
-          longitude: this.mapInstance.getCenter().lng,
-          latitude: this.mapInstance.getCenter().lat,
-          zoom: this.mapInstance.getZoom(),
-          bearing: this.mapInstance.getBearing(),
-          pitch: this.mapInstance.getPitch(),
-        },
-        layers: [
-          new Tile3DLayer({
-            id: 'google-3d-tiles',
-            data: 'https://tile.googleapis.com/v1/3dtiles/root.json',
-            loadOptions: {
-              fetch: {
-                headers: {
-                  'X-GOOG-API-KEY': import.meta.env.VITE_GOOGLE_3D_API_KEY,
-                },
-              },
-            },
-            onTilesetLoad: (tileset: any) => {
-              console.log('Google 3D Tileset loaded:', tileset)
-            },
-            onTileLoad: (tile: any) => {
-              console.log('Google 3D Tile loaded:', tile)
-            },
-            onTileError: (tile: any, url: string, message: string) => {
-              console.error('Google 3D Tile error:', { tile, url, message })
-            },
-          }),
-        ],
+  setHdRoads(value: boolean) {
+    if (this.hdRoadsEnabled === value) {
+      return // No change needed
+    }
+
+    this.hdRoadsEnabled = value
+
+    if (value) {
+      // Add HD roads import
+      // The addImport method takes an ImportSpecification object
+      this.mapInstance.addImport({
+        id: 'hd-roads',
+        url: 'mapbox://styles/mapbox/high-definition-roads',
+        config: {},
       })
-
-      // Sync deck.gl view with Mapbox
-      const syncViewState = () => {
-        if (this.deckOverlay) {
-          this.deckOverlay.setProps({
-            viewState: {
-              longitude: this.mapInstance.getCenter().lng,
-              latitude: this.mapInstance.getCenter().lat,
-              zoom: this.mapInstance.getZoom(),
-              bearing: this.mapInstance.getBearing(),
-              pitch: this.mapInstance.getPitch(),
-            },
-          })
-        }
-      }
-
-      this.mapInstance.on('move', syncViewState)
-      this.mapInstance.on('resize', () => {
-        if (this.deckOverlay) {
-          this.deckOverlay.setProps({
-            width: this.container.clientWidth,
-            height: this.container.clientHeight,
-          })
-        }
-      })
-
-      this.deckOverlay = deckOverlay
-      console.log('Google 3D Tiles initialized successfully')
-    } catch (error) {
-      console.error('Failed to initialize Google 3D Tiles:', error)
+    } else {
+      // Remove HD roads import
+      this.mapInstance.removeImport('hd-roads')
     }
   }
 
-  cleanupGoogle3DTiles() {
-    if (this.deckOverlay) {
-      this.deckOverlay.finalize()
-      this.deckOverlay = null
+  /**
+   * Indoor floor plans, plus the floor selector needed to move between them.
+   * Standard style only — on satellite/hybrid there is no `basemap` import to
+   * configure, so the control would render an empty shell. Config properties
+   * reset on every style load, but the control persists across them, so the
+   * two are kept in sync independently.
+   */
+  setIndoorMaps(value: boolean) {
+    // A persisted settings object may predate this key, and setConfigProperty
+    // rejects `undefined` outright — coerce before handing it to the engine.
+    const enabled = !!value
+    const supported = hasBasemapImport(this.mapInstance)
+    if (supported) {
+      this.mapInstance.setConfigProperty('basemap', 'showIndoor', enabled)
     }
-    
-    const deckCanvas = document.getElementById('deck-canvas')
-    if (deckCanvas) {
-      deckCanvas.remove()
+
+    const shouldShowControl = enabled && supported
+    if (shouldShowControl && !this.indoorControl) {
+      this.indoorControl = new mapboxgl.IndoorControl()
+      this.mapInstance.addControl(this.indoorControl, 'right')
+    } else if (!shouldShowControl && this.indoorControl) {
+      this.mapInstance.removeControl(this.indoorControl)
+      this.indoorControl = undefined
     }
   }
 
   setBasemap(basemap: Basemap) {
     const url = basemapUrls[basemap]
     this.mapInstance.setStyle(url)
-    
-    // Handle Google 3D tiles
     if (basemap === 'google-3d') {
-      // Initialize 3D tiles after style loads
-      this.mapInstance.once('style.load', () => {
-        this.initializeGoogle3DTiles()
-      })
+      this.mapInstance.once('style.load', () => this.initializeGoogle3DTiles())
     } else {
-      // Clean up 3D tiles if switching away from google-3d
       this.cleanupGoogle3DTiles()
     }
   }
 
-  removeSource(sourceId: string) {
-    try {
-      if (this.mapInstance.getSource(sourceId)) {
-        this.mapInstance.removeSource(sourceId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove source ${sourceId}:`, error)
+  setMapLanguage(locale: string): boolean {
+    // Convert locale to language code for map tiles (e.g., 'en-US' -> 'en', 'es-ES' -> 'es')
+    const languageCode = locale.split('-')[0]
+
+    // Check if language is already set
+    if (this.currentLanguage === languageCode) {
+      return false // No change needed
     }
+
+    // For Mapbox (both Standard and legacy styles), language must be set during initialization
+    // Return true to indicate that map needs to be reinitialized
+    return true
   }
+
+
 
   addSource(sourceId: string, source: any) {
     try {
@@ -576,7 +657,6 @@ export class MapboxStrategy extends MapStrategy {
         this.mapInstance.removeSource(sourceId)
       }
       this.mapInstance.addSource(sourceId, source)
-      console.log(`Added source: ${sourceId}`)
     } catch (error) {
       console.error(`Failed to add source ${sourceId}:`, error)
       throw error
@@ -584,7 +664,16 @@ export class MapboxStrategy extends MapStrategy {
   }
 
   addLayer(layer: Layer, overwrite: boolean = false) {
-    const { configuration } = layer
+    const themedLayer = applyThemedStreetViewStyling(layer)
+    // Deep clone the configuration before we mutate it. For non-street-view
+    // layers applyThemedStreetViewStyling returns the original layer, so
+    // `themedLayer.configuration` is still a reference into the store.
+    // Mutating `configuration.source` below (object → string) would corrupt
+    // the store's layer, and the next style reload would see a dangling
+    // source string instead of the original inline source spec — causing
+    // the layer to silently disappear. JSON clone (rather than structuredClone)
+    // because Pinia proxies may contain values structuredClone can't copy.
+    const configuration: any = JSON.parse(JSON.stringify(themedLayer.configuration))
 
     // Handle source if it exists in the configuration
     if (typeof configuration.source === 'object') {
@@ -594,14 +683,25 @@ export class MapboxStrategy extends MapStrategy {
       if (existingSource) {
         if (overwrite) {
           this.mapInstance.removeSource(sourceId)
-          this.mapInstance.addSource(sourceId, configuration.source)
+          this.mapInstance.addSource(sourceId, configuration.source as any)
         }
       } else {
-        this.mapInstance.addSource(sourceId, configuration.source)
+        this.mapInstance.addSource(sourceId, configuration.source as any)
       }
 
       // Update configuration to use source ID instead of source object
       configuration.source = sourceId
+    }
+
+    // Verify source exists before adding layer
+    if (typeof configuration.source === 'string') {
+      const sourceExists = this.mapInstance.getSource(configuration.source)
+      if (!sourceExists) {
+        console.warn(
+          `Cannot add layer ${configuration.id}: source '${configuration.source}' does not exist`,
+        )
+        return
+      }
     }
 
     // Handle layer
@@ -611,22 +711,23 @@ export class MapboxStrategy extends MapStrategy {
     }
     if (!existingLayer || overwrite) {
       this.mapInstance.addLayer({
-        ...configuration,
+        ...(configuration as any),
         layout: {
           ...configuration.layout,
-          visibility: layer.visible ? 'visible' : 'none',
+          visibility: themedLayer.visible ? 'visible' : 'none',
         },
       })
+
+      // Track street view layer ids for live theme updates
+      if (themedLayer.type === LayerType.STREET_VIEW) {
+        this.streetViewLayerIds.add(configuration.id)
+      }
     }
   }
 
   removeLayer(layerId: Layer['configuration']['id']) {
-    try {
-      if (this.mapInstance.getLayer(layerId)) {
-        this.mapInstance.removeLayer(layerId)
-      }
-    } catch (error) {
-      console.warn(`Failed to remove layer ${layerId}:`, error)
+    if (this.mapInstance.getLayer(layerId)) {
+      this.mapInstance.removeLayer(layerId)
     }
   }
 
@@ -634,6 +735,12 @@ export class MapboxStrategy extends MapStrategy {
     layerId: Layer['configuration']['id'],
     visible: boolean,
   ) {
+    // Check if layer exists before trying to toggle visibility
+    if (!this.mapInstance.getLayer(layerId)) {
+      console.warn(`Cannot toggle visibility: layer '${layerId}' does not exist in map`)
+      return
+    }
+    
     this.mapInstance.setLayoutProperty(
       layerId,
       'visibility',
@@ -641,35 +748,122 @@ export class MapboxStrategy extends MapStrategy {
     )
   }
 
-  zoomIn() {
-    this.mapInstance.zoomIn()
-  }
 
-  zoomOut() {
-    this.mapInstance.zoomOut()
-  }
 
-  resetNorth() {
-    this.mapInstance.easeTo({
-      bearing: 0,
-      pitch: 0,
-    })
+
+  getBounds() {
+    if (!this.mapInstance) return null
+
+    const bounds = this.mapInstance.getBounds()
+    if (!bounds) return null
+
+    return {
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+    }
   }
 
   locate() {
-    this.geolocateControl.trigger()
+    // Geolocation is now handled by the centralized geolocation service.
+    // See map.service.ts locate() which uses useGeolocationService().
+  }
+
+  deckOverlay: any = null
+
+  async initializeGoogle3DTiles() {
+    try {
+      const deckCanvas = document.createElement('canvas')
+      deckCanvas.id = 'deck-canvas'
+      deckCanvas.style.position = 'absolute'
+      deckCanvas.style.top = '0'
+      deckCanvas.style.left = '0'
+      deckCanvas.style.pointerEvents = 'none'
+      deckCanvas.style.zIndex = '1'
+      deckCanvas.style.width = '100%'
+      deckCanvas.style.height = '100%'
+
+      this.container.style.position = 'relative'
+      this.container.appendChild(deckCanvas)
+
+      const viewState = () => ({
+        longitude: this.mapInstance.getCenter().lng,
+        latitude: this.mapInstance.getCenter().lat,
+        zoom: this.mapInstance.getZoom(),
+        bearing: this.mapInstance.getBearing(),
+        pitch: this.mapInstance.getPitch(),
+      })
+
+      const deckOverlay = new Deck({
+        canvas: deckCanvas,
+        width: this.container.clientWidth,
+        height: this.container.clientHeight,
+        controller: false,
+        initialViewState: viewState(),
+        layers: [
+          new Tile3DLayer({
+            id: 'google-3d-tiles',
+            data: 'https://tile.googleapis.com/v1/3dtiles/root.json',
+            loadOptions: {
+              fetch: {
+                headers: {
+                  'X-GOOG-API-KEY': import.meta.env.VITE_GOOGLE_3D_API_KEY ?? '',
+                },
+              },
+            },
+            onTileError: (tile: any, url: string, message: string) => {
+              console.error('Google 3D Tile error:', { tile, url, message })
+            },
+          }),
+        ],
+      })
+
+      this.mapInstance.on('move', () => {
+        this.deckOverlay?.setProps({ viewState: viewState() })
+      })
+      this.mapInstance.on('resize', () => {
+        this.deckOverlay?.setProps({
+          width: this.container.clientWidth,
+          height: this.container.clientHeight,
+        })
+      })
+
+      this.deckOverlay = deckOverlay
+    } catch (error) {
+      console.error('Failed to initialize Google 3D Tiles:', error)
+    }
+  }
+
+  cleanupGoogle3DTiles() {
+    this.deckOverlay?.finalize()
+    this.deckOverlay = null
+    document.getElementById('deck-canvas')?.remove()
   }
 
   destroy() {
     this.cleanupGoogle3DTiles()
-    this.mapInstance?.remove()
+    this.destroyPoiClickHandling()
+    // Clean up theme watcher
+    if (this.unwatchTheme) {
+      this.unwatchTheme()
+      this.unwatchTheme = undefined
+    }
+
+    // Remove the map instance
+    if (this.mapInstance) {
+      const canvas = this.mapInstance.getCanvas()
+      if (canvas && canvas.parentElement) {
+        this.mapInstance.remove()
+      }
+    }
   }
 
   addMarker(id: string, lngLat: LngLat) {
     super.addMarker(id, lngLat)
 
     const marker = new Marker({
-      color: 'hsl(var(--primary))', // Use CSS variable from shadcn theme
+      color: cssHslToHex('hsl(var(--primary))'), // Convert CSS variable to hex color
     })
       .setLngLat(lngLat)
       .addTo(this.mapInstance)
@@ -682,61 +876,58 @@ export class MapboxStrategy extends MapStrategy {
     lngLat: LngLat,
     component: Component,
     props: Record<string, any> = {},
+    zIndex?: number,
+    dragOptions?: {
+      onDragEnd: (lngLat: LngLat) => void
+      onDrag?: (lngLat: LngLat) => void
+    },
   ) {
-    super.addVueMarker(id, lngLat, component, props)
+    super.addVueMarker(id, lngLat, component, props, zIndex, dragOptions)
+    this.removeMarker(id)
 
     const element = createVueMarkerElement(component, props)
+    const draggable = !!dragOptions
 
     const marker = new Marker({
-      element: element,
+      element,
+      anchor: 'center',
+      ...(draggable && { draggable: true }),
     })
       .setLngLat(lngLat)
       .addTo(this.mapInstance)
 
+    if (zIndex !== undefined) {
+      const markerElement = marker.getElement()
+      if (markerElement) {
+        markerElement.style.zIndex = String(zIndex)
+      }
+    }
+
+    if (draggable && dragOptions) {
+      const el = marker.getElement()
+      if (el) {
+        el.style.cursor = 'move'
+      }
+      if (dragOptions.onDrag) {
+        marker.on('drag', () => {
+          const pos = marker.getLngLat()
+          dragOptions.onDrag!({ lng: pos.lng, lat: pos.lat })
+        })
+      }
+      marker.on('dragend', () => {
+        const pos = marker.getLngLat()
+        dragOptions.onDragEnd({ lng: pos.lng, lat: pos.lat })
+      })
+    }
+
     this.markers.set(id, marker)
   }
 
-  // Trip visualization methods
-  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    console.log(
-      `Setting trips: visible=${Array.from(visibleTripIds).join(', ')}`,
-    )
 
-    // ALWAYS destroy ALL existing trip groups to ensure complete cleanup
-    for (const groupId of this.layerGroups.keys()) {
-      if (groupId.startsWith('trip-')) {
-        console.log(`Destroying existing trip group: ${groupId}`)
-        this.layerGroups.get(groupId)?.destroy()
-        this.layerGroups.delete(groupId)
-      }
-    }
 
-    // Create fresh trip groups for visible trips
-    trips.trips.forEach(trip => {
-      if (visibleTripIds.has(trip.id)) {
-        const groupId = `trip-${trip.id}`
-        console.log(`Creating new trip group: ${groupId}`)
-        const tripGroup = new TripGroup(this, trip)
-        this.layerGroups.set(groupId, tripGroup)
-      }
-    })
 
-    // Only fit map to trips if there are visible trips
-    if (visibleTripIds.size > 0) {
-      this.fitMapToTrips(trips, visibleTripIds)
-    }
-  }
 
-  unsetTrips() {
-    for (const groupId of this.layerGroups.keys()) {
-      if (groupId.startsWith('trip-')) {
-        this.layerGroups.get(groupId)?.destroy()
-        this.layerGroups.delete(groupId)
-      }
-    }
-  }
-
-  private fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
+  protected override fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
     const visibleTrips = trips.trips.filter(trip => visibleTripIds.has(trip.id))
     if (visibleTrips.length === 0) return
 
@@ -744,75 +935,93 @@ export class MapboxStrategy extends MapStrategy {
 
     visibleTrips.forEach(trip => {
       trip.segments.forEach(segment => {
-        if (segment.geometry) {
-          segment.geometry.forEach(coord => {
-            bounds.extend([coord.lng, coord.lat])
+        if (segment.geometry && Array.isArray(segment.geometry)) {
+          segment.geometry.forEach((coord: any) => {
+            if (
+              coord &&
+              typeof coord.lng === 'number' &&
+              typeof coord.lat === 'number' &&
+              Math.abs(coord.lat) <= 90 &&
+              Math.abs(coord.lng) <= 180
+            ) {
+              bounds.extend([coord.lng, coord.lat])
+            }
           })
         }
       })
     })
 
-    if (!bounds.isEmpty()) {
-      // Get the visible map area from app store to calculate proper padding
-      const appStore = useAppStore()
-      const visibleArea = appStore.visibleMapArea
-
-      // Calculate padding based on the visible map area
-      // This ensures the trip routes are centered within the unobstructed area
-      const mapWidth = this.container.clientWidth
-      const mapHeight = this.container.clientHeight
-
-      let padding:
-        | number
-        | { left: number; top: number; right: number; bottom: number } = 200 // Increased default padding
-
-      if (mapWidth && mapHeight && visibleArea) {
-        // Calculate padding values to center content in the visible area with generous margins
-        padding = {
-          left: Math.max(150, visibleArea.x + 50),
-          top: Math.max(150, visibleArea.y + 50),
-          right: Math.max(
-            150,
-            mapWidth - (visibleArea.x + visibleArea.width) + 50,
-          ),
-          bottom: Math.max(
-            150,
-            mapHeight - (visibleArea.y + visibleArea.height) + 50,
-          ),
-        }
-      }
-
-      this.mapInstance.fitBounds(bounds, {
-        padding,
-        duration: 1000,
-      })
-    }
-  }
-
-  // Waypoint marker methods (separate from trip routes)
-  setWaypointMarkers(waypoints: Waypoint[]) {
-    // Remove existing waypoint markers
-    this.clearWaypointMarkers()
-
-    // Add new waypoint markers for all waypoints with coordinates
-    waypoints.forEach((waypoint, index) => {
-      if (waypoint.lngLat) {
-        this.addVueMarker(
-          `waypoint-${index}`,
-          waypoint.lngLat,
-          WaypointMapIcon,
-          {
-            index,
-            totalWaypoints: waypoints.length,
-            type:
-              index === 0
-                ? 'origin'
-                : index === waypoints.length - 1
-                ? 'destination'
-                : 'waypoint',
-          },
-        )
+    // Extend by the request waypoints too — route geometry is snapped to
+    // the road graph and may diverge from the user-specified waypoint
+    // (e.g. a POI pinned slightly off the nearest road). Including the
+    // waypoints guarantees every pin stays in view after the fit.
+    trips.request?.waypoints?.forEach(wp => {
+      const c = wp?.coordinate
+      if (c && typeof c.lat === 'number' && typeof c.lng === 'number') {
+        bounds.extend([c.lng, c.lat])
       }
     })
+
+    if (bounds.isEmpty()) return
+
+    const appStore = useAppStore()
+    const padding = calculateFitPadding(
+      toContainerRect(
+        appStore.visibleMapArea,
+        this.container.getBoundingClientRect(),
+      ),
+      this.container.clientWidth,
+      this.container.clientHeight,
+    )
+
+    this.mapInstance.fitBounds(bounds, {
+      padding,
+      duration: 1000,
+      // Building-level cap so a very short route doesn't zoom past street level.
+      maxZoom: 19,
+    })
+  }
+
+  // Note: Waypoint and instruction point markers are now handled by base MapStrategy class
+
+  private updateStreetViewColors() {
+    const primary = getPrimaryThemeHex()
+    for (const id of this.streetViewLayerIds) {
+      const layer = this.mapInstance.getLayer(id) as any
+      if (!layer) continue
+      const type = (layer as any).type
+      if (type === 'circle') {
+        const paint = buildStreetViewPaint({ type: 'circle' })
+        this.mapInstance.setPaintProperty(
+          id,
+          'circle-color',
+          paint['circle-color'],
+        )
+        this.mapInstance.setPaintProperty(
+          id,
+          'circle-stroke-color',
+          paint['circle-stroke-color'],
+        )
+        this.mapInstance.setPaintProperty(
+          id,
+          'circle-stroke-opacity',
+          paint['circle-stroke-opacity'],
+        )
+        this.mapInstance.setPaintProperty(
+          id,
+          'circle-opacity',
+          paint['circle-opacity'],
+        )
+      }
+      if (type === 'line') {
+        const paint = buildStreetViewPaint({ type: 'line' })
+        this.mapInstance.setPaintProperty(id, 'line-color', paint['line-color'])
+        this.mapInstance.setPaintProperty(
+          id,
+          'line-opacity',
+          paint['line-opacity'],
+        )
+      }
+    }
   }
 }

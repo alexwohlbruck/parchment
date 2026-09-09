@@ -11,6 +11,11 @@ export type {
   TimelineSegment,
   RouteWaypoint,
   RoutingPreferences,
+  RouteInstruction,
+  RouteLeg,
+  RouteEdgeSegment,
+  RouteSummary,
+  Route,
 } from '@server/types/unified-routing.types'
 
 export { WaypointType, TravelMode } from '@server/types/unified-routing.types'

@@ -12,14 +12,50 @@ export enum IntegrationId {
   GEOAPIFY = 'geoapify',
   MAPBOX = 'mapbox',
   VALHALLA = 'valhalla',
+  TRANSITLAND = 'transitland',
+  WIKIDATA = 'wikidata',
+  WIKIPEDIA = 'wikipedia',
+  WIKIMEDIA = 'wikimedia',
+  OPENWEATHERMAP = 'openweathermap',
+  /** Observability / log shipping. System-only; configures OTLP export (e.g. Axiom). */
+  AXIOM = 'axiom',
+  BARRELMAN = 'barrelman',
+  OPENSTREETMAP = 'openstreetmap',
+  OPENSTREETMAP_ACCOUNT = 'openstreetmap-account',
+  /** Dawarich self-hosted location history. Phase-1 plumbing-only: no capabilities yet. */
+  DAWARICH = 'dawarich',
+  /** Rideshare providers — price/time estimates + booking deep links. */
+  UBER = 'uber',
+  LYFT = 'lyft',
+  /** OpenAQ — open air-quality ground-station data (Environment overlay + widget). */
+  OPENAQ = 'openaq',
+  /** NASA FIRMS — active-fire satellite detections (Environment wildfire overlay). */
+  FIRMS = 'firms',
+  /** Quackback — backend for the in-app feedback form. System-only, config-only. */
+  QUACKBACK = 'quackback',
 }
 
 export enum IntegrationCapabilityId {
   SEARCH = 'search',
+  SEARCH_CATEGORY = 'searchCategory',
+  BRAND_CATALOG = 'brandCatalog',
   AUTOCOMPLETE = 'autocomplete',
   GEOCODING = 'geocoding',
   PLACE_INFO = 'placeInfo',
   ROUTING = 'routing',
-  IMAGERY = 'imagery',
   MAP_ENGINE = 'mapEngine',
+  MAP_LAYER = 'mapLayer',
+  STREET_VIEW = 'streetView',
+  TRANSIT_DATA = 'transitData',
+  WEATHER = 'weather',
+  LOGGING = 'logging',
+  SPATIAL_PARENTS = 'spatialParents',
+  SPATIAL_CHILDREN = 'spatialChildren',
+  SEARCH_ALONG_ROUTE = 'searchAlongRoute',
+  OSM_MAP_EDIT = 'osmMapEdit',
+  TILE_SERVER = 'tileServer',
+  LOCATION_HISTORY = 'locationHistory',
+  TRANSIT_ROUTING = 'transitRouting',
+  RIDESHARE_ESTIMATE = 'rideshareEstimate',
+  FEEDBACK = 'feedback',
 }

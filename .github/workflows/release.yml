@@ -1,0 +1,637 @@
+# Release pipeline: on tag push v*, build all artifacts, then publish each
+# channel independently. A failing native build (e.g. iOS) no longer blocks
+# the others — Docker, the GitHub Release, desktop updater, and Google Play
+# still publish. Each store upload is gated only on its own build.
+#
+# Flow: test → build (docker, tauri, android, ios) → publish (push images, create release, upload to stores)
+#
+# Required secrets:
+# - DOCKERHUB_USERNAME, DOCKERHUB_TOKEN: Docker Hub credentials
+# - APPLE_MACOS_CERTIFICATE_BASE64, APPLE_MACOS_CERTIFICATE_PASSWORD: macOS code signing (Developer ID Application cert)
+# - APPLE_CERTIFICATE_BASE64, APPLE_CERTIFICATE_PASSWORD: iOS code signing (Apple Distribution cert)
+# - APPLE_API_ISSUER, APPLE_API_KEY, APPLE_API_KEY_CONTENT: App Store Connect API for notarization & upload
+# - GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: Google Play upload
+# - TAURI_SIGNING_PRIVATE_KEY: Tauri updater signing key (generate with: bunx tauri signer generate)
+# - TAURI_SIGNING_PRIVATE_KEY_PASSWORD: Password for the encrypted Tauri updater signing key
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+env:
+  REGISTRY: docker.io
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+# ─── PHASE 1: TEST ────────────────────────────────────────────────────────────
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Install dependencies
+        run: |
+          cd server && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile
+      - name: Run tests
+        working-directory: web
+        run: bun run test -- run
+
+# ─── PHASE 2: BUILD (all in parallel, no publishing) ─────────────────────────
+
+  build-docker:
+    needs: [test]
+    name: Build Docker images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v4
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Build web image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./web/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: |
+            alexwohlbruck/parchment-web:${{ steps.version.outputs.VERSION }}
+            alexwohlbruck/parchment-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build server image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./server/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64
+          push: false
+          tags: |
+            alexwohlbruck/parchment-server:${{ steps.version.outputs.VERSION }}
+            alexwohlbruck/parchment-server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-tauri:
+    needs: [test]
+    name: Build desktop app (${{ matrix.target }})
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            target: 'x86_64-unknown-linux-gnu'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: |
+          cd server && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: Install system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup macOS code signing
+        if: matrix.platform == 'macos-latest'
+        run: |
+          if [ -z "${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" ]; then
+            echo "Warning: APPLE_MACOS_CERTIFICATE_BASE64 not set. macOS app will not be signed."
+            exit 0
+          fi
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          echo -n "${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
+          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          SIGNING_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Developer ID Application" | head -1 | grep -o '".*"' | tr -d '"')
+          if [ -z "$SIGNING_IDENTITY" ]; then
+            echo "Error: No 'Developer ID Application' certificate found."
+            exit 1
+          fi
+          echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY" >> $GITHUB_ENV
+          echo "APPLE_CERTIFICATE=${{ secrets.APPLE_MACOS_CERTIFICATE_BASE64 }}" >> $GITHUB_ENV
+          echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_MACOS_CERTIFICATE_PASSWORD }}" >> $GITHUB_ENV
+          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+            echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY=${{ secrets.APPLE_API_KEY }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> $GITHUB_ENV
+          fi
+          rm $CERTIFICATE_PATH
+
+      - name: Build frontend
+        working-directory: web
+        run: bun run build
+
+      - name: Build Tauri app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+        working-directory: web
+        run: bun tauri build ${{ matrix.args }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-${{ matrix.target }}
+          path: |
+            web/src-tauri/target/**/release/bundle/**/*.dmg
+            web/src-tauri/target/**/release/bundle/**/*.app.tar.gz
+            web/src-tauri/target/**/release/bundle/**/*.app.tar.gz.sig
+            web/src-tauri/target/**/release/bundle/**/*.deb
+            web/src-tauri/target/**/release/bundle/**/*.AppImage
+            web/src-tauri/target/**/release/bundle/**/*.AppImage.tar.gz
+            web/src-tauri/target/**/release/bundle/**/*.AppImage.tar.gz.sig
+          retention-days: 1
+
+  build-android:
+    needs: [test]
+    name: Build Android app
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: |
+          cd server && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Setup Android NDK
+        run: |
+          echo "y" | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125"
+          echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: Build frontend
+        working-directory: web
+        run: bun run build
+
+      - name: Build app bundle
+        working-directory: web
+        run: bun tauri android build --aab
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: web/src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+          retention-days: 1
+
+  build-ios:
+    needs: [test]
+    name: Build iOS app
+    # macos-latest ships Xcode 26 (iOS 26 SDK). macos-15 defaults to Xcode 16
+    # (iOS 18.5 SDK), which App Store Connect now rejects on upload (error 90725:
+    # apps must be built with the iOS 26 SDK or later). Match the upload runner.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,x86_64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Install dependencies
+        run: |
+          cd server && bun install --frozen-lockfile
+          cd ../web && bun install --frozen-lockfile
+
+      - name: Install ImageMagick
+        run: brew install imagemagick
+
+      - name: Regenerate iOS icons
+        working-directory: web
+        run: |
+          bun tauri icon src-tauri/icons/app-icon.svg --ios-color "#1a1a1a"
+          echo "Removing alpha channel from iOS icons..."
+          cd src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset
+          for file in *.png; do
+            magick "$file" -background "#1a1a1a" -alpha remove -alpha off "$file"
+            echo "Flattened: $file"
+          done
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'web/src-tauri -> target'
+
+      - name: Setup code signing
+        run: |
+          if [ -n "${{ secrets.APPLE_API_ISSUER }}" ]; then
+            echo "Using automatic signing with App Store Connect API"
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+            echo "APPLE_API_ISSUER=${{ secrets.APPLE_API_ISSUER }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY=${{ secrets.APPLE_API_KEY }}" >> $GITHUB_ENV
+            echo "APPLE_API_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8" >> $GITHUB_ENV
+          else
+            echo "Using manual signing with certificates"
+            KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+            KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+            security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+            echo -n "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" | base64 --decode -o $CERTIFICATE_PATH
+            security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+            security list-keychain -d user -s $KEYCHAIN_PATH
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+            PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+            echo -n "${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode -o $PP_PATH
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            PP_UUID=$(openssl smime -inform der -verify -noverify -in $PP_PATH 2>/dev/null | plutil -extract UUID raw -)
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
+            cd src-tauri/gen/apple
+            sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' app.xcodeproj/project.pbxproj
+            rm $CERTIFICATE_PATH
+            rm $PP_PATH
+          fi
+
+      - name: Build frontend
+        working-directory: web
+        run: bun run build
+
+      - name: Build app bundle
+        working-directory: web
+        run: bun tauri ios build --export-method app-store-connect
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: web/src-tauri/gen/apple/build/arm64/*.ipa
+          retention-days: 1
+
+# ─── PHASE 3: DEPLOY (only after ALL builds succeed) ─────────────────────────
+
+  deploy-docker:
+    name: Push Docker images
+    needs: [build-docker]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Build and push web
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./web/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            alexwohlbruck/parchment-web:${{ steps.version.outputs.VERSION }}
+            alexwohlbruck/parchment-web:latest
+          cache-from: type=gha
+
+      - name: Build and push server
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./server/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            alexwohlbruck/parchment-server:${{ steps.version.outputs.VERSION }}
+            alexwohlbruck/parchment-server:latest
+          cache-from: type=gha
+
+  deploy-github-release:
+    name: Create GitHub Release
+    needs: [build-docker, build-tauri, build-android, build-ios]
+    # Publish the release as long as at least one app artifact built. A single
+    # failed native target (e.g. iOS) must not withhold the whole release.
+    if: ${{ !cancelled() && (needs.build-tauri.result == 'success' || needs.build-android.result == 'success' || needs.build-ios.result == 'success') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: '{tauri-*,android-*,ios-*}'
+
+      - name: Set release title
+        id: release_title
+        run: |
+          if [ -f RELEASE_TITLE ] && [ -s RELEASE_TITLE ]; then
+            TITLE=$(tr -d '\n' < RELEASE_TITLE)
+            echo "title=${RELEASE_TAG} - ${TITLE}" >> $GITHUB_OUTPUT
+          else
+            echo "title=${RELEASE_TAG}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare release notes
+        id: changelog
+        # CHANGELOG.md is cumulative, so take only the newest version's section.
+        run: |
+          CHANGELOG=$(./scripts/changelog.sh latest || true)
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="Release ${RELEASE_TAG}"
+          fi
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Collect release files
+        id: files
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' -o -name '*.deb' -o -name '*.AppImage' -o -name '*.AppImage.tar.gz' -o -name '*.AppImage.tar.gz.sig' -o -name '*.aab' -o -name '*.ipa' \) -exec cp {} release-files/ \;
+          echo "Collected files:"
+          ls -lh release-files/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ steps.release_title.outputs.title }}
+          body: ${{ steps.changelog.outputs.body }}
+          draft: false
+          prerelease: false
+          files: release-files/*
+
+  deploy-google-play:
+    name: Upload to Google Play
+    # Gated only on the Android build — independent of iOS or the GitHub Release.
+    needs: [build-android]
+    if: ${{ !cancelled() && needs.build-android.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+          path: android-aab
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${RELEASE_TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Prepare release notes
+        # Play's "what's new" is plain text with a hard 500-character limit, so
+        # take the newest version's section as plain text and drop whole trailing
+        # lines until it fits. awk counts bytes, which over-counts multibyte
+        # characters like the bullets and em-dashes — that errs toward truncating
+        # early, never over. The previous `tail -n +7` chopped a fixed six lines
+        # to strip a header the file never had, silently losing the first
+        # section's entries.
+        run: |
+          mkdir -p play-release-notes
+          NOTES=$(./scripts/changelog.sh latest --plain || true)
+          if [ -z "$NOTES" ]; then
+            echo "Release ${RELEASE_TAG}" > play-release-notes/whatsnew-en-US
+          else
+            printf '%s\n' "$NOTES" \
+              | awk '{ if (n + length($0) + 1 > 500) exit; print; n += length($0) + 1 }' \
+              > play-release-notes/whatsnew-en-US
+          fi
+          echo "whatsnew-en-US ($(wc -c < play-release-notes/whatsnew-en-US) bytes):"
+          cat play-release-notes/whatsnew-en-US
+
+      - name: Upload to Google Play
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.parchment
+          releaseFiles: android-aab/*.aab
+          track: ${{ secrets.GOOGLE_PLAY_TRACK || 'internal' }}
+          releaseName: ${{ steps.version.outputs.VERSION }}
+          whatsNewDirectory: play-release-notes
+          status: completed
+        continue-on-error: true
+
+  deploy-app-store:
+    name: Upload to App Store
+    # Gated only on the iOS build — skips cleanly when the iOS build fails.
+    needs: [build-ios]
+    if: ${{ !cancelled() && needs.build-ios.result == 'success' }}
+    runs-on: macos-latest
+    env:
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+    steps:
+      - name: Download iOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: ios-ipa
+
+      - name: Setup App Store Connect API key
+        if: ${{ env.APPLE_API_ISSUER != '' }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+
+      - name: Upload to App Store Connect
+        if: ${{ env.APPLE_API_ISSUER != '' }}
+        run: |
+          IPA_PATH=$(find ios-ipa -name "*.ipa" | head -1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "Error: IPA file not found"
+            exit 1
+          fi
+          echo "Uploading $IPA_PATH to App Store Connect..."
+          xcrun altool --upload-app \
+            -t ios \
+            -f "$IPA_PATH" \
+            --apiKey "${{ secrets.APPLE_API_KEY }}" \
+            --apiIssuer "${{ secrets.APPLE_API_ISSUER }}"
+
+  # ── Deploy ────────────────────────────────────────────────────────────
+  #
+  # Push the new server image at vega7 instead of waiting for Watchtower's
+  # hourly poll to find it. Only the API is deployed here: the web frontend is
+  # served off-homelab, and the release's app artifacts go to the stores and
+  # the auto-updater from the jobs above.
+  #
+  # Unconfigured is not failed — without the secrets this no-ops and Watchtower
+  # keeps doing what it does. Required secrets (same names as barrelman's):
+  #
+  #   TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET  Tailscale OAuth client (scope
+  #     auth_keys, tag:ci) — the runner joins the tailnet as an ephemeral node,
+  #     so the host needs no public SSH port.
+  #   DEPLOY_SSH_KEY                        private half of a keypair whose
+  #     public half is in ~/.ssh/authorized_keys on the host.
+  #
+  # There is no drain gate here, unlike barrelman: the API holds no
+  # long-running work that a restart would abandon.
+  deploy-server:
+    name: Deploy to production
+    needs: [deploy-docker]
+    runs-on: ubuntu-latest
+    env:
+      # Tailnet IP, not a hostname: this tailnet has MagicDNS off, so `vega7`
+      # does not resolve from the runner.
+      DEPLOY_HOST: 100.83.151.102
+      DEPLOY_USER: alex
+      DEPLOY_PATH: /opt/parchment
+      DEPLOY_SERVICE: parchment-server
+    steps:
+      - name: Check for deploy credentials
+        id: creds
+        env:
+          TS_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -n "$TS_ID" ] && [ -n "$SSH_KEY" ]; then
+            echo "ready=true" >> $GITHUB_OUTPUT
+          else
+            echo "ready=false" >> $GITHUB_OUTPUT
+            echo "::notice::Deploy secrets not set — skipping. Watchtower will pick this release up on its next poll."
+          fi
+
+      - name: Join the tailnet
+        if: steps.creds.outputs.ready == 'true'
+        uses: tailscale/github-action@v4.1.3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Load the deploy key
+        if: steps.creds.outputs.ready == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Pull and recreate
+        if: steps.creds.outputs.ready == 'true'
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_SERVICE='$DEPLOY_SERVICE' bash -se" <<'REMOTE'
+            set -euo pipefail
+            cd "$DEPLOY_PATH"
+            docker compose pull "$DEPLOY_SERVICE"
+            # --no-deps: recreate exactly this service. Without it compose
+            # reconciles its dependencies too, which is how a deploy meant for
+            # one container ends up restarting its neighbours.
+            docker compose up -d --no-deps "$DEPLOY_SERVICE"
+          REMOTE
+
+      - name: Verify
+        if: steps.creds.outputs.ready == 'true'
+        run: |
+          ssh -o ConnectTimeout=20 "$DEPLOY_USER@$DEPLOY_HOST" bash -se <<'REMOTE'
+            set -euo pipefail
+            # The server has no /health route; the root path answers 207 when
+            # every subsystem it reports on is up.
+            for _ in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' localhost:5000/ || true)
+              case "$code" in
+                200|207) echo "healthy ($code)"; exit 0 ;;
+              esac
+              sleep 10
+            done
+            echo "did not come back healthy within five minutes (last: ${code:-none})"
+            docker logs --tail 50 parchment-server
+            exit 1
+          REMOTE

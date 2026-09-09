@@ -1,113 +1,53 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
-import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { computed } from 'vue'
 import type { Place } from '@/types/place.types'
 
-defineProps<{
-  place: Place
+const props = defineProps<{
+  place: Partial<Place>
 }>()
 
-const showTags = ref(false)
-
-function formatDate(dateString: string) {
-  try {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat(navigator.language, {
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-    }).format(date)
-  } catch (e) {
-    console.error('Error formatting date:', e)
-    return dateString
+// Only sources that have a display name, deduped by id (falling back to name)
+// so a source contributed by multiple integrations isn't listed twice — and a
+// malformed nameless source can't leave a dangling "and" separator.
+const sources = computed(() => {
+  const seen = new Set<string>()
+  const result: { key: string; name: string; url?: string }[] = []
+  for (const source of props.place.sources ?? []) {
+    const name = source.name?.trim()
+    if (!name) continue
+    const key = source.id ?? name
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push({ key, name, url: source.url })
   }
+  return result
+})
+
+// Separator before the source at index `i`: nothing for the first, " and "
+// before the last, ", " otherwise. Reads correctly for any number of sources.
+function separatorBefore(i: number): string {
+  if (i === 0) return ''
+  if (i === sources.value.length - 1) return ' and '
+  return ', '
 }
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
-    <h2 class="text-sm font-medium">Sources</h2>
-    <!-- Source Info -->
-    <div
-      v-for="source in place.sources"
-      :key="source.id"
-      class="border border-border rounded-lg overflow-hidden"
-    >
-      <div class="pl-3 pr-1 py-1 flex flex-col">
-        <div class="flex items-center justify-between">
-          <div class="flex-1">
-            <div class="flex items-center justify-between">
-              <button
-                v-if="source.id === 'osm'"
-                @click="showTags = !showTags"
-                class="flex-1 flex items-center justify-between"
-              >
-                <div class="div flex flex-col items-start">
-                  <span class="text-sm">{{ source.name }}</span>
-                  <span
-                    v-if="source.updated"
-                    class="text-xs text-muted-foreground text-start"
-                  >
-                    Last updated
-                    {{ formatDate(source.updated) }}
-                    {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
-                  </span>
-                </div>
-                <ChevronDownIcon
-                  class="size-4 text-muted-foreground transition-transform"
-                  :class="{ 'rotate-180': showTags }"
-                />
-              </button>
-              <div v-else class="flex-1 flex flex-col items-start">
-                <span class="text-sm">{{ source.name }}</span>
-                <span
-                  v-if="source.updated"
-                  class="text-xs text-muted-foreground"
-                >
-                  Last updated
-                  {{ formatDate(source.updated) }}
-                  {{ source.updatedBy ? `by ${source.updatedBy}` : '' }}
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                class="ml-2"
-                asChild
-                v-if="source.url"
-              >
-                <a
-                  :href="source.url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  :title="`View on ${source.name}`"
-                >
-                  <ExternalLinkIcon class="size-4" />
-                </a>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div v-if="source.id === 'osm' && showTags">
-        <Table>
-          <TableBody>
-            <TableRow
-              v-for="[key, value] in Object.entries(place.amenities || {})"
-              :key="key"
-            >
-              <TableCell class="font-medium text-muted-foreground">
-                {{ key }}
-              </TableCell>
-              <TableCell class="break-all">
-                {{ value.value }}
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+  <div
+    v-if="sources.length"
+    class="px-3.5 py-2.5 rounded-lg border text-xs text-muted-foreground"
+  >
+    Data from
+    <template v-for="(source, i) in sources" :key="source.key">
+      <template v-if="i > 0">{{ separatorBefore(i) }}</template>
+      <a
+        v-if="source.url"
+        :href="source.url"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="font-semibold text-foreground/80 hover:underline"
+      >{{ source.name }}</a>
+      <strong v-else class="text-foreground/80">{{ source.name }}</strong>
+    </template>
   </div>
 </template>

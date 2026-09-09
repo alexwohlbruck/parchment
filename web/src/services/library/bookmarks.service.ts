@@ -1,56 +1,205 @@
 import { createSharedComposable } from '@vueuse/core'
-import { toast } from 'vue-sonner'
+import { toast } from '@/lib/toast'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useCategoryPaletteStore } from '@/stores/category-palette.store'
+import { useSyncStore } from '@/stores/sync.store'
+import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'
 import type { CreateBookmarkParams, Bookmark } from '@/types/library.types'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
+import { isOffline } from '@/lib/connectivity'
+import {
+  getNetworkErrorKind,
+  isRetriableNetworkError,
+} from '@/lib/network-errors'
+import { newOfflineId } from '@/lib/sync/offline-id'
+import { closestThemeColor } from '@/lib/utils'
+import { AppRoute } from '@/router'
+import { type FrequentType } from '@/lib/frequents'
+import type {
+  CreateBookmarkMutation,
+  RemoveBookmarkMutation,
+  UpdateBookmarkMutation,
+} from '@/services/library/bookmarks.sync'
+
+/** Plain-JSON snapshot of a (possibly reactive) row, for queue payloads. */
+function snapshot<T>(value: T | undefined): T | undefined {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
+}
 
 // TODO: i18n error messages
 
 export const useBookmarksService = createSharedComposable(() => {
+  const authStore = useAuthStore()
   const bookmarksStore = useBookmarksStore()
   const collectionsStore = useCollectionsStore()
+  const categoryPaletteStore = useCategoryPaletteStore()
+  const syncStore = useSyncStore()
+  const themeStore = useThemeStore()
+  const router = useRouter()
   const { t } = useI18n()
   const isSaving = ref(false)
 
-  async function createBookmark(place: Place, collectionIds?: string[]) {
-    if (!place.externalIds?.osm) {
+  // Toast helper: builds the optional "View" action button that takes
+  // the user to the collection they just added a bookmark to. Returns
+  // undefined when there's no resolvable target (so the toast renders
+  // without an action) instead of a no-op button.
+  function viewCollectionAction(collectionId: string | undefined) {
+    if (!collectionId) return undefined
+    return {
+      label: t('general.view'),
+      onClick: () => {
+        router.push({ name: AppRoute.COLLECTION, params: { id: collectionId } })
+      },
+    }
+  }
+
+  // Remember the most recently written-to collection so the bookmark
+  // button can target it directly on the next save. Last-write-wins across
+  // both new bookmarks and picker toggles.
+  function rememberLastSaved(collectionIds: string[] | undefined) {
+    if (!collectionIds || collectionIds.length === 0) return
+    collectionsStore.setLastSavedCollectionId(
+      collectionIds[collectionIds.length - 1],
+    )
+  }
+
+  async function createBookmark(
+    place: Place,
+    collectionIds?: string[],
+    options: {
+      frequentType?: FrequentType
+      silent?: boolean
+      /** Override the bookmark name (used for custom frequents). */
+      name?: string
+    } = {},
+  ) {
+    if (!place.externalIds || Object.keys(place.externalIds).length === 0) {
       toast.error(t('services.bookmarks.saveErrorNoOsmId'))
       return null
     }
 
     // Extract coordinates from place geometry
     const geometry = place.geometry?.value
-    if (!geometry || geometry.type !== 'point' || !geometry.center) {
+    if (!geometry || !geometry.center) {
       toast.error(t('services.bookmarks.saveErrorNoCoordinates'))
       return null
     }
 
     isSaving.value = true
 
-    try {
-      const params: CreateBookmarkParams & { collectionIds?: string[] } = {
-        externalIds: place.externalIds,
-        name: place.name.value,
-        address: place.address?.value.formatted,
-        lat: geometry.center.lat,
-        lng: geometry.center.lng,
-        collectionIds,
+    // Stamp the POI's own icon/colour onto the bookmark. The server emits
+    // `place.icon` with the maki/lucide name plus the abstract category; the
+    // category's CSS colour is snapped to the closest discrete `ThemeColor`
+    // so it matches the palette the rest of the UI renders with.
+    //
+    // This runs once, at creation. There is no picker and the update endpoint
+    // rejects these fields — a bookmark looks like the place it is.
+    const placeIcon = place.icon
+    const categoryColorString = placeIcon?.category
+      ? categoryPaletteStore.getCategoryColor(placeIcon.category, themeStore.isDark)
+      : null
+
+    // Preset saves surface their own "Set as Home" toast (handled by the
+    // caller in `setFrequent`), so skip the generic "Saved to collection"
+    // one to avoid a double toast.
+    //
+    // Last element of collectionIds is the one we want to surface in the
+    // toast — that's the same collection we just pinned as the target for
+    // the next one-tap save, so "Saved {name} to {collection}" matches
+    // what the user just did. Fall back to a generic message if the
+    // collection can't be resolved (e.g. stale cache).
+    function notifySaved() {
+      if (options.silent) return
+      const targetId = collectionIds?.[collectionIds.length - 1]
+      const target = targetId
+        ? collectionsStore.getCollectionById(targetId)
+        : undefined
+      if (target) {
+        toast.success(
+          t('services.bookmarks.saveSuccessToCollection', {
+            name: place.name.value,
+            collection:
+              target.name || t('library.entities.collections.untitled'),
+          }),
+          { action: viewCollectionAction(targetId) },
+        )
+      } else {
+        toast.success(
+          t('services.bookmarks.saveSuccess', { name: place.name.value }),
+        )
       }
+    }
+
+    const params: CreateBookmarkParams & { collectionIds?: string[] } = {
+      externalIds: place.externalIds,
+      name: options.name || place.name.value || '',
+      address: place.address?.value.formatted,
+      lat: geometry.center.lat,
+      lng: geometry.center.lng,
+      icon: placeIcon?.icon,
+      iconPack: placeIcon?.iconPack,
+      iconColor: closestThemeColor(categoryColorString),
+      ...(options.frequentType ? { frequentType: options.frequentType } : {}),
+      collectionIds,
+    }
+
+    // Offline: save locally under a temp id and queue the create for replay.
+    function createOffline(): Bookmark {
+      const tempId = newOfflineId()
+      const now = new Date().toISOString()
+      const bookmark: Bookmark = {
+        id: tempId,
+        externalIds: params.externalIds,
+        name: params.name,
+        address: params.address,
+        lat: params.lat,
+        lng: params.lng,
+        icon: params.icon ?? '',
+        iconPack: params.iconPack,
+        iconColor: params.iconColor ?? '',
+        ...(params.frequentType ? { frequentType: params.frequentType } : {}),
+        userId: authStore.me?.id ?? '',
+        createdAt: now,
+        updatedAt: now,
+        collectionIds: collectionIds ?? [],
+      }
+      bookmarksStore.addBookmark(bookmark)
+      collectionIds?.forEach(id =>
+        collectionsStore.addBookmarkToCollection(id, bookmark),
+      )
+      rememberLastSaved(collectionIds)
+      syncStore.enqueue(
+        'bookmark:create',
+        { tempId, params: snapshot(params)! } satisfies CreateBookmarkMutation,
+        t('offline.sync.labels.save', { name: params.name }),
+      )
+      notifySaved()
+      return bookmark
+    }
+
+    try {
+      if (isOffline.value) return createOffline()
 
       const response = await api.post('/library/bookmarks', params)
       const bookmark = response.data
 
       bookmarksStore.addBookmark(bookmark)
-      toast.success(
-        t('services.bookmarks.saveSuccess', { name: place.name.value }),
-      )
+      rememberLastSaved(collectionIds)
+      notifySaved()
 
       return bookmark
     } catch (error) {
+      // The request itself died on the network — treat it like an offline
+      // save rather than losing the user's action.
+      if (isRetriableNetworkError(getNetworkErrorKind(error))) {
+        return createOffline()
+      }
       toast.error(t('services.bookmarks.saveError'))
       return null
     } finally {
@@ -62,8 +211,99 @@ export const useBookmarksService = createSharedComposable(() => {
   async function updateBookmark(
     id: string,
     updates: Partial<Bookmark> & { collectionIds?: string[] },
+    options: {
+      silent?: boolean
+      // ID of a collection the caller just ADDED this bookmark to —
+      // used to render an "Added to X" toast with a View action that
+      // jumps straight to that collection. Pass `undefined` for any
+      // other update (rename, color change, removing a collection)
+      // and the toast falls back to the generic "Bookmark updated".
+      addedCollectionId?: string
+    } = {},
   ): Promise<Bookmark | null> {
+    // Offline: apply the change locally and queue the PUT for replay. The
+    // server deletes a bookmark whose last collection is removed (the 204
+    // branch below), so mirror that locally too.
+    function updateOffline(): Bookmark | null {
+      const current = bookmarksStore.getBookmarkById(id)
+      const previous = snapshot(current)
+      const merged = current
+        ? ({
+            ...previous,
+            ...snapshot(updates),
+            updatedAt: new Date().toISOString(),
+          } as Bookmark)
+        : undefined
+      const removesBookmark =
+        Array.isArray(updates.collectionIds) &&
+        updates.collectionIds.length === 0 &&
+        !merged?.frequentType
+
+      if (removesBookmark) {
+        bookmarksStore.removeBookmark(id)
+        collectionsStore.removeBookmarkFromCollections(id)
+      } else if (merged) {
+        const before = previous?.collectionIds ?? []
+        const after = merged.collectionIds ?? before
+        bookmarksStore.updateBookmark(id, merged)
+        after
+          .filter(collectionId => !before.includes(collectionId))
+          .forEach(collectionId =>
+            collectionsStore.addBookmarkToCollection(collectionId, merged),
+          )
+        before
+          .filter(collectionId => !after.includes(collectionId))
+          .forEach(collectionId =>
+            collectionsStore.removeBookmarkFromSingleCollection(
+              collectionId,
+              id,
+            ),
+          )
+      }
+      rememberLastSaved(updates.collectionIds)
+      syncStore.enqueue(
+        'bookmark:update',
+        {
+          id,
+          updates: snapshot(updates)!,
+          previous,
+        } satisfies UpdateBookmarkMutation,
+        t('offline.sync.labels.update', {
+          name: current?.name || t('library.entities.bookmarks.title.singular'),
+        }),
+      )
+      if (!options.silent) {
+        if (removesBookmark) {
+          toast.success(
+            t('services.bookmarks.unsaveSuccess', {
+              name:
+                current?.name ||
+                t('library.entities.bookmarks.title.singular'),
+            }),
+          )
+        } else {
+          const added = options.addedCollectionId
+            ? collectionsStore.getCollectionById(options.addedCollectionId)
+            : undefined
+          if (added) {
+            toast.success(
+              t('library.actions.addedToCollection', {
+                collection:
+                  added.name || t('library.entities.collections.untitled'),
+              }),
+              { action: viewCollectionAction(options.addedCollectionId) },
+            )
+          } else {
+            toast.success(t('services.bookmarks.updateSuccess'))
+          }
+        }
+      }
+      return removesBookmark ? null : (merged ?? null)
+    }
+
     try {
+      if (isOffline.value) return updateOffline()
+
       // Use PUT method again
       const response = await api.put(`/library/bookmarks/${id}`, updates)
 
@@ -71,22 +311,46 @@ export const useBookmarksService = createSharedComposable(() => {
         // Added or removed collection-bookmark relations
         const updatedBookmark = response.data
         bookmarksStore.updateBookmark(id, updatedBookmark)
-        toast.success(t('services.bookmarks.updateSuccess'))
+        rememberLastSaved(updates.collectionIds)
+        if (!options.silent) {
+          const added = options.addedCollectionId
+            ? collectionsStore.getCollectionById(options.addedCollectionId)
+            : undefined
+          if (added) {
+            toast.success(
+              t('library.actions.addedToCollection', {
+                collection: added.name || t('library.entities.collections.untitled'),
+              }),
+              { action: viewCollectionAction(options.addedCollectionId) },
+            )
+          } else {
+            toast.success(t('services.bookmarks.updateSuccess'))
+          }
+        }
         return updatedBookmark
       } else if (response && response.status === 204) {
         // Completely removed bookmark from all collections
         const bookmarkToRemove = bookmarksStore.getBookmarkById(id)
-        const name = bookmarkToRemove?.name || t('library.entities.bookmark')
+        const name =
+          bookmarkToRemove?.name ||
+          t('library.entities.bookmarks.title.singular')
         bookmarksStore.removeBookmark(id)
-        toast.success(t('services.bookmarks.unsaveSuccess', { name }))
+        if (!options.silent) {
+          toast.success(t('services.bookmarks.unsaveSuccess', { name }))
+        }
         return null
       } else {
         console.warn('Unexpected success status:', response?.status)
         bookmarksStore.removeBookmark(id)
-        toast.error(t('services.bookmarks.updateError'))
+        if (!options.silent) {
+          toast.error(t('services.bookmarks.updateError'))
+        }
         return null
       }
     } catch (error: any) {
+      if (isRetriableNetworkError(getNetworkErrorKind(error))) {
+        return updateOffline()
+      }
       if (error.response && error.response.status === 404) {
         toast.error(t('services.bookmarks.updateErrorNotFound'))
         bookmarksStore.removeBookmark(id)
@@ -108,25 +372,50 @@ export const useBookmarksService = createSharedComposable(() => {
       console.warn('No collection IDs provided for removal.')
       return false
     }
-    try {
-      await api.delete(`/library/bookmarks/${bookmarkId}/collections`, {
-        data: { collectionIds },
-      })
 
+    function applyRemovalLocally() {
       collectionIds.forEach(collectionId => {
         collectionsStore.removeBookmarkFromSingleCollection(
           collectionId,
           bookmarkId,
         )
       })
-
       toast.success(
         t('services.bookmarks.removeFromCollectionSuccess', {
           name: bookmarkName,
         }),
       )
+    }
+
+    // Offline: unlink locally and queue the DELETE for replay.
+    function removeOffline(): boolean {
+      const bookmark = snapshot(bookmarksStore.getBookmarkById(bookmarkId))
+      applyRemovalLocally()
+      syncStore.enqueue(
+        'bookmark:remove',
+        { bookmarkId, collectionIds, bookmark } satisfies RemoveBookmarkMutation,
+        t('offline.sync.labels.remove', { name: bookmarkName }),
+      )
+      return true
+    }
+
+    try {
+      if (isOffline.value) return removeOffline()
+
+      // Server route is `DELETE /library/bookmarks/:id` with the
+      // collectionIds in the body. There's no `/collections` suffix —
+      // the URL was inherited from a refactor that consolidated the
+      // endpoints, and the wrong path silently 404s back.
+      await api.delete(`/library/bookmarks/${bookmarkId}`, {
+        data: { collectionIds },
+      })
+
+      applyRemovalLocally()
       return true
     } catch (error) {
+      if (isRetriableNetworkError(getNetworkErrorKind(error))) {
+        return removeOffline()
+      }
       toast.error(t('services.bookmarks.removeFromCollectionError'))
       return false
     }
@@ -136,8 +425,125 @@ export const useBookmarksService = createSharedComposable(() => {
     if (!bookmark.id) return false
 
     return bookmarksStore.bookmarks.some(
-      bookmark => bookmark.id === bookmark.id,
+      existing => existing.id === bookmark.id,
     )
+  }
+
+  // ── Frequents (Home / Work / School / Custom) ───────────────────────
+  // Frequents are bookmarks tagged with `frequentType`. Unlike ordinary
+  // bookmarks they are *standalone* — not linked to any collection — so they
+  // have a dedicated fetch since the collection hydrate
+  // won't surface them. The same place can still be added to a collection
+  // separately. A bookmark carries at most one `frequentType`.
+
+  /** All bookmarks tagged with a frequent type, in save order. */
+  function getFrequentBookmarks(): Bookmark[] {
+    return bookmarksStore.bookmarks.filter(b => b.frequentType)
+  }
+
+  /**
+   * Replace the store with the user's full bookmark list.
+   *
+   * The store is localStorage-backed and otherwise only fills up
+   * opportunistically (on create, or when a collection view is opened), so
+   * without this a fresh device shows no saved places until the user browses
+   * to a collection. Rows come back with `collectionIds`, which the map layer
+   * needs to honour per-collection visibility.
+   */
+  async function fetchBookmarks(): Promise<void> {
+    try {
+      const { data } = await api.get<Bookmark[]>('/library/bookmarks')
+      bookmarksStore.setBookmarks(data ?? [])
+    } catch (e) {
+      // Non-fatal: the cached store still renders. Logged, not toasted —
+      // this runs during boot and the user didn't ask for it.
+      console.warn('Failed to fetch bookmarks:', e)
+    }
+  }
+
+  /**
+   * Pick a collection to file a newly-created preset into. Prefers the most
+   * recently used collection, else the first writable owned collection.
+   * Returns null when the user has no writable collection at all.
+   */
+  function resolveDefaultCollectionId(): string | null {
+    const writable = collectionsStore.collections.filter(
+      c => !c.role || c.role === 'owner' || c.role === 'editor',
+    )
+    if (writable.length === 0) return null
+
+    const lastSaved = collectionsStore.lastSavedCollectionId
+    if (lastSaved && writable.some(c => c.id === lastSaved)) return lastSaved
+
+    return writable[0].id
+  }
+
+  /** Find the id of an already-saved bookmark matching a place's externalIds. */
+  function findBookmarkIdForPlace(place: Place): string | undefined {
+    if (place.bookmark?.id) return place.bookmark.id
+    const ids = place.externalIds
+    if (!ids) return undefined
+    return bookmarksStore.bookmarks.find(b =>
+      Object.entries(ids).some(([provider, id]) => b.externalIds[provider] === id),
+    )?.id
+  }
+
+  /**
+   * Mark a place as a frequent (Home/Work/School/Custom). Updates the tag if
+   * the place is already bookmarked; otherwise creates a bookmark in the
+   * default collection.
+   *
+   * A frequent's icon and colour come from its `frequentType` at render time
+   * (see `frequentChipMeta`), not from the bookmark row — so nothing about the
+   * look is stored here. `custom` takes an optional user-supplied `name` as
+   * its label.
+   */
+  async function setFrequent(
+    place: Place,
+    frequentType: FrequentType,
+    opts: { name?: string } = {},
+  ): Promise<Bookmark | null> {
+    const targetBookmarkId = findBookmarkIdForPlace(place)
+    const name = opts.name?.trim() || undefined
+
+    let result: Bookmark | null
+    if (targetBookmarkId) {
+      result = await updateBookmark(
+        targetBookmarkId,
+        { frequentType, ...(name ? { name } : {}) },
+        { silent: true },
+      )
+    } else {
+      // Frequents are standalone — created with no collection. The same place
+      // can still be added to a collection separately.
+      result = await createBookmark(place, [], {
+        frequentType,
+        silent: true,
+        ...(name ? { name } : {}),
+      })
+    }
+
+    if (result) {
+      toast.success(
+        t('services.bookmarks.frequentSet', {
+          label: name || t(`library.types.${frequentType}`),
+        }),
+      )
+    }
+    return result
+  }
+
+  /** Remove the Home/Work/School tag from a specific bookmark. */
+  async function clearFrequent(bookmarkId: string): Promise<void> {
+    const current = bookmarksStore.getBookmarkById(bookmarkId)
+    if (!current?.frequentType) return
+    const label = t(`library.types.${current.frequentType}`)
+    await updateBookmark(
+      bookmarkId,
+      { frequentType: null } as unknown as Partial<Bookmark>,
+      { silent: true },
+    )
+    toast.success(t('services.bookmarks.frequentRemoved', { label }))
   }
 
   return {
@@ -146,5 +552,9 @@ export const useBookmarksService = createSharedComposable(() => {
     updateBookmark,
     removeBookmark,
     isBookmarkSaved,
+    getFrequentBookmarks,
+    fetchBookmarks,
+    setFrequent,
+    clearFrequent,
   }
 })

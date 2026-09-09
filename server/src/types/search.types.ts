@@ -1,15 +1,52 @@
+export interface CategoryResult {
+  id: string
+  type: 'category'
+  name: string
+  description?: string
+  icon?: string       // raw OSM preset icon string (e.g. "temaki-bicycle_parked")
+  iconName?: string   // resolved icon name ready for ItemIcon (e.g. "bicycle")
+  iconPack?: 'lucide' | 'maki'
+  iconCategory?: string
+  color?: string
+  // OSM metadata for building Overpass queries
+  tags: Record<string, string>
+  addTags?: Record<string, string>
+  geometry: string[]
+  fields?: string[]
+  searchable: boolean
+  aliases?: string[]
+}
+
+import { Place, TransitLineRef, TransitStopRef } from './place.types'
+
+/** A brand suggestion in search results ("See all McDonald's locations"). */
+export interface BrandSearchMeta {
+  brandKey: string
+  name: string
+  wikidata?: string
+  locationCount?: number
+  category?: string
+  /** Brand logo URL (Wikidata P154), when resolved. */
+  logoUrl?: string
+  /** Representative location, for map centering when navigating. */
+  lat?: number
+  lng?: number
+}
+
 export interface SearchResult {
   id: string
-  type: 'bookmark' | 'place' | 'current_location'
+  type: 'bookmark' | 'place' | 'current_location' | 'category' | 'brand' | 'transit_route' | 'transit_stop'
   title: string
   description?: string
   icon?: string
+  iconPack?: 'lucide' | 'maki'
+  iconCategory?: string
   color?: string
   metadata: {
     // Bookmark metadata
     bookmark?: {
       id: string
-      presetType?: 'home' | 'work' | 'school'
+      frequentType?: 'home' | 'work' | 'school' | 'custom'
       iconColor: string
       address?: string
       lat: number
@@ -17,33 +54,45 @@ export interface SearchResult {
       externalIds: Record<string, string>
     }
     // Place metadata
-    place?: {
-      id: string
-      externalIds: Record<string, string>
-      address?: string
-      lat: number
-      lng: number
-      placeType?: string
+    place?: Place
+    // Category metadata
+    category?: {
+      tags: Record<string, string>
+      addTags?: Record<string, string>
+      geometry: string[]
     }
-    // Current location metadata
-    currentLocation?: {
-      lat: number
-      lng: number
-    }
+    // Brand metadata
+    brand?: BrandSearchMeta
+    // Transit metadata (metadata.place carries the displayable pseudo-place)
+    transitLine?: TransitLineRef
+    transitStop?: TransitStopRef
   }
 }
 
 // Lightweight autocomplete result with minimal data
 export interface AutocompleteResult {
   id: string
-  type: 'bookmark' | 'place' | 'current_location'
+  type: 'bookmark' | 'place' | 'current_location' | 'category' | 'brand' | 'transit_route' | 'transit_stop'
   title: string
   description?: string
   icon?: string
+  iconPack?: 'lucide' | 'maki'
+  iconCategory?: string
   color?: string
-  // Minimal metadata - just coordinates for navigation
-  lat: number
-  lng: number
+  // Minimal metadata - just coordinates for navigation (optional for categories)
+  lat?: number
+  lng?: number
+  // Category metadata for OSM queries
+  category?: {
+    tags: Record<string, string>
+    addTags?: Record<string, string>
+    geometry: string[]
+  }
+  // Brand metadata for the "see all locations" browse
+  brand?: BrandSearchMeta
+  // Transit metadata: how to open a GTFS line or GTFS-only stop
+  transitLine?: TransitLineRef
+  transitStop?: TransitStopRef
 }
 
 export interface SearchOptions {

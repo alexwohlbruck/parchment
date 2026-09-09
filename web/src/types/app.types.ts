@@ -1,5 +1,5 @@
 import { Globe2Icon } from 'lucide-vue-next'
-import { Component } from 'vue'
+import type { Component, VNode } from 'vue'
 import { ZodObject } from 'zod'
 
 export type Icon = typeof Globe2Icon
@@ -10,6 +10,13 @@ export enum DialogType {
   Prompt,
   AutoForm,
   Template,
+}
+
+export type AppEvents = {
+  'palette:open': void
+  'palette:focus': void
+  'hotkeys:open': void
+  'location-config:changed': { friendHandle: string; enabled: boolean }
 }
 
 export interface BaseDialogOptions {
@@ -23,7 +30,9 @@ export interface ComponentDialogOptions extends BaseDialogOptions {
   component: Component
   props?: Record<string, any>
   destructive?: boolean
+  contentClass?: string
   onContinue?: (payload?: any) => Promise<any>
+  footerPrepend?: () => VNode | VNode[]
 }
 
 export interface ConfirmDialogOptions extends BaseDialogOptions {
@@ -61,3 +70,9 @@ export type DialogOptions =
   | PromptDialogOptions
   | AutoFormDialogOptions
   | TemplateDialogOptions
+
+/** Route-level shaping of the sheet a view opens in (see router `meta.sheet`). */
+export interface SheetMeta {
+  dismissable?: boolean
+  snapPoints?: (number | string)[]
+}

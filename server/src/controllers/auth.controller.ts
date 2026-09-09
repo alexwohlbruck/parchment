@@ -7,18 +7,28 @@ import {
   requireAuth,
   getSessionId,
 } from '../middleware/auth.middleware'
-import { origins } from '../config'
+import { appName, origins } from '../config'
 import { Passkey, passkeys } from '../schema/passkeys.schema'
 import { sessions } from '../schema/sessions.schema'
 import {
   createSession,
   destroySession,
+  destroyAllSessions,
+  destroyOtherSessions,
   generateWebauthnOptions,
+  generatePrfAssertionOptions,
+  generatePrfEnrollOptionsForCredential,
   rpID,
   sendEmailVerificationCode,
   getPermissions,
+  getRoles,
 } from '../services/auth.service'
-import { fetchUser, fetchUserByEmail } from '../services/user.service'
+import {
+  fetchUser,
+  fetchUserByEmail,
+  createOpenRegistrationUser,
+  hasUsers,
+} from '../services/user.service'
 import {
   createServerToken,
   validateServerToken,
@@ -32,27 +42,44 @@ import {
   AuthenticatorTransportFuture,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server/script/deps'
+import { generateId } from '../util'
+import { billing, registrationMode } from '../config'
+import { getSubscriptionStatus } from '../services/subscription.service'
+import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
+import { passkeyNameFromAAGUID } from '../lib/passkey-aaguid'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/auth' })
+// Rate limits on the PRF-options endpoints. These hand out WebAuthn
+// challenges that an attacker with a valid session cookie could
+// otherwise burn in a loop (either to waste authenticator state or as
+// part of a side-channel probe). Keep both well under the expected
+// per-user ceiling of "one tap every few seconds."
+const prfAssertRateLimit = makeUserRateLimit({
+  name: 'prf-assert-options',
+  limit: 30,
+  windowMs: 60_000,
+})
+const prfEnrollRateLimit = makeUserRateLimit({
+  name: 'prf-enroll-options',
+  limit: 30,
+  windowMs: 60_000,
+})
+
+const app = new Elysia({ prefix: '/auth' }).use(i18nPlugin)
 
 app.post(
-  'verify',
-  async ({ body: { email }, set, error }) => {
+  '/verify',
+  async ({ body: { email }, set, status, t, language }) => {
     let user = await fetchUserByEmail(email)
 
     if (!user) {
-      // For now, we will have an invite-only system. When the app is opened up to GP, we will use this code to create an account for new users
-      return error(404, { message: 'User does not exist' }) // TODO: i18n
-      // const userId = generateId()
-      // user = (
-      //   await db
-      //     .insert(users)
-      //     .values({
-      //       id: userId,
-      //       email,
-      //     })
-      //     .returning()
-      // )[0]
+      if (registrationMode === 'invite') {
+        const hasAnyUsers = await hasUsers()
+        if (hasAnyUsers) {
+          return status(404, { message: t('errors.notFound.user') })
+        }
+      }
+      user = await createOpenRegistrationUser(email)
     }
 
     const isAppTester = user.email === process.env.APP_TESTER_EMAIL
@@ -64,7 +91,12 @@ app.post(
     )
     const emailSuccess = isAppTester
       ? true
-      : await sendEmailVerificationCode(user.email, verificationCode)
+      : await sendEmailVerificationCode(
+          user.email,
+          verificationCode,
+          user.id,
+          language,
+        )
 
     if (emailSuccess) {
       set.status = 201
@@ -75,7 +107,8 @@ app.post(
   {
     detail: {
       tags: ['Auth'],
-      description: 'Verify an email address by requesting a one-time password.',
+      description:
+        'Verify an email address by requesting a one-time password. The code is valid for 15 minutes and is single-use.',
     },
     body: t.Object({
       email: t.String({
@@ -87,9 +120,9 @@ app.post(
 
 app.group('/passkeys', (app) => {
   app.group('/register', (app) => {
-    app
-      .use(requireAuth)
-      .post('/options', async ({ user, cookie: { challenge }, set }) => {
+    app.use(requireAuth).post(
+      '/options',
+      async ({ user, cookie: { challenge }, set }) => {
         const { email } = await fetchUser(user.id)
 
         try {
@@ -103,32 +136,43 @@ app.group('/passkeys', (app) => {
         } catch (err) {
           set.status = 500
         }
-      })
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Get passkey registration options',
+        },
+      },
+    )
 
     app.use(requireAuth).post(
       '/verify',
-      async ({ body, set, user, cookie: { challenge }, error }) => {
+      async ({ body, set, user, cookie: { challenge }, status, t, request }) => {
         if (!user) return (set.status = 401)
         if (!challenge.value) return (set.status = 400) // TODO: Check this is how to break out with error in Elysia, make better error
 
-        const payload = body as RegistrationResponseJSON & { name: string }
+        const payload = body as RegistrationResponseJSON & { name?: string }
 
         const verification = await verifyRegistrationResponse({
           response: payload,
-          expectedChallenge: challenge.value,
-          expectedOrigin: origins.clientOrigin,
+          expectedChallenge: (challenge.value as string) ?? '',
+          expectedOrigin: (origins.clientOrigin as string) ?? '',
           expectedRPID: rpID,
           requireUserVerification: true,
         })
 
         if (!verification.verified) {
-          return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
+          return status(401, {
+            message: t('errors.auth.passkeyVerificationFailed'),
+          })
         }
 
         const { registrationInfo } = verification
 
         if (!registrationInfo) {
-          return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
+          return status(401, {
+            message: t('errors.auth.passkeyVerificationFailed'),
+          })
         }
 
         const {
@@ -137,14 +181,27 @@ app.group('/passkeys', (app) => {
           counter,
           credentialDeviceType,
           credentialBackedUp,
+          aaguid,
         } = registrationInfo
+
+        // Auto-name the passkey from its AAGUID (identifies the
+        // authenticator make — "iCloud Keychain", "1Password", etc.) so
+        // the user never has to think up a name. Falls back to
+        // "{OS} · {Browser}" if the AAGUID is unknown. The client can
+        // still override by passing `name`, but the UI stopped prompting
+        // as of the "auto-name passkeys" change.
+        const derivedName = passkeyNameFromAAGUID(
+          aaguid,
+          request.headers.get('user-agent') ?? undefined,
+        )
+        const finalName = payload.name?.trim() || derivedName
 
         const passkey: Partial<Passkey> = (
           await db
             .insert(passkeys)
             .values({
               id: credentialID,
-              name: payload.name,
+              name: finalName,
               publicKey: Buffer.from(credentialPublicKey).toString('base64'),
               userId: user.id,
               counter,
@@ -167,7 +224,7 @@ app.group('/passkeys', (app) => {
           description: 'Verify webauthn passkey registration.',
         },
         body: t.Object({
-          name: t.String(),
+          name: t.Optional(t.String()),
           id: t.String(),
           rawId: t.String(),
           response: t.Object({
@@ -189,21 +246,40 @@ app.group('/passkeys', (app) => {
   })
 
   app.group('/authenticate', (app) => {
-    app.post('options', async ({ set, cookie: { challenge } }) => {
-      try {
-        const options = await generateWebauthnOptions('authenticate')
-        challenge.value = options.challenge
-        return options
-      } catch (err) {
-        set.status = 500
-      }
-    })
+    app.post(
+      'options',
+      async ({ set, cookie: { challenge } }) => {
+        try {
+          const options = await generateWebauthnOptions('authenticate')
+          challenge.value = options.challenge
+          return options
+        } catch (err) {
+          set.status = 500
+        }
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Get passkey authentication options',
+        },
+      },
+    )
 
     app.post(
-      'verify',
-      async ({ body, cookie: { challenge }, set, headers, error, request }) => {
+      '/verify',
+      async ({
+        body,
+        cookie: { challenge },
+        set,
+        headers,
+        status,
+        request,
+        t,
+      }) => {
         if (!challenge.value) {
-          return error(401, { message: 'Could not find challenge cookie' }) // TODO: i18n
+          return status(401, {
+            message: t('errors.auth.challengeNotFound'),
+          })
         }
 
         const passkey = (
@@ -211,13 +287,15 @@ app.group('/passkeys', (app) => {
         )[0]
 
         if (!passkey) {
-          return error(401, { message: 'Passkey does not exist for this user' }) // TODO: i18n
+          return status(401, {
+            message: t('errors.auth.passkeyNotFound'),
+          })
         }
 
         const verification = await verifyAuthenticationResponse({
           response: body as AuthenticationResponseJSON,
-          expectedChallenge: challenge.value,
-          expectedOrigin: origins.clientOrigin,
+          expectedChallenge: (challenge.value as string) ?? '',
+          expectedOrigin: origins.clientOrigin ?? '',
           expectedRPID: rpID,
           authenticator: {
             credentialID: passkey.id,
@@ -243,7 +321,9 @@ app.group('/passkeys', (app) => {
         }
 
         challenge.remove()
-        return error(401, { message: 'Passkey verification failed' }) // TODO: i18n
+        return status(401, {
+          message: t('errors.auth.passkeyVerificationFailed'),
+        })
       },
       {
         body: t.Object({
@@ -259,24 +339,92 @@ app.group('/passkeys', (app) => {
           clientExtensionResults: t.Any(),
           authenticatorAttachment: t.String(),
         }),
+        detail: {
+          tags: ['Auth'],
+          summary: 'Verify passkey authentication',
+        },
       },
     )
 
     return app
   })
 
-  app.use(requireAuth).get('/', async ({ user, set }) => {
-    return db.select().from(passkeys).where(eq(passkeys.userId, user.id))
-  })
+  app.use(requireAuth).get(
+    '/',
+    async ({ user, set }) => {
+      return db.select().from(passkeys).where(eq(passkeys.userId, user.id))
+    },
+    {
+      detail: {
+        tags: ['Auth'],
+        summary: 'List all passkeys for current user',
+      },
+    },
+  )
 
   app
     .use(requireAuth)
-    .delete('/:passkeyId', async ({ user, set, params: { passkeyId } }) => {
+    .use(prfAssertRateLimit)
+    .post(
+      '/prf-assert/options',
+      async ({ user }) => {
+        return await generatePrfAssertionOptions(user.id)
+      },
+      {
+        detail: {
+          tags: ['Auth', 'Crypto'],
+          summary:
+            'Return WebAuthn authentication options with the PRF extension ' +
+            "eval'd against the current user's salt, restricted to " +
+            "credentials that have a wrapped-master-key slot. Used to " +
+            'unwrap K_m on a new device after sign-in.',
+        },
+      },
+    )
+
+  app
+    .use(requireAuth)
+    .use(prfEnrollRateLimit)
+    .post(
+      '/:credentialId/prf-enroll/options',
+      async ({ user, params, status, t }) => {
+        const options = await generatePrfEnrollOptionsForCredential(
+          user.id,
+          params.credentialId,
+        )
+        if (!options) {
+          return status(404, { message: t('errors.auth.passkeyNotFound') })
+        }
+        return options
+      },
+      {
+        params: t.Object({ credentialId: t.String() }),
+        detail: {
+          tags: ['Auth', 'Crypto'],
+          summary:
+            'Return WebAuthn authentication options to enable recovery on ' +
+            'an already-registered passkey. Scoped to one credential; if ' +
+            "the authenticator emits a PRF output, the client POSTs a new " +
+            'wrapped-K_m slot for it.',
+        },
+      },
+    )
+
+  app.use(requireAuth).delete(
+    '/:passkeyId',
+    async ({ user, set, params: { passkeyId } }) => {
       await db
         .delete(passkeys)
         .where(and(eq(passkeys.id, passkeyId), eq(passkeys.userId, user.id)))
       set.status = 204
-    })
+    },
+    {
+      detail: {
+        tags: ['Auth'],
+        summary: 'Delete a passkey',
+      },
+    },
+  )
 
   return app
 })
@@ -287,18 +435,24 @@ app.group('/sessions', (app) => {
     async (context) => {
       const {
         body: { email, token },
-        error,
+        status,
+        t,
       } = context
       const user = await fetchUserByEmail(email)
 
       if (!user) {
-        return error(404, { message: 'User does not exist' })
+        return status(404, { message: t('errors.notFound.user') })
       }
 
-      const { id: userId } = await fetchUserByEmail(email)
-      const isValid = await validateServerToken(token, 'otp', userId)
+      const validation = await validateServerToken(token, 'otp', user.id)
 
-      if (!isValid) return error(401, { message: 'Invalid or expired session' }) // TODO: i18n
+      if (validation !== 'valid')
+        return status(401, {
+          message:
+            validation === 'expired'
+              ? t('errors.auth.otpExpired')
+              : t('errors.auth.invalidSession'),
+        })
 
       const session = await createSession(user.id, context)
 
@@ -340,6 +494,123 @@ app.group('/sessions', (app) => {
     },
   )
 
+  // Every session-guarded route lives in this one `.group('')` scope, and the
+  // public routes stay outside it. `.use()` applies to the whole instance it is
+  // called on regardless of declaration order, so a bare `.use(requireAuth)`
+  // here would also guard `current` below — which must answer 204 rather than
+  // 401 when signed out, since the client polls it to decide if it is signed
+  // in. `.group('')` is what contains the guard; ordering alone does not.
+  // Keep `/all` and `/others` ahead of `/:sessionId` so the literal paths win.
+  app.group('', (app) => {
+    // `.use()` mutates and returns the same instance, but only the returned
+    // reference carries the derived `user` / `session` types — bind it.
+    const guarded = app.use(requireAuth)
+
+    guarded.delete(
+      '/all',
+      async ({ user, cookie, set }) => {
+        await destroyAllSessions(user.id)
+        // Drop the current cookie too so the caller doesn't keep a stale
+        // session id locally after the DB rows are gone.
+        const sessionCookie = cookie['auth_session']
+        if (sessionCookie) {
+          sessionCookie.path = '/'
+          sessionCookie.remove()
+        }
+        set.status = 204
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          description:
+            'Sign out of every device. Destroys all session rows and rotates ' +
+            'every per-device wrap secret so any cached seed envelope on any ' +
+            'device is immediately unusable.',
+        },
+      },
+    )
+
+    guarded.delete(
+      '/others',
+      async ({ user, session, body, set }) => {
+        await destroyOtherSessions(user.id, session.id, body.deviceId)
+        set.status = 204
+      },
+      {
+        body: t.Object({
+          deviceId: t.String({
+            minLength: 8,
+            maxLength: 64,
+            pattern: '^[a-zA-Z0-9-]+$',
+          }),
+        }),
+        detail: {
+          tags: ['Auth'],
+          description:
+            "Sign out of every OTHER device. Keeps the caller's session " +
+            "and wrap secret intact; rotates every other device's wrap " +
+            'secret and deletes every other session row.',
+        },
+      },
+    )
+
+    guarded.get(
+      'current/permissions',
+      async ({ user }) => {
+        const [permissions, subscription, userRoles] = await Promise.all([
+          getPermissions(user.id),
+          billing.enabled
+            ? getSubscriptionStatus(user.id)
+            : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const },
+          getRoles(user.id),
+        ])
+        return { permissions, subscription, roles: userRoles.map((r) => r.id) }
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Get current session permissions',
+        },
+      },
+    )
+
+    guarded.get(
+      '/',
+      async ({ set, user }) => {
+        return await db
+          .select()
+          .from(sessions)
+          .where(eq(sessions.userId, user.id))
+          .orderBy(desc(sessions.createdAt))
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Get all sessions for current user',
+        },
+      },
+    )
+
+    guarded.delete(
+      '/:sessionId',
+      async ({ set, user, params: { sessionId } }) => {
+        if (!user) return (set.status = 401)
+        await db
+          .delete(sessions)
+          .where(and(eq(sessions.id, sessionId), eq(sessions.userId, user.id)))
+        return (set.status = 204)
+      },
+      {
+        detail: {
+          tags: ['Auth'],
+          summary: 'Delete a session',
+        },
+      },
+    )
+
+    return app
+  })
+
   app.use(getSession).get(
     'current',
     async ({ user, set, request }) => {
@@ -351,9 +622,14 @@ app.group('/sessions', (app) => {
       const sessionId = getSessionId(request)
       const me = (await db.select().from(users).where(eq(users.id, user.id)))[0]
 
+      const subscription = billing.enabled
+        ? await getSubscriptionStatus(user.id)
+        : { isPremium: true, isBasic: false, hasSubscription: false, tier: 'premium' as const }
+
       return {
         user: me,
         token: sessionId,
+        subscription,
       }
     },
     {
@@ -362,29 +638,6 @@ app.group('/sessions', (app) => {
       },
     },
   )
-
-  app.use(requireAuth).get('current/permissions', async ({ user }) => {
-    const permissions = await getPermissions(user.id)
-    return { permissions }
-  })
-
-  app.use(requireAuth).get('/', async ({ set, user }) => {
-    return await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.userId, user.id))
-      .orderBy(desc(sessions.createdAt))
-  })
-
-  app
-    .use(requireAuth)
-    .delete('/:sessionId', async ({ set, user, params: { sessionId } }) => {
-      if (!user) return (set.status = 401)
-      await db
-        .delete(sessions)
-        .where(and(eq(sessions.id, sessionId), eq(sessions.userId, user.id)))
-      return (set.status = 204)
-    })
 
   return app
 })

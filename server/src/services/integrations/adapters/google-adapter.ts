@@ -11,6 +11,7 @@ import {
   SOURCE,
 } from '../../../lib/constants'
 import { parseGoogleHours } from '../../../lib/hours.utils'
+import { logError } from '../../../lib/logger'
 
 // TODO: Move this type def
 export interface GooglePlaceDetails {
@@ -170,8 +171,7 @@ export class GoogleAdapter {
 
   placeInfo = {
     adaptPlaceDetails: (data: GooglePlaceDetails, id?: string): Place => {
-      console.log('data', data)
-      // Use the new ID format: source/providerId
+        // Use the new ID format: source/providerId
       const primaryId = id || `${SOURCE.GOOGLE}/${data.id}`
 
       // Generate Google Maps URL if not provided
@@ -186,7 +186,7 @@ export class GoogleAdapter {
           [SOURCE.GOOGLE]: data.id,
         },
         name: {
-          value: data.displayName?.text || 'Unnamed Place',
+          value: data.displayName?.text || null,
           sourceId: SOURCE.GOOGLE,
         },
         placeType: {
@@ -269,7 +269,7 @@ export class GoogleAdapter {
         })
       })
     } catch (error) {
-      console.error('Error processing Google photos:', error)
+      logError('Error processing Google photos', error)
     }
 
     return photos
@@ -384,7 +384,7 @@ export class GoogleAdapter {
         sourceId: SOURCE.GOOGLE,
       }
     } catch (error) {
-      console.error('Error processing Google opening hours:', error)
+      logError('Error processing Google opening hours', error)
       return null
     }
   }

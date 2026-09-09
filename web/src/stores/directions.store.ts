@@ -1,7 +1,127 @@
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
+import { RoutingPreferences, SelectedMode, SortPreference } from '@/types/multimodal.types'
+import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone.utils'
+
+// Rideshare has no working integration yet, so the mode is hidden everywhere it
+// could be picked. Flip this to true to bring it back.
+export const RIDESHARE_ENABLED = false
+
+// Modes a user can actually select. A stored value outside this list — a mode
+// since removed, or one currently hidden — falls back to 'multi' rather than
+// being sent to the API, which rejects unknown modes.
+export const SELECTABLE_MODES: readonly SelectedMode[] = [
+  'multi',
+  'walking',
+  'driving',
+  'biking',
+  'transit',
+  ...(RIDESHARE_ENABLED ? (['rideshare'] as const) : []),
+]
+
+// Mode-scoped preference storage
+export type ModeKey = 'walking' | 'biking' | 'driving' | 'transit'
+
+// Keys that are shared across all modes — everything else is per-mode
+const GENERAL_KEYS: ReadonlyArray<keyof RoutingPreferences> = [
+  'ferries',
+  'routingEngine',
+  'useKnownVehicleLocations',
+  'useKnownParkingLocations',
+  'customModelOverride',
+]
+
+const GENERAL_KEY_SET = new Set<string>(GENERAL_KEYS as unknown as string[])
+
+const defaultGeneralPreferences: Partial<RoutingPreferences> = {
+  ferries: 0.5,
+  useKnownVehicleLocations: true,
+  useKnownParkingLocations: true,
+}
+
+const defaultModePreferences: Record<ModeKey, Partial<RoutingPreferences>> = {
+  walking: {
+    hills: 0.5,
+    litPaths: 0,
+    walkingSpeed: undefined,
+  },
+  biking: {
+    hills: 0.5,
+    surfaceQuality: 0.25,
+    safetyVsSpeed: 0.5,
+    cyclingSpeed: undefined,
+    bicycleType: undefined,
+  },
+  driving: {
+    highways: 0.5,
+    tolls: 0.5,
+    preferHOV: false,
+    shortest: false,
+  },
+  transit: {
+    maxWalkingDistance: 1000,
+    maxTransfers: 3,
+    transitBufferMinutes: 2,
+    wheelchairAccessible: false,
+  },
+}
+
+function cloneDefaults() {
+  return {
+    general: { ...defaultGeneralPreferences },
+    mode: Object.fromEntries(
+      (Object.keys(defaultModePreferences) as ModeKey[]).map(k => [
+        k,
+        { ...defaultModePreferences[k] },
+      ]),
+    ) as Record<ModeKey, Partial<RoutingPreferences>>,
+  }
+}
+
+function loadPreferences(): {
+  general: Partial<RoutingPreferences>
+  mode: Record<ModeKey, Partial<RoutingPreferences>>
+} {
+  const defaults = cloneDefaults()
+  const stored = localStorage.getItem('routingPreferences')
+  if (!stored) return defaults
+
+  try {
+    const parsed = JSON.parse(stored)
+
+    // New structured format: { general, mode }
+    if (parsed && parsed.general && parsed.mode) {
+      const general = { ...defaults.general, ...parsed.general }
+      const mode = defaults.mode
+      for (const k of Object.keys(mode) as ModeKey[]) {
+        mode[k] = { ...mode[k], ...(parsed.mode[k] || {}) }
+      }
+      return { general, mode }
+    }
+
+    // Legacy flat format: migrate. General keys go to general; mode-specific
+    // keys get applied to every mode (best-effort — user will re-tune per mode).
+    if (parsed && typeof parsed === 'object') {
+      const general: Partial<RoutingPreferences> = { ...defaults.general }
+      const mode = defaults.mode
+      for (const [k, v] of Object.entries(parsed)) {
+        if (GENERAL_KEY_SET.has(k)) {
+          ;(general as any)[k] = v
+        } else {
+          for (const mk of Object.keys(mode) as ModeKey[]) {
+            ;(mode[mk] as any)[k] = v
+          }
+        }
+      }
+      return { general, mode }
+    }
+  } catch {
+    // fall through to defaults
+  }
+  return defaults
+}
 
 export const useDirectionsStore = defineStore('directions', () => {
   const directions = ref<null | Directions>(null)
@@ -14,9 +134,65 @@ export const useDirectionsStore = defineStore('directions', () => {
       lngLat: null,
     },
   ]) // List of locations to get directions for
-  const selectedMode = ref('pedestrian')
+
+  const loadSelectedMode = (): SelectedMode => {
+    const stored = localStorage.getItem('selectedMode') as SelectedMode | null
+    return stored && SELECTABLE_MODES.includes(stored) ? stored : 'multi'
+  }
+
+  const selectedMode = ref<SelectedMode>(loadSelectedMode())
+  const sortPreference = ref<SortPreference | null>(null)
+  const departureTime = ref<string | null>(null) // ISO 8601 or null for "now"
   const isLoading = ref(false)
   const selectedTripId = ref<string | null>(null) // Track which trip is currently shown on map
+
+  const loaded = loadPreferences()
+  const generalPreferences = ref<Partial<RoutingPreferences>>(loaded.general)
+  const modePreferences = ref<Record<ModeKey, Partial<RoutingPreferences>>>(
+    loaded.mode,
+  )
+
+  function modeKeyForSelected(m: SelectedMode): ModeKey {
+    // 'multi' has no single mode — use biking's slice as the representative
+    // request payload. Per-segment multi-mode prefs would need a backend change.
+    return m === 'multi' ? 'biking' : (m as ModeKey)
+  }
+
+  const timezoneWarning = computed<TimezoneWarning | null>(() => {
+    const destination = waypoints.value[waypoints.value.length - 1]
+    if (!destination?.place?.timezone) return null
+    const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return getTimezoneWarning(userTz, destination.place.timezone)
+  })
+
+  // Flat merged view for the backend wire format and existing consumers.
+  const routingPreferences = computed<RoutingPreferences>(() => {
+    const mk = modeKeyForSelected(selectedMode.value)
+    return {
+      ...generalPreferences.value,
+      ...(modePreferences.value[mk] || {}),
+    } as RoutingPreferences
+  })
+
+  // Persist split structure to localStorage
+  watch(
+    [generalPreferences, modePreferences],
+    () => {
+      localStorage.setItem(
+        'routingPreferences',
+        JSON.stringify({
+          general: generalPreferences.value,
+          mode: modePreferences.value,
+        }),
+      )
+    },
+    { deep: true },
+  )
+
+  // Watch and save selected mode to localStorage
+  watch(selectedMode, newVal => {
+    localStorage.setItem('selectedMode', newVal)
+  })
 
   function setDirections(directions_: Directions) {
     directions.value = directions_
@@ -66,13 +242,43 @@ export const useDirectionsStore = defineStore('directions', () => {
     isLoading.value = loading
   }
 
+  /**
+   * Set a single general preference (shared across all modes).
+   */
+  function setGeneralPreference<K extends keyof RoutingPreferences>(
+    key: K,
+    value: RoutingPreferences[K],
+  ) {
+    generalPreferences.value = { ...generalPreferences.value, [key]: value }
+  }
+
+  /**
+   * Set a single mode-scoped preference on the given mode.
+   */
+  function setModePreference<K extends keyof RoutingPreferences>(
+    mode: ModeKey,
+    key: K,
+    value: RoutingPreferences[K],
+  ) {
+    modePreferences.value = {
+      ...modePreferences.value,
+      [mode]: { ...modePreferences.value[mode], [key]: value },
+    }
+  }
+
   return {
     directions,
     trips,
     waypoints,
     selectedMode,
+    sortPreference,
+    departureTime,
     isLoading,
     selectedTripId,
+    timezoneWarning,
+    generalPreferences,
+    modePreferences,
+    routingPreferences,
     setDirections,
     setTrips,
     unsetDirections,
@@ -82,5 +288,10 @@ export const useDirectionsStore = defineStore('directions', () => {
     setWaypoints,
     removeWaypoint,
     setLoading,
+    setGeneralPreference,
+    setModePreference,
   }
 })
+
+// Re-export keys/set so components can share the classification
+export { GENERAL_KEYS, GENERAL_KEY_SET }

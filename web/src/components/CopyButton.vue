@@ -1,42 +1,45 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { CopyIcon, CheckIcon } from 'lucide-vue-next'
-import { TransitionFade } from '@morev/vue-transitions'
-import { useAppService } from '@/services/app.service'
+import { useClipboard } from '@/composables/useClipboard'
 
 const props = defineProps<{
   text: string
   message?: string
 }>()
 
-const { toast } = useAppService()
-const copied = ref(false)
-const copyTimeoutId = ref<NodeJS.Timeout>()
-
-async function copyToClipboard() {
-  if (copyTimeoutId.value) {
-    clearTimeout(copyTimeoutId.value)
-  }
-
-  await navigator.clipboard.writeText(props.text)
-  toast.info(props.message || 'Copied to clipboard')
-  copied.value = true
-
-  copyTimeoutId.value = setTimeout(() => {
-    copied.value = false
-  }, 1000)
-}
+const { copied, copy } = useClipboard()
 </script>
 
 <template>
   <button
-    @click="copyToClipboard"
-    class="p-1 hover:bg-muted rounded"
+    @click.stop="copy(props.text, props.message)"
+    class="p-1 hover:bg-muted rounded cursor-pointer"
     title="Copy"
   >
-    <TransitionFade mode="out-in" :duration="100">
-      <CheckIcon v-if="copied" class="w-4 h-4 text-green-600" key="check" />
-      <CopyIcon v-else class="w-4 h-4 text-muted-foreground" key="copy" />
-    </TransitionFade>
+    <span class="relative flex items-center justify-center w-4 h-4">
+      <Transition name="copy-swap">
+        <CheckIcon v-if="copied" class="absolute w-4 h-4 text-forest-600" key="check" />
+        <CopyIcon v-else class="absolute w-4 h-4 text-muted-foreground" key="copy" />
+      </Transition>
+    </span>
   </button>
 </template>
+
+<style scoped>
+.copy-swap-enter-active,
+.copy-swap-leave-active {
+  transition: all 0.15s ease;
+}
+
+.copy-swap-enter-from {
+  opacity: 0;
+  filter: blur(4px);
+  transform: scale(0.5);
+}
+
+.copy-swap-leave-to {
+  opacity: 0;
+  filter: blur(4px);
+  transform: scale(0.5);
+}
+</style>

@@ -3,10 +3,17 @@ import type {
   AttributedValue,
   Address,
   OpeningHours,
+  TransitStopInfo,
 } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
-import { getPlaceType } from '../../../lib/place.utils'
-import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
+import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
+import { matchTags } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
+import { parseOpeningHours } from '../../../lib/opening-hours'
+import { isPermanentlyClosedByOsmTags } from '../../../lib/osm-lifecycle'
+import { calculateOSMCenter } from '../../../util/geometry-conversion'
+import { extractTransitIdentifiers, isTransitStopType, createTransitInfo } from '../../../lib/transit-utils'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 
 // TODO: Move this type def to a shared types file
 export interface OverpassElement {
@@ -31,13 +38,24 @@ export interface OverpassElement {
 export class OverpassAdapter {
   // Capability-specific adapters
   placeInfo = {
-    adaptPlaceDetails: (data: OverpassElement, id?: string): Place => {
+    adaptPlaceDetails: (
+      data: OverpassElement,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
       // Use the new ID format: source/providerId
       const osmId = `${data.type}/${data.id}`
       const primaryId = id || `${SOURCE.OSM}/${osmId}`
 
       // Calculate center if not provided
-      const center = this.calculatePlaceCenter(data)
+      const center = calculateOSMCenter(data)
+
+      // Match tags to get preset and build icon.
+      // Ways and relations are area features — use 'area' geometry so presets like
+      // building/apartments are matched correctly instead of falling back to building_point.
+      const geometryHint = (data.type === 'way' || data.type === 'relation') ? 'area' : 'point'
+      const presetMatch = matchTags(data.tags || {}, geometryHint)
+      const icon = buildPlaceIcon(presetMatch)
 
       return {
         id: primaryId,
@@ -45,13 +63,14 @@ export class OverpassAdapter {
           [SOURCE.OSM]: osmId,
         },
         name: {
-          value: this.extractName(data.tags) || 'Unnamed Place',
+          value: getLocalizedName(data.tags, language, this.extractName(data.tags)) ?? null,
           sourceId: SOURCE.OSM,
         },
         placeType: {
-          value: getPlaceType(data.tags || {}) || 'unknown',
+          value: getPlaceType(data.tags || {}, language, geometryHint) || 'unknown',
           sourceId: SOURCE.OSM,
         },
+        icon,
         geometry: {
           value: {
             type: 'point' as const,
@@ -62,9 +81,10 @@ export class OverpassAdapter {
         photos: [], // OSM doesn't typically have photos
         address: this.extractOsmAddress(data.tags),
         contactInfo: this.extractContactInfo(data.tags),
-        openingHours: this.extractOpeningHours(data.tags),
+        openingHours: this.extractOpeningHours(data.tags, center),
         amenities: this.extractAmenities(data.tags),
         description: this.extractDescription(data.tags),
+        ...this.getTransitField(data),
         sources: [
           {
             id: SOURCE.OSM,
@@ -121,52 +141,6 @@ export class OverpassAdapter {
       value: description,
       sourceId: SOURCE.OSM,
     }
-  }
-
-  /**
-   * Calculate the center point of a place
-   * @param place OSM place object
-   * @returns Center coordinates or null if not determinable
-   */
-  private calculatePlaceCenter(
-    place: OverpassElement,
-  ): { lat: number; lng: number } | null {
-    // If the API provides a center, use it
-    if (place.center) {
-      return { lat: place.center.lat, lng: place.center.lon }
-    }
-
-    // For nodes, use their coordinates
-    if (place.type === 'node' && place.lat && place.lon) {
-      return { lat: place.lat, lng: place.lon }
-    }
-
-    // For ways and relations with geometry, calculate centroid
-    if (place.geometry && place.geometry.length > 0) {
-      let sumLat = 0
-      let sumLon = 0
-      const nodes = place.geometry
-
-      for (const node of nodes) {
-        sumLat += node.lat
-        sumLon += node.lon
-      }
-
-      return {
-        lat: sumLat / nodes.length,
-        lng: sumLon / nodes.length,
-      }
-    }
-
-    // For ways and relations with bounds but no geometry, use bounds center
-    if (place.bounds) {
-      return {
-        lat: (place.bounds.minlat + place.bounds.maxlat) / 2,
-        lng: (place.bounds.minlon + place.bounds.maxlon) / 2,
-      }
-    }
-
-    return null
   }
 
   /**
@@ -311,18 +285,35 @@ export class OverpassAdapter {
    */
   private extractOpeningHours(
     tags?: Record<string, string>,
+    center?: { lat: number; lng: number } | null,
   ): AttributedValue<OpeningHours> | null {
-    if (!tags || !tags.opening_hours) return null
+    if (!tags) return null
+
+    const isPermanentlyClosed = isPermanentlyClosedByOsmTags(tags)
+
+    // A closed place is worth reporting even with no hours to show — otherwise
+    // the place page stays silent instead of saying the place is gone.
+    if (!tags.opening_hours && !isPermanentlyClosed) return null
 
     const openingHours = tags.opening_hours
-    const isOpen24_7 = openingHours.includes('24/7')
+
+    // Hours left over from when the place was alive would read as "Open now",
+    // so a permanently closed place reports the status and nothing else.
+    const parsed = isPermanentlyClosed
+      ? null
+      : parseOpeningHours(openingHours, {
+          lat: center?.lat,
+          lng: center?.lng,
+          countryCode: tags['addr:country'],
+          region: tags['addr:state'],
+        })
 
     return {
       value: {
-        regularHours: parseOpeningHoursForUnifiedFormat(openingHours) || [],
-        isOpen24_7,
-        isPermanentlyClosed: tags.disused === 'yes' || tags.abandoned === 'yes',
-        isTemporarilyClosed: tags.opening_hours === 'closed',
+        regularHours: parsed?.regularHours ?? [],
+        isOpen24_7: parsed?.isOpen24_7 ?? false,
+        isPermanentlyClosed,
+        isTemporarilyClosed: !isPermanentlyClosed && openingHours === 'closed',
         rawText: openingHours,
       },
       sourceId: SOURCE.OSM,
@@ -356,19 +347,30 @@ export class OverpassAdapter {
     // Common amenity flags in OSM
     const amenityFlags = [
       'wheelchair',
-      'toilets',
+      'toilets', 'toilets:wheelchair', 'toilets:access',
       'wifi',
-      'internet_access',
-      'outdoor_seating',
+      'internet_access', 'internet_access:ssid', 'internet_access:fee', 'internet_access:password',
+      'outdoor_seating', 'indoor_seating',
       'smoking',
       'takeaway',
       'delivery',
       'drive_through',
       'reservation',
       'air_conditioning',
-      'payment:credit_cards',
-      'payment:debit_cards',
-      'payment:cash',
+      'heated',
+      'payment:credit_cards', 'payment:debit_cards', 'payment:cash',
+      'payment:contactless', 'payment:apple_pay', 'payment:google_pay',
+      'cuisine',
+      'diet:vegan', 'diet:vegetarian', 'diet:halal', 'diet:kosher', 'diet:gluten_free',
+      'diet:lactose_free', 'diet:pescetarian', 'diet:dairy_free',
+      'dog', 'pets_allowed',
+      'kids_area', 'highchair',
+      'changing_table',
+      'lgbtq',
+      'self_service', 'automated',
+      'live_music', 'cocktails', 'bar', 'breakfast',
+      'microbrewery',
+      'bulk_purchase', 'second_hand',
     ]
 
     for (const flag of amenityFlags) {
@@ -382,5 +384,29 @@ export class OverpassAdapter {
     }
 
     return amenities
+  }
+
+  /**
+   * Get transit field for Place object (only includes if there's meaningful transit data)
+   */
+  private getTransitField(data: OverpassElement): { transit: AttributedValue<TransitStopInfo> } | {} {
+    const transitInfo = this.extractTransitInfo(data)
+    // Only include transit field if we have an onestop ID or other meaningful identifiers
+    if (transitInfo && (transitInfo.value.onestopId || transitInfo.value.code)) {
+      return { transit: transitInfo }
+    }
+    return {}
+  }
+
+  /**
+   * Extract transit information from OSM tags
+   */
+  private extractTransitInfo(data: OverpassElement): AttributedValue<TransitStopInfo> | null {
+    const tags = data.tags || {}
+    return createTransitInfo(
+      tags,
+      this.extractName(tags),
+      tags.description
+    )
   }
 }

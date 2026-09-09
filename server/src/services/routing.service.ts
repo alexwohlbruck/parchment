@@ -7,20 +7,22 @@ import {
   TravelMode,
   WaypointType,
   RouteWaypoint,
+  RoutingPreferences,
 } from '../types/unified-routing.types'
+import { logError, logWarn } from '../lib/logger'
 
 export class RoutingService {
   /**
    * Get a route between multiple locations
    * @param locations Array of locations to route between
    * @param costing Routing costing model (auto, bicycle, pedestrian, etc.)
-   * @param options Additional routing options
+   * @param preferences Routing preferences (avoid highways, tolls, etc.)
    * @returns Unified route response
    */
   async getRoute(
     locations: Location[],
     costing: string = 'auto',
-    options?: any,
+    preferences?: RoutingPreferences & { routingEngine?: string; language?: import('../lib/i18n').Language },
   ): Promise<UnifiedRoute> {
     // Get configured routing integrations
     const routingIntegrations =
@@ -29,11 +31,25 @@ export class RoutingService {
       )
 
     if (routingIntegrations.length === 0) {
+      // TODO: Return useful error to client (Do this for all integration-based endpoints)
       throw new Error('No routing integrations configured')
     }
 
-    // Use the first available routing integration
-    const routingIntegrationRecord = routingIntegrations[0]
+    // Use preferred routing engine if specified, otherwise use the first available
+    let routingIntegrationRecord = routingIntegrations[0]
+    if (preferences?.routingEngine) {
+      const preferredIntegration = routingIntegrations.find(
+        (integration) =>
+          integration.integrationId === preferences.routingEngine,
+      )
+      if (preferredIntegration) {
+        routingIntegrationRecord = preferredIntegration
+      } else {
+        logWarn(
+          `Preferred routing engine ${preferences.routingEngine} not found, using default`,
+        )
+      }
+    }
 
     // Get the cached integration instance
     const integrationInstance = integrationManager.getCachedIntegrationInstance(
@@ -62,29 +78,59 @@ export class RoutingService {
     // Convert costing to travel mode
     const mode = this.mapCostingToTravelMode(costing)
 
-    // Build unified route request
     const request: RouteRequest = {
       waypoints,
       mode,
       includeInstructions: true,
       includeGeometry: true,
-      preferences: {
-        optimize: 'time',
-        ...options,
-      },
+      language: (preferences as { language?: import('../lib/i18n').Language })
+        ?.language,
+      preferences: preferences
+        ? {
+            optimize: preferences.shortest ? 'distance' : 'time',
+
+            // Range preferences — pass through directly (0-1 floats)
+            highways: preferences.highways,
+            tolls: preferences.tolls,
+            ferries: preferences.ferries,
+            hills: preferences.hills,
+            surfaceQuality: preferences.surfaceQuality,
+            litPaths: preferences.litPaths,
+            safetyVsSpeed: preferences.safetyVsSpeed,
+
+            // Boolean preferences
+            shortest: preferences.shortest,
+            preferHOV: preferences.preferHOV,
+            wheelchairAccessible: preferences.wheelchairAccessible,
+
+            // Numeric/enum preferences
+            cyclingSpeed: preferences.cyclingSpeed,
+            walkingSpeed: preferences.walkingSpeed,
+            bicycleType: preferences.bicycleType,
+
+            // Transit
+            maxWalkDistance: preferences.maxWalkingDistance,
+            maxTransfers: preferences.maxTransfers,
+
+            // Legacy boolean fallback (for old clients)
+            avoidTolls: preferences.avoidTolls,
+            avoidHighways: preferences.avoidHighways,
+            avoidFerries: preferences.avoidFerries,
+            avoidUnpaved: preferences.preferPavedPaths ? true : undefined,
+          }
+        : {
+            optimize: 'time',
+          },
     }
 
-    console.log('Routing waypoints:', waypoints)
-
     try {
-      const result = await integrationInstance.capabilities.routing.getRoute(
-        request,
-      )
+      const result =
+        await integrationInstance.capabilities.routing.getRoute(request)
 
       // The result is now already in unified format
       return result
     } catch (error) {
-      console.error('Routing integration error:', error)
+      logError('Routing integration error', error)
       throw new Error(
         `Failed to get route: ${
           error instanceof Error ? error.message : 'Unknown error'
@@ -93,6 +139,7 @@ export class RoutingService {
     }
   }
 
+  // TODO: Deprecate this map
   /**
    * Map legacy costing parameter to unified travel mode
    */

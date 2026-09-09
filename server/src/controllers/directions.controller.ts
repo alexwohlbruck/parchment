@@ -1,11 +1,19 @@
 import { Elysia, t } from 'elysia'
+import { randomBytes } from 'node:crypto'
+import { eq } from 'drizzle-orm'
+import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
+import { db } from '../db'
+import { plannedTrips } from '../schema/planned-trips.schema'
 import { multimodalTripService } from '../services/trip.service'
 import {
   TripRequest,
+  SelectedMode,
   VehicleType,
   WaypointType,
   EnergyType,
 } from '../types/trip.types'
+import { logError } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
 // Validation schemas for multimodal trip planning
 const CoordinateSchema = t.Object({
@@ -22,6 +30,10 @@ const WaypointSchema = t.Object({
     t.Literal('destination'),
     t.Literal('via'),
   ]),
+  // Per-waypoint time constraints
+  departAfter: t.Optional(t.String({ format: 'date-time' })),
+  arriveBy: t.Optional(t.String({ format: 'date-time' })),
+  dwellTime: t.Optional(t.Number({ minimum: 0 })),
 })
 
 const VehicleSchema = t.Object({
@@ -32,7 +44,6 @@ const VehicleSchema = t.Object({
     t.Literal('scooter'),
     t.Literal('e-bike'),
     t.Literal('e-scooter'),
-    t.Literal('wheelchair'),
     t.Literal('moped'),
     t.Literal('truck'),
   ]),
@@ -56,21 +67,72 @@ const AccessPointSchema = t.Object({
 })
 
 const RoutingPreferencesSchema = t.Object({
-  avoidHighways: t.Optional(t.Boolean()),
-  avoidTolls: t.Optional(t.Boolean()),
+  // Range preferences (0-1 floats, 5-stop sliders)
+  highways: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  tolls: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  ferries: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  hills: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  surfaceQuality: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  litPaths: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  safetyVsSpeed: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+
+  // Boolean preferences
+  shortest: t.Optional(t.Boolean()),
   preferHOV: t.Optional(t.Boolean()),
-  avoidFerries: t.Optional(t.Boolean()),
-  preferLitPaths: t.Optional(t.Boolean()),
-  preferPavedPaths: t.Optional(t.Boolean()),
-  avoidHills: t.Optional(t.Boolean()),
-  safetyVsEfficiency: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
+  wheelchairAccessible: t.Optional(t.Boolean()),
+
+  // Numeric/enum preferences
+  cyclingSpeed: t.Optional(t.Number({ minimum: 1, maximum: 60 })),
+  walkingSpeed: t.Optional(t.Number({ minimum: 0.5, maximum: 25 })),
+  bicycleType: t.Optional(t.String()),
+
+  // Transit
   maxWalkingDistance: t.Optional(t.Number({ minimum: 0 })),
   maxTransfers: t.Optional(t.Number({ minimum: 0 })),
-  wheelchairAccessible: t.Optional(t.Boolean()),
+  transitBufferMinutes: t.Optional(t.Number({ minimum: 0, maximum: 5 })),
+
+  // UI state
+  useKnownVehicleLocations: t.Optional(t.Boolean()),
+  useKnownParkingLocations: t.Optional(t.Boolean()),
+  includePrivateParking: t.Optional(t.Boolean()),
+  routingEngine: t.Optional(t.String()),
+
+  // Advanced: raw custom_model JSON override
+  customModelOverride: t.Optional(t.String()),
+
+  // Legacy boolean fields (backward compat)
+  avoidHighways: t.Optional(t.Boolean()),
+  avoidTolls: t.Optional(t.Boolean()),
+  avoidFerries: t.Optional(t.Boolean()),
+  avoidHills: t.Optional(t.Boolean()),
+  preferLitPaths: t.Optional(t.Boolean()),
+  preferPavedPaths: t.Optional(t.Boolean()),
+  safetyVsEfficiency: t.Optional(t.Number({ minimum: 0, maximum: 1 })),
 })
+
+// Schema for SelectedMode type
+const SelectedModeSchema = t.Union([
+  t.Literal('multi'),
+  t.Literal('walking'),
+  t.Literal('driving'),
+  t.Literal('biking'),
+  t.Literal('transit'),
+  t.Literal('rideshare'),
+] as const)
+
+const SortPreferenceSchema = t.Union([
+  t.Literal('shortest'),
+  t.Literal('earliest_arrival'),
+  t.Literal('cheapest'),
+  t.Literal('fewest_transfers'),
+  t.Literal('least_walking'),
+  t.Literal('greenest'),
+] as const)
 
 const TripRequestSchema = t.Object({
   waypoints: t.Array(WaypointSchema, { minItems: 2 }),
+  selectedMode: t.Optional(SelectedModeSchema),
+  sortPreference: t.Optional(SortPreferenceSchema),
   routingPreferences: t.Optional(RoutingPreferencesSchema),
   availableVehicles: t.Optional(t.Array(VehicleSchema)),
   knownAccessPoints: t.Optional(t.Array(AccessPointSchema)),
@@ -80,7 +142,7 @@ const TripRequestSchema = t.Object({
   timestamp: t.Optional(t.String()),
 })
 
-const app = new Elysia({ prefix: '/directions' })
+const app = new Elysia({ prefix: '/directions' }).use(i18nPlugin)
 
 /**
  * Plan a multimodal trip (replaces original directions endpoint)
@@ -88,10 +150,11 @@ const app = new Elysia({ prefix: '/directions' })
  */
 app.post(
   '/',
-  async ({ body }) => {
+  async (ctx) => {
+    const { body, language } = ctx
     try {
-      // Convert the validated body to our internal TripRequest type
       const request: TripRequest = {
+        language,
         waypoints: body.waypoints.map((wp, index) => ({
           location: {
             lat: wp.location.lat,
@@ -100,7 +163,12 @@ app.post(
           address: wp.address,
           label: wp.label,
           type: wp.type as WaypointType,
+          departAfter: wp.departAfter,
+          arriveBy: wp.arriveBy,
+          dwellTime: wp.dwellTime,
         })),
+        selectedMode: body.selectedMode,
+        sortPreference: body.sortPreference as any,
         routingPreferences: body.routingPreferences,
         availableVehicles: body.availableVehicles?.map((vehicle) => ({
           id: vehicle.id,
@@ -138,7 +206,7 @@ app.post(
 
       return result
     } catch (error) {
-      console.error('Multimodal trip planning error:', error)
+      logError('Multimodal trip planning error', error)
       throw new Error(
         `Failed to plan trip: ${
           error instanceof Error ? error.message : 'Unknown error'
@@ -194,12 +262,6 @@ app.get(
           type: 'e-scooter',
           name: 'Electric Scooter',
           description: 'Electric scooter',
-          supportedEnergyTypes: ['electric'],
-        },
-        {
-          type: 'wheelchair',
-          name: 'Wheelchair',
-          description: 'Mobility device',
           supportedEnergyTypes: ['electric'],
         },
         {
@@ -297,10 +359,10 @@ app.post(
       if (body.routingPreferences) {
         const prefs = body.routingPreferences
         if (
-          prefs.safetyVsEfficiency !== undefined &&
-          (prefs.safetyVsEfficiency < 0 || prefs.safetyVsEfficiency > 1)
+          prefs.safetyVsSpeed !== undefined &&
+          (prefs.safetyVsSpeed < 0 || prefs.safetyVsSpeed > 1)
         ) {
-          errors.push('safetyVsEfficiency must be between 0 and 1')
+          errors.push('safetyVsSpeed must be between 0 and 1')
         }
 
         if (
@@ -354,7 +416,6 @@ app.get(
           'biking',
           'transit',
           'rideshare',
-          'wheelchair',
           'paratransit',
           'mixed',
         ],
@@ -364,7 +425,6 @@ app.get(
           'scooter',
           'e-bike',
           'e-scooter',
-          'wheelchair',
           'moped',
           'truck',
         ],
@@ -385,7 +445,6 @@ app.get(
         },
       },
       integrations: {
-        routingEngines: ['valhalla'], // TODO: Add other engines as they're configured
         transitData: [], // TODO: Add GTFS feeds
         rideshareProviders: [], // TODO: Add rideshare integrations
       },
@@ -397,6 +456,87 @@ app.get(
       summary: 'Get service status and capabilities',
       description:
         'Get the current status and capabilities of the trip planning service',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
+// ── Persisted trip snapshots ─────────────────────────────────────────
+// A planned trip the user opened is saved as a snapshot addressed by a
+// random capability token (the `pt` query param in trip URLs). Schedules
+// and vehicle availability drift, so re-planning can't faithfully recreate
+// a past trip — the snapshot makes refresh and cross-device shares
+// deterministic. Unauthenticated by design: the unguessable token is the
+// access control, like an unlisted link. Rows expire after 30 days.
+
+const PLANNED_TRIP_TTL_MS = 30 * 24 * 3600 * 1000
+const PLANNED_TRIP_MAX_BYTES = 1_500_000
+
+app.post(
+  '/trips',
+  async ({ body, set, t }) => {
+    if (JSON.stringify(body).length > PLANNED_TRIP_MAX_BYTES) {
+      set.status = 413
+      return { error: t('errors.trip.snapshotTooLarge') }
+    }
+    const id = randomBytes(8).toString('hex')
+    const expiresAt = new Date(Date.now() + PLANNED_TRIP_TTL_MS)
+    await db.insert(plannedTrips).values({
+      id,
+      request: body.request,
+      trip: body.trip,
+      expiresAt,
+    })
+    return { id, expiresAt: expiresAt.toISOString() }
+  },
+  {
+    body: t.Object({
+      request: t.Any(),
+      trip: t.Any(),
+    }),
+    detail: {
+      summary: 'Persist a planned trip snapshot',
+      description:
+        'Saves the chosen trip and its planning inputs under a random ' +
+        'capability token so trip URLs survive refresh and can be shared ' +
+        'across devices. Snapshots expire after 30 days.',
+      tags: ['Trip Planning'],
+    },
+  },
+)
+
+app.get(
+  '/trips/:id',
+  async ({ params, set, t }) => {
+    const rows = await db
+      .select()
+      .from(plannedTrips)
+      .where(eq(plannedTrips.id, params.id))
+      .limit(1)
+    const row = rows[0]
+    if (!row) {
+      set.status = 404
+      return { error: t('errors.trip.snapshotNotFound') }
+    }
+    if (row.expiresAt.getTime() < Date.now()) {
+      await db.delete(plannedTrips).where(eq(plannedTrips.id, params.id))
+      set.status = 404
+      return { error: t('errors.trip.snapshotExpired') }
+    }
+    return {
+      id: row.id,
+      request: row.request,
+      trip: row.trip,
+      createdAt: row.createdAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
+    }
+  },
+  {
+    detail: {
+      summary: 'Fetch a persisted trip snapshot',
+      description:
+        'Returns the trip and planning inputs saved under this token, or ' +
+        '404 when unknown or expired.',
       tags: ['Trip Planning'],
     },
   },

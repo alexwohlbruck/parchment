@@ -1,4 +1,4 @@
-CREATE TABLE "integrations" (
+CREATE TABLE IF NOT EXISTS "integrations" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"integration_id" text NOT NULL,

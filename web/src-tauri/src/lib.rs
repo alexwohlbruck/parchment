@@ -1,8 +1,30 @@
+use tauri::Manager;
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod keychain;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder.plugin(tauri_plugin_process::init());
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let builder = builder.plugin(tauri_plugin_haptics::init());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        keychain::keychain_set,
+        keychain::keychain_get,
+        keychain::keychain_delete,
+    ]);
+
+    builder
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_geolocation::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -11,6 +33,36 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Apply window vibrancy effects
+            #[cfg(target_os = "macos")]
+            {
+                use window_vibrancy::{
+                    apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState,
+                };
+                if let Some(window) = app.get_webview_window("main") {
+                    apply_vibrancy(
+                        &window,
+                        NSVisualEffectMaterial::Sidebar,
+                        Some(NSVisualEffectState::Active),
+                        Some(10.0),
+                    )
+                    .unwrap_or_else(|e| {
+                        log::warn!("Failed to apply vibrancy: {}", e);
+                    });
+                }
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                use window_vibrancy::apply_blur;
+                if let Some(window) = app.get_webview_window("main") {
+                    apply_blur(&window, Some((18, 18, 18, 125))).unwrap_or_else(|e| {
+                        log::warn!("Failed to apply blur: {}", e);
+                    });
+                }
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -6,6 +6,7 @@ import {
   Integration,
   MapEngineCapability,
 } from '../../types/integration.types'
+import { logError } from '../../lib/logger'
 
 export interface MapboxConfig extends IntegrationConfig {
   accessToken: string
@@ -98,7 +99,7 @@ export class MapboxIntegration implements Integration<MapboxConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Mapbox API:', error)
+      logError('Error testing Mapbox API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Mapbox API',

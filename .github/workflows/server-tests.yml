@@ -1,0 +1,70 @@
+name: Server Tests
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      # NOTE: `bun run typecheck` is not gated here yet — the server has ~240
+      # pre-existing type errors that need clearing first (see PAR-204 notes).
+
+      # No database needed: unit tests mock the db module, and the auth guards
+      # reject unauthenticated requests before touching Postgres.
+      - name: Run unit tests
+        working-directory: server
+        run: bun run test:unit
+
+  database:
+    name: DB-backed tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: kartoza/postgis:latest
+        env:
+          POSTGRES_DB: parchment_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d parchment_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # Set so scripts/test-db.sh skips `docker compose up` and only waits for
+      # and migrates the service container above.
+      TEST_DATABASE_URL: postgresql://test_user:test_password@localhost:5433/parchment_test
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install server dependencies
+        working-directory: server
+        run: bun install --frozen-lockfile
+
+      - name: Run DB-backed tests
+        working-directory: server
+        run: bun run test:db

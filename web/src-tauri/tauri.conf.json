@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "parchment",
-  "version": "0.0.3",
+  "productName": "Parchment",
+  "version": "0.11.4",
   "identifier": "app.parchment",
   "build": {
     "frontendDist": "../dist",
@@ -13,19 +13,39 @@
     "windows": [
       {
         "title": "Parchment",
-        "width": 800,
-        "height": 600,
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 5,
+          "y": 12
+        },
+        "transparent": true
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/alexwohlbruck/parchment/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDNzRFQUM0NjYzNjlERUIKUldUcm5UWm14T3AwM05PazRXMWJIWmVkcnFsVUd2TGlic0lVSEZwWTR1T1FWZ3hLdGtLbmQ2N2IK"
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -33,11 +53,20 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.13",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": "Entitlements.plist"
+    },
     "iOS": {
-      "developmentTeam": "app.parchment"
+      "developmentTeam": "QPNGAD5BD2",
+      "minimumSystemVersion": "16.0"
     },
     "android": {
-      "versionCode": 2
+      "versionCode": 11040
     }
   }
 }

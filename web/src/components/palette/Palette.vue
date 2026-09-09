@@ -39,8 +39,8 @@ import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
-import { useSettingsIndex } from '@/composables/useSettingsIndex'
-import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
+import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
+import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 import { Spinner } from '@/components/ui/spinner'
 
 const emit = defineEmits<{

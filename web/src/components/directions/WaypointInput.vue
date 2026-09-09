@@ -26,7 +26,7 @@ import {
 import { Place } from '@/types/place.types'
 import { AutocompleteResult } from '@/types/search.types'
 import { useSearchService } from '@/services/search.service'
-import { useMapCamera } from '@/composables/useMapCamera'
+import { useMapCamera } from '@/composables/map/useMapCamera'
 import { useAbortController } from '@/composables/useAbortController'
 import { cn, useResponsive } from '@/lib/utils'
 import { useDebounceFn } from '@vueuse/core'

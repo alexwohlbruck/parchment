@@ -37,7 +37,7 @@ import {
   simulatorStore,
   type SimulatorState,
 } from '@/dev/gpx-simulator'
-import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast'
+import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
 import { useUserService } from '@/services/user.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'

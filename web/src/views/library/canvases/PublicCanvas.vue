@@ -10,7 +10,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useCanvasesService } from '@/services/library/canvases.service'
-import { useCanvasRendering } from '@/composables/useCanvasRendering'
+import { useCanvasRendering } from '@/composables/canvas/useCanvasRendering'
 import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 import CanvasLayerRow from '@/components/library/canvas/CanvasLayerRow.vue'
 import { ItemIcon } from '@/components/ui/item-icon'

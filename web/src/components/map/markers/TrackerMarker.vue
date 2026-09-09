@@ -22,7 +22,7 @@ import { formatTimeAgo } from '@/lib/time.utils'
 import { getVehicleIcon } from '@/lib/directions/travel-mode-icons'
 import { MARKER_LIVE_PLATE_SIZE } from '@/lib/map-marker'
 import { categoryMarkerPaint } from '@/lib/place/place-colors'
-import { useAccentMarkerPaint } from '@/composables/useAccentMarkerPaint'
+import { useAccentMarkerPaint } from '@/composables/map/useAccentMarkerPaint'
 import { useThemeStore } from '@/stores/theme.store'
 
 interface Props {

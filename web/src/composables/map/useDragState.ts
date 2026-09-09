@@ -55,7 +55,7 @@ export function useDragState() {
  *
  * Example usage in a Vue component:
  * ```typescript
- * import { useDragRegistration } from '@/composables/useDragState'
+ * import { useDragRegistration } from '@/composables/map/useDragState'
  * import { onUnmounted } from 'vue'
  *
  * const { isDragging, startDrag, endDrag, cleanup } = useDragRegistration('my-component')

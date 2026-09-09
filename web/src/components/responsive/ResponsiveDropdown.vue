@@ -7,7 +7,7 @@ import {
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayPositionProps,
   type ResponsiveOverlayTitleProps,
-} from '@/composables/useResponsiveOverlay'
+} from '@/composables/sheet/useResponsiveOverlay'
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'

@@ -13,7 +13,7 @@
 
 import { createSharedComposable } from '@vueuse/core'
 import type { FeatureCollection } from 'geojson'
-import { useFriendLocations } from '@/composables/useFriendLocations'
+import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import { useFriendsStore } from '@/stores/friends.store'
 import { themeColorToHex, type ThemeColor } from '@/lib/utils'
 

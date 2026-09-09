@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ResponsiveDialog from '@/components/responsive/ResponsiveDialog.vue'
-import { useMapCamera } from '@/composables/useMapCamera'
+import { useMapCamera } from '@/composables/map/useMapCamera'
 import {
   siGithub,
   siX,

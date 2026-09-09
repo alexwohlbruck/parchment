@@ -52,7 +52,7 @@ import { CommandDialog } from '@/components/ui/command'
 import { useCommandService } from '@/services/command.service'
 import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue'
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
-import { useFeedback } from '@/composables/useFeedback'
+import { useFeedback } from '@/composables/integrations/useFeedback'
 
 const router = useRouter()
 const route = useRoute()

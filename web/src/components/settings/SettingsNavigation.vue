@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input'
 import { useI18n } from 'vue-i18n'
 
 import { SearchIcon, XIcon, CornerDownLeftIcon } from 'lucide-vue-next'
-import { useSettingsIndex } from '@/composables/useSettingsIndex'
-import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
+import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
+import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 import { getThemeColorGhostClasses } from '@/lib/utils'
 
 const route = useRoute()

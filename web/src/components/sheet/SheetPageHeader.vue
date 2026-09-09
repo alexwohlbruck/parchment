@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeftIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
-import { useSheetPage } from '@/composables/useSheetPage'
+import { useSheetPage } from '@/composables/sheet/useSheetPage'
 
 defineProps<{
   title: string

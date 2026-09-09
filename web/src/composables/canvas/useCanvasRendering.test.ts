@@ -21,7 +21,7 @@ import type {
  * backwards is silent in types and loud at runtime.
  */
 
-vi.mock('@/composables/useFriendLocationFeatures', () => ({
+vi.mock('@/composables/friends/useFriendLocationFeatures', () => ({
   useFriendLocationFeatures: () => ({
     peopleFeatures: () => ({ type: 'FeatureCollection', features: [] }),
     displayName: (handle: string) => handle,

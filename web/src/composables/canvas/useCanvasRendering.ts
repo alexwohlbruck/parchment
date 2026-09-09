@@ -63,7 +63,7 @@ import type {
 } from '@/types/canvas.types'
 import { presetLayers } from '@/lib/canvas/data-presets'
 import { useRoutesStore } from '@/stores/library/routes.store'
-import { useFriendLocationFeatures } from '@/composables/useFriendLocationFeatures'
+import { useFriendLocationFeatures } from '@/composables/friends/useFriendLocationFeatures'
 import { themeColorToHex } from '@/lib/utils'
 import { useThemeStore } from '@/stores/theme.store'
 import { MapEngine } from '@/types/map.types'

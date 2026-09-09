@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, nextTick } from 'vue'
-import { provideSheetPage } from '@/composables/useSheetPage'
+import { provideSheetPage } from '@/composables/sheet/useSheetPage'
 import { findScrollAncestor } from '@/lib/scroll'
 
 // Stack lifecycle and route reconciliation (path-change clears, view-query

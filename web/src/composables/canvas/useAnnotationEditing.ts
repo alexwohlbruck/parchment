@@ -14,14 +14,14 @@
 
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type { Position } from 'geojson'
-import { useDrawingSurface } from '@/composables/useDrawingSurface'
+import { useDrawingSurface } from '@/composables/canvas/useDrawingSurface'
 import { snapWaypointsToPath } from '@/lib/directions/route-snapping'
 import { SUPERSEDED, useLatestRequest } from '@/composables/useLatestRequest'
 import { fetchIsochroneBands } from '@/lib/directions/isochrone-request'
 import { contourDurations } from '@/lib/directions/isochrone.utils'
 import type { IsochroneMode } from '@server/types/isochrone.types'
 import type { CanvasAnnotation } from '@/types/canvas.types'
-import type { OverlayHandle, OverlayScene } from '@/composables/useDrawOverlay'
+import type { OverlayHandle, OverlayScene } from '@/composables/canvas/useDrawOverlay'
 import {
   distancePx,
   INSERT_THRESHOLD_PX,

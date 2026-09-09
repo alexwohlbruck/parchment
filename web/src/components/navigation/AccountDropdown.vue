@@ -49,7 +49,7 @@ import {
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import AboutDialog from '@/components/dialogs/AboutDialog.vue'
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
-import { useFeedback } from '@/composables/useFeedback'
+import { useFeedback } from '@/composables/integrations/useFeedback'
 
 const props = defineProps<{
   mini?: boolean

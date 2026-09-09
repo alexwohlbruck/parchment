@@ -273,31 +273,43 @@ function mapService() {
    * All listeners registered here must also be removed by unbindMapEvents()
    * in destroy(), otherwise we'll accumulate duplicates across engine swaps.
    */
+  // mitt's off(type) with no handler drops every listener for that type,
+  // including other modules'. Track ours so we can remove exactly those.
+  const mapEventUnbinders: (() => void)[] = []
+
+  function bindMapEvent<K extends keyof MapEvents>(
+    event: K,
+    handler: (data: MapEvents[K]) => void,
+  ) {
+    mapEventBus.on(event, handler)
+    mapEventUnbinders.push(() => mapEventBus.off(event, handler))
+  }
+
   function bindMapEvents() {
-    mapEventBus.on('load', async () => {
+    bindMapEvent('load', async () => {
       onMapLoad()
     })
 
-    mapEventBus.on('style.load', async () => {
+    bindMapEvent('style.load', async () => {
       onStyleLoad()
     })
 
-    mapEventBus.on('move', data => {
+    bindMapEvent('move', data => {
       mapStore.emit('move', data)
     })
 
-    mapEventBus.on('moveend', data => {
+    bindMapEvent('moveend', data => {
       mapStore.setMapCamera(data)
     })
 
     // When the user finishes a manual rotation, snap to north and/or the local
     // city's street grid, per the snap settings.
-    mapEventBus.on('rotateend', () => {
+    bindMapEvent('rotateend', () => {
       snapRotation()
     })
 
     // Track rotation/pitch state for conditional control visibility
-    mapEventBus.on('move', data => {
+    bindMapEvent('move', data => {
       const { bearing, pitch } = data
       const wasRotatedOrPitched = isRotatedOrPitched.value
       isRotatedOrPitched.value =
@@ -324,7 +336,7 @@ function mapService() {
     // re-run it. Only on the crossing: `setPadding` rebuilds every matrix, and
     // `move` fires continuously through a gesture.
     wasGlobeRendering = null
-    mapEventBus.on('move', () => {
+    bindMapEvent('move', () => {
       const sphere = mapStrategy?.isSphereVisible() ?? false
       if (sphere === wasGlobeRendering) return
       wasGlobeRendering = sphere
@@ -333,7 +345,7 @@ function mapService() {
 
     // Track zoom state for conditional control visibility
     previousZoom = null
-    mapEventBus.on('move', data => {
+    bindMapEvent('move', data => {
       const { zoom } = data
       if (previousZoom !== null && Math.abs(zoom - previousZoom) > 0.01) {
         isCurrentlyZooming.value = true
@@ -345,7 +357,7 @@ function mapService() {
       previousZoom = zoom
     })
 
-    mapEventBus.on('click:mapillary-image', ({ lngLat, image }) => {
+    bindMapEvent('click:mapillary-image', ({ lngLat, image }) => {
       if (image) {
         mapStrategy.flyTo({
           center: lngLat,
@@ -367,7 +379,7 @@ function mapService() {
     })
 
     // Warm details while a touch action waits through the double-tap window.
-    mapEventBus.on('poi:preview', async ({ poi }) => {
+    bindMapEvent('poi:preview', async ({ poi }) => {
       const { usePlaceService } = await import('@/services/place.service')
       void usePlaceService().prefetchPlaceDetails(
         `${poi.poiType}/${poi.osmId}`,
@@ -375,7 +387,7 @@ function mapService() {
       )
     })
 
-    mapEventBus.on('click', async data => {
+    bindMapEvent('click', async data => {
       // Only handle POI clicks — ignore empty map clicks
       if (!data.poi) return
 
@@ -425,14 +437,8 @@ function mapService() {
    * a stale listener that still references the destroyed strategy.
    */
   function unbindMapEvents() {
-    mapEventBus.off('load')
-    mapEventBus.off('style.load')
-    mapEventBus.off('move')
-    mapEventBus.off('moveend')
-    mapEventBus.off('rotateend')
-    mapEventBus.off('click')
-    mapEventBus.off('poi:preview')
-    mapEventBus.off('click:mapillary-image')
+    for (const unbind of mapEventUnbinders) unbind()
+    mapEventUnbinders.length = 0
   }
 
   // null = jumpTo (instant), undefined = Mapbox default flyTo (distance-based, no cap), number = fixed ms

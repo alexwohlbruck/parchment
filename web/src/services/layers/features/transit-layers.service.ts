@@ -7,10 +7,10 @@
 
 import type { Layer } from '@/types/map.types'
 import { LayerType, MapColorTheme } from '@/types/map.types'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { isTransitStopLayer } from '@/lib/transit/transit.utils'
+import { isTransitStopLayer } from '@/lib/transit/transitland-layers'
 import { useThemeStore } from '@/stores/theme.store'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import { useMapToolsStore } from '@/stores/map-tools.store'

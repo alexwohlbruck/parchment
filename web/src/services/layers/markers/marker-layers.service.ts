@@ -6,7 +6,7 @@
  */
 
 import type { LngLat } from '@/types/map.types'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { WaypointsLayer } from '@/services/layers/markers/waypoints-layer'
 import type { MarkerDragOptions } from '@/services/layers/markers/base-marker-layer'
 import { FriendLocationsLayer } from '@/services/layers/markers/friend-locations-layer'

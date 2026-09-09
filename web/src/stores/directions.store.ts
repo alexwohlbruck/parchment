@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
 import { RoutingPreferences, SelectedMode, SortPreference } from '@/types/multimodal.types'
-import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone.utils'
+import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone-warning'
 
 // Rideshare has no working integration yet, so the mode is hidden everywhere it
 // could be picked. Flip this to true to bring it back.

@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { Button } from '@/components/ui/button'
 import { Plus, Minus } from 'lucide-vue-next'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { ControlVisibility } from '@/types/map.types'
 

@@ -6,7 +6,7 @@ import { useLayersService } from '@/services/layers/layers.service'
 import { useAppService } from '@/services/app.service'
 import type { LayerGroupWithLayers, LayerGroup, Layer } from '@/types/map.types'
 import { groupSubtreeMatches, matchesQuery } from '@/lib/map/layer-search'
-import { useDragAndDrop } from '@/composables/useDragAndDrop'
+import { useDragAndDrop } from '@/composables/map/useDragAndDrop'
 import * as LucideIcons from 'lucide-vue-next'
 import LayerItemComponent from './LayerItem.vue'
 import LayerGroupConfiguration from './LayerGroupConfiguration.vue'
@@ -33,7 +33,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import draggable from 'vuedraggable'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import {
   Tooltip,
   TooltipTrigger,

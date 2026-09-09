@@ -37,7 +37,7 @@ import {
   STYLE_RANGES,
   type DrawStyle,
 } from '@/lib/canvas/canvas-draw-style'
-import { maxMinutesForMode } from '@/lib/directions/isochrone.utils'
+import { maxMinutesForMode } from '@/lib/directions/isochrone'
 import { themeColorToHex } from '@/lib/utils'
 import {
   ANNOTATION_STROKE_CAPS,

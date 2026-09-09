@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { LayerType, ControlVisibility } from '@/types/map.types'
 import { Card } from '@/components/ui/card'
 import { Toggle } from '@/components/ui/toggle'

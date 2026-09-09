@@ -146,3 +146,12 @@ export interface SearchCategory {
   keywords: string[]
   osmTags: Record<string, string[]>
 }
+
+/** A selectable value a search filter offers. Structurally a `ChipOption`,
+ *  which is how the filter bar renders it. */
+export interface FilterOption {
+  label: string
+  value: string | number | boolean
+  disabled?: boolean
+  icon?: Component
+}

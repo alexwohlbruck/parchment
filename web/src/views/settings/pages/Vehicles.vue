@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useVehicleLocationPicker } from '@/composables/useVehicleLocationPicker'
+import { useVehicleLocationPicker } from '@/composables/transit/useVehicleLocationPicker'
 import {
   CarFrontIcon,
   ZapIcon,

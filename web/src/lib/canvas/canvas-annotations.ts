@@ -18,7 +18,7 @@ import {
   circleCircumferenceMeters,
   pathLengthMeters,
   polygonAreaSquareMeters,
-} from '@/lib/measure/measure.utils'
+} from '@/lib/measure/measure'
 import type { Feature, FeatureCollection, Position } from 'geojson'
 import {
   markerImageId,

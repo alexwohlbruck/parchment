@@ -11,7 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { submitFeedback } from '@/services/feedback.service'
-import { useFeedback } from '@/composables/useFeedback'
+import { useFeedback } from '@/composables/integrations/useFeedback'
 
 const props = defineProps<{
   open?: boolean

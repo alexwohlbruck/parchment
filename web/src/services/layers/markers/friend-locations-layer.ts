@@ -29,7 +29,7 @@ import {
   type MarkerData,
 } from './base-marker-layer'
 import { useLayersStore } from '@/stores/layers.store'
-import { useFriendLocations } from '@/composables/useFriendLocations'
+import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import {
   buildTrack,
   predict,

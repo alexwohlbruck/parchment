@@ -1,7 +1,7 @@
 import type { Component } from 'vue'
 import type { Place } from '@/types/place.types'
-import type { ChipOption } from '@/components/ui/chip'
-import { isPlaceOpenNow } from '@/lib/place/place-open.utils'
+import type { FilterOption } from '@/types/search.types'
+import { isPlaceOpenNow } from '@/lib/place/place-hours'
 import { getOsmTagLabel } from '@/lib/place/osm-tag-labels'
 import * as turf from '@turf/turf'
 import {
@@ -22,7 +22,7 @@ export interface FilterDef {
   icon: Component
   defaultValue: any
   isAvailable: (places: Place[]) => boolean
-  getOptions?: (places: Place[]) => ChipOption[]
+  getOptions?: (places: Place[]) => FilterOption[]
   match: (place: Place, value: any) => boolean
   toServerFilter?: (value: any) => Record<string, any> | null
 }
@@ -169,7 +169,7 @@ function createCheckFilter(field: FieldDefinition): FilterDef {
   }
 }
 
-function allComboOptions(options: Record<string, string | { title: string }>): ChipOption[] {
+function allComboOptions(options: Record<string, string | { title: string }>): FilterOption[] {
   return Object.entries(options)
     .map(([k, label]) => ({
       label: getOptionLabel(label) || formatTagLabel(k),

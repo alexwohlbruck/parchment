@@ -103,10 +103,10 @@ import {
   useScreenSafeArea,
   useElementSize,
 } from '@vueuse/core'
-import { useObstructingComponent } from '@/composables/useObstructingComponent'
+import { useObstructingComponent } from '@/composables/sheet/useObstructingComponent'
 import { type ManualBounds } from '@/stores/app.store'
 import { useHotkeys } from '@/composables/useHotkeys'
-import { useDrawerCoordination } from '@/composables/useDrawerCoordination'
+import { useDrawerCoordination } from '@/composables/sheet/useDrawerCoordination'
 import {
   DrawerRoot,
   DrawerContent,

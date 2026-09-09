@@ -14,7 +14,7 @@ vi.mock('vue-i18n', async importOriginal => ({
 }))
 
 const setPartialPlace = vi.fn()
-vi.mock('@/services/place.service', () => ({
+vi.mock('@/services/place/place.service', () => ({
   usePlaceService: () => ({ setPartialPlace }),
 }))
 

@@ -13,10 +13,16 @@
  *
  * Stands down entirely when the route panel is the focus: that view owns
  * the dim, and two owners would fight over the paint they restore.
+ *
+ * Portolan dims its own ribbons rather than being painted over: they mount
+ * progressively as tiles hydrate, and a one-shot override catches only the
+ * layers that exist the instant it runs. The flat override is left to the
+ * retired transitland layers, which are static when they are there at all.
  */
 
 import { watch, type WatchStopHandle } from 'vue'
 import { useTransitFocusStore } from '@/stores/transit-focus.store'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import {
   fadeTransitNetwork,
   networkDimOpacity,
@@ -24,6 +30,7 @@ import {
 
 export function useTripIsolationService() {
   const focus = useTransitFocusStore()
+  const portolan = usePortolanTransitService()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mapInstance: any = null
   let watchStop: WatchStopHandle | null = null
@@ -32,7 +39,10 @@ export function useTripIsolationService() {
   function apply(active: boolean) {
     if (!mapInstance || active === dimmed) return
     dimmed = active
-    fadeTransitNetwork(mapInstance, active ? networkDimOpacity() : null)
+    portolan.setNetworkDim(active)
+    fadeTransitNetwork(mapInstance, active ? networkDimOpacity() : null, {
+      skipPortolan: true,
+    })
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

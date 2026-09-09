@@ -224,6 +224,19 @@ let classesOff = new Set<string>()
 let isolatedRoute: string | null = null
 
 /**
+ * Whether the whole network is stepped back behind something drawn over
+ * it — an itinerary's own line, which is its own layer and not a ribbon.
+ *
+ * Unlike isolation there is no favoured route: everything dims together.
+ * It lives HERE rather than as a paint override from outside because the
+ * ribbons mount progressively as tiles hydrate, and on MapLibre each one
+ * is two layers. Anything painted over them from outside catches only the
+ * layers that happened to exist at that instant; folded into the opacity
+ * expression, every ribbon is born dimmed and stays dimmed across rebuilds.
+ */
+let networkDimmed = false
+
+/**
  * How far the rest of the network steps back while one route is isolated.
  * Low enough to read as background, high enough that the network is still
  * legibly there.
@@ -295,6 +308,7 @@ export function usePortolanTransitService() {
     setServiceTime,
     setClassVisibility,
     setIsolatedRoute,
+    setNetworkDim,
     setIsolatedRouteStops,
     setIsolatedRouteGeometry,
     setStopService,
@@ -320,6 +334,14 @@ function setIsolatedRoute(routeId: string | null) {
   applyStations()
   applyStationZoomRelax()
   applyStationScale()
+}
+
+/** Step the whole network back, or restore it. */
+function setNetworkDim(on: boolean) {
+  if (networkDimmed === on) return
+  networkDimmed = on
+  applyRibbonDim()
+  applyStationDim()
 }
 
 /** Stops on the isolated route's RUNNING path, [lng, lat]. */
@@ -807,7 +829,8 @@ function initializePortolanTransit(mapStrategy: MapStrategy | undefined) {
   themeDark = mapStrategy.options.theme === MapTheme.DARK
   // the dim is theme-dependent — re-derive it rather than leave the light
   // value painted on a dark map
-  if (isolatedRoute) applyRibbonDim()
+  if (isolatedRoute || networkDimmed) applyRibbonDim()
+  if (networkDimmed) applyStationDim()
   const fork =
     mapStrategy.options.engine === MapEngine.MAPLIBRE &&
     getVersion().includes('transit')
@@ -861,6 +884,7 @@ function teardownPortolanTransit() {
   map = null
   activeStrategy = null
   isolatedRoute = null
+  networkDimmed = false
   clearHydration()
   clearMounts()
   inkDark = null
@@ -2019,7 +2043,11 @@ function isolationOpacity(base: Expr, ghost: boolean): Expr {
   const occluded: Expr = ghost
     ? (['*', base, OCCLUDED_OPACITY] as unknown as Expr)
     : base
-  if (!isolatedRoute) return occluded
+  if (!isolatedRoute) {
+    return networkDimmed
+      ? (['*', occluded, isolationDim()] as unknown as Expr)
+      : occluded
+  }
   // With a geometry override up, the override line IS the route on the
   // map: the tile ribbon's copy of it dims into the network like
   // everything else, because its geometry is what the override corrects.
@@ -2120,6 +2148,34 @@ function applyRibbonDim() {
       map.setPaintProperty(id, 'line-color', ribbonColorWithAlpha(p.color, o))
     } else {
       map.setPaintProperty(id, 'line-opacity', o)
+    }
+  }
+}
+
+/**
+ * The network dim, applied to the stations, bullets and labels.
+ *
+ * The ribbons carry theirs inside an opacity expression; the symbol layers
+ * have no such expression to fold into, so their opacity is set flat. They
+ * are enumerated off the style for the same reason the dim targets are:
+ * the set is per-feed and per-band, never fixed.
+ */
+function applyStationDim() {
+  if (!map) return
+  const o = networkDimmed && !isolatedRoute ? isolationDim() : 1
+  let layers: any[] = []
+  try {
+    layers = map.getStyle()?.layers ?? []
+  } catch {
+    return // style not ready — the mount path re-applies
+  }
+  for (const layer of layers) {
+    if (!layer.id.startsWith('portolan-') || layer.type !== 'symbol') continue
+    try {
+      map.setPaintProperty(layer.id, 'icon-opacity', o)
+      map.setPaintProperty(layer.id, 'text-opacity', o)
+    } catch {
+      // layer went away mid-sweep
     }
   }
 }

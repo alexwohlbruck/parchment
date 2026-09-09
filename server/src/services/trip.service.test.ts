@@ -2,8 +2,12 @@ import { describe, test, expect, mock, beforeEach, spyOn } from 'bun:test'
 
 // ── Mock dependencies before imports ─────────────────────────────────────────
 
+/** Mocks are re-implemented per test with varied response shapes, which the
+ *  shape inferred from the initial implementation would reject. */
+type AnyAsync = (...args: any[]) => Promise<any>
+
 // Mock routing service — used for walking/biking/driving segments
-const mockGetRoute = mock(async () => ({
+const mockGetRoute = mock<AnyAsync>(async () => ({
   routes: [
     {
       distance: 500,
@@ -36,15 +40,15 @@ mock.module('./routing.service', () => ({
 }))
 
 // Mock transit routing service — used for transit legs
-const mockGetTransitRoute = mock(async () => ({
+const mockGetTransitRoute = mock<AnyAsync>(async () => ({
   itineraries: [],
   metadata: { searchWindow: 3600 },
 }))
-const mockGetIntermodalRoute = mock(async () => ({
+const mockGetIntermodalRoute = mock<AnyAsync>(async () => ({
   itineraries: [],
   metadata: { searchWindow: 3600 },
 }))
-const mockGetNearestEntrance = mock(async () => null)
+const mockGetNearestEntrance = mock<AnyAsync>(async () => null)
 
 mock.module('./transit-routing.service', () => ({
   transitRoutingService: {
@@ -55,7 +59,7 @@ mock.module('./transit-routing.service', () => ({
 }))
 
 // Mock search service — used for parking lookup
-const mockSearchByCategory = mock(async () => [])
+const mockSearchByCategory = mock<AnyAsync>(async () => [])
 
 mock.module('./search.service', () => ({
   searchByCategory: mockSearchByCategory,

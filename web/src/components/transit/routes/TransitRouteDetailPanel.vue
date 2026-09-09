@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, onUpdated, ref, watch } from 'vue'
-import {
-  useRouteDetailStore,
-  type DepartureContext,
-  type VehicleOnRoute,
-  type RouteDetailStop,
-  type StopTransferRoute,
-} from '@/stores/route-detail.store'
+import type { DepartureContext, VehicleOnRoute, RouteDetailStop, StopTransferRoute } from '@/types/transit.types'
+import { useRouteDetailStore } from '@/stores/route-detail.store'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { orderBullets } from '@/lib/transit/transit-bullets'
 import {

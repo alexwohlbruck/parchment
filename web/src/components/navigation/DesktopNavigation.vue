@@ -9,7 +9,7 @@ import { useAppStore } from '@/stores/app.store'
 import { capitalize } from '@/lib/string.utils'
 import { isTauri, getIsTauri } from '@/lib/api'
 import { useWindowSize } from '@vueuse/core'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useUpdater } from '@/composables/useUpdater'
 import { appEventBus } from '@/lib/event-bus'
 

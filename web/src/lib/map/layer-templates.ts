@@ -15,8 +15,7 @@
  * Pinia store, a server or a map.
  */
 
-import type { DefaultUserStateRow } from '@/services/layers/core/layer-crud.service'
-import type { DefaultStateType } from '@/services/layers/core/layer-crud.service'
+import type { DefaultUserStateRow, DefaultStateType } from '@/types/map.types'
 
 /** The parts of a template these rules read. */
 export interface DefaultTemplateLike {

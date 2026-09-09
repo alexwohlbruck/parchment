@@ -42,7 +42,7 @@ import {
   autocompleteToDisplay,
   makePlaceDisplay,
   waypointToDisplay,
-} from '@/lib/place/place-display'
+} from '@/services/place/place-display'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { useThemeStore } from '@/stores/theme.store'
 import { fuzzyFilter } from '@/lib/utils'

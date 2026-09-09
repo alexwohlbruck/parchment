@@ -36,7 +36,7 @@ import {
   recentPlaceToDisplay,
   recentSearchToDisplay,
   type PlaceDisplay,
-} from '@/lib/place/place-display'
+} from '@/services/place/place-display'
 
 dayjs.extend(relativeTime)
 

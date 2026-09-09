@@ -18,7 +18,7 @@ import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
 import {
   departureReachability,
@@ -61,11 +61,11 @@ import {
   getSearchResultCategory,
   getSearchResultName,
 } from '@/lib/search/search.utils'
-import { getCategoryColor } from '@/lib/place/place-colors'
+import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
-import { waypointToDisplay, type PlaceDisplay } from '@/lib/place/place-display'
+import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'

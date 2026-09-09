@@ -30,7 +30,7 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import { MARKER_RENDERED_LAYER_TYPES, type Layer } from '@/types/map.types'
 import type {
   CanvasAnnotation,

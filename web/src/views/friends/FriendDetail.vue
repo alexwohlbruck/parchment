@@ -43,7 +43,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import UserHandle from '@/components/identity/UserHandle.vue'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { appEventBus } from '@/lib/event-bus'
 import { useUnits } from '@/composables/useUnits'

@@ -33,7 +33,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import draggable from 'vuedraggable'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import {
   Tooltip,
   TooltipTrigger,

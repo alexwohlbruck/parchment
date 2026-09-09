@@ -7,7 +7,7 @@ import {
   getSearchResultIconPack,
   getSearchResultCategory,
 } from '@/lib/search/search.utils'
-import { getCategoryColor } from '@/lib/place/place-colors'
+import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 
 /**

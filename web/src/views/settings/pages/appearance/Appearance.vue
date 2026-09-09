@@ -27,7 +27,7 @@ import {
 } from 'lucide-vue-next'
 import { useThemeStore, allColors } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { MapEngine, type MapStyleId, type PoiStyleId } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import type { PaletteColor } from '@/lib/palette'

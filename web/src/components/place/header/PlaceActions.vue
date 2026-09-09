@@ -11,7 +11,7 @@ import {
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
 import type { Place } from '@/types/place.types'
-import { usePlaceService } from '@/services/place.service'
+import { usePlaceService } from '@/services/place/place.service'
 import CollectionPicker from '@/components/library/collections/CollectionPicker.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { type ThemeColor } from '@/lib/utils'

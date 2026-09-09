@@ -10,7 +10,7 @@
  */
 
 import { describe, test, expect } from 'vitest'
-import type { DefaultUserStateRow } from '@/services/layers/core/layer-crud.service'
+import type { DefaultUserStateRow } from '@/types/map.types'
 import {
   buildLayerStoreItems,
   collectGroupLayerTemplateIds,

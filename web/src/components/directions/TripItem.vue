@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import dayjs from 'dayjs'
 import { useI18n } from 'vue-i18n'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useUnits } from '@/composables/useUnits'
 import { getTravelModeCssClass, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 import { getSegmentIcon, getModeIcon } from '@/lib/directions/travel-mode-icons'

@@ -19,7 +19,7 @@ import {
 import type { Locale } from '@/lib/i18n'
 import { updatePreferences } from '@/services/preferences.service'
 import { useMapStore } from '@/stores/map.store'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import { useResponsive } from '@/lib/utils'
 import { useFeedback } from '@/composables/integrations/useFeedback'

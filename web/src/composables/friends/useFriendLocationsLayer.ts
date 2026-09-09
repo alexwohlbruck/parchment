@@ -18,7 +18,7 @@ import { useIdentityStore } from '@/stores/identity.store'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useFriendLocations } from '@/composables/friends/useFriendLocations'
 import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { mapEventBus } from '@/lib/event-bus'
 import { AppRoute } from '@/router'
 

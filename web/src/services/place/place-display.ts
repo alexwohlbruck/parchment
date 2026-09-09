@@ -7,7 +7,7 @@ import type { AutocompleteResult } from '@/types/search.types'
 import type { ThemeColor } from '@/lib/utils'
 import { AppRoute } from '@/router'
 import { getPlaceRoute, getPlaceRouteFromExternalIds, getTransitStopRoute, formatAddress } from '@/lib/place/place.utils'
-import { getCategoryColor } from '@/lib/place/place-colors'
+import { getCategoryColor } from '@/services/place/place-colors'
 import { frequentChipMeta } from '@/lib/frequents'
 import {
   getSearchResultIconName,

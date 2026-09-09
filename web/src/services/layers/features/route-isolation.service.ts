@@ -16,6 +16,10 @@ import { densifyLine } from '@/lib/geo-densify'
 import { projectAlong, sliceAlong } from '@/lib/geo-line'
 import { widthExpr } from '@/services/layers/features/portolan/portolan-expressions'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
+import {
+  fadeTransitNetwork,
+  networkDimOpacity,
+} from '@/services/layers/features/transit-network-dim'
 import type { FitBoundsFn } from '@/types/map.types'
 
 const ROUTE_SOURCE_ID = 'route-detail-shape'
@@ -23,54 +27,6 @@ const ROUTE_LAYER_ID = 'route-detail-line'
 const STOPS_SOURCE_ID = 'route-detail-stops'
 const STOPS_LAYER_ID = 'route-detail-stops-circles'
 const STOPS_LABELS_LAYER_ID = 'route-detail-stops-labels'
-
-/** Transitland layer IDs that should be faded when isolating (retired from
- *  the default template — kept for user-cloned copies still on the map).
- *  Excludes `transitland-route-active` — it's a hover utility layer with
- *  a feature-state opacity expression that breaks if overridden flat.
- *  Portolan layers are NOT listed: they're enumerated live off the style
- *  by their `portolan-` prefix, since the set (per-feed, per-band) is
- *  dynamic. */
-const TRANSIT_LAYER_IDS = [
-  'transitland-rail',
-  'transitland-rail-outline',
-  'transitland-bus-low',
-  'transitland-bus-low-outline',
-  'transitland-bus-medium',
-  'transitland-bus-medium-outline',
-  'transitland-tram',
-  'transitland-tram-outline',
-  'transitland-metro',
-  'transitland-metro-outline',
-  'transitland-other',
-  'transitland-other-outline',
-  'transitland-tram-labels',
-  'transitland-metro-labels',
-  'transitland-rail-labels',
-  'transitland-bus-medium-labels',
-  'transitland-other-labels',
-  'transitland-stops',
-  'transitland-stops-labels',
-]
-
-/** How far the rest of the network steps back while a route is isolated —
- *  dimmed, not hidden, so the line still reads inside its network. Matches
- *  portolan's own ISOLATION_DIM — keep the two in step. */
-const NETWORK_DIM_LIGHT = 0.25
-const NETWORK_DIM_DARK = 0.42
-/** Theme-dependent for the same reason portolan's is: the same alpha reads
- *  as "gone" against a near-black basemap. */
-const NETWORK_DIM = () =>
-  document.documentElement.classList.contains('dark')
-    ? NETWORK_DIM_DARK
-    : NETWORK_DIM_LIGHT
-
-/** Which opacity paint props carry a layer type's fade. */
-const OPACITY_PROPS: Record<string, string[]> = {
-  line: ['line-opacity'],
-  circle: ['circle-opacity', 'circle-stroke-opacity'],
-  symbol: ['text-opacity', 'icon-opacity'],
-}
 
 export function useRouteIsolationService() {
   const routeDetailStore = useRouteDetailStore()
@@ -257,8 +213,8 @@ export function useRouteIsolationService() {
       if (!portolanIsolated) {
         portolanIsolated = true
         // re-derive: the overlay pass faded portolan's layers flat
-        fadeTransitLayers(null)
-        fadeTransitLayers(NETWORK_DIM(), { skipPortolan: true })
+        fadeTransitNetwork(mapInstance, null)
+        fadeTransitNetwork(mapInstance, networkDimOpacity(), { skipPortolan: true })
       }
       removeRouteOverlay()
     }
@@ -271,9 +227,9 @@ export function useRouteIsolationService() {
       if (portolanIsolated) {
         portolan.setIsolatedRoute(null)
         portolanIsolated = false
-        fadeTransitLayers(null)
+        fadeTransitNetwork(mapInstance, null)
       }
-      fadeTransitLayers(NETWORK_DIM())
+      fadeTransitNetwork(mapInstance, networkDimOpacity())
       const coords = runningSlice(route) ?? route.coordinates
       if (coords && coords.length >= 2) {
         addRouteShape(coords, route.routeColor)
@@ -408,7 +364,7 @@ export function useRouteIsolationService() {
     portolan.setIsolatedRouteGeometry(null)
 
     // Restore transit layer opacity
-    fadeTransitLayers(null)
+    fadeTransitNetwork(mapInstance, null)
 
     removeRouteOverlay()
 
@@ -460,61 +416,6 @@ export function useRouteIsolationService() {
         { padding: 60, duration: 800 },
       )
     } catch { /* fitBounds can throw on degenerate bounds */ }
-  }
-
-  /** Opacity paints recorded before fading, keyed `layerId|prop`. The
-   *  portolan ribbons carry opacity EXPRESSIONS (per-feed style manifests),
-   *  so restore must put back exactly what was there — resetting to null
-   *  would flatten them to the spec default. */
-  const savedOpacity = new Map<string, any>()
-
-  /** Every layer the isolation dims: the (retired) transitland ids that may
-   *  survive as user clones, plus every portolan layer in the current style,
-   *  enumerated by prefix — the set is per-feed and per-band, never fixed. */
-  function fadeTargetLayerIds(): string[] {
-    const ids = [...TRANSIT_LAYER_IDS]
-    try {
-      for (const layer of mapInstance?.getStyle()?.layers ?? []) {
-        if (layer.id.startsWith('portolan-')) ids.push(layer.id)
-      }
-    } catch {
-      // style not ready — the transitland list still applies
-    }
-    return ids
-  }
-
-  function fadeTransitLayers(
-    opacity: number | null,
-    { skipPortolan = false }: { skipPortolan?: boolean } = {},
-  ) {
-    if (!mapInstance) return
-
-    for (const layerId of fadeTargetLayerIds()) {
-      // when portolan IS the isolation, dimming it would dim the very
-      // line being shown
-      if (skipPortolan && layerId.startsWith('portolan-')) continue
-      try {
-        const layer = mapInstance.getLayer(layerId)
-        if (!layer) continue
-        const props = OPACITY_PROPS[layer.type] ?? []
-
-        for (const prop of props) {
-          const key = `${layerId}|${prop}`
-          if (opacity === null) {
-            // Restore the recorded paint (undefined → null clears cleanly)
-            mapInstance.setPaintProperty(layerId, prop, savedOpacity.get(key) ?? null)
-          } else {
-            if (!savedOpacity.has(key)) {
-              savedOpacity.set(key, mapInstance.getPaintProperty(layerId, prop))
-            }
-            mapInstance.setPaintProperty(layerId, prop, opacity)
-          }
-        }
-      } catch {
-        // Layer might not exist in current map style
-      }
-    }
-    if (opacity === null) savedOpacity.clear()
   }
 
   function addRouteShape(coordinates: [number, number][], color: string | null) {

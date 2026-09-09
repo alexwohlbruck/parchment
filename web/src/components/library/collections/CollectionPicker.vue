@@ -8,17 +8,15 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
-import { useAppService } from '@/services/app.service'
 import {
   FREQUENT_TYPES,
   FREQUENT_META,
   type FrequentType,
 } from '@/lib/frequents'
-import CollectionForm from '@/components/library/collections/CollectionForm.vue'
+import { openCollectionDialog } from './collection-dialog'
 import { storeToRefs } from 'pinia'
 import type {
   Bookmark,
-  CreateCollectionParams,
   Collection,
 } from '@/types/library.types'
 import type { Place } from '@/types/place.types'
@@ -56,7 +54,6 @@ const collectionsService = useCollectionsService()
 const bookmarksService = useBookmarksService()
 const { collections, lastSavedCollectionId } = storeToRefs(collectionsStore)
 const { t } = useI18n()
-const appService = useAppService()
 const collectionSearchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
 const isTogglingCollection = ref(false)
@@ -336,77 +333,55 @@ async function saveNewBookmark(collectionId: string) {
   }
 }
 
-function openCreateCollectionDialog() {
-  appService
-    .componentDialog({
-      component: CollectionForm,
-      title: t('library.dialog.createCollection.title'),
-      description: t('library.dialog.createCollection.description'),
-      continueText: t('general.create'),
-      cancelText: t('general.cancel'),
-      props: {},
-    })
-    .then(async formData => {
-      if (!formData) return
+async function openCreateCollectionDialog() {
+  const params = await openCollectionDialog()
+  if (!params) return
 
-      try {
-        const params: CreateCollectionParams = {
-          name: formData.name,
-          ...(formData.description
-            ? { description: formData.description }
-            : {}),
-          icon: formData.icon,
-          iconPack: formData.iconPack,
-          iconColor: formData.iconColor,
-          isPublic: formData.isPublic,
-        }
-        const newCollection = await collectionsService.createCollection(params)
+  try {
+    const newCollection = await collectionsService.createCollection(params)
+    if (!newCollection?.id) return
 
-        if (newCollection && newCollection.id) {
-          isTogglingCollection.value = true
+    isTogglingCollection.value = true
 
-          // Place mode: there's no bookmark yet, so the freshly-made
-          // collection becomes the very first one for this place. Same
-          // codepath as picking an existing collection in place-mode.
-          if (!currentBookmark.value?.id && props.place) {
-            const bookmark = await bookmarksService.createBookmark(
-              props.place,
-              [newCollection.id],
-            )
-            if (bookmark) {
-              currentBookmark.value = bookmark
-              bookmarkCollectionIds.value = [newCollection.id]
-              emit('bookmark-created', bookmark, [newCollection.id])
-            }
-            return
-          }
-
-          const id = currentBookmark.value?.id
-          if (!id) return
-          const updatedIds = [...bookmarkCollectionIds.value, newCollection.id]
-
-          const updatedBookmark = await bookmarksService.updateBookmark(
-            id,
-            { collectionIds: updatedIds },
-            { addedCollectionId: newCollection.id },
-          )
-
-          if (updatedBookmark) {
-            bookmarkCollectionIds.value = updatedIds
-            emit('collections-changed', updatedIds)
-          } else {
-            await fetchCollectionsForBookmark()
-          }
-        }
-      } catch (error) {
-        console.error(
-          '[CollectionPicker] Error creating collection or adding bookmark:',
-          error,
-        )
-      } finally {
-        isTogglingCollection.value = false
+    // Place mode: there's no bookmark yet, so the freshly-made collection
+    // becomes the very first one for this place. Same codepath as picking an
+    // existing collection in place-mode.
+    if (!currentBookmark.value?.id && props.place) {
+      const bookmark = await bookmarksService.createBookmark(props.place, [
+        newCollection.id,
+      ])
+      if (bookmark) {
+        currentBookmark.value = bookmark
+        bookmarkCollectionIds.value = [newCollection.id]
+        emit('bookmark-created', bookmark, [newCollection.id])
       }
-    })
+      return
+    }
+
+    const id = currentBookmark.value?.id
+    if (!id) return
+    const updatedIds = [...bookmarkCollectionIds.value, newCollection.id]
+
+    const updatedBookmark = await bookmarksService.updateBookmark(
+      id,
+      { collectionIds: updatedIds },
+      { addedCollectionId: newCollection.id },
+    )
+
+    if (updatedBookmark) {
+      bookmarkCollectionIds.value = updatedIds
+      emit('collections-changed', updatedIds)
+    } else {
+      await fetchCollectionsForBookmark()
+    }
+  } catch (error) {
+    console.error(
+      '[CollectionPicker] Error creating collection or adding bookmark:',
+      error,
+    )
+  } finally {
+    isTogglingCollection.value = false
+  }
 }
 </script>
 

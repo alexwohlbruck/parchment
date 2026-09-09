@@ -18,12 +18,11 @@ import {
   CheckIcon,
 } from 'lucide-vue-next'
 import CollectionCard from '@/components/library/collections/CollectionCard.vue'
-import CollectionForm from '@/components/library/collections/CollectionForm.vue'
+import { openCollectionDialog } from './collection-dialog'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
-import { useAppService } from '@/services/app.service'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { fuzzyFilter } from '@/lib/utils'
-import type { Collection, CreateCollectionParams } from '@/types/library.types'
+import type { Collection } from '@/types/library.types'
 
 const props = defineProps<{
   collections: Collection[]
@@ -40,7 +39,6 @@ const sortOrder = ref<'asc' | 'desc'>('desc')
 // was only invited to, 'shared' hides their own. Keys a computed below.
 type OwnershipFilter = 'all' | 'mine' | 'shared'
 const ownershipFilter = ref<OwnershipFilter>('all')
-const appService = useAppService()
 const collectionsService = useCollectionsService()
 
 watch(
@@ -104,27 +102,9 @@ function setSortBy(field: 'name' | 'createdAt' | 'updatedAt') {
 }
 
 async function createCollection() {
-  appService
-    .componentDialog({
-      component: CollectionForm,
-      title: t('library.dialog.createCollection.title'),
-      description: t('library.dialog.createCollection.description'),
-      continueText: t('general.create'),
-      cancelText: t('general.cancel'),
-      props: {},
-    })
-    .then(async formData => {
-      if (!formData) return
-
-      const params: CreateCollectionParams = {
-        name: formData.name,
-        ...(formData.description ? { description: formData.description } : {}),
-        icon: formData.icon,
-        iconColor: formData.iconColor,
-        isPublic: formData.isPublic,
-      }
-      await collectionsService.createCollection(params)
-    })
+  const params = await openCollectionDialog()
+  if (!params) return
+  await collectionsService.createCollection(params)
 }
 </script>
 

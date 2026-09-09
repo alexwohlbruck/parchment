@@ -10,13 +10,12 @@ import {
 } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
-import CollectionForm from '@/components/library/collections/CollectionForm.vue'
+import { openCollectionDialog } from './collection-dialog'
 import ShareDialog from '@/components/sharing/ShareDialog.vue'
 import ResponsiveDropdown, {
   type MenuItemDefinition,
 } from '@/components/responsive/ResponsiveDropdown.vue'
 import type { Collection } from '@/types/library.types'
-import type { ThemeColor } from '@/lib/utils'
 
 const props = defineProps<{
   collection: Collection
@@ -50,41 +49,11 @@ const { t } = useI18n()
 const collectionsService = useCollectionsService()
 const appService = useAppService()
 
-function editCollection() {
-  appService
-    .componentDialog({
-      component: CollectionForm,
-      title: t('library.dialog.editCollection.title'),
-      description: t('library.dialog.editCollection.description'),
-      continueText: t('general.save'),
-      cancelText: t('general.cancel'),
-      props: {
-        collection: props.collection,
-      },
-    })
-    .then(async formData => {
-      if (!formData) return
-
-      try {
-        // Create the params object with correct structure
-        const params = {
-          name: formData.name,
-          ...(formData.description
-            ? { description: formData.description }
-            : {}),
-          icon: formData.icon,
-          iconPack: formData.iconPack as 'lucide' | 'maki',
-          iconColor: formData.iconColor as ThemeColor,
-          isPublic: formData.isPublic,
-        }
-
-        // Update existing collection
-        await collectionsService.updateCollection(props.collection.id, params)
-        emit('edit')
-      } catch (error) {
-        console.error('Error updating collection:', error)
-      }
-    })
+async function editCollection() {
+  const params = await openCollectionDialog(props.collection)
+  if (!params) return
+  await collectionsService.updateCollection(props.collection.id, params)
+  emit('edit')
 }
 
 async function deleteCollection() {

@@ -2250,6 +2250,7 @@ export class TripService {
         from, to, startTime, dataSources, preferences,
       )
 
+      const kept: TripResponse[] = []
       for (const trip of trips) {
         // Tag the MOTIS ride leg with the user's vehicle
         const rideSeg = trip.segments.find(s => s.mode === rideMode)
@@ -2282,6 +2283,13 @@ export class TripService {
           }
         }
 
+        // A bike ridden to the station has to be left somewhere. Gated on the
+        // same preference as parking-aware driving, which is what asks for
+        // real parking to be routed to at all.
+        if (rideMode === 'biking' && preferences?.useKnownParkingLocations) {
+          if (!(await this.parkBikeBeforeBoarding(trip, vehicle, preferences))) continue
+        }
+
         if (walkToVehicle) {
           // Back-time the walk from the itinerary's first leg. MOTIS departs
           // no earlier than queryTime (= startTime + walk duration), so the
@@ -2304,13 +2312,176 @@ export class TripService {
             (trip.tripStats.totalWalkingDistance ?? 0) + walk.distance
           trip.earliestStartTime = walk.startTime
         }
+
+        kept.push(trip)
       }
 
-      return trips
+      return kept
     } catch (error) {
       logError(`Vehicle-access (${vehicle?.type ?? rideMode}) transit query failed`, error)
       return []
     }
+  }
+
+  /** Search radius for a bike rack at the boarding stop (meters). */
+  private static readonly STATION_RACK_RADIUS_M = 250
+
+  /** Time to lock a bike to a rack before walking away. */
+  private static readonly BIKE_LOCK_DELAY_SEC = 60
+
+  /** Cached nearest-rack lookups — bicycle parking is static OSM data. */
+  private stationRackCache = new Map<string, Promise<Place | null>>()
+  private static readonly STATION_RACK_CACHE_MAX = 200
+
+  private cachedStationRack(at: Coordinate): Promise<Place | null> {
+    const key = `${at.lat.toFixed(5)},${at.lng.toFixed(5)}`
+    let hit = this.stationRackCache.get(key)
+    if (!hit) {
+      hit = this.searchNearbyParking(
+        at,
+        TripService.STATION_RACK_RADIUS_M,
+        'amenity/bicycle_parking',
+      ).then(places =>
+        places.reduce<Place | null>(
+          (best, p) =>
+            !best ||
+            TripService.haversineDistance(p.geometry.value.center, at) <
+              TripService.haversineDistance(best.geometry.value.center, at)
+              ? p
+              : best,
+          null,
+        ),
+      )
+      this.stationRackCache.set(key, hit)
+      if (this.stationRackCache.size > TripService.STATION_RACK_CACHE_MAX) {
+        const oldest = this.stationRackCache.keys().next().value
+        if (oldest) this.stationRackCache.delete(oldest)
+      }
+    }
+    return hit
+  }
+
+  /**
+   * Rewrite a bike-access transit trip so the ride ends locked to a real rack.
+   *
+   * MOTIS's BIKE access mode rides to the boarding stop and says nothing about
+   * what becomes of the bike, so everything after it walks away from a bike it
+   * never put down. Re-aims the ride at the nearest rack and walks in from
+   * there, back-timed off the original hand-off so boarding time is unchanged
+   * — the rider sets off earlier instead.
+   *
+   * Returns false when the stop has no reachable rack: there is nowhere to
+   * leave the bike, so it isn't a trip the rider could actually take.
+   */
+  private async parkBikeBeforeBoarding(
+    trip: TripResponse,
+    vehicle: Vehicle | null,
+    preferences: any,
+  ): Promise<boolean> {
+    const rideIdx = trip.segments.findIndex(s => s.mode === 'biking')
+    const boardIdx = trip.segments.findIndex(s => s.mode === 'transit')
+    if (rideIdx === -1 || boardIdx === -1 || rideIdx > boardIdx) return true
+
+    const ride = trip.segments[rideIdx]
+    const rack = await this.cachedStationRack(ride.end.location)
+    if (!rack) return false
+
+    const rackWaypoint: Waypoint = {
+      location: rack.geometry.value.center,
+      type: 'via',
+      label: rack.name?.value || 'Bike parking',
+      place: rack,
+    }
+
+    const legTo = (
+      start: Coordinate,
+      end: Coordinate,
+      profile: 'bicycle' | 'pedestrian',
+    ) =>
+      routingService
+        .getRoute(
+          [
+            { type: 'coordinates', value: [start.lat, start.lng] },
+            { type: 'coordinates', value: [end.lat, end.lng] },
+          ],
+          profile,
+          preferences,
+        )
+        .then(r => r.routes[0]?.legs[0] ?? null)
+        .catch(() => null)
+
+    const [toRack, toStop] = await Promise.all([
+      legTo(ride.start.location, rackWaypoint.location, 'bicycle'),
+      legTo(rackWaypoint.location, ride.end.location, 'pedestrian'),
+    ])
+
+    // A routing outage says nothing about whether the rack is usable, so the
+    // trip stands as MOTIS planned it rather than vanishing over a blip.
+    if (!toRack || !toStop) return true
+    // Rack snapped across a barrier — walking in from it would teleport.
+    if (!this.segmentsConnect(toRack.geometry, toStop.geometry)) return false
+
+    const handoff = new Date(ride.endTime).getTime()
+    const walkStart = handoff - toStop.duration * 1000
+    const rideEnd = walkStart - TripService.BIKE_LOCK_DELAY_SEC * 1000
+    const rideStart = rideEnd - toRack.duration * 1000
+
+    const parkedRide: TripSegment = {
+      ...ride,
+      end: rackWaypoint,
+      startTime: new Date(rideStart).toISOString(),
+      endTime: new Date(rideEnd).toISOString(),
+      duration: toRack.duration,
+      distance: toRack.distance,
+      geometry: toRack.geometry,
+      instructions: toRack.instructions,
+      totalElevationGain: toRack.totalElevationGain,
+      totalElevationLoss: toRack.totalElevationLoss,
+      maxElevation: toRack.maxElevation,
+      minElevation: toRack.minElevation,
+      edgeSegments: toRack.edgeSegments,
+    }
+
+    const walkIn: TripSegment = {
+      segmentIndex: 0,
+      mode: 'walking',
+      start: rackWaypoint,
+      end: ride.end,
+      startTime: new Date(walkStart).toISOString(),
+      endTime: new Date(handoff).toISOString(),
+      duration: toStop.duration,
+      distance: toStop.distance,
+      geometry: toStop.geometry,
+      instructions: toStop.instructions,
+      co2: 0,
+      totalElevationGain: toStop.totalElevationGain,
+      totalElevationLoss: toStop.totalElevationLoss,
+      maxElevation: toStop.maxElevation,
+      minElevation: toStop.minElevation,
+      edgeSegments: toStop.edgeSegments,
+    }
+
+    trip.segments.splice(rideIdx, 1, parkedRide, walkIn)
+    trip.segments.forEach((seg, idx) => { seg.segmentIndex = idx })
+
+    // Incremental, not recomputed — calculateStats would drop the
+    // itinerary-level fare already folded into totalCost.
+    trip.tripStats.totalDuration += (handoff - rideStart) / 1000 - ride.duration
+    trip.tripStats.totalDistance +=
+      toRack.distance + toStop.distance - ride.distance
+    trip.tripStats.totalWalkingDistance =
+      (trip.tripStats.totalWalkingDistance ?? 0) + toStop.distance
+    trip.earliestStartTime = parkedRide.startTime
+
+    if (vehicle) {
+      trip.parkedVehicles = [{
+        vehicle,
+        location: rackWaypoint.location,
+        parkedAt: parkedRide.endTime,
+      }]
+    }
+
+    return true
   }
 
   /**

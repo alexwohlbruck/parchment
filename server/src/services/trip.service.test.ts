@@ -1626,6 +1626,115 @@ describe('TripService — scoring', () => {
     })
   })
 
+  // ── Bike parking before boarding ────────────────────────────────────────────
+
+  describe('bike parking before boarding transit', () => {
+    const stationRack = {
+      geometry: { value: { center: { lat: 35.2103, lng: -80.8496 } } },
+      name: { value: 'Stop A bike rack' },
+      tags: {},
+    }
+    const bikeVehicle = {
+      id: 'bike-1',
+      type: 'bike' as const,
+      location: { lat: 35.209, lng: -80.861 },
+    }
+
+    /** MOTIS rides the bike to Stop A and says nothing about parking it. */
+    function mockBikeAccessItinerary() {
+      mockGetIntermodalRoute.mockImplementation(async (req: any) => {
+        if (req.preTransitModes?.includes('BIKE')) {
+          const itinerary = makeTransitItinerary()
+          itinerary.legs[0] = {
+            ...itinerary.legs[0],
+            mode: 'BIKE',
+            distance: 2000,
+            duration: 600,
+            startTime: '2026-01-15T07:55:00Z',
+            endTime: '2026-01-15T08:05:00Z',
+          }
+          return { itineraries: [itinerary], metadata: { searchWindow: 3600 } }
+        }
+        return {
+          itineraries: [makeTransitItinerary()],
+          metadata: { searchWindow: 3600 },
+        }
+      })
+    }
+
+    function bikeTransitTrip(response: any) {
+      return response.trips.find(
+        (t: any) =>
+          t.trip.segments.some((s: any) => s.mode === 'biking') &&
+          t.trip.segments.some((s: any) => s.mode === 'transit'),
+      )
+    }
+
+    const plan = (useKnownParkingLocations: boolean) =>
+      tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        availableVehicles: [bikeVehicle],
+        routingPreferences: { useKnownParkingLocations },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+    test('the ride ends at a rack and walks in to the stop', async () => {
+      mockBikeAccessItinerary()
+      mockSearchByCategory.mockImplementation(async () => [stationRack])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const trip = bikeTransitTrip(await plan(true))
+      expect(trip).toBeDefined()
+
+      const segs = trip!.trip.segments
+      const rideIdx = segs.findIndex((s: any) => s.mode === 'biking')
+      expect(segs[rideIdx].end.label).toBe('Stop A bike rack')
+      expect(segs[rideIdx + 1].mode).toBe('walking')
+      expect(segs[rideIdx + 2].mode).toBe('transit')
+
+      expect(trip!.trip.parkedVehicles?.[0].location).toEqual(
+        stationRack.geometry.value.center,
+      )
+    })
+
+    test('locks the bike, then walks in without missing the boarding', async () => {
+      mockBikeAccessItinerary()
+      mockSearchByCategory.mockImplementation(async () => [stationRack])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const segs = bikeTransitTrip(await plan(true))!.trip.segments
+      const rideIdx = segs.findIndex((s: any) => s.mode === 'biking')
+      const ride = segs[rideIdx]
+      const walkIn = segs[rideIdx + 1]
+      const board = segs.find((s: any) => s.mode === 'transit')!
+
+      const at = (t: string) => new Date(t).getTime()
+      expect(at(walkIn.startTime) - at(ride.endTime)).toBe(60_000)
+      expect(at(walkIn.endTime)).toBeLessThanOrEqual(at(board.startTime))
+    })
+
+    test('drops the trip when the stop has no rack', async () => {
+      mockBikeAccessItinerary()
+      mockSearchByCategory.mockImplementation(async () => [])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      expect(bikeTransitTrip(await plan(true))).toBeUndefined()
+    })
+
+    test('leaves the ride alone when known parking locations are off', async () => {
+      mockBikeAccessItinerary()
+      mockSearchByCategory.mockImplementation(async () => [stationRack])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const trip = bikeTransitTrip(await plan(false))
+      expect(trip).toBeDefined()
+      const segs = trip!.trip.segments
+      const rideIdx = segs.findIndex((s: any) => s.mode === 'biking')
+      expect(segs[rideIdx + 1].mode).toBe('transit')
+    })
+  })
+
   // ── Parking-aware driving ───────────────────────────────────────────────────
 
   describe('parking-aware driving', () => {

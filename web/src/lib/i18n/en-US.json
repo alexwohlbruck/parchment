@@ -2064,7 +2064,8 @@
         "endToEnd": {
           "formNote": "End-to-end encrypted. Your URL and API token are encrypted on this device before upload — the Parchment server never sees them."
         },
-        "setupRequired": "Set up your encryption keys in Settings → Encryption keys before configuring this integration."
+        "setupRequired": "Set up your encryption keys before configuring this integration.",
+          "setupRequiredAction": "Set up"
       },
       "osm": {
         "connected": "OpenStreetMap account connected successfully",

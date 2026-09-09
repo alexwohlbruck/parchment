@@ -50,10 +50,8 @@ import { decodeShape } from '@/lib/utils'
 import { palette } from '@/lib/palette'
 import { mapEventBus } from '@/lib/event-bus'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
-import {
-  mapboxLayerToMaplibreLayer,
-  parsePlanetilerOsmId,
-} from '@/lib/map/map.utils'
+import { mapboxLayerToMaplibreLayer } from '@/lib/map/mapbox-style-compat'
+import { parsePlanetilerOsmId } from '@/lib/map/osm-feature-id'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman'

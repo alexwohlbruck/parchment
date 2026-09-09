@@ -4,7 +4,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
-import { getPlaceRoute, getTransitStopRoute } from '@/lib/place/place.utils'
+import { getPlaceRoute, getTransitStopRoute } from '@/lib/place/place-route'
 import {
   ensureStopIndexAt,
   osmForStop,
@@ -45,7 +45,7 @@ import {
   type RecentPlaceEntry,
 } from '@/lib/recents'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
-import { getBookmarkPlaceId } from '@/lib/place/place.utils'
+import { getBookmarkPlaceId } from '@/lib/place/place-route'
 import { frequentChipMeta } from '@/lib/frequents'
 import { COMMON_CATEGORIES } from '@/lib/place/common-categories'
 import { appEventBus } from '@/lib/event-bus'

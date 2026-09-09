@@ -55,7 +55,8 @@ import {
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
-import { formatAddress, getPlaceRouteFromExternalIds } from '@/lib/place/place.utils'
+import { getPlaceRouteFromExternalIds } from '@/lib/place/place-route'
+import { formatAddress } from '@/lib/place/place-details'
 import type { Place } from '@/types/place.types'
 import {
   findSegmentToInsert,

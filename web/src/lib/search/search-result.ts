@@ -4,7 +4,7 @@ import * as LucideIcons from 'lucide-vue-next'
 import { Component } from 'vue'
 import { Place, type PlaceCategory } from '@/types/place.types'
 import { SearchResultType, AutocompleteResult } from '@/types/search.types'
-import { formatAddress } from '@/lib/place/place.utils'
+import { formatAddress } from '@/lib/place/place-details'
 import { AppRoute } from '@/router'
 
 /**

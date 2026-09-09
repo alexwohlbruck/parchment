@@ -54,7 +54,7 @@ import type { Place } from '@/types/place.types'
 import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import type { SharedMobilityDetails } from '@/types/multimodal.types'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
-import { getPlaceRoute } from '@/lib/place/place.utils'
+import { getPlaceRoute } from '@/lib/place/place-route'
 import {
   getSearchResultIconName,
   getSearchResultIconPack,

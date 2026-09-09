@@ -19,7 +19,7 @@ import DetailItem from './DetailItem.vue'
 import type { Place, DisplayChip, OpeningHours } from '@/types/place.types'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getWifiStatus, parseCuisines } from '@/lib/place/place.utils'
+import { getWifiStatus, parseCuisines } from '@/lib/place/place-details'
 import {
   getLocalDayAndTime,
   resolveOpeningStatus,

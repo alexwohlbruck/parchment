@@ -139,7 +139,7 @@ export type StopTarget = (
  * clicked on the transit layer and the same station clicked as a basemap
  * POI are the SAME object and must open the same URL, rather than two
  * pages about one platform keyed by different vocabularies. It is also
- * the precedence the rest of the app uses (place.utils: OSM first, then
+ * the precedence the rest of the app uses (place-route: OSM first, then
  * coords, then whatever provider is left).
  *
  * `gtfs_ids` is the fallback. A `<feed-onestop>:<stop_id>` pair is a valid

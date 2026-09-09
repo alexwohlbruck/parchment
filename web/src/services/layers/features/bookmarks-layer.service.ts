@@ -25,7 +25,7 @@ import { useMapToolsStore } from '@/stores/map-tools.store'
 import type { Layer } from '@/types/map.types'
 import { ensureIconImages } from '@/lib/map/map-icon-images'
 import { themeColorToHex } from '@/lib/utils'
-import { getPlaceRouteFromExternalIds } from '@/lib/place/place.utils'
+import { getPlaceRouteFromExternalIds } from '@/lib/place/place-route'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import {
   selectSavedPlaces,

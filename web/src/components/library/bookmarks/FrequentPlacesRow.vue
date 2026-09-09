@@ -36,7 +36,7 @@ import {
   CUSTOM_FREQUENT_LABEL_KEY,
   type FrequentType,
 } from '@/lib/frequents'
-import { getPlaceRoute } from '@/lib/place/place.utils'
+import { getPlaceRoute } from '@/lib/place/place-route'
 
 // Colored icon chips for the "Set as frequent" menu. ResponsiveDropdown renders
 // an item's `icon` as a bare component, so wrap ItemIcon (which needs props) in

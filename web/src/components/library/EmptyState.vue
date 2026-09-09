@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button'
 import { PlusIcon, type LucideIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
-import { capitalize } from '@/filters/text.filters'
+import { capitalize } from '@/lib/string.utils'
 import { EmptyState as BaseEmptyState } from '@/components/ui/empty-state'
 
 /**

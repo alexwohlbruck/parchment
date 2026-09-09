@@ -1,4 +1,5 @@
 import { MapPinIcon, LocateIcon } from 'lucide-vue-next'
+import { capitalize } from '@/lib/string.utils'
 import * as LucideIcons from 'lucide-vue-next'
 import { Component } from 'vue'
 import { Place, type PlaceCategory } from '@/types/place.types'
@@ -97,7 +98,7 @@ export function getSearchResultName(place: Place): string {
   // real category is available. Those should fall through to the address.
   const type = place.placeType?.value
   if (type && !GENERIC_PLACE_TYPES.has(type)) {
-    return type.charAt(0).toUpperCase() + type.slice(1)
+    return capitalize(type)
   }
 
   // Last resort: formatted address
@@ -136,7 +137,7 @@ export function getSearchResultDescription(place: Place): string {
 
     // Add preset type if it exists and isn't just 'bookmark'
     if (frequentType && frequentType !== 'bookmark') {
-      parts.push(frequentType.charAt(0).toUpperCase() + frequentType.slice(1))
+      parts.push(capitalize(frequentType))
     } else {
       parts.push('Saved')
     }

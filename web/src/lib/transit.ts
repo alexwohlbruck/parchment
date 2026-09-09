@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { capitalize } from '@/lib/string.utils'
 import customParseFormat from 'dayjs/plugin/customParseFormat'
 import { TrainIcon, BusIcon } from 'lucide-vue-next'
 import type { Component } from 'vue'
@@ -147,7 +148,7 @@ export function getRouteBulletLabel(
 
   // `vehicleType` entries are pluralised ("tram | trams") — take the singular.
   const mode = t(`place.transit.vehicleType.${getRouteTypeKey(route.type)}`, 1)
-  return mode.charAt(0).toUpperCase() + mode.slice(1)
+  return capitalize(mode)
 }
 
 /** Hex color for the route badge background; falls back to the app primary. */

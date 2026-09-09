@@ -19,7 +19,11 @@ import { alertsFor, worstAlert } from '@/lib/transit-alerts'
 import { api } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useTransitClock } from '@/composables/useTransitClock'
-import { groupDepartures, type BoardDeparture } from '@/lib/transit-departures'
+import {
+  groupDepartures,
+  formatCountdown,
+  type BoardDeparture,
+} from '@/lib/transit-departures'
 import { transferLinesOf, type StationLine } from '@/composables/usePlaceTransitLines'
 import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
 import {
@@ -33,7 +37,6 @@ import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 
 /** Past this, a countdown stops being easier to read than a clock time. */
-const COUNTDOWN_MAX_MINUTES = 120
 
 /** Matches the server's expanded board window (24h). */
 const EXPANDED_WINDOW_MINUTES = 1440
@@ -241,15 +244,7 @@ async function loadLaterDepartures() {
 }
 
 function formatMin(dep: BoardDeparture): string {
-  const m = getMinutesUntil(dep, currentTime.value)
-  if (m === null) return formatDepartureTime(dep)
-  if (dep.dayLabel) return `${dep.dayLabel} ${formatDepartureTime(dep)}`
-  if (m <= 0) return 'Now'
-  if (m < 60) return `${m} min`
-  if (m >= COUNTDOWN_MAX_MINUTES) return formatDepartureTime(dep)
-  const h = Math.floor(m / 60)
-  const r = m % 60
-  return r > 0 ? `${h}h ${r}m` : `${h}h`
+  return formatCountdown(dep, currentTime.value) || formatDepartureTime(dep)
 }
 
 function openRouteDetail(departure: TransitDeparture) {

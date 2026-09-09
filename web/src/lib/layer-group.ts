@@ -1,4 +1,5 @@
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { haversineMeters } from '@/lib/geo-line'
 import {
   TripOption as Trip,
   TimelineSegment as TripSegment,
@@ -483,7 +484,7 @@ export class TripGroup extends MapLayerGroup {
     for (let i = 1; i < geometry.length; i++) {
       const prev = geometry[i - 1]
       const curr = geometry[i]
-      const d = this._haversine(prev.lat, prev.lng, curr.lat, curr.lng)
+      const d = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng)
       cumDist.push(cumDist[i - 1] + d)
     }
     const totalDist = cumDist[cumDist.length - 1]
@@ -660,20 +661,6 @@ export class TripGroup extends MapLayerGroup {
     return expr
   }
 
-  /**
-   * Haversine distance in meters between two coordinates
-   */
-  private _haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
-    const R = 6371000
-    const dLat = ((lat2 - lat1) * Math.PI) / 180
-    const dLng = ((lng2 - lng1) * Math.PI) / 180
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }
 
   private _addConnectorLayer(
     currentSegment: TripSegment,

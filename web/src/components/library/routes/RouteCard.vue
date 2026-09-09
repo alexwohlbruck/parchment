@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { capitalize } from '@/lib/string.utils'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ItemIcon } from '@/components/ui/item-icon'
@@ -49,7 +50,7 @@ const isPrivate = computed(() => props.route.scheme === 'user-e2ee')
 
 const meta = computed(() => {
   const parts: string[] = [
-    props.route.mode.charAt(0).toUpperCase() + props.route.mode.slice(1),
+    capitalize(props.route.mode),
   ]
   const d = props.route.distance ?? props.route.body?.stats?.distance
   if (typeof d === 'number') parts.push(formatDistance(d))

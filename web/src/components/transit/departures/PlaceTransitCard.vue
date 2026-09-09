@@ -27,18 +27,18 @@ import { usePlaceTabs } from '@/composables/usePlaceTabs'
 import { useTransitClock } from '@/composables/useTransitClock'
 import {
   groupDepartures,
+  formatCountdown,
   type BoardDeparture,
   type DirectionGroup,
   type RouteGroup,
 } from '@/lib/transit-departures'
-import { formatDepartureTime, getMinutesUntil, getRouteBulletLabel } from '@/lib/transit'
+import { formatDepartureTime, getRouteBulletLabel } from '@/lib/transit'
 import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
 import StopDeparturesPage from '@/components/transit/departures/StopDeparturesPage.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 
 /** Past this, a countdown stops being easier to read than a clock time. */
-const COUNTDOWN_MAX_MINUTES = 120
 
 const props = defineProps<{
   place?: Partial<Place>
@@ -268,17 +268,7 @@ const routeGroups = computed(() =>
  * alone reads as this morning when the tramway has been shut since 2am.
  */
 function formatCountdownShort(dep: BoardDeparture): string {
-  const mins = getMinutesUntil(dep, currentTime.value)
-  if (mins === null) return ''
-  if (dep.dayLabel) return `${dep.dayLabel} ${formatDepartureTime(dep)}`
-  if (mins <= 0) return 'Now'
-  if (mins < 60) return `${mins} min`
-  if (mins < COUNTDOWN_MAX_MINUTES) {
-    const h = Math.floor(mins / 60)
-    const m = mins % 60
-    return m > 0 ? `${h}h ${m}m` : `${h}h`
-  }
-  return formatDepartureTime(dep)
+  return formatCountdown(dep, currentTime.value)
 }
 
 function directionCountdowns(dir: DirectionGroup): string {

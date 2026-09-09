@@ -1,4 +1,5 @@
 import type { RouteLocationRaw } from 'vue-router'
+import { capitalize } from '@/lib/string.utils'
 import type { Place, PlaceCategory } from '@/types/place.types'
 import type { Bookmark } from '@/types/library.types'
 import type { RecentPlaceEntry, RecentSearchEntry } from '@/lib/recents'
@@ -101,9 +102,6 @@ const UNINFORMATIVE_PLACE_TYPES = new Set([
   'Area',
 ])
 
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1)
-}
 
 /** Open/closed state, but only where the hours data actually states it. */
 function resolveHours(

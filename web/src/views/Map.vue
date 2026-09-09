@@ -25,7 +25,6 @@ import { useLayersStore } from '@/stores/layers.store'
 import { storeToRefs } from 'pinia'
 import { useStreetViewLayersService } from '@/services/layers/features/street-view-layers.service'
 
-import MapChips from '@/components/map/MapChips.vue'
 import WeatherControl from '@/components/map/controls/WeatherControl.vue'
 import MeasureTool from '@/components/map/measure/MeasureTool.vue'
 import RadiusTool from '@/components/map/measure/RadiusTool.vue'
@@ -488,7 +487,6 @@ defineExpose({
                 v-if="isNavTransitioning && !isMobileScreen"
                 class="pointer-events-auto flex gap-2"
               >
-                <!-- <MapChips v-if="!isDrawerOpen" /> -->
               </div>
             </transition-slide>
           </div>

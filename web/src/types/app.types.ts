@@ -10,7 +10,6 @@ export enum DialogType {
   Prompt,
   AutoForm,
   Template,
-  Drawer,
 }
 
 export type AppEvents = {
@@ -65,23 +64,12 @@ export interface TemplateDialogOptions extends BaseDialogOptions {
   onContinue?: (payload?: any) => Promise<any>
 }
 
-export interface DrawerOptions {
-  component: Component
-  props?: Record<string, any>
-  peekHeight?: number
-  dismissable?: boolean
-  onClose?: () => void
-  onSnapPointChange?: (snapPoint: string) => void
-  onContinue?: (payload?: any) => Promise<any>
-}
-
 export type DialogOptions =
   | ComponentDialogOptions
   | ConfirmDialogOptions
   | PromptDialogOptions
   | AutoFormDialogOptions
   | TemplateDialogOptions
-  | DrawerOptions
 
 /** Route-level shaping of the sheet a view opens in (see router `meta.sheet`). */
 export interface SheetMeta {

@@ -34,7 +34,7 @@ import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SettingsSection, SettingsItem } from '@/components/settings'
-import Layers from '@/components/map/Layers.vue'
+import Layers from '@/components/library/layers/LayerList.vue'
 
 // Theme store
 const themeStore = useThemeStore()

@@ -14,7 +14,7 @@ import {
   FREQUENT_META,
   type FrequentType,
 } from '@/lib/frequents'
-import CollectionForm from '@/components/library/CollectionForm.vue'
+import CollectionForm from '@/components/library/collections/CollectionForm.vue'
 import { storeToRefs } from 'pinia'
 import type {
   Bookmark,

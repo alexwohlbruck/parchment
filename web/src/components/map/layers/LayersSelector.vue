@@ -21,7 +21,7 @@ import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useMapService } from '@/services/map.service'
-import { basemaps } from '../map/map.data'
+import { basemaps } from '@/components/map/map.data'
 import { Basemap } from '@/types/map.types'
 import type { Layer, LayerGroup } from '@/types/map.types'
 import {
@@ -38,7 +38,7 @@ import {
   type TransitClassGroup,
 } from '@/services/layers/features/portolan/portolan-ui'
 import LayerSelectorRow from './LayerSelectorRow.vue'
-import TransitServiceTimeControl from './TransitServiceTimeControl.vue'
+import TransitServiceTimeControl from '@/components/transit/TransitServiceTimeControl.vue'
 import type { SelectorNode } from './layer-selector.types'
 import { BookmarkIcon, Paintbrush2Icon } from 'lucide-vue-next'
 

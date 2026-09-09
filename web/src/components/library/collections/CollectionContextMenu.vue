@@ -10,7 +10,7 @@ import {
 } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useAppService } from '@/services/app.service'
-import CollectionForm from '@/components/library/CollectionForm.vue'
+import CollectionForm from '@/components/library/collections/CollectionForm.vue'
 import ShareDialog from '@/components/sharing/ShareDialog.vue'
 import ResponsiveDropdown, {
   type MenuItemDefinition,

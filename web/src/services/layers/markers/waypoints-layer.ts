@@ -7,7 +7,7 @@
 import { BaseMarkerLayer, type MarkerData } from './base-marker-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
-import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
 
 export class WaypointsLayer extends BaseMarkerLayer {
   private directionsStore = useDirectionsStore()
@@ -17,7 +17,7 @@ export class WaypointsLayer extends BaseMarkerLayer {
   constructor() {
     super({
       idPrefix: 'waypoint-',
-      component: WaypointMapIcon,
+      component: WaypointMarker,
       zIndex: 3, // Highest priority among map markers
     })
   }

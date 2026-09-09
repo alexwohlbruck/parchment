@@ -28,7 +28,7 @@ import {
   requestTick,
   type Tick,
 } from '@/lib/animation-scheduler'
-import UserLocationMarker from '@/components/map/UserLocationMarker.vue'
+import UserLocationMarker from '@/components/map/markers/UserLocationMarker.vue'
 
 const MARKER_ID = 'self'
 

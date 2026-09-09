@@ -12,7 +12,7 @@ import { watch } from 'vue'
 import { useSearchStore } from '@/stores/search.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
-import SearchResultMapIcon from '@/components/map/SearchResultMapIcon.vue'
+import SearchResultMarker from '@/components/map/markers/SearchResultMarker.vue'
 import {
   SEARCH_RESULTS_LAYER_ID,
   SEARCH_RESULTS_SOURCE_ID,
@@ -216,7 +216,7 @@ export function useSearchResultsLayerService() {
       const marker = mapStrategy.addVueMarker(
         markerId,
         { lat, lng },
-        SearchResultMapIcon,
+        SearchResultMarker,
         {
           place,
           isHovered: hoveredPlaceId === place.id,

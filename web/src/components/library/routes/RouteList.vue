@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SearchIcon, ArrowUpDownIcon, PlusIcon } from 'lucide-vue-next'
-import RouteCard from '@/components/library/RouteCard.vue'
+import RouteCard from '@/components/library/routes/RouteCard.vue'
 import { fuzzyFilter } from '@/lib/utils'
 import { AppRoute } from '@/router'
 import type { Route } from '@/types/routes.types'

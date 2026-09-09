@@ -6,9 +6,9 @@ import { useI18n } from 'vue-i18n'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { type ThemeColor } from '@/lib/utils'
-import BookmarkList from '@/components/library/BookmarkList.vue'
+import BookmarkList from '@/components/library/bookmarks/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
-import CollectionContextMenu from '@/components/library/CollectionContextMenu.vue'
+import CollectionContextMenu from '@/components/library/collections/CollectionContextMenu.vue'
 import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 // NOTE: the in-view back button was removed — the drawer (LeftSheet /
 // BottomSheet) now provides navigation controls. Route-change cleanup, if

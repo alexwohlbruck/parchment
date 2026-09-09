@@ -17,8 +17,8 @@ import { useRouteBuilderStore } from '@/stores/route-builder.store'
 import { useRouteBuilderService } from '@/services/route-builder.service'
 import { getTravelModeColor, getTravelModeCaseColor } from '@/lib/travel-mode-colors'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import RouteBuilderWaypointMarker from '@/components/map/RouteBuilderWaypointMarker.vue'
-import RouteBuilderTurnaroundMarker from '@/components/map/RouteBuilderTurnaroundMarker.vue'
+import RouteBuilderWaypointMarker from '@/components/map/markers/RouteBuilderWaypointMarker.vue'
+import RouteBuilderTurnaroundMarker from '@/components/map/markers/RouteBuilderTurnaroundMarker.vue'
 
 export class RouteBuilderLayer extends BaseMarkerLayer {
   private store = useRouteBuilderStore()

@@ -8,7 +8,7 @@ import { Layer, LayerType, MapEngine } from '@/types/map.types'
 import { palette } from '@/lib/palette'
 import { FeatureCollection } from 'geojson'
 import { toRaw } from 'vue'
-import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
+import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
 import {
   getTravelModeColor,
   getTravelModeCaseColor,

@@ -14,7 +14,7 @@ import { useAppStore } from '@/stores/app.store'
 import { Button } from '@/components/ui/button'
 import { ControlVisibility, UnitSystem } from '@/types/map.types'
 import { storeToRefs } from 'pinia'
-import WeatherDetailsDialog from '@/components/map/WeatherDetailsDialog.vue'
+import WeatherDetailsDialog from '@/components/weather/WeatherDetailsDialog.vue'
 import { TransitionFade } from '@morev/vue-transitions'
 import {
   Sun,

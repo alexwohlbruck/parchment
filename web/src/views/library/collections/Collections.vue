@@ -7,7 +7,7 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { storeToRefs } from 'pinia'
-import CollectionsList from '@/components/library/CollectionsList.vue'
+import CollectionList from '@/components/library/collections/CollectionList.vue'
 
 const collectionsService = useCollectionsService()
 const collectionsStore = useCollectionsStore()
@@ -52,7 +52,7 @@ const loading = computed(() => {
       @retry="load"
     />
 
-    <CollectionsList
+    <CollectionList
       v-else
       :collections="collections"
       :loading="loading"

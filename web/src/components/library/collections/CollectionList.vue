@@ -17,9 +17,9 @@ import {
   FilterIcon,
   CheckIcon,
 } from 'lucide-vue-next'
-import CollectionCard from '@/components/library/CollectionCard.vue'
-import CollectionForm from '@/components/library/CollectionForm.vue'
-import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
+import CollectionCard from '@/components/library/collections/CollectionCard.vue'
+import CollectionForm from '@/components/library/collections/CollectionForm.vue'
+import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
 import { useAppService } from '@/services/app.service'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { fuzzyFilter } from '@/lib/utils'
@@ -233,7 +233,7 @@ async function createCollection() {
     </div>
 
     <!-- Home / Work / School quick places -->
-    <PresetPlacesRow />
+    <FrequentPlacesRow />
 
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <Spinner />

@@ -7,7 +7,7 @@
 
 import { ref, type Ref } from 'vue'
 import { BaseMarkerLayer, type MarkerData } from './base-marker-layer'
-import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
+import InstructionPointMarker from '@/components/map/markers/InstructionPointMarker.vue'
 
 interface TripData {
   segments: Array<{

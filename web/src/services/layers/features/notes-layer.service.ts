@@ -6,7 +6,7 @@ import { useLayersStore } from '@/stores/layers.store'
 import { useNotesService } from '@/services/notes.service'
 import { LayerType } from '@/types/map.types'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import NoteMapIcon from '@/components/map/NoteMapIcon.vue'
+import NoteMarker from '@/components/map/markers/NoteMarker.vue'
 import type { OsmNote } from '@/types/notes.types'
 
 const NOTE_MARKER_PREFIX = 'note-'
@@ -138,7 +138,7 @@ export function useNotesLayerService() {
       mapStrategy.addVueMarker(
         markerId,
         { lng: note.lng, lat: note.lat },
-        NoteMapIcon,
+        NoteMarker,
         {
           note: toRaw(note),
           onClick: (_note: OsmNote) => {

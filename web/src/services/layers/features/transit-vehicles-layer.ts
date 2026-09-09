@@ -45,7 +45,7 @@ import {
   requestTick,
   type Tick,
 } from '@/lib/animation-scheduler'
-import TransitVehicleMarker from '@/components/map/TransitVehicleMarker.vue'
+import TransitVehicleMarker from '@/components/map/markers/TransitVehicleMarker.vue'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
 // ── Constants ─────────────────────────────────────────────────────

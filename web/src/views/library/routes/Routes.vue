@@ -9,7 +9,7 @@ import { capitalize } from '@/filters/text.filters'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useRoutesService } from '@/services/library/routes.service'
 import { useRoutesStore } from '@/stores/library/routes.store'
-import RoutesList from '@/components/library/RoutesList.vue'
+import RouteList from '@/components/library/routes/RouteList.vue'
 
 const { t } = useI18n()
 const routesService = useRoutesService()
@@ -68,6 +68,6 @@ const loading = computed(
       </Button>
     </EmptyState>
 
-    <RoutesList v-else :routes="routes" :loading="loading" class="flex-1" />
+    <RouteList v-else :routes="routes" :loading="loading" class="flex-1" />
   </div>
 </template>

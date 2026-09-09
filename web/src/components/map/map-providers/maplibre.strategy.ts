@@ -60,8 +60,8 @@ import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
 import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
 import { Component, watch } from 'vue'
 import { createVueMarkerElement } from '@/lib/vue-marker.utils'
-import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
-import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
+import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
+import InstructionPointMarker from '@/components/map/markers/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
 import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
@@ -587,7 +587,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.addVueMarker(
         `route-stop-${index}`,
         { lat: location.lat, lng: location.lon },
-        WaypointMapIcon,
+        WaypointMarker,
         {
           index,
           totalWaypoints: directions.locations.length,

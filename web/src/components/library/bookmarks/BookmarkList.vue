@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Spinner } from '@/components/ui/spinner'
 import { SearchIcon, ArrowUpDownIcon } from 'lucide-vue-next'
-import BookmarkCard from '@/components/library/BookmarkCard.vue'
+import BookmarkCard from '@/components/library/bookmarks/BookmarkCard.vue'
 import { fuzzyFilter } from '@/lib/utils'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useBookmarksService } from '@/services/library/bookmarks.service'

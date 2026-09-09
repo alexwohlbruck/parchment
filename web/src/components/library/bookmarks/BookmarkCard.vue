@@ -15,8 +15,8 @@ import { useBookmarksService } from '@/services/library/bookmarks.service'
 import { storeToRefs } from 'pinia'
 import type { Bookmark } from '@/types/library.types'
 import { useAppService } from '@/services/app.service'
-import BookmarkForm from '@/components/library/BookmarkForm.vue'
-import CollectionPicker from '@/components/library/CollectionPicker.vue'
+import BookmarkForm from '@/components/library/bookmarks/BookmarkForm.vue'
+import CollectionPicker from '@/components/library/collections/CollectionPicker.vue'
 import ResponsiveDropdown, {
   type MenuItemDefinition,
 } from '@/components/responsive/ResponsiveDropdown.vue'

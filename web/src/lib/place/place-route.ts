@@ -1,0 +1,173 @@
+import { Place } from '@/types/place.types'
+import { RouteLocationRaw } from 'vue-router'
+import { AppRoute } from '@/router'
+
+/**
+ * Parse a place ID string and returns the appropriate route object
+ *
+ * @param placeId The place ID string (e.g., "osm/node/123456", "google/abc123", "location/name/lat/lng")
+ * @returns A route object that can be used with router.push()
+ */
+/**
+ * Route to a saved place's detail page from its `externalIds`.
+ *
+ * Prefers OSM, then coordinates, then whatever provider is present — the same
+ * precedence a bookmark card uses. Returns null when there is no id to route
+ * to at all.
+ */
+export function getPlaceRouteFromExternalIds(
+  externalIds: Record<string, string> | undefined | null,
+): RouteLocationRaw | null {
+  const ids = externalIds ?? {}
+  const [key, value] = ids.osm
+    ? ['osm', ids.osm]
+    : ids.coords
+      ? ['coords', ids.coords]
+      : [Object.keys(ids)[0], Object.values(ids)[0]]
+
+  if (!key || !value) return null
+  return getPlaceRoute(`${key}/${value}`)
+}
+
+export function getPlaceRoute(placeId: string): RouteLocationRaw {
+  // Pelias / OpenAddresses geocoder results, e.g.
+  // "pelias/openaddresses:address:us/ny/city_of_new_york:7e5bd55eb1baa131".
+  // These aren't backed by a retrievable record — the full address is already
+  // in the search result (carried into the store via setPartialPlace at click
+  // time) — and the embedded '/' and ':' break the naive split() below, which
+  // truncated the id to "openaddresses:address:us" and produced a dead URL.
+  // Route to the provider view with the whole id after the "pelias/" prefix
+  // (vue-router percent-encodes the slashes); Place.vue renders the cached
+  // place for the "pelias" provider instead of a nonexistent backend lookup.
+  if (placeId.startsWith('pelias/')) {
+    return {
+      name: AppRoute.PLACE_PROVIDER,
+      params: {
+        provider: 'pelias',
+        placeId: placeId.slice('pelias/'.length),
+      },
+    }
+  }
+
+  // A GTFS line from barrelman search: "transit-route/<feedId>:<routeId>".
+  // Opens the transit route detail view, which is keyed by exactly that pair.
+  // Split on the first colon only — GTFS route ids may contain colons.
+  if (placeId.startsWith('transit-route/')) {
+    const rest = placeId.slice('transit-route/'.length)
+    const sep = rest.indexOf(':')
+    if (sep > 0) {
+      return {
+        name: AppRoute.TRANSIT_ROUTE,
+        params: { feedId: rest.slice(0, sep), routeId: rest.slice(sep + 1) },
+      }
+    }
+  }
+
+  // OSM format: "osm/node/123456789"
+  if (placeId.startsWith('osm/')) {
+    const parts = placeId.substring(4).split('/')
+    if (parts.length >= 2) {
+      console.log(`Parsed as OSM route: type=${parts[0]}, id=${parts[1]}`)
+      return {
+        name: AppRoute.PLACE,
+        params: {
+          type: parts[0],
+          id: parts[1],
+        },
+      }
+    }
+  }
+  // Coordinates format: "coords/35.2271/-80.8431"
+  else if (placeId.startsWith('coords/')) {
+    const parts = placeId.substring(7).split('/')
+    if (parts.length >= 2) {
+      console.log(
+        `Parsed as coords route: lat=${parts[0]}, lng=${parts[1]}`,
+      )
+      return {
+        name: AppRoute.PLACE_COORDS,
+        params: {
+          lat: parts[0],
+          lng: parts[1],
+        },
+      }
+    }
+  }
+  // Location format: "location/name/lat/lng"
+  else if (placeId.startsWith('location/')) {
+    const parts = placeId.substring(9).split('/')
+    if (parts.length >= 3) {
+      console.log(
+        `Parsed as location route: name=${parts[0]}, lat=${parts[1]}, lng=${parts[2]}`,
+      )
+      return {
+        name: AppRoute.PLACE_LOCATION,
+        params: {
+          name: parts[0],
+          lat: parts[1],
+          lng: parts[2],
+        },
+      }
+    }
+  }
+  // Generic provider format: "provider/id". Split on the FIRST slash only —
+  // the id portion may itself contain slashes, and destructuring split('/')
+  // would silently drop everything after the second segment.
+  else if (placeId.includes('/')) {
+    const slash = placeId.indexOf('/')
+    const provider = placeId.slice(0, slash)
+    const id = placeId.slice(slash + 1)
+    return {
+      name: AppRoute.PLACE_PROVIDER,
+      params: {
+        provider,
+        placeId: id,
+      },
+    }
+  }
+
+  // Fallback for unknown formats - assume it's a Google Place ID
+  console.log(`No prefix detected, assuming Google Place ID: "${placeId}"`)
+  return {
+    name: AppRoute.PLACE_PROVIDER,
+    params: {
+      provider: 'google',
+      placeId,
+    },
+  }
+}
+
+/**
+ * Route for a GTFS-only stop (no OSM object to open): the location place view
+ * at its coordinates with the transit widget expanded — the same treatment a
+ * transfer station without an OSM pair gets (PlaceTransitPage).
+ */
+export function getTransitStopRoute(
+  name: string,
+  lat: number,
+  lng: number,
+): RouteLocationRaw {
+  return {
+    name: AppRoute.PLACE_LOCATION,
+    params: { name: name || 'Station', lat: String(lat), lng: String(lng) },
+    query: { complex: '1' },
+  }
+}
+
+/**
+ * Build a place-id string for a bookmark, suitable for `getPlaceRoute`.
+ * Prefers the OSM id, then coords, then the first external id — mirroring how
+ * a bookmark resolves back to a place. Returns null if it has no usable id.
+ */
+export function getBookmarkPlaceId(bookmark: {
+  externalIds: Record<string, string>
+}): string | null {
+  const ids = bookmark.externalIds ?? {}
+  const [key, value] = ids.osm
+    ? ['osm', ids.osm]
+    : ids.coords
+      ? ['coords', ids.coords]
+      : [Object.keys(ids)[0], Object.values(ids)[0]]
+  if (!key || !value) return null
+  return `${key}/${value}`
+}

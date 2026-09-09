@@ -4,7 +4,7 @@ import duration from 'dayjs/plugin/duration'
 import { computed, onUnmounted, onMounted, inject, type Ref } from 'vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
-import { useMapListener } from '@/composables/useMapListener'
+import { useMapListener } from '@/composables/map/useMapListener'
 import {
   BikeIcon,
   BusFrontIcon,
@@ -25,7 +25,7 @@ import TripsList from '@/components/directions/TripsList.vue'
 import RoutingPreferences from '@/components/directions/preferences/RoutingPreferences.vue'
 import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { useElementSize } from '@vueuse/core'
-import { useSheetPeek } from '@/composables/useSheetPeek'
+import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { Waypoint } from '@/types/map.types'
 import { SelectedMode, SortPreference } from '@/types/multimodal.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'

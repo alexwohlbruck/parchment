@@ -8,8 +8,8 @@ import {
   placeToDisplay,
   bookmarkToDisplay,
   type PlaceDisplay,
-} from '@/lib/place/place-display'
-import { usePlaceService } from '@/services/place.service'
+} from '@/services/place/place-display'
+import { usePlaceService } from '@/services/place/place.service'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { ItemRow, ITEM_ROW_SIZES } from '@/components/ui/item-row'

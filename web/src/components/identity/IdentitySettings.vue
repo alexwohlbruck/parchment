@@ -168,6 +168,7 @@ function handleSetupComplete() {
     <!-- Needs Import (has server keys but no local) -->
     <SettingsSection
       v-else-if="needsImport"
+      id="identity"
       :title="t('friends.identity.title')"
       :description="t('friends.identity.description')"
     >
@@ -188,6 +189,7 @@ function handleSetupComplete() {
     <!-- Needs Setup -->
     <SettingsSection
       v-else-if="!isSetupComplete"
+      id="identity"
       :title="t('friends.identity.title')"
       :description="t('friends.identity.description')"
     >

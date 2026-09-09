@@ -28,7 +28,7 @@ import type { IntegrationDefinition } from '@/types/integrations.types'
 import {
   useIntegrationFilters,
   type SortField,
-} from '@/composables/useIntegrationFilters'
+} from '@/composables/integrations/useIntegrationFilters'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

@@ -18,6 +18,7 @@ import {
   IntegrationScope,
 } from '@/types/integrations.types'
 import { computed, h } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Button } from '@/components/ui/button'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -36,6 +37,7 @@ import {
 } from '@/components/ui/tooltip'
 
 const { t } = useI18n()
+const router = useRouter()
 const integrationsStore = useIntegrationsStore()
 const identityStore = useIdentityStore()
 const { isSetupComplete } = storeToRefs(identityStore)
@@ -255,7 +257,13 @@ async function handleClick() {
   const integration = props.integration
 
   if (requiresSetup.value) {
-    toast.warning(t('settings.integrations.scheme.setupRequired'))
+    toast.warning(t('settings.integrations.scheme.setupRequired'), {
+      action: {
+        label: t('settings.integrations.scheme.setupRequiredAction'),
+        onClick: () =>
+          router.push({ path: '/settings/account', hash: '#identity' }),
+      },
+    })
     return
   }
 

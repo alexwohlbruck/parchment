@@ -26,7 +26,7 @@ import {
 import { Place } from '@/types/place.types'
 import { AutocompleteResult } from '@/types/search.types'
 import { useSearchService } from '@/services/search.service'
-import { useMapCamera } from '@/composables/useMapCamera'
+import { useMapCamera } from '@/composables/map/useMapCamera'
 import { useAbortController } from '@/composables/useAbortController'
 import { cn, useResponsive } from '@/lib/utils'
 import { useDebounceFn } from '@vueuse/core'
@@ -34,7 +34,7 @@ import { Spinner } from '@/components/ui/spinner'
 import {
   getSearchResultName,
   autocompleteResultToPlace,
-} from '@/lib/search/search.utils'
+} from '@/lib/search/search-result'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useI18n } from 'vue-i18n'
 import { PlaceCard } from '@/components/place/card'
@@ -42,7 +42,7 @@ import {
   autocompleteToDisplay,
   makePlaceDisplay,
   waypointToDisplay,
-} from '@/lib/place/place-display'
+} from '@/services/place/place-display'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { useThemeStore } from '@/stores/theme.store'
 import { fuzzyFilter } from '@/lib/utils'

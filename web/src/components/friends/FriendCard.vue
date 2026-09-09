@@ -16,7 +16,7 @@ import {
 import { MoreVertical, UserMinus, MapPin, RefreshCwIcon } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
 import type { Friendship } from '@/services/friends.service'
-import type { FriendLocation } from '@/composables/useFriendLocations'
+import type { FriendLocation } from '@/composables/friends/useFriendLocations'
 
 const router = useRouter()
 const { t } = useI18n()

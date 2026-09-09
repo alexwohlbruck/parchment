@@ -22,7 +22,12 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
 type Op =
-  | { kind: 'delete'; table: unknown; userId: string | null }
+  | {
+      kind: 'delete'
+      table: unknown
+      userId: string | null
+      scheme: string | null
+    }
   | { kind: 'update-users'; values: Record<string, unknown>; userId: string | null }
   | { kind: 'insert'; table: unknown; rows: unknown[] }
   | { kind: 'select'; table: unknown }
@@ -46,21 +51,25 @@ function makeFake() {
 
   let op: PendingOp | null = null
   let filterUserId: string | null = null
+  let filterScheme: string | null = null
 
   const fake: any = {
     delete(table: unknown) {
       op = { kind: 'delete', table }
       filterUserId = null
+      filterScheme = null
       return fake
     },
     update(table: unknown) {
       op = { kind: 'update', table, set: null }
       filterUserId = null
+      filterScheme = null
       return fake
     },
     select(_fields?: unknown) {
       op = { kind: 'select', table: null }
       filterUserId = null
+      filterScheme = null
       return fake
     },
     from(table: unknown) {
@@ -70,6 +79,7 @@ function makeFake() {
     insert(table: unknown) {
       op = { kind: 'insert', table, rows: null }
       filterUserId = null
+      filterScheme = null
       return fake
     },
     values(rows: unknown | unknown[]) {
@@ -97,7 +107,12 @@ function makeFake() {
     where(_predicate: unknown) {
       if (!op) return Promise.resolve()
       if (op.kind === 'delete') {
-        ops.push({ kind: 'delete', table: op.table, userId: filterUserId })
+        ops.push({
+          kind: 'delete',
+          table: op.table,
+          userId: filterUserId,
+          scheme: filterScheme,
+        })
         op = null
         return Promise.resolve()
       }
@@ -156,10 +171,14 @@ function makeFake() {
     filterUserId = id
   }
 
-  return { fake, setFilterUserId }
+  function setFilterScheme(scheme: string) {
+    filterScheme = scheme
+  }
+
+  return { fake, setFilterUserId, setFilterScheme }
 }
 
-const { fake, setFilterUserId } = makeFake()
+const { fake, setFilterUserId, setFilterScheme } = makeFake()
 
 mock.module('../db', () => ({ db: fake }))
 mock.module('../util', () => ({ generateId: () => 'mock-id' }))
@@ -179,10 +198,14 @@ mock.module('drizzle-orm', () => {
     ) {
       setFilterUserId(val as string)
     }
+    if (name === 'scheme') {
+      setFilterScheme(val as string)
+    }
     return { _kind: 'eq', name, val }
   }
   const or = (...parts: unknown[]) => ({ _kind: 'or', parts })
-  return { eq, or }
+  const and = (...parts: unknown[]) => ({ _kind: 'and', parts })
+  return { eq, or, and }
 })
 
 // Imports after mocks are in place.
@@ -193,6 +216,8 @@ import { deviceWrapSecrets } from '../schema/device-wrap-secrets.schema'
 import { encryptedUserBlobs } from '../schema/personal-blobs.schema'
 import { bookmarks, collections } from '../schema/library.schema'
 import { canvases } from '../schema/canvases.schema'
+import { routes } from '../schema/routes.schema'
+import { integrations } from '../schema/integrations.schema'
 import {
   encryptedLocations,
   locationSharingConfig,
@@ -231,6 +256,8 @@ describe('resetUserIdentity', () => {
       collections,
       bookmarks,
       canvases,
+      routes,
+      integrations,
       encryptedLocations,
       locationSharingConfig,
       locationSharingRelationships,
@@ -245,6 +272,16 @@ describe('resetUserIdentity', () => {
     for (const table of expected) {
       expect(deletedTables).toContain(table)
     }
+  })
+
+  test('deletes only user-e2ee integrations, leaving server-key ones', async () => {
+    await resetUserIdentity('u1')
+    const integrationDeletes = ops.filter(
+      (o) => o.kind === 'delete' && o.table === integrations,
+    ) as Array<{ scheme: string | null }>
+
+    expect(integrationDeletes).toHaveLength(1)
+    expect(integrationDeletes[0]!.scheme).toBe('user-e2ee')
   })
 
   test('scopes every delete and the update to the target userId', async () => {

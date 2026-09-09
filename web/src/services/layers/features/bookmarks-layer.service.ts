@@ -15,7 +15,7 @@
 
 import { watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { useCollectionsStore } from '@/stores/library/collections.store'
@@ -25,7 +25,7 @@ import { useMapToolsStore } from '@/stores/map-tools.store'
 import type { Layer } from '@/types/map.types'
 import { ensureIconImages } from '@/lib/map/map-icon-images'
 import { themeColorToHex } from '@/lib/utils'
-import { getPlaceRouteFromExternalIds } from '@/lib/place/place.utils'
+import { getPlaceRouteFromExternalIds } from '@/lib/place/place-route'
 import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import {
   selectSavedPlaces,

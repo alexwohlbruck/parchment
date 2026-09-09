@@ -28,11 +28,11 @@ import ElevationChart from '@/components/directions/ElevationChart.vue'
 import { useRoutesService } from '@/services/library/routes.service'
 import { useRouteBuilderStore } from '@/stores/route-builder.store'
 import { useRouteBuilderService } from '@/services/route-builder.service'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { Route } from '@/types/routes.types'
-import { formatDurationLong } from '@/lib/time.utils'
+import { formatDurationLong } from '@/lib/time-format'
 import { StatRow, type StatRowItem } from '@/components/ui/stat'
 
 const props = defineProps<{ id: string }>()

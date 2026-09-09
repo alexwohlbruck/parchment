@@ -11,28 +11,9 @@
  */
 
 import { api } from '@/lib/api'
+import type { DefaultStateType, DefaultUserStateRow } from '@/types/map.types'
 import type { Layer, LayerGroup } from '@/types/map.types'
 
-export type DefaultStateType = 'layer' | 'group'
-
-export interface DefaultUserStateRow {
-  userId: string
-  templateId: string
-  type: DefaultStateType
-  /**
-   * Whether the user removed this template from their library. `null` means
-   * they never said either way, so the template's `installedByDefault` decides.
-   */
-  hidden: boolean | null
-  visible: boolean | null
-  order: number | null
-  enabled: boolean | null
-  showInLayerSelector: boolean | null
-  groupId: string | null
-  parentGroupId: string | null
-  createdAt: string
-  updatedAt: string
-}
 
 export interface DefaultStatePatch {
   hidden?: boolean | null

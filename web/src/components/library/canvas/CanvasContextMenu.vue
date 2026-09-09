@@ -19,7 +19,7 @@ import { Switch } from '@/components/ui/switch'
 import { useMapStore } from '@/stores/map.store'
 import { useAppService } from '@/services/app.service'
 import { useCanvasesService } from '@/services/library/canvases.service'
-import { currentMapSettings } from '@/composables/useCanvasMapSettings'
+import { currentMapSettings } from '@/composables/canvas/useCanvasMapSettings'
 import { MapEngine } from '@/types/map.types'
 import {
   Building2Icon,

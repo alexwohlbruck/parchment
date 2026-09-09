@@ -4,7 +4,7 @@ import {
   useResponsiveOverlay,
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayPositionProps,
-} from '@/composables/useResponsiveOverlay'
+} from '@/composables/sheet/useResponsiveOverlay'
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import { cn } from '@/lib/utils'
 import {

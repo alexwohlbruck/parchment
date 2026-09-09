@@ -1,4 +1,4 @@
-import { formatWord } from '@/lib/string.utils'
+import { formatWord } from '@/lib/string'
 
 /**
  * Human-readable labels for OSM tag keys shown in the OsmTagsWidget.

@@ -9,8 +9,8 @@
  */
 import { computed, ref, watch } from 'vue'
 import { LngLat } from 'mapbox-gl'
-import { usePlaceService } from '@/services/place.service'
-import { useStreetImagery, type Coordinates } from '@/composables/useStreetImagery'
+import { usePlaceService } from '@/services/place/place.service'
+import { useStreetImagery, type Coordinates } from '@/composables/place/useStreetImagery'
 import { mapEventBus } from '@/lib/event-bus'
 import type { MapillaryImage } from '@/types/map.types'
 import { Binoculars } from 'lucide-vue-next'

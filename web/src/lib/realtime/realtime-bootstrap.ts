@@ -15,6 +15,6 @@
 import '@/stores/library/collections.realtime'
 import '@/stores/library/bookmarks.realtime'
 import '@/stores/friends.realtime'
-import '@/composables/useFriendLocations.realtime'
+import '@/composables/friends/useFriendLocations.realtime'
 import '@/services/subscription.realtime'
 import '@/services/integration.realtime'

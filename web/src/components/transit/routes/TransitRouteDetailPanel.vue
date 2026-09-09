@@ -15,7 +15,7 @@ import {
 } from '@/services/layers/features/portolan/portolan-stops'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import ServiceAlerts from '@/components/transit/alerts/ServiceAlerts.vue'
-import { useTransitAlerts } from '@/composables/useTransitAlerts'
+import { useTransitAlerts } from '@/composables/transit/useTransitAlerts'
 import { alertServiceOverrides, alertStopSkips } from '@/lib/transit/alert-service-overrides'
 import { Separator } from '@/components/ui/separator'
 import { SheetHeader } from '@/components/sheet'
@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useTransitClock } from '@/composables/useTransitClock'
+import { useTransitClock } from '@/composables/transit/useTransitClock'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'

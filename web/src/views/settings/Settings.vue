@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useResponsive } from '@/lib/utils'
-import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
+import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 
 import Navigation from '@/components/settings/SettingsNavigation.vue'
 import SettingsPage from '@/components/settings/SettingsPane.vue'

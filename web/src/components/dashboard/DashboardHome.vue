@@ -24,7 +24,7 @@ import IntegrationHealthDot from '@/components/integration/IntegrationHealthDot.
 import { AppRoute } from '@/router'
 import type { ThemeColor } from '@/lib/utils'
 import { recentPlaceIdentity, recentSearchIdentity } from '@/lib/recents'
-import { capitalize } from '@/lib/string.utils'
+import { capitalize } from '@/lib/string'
 import Palette from '@/components/palette/Palette.vue'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
 import { appEventBus } from '@/lib/event-bus'
@@ -37,7 +37,7 @@ import {
   recentPlaceToDisplay,
   recentSearchToDisplay,
   type PlaceDisplay,
-} from '@/lib/place/place-display'
+} from '@/services/place/place-display'
 
 dayjs.extend(relativeTime)
 

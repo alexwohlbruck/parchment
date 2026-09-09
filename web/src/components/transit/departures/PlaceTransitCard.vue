@@ -8,8 +8,8 @@
  *     Headsign     12, 25 min  📶
  */
 import { computed, markRaw, onBeforeUnmount, onUnmounted, watch } from 'vue'
-import { setPlaceTransitLines, usePlaceTransferLines, type StationLine } from '@/composables/usePlaceTransitLines'
-import { useTransitAlerts } from '@/composables/useTransitAlerts'
+import { setPlaceTransitLines, usePlaceTransferLines, type StationLine } from '@/composables/transit/usePlaceTransitLines'
+import { useTransitAlerts } from '@/composables/transit/useTransitAlerts'
 import { alertStopSkips, filterSkippedDepartures } from '@/lib/transit/alert-service-overrides'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { useI18n } from 'vue-i18n'
@@ -23,8 +23,8 @@ import {
   ensureStopIndexAt,
   osmForStop,
 } from '@/services/layers/features/portolan/portolan-stops'
-import { usePlaceTabs } from '@/composables/usePlaceTabs'
-import { useTransitClock } from '@/composables/useTransitClock'
+import { usePlaceTabs } from '@/composables/place/usePlaceTabs'
+import { useTransitClock } from '@/composables/transit/useTransitClock'
 import {
   groupDepartures,
   formatCountdown,

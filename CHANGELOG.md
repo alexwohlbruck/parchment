@@ -6,6 +6,9 @@
 
 ### Changed
 
+* The "set up your encryption keys" warning on an integration now links
+  straight to the setup screen
+
 ### Fixed
 
 * A failing integration (like an unreachable location history server) no
@@ -18,6 +21,9 @@
 * Your unit system preference now applies when signing in on a new device
 * Collections created from the library keep the icon you picked
 * The developer page is no longer reachable in released builds
+* Resetting your encryption key now clears the integrations that relied on it, so they can be connected again afterwards
+* Integrations stranded by an earlier encryption key reset are cleared, so they can be connected again
+* Resetting your encryption key now removes saved routes, which were left behind unreadable
 
 ## [0.11.4] - 2026-09-08
 

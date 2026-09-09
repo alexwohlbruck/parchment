@@ -18,7 +18,7 @@ import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
 import {
   departureReachability,
@@ -54,18 +54,18 @@ import type { Place } from '@/types/place.types'
 import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import type { SharedMobilityDetails } from '@/types/multimodal.types'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
-import { getPlaceRoute } from '@/lib/place/place.utils'
+import { getPlaceRoute } from '@/lib/place/place-route'
 import {
   getSearchResultIconName,
   getSearchResultIconPack,
   getSearchResultCategory,
   getSearchResultName,
-} from '@/lib/search/search.utils'
-import { getCategoryColor } from '@/lib/place/place-colors'
+} from '@/lib/search/search-result'
+import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
-import { waypointToDisplay, type PlaceDisplay } from '@/lib/place/place-display'
+import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
@@ -78,7 +78,7 @@ import type { ServiceAlert } from '@/types/transit.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { SheetHeader } from '@/components/sheet'
 import { useUnits } from '@/composables/useUnits'
-import { formatDurationCompact } from '@/lib/time.utils'
+import { formatDurationCompact } from '@/lib/time-format'
 import { useI18n } from 'vue-i18n'
 
 const route = useRoute()

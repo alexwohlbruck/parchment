@@ -7,13 +7,17 @@ import {
   ungroupedLayers,
 } from '@/lib/map/layer-tree'
 import { ref, computed, watch } from 'vue'
-import type { Layer, LayerGroup, LayerGroupWithLayers } from '@/types/map.types'
+import type {
+  Layer,
+  LayerGroup,
+  LayerGroupWithLayers,
+  DefaultUserStateRow,
+  DefaultStateType,
+} from '@/types/map.types'
 import { LayerType, MapEngine } from '@/types/map.types'
 import {
   useLayerCrudService,
-  type DefaultUserStateRow,
   type DefaultStatePatch,
-  type DefaultStateType,
 } from '@/services/layers/core/layer-crud.service'
 import { useLayersService } from '@/services/layers/layers.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'

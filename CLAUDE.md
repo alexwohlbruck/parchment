@@ -40,11 +40,11 @@ identity, …), then by layer inside it. A module owns its UI, state and logic.
 | Directory | Holds | Never holds |
 |---|---|---|
 | `views/` | Components a route renders, one folder per module | Child components. If the router doesn't name it, it belongs in `components/<module>/` |
-| `components/<module>/` | Vue SFCs for that module | Plain `.ts` with no template — that is a service or a lib |
-| `components/ui/` | Design-system primitives | Anything importing a store, a service, or domain types |
+| `components/<module>/` | Vue SFCs, plus small helpers only those SFCs use (`context.ts`, local `types.ts`) | A class or service the rest of the app calls. Two map strategies lived here for years |
+| `components/ui/` | Design-system primitives, which may read ambient app context (theme, hotkeys) | Any domain module — place, transit, directions, library. A primitive that knows what a Place is has stopped being a primitive |
 | `services/` | I/O and orchestration for a module | Reactive UI state — that is a store |
 | `stores/` | Named singleton state | HTTP calls, or imports of `.vue` files |
-| `composables/` | Reusable `use*` returning caller-scoped state | Module-level singleton state (that is a store), or logic used by exactly one component (co-locate it) |
+| `composables/<module>/` | Reusable `use*` returning caller-scoped state | Module-level singleton state (that is a store), or logic used by exactly one component (co-locate it) |
 | `lib/<module>/` | Pure, framework-free functions | Anything reaching into a store or service |
 
 `lib/` root is for genuinely cross-cutting infrastructure only (api, toast,
@@ -54,6 +54,10 @@ connectivity, time, utils). A new file there needs a reason not to live in
 **Dependencies point one way:** `views → components → composables → stores →
 services → lib`. A `lib/` file importing a store, or a service importing a
 `.vue`, is a defect — fix the direction rather than adding the import.
+
+`composables/` root is for the genuinely cross-cutting ones (`useAbortController`,
+`useClipboard`, `useHotkeys`); anything a module owns goes in
+`composables/<module>/`.
 
 **Split a directory before it hits ~20 files.** Every flat dumping ground in
 this repo started as "just a few more files here".
@@ -80,6 +84,9 @@ this repo started as "just a few more files here".
   lost their icon pack.
 - Before writing a helper, grep for it. Distance, capitalize and countdown
   formatting each existed 3–6 times here.
+- Two exports with the same name in one package hide dead code: a live
+  `getRouteColor` in `lib/transit/transit.ts` masked an unused one next to it
+  long enough that the whole file it lived in went stale unnoticed.
 - Frontend types that mirror the server must re-export from `@server/...`, not
   restate the shape. See `types/place.types.ts` for the pattern.
 

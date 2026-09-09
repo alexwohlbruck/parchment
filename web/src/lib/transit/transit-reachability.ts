@@ -12,7 +12,7 @@
  */
 
 import type { LngLat } from '@/types/map.types'
-import { distanceMeters } from '@/lib/measure/measure.utils'
+import { distanceMeters } from '@/lib/measure/measure'
 
 /** Walking pace assumed when the plan carries no usable distance. */
 const DEFAULT_WALK_SPEED_MPS = 1.35

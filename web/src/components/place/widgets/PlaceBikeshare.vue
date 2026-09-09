@@ -19,7 +19,7 @@ import {
   SquareParkingIcon,
   TriangleAlertIcon,
 } from 'lucide-vue-next'
-import { useTransitClock } from '@/composables/useTransitClock'
+import { useTransitClock } from '@/composables/transit/useTransitClock'
 
 const props = defineProps<{
   status: BikeshareStatus

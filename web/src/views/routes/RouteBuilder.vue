@@ -42,11 +42,11 @@ import ElevationChart from '@/components/directions/ElevationChart.vue'
 import { useRouteBuilderStore } from '@/stores/route-builder.store'
 import { useRouteBuilderService } from '@/services/route-builder.service'
 import { useRoutesService } from '@/services/library/routes.service'
-import { useMapListener } from '@/composables/useMapListener'
+import { useMapListener } from '@/composables/map/useMapListener'
 import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { RouteMode } from '@/types/routes.types'
-import { formatDurationLong } from '@/lib/time.utils'
+import { formatDurationLong } from '@/lib/time-format'
 import { Spinner } from '@/components/ui/spinner'
 
 const props = defineProps<{ id?: string }>()

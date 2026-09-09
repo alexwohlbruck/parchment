@@ -1,3 +1,5 @@
+name: parchment
+
 volumes:
   server-db:
   server:
@@ -31,10 +33,16 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # kartoza/postgis keeps its cluster at /var/lib/postgresql/<major>, not
+      # the stock postgres /var/lib/postgresql/data — without pinning DATADIR
+      # onto the mounted volume, every container recreate silently wipes all
+      # databases (the volume stays empty while data lives in the container
+      # layer).
+      DATADIR: /var/lib/postgresql/data
     volumes:
       - server-db:/var/lib/postgresql/data
     ports:
-      - '5432:5432'
+      - "5432:5432"
 
   # Parchment backend (Elysia)
   parchment-server:
@@ -48,9 +56,31 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}
       SERVER_ORIGIN: ${SERVER_ORIGIN}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN}
-      GMAIL_EMAIL: ${GMAIL_EMAIL}
-      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
-      APP_TESTER_EMAIL: ${APP_TESTER_EMAIL}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      APP_TESTER_EMAIL: ${APP_TESTER_EMAIL:-}
+      # Crypto keys — two INDEPENDENT base64 32-byte values, REQUIRED.
+      # The server refuses to start without these (no ephemeral fallback).
+      # Generate each with: openssl rand -base64 32
+      SERVER_IDENTITY_PRIVATE_KEY: ${SERVER_IDENTITY_PRIVATE_KEY}
+      PARCHMENT_INTEGRATION_ENCRYPTION_KEY: ${PARCHMENT_INTEGRATION_ENCRYPTION_KEY}
+      # Registration mode: 'invite' (admin creates users) or 'open' (self-register)
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-invite}
+      # Self-hosted mode: grant all users full permissions without a subscription.
+      # Only effective when billing is not configured.
+      PARCHMENT_SELF_HOSTED: ${PARCHMENT_SELF_HOSTED:-false}
+      # Billing (optional — omit to run in self-hosted mode)
+      PARCHMENT_LICENSE: ${PARCHMENT_LICENSE:-}
+      POLAR_ACCESS_TOKEN: ${POLAR_ACCESS_TOKEN:-}
+      POLAR_WEBHOOK_SECRET: ${POLAR_WEBHOOK_SECRET:-}
+      POLAR_ORGANIZATION_ID: ${POLAR_ORGANIZATION_ID:-}
+      POLAR_BASIC_PRODUCT_ID: ${POLAR_BASIC_PRODUCT_ID:-}
+      POLAR_PREMIUM_PRODUCT_ID: ${POLAR_PREMIUM_PRODUCT_ID:-}
+      POLAR_SANDBOX: ${POLAR_SANDBOX:-false}
     depends_on:
       - parchment-db
     volumes:
@@ -66,10 +96,8 @@ services:
     network_mode: host
     environment:
       VITE_SERVER_ORIGIN: ${SERVER_ORIGIN}
-      VITE_MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
-      VITE_MAPTILER_API_KEY: ${MAPTILER_API_KEY}
     ports:
-      - '5173:5173'
+      - "5173:5173"
     volumes:
       - ./web:/app/web
       - /app/web/node_modules

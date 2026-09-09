@@ -25,6 +25,8 @@ import {
 import { getUserHandle, getUserIdentity } from './user.service'
 import { parseHandle } from '../lib/crypto'
 import { generateId } from '../util'
+import { emit } from './realtime/emit'
+import { shares, incomingShares } from '../schema/shares.schema'
 
 // Re-export for external use
 export { getUserHandle }
@@ -152,6 +154,14 @@ export async function sendFriendInvitation(
       signature,
     })
 
+    // Both users should see the new pending invitation immediately.
+    await emit.friendship(
+      'friend-invitation:created',
+      outgoingInvitation[0],
+      fromUserId,
+      { userId: localRecipient[0].id },
+    )
+
     return { success: true, invitation: outgoingInvitation[0] }
   } else {
     // Remote invitation - send via federation
@@ -185,6 +195,15 @@ export async function sendFriendInvitation(
         signature,
       })
       .returning()
+
+    // Only the sender sees the new outgoing-invitation row on our server;
+    // the remote side stores its own copy when federation delivers.
+    await emit.friendship(
+      'friend-invitation:created',
+      invitation[0],
+      fromUserId,
+      { handle: toHandle },
+    )
 
     return { success: true, invitation: invitation[0] }
   }
@@ -300,6 +319,15 @@ export async function acceptFriendInvitation(
     await sendFederationMessage(sender.inbox, message)
   }
 
+  // Tell both sides the friendship now exists. Partner may be local (we
+  // looked them up above) or remote (federation).
+  await emit.friendship(
+    'friendship:created',
+    { fromHandle: inv.fromHandle, toHandle: myHandle },
+    userId,
+    { handle: inv.fromHandle },
+  )
+
   return { success: true }
 }
 
@@ -365,6 +393,13 @@ export async function rejectFriendInvitation(
     }
   }
 
+  await emit.friendship(
+    'friend-invitation:rejected',
+    { id: invitationId, fromHandle: inv.fromHandle, toHandle: inv.toHandle },
+    userId,
+    { handle: inv.fromHandle },
+  )
+
   return { success: true }
 }
 
@@ -412,6 +447,13 @@ export async function cancelFriendInvitation(
       )
   }
 
+  await emit.friendship(
+    'friend-invitation:cancelled',
+    { id: invitationId, fromHandle: inv.fromHandle, toHandle: inv.toHandle },
+    userId,
+    { handle: inv.toHandle },
+  )
+
   return { success: true }
 }
 
@@ -437,9 +479,9 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
   for (const friendship of allFriendships) {
     const parsed = parseHandle(friendship.friendHandle)
 
-    // Check if this is a local friend
+    // For local friends, refresh name + picture straight from the users
+    // table — both are cleartext now (see SECURITY.md).
     if (parsed && parsed.domain === serverDomain) {
-      // Look up fresh user data
       const [localUser] = await db
         .select({
           firstName: users.firstName,
@@ -451,7 +493,6 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
         .limit(1)
 
       if (localUser) {
-        // Return friendship with fresh user data
         const displayName =
           localUser.firstName && localUser.lastName
             ? `${localUser.firstName} ${localUser.lastName}`
@@ -466,7 +507,6 @@ export async function getFriends(userId: string): Promise<Friendship[]> {
       }
     }
 
-    // Remote friend or local user not found - use cached data
     result.push(friendship)
   }
 
@@ -497,11 +537,20 @@ export async function getInvitations(
 
 /**
  * Remove a friend (bidirectional)
- * When user A removes user B, both friendships are deleted and all location sharing data is cleaned up.
+ * When user A removes user B:
+ * - Both sides' friendship records are deleted.
+ * - Location-sharing state is torn down on both ends.
+ * - If the friend is remote, a signed RELATIONSHIP_REVOKE message is sent to
+ *   their home server so it can drop cached keys, pins, and any queued state.
+ *
+ * @param revokeSignature - Client-produced Ed25519 signature over the v2
+ *   revoke envelope. Required for remote revocations so the peer can verify
+ *   user intent independently of the home server.
  */
 export async function removeFriend(
   userId: string,
   friendHandle: string,
+  revokeSignature?: string,
 ): Promise<{ success: boolean; error?: string }> {
   const friendship = await db
     .select()
@@ -518,13 +567,10 @@ export async function removeFriend(
     return { success: false, error: 'Friendship not found' }
   }
 
-  // Get the user's handle for bidirectional cleanup
   const myHandle = await getUserHandle(userId)
 
-  // Delete this user's friendship record
   await db.delete(friendships).where(eq(friendships.id, friendship[0].id))
 
-  // If the friend is a local user, also remove their reciprocal friendship
   if (myHandle && isLocalHandle(friendHandle)) {
     const parsed = parseHandle(friendHandle)
     if (parsed) {
@@ -535,7 +581,6 @@ export async function removeFriend(
         .limit(1)
 
       if (friendUser[0]) {
-        // Delete the friend's reciprocal friendship record
         await db
           .delete(friendships)
           .where(
@@ -545,14 +590,128 @@ export async function removeFriend(
             ),
           )
 
-        // Clean up location sharing data for the friend as well
         await cleanupLocationSharingForFriend(friendUser[0].id, myHandle)
       }
     }
+  } else if (myHandle && !isLocalHandle(friendHandle) && revokeSignature) {
+    // Remote friend: propagate revocation to their home server.
+    const { generateNonce, nowIso } = await import('../lib/federation-canonical')
+    const { getProtocolVersion } = await import('../lib/server-identity')
+    const revokeMessage: FederationMessage = {
+      protocol_version: getProtocolVersion(),
+      message_type: 'RELATIONSHIP_REVOKE',
+      message_version: 1,
+      nonce: generateNonce(),
+      timestamp: nowIso(),
+      from: myHandle,
+      to: friendHandle,
+      signature: revokeSignature,
+      payload: {},
+    }
+    await sendFederationMessage(friendHandle, revokeMessage)
   }
 
-  // Clean up location sharing data for this user
   await cleanupLocationSharingForFriend(userId, friendHandle)
+
+  await emit.friendship(
+    'friendship:removed',
+    { userId, friendHandle },
+    userId,
+    { handle: friendHandle },
+  )
+
+  return { success: true }
+}
+
+/**
+ * Handle an inbound RELATIONSHIP_REVOKE from a remote peer.
+ *
+ * Tears down every cached row that references the revoking peer: the
+ * friendship record, any pending friend invitations either direction,
+ * location-sharing state, AND any collection shares that went through
+ * them (outgoing ones we issued TO them, plus incoming ones they issued
+ * TO us). The share rows carry ECIES envelopes bound to the peer's old
+ * long-term X25519 key — once they've revoked (typically because they
+ * reset their E2EE identity), those envelopes are permanently
+ * undecryptable, so keeping the rows around just clutters the library
+ * with ghost items.
+ *
+ * Same-handle scrub is deliberate: a sender who resets and picks the
+ * same alias will re-add the friend and re-share fresh content under
+ * the new keys; stale pre-reset rows should not interfere with that.
+ */
+export async function handleIncomingRelationshipRevoke(
+  fromHandle: string,
+  toHandle: string,
+): Promise<{ success: boolean; error?: string }> {
+  const parsed = parseHandle(toHandle)
+  if (!parsed) {
+    return { success: false, error: 'Invalid recipient handle' }
+  }
+
+  const localUser = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.alias, parsed.alias))
+    .limit(1)
+
+  if (!localUser[0]) {
+    // Nothing to revoke on our side.
+    return { success: true }
+  }
+
+  await db
+    .delete(friendships)
+    .where(
+      and(
+        eq(friendships.userId, localUser[0].id),
+        eq(friendships.friendHandle, fromHandle),
+      ),
+    )
+
+  // Drop any pending invitations between these handles — either direction,
+  // since a reset + re-invite shouldn't be blocked by leftover rows from
+  // the previous identity.
+  await db
+    .delete(friendInvitations)
+    .where(
+      and(
+        eq(friendInvitations.localUserId, localUser[0].id),
+        eq(friendInvitations.fromHandle, fromHandle),
+      ),
+    )
+  await db
+    .delete(friendInvitations)
+    .where(
+      and(
+        eq(friendInvitations.localUserId, localUser[0].id),
+        eq(friendInvitations.toHandle, fromHandle),
+      ),
+    )
+
+  // Collection-share cleanup on BOTH sides of the pivot:
+  //   - `shares` rows where WE sent something to the revoking peer.
+  //   - `incomingShares` rows where the revoking peer sent something to us.
+  // The ECIES envelopes on both are tied to the peer's pre-revoke X25519
+  // keypair; they're cryptographically dead now.
+  await db
+    .delete(shares)
+    .where(
+      and(
+        eq(shares.userId, localUser[0].id),
+        eq(shares.recipientHandle, fromHandle),
+      ),
+    )
+  await db
+    .delete(incomingShares)
+    .where(
+      and(
+        eq(incomingShares.userId, localUser[0].id),
+        eq(incomingShares.senderHandle, fromHandle),
+      ),
+    )
+
+  await cleanupLocationSharingForFriend(localUser[0].id, fromHandle)
 
   return { success: true }
 }

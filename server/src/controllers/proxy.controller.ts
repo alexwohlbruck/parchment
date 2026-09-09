@@ -1,9 +1,23 @@
+/**
+ * Tile proxy.
+ *
+ * Map tile sources are fetched by MapLibre itself, which means they can't
+ * attach our auth header and are subject to the tile server's CORS policy.
+ * These routes exist so those requests can go out from the server instead:
+ * they strip CORS out of the equation and keep provider keys server-side.
+ *
+ * That is the *only* thing that belongs here. Ordinary data endpoints that
+ * happen to be served by another service are not proxies — they live in their
+ * own module (see transit, gbfs and isochrone controllers, which all call
+ * Barrelman through `services/barrelman.service.ts`).
+ */
+
 import { Elysia } from 'elysia'
 import { integrationManager } from '../services/integrations'
-import {
-  IntegrationCapabilityId,
-  IntegrationId,
-} from '../types/integration.types'
+import { portolanTileCache, type CachedResponse } from '../lib/tile-cache'
+import { IntegrationId } from '../types/integration.types'
+import { resolveBarrelmanConfig } from '../services/barrelman.service'
+import { logError } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/proxy' })
 
@@ -34,9 +48,7 @@ async function proxyTileRequest(
     const response = await fetch(targetUrl)
 
     if (!response.ok) {
-      console.error(
-        `${errorContext}: ${response.status} ${response.statusText}`,
-      )
+      logError(`${errorContext}: ${response.status} ${response.statusText}`)
       return new Response('Upstream error', { status: response.status })
     }
 
@@ -49,7 +61,7 @@ async function proxyTileRequest(
       },
     })
   } catch (error) {
-    console.error(`${errorContext} proxy error:`, error, 'params:', params)
+    logError(`${errorContext} proxy error`, error, { params })
     return new Response('Proxy error', { status: 500 })
   }
 }
@@ -79,7 +91,7 @@ app.get(
         },
       })
     } catch (error) {
-      console.error('Proxy error:', error)
+      logError('Proxy error', error)
       return new Response('Proxy error', { status: 500 })
     }
   },
@@ -153,6 +165,230 @@ app.get(
     detail: {
       tags: ['Proxy'],
       summary: 'Proxy Transitland stop tiles',
+    },
+  },
+)
+
+// Proxy vector tile requests through the Barrelman integration.
+//
+// Barrelman fronts Martin at /tiles/{source}/{z}/{x}/{y} — the same prefix the
+// portolan proxy below uses, and the same auth: the integration's apiKey as a
+// Bearer header, its tileKey as a query parameter. This used to address a bare
+// Martin instead, at /{source}/{z}/{x}/{y} on a `martinHost` config field, and
+// both halves of that had rotted: Barrelman moved tiles behind /tiles/* when it
+// made them metered and revocable (there is no unmetered tile key any more),
+// and `martinHost` is not a field `BarrelmanConfig` has ever carried — so the
+// lookup silently returned undefined and every tile went to the localhost
+// default, whatever the integration was pointed at. The basemap drew nothing.
+app.get(
+  '/barrelman/:source/:z/:x/:y',
+  async ({ params }) => {
+    try {
+      const config = resolveBarrelmanConfig()
+      // Kept as an escape hatch for a Martin reachable directly, which is what
+      // a local Barrelman checkout serves behind its own /tiles route.
+      const host = config?.host || process.env.MARTIN_HOST
+      if (!host) {
+        return new Response('Barrelman not configured', { status: 501 })
+      }
+
+      const tileKey = (
+        integrationManager
+          .getConfiguredIntegrations()
+          .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+          ?.config as { tileKey?: string }
+      )?.tileKey
+
+      const { source, z, x, y } = params
+      const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
+      if (tileKey) tileUrl.searchParams.set('token', tileKey)
+
+      const headers: Record<string, string> = {}
+      if (config?.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+
+      const response = await fetch(tileUrl.toString(), { headers })
+
+      if (!response.ok) {
+        logError(
+          `Barrelman tile proxy: ${response.status} ${response.statusText}`,
+        )
+        return new Response('Upstream error', { status: response.status })
+      }
+
+      const data = await response.arrayBuffer()
+
+      return new Response(data, {
+        headers: {
+          'Content-Type':
+            response.headers.get('content-type') ||
+            'application/x-protobuf',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      })
+    } catch (error) {
+      logError('Barrelman tile proxy error', error, { params })
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy Barrelman tile requests',
+    },
+  },
+)
+
+/** The body a cached 404 replays. Matching what the live path returns
+ *  keeps a hit and a miss indistinguishable to the client. */
+const MISSING_BODY = new TextEncoder().encode('Upstream error').buffer as ArrayBuffer
+
+/**
+ * Turn a cached answer back into a response.
+ *
+ * The headers are rebuilt rather than stored: they are a pure function of
+ * the path and the status, and a stored header set would be one more thing
+ * that can go stale. `X-Cache` is there so a HIT is visible in a browser's
+ * network panel without instrumenting anything.
+ */
+function cachedResponse(rest: string, hit: CachedResponse, state: 'HIT' | 'MISS'): Response {
+  if (hit.status === 204) {
+    return new Response(null, { status: 204, headers: { 'X-Cache': state } })
+  }
+  if (hit.status !== 200) {
+    // BodyInit rejects a nullable Uint8Array; a non-200 always has a body
+    return new Response(hit.body ?? null, {
+      status: hit.status,
+      headers: { 'X-Cache': state },
+    })
+  }
+  const isJson = rest.endsWith('.json')
+  return new Response(hit.body ?? null, {
+    headers: {
+      'Content-Type': isJson
+        ? 'application/json'
+        : hit.contentType || 'application/x-protobuf',
+      // pyramids rebuild on Barrelman's import cadence, so tiles get a
+      // moderate TTL while the JSON manifests stay revalidated
+      'Cache-Control': isJson ? 'no-cache' : 'public, max-age=3600',
+      'X-Cache': state,
+    },
+  })
+}
+
+/** Remember an answer, then serve it. Every exit from the portolan route
+ *  goes through here, so what is cached and what is sent cannot drift. */
+function store(rest: string, value: CachedResponse): Response {
+  portolanTileCache.set(rest, value)
+  return cachedResponse(rest, value, 'MISS')
+}
+
+// Proxy portolan transit tiles from the Barrelman host.
+//
+// Barrelman serves portolan's MVT pyramids at /tiles/portolan/*:
+// index.json lists every feed with a cut pyramid (bounds + maxzoom),
+// each feed directory holds tiles.json, style.json and {z}/{x}/{y}.mvt.
+// Auth mirrors the two existing Barrelman patterns: the integration's
+// apiKey rides as a Bearer header (like requestBarrelman) and tileKey as
+// ?token= (like the Martin tile proxy) — whichever the host enforces.
+//
+// tiles.json templates are normalized to RELATIVE so a client resolving
+// them against this proxy's URL lands back on the proxy; in practice the
+// web client builds tile URLs from index.json alone (fixed template),
+// exactly as portolan's own global atlas view does.
+app.get(
+  '/portolan/*',
+  async ({ params }) => {
+    const rest = params['*']
+
+    // only pyramid content leaves this route, and never a path escape
+    if (rest.includes('..') || !/\.(json|mvt)$/.test(rest)) {
+      return new Response('Not found', { status: 404 })
+    }
+
+    // Served from memory when we have it. The cache holds the answer the
+    // client would have got, misses included — see lib/tile-cache.ts for
+    // why the empties matter more than the hits.
+    const cached = portolanTileCache.get(rest)
+    if (cached) return cachedResponse(rest, cached, 'HIT')
+
+    try {
+      const config = resolveBarrelmanConfig()
+      if (!config?.host) {
+        return new Response('Barrelman not configured', { status: 501 })
+      }
+      const tileKey = (
+        integrationManager
+          .getConfiguredIntegrations()
+          .find((i) => i.integrationId === IntegrationId.BARRELMAN)
+          ?.config as { tileKey?: string }
+      )?.tileKey
+
+      const targetUrl = new URL(`/tiles/portolan/${rest}`, config.host)
+      if (tileKey) targetUrl.searchParams.set('token', tileKey)
+
+      const headers: Record<string, string> = {}
+      if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+
+      const response = await fetch(targetUrl.toString(), {
+        headers,
+        signal: AbortSignal.timeout(10_000),
+      })
+
+      // an empty tile is a valid answer inside a pyramid: the cutter only
+      // writes tiles a feature touches
+      if (response.status === 204) {
+        return store(rest, { status: 204, body: null, contentType: null })
+      }
+
+      if (!response.ok) {
+        // a missing index.json means portolan isn't deployed on this
+        // Barrelman — the client treats 404 as "feature absent", so no log
+        if (response.status !== 404) {
+          logError(
+            `Portolan tile proxy: ${response.status} ${response.statusText}`,
+          )
+        }
+        // A 404 is a stable answer — this pyramid has no such file, and the
+        // client asks again on every load (the bus-only feeds have no
+        // routes.json at all). Anything else is a fault upstream and must
+        // not be remembered.
+        if (response.status === 404) {
+          return store(rest, { status: 404, body: MISSING_BODY, contentType: 'text/plain' })
+        }
+        return new Response('Upstream error', { status: response.status })
+      }
+
+      if (rest.endsWith('tiles.json')) {
+        const body = (await response.json()) as { tiles?: string[] }
+        if (Array.isArray(body.tiles)) {
+          // absolute templates pointing at Barrelman become relative to
+          // the feed directory; relative ones already are
+          body.tiles = body.tiles.map((t) =>
+            t.replace(/^https?:\/\/[^/]+\/tiles\/portolan\/[^/]+\//, ''),
+          )
+        }
+        return store(rest, {
+          status: 200,
+          body: new TextEncoder().encode(JSON.stringify(body)).buffer as ArrayBuffer,
+          contentType: 'application/json',
+        })
+      }
+
+      const data = await response.arrayBuffer()
+      return store(rest, {
+        status: 200,
+        body: data,
+        contentType: response.headers.get('content-type'),
+      })
+    } catch (error) {
+      logError('Portolan tile proxy error', error, { rest })
+      return new Response('Proxy error', { status: 500 })
+    }
+  },
+  {
+    detail: {
+      tags: ['Proxy'],
+      summary: 'Proxy portolan transit tiles from Barrelman',
     },
   },
 )

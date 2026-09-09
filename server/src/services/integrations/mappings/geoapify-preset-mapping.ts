@@ -479,7 +479,11 @@ for (const [category, presetId] of Object.entries(GEOAPIFY_TO_OSM_MAPPING)) {
  * @returns Geoapify category string or null if not found
  */
 export function getGeoapifyCategory(presetId: string): string | null {
-  return OSM_TO_GEOAPIFY_MAPPING[presetId] || null
+  // hasOwn, not a bare lookup: preset ids come from requests, and `constructor`
+  // or `toString` would otherwise resolve to an inherited Object member.
+  return Object.hasOwn(OSM_TO_GEOAPIFY_MAPPING, presetId)
+    ? OSM_TO_GEOAPIFY_MAPPING[presetId]
+    : null
 }
 
 /**
@@ -488,7 +492,9 @@ export function getGeoapifyCategory(presetId: string): string | null {
  * @returns OSM preset ID or null if not found
  */
 export function getPresetFromGeoapifyCategory(category: string): string | null {
-  return GEOAPIFY_TO_OSM_MAPPING[category] || null
+  return Object.hasOwn(GEOAPIFY_TO_OSM_MAPPING, category)
+    ? GEOAPIFY_TO_OSM_MAPPING[category]
+    : null
 }
 
 /**
@@ -513,7 +519,7 @@ export function getSupportedGeoapifyCategories(): string[] {
  * @returns true if supported, false otherwise
  */
 export function isGeoapifyPresetSupported(presetId: string): boolean {
-  return presetId in OSM_TO_GEOAPIFY_MAPPING
+  return Object.hasOwn(OSM_TO_GEOAPIFY_MAPPING, presetId)
 }
 
 /**
@@ -522,5 +528,5 @@ export function isGeoapifyPresetSupported(presetId: string): boolean {
  * @returns true if supported, false otherwise
  */
 export function isGeoapifyCategorySupported(category: string): boolean {
-  return category in GEOAPIFY_TO_OSM_MAPPING
+  return Object.hasOwn(GEOAPIFY_TO_OSM_MAPPING, category)
 }

@@ -1,5 +1,6 @@
 import Elysia, { t } from 'elysia'
-import { requireAuth } from '../middleware/auth.middleware'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
 import {
   sendFriendInvitation,
   acceptFriendInvitation,
@@ -12,13 +13,14 @@ import {
 } from '../services/friends.service'
 import { resolveHandle } from '../services/federation.service'
 import { parseHandle } from '../lib/crypto'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/friends' })
+const app = new Elysia({ prefix: '/friends' }).use(i18nPlugin)
 
 /**
  * Get all friends
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SOCIAL_READ)).get(
   '/',
   async ({ user }) => {
     const friends = await getFriends(user.id)
@@ -35,7 +37,7 @@ app.use(requireAuth).get(
 /**
  * Get pending invitations
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SOCIAL_READ)).get(
   '/invitations',
   async ({ user, query }) => {
     const direction = query.direction as 'incoming' | 'outgoing' | undefined
@@ -58,20 +60,20 @@ app.use(requireAuth).get(
 /**
  * Send a friend invitation
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invite',
-  async ({ user, body, error }) => {
+  async ({ user, body, status, t }) => {
     const { handle, signature } = body
 
     // Validate handle format
     if (!parseHandle(handle)) {
-      return error(400, { message: 'Invalid handle format. Use alias@domain' })
+      return status(400, { message: t('errors.friends.invalidHandle') })
     }
 
     const result = await sendFriendInvitation(user.id, handle, signature)
 
     if (!result.success) {
-      return error(400, {
+      return status(400, {
         message: result.error || 'Failed to send invitation',
       })
     }
@@ -93,13 +95,13 @@ app.use(requireAuth).post(
 /**
  * Accept a friend invitation
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invitations/:id/accept',
-  async ({ user, params: { id }, body, error }) => {
+  async ({ user, params: { id }, body, status }) => {
     const result = await acceptFriendInvitation(user.id, id, body.signature)
 
     if (!result.success) {
-      return error(400, {
+      return status(400, {
         message: result.error || 'Failed to accept invitation',
       })
     }
@@ -123,13 +125,13 @@ app.use(requireAuth).post(
 /**
  * Reject a friend invitation
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/invitations/:id/reject',
-  async ({ user, params: { id }, body, error }) => {
+  async ({ user, params: { id }, body, status }) => {
     const result = await rejectFriendInvitation(user.id, id, body?.signature)
 
     if (!result.success) {
-      return error(400, {
+      return status(400, {
         message: result.error || 'Failed to reject invitation',
       })
     }
@@ -155,13 +157,13 @@ app.use(requireAuth).post(
 /**
  * Cancel an outgoing invitation
  */
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).delete(
   '/invitations/:id',
-  async ({ user, params: { id }, error }) => {
+  async ({ user, params: { id }, status }) => {
     const result = await cancelFriendInvitation(user.id, id)
 
     if (!result.success) {
-      return error(400, {
+      return status(400, {
         message: result.error || 'Failed to cancel invitation',
       })
     }
@@ -182,15 +184,15 @@ app.use(requireAuth).delete(
 /**
  * Remove a friend
  */
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).delete(
   '/:handle',
-  async ({ user, params: { handle }, error }) => {
-    // URL decode the handle since it contains @
+  async ({ user, params: { handle }, query, status }) => {
     const decodedHandle = decodeURIComponent(handle)
-    const result = await removeFriend(user.id, decodedHandle)
+    const revokeSignature = query?.revoke_signature as string | undefined
+    const result = await removeFriend(user.id, decodedHandle, revokeSignature)
 
     if (!result.success) {
-      return error(400, { message: result.error || 'Failed to remove friend' })
+      return status(400, { message: result.error || 'Failed to remove friend' })
     }
 
     return { success: true }
@@ -198,6 +200,9 @@ app.use(requireAuth).delete(
   {
     params: t.Object({
       handle: t.String(),
+    }),
+    query: t.Object({
+      revoke_signature: t.Optional(t.String()),
     }),
     detail: {
       tags: ['Friends'],
@@ -209,19 +214,19 @@ app.use(requireAuth).delete(
 /**
  * Resolve a handle to user info
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.SOCIAL_READ)).get(
   '/resolve/:handle',
-  async ({ params: { handle }, error }) => {
+  async ({ params: { handle }, status, t }) => {
     const decodedHandle = decodeURIComponent(handle)
 
     if (!parseHandle(decodedHandle)) {
-      return error(400, { message: 'Invalid handle format' })
+      return status(400, { message: t('errors.friends.invalidHandle') })
     }
 
     const userInfo = await resolveHandle(decodedHandle)
 
     if (!userInfo) {
-      return error(404, { message: 'User not found' })
+      return status(404, { message: t('errors.notFound.user') })
     }
 
     return userInfo
@@ -241,7 +246,7 @@ app.use(requireAuth).get(
  * Sync friend keys and profile - refresh public keys and profile info from the server
  * This fixes key drift issues when keys are regenerated and keeps profile info up to date
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.SOCIAL_WRITE)).post(
   '/sync-keys',
   async ({ user }) => {
     const results = await syncFriendKeys(user.id)

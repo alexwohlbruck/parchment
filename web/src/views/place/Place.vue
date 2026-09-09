@@ -5,23 +5,25 @@ import { useMapService } from '@/services/map.service'
 import { MarkerIds } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
 import { usePlaceService } from '@/services/place.service'
-import Place from '@/components/place/Place.vue'
+import { useAbortController } from '@/composables/useAbortController'
+import Place from '@/components/place/PlacePanel.vue'
 import { AppRoute } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
-const { currentPlace, loading, fetchPlaceDetails, clearPlace } =
+const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetchPlaceDetailsByCoordinates, clearPlace, setPartialPlace } =
   usePlaceService()
-const { flyTo, fitBounds, addMarker, removeAllMarkers, updatePlacePolygon } = useMapService()
+const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMapService()
+const { nextSignal } = useAbortController()
 
 async function loadPlace() {
-  clearPlace()
+  // Don't clear place - keep partial data visible during loading
+  // clearPlace() // REMOVED
+  
   // Clear any existing polygon
   updatePlacePolygon(null)
 
   const { type, id, provider, placeId, name, lat, lng } = route.params
-
-  console.log(route.params)
 
   // Handle URL correction for nested routes
   // If we receive route parameters in incorrect positions, redirect to the correct route
@@ -61,31 +63,67 @@ async function loadPlace() {
     typeof id === 'string' &&
     !['provider', 'location'].includes(type)
   ) {
-    const place = await fetchPlaceDetails(`${type}/${id}`)
+    const place = await fetchPlaceDetails(`${type}/${id}`, 'osm', undefined, nextSignal())
     handlePlaceResult(place)
     return
   }
 
   // Case 2: Provider-specific ID
   if (typeof provider === 'string' && typeof placeId === 'string') {
-    const place = await fetchPlaceDetails(placeId, provider)
+    // Pelias geocoder addresses (provider "pelias", placeId = the gid): seed the
+    // panel from the cached search result so it paints instantly when navigated
+    // from search, then resolve/enrich by gid via the backend (which also covers
+    // the command palette and cold/shared URLs, where there's no cached result).
+    if (provider === 'pelias') {
+      setPartialPlace({ id: `pelias/${placeId}` })
+      const partial = currentPlace.value
+      const place = await fetchPlaceDetails(placeId, provider, undefined, nextSignal())
+      if (!place && partial) currentPlace.value = partial
+      handlePlaceResult(currentPlace.value)
+      return
+    }
+    const place = await fetchPlaceDetails(placeId, provider, undefined, nextSignal())
     handlePlaceResult(place)
     return
   }
 
-  // Case 3: Name and coordinates
-  if (
-    typeof name === 'string' &&
-    typeof lat === 'string' &&
-    typeof lng === 'string'
-  ) {
-    // Note: Do not move camera here - wait for place data to load
-    // This prevents double camera movement (once from coordinates, once from loaded data)
-    const place = await fetchPlaceDetails('', '', {
-      name,
+  // Case 3: Name + location lookup (legacy /place/location/:name/:lat/:lng format)
+  if (typeof name === 'string' && typeof lat === 'string' && typeof lng === 'string') {
+    const coordinates = {
       lat: parseFloat(lat),
       lng: parseFloat(lng),
-    })
+    }
+
+    // Immediately add marker and move camera for partial place data
+    if (currentPlace.value?.geometry?.value?.center) {
+      handlePlaceResult(currentPlace.value)
+    }
+
+    // Use name-based search for more accurate results
+    const place = await fetchPlaceDetailsByName(name, coordinates, undefined, nextSignal())
+    handlePlaceResult(place)
+    return
+  }
+
+  // Case 4: Coordinate-only lookup (new /place/coords/:lat/:lng format)
+  if (typeof lat === 'string' && typeof lng === 'string') {
+    const coordinates = {
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+    }
+
+    // Immediately add marker and move camera for partial place data
+    if (currentPlace.value?.geometry?.value?.center) {
+      handlePlaceResult(currentPlace.value)
+    }
+
+    // Load full enriched place details
+    const place = await fetchPlaceDetailsByCoordinates(
+      coordinates.lat,
+      coordinates.lng,
+      undefined,
+      nextSignal(),
+    )
     handlePlaceResult(place)
     return
   }
@@ -100,7 +138,7 @@ function handlePlaceResult(place: any) {
     const { lat, lng } = place.geometry.value.center
 
     if (lat && lng) {
-      removeAllMarkers()
+      removeMarker(MarkerIds.SELECTED_POI)
       addMarker(MarkerIds.SELECTED_POI, new LngLat(lng, lat))
 
       // Update polygon layer with place data
@@ -110,10 +148,11 @@ function handlePlaceResult(place: any) {
       if (place.geometry.value.bounds && ['polygon', 'multipolygon', 'linestring'].includes(place.geometry.value.type)) {
         // For geometries with bounds data, fit the view to the geometry area with padding
         // The map service will automatically account for obstructing UI elements
+        // `map.service.fitBounds` computes a viewport-proportional,
+        // obstruction-aware padding and caps maxZoom at 19 by default.
         fitBounds(place.geometry.value.bounds, {
-          padding: 50, // Additional padding around the geometry bounds
           duration: 1200,
-          easing: (t) => t * (2 - t) // easeOutQuad for smooth animation
+          easing: (t) => t * (2 - t), // easeOutQuad for smooth animation
         })
       } else {
         // For points or geometries without bounds, use traditional flyTo with appropriate zoom
@@ -131,20 +170,25 @@ onMounted(async () => {
   await loadPlace()
 })
 
+// Watch route.path (not route.params): all place-identity params live in the
+// path, while the active tab lives in route.query. vue-router 4 hands a fresh
+// route.params object on every navigation, so watching it would re-run
+// loadPlace() on query-only changes like tab switches, needlessly tearing down
+// and rebuilding the marker, polygon, and camera.
 watch(
-  () => route.params,
+  () => route.path,
   async () => {
     await loadPlace()
   },
 )
 
 onUnmounted(() => {
-  removeAllMarkers()
+  removeMarker(MarkerIds.SELECTED_POI)
   // Clear polygon when leaving place view
   updatePlacePolygon(null)
 })
 </script>
 
 <template>
-  <Place :place="currentPlace" :loading="loading" />
+  <Place :place="currentPlace" :loading="loading" @retry="loadPlace" />
 </template>

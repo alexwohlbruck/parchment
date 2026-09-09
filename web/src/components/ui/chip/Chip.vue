@@ -30,57 +30,44 @@ const CLEAR_VALUE = '__clear__'
 
 const {
   dropdownValue,
-  multiple,
+  multiple = false,
   label,
-  variant,
-  size,
-  disabled,
+  variant = 'button',
+  size = 'xs',
+  disabled = false,
   options,
-  clearLabel,
-  forceIcon,
+  clearLabel = 'Clear',
+  forceIcon = false,
   icon,
   modelValue,
-  customContent,
-  showClear,
-  showActionButton,
+  customContent = false,
+  showClear = true,
+  showActionButton = false,
   actionIcon,
   actionLabel,
   class: className
-} = withDefaults(
-  defineProps<{
-    icon?: Component
-    label: string
-    variant?: 'button' | 'toggle' | 'dropdown'
-    size?: 'xs' | 'sm' | 'default' | 'lg'
-    disabled?: boolean
-    // For toggle variant
-    modelValue?: boolean
-    // For dropdown variant
-    dropdownValue?: string | number | boolean | Array<string | number | boolean>
-    options?: ChipOption[]
-    multiple?: boolean
-    customContent?: boolean
-    showClear?: boolean
-    clearLabel?: string
-    forceIcon?: boolean // Force using the original icon instead of selected option icon
-    // For embedded action button
-    showActionButton?: boolean
-    actionIcon?: Component
-    actionLabel?: string
-    class?: string
-  }>(),
-  {
-    variant: 'button',
-    size: 'xs',
-    disabled: false,
-    multiple: false,
-    customContent: false,
-    showClear: true,
-    clearLabel: 'Clear',
-    forceIcon: false,
-    showActionButton: false,
-  },
-)
+} = defineProps<{
+  icon?: Component
+  label: string
+  variant?: 'button' | 'toggle' | 'dropdown'
+  size?: 'xs' | 'sm' | 'default' | 'lg'
+  disabled?: boolean
+  // For toggle variant
+  modelValue?: boolean
+  // For dropdown variant
+  dropdownValue?: string | number | boolean | Array<string | number | boolean>
+  options?: ChipOption[]
+  multiple?: boolean
+  customContent?: boolean
+  showClear?: boolean
+  clearLabel?: string
+  forceIcon?: boolean // Force using the original icon instead of selected option icon
+  // For embedded action button
+  showActionButton?: boolean
+  actionIcon?: Component
+  actionLabel?: string
+  class?: string
+}>()
 
 const emit = defineEmits<{
   click: []
@@ -206,7 +193,7 @@ function getDropdownItemComponent(): Component {
     v-else-if="variant === 'toggle'"
     variant="outline"
     :size="size"
-    :class="cn(chipClasses, 'whitespace-nowrap')"
+    :class="cn(chipClasses, 'whitespace-nowrap data-[state=on]:bg-primary-100 data-[state=on]:text-primary-800 data-[state=on]:border-primary-300 dark:data-[state=on]:bg-primary-800 dark:data-[state=on]:text-primary-200 dark:data-[state=on]:border-primary-600 data-[state=on]:shadow-xs')"
     :disabled="disabled"
     :pressed="isPressed"
     @click="handleClick"

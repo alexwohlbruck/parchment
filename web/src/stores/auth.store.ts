@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { defineStore } from 'pinia'
@@ -7,21 +7,43 @@ import { Session } from '@/types/session.types'
 import { isTauri } from '@/lib/api'
 import { auth as deviceStore } from '@/lib/device-store'
 import { api } from '@/lib/api'
-import { useStorage, StorageSerializers } from '@vueuse/core'
+import { useStorage } from '@vueuse/core'
+import { jsonSerializer } from '@/lib/storage-serializer'
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
 
-  // Explicit serializer ensures proper JSON serialization
-  const cachedUser = useStorage<User | null>(
-    'parchment-user',
-    null,
-    localStorage,
-    { serializer: StorageSerializers.object },
-  )
-  
+  const cachedUser = useStorage<User | null>('parchment-user', null, undefined, {
+    serializer: jsonSerializer,
+  })
+
   const me = ref<User | null | undefined>(cachedUser.value ?? undefined)
-  const permissions = ref<PermissionId[]>([])
+
+  // Permissions and subscription are cached in localStorage alongside the user
+  // so the map-engine decision (Mapbox is premium-gated) is correct
+  // synchronously on page load. Without this, `permissions` starts empty on
+  // every reload, the map falls back to MapLibre, and then swaps to Mapbox
+  // once the async permissions fetch resolves — rendering both engines.
+  const permissions = useStorage<PermissionId[]>(
+    'parchment-permissions',
+    [],
+    undefined,
+    { serializer: jsonSerializer },
+  )
+  const subscription = useStorage<{
+    isPremium: boolean
+    isBasic: boolean
+    hasSubscription: boolean
+    tier: string
+  } | null>('parchment-subscription', null, undefined, {
+    serializer: jsonSerializer,
+  })
+  // Role IDs the current user holds. Used to decide which roles they may grant
+  // when inviting users (a caller can grant the default 'user' role plus roles
+  // they hold; admins with USERS_UPDATE can grant any role).
+  const roles = useStorage<string[]>('parchment-roles', [], undefined, {
+    serializer: jsonSerializer,
+  })
   const sessions = ref<Session[]>([])
   const sessionId = ref<Session['id'] | null>(null)
   const stashedPath = ref<string | null>(null)
@@ -39,6 +61,10 @@ export const useAuthStore = defineStore('auth', () => {
     sessionId.value = token
   }
 
+  const needsOnboarding = computed(
+    () => me.value != null && me.value.onboardingCompletedAt == null,
+  )
+
   async function setAuthenticatedUser(user: User, _sessionId: Session['id']) {
     me.value = user
     cachedUser.value = user // Persist to localStorage
@@ -47,6 +73,8 @@ export const useAuthStore = defineStore('auth', () => {
     if (isTauri) {
       await deviceStore.setToken(_sessionId)
     }
+
+    if (!user.onboardingCompletedAt) return
 
     router.push(stashedPath.value || { name: AppRoute.MAP })
   }
@@ -61,10 +89,22 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = _permissions
   }
 
+  function setSubscription(_subscription: { isPremium: boolean; isBasic: boolean; hasSubscription: boolean; tier: string }) {
+    subscription.value = _subscription
+  }
+
+  function setRoles(_roles: string[]) {
+    roles.value = _roles
+  }
+
   async function unsetAuthenticatedUser() {
     me.value = null
     cachedUser.value = null // Clear localStorage cache
+    permissions.value = [] // Clear cached premium permissions
+    subscription.value = null // Clear cached subscription
+    roles.value = [] // Clear cached role membership
     sessionId.value = null
+    authenticatedUserPromise.value = undefined // Clear the promise to prevent router guards from waiting
     if (isTauri) {
       await deviceStore.clearToken()
     }
@@ -90,20 +130,72 @@ export const useAuthStore = defineStore('auth', () => {
     authenticatedUserPromise.value = promise
   }
 
+  // --- Impersonation (dev only) ---
+  const originalSession = ref<{
+    token: string | null
+    user: User
+  } | null>(
+    JSON.parse(sessionStorage.getItem('parchment-original-session') ?? 'null'),
+  )
+
+  const isImpersonating = computed(() => originalSession.value !== null)
+
+  function startImpersonation(newToken: string, newUser: User) {
+    originalSession.value = {
+      token: sessionId.value,
+      user: me.value!,
+    }
+    sessionStorage.setItem(
+      'parchment-original-session',
+      JSON.stringify(originalSession.value),
+    )
+
+    sessionId.value = newToken
+    me.value = newUser
+    cachedUser.value = newUser
+    api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+  }
+
+  function stopImpersonation() {
+    if (!originalSession.value) return
+
+    const orig = originalSession.value
+    sessionId.value = orig.token
+    me.value = orig.user
+    cachedUser.value = orig.user
+
+    if (orig.token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${orig.token}`
+    } else {
+      delete api.defaults.headers.common['Authorization']
+    }
+
+    originalSession.value = null
+    sessionStorage.removeItem('parchment-original-session')
+  }
+
   return {
     me,
+    needsOnboarding,
     permissions,
+    subscription,
+    roles,
     sessionId,
     stashPath,
     setAuthToken,
     setAuthenticatedUser,
     updateUser,
     setPermissions,
+    setSubscription,
+    setRoles,
     unsetAuthenticatedUser,
     authenticatedUserPromise,
     setAuthenticatedUserPromise,
     sessions,
     setSessions,
     removeSession,
+    isImpersonating,
+    startImpersonation,
+    stopImpersonation,
   }
 })

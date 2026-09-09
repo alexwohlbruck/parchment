@@ -1,9 +1,14 @@
 import { defineStore, storeToRefs } from 'pinia'
+import { buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
-import { getPlaceRoute } from '@/lib/place.utils'
+import { getPlaceRoute, getTransitStopRoute } from '@/lib/place/place.utils'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
 import {
   ChevronsRightIcon,
   CogIcon,
@@ -12,14 +17,12 @@ import {
   HelpCircleIcon,
   LanguagesIcon,
   LogOutIcon,
-  MapPinIcon,
   PaletteIcon,
   SearchIcon,
   SettingsIcon,
   SunMoonIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
-import * as LucideIcons from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
 import { allColors, useThemeStore, allRadii } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
@@ -27,13 +30,26 @@ import { useMapService } from '@/services/map.service'
 
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
-import { MapEngine, MapProjection } from '@/types/map.types'
+import { PermissionId } from '@/types/auth.types'
+import { ENGINE_PROJECTIONS, MapEngine } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
+import { getCategoryColor } from '@/lib/place/place-colors'
+import type { PlaceCategory } from '@/types/place.types'
 import { useCategoryStore } from '@/stores/category.store'
+import { useRecentsStore } from '@/stores/recents.store'
+import {
+  recentPlaceIdentity,
+  recentSearchIdentity,
+  type RecentSearchEntry,
+  type RecentPlaceEntry,
+} from '@/lib/recents'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { getBookmarkPlaceId } from '@/lib/place/place.utils'
+import { frequentChipMeta } from '@/lib/frequents'
+import { COMMON_CATEGORIES } from '@/lib/place/common-categories'
+import { appEventBus } from '@/lib/event-bus'
 
-import { formatAddress } from '@/lib/place.utils'
-import { Icon } from '@/types/app.types'
 import { AppRoute } from '@/router'
 import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'
 
@@ -46,29 +62,12 @@ export enum CommandName {
   CHOOSE_MAP_ENGINE = 'chooseMapEngine',
   MAP_PROJECTION = 'mapProjection',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
-  OPEN_SETTINGS = 'openSettings',
   UPDATE_LANGUAGE = 'updateLanguage',
   SIGN_OUT = 'signOut',
 }
 
 // TODO: Move command options to separate file
 
-/**
- * Convert icon string name to Vue component
- */
-function getIconComponent(iconName?: string): Icon {
-  if (!iconName) return MapPinIcon
-
-  const fullName = iconName.endsWith('Icon') ? iconName : `${iconName}Icon`
-
-  const isValidIcon =
-    fullName !== 'icons' &&
-    typeof LucideIcons[fullName as keyof typeof LucideIcons] === 'function'
-
-  return isValidIcon
-    ? (LucideIcons[fullName as keyof typeof LucideIcons] as Icon)
-    : MapPinIcon
-}
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
@@ -77,6 +76,7 @@ export const useCommandStore = defineStore('command', () => {
   const { setAccentColor, setRadius } = useThemeStore()
   const authService = useAuthService()
   const mapService = useMapService()
+
   const { t, locale } = useI18n()
   const placeSearchService = useSearchService()
 
@@ -129,6 +129,20 @@ export const useCommandStore = defineStore('command', () => {
         icon: SearchIcon,
         keywords: t('palette.commands.search.keywords'),
         action: async (itemId: string) => {
+          // Re-running a recent search — navigate; Search.vue records the
+          // committed query (single choke-point for all text searches).
+          if (
+            typeof itemId === 'string' &&
+            itemId.startsWith('recent-search:')
+          ) {
+            const q = itemId.slice('recent-search:'.length)
+            router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: { q },
+            })
+            return
+          }
+
           if (itemId === 'search-more-results') {
             const { currentSearchQuery } = useCommandService()
             router.push({
@@ -142,18 +156,65 @@ export const useCommandStore = defineStore('command', () => {
             const categoryId = itemId.replace('category:', '')
             const categoryStore = useCategoryStore()
 
+            // Look up for optional enrichment (name, icon color), but navigate
+            // regardless — categoryId alone is enough for Search.vue to work.
+            // The curated list is the second source because the registry is
+            // capped at 1000 presets and most everyday categories fall past it;
+            // without this a shortcut lands on a title derived from its preset
+            // id ("Wlan" for internet_access/wlan).
             const category = categoryStore.getCategoryById(categoryId)
-            if (category) {
-              await router.push({
-                name: AppRoute.SEARCH_RESULTS,
-                query: {
-                  categoryId: category.id,
-                  categoryName: category.name,
-                },
+            const common = COMMON_CATEGORIES.find(c => c.id === categoryId)
+            const name = category?.name ?? (common ? t(common.labelKey) : undefined)
+            const iconCategory = category?.iconCategory ?? common?.category
+            await router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: {
+                categoryId,
+                ...(name ? { categoryName: name } : {}),
+                ...(iconCategory ? { categoryIconCategory: iconCategory } : {}),
+              },
+            })
+          } else if (itemId.startsWith('brand:')) {
+            // Payload carries the brand key + original-cased name (needed to
+            // browse name-only brands, whose OSM tag value is case-sensitive).
+            const payload = JSON.parse(
+              decodeURIComponent(itemId.slice('brand:'.length)),
+            )
+            await router.push({
+              name: AppRoute.SEARCH_RESULTS,
+              query: {
+                brandKey: payload.key,
+                ...(payload.name ? { brandName: payload.name } : {}),
+              },
+            })
+          } else if (itemId.startsWith('transit-stop:')) {
+            // A GTFS-only stop. Barrelman already skipped stops portolan
+            // matched to OSM, but the client-side index is re-checked here —
+            // it may be fresher than the server's — before falling back to a
+            // name+coords place view with the transit widget expanded.
+            const payload = JSON.parse(
+              decodeURIComponent(itemId.slice('transit-stop:'.length)),
+            )
+            await ensureStopIndexAt(payload.lat, payload.lng)
+            const osm = osmForStop(
+              payload.feedOnestopId,
+              payload.stopId,
+              payload.lat,
+              payload.lng,
+            )
+            if (osm) {
+              const [type, id] = osm.split('/')
+              router.push({
+                name: AppRoute.PLACE,
+                params: { type, id },
+                query: { complex: '1' },
               })
+            } else {
+              router.push(getTransitStopRoute(payload.name, payload.lat, payload.lng))
             }
           } else {
-            // Regular place navigation
+            // Regular place navigation (transit-route/ ids resolve to the
+            // transit route detail view inside getPlaceRoute).
             const route = getPlaceRoute(itemId)
             router.push(route)
           }
@@ -163,84 +224,7 @@ export const useCommandStore = defineStore('command', () => {
             id: 'places',
             name: t('palette.commands.search.arguments.places.name'),
             type: 'string',
-            async getItems() {
-              // Use the command service to get the current search query
-              const { currentSearchQuery } = useCommandService()
-              const searchText = currentSearchQuery.value
-
-              try {
-                const results: any[] = []
-
-                // First, search categories if we have a query and Overpass is available
-                if (searchText && searchText.length > 0) {
-                  const categoryStore = useCategoryStore()
-
-                  if (categoryStore.isOverpassAvailable) {
-                    const categories = categoryStore.searchCategories(
-                      searchText,
-                      5,
-                    ) // Limit categories to 5
-
-                    categories.forEach(category => {
-                      results.push({
-                        value: `category:${category.id}`,
-                        name: category.name,
-                        description: 'Category',
-                        icon: getIconComponent(category.icon || 'Tag'),
-                      })
-                    })
-                  }
-                }
-
-                // Then search places
-                const mapStore = useMapStore()
-                const center = mapStore.mapCamera.center
-
-                let lng, lat
-                if (Array.isArray(center)) {
-                  ;[lng, lat] = center
-                } else if (typeof center === 'object') {
-                  lng =
-                    'lng' in center
-                      ? center.lng
-                      : 'lon' in center
-                      ? center.lon
-                      : 0
-                  lat = center.lat || 0
-                }
-
-                const searchResults =
-                  await placeSearchService.getAutocompleteSuggestions({
-                    query: searchText,
-                    lat,
-                    lng,
-                  })
-
-                // Add place results after categories (filter out category results to avoid duplicates)
-                searchResults
-                  .filter(result => result.type !== 'category')
-                  .forEach(result => {
-                    results.push({
-                      value: result.id,
-                      name: result.title,
-                      description: result.description,
-                      icon: getIconComponent(result.icon),
-                    })
-                  })
-
-                return [
-                  {
-                    value: 'search-more-results',
-                    name: `Search "${searchText}"`,
-                    icon: SearchIcon,
-                  },
-                  ...results,
-                ]
-              } catch (error) {
-                console.error('Error loading search suggestions:', error)
-                return []
-              }
-            },
+            getItems: buildSearchSuggestions,
           },
         ],
       },
@@ -339,15 +323,17 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.chooseMapEngine.arguments.engine.name'),
             type: 'string',
             getItems() {
+              const canUseMapbox = authService.hasPermission(PermissionId.PREMIUM_LAYERS)
               return [
                 {
-                  value: 'mapbox',
+                  value: 'mapbox' as const,
                   name: t(
                     'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.name',
                   ),
                   description: t(
                     'palette.commands.chooseMapEngine.arguments.engine.values.mapbox.description',
                   ),
+                  premium: !canUseMapbox,
                 },
                 {
                   value: 'maplibre',
@@ -365,7 +351,6 @@ export const useCommandStore = defineStore('command', () => {
       },
       {
         id: CommandName.MAP_PROJECTION,
-        engine: [MapEngine.MAPBOX],
         name: t('palette.commands.mapProjection.name'),
         description: t('palette.commands.mapProjection.description'),
         icon: GlobeIcon,
@@ -377,12 +362,15 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.mapProjection.arguments.projection.name'),
             type: 'string',
             getItems() {
-              return Object.values(MapProjection).map(projection => ({
-                value: projection,
-                name: t(
-                  `palette.commands.mapProjection.arguments.projection.values.${projection}`,
-                ),
-              }))
+              // Both engines project, but not into the same set of shapes.
+              return ENGINE_PROJECTIONS[settings.value.engine].map(
+                projection => ({
+                  value: projection,
+                  name: t(
+                    `palette.commands.mapProjection.arguments.projection.values.${projection}`,
+                  ),
+                }),
+              )
             },
           },
         ],
@@ -394,19 +382,8 @@ export const useCommandStore = defineStore('command', () => {
         keywords: t('palette.commands.openHotkeysMenu.keywords'),
         hotkey: ['h'],
         icon: HelpCircleIcon,
-      },
-      {
-        id: CommandName.OPEN_SETTINGS,
-        name: t('palette.commands.openSettings.name'),
-        description: t('palette.commands.openSettings.description'),
-        keywords: t('palette.commands.openSettings.keywords'),
-        hotkey: [','],
-        icon: SettingsIcon,
         action: () => {
-          const current = router.currentRoute.value
-          if (current.matched.some(r => r.name === AppRoute.SETTINGS)) return
-
-          router.push({ name: AppRoute.SETTINGS })
+          appEventBus.emit('hotkeys:open')
         },
       },
       {
@@ -444,7 +421,7 @@ export const useCommandStore = defineStore('command', () => {
         description: t('palette.commands.signOut.description'),
         keywords: t('palette.commands.signOut.keywords'),
         icon: LogOutIcon,
-        action: authService.signOut,
+        action: authService.confirmAndSignOut,
       },
     ]
   })

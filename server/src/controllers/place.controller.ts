@@ -1,30 +1,48 @@
-import { Elysia, t, error } from 'elysia'
+import { Elysia, t } from 'elysia'
 import { getSession, requireAuth } from '../middleware/auth.middleware.js'
-import i18nMiddleware from '../middleware/i18n.middleware.js'
+import { DEFAULT_LANGUAGE } from '../lib/i18n/i18n.types'
 import {
   lookupPlaceByNameAndLocation,
   lookupEnrichedPlaceById,
+  lookupEnrichedPlaceByCoordinates,
 } from '../services/place.service'
+import { getPermissions, hasPermission } from '../services/auth.service'
+import { PermissionId } from '../types/auth.types'
 import { SOURCE } from '../lib/constants.js'
+import { WidgetType } from '../types/place.types'
+import { fetchWidgetData } from '../services/widget.service'
+import { fetchNearestStreetImage } from '../services/street-imagery.service'
+import { logError, logger } from '../lib/logger'
+import { i18nPlugin } from '../lib/i18n/plugin'
+
 const app = new Elysia({ prefix: '/places' })
+  .use(i18nPlugin)
   .use(getSession)
-  .use(i18nMiddleware)
 
 // Get place by looking up source+id or name+lat+lng
 app.get(
   '/details',
-  async ({ query, user, language }) => {
+  async (ctx) => {
+    const { query, user, language, t, status } = ctx
     const { source, id, name, lat, lng, radius = 500 } = query
 
     const isIdLookup = Boolean(source) && Boolean(id)
-    const isNameLocationLookup = Boolean(name) && Boolean(lat) && Boolean(lng)
+    const isNameLocationLookup = Boolean(name) && lat !== undefined && lng !== undefined
+    const isCoordinateLookup =
+      (lat !== undefined && lng !== undefined) &&
+      !isIdLookup &&
+      !isNameLocationLookup
 
     // Check for at least one valid lookup parameter
-    if (!isIdLookup && !isNameLocationLookup) {
-      return error(400, {
-        message: 'Please provide either provider+id, or name+lat+lng',
+    if (!isIdLookup && !isNameLocationLookup && !isCoordinateLookup) {
+      return status(400, {
+        message: t('errors.place.invalidParams'),
       })
     }
+
+    // Check if user has premium data provider access
+    const userPerms = user ? await getPermissions(user.id) : []
+    const premiumData = hasPermission(userPerms, PermissionId.PREMIUM_DATA_PROVIDERS)
 
     let place = null
 
@@ -37,43 +55,126 @@ app.get(
             ? id.split('/')
             : [null, id]
 
-          if (!osmType || !['node', 'way', 'relation'].includes(osmType)) {
-            return error(400, {
-              message:
-                'Invalid OSM type. Format should be "type/id" where type is node, way, or relation.',
+          if (!osmType || !['node', 'way', 'relation', 'intersection'].includes(osmType)) {
+            return status(400, {
+              message: t('errors.place.invalidOsmType'),
             })
           }
         }
-
-        place = await lookupEnrichedPlaceById(source!, id!, {
-          userId: user?.id,
-          language,
-        })
+        
+        // Special case for Geoapify: Extract OSM ID and redirect to OSM lookup
+        // Geoapify is not a primary data source, only used for geocoding/routing
+        if (source === SOURCE.GEOAPIFY) {
+          const { integrationManager } = await import('../services/integrations/index.js')
+          const { IntegrationId, IntegrationCapabilityId } = await import('../types/integration.enums.js')
+          
+          // Get the Geoapify integration with placeInfo capability
+          const geoapifyRecords = integrationManager
+            .getConfiguredIntegrationsByCapability(IntegrationCapabilityId.PLACE_INFO)
+            .filter((int) => int.integrationId === IntegrationId.GEOAPIFY)
+          
+          if (!geoapifyRecords.length) {
+            return status(500, {
+              message: t('errors.integration.notAvailable'),
+            })
+          }
+          
+          const geoapifyIntegration = integrationManager.getCachedIntegrationInstance(geoapifyRecords[0])
+          
+          if (!geoapifyIntegration?.capabilities.placeInfo) {
+            return status(500, {
+              message: t('errors.integration.notAvailable'),
+            })
+          }
+          
+          const geoapifyPlace = await geoapifyIntegration.capabilities.placeInfo.getPlaceInfo(id!)
+          
+          if (!geoapifyPlace) {
+            return status(404, {
+              message: t('errors.notFound.place'),
+            })
+          }
+          
+          const osmId = geoapifyPlace?.externalIds?.[SOURCE.OSM]
+          
+          if (osmId) {
+            // If OSM ID exists, get enriched data from OSM
+            logger.debug(`[place.controller] Geoapify place ${id} → OSM ${osmId}`)
+            place = await lookupEnrichedPlaceById(SOURCE.OSM, osmId, {
+              userId: user?.id,
+              language,
+              premiumData,
+            })
+          } else {
+            // No OSM ID, return Geoapify data as-is
+            logger.debug(`[place.controller] Geoapify place ${id} has no OSM ID, returning Geoapify data`)
+            place = geoapifyPlace
+          }
+        } else {
+          place = await lookupEnrichedPlaceById(source!, id!, {
+            userId: user?.id,
+            language,
+            premiumData,
+          })
+        }
       } else if (isNameLocationLookup) {
         const coordinates = {
           lat: lat!,
           lng: lng!,
         }
 
-        // Use the new method to get place by name and coordinates
+        // Resolve the name and point to a place...
         place = await lookupPlaceByNameAndLocation(name!, coordinates, {
           userId: user?.id,
           radius: Math.round(radius),
           language,
         })
+
+        // ...then look it up again by the id that resolved to, so this route
+        // answers with the same place the id route does.
+        //
+        // The name lookup returns whatever the provider search found, and that
+        // is not an enriched place: no widget descriptors, so no departures,
+        // no OSM tags, no related places. A transit station reached this way
+        // rendered as a name, an address and a phone number, while the very
+        // same node reached by id showed its whole board. Both URLs name one
+        // place and should answer alike.
+        // Its OWN id, not `externalIds[OSM]` — those can point at a different
+        // object entirely. Here the node the name resolved to carried an
+        // external id for the platform WAY beside it, and enriching that
+        // opened "Brooklyn Bridge-City Hall (4,5,6,<6>)" instead of the
+        // station a tap on the map opens.
+        const [idSource, ...idRest] = (place?.id ?? '').split('/')
+        const resolvedOsmId = idSource === SOURCE.OSM ? idRest.join('/') : null
+        if (resolvedOsmId) {
+          place =
+            (await lookupEnrichedPlaceById(SOURCE.OSM, resolvedOsmId, {
+              userId: user?.id,
+              language,
+              premiumData,
+            })) ?? place
+        }
+      } else if (isCoordinateLookup) {
+        place = await lookupEnrichedPlaceByCoordinates(lat!, lng!, {
+          userId: user?.id,
+          radius: Math.round(radius),
+          language,
+          addressOnly: true,
+          premiumData,
+        })
       }
 
       if (!place) {
-        return error(404, {
-          message: 'Place not found with the provided parameters',
+        return status(404, {
+          message: t('errors.place.notFoundWithParams'),
         })
       }
 
       return place
     } catch (err) {
-      console.error('Error in place lookup:', err)
-      return error(500, {
-        message: 'Error retrieving place data',
+      logError('Error in place lookup', err)
+      return status(500, {
+        message: t('errors.place.retrievalError'),
       })
     }
   },
@@ -89,7 +190,82 @@ app.get(
     }),
     detail: {
       tags: ['Places'],
-      summary: 'Get place details by ID or name/location',
+      summary: 'Get place details by ID, name/location, or coordinates',
+      description:
+        'Lookup and enrich place data. Supports ID-based lookup (source+id), name-based lookup (name+lat+lng), or coordinate-based lookup (lat+lng). Coordinate-based lookups perform reverse geocoding and run full enrichment if an OSM object is found.',
+    },
+  },
+)
+
+// Fetch widget data by type
+app.get(
+  '/widgets/:type',
+  async (ctx) => {
+    const { params, query, status } = ctx as typeof ctx & { status?: any }
+    const widgetType = params.type as WidgetType
+
+    // Validate widget type
+    if (!Object.values(WidgetType).includes(widgetType)) {
+      return status(400, {
+        message: `Unknown widget type: ${widgetType}`,
+      })
+    }
+
+    try {
+      const result = await fetchWidgetData(widgetType, query as Record<string, string>)
+      return result
+    } catch (err) {
+      logError(`Error fetching widget data (${widgetType})`, err)
+      return status(500, {
+        message: err instanceof Error ? err.message : 'Error fetching widget data',
+      })
+    }
+  },
+  {
+    params: t.Object({
+      type: t.String(),
+    }),
+    query: t.Record(t.String(), t.Optional(t.String())),
+    detail: {
+      tags: ['Places'],
+      summary: 'Get widget data for a place',
+      description:
+        'Fetch additional widget data (transit departures, etc.) separately from the base place lookup. Query parameters vary by widget type.',
+    },
+  },
+)
+
+// Nearest street-level imagery to a coordinate (Mapillary). Powers the
+// floating street view preview on the place detail.
+app.get(
+  '/street-imagery',
+  async (ctx) => {
+    const { query, status, t } = ctx
+    const lat = parseFloat(query.lat as string)
+    const lng = parseFloat(query.lng as string)
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      return status(400, { message: t('errors.place.coordinatesRequired') })
+    }
+
+    try {
+      const preview = await fetchNearestStreetImage(lat, lng)
+      return { preview }
+    } catch (err) {
+      logError('Error fetching street imagery', err)
+      return status(500, {
+        message: err instanceof Error ? err.message : 'Error fetching street imagery',
+      })
+    }
+  },
+  {
+    query: t.Object({
+      lat: t.String(),
+      lng: t.String(),
+    }),
+    detail: {
+      tags: ['Places'],
+      summary: 'Get nearest street-level image to a coordinate',
     },
   },
 )

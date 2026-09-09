@@ -9,6 +9,7 @@ import {
 import { IntegrationRegistry } from './integration-registry'
 import { Source, INTEGRATION_PRIORITIES } from '../../lib/constants'
 import { initializeWithTest } from '../../lib/integration.utils'
+import { logWarn } from '../../lib/logger'
 
 /**
  * Cached integration that combines database record with integration instance
@@ -291,7 +292,7 @@ export class IntegrationManagerService {
   ): IntegrationCapabilityId[] {
     const integration = this.registry.getIntegration(integrationId)
     if (!integration) {
-      console.warn(`Integration with ID ${integrationId} not found`)
+      logWarn(`Integration with ID ${integrationId} not found`)
       return []
     }
     return integration.capabilityIds

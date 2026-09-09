@@ -1,0 +1,1399 @@
+import axios from 'axios'
+import { buildGraphHopperCustomModel, getSnapPreventions } from '../../lib/graphhopper-custom-model'
+import type {
+  Integration,
+  IntegrationConfig,
+  IntegrationTestResult,
+  SearchCapability,
+  AutocompleteCapability,
+  SearchCategoryCapability,
+  BrandCatalogCapability,
+  BrandSummary,
+  PlaceInfoCapability,
+  SpatialParentsCapability,
+  SpatialChildrenCapability,
+  SearchAlongRouteCapability,
+  GeocodingCapability,
+  RoutingCapability,
+  TransitRoutingCapability,
+  TransitRouteRequest,
+  IntermodalRouteRequest,
+  TransitRouteResponse,
+  NearbyStopsRequest,
+  NearbyStopResult,
+  StopRouteResult,
+  MapBounds,
+} from '../../types/integration.types'
+import {
+  IntegrationCapabilityId,
+  IntegrationId,
+} from '../../types/integration.types'
+import type {
+  RouteRequest,
+  UnifiedRoute,
+} from '../../types/unified-routing.types'
+import { TravelMode, WaypointType } from '../../types/unified-routing.types'
+import { getLanguageCode, DEFAULT_LANGUAGE, type Language } from '../../lib/i18n'
+import { BarrelmanGraphHopperAdapter } from './adapters/barrelman-graphhopper-adapter'
+import type {
+  Place,
+  PlaceGeometry,
+  Address,
+  AttributedValue,
+  OpeningHours,
+  OpeningTime,
+  PlaceIcon,
+  TransitLineRef,
+  TransitStopRef,
+} from '../../types/place.types'
+import { SOURCE } from '../../lib/constants'
+import { matchTags, type GeometryType } from '../../lib/osm-presets'
+import { buildPlaceIcon } from '../../lib/place-categories'
+import { getPlaceType, getLocalizedName } from '../../lib/place.utils'
+import { parseOsmHours } from '../../lib/hours.utils'
+import { isPermanentlyClosedByOsmTags } from '../../lib/osm-lifecycle'
+import { getTimezone } from '../../lib/timezone'
+import { transitLineSubtitle, transitModeLabel, transitStopLabel } from '../../lib/transit-mode-label'
+
+/**
+ * All Barrelman HTTP traffic flows through one bounded connection pool.
+ *
+ * A single intermodal trip plan fans out hard: ~5 MOTIS queries, each up to
+ * 8 itineraries, each itinerary re-routing 2-3 walk legs through GraphHopper
+ * — 100+ concurrent requests for one user action, none of it capped. Under
+ * that load Barrelman's event loop saturates, MOTIS queries cross their 30s
+ * timeout, and GraphHopper keep-alive sockets get reset ("socket connection
+ * closed unexpectedly"). Every later request blocks behind it and the app
+ * stops responding until the process is restarted.
+ *
+ * The semaphore caps in-flight requests so the fan-out queues instead of
+ * stampeding. Slots are held only for the HTTP round-trip — acquired in the
+ * request interceptor, released in the response interceptor on both success
+ * and failure — never across orchestration, so there is no nesting/deadlock.
+ * Tune the cap to Barrelman's headroom: high enough that one trip plan isn't
+ * serialized, low enough that concurrent plans can't stampede the process.
+ */
+const BARRELMAN_MAX_CONCURRENCY = 48
+
+class Semaphore {
+  private active = 0
+  private readonly waiters: Array<() => void> = []
+
+  constructor(private readonly max: number) {}
+
+  async acquire(): Promise<void> {
+    if (this.active < this.max) {
+      this.active++
+      return
+    }
+    await new Promise<void>((resolve) => this.waiters.push(resolve))
+  }
+
+  release(): void {
+    const next = this.waiters.shift()
+    if (next) {
+      next() // hand the slot straight to the next waiter; active is unchanged
+    } else {
+      this.active--
+    }
+  }
+}
+
+/**
+ * Interactive reads (search, autocomplete, place detail) run on their OWN pool,
+ * separate from the routing/transit fan-out above. These are latency-critical —
+ * fired while the user types — and individually cheap (~20ms). They must never
+ * queue behind a trip plan's 100+ slow MOTIS/walk-leg requests: sharing one
+ * limiter meant a single directions lookup saturated all slots for up to 25s,
+ * so concurrent autocomplete requests blew past their 5s timeout and silently
+ * returned no results. A dedicated pool keeps search responsive under that load
+ * while still capping interactive concurrency so it can't stampede Barrelman.
+ */
+const BARRELMAN_INTERACTIVE_CONCURRENCY = 24
+
+/**
+ * Backstop timeout for interactive search/autocomplete requests. This is NOT a
+ * latency budget — cancellation of superseded requests is driven by the client's
+ * abort signal. It only exists to reclaim a pool slot if Barrelman genuinely
+ * hangs (no response at all), so it is set well above any legitimate query time
+ * so that merely-slow requests still return results instead of erroring empty.
+ */
+const SEARCH_BACKSTOP_TIMEOUT = 30_000
+
+/**
+ * Radius a sparse tag-only browse widens to (see `searchByCategory`). Metro
+ * scale rather than unbounded: the nearest-first walk has to test the tag on
+ * each candidate, so the radius is what stops it wandering across a continent.
+ */
+const TAG_BROWSE_WIDEN_RADIUS_M = 100_000
+
+/**
+ * Build an axios instance whose in-flight requests are bounded by `limiter`.
+ * Slots are held only for the HTTP round-trip — acquired in the request
+ * interceptor, released in the response interceptor on both success and failure.
+ */
+function createLimitedHttp(limiter: Semaphore) {
+  const http = axios.create()
+  http.interceptors.request.use(async (config) => {
+    await limiter.acquire()
+    return config
+  })
+  http.interceptors.response.use(
+    (response) => {
+      limiter.release()
+      return response
+    },
+    (error) => {
+      limiter.release()
+      return Promise.reject(error)
+    },
+  )
+  return http
+}
+
+/**
+ * Shared axios instance for routing/transit Barrelman calls. Use this — never
+ * the bare `axios` import — for those requests, or the concurrency cap is bypassed.
+ */
+const barrelmanHttp = createLimitedHttp(new Semaphore(BARRELMAN_MAX_CONCURRENCY))
+
+/**
+ * Dedicated axios instance for interactive search/autocomplete/place reads so
+ * they can't be starved by the routing fan-out on `barrelmanHttp`.
+ */
+const barrelmanSearchHttp = createLimitedHttp(
+  new Semaphore(BARRELMAN_INTERACTIVE_CONCURRENCY),
+)
+
+export interface BarrelmanConfig extends IntegrationConfig {
+  host: string
+  apiKey?: string
+  /** Public tile key — sent to client for authenticated tile requests */
+  tileKey?: string
+}
+
+/**
+ * Raw response shape from the Barrelman API (OSM-first schema).
+ */
+interface BarrelmanPlaceResult {
+  id: string              // "node/123456", "way/789", "relation/42"
+  osm_type: string        // 'node', 'way', 'relation'
+  osm_id: number          // numeric OSM ID
+  name?: string | null
+  name_abbrev?: string | null
+  names?: string[]
+  categories?: string[]
+  tags: Record<string, string>  // ALL raw OSM tags
+  address?: {
+    housenumber?: string
+    street?: string
+    unit?: string
+    city?: string
+    state?: string
+    postcode?: string
+    country?: string
+  } | null
+  hours?: string | null
+  phones?: string[]
+  websites?: string[]
+  geom_type: string       // 'point', 'line', 'area'
+  geometry?: {             // centroid GeoJSON
+    type: string
+    coordinates: number[]
+  } | null
+  full_geometry?: any | null  // real shape GeoJSON (polygon, linestring, etc.)
+  // Search-specific
+  text_rank?: number
+  distance_m?: number | null
+  // Transit hits: search also returns GTFS lines and GTFS-only stops, marked
+  // with `kind` and carrying the ids the /transit endpoints are keyed by.
+  kind?: 'transit_route' | 'transit_stop'
+  transit?: {
+    feedId: string
+    feedOnestopId?: string | null
+    routeId?: string
+    stopId?: string
+    shortName?: string | null
+    longName?: string | null
+    routeType?: number | null
+    mode?: string | null
+    color?: string | null
+    textColor?: string | null
+    agency?: string | null
+    locationType?: number | null
+  }
+  // Place detail-specific
+  area_m2?: number | null
+  admin_level?: number | null
+}
+
+/**
+ * Barrelman geospatial search API integration.
+ * Provides fast full-text, trigram, abbreviation, and semantic search
+ * over OSM data via PostGIS + pgvector + osm2pgsql.
+ */
+export class BarrelmanIntegration
+  implements Integration<BarrelmanConfig>
+{
+  private config: BarrelmanConfig = { host: '' }
+
+  readonly integrationId = IntegrationId.BARRELMAN
+  // PELIAS: Barrelman also fronts the Pelias geocoder for address results, so it
+  // resolves `source=pelias` place lookups (getConfiguredIntegrationForSource).
+  readonly sources = [SOURCE.OSM, SOURCE.PELIAS]
+  private graphhopperAdapter = new BarrelmanGraphHopperAdapter()
+
+  readonly capabilityIds: IntegrationCapabilityId[] = [
+    IntegrationCapabilityId.SEARCH,
+    IntegrationCapabilityId.AUTOCOMPLETE,
+    IntegrationCapabilityId.SEARCH_CATEGORY,
+    IntegrationCapabilityId.BRAND_CATALOG,
+    IntegrationCapabilityId.PLACE_INFO,
+    IntegrationCapabilityId.SPATIAL_PARENTS,
+    IntegrationCapabilityId.SPATIAL_CHILDREN,
+    IntegrationCapabilityId.SEARCH_ALONG_ROUTE,
+    IntegrationCapabilityId.GEOCODING,
+    IntegrationCapabilityId.TILE_SERVER,
+    IntegrationCapabilityId.ROUTING,
+    IntegrationCapabilityId.TRANSIT_ROUTING,
+  ]
+
+  readonly capabilities = {
+    search: {
+      searchPlaces: this.searchPlaces.bind(this),
+    } as SearchCapability,
+    autocomplete: {
+      getAutocomplete: this.getAutocomplete.bind(this),
+    } as AutocompleteCapability,
+    searchCategory: {
+      searchByCategory: this.searchByCategory.bind(this),
+    } as SearchCategoryCapability,
+    brandCatalog: {
+      getBrands: this.getBrands.bind(this),
+      getBrand: this.getBrand.bind(this),
+      searchByBrand: this.searchByBrand.bind(this),
+    } as BrandCatalogCapability,
+    placeInfo: {
+      getPlaceInfo: this.getPlaceInfo.bind(this),
+    } as PlaceInfoCapability,
+    spatialParents: {
+      getContainingAreas: this.getContainingAreas.bind(this),
+    } as SpatialParentsCapability,
+    spatialChildren: {
+      getChildren: this.getChildren.bind(this),
+    } as SpatialChildrenCapability,
+    searchAlongRoute: {
+      searchAlongRoute: this.searchAlongRoute.bind(this),
+    } as SearchAlongRouteCapability,
+    geocoding: {
+      // Forward geocoding is just search: barrelman's /search already folds the
+      // Pelias address index in with its own POI layers, so one call resolves
+      // both "Starbucks" and "9201 University City Blvd".
+      geocode: (query: string, lat?: number, lng?: number) =>
+        this.searchPlaces(query, lat, lng),
+      reverseGeocode: this.reverseGeocode.bind(this),
+    } as GeocodingCapability,
+    routing: {
+      getRoute: this.getRoute.bind(this),
+      metadata: {
+        supportedPreferences: {
+          // Range preferences (GraphHopper supports via custom_model)
+          highways: 'range',
+          tolls: 'range',
+          ferries: 'range',
+          hills: 'range',
+          surfaceQuality: 'range',
+          litPaths: 'range',
+          safetyVsSpeed: 'range',
+
+          // Boolean preferences
+          shortest: 'boolean',
+          preferHOV: false,             // GH has no HOV data
+          wheelchairAccessible: false,  // No accessibility routing data
+
+          // Numeric/enum preferences
+          cyclingSpeed: 'range',
+          walkingSpeed: 'range',
+          bicycleType: 'range',
+
+          // Transit — kept for future custom planner
+          maxWalkDistance: 'range',
+          maxTransfers: 'range',
+        },
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle', 'truck'],
+        supportedOptimizations: ['time', 'distance'],
+        features: {
+          alternatives: true,
+          traffic: false,
+          elevation: true,
+          instructions: true,
+          matrix: true,
+          transit: false,
+        },
+        limits: {
+          maxWaypoints: 20,
+          maxAlternatives: 3,
+        },
+      },
+    } as RoutingCapability,
+    transitRouting: {
+      getTransitRoute: this.getTransitRoute.bind(this),
+      getIntermodalRoute: this.getIntermodalRoute.bind(this),
+      getNearbyStops: this.getNearbyStops.bind(this),
+      getRoutesForStop: this.getRoutesForStop.bind(this),
+      getNearestEntrance: this.getNearestEntrance.bind(this),
+    } as TransitRoutingCapability,
+  }
+
+  // ── Lifecycle ──────────────────────────────────────────────
+
+  async testConnection(config: BarrelmanConfig): Promise<IntegrationTestResult> {
+    if (!this.validateConfig(config)) {
+      return { success: false, message: 'Invalid configuration: Host is required' }
+    }
+    // Use /health/auth so we verify both reachability AND the API key. When
+    // the server has no BARRELMAN_API_KEY set (dev mode) this still succeeds
+    // with no Authorization header. When the server requires auth, a missing
+    // or wrong key returns 401 — which /health alone would miss.
+    const headers: Record<string, string> = {}
+    if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
+    try {
+      const response = await barrelmanHttp.get(`${config.host}/health/auth`, {
+        headers,
+        // Generous, because /health/auth transitively probes MOTIS (3s of its
+        // own) — a tighter budget times out while Barrelman is merely busy
+        // starting up, and a failed test leaves it out of the cache entirely.
+        timeout: 10_000,
+      })
+      // `degraded` means an optional subsystem is down — today that is MOTIS
+      // realtime, which affects transit only. Search, place detail, geocoding,
+      // tiles and routing all still serve. Refusing the connection there would
+      // drop EVERY Barrelman capability (initializeWithTest throws and the
+      // integration is never cached), turning a stale transit feed into a
+      // total search outage. Only `error` — the database being down — is fatal.
+      const status = response.data?.status
+      if (status === 'ok' || status === 'degraded') {
+        return { success: true }
+      }
+      return {
+        success: false,
+        message: `Barrelman health check failed${status ? `: ${status}` : ''}`,
+      }
+    } catch (e: any) {
+      if (e.response?.status === 401) {
+        return {
+          success: false,
+          message: config.apiKey ? 'Invalid API key' : 'API key required',
+        }
+      }
+      return { success: false, message: `Connection failed: ${e.message}` }
+    }
+  }
+
+  initialize(config: BarrelmanConfig): void {
+    this.config = config
+  }
+
+  validateConfig(config: BarrelmanConfig): boolean {
+    return Boolean(config.host)
+  }
+
+  // ── Adapter ────────────────────────────────────────────────
+
+  private get headers() {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (this.config.apiKey) {
+      h['Authorization'] = `Bearer ${this.config.apiKey}`
+    }
+    return h
+  }
+
+  /**
+   * Derive a short, human-readable summary string from raw OSM tags.
+   * Operates on the raw tag keys (amenity=bicycle_parking, etc.) so it must
+   * be called before we convert placeType to a human-readable label.
+   * Returns null when no meaningful chips can be extracted.
+   */
+  private buildPlaceSummary(tags: Record<string, string>): string | null {
+    const t = (k: string) => tags[k]
+    const yes = (k: string) => tags[k] === 'yes'
+    const no = (k: string) => tags[k] === 'no'
+    const chips: string[] = []
+
+    /** Format "n unit(s)" — handles pluralisation */
+    const countChip = (n: string, unit: string) => {
+      const num = Number(n)
+      return `${n} ${unit}${!isNaN(num) && num === 1 ? '' : 's'}`
+    }
+
+    // Determine the primary OSM type key
+    const primaryKeys = [
+      'amenity', 'shop', 'tourism', 'leisure', 'office', 'craft',
+      'healthcare', 'natural', 'historic', 'highway', 'railway',
+      'waterway', 'man_made', 'emergency', 'aeroway',
+    ]
+    let osmType = ''
+    for (const k of primaryKeys) {
+      if (tags[k]) { osmType = tags[k]; break }
+    }
+
+    // ── Bicycle parking ──────────────────────────────────────────────────────
+    if (osmType === 'bicycle_parking') {
+      if (yes('indoor')) chips.push('Indoors')
+      else if (yes('covered')) chips.push('Covered')
+      const cap = t('capacity')
+      if (cap) chips.push(countChip(cap, 'bicycle'))
+    }
+
+    // ── Toilets / restrooms ──────────────────────────────────────────────────
+    else if (osmType === 'toilets') {
+      const access = t('toilets:access') || t('access')
+      if (access && access !== 'yes') chips.push(this.fmtWord(access))
+      if (yes('fee')) chips.push('Fee required')
+      else if (no('fee')) chips.push('Free')
+      if (yes('wheelchair')) chips.push('Accessible')
+      if (yes('changing_table')) chips.push('Baby changing')
+    }
+
+    // ── Parking ──────────────────────────────────────────────────────────────
+    else if (osmType === 'parking' || osmType === 'parking_space') {
+      if (yes('fee')) chips.push('Paid')
+      else if (no('fee')) chips.push('Free')
+      const cap = t('capacity')
+      if (cap) chips.push(countChip(cap, 'space'))
+      const access = t('access')
+      if (access && access !== 'yes' && access !== 'public') chips.push(this.fmtWord(access))
+      const maxstay = t('maxstay')
+      if (maxstay) chips.push(`Max ${maxstay}`)
+    }
+
+    // ── EV charging ──────────────────────────────────────────────────────────
+    else if (osmType === 'charging_station') {
+      const cap = t('capacity')
+      if (cap) chips.push(countChip(cap, 'point'))
+      if (yes('fee')) chips.push('Paid')
+      else if (no('fee')) chips.push('Free')
+      const access = t('access')
+      if (access && access !== 'yes' && access !== 'public') chips.push(this.fmtWord(access))
+    }
+
+    // ── Food & drink ─────────────────────────────────────────────────────────
+    else if (['cafe', 'restaurant', 'bar', 'fast_food', 'pub', 'food_court', 'ice_cream', 'food_truck'].includes(osmType)) {
+      const cuisine = t('cuisine')
+      if (cuisine) chips.push(this.fmtWord(cuisine.split(';')[0].trim()))
+      if (yes('outdoor_seating')) chips.push('Outdoor seating')
+      if (yes('delivery')) chips.push('Delivery')
+    }
+
+    // ── Fuel station ─────────────────────────────────────────────────────────
+    else if (osmType === 'fuel') {
+      const fuels: string[] = []
+      if (yes('fuel:diesel')) fuels.push('Diesel')
+      if (yes('fuel:octane_95') || yes('fuel:octane_87')) fuels.push('Regular')
+      if (yes('fuel:electric')) fuels.push('EV')
+      if (fuels.length) chips.push(fuels.join(', '))
+    }
+
+    // ── Drinking water ───────────────────────────────────────────────────────
+    else if (osmType === 'drinking_water') {
+      if (yes('seasonal')) chips.push('Seasonal')
+      if (yes('bottle')) chips.push('Bottle fill')
+      if (yes('fee')) chips.push('Fee')
+      else if (no('fee')) chips.push('Free')
+    }
+
+    // ── Hotel / lodging ──────────────────────────────────────────────────────
+    else if (['hotel', 'hostel', 'motel', 'guest_house', 'apartment'].includes(osmType)) {
+      const stars = t('stars')
+      if (stars) chips.push(`${stars}★`)
+      const rooms = t('rooms') || t('beds')
+      if (rooms) chips.push(`${rooms} rooms`)
+    }
+
+    // ── Generic fallback: surface access/fee when set ────────────────────────
+    else {
+      const access = t('access')
+      if (access && access !== 'yes' && access !== 'public') chips.push(this.fmtWord(access))
+      if (yes('fee')) chips.push('Fee required')
+      else if (no('fee')) chips.push('Free')
+    }
+
+    return chips.length > 0 ? chips.join(' · ') : null
+  }
+
+  /** Capitalise words after spaces/start — does not capitalise after apostrophes */
+  private fmtWord(v: string): string {
+    return v.replace(/[-_]/g, ' ').replace(/(^|[ ])\w/g, m => m.toUpperCase())
+  }
+
+  /**
+   * Adapt a raw Barrelman result into the unified Place model.
+   */
+  private adaptPlace(
+    r: BarrelmanPlaceResult,
+    language: Language = DEFAULT_LANGUAGE,
+  ): Place {
+    const timestamp = new Date().toISOString()
+    const sourceId = SOURCE.OSM
+
+    // Geometry — use centroid for center point
+    const center =
+      r.geometry?.coordinates
+        ? { lat: r.geometry.coordinates[1], lng: r.geometry.coordinates[0] }
+        : { lat: 0, lng: 0 }
+
+    const geometry: PlaceGeometry = {
+      type: 'point',
+      center,
+    }
+
+    // Convert full GeoJSON geometry to PlaceGeometry format
+    if (r.full_geometry) {
+      switch (r.full_geometry.type) {
+        case 'LineString':
+        case 'MultiLineString': {
+          geometry.type = 'linestring'
+          const coords = r.full_geometry.type === 'LineString'
+            ? r.full_geometry.coordinates
+            : r.full_geometry.coordinates.flat()
+          geometry.nodes = coords.map(([lng, lat]: number[]) => ({ lat, lng }))
+          break
+        }
+        case 'Polygon': {
+          geometry.type = 'polygon'
+          const rings = r.full_geometry.coordinates
+            .filter((ring: any) => ring?.length > 0)
+            .map((ring: number[][]) => ring.map(([lng, lat]) => ({ lat, lng })))
+          geometry.nodes = rings[0] || []
+          geometry.rings = rings
+          break
+        }
+        case 'MultiPolygon': {
+          geometry.type = 'multipolygon'
+          geometry.polygons = r.full_geometry.coordinates
+            .filter((poly: any) => poly?.length > 0)
+            .map((poly: number[][][]) =>
+              poly
+                .filter((ring: any) => ring?.length > 0)
+                .map((ring: number[][]) => ring.map(([lng, lat]) => ({ lat, lng })))
+            )
+          break
+        }
+      }
+
+      // Compute bounds from the full geometry
+      const allCoords: number[][] = []
+      const extractCoords = (obj: any) => {
+        if (Array.isArray(obj) && obj.length === 2 && typeof obj[0] === 'number') {
+          allCoords.push(obj)
+        } else if (Array.isArray(obj)) {
+          obj.forEach(extractCoords)
+        }
+      }
+      extractCoords(r.full_geometry.coordinates)
+      if (allCoords.length > 0) {
+        const lngs = allCoords.map(c => c[0])
+        const lats = allCoords.map(c => c[1])
+        geometry.bounds = {
+          minLat: Math.min(...lats),
+          minLng: Math.min(...lngs),
+          maxLat: Math.max(...lats),
+          maxLng: Math.max(...lngs),
+        }
+      }
+    }
+
+    // Address — Barrelman now returns structured addr:* fields
+    const address: Address | null = r.address
+      ? {
+          street1: [r.address.housenumber, r.address.street]
+            .filter(Boolean)
+            .join(' ') || undefined,
+          locality: r.address.city || undefined,
+          region: r.address.state || undefined,
+          postalCode: r.address.postcode || undefined,
+          country: r.address.country || undefined,
+        }
+      : null
+
+    // Tags are already real OSM tags — use directly for icon/type resolution
+    const tags = r.tags || {}
+    const summary = this.buildPlaceSummary(tags)
+    const osmGeomHint = r.geom_type === 'area' ? 'area' : r.geom_type === 'line' ? 'line' : 'point'
+    const isIntersection = r.id.startsWith('intersection/')
+    const presetMatch = isIntersection ? null : matchTags(tags, osmGeomHint as GeometryType)
+    const icon: PlaceIcon | undefined = isIntersection
+      ? { icon: 'Signpost', iconPack: 'lucide' as const }
+      : buildPlaceIcon(presetMatch)
+    const placeTypeLabel = isIntersection
+      ? 'Intersection'
+      : getPlaceType(tags, language, osmGeomHint as GeometryType) ||
+        r.categories?.[0] ||
+        'place'
+
+    // Contact info
+    const phone = r.phones?.length ? r.phones[0] : null
+
+    // Collect all website URLs: DB-extracted primary URLs + any website:* sub-key tags
+    const websiteSubTagUrls = Object.entries(r.tags || {})
+      .filter(([k, v]) => k.startsWith('website:') && (v.startsWith('http://') || v.startsWith('https://')))
+      .map(([, v]) => v)
+    const allWebsites = [
+      ...(r.websites || []),
+      ...websiteSubTagUrls.filter(u => !(r.websites || []).includes(u)),
+    ]
+    const website = allWebsites[0] || null
+
+    // The place's own clock. Search results are judged open or closed on the
+    // client, which has only the reader's clock to fall back on — so a cafe in
+    // Lisbon read as shut to anyone browsing it from New York.
+    const timezone = geometry.center
+      ? getTimezone(geometry.center.lat, geometry.center.lng) ?? undefined
+      : undefined
+
+    // Opening hours — parse the OSM opening_hours string into structured data.
+    // A permanently closed place earns an hours object even without an
+    // `opening_hours` tag, so the place page can say the place is gone.
+    let openingHours: AttributedValue<OpeningHours> | null = null
+    if (r.hours || isPermanentlyClosedByOsmTags(tags)) {
+      openingHours = {
+        value: parseOsmHours(
+          r.hours ? { ...tags, opening_hours: r.hours } : tags,
+          {
+            timezone,
+            lat: geometry.center?.lat,
+            lng: geometry.center?.lng,
+            countryCode: r.address?.country,
+            region: r.address?.state,
+          },
+        ),
+        sourceId,
+        timestamp,
+      }
+    }
+
+    // Pelias geocoder rows carry an id like "pelias/openaddresses:address:us/…"
+    // (osm_type="pelias", no geo_places/OSM row). Everything else is real OSM.
+    const isPelias = r.id.startsWith('pelias/')
+
+    // External IDs — for OSM rows the id IS the OSM id (e.g. "node/5718230659");
+    // for Pelias rows it's the geocoder gid (the part after "pelias/"), which is
+    // NOT an OSM id, so don't claim SOURCE.OSM.
+    const externalIds: Record<string, string> = isPelias
+      ? { [SOURCE.PELIAS]: r.id.slice('pelias/'.length) }
+      : { [SOURCE.OSM]: r.id }
+
+    // Promote only the place's OWN Wikidata QID into externalIds so Wikidata
+    // enrichment resolves location-specific data. Deliberately NOT the brand's
+    // `brand:wikidata` — that would pull the brand entity's generic photos (same
+    // for every location) ahead of the location-specific Foursquare photos. The
+    // brand logo + description come from the brand catalog instead, so nothing
+    // is lost. Added as an EXTRA key; never replaces the osm/pelias id.
+    const wikidataQid = tags['wikidata']
+    if (wikidataQid && !externalIds[SOURCE.WIKIDATA]) {
+      externalIds[SOURCE.WIKIDATA] = wikidataQid
+    }
+
+    // Build OSM URL — r.id is always "node/123456" format, so parse from that
+    // (r.osm_type may be stored as uppercase 'N'/'W'/'R' in some DB versions)
+    const osmTypeFromId = r.id.split('/')[0]
+    const isRealOsmType = ['node', 'way', 'relation'].includes(osmTypeFromId)
+    const osmUrl = isRealOsmType
+      ? `https://www.openstreetmap.org/${osmTypeFromId}/${r.osm_id}`
+      : undefined
+
+    return {
+      // Pelias id is already "pelias/<gid>"; only OSM rows get the "osm/" prefix.
+      // (A blanket "osm/" prefix produced "osm/pelias/…", which the client then
+      // mis-parsed into a dead /place/pelias/openaddresses:address:us URL.)
+      id: isPelias ? r.id : `${SOURCE.OSM}/${r.id}`,
+      externalIds,
+
+      // Fall back to the street address as the display name for unnamed
+      // address-bearing features (e.g. a bare building polygon). This makes a
+      // building opened directly by OSM id identical to the same building
+      // reached via a Pelias address, and — because downstream third-party
+      // enrichment only runs when a place has a name — lets both surface the
+      // same Foursquare/phone data.
+      name: {
+        value: getLocalizedName(tags, language, r.name) || address?.street1 || null,
+        sourceId,
+        timestamp,
+      },
+      description: null,
+      placeType: { value: placeTypeLabel, sourceId, timestamp },
+      icon,
+
+      geometry: { value: geometry, sourceId, timestamp },
+      photos: [],
+      address: address ? { value: address, sourceId, timestamp } : null,
+
+      contactInfo: {
+        phone: phone ? { value: phone, sourceId, timestamp } : null,
+        email: null,
+        website: website ? { value: website, sourceId, timestamp } : null,
+        websites: allWebsites.length ? { value: allWebsites, sourceId, timestamp } : null,
+        socials: {},
+      },
+
+      openingHours,
+      timezone,
+      amenities: {},
+
+      tags: r.tags || {},
+      summary,
+
+      sources: [
+        {
+          id: sourceId,
+          name: isRealOsmType ? 'OpenStreetMap' : 'Parchment',
+          ...(osmUrl ? { url: osmUrl } : {}),
+        },
+      ],
+
+      lastUpdated: timestamp,
+      createdAt: timestamp,
+    }
+  }
+
+  /**
+   * A transit search hit as a minimal pseudo-place. `transitLine` /
+   * `transitStop` is what tells the rest of the pipeline (and the client)
+   * that this row opens in the transit views, not the place detail view.
+   */
+  private adaptTransitHit(r: BarrelmanPlaceResult, language: Language = DEFAULT_LANGUAGE): Place {
+    const timestamp = new Date().toISOString()
+    const t = r.transit ?? ({} as NonNullable<BarrelmanPlaceResult['transit']>)
+    const center = r.geometry?.coordinates
+      ? { lat: r.geometry.coordinates[1], lng: r.geometry.coordinates[0] }
+      : { lat: 0, lng: 0 }
+
+    const isLine = r.kind === 'transit_route'
+    const line: TransitLineRef | null = isLine && t.routeId
+      ? {
+          feedId: t.feedId,
+          feedOnestopId: t.feedOnestopId,
+          routeId: t.routeId,
+          shortName: t.shortName,
+          longName: t.longName,
+          routeType: t.routeType,
+          mode: t.mode,
+          color: t.color,
+          textColor: t.textColor,
+          agency: t.agency,
+        }
+      : null
+    const stop: TransitStopRef | null = !isLine && t.stopId
+      ? {
+          feedId: t.feedId,
+          feedOnestopId: t.feedOnestopId,
+          stopId: t.stopId,
+          mode: t.mode,
+        }
+      : null
+
+    const mode = t.mode ?? null
+    const icons: Record<string, string> = {
+      subway: 'TrainFront', rail: 'TrainFront', monorail: 'TrainFront',
+      tram: 'TramFront', bus: 'Bus', trolleybus: 'Bus', ferry: 'Ship',
+      gondola: 'CableCar', cable_car: 'CableCar', funicular: 'CableCar',
+    }
+    const icon: PlaceIcon = {
+      category: 'default',
+      icon: (mode && icons[mode]) || (isLine ? 'TrainFront' : 'MapPin'),
+      iconPack: 'lucide',
+    }
+
+    const sourceId = SOURCE.TRANSITLAND
+    return {
+      id: r.id,
+      externalIds: { [sourceId]: r.id },
+      name: { value: r.name ?? null, sourceId, timestamp },
+      description: null,
+      placeType: {
+        value: isLine
+          ? transitModeLabel(t.routeType, mode, t.agency, language)
+          : transitStopLabel(mode, language),
+        sourceId,
+        timestamp,
+      },
+      geometry: {
+        value: { type: 'point', center },
+        sourceId,
+        timestamp,
+      },
+      photos: [],
+      address: null,
+      contactInfo: { phone: null, email: null, website: null, websites: null, socials: {} },
+      openingHours: null,
+      amenities: {},
+      tags: {},
+      summary: isLine
+        ? transitLineSubtitle(t.routeType, mode, t.agency, language)
+        : null,
+      transitLine: line,
+      transitStop: stop,
+      icon,
+      sources: [{ id: sourceId, name: 'Transit', url: this.config.host }],
+      lastUpdated: timestamp,
+      createdAt: timestamp,
+    }
+  }
+
+  // ── Capabilities ───────────────────────────────────────────
+
+  async searchPlaces(
+    query: string,
+    lat?: number,
+    lng?: number,
+    options?: { radius?: number; limit?: number; sort?: string; filter?: Record<string, any>; language?: Language; signal?: AbortSignal },
+  ): Promise<Place[]> {
+    const response = await barrelmanSearchHttp.post(
+      `${this.config.host}/search`,
+      {
+        query,
+        lat,
+        lng,
+        radius: options?.radius,
+        limit: options?.limit || 20,
+        semantic: true,
+        ...(options?.sort ? { sort: options.sort } : {}),
+        ...(options?.filter ? { filter: options.filter } : {}),
+      },
+      { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
+    )
+    return (response.data || []).map((r: any) =>
+      r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
+  }
+
+  async getAutocomplete(
+    query: string,
+    lat?: number,
+    lng?: number,
+    options?: { radius?: number; limit?: number; language?: Language; signal?: AbortSignal },
+  ): Promise<Place[]> {
+    // autocomplete: true disables the Ollama semantic layer entirely (it's too slow
+    // for typing latency). Relies on parallel FTS + GIN-indexed trigram instead.
+    // Barrelman searches globally and uses proximity re-rank for location bias.
+    //
+    // Cancellation is driven by the client's abort signal, not a short timeout:
+    // a stale request is dropped the instant the user types another character,
+    // while a slow-but-live request is allowed to finish rather than being killed
+    // mid-flight and surfacing as an empty result. The timeout is only a backstop
+    // for a genuinely hung Barrelman.
+    const response = await barrelmanSearchHttp.post(
+      `${this.config.host}/search`,
+      {
+        query,
+        lat,
+        lng,
+        radius: options?.radius,
+        limit: options?.limit || 10,
+        semantic: false,
+        autocomplete: true,
+      },
+      { headers: this.headers, timeout: SEARCH_BACKSTOP_TIMEOUT, signal: options?.signal },
+    )
+    return (response.data || []).map((r: any) =>
+      r.kind ? this.adaptTransitHit(r, options?.language) : this.adaptPlace(r, options?.language))
+  }
+
+  /**
+   * Search a POI category. Two tiers, both fast:
+   *  1. Viewport-scoped (lat/lng + radius) — barrelman orders browse results
+   *     nearest-first via the GiST KNN index, so this is quick at any zoom.
+   *  2. Widen — when the viewport is sparse (fewer than `minResults`), re-query
+   *     with NO radius. Barrelman then drives the scan from the category GIN
+   *     index and returns the nearest matches within a wide bbox, so a zoomed-in
+   *     search for a thin category (e.g. gas stations in Manhattan) still finds
+   *     the nearest ones (~1s) instead of coming back empty.
+   * Supports `offset` for scroll pagination — a sparse viewport widens at every
+   * offset, so pages stay consistent. No total count is computed (a COUNT over a
+   * broad category is itself expensive); the client paginates until a short page.
+   *
+   * `presetId` is empty for an attribute browse (e.g. everywhere with WiFi),
+   * which filters on `filterTags` alone. That tier-2 widen keeps a radius: with
+   * no category to drive the GIN scan, dropping it would sort every tagged
+   * place on the planet by distance.
+   */
+  async searchByCategory(
+    presetId: string,
+    bounds: MapBounds,
+    options?: { limit?: number; offset?: number; minResults?: number; filterTags?: Record<string, string>; sort?: string; filter?: Record<string, any>; language?: Language },
+  ): Promise<Place[]> {
+    const lat = (bounds.north + bounds.south) / 2
+    const lng = (bounds.east + bounds.west) / 2
+    const latDiff = Math.abs(bounds.north - bounds.south)
+    const lngDiff = Math.abs(bounds.east - bounds.west)
+    const radius = Math.min((Math.max(latDiff, lngDiff) * 111320) / 2, 50000)
+
+    const limit = options?.limit || 20
+    const offset = options?.offset || 0
+    const minResults = options?.minResults ?? 6
+
+    const post = (body: Record<string, any>) =>
+      barrelmanSearchHttp.post(`${this.config.host}/search`, body, {
+        headers: this.headers,
+        timeout: 10000,
+      })
+
+    const baseBody = {
+      lat,
+      lng,
+      ...(presetId ? { categories: [presetId] } : {}),
+      limit,
+      ...(offset ? { offset } : {}),
+      ...(options?.filterTags ? { tags: options.filterTags } : {}),
+      ...(options?.sort ? { sort: options.sort } : {}),
+      ...(options?.filter ? { filter: options.filter } : {}),
+    }
+
+    if (!presetId && !options?.filterTags) return []
+
+    // Tier 1: viewport-scoped (bounded radius → KNN).
+    let rows: any[] = (await post({ ...baseBody, radius })).data || []
+
+    // Tier 2: widen when the viewport is sparse — omit the radius so barrelman
+    // uses the category-index scan (fast even for a thin category), or grow it
+    // to metro scale for a tag-only browse, which has no such index to lean on.
+    if (rows.length < minResults) {
+      const widened = presetId ? baseBody : { ...baseBody, radius: TAG_BROWSE_WIDEN_RADIUS_M }
+      rows = (await post(widened)).data || []
+    }
+
+    return rows.map((r: any) => this.adaptPlace(r, options?.language))
+  }
+
+  // ── Brand catalog ──────────────────────────────────────────────────────
+
+  async getBrands(q: string, limit = 8): Promise<BrandSummary[]> {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/brands`, {
+      params: { q, limit },
+      headers: this.headers,
+      timeout: 10000,
+    })
+    return (response.data?.brands || []) as BrandSummary[]
+  }
+
+  async getBrand(brandKey: string): Promise<BrandSummary | null> {
+    try {
+      const response = await barrelmanSearchHttp.get(
+        `${this.config.host}/brands/${encodeURIComponent(brandKey)}`,
+        { headers: this.headers, timeout: 10000 },
+      )
+      return (response.data || null) as BrandSummary | null
+    } catch (e: any) {
+      if (e.response?.status === 404) return null
+      throw e
+    }
+  }
+
+  /**
+   * List a brand's locations. Uses barrelman's browse mode with a brand tag
+   * filter: viewport-scoped first (lat/lng + radius), then — if too few results
+   * — a second global pass (lat/lng, NO radius → nearest-N by distance) so a
+   * sparse brand is never shown as empty.
+   */
+  async searchByBrand(
+    filter: { wikidata?: string; name?: string },
+    options?: { lat?: number; lng?: number; bounds?: MapBounds; minResults?: number; limit?: number; language?: Language },
+  ): Promise<Place[]> {
+    const tags = filter.wikidata
+      ? { 'brand:wikidata': filter.wikidata }
+      : filter.name
+        ? { brand: filter.name }
+        : null
+    if (!tags) return []
+
+    const limit = options?.limit ?? 15
+    const minResults = options?.minResults ?? 8
+
+    // Center + radius: prefer explicit bounds, else the given point.
+    let lat = options?.lat
+    let lng = options?.lng
+    let radius: number | undefined
+    if (options?.bounds) {
+      const b = options.bounds
+      lat = (b.north + b.south) / 2
+      lng = (b.east + b.west) / 2
+      const latDiff = Math.abs(b.north - b.south)
+      const lngDiff = Math.abs(b.east - b.west)
+      radius = Math.min((Math.max(latDiff, lngDiff) * 111320) / 2, 50000)
+    }
+
+    const post = (body: Record<string, any>) =>
+      barrelmanSearchHttp.post(`${this.config.host}/search`, body, {
+        headers: this.headers,
+        timeout: 10000,
+      })
+
+    // Pass 1: viewport-scoped (only when we have a radius to scope by).
+    let rows: any[] = []
+    if (radius != null && lat != null && lng != null) {
+      const res = await post({ lat, lng, radius, tags, limit })
+      rows = res.data || []
+    }
+
+    // Pass 2: widen to nearest-N globally when the viewport was sparse (or had
+    // no spatial scope to begin with).
+    if (rows.length < minResults) {
+      const res = await post({ lat, lng, tags, limit })
+      rows = res.data || []
+    }
+
+    return rows.map((r: any) => this.adaptPlace(r, options?.language))
+  }
+
+  async getPlaceInfo(
+    id: string,
+    options?: { language?: Language },
+  ): Promise<Place | null> {
+    try {
+      // Pelias geocoder gid (e.g. "openaddresses:address:us/ny/…") — these have
+      // no geo_places/OSM row, so resolve via /geocode/place (Pelias /v1/place)
+      // rather than /place/:osmType/:osmId. Real OSM ids start with the element
+      // type; anything else is treated as a geocoder gid.
+      const isOsmId = /^(node|way|relation|intersection)\//.test(id)
+      if (!isOsmId) {
+        const response = await barrelmanSearchHttp.get(
+          `${this.config.host}/geocode/place`,
+          { params: { id }, headers: this.headers, timeout: 10000 },
+        )
+        return this.adaptPlace(response.data, options?.language)
+      }
+
+      // ID format: "node/5718230659" — maps to /place/node/5718230659
+      const response = await barrelmanSearchHttp.get(
+        `${this.config.host}/place/${id}`,
+        { headers: this.headers, timeout: 10000 },
+      )
+      return this.adaptPlace(response.data, options?.language)
+    } catch (e: any) {
+      if (e.response?.status === 404) return null
+      throw e
+    }
+  }
+
+  async searchAlongRoute(
+    route: { type: 'LineString'; coordinates: number[][] },
+    options?: {
+      query?: string
+      buffer?: number
+      categories?: string[]
+      tags?: Record<string, string>
+      limit?: number
+      semantic?: boolean
+      autocomplete?: boolean
+      language?: Language
+    },
+  ): Promise<Place[]> {
+    const response = await barrelmanSearchHttp.post(
+      `${this.config.host}/search`,
+      {
+        ...(options?.query ? { query: options.query } : {}),
+        route,
+        buffer: options?.buffer,
+        categories: options?.categories,
+        tags: options?.tags,
+        limit: options?.limit || 20,
+        semantic: options?.semantic ?? false,
+        autocomplete: options?.autocomplete ?? false,
+      },
+      { headers: this.headers, timeout: 10000 },
+    )
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
+  }
+
+  /**
+   * Reverse geocode a coordinate to the places at that point. Barrelman returns
+   * the geocoder hit already hydrated into its full OSM row (geometry, tags,
+   * hours), falling back to the smallest containing administrative area when
+   * nothing addressable is nearby — so a dropped pin always resolves to
+   * something, and does so from our own index rather than a rate-limited
+   * upstream.
+   */
+  async reverseGeocode(
+    lat: number,
+    lng: number,
+    options?: { language?: Language },
+  ): Promise<Place[]> {
+    const response = await barrelmanSearchHttp.get(
+      `${this.config.host}/geocode/reverse`,
+      {
+        params: { lat, lng },
+        headers: this.headers,
+        timeout: 10000,
+      },
+    )
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
+  }
+
+  async getContainingAreas(
+    lat: number,
+    lng: number,
+    exclude?: string,
+    options?: { language?: Language },
+  ): Promise<Place[]> {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/contains`, {
+      params: { lat, lng, ...(exclude ? { exclude } : {}) },
+      headers: this.headers,
+      timeout: 10000,
+    })
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
+  }
+
+  async getChildren(
+    areaId: string,
+    categories?: string[],
+    limit?: number,
+    offset?: number,
+    lat?: number,
+    lng?: number,
+    options?: { language?: Language },
+  ): Promise<Place[]> {
+    const response = await barrelmanSearchHttp.get(`${this.config.host}/children`, {
+      params: {
+        id: areaId,
+        categories: categories?.join(','),
+        limit: limit || 20,
+        offset: offset || 0,
+        ...(lat != null && lng != null ? { lat, lng } : {}),
+      },
+      headers: this.headers,
+      timeout: 10000,
+    })
+    return (response.data || []).map((r: any) => this.adaptPlace(r, options?.language))
+  }
+
+  // ── Routing (GraphHopper via Barrelman proxy) ──────────────────
+
+  /**
+   * Route between waypoints using GraphHopper proxied through Barrelman.
+   * Requires `apiKey` in config for authentication.
+   */
+  private async getRoute(request: RouteRequest): Promise<UnifiedRoute> {
+    if (!this.config.apiKey) {
+      throw new Error('Barrelman API key is required for routing')
+    }
+
+    if (request.waypoints.length < 2) {
+      throw new Error('At least 2 waypoints are required for routing')
+    }
+
+    const host = this.config.host.replace(/\/$/, '')
+    const url = `${host}/route`
+
+    const lang = request.language ? getLanguageCode(request.language) : 'en'
+
+    // Build GraphHopper request body
+    const snapPreventions = getSnapPreventions(request.mode)
+    const requestBody: Record<string, any> = {
+      points: request.waypoints.map((wp) => [wp.coordinate.lng, wp.coordinate.lat]),
+      profile: this.mapTravelModeToProfile(request.mode),
+      elevation: true,
+      points_encoded: false,
+      instructions: request.includeInstructions ?? true,
+      locale: lang,
+      // Prevent origin/dest from snapping directly onto motorways, tunnels, etc.
+      // so the router joins them via proper on-/off-ramps.
+      ...(snapPreventions && { snap_preventions: snapPreventions }),
+      // Request all path details for enriched response
+      details: [
+        'surface', 'road_class', 'road_environment', 'road_access',
+        'bike_network', 'get_off_bike', 'smoothness', 'track_type',
+        'average_slope', 'max_slope', 'average_speed', 'max_speed',
+        'bike_priority',
+      ],
+    }
+
+    // Alternatives
+    if (request.preferences?.alternatives) {
+      requestBody.algorithm = 'alternative_route'
+      requestBody['alternative_route.max_paths'] = request.preferences.maxAlternatives ?? 3
+    }
+
+    // Apply custom_model for preference-based routing
+    const customModel = this.buildCustomModel(request)
+    if (customModel) {
+      requestBody.custom_model = customModel
+    }
+
+    try {
+      const response = await barrelmanHttp.post(url, requestBody, {
+        headers: this.headers,
+        timeout: 30_000,
+      })
+
+      return this.graphhopperAdapter.adaptRouteResponse(response.data, request)
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status
+        const detail = error.response.data?.message ?? error.response.statusText
+        throw new Error(`Barrelman routing error (${status}): ${detail}`)
+      }
+      throw new Error(
+        `Barrelman routing error: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+      )
+    }
+  }
+
+  // ── GraphHopper profile mapping ───────────────────────────────
+
+  private mapTravelModeToProfile(mode: TravelMode): string {
+    switch (mode) {
+      case TravelMode.DRIVING:
+        return 'car'
+      case TravelMode.CYCLING:
+        return 'bike'
+      case TravelMode.WALKING:
+        return 'foot'
+      case TravelMode.MOTORCYCLE:
+        return 'car' // GraphHopper doesn't have a separate motorcycle profile
+      case TravelMode.TRUCK:
+        return 'car' // Use car with custom_model constraints for truck
+      default:
+        throw new Error(`Unsupported travel mode: ${mode}`)
+    }
+  }
+
+  /**
+   * Build a GraphHopper custom_model from unified routing preferences.
+   * Delegates to the shared utility in lib/graphhopper-custom-model.ts
+   */
+  private buildCustomModel(request: RouteRequest): Record<string, any> | undefined {
+    return buildGraphHopperCustomModel(request.mode, request.preferences)
+  }
+
+  // ── Transit routing (MOTIS via Barrelman) ───────────────────────
+
+  private async getTransitRoute(request: TransitRouteRequest): Promise<TransitRouteResponse> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    try {
+      const response = await barrelmanHttp.post(
+        `${host}/transit/route`,
+        request,
+        {
+          headers: this.headers,
+          timeout: 25_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status
+        const detail = error.response.data?.error ?? error.response.statusText
+        throw new Error(`Transit routing error (${status}): ${detail}`)
+      }
+      throw new Error(
+        `Transit routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
+    }
+  }
+
+  private async getIntermodalRoute(request: IntermodalRouteRequest): Promise<TransitRouteResponse> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    try {
+      const response = await barrelmanHttp.post(
+        `${host}/transit/intermodal-route`,
+        request,
+        {
+          headers: this.headers,
+          timeout: 25_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status
+        const detail = error.response.data?.error ?? error.response.statusText
+        throw new Error(`Intermodal routing error (${status}): ${detail}`)
+      }
+      throw new Error(
+        `Intermodal routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
+    }
+  }
+
+  private async getNearbyStops(request: NearbyStopsRequest): Promise<NearbyStopResult[]> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    const params = new URLSearchParams({
+      lat: String(request.lat),
+      lng: String(request.lng),
+    })
+    if (request.radius != null) params.set('radius', String(request.radius))
+    if (request.limit != null) params.set('limit', String(request.limit))
+
+    try {
+      const response = await barrelmanHttp.get(
+        `${host}/transit/stops?${params}`,
+        {
+          headers: this.headers,
+          timeout: 10_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(`Nearby stops error (${error.response.status}): ${error.response.data?.error}`)
+      }
+      throw new Error(`Nearby stops error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async getRoutesForStop(feedId: string, stopId: string): Promise<StopRouteResult[]> {
+    const { host, apiKey } = this.config
+    if (!apiKey) throw new Error('Barrelman API key not configured')
+
+    try {
+      const response = await barrelmanHttp.get(
+        `${host}/transit/routes?feedId=${encodeURIComponent(feedId)}&stopId=${encodeURIComponent(stopId)}`,
+        {
+          headers: this.headers,
+          timeout: 10_000,
+        },
+      )
+      return response.data
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(`Stop routes error (${error.response.status}): ${error.response.data?.error}`)
+      }
+      throw new Error(`Stop routes error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async getNearestEntrance(
+    lat: number,
+    lon: number,
+    maxDistanceM: number = 500,
+    wheelchair: boolean = false,
+  ) {
+    const { host } = this.config
+
+    try {
+      const params = new URLSearchParams({
+        lat: String(lat),
+        lon: String(lon),
+        maxDistance: String(maxDistanceM),
+        ...(wheelchair && { wheelchair: 'true' }),
+      })
+      const response = await barrelmanHttp.get(
+        `${host}/transit/nearest-entrance?${params}`,
+        {
+          headers: this.headers,
+          timeout: 5_000,
+        },
+      )
+      return response.data
+    } catch {
+      return null // Silently fail — fall back to station centroid
+    }
+  }
+}

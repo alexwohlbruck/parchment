@@ -1,330 +1,703 @@
-import { watch, nextTick, ref } from 'vue'
+import { watch, ref } from 'vue'
+import axios from 'axios'
 import { storeToRefs } from 'pinia'
+import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import { createSharedComposable } from '@vueuse/core'
+import { useGeolocationService } from '@/services/geolocation.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
+import { LngLat } from 'mapbox-gl'
+import type { Place } from '@/types/place.types'
+import { useGeocodingService } from '@/services/geocoding.service'
+import { getSearchResultName } from '@/lib/search/search.utils'
+import { useVehiclesStore } from '@/stores/vehicles.store'
+import { usePlaceService } from '@/services/place.service'
+import {
+  serializeDirectionsQuery,
+  parseDirectionsQuery,
+  directionsQueryEquals,
+  shareableWaypointId,
+} from '@/lib/directions/directions-url'
 
-const MIN_LOCATIONS = 2
-
-// TODO: Remove this hardcoded data before committing - it is sensitive
-// Hardcoded vehicle locations for testing multimodality
-const HARDCODED_VEHICLE_LOCATIONS = {
-  car: {
-    lat: 35.21712207929376,
-    lng: -80.81946433041882,
-  },
-  bike: {
-    lat: 35.21700938703438,
-    lng: -80.81994398107717,
-  },
-}
-
-// Available vehicle modes that users can select (walking is implicit via includeWalking)
-const AVAILABLE_VEHICLES = ['car', 'bike']
-
-// Map frontend mode selection to available vehicles
-const MODE_TO_VEHICLES = {
-  multi: ['car', 'bike'], // Multi-modal shows all vehicle options (walking is implicit)
-  auto: ['car'],
-  bicycle: ['bike'],
-  pedestrian: [], // Pedestrian mode only uses walking (implicit)
-  transit: [], // Transit fallback to walking for now (implicit)
-}
+const MIN_WAYPOINTS = 2
 
 function directionsService() {
-  const directionsStore = useDirectionsStore()
-  const { waypoints, selectedMode } = storeToRefs(directionsStore)
+  const store = useDirectionsStore()
+  const { waypoints, selectedMode, sortPreference, departureTime, routingPreferences } = storeToRefs(store)
 
-  // Track the last request to prevent duplicates
-  const lastRequestKey = ref<string>('')
-  const isRequestInProgress = ref(false)
+  const lastRequestKey = ref('')
+  const isRequesting = ref(false)
+  // Tracks the in-flight directions request so a newer one can abort it.
+  const abortController = ref<AbortController | null>(null)
 
-  function generateRequestKey(waypoints: Waypoint[], mode: string): string {
-    const waypointKey = waypoints
-      .filter(wp => wp.lngLat != null)
+  const {
+    coords,
+    isSupported: isGeolocationSupported,
+    resume,
+  } = useGeolocationService()
+
+  /**
+   * Generate unique key for request deduplication
+   */
+  function getRequestKey(wps: Waypoint[], mode: string, prefs: any): string {
+    const coords = wps
+      .filter(wp => wp.lngLat)
       .map(wp => `${wp.lngLat!.lat},${wp.lngLat!.lng}`)
       .join(';')
-    return `${waypointKey}|${mode}`
+    return `${coords}|${mode}|${sortPreference.value || ''}|${departureTime.value || ''}|${JSON.stringify(prefs)}`
   }
 
+  /**
+   * Fetch directions from API.
+   *
+   * Any in-flight request is aborted before a new one starts. When the user
+   * tweaks waypoints/mode/sort while trips are still loading, the stale
+   * request must not win the race — otherwise its late response overwrites
+   * (or, worse, the early-return guard suppressed) the results for the
+   * inputs the user actually wants.
+   */
   async function getDirections() {
-    const filteredWaypoints = waypoints.value.filter(wp => wp.lngLat != null)
-    const currentRequestKey = generateRequestKey(
-      filteredWaypoints,
-      selectedMode.value,
-    )
+    const validWaypoints = waypoints.value.filter(wp => wp.lngLat)
 
-    console.log(
-      'getDirections called with waypoints:',
-      filteredWaypoints.length,
-      'mode:',
-      selectedMode.value,
-    )
-
-    // Skip if this is the same request as last time or if a request is already in progress
-    if (
-      currentRequestKey === lastRequestKey.value ||
-      isRequestInProgress.value
-    ) {
-      console.log(
-        'Skipping duplicate or concurrent request:',
-        currentRequestKey,
-      )
-      return
-    }
-
-    if (filteredWaypoints.length < MIN_LOCATIONS) {
-      directionsStore.unsetTrips()
+    // Need at least 2 waypoints — drop any in-flight request and clear.
+    if (validWaypoints.length < MIN_WAYPOINTS) {
+      abortController.value?.abort()
+      abortController.value = null
+      store.unsetTrips()
       lastRequestKey.value = ''
+      isRequesting.value = false
+      store.setLoading(false)
       return
     }
 
-    lastRequestKey.value = currentRequestKey
-    isRequestInProgress.value = true
-    directionsStore.setLoading(true)
+    const requestKey = getRequestKey(
+      validWaypoints,
+      selectedMode.value,
+      routingPreferences.value,
+    )
+
+    // Identical to the request already in flight (or the last one resolved) —
+    // nothing to do.
+    if (requestKey === lastRequestKey.value) return
+
+    // Supersede any in-flight request: its inputs are now stale.
+    abortController.value?.abort()
+    const controller = new AbortController()
+    abortController.value = controller
+
+    lastRequestKey.value = requestKey
+    isRequesting.value = true
+    store.setLoading(true)
 
     try {
-      // Determine which vehicles to show based on selected mode
-      const availableVehicles =
-        MODE_TO_VEHICLES[selectedMode.value as keyof typeof MODE_TO_VEHICLES] ||
-        AVAILABLE_VEHICLES
+      // Send active vehicles with known locations from the user's vehicle store
+      const useVehicleLocations =
+        routingPreferences.value.useKnownVehicleLocations !== false
 
-      // Build multimodal trip request for the new API
-      const tripRequest = {
-        waypoints: filteredWaypoints.map((waypoint, index) => ({
-          location: {
-            lat: waypoint.lngLat!.lat,
-            lng: waypoint.lngLat!.lng,
-          },
+      const vehiclesStore = useVehiclesStore()
+      const availableVehicles = useVehicleLocations
+        ? vehiclesStore.activeVehicles
+            .filter((v) => v.lastKnownLocation)
+            .map((v) => ({
+              id: v.id,
+              type: v.type,
+              energyType: v.energyType ?? undefined,
+              name: v.name ?? undefined,
+              location: v.lastKnownLocation!,
+            }))
+        : []
+
+      // Build API request. Use getSearchResultName so reverse-geocoded
+      // map-clicks (which often have no place.name but do have an address)
+      // still produce a useful label — same helper the waypoint input uses.
+      const request = {
+        waypoints: validWaypoints.map((wp, i) => ({
+          location: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
           type:
-            index === 0
+            i === 0
               ? 'origin'
-              : index === filteredWaypoints.length - 1
-              ? 'destination'
-              : 'via',
-          label: waypoint.place?.name?.value,
+              : i === validWaypoints.length - 1
+                ? 'destination'
+                : 'via',
+          label: wp.place ? getSearchResultName(wp.place as Place) : '',
+          // Per-waypoint time constraints
+          ...(wp.timeConstraint?.mode === 'departAfter' && { departAfter: wp.timeConstraint.time }),
+          ...(wp.timeConstraint?.mode === 'arriveBy' && { arriveBy: wp.timeConstraint.time }),
+          ...(wp.timeConstraint?.dwellTime && { dwellTime: wp.timeConstraint.dwellTime }),
         })),
-        availableVehicles: availableVehicles.map(vehicleType => ({
-          id: `${vehicleType}-${Date.now()}`,
-          type: vehicleType,
-          location:
-            HARDCODED_VEHICLE_LOCATIONS[
-              vehicleType as keyof typeof HARDCODED_VEHICLE_LOCATIONS
-            ],
-        })),
-        routingPreferences: {
-          avoidHighways: false,
-          avoidTolls: false,
-          safetyVsEfficiency: 0.5, // Balanced approach
-          maxWalkingDistance: 1000, // 1km max walking
-          maxTransfers: 3,
-        },
-        requestId: `frontend-${Date.now()}-${Math.random()
-          .toString(36)
-          .substr(2, 9)}`,
+        selectedMode: selectedMode.value,
+        ...(sortPreference.value && { sortPreference: sortPreference.value }),
+        availableVehicles,
+        routingPreferences: routingPreferences.value,
+        ...(departureTime.value && { preferredDepartureTime: departureTime.value }),
+        requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       }
 
-      console.log('Making multimodal trip API request:', tripRequest)
-      const { data: response } = await api.post('/directions/', tripRequest)
-      console.log('Multimodal trip API response received:', response)
-
-      // Helper function to normalize mode names from backend to frontend
-      const normalizeMode = (mode: string): string => {
-        const modeMap: Record<string, string> = {
-          biking: 'cycling',
-          walking: 'walking',
-          driving: 'driving',
-          transit: 'transit',
-        }
-        return modeMap[mode] || mode
+      // Same inputs planned recently in this tab? Restore the exact
+      // response (same trip ids and times) instead of re-planning — a page
+      // refresh on a trip detail lands back on the identical trip.
+      const planKey = planCacheKey(request)
+      const cached = readPlanCache(planKey)
+      if (cached) {
+        store.setTrips(cached)
+        return
       }
 
-      // Transform the multimodal response to match the expected trips format
-      const transformedResponse: TripsResponse = {
+      const { data } = await api.post('/directions/', request, {
+        signal: controller.signal,
+        timeout: 30_000,
+      })
+
+      // Transform response to UI format
+      const serverWaypoints: Array<{ label?: string }> = data.request?.waypoints ?? []
+      const response: TripsResponse = {
         request: {
-          waypoints: filteredWaypoints.map((waypoint, index) => ({
-            id: `waypoint-${index}`,
-            coordinate: {
-              lat: waypoint.lngLat!.lat,
-              lng: waypoint.lngLat!.lng,
-            },
-            type:
-              index === 0 || index === filteredWaypoints.length - 1
-                ? WaypointType.STOP
-                : WaypointType.VIA,
-            name: waypoint.place?.name?.value || '',
-          })),
-          availableVehicles: availableVehicles,
-          maxOptions: 3,
+          waypoints: validWaypoints.map((wp, i) => {
+            const place = wp.place
+            return {
+              id: `wp-${i}`,
+              coordinate: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
+              type:
+                i === 0 || i === validWaypoints.length - 1
+                  ? WaypointType.STOP
+                  : WaypointType.VIA,
+              name: (place ? getSearchResultName(place as Place) : '') || serverWaypoints[i]?.label || '',
+              // Pass through the full Place for POI rendering in the trip timeline
+              ...(place ? { place } : {}),
+            }
+          }),
+          availableVehicles: availableVehicles.map(v => v.type),
+          maxOptions: 5,
           includeWalking: true,
-          preferences: {
-            optimize: 'time' as const,
-            alternatives: true,
-          },
+          preferences: { optimize: 'time', alternatives: true },
         },
-        trips: response.trips.map((tripCandidate: any, tripIndex: number) => ({
-          id: `${
-            tripCandidate.trip.requestId || `trip-${Date.now()}`
-          }-${tripIndex}`,
-          mode: normalizeMode(
-            tripCandidate.trip.segments[0]?.mode || 'walking',
-          ),
-          vehicleType:
-            tripCandidate.trip.segments[0]?.vehicle?.type || 'walking',
+        trips: data.trips.map((candidate: any, idx: number) => ({
+          id: `${candidate.trip.requestId || `trip-${Date.now()}`}-${idx}`,
+          mode: normalizeMode(candidate.trip.segments[0]?.mode || 'walking'),
+          vehicleType: candidate.trip.segments[0]?.vehicle?.type || 'walking',
           summary: {
-            totalDuration: tripCandidate.trip.tripStats.totalDuration,
-            totalDistance: tripCandidate.trip.tripStats.totalDistance,
-            hasTolls: false, // TODO: Extract from segments
-            hasHighways: false, // TODO: Extract from segments
-            hasFerries: false, // TODO: Extract from segments
+            totalDuration: candidate.trip.tripStats.totalDuration,
+            totalDistance: candidate.trip.tripStats.totalDistance,
+            hasTolls: false,
+            hasHighways: false,
+            hasFerries: false,
           },
-          segments: tripCandidate.trip.segments
-            .map((segment: any) => {
-              // Check if this is a combined multimodal segment with detailed segments
-              if (segment.details?.multimodalSegments) {
-                // Extract the individual segments from the combined segment
-                return segment.details.multimodalSegments.map(
-                  (detailSegment: any, detailIndex: number) => ({
-                    id: `segment-${segment.segmentIndex}-detail-${detailIndex}`,
-                    type: 'route',
-                    mode: normalizeMode(detailSegment.mode),
-                    vehicleType:
-                      detailSegment.vehicle?.type || detailSegment.mode,
-                    startTime: new Date(detailSegment.startTime),
-                    endTime: new Date(detailSegment.endTime),
-                    duration: detailSegment.duration,
-                    distance: detailSegment.distance,
-                    geometry: detailSegment.geometry,
-                    instructions: detailSegment.instructions,
-                  }),
-                )
-              } else {
-                // Regular single segment
-                return [
-                  {
-                    id: `segment-${segment.segmentIndex}`,
-                    type: 'route',
-                    mode: normalizeMode(segment.mode),
-                    vehicleType: segment.vehicle?.type || segment.mode,
-                    startTime: new Date(segment.startTime),
-                    endTime: new Date(segment.endTime),
-                    duration: segment.duration,
-                    distance: segment.distance,
-                    geometry: segment.geometry,
-                    instructions: segment.instructions,
-                  },
-                ]
-              }
-            })
-            .flat(), // Flatten the array to handle multimodal segments
-          startTime: new Date(tripCandidate.trip.earliestStartTime),
-          endTime: new Date(tripCandidate.trip.latestEndTime),
-          isRecommended: tripCandidate.rank === 1,
-          rank: tripCandidate.rank,
+          segments: flattenSegments(candidate.trip.segments),
+          startTime: new Date(candidate.trip.earliestStartTime),
+          endTime: new Date(candidate.trip.latestEndTime),
+          isRecommended: candidate.rank === 1,
+          rank: candidate.rank,
           provider: 'multimodal',
-          cost: tripCandidate.trip.tripStats.totalCost,
-          co2Emissions: tripCandidate.trip.tripStats.totalCo2,
+          cost: candidate.trip.tripStats.totalCost
+            ? { total: { amount: candidate.trip.tripStats.totalCost.value, currency: candidate.trip.tripStats.totalCost.currency } }
+            : undefined,
+          co2Emissions: candidate.trip.tripStats.totalCo2 ?? undefined,
         })),
         earliestStart:
-          response.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
+          data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
         latestEnd:
-          response.trips[0]?.trip.latestEndTime ||
+          data.trips[0]?.trip.latestEndTime ||
           new Date(Date.now() + 3600000).toISOString(),
-        metadata: response.metadata,
+        metadata: data.metadata,
       }
 
-      directionsStore.setTrips(transformedResponse)
+      store.setTrips(response)
+      writePlanCache(planKey, response)
     } catch (error) {
-      console.error('Error getting trips:', error)
-      directionsStore.unsetTrips()
-      // Reset the last request key on error so user can retry
-      lastRequestKey.value = ''
+      // Aborted by a newer request — leave all state to that request.
+      if (axios.isCancel(error)) return
+      console.error('Failed to fetch directions:', error)
+      store.unsetTrips()
+      lastRequestKey.value = '' // Allow retry
     } finally {
-      isRequestInProgress.value = false
-      directionsStore.setLoading(false)
+      // Only the request that is still current may clear the shared loading
+      // flag — an aborted predecessor must not switch off the spinner for
+      // the request that replaced it.
+      if (abortController.value === controller) {
+        isRequesting.value = false
+        store.setLoading(false)
+        abortController.value = null
+      }
     }
   }
 
-  function createBlankWaypoint() {
+  // ── Plan cache (sessionStorage) ─────────────────────────────────────
+  // One entry: the latest plan, keyed by its full request (minus volatile
+  // fields). Survives refresh within the tab; cross-device sharing goes
+  // through the URL → re-plan → trip-signature match path instead.
+  const PLAN_CACHE_KEY = 'parchment:last-plan'
+  const PLAN_CACHE_TTL_MS = 30 * 60_000
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function planCacheKey(request: any): string {
+    const { requestId: _id, availableVehicles: _v, ...stable } = request
+    return JSON.stringify(stable)
+  }
+
+  function readPlanCache(key: string): TripsResponse | null {
+    try {
+      const raw = sessionStorage.getItem(PLAN_CACHE_KEY)
+      if (!raw) return null
+      const entry = JSON.parse(raw)
+      if (entry.key !== key) return null
+      if (Date.now() - entry.savedAt > PLAN_CACHE_TTL_MS) return null
+      return entry.response as TripsResponse
+    } catch {
+      return null
+    }
+  }
+
+  function writePlanCache(key: string, response: TripsResponse) {
+    try {
+      sessionStorage.setItem(
+        PLAN_CACHE_KEY,
+        JSON.stringify({ key, savedAt: Date.now(), response }),
+      )
+    } catch {
+      // Quota exceeded or storage unavailable — the URL re-plan path
+      // still recovers the trip, just without identical ids.
+    }
+  }
+
+  /**
+   * Normalize mode names from backend to frontend
+   */
+  function normalizeMode(mode: string): string {
+    const map: Record<string, string> = {
+      biking: 'cycling',
+      walking: 'walking',
+      driving: 'driving',
+      transit: 'transit',
+    }
+    return map[mode] || mode
+  }
+
+  /**
+   * Extract transit-specific fields from a segment's transitDetails.
+   * Returns an object with lineName, lineColor, headsign, etc. —
+   * or empty object if not a transit segment.
+   */
+  function extractTransitFields(seg: any) {
+    const td = seg.details?.transitDetails
+    if (!td) return {}
     return {
-      lngLat: null,
+      lineName: td.shortName || td.route?.shortName,
+      lineColor: td.color || td.route?.color,
+      lineTextColor: td.textColor || td.route?.textColor,
+      lineLongName: td.route?.longName,
+      headsign: td.headsign || td.trip?.headsign,
+      // Interchangeable routes on shared track (e.g. the 4 and the 5). Present
+      // (length > 1) on merged legs — render "4 or 5" and union the board.
+      routeOptions: (td.routeOptions ?? []).map((r: any) => ({
+        shortName: r.shortName,
+        color: r.color,
+        textColor: r.textColor,
+      })),
+      directionId: td.directionId,
+      vehicleNumber: td.shortName || td.route?.shortName,
+      agencyName: td.route?.agency?.name,
+      agencyId: td.route?.agency?.id,
+      routeType: td.route?.type,
+      tripId: td.trip?.id,
+      departureStop: td.departureStop,
+      arrivalStop: td.arrivalStop,
+      intermediateStops: td.stops?.slice(1, -1), // exclude first/last
+      realTimeData: td.realTimeData,
+      delay: td.delay,
+      transitDetails: td,
     }
   }
 
-  // Fill a new waypoint into an available slot
-  function fillWaypoint(waypoint: Waypoint) {
-    const emptyIndex = waypoints.value.findIndex(wp => wp.lngLat === null)
-    if (emptyIndex !== -1) {
-      directionsStore.setWaypoint(emptyIndex, waypoint)
-    } else {
-      directionsStore.setWaypoint(waypoints.value.length, waypoint)
+  /**
+   * Map a single raw backend segment to the flattened UI format.
+   */
+  function mapSegment(seg: any, id: string, legIndex: number) {
+    return {
+      id,
+      type: 'route',
+      legIndex,
+      mode: normalizeMode(seg.mode),
+      vehicleType: seg.vehicle?.type || seg.mode,
+      startTime: new Date(seg.startTime),
+      endTime: new Date(seg.endTime),
+      duration: seg.duration,
+      distance: seg.distance,
+      waitSeconds: seg.waitSeconds,
+      geometry: seg.geometry,
+      instructions: seg.instructions,
+      totalElevationGain: seg.totalElevationGain,
+      totalElevationLoss: seg.totalElevationLoss,
+      maxElevation: seg.maxElevation,
+      minElevation: seg.minElevation,
+      edgeSegments: seg.edgeSegments,
+      start: seg.start,
+      end: seg.end,
+      ownership: seg.ownership ?? 'personal',
+      carryingVehicle: seg.carryingVehicle ?? false,
+      rideshareDetails: seg.details?.rideshareDetails ?? null,
+      sharedMobilityDetails: seg.details?.sharedMobilityDetails ?? null,
+      stationEntrance: seg.stationEntrance ?? null,
+      ...extractTransitFields(seg),
     }
+  }
+
+  /**
+   * Flatten multimodal segments into single array.
+   * Transit segments get extra fields (lineName, lineColor, stops, etc.).
+   */
+  function flattenSegments(segments: any[]): any[] {
+    return segments.flatMap(segment => {
+      if (segment.details?.multimodalSegments) {
+        return segment.details.multimodalSegments.map(
+          (seg: any, i: number) =>
+            mapSegment(
+              seg,
+              `segment-${segment.segmentIndex}-${i}`,
+              seg.legIndex ?? segment.legIndex ?? 0,
+            ),
+        )
+      }
+
+      return [
+        mapSegment(
+          segment,
+          `segment-${segment.segmentIndex}`,
+          segment.legIndex ?? 0,
+        ),
+      ]
+    })
+  }
+
+  /**
+   * Fill in everything a waypoint's place record is missing.
+   *
+   * A waypoint arrives holding whatever the surface that set it happened to
+   * know: an autocomplete row carries a name, coordinates and an icon; a
+   * shared link carries a name and an id. The trip timeline and the map
+   * markers render from that record, so a thin one shows a grey pin and a
+   * bare name where the place has a category, hours and a rating. Look the
+   * full record up in the background and swap it in — the place cache makes
+   * a repeat lookup free.
+   */
+  /**
+   * Ids already looked up. A waypoint's record is replaced by the lookup's
+   * result, which triggers the watcher again — and the surfaces that set
+   * waypoints do so on every keystroke-driven selection, so without this the
+   * same place would be fetched over and over.
+   */
+  const hydratedPlaceIds = new Set<string>()
+
+  async function hydrateWaypointPlace(index: number, placeId: string) {
+    const { lookupPlaceById } = usePlaceService()
+    const full = await lookupPlaceById(placeId)
+    if (!full) return
+
+    const current = waypoints.value[index]
+    // The waypoint may have moved on while the lookup was in flight.
+    if (current?.place?.id !== placeId) return
+
+    // The waypoint's own coordinates win: the user picked that point, and a
+    // POI's canonical centre can sit metres away from it.
+    store.setWaypoint(index, { ...current, place: full })
+  }
+
+  /**
+   * Helper function to set a waypoint and reverse geocode if needed
+   * This ensures consistent behavior across all waypoint-setting functions
+   */
+  async function setWaypointWithGeocoding(index: number, waypoint: Waypoint) {
+    // Immediately set the waypoint with coordinates (for instant feedback)
+    store.setWaypoint(index, waypoint)
+    
+    // If waypoint has coordinates but no place info (e.g., from map click),
+    // try to reverse geocode to get address information in the background
+    if (waypoint.lngLat && !waypoint.place) {
+      console.log('[Directions] Reverse geocoding waypoint at', waypoint.lngLat)
+      
+      // Reverse geocode in the background
+      const geocodingService = useGeocodingService()
+      geocodingService.reverseGeocode({
+        lat: waypoint.lngLat.lat,
+        lng: waypoint.lngLat.lng,
+        limit: 1,
+      }).then(result => {
+        // If we got a result, update the waypoint with place info
+        if (result.results && result.results.length > 0) {
+          const place = result.results[0]
+          console.log('[Directions] Reverse geocoding successful:', {
+            name: place.name?.value,
+            address: place.address?.value,
+          })
+          
+          // Update the waypoint with the geocoded place info
+          const updatedWaypoint = {
+            ...waypoints.value[index],
+            place: place,
+          }
+          store.setWaypoint(index, updatedWaypoint)
+        } else {
+          console.log('[Directions] No reverse geocoding results found')
+        }
+      }).catch(error => {
+        console.error('[Directions] Failed to reverse geocode waypoint:', error)
+        // Continue without place info if geocoding fails
+      })
+    } else if (waypoint.place) {
+      console.log('[Directions] Waypoint already has place info:', waypoint.place.name?.value)
+    }
+  }
+
+  // Waypoint management
+  async function fillWaypoint(waypoint: Waypoint) {
+    const emptyIndex = waypoints.value.findIndex(wp => !wp.lngLat)
+    const targetIndex = emptyIndex !== -1 ? emptyIndex : waypoints.value.length
+    await setWaypointWithGeocoding(targetIndex, waypoint)
   }
 
   function setWaypoint(index: number, waypoint: Waypoint) {
-    directionsStore.setWaypoint(index, waypoint)
+    store.setWaypoint(index, waypoint)
   }
 
-  function setWaypoints(waypoints: Waypoint[]) {
-    directionsStore.setWaypoints(waypoints)
+  /**
+   * Move an existing waypoint to a new location (e.g. from dragging its
+   * marker on the map). Clears prior place info so we reverse-geocode the new
+   * coordinates. Safe to call with an out-of-range index — it's a no-op.
+   */
+  async function moveWaypoint(
+    index: number,
+    lngLat: { lng: number; lat: number },
+  ) {
+    if (index < 0 || index >= waypoints.value.length) return
+    await setWaypointWithGeocoding(index, {
+      lngLat: new LngLat(lngLat.lng, lngLat.lat),
+      place: null,
+    })
+  }
+
+  function setWaypoints(wps: Waypoint[]) {
+    store.setWaypoints(wps)
   }
 
   function clearWaypoints() {
-    directionsStore.setWaypoints([
-      { lngLat: null },
-      { lngLat: null },
-    ] as Waypoint[])
+    store.setWaypoints([{ lngLat: null }, { lngLat: null }] as Waypoint[])
   }
 
   function removeWaypoint(index: number) {
-    // Only prevent removal if we would have fewer than minimum locations
-    if (waypoints.value.length <= MIN_LOCATIONS) {
-      // If we're at minimum waypoints, clear the waypoint instead of removing it
-      directionsStore.setWaypoint(index, {
-        ...waypoints.value[index],
-        lngLat: null,
-      })
+    if (waypoints.value.length <= MIN_WAYPOINTS) {
+      store.setWaypoint(index, { ...waypoints.value[index], lngLat: null })
     } else {
-      // We have more than minimum waypoints, safe to remove
-      directionsStore.removeWaypoint(index)
+      store.removeWaypoint(index)
     }
   }
 
   function addWaypoint(waypoint?: Waypoint) {
-    const newWaypoint = waypoint || createBlankWaypoint()
-    directionsStore.setWaypoint(waypoints.value.length, newWaypoint)
+    store.setWaypoint(waypoints.value.length, waypoint || { lngLat: null })
   }
 
   async function directionsFrom(waypoint: Waypoint) {
-    directionsStore.setWaypoint(0, waypoint)
+    await setWaypointWithGeocoding(0, waypoint)
   }
 
+  /**
+   * Get current location as a waypoint
+   * Returns null if geolocation is not supported or not available
+   */
+  function getCurrentLocationWaypoint(): Waypoint | null {
+    if (
+      !isGeolocationSupported.value ||
+      !coords.value.latitude ||
+      !coords.value.longitude ||
+      coords.value.latitude === Infinity ||
+      coords.value.longitude === Infinity
+    ) {
+      return null
+    }
+
+    const currentLocationPlace: Place = {
+      id: 'current-location',
+      name: { value: 'Current Location' },
+      geometry: {
+        value: {
+          type: 'point',
+          center: {
+            lat: coords.value.latitude,
+            lng: coords.value.longitude,
+          },
+        },
+      },
+      externalIds: {},
+      address: null,
+      placeType: { value: 'current_location' },
+    } as Place
+
+    return {
+      lngLat: new LngLat(coords.value.longitude, coords.value.latitude),
+      place: currentLocationPlace,
+    }
+  }
+
+  /**
+   * Populate the origin (first waypoint) with current location
+   * This is useful when clicking "Directions" buttons to automatically set the starting point
+   */
+  function populateOriginWithCurrentLocation() {
+    const currentLocation = getCurrentLocationWaypoint()
+    if (currentLocation) {
+      store.setWaypoint(0, currentLocation)
+    }
+  }
+
+  /**
+   * Set up directions with current location as origin and destination waypoint
+   * Only populates the first waypoint with current location if it's empty
+   */
   async function directionsTo(waypoint: Waypoint) {
-    directionsStore.setWaypoint(1, waypoint)
+    // Only populate origin if it's empty
+    if (!waypoints.value[0]?.lngLat) {
+      populateOriginWithCurrentLocation()
+    }
+    await setWaypointWithGeocoding(1, waypoint)
   }
 
-  // Watch for changes and call getDirections immediately
+  // Every surface that sets a waypoint — the picker, a map click, a shared
+  // link, the place page's Directions button — routes through the store, so
+  // hydration hangs off the store rather than off each of them remembering to
+  // ask for it.
   watch(
-    [waypoints, selectedMode],
-    () => {
-      getDirections()
+    waypoints,
+    wps => {
+      wps.forEach((wp, index) => {
+        const id = wp.place?.id
+        if (!id || hydratedPlaceIds.has(id)) return
+        hydratedPlaceIds.add(id)
+        hydrateWaypointPlace(index, id)
+      })
     },
-    { deep: true },
+    { deep: true, immediate: true },
   )
+
+  /**
+   * Keep the planned trip's stops pointing at the places the store now holds.
+   *
+   * A plan echoes back the waypoints it was built from, but a waypoint's place
+   * record keeps improving after the fact — reverse geocoding a dropped pin,
+   * looking up a stop restored from a link, filling in a thin autocomplete
+   * row. Whether that lands before the plan, during it, or against a cached
+   * plan restored whole, the trip has to end up rendering the record the user
+   * would see anywhere else, without re-planning the route to get it.
+   */
+  watch(
+    [waypoints, () => store.trips],
+    () => {
+      const planned = store.trips?.request?.waypoints
+      if (!planned) return
+      const settled = waypoints.value.filter(wp => wp.lngLat)
+      planned.forEach((entry, i) => {
+        const place = settled[i]?.place
+        if (!place || entry.place === place) return
+        entry.place = place
+        entry.name = getSearchResultName(place as Place)
+      })
+    },
+    { deep: true, immediate: true },
+  )
+
+  // ── Shareable URL state ─────────────────────────────────────────────
+  // Directions inputs live in the query string (?wp=lat,lng,label&mode=…)
+  // so links can be bookmarked, shared, and reproduced exactly.
+  const route = useRoute()
+  const router = useRouter()
+
+  /** Hydrate the store from a shared/bookmarked directions URL. */
+  function applyUrlState(): boolean {
+    const state = parseDirectionsQuery(route.query)
+    if (!state) return false
+
+    // A shared link carries a label and, where the waypoint had one, a place
+    // id. The stub renders immediately; the id (when present) then fetches the
+    // real record so a reloaded trip looks like the one that was planned.
+    const wps = state.waypoints.map((w, i) => ({
+      lngLat: new LngLat(w.lng, w.lat),
+      place: w.label || w.id
+        ? ({
+            id: w.id || `shared-wp-${i}`,
+            name: { value: w.label ?? '' },
+            geometry: {
+              value: { type: 'point', center: { lat: w.lat, lng: w.lng } },
+            },
+            externalIds: {},
+            address: null,
+            placeType: { value: 'shared_location' },
+          } as unknown as Place)
+        : null,
+    })) as Waypoint[]
+    while (wps.length < MIN_WAYPOINTS) wps.push({ lngLat: null } as Waypoint)
+
+    if (state.mode) store.selectedMode = state.mode as typeof selectedMode.value
+    if (state.sort) store.sortPreference = state.sort as typeof sortPreference.value
+    if (state.depart) store.departureTime = state.depart
+    store.setWaypoints(wps)
+    return true
+  }
+
+  /** Reflect the current inputs into the URL (replace — no history spam). */
+  function syncUrl() {
+    if (!route.path.startsWith('/directions')) return
+    const q = serializeDirectionsQuery({
+      waypoints: waypoints.value
+        .filter((w) => w.lngLat)
+        .map((w) => ({
+          lat: w.lngLat!.lat,
+          lng: w.lngLat!.lng,
+          label: (w.place ? getSearchResultName(w.place as Place) : '') || undefined,
+          id: shareableWaypointId(w.place),
+        })),
+      mode: selectedMode.value,
+      sort: sortPreference.value || undefined,
+      depart: departureTime.value || undefined,
+    })
+    if (directionsQueryEquals(q, route.query)) return
+    const { wp: _wp, wpid: _wpid, mode: _mode, sort: _sort, depart: _depart, ...rest } = route.query
+    router.replace({ query: { ...rest, ...q } }).catch(() => {})
+  }
+
+  applyUrlState()
+  watch([waypoints, selectedMode, sortPreference, departureTime], syncUrl, {
+    deep: true,
+  })
+
+  // Auto-fetch when waypoints, mode, preferences, sort, or departure time
+  // change. `immediate` matters: applyUrlState() above hydrates the store
+  // BEFORE this watcher registers, so a page refresh with URL params would
+  // otherwise restore the inputs without ever planning — watchers don't
+  // see mutations that precede them. The immediate run plans from the
+  // hydrated state (and no-ops harmlessly when fewer than 2 waypoints).
+  watch(
+    [waypoints, selectedMode, sortPreference, departureTime, routingPreferences],
+    getDirections,
+    { deep: true, immediate: true },
+  )
+
+  // Request geolocation permissions early so current location is available
+  if (isGeolocationSupported.value) {
+    resume()
+  }
 
   return {
     getDirections,
-    createBlankWaypoint,
     fillWaypoint,
     setWaypoint,
     setWaypoints,
     clearWaypoints,
     removeWaypoint,
     addWaypoint,
+    moveWaypoint,
     directionsFrom,
     directionsTo,
+    getCurrentLocationWaypoint,
+    populateOriginWithCurrentLocation,
   }
 }
 

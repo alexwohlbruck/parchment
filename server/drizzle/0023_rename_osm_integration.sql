@@ -1,0 +1,1 @@
+UPDATE integrations SET integration_id = 'openstreetmap-account' WHERE integration_id = 'openstreetmap';

@@ -37,12 +37,12 @@ withDefaults(defineProps<Props>(), {
     "
     :disabled="disabled"
   >
-    <Spinner size="icon" v-if="loading" :class="{ 'mr-2': size !== 'icon' }" />
+    <Spinner size="icon" v-if="loading" :class="{ 'mr-2': !size?.startsWith('icon') }" />
 
     <component
       v-if="icon && !loading"
       :is="icon"
-      :class="{ 'mr-2': size !== 'icon', 'size-4': true }"
+      :class="{ 'mr-2': !size?.startsWith('icon'), 'size-4': true }"
     ></component>
 
     <span v-if="description" class="sr-only">{{ description }}</span>

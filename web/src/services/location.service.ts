@@ -7,7 +7,11 @@ function locationService() {
   // ============================================================================
 
   /**
-   * Get location sharing config for all friends
+   * Get location sharing config for all friends.
+   *
+   * NOTE: server still returns `refreshInterval` and `expiresAt` for
+   * legacy schema reasons but the client no longer uses them. They're
+   * omitted from the typed return value here.
    */
   async function getE2eeConfigs() {
     const { data } = await api.get('/location/e2ee/config')
@@ -16,8 +20,6 @@ function locationService() {
       userId: string
       friendHandle: string
       enabled: boolean
-      refreshInterval: number
-      expiresAt: string | null
     }>
   }
 
@@ -26,11 +28,7 @@ function locationService() {
    */
   async function setE2eeConfig(
     friendHandle: string,
-    config: {
-      enabled?: boolean
-      refreshInterval?: number
-      expiresAt?: string
-    },
+    config: { enabled?: boolean },
   ) {
     const { data } = await api.post('/location/e2ee/config', {
       friendHandle,
@@ -53,8 +51,12 @@ function locationService() {
   // ============================================================================
 
   /**
-   * Update location: broadcast to friends and optionally store in history
-   * Single API call for all location updates
+   * Update location: broadcast encrypted location to friends.
+   *
+   * Server returns per-item results: a row may be rejected because the
+   * recipient isn't a friend, sharing isn't enabled, or the nonce was
+   * replayed. Callers can ignore individual failures; the next
+   * broadcast will catch up.
    */
   async function updateLocation(
     locations: Array<{
@@ -62,25 +64,14 @@ function locationService() {
       encryptedLocation: string
       nonce: string
     }>,
-    history?: {
-      encryptedLocation: string
-      nonce: string
-      timestamp: Date
-    },
   ) {
-    const { data } = await api.post('/location/e2ee/update', {
-      locations,
-      history: history
-        ? {
-            encryptedLocation: history.encryptedLocation,
-            nonce: history.nonce,
-            timestamp: history.timestamp.toISOString(),
-          }
-        : undefined,
-    })
+    const { data } = await api.post('/location/e2ee/update', { locations })
     return data as {
-      results: Array<{ friendHandle: string; stored: boolean }>
-      historyId: string | null
+      results: Array<{
+        friendHandle: string
+        stored: boolean
+        reason?: 'not-a-friend' | 'not-enabled' | 'replayed' | 'error'
+      }>
     }
   }
 
@@ -99,25 +90,6 @@ function locationService() {
     }>
   }
 
-  // ============================================================================
-  // Location History
-  // ============================================================================
-
-  /**
-   * Get encrypted location history
-   */
-  async function getE2eeHistory(limit?: number) {
-    const { data } = await api.get('/location/e2ee/history', {
-      params: { limit },
-    })
-    return data.entries as Array<{
-      id: string
-      encryptedLocation: string
-      nonce: string
-      timestamp: string
-    }>
-  }
-
   return {
     // Configuration
     getE2eeConfigs,
@@ -127,9 +99,6 @@ function locationService() {
     // Location Updates
     updateLocation,
     getFriendLocations,
-
-    // History
-    getE2eeHistory,
   }
 }
 

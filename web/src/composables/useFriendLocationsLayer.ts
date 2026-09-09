@@ -1,9 +1,12 @@
 /**
  * Friend Locations Layer Controller
  *
- * This composable manages the friend locations feature globally.
- * It watches the Friends layer visibility and starts/stops polling accordingly.
- * It also broadcasts the user's own location when sharing is enabled.
+ * Manages the friend-locations feature globally: hydrates state when the
+ * map layer becomes visible, runs the broadcast pipeline while it's on,
+ * and tears both down when it's hidden. Realtime push of friends'
+ * locations is handled separately by `useFriendLocations.realtime.ts` and
+ * runs regardless of layer visibility, so toggling the layer back on
+ * shows current state immediately.
  */
 
 import { watch, computed, onUnmounted } from 'vue'
@@ -16,10 +19,8 @@ import { useFriendsStore } from '@/stores/friends.store'
 import { useFriendLocations } from '@/composables/useFriendLocations'
 import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast'
 import { useMapService } from '@/services/map.service'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { AppRoute } from '@/router'
-
-const POLL_INTERVAL = 30000 // 30 seconds
 
 function friendLocationsLayerComposable() {
   const layersStore = useLayersStore()
@@ -30,12 +31,12 @@ function friendLocationsLayerComposable() {
   const mapService = useMapService()
   const router = useRouter()
 
-  const { clientSideLayers } = storeToRefs(layersStore)
+  const { layers } = storeToRefs(layersStore)
   const { isSetupComplete } = storeToRefs(identityStore)
 
   // Find the friends layer
   const friendsLayer = computed(() => {
-    return clientSideLayers.value.find(
+    return layers.value.find(
       l => l.configuration?.id === 'friends-locations'
     )
   })
@@ -90,33 +91,8 @@ function friendLocationsLayerComposable() {
       }
     )
 
-    // Watch for location changes and update map markers
-    watch(
-      () => friendLocations.locations.value,
-      (newLocations) => {
-        if (isLayerVisible.value) {
-          if (newLocations.length > 0) {
-            mapService.setFriendLocations(
-              newLocations.map(loc => ({
-                friendHandle: loc.friendHandle,
-                friendAlias: loc.friendAlias,
-                friendName: loc.friendName,
-                friendAvatar: loc.friendPicture,
-                lngLat: loc.lngLat,
-                updatedAt: loc.updatedAt,
-                accuracy: loc.location.accuracy,
-              }))
-            )
-          } else {
-            // Don't clear locations when layer is visible - preserve last known positions
-            // Only clear when layer is hidden (handled in stopLocationServices)
-          }
-        } else {
-          mapService.clearFriendLocations()
-        }
-      },
-      { deep: true, immediate: true }
-    )
+    // Note: Friend location markers are now automatically managed by FriendLocationsLayer
+    // which watches both the layer visibility and friend locations data
   }
 
   function handleFriendMarkerClick({ friendHandle }: { friendHandle: string }) {
@@ -129,16 +105,16 @@ function friendLocationsLayerComposable() {
   async function startLocationServices() {
     // Sync friend keys before fetching locations to ensure we have latest public keys
     await friendsStore.syncKeys()
-    
+
+    // Hydrate state once when the layer turns on. After this the realtime
+    // handler in `useFriendLocations.realtime.ts` keeps it current.
     await friendLocations.fetchLocations()
-    friendLocations.startPolling(POLL_INTERVAL)
-    locationBroadcast.start({ intervalMs: POLL_INTERVAL })
+    locationBroadcast.start()
   }
 
   function stopLocationServices() {
-    friendLocations.stopPolling()
     locationBroadcast.stop()
-    mapService.clearFriendLocations()
+    // Note: Markers are automatically cleared by FriendLocationsLayer when layer is hidden
   }
 
   /**

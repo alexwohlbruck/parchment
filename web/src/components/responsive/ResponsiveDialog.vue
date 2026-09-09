@@ -4,7 +4,7 @@ import {
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayTitleProps,
 } from '@/composables/useResponsiveOverlay'
-import BottomSheet from '@/components/BottomSheet.vue'
+import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ interface Props
     ResponsiveOverlayTitleProps {
   noPadding?: boolean
   contentClass?: string
+  fitContent?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -42,7 +43,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
 <template>
   <!-- Mobile: Bottom Sheet -->
   <div v-if="isMobileScreen">
-    <div @click="handleOpenChange(true)">
+    <div class="cursor-pointer" @click="handleOpenChange(true)">
       <slot name="trigger" :open="() => handleOpenChange(true)" />
     </div>
 
@@ -50,12 +51,13 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
       v-model:open="internalOpen"
       :peek-height="props.peekHeight"
       :custom-snap-points="props.customSnapPoints"
+      :fit-content="props.fitContent"
       :show-drag-handle="props.showDragHandle"
       :show-close-button="props.showCloseButton"
       :dismissable="true"
       obstructing-key="responsive-dialog"
     >
-      <div :class="props.noPadding ? 'p-0' : 'p-4'">
+      <div :class="props.noPadding ? 'p-0' : 'pt-5 pb-4 px-4'">
         <div v-if="props.title || props.description" class="mb-4">
           <h2 v-if="props.title" class="text-lg font-semibold">
             {{ props.title }}
@@ -77,7 +79,7 @@ const { isMobileScreen, internalOpen, handleOpenChange } = useResponsiveOverlay(
     <DialogTrigger as-child>
       <slot name="trigger" :open="() => handleOpenChange(true)" />
     </DialogTrigger>
-    <DialogContent :class="props.contentClass">
+    <DialogContent :class="props.contentClass" :show-close-button="props.showCloseButton">
       <DialogHeader v-if="props.title || props.description">
         <DialogTitle v-if="props.title">{{ props.title }}</DialogTitle>
         <DialogDescription v-if="props.description">{{

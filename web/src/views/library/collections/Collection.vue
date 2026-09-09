@@ -6,10 +6,13 @@ import { useI18n } from 'vue-i18n'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { type ThemeColor } from '@/lib/utils'
-import BookmarkList from '@/components/library/BookmarkList.vue'
+import BookmarkList from '@/components/library/bookmarks/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
-import CollectionContextMenu from '@/components/library/CollectionContextMenu.vue'
-import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
+import CollectionContextMenu from '@/components/library/collections/CollectionContextMenu.vue'
+import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
+// NOTE: the in-view back button was removed — the drawer (LeftSheet /
+// BottomSheet) now provides navigation controls. Route-change cleanup, if
+// any, should live in onBeforeRouteLeave or the store.
 
 const route = useRoute()
 const router = useRouter()
@@ -46,10 +49,6 @@ onMounted(async () => {
   loading.value = false
 })
 
-function goBack() {
-  router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
-}
-
 function handleCollectionEdit() {
   collectionsService.fetchCollectionById(id)
 }
@@ -60,26 +59,29 @@ function handleCollectionDelete() {
 </script>
 
 <template>
-  <div v-if="loading" class="h-full flex items-center justify-center">
+  <div v-if="loading" class="min-h-full flex items-center justify-center">
     <div class="text-muted-foreground">
       {{ t('library.loading.collection') }}
     </div>
   </div>
 
-  <DetailPanelLayout
-    v-else-if="collection"
-    show-back-button
-    @back="goBack"
-  >
+  <DetailPanelLayout v-else-if="collection">
     <template #title>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 min-w-0">
         <ItemIcon
           :icon="collection.icon"
+          :icon-pack="collection.iconPack ?? 'lucide'"
           :color="collection.iconColor as ThemeColor"
           size="sm"
         />
         <div class="min-w-0">
-          <h1 class="text-lg font-semibold truncate">{{ collectionName }}</h1>
+          <h4 class="text-base font-semibold truncate">{{ collectionName }}</h4>
+          <p
+            v-if="collection.description"
+            class="text-xs text-muted-foreground truncate"
+          >
+            {{ collection.description }}
+          </p>
         </div>
       </div>
     </template>
@@ -91,12 +93,6 @@ function handleCollectionDelete() {
         @edit="handleCollectionEdit"
       />
     </template>
-
-    <div v-if="collection.description" class="mb-4">
-      <p class="text-sm text-muted-foreground">
-        {{ collection.description }}
-      </p>
-    </div>
 
     <BookmarkList
       :bookmarks="bookmarks"

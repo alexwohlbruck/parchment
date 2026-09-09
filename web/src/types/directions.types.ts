@@ -13,6 +13,7 @@ export type {
   RoutingPreferences,
   RouteInstruction,
   RouteLeg,
+  RouteEdgeSegment,
   RouteSummary,
   Route,
 } from '@server/types/unified-routing.types'

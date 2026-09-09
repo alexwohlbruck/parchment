@@ -1,60 +1,219 @@
 import { defineStore } from 'pinia'
+import {
+  buildGroupLayerCounts,
+  buildGroupTree,
+  groupsWithLayers,
+  mainReorderableItems,
+  ungroupedLayers,
+} from '@/lib/map/layer-tree'
 import { ref, computed, watch } from 'vue'
 import type { Layer, LayerGroup, LayerGroupWithLayers } from '@/types/map.types'
-import { LayerType } from '@/types/map.types'
-import { useLayersService } from '@/services/layers.service'
+import { LayerType, MapEngine } from '@/types/map.types'
+import {
+  useLayerCrudService,
+  type DefaultUserStateRow,
+  type DefaultStatePatch,
+  type DefaultStateType,
+} from '@/services/layers/core/layer-crud.service'
+import { useLayersService } from '@/services/layers/layers.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
-import { useStorage, StorageSerializers } from '@vueuse/core'
-import { 
-  CORE_LAYERS, 
+import { useStorage } from '@vueuse/core'
+import { jsonSerializer } from '@/lib/storage-serializer'
+import {
+  CORE_LAYERS,
   CORE_LAYER_IDS,
-  USER_LAYER_TEMPLATES,
-  USER_LAYER_GROUP_TEMPLATES,
-  CLIENT_SIDE_LAYERS,
-  CLIENT_SIDE_LAYER_GROUP_TEMPLATES,
-  LAYER_INTEGRATION_REQUIREMENTS,
-  serverUrl
-} from '@/constants/layer.constants'
-// Helper function to generate IDs
-function generateId(): string {
-  return `layer-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+  serverUrl,
+} from '@/constants/layers'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useCollectionsStore } from '@/stores/library/collections.store'
+import {
+  buildSavedPlacesProjection,
+  isVirtualLayerId,
+  EMPTY_SAVED_PLACES_VISIBILITY,
+  SAVED_PLACES_GROUP_ID,
+} from '@/lib/map/saved-places-layers'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
+import { buildCanvasesProjection } from '@/lib/canvas/canvas-layers'
+import {
+  buildLayerStoreItems,
+  collectGroupLayerTemplateIds,
+  collectGroupSubtree,
+  isLayerTemplateAdded,
+  resolveAddedGroupIds,
+  type LayerStoreItem,
+} from '@/lib/map/layer-templates'
+import { i18n } from '@/lib/i18n'
+
+/**
+ * What a user is allowed to change about a default template. The definition
+ * itself is read-only — it lives in `server/src/constants/default-layers` and
+ * many of them carry app behaviour (transit stop clicks, the day/night
+ * terminator, live friend positions) that hand-edited Mapbox layer JSON could
+ * not express. Everything here is a *preference*, and preferences live in the
+ * sidecar state rather than on the template.
+ */
+const DEFAULT_LAYER_STATE_FIELDS = [
+  'order',
+  'enabled',
+  'groupId',
+  'showInLayerSelector',
+] as const
+
+const DEFAULT_GROUP_STATE_FIELDS = [
+  'order',
+  'parentGroupId',
+  'showInLayerSelector',
+] as const
+
+function isTemplateId(id: string): boolean {
+  return typeof id === 'string' && id.startsWith('default:')
 }
+
+/**
+ * Narrow an update aimed at a default template down to the sidecar fields,
+ * warning about anything the template won't accept.
+ *
+ * `visible` is dropped without a warning: visibility is ephemeral UI state and
+ * flows through the localStorage override maps, never the sidecar.
+ */
+function buildDefaultStatePatch(
+  updates: Record<string, any>,
+  allowedFields: readonly string[],
+  templateId: string,
+): DefaultStatePatch {
+  const patch: Record<string, any> = {}
+  for (const key of Object.keys(updates)) {
+    if (allowedFields.includes(key)) {
+      patch[key] = updates[key]
+    } else if (key !== 'visible') {
+      console.warn(
+        `Cannot edit "${key}" on system layer ${templateId} — templates are read-only`,
+      )
+    }
+  }
+  return patch as DefaultStatePatch
+}
+
+/**
+ * Store-scope translator. The typed `i18n.global.t` overloads blow past TS's
+ * instantiation depth when called from inside a computed here, so it is
+ * narrowed to the one signature this file uses. `legacy: false` keeps it
+ * reactive, so labels still follow a locale change.
+ */
+const translate = (i18n.global as any).t as (key: string) => string
 
 export const useLayersStore = defineStore('layers', () => {
   const layersService = useLayersService()
+  const crudService = useLayerCrudService()
   const integrationsStore = useIntegrationsStore()
 
-  // Explicit serializer ensures proper JSON serialization
+  // ==========================================================================
+  // PERSISTED CACHES
+  // ==========================================================================
+
   const cachedUserLayers = useStorage<Layer[] | null>(
     'parchment-user-layers',
     null,
-    localStorage,
-    { serializer: StorageSerializers.object },
+    undefined,
+    { serializer: jsonSerializer },
   )
-  const cachedLayerGroups = useStorage<LayerGroup[] | null>(
+  const cachedUserGroups = useStorage<LayerGroup[] | null>(
     'parchment-layer-groups',
     null,
-    localStorage,
-    { serializer: StorageSerializers.object },
+    undefined,
+    { serializer: jsonSerializer },
   )
-  
-  // Safely initialize from cache - ensure we have arrays
-  const userLayers = ref<Layer[]>(Array.isArray(cachedUserLayers.value) ? cachedUserLayers.value : [])
-  const layerGroups = ref<LayerGroup[]>(Array.isArray(cachedLayerGroups.value) ? cachedLayerGroups.value : [])
-  
-  // Helper to safely get arrays (handles corrupted cache data)
-  const safeUserLayers = () => Array.isArray(userLayers.value) ? userLayers.value : []
-  const safeLayerGroups = () => Array.isArray(layerGroups.value) ? layerGroups.value : []
-  const isSyncing = ref(false) // Track when syncing with server
-  const isLoadingLayers = ref(false) // Track initial layer load
-  
-  // Persistent storage for client-side layer group visibility states
-  const clientSideGroupVisibility = useStorage<Record<string, boolean>>('parchment-client-layer-groups', {})
-  
-  // Persistent storage for client-side layer visibility states
-  const clientSideLayerVisibility = useStorage<Record<string, boolean>>('parchment-client-layers', {})
+  const cachedDefaultTemplates = useStorage<{
+    layers: any[]
+    groups: any[]
+  } | null>('parchment-default-templates', null, undefined, {
+    serializer: jsonSerializer,
+  })
+  const cachedDefaultState = useStorage<DefaultUserStateRow[] | null>(
+    'parchment-default-state',
+    null,
+    undefined,
+    { serializer: jsonSerializer },
+  )
 
-  // Core layers that are always present (hidden from user)
+  // Visibility overrides are stored as small flat maps in localStorage, keyed
+  // by layer/group ID. Visibility is ephemeral UI state — we never persist it
+  // to the server or to the structural `defaultState` sidecar (which would
+  // force a full JSON re-serialization on every toggle). This keeps toggles
+  // cheap and makes them survive page refresh without a network round-trip.
+  const layerVisibilityOverrides = useStorage<Record<string, boolean>>(
+    'parchment-layer-visibility',
+    {},
+    undefined,
+    { serializer: jsonSerializer },
+  )
+  const groupVisibilityOverrides = useStorage<Record<string, boolean>>(
+    'parchment-group-visibility',
+    {},
+    undefined,
+    { serializer: jsonSerializer },
+  )
+
+  function getLayerVisibilityOverride(id: string): boolean | undefined {
+    const map = layerVisibilityOverrides.value
+    if (!map) return undefined
+    return map[id]
+  }
+  function getGroupVisibilityOverride(id: string): boolean | undefined {
+    const map = groupVisibilityOverrides.value
+    if (!map) return undefined
+    return map[id]
+  }
+
+  // ==========================================================================
+  // REACTIVE STATE
+  // ==========================================================================
+
+  // User-owned DB rows (the user's own custom layers). Never contains
+  // template-backed defaults.
+  const userOwnedLayers = ref<Layer[]>(
+    Array.isArray(cachedUserLayers.value) ? cachedUserLayers.value : [],
+  )
+  const userOwnedGroups = ref<LayerGroup[]>(
+    Array.isArray(cachedUserGroups.value) ? cachedUserGroups.value : [],
+  )
+
+  // Server-side default templates (loaded once per session; refreshed in bg).
+  const defaultLayerTemplates = ref<any[]>(
+    cachedDefaultTemplates.value?.layers ?? [],
+  )
+  const defaultGroupTemplates = ref<any[]>(
+    cachedDefaultTemplates.value?.groups ?? [],
+  )
+
+  // User's sidecar state for default templates (preferences + tombstones).
+  const defaultState = ref<DefaultUserStateRow[]>(
+    Array.isArray(cachedDefaultState.value) ? cachedDefaultState.value : [],
+  )
+
+  const isSyncing = ref(false)
+  const isLoadingLayers = ref(false)
+
+  // Fast lookup: `${templateId}|${type}` → state row
+  const defaultStateIndex = computed(() => {
+    const map = new Map<string, DefaultUserStateRow>()
+    for (const row of defaultState.value) {
+      map.set(`${row.templateId}|${row.type}`, row)
+    }
+    return map
+  })
+
+  function getDefaultLayerState(templateId: string) {
+    return defaultStateIndex.value.get(`${templateId}|layer`) ?? null
+  }
+  function getDefaultGroupState(templateId: string) {
+    return defaultStateIndex.value.get(`${templateId}|group`) ?? null
+  }
+
+  // ==========================================================================
+  // CORE LAYERS (hardcoded, client-side only)
+  // ==========================================================================
+
   const coreLayers = computed(() => {
     return CORE_LAYERS.map((layerTemplate, index) => ({
       ...layerTemplate,
@@ -62,427 +221,833 @@ export const useLayersStore = defineStore('layers', () => {
       userId: 'core',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      origin: 'core' as const,
     }))
   })
 
-  // Client-side layers that are never persisted to database
-  const clientSideLayers = computed(() => {
-    // Filter by integration requirements
-    return CLIENT_SIDE_LAYERS.value
-      .filter(layer => {
-        const configId = layer.configuration?.id
-        if (!configId) return true
-        
-        const requiredIntegration = LAYER_INTEGRATION_REQUIREMENTS[configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS]
-        if (!requiredIntegration) return true
-        
-        // Check if required integration is configured
-        return integrationsStore.configuredIntegrations.some(
-          integration => integration.id.toLowerCase() === requiredIntegration
-        )
-      })
-      .map((layerTemplate, index) => {
-        const layerId = `client-${layerTemplate.configuration.id}`
-        return {
-          ...layerTemplate,
-          id: layerId,
-          userId: 'client',
-          groupId: layerTemplate.groupId === 'Mapillary' ? 'client-mapillary' : 
-                   layerTemplate.groupId === 'Transit' ? 'client-transit' : layerTemplate.groupId,
-          // Use persistent visibility state, fallback to template default
-          visible: clientSideLayerVisibility.value[layerId] ?? layerTemplate.visible,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-      })
-  })
+  // ==========================================================================
+  // LIBRARY MEMBERSHIP (which templates the user has added)
+  // ==========================================================================
+  //
+  // The rules themselves live in `@/lib/layer-templates`; this is just the
+  // reactive wiring around them.
 
-  // Client-side layer groups that are never persisted to database
-  const clientSideLayerGroups = computed(() => {
-    return CLIENT_SIDE_LAYER_GROUP_TEMPLATES.value
-      .filter(group => {
-        // Only show groups that have at least one visible layer
-        return clientSideLayers.value.some(layer => 
-          layer.groupId === `client-${group.name.toLowerCase()}`
-        )
-      })
-      .map((groupTemplate, index) => {
-        const groupId = `client-${groupTemplate.name.toLowerCase()}`
-        return {
-          ...groupTemplate,
-          id: groupId,
-          userId: 'client',
-          // Use persistent visibility state, fallback to template default
-          visible: clientSideGroupVisibility.value[groupId] ?? groupTemplate.visible,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }
-      })
-  })
+  const groupTemplateIds = computed(
+    () => new Set<string>(defaultGroupTemplates.value.map(t => t.templateId)),
+  )
 
-  // All layers (core + client-side + user layers), filtered by integrations
-  const layers = computed(() => {
-    // Filter user layers based on integration requirements
-    const filteredUserLayers = safeUserLayers().filter(layer => {
-      const configId = layer.configuration?.id
-      if (!configId) return true
-      
-      const requiredIntegration = LAYER_INTEGRATION_REQUIREMENTS[configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS]
-      if (!requiredIntegration) return true
-      
-      // Check if required integration is configured
-      return integrationsStore.configuredIntegrations.some(
-        integration => integration.id.toLowerCase() === requiredIntegration
-      )
-    })
+  const addedDefaultGroupIds = computed(() =>
+    resolveAddedGroupIds(defaultGroupTemplates.value, getDefaultGroupState),
+  )
 
-    return [...coreLayers.value, ...clientSideLayers.value, ...filteredUserLayers]
-  })
-
-  // All layer groups (client-side + user groups)
-  const allLayerGroups = computed(() => {
-    return [...clientSideLayerGroups.value, ...layerGroups.value]
-  })
-
-  // Sync client-side layer visibility with their group visibility on initialization
-  function syncClientSideLayerVisibility() {
-    let hasVisibleTransitLayers = false
-    
-    for (const group of clientSideLayerGroups.value) {
-      if (group.visible) {
-        // If group is visible, ensure all its layers are also visible
-        const groupLayers = clientSideLayers.value.filter(l => l.groupId === group.id)
-        for (const layer of groupLayers) {
-          if (!layer.visible) {
-            // Update both the layer state and localStorage
-            layer.visible = true
-            clientSideLayerVisibility.value[layer.id] = true
-          }
-          
-          // Check if this is a transit layer
-          if (layer.type === LayerType.TRANSIT) {
-            hasVisibleTransitLayers = true
-          }
-        }
-      }
-    }
-    
-    return hasVisibleTransitLayers
+  function isDefaultLayerAdded(template: any): boolean {
+    return isLayerTemplateAdded(
+      template,
+      getDefaultLayerState,
+      addedDefaultGroupIds.value,
+      groupTemplateIds.value,
+    )
   }
 
-  // UI display computed properties (show both client-side and user layers, hide core layers)
-  const ungroupedLayers = computed(() => {
-    const clientUngrouped = clientSideLayers.value.filter(layer => !layer.groupId && layer.showInLayerSelector)
-    const userUngrouped = safeUserLayers().filter(layer => !layer.groupId && layer.showInLayerSelector)
-    return [...clientUngrouped, ...userUngrouped].sort((a, b) => a.order - b.order)
+  // ==========================================================================
+  // MERGED COMPOSITION (templates + user state → visible defaults)
+  // ==========================================================================
+
+  // Stable placeholder timestamps for template-projected rows. We intentionally
+  // do NOT allocate `new Date()` per projection call — doing so produces a new
+  // string on every computed re-eval, which breaks downstream shallow-equality
+  // checks and can trigger spurious re-renders in watchers that depend on the
+  // projected layer/group identity.
+  const TEMPLATE_PLACEHOLDER_TIMESTAMP = '1970-01-01T00:00:00.000Z'
+
+  /**
+   * Project a default layer template into a Layer object with user state
+   * applied. Returns null when the template isn't in the user's library.
+   */
+  function projectDefaultLayer(template: any): Layer | null {
+    if (!isDefaultLayerAdded(template)) return null
+    const state = getDefaultLayerState(template.templateId)
+    const visibilityOverride = getLayerVisibilityOverride(template.templateId)
+    return {
+      id: template.templateId,
+      name: template.name,
+      // `type` is the `LayerType` enum value carried straight from the
+      // server template. Features like the street view control, transit
+      // label fade, and friends handling all branch on this value, so we
+      // must not normalize or downcast it to 'custom' here.
+      type: template.type ?? LayerType.CUSTOM,
+      engine: template.engine ?? [MapEngine.MAPBOX, MapEngine.MAPLIBRE],
+      showInLayerSelector:
+        state?.showInLayerSelector ?? template.showInLayerSelector,
+      visible: visibilityOverride ?? state?.visible ?? template.visible,
+      fadeBasemap: template.fadeBasemap ?? false,
+      icon: template.icon ?? null,
+      order: state?.order ?? template.order,
+      groupId: state?.groupId !== undefined && state?.groupId !== null
+        ? state.groupId
+        : (template.groupId ?? null),
+      configuration: template.configuration,
+      isSubLayer: template.isSubLayer ?? false,
+      enabled: state?.enabled ?? true,
+      integrationId: template.integrationId ?? null,
+      origin: 'default',
+      userId: 'template',
+      createdAt: TEMPLATE_PLACEHOLDER_TIMESTAMP,
+      updatedAt: TEMPLATE_PLACEHOLDER_TIMESTAMP,
+    } as unknown as Layer
+  }
+
+  function projectDefaultGroup(template: any): LayerGroup | null {
+    if (!addedDefaultGroupIds.value.has(template.templateId)) return null
+    const state = getDefaultGroupState(template.templateId)
+    const visibilityOverride = getGroupVisibilityOverride(template.templateId)
+    return {
+      id: template.templateId,
+      name: template.name,
+      showInLayerSelector:
+        state?.showInLayerSelector ?? template.showInLayerSelector,
+      visible: visibilityOverride ?? state?.visible ?? template.visible,
+      fadeBasemap: template.fadeBasemap ?? false,
+      icon: template.icon ?? undefined,
+      order: state?.order ?? template.order,
+      parentGroupId:
+        state?.parentGroupId !== undefined && state?.parentGroupId !== null
+          ? state.parentGroupId
+          : (template.parentGroupId ?? null),
+      integrationId: template.integrationId ?? null,
+      origin: 'default',
+      userId: 'template',
+      createdAt: TEMPLATE_PLACEHOLDER_TIMESTAMP,
+      updatedAt: TEMPLATE_PLACEHOLDER_TIMESTAMP,
+    } as unknown as LayerGroup
+  }
+
+  // ==========================================================================
+  // SAVED PLACES (virtual)
+  // ==========================================================================
+
+  /**
+   * The user's collections, projected into a layer group. Rebuilt on every
+   * read rather than persisted — see `saved-places-layers.ts` for why these
+   * can never become `layers` rows.
+   */
+  const savedPlaces = computed(() =>
+    buildSavedPlacesProjection({
+      collections: useCollectionsStore().collections,
+      bookmarks: useBookmarksStore().bookmarks,
+      layerOverrides: layerVisibilityOverrides.value ?? {},
+      groupOverrides: groupVisibilityOverrides.value ?? {},
+      groupLabel: translate('layers.savedPlaces.group'),
+      frequentsLabel: translate('layers.savedPlaces.frequents'),
+      uncategorizedLabel: translate('layers.savedPlaces.uncategorized'),
+      lockedLabel: translate('layers.savedPlaces.locked'),
+    }),
+  )
+
+  /** Consumed by the saved-places map layer to filter its GeoJSON source. */
+  const savedPlacesVisibility = computed(
+    () => savedPlaces.value.visibility ?? EMPTY_SAVED_PLACES_VISIBILITY,
+  )
+
+  /** Icon pack / color / count per virtual layer id, for the selector rows. */
+  const savedPlacesMeta = computed(() => savedPlaces.value.meta)
+
+  // ==========================================================================
+  // CANVASES (virtual)
+  // ==========================================================================
+
+  /**
+   * The user's canvases, projected into a layer group. Rebuilt on every read
+   * rather than persisted — see `canvas-layers.ts` for why these can never
+   * become `layers` rows, and why their toggle stays in `canvases.store`.
+   */
+  const canvasesProjection = computed(() => {
+    const canvasesStore = useCanvasesStore()
+    return buildCanvasesProjection({
+      canvases: canvasesStore.canvases,
+      activeCanvasIds: canvasesStore.activeCanvasIds,
+      activeCanvases: canvasesStore.activeCanvases,
+      groupOverrides: groupVisibilityOverrides.value ?? {},
+      groupLabel: translate('layers.canvases.group'),
+      lockedLabel: translate('layers.canvases.locked'),
+    })
   })
+
+  /** The canvases the main map should draw, master switch already applied. */
+  const visibleCanvasIds = computed(() => canvasesProjection.value.visibleIds)
+
+  /** Icon pack / color / count per canvas layer id, for the selector rows. */
+  const canvasesMeta = computed(() => canvasesProjection.value.meta)
+
+  const mergedLayers = computed<Layer[]>(() => {
+    const projected: Layer[] = [
+      ...savedPlaces.value.layers,
+      ...canvasesProjection.value.layers,
+    ]
+    for (const template of defaultLayerTemplates.value) {
+      const p = projectDefaultLayer(template)
+      if (p) projected.push(p)
+    }
+    const customs = Array.isArray(userOwnedLayers.value)
+      ? userOwnedLayers.value.map(l => {
+          const override = getLayerVisibilityOverride(l.id)
+          return {
+            ...l,
+            origin: 'custom' as const,
+            visible: override ?? l.visible,
+          }
+        })
+      : []
+    return [...projected, ...customs]
+  })
+
+  const mergedGroups = computed<LayerGroup[]>(() => {
+    const projected: LayerGroup[] = []
+    const savedPlacesGroup = savedPlaces.value.group
+    if (savedPlacesGroup) projected.push(savedPlacesGroup)
+    const canvasesGroup = canvasesProjection.value.group
+    if (canvasesGroup) projected.push(canvasesGroup)
+    for (const template of defaultGroupTemplates.value) {
+      const p = projectDefaultGroup(template)
+      if (p) projected.push(p)
+    }
+    const customs = Array.isArray(userOwnedGroups.value)
+      ? userOwnedGroups.value.map(g => {
+          const override = getGroupVisibilityOverride(g.id)
+          return {
+            ...g,
+            origin: 'custom' as const,
+            visible: override ?? g.visible,
+          }
+        })
+      : []
+    return [...projected, ...customs]
+  })
+
+  // ==========================================================================
+  // INTEGRATION FILTERING
+  // ==========================================================================
+
+  // Precompute the set of configured integration IDs (lowercased) once per
+  // dependency change rather than re-scanning the `configuredIntegrations`
+  // array for every layer on every merge. This turns a previously O(n*m)
+  // filter into O(n + m).
+  const configuredIntegrationSet = computed(() => {
+    const set = new Set<string>()
+    for (const i of integrationsStore.configuredIntegrations) {
+      set.add(i.id.toLowerCase())
+    }
+    return set
+  })
+
+  function isIntegrationAvailable(integrationId?: string | null) {
+    if (!integrationId) return true
+    return configuredIntegrationSet.value.has(integrationId.toLowerCase())
+  }
+
+  const filteredMergedLayers = computed(() => {
+    const set = configuredIntegrationSet.value
+    return mergedLayers.value.filter(l => {
+      if (!l.integrationId) return true
+      return set.has(l.integrationId.toLowerCase())
+    })
+  })
+
+  const allLayerGroups = computed(() => {
+    const set = configuredIntegrationSet.value
+    return mergedGroups.value.filter(g => {
+      if (!g.integrationId) return true
+      return set.has(g.integrationId.toLowerCase())
+    })
+  })
+
+  // ==========================================================================
+  // LAYER STORE (pre-defined bundles the user can add to their library)
+  // ==========================================================================
+
+  const layerStoreItems = computed<LayerStoreItem[]>(() =>
+    buildLayerStoreItems({
+      groupTemplates: defaultGroupTemplates.value,
+      layerTemplates: defaultLayerTemplates.value,
+      getGroupState: getDefaultGroupState,
+      getLayerState: getDefaultLayerState,
+      isIntegrationAvailable,
+    }),
+  )
+
+  // Kept for backwards compatibility: alias used by many components.
+  const layerGroups = allLayerGroups
+
+  // Used by navigation / layer rendering: core + merged (filtered).
+  const layers = computed<Layer[]>(() => [
+    ...coreLayers.value,
+    ...filteredMergedLayers.value,
+  ])
+
+  // Kept for backwards compat: some code reads `userLayers` directly.
+  // In the new architecture this is just the full merged list.
+  const userLayers = filteredMergedLayers
+
+  // ==========================================================================
+  // GROUP TREE / SETTINGS VIEWS
+  // ==========================================================================
+
+  const groupTree = computed(() =>
+    buildGroupTree(filteredMergedLayers.value, allLayerGroups.value),
+  )
+
+  const groupLayerCountMap = computed(() =>
+    buildGroupLayerCounts(filteredMergedLayers.value, allLayerGroups.value),
+  )
+
+  function getGroupTotalLayerCount(groupId: string): number {
+    return groupLayerCountMap.value.get(groupId) ?? 0
+  }
+
+  const ungroupedLayersList = computed(() =>
+    ungroupedLayers(filteredMergedLayers.value),
+  )
 
   const sortedGroups = computed(() =>
-    allLayerGroups.value.sort((a, b) => a.order - b.order),
+    allLayerGroups.value.slice().sort((a, b) => a.order - b.order),
   )
 
-  const groupsWithLayers = computed<LayerGroupWithLayers[]>(() =>
-    sortedGroups.value.map(group => ({
-      ...group,
-      layers: [...clientSideLayers.value, ...safeUserLayers()]
-        .filter(layer => layer.groupId === group.id && layer.showInLayerSelector)
-        .sort((a, b) => a.order - b.order),
-    })),
+  const groupsWithLayersList = computed(() =>
+    groupsWithLayers(filteredMergedLayers.value, allLayerGroups.value),
   )
 
-  // Mixed list of ungrouped layers and groups for main reordering (excludes client-side items)
-  const mainReorderableItems = computed(() => {
-    const userUngrouped = safeUserLayers().filter(layer => !layer.groupId && layer.showInLayerSelector)
-    const userGroups = safeLayerGroups().filter(group => group.showInLayerSelector)
-    const clientUngrouped = clientSideLayers.value.filter(layer => !layer.groupId && layer.showInLayerSelector)
-    const clientGroups = clientSideLayerGroups.value.filter(group => group.showInLayerSelector)
-    
-    const items: (Layer | LayerGroup)[] = [
-      ...clientUngrouped,
-      ...clientGroups,
-      ...userUngrouped,
-      ...userGroups,
-    ]
-    return items.sort((a, b) => a.order - b.order)
-  })
+  const mainReorderableItemsList = computed(() =>
+    mainReorderableItems(filteredMergedLayers.value, allLayerGroups.value),
+  )
 
-  // Load layers and groups from server (user layers only)
-  // If cached data exists (is array), returns immediately and the fetch updates cache in background
+  // ==========================================================================
+  // LOADING
+  // ==========================================================================
+
   async function loadLayers() {
-    // Array (even empty) = cached, null/other = never fetched
-    const hasCachedData = Array.isArray(cachedUserLayers.value) || Array.isArray(cachedLayerGroups.value)
-    
-    // If we have cached data, don't block - fetch will update in background
-    if (hasCachedData) {
-      Promise.all([
-        layersService.getLayers(),
-        layersService.getLayerGroups(),
-      ]).then(([layersData, groupsData]) => {
-        userLayers.value = layersData
-        layerGroups.value = groupsData
-        cachedUserLayers.value = layersData
-        cachedLayerGroups.value = groupsData
-      }).catch(error => {
+    const hasCache =
+      Array.isArray(cachedUserLayers.value) ||
+      Array.isArray(cachedUserGroups.value) ||
+      cachedDefaultTemplates.value !== null
+
+    const fetchAll = async () => {
+      const [userLayersData, userGroupsData, templates, stateRows] =
+        await Promise.all([
+          crudService.getLayers(),
+          crudService.getLayerGroups(),
+          crudService.getDefaultTemplates(),
+          crudService.getDefaultUserState(),
+        ])
+      userOwnedLayers.value = userLayersData
+      userOwnedGroups.value = userGroupsData
+      defaultLayerTemplates.value = templates.layers ?? []
+      defaultGroupTemplates.value = templates.groups ?? []
+      defaultState.value = stateRows
+      cachedUserLayers.value = userLayersData
+      cachedUserGroups.value = userGroupsData
+      cachedDefaultTemplates.value = templates
+      cachedDefaultState.value = stateRows
+    }
+
+    if (hasCache) {
+      // Serve from cache, refresh in background.
+      fetchAll().catch(error => {
         console.error('Failed to refresh layers:', error)
       })
       return
     }
-    
-    // No cache - must wait for server
+
     isLoadingLayers.value = true
     try {
-      const [layersData, groupsData] = await Promise.all([
-        layersService.getLayers(),
-        layersService.getLayerGroups(),
-      ])
-
-      userLayers.value = layersData
-      layerGroups.value = groupsData
-      
-      // Update cache
-      cachedUserLayers.value = layersData
-      cachedLayerGroups.value = groupsData
+      await fetchAll()
     } finally {
       isLoadingLayers.value = false
     }
   }
 
-  // TODO: Create template "store" where users can import pre-made layers from the community
-  // Populate user's account with template layers (replaces server-side populate endpoint)
-  async function populateUserLayerTemplates() {
-    try {
-      // First, create layer groups that don't exist
-      const existingGroupNames = new Set(layerGroups.value.map(g => g.name))
-      
-      for (const groupTemplate of USER_LAYER_GROUP_TEMPLATES.value) {
-        if (!existingGroupNames.has(groupTemplate.name)) {
-          // Check if this group requires integrations
-          const hasRequiredIntegration = groupTemplate.name === 'Mapillary' 
-            ? integrationsStore.configuredIntegrations.some(i => i.id.toLowerCase() === 'mapillary')
-            : true
-            
-          if (hasRequiredIntegration) {
-            await addLayerGroup(groupTemplate)
-          }
-        }
+  /**
+   * Add a store bundle to the library.
+   *
+   * Membership cascades, so marking the bundle root as added is normally the
+   * whole job. The exception is a member the user had deleted on its own: it
+   * has no store entry to add it back from, so re-adding the bundle clears
+   * those tombstones too — and only those, to keep this to one request in the
+   * ordinary case rather than one per member.
+   */
+  async function addStoreItem(item: LayerStoreItem) {
+    if (item.type === 'layer') {
+      await patchDefaultLayerState(item.templateId, { hidden: false })
+      return
+    }
+
+    const groupIds = collectGroupSubtree(
+      item.templateId,
+      defaultGroupTemplates.value,
+      getDefaultGroupState,
+    )
+    const layerIds = collectGroupLayerTemplateIds(
+      groupIds,
+      defaultLayerTemplates.value,
+      getDefaultLayerState,
+    )
+
+    await patchDefaultGroupState(item.templateId, { hidden: false })
+    await Promise.all([
+      ...groupIds
+        .filter(
+          id =>
+            id !== item.templateId && getDefaultGroupState(id)?.hidden === true,
+        )
+        .map(id => patchDefaultGroupState(id, { hidden: null })),
+      ...layerIds
+        .filter(id => getDefaultLayerState(id)?.hidden === true)
+        .map(id => patchDefaultLayerState(id, { hidden: null })),
+    ])
+  }
+
+  // ==========================================================================
+  // CACHE SYNC HELPERS
+  // ==========================================================================
+
+  function syncLayersToCache() {
+    cachedUserLayers.value = [...userOwnedLayers.value]
+  }
+  function syncGroupsToCache() {
+    cachedUserGroups.value = [...userOwnedGroups.value]
+  }
+  function syncStateToCache() {
+    cachedDefaultState.value = [...defaultState.value]
+  }
+
+  // ==========================================================================
+  // STATE SIDECAR UPDATES (for default templates)
+  // ==========================================================================
+
+  function upsertLocalState(
+    templateId: string,
+    type: DefaultStateType,
+    patch: DefaultStatePatch,
+  ) {
+    // Build a new row object rather than mutating the existing one in place.
+    // The computed `defaultStateIndex` is built from this array, and in-place
+    // mutation of a row doesn't invalidate any memoized computed that depends
+    // on row identity (e.g. downstream watchers with shallow equality checks).
+    const now = new Date().toISOString()
+    const existingIndex = defaultState.value.findIndex(
+      r => r.templateId === templateId && r.type === type,
+    )
+    if (existingIndex !== -1) {
+      const existing = defaultState.value[existingIndex]
+      const nextRow: DefaultUserStateRow = {
+        ...existing,
+        ...patch,
+        updatedAt: now,
       }
-
-      // Reload groups to get the created IDs
-      await loadLayers()
-
-      // Then create layers that don't exist
-      const existingConfigIds = new Set(safeUserLayers().map(l => l.configuration?.id).filter(Boolean))
-
-      for (const layerTemplate of USER_LAYER_TEMPLATES.value) {
-        const configId = layerTemplate.configuration?.id
-        if (configId && !existingConfigIds.has(configId)) {
-          // Check integration requirements
-          const requiredIntegration = LAYER_INTEGRATION_REQUIREMENTS[configId as keyof typeof LAYER_INTEGRATION_REQUIREMENTS]
-          const hasRequiredIntegration = !requiredIntegration || 
-            integrationsStore.configuredIntegrations.some(i => i.id.toLowerCase() === requiredIntegration)
-            
-          if (hasRequiredIntegration) {
-            // Find group ID if this layer belongs to a group
-            let groupId: string | null = null
-            if (layerTemplate.groupId) {
-              const group = safeLayerGroups().find(g => g.name === layerTemplate.groupId)
-              groupId = group?.id || null
-            }
-
-            await addLayer({
-              ...layerTemplate,
-              groupId,
-            })
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to populate user layer templates:', error)
+      const nextArr = defaultState.value.slice()
+      nextArr[existingIndex] = nextRow
+      defaultState.value = nextArr
+    } else {
+      defaultState.value = [
+        ...defaultState.value,
+        {
+          userId: 'me',
+          templateId,
+          type,
+          hidden: patch.hidden ?? null,
+          visible: patch.visible ?? null,
+          order: patch.order ?? null,
+          enabled: patch.enabled ?? null,
+          showInLayerSelector: patch.showInLayerSelector ?? null,
+          groupId: patch.groupId ?? null,
+          parentGroupId: patch.parentGroupId ?? null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]
     }
   }
 
-  // Helper to sync userLayers to cache
-  function syncLayersToCache() {
-    cachedUserLayers.value = [...userLayers.value]
-  }
-  
-  // Helper to sync layerGroups to cache
-  function syncGroupsToCache() {
-    cachedLayerGroups.value = [...layerGroups.value]
+  async function patchDefaultLayerState(
+    templateId: string,
+    patch: DefaultStatePatch,
+  ) {
+    upsertLocalState(templateId, 'layer', patch)
+    syncStateToCache()
+    try {
+      await crudService.upsertDefaultUserState(templateId, 'layer', patch)
+    } catch (error) {
+      console.error('Failed to sync default layer state:', error)
+      await loadLayers()
+    }
   }
 
-  // Layer operations (user layers only)
+  async function patchDefaultGroupState(
+    templateId: string,
+    patch: DefaultStatePatch,
+  ) {
+    upsertLocalState(templateId, 'group', patch)
+    syncStateToCache()
+    try {
+      await crudService.upsertDefaultUserState(templateId, 'group', patch)
+    } catch (error) {
+      console.error('Failed to sync default group state:', error)
+      await loadLayers()
+    }
+  }
+
+  // ==========================================================================
+  // LAYER CRUD — routes to state/clone/userLayers based on id
+  // ==========================================================================
+
   async function addLayer(
     layer: Omit<Layer, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
   ) {
-    const newLayer = await layersService.createLayer(layer)
-    userLayers.value.push(newLayer)
+    const newLayer = await crudService.createLayer(layer)
+    userOwnedLayers.value.push(newLayer)
     syncLayersToCache()
     return newLayer
   }
 
   async function updateLayer(id: string, updates: Partial<Layer>) {
-    // Don't allow updating core or client-side layers
-    if (Object.values(CORE_LAYER_IDS).includes(id as any) || id.startsWith('client-')) {
-      console.warn('Cannot update core or client-side layer:', id)
+    // Virtual layers/groups (saved places) have no server row — a PATCH
+    // would 404. Visibility is the only mutable thing about them and it
+    // flows through the override maps instead.
+    if (isVirtualLayerId(id)) return
+    if (Object.values(CORE_LAYER_IDS).includes(id as any)) {
+      console.warn('Cannot update core layer:', id)
       return
     }
-    
-    const updatedLayer = await layersService.updateLayer(id, updates)
-    const index = userLayers.value.findIndex(l => l.id === id)
-    if (index !== -1) {
-      userLayers.value[index] = updatedLayer
+
+    if (isTemplateId(id)) {
+      // System layers are read-only: only the user's preferences about one are
+      // writable, and those live in the sidecar.
+      const patch = buildDefaultStatePatch(
+        updates,
+        DEFAULT_LAYER_STATE_FIELDS,
+        id,
+      )
+      if (Object.keys(patch).length === 0) return
+      await patchDefaultLayerState(id, patch)
+      return
     }
+
+    // Normal user-owned layer
+    const updatedLayer = await crudService.updateLayer(id, updates)
+    const index = userOwnedLayers.value.findIndex(l => l.id === id)
+    if (index !== -1) userOwnedLayers.value[index] = updatedLayer
     syncLayersToCache()
     return updatedLayer
   }
 
   async function removeLayer(id: string) {
-    // Don't allow removing core or client-side layers
-    if (Object.values(CORE_LAYER_IDS).includes(id as any) || id.startsWith('client-')) {
-      console.warn('Cannot remove core or client-side layer:', id)
+    // Virtual layers/groups (saved places) have no server row — a PATCH
+    // would 404. Visibility is the only mutable thing about them and it
+    // flows through the override maps instead.
+    if (isVirtualLayerId(id)) return
+    if (Object.values(CORE_LAYER_IDS).includes(id as any)) {
+      console.warn('Cannot remove core layer:', id)
       return
     }
-    
-    await layersService.deleteLayer(id)
-    userLayers.value = userLayers.value.filter(l => l.id !== id)
+
+    if (isTemplateId(id)) {
+      // Hide the default template (tombstone)
+      await patchDefaultLayerState(id, { hidden: true })
+      return
+    }
+
+    await crudService.deleteLayer(id)
+    userOwnedLayers.value = userOwnedLayers.value.filter(l => l.id !== id)
     syncLayersToCache()
   }
 
-  // Layer group operations
+  // ==========================================================================
+  // LAYER GROUP CRUD
+  // ==========================================================================
+
   async function addLayerGroup(
     group: Omit<LayerGroup, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
   ) {
-    const newGroup = await layersService.createLayerGroup(group)
-    layerGroups.value.push(newGroup)
+    const newGroup = await crudService.createLayerGroup(group)
+    userOwnedGroups.value.push(newGroup)
     syncGroupsToCache()
     return newGroup
   }
 
   async function updateLayerGroup(id: string, updates: Partial<LayerGroup>) {
-    const updatedGroup = await layersService.updateLayerGroup(id, updates)
-    const index = layerGroups.value.findIndex(g => g.id === id)
-    if (index !== -1) {
-      layerGroups.value[index] = updatedGroup
+    // Virtual layers/groups (saved places) have no server row — a PATCH
+    // would 404. Visibility is the only mutable thing about them and it
+    // flows through the override maps instead.
+    if (isVirtualLayerId(id)) return
+    if (isTemplateId(id)) {
+      const patch = buildDefaultStatePatch(
+        updates,
+        DEFAULT_GROUP_STATE_FIELDS,
+        id,
+      )
+      if (Object.keys(patch).length === 0) return
+      await patchDefaultGroupState(id, patch)
+      return
     }
+
+    const updatedGroup = await crudService.updateLayerGroup(id, updates)
+    const index = userOwnedGroups.value.findIndex(g => g.id === id)
+    if (index !== -1) userOwnedGroups.value[index] = updatedGroup
     syncGroupsToCache()
     return updatedGroup
   }
 
   async function removeLayerGroup(id: string) {
-    await layersService.deleteLayerGroup(id)
-    layerGroups.value = layerGroups.value.filter(g => g.id !== id)
+    // Virtual layers/groups (saved places) have no server row — a PATCH
+    // would 404. Visibility is the only mutable thing about them and it
+    // flows through the override maps instead.
+    if (isVirtualLayerId(id)) return
+    if (isTemplateId(id)) {
+      // Default members leave with the group — membership cascades down the
+      // template tree, and the store puts the whole bundle back in one go.
+      // User-owned children have no such safety net, so move them out to the
+      // top level rather than letting them disappear.
+      const orphanedLayers = userOwnedLayers.value.filter(
+        l => l.groupId === id,
+      )
+      for (const layer of orphanedLayers) {
+        try {
+          const updated = await crudService.updateLayer(layer.id, {
+            groupId: null,
+          })
+          const idx = userOwnedLayers.value.findIndex(l => l.id === layer.id)
+          if (idx !== -1) userOwnedLayers.value[idx] = updated
+        } catch (error) {
+          console.error('Failed to reparent orphaned layer:', error)
+        }
+      }
+      // Also reparent any user-owned child groups out to the top level so
+      // the subtree doesn't disappear with the tombstoned parent.
+      const orphanedChildren = userOwnedGroups.value.filter(
+        g => g.parentGroupId === id,
+      )
+      for (const child of orphanedChildren) {
+        try {
+          const updated = await crudService.updateLayerGroup(child.id, {
+            parentGroupId: null,
+          })
+          const idx = userOwnedGroups.value.findIndex(g => g.id === child.id)
+          if (idx !== -1) userOwnedGroups.value[idx] = updated
+        } catch (error) {
+          console.error('Failed to reparent orphaned child group:', error)
+        }
+      }
+      syncLayersToCache()
+      syncGroupsToCache()
+      await patchDefaultGroupState(id, { hidden: true })
+      return
+    }
+
+    await crudService.deleteLayerGroup(id)
+    // Recursively collect all descendant user-owned group IDs
+    function collectDescendantIds(parentId: string): string[] {
+      const children = userOwnedGroups.value.filter(
+        g => g.parentGroupId === parentId,
+      )
+      return children.flatMap(c => [c.id, ...collectDescendantIds(c.id)])
+    }
+    const allIds = new Set([id, ...collectDescendantIds(id)])
+    userOwnedGroups.value = userOwnedGroups.value.filter(
+      g => !allIds.has(g.id),
+    )
+    userOwnedLayers.value = userOwnedLayers.value.filter(
+      l => !l.groupId || !allIds.has(l.groupId),
+    )
     syncGroupsToCache()
+    syncLayersToCache()
   }
 
-  // Optimistic visibility updates
+  // ==========================================================================
+  // VISIBILITY (OPTIMISTIC LOCAL UPDATES)
+  // ==========================================================================
+
+  // Visibility updates live purely in the local override maps — no DB sync
+  // and no mutation of the merged-layer pipeline's source data. This is the
+  // single write site that drives every layer/group's visibility regardless
+  // of whether it's template-backed or user-owned. Writing a new object
+  // triggers the useStorage reactive write + localStorage persistence, so
+  // toggles survive page refresh without a network round-trip.
   function updateLayerVisibility(layerId: string, visible: boolean) {
-    // Handle core, client-side, and user layers
-    const layer = layers.value.find(l => l.id === layerId)
-    if (layer) {
-      // For client-side layers, we need to maintain their state in memory
-      // since they're never persisted to the database
-      layer.visible = visible
-      
-      // Persist visibility state for client-side layers
-      if (layerId.startsWith('client-')) {
-        clientSideLayerVisibility.value[layerId] = visible
-      }
+    layerVisibilityOverrides.value = {
+      ...(layerVisibilityOverrides.value ?? {}),
+      [layerId]: visible,
     }
   }
 
   function toggleLayerGroupVisibility(groupId: string, visible: boolean) {
-    const group = allLayerGroups.value.find(g => g.id === groupId)
-    if (group) {
-      group.visible = visible
-      
-      // Persist visibility state for client-side groups
-      if (groupId.startsWith('client-')) {
-        clientSideGroupVisibility.value[groupId] = visible
-      }
+    groupVisibilityOverrides.value = {
+      ...(groupVisibilityOverrides.value ?? {}),
+      [groupId]: visible,
     }
   }
 
-  // Optimistic drag and drop handlers - update UI immediately, sync with server in background
-  async function handleMainReorder(newItems: (Layer | LayerGroup)[]) {
-    console.log('=== Frontend handleMainReorder ===')
-    console.log(
-      'newItems received (in order):',
-      newItems.map((item, index) => ({
-        arrayIndex: index,
-        id: item.id,
-        name: 'name' in item ? item.name : 'Unknown',
-        currentOrderProperty: item.order,
-        type: 'groupId' in item ? 'layer' : 'group',
-      })),
-    )
+  // ==========================================================================
+  // DRAG AND DROP / REORDERING
+  // ==========================================================================
 
-    // Optimistically update local state immediately
-    const updates: { id: string; order: number; groupId?: string | null }[] = []
+  interface ReorderUpdate {
+    id: string
+    order: number
+    groupId?: string | null
+  }
+
+  async function syncReorderUpdates(
+    userUpdates: ReorderUpdate[],
+    stateUpdates: Array<{
+      templateId: string
+      type: DefaultStateType
+      patch: DefaultStatePatch
+    }>,
+  ) {
+    isSyncing.value = true
+    try {
+      const promises: Promise<any>[] = []
+      if (userUpdates.length > 0) {
+        promises.push(crudService.reorderLayers(userUpdates))
+      }
+      for (const u of stateUpdates) {
+        upsertLocalState(u.templateId, u.type, u.patch)
+        promises.push(
+          crudService.upsertDefaultUserState(u.templateId, u.type, u.patch),
+        )
+      }
+      await Promise.all(promises)
+      syncLayersToCache()
+      syncGroupsToCache()
+      syncStateToCache()
+    } catch (error) {
+      console.error('Failed to sync reorder with server:', error)
+      await loadLayers()
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  async function handleMainReorder(newItems: (Layer | LayerGroup)[]) {
+    const userUpdates: ReorderUpdate[] = []
+    const stateUpdates: Array<{
+      templateId: string
+      type: DefaultStateType
+      patch: DefaultStatePatch
+    }> = []
 
     newItems.forEach((item, index) => {
-      if ('groupId' in item) {
-        // It's a layer - update local state (user layers only)
-        const layer = userLayers.value.find(l => l.id === item.id)
+      const isLayer = 'groupId' in item
+      // Virtual entries (saved places) have no server row — reordering one
+      // would PATCH an id that doesn't exist. Their position is fixed by the
+      // projection instead.
+      if (isVirtualLayerId(item.id)) {
+        return
+      }
+      if (isTemplateId(item.id)) {
+        stateUpdates.push({
+          templateId: item.id,
+          type: isLayer ? 'layer' : 'group',
+          patch: isLayer
+            ? { order: index, groupId: null }
+            : { order: index, parentGroupId: null },
+        })
+      } else if (isLayer) {
+        const layer = userOwnedLayers.value.find(l => l.id === item.id)
         if (layer) {
           layer.order = index
-          layer.groupId = null // Main list only contains ungrouped layers
+          layer.groupId = null
         }
-        updates.push({ id: item.id, order: index, groupId: null })
+        userUpdates.push({ id: item.id, order: index, groupId: null })
       } else {
-        // It's a group - update local state
-        const group = layerGroups.value.find(g => g.id === item.id)
+        const group = userOwnedGroups.value.find(g => g.id === item.id)
         if (group) {
           group.order = index
+          group.parentGroupId = null
         }
-        updates.push({ id: item.id, order: index })
+        userUpdates.push({ id: item.id, order: index })
       }
     })
 
-    console.log('Updates to send:', updates)
-
-    // Sync with server in background
-    await syncReorderWithServer(updates)
+    await syncReorderUpdates(userUpdates, stateUpdates)
   }
 
   async function handleUngroupedReorder(newLayers: Layer[]) {
-    // Optimistically update local state (user layers only)
-    newLayers.forEach((layer, index) => {
-      const localLayer = userLayers.value.find(l => l.id === layer.id)
-      if (localLayer) {
-        localLayer.order = index
-        localLayer.groupId = null
-      }
-    })
-
-    const updates = newLayers.map((layer, index) => ({
-      id: layer.id,
-      order: index,
-      groupId: null,
-    }))
-
-    // Sync with server in background
-    await syncReorderWithServer(updates)
+    await handleMainReorder(newLayers)
   }
 
   async function handleGroupReorder(groupId: string, newLayers: Layer[]) {
-    // Optimistically update local state (user layers only)
+    const userUpdates: ReorderUpdate[] = []
+    const stateUpdates: Array<{
+      templateId: string
+      type: DefaultStateType
+      patch: DefaultStatePatch
+    }> = []
+
     newLayers.forEach((layer, index) => {
-      const localLayer = userLayers.value.find(l => l.id === layer.id)
-      if (localLayer) {
-        localLayer.order = index
-        localLayer.groupId = groupId
+      if (isTemplateId(layer.id)) {
+        stateUpdates.push({
+          templateId: layer.id,
+          type: 'layer',
+          patch: { order: index, groupId },
+        })
+      } else {
+        const local = userOwnedLayers.value.find(l => l.id === layer.id)
+        if (local) {
+          local.order = index
+          local.groupId = groupId
+        }
+        userUpdates.push({ id: layer.id, order: index, groupId })
       }
     })
 
-    const updates = newLayers.map((layer, index) => ({
-      id: layer.id,
-      order: index,
-      groupId,
-    }))
+    await syncReorderUpdates(userUpdates, stateUpdates)
+  }
 
-    // Sync with server in background
-    await syncReorderWithServer(updates)
+  async function handleMixedGroupReorder(
+    parentGroupId: string | null,
+    newItems: (Layer | LayerGroup)[],
+  ) {
+    const userUpdates: ReorderUpdate[] = []
+    const stateUpdates: Array<{
+      templateId: string
+      type: DefaultStateType
+      patch: DefaultStatePatch
+    }> = []
+
+    newItems.forEach((item, index) => {
+      const isLayer = 'groupId' in item
+      // Virtual entries (saved places) have no server row — reordering one
+      // would PATCH an id that doesn't exist. Their position is fixed by the
+      // projection instead.
+      if (isVirtualLayerId(item.id)) {
+        return
+      }
+      if (isTemplateId(item.id)) {
+        stateUpdates.push({
+          templateId: item.id,
+          type: isLayer ? 'layer' : 'group',
+          patch: isLayer
+            ? { order: index, groupId: parentGroupId }
+            : { order: index, parentGroupId },
+        })
+      } else if (isLayer) {
+        const layer = userOwnedLayers.value.find(l => l.id === item.id)
+        if (layer) {
+          layer.order = index
+          layer.groupId = parentGroupId
+        }
+        userUpdates.push({ id: item.id, order: index, groupId: parentGroupId })
+      } else {
+        const group = userOwnedGroups.value.find(g => g.id === item.id)
+        if (group) {
+          group.order = index
+          group.parentGroupId = parentGroupId
+        }
+        userUpdates.push({ id: item.id, order: index })
+      }
+    })
+
+    await syncReorderUpdates(userUpdates, stateUpdates)
   }
 
   async function handleLayerMove(
@@ -490,183 +1055,190 @@ export const useLayersStore = defineStore('layers', () => {
     newGroupId: string | null,
     newIndex: number,
   ) {
-    console.log('=== Optimistic handleLayerMove ===')
-    console.log(
-      'Moving layer:',
-      layerId,
-      'to group:',
-      newGroupId,
-      'at index:',
-      newIndex,
-    )
-
-    // Find the layer being moved (user layers only)
-    const movingLayer = userLayers.value.find(l => l.id === layerId)
-    if (!movingLayer) {
-      console.error('Layer not found:', layerId)
+    // Template-backed layer → state update
+    if (isTemplateId(layerId)) {
+      await patchDefaultLayerState(layerId, {
+        groupId: newGroupId,
+        order: newIndex,
+      })
       return
     }
 
-    const oldGroupId = movingLayer.groupId
-    console.log('Moving from group:', oldGroupId, 'to group:', newGroupId)
+    const movingLayer = userOwnedLayers.value.find(l => l.id === layerId)
+    if (!movingLayer) return
 
-    // Get target group layers (excluding the moving layer)
-    const targetLayers = newGroupId
-      ? userLayers.value.filter(l => l.groupId === newGroupId && l.id !== layerId)
-      : userLayers.value.filter(l => !l.groupId && l.id !== layerId)
-
-    console.log('Target group has', targetLayers.length, 'existing layers')
-
-    // Sort target layers by current order
-    targetLayers.sort((a, b) => a.order - b.order)
-
-    // Insert moving layer at target position
-    const reorderedLayers = [...targetLayers]
-    reorderedLayers.splice(newIndex, 0, movingLayer)
-
-    // Optimistically update local state immediately
     movingLayer.groupId = newGroupId
-    reorderedLayers.forEach((layer, index) => {
-      layer.order = index
-      layer.groupId = newGroupId
-    })
+    movingLayer.order = newIndex
 
-    // If layer came from a different group, reorder the old group
-    if (oldGroupId !== newGroupId && oldGroupId !== null) {
-      const oldGroupLayers = userLayers.value
-        .filter(l => l.groupId === oldGroupId)
-        .sort((a, b) => a.order - b.order)
-
-      oldGroupLayers.forEach((layer, index) => {
-        layer.order = index
-      })
-    }
-
-    console.log('Optimistic update complete')
-
-    // Sync with server in background
     isSyncing.value = true
     try {
-      await layersService.moveLayer(layerId, newGroupId, newIndex)
-      console.log('Server sync successful')
-      // Sync optimistic updates to cache
+      await crudService.moveLayer(layerId, newGroupId, newIndex)
       syncLayersToCache()
     } catch (error) {
-      console.error('Failed to sync layer move with server:', error)
-      // On error, refresh from server to restore correct state
+      console.error('Failed to sync layer move:', error)
       await loadLayers()
     } finally {
       isSyncing.value = false
     }
   }
 
-  // Private helper function for syncing reorder operations
-  async function syncReorderWithServer(
-    updates: { id: string; order: number; groupId?: string | null }[],
+  async function handleGroupMove(
+    groupId: string,
+    newParentGroupId: string | null,
+    newIndex: number,
   ) {
+    if (isTemplateId(groupId)) {
+      await patchDefaultGroupState(groupId, {
+        parentGroupId: newParentGroupId,
+        order: newIndex,
+      })
+      return
+    }
+
+    const movingGroup = userOwnedGroups.value.find(g => g.id === groupId)
+    if (!movingGroup) return
+
+    movingGroup.parentGroupId = newParentGroupId
+    movingGroup.order = newIndex
+
     isSyncing.value = true
     try {
-      const success = await layersService.reorderLayers(updates)
-      if (success) {
-        console.log('Reorder sync successful')
-        // Sync optimistic updates to cache
-        syncLayersToCache()
-        syncGroupsToCache()
-      } else {
-        console.error('Reorder sync failed')
-        await loadLayers()
-      }
+      await crudService.moveLayerGroup(groupId, newIndex, newParentGroupId)
+      syncGroupsToCache()
     } catch (error) {
-      console.error('Failed to sync reorder with server:', error)
-      // On error, refresh from server to restore correct state
+      console.error('Failed to sync group move:', error)
       await loadLayers()
     } finally {
       isSyncing.value = false
     }
   }
 
-  // Watch for server URL changes and update existing proxy layers
-  watch(serverUrl, async (newUrl, oldUrl) => {
-    if (newUrl !== oldUrl) {
-      console.log('Server URL changed, updating proxy layers...')
-      
-      // Find layers that use proxy endpoints and need updating
-      const layersToUpdate = userLayers.value.filter(layer => {
-        if (typeof layer.configuration.source === 'object' && layer.configuration.source.tiles) {
-          return layer.configuration.source.tiles.some((tileUrl: string) => 
-            tileUrl.includes('/proxy/') && tileUrl.includes(oldUrl)
-          )
-        }
-        return false
-      })
+  // ==========================================================================
+  // SERVER URL CHANGE WATCHER
+  // ==========================================================================
 
-      // Update each layer's configuration
-      for (const layer of layersToUpdate) {
-        if (typeof layer.configuration.source === 'object' && layer.configuration.source.tiles) {
-          const updatedTiles = layer.configuration.source.tiles.map((tileUrl: string) => 
-            tileUrl.replace(oldUrl, newUrl)
-          )
-          
-          try {
-            await updateLayer(layer.id, {
-              configuration: {
-                ...layer.configuration,
-                source: {
-                  ...layer.configuration.source,
-                  tiles: updatedTiles
-                }
-              }
-            })
-            console.log(`Updated proxy URLs for layer: ${layer.configuration.id}`)
-          } catch (error) {
-            console.warn(`Failed to update proxy URLs for layer ${layer.configuration.id}:`, error)
-          }
-        }
+  watch(serverUrl, async (newUrl, oldUrl) => {
+    if (newUrl === oldUrl) return
+
+    // Re-fetch default templates so proxy URLs get resolved with the new server
+    try {
+      const templates = await crudService.getDefaultTemplates()
+      defaultLayerTemplates.value = templates.layers ?? []
+      defaultGroupTemplates.value = templates.groups ?? []
+      cachedDefaultTemplates.value = templates
+    } catch (error) {
+      console.error('Failed to refresh default templates:', error)
+    }
+
+    // Also rewrite any user-owned cloned layers that have proxy URLs pointing
+    // at the old server.
+    const layersToUpdate = userOwnedLayers.value.filter(layer => {
+      if (
+        typeof layer.configuration.source === 'object' &&
+        layer.configuration.source.tiles
+      ) {
+        return layer.configuration.source.tiles.some(
+          (tileUrl: string) =>
+            tileUrl.includes('/proxy/') && tileUrl.includes(oldUrl),
+        )
+      }
+      return false
+    })
+
+    for (const layer of layersToUpdate) {
+      if (
+        typeof layer.configuration.source === 'object' &&
+        layer.configuration.source.tiles
+      ) {
+        const updatedTiles = layer.configuration.source.tiles.map(
+          (tileUrl: string) => tileUrl.replace(oldUrl, newUrl),
+        )
+        await updateLayer(layer.id, {
+          configuration: {
+            ...layer.configuration,
+            source: {
+              ...layer.configuration.source,
+              tiles: updatedTiles,
+            },
+          },
+        })
       }
     }
   })
 
-  // Clear all cached data (used on sign out)
   function clearCache() {
-    userLayers.value = []
-    layerGroups.value = []
+    userOwnedLayers.value = []
+    userOwnedGroups.value = []
+    defaultState.value = []
+    defaultLayerTemplates.value = []
+    defaultGroupTemplates.value = []
     cachedUserLayers.value = null
-    cachedLayerGroups.value = null
+    cachedUserGroups.value = null
+    cachedDefaultTemplates.value = null
+    cachedDefaultState.value = null
   }
 
   return {
-    // State
-    layers, // All layers (core + client-side + user)
-    userLayers, // Only user layers
-    coreLayers, // Only core layers
-    clientSideLayers, // Only client-side layers  
-    layerGroups, // Only user layer groups
-    allLayerGroups, // Both client-side and user groups
+    // Primary reactive state
+    layers,
+    userLayers,
+    coreLayers,
+    layerGroups,
+    allLayerGroups,
     isSyncing,
     isLoadingLayers,
-    // Computed
-    ungroupedLayers,
-    groupsWithLayers,
-    mainReorderableItems,
+
+    // Lower-level state (for debugging / specific consumers)
+    userOwnedLayers,
+    userOwnedGroups,
+    defaultLayerTemplates,
+    defaultGroupTemplates,
+    defaultState,
+
+    // Saved places (virtual — projected from collections, never persisted)
+    savedPlacesVisibility,
+    savedPlacesMeta,
+    // Canvases (virtual — projected from the canvases store, never persisted)
+    visibleCanvasIds,
+    canvasesMeta,
+    SAVED_PLACES_GROUP_ID,
+
+    // Settings-panel views
+    ungroupedLayers: ungroupedLayersList,
+    groupsWithLayers: groupsWithLayersList,
+    mainReorderableItems: mainReorderableItemsList,
+    groupTree,
+    getGroupTotalLayerCount,
+
+    // Layer store
+    layerStoreItems,
+    addStoreItem,
+
     // Data operations
     loadLayers,
-    populateUserLayerTemplates,
     addLayer,
     updateLayer,
     removeLayer,
     addLayerGroup,
     updateLayerGroup,
     removeLayerGroup,
-    // Optimistic updates
+
+    // Optimistic visibility
     updateLayerVisibility,
     toggleLayerGroupVisibility,
+    // Read side of the override map, for synthetic selector rows (portolan
+    // class toggles) whose ids are not `layers` rows but persist here too.
+    getLayerVisibilityOverride,
+
     // Drag and drop
     handleMainReorder,
     handleUngroupedReorder,
     handleGroupReorder,
+    handleMixedGroupReorder,
     handleLayerMove,
-    // Sync functions
-    syncClientSideLayerVisibility,
+    handleGroupMove,
+
+    // Cache
     clearCache,
   }
 })

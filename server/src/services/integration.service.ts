@@ -1,7 +1,13 @@
 import { db } from '../db'
 import { eq, and, isNull, or } from 'drizzle-orm'
 import { generateId } from '../util'
-import { integrations, IntegrationRecord } from '../schema/integrations.schema'
+import {
+  integrations,
+  IntegrationRecord,
+  IntegrationRow,
+  IntegrationScheme,
+} from '../schema/integrations.schema'
+import { encryptedUserBlobs } from '../schema/personal-blobs.schema'
 import {
   IntegrationCapability,
   IntegrationDefinition,
@@ -11,6 +17,35 @@ import {
 } from '../types/integration.types'
 import { integrationManager } from './integrations'
 import { users } from '../schema/users.schema'
+import {
+  encryptIntegrationConfig,
+  decryptIntegrationConfig,
+} from '../lib/integration-encryption'
+import { logger, logError } from '../lib/logger'
+import { getPersonalBlobsByTypePrefix } from './personal-blob.service'
+
+// Personal-blob type namespace for user-e2ee integration configs.
+// Shape: 'integration-config:<integrationId>' — e.g. 'integration-config:dawarich'.
+export const INTEGRATION_CONFIG_BLOB_PREFIX = 'integration-config:'
+export const integrationConfigBlobType = (integrationId: string) =>
+  `${INTEGRATION_CONFIG_BLOB_PREFIX}${integrationId}`
+
+/**
+ * Thrown when a create would violate the (userId, integrationId, scheme)
+ * uniqueness constraint. The controller maps this to HTTP 409.
+ */
+export class IntegrationSchemeConflictError extends Error {
+  readonly integrationId: string
+  readonly scheme: IntegrationScheme
+  constructor(integrationId: string, scheme: IntegrationScheme) {
+    super(
+      `Integration ${integrationId} is already configured with scheme ${scheme}`,
+    )
+    this.name = 'IntegrationSchemeConflictError'
+    this.integrationId = integrationId
+    this.scheme = scheme
+  }
+}
 
 // Available integration definitions
 const availableIntegrations: IntegrationDefinition[] = [
@@ -25,7 +60,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: true,
     cloud: true,
     configSchema: 'mapboxSchema',
-    public: true,
+    publicFields: ['accessToken'],
     scope: [IntegrationScope.SYSTEM],
   },
   {
@@ -44,6 +79,22 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.FOURSQUARE,
+    name: 'Foursquare',
+    description:
+      'Global POI coverage, reviews, photos, and hours — blends into search and enriches place details',
+    color: '#F94877',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.FOURSQUARE,
+      )
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'foursquareSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.PELIAS,
     name: 'Pelias',
     description: 'Open-source geocoding and search',
@@ -54,6 +105,24 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: false,
     configSchema: 'peliasSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  // TODO: Add dynamic API and access key management to Barrelman,
+  // with a UI to create, rotate, and revoke keys.
+  {
+    id: IntegrationId.BARRELMAN,
+    name: 'Barrelman',
+    description: 'OSM geospatial engine — search, tiles, spatial queries, routing',
+    color: '#1A73A7',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.BARRELMAN,
+      )
+    },
+    paid: false,
+    cloud: false,
+    configSchema: 'barrelmanSchema',
+    publicFields: ['host', 'tileKey'],
     scope: [IntegrationScope.SYSTEM],
   },
   {
@@ -102,10 +171,25 @@ const availableIntegrations: IntegrationDefinition[] = [
     scope: [IntegrationScope.SYSTEM],
   },
   {
+    id: IntegrationId.GRAPHHOPPER,
+    name: 'GraphHopper',
+    description: 'Fast and efficient routing engine with custom models',
+    color: '#F7941E',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.GRAPHHOPPER,
+      )
+    },
+    paid: false, // Can be self-hosted (free) or use API (paid)
+    cloud: false, // Supports both self-hosted and cloud
+    configSchema: 'graphhopperSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
     id: IntegrationId.MAPILLARY,
     name: 'Mapillary',
     description: 'Street-level imagery platform',
-    color: '#2B2B2B',
+    color: '#05CB63',
     get capabilities() {
       return integrationManager.getIntegrationCapabilities(
         IntegrationId.MAPILLARY,
@@ -114,7 +198,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: true,
     configSchema: 'mapillarySchema',
-    public: true,
+    publicFields: ['accessToken'],
     scope: [IntegrationScope.SYSTEM],
   },
   {
@@ -166,7 +250,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     id: IntegrationId.WIKIPEDIA,
     name: 'Wikipedia',
     description: 'Free encyclopedia content and place descriptions',
-    color: '#000000',
+    color: '#888',
     get capabilities() {
       return integrationManager.getIntegrationCapabilities(
         IntegrationId.WIKIPEDIA,
@@ -192,104 +276,417 @@ const availableIntegrations: IntegrationDefinition[] = [
     configSchema: 'wikimediaSchema',
     scope: [IntegrationScope.SYSTEM],
   },
+  {
+    id: IntegrationId.OPENWEATHERMAP,
+    name: 'OpenWeatherMap',
+    description: 'Weather data and air quality information',
+    color: '#EB6E4B',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.OPENWEATHERMAP,
+      )
+    },
+    paid: true,
+    cloud: true,
+    configSchema: 'apiKeySchema',
+    publicFields: ['apiKey'],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.OPENAQ,
+    name: 'OpenAQ',
+    description: 'Open air-quality data from ground monitoring stations',
+    color: '#2E7D32',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.OPENAQ)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'apiKeySchema',
+    publicFields: ['apiKey'],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.FIRMS,
+    name: 'NASA FIRMS',
+    description: 'Active wildfire detections from satellite (VIIRS/MODIS)',
+    color: '#E64A19',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.FIRMS)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'firmsMapKeySchema',
+    publicFields: ['apiKey'],
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.AXIOM,
+    name: 'Axiom',
+    description:
+      'Send server logs and traces to Axiom for debugging and monitoring. Optional; leave unset for logs to stdout only.',
+    color: '#888',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.AXIOM)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'axiomSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.QUACKBACK,
+    name: 'Quackback',
+    description:
+      'Back the in-app feedback form with a self-hosted Quackback instance. Leave unset to hide feedback from the app.',
+    color: '#F5C518',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(IntegrationId.QUACKBACK)
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'quackbackSchema',
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.OPENSTREETMAP,
+    name: 'OpenStreetMap',
+    description:
+      'Configure OSM OAuth application credentials for user authentication',
+    color: '#7EBC6F',
+    capabilities: [],
+    paid: false,
+    cloud: true,
+    configSchema: 'openstreetmapSystemSchema',
+    resolvePublicConfig: (config) => {
+      const server = config.server || 'production'
+      const OSM_SERVERS: Record<string, string> = {
+        production: 'https://www.openstreetmap.org',
+        sandbox: 'https://master.apis.dev.openstreetmap.org',
+      }
+      let serverUrl: string
+      if (server === 'custom' && config.customServerUrl) {
+        serverUrl = config.customServerUrl.replace(/\/+$/, '')
+      } else {
+        serverUrl = OSM_SERVERS[server] || OSM_SERVERS.production
+      }
+      return { serverUrl }
+    },
+    scope: [IntegrationScope.SYSTEM],
+  },
+  {
+    id: IntegrationId.OPENSTREETMAP_ACCOUNT,
+    name: 'OpenStreetMap Account',
+    description:
+      'Connect your OSM account to add notes, comments, and make quick edits',
+    color: '#7EBC6F',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.OPENSTREETMAP_ACCOUNT,
+      )
+    },
+    paid: false,
+    cloud: true,
+    configSchema: 'openstreetmapOAuthSchema',
+    publicFields: [
+      'osmDisplayName',
+      'osmProfileImageUrl',
+      'osmAccountCreated',
+      'osmChangesetCount',
+      'osmTraceCount',
+    ],
+    authType: 'oauth2',
+    scope: [IntegrationScope.USER],
+    requiresSystemIntegration: IntegrationId.OPENSTREETMAP,
+  },
+  {
+    id: IntegrationId.DAWARICH,
+    name: 'Dawarich',
+    description: 'Self-hosted location history',
+    color: '#2F5DFF',
+    get capabilities() {
+      return integrationManager.getIntegrationCapabilities(
+        IntegrationId.DAWARICH,
+      )
+    },
+    paid: false,
+    cloud: false,
+    configSchema: 'dawarichSchema',
+    scope: [IntegrationScope.USER],
+    supportedSchemes: ['user-e2ee'],
+  },
 ]
 
+/**
+ * Background retry for system integrations that failed their startup connection
+ * test — most often barrelman. It can be warming up during a co-restart (a few
+ * seconds) OR genuinely down for an extended period; either way we must re-init
+ * it whenever it comes back, because `initializeWithTest` throws on a failed
+ * test and leaves the integration OUT of the cache entirely — so search/transit
+ * stay dark until it re-initializes.
+ *
+ * Exponential backoff (10s → capped at 5min), retried indefinitely rather than
+ * abandoned after a fixed budget: a bounded budget meant a longer-than-a-minute
+ * outage left the dependency excluded until a manual server restart. The cost of
+ * retrying forever is one connection test per failed integration per ≤5min —
+ * negligible — and each stops the moment it initializes.
+ */
+async function retrySystemIntegrations(
+  failed: IntegrationRecord[],
+  attempt = 1,
+): Promise<void> {
+  if (failed.length === 0) return
+
+  const BASE_MS = 10_000
+  const MAX_DELAY_MS = 5 * 60_000
+  const delay = Math.min(BASE_MS * 2 ** (attempt - 1), MAX_DELAY_MS)
+  await new Promise((resolve) => setTimeout(resolve, delay))
+
+  const stillFailing: IntegrationRecord[] = []
+  await Promise.allSettled(
+    failed.map(async (integration) => {
+      try {
+        await integrationManager.initializeIntegration(undefined, integration)
+        logger.debug(
+          `Recovered system integration: ${integration.integrationId}`,
+        )
+      } catch {
+        stillFailing.push(integration)
+      }
+    }),
+  )
+
+  if (stillFailing.length > 0) {
+    void retrySystemIntegrations(stillFailing, attempt + 1)
+  }
+}
+
+/**
+ * Reconcile stored capabilities for system integrations with the capabilities
+ * the code now declares. System integrations are code-defined (not user-tuned),
+ * so when a new capability is added to an integration's `capabilityIds` (e.g.
+ * brandCatalog on Barrelman), append it as active — mirroring create-time
+ * behavior where all capabilityIds start active. Never removes capabilities an
+ * operator may have disabled. Persists to the DB and mutates the in-memory
+ * records so this startup uses the updated set. Resolves the long-standing TODO
+ * in getConfiguredIntegrations.
+ */
+async function reconcileSystemCapabilities(
+  records: IntegrationRecord[],
+): Promise<void> {
+  for (const record of records) {
+    const codeCaps = integrationManager.getIntegrationCapabilities(
+      record.integrationId,
+    )
+    if (codeCaps.length === 0) continue
+    const existing = new Set(record.capabilities.map((c) => c.id))
+    const missing = codeCaps.filter((id) => !existing.has(id))
+    if (missing.length === 0) continue
+
+    const merged = [
+      ...record.capabilities,
+      ...missing.map((id) => ({ id, active: true })),
+    ]
+    try {
+      await db
+        .update(integrations)
+        .set({ capabilities: JSON.stringify(merged), updatedAt: new Date() })
+        .where(eq(integrations.id, record.id))
+      record.capabilities = merged // reflect in-memory for this startup
+      logger.debug(
+        `[integrations] Added new capabilit${missing.length === 1 ? 'y' : 'ies'} to ${record.integrationId}: ${missing.join(', ')}`,
+      )
+    } catch (err) {
+      logError(
+        `Failed to reconcile capabilities for ${record.integrationId}`,
+        err,
+      )
+    }
+  }
+}
+
 export async function initializeIntegrations() {
-  console.log('Initializing integrations on server startup...')
+  logger.debug('Initializing integrations on server startup...')
 
   try {
     // Get system-wide integrations first (where userId is null)
     const systemIntegrations = await getConfiguredIntegrations()
-    console.log(`Found ${systemIntegrations.length} system integrations`)
-    console.log(
-      'System integrations:',
-      systemIntegrations.map((i) => i.integrationId),
+    // Backfill any capabilities added in code since these records were created.
+    await reconcileSystemCapabilities(systemIntegrations)
+    logger.debug(`Found ${systemIntegrations.length} system integrations`)
+    logger.debug(
+      { integrationIds: systemIntegrations.map((i) => i.integrationId) },
+      'System integrations',
     )
 
-    // Initialize system integrations
-    for (const integration of systemIntegrations) {
-      try {
-        console.log(
+    // Initialize system integrations in parallel
+    const systemResults = await Promise.allSettled(
+      systemIntegrations.map((integration) => {
+        logger.debug(
           `Initializing system integration: ${integration.integrationId}`,
         )
-        await integrationManager.initializeIntegration(undefined, integration)
-      } catch (error) {
-        console.error(
-          `Failed to initialize system integration ${integration.integrationId}:`,
-          error,
+        return integrationManager.initializeIntegration(undefined, integration)
+      }),
+    )
+    for (let i = 0; i < systemResults.length; i++) {
+      const result = systemResults[i]
+      if (result.status === 'rejected') {
+        logError(
+          `Failed to initialize system integration ${systemIntegrations[i].integrationId}`,
+          result.reason,
         )
       }
+    }
+
+    // Retry the failures in the background (non-blocking) — barrelman in
+    // particular can still be warming up during a co-restart, and its
+    // connection test fails until it's ready. Recovering here avoids the
+    // transit-goes-dark-until-manual-restart trap.
+    const failedSystem = systemIntegrations.filter(
+      (_, i) => systemResults[i].status === 'rejected',
+    )
+    if (failedSystem.length > 0) {
+      void retrySystemIntegrations(failedSystem)
     }
 
     // Get all users
     const allUsers = await db.select().from(users)
-    console.log(`Found ${allUsers.length} users`)
+    logger.debug(`Found ${allUsers.length} users`)
 
-    // Get user-specific integrations for each user
-    for (const user of allUsers) {
-      try {
+    // Initialize user-specific integrations in parallel
+    const userResults = await Promise.allSettled(
+      allUsers.map(async (user) => {
         const userIntegrations = await getConfiguredIntegrations(user.id)
-        console.log(
-          `Found ${userIntegrations.length} integrations for user ${user.id}`,
+        // user-e2ee configs aren't visible server-side; there's no adapter
+        // to initialize. They hydrate in the client store on sign-in.
+        const serverKeyIntegrations = userIntegrations.filter(
+          (i) => i.scheme === 'server-key',
+        )
+        logger.debug(
+          `Found ${serverKeyIntegrations.length} server-key integrations for user ${user.id}` +
+            (userIntegrations.length !== serverKeyIntegrations.length
+              ? ` (+${userIntegrations.length - serverKeyIntegrations.length} user-e2ee skipped)`
+              : ''),
         )
 
-        // Initialize each user integration
-        for (const integration of userIntegrations) {
-          try {
-            console.log(
+        const results = await Promise.allSettled(
+          serverKeyIntegrations.map((integration) => {
+            logger.debug(
               `Initializing user integration: ${integration.integrationId} for user ${user.id}`,
             )
-            await integrationManager.initializeIntegration(user.id, integration)
-          } catch (error) {
-            console.error(
-              `Failed to initialize integration ${integration.integrationId} for user ${user.id}:`,
-              error,
+            return integrationManager.initializeIntegration(
+              user.id,
+              integration,
+            )
+          }),
+        )
+        for (let i = 0; i < results.length; i++) {
+          const result = results[i]
+          if (result.status === 'rejected') {
+            logError(
+              `Failed to initialize integration ${serverKeyIntegrations[i].integrationId} for user ${user.id}`,
+              result.reason,
             )
           }
         }
-      } catch (error) {
-        console.error(`Failed to get integrations for user ${user.id}:`, error)
+      }),
+    )
+    for (let i = 0; i < userResults.length; i++) {
+      const result = userResults[i]
+      if (result.status === 'rejected') {
+        logError(
+          `Failed to get integrations for user ${allUsers[i].id}`,
+          result.reason,
+        )
       }
     }
 
-    console.log('Integration initialization completed')
+    logger.debug('Integration initialization completed')
   } catch (error) {
-    console.error('Failed to initialize integrations:', error)
+    logError('Failed to initialize integrations', error)
     throw error
   }
 }
 
 // Helper functions
+
+// Track integration-ids we've already warned about this process so startup
+// logs don't repeat the same "unreadable row" error per row.
+const unreadableRowsWarned = new Set<string>()
+
+function warnUnreadableIntegration(row: IntegrationRow): void {
+  const key = row.id
+  if (unreadableRowsWarned.has(key)) return
+  unreadableRowsWarned.add(key)
+  logger.warn(
+    {
+      integrationId: row.integrationId,
+      id: row.id,
+      keyVersion: row.configKeyVersion,
+    },
+    'Integration config is unreadable — encrypted under a key the server ' +
+      'no longer has. Usually means PARCHMENT_INTEGRATION_ENCRYPTION_KEY ' +
+      'changed or was ephemeral. Delete the row (DELETE FROM integrations ' +
+      'WHERE id = …) and reconfigure through the UI.',
+  )
+}
+
+/**
+ * Decrypt a raw DB row's config ciphertext + parse capabilities into an
+ * in-memory `IntegrationRecord` with cleartext config.
+ *
+ * The DB column stores ciphertext only; this function is the single read-
+ * path choke point. The returned `config` must NEVER be persisted or
+ * logged — it holds third-party credentials.
+ *
+ * Returns null if the row cannot be decrypted (e.g., the encryption key
+ * changed). Callers that just wrote the row (create/update) should treat
+ * null as an invariant violation; read-path callers filter nulls out.
+ */
 export function parseIntegrationData(
-  record: IntegrationRecord,
-): IntegrationRecord {
-  let config: Record<string, any>
-
-  try {
-    config = JSON.parse(record.config as any)
-  } catch (error) {
-    console.error('Failed to parse integration config:', error)
-    config = {}
+  row: IntegrationRow,
+): IntegrationRecord | null {
+  // For user-e2ee rows the server never sees cleartext. The config lives in
+  // encrypted_user_blobs and is decrypted client-side. We return `config: {}`
+  // here; the controller attaches `encryptedConfig` for the client.
+  let cleanedConfig: Record<string, any>
+  if (row.scheme === 'user-e2ee') {
+    cleanedConfig = {}
+  } else {
+    let config: Record<string, any>
+    try {
+      config = decryptIntegrationConfig({
+        ciphertext: row.configCiphertext!,
+        nonce: row.configNonce!,
+        keyVersion: row.configKeyVersion,
+      }) as Record<string, any>
+    } catch {
+      warnUnreadableIntegration(row)
+      return null
+    }
+    cleanedConfig = cleanConfig(config)
   }
-
-  const cleanedConfig = cleanConfig(config)
 
   let capabilities: IntegrationCapability[]
   try {
-    capabilities = JSON.parse(record.capabilities as any)
+    capabilities = JSON.parse(row.capabilities as any)
   } catch (error) {
-    console.error('Failed to parse integration capabilities:', error)
+    logger.error(
+      { integrationId: row.integrationId, id: row.id, err: error },
+      'Failed to parse integration capabilities',
+    )
     capabilities = []
   }
 
   return {
-    id: record.id,
-    userId: record.userId,
-    integrationId: record.integrationId as IntegrationId,
+    id: row.id,
+    userId: row.userId,
+    integrationId: row.integrationId as IntegrationId,
+    scheme: row.scheme,
     capabilities,
     config: cleanedConfig,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   }
 }
 
@@ -332,7 +729,31 @@ export async function getConfiguredIntegrations(
       .where(eq(integrations.userId, userId))
   }
 
-  return userIntegrations.map(parseIntegrationData)
+  // Filter out unreadable rows (e.g. encryption key changed) so callers
+  // never see half-initialized records. The dropped rows are already
+  // logged by parseIntegrationData via warnUnreadableIntegration.
+  const records = userIntegrations
+    .map(parseIntegrationData)
+    .filter((r): r is IntegrationRecord => r !== null)
+
+  // For user-e2ee rows, attach the encrypted blob in one batched fetch so the
+  // client can decrypt it locally. Only runs when the caller is authenticated
+  // (system-scope fetches don't have a user to look up blobs for).
+  if (userId && records.some((r) => r.scheme === 'user-e2ee')) {
+    const blobs = await getPersonalBlobsByTypePrefix(
+      userId,
+      INTEGRATION_CONFIG_BLOB_PREFIX,
+    )
+    const byType = new Map(blobs.map((b) => [b.blobType, b.encryptedBlob]))
+    for (const rec of records) {
+      if (rec.scheme !== 'user-e2ee') continue
+      const blobType = integrationConfigBlobType(rec.integrationId)
+      const ciphertext = byType.get(blobType)
+      if (ciphertext) rec.encryptedConfig = ciphertext
+    }
+  }
+
+  return records
 }
 
 export async function getAvailableIntegrations(): Promise<
@@ -341,25 +762,32 @@ export async function getAvailableIntegrations(): Promise<
   return availableIntegrations
 }
 
-export async function getPublicIntegrations(): Promise<any[]> {
-  // Get system-wide integrations only (public integrations are typically system-wide)
-  const systemIntegrations = await getConfiguredIntegrations()
+/**
+ * Extract only the public fields from an integration's config,
+ * based on the `publicFields` list in its definition.
+ * If the definition provides a `resolvePublicConfig` callback,
+ * it takes precedence over the raw field list.
+ * Returns an empty object when the definition has no public fields.
+ */
+export function extractPublicConfig(
+  config: Record<string, any>,
+  definition: IntegrationDefinition | undefined,
+): Record<string, any> {
+  if (!definition) return {}
 
-  // Filter to only include public integrations
-  const publicIntegrations = systemIntegrations.filter((integration) => {
-    const definition = availableIntegrations.find(
-      (def) => def.id === integration.integrationId,
-    )
-    return definition?.public === true
-  })
+  // Use custom resolver if provided
+  if (definition.resolvePublicConfig) {
+    return definition.resolvePublicConfig(config)
+  }
 
-  // Return integrations with their config exposed (since they're public)
-  return publicIntegrations.map((integration) => ({
-    id: integration.id,
-    integrationId: integration.integrationId,
-    config: integration.config,
-    capabilities: integration.capabilities, // Include capabilities for client-side filtering
-  }))
+  if (!definition.publicFields?.length) return {}
+  const result: Record<string, any> = {}
+  for (const key of definition.publicFields) {
+    if (key in config) {
+      result[key] = config[key]
+    }
+  }
+  return result
 }
 
 export async function getIntegration(
@@ -400,6 +828,7 @@ export async function createIntegration(
   integrationId: IntegrationId,
   config: Record<string, any>,
   customCapabilities?: IntegrationCapability[],
+  scheme: IntegrationScheme = 'server-key',
 ): Promise<IntegrationRecord> {
   const integrationDef = availableIntegrations.find(
     (integration) => integration.id === integrationId,
@@ -409,15 +838,41 @@ export async function createIntegration(
     throw new Error(`Integration with ID ${integrationId} not found`)
   }
 
-  const testResult = await integrationManager.testIntegration(
-    integrationId,
-    config,
-  )
-
-  if (!testResult.success) {
+  const supportedSchemes: IntegrationScheme[] =
+    integrationDef.supportedSchemes ?? ['server-key']
+  if (!supportedSchemes.includes(scheme)) {
     throw new Error(
-      testResult.message || `Failed to test integration: ${integrationId}`,
+      `Integration ${integrationId} does not support scheme ${scheme}`,
     )
+  }
+
+  if (scheme === 'user-e2ee') {
+    if (!userId) {
+      throw new Error(
+        'Scheme user-e2ee requires a user — system-scope integrations must use server-key',
+      )
+    }
+    if (config && Object.keys(config).length > 0) {
+      // Server never sees e2ee config. The client posts the metadata row, then
+      // uploads the encrypted blob via PUT /me/blobs/integration-config:<id>.
+      throw new Error(
+        'Scheme user-e2ee must be created with no config — post the encrypted blob separately',
+      )
+    }
+  }
+
+  // Only server-key creates run through the connection-test path. E2EE configs
+  // aren't visible server-side; the client handles validation before saving.
+  if (scheme === 'server-key') {
+    const testResult = await integrationManager.testIntegration(
+      integrationId,
+      config,
+    )
+    if (!testResult.success) {
+      throw new Error(
+        testResult.message || `Failed to test integration: ${integrationId}`,
+      )
+    }
   }
 
   const capabilities =
@@ -427,26 +882,55 @@ export async function createIntegration(
       active: true,
     }))
 
-  const cleanedConfig = cleanConfig(config)
-
   const values: any = {
     id: generateId(),
     integrationId,
+    scheme,
     capabilities: JSON.stringify(capabilities),
-    config: JSON.stringify(cleanedConfig),
     createdAt: new Date(),
     updatedAt: new Date(),
   }
+
+  if (scheme === 'server-key') {
+    const cleanedConfig = cleanConfig(config)
+    const encrypted = encryptIntegrationConfig(cleanedConfig)
+    values.configCiphertext = encrypted.ciphertext
+    values.configNonce = encrypted.nonce
+    values.configKeyVersion = encrypted.keyVersion
+  }
+  // user-e2ee: configCiphertext/configNonce stay NULL; configKeyVersion keeps
+  // its column default (1) and is meaningless for this scheme.
 
   if (userId) {
     values.userId = userId
   }
 
-  const result = await db.insert(integrations).values(values).returning()
+  let result
+  try {
+    result = await db.insert(integrations).values(values).returning()
+  } catch (err: any) {
+    // Postgres unique_violation = 23505. Postgres.js surfaces it on .code;
+    // drizzle may wrap via .cause depending on the driver. Check both.
+    const code = err?.code ?? err?.cause?.code
+    if (code === '23505') {
+      throw new IntegrationSchemeConflictError(integrationId, scheme)
+    }
+    throw err
+  }
 
   const newIntegration = parseIntegrationData(result[0])
+  if (!newIntegration) {
+    // We just wrote this row — if decrypt fails, the KMS key is gone mid-flight.
+    throw new Error(
+      'Integration written but could not be decrypted — check that PARCHMENT_INTEGRATION_ENCRYPTION_KEY is stable',
+    )
+  }
 
-  await integrationManager.initializeIntegration(userId, newIntegration)
+  // Only server-key rows feed the adapter cache; e2ee configs aren't visible
+  // server-side and have no adapter to initialize.
+  if (scheme === 'server-key') {
+    await integrationManager.initializeIntegration(userId, newIntegration)
+  }
 
   return newIntegration
 }
@@ -470,6 +954,16 @@ export async function updateIntegration(
   }
 
   if (updates.config) {
+    if (currentIntegration.scheme === 'user-e2ee') {
+      // E2EE configs are re-encrypted on the client and uploaded via
+      // PUT /me/blobs/integration-config:<id>. The integrations row holds
+      // only metadata; config updates through this endpoint would fan out
+      // into two writes the server can't keep consistent.
+      throw new Error(
+        'Scheme user-e2ee configs must be updated via PUT /me/blobs',
+      )
+    }
+
     const testResult = await integrationManager.testIntegration(
       currentIntegration.integrationId,
       updates.config,
@@ -481,7 +975,10 @@ export async function updateIntegration(
       )
     }
 
-    updateData.config = JSON.stringify(cleanConfig(updates.config))
+    const encrypted = encryptIntegrationConfig(cleanConfig(updates.config))
+    updateData.configCiphertext = encrypted.ciphertext
+    updateData.configNonce = encrypted.nonce
+    updateData.configKeyVersion = encrypted.keyVersion
   }
 
   if (updates.capabilities) {
@@ -509,9 +1006,36 @@ export async function updateIntegration(
     throw new Error('Failed to retrieve updated integration')
   }
 
-  await integrationManager.initializeIntegration(userId, updatedIntegration)
+  if (updatedIntegration.scheme === 'server-key') {
+    await integrationManager.initializeIntegration(userId, updatedIntegration)
+  }
 
   return updatedIntegration
+}
+
+/**
+ * Find all configured integrations that depend on the given integration ID
+ * via `requiresSystemIntegration`. Returns records across all users.
+ */
+export async function getDependentIntegrations(
+  integrationId: IntegrationId,
+): Promise<IntegrationRecord[]> {
+  // Find definitions that depend on this integration
+  const dependentDefinitions = availableIntegrations.filter(
+    (def) => def.requiresSystemIntegration === integrationId,
+  )
+  if (dependentDefinitions.length === 0) return []
+
+  const dependentIds = dependentDefinitions.map((def) => def.id)
+
+  // Find all configured instances of those dependent definitions
+  const allIntegrations = await db.select().from(integrations)
+  return allIntegrations
+    .filter((record) =>
+      dependentIds.includes(record.integrationId as IntegrationId),
+    )
+    .map(parseIntegrationData)
+    .filter((r): r is IntegrationRecord => r !== null)
 }
 
 export async function deleteIntegration(
@@ -535,7 +1059,39 @@ export async function deleteIntegration(
     throw new Error(`Integration with ID ${id} not found`)
   }
 
-  await db.delete(integrations).where(eq(integrations.id, id))
+  const row = result[0]
+  // `record` may be null if the row can't be decrypted — that's fine, we're
+  // about to delete it. Fall back to the raw integrationId from the row.
+  const record = parseIntegrationData(row)
+  const integrationIdForCascade = (record?.integrationId ??
+    row.integrationId) as IntegrationId
+
+  // Cascade-delete dependent integrations (e.g. user OSM accounts when
+  // the system OSM integration is removed)
+  const dependents = await getDependentIntegrations(integrationIdForCascade)
+  for (const dep of dependents) {
+    await db.delete(integrations).where(eq(integrations.id, dep.id))
+    integrationManager.removeIntegration(dep.userId ?? undefined, dep.id)
+  }
+
+  if (row.scheme === 'user-e2ee' && row.userId) {
+    // Atomically clear both the metadata row and the personal-blob ciphertext.
+    // A partial delete would leave an orphan blob only the client could GC.
+    const blobType = integrationConfigBlobType(row.integrationId)
+    await db.transaction(async (tx) => {
+      await tx.delete(integrations).where(whereCondition!)
+      await tx
+        .delete(encryptedUserBlobs)
+        .where(
+          and(
+            eq(encryptedUserBlobs.userId, row.userId!),
+            eq(encryptedUserBlobs.blobType, blobType),
+          ),
+        )
+    })
+  } else {
+    await db.delete(integrations).where(whereCondition)
+  }
 
   integrationManager.removeIntegration(userId, id)
 }

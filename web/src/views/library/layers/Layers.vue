@@ -1,41 +1,145 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-
-import { FolderIcon } from 'lucide-vue-next'
-import EmptyState from '@/components/library/EmptyState.vue'
-import { useCollectionsService } from '@/services/library/collections.service'
-import { useCollectionsStore } from '@/stores/library/collections.store'
+/**
+ * The Layers tab.
+ *
+ * The list is never really empty — Parchment's own layers are projected into
+ * it whether or not the user has made any — so the empty state is reserved
+ * for the case where they have removed every last one, and points at the
+ * store rather than at "create", since that's where they come back from.
+ */
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import CollectionsList from '@/components/library/CollectionsList.vue'
-import Layers from '@/components/map/Layers.vue'
+import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import {
+  FolderIcon,
+  Layers3Icon,
+  LayersIcon,
+  PlusIcon,
+  SearchIcon,
+  StoreIcon,
+} from 'lucide-vue-next'
+import { EmptyState } from '@/components/ui/empty-state'
+import { useConnectivity } from '@/composables/useConnectivity'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { AppRoute } from '@/router'
+import { useAppService } from '@/services/app.service'
+import { useLayersStore } from '@/stores/layers.store'
+import Layers from '@/components/library/layers/LayerList.vue'
+import LayerStoreDialog from '@/components/library/layers/LayerStoreDialog.vue'
+import LayerGroupConfiguration from '@/components/library/layers/LayerGroupConfiguration.vue'
 
-const collectionsService = useCollectionsService()
-const collectionsStore = useCollectionsStore()
-const { collections } = storeToRefs(collectionsStore)
-const loadingCollections = ref(true)
+const { t } = useI18n()
+const router = useRouter()
+const appService = useAppService()
+const layersStore = useLayersStore()
+const { mainReorderableItems } = storeToRefs(layersStore)
 
-onMounted(async () => {
-  loadingCollections.value = true
-  await collectionsService.fetchCollections()
-  loadingCollections.value = false
-})
+// The layer editor is a sheet view, not a dialog: it renders the draft on
+// the live map while you edit, which a modal over the map cannot do.
+function newLayer() {
+  router.push({ name: AppRoute.LAYER_EDITOR_NEW })
+}
 
-const showEmptyState = computed(() => {
-  return !loadingCollections.value && collections.value.length === 0
-})
+function newGroup() {
+  appService.componentDialog({
+    component: LayerGroupConfiguration,
+    continueText: t('general.save'),
+  })
+}
 
-const loading = computed(() => {
-  return loadingCollections.value && collections.value.length === 0
-})
+const { isOffline, onReconnected } = useConnectivity()
+const loading = ref(mainReorderableItems.value.length === 0)
+const storeOpen = ref(false)
+const searchQuery = ref('')
+
+async function load() {
+  // Offline with no cache the fetch rejects instantly — land on the offline
+  // empty state rather than a spinner that never resolves.
+  await layersStore.loadLayers().catch(() => {})
+  loading.value = false
+}
+
+onMounted(load)
+onReconnected(load)
+
+const isEmpty = computed(
+  () => !loading.value && mainReorderableItems.value.length === 0,
+)
+const showOffline = computed(() => isEmpty.value && isOffline.value)
 </script>
 
 <template>
-  <EmptyState
-    v-if="showEmptyState"
-    :icon="FolderIcon"
-    entity-id="collections"
-    class="flex-1"
-  />
+  <div v-if="loading" class="flex-1 flex items-center justify-center py-12">
+    <Spinner />
+  </div>
 
-  <Layers v-else />
+  <div v-else-if="isEmpty" class="min-h-full flex items-start justify-center p-4">
+    <EmptyState
+      :icon="Layers3Icon"
+      :title="t('layers.empty.title')"
+      :description="t('layers.empty.description')"
+      :offline="showOffline"
+      class="mt-20"
+      @retry="load"
+    >
+      <Button size="sm" variant="outline" class="gap-1.5" @click="storeOpen = true">
+        <StoreIcon class="size-3" />
+        {{ t('layers.store.title') }}
+      </Button>
+    </EmptyState>
+  </div>
+
+  <div v-else class="min-h-full flex flex-col gap-2">
+    <div class="flex items-center gap-2">
+      <div class="relative flex-1">
+        <SearchIcon
+          class="absolute left-2.5 top-3 size-4 text-muted-foreground"
+        />
+        <Input
+          v-model="searchQuery"
+          class="w-full pl-8"
+          :placeholder="t('layers.search.placeholder')"
+        />
+      </div>
+      <Button
+        variant="outline"
+        size="icon"
+        class="h-10 w-10"
+        :aria-label="t('layers.store.title')"
+        :title="t('layers.store.title')"
+        @click="storeOpen = true"
+      >
+        <StoreIcon class="h-4 w-4" />
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" size="icon" class="h-10 w-10">
+            <PlusIcon class="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem @click="newLayer">
+            <LayersIcon class="size-4" />
+            {{ t('layers.actions.newLayer') }}
+          </DropdownMenuItem>
+          <DropdownMenuItem @click="newGroup">
+            <FolderIcon class="size-4" />
+            {{ t('layers.actions.newGroup') }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+    <Layers class="flex-1 min-h-0" :filter="searchQuery" />
+  </div>
+
+  <LayerStoreDialog v-model:open="storeOpen" />
 </template>

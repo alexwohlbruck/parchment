@@ -1,4 +1,4 @@
-CREATE TABLE "layer_groups" (
+CREATE TABLE IF NOT EXISTS "layer_groups" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"show_in_layer_selector" boolean DEFAULT true NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE "layer_groups" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "layers" (
+CREATE TABLE IF NOT EXISTS "layers" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"type" text DEFAULT 'custom' NOT NULL,

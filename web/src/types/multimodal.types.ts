@@ -1,13 +1,14 @@
 // Frontend types for multimodal trip planning
 // Mirrors the backend types but adapted for frontend use
 
+import type { RouteEdgeSegment } from '@/types/directions.types'
+
 export type VehicleType =
   | 'car'
   | 'bike'
   | 'scooter'
   | 'e-bike'
   | 'e-scooter'
-  | 'wheelchair'
   | 'moped'
   | 'truck'
 
@@ -17,9 +18,25 @@ export type Mode =
   | 'biking'
   | 'transit'
   | 'rideshare'
-  | 'wheelchair'
   | 'paratransit'
   | 'mixed'
+
+// UI-level mode selection (includes 'multi' for all modes)
+export type SelectedMode =
+  | 'multi'
+  | 'walking'
+  | 'driving'
+  | 'biking'
+  | 'transit'
+  | 'rideshare'
+
+export type SortPreference =
+  | 'shortest'
+  | 'earliest_arrival'
+  | 'cheapest'
+  | 'fewest_transfers'
+  | 'least_walking'
+  | 'greenest'
 
 export type WaypointType = 'origin' | 'destination' | 'via'
 
@@ -34,6 +51,7 @@ export interface Coordinate {
 
 export interface TripRequest {
   waypoints: Waypoint[]
+  selectedMode?: SelectedMode // Filter trips by mode
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]
@@ -66,17 +84,94 @@ export interface AccessPoint {
 }
 
 export interface RoutingPreferences {
+  // ── Range preferences (0-1 float, displayed as 5-stop slider) ──
+  // Higher values = more willingness to use that feature
+  highways?: number       // driving: 0=avoid, 1=prefer
+  tolls?: number          // driving: 0=avoid, 1=don't care
+  ferries?: number        // all modes: 0=avoid, 1=prefer
+  hills?: number          // walking/cycling: 0=avoid, 1=prefer
+  surfaceQuality?: number // cycling: 0=any surface, 1=paved only
+  litPaths?: number       // walking: 0=don't care, 1=strongly prefer lit
+  safetyVsSpeed?: number  // cycling: 0=safest (paths), 1=fastest (roads)
+
+  // ── Boolean preferences ──
+  shortest?: boolean
+  preferHOV?: boolean
+  wheelchairAccessible?: boolean
+
+  // ── Numeric/enum preferences ──
+  cyclingSpeed?: number   // kph (5-60)
+  walkingSpeed?: number   // kph (0.5-10)
+  bicycleType?: string    // Road, City, Mountain
+
+  // ── Transit ──
+  maxWalkingDistance?: number // meters
+  maxTransfers?: number
+  transitBufferMinutes?: number // 0-5, minutes to arrive early at stop
+
+  // ── UI state (not sent to routing engine) ──
+  useKnownVehicleLocations?: boolean
+  useKnownParkingLocations?: boolean
+  routingEngine?: string
+
+  // ── Advanced: raw custom_model JSON override ──
+  customModelOverride?: string  // JSON string — if set, replaces auto-generated custom_model
+
+  // ── Legacy boolean fields (deprecated — kept for backward compat with localStorage) ──
   avoidHighways?: boolean
   avoidTolls?: boolean
-  preferHOV?: boolean
   avoidFerries?: boolean
   preferLitPaths?: boolean
   preferPavedPaths?: boolean
   avoidHills?: boolean
-  safetyVsEfficiency?: number // 0 (fastest) to 1 (safest)
-  maxWalkingDistance?: number // meters
-  maxTransfers?: number
-  wheelchairAccessible?: boolean
+  safetyVsEfficiency?: number
+}
+
+// Support level for each routing preference
+// 'range' = engine supports 0-1 float values (render as 5-stop slider)
+// 'boolean' = engine only supports on/off (render as toggle switch)
+// false = engine does not support this preference
+export type PreferenceSupportLevel = 'range' | 'boolean' | false
+
+// Routing engine capability metadata
+export interface RoutingEngineMetadata {
+  supportedPreferences: {
+    highways?: PreferenceSupportLevel
+    tolls?: PreferenceSupportLevel
+    ferries?: PreferenceSupportLevel
+    hills?: PreferenceSupportLevel
+    surfaceQuality?: PreferenceSupportLevel
+    litPaths?: PreferenceSupportLevel
+    safetyVsSpeed?: PreferenceSupportLevel
+    shortest?: PreferenceSupportLevel
+    preferHOV?: PreferenceSupportLevel
+    wheelchairAccessible?: PreferenceSupportLevel
+    cyclingSpeed?: PreferenceSupportLevel
+    walkingSpeed?: PreferenceSupportLevel
+    bicycleType?: PreferenceSupportLevel
+    maxWalkDistance?: PreferenceSupportLevel
+    maxTransfers?: PreferenceSupportLevel
+  }
+  supportedModes: string[]
+  supportedOptimizations?: string[]
+  features?: {
+    alternatives?: boolean
+    traffic?: boolean
+    elevation?: boolean
+    instructions?: boolean
+    matrix?: boolean
+    transit?: boolean
+  }
+  limits?: {
+    maxWaypoints?: number
+    maxAlternatives?: number
+  }
+}
+
+export interface RoutingEngine {
+  integrationId: string
+  name: string
+  metadata: RoutingEngineMetadata | null
 }
 
 export interface TripResponse {
@@ -107,6 +202,11 @@ export interface TripSegment {
   cost?: CurrencyAmount
   co2?: number // grams
   details?: SegmentDetails
+  edgeSegments?: RouteEdgeSegment[]
+  totalElevationGain?: number
+  totalElevationLoss?: number
+  maxElevation?: number
+  minElevation?: number
 }
 
 export interface TripStats {
@@ -127,6 +227,27 @@ export interface SegmentDetails {
   transitDetails?: TransitDetails
   rideshareDetails?: RideshareDetails
   vehicleDetails?: VehicleDetails
+  sharedMobilityDetails?: SharedMobilityDetails
+}
+
+export interface SharedMobilityDetails {
+  provider: string
+  stationName?: string
+  toStationName?: string
+  vehicleType: 'bike' | 'ebike' | 'scooter' | 'car' | 'moped' | 'other'
+  propulsionType?: 'human' | 'electric_assist' | 'electric'
+  stationId?: string
+  availableVehicles?: number
+  availableDocks?: number
+  unlockUri?: string
+  /** Fare from the operator's GBFS pricing feed (estimate). */
+  pricing?: {
+    currency: string
+    unlockPrice: number
+    perMinuteRate: number
+    estimatedCost: number
+    planName?: string
+  }
 }
 
 export interface TransitDetails {
@@ -204,6 +325,29 @@ export type TransitRouteType =
   | 'trolleybus'
   | 'monorail'
 
+/** A live GTFS-RT vehicle position enriched by Barrelman. */
+export interface TransitVehiclePosition {
+  vehicleId: string
+  tripId?: string
+  routeId?: string
+  feedId: string
+  position: { lat: number; lng: number }
+  bearing?: number
+  speed?: number
+  timestamp: string
+  routeColor?: string
+  routeTextColor?: string
+  routeShortName?: string
+  routeType?: TransitRouteType
+  nextStopId?: string
+  nextStopArrival?: string
+  /** Position from the previous GTFS-RT snapshot.
+   *  Allows starting interpolation on first fetch without waiting for a second poll. */
+  previousPosition?: { lat: number; lng: number }
+  /** Timestamp of the previous position snapshot. */
+  previousTimestamp?: string
+}
+
 export type TransitAlertEffect =
   | 'no_service'
   | 'reduced_service'
@@ -233,10 +377,17 @@ export type TransitAlertSeverity = 'info' | 'warning' | 'severe'
 
 export interface RideshareDetails {
   provider: string
+  productId?: string
+  productName?: string
   vehicleType: VehicleType
   estimatedPickupTime?: string
+  pickupEta?: number
   estimatedPrice?: CurrencyAmount
+  priceRange?: { low: CurrencyAmount; high: CurrencyAmount }
+  surgeMultiplier?: number
   bookingUrl?: string
+  expiresAt?: string
+  capacity?: number
 }
 
 export interface VehicleDetails {
@@ -319,6 +470,27 @@ export interface TripPlanningError {
   details?: any
 }
 
+// =============================================================================
+// User Vehicle Management
+// =============================================================================
+
+export type LocationSource = 'manual' | 'inferred' | 'tracker'
+
+export type LocationStaleness = 'fresh' | 'aging' | 'stale' | 'very-stale' | 'unknown'
+
+export interface UserVehicle {
+  id: string
+  type: VehicleType
+  energyType?: EnergyType | null
+  name?: string | null
+  isActive: boolean
+  lastKnownLocation: Coordinate | null
+  locationSource: LocationSource
+  locationUpdatedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 // Utility types for UI
 export interface VehicleTypeInfo {
   type: VehicleType
@@ -350,7 +522,6 @@ export interface ServiceStatus {
     }
   }
   integrations: {
-    routingEngines: string[]
     transitData: string[]
     rideshareProviders: string[]
   }

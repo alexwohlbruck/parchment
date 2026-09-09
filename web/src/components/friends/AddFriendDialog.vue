@@ -177,7 +177,7 @@ function handleClose() {
         </Alert>
 
         <!-- Success -->
-        <Alert v-if="success" class="border-green-500 text-green-600">
+        <Alert v-if="success" class="border-forest-500 text-forest-600">
           <Check class="h-4 w-4" />
           <AlertDescription>{{ t('friends.addDialog.invitationSent') }}</AlertDescription>
         </Alert>

@@ -221,11 +221,30 @@ describe('Ed25519 Signature Operations', () => {
 
     const signature = await signMessage(message, seed)
 
-    // Tamper with the signature
-    const tamperedSignature = signature.slice(0, -2) + 'XX'
+    // Tamper with the signature by flipping a bit in the last byte.
+    // We decode, mutate, and re-encode so the result stays 64 bytes — this
+    // exercises the "valid format, wrong signature" path (returns false),
+    // separate from the "malformed input" path (throws).
+    const rawBin = atob(signature)
+    const bytes = new Uint8Array(rawBin.length)
+    for (let i = 0; i < rawBin.length; i++) bytes[i] = rawBin.charCodeAt(i)
+    bytes[bytes.length - 1] ^= 0x01
+    let rebuilt = ''
+    for (let i = 0; i < bytes.length; i++) rebuilt += String.fromCharCode(bytes[i])
+    const tamperedSignature = btoa(rebuilt)
 
     const isValid = verifySignature(message, tamperedSignature, TEST_PUBLIC_KEY)
     expect(isValid).toBe(false)
+  })
+
+  test('verification throws on malformed signature input', async () => {
+    const message = 'Test message'
+    // Wrong length (not 64 bytes when decoded)
+    expect(() => verifySignature(message, 'YWJj', TEST_PUBLIC_KEY)).toThrow()
+    // Non-base64 signature
+    expect(() =>
+      verifySignature(message, '!!!not base64!!!', TEST_PUBLIC_KEY),
+    ).toThrow()
   })
 
   test('signs federation message format correctly', async () => {

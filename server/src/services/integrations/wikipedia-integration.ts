@@ -12,6 +12,7 @@ import {
 import type { Place } from '../../types/place.types'
 import { WikipediaAdapter } from './adapters/wikipedia-adapter'
 import { SOURCE } from '../../lib/constants'
+import { logError, logWarn, logger } from '../../lib/logger'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -82,7 +83,7 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Wikipedia API:', error)
+      logError('Error testing Wikipedia API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Wikipedia API',
@@ -122,7 +123,10 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
    * @param id The identifier in format "lang:PageTitle" (e.g., "en:Pariser_Platz") or "wikipedia/lang:PageTitle"
    * @returns Place details or null if not found
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    _options?: { language?: string },
+  ): Promise<Place | null> {
     this.ensureInitialized()
 
     try {
@@ -137,11 +141,11 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
       const title = titleParts.join(':')
 
       if (!language || !title) {
-        console.error(`Invalid Wikipedia page identifier: ${pageInfo}`)
+        logError(`Invalid Wikipedia page identifier: ${pageInfo}`)
         return null
       }
 
-      console.log(`Getting place details from Wikipedia for page: ${language}:${title}`)
+      logger.debug(`Getting place details from Wikipedia for page: ${language}:${title}`)
 
       const pageData = await this.getPageData(title, language)
       if (!pageData) return null
@@ -149,7 +153,7 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
       // Use the adapter to convert to standardized Place format
       return this.adapter.placeInfo.adaptPlaceDetails(pageData, title, language)
     } catch (error) {
-      console.error('Error fetching place from Wikipedia:', error)
+      logError('Error fetching place from Wikipedia', error)
       return null
     }
   }
@@ -190,7 +194,7 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
       const page = pages[pageId]
 
       if (!page || page.missing !== undefined) {
-        console.error(`Wikipedia page not found: ${language}:${title}`)
+        logError(`Wikipedia page not found: ${language}:${title}`)
         return null
       }
 
@@ -218,7 +222,7 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
           }
         }
       } catch (error) {
-        console.warn('Failed to get infobox data for Wikipedia page:', title, error)
+        logWarn('Failed to get infobox data for Wikipedia page', error, { title })
       }
 
       return {
@@ -227,7 +231,7 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
         language,
       }
     } catch (error) {
-      console.error('Error fetching Wikipedia page data:', error)
+      logError('Error fetching Wikipedia page data', error)
       return null
     }
   }
@@ -274,7 +278,7 @@ export class WikipediaIntegration implements Integration<WikipediaConfig> {
       
       return Object.keys(infobox).length > 0 ? infobox : null
     } catch (error) {
-      console.warn('Error parsing infobox:', error)
+      logWarn('Error parsing infobox', error)
       return null
     }
   }

@@ -12,8 +12,9 @@ export const friendships = pgTable('friendships', {
   friendEncryptionKey: text('friend_encryption_key'), // Cached X25519 public key
   friendName: text('friend_name'), // Cached display name
   friendPicture: text('friend_picture'), // Cached avatar URL
-  status: text('status').notNull().default('accepted'), // accepted, blocked
+  status: text('status').notNull().default('accepted'), // accepted, blocked, revoked
   establishedAt: timestamp('established_at'),
+  revokedAt: timestamp('revoked_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

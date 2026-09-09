@@ -12,6 +12,8 @@ import {
 import type { Place } from '../../types/place.types'
 import { WikimediaAdapter } from './adapters/wikimedia-adapter'
 import { SOURCE } from '../../lib/constants'
+import { logError, logWarn, logger } from '../../lib/logger'
+import type { Language } from '../../lib/i18n'
 
 // Get version from package.json
 const packageJson = require('../../../package.json')
@@ -83,7 +85,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Wikimedia Commons API:', error)
+      logError('Error testing Wikimedia Commons API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Wikimedia Commons API',
@@ -124,7 +126,12 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
    * @param id The identifier containing category/gallery info (e.g., "category:PariserPlatz" or "gallery:PariserPlatz")
    * @returns Place with images or null if not found
    */
-  private async getPlaceInfo(id: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    id: string,
+    // Language is accepted for interface parity but unused: this returns
+    // Commons images, and nothing in the response is prose shown to the user.
+    _options?: { language?: Language },
+  ): Promise<Place | null> {
     this.ensureInitialized()
 
     try {
@@ -189,7 +196,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
         createdAt: timestamp,
       }
     } catch (error) {
-      console.error('Error fetching place from Wikimedia Commons:', error)
+      logError('Error fetching place from Wikimedia Commons', error)
       return null
     }
   }
@@ -269,10 +276,10 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       // TODO: Implement geographic search by coordinates
       // This would require using a geographic search API or service
-      console.warn('Geographic image search not yet implemented for Wikimedia Commons')
+      logWarn('Geographic image search not yet implemented for Wikimedia Commons')
       return []
     } catch (error) {
-      console.error('Error fetching imagery from Wikimedia Commons:', error)
+      logError('Error fetching imagery from Wikimedia Commons', error)
       return []
     }
   }
@@ -287,7 +294,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
     this.ensureInitialized()
 
     try {
-      console.log(`Getting images from Wikimedia Commons category: ${categoryName}`)
+      logger.debug(`Getting images from Wikimedia Commons category: ${categoryName}`)
 
       // Ensure category has proper prefix
       const fullCategoryName = categoryName.startsWith('Category:') 
@@ -314,7 +321,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
       )
 
       if (!response.data?.query?.pages) {
-        console.warn(`No images found in category: ${categoryName}`)
+        logWarn(`No images found in category: ${categoryName}`)
         return []
       }
 
@@ -328,7 +335,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       return images
     } catch (error) {
-      console.error('Error fetching images from Wikimedia Commons category:', error)
+      logError('Error fetching images from Wikimedia Commons category', error)
       return []
     }
   }
@@ -343,7 +350,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
     this.ensureInitialized()
 
     try {
-      console.log(`Getting images from Wikimedia Commons gallery: ${galleryName}`)
+      logger.debug(`Getting images from Wikimedia Commons gallery: ${galleryName}`)
 
       // For galleries, we need to get the gallery page content and parse it
       const galleryPageResponse = await axios.get(
@@ -407,7 +414,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       return images
     } catch (error) {
-      console.error('Error fetching images from Wikimedia Commons gallery:', error)
+      logError('Error fetching images from Wikimedia Commons gallery', error)
       return []
     }
   }
@@ -433,7 +440,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       return fileNames
     } catch (error) {
-      console.warn('Error parsing gallery content:', error)
+      logWarn('Error parsing gallery content', error)
       return []
     }
   }
@@ -448,7 +455,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
     this.ensureInitialized()
 
     try {
-      console.log(`Searching Wikimedia Commons for images: ${query}`)
+      logger.debug(`Searching Wikimedia Commons for images: ${query}`)
 
       const response = await axios.get(
         'https://commons.wikimedia.org/w/api.php',
@@ -481,7 +488,7 @@ export class WikimediaIntegration implements Integration<WikimediaConfig> {
 
       return images
     } catch (error) {
-      console.error('Error searching Wikimedia Commons images:', error)
+      logError('Error searching Wikimedia Commons images', error)
       return []
     }
   }

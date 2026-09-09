@@ -3,350 +3,423 @@ import { requireAuth } from '../../middleware/auth.middleware'
 import { permissions } from '../../middleware/auth.middleware'
 import { PermissionId } from '../../types/auth.types'
 import * as layersService from '../../services/layers.service'
-import { layerGroups as layerGroupsTable } from '../../schema/layers.schema'
-import { db } from '../../db'
-import { and, eq } from 'drizzle-orm'
-import {
-  IntegrationCapabilityId,
-  IntegrationId,
-} from '../../types/integration.enums'
+import { i18nPlugin } from '../../lib/i18n/plugin'
 
-const app = new Elysia()
+const app = new Elysia().use(i18nPlugin)
 
-// Helper functions for layer operations
-async function ensureGroupId(
-  userId: string,
-  groupName: string | null | undefined,
-): Promise<string | null> {
-  if (!groupName) return null
-  const existing = await db
-    .select()
-    .from(layerGroupsTable)
-    .where(
-      and(
-        eq(layerGroupsTable.userId, userId),
-        eq(layerGroupsTable.name, groupName),
-      ),
-    )
-    .limit(1)
+// Each route is wrapped in .group('') to isolate the permissions()
+// middleware — Elysia's .use() leaks to all subsequent routes otherwise.
 
-  if (existing.length > 0) return existing[0].id
+// ============================================================================
+// USER-OWNED LAYERS (the user's own custom layers)
+// ============================================================================
 
-  const newGroup = await layersService.createLayerGroup({
-    name: groupName,
-    showInLayerSelector: true,
-    visible: false,
-    icon: null,
-    order: 0,
-    userId,
-  })
-  return newGroup.id
-}
-
-// Layer endpoints
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_READ))
-  .get(
-    '/layers',
-    async ({ user }) => {
-      const userLayers = await layersService.getLayers(user.id)
-      return userLayers.filter((l) => {
-        if (l.name && l.name.startsWith('__tombstone__')) return false
-        return true
-      })
-    },
-    {
-      detail: {
-        tags: ['Layers'],
-        summary: 'Get all layers',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_READ))
+    .get(
+      '/layers',
+      async ({ user }) => {
+        const userLayers = await layersService.getLayers(user.id)
+        return userLayers.filter((l) => {
+          if (l.name && l.name.startsWith('__tombstone__')) return false
+          return true
+        })
       },
-    },
-  )
-
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_WRITE))
-  .post(
-    '/layers',
-    async ({ user, body }) => {
-      return await layersService.createLayer({
-        ...body,
-        userId: user.id,
-      })
-    },
-    {
-      body: t.Object({
-        name: t.String(),
-        type: t.Optional(t.String()),
-        engine: t.Optional(t.Array(t.String())),
-        showInLayerSelector: t.Optional(t.Boolean()),
-        visible: t.Optional(t.Boolean()),
-        icon: t.Optional(t.String()),
-        order: t.Number(),
-        groupId: t.Optional(t.Union([t.String(), t.Null()])),
-        configuration: t.Any(),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Create a layer',
+      {
+        detail: { tags: ['Layers'], summary: 'Get user-owned layers' },
       },
-    },
-  )
+    ),
+)
 
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_WRITE))
-  .put(
-    '/layers/:id',
-    async ({ user, params: { id }, body, set }) => {
-      const layer = await layersService.updateLayer(id, user.id, body)
-      if (!layer) {
-        set.status = 404
-        return { error: 'Layer not found' }
-      }
-      return layer
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        name: t.Optional(t.String()),
-        type: t.Optional(t.String()),
-        engine: t.Optional(t.Array(t.String())),
-        showInLayerSelector: t.Optional(t.Boolean()),
-        visible: t.Optional(t.Boolean()),
-        icon: t.Optional(t.String()),
-        order: t.Optional(t.Number()),
-        groupId: t.Optional(t.Union([t.String(), t.Null()])),
-        configuration: t.Optional(t.Any()),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Update a layer',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .post(
+      '/layers',
+      async ({ user, body }) => {
+        return await layersService.createLayer({
+          ...body,
+          userId: user.id,
+        })
       },
-    },
-  )
+      {
+        body: t.Object({
+          name: t.String(),
+          type: t.Optional(t.String()),
+          engine: t.Optional(t.Array(t.String())),
+          showInLayerSelector: t.Optional(t.Boolean()),
+          visible: t.Optional(t.Boolean()),
+          fadeBasemap: t.Optional(t.Boolean()),
+          icon: t.Optional(t.Union([t.String(), t.Null()])),
+          order: t.Number(),
+          groupId: t.Optional(t.Union([t.String(), t.Null()])),
+          configuration: t.Any(),
+          isSubLayer: t.Optional(t.Boolean()),
+          enabled: t.Optional(t.Boolean()),
+          integrationId: t.Optional(t.Union([t.String(), t.Null()])),
+        }),
+        detail: { tags: ['Layers'], summary: 'Create a custom layer' },
+      },
+    ),
+)
 
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_DELETE))
-  .delete(
-    '/layers/:id',
-    async ({ user, params: { id } }) => {
-      await layersService.deleteLayer(id, user.id)
-      return { success: true }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Delete a layer',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .put(
+      '/layers/:id',
+      async ({ user, params: { id }, body, set, t }) => {
+        const layer = await layersService.updateLayer(id, user.id, body)
+        if (!layer) {
+          set.status = 404
+          return { error: t('errors.library.layerNotFound') }
+        }
+        return layer
       },
-    },
-  )
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          name: t.Optional(t.String()),
+          type: t.Optional(t.String()),
+          engine: t.Optional(t.Array(t.String())),
+          showInLayerSelector: t.Optional(t.Boolean()),
+          visible: t.Optional(t.Boolean()),
+          fadeBasemap: t.Optional(t.Boolean()),
+          icon: t.Optional(t.Union([t.String(), t.Null()])),
+          order: t.Optional(t.Number()),
+          groupId: t.Optional(t.Union([t.String(), t.Null()])),
+          configuration: t.Optional(t.Any()),
+          isSubLayer: t.Optional(t.Boolean()),
+          enabled: t.Optional(t.Boolean()),
+          integrationId: t.Optional(t.Union([t.String(), t.Null()])),
+        }),
+        detail: { tags: ['Layers'], summary: 'Update a user-owned layer' },
+      },
+    ),
+)
 
-// Layer group endpoints
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_READ))
-  .get(
-    '/layers/groups',
-    async ({ user }) => {
-      const groups = await layersService.getLayerGroups(user.id)
-      return groups
-    },
-    {
-      detail: {
-        tags: ['Layers'],
-        summary: 'Get all layer groups',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_DELETE))
+    .delete(
+      '/layers/:id',
+      async ({ user, params: { id } }) => {
+        await layersService.deleteLayer(id, user.id)
+        return { success: true }
       },
-    },
-  )
+      {
+        params: t.Object({ id: t.String() }),
+        detail: { tags: ['Layers'], summary: 'Delete a user-owned layer' },
+      },
+    ),
+)
 
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_WRITE))
-  .post(
-    '/layers/groups',
-    async ({ user, body }) => {
-      return await layersService.createLayerGroup({
-        ...body,
-        userId: user.id,
-      })
-    },
-    {
-      body: t.Object({
-        name: t.String(),
-        showInLayerSelector: t.Optional(t.Boolean()),
-        visible: t.Optional(t.Boolean()),
-        icon: t.Optional(t.String()),
-        order: t.Number(),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Create a layer group',
-      },
-    },
-  )
+// ============================================================================
+// LAYER GROUPS (the user's own custom groups)
+// ============================================================================
 
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_WRITE))
-  .put(
-    '/layers/groups/:id',
-    async ({ user, params: { id }, body, set }) => {
-      const group = await layersService.updateLayerGroup(id, user.id, body)
-      if (!group) {
-        set.status = 404
-        return { error: 'Layer group not found' }
-      }
-      return group
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        name: t.Optional(t.String()),
-        showInLayerSelector: t.Optional(t.Boolean()),
-        visible: t.Optional(t.Boolean()),
-        icon: t.Optional(t.String()),
-        order: t.Optional(t.Number()),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Update a layer group',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_READ))
+    .get(
+      '/layers/groups',
+      async ({ user }) => {
+        return await layersService.getLayerGroups(user.id)
       },
-    },
-  )
+      {
+        detail: { tags: ['Layers'], summary: 'Get user-owned layer groups' },
+      },
+    ),
+)
 
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_DELETE))
-  .delete(
-    '/layers/groups/:id',
-    async ({ user, params: { id } }) => {
-      await layersService.deleteLayerGroup(id, user.id)
-      return { success: true }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Delete a layer group',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .post(
+      '/layers/groups',
+      async ({ user, body }) => {
+        return await layersService.createLayerGroup({
+          ...body,
+          userId: user.id,
+        })
       },
-    },
-  )
+      {
+        body: t.Object({
+          name: t.String(),
+          showInLayerSelector: t.Optional(t.Boolean()),
+          visible: t.Optional(t.Boolean()),
+          fadeBasemap: t.Optional(t.Boolean()),
+          icon: t.Optional(t.Union([t.String(), t.Null()])),
+          order: t.Number(),
+          parentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
+          integrationId: t.Optional(t.Union([t.String(), t.Null()])),
+        }),
+        detail: { tags: ['Layers'], summary: 'Create a custom layer group' },
+      },
+    ),
+)
 
-// Move endpoints
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_WRITE))
-  .put(
-    '/layers/:id/move',
-    async ({ user, params: { id }, body }) => {
-      await layersService.moveLayer(
-        user.id,
-        id,
-        body.targetGroupId ?? null,
-        body.targetOrder,
-      )
-      return { success: true }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        targetGroupId: t.Optional(t.Union([t.String(), t.Null()])),
-        targetOrder: t.Number(),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Move a layer',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .put(
+      '/layers/groups/:id',
+      async ({ user, params: { id }, body, set, t }) => {
+        const group = await layersService.updateLayerGroup(id, user.id, body)
+        if (!group) {
+          set.status = 404
+          return { error: t('errors.library.layerGroupNotFound') }
+        }
+        return group
       },
-    },
-  )
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          name: t.Optional(t.String()),
+          showInLayerSelector: t.Optional(t.Boolean()),
+          visible: t.Optional(t.Boolean()),
+          fadeBasemap: t.Optional(t.Boolean()),
+          icon: t.Optional(t.Union([t.String(), t.Null()])),
+          order: t.Optional(t.Number()),
+          parentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
+          integrationId: t.Optional(t.Union([t.String(), t.Null()])),
+        }),
+        detail: {
+          tags: ['Layers'],
+          summary: 'Update a user-owned layer group',
+        },
+      },
+    ),
+)
 
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_WRITE))
-  .put(
-    '/layers/groups/:id/move',
-    async ({ user, params: { id }, body }) => {
-      await layersService.moveLayerGroup(user.id, id, body.targetOrder)
-      return { success: true }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        targetOrder: t.Number(),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Move a layer group',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_DELETE))
+    .delete(
+      '/layers/groups/:id',
+      async ({ user, params: { id } }) => {
+        await layersService.deleteLayerGroup(id, user.id)
+        return { success: true }
       },
-    },
-  )
+      {
+        params: t.Object({ id: t.String() }),
+        detail: {
+          tags: ['Layers'],
+          summary: 'Delete a user-owned layer group',
+        },
+      },
+    ),
+)
 
-// Reordering endpoint
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_WRITE))
-  .put(
-    '/layers/reorder',
-    async ({ user, body }) => {
-      await layersService.reorderLayers(user.id, body)
-      return { success: true }
-    },
-    {
-      body: t.Object({
-        items: t.Array(
-          t.Object({
-            id: t.String(),
-            order: t.Number(),
-            groupId: t.Optional(t.Union([t.String(), t.Null()])),
-          }),
-        ),
-      }),
-      detail: {
-        tags: ['Layers'],
-        summary: 'Reorder layers',
-      },
-    },
-  )
+// ============================================================================
+// MOVE / REORDER (user-owned rows only)
+// ============================================================================
 
-app
-  .use(requireAuth)
-  .use(permissions(PermissionId.LAYERS_WRITE))
-  .post(
-    '/layers/restore-defaults',
-    async ({ user }) => {
-      const userLayers = await layersService.getLayers(user.id)
-      const tombstones = userLayers.filter((l) =>
-        l.name?.startsWith('__tombstone__:'),
-      )
-      let count = 0
-      for (const t of tombstones) {
-        await layersService.deleteLayer(t.id, user.id)
-        count++
-      }
-      return { success: true, restored: count }
-    },
-    {
-      detail: {
-        tags: ['Layers'],
-        summary: 'Restore default layers',
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .put(
+      '/layers/:id/move',
+      async ({ user, params: { id }, body }) => {
+        await layersService.moveLayer(
+          user.id,
+          id,
+          body.targetGroupId ?? null,
+          body.targetOrder,
+        )
+        return { success: true }
       },
-    },
-  )
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          targetGroupId: t.Optional(t.Union([t.String(), t.Null()])),
+          targetOrder: t.Number(),
+        }),
+        detail: { tags: ['Layers'], summary: 'Move a user-owned layer' },
+      },
+    ),
+)
+
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .put(
+      '/layers/groups/:id/move',
+      async ({ user, params: { id }, body }) => {
+        await layersService.moveLayerGroup(
+          user.id,
+          id,
+          body.targetOrder,
+          body.targetParentGroupId,
+        )
+        return { success: true }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          targetOrder: t.Number(),
+          targetParentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
+        }),
+        detail: {
+          tags: ['Layers'],
+          summary: 'Move a user-owned layer group',
+        },
+      },
+    ),
+)
+
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .put(
+      '/layers/reorder',
+      async ({ user, body }) => {
+        await layersService.reorderLayers(user.id, body)
+        return { success: true }
+      },
+      {
+        body: t.Object({
+          items: t.Array(
+            t.Object({
+              id: t.String(),
+              order: t.Number(),
+              groupId: t.Optional(t.Union([t.String(), t.Null()])),
+            }),
+          ),
+        }),
+        detail: {
+          tags: ['Layers'],
+          summary: 'Bulk reorder user-owned rows',
+        },
+      },
+    ),
+)
+
+// ============================================================================
+// DEFAULT TEMPLATES + USER STATE
+// ============================================================================
+
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_READ))
+    .get(
+      '/layers/defaults',
+      async () => {
+        const {
+          DEFAULT_LAYER_TEMPLATES,
+          DEFAULT_GROUP_TEMPLATES,
+          resolveProxyUrls,
+        } = await import('../../constants/default-layers')
+        // SERVER_ORIGIN is the canonical public-origin env everything else uses;
+        // fall back to it so a deployment that sets only SERVER_ORIGIN doesn't
+        // silently emit localhost tile URLs (mixed-content-blocked on https).
+        const serverUrl =
+          process.env.SERVER_URL || process.env.SERVER_ORIGIN || 'http://localhost:5000'
+        return {
+          layers: DEFAULT_LAYER_TEMPLATES.map((t) => ({
+            ...t,
+            configuration: resolveProxyUrls(t.configuration, serverUrl),
+          })),
+          groups: DEFAULT_GROUP_TEMPLATES,
+        }
+      },
+      {
+        detail: { tags: ['Layers'], summary: 'Get default layer templates' },
+      },
+    ),
+)
+
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_READ))
+    .get(
+      '/layers/default-state',
+      async ({ user }) => {
+        return await layersService.getDefaultUserState(user.id)
+      },
+      {
+        detail: {
+          tags: ['Layers'],
+          summary: 'Get user state for default layers/groups',
+        },
+      },
+    ),
+)
+
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .put(
+      '/layers/default-state',
+      async ({ user, body }) => {
+        const { templateId, type, ...patch } = body
+        return await layersService.upsertDefaultUserState(
+          user.id,
+          templateId,
+          type,
+          patch,
+        )
+      },
+      {
+        body: t.Object({
+          templateId: t.String(),
+          type: t.Union([t.Literal('layer'), t.Literal('group')]),
+          hidden: t.Optional(t.Union([t.Boolean(), t.Null()])),
+          visible: t.Optional(t.Union([t.Boolean(), t.Null()])),
+          order: t.Optional(t.Union([t.Number(), t.Null()])),
+          enabled: t.Optional(t.Union([t.Boolean(), t.Null()])),
+          showInLayerSelector: t.Optional(t.Union([t.Boolean(), t.Null()])),
+          groupId: t.Optional(t.Union([t.String(), t.Null()])),
+          parentGroupId: t.Optional(t.Union([t.String(), t.Null()])),
+        }),
+        detail: {
+          tags: ['Layers'],
+          summary: 'Upsert user state for a default template',
+        },
+      },
+    ),
+)
+
+app.group('', (g) =>
+  g
+    .use(requireAuth)
+    .use(permissions(PermissionId.LAYERS_WRITE))
+    .delete(
+      '/layers/default-state',
+      async ({ user, body }) => {
+        await layersService.deleteDefaultUserState(
+          user.id,
+          body.templateId,
+          body.type,
+        )
+        return { success: true }
+      },
+      {
+        body: t.Object({
+          templateId: t.String(),
+          type: t.Union([t.Literal('layer'), t.Literal('group')]),
+        }),
+        detail: {
+          tags: ['Layers'],
+          summary: 'Clear user state for a default template',
+        },
+      },
+    ),
+)
 
 export default app

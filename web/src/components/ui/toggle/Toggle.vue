@@ -32,7 +32,7 @@ const toggleProps = computed(() => {
 })
 
 const { class: className, ...rest } = useAttrs()
-const forwarded = useForwardPropsEmits(toggleProps.value, emits)
+const forwarded = useForwardPropsEmits(toggleProps, emits)
 </script>
 
 <template>

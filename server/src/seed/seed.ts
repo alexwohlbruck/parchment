@@ -1,11 +1,7 @@
 import { db, connection } from '../db'
-import { permissions as permissionsSchema } from '../schema/permissions.schema'
-import { roles as rolesSchema } from '../schema/roles.schema'
 import { users as usersSchema } from '../schema/users.schema'
-import { roleToPermissions } from '../schema/roles-permissions.schema'
 import { usersToRoles } from '../schema/users-roles.schema'
-import { permissions } from './permissions'
-import { roles } from './roles'
+import { syncPermissionsAndRoles } from './sync-permissions'
 
 /**
  * Populate the DB with initial data that is required for the app to work properly,
@@ -13,78 +9,17 @@ import { roles } from './roles'
  * Run this script whenever updating roles or permissions using `bun seed`
  */
 
-// Clean database
-const originalRoleAssignments = await db.select().from(usersToRoles)
-await db.delete(roleToPermissions)
-await db.delete(usersToRoles)
-await db.delete(rolesSchema)
-await db.delete(permissionsSchema)
+await syncPermissionsAndRoles()
+console.info('Permissions and roles synced')
 
-// Create permissions and roles
-const permissionsCount = (
-  await db.insert(permissionsSchema).values(permissions).returning()
-).length
-
-console.info(`✅ Inserted ${permissionsCount} permissions`)
-
-const rolesCount = (await db.insert(rolesSchema).values(roles).returning())
-  .length
-
-console.info(`✅ Inserted ${rolesCount} roles`)
-
-// Assign permissions to roles
-for (const role of roles) {
-  if (role.permissions === '*') {
-    for (const permission of permissions) {
-      await db.insert(roleToPermissions).values({
-        roleId: role.id,
-        permissionId: permission.id,
-      })
-    }
-    console.info(
-      `✅ Assigned all ${permissions.length} permissions to role ${role.id}`,
-    )
-  } else {
-    for (const permission of role.permissions) {
-      await db.insert(roleToPermissions).values({
-        roleId: role.id,
-        permissionId: permission,
-      })
-    }
-    console.info(
-      `✅ Assigned ${role.permissions.length} permissions to role ${role.id}`,
-    )
-  }
-}
-
-// Reassign roles to users
-// TODO: Instead of deleting all roles assignments and recreating, create a diffing algorithm and only update what has changed
-if (originalRoleAssignments.length) {
-  const insertedRoleAssignments = await db
-    .insert(usersToRoles)
-    .values(originalRoleAssignments)
-    .returning()
-
-  const uniqueUsersCount = new Set(
-    insertedRoleAssignments.map((role) => role.userId),
-  ).size
-  const uniqueRolesCount = new Set(
-    insertedRoleAssignments.map((role) => role.roleId),
-  ).size
-
-  console.info(
-    `✅ Assigned ${uniqueRolesCount} roles to ${uniqueUsersCount} users`,
-  )
-}
-
-// Insert initial user if none exist
+// Insert initial user if none exist.
 const users = await db.select().from(usersSchema).limit(1)
 if (users.length === 0) {
-  // Use default values or command line arguments
-  const firstName = process.argv[2] || 'Alex'
-  const lastName = process.argv[3] || 'Wohlbruck'
-  const email = process.argv[4] || 'alexwohlbruck@gmail.com'
-  const picture = process.argv[5] || 'https://github.com/alexwohlbruck.png'
+  // Use env (e.g. APP_TESTER_EMAIL for e2e tests), then argv, then defaults
+  const firstName = (process.env.SEED_FIRST_NAME ?? process.argv[2]) || 'Alex'
+  const lastName = (process.env.SEED_LAST_NAME ?? process.argv[3]) || 'Wohlbruck'
+  const email = (process.env.APP_TESTER_EMAIL ?? process.env.SEED_EMAIL ?? process.argv[4]) || 'alexwohlbruck@gmail.com'
+  const picture = (process.env.SEED_PICTURE ?? process.argv[5]) || 'https://github.com/alexwohlbruck.png'
 
   const [user] = await db
     .insert(usersSchema)
@@ -94,17 +29,21 @@ if (users.length === 0) {
       lastName: lastName!,
       email: email!,
       picture: picture!,
+      // The bootstrap user already has its profile provided here, so mark
+      // onboarding complete — otherwise it's forced through the multi-step
+      // onboarding dialog on first sign-in (and e2e signin never reaches the app).
+      onboardingCompletedAt: new Date(),
     })
     .returning()
 
-  console.info(`✅ Inserted user ${firstName} ${lastName}`)
+  console.info(`Inserted user ${firstName} ${lastName}`)
 
   await db.insert(usersToRoles).values({
     userId: user.id,
     roleId: 'admin',
   })
 
-  console.info(`✅ Assigned admin role to ${firstName} ${lastName}`)
+  console.info(`Assigned admin role to ${firstName} ${lastName}`)
 }
 
 console.log('Seed finished')

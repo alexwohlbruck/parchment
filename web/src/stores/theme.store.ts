@@ -12,39 +12,51 @@ interface Config {
 }
 
 type Color =
-  | 'zinc'
-  | 'slate'
-  | 'stone'
-  | 'gray'
-  | 'neutral'
-  | 'red'
-  | 'rose'
-  | 'orange'
-  | 'green'
-  | 'blue'
-  | 'yellow'
+  | 'parchment'
+  | 'ink'
+  | 'compass'
+  | 'coral'
+  | 'amber'
+  | 'peach'
+  | 'citrine'
+  | 'olive'
+  | 'forest'
+  | 'moss'
+  | 'teal'
+  | 'sky'
+  | 'cobalt'
+  | 'periwinkle'
+  | 'indigo'
   | 'violet'
+  | 'iris'
+  | 'magenta'
 
 export const allColors: Color[] = [
-  'zinc',
-  'rose',
-  'blue',
-  'green',
-  'orange',
-  'red',
-  'slate',
-  'stone',
-  'gray',
-  'neutral',
-  'yellow',
+  'parchment',
+  'ink',
+  'compass',
+  'coral',
+  'amber',
+  'peach',
+  'citrine',
+  'olive',
+  'forest',
+  'moss',
+  'teal',
+  'sky',
+  'cobalt',
+  'periwinkle',
+  'indigo',
   'violet',
+  'iris',
+  'magenta',
 ]
 
 export const allRadii = [0, 0.25, 0.5, 0.75, 1]
 
 export const useThemeStore = defineStore('theme', () => {
   const config = useStorage<Config>('config', {
-    accentColor: 'zinc',
+    accentColor: 'parchment',
     radius: 0.5,
     style: styles[0].name,
   })
@@ -79,7 +91,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   const themePrimary = computed(() => {
     const t = themes.find(t => t.name === accentColor.value)
-    return `hsl(${t?.cssVars[isDark.value ? 'dark' : 'light'].primary})`
+    return `hsl(${t?.primary[isDark.value ? 'dark' : 'light']})`
   })
 
   /* Corner radius */

@@ -14,15 +14,22 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = defineProps<
-  ComboboxInputProps & {
-    class?: HTMLAttributes['class']
-  }
->()
+const props = withDefaults(
+  defineProps<
+    ComboboxInputProps & {
+      class?: HTMLAttributes['class']
+      wrapperClass?: HTMLAttributes['class']
+      hideSearchIcon?: boolean
+    }
+  >(),
+  {
+    hideSearchIcon: false,
+  },
+)
 
 const emits = defineEmits<ComboboxInputEmits>()
 
-const delegatedProps = reactiveOmit(props, 'class')
+const delegatedProps = reactiveOmit(props, 'class', 'wrapperClass', 'hideSearchIcon')
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
@@ -30,9 +37,14 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 <template>
   <div
     data-slot="command-input-wrapper"
-    class="focus-within:ring-ring flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm ring-offset-background transition-shadow focus-within:ring-1 focus-within:ring-inset"
+    :class="cn(
+      'focus-within:ring-ring flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm ring-offset-background depth transition-shadow focus-within:ring-1 focus-within:ring-inset',
+      props.wrapperClass,
+    )"
   >
-    <SearchIcon class="size-4 shrink-0 opacity-50" />
+    <slot name="prefix">
+      <SearchIcon v-if="!hideSearchIcon" class="size-4 shrink-0 opacity-50" />
+    </slot>
     <ComboboxInput
       data-slot="command-input"
       :class="
@@ -45,5 +57,6 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     >
       <slot />
     </ComboboxInput>
+    <slot name="postfix" />
   </div>
 </template>

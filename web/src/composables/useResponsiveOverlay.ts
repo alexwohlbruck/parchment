@@ -10,6 +10,11 @@ export interface ResponsiveOverlayBaseProps {
   showCloseButton?: boolean
   peekHeight?: number | string
   customSnapPoints?: (number | string)[]
+  /**
+   * Mobile only: size the collapsed detent to the content rather than to
+   * `peekHeight`. The content marks its peek region with `useSheetPeek()`.
+   */
+  dynamicPeek?: boolean
 }
 
 /**

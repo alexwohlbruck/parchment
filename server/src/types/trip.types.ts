@@ -1,7 +1,9 @@
 // Multimodal Trip Planner Types
 // Based on detailed requirements specification
 
-import { Coordinate } from './unified-routing.types'
+import { Coordinate, RouteInstruction, RouteEdgeSegment } from './unified-routing.types'
+import type { Language } from '../lib/i18n/i18n.types'
+import type { Place } from './place.types'
 
 // =============================================================================
 // CORE TYPES
@@ -13,7 +15,6 @@ export type VehicleType =
   | 'scooter'
   | 'e-bike'
   | 'e-scooter'
-  | 'wheelchair'
   | 'moped'
   | 'truck'
 
@@ -23,9 +24,17 @@ export type Mode =
   | 'biking'
   | 'transit'
   | 'rideshare'
-  | 'wheelchair'
   | 'paratransit'
   | 'mixed'
+
+// UI-level mode selection (includes 'multi' for all modes)
+export type SelectedMode =
+  | 'multi'
+  | 'walking'
+  | 'driving'
+  | 'biking'
+  | 'transit'
+  | 'rideshare'
 
 export type WaypointType = 'origin' | 'destination' | 'via'
 
@@ -37,8 +46,18 @@ export type EnergyType = 'electric' | 'gas' | 'diesel' | 'hybrid'
 // REQUEST TYPES
 // =============================================================================
 
+export type SortPreference =
+  | 'shortest'
+  | 'earliest_arrival'
+  | 'cheapest'
+  | 'fewest_transfers'
+  | 'least_walking'
+  | 'greenest'
+
 export interface TripRequest {
   waypoints: Waypoint[] // minimum 2
+  selectedMode?: SelectedMode // Filter trips by mode
+  sortPreference?: SortPreference
   routingPreferences?: RoutingPreferences
   availableVehicles?: Vehicle[]
   knownAccessPoints?: AccessPoint[]
@@ -46,6 +65,8 @@ export interface TripRequest {
   preferredArrivalTime?: string // ISO string
   requestId?: string
   timestamp?: string // For reproducibility
+  /** Language code for localized instructions (e.g. en-US, es-ES) */
+  language?: Language
 }
 
 export interface Waypoint {
@@ -53,6 +74,17 @@ export interface Waypoint {
   address?: string
   label?: string
   type: WaypointType
+
+  /** Full Place object when this waypoint is a real OSM POI (e.g. parking). */
+  place?: Place
+
+  // ── Per-waypoint time constraints ──────────────────────────────────
+  /** Earliest departure from this waypoint (ISO 8601). */
+  departAfter?: string
+  /** Latest arrival at this waypoint (ISO 8601). */
+  arriveBy?: string
+  /** Minutes to spend at this waypoint before continuing. */
+  dwellTime?: number
 }
 
 export interface Vehicle {
@@ -71,17 +103,45 @@ export interface AccessPoint {
 }
 
 export interface RoutingPreferences {
-  avoidHighways?: boolean
-  avoidTolls?: boolean
+  // Range preferences (0-1 floats)
+  highways?: number
+  tolls?: number
+  ferries?: number
+  hills?: number
+  surfaceQuality?: number
+  litPaths?: number
+  safetyVsSpeed?: number // 0=safest (prefer paths), 1=fastest (prefer roads)
+
+  // Boolean preferences
+  shortest?: boolean
   preferHOV?: boolean
-  avoidFerries?: boolean
-  preferLitPaths?: boolean
-  preferPavedPaths?: boolean
-  avoidHills?: boolean
-  safetyVsEfficiency?: number // 0 (fastest) to 1 (safest)
+  wheelchairAccessible?: boolean
+
+  // Numeric/enum preferences
+  cyclingSpeed?: number // kph
+  walkingSpeed?: number // kph
+  bicycleType?: string
+
+  // Transit
   maxWalkingDistance?: number // meters
   maxTransfers?: number
-  wheelchairAccessible?: boolean
+  transitBufferMinutes?: number // 0-5, minutes to arrive early at stop
+
+  // UI state
+  useKnownVehicleLocations?: boolean
+  useKnownParkingLocations?: boolean
+  /** Include private/inaccessible parking lots in park-and-ride search. */
+  includePrivateParking?: boolean
+  routingEngine?: string
+
+  // Legacy boolean fields (backward compat)
+  avoidHighways?: boolean
+  avoidTolls?: boolean
+  avoidFerries?: boolean
+  avoidHills?: boolean
+  preferLitPaths?: boolean
+  preferPavedPaths?: boolean
+  safetyVsEfficiency?: number
 }
 
 // =============================================================================
@@ -94,13 +154,25 @@ export interface TripResponse {
   earliestStartTime: string
   latestEndTime: string
   hazards?: Hazard[]
+  warnings?: TripWarning[]
   dataSources: DataSource[]
   requestId?: string
   generatedAt: string
+  /** Vehicles parked during this trip (for return-trip planning). */
+  parkedVehicles?: ParkedVehicle[]
+}
+
+export interface TripWarning {
+  type: 'time_constraint_violated' | 'tight_connection' | 'dwell_time_shortened'
+  waypointIndex: number
+  message: string
+  /** How many seconds over the constraint. Positive = late. */
+  overshootSeconds?: number
 }
 
 export interface TripSegment {
   segmentIndex: number
+  legIndex?: number
   mode: Mode
   ownership?: OwnershipType
   vehicle?: Vehicle
@@ -111,11 +183,37 @@ export interface TripSegment {
   endTime: string
   duration: number // seconds
   distance: number // meters
+  /**
+   * Seconds of waiting folded into this segment, after the moving portion
+   * (e.g. standing at the stop between finishing the walk and the vehicle
+   * departing). duration - waitSeconds = time actually in motion.
+   */
+  waitSeconds?: number
   geometry: any // GeoJSON or encoded polyline
-  instructions: string[]
+  instructions: RouteInstruction[]
   cost?: CurrencyAmount
   co2?: number // grams
   details?: SegmentDetails
+  // Elevation data
+  totalElevationGain?: number // meters
+  totalElevationLoss?: number // meters
+  maxElevation?: number // meters
+  minElevation?: number // meters
+  // Per-edge surface/road/safety data
+  edgeSegments?: RouteEdgeSegment[]
+  /** Station entrance this walk uses (snapped during enrichment). `role`
+   *  is 'enter' for an access walk into a station, 'exit' for an egress
+   *  walk out of one. */
+  stationEntrance?: StationEntranceRef
+}
+
+export interface StationEntranceRef {
+  role: 'enter' | 'exit'
+  name?: string
+  description?: string
+  /** OSM access-point type: subway_entrance, train_station_entrance,
+   *  elevator, etc. */
+  accessType?: string
 }
 
 export interface TripStats {
@@ -133,17 +231,34 @@ export interface CurrencyAmount {
 }
 
 export interface SegmentDetails {
-  // Transit-specific details
   transitDetails?: TransitDetails
-
-  // Rideshare-specific details
   rideshareDetails?: RideshareDetails
-
-  // Vehicle-specific details
   vehicleDetails?: VehicleDetails
-
-  // Multimodal-specific details (for walking → vehicle trips)
+  sharedMobilityDetails?: SharedMobilityDetails
   multimodalSegments?: TripSegment[]
+}
+
+export interface SharedMobilityDetails {
+  provider: string
+  stationName?: string
+  toStationName?: string
+  vehicleType: 'bike' | 'ebike' | 'scooter' | 'car' | 'moped' | 'other'
+  propulsionType?: 'human' | 'electric_assist' | 'electric'
+  stationId?: string
+  availableVehicles?: number
+  availableDocks?: number
+  unlockUri?: string
+  /** Fare from the operator's GBFS pricing feed (estimate). */
+  pricing?: {
+    currency: string
+    /** Base/unlock fee. */
+    unlockPrice: number
+    /** Per-minute rate, for display ("$0.41/min"). */
+    perMinuteRate: number
+    /** Estimated total for this ride. */
+    estimatedCost: number
+    planName?: string
+  }
 }
 
 export interface TransitDetails {
@@ -159,6 +274,17 @@ export interface TransitDetails {
   realTimeData?: boolean
   delay?: number // seconds
   alerts?: TransitAlert[]
+  /** GTFS direction_id ("0"/"1") of this leg — pass to the departures board so
+   *  it shows only departures heading the rider's way. */
+  directionId?: string
+  /**
+   * Interchangeable routes for this leg, when several serve the identical
+   * board→…→alight stop sequence on the same tracks (e.g. the 4 and the 5
+   * express). Present (length > 1) only on merged legs; the frontend renders
+   * "4 or 5" and the trip-detail departure board unions their schedules.
+   * `route` remains the representative (soonest-departing) option.
+   */
+  routeOptions?: TransitRoute[]
 }
 
 export interface TransitRoute {
@@ -250,10 +376,19 @@ export type TransitAlertSeverity = 'info' | 'warning' | 'severe'
 
 export interface RideshareDetails {
   provider: string
+  productId?: string
+  productName?: string
   vehicleType: VehicleType
   estimatedPickupTime?: string
+  /** Seconds until pickup */
+  pickupEta?: number
   estimatedPrice?: CurrencyAmount
+  priceRange?: { low: CurrencyAmount; high: CurrencyAmount }
+  surgeMultiplier?: number
   bookingUrl?: string
+  /** When this estimate becomes stale (ISO 8601). */
+  expiresAt?: string
+  capacity?: number
 }
 
 export interface VehicleDetails {

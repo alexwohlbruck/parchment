@@ -14,9 +14,13 @@ import type {
   Coordinate,
   TravelMode,
 } from '../../../types/unified-routing.types'
-import { getPlaceType } from '../../../lib/place.utils'
+import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
+import { matchTags } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { getPresetFromGeoapifyCategory } from '../mappings/geoapify-preset-mapping'
+import { logError } from '../../../lib/logger'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 
 export interface GeoapifyFeature {
   type: string
@@ -132,14 +136,20 @@ function getOsmId(feature: GeoapifyFeature): string | null {
 export class GeoapifyAdapter {
   // Geocoding and autocomplete methods
   geocoding = {
-    adaptPlaceDetails: (feature: GeoapifyFeature): Place => {
-      return this.adaptPlaceDetails(feature)
+    adaptPlaceDetails: (
+      feature: GeoapifyFeature,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      return this.adaptPlaceDetails(feature, language)
     },
   }
 
   autocomplete = {
-    adaptPlaceDetails: (feature: GeoapifyFeature): Place => {
-      return this.adaptPlaceDetails(feature)
+    adaptPlaceDetails: (
+      feature: GeoapifyFeature,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      return this.adaptPlaceDetails(feature, language)
     },
   }
 
@@ -153,7 +163,10 @@ export class GeoapifyAdapter {
     },
   }
 
-  adaptPlaceDetails(feature: GeoapifyFeature): Place {
+  adaptPlaceDetails(
+    feature: GeoapifyFeature,
+    language: Language = DEFAULT_LANGUAGE,
+  ): Place {
     try {
       const props = feature.properties
       const timestamp = new Date().toISOString()
@@ -167,15 +180,26 @@ export class GeoapifyAdapter {
       }
 
       const address = this.extractAddress(props)
-      const placeType = (props.datasource?.raw && typeof props.datasource.raw === 'object') 
-        ? getPlaceType(props.datasource.raw as Record<string, string>) 
-        : 'unknown'
+      const rawTags = (props.datasource?.raw && typeof props.datasource.raw === 'object')
+        ? props.datasource.raw as Record<string, string>
+        : null
+      const placeType = rawTags ? getPlaceType(rawTags, language) : 'unknown'
+      const presetMatch = rawTags ? matchTags(rawTags) : null
+      const icon = buildPlaceIcon(presetMatch)
 
       const osmId = getOsmId(feature)
       const externalIds: Record<string, string> = {}
       
-      if (props.datasource?.raw?.osm_id) {
-        externalIds.osm = props.datasource.raw.osm_id
+      // Extract OSM ID from datasource.raw (only available in place details API, not reverse geocoding)
+      if (props.datasource?.raw?.osm_id && props.datasource?.raw?.osm_type) {
+        // Map Geoapify OSM type codes to full names
+        const typeMap: Record<string, string> = {
+          'n': 'node',
+          'w': 'way',
+          'r': 'relation',
+        }
+        const osmType = typeMap[props.datasource.raw.osm_type] || 'node'
+        externalIds.osm = `${osmType}/${props.datasource.raw.osm_id}`
       }
       if (props.place_id) {
         externalIds.geoapify = props.place_id
@@ -187,7 +211,7 @@ export class GeoapifyAdapter {
         id: osmId || `geoapify/${props.place_id}`,
         externalIds,
         name: {
-          value: props.name || null,
+          value: getLocalizedName(rawTags, language, props.name) ?? null,
           sourceId: sourceId,
           timestamp,
         },
@@ -197,6 +221,7 @@ export class GeoapifyAdapter {
           sourceId: sourceId,
           timestamp,
         },
+        icon,
         geometry: {
           value: geometry,
           sourceId: sourceId,
@@ -231,7 +256,7 @@ export class GeoapifyAdapter {
 
       return place
     } catch (error) {
-      console.error('Error adapting Geoapify data:', error)
+      logError('Error adapting Geoapify data', error)
 
       const fallbackExternalIds: Record<string, string> = {}
       if (feature.properties?.place_id) {

@@ -5,9 +5,15 @@ import type {
   AttributedValue,
   OpeningHours,
 } from '../../../types/place.types'
-import { getPlaceType } from '../../../lib/place.utils'
+import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
+import { matchTags } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
 import { parseOsmHours } from '../../../lib/hours.utils'
+import type { OpeningHoursContext } from '../../../lib/opening-hours'
+import { isPermanentlyClosedByOsmTags } from '../../../lib/osm-lifecycle'
+import { logError } from '../../../lib/logger'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 
 // TODO: Check all SOURCE.PELIAS and SOURCE.OSM references. Idk what to do with these yet. Pelias can use various sources.
 
@@ -58,20 +64,32 @@ export interface PeliasFeature {
  */
 export class PeliasAdapter {
   autocomplete = {
-    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptPlaceDetails(feature, id)
+    adaptPlaceDetails: (
+      feature: PeliasFeature,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      return this.adaptPlaceDetails(feature, id, language)
     },
   }
 
   placeInfo = {
-    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptPlaceDetails(feature, id)
+    adaptPlaceDetails: (
+      feature: PeliasFeature,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      return this.adaptPlaceDetails(feature, id, language)
     },
   }
 
   geocoding = {
-    adaptPlaceDetails: (feature: PeliasFeature, id?: string): Place => {
-      return this.adaptPlaceDetails(feature, id)
+    adaptPlaceDetails: (
+      feature: PeliasFeature,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
+      return this.adaptPlaceDetails(feature, id, language)
     },
   }
 
@@ -160,16 +178,20 @@ export class PeliasAdapter {
    */
   private extractOpeningHours(
     osmData: Record<string, string>,
+    context: OpeningHoursContext = {},
   ): OpeningHours | null {
-    if (!osmData?.opening_hours) return null
+    // A closed place is worth reporting even with no hours to show — otherwise
+    // the place page stays silent instead of saying the place is gone.
+    if (!osmData?.opening_hours && !isPermanentlyClosedByOsmTags(osmData)) {
+      return null
+    }
 
     try {
-      // Use the OSM hours parser
-      return parseOsmHours({
-        opening_hours: osmData.opening_hours,
-      })
+      // Pass the whole tag map: the parser also reads the lifecycle tags that
+      // mark a place as permanently closed, not just `opening_hours`.
+      return parseOsmHours(osmData, context)
     } catch (error) {
-      console.error('Error processing Pelias opening hours:', error)
+      logError('Error processing Pelias opening hours', error)
       return null
     }
   }
@@ -207,7 +229,11 @@ export class PeliasAdapter {
   /**
    * Core method to transform Pelias API data to unified place format
    */
-  private adaptPlaceDetails(feature: PeliasFeature, id?: string): Place {
+  private adaptPlaceDetails(
+    feature: PeliasFeature,
+    id?: string,
+    language: Language = DEFAULT_LANGUAGE,
+  ): Place {
     try {
       const props = feature.properties
       const osmId = props.source_id
@@ -238,9 +264,12 @@ export class PeliasAdapter {
       // Determine place type
       let placeType = props.layer || 'unknown'
 
+      let presetMatch = null
       if (props.addendum?.osm) {
-        placeType = getPlaceType(props.addendum.osm)
+        placeType = getPlaceType(props.addendum.osm, language)
+        presetMatch = matchTags(props.addendum.osm)
       }
+      const icon = buildPlaceIcon(presetMatch)
 
       // Extract coordinates
       const lng = feature.geometry.coordinates[0]
@@ -254,6 +283,13 @@ export class PeliasAdapter {
           lng,
         },
       }
+
+      const openingHours = this.extractOpeningHours(osmData, {
+        lat,
+        lng,
+        countryCode: props.country_code || props.country_a,
+        region: props.region,
+      })
 
       // Add bounding box if available
       if (feature.bbox) {
@@ -273,7 +309,7 @@ export class PeliasAdapter {
         id: primaryId,
         externalIds,
         name: {
-          value: props.name || null,
+          value: getLocalizedName(props.addendum?.osm, language, props.name) ?? null,
           sourceId: actualSource,
         },
         description: null,
@@ -281,6 +317,7 @@ export class PeliasAdapter {
           value: placeType,
           sourceId: actualSource,
         },
+        icon,
         geometry: {
           value: geometry,
           sourceId: actualSource,
@@ -293,11 +330,8 @@ export class PeliasAdapter {
             }
           : null,
         contactInfo: this.extractContactInfo(osmData),
-        openingHours: this.extractOpeningHours(osmData)
-          ? {
-              value: this.extractOpeningHours(osmData)!,
-              sourceId: actualSource,
-            }
+        openingHours: openingHours
+          ? { value: openingHours, sourceId: actualSource }
           : null,
         amenities: this.extractAmenities(props, osmData),
         sources: [
@@ -314,7 +348,7 @@ export class PeliasAdapter {
 
       return unifiedPlace
     } catch (error) {
-      console.error('Error adapting Pelias data:', error)
+      logError('Error adapting Pelias data', error)
 
       // Determine the actual source for error case
       const actualSource =

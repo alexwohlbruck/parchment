@@ -8,10 +8,12 @@ import {
   SearchCategoryCapability,
   AutocompleteCapability,
   GeocodingCapability,
+  PlaceInfoCapability,
   RoutingCapability,
   MapBounds,
 } from '../../types/integration.types'
 import { Place } from '../../types/place.types'
+import { logError, logger } from '../../lib/logger'
 import {
   RouteRequest,
   UnifiedRoute,
@@ -23,6 +25,8 @@ import {
   GeoapifyRoutingResponse,
 } from './adapters/geoapify-adapter'
 import { getGeoapifyCategory } from './mappings/geoapify-preset-mapping'
+import { SOURCE } from '../../lib/constants'
+import { getLanguageCode, type Language } from '../../lib/i18n'
 
 export interface GeoapifyConfig extends IntegrationConfig {
   apiKey: string
@@ -34,6 +38,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
   protected config: GeoapifyConfig = { apiKey: '' }
   private placesBaseUrl = 'https://api.geoapify.com/v2/places'
   private geocodingBaseUrl = 'https://api.geoapify.com/v1/geocode'
+  private placeDetailsBaseUrl = 'https://api.geoapify.com/v2/place-details'
   private routingBaseUrl = 'https://api.geoapify.com/v1/routing'
 
   readonly integrationId = IntegrationId.GEOAPIFY
@@ -41,6 +46,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     IntegrationCapabilityId.SEARCH_CATEGORY,
     IntegrationCapabilityId.AUTOCOMPLETE,
     IntegrationCapabilityId.GEOCODING,
+    IntegrationCapabilityId.PLACE_INFO, // Used internally for OSM ID extraction only
     IntegrationCapabilityId.ROUTING,
   ]
   readonly capabilities = {
@@ -54,10 +60,46 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       geocode: this.geocode.bind(this),
       reverseGeocode: this.reverseGeocode.bind(this),
     } as GeocodingCapability,
+    placeInfo: {
+      getPlaceInfo: this.getPlaceInfo.bind(this),
+    } as PlaceInfoCapability,
     routing: {
       getRoute: this.getRoute.bind(this),
+      metadata: {
+        supportedPreferences: {
+          avoidHighways: true,
+          avoidTolls: true,
+          avoidFerries: true,
+          avoidUnpaved: false,
+          avoidHills: false,
+          preferHOV: false,
+          preferLitPaths: false,
+          preferPavedPaths: false,
+          safetyVsEfficiency: true, // Maps to route type (balanced/short)
+          maxWalkDistance: false, // Only for transit
+          maxTransfers: false, // Only for transit
+          wheelchairAccessible: false, // Only for transit
+        },
+        supportedModes: ['driving', 'walking', 'cycling', 'motorcycle'],
+        supportedOptimizations: ['time', 'distance', 'balanced'],
+        features: {
+          alternatives: false,
+          traffic: true, // Supports approximated traffic
+          elevation: true, // For cycling and walking
+          instructions: true,
+          matrix: false,
+          transit: false,
+        },
+        limits: {
+          maxWaypoints: 50,
+          maxAlternatives: 0,
+        },
+      },
     } as RoutingCapability,
   }
+  // Note: Empty sources array - Geoapify is not a primary data source
+  // It's used for geocoding, search, and routing, but place details come from OSM
+  readonly sources: Source[] = []
 
   initialize(config: GeoapifyConfig): void {
     if (!this.validateConfig(config)) {
@@ -104,7 +146,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         }
       }
     } catch (error: any) {
-      console.error('Error testing Geoapify API:', error)
+      logError('Error testing Geoapify API', error)
       return {
         success: false,
         message: error.response?.data?.message || error.message || 'Failed to connect to Geoapify API',
@@ -119,7 +161,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
   async searchByCategory(
     presetId: string,
     bounds: MapBounds,
-    options?: { limit?: number },
+    options?: { limit?: number; language?: Language },
   ): Promise<Place[]> {
     this.ensureInitialized()
 
@@ -144,10 +186,10 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       }
 
       return response.data.features.map((feature: any) =>
-        this.adapter.adaptPlaceDetails(feature),
+        this.adapter.adaptPlaceDetails(feature, options?.language),
       )
     } catch (error) {
-      console.error('Error searching Geoapify places:', error)
+      logError('Error searching Geoapify places', error)
       return []
     }
   }
@@ -171,6 +213,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     options?: {
       radius?: number
       limit?: number
+      language?: Language
     },
   ): Promise<Place[]> {
     this.ensureInitialized()
@@ -206,10 +249,10 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       }
 
       return response.data.features.map((feature: GeoapifyFeature) =>
-        this.adapter.adaptPlaceDetails(feature),
+        this.adapter.adaptPlaceDetails(feature, options?.language),
       )
     } catch (error) {
-      console.error('Error getting Geoapify autocomplete:', error)
+      logError('Error getting Geoapify autocomplete', error)
       return []
     }
   }
@@ -225,6 +268,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
     query: string,
     lat?: number,
     lng?: number,
+    options?: { language?: Language },
   ): Promise<Place[]> {
     this.ensureInitialized()
 
@@ -253,10 +297,10 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       }
 
       return response.data.features.map((feature: GeoapifyFeature) =>
-        this.adapter.adaptPlaceDetails(feature),
+        this.adapter.adaptPlaceDetails(feature, options?.language),
       )
     } catch (error) {
-      console.error('Error geocoding with Geoapify:', error)
+      logError('Error geocoding with Geoapify', error)
       return []
     }
   }
@@ -267,7 +311,11 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
    * @param lng Longitude
    * @returns Array of reverse geocoded places
    */
-  async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+  async reverseGeocode(
+    lat: number,
+    lng: number,
+    options?: { language?: Language },
+  ): Promise<Place[]> {
     this.ensureInitialized()
 
     try {
@@ -287,11 +335,43 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
       }
 
       return response.data.features.map((feature: GeoapifyFeature) =>
-        this.adapter.adaptPlaceDetails(feature),
+        this.adapter.adaptPlaceDetails(feature, options?.language),
       )
     } catch (error) {
-      console.error('Error reverse geocoding with Geoapify:', error)
+      logError('Error reverse geocoding with Geoapify', error)
       return []
+    }
+  }
+
+  /**
+   * Get place details by Geoapify place ID
+   * @param id The Geoapify place ID
+   * @returns Place details or null if not found
+   */
+  async getPlaceInfo(
+    id: string,
+    options?: { language?: Language },
+  ): Promise<Place | null> {
+    this.ensureInitialized()
+
+    try {
+      const url = `${this.placeDetailsBaseUrl}`
+      const params: any = {
+        id,
+        apiKey: this.config.apiKey,
+        format: 'geojson',
+      }
+
+      const response = await axios.get(url, { params })
+
+      if (!response.data?.features?.[0]) {
+        return null
+      }
+
+      return this.adapter.adaptPlaceDetails(response.data.features[0], options?.language)
+    } catch (error) {
+      logError('[Geoapify] Error getting place details', error)
+      return null
     }
   }
 
@@ -316,6 +396,7 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         details += ',elevation'
       }
       
+      const lang = request.language ? getLanguageCode(request.language) : undefined
       const params: any = {
         waypoints: request.waypoints
           .map(wp => `${wp.coordinate.lat},${wp.coordinate.lng}`)
@@ -323,20 +404,53 @@ export class GeoapifyIntegration implements Integration<GeoapifyConfig> {
         mode: this.mapTravelModeToGeoapify(request.mode),
         details,
         apiKey: this.config.apiKey,
+        ...(lang && { lang }),
       }
 
-      // Add vehicle preferences if provided
+      // Add routing preferences if provided
       if (request.preferences) {
+        const avoidOptions: string[] = []
+        
+        // Build avoid parameter according to Geoapify API format
         if (request.preferences.avoidTolls) {
-          params.avoid = params.avoid ? `${params.avoid},tolls` : 'tolls'
+          avoidOptions.push('tolls')
         }
         if (request.preferences.avoidHighways) {
-          params.avoid = params.avoid ? `${params.avoid},highways` : 'highways'
+          avoidOptions.push('highways')
         }
         if (request.preferences.avoidFerries) {
-          params.avoid = params.avoid ? `${params.avoid},ferries` : 'ferries'
+          avoidOptions.push('ferries')
+        }
+        
+        // Join avoid options with pipe separator as per Geoapify docs
+        if (avoidOptions.length > 0) {
+          params.avoid = avoidOptions.join('|')
+        }
+        
+        // Map route optimization preference
+        // Note: Geoapify doesn't have a direct "safety" option, but we can use:
+        // - balanced (default): compromise between time, cost, and distance
+        // - short: optimizes by distance (could be considered "safer" as it minimizes exposure)
+        // - less_maneuvers: fewer turns (could be considered "safer" for some users)
+        if (request.preferences.optimize) {
+          if (request.preferences.optimize === 'distance') {
+            params.type = 'short'
+          } else if (request.preferences.optimize === 'balanced') {
+            params.type = 'balanced'
+          }
+          // 'time' is the default, no need to set type parameter
         }
       }
+
+      logger.debug(
+        {
+          waypoints: params.waypoints,
+          mode: params.mode,
+          avoid: params.avoid,
+          type: params.type,
+        },
+        '[Geoapify] Routing request params',
+      )
 
       const response = await axios.get(url, { params })
 

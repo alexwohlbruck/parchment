@@ -4,7 +4,7 @@ import {
   collections,
   bookmarksCollections,
 } from '../../schema/library.schema'
-import { and, eq, desc, inArray, count, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, count, sql, isNotNull } from 'drizzle-orm'
 import {
   CreateBookmarkParams,
   NewBookmark,
@@ -13,12 +13,13 @@ import {
   NewBookmarkCollection,
 } from '../../types/library.types'
 import { generateId } from '../../util'
-import { getDefaultCollection } from './collections.service'
 import {
   createSelectFieldsWithGeometry,
   createPointFromCoordinates,
 } from '../../util/geometry-conversion'
 import { createBookmarkSearchCondition } from '../../util/text-search.util'
+import { emit } from '../realtime/emit'
+import { logWarn } from '../../lib/logger'
 
 // Automatically generate select fields with geometry conversion - no manual field listing needed!
 const bookmarkSelectFields = createSelectFieldsWithGeometry(bookmarks)
@@ -48,8 +49,9 @@ async function createBookmarkInternal(
       address: params.address,
       geometry: createPointFromCoordinates(params.lat, params.lng),
       icon: params.icon || 'map-pin',
+      iconPack: params.iconPack || 'lucide',
       iconColor: params.iconColor || '#F43F5E',
-      presetType: params.presetType,
+      frequentType: params.frequentType,
       userId: params.userId,
     })
     .returning(bookmarkReturningFields)
@@ -58,51 +60,47 @@ async function createBookmarkInternal(
 }
 
 /**
- * Creates a bookmark and assigns it to specified collections.
- * If no collection IDs are provided, assigns to the default collection.
+ * Creates a bookmark and assigns it to specified collections. Callers must
+ * supply at least one collection — the controller rejects empty input
+ * upstream.
  */
 export async function createBookmark(
   params: CreateBookmarkParams,
-  collectionIds: string[] | undefined,
-  userId: string,
+  collectionIds: string[],
 ): Promise<Bookmark> {
   const bookmark = await createBookmarkInternal(params)
 
-  let targetCollectionIds = collectionIds
+  // Standalone bookmarks (e.g. frequents) carry no collection links.
+  if (collectionIds.length > 0) {
+    const relations: NewBookmarkCollection[] = collectionIds.map(
+      (collectionId) => ({
+        bookmarkId: bookmark.id,
+        collectionId,
+        addedAt: new Date(),
+      }),
+    )
 
-  // Ensure assignment to at least the default collection if none specified
-  if (!targetCollectionIds || targetCollectionIds.length === 0) {
-    const defaultCollection = await getDefaultCollection(userId)
-    if (defaultCollection) {
-      targetCollectionIds = [defaultCollection.id]
-    } else {
-      // Should ideally not happen if ensureDefaultCollection works
-      console.error('Default collection not found for user:', userId)
-      // Return the bookmark without assigning to a collection, or throw error?
-      // For now, returning the bookmark as is.
-      return bookmark
-    }
-  }
-
-  // Add to specified collections
-  const relations: NewBookmarkCollection[] = targetCollectionIds.map(
-    (collectionId) => ({
-      bookmarkId: bookmark.id,
-      collectionId,
-      addedAt: new Date(),
-    }),
-  )
-
-  if (relations.length > 0) {
     await db.insert(bookmarksCollections).values(relations)
-    // Update collection `updatedAt` timestamps
     await db
       .update(collections)
       .set({ updatedAt: new Date() })
-      .where(inArray(collections.id, targetCollectionIds))
+      .where(inArray(collections.id, collectionIds))
   }
 
-  return bookmark
+  // Fan out to everyone who can see any of the target collections. The
+  // payload carries the collectionIds so recipients can link the new
+  // bookmark into their collections store without a follow-up fetch.
+  // (No collections → no recipients; the owner's own device already has it.)
+  await emit.bookmarkAcrossCollections(
+    'bookmark:created',
+    { ...bookmark, collectionIds },
+    collectionIds,
+  )
+
+  // Return the membership too, matching the emit. The map styles a saved
+  // place after its parent collection, so a response without `collectionIds`
+  // leaves the new bookmark looking unfiled until the next full fetch.
+  return { ...bookmark, collectionIds }
 }
 
 /**
@@ -113,7 +111,21 @@ async function updateBookmarkInternal(
   userId: string,
   updates: Partial<Bookmark>,
 ): Promise<Bookmark | undefined> {
-  const { externalIds, userId: _, id: __, lat, lng, ...validUpdates } = updates
+  // `icon` / `iconPack` / `iconColor` are stripped alongside the identity
+  // fields: they describe the bookmarked POI and are stamped once at
+  // creation, so there is no legitimate update that changes them. Dropping
+  // them here means a stale or hand-rolled client can't either.
+  const {
+    externalIds,
+    userId: _,
+    id: __,
+    lat,
+    lng,
+    icon: _icon,
+    iconPack: _iconPack,
+    iconColor: _iconColor,
+    ...validUpdates
+  } = updates
 
   // If lat/lng are provided, convert to geometry
   const updateData: any = { ...validUpdates, updatedAt: new Date() }
@@ -141,14 +153,38 @@ export async function updateBookmark(
 ): Promise<Bookmark | null> {
   const { collectionIds, ...bookmarkUpdates } = updates
 
-  const updatedBookmark = await updateBookmarkInternal(
-    bookmarkId,
-    userId,
-    bookmarkUpdates,
-  )
+  // Separate the two paths:
+  //   - If any bookmark-row fields changed (name, icon, lat/lng, etc.),
+  //     only the bookmark's owner may update those. `updateBookmarkInternal`
+  //     enforces that via its `userId` filter.
+  //   - If ONLY `collectionIds` changed, we're really just editing pivot
+  //     rows. A collection owner or editor should be able to add/remove
+  //     a bookmark from their collection even when someone else created
+  //     it (e.g. Alice removing a bookmark Bob added as editor to her
+  //     shared collection). Skip the bookmark-row update in that case
+  //     and fall through to the membership diff. The controller's
+  //     `assertCanWriteCollections` already gated on collection access.
+  const hasBookmarkFieldChanges = Object.keys(bookmarkUpdates).length > 0
 
-  if (!updatedBookmark) {
-    return null
+  let updatedBookmark: Bookmark | undefined
+  if (hasBookmarkFieldChanges) {
+    updatedBookmark = await updateBookmarkInternal(
+      bookmarkId,
+      userId,
+      bookmarkUpdates,
+    )
+    if (!updatedBookmark) return null
+  } else {
+    // Collection-only update. Look up the row as it stands (no userId
+    // filter — access control has already happened one level up). If
+    // the bookmark doesn't exist at all, null out as before.
+    const [row] = await db
+      .select(bookmarkSelectFields)
+      .from(bookmarks)
+      .where(eq(bookmarks.id, bookmarkId))
+      .limit(1)
+    if (!row) return null
+    updatedBookmark = row as Bookmark
   }
 
   if (collectionIds !== undefined) {
@@ -204,19 +240,70 @@ export async function updateBookmark(
         .where(eq(bookmarksCollections.bookmarkId, bookmarkId))
 
       if (remainingCollectionsCount[0].value === 0) {
-        await unbookmark(bookmarkId, userId)
+        // Bookmark is orphaned — delete the row directly and emit
+        // `bookmark:deleted` with the pre-delete collection set.
+        //
+        // We can't route through `unbookmark(...)` here because its
+        // internal "snapshot former collections" query would come back
+        // empty — the pivot rows were already deleted above. Doing the
+        // delete inline with the captured `currentCollectionIds` is the
+        // straightforward fix (previously this path silently fired no
+        // events, so shared recipients never saw the removal).
+        await db.delete(bookmarks).where(eq(bookmarks.id, bookmarkId))
+        await emit.bookmarkAcrossCollections(
+          'bookmark:deleted',
+          { id: bookmarkId, collectionIds: currentCollectionIds },
+          currentCollectionIds,
+        )
         return null
       }
     }
+
+    // Emit an `unlinked` event to everyone who could see the removed
+    // collections, so shared recipients drop the bookmark from their view
+    // even though the bookmark itself still exists elsewhere.
+    if (collectionsToRemove.length > 0) {
+      await emit.bookmarkAcrossCollections(
+        'bookmark:unlinked',
+        { id: bookmarkId, collectionIds: collectionsToRemove },
+        collectionsToRemove,
+      )
+    }
   }
 
-  return updatedBookmark
+  // Emit to everyone who can currently see the bookmark (the post-update
+  // collection set). The payload carries the current collectionIds so
+  // recipients can sync their collections store's bookmarkIds arrays
+  // without a follow-up fetch.
+  const currentCollectionIds = (
+    await db
+      .select({ collectionId: bookmarksCollections.collectionId })
+      .from(bookmarksCollections)
+      .where(eq(bookmarksCollections.bookmarkId, bookmarkId))
+      .orderBy(desc(bookmarksCollections.addedAt))
+  ).map((row) => row.collectionId)
+  await emit.bookmark(
+    'bookmark:updated',
+    { ...updatedBookmark, collectionIds: currentCollectionIds },
+    bookmarkId,
+  )
+
+  return { ...updatedBookmark, collectionIds: currentCollectionIds }
 }
 
 /**
  * Deletes a bookmark entirely and removes it from all collections.
  */
 export async function unbookmark(id: string, userId: string) {
+  // Snapshot the collection ids before we drop the pivot rows — we need
+  // them to resolve recipients for the delete event.
+  const formerCollectionIds = (
+    await db
+      .select({ collectionId: bookmarksCollections.collectionId })
+      .from(bookmarksCollections)
+      .where(eq(bookmarksCollections.bookmarkId, id))
+  ).map((row) => row.collectionId)
+
   await db
     .delete(bookmarksCollections)
     .where(eq(bookmarksCollections.bookmarkId, id))
@@ -225,6 +312,14 @@ export async function unbookmark(id: string, userId: string) {
     .delete(bookmarks)
     .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
     .returning()
+
+  if (deleted && formerCollectionIds.length > 0) {
+    await emit.bookmarkAcrossCollections(
+      'bookmark:deleted',
+      { id, collectionIds: formerCollectionIds },
+      formerCollectionIds,
+    )
+  }
 
   return deleted
 }
@@ -245,7 +340,7 @@ export async function removeBookmarkFromCollections(
   // Verify the bookmark belongs to the user before proceeding
   const bookmark = await getBookmarkById(bookmarkId, userId)
   if (!bookmark) {
-    console.warn(
+    logWarn(
       `Bookmark ${bookmarkId} not found for user ${userId}. Cannot remove from collections.`,
     )
     return false // Bookmark not found or doesn't belong to user
@@ -270,6 +365,13 @@ export async function removeBookmarkFromCollections(
       .set({ updatedAt: new Date() })
       .where(inArray(collections.id, collectionIds))
 
+    // Notify removed-collection recipients so their view drops the row.
+    await emit.bookmarkAcrossCollections(
+      'bookmark:unlinked',
+      { id: bookmarkId, collectionIds },
+      collectionIds,
+    )
+
     // Check if the bookmark is now orphaned
     const remainingCollectionsCount = await db
       .select({ value: count() })
@@ -277,8 +379,17 @@ export async function removeBookmarkFromCollections(
       .where(eq(bookmarksCollections.bookmarkId, bookmarkId))
 
     if (remainingCollectionsCount[0].value === 0) {
-      // If no collections left, delete the bookmark itself
-      await unbookmark(bookmarkId, userId)
+      // Bookmark is orphaned. Delete the row directly and emit
+      // `bookmark:deleted` with the collection set it *was* in (just
+      // deleted above). Going through `unbookmark(...)` would snapshot
+      // an empty set because the pivot rows are already gone, so its
+      // emit would have no recipients.
+      await db.delete(bookmarks).where(eq(bookmarks.id, bookmarkId))
+      await emit.bookmarkAcrossCollections(
+        'bookmark:deleted',
+        { id: bookmarkId, collectionIds },
+        collectionIds,
+      )
     }
   }
 
@@ -289,9 +400,12 @@ export async function getCollectionsForBookmark(
   bookmarkId: string,
   userId: string,
 ) {
-  const place = await getBookmarkById(bookmarkId, userId)
-  if (!place) return []
-
+  // Don't pre-check bookmark ownership: an editor on a shared collection
+  // adds bookmarks under the collection OWNER's user_id, and we still
+  // want the editor/viewer to see "this bookmark is in these collections"
+  // in their picker. Access control happens at the collection level —
+  // the final filter only returns collections the caller either owns
+  // or has an active share on.
   const bookmarkCollections = await db
     .select()
     .from(bookmarksCollections)
@@ -303,15 +417,50 @@ export async function getCollectionsForBookmark(
     (bc: BookmarkCollection) => bc.collectionId,
   )
 
-  return await db
+  // Split into owned + shared. Owned: straight lookup. Shared: via
+  // incoming_shares. Union of the two is what the caller can see.
+  const { incomingShares } = await import('../../schema/shares.schema')
+  const { or } = await import('drizzle-orm')
+
+  const owned = await db
     .select()
     .from(collections)
     .where(
       and(
         inArray(collections.id, collectionIds),
-        eq(collections.userId, userId), // Ensure collections belong to the user
+        eq(collections.userId, userId),
       ),
     )
+
+  const sharedIdRows = await db
+    .select({ collectionId: incomingShares.resourceId })
+    .from(incomingShares)
+    .where(
+      and(
+        eq(incomingShares.userId, userId),
+        eq(incomingShares.resourceType, 'collection'),
+        inArray(incomingShares.resourceId, collectionIds),
+        or(
+          eq(incomingShares.status, 'accepted'),
+          eq(incomingShares.status, 'pending'),
+        ),
+      ),
+    )
+
+  const sharedIds = sharedIdRows.map((r) => r.collectionId)
+  const shared =
+    sharedIds.length > 0
+      ? await db
+          .select()
+          .from(collections)
+          .where(inArray(collections.id, sharedIds))
+      : []
+
+  // Merge and dedupe by id.
+  const byId = new Map<string, (typeof owned)[number]>()
+  for (const c of owned) byId.set(c.id, c)
+  for (const c of shared) byId.set(c.id, c)
+  return Array.from(byId.values())
 }
 
 export async function findBookmarkByExternalIds(
@@ -356,6 +505,76 @@ export async function findBookmarkByExternalIds(
 }
 
 /**
+ * List the user's frequents (Home/Work/School/custom). These are standalone
+ * bookmarks tagged with `frequentType` and are NOT linked to any collection,
+ * so they need their own fetch (the collection hydrate won't include them).
+ */
+export async function getFrequentBookmarks(userId: string): Promise<Bookmark[]> {
+  const rows = await db
+    .select(bookmarkSelectFields)
+    .from(bookmarks)
+    .where(and(eq(bookmarks.userId, userId), isNotNull(bookmarks.frequentType)))
+  return rows as Bookmark[]
+}
+
+/**
+ * Every bookmark the user owns, with its collection membership attached.
+ *
+ * Backs the map overlay and the client's bookmark store hydration — before
+ * this existed the store was only ever filled opportunistically (on create,
+ * or when a collection view was opened), so a fresh device had no bookmarks
+ * until the user browsed to one.
+ *
+ * Scoped to `bookmarks.user_id`, so bookmarks living in a collection someone
+ * else shared with the caller are NOT included: those rows belong to the
+ * collection owner and need share-level access checks to read.
+ *
+ * Membership is fetched as a second indexed query rather than a GROUP BY —
+ * the select fields are ST_X/ST_Y expressions that don't group cleanly, and
+ * two lookups on a user-sized result set are cheaper than the join blowup.
+ * Each row's `collectionIds` come back most-recently-added first.
+ */
+export async function getBookmarks(
+  userId: string,
+): Promise<Array<Bookmark & { collectionIds: string[] }>> {
+  const rows = (await db
+    .select(bookmarkSelectFields)
+    .from(bookmarks)
+    .where(eq(bookmarks.userId, userId))
+    .orderBy(desc(bookmarks.createdAt))) as Bookmark[]
+
+  if (rows.length === 0) return []
+
+  // Ordered newest-first: the map styles a bookmark after the collection it
+  // was most recently filed into, so `collectionIds[0]` is load-bearing.
+  const links = await db
+    .select({
+      bookmarkId: bookmarksCollections.bookmarkId,
+      collectionId: bookmarksCollections.collectionId,
+    })
+    .from(bookmarksCollections)
+    .where(
+      inArray(
+        bookmarksCollections.bookmarkId,
+        rows.map((b) => b.id),
+      ),
+    )
+    .orderBy(desc(bookmarksCollections.addedAt))
+
+  const byBookmark = new Map<string, string[]>()
+  for (const link of links) {
+    const list = byBookmark.get(link.bookmarkId)
+    if (list) list.push(link.collectionId)
+    else byBookmark.set(link.bookmarkId, [link.collectionId])
+  }
+
+  return rows.map((bookmark) => ({
+    ...bookmark,
+    collectionIds: byBookmark.get(bookmark.id) ?? [],
+  }))
+}
+
+/**
  * Search bookmarks for the given user and query
  */
 export async function searchBookmarks(
@@ -376,7 +595,7 @@ export async function searchBookmarks(
   const searchCondition = createBookmarkSearchCondition(
     bookmarks.name,
     bookmarks.address,
-    bookmarks.presetType,
+    bookmarks.frequentType,
     query,
   )
 

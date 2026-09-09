@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Bookmark } from '@/types/library.types'
+import { isOfflineId } from '@/lib/sync/offline-id'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 
 export const useBookmarksStore = defineStore('bookmarks', () => {
@@ -29,26 +30,58 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     }
   })
 
-  function navigateToBookmark(bookmark: Bookmark) {
-    const osmId = bookmark.externalIds.osm
-    const osmType = bookmark.externalIds.osmType || 'node'
-
-    if (osmId && osmType) {
-      return {
-        name: 'Place',
-        params: { type: osmType, id: osmId },
-      }
-    }
-
-    return null
+  function setBookmarks(places: Bookmark[]) {
+    // A wholesale refresh from the server must not erase rows created
+    // offline — their queued creates haven't replayed yet, so the server
+    // doesn't know about them.
+    const offlineRows = bookmarks.value.filter(
+      b => isOfflineId(b.id) && !places.some(p => p.id === b.id),
+    )
+    bookmarks.value = [...places, ...offlineRows]
   }
 
-  function setBookmarks(places: Bookmark[]) {
-    bookmarks.value = places
+  /**
+   * Swap an offline-created row for the server's version once its queued
+   * create replays, carrying the id change into collection membership.
+   */
+  function replaceBookmark(oldId: string, bookmark: Bookmark) {
+    const index = bookmarks.value.findIndex(b => b.id === oldId)
+    if (index !== -1) {
+      bookmarks.value[index] = mergeBookmark(bookmark, bookmarks.value[index])
+    } else {
+      addBookmark(bookmark)
+    }
+    collectionsStore.remapBookmarkId(oldId, bookmark.id)
+  }
+
+/**
+   * Merge an incoming row over the stored one, keeping `collectionIds` when
+   * the incoming row doesn't carry any.
+   *
+   * Not every endpoint returns membership — `GET /collections/:id` embeds bare
+   * bookmark rows, for instance — and the type documents absent as "membership
+   * unknown", not "belongs to nothing". Overwriting wholesale meant that
+   * merely opening a collection erased what its places belonged to, which the
+   * map reads as unfiled: they'd jump to the Unfiled toggle and lose their
+   * collection's icon and colour until the next full fetch.
+   */
+  function mergeBookmark(incoming: Bookmark, existing: Bookmark | undefined) {
+    if (!existing || incoming.collectionIds) return incoming
+    return existing.collectionIds
+      ? { ...incoming, collectionIds: existing.collectionIds }
+      : incoming
   }
 
   function addBookmark(place: Bookmark) {
-    bookmarks.value = [...bookmarks.value, place]
+    // Idempotent by id: the same bookmark can arrive twice — once from the
+    // direct create call and again from its own `bookmark:created` realtime
+    // echo — so replace an existing row instead of appending a duplicate.
+    const index = bookmarks.value.findIndex(b => b.id === place.id)
+    if (index !== -1) {
+      bookmarks.value[index] = mergeBookmark(place, bookmarks.value[index])
+    } else {
+      bookmarks.value = [...bookmarks.value, place]
+    }
   }
 
   function updateBookmark(
@@ -57,7 +90,7 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
   ) {
     const index = bookmarks.value.findIndex(place => place.id === id)
     if (index !== -1) {
-      bookmarks.value[index] = updatedPlace
+      bookmarks.value[index] = mergeBookmark(updatedPlace, bookmarks.value[index])
     }
 
     if (updatedPlace.collectionIds) {
@@ -74,10 +107,10 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
     getBookmarkById,
     getBookmarkByExternalId,
     isPlaceSaved,
-    navigateToBookmark,
     setBookmarks,
     addBookmark,
     updateBookmark,
+    replaceBookmark,
     removeBookmark,
   }
 })

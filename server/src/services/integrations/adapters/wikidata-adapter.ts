@@ -4,6 +4,7 @@ import type {
   PlacePhoto,
 } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
+import { logError } from '../../../lib/logger'
 
 /**
  * Interface for Wikidata entity data
@@ -341,7 +342,7 @@ export class WikidataAdapter {
       const encodedFilename = encodeURIComponent(cleanFilename)
       return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodedFilename}?width=800`
     } catch (error) {
-      console.error('Error converting Wikimedia filename to URL:', error)
+      logError('Error converting Wikimedia filename to URL', error)
       return null
     }
   }

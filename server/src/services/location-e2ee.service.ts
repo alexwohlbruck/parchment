@@ -10,17 +10,17 @@ import { db } from '../db'
 import {
   locationSharingConfig,
   encryptedLocations,
-  locationHistory,
   LocationSharingConfig,
   NewLocationSharingConfig,
   EncryptedLocation,
   NewEncryptedLocation,
-  LocationHistory,
-  NewLocationHistory,
 } from '../schema/location.schema'
 import { friendships } from '../schema/friendships.schema'
 import { generateId } from '../util'
-import { sendFederationMessage } from './federation.service'
+import { buildHandle, sendFederationMessage } from './federation.service'
+import { emit } from './realtime/emit'
+import { users } from '../schema/users.schema'
+import { logger } from '../lib/logger'
 
 // ============================================================================
 // Location Sharing Configuration
@@ -60,31 +60,25 @@ export async function getLocationSharingConfigForFriend(
 }
 
 /**
- * Enable or update location sharing with a friend
+ * Enable or update location sharing with a friend.
+ *
+ * NOTE: the schema still has `refresh_interval` and `expires_at` columns
+ * for backward compat; both are unused by code (real-time push replaced
+ * polling, and expiry was never enforced). New rows use the column
+ * defaults.
  */
 export async function setLocationSharingConfig(
   userId: string,
   friendHandle: string,
-  config: {
-    enabled?: boolean
-    refreshInterval?: number
-    expiresAt?: Date | null
-  },
+  config: { enabled?: boolean },
 ): Promise<LocationSharingConfig> {
-  // Check if config exists
   const existing = await getLocationSharingConfigForFriend(userId, friendHandle)
 
   if (existing) {
-    // Update existing
     const [updated] = await db
       .update(locationSharingConfig)
       .set({
         enabled: config.enabled ?? existing.enabled,
-        refreshInterval: config.refreshInterval ?? existing.refreshInterval,
-        expiresAt:
-          config.expiresAt !== undefined
-            ? config.expiresAt
-            : existing.expiresAt,
         updatedAt: new Date(),
       })
       .where(eq(locationSharingConfig.id, existing.id))
@@ -93,14 +87,11 @@ export async function setLocationSharingConfig(
     return updated
   }
 
-  // Create new
   const newConfig: NewLocationSharingConfig = {
     id: generateId(),
     userId,
     friendHandle,
     enabled: config.enabled ?? true,
-    refreshInterval: config.refreshInterval ?? 60,
-    expiresAt: config.expiresAt ?? null,
   }
 
   const [created] = await db
@@ -112,7 +103,13 @@ export async function setLocationSharingConfig(
 }
 
 /**
- * Disable location sharing with a friend
+ * Disable location sharing with a friend.
+ *
+ * Deletes the sharing config AND the cached ciphertext row, then emits a
+ * `location:cleared` event to the recipient so their UI evicts the marker
+ * immediately (otherwise the last-known position lingers until the next
+ * refetch). Failure to emit must not break the disable; the recipient
+ * will still drop the entry on their next `realtime:reconnected` refetch.
  */
 export async function disableLocationSharing(
   userId: string,
@@ -138,22 +135,35 @@ export async function disableLocationSharing(
       ),
     )
 
+  // Tell the recipient to drop the marker. Best-effort; if the lookup or
+  // emit fails the row is still gone and the next reconnect refetch will
+  // converge state.
+  void publishLocationCleared(userId, friendHandle).catch((err) => {
+    logger.error(
+      { err, userId, friendHandle },
+      'Failed to publish location:cleared realtime event',
+    )
+  })
+
   return result.length > 0
 }
 
-/**
- * Get list of friends who share their location with a user
- */
-export async function getFriendsWhoShareWithMe(
-  userId: string,
-): Promise<string[]> {
-  // Get all friends
-  const userFriends = await db
-    .select({ friendHandle: friendships.friendHandle })
-    .from(friendships)
-    .where(eq(friendships.userId, userId))
+async function publishLocationCleared(
+  senderUserId: string,
+  recipientHandle: string,
+): Promise<void> {
+  const [sender] = await db
+    .select({ alias: users.alias })
+    .from(users)
+    .where(eq(users.id, senderUserId))
+    .limit(1)
+  if (!sender?.alias) return
 
-  return userFriends.map((f) => f.friendHandle)
+  await emit.encryptedLocation(
+    'location:cleared',
+    { senderHandle: buildHandle(sender.alias) },
+    recipientHandle,
+  )
 }
 
 // ============================================================================
@@ -161,16 +171,33 @@ export async function getFriendsWhoShareWithMe(
 // ============================================================================
 
 /**
- * Store encrypted location for a friend
- * Called when user broadcasts their location
+ * Result of an attempted store. `replayed` means the incoming nonce was
+ * not strictly newer than the existing row's — we drop the write and
+ * keep the existing row to defeat replay attacks (federation messages
+ * can be re-sent by an attacker who captured them).
+ */
+export type StoreEncryptedLocationResult =
+  | { stored: true; row: EncryptedLocation }
+  | { stored: false; replayed: true; row: EncryptedLocation }
+
+/**
+ * Store encrypted location for a friend. Called when a user broadcasts.
+ *
+ * Authorization is the caller's responsibility — both the local POST
+ * controller and the federation receive handler must verify friendship
+ * before invoking this.
+ *
+ * Replay protection: the v2 `nonce` carries the sender's RFC 3339
+ * timestamp. We refuse to overwrite a stored row with an equal-or-older
+ * nonce. Without this guard a captured ciphertext could be replayed to
+ * roll the recipient's view back in time.
  */
 export async function storeEncryptedLocation(
   userId: string,
   forFriendHandle: string,
   encryptedLocation: string,
   nonce: string,
-): Promise<EncryptedLocation> {
-  // Upsert
+): Promise<StoreEncryptedLocationResult> {
   const existing = await db
     .select()
     .from(encryptedLocations)
@@ -182,34 +209,78 @@ export async function storeEncryptedLocation(
     )
     .limit(1)
 
+  let row: EncryptedLocation
   if (existing.length > 0) {
+    if (!isNonceNewer(nonce, existing[0].nonce)) {
+      return { stored: false, replayed: true, row: existing[0] }
+    }
     const [updated] = await db
       .update(encryptedLocations)
-      .set({
-        encryptedLocation,
-        nonce,
-        updatedAt: new Date(),
-      })
+      .set({ encryptedLocation, nonce, updatedAt: new Date() })
       .where(eq(encryptedLocations.id, existing[0].id))
       .returning()
-
-    return updated
+    row = updated
+  } else {
+    const newLocation: NewEncryptedLocation = {
+      id: generateId(),
+      userId,
+      forFriendHandle,
+      encryptedLocation,
+      nonce,
+    }
+    const [created] = await db
+      .insert(encryptedLocations)
+      .values(newLocation)
+      .returning()
+    row = created
   }
 
-  const newLocation: NewEncryptedLocation = {
-    id: generateId(),
-    userId,
-    forFriendHandle,
-    encryptedLocation,
-    nonce,
-  }
+  // Push to recipient via realtime (fire-and-forget; failure must not
+  // break the broadcast). Sender handle is built from their alias so the
+  // client can match the row to the friend record.
+  void publishLocationUpdate(row).catch((err) => {
+    logger.error(
+      { err, eventLocationId: row.id },
+      'Failed to publish location:updated realtime event',
+    )
+  })
 
-  const [created] = await db
-    .insert(encryptedLocations)
-    .values(newLocation)
-    .returning()
+  return { stored: true, row }
+}
 
-  return created
+/**
+ * Compare two RFC 3339 timestamps. Returns true iff `incoming` is
+ * strictly newer than `existing`. Falls back to string compare if either
+ * fails to parse — RFC 3339 sorts lexicographically, so this is sound for
+ * well-formed timestamps and conservative (refuses) for malformed ones.
+ */
+function isNonceNewer(incoming: string, existing: string): boolean {
+  const a = Date.parse(incoming)
+  const b = Date.parse(existing)
+  if (Number.isFinite(a) && Number.isFinite(b)) return a > b
+  return incoming > existing
+}
+
+async function publishLocationUpdate(row: EncryptedLocation): Promise<void> {
+  const [sender] = await db
+    .select({ alias: users.alias })
+    .from(users)
+    .where(eq(users.id, row.userId))
+    .limit(1)
+  if (!sender?.alias) return
+
+  await emit.encryptedLocation(
+    'location:updated',
+    {
+      id: row.id,
+      fromUserId: row.userId,
+      senderHandle: buildHandle(sender.alias),
+      encryptedLocation: row.encryptedLocation,
+      nonce: row.nonce,
+      updatedAt: row.updatedAt.toISOString(),
+    },
+    row.forFriendHandle,
+  )
 }
 
 /**
@@ -242,125 +313,70 @@ export interface FriendEncryptedLocation extends EncryptedLocation {
 }
 
 /**
- * Get all encrypted locations stored by friends for a user
- * (Used to display friends on map)
+ * Get all encrypted locations sent TO this user — but only by users who
+ * are still accepted friends. Filtering by friendship at read time is
+ * defense-in-depth: even if a stale or maliciously-planted ciphertext
+ * row existed for a non-friend handle, this won't surface it to the
+ * client.
  */
 export async function getEncryptedLocationsFromFriends(
   userId: string,
 ): Promise<FriendEncryptedLocation[]> {
-  // First get the user's handle
-  const { users } = await import('../schema/users.schema')
   const [user] = await db
     .select({ alias: users.alias })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1)
 
-  if (!user?.alias) {
-    return []
-  }
+  if (!user?.alias) return []
 
-  const { buildHandle } = await import('./federation.service')
-  const userHandle = buildHandle(user.alias)
+  const userHandle = buildHandle(user.alias).toLowerCase()
 
-  // Get encrypted locations where the user is the recipient, joined with sender info
-  const results = await db
-    .select({
-      id: encryptedLocations.id,
-      userId: encryptedLocations.userId,
-      forFriendHandle: encryptedLocations.forFriendHandle,
-      encryptedLocation: encryptedLocations.encryptedLocation,
-      nonce: encryptedLocations.nonce,
-      updatedAt: encryptedLocations.updatedAt,
-      senderAlias: users.alias,
-    })
-    .from(encryptedLocations)
-    .leftJoin(users, eq(users.id, encryptedLocations.userId))
-    .where(eq(encryptedLocations.forFriendHandle, userHandle))
-
-  // Convert to include full sender handle
-  return results.map((r) => ({
-    id: r.id,
-    userId: r.userId,
-    forFriendHandle: r.forFriendHandle,
-    encryptedLocation: r.encryptedLocation,
-    nonce: r.nonce,
-    updatedAt: r.updatedAt,
-    senderHandle: r.senderAlias ? buildHandle(r.senderAlias) : null,
-  }))
-}
-
-// ============================================================================
-// Location History (personal encrypted storage)
-// ============================================================================
-
-/**
- * Store encrypted location in history
- */
-export async function storeLocationHistory(
-  userId: string,
-  encryptedLocation: string,
-  nonce: string,
-  timestamp: Date,
-): Promise<LocationHistory> {
-  const newEntry: NewLocationHistory = {
-    id: generateId(),
-    userId,
-    encryptedLocation,
-    nonce,
-    timestamp,
-  }
-
-  const [created] = await db
-    .insert(locationHistory)
-    .values(newEntry)
-    .returning()
-
-  return created
-}
-
-/**
- * Get encrypted location history for a user
- */
-export async function getLocationHistory(
-  userId: string,
-  options: {
-    startTime?: Date
-    endTime?: Date
-    limit?: number
-  } = {},
-): Promise<LocationHistory[]> {
-  let query = db
-    .select()
-    .from(locationHistory)
-    .where(eq(locationHistory.userId, userId))
-    .orderBy(locationHistory.timestamp)
-
-  if (options.limit) {
-    query = query.limit(options.limit) as typeof query
-  }
-
-  return await query
-}
-
-/**
- * Delete old location history entries
- */
-export async function pruneLocationHistory(
-  userId: string,
-  olderThan: Date,
-): Promise<number> {
-  const result = await db
-    .delete(locationHistory)
-    .where(
-      and(
-        eq(locationHistory.userId, userId),
-        // Note: Date filtering would need sql template for lt comparison
+  const [friendHandles, results] = await Promise.all([
+    // This user's accepted friendships — handles only.
+    db
+      .select({ handle: friendships.friendHandle })
+      .from(friendships)
+      .where(
+        and(
+          eq(friendships.userId, userId),
+          eq(friendships.status, 'accepted'),
+        ),
       ),
-    )
-    .returning()
+    // Encrypted-location rows targeted at this user, joined with the
+    // sender so we can build their handle.
+    db
+      .select({
+        id: encryptedLocations.id,
+        userId: encryptedLocations.userId,
+        forFriendHandle: encryptedLocations.forFriendHandle,
+        encryptedLocation: encryptedLocations.encryptedLocation,
+        nonce: encryptedLocations.nonce,
+        updatedAt: encryptedLocations.updatedAt,
+        senderAlias: users.alias,
+      })
+      .from(encryptedLocations)
+      .leftJoin(users, eq(users.id, encryptedLocations.userId))
+      .where(eq(encryptedLocations.forFriendHandle, userHandle)),
+  ])
 
-  return result.length
+  const friendSet = new Set(friendHandles.map((f) => f.handle.toLowerCase()))
+
+  return results
+    .filter((r) =>
+      r.senderAlias
+        ? friendSet.has(buildHandle(r.senderAlias).toLowerCase())
+        : false,
+    )
+    .map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      forFriendHandle: r.forFriendHandle,
+      encryptedLocation: r.encryptedLocation,
+      nonce: r.nonce,
+      updatedAt: r.updatedAt,
+      senderHandle: r.senderAlias ? buildHandle(r.senderAlias) : null,
+    }))
 }
 
 // ============================================================================
@@ -389,7 +405,7 @@ export async function sendLocationUpdateToFriend(
     })
     return true
   } catch (error) {
-    console.error('Failed to send location update:', error)
+    logger.error({ err: error, fromHandle, toHandle }, 'Failed to send location update')
     return false
   }
 }
@@ -412,7 +428,7 @@ export async function requestLocationFromFriend(
     })
     return true
   } catch (error) {
-    console.error('Failed to request location:', error)
+    logger.error({ err: error, fromHandle, toHandle }, 'Failed to request location')
     return false
   }
 }
@@ -443,12 +459,15 @@ export async function handleIncomingLocationUpdate(
     return { success: false, error: 'Not a friend' }
   }
 
-  await storeEncryptedLocation(
+  const result = await storeEncryptedLocation(
     localUserId,
     senderHandle,
     encryptedLocation,
     nonce,
   )
+  if (!result.stored) {
+    return { success: false, error: 'Replayed nonce' }
+  }
   return { success: true }
 }
 

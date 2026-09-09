@@ -1,0 +1,93 @@
+import type { InitOptions } from 'i18next'
+import { LANGUAGES, DEFAULT_LANGUAGE, type Language } from './i18n.types'
+import enUS from './locales/en-US.json'
+import esES from './locales/es-ES.json'
+
+export { LANGUAGES, DEFAULT_LANGUAGE, type Language }
+
+/** Single source of i18next config — consumed by the Elysia plugin in `./plugin`. */
+export function getI18nInitOptions(): InitOptions {
+  const enUSResource = enUS as Record<string, unknown>
+  const esESResource = esES as Record<string, unknown>
+  return {
+    lng: DEFAULT_LANGUAGE,
+    fallbackLng: {
+      en: ['en-US'],
+      es: ['es-ES'],
+      default: ['en-US'],
+    },
+    supportedLngs: [...LANGUAGES],
+    resources: {
+      'en-US': { translation: enUSResource },
+      'es-ES': { translation: esESResource },
+      en: { translation: enUSResource },
+      es: { translation: esESResource },
+    },
+    interpolation: { escapeValue: false },
+    // Everything lives in the single default namespace, and chip keys are raw
+    // OSM tag keys — `chips.payment:cash_yes`, `chips.diet:vegan_only`. Left on,
+    // i18next would read the `:` as a namespace separator and never find them.
+    nsSeparator: false,
+    // i18next otherwise console.info's a sponsor notice on every init, which
+    // lands in the server logs and in every test run's output.
+    showSupportNotice: false,
+  }
+}
+
+export function getBestLanguage(acceptLanguageHeader?: string): Language {
+  if (!acceptLanguageHeader) return DEFAULT_LANGUAGE
+
+  const languages = acceptLanguageHeader
+    .split(',')
+    .map((lang) => {
+      const [code, qValue] = lang.trim().split(';q=')
+      const quality = qValue ? parseFloat(qValue) : 1.0
+      const normalized =
+        code.split('-')[0].toLowerCase() === 'en'
+          ? 'en-US'
+          : code.split('-')[0].toLowerCase() === 'es'
+            ? 'es-ES'
+            : code.trim()
+      return { code: normalized, quality }
+    })
+    .sort((a, b) => b.quality - a.quality)
+
+  for (const { code } of languages) {
+    if (LANGUAGES.includes(code as Language)) {
+      return code === 'en'
+        ? 'en-US'
+        : code === 'es'
+          ? 'es-ES'
+          : (code as Language)
+    }
+  }
+
+  return DEFAULT_LANGUAGE
+}
+
+export function isValidLanguage(lang: string): boolean {
+  const normalized = lang.split('-')[0].toLowerCase()
+  return ['en', 'es'].includes(normalized)
+}
+
+export function detectLanguage(
+  queryLang?: string,
+  acceptLanguageHeader?: string,
+): Language {
+  if (queryLang) {
+    const normalized =
+      queryLang.split('-')[0].toLowerCase() === 'en'
+        ? 'en-US'
+        : queryLang.split('-')[0].toLowerCase() === 'es'
+          ? 'es-ES'
+          : queryLang
+    if (isValidLanguage(normalized)) return normalized as Language
+  }
+  return getBestLanguage(acceptLanguageHeader)
+}
+
+/** Two-letter language code for external APIs (e.g. OSM, OpenWeatherMap) */
+export function getLanguageCode(lang: string): string {
+  const code = lang.split('-')[0].toLowerCase()
+  return ['en', 'es'].includes(code) ? code : 'en'
+}

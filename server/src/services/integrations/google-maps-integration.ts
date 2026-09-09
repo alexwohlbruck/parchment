@@ -15,6 +15,8 @@ import {
 import type { Place } from '../../types/place.types'
 import { GoogleAdapter } from './adapters/google-adapter'
 import { SOURCE } from '../../lib/constants'
+import { getLanguageCode } from '../../lib/i18n'
+import { logError, logWarn, logger } from '../../lib/logger'
 
 // TODO: Use official Google client SDK for requests
 
@@ -95,7 +97,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       return { success: true }
     } catch (error: any) {
-      console.error('Error testing Google Maps API:', error)
+      logError('Error testing Google Maps API', error)
       return {
         success: false,
         message: error.message || 'Failed to connect to Google Maps API',
@@ -104,18 +106,10 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   }
 
   initialize(config: GoogleMapsConfig): void {
-    console.log(
-      'Google Maps Integration - initialize called with config:',
-      JSON.stringify(config, null, 2),
-    )
+    // Never log `config` — it contains the user's third-party API key.
     this.config = config
-
-    // Set the API key on the adapter for photo URLs
     if (config.apiKey) {
-      console.log('Setting API key on adapter:', config.apiKey)
       this.adapter.setApiKey(config.apiKey)
-    } else {
-      console.log('No API key found in config')
     }
   }
 
@@ -126,21 +120,27 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   /**
    * Get place details by place ID
    * @param placeId The Google Place ID
+   * @param options Optional parameters including language
    * @returns Place details or null if not found
    */
-  private async getPlaceInfo(placeId: string): Promise<Place | null> {
+  private async getPlaceInfo(
+    placeId: string,
+    options?: { language?: string },
+  ): Promise<Place | null> {
     try {
-      console.log('Fetching place details for:', placeId)
-      const url = `${this.baseUrl}/places/${placeId}`
+      logger.debug({ placeId }, 'Fetching Google place details')
+      const lang = options?.language ? getLanguageCode(options.language) : undefined
+      const url = new URL(`${this.baseUrl}/places/${placeId}`)
+      if (lang) url.searchParams.set('languageCode', lang)
 
       const fieldMask =
         'id,displayName,formattedAddress,addressComponents,internationalPhoneNumber,websiteUri,types,photos,rating,userRatingCount,googleMapsUri,priceLevel,businessStatus,editorialSummary,location,dineIn,takeout,delivery,curbsidePickup,servesBreakfast,servesLunch,servesDinner,servesBeer,servesVegetarianFood,servesCocktails,servesCoffee,outdoorSeating,liveMusic,goodForChildren,goodForGroups,restroom,regularOpeningHours,utcOffsetMinutes'
 
-      console.log(
-        'Place Details URL:',
-        url.replace(this.config.apiKey, '[API_KEY]'),
+      logger.debug(
+        { url: url.toString().replace(this.config.apiKey, '[API_KEY]') },
+        'Google Place Details URL',
       )
-      const response = await fetch(url, {
+      const response = await fetch(url.toString(), {
         method: 'GET',
         headers: {
           'X-Goog-Api-Key': this.config.apiKey,
@@ -149,9 +149,9 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       })
 
       if (!response.ok) {
-        console.error(`Google Place Details HTTP error: ${response.status}`)
+        logError(`Google Place Details HTTP error: ${response.status}`)
         if (response.status === 404) {
-          console.warn(`Place not found: ${placeId}`)
+          logWarn(`Place not found: ${placeId}`)
           return null
         }
         throw new Error(`Google API error: ${response.status}`)
@@ -159,19 +159,17 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       const data = await response.json()
       if (data.error) {
-        console.error('Google Place Details API error:', data.error)
+        logError('Google Place Details API error', data.error)
         return null
       }
 
-      console.log(
-        'Place details found for:',
-        placeId,
-        'with location:',
-        !!data.location,
+      logger.debug(
+        { placeId, hasLocation: !!data.location },
+        'Google place details found',
       )
       return this.adapter.placeInfo.adaptPlaceDetails(data)
     } catch (error) {
-      console.error('Google place details error:', error)
+      logError('Google place details error', error)
       return null
     }
   }
@@ -179,16 +177,24 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
   /**
    * Geocode an address to coordinates
    * @param address The address to geocode
+   * @param options Optional parameters including language
    * @returns Array of place results
    */
-  private async geocode(address: string): Promise<Place[]> {
+  private async geocode(
+    address: string,
+    _lat?: number,
+    _lng?: number,
+    options?: { language?: string },
+  ): Promise<Place[]> {
     try {
       // Use the legacy Geocoding API as the new Places API doesn't have direct geocoding
       const url = `https://maps.googleapis.com/maps/api/geocode/json`
-      const params = {
+      const lang = options?.language ? getLanguageCode(options.language) : undefined
+      const params: Record<string, string> = {
         address: address,
         key: this.config.apiKey,
       }
+      if (lang) params.language = lang
 
       const queryString = new URLSearchParams(params).toString()
       const fullUrl = `${url}?${queryString}`
@@ -245,7 +251,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
         }),
       )
     } catch (error) {
-      console.error('Google geocoding error:', error)
+      logError('Google geocoding error', error)
       return []
     }
   }
@@ -254,16 +260,23 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
    * Reverse geocode coordinates to places
    * @param lat Latitude
    * @param lng Longitude
+   * @param options Optional parameters including language
    * @returns Array of place results
    */
-  private async reverseGeocode(lat: number, lng: number): Promise<Place[]> {
+  private async reverseGeocode(
+    lat: number,
+    lng: number,
+    options?: { language?: string },
+  ): Promise<Place[]> {
     try {
       // Use the legacy Geocoding API as the new Places API doesn't have direct reverse geocoding
       const url = `https://maps.googleapis.com/maps/api/geocode/json`
-      const params = {
+      const lang = options?.language ? getLanguageCode(options.language) : undefined
+      const params: Record<string, string> = {
         latlng: `${lat},${lng}`,
         key: this.config.apiKey,
       }
+      if (lang) params.language = lang
 
       const queryString = new URLSearchParams(params).toString()
       const fullUrl = `${url}?${queryString}`
@@ -320,7 +333,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
         }),
       )
     } catch (error) {
-      console.error('Google reverse geocoding error:', error)
+      logError('Google reverse geocoding error', error)
       return []
     }
   }
@@ -340,20 +353,23 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
     options?: {
       radius?: number
       limit?: number
+      language?: string
     },
   ): Promise<Place[]> {
     if (!this.config.apiKey) {
-      console.error('Google Maps API key not configured')
+      logError('Google Maps API key not configured')
       return []
     }
 
     try {
-      console.log(`Searching Google Places for: "${query}"`)
+      logger.debug(`Searching Google Places for: "${query}"`)
+      const lang = options?.language ? getLanguageCode(options.language) : undefined
 
       const url = `${this.baseUrl}/places:searchText`
       const requestBody: any = {
         textQuery: query,
         maxResultCount: options?.limit || 20,
+        ...(lang && { languageCode: lang }),
       }
 
       // Add location bias if coordinates are provided
@@ -373,9 +389,9 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       const fieldMask =
         'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types,places.photos,places.rating,places.userRatingCount,places.googleMapsUri,places.priceLevel,places.businessStatus,places.editorialSummary,places.location,places.dineIn,places.takeout,places.delivery,places.curbsidePickup,places.servesBreakfast,places.servesLunch,places.servesDinner,places.servesBeer,places.servesVegetarianFood,places.servesCocktails,places.servesCoffee,places.outdoorSeating,places.liveMusic,places.goodForChildren,places.goodForGroups,places.restroom,places.regularOpeningHours,places.utcOffsetMinutes'
 
-      console.log(
-        'Google Places Text Search URL:',
-        url.replace(this.config.apiKey, '[API_KEY]'),
+      logger.debug(
+        { url: url.replace(this.config.apiKey, '[API_KEY]') },
+        'Google Places Text Search URL',
       )
 
       const response = await fetch(url, {
@@ -389,7 +405,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
       })
 
       if (!response.ok) {
-        console.error(
+        logError(
           `Google Places Text Search HTTP error: ${response.status}`,
         )
         throw new Error(`Google API error: ${response.status}`)
@@ -397,16 +413,16 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       const data = await response.json()
       if (data.error) {
-        console.error('Google Places Text Search API error:', data.error)
+        logError('Google Places Text Search API error', data.error)
         return []
       }
 
       if (!data.places || data.places.length === 0) {
-        console.log('No places found for query:', query)
+        logger.debug({ query }, 'No Google places found for query')
         return []
       }
 
-      console.log(`Found ${data.places.length} places for query: "${query}"`)
+      logger.debug(`Found ${data.places.length} places for query: "${query}"`)
 
       // Convert results to Place objects using the adapter
       const places = data.places.map((result: any) =>
@@ -415,7 +431,7 @@ export class GoogleMapsIntegration implements Integration<GoogleMapsConfig> {
 
       return places
     } catch (error) {
-      console.error('Google Places Text Search error:', error)
+      logError('Google Places Text Search error', error)
       return []
     }
   }

@@ -5,7 +5,7 @@ import {
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayPositionProps,
 } from '@/composables/useResponsiveOverlay'
-import BottomSheet from '@/components/BottomSheet.vue'
+import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import {
   HoverCard,
   HoverCardContent,
@@ -20,6 +20,7 @@ interface Props
   desktopContentClass?: string
   mobileContentClass?: string
   modal?: boolean
+  fitContent?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -64,7 +65,7 @@ watch(
 <template>
   <!-- Mobile: Bottom Sheet with click trigger -->
   <template v-if="isMobileScreen">
-    <div @click="handleMobileOpenChange(true)">
+    <div class="cursor-pointer" @click="handleMobileOpenChange(true)">
       <slot name="trigger" />
     </div>
 
@@ -73,6 +74,8 @@ watch(
       :modal="props.modal"
       :peek-height="props.peekHeight"
       :custom-snap-points="props.customSnapPoints"
+      :dynamic-peek="props.dynamicPeek"
+      :fit-content="props.fitContent"
       :show-drag-handle="props.showDragHandle"
       :show-close-button="props.showCloseButton"
       :dismissable="true"

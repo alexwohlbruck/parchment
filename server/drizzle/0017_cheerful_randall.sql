@@ -1,4 +1,4 @@
-CREATE TABLE "encrypted_locations" (
+CREATE TABLE IF NOT EXISTS "encrypted_locations" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"for_friend_handle" text NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE "encrypted_locations" (
 	CONSTRAINT "unique_encrypted_location" UNIQUE("user_id","for_friend_handle")
 );
 --> statement-breakpoint
-CREATE TABLE "federated_server" (
+CREATE TABLE IF NOT EXISTS "federated_server" (
 	"id" text PRIMARY KEY NOT NULL,
 	"server_url" text NOT NULL,
 	"server_name" text,
@@ -20,7 +20,7 @@ CREATE TABLE "federated_server" (
 	CONSTRAINT "federated_server_server_url_unique" UNIQUE("server_url")
 );
 --> statement-breakpoint
-CREATE TABLE "location_event" (
+CREATE TABLE IF NOT EXISTS "location_event" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"relationship_id" text NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE "location_event" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "location_history" (
+CREATE TABLE IF NOT EXISTS "location_history" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"encrypted_location" text NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE "location_history" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "location_sharing_config" (
+CREATE TABLE IF NOT EXISTS "location_sharing_config" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"friend_handle" text NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE "location_sharing_config" (
 	CONSTRAINT "unique_location_config" UNIQUE("user_id","friend_handle")
 );
 --> statement-breakpoint
-CREATE TABLE "location_sharing_relationship" (
+CREATE TABLE IF NOT EXISTS "location_sharing_relationship" (
 	"id" text PRIMARY KEY NOT NULL,
 	"sharer_id" text NOT NULL,
 	"sharer_server_url" text,
@@ -77,7 +77,7 @@ CREATE TABLE "location_sharing_relationship" (
 	CONSTRAINT "unique_sharing_relationship" UNIQUE("sharer_id","viewer_id","viewer_federated_id")
 );
 --> statement-breakpoint
-CREATE TABLE "tracked_device" (
+CREATE TABLE IF NOT EXISTS "tracked_device" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"integration_id" text NOT NULL,
@@ -93,7 +93,7 @@ CREATE TABLE "tracked_device" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "user_device" (
+CREATE TABLE IF NOT EXISTS "user_device" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"fingerprint" text NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE "user_device" (
 	CONSTRAINT "unique_user_device_fingerprint" UNIQUE("user_id","fingerprint")
 );
 --> statement-breakpoint
-CREATE TABLE "user_encryption_key" (
+CREATE TABLE IF NOT EXISTS "user_encryption_key" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"public_key" text NOT NULL,
@@ -128,15 +128,15 @@ ALTER TABLE "tracked_device" ADD CONSTRAINT "tracked_device_user_id_users_id_fk"
 ALTER TABLE "tracked_device" ADD CONSTRAINT "tracked_device_integration_id_integrations_id_fk" FOREIGN KEY ("integration_id") REFERENCES "public"."integrations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_device" ADD CONSTRAINT "user_device_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_encryption_key" ADD CONSTRAINT "user_encryption_key_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "idx_encrypted_location_user" ON "encrypted_locations" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "idx_location_user_relationship_timestamp" ON "location_event" USING btree ("user_id","relationship_id","approximate_timestamp");--> statement-breakpoint
-CREATE INDEX "idx_location_user_timestamp" ON "location_event" USING btree ("user_id","approximate_timestamp");--> statement-breakpoint
-CREATE INDEX "idx_location_entity" ON "location_event" USING btree ("entity_type","entity_id");--> statement-breakpoint
-CREATE INDEX "idx_location_history_user_time" ON "location_history" USING btree ("user_id","timestamp");--> statement-breakpoint
-CREATE INDEX "idx_location_config_user" ON "location_sharing_config" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "idx_sharing_sharer" ON "location_sharing_relationship" USING btree ("sharer_id");--> statement-breakpoint
-CREATE INDEX "idx_sharing_viewer" ON "location_sharing_relationship" USING btree ("viewer_id");--> statement-breakpoint
-CREATE INDEX "idx_sharing_status" ON "location_sharing_relationship" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "idx_tracked_devices_user" ON "tracked_device" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "idx_tracked_devices_integration" ON "tracked_device" USING btree ("integration_id");--> statement-breakpoint
-CREATE INDEX "idx_user_devices_user_id" ON "user_device" USING btree ("user_id");
+CREATE INDEX IF NOT EXISTS "idx_encrypted_location_user" ON "encrypted_locations" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_location_user_relationship_timestamp" ON "location_event" USING btree ("user_id","relationship_id","approximate_timestamp");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_location_user_timestamp" ON "location_event" USING btree ("user_id","approximate_timestamp");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_location_entity" ON "location_event" USING btree ("entity_type","entity_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_location_history_user_time" ON "location_history" USING btree ("user_id","timestamp");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_location_config_user" ON "location_sharing_config" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_sharing_sharer" ON "location_sharing_relationship" USING btree ("sharer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_sharing_viewer" ON "location_sharing_relationship" USING btree ("viewer_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_sharing_status" ON "location_sharing_relationship" USING btree ("status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_tracked_devices_user" ON "tracked_device" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_tracked_devices_integration" ON "tracked_device" USING btree ("integration_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_user_devices_user_id" ON "user_device" USING btree ("user_id");

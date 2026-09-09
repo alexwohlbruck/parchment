@@ -1,22 +1,169 @@
 import { CategoryResult } from '../types/search.types'
-import type { SupportedLanguage } from '../lib/i18n'
+import type { Language } from '../lib/i18n/i18n.types'
+import { getLanguageCode } from '../lib/i18n'
+import { getPlaceCategory, resolvePresetIcon } from '../lib/place-categories'
+import { PRESET_NAME_OVERRIDES } from '../lib/osm-presets'
+import { logWarn } from '../lib/logger'
+
+/**
+ * Custom aliases for common colloquial / alternative names not in the iD schema.
+ * Handles plurals, regional spellings, abbreviations, and consumer slang.
+ */
+const CUSTOM_ALIASES: Record<string, string[]> = {
+  // Cycling
+  'amenity/bicycle_parking':  ['bike rack', 'bike racks', 'bike stand', 'bike lock', 'cycle rack', 'bicycle stand', 'bicycle rack', 'cycle parking'],
+  'amenity/bicycle_repair_station': ['bike repair', 'bike fix', 'bicycle fix', 'bike tool station', 'bike pump', 'bike repair stand', 'bicycle repair stand', 'repair stand', 'bike tools'],
+  'amenity/bicycle_rental':   ['bike hire', 'bike share', 'bikeshare', 'cycle hire'],
+  'shop/bicycle':             ['bike shop', 'bike store', 'cycle shop', 'cycling store'],
+
+  // Water / hydration
+  'amenity/drinking_water':   ['water fountain', 'drinking fountain', 'water tap', 'water spigot', 'hydration station', 'fountain', 'water'],
+  'amenity/fountain':         ['water feature', 'decorative fountain', 'splash fountain', 'water fountain'],
+  'amenity/water_point':      ['water station', 'water tap', 'water refill'],
+
+  // Food & drink
+  'amenity/cafe':             ['coffee shop', 'coffeehouse', 'coffee house', 'espresso bar', 'coffee bar', 'tea shop'],
+  'amenity/fast_food':        ['fast food', 'quick service', 'takeaway', 'takeout', 'drive through'],
+  'amenity/bar':              ['pub', 'tavern', 'saloon', 'drinkery', 'cocktail bar', 'sports bar'],
+  'amenity/restaurant':       ['eatery', 'diner', 'dining', 'place to eat'],
+  'amenity/food_court':       ['food hall', 'food court'],
+  'shop/supermarket':         ['grocery store', 'grocery', 'food store', 'market', 'grocer', 'food market'],
+  'shop/convenience':         ['corner store', 'corner shop', 'bodega', 'mini mart', 'convenience store'],
+  'shop/bakery':              ['bread shop', 'pastry shop', 'patisserie'],
+  'shop/alcohol':             ['liquor store', 'off licence', 'bottle shop', 'beer store', 'wine shop'],
+  'amenity/ice_cream':        ['gelato', 'ice cream shop', 'soft serve', 'frozen yogurt', 'froyo'],
+
+  // Health & services
+  'amenity/pharmacy':         ['drugstore', 'chemist', 'drug store', 'apothecary', 'medicine'],
+  'amenity/hospital':         ['emergency room', 'ER', 'A&E', 'medical center', 'medical centre'],
+  'amenity/clinic':           ['urgent care', 'walk-in clinic', 'medical office', 'doctor office'],
+  'amenity/dentist':          ['dental office', 'dental clinic', 'tooth doctor'],
+  'amenity/veterinary':       ['vet', 'animal hospital', 'pet clinic', 'animal clinic'],
+
+  // Money & banking
+  'amenity/atm':              ['cash machine', 'cashpoint', 'ATM machine', 'money machine', 'cash dispenser'],
+  'amenity/bank':             ['bank branch', 'financial institution', 'credit union'],
+  'amenity/bureau_de_change': ['currency exchange', 'money exchange', 'forex'],
+
+  // Transport
+  'amenity/parking':          ['car park', 'parking lot', 'parking garage', 'parking deck', 'garage'],
+  'amenity/fuel':             ['gas station', 'petrol station', 'filling station', 'service station', 'gas'],
+  'amenity/bus_stop':         ['bus shelter', 'transit stop', 'coach stop'],
+  'amenity/taxi':             ['cab stand', 'cab rank', 'taxi stand', 'rideshare', 'uber'],
+  'amenity/car_rental':       ['car hire', 'auto rental', 'rent a car'],
+  'amenity/car_wash':         ['auto wash', 'auto detailing', 'car detailing'],
+  'amenity/charging_station': ['EV charger', 'electric vehicle charger', 'tesla supercharger', 'ev charging'],
+
+  // Facilities / amenities
+  'amenity/toilets':          ['bathroom', 'restroom', 'WC', 'lavatory', 'loo', 'public toilet', 'washroom'],
+  'amenity/bench':            ['seat', 'seating', 'park bench', 'rest area'],
+  'amenity/waste_basket':     ['trash can', 'rubbish bin', 'garbage can', 'litter bin', 'waste bin'],
+  'amenity/recycling':        ['recycle bin', 'recycling bin', 'recycle', 'blue bin'],
+  'amenity/post_box':         ['mailbox', 'mail box', 'letter box', 'post office box'],
+  'amenity/post_office':      ['mail office', 'postal office', 'USPS', 'Royal Mail'],
+
+  // Shopping
+  'shop/mall':                ['shopping mall', 'shopping center', 'shopping centre', 'plaza', 'outlet mall'],
+  'shop/clothes':             ['clothing store', 'apparel store', 'fashion store', 'boutique'],
+  'shop/shoes':               ['shoe store', 'footwear', 'sneaker store', 'boot store'],
+  'shop/electronics':         ['tech store', 'gadget store', 'computer store', 'electronics shop'],
+  'shop/hardware':            ['hardware store', 'home improvement', 'tool store', 'DIY store'],
+  'shop/hairdresser':         ['hair salon', 'barber', 'barbershop', 'salon', 'hair stylist'],
+  'shop/beauty':              ['beauty salon', 'nail salon', 'spa salon'],
+  'shop/pet':                 ['pet store', 'pet shop', 'animal store'],
+
+  // Recreation
+  'leisure/park':             ['public park', 'green space', 'city park', 'garden', 'gardens'],
+  'leisure/playground':       ['kids playground', 'play area', 'jungle gym', 'playpark'],
+  'leisure/swimming_pool':    ['pool', 'public pool', 'lap pool', 'outdoor pool', 'indoor pool'],
+  'leisure/fitness_centre':   ['gym', 'fitness club', 'health club', 'workout', 'CrossFit', 'exercise'],
+  'leisure/sports_centre':    ['sports center', 'sports complex', 'recreation center', 'rec center'],
+  'leisure/dog_park':         ['off leash area', 'dog run', 'off-leash park'],
+  'leisure/fitness_station':  ['outdoor gym', 'exercise station', 'workout station', 'calisthenics', 'pull up bar'],
+  'leisure/picnic_table':     ['picnic area', 'picnic spot', 'picnic bench'],
+  'leisure/golf_course':      ['golf club', 'golf links', 'driving range'],
+  'leisure/stadium':          ['arena', 'sports stadium', 'ballpark', 'amphitheater'],
+  'amenity/theatre':          ['theater', 'playhouse', 'performing arts'],
+  'amenity/cinema':           ['movie theater', 'movies', 'film theater', 'multiplex', 'movie house'],
+
+  // Education
+  'amenity/school':           ['elementary school', 'middle school', 'high school', 'K-12', 'academy'],
+  'amenity/university':       ['college', 'uni', 'campus', 'higher education'],
+  'amenity/library':          ['public library', 'book library', 'lending library'],
+
+  // Lodging
+  'tourism/hotel':            ['inn', 'motel', 'lodge', 'accommodation', 'stay', 'lodging'],
+  'tourism/hostel':           ['backpacker hostel', 'cheap accommodation', 'dormitory'],
+  'tourism/camp_site':        ['campground', 'camping', 'RV park', 'tent site'],
+
+  // Tourism / attractions
+  'tourism/museum':           ['art museum', 'history museum', 'science museum', 'exhibit', 'exhibits'],
+  'tourism/attraction':       ['tourist attraction', 'landmark', 'point of interest', 'sight', 'sightseeing'],
+  'tourism/viewpoint':        ['scenic overlook', 'observation point', 'panoramic view', 'lookout'],
+  'historic/monument':        ['memorial', 'statue', 'obelisk', 'historic monument'],
+
+  // Nature
+  'natural/beach':            ['sandy beach', 'swimming beach', 'seaside', 'waterfront'],
+  'natural/waterfall':        ['falls', 'cascade', 'water falls'],
+  'natural/peak':             ['mountain top', 'summit', 'hilltop'],
+
+  // Places
+  'place/neighbourhood':      ['neighborhood', 'hood', 'district', 'area'],
+  'office/government':        ['government office', 'government building', 'city hall', 'municipal'],
+}
+
+
+/**
+ * Check if two strings are a fuzzy prefix match — one is a prefix of the other
+ * and the length difference is small. Handles plurals in any language without
+ * hardcoded suffix rules:
+ *   "restaurants" ↔ "restaurant" (diff 1) ✓
+ *   "bibliothèques" ↔ "bibliothèque" (diff 1) ✓
+ *   "libraries" ↔ "library" — no prefix relation, but handled by _isFuzzyNearMatch
+ *   "bojangles" ↔ "bar" (diff 6, ratio 0.33) ✗
+ *
+ * Also checks near-matches where the beginning is shared and only the
+ * ending differs slightly (covers "-ies"/"-y", "-ção"/"-ções", etc.).
+ */
+function isFuzzyNearMatch(a: string, b: string): boolean {
+  const longer = a.length >= b.length ? a : b
+  const shorter = a.length >= b.length ? b : a
+
+  // Must be long enough to be meaningful (avoid matching "a" ↔ "abc")
+  if (shorter.length < 3) return false
+
+  // Ratio check: the shorter must be at least 70% of the longer
+  if (shorter.length / longer.length < 0.7) return false
+
+  // Simple prefix: one starts with the other, small diff
+  if (longer.startsWith(shorter)) return true
+
+  // Shared-prefix near match: both share a long common prefix and only
+  // the tail differs. Covers "libraries"↔"library", "pharmacies"↔"pharmacy".
+  // Require at least 70% of the shorter string to match at the start.
+  const minShared = Math.ceil(shorter.length * 0.7)
+  let shared = 0
+  while (shared < shorter.length && shorter[shared] === longer[shared]) shared++
+  return shared >= minShared
+}
 
 interface CachedCategoryData {
   categories: CategoryResult[]
   lastUpdated: string
 }
 
-// Cache by language to avoid recomputing
-const categoryCache = new Map<SupportedLanguage, CachedCategoryData>()
+// Cache by API language code (en, es) to avoid recomputing
+const categoryCache = new Map<string, CachedCategoryData>()
 
 export class CategoryService {
   /**
    * Load all searchable categories/presets from OSM tagging schema
    * Returns categories with translations for the given language
    */
-  loadCategories(language: SupportedLanguage = 'en'): CategoryResult[] {
+  loadCategories(language: Language = 'en-US'): CategoryResult[] {
+    const apiLang = getLanguageCode(language)
     // Check cache first
-    const cached = categoryCache.get(language)
+    const cached = categoryCache.get(apiLang)
     if (cached) {
       return cached.categories
     }
@@ -27,21 +174,21 @@ export class CategoryService {
       // Load presets directly since loadPresets is not exported
       const rawPresets = require('@openstreetmap/id-tagging-schema/dist/presets.min.json')
 
-      // Load translations
+      // Load translations (OSM schema uses two-letter codes)
       let translations: any = {}
       let presetTranslations: any = {}
       try {
-        const rawTranslations = require(`@openstreetmap/id-tagging-schema/dist/translations/${language}.json`)
-        translations = rawTranslations[language] || {}
+        const rawTranslations = require(`@openstreetmap/id-tagging-schema/dist/translations/${apiLang}.json`)
+        translations = rawTranslations[apiLang] || {}
         presetTranslations = translations?.presets?.presets || {}
       } catch (error) {
-        if (language !== 'en') {
+        if (apiLang !== 'en') {
           try {
             const enTranslations = require('@openstreetmap/id-tagging-schema/dist/translations/en.json')
             translations = enTranslations.en || {}
             presetTranslations = translations?.presets?.presets || {}
           } catch (enError) {
-            console.warn('Could not load translations for', language)
+            logWarn('Could not load translations for', undefined, { apiLang })
           }
         }
       }
@@ -91,10 +238,23 @@ export class CategoryService {
         // Build aliases from various sources
         const aliases: string[] = []
 
+        // Rename the presets whose schema wording doesn't suit a map UI,
+        // keeping the original as an alias so it stays searchable.
+        const nameOverride =
+          apiLang === 'en' ? PRESET_NAME_OVERRIDES[presetId] : undefined
+        if (nameOverride && nameOverride !== localizedName) {
+          aliases.push(localizedName)
+          localizedName = nameOverride
+        }
+
         // Add terms from translations if available
         const translationData = presetTranslations[presetId]
         if (translationData?.terms) {
-          aliases.push(...translationData.terms)
+          // terms is a comma-separated string, not an array
+          const termsArray = typeof translationData.terms === 'string'
+            ? translationData.terms.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : translationData.terms
+          aliases.push(...termsArray)
         }
 
         // Add the English name if different from localized name
@@ -113,6 +273,20 @@ export class CategoryService {
           }
         })
 
+        // Merge custom aliases (colloquial / regional / abbreviation overrides)
+        const customAliases = CUSTOM_ALIASES[presetId]
+        if (customAliases) {
+          for (const a of customAliases) {
+            if (!aliases.includes(a)) aliases.push(a)
+          }
+        }
+
+        const rawIcon = preset.icon || 'maki-circle'
+        // By preset rather than by icon name: half the iD schema names an icon
+        // from a pack we do not ship, and the preset's own family answers for
+        // it far better than a pin does.
+        const resolved = resolvePresetIcon(presetId, rawIcon)
+
         const category: CategoryResult = {
           id: presetId,
           type: 'category',
@@ -121,7 +295,10 @@ export class CategoryService {
             preset,
             presetTranslations[presetId],
           ),
-          icon: preset.icon || 'maki-circle',
+          icon: rawIcon,
+          iconName: resolved.icon,
+          iconPack: resolved.iconPack,
+          iconCategory: getPlaceCategory(presetId),
           tags: tags,
           addTags: preset.addTags,
           geometry: preset.geometry || ['point'],
@@ -150,7 +327,7 @@ export class CategoryService {
         categories,
         lastUpdated: new Date().toISOString(),
       }
-      categoryCache.set(language, cacheData)
+      categoryCache.set(apiLang, cacheData)
 
       return categories
     } catch (error) {
@@ -159,11 +336,12 @@ export class CategoryService {
   }
 
   /**
-   * Search categories by name and aliases
+   * Search categories by name and aliases.
+   * Simple substring matching — no fuzzy/stemming to avoid false positives.
    */
   searchCategories(
     query: string,
-    language: SupportedLanguage = 'en',
+    language: Language = 'en',
     maxResults: number = 10,
   ): CategoryResult[] {
     if (!query || query.trim().length === 0) {
@@ -173,60 +351,62 @@ export class CategoryService {
     const categories = this.loadCategories(language)
     const searchTerm = query.toLowerCase().trim()
 
+    return this._scoreCategories(categories, searchTerm, maxResults)
+      .map((match) => match.category)
+  }
+
+  /**
+   * Search categories and return results with their relevance scores.
+   * Used by the search service to interleave categories with other result types.
+   */
+  searchCategoriesWithScores(
+    query: string,
+    language: Language = 'en',
+    maxResults: number = 10,
+  ): Array<{ category: CategoryResult; score: number }> {
+    if (!query || query.trim().length === 0) {
+      return []
+    }
+
+    const categories = this.loadCategories(language)
+    const searchTerm = query.toLowerCase().trim()
+
+    return this._scoreCategories(categories, searchTerm, maxResults)
+  }
+
+  /**
+   * Core scoring logic shared by searchCategories and searchCategoriesWithScores.
+   * Uses substring matching + language-agnostic fuzzy prefix matching for plurals.
+   */
+  private _scoreCategories(
+    categories: CategoryResult[],
+    searchTerm: string,
+    maxResults: number,
+  ): Array<{ category: CategoryResult; score: number }> {
     const matches: Array<{ category: CategoryResult; score: number }> = []
 
     for (const category of categories) {
       let score = 0
       const categoryNameLower = category.name.toLowerCase()
 
-      // Exact name match gets highest score
-      if (categoryNameLower === searchTerm) {
-        score += 1000
-      }
-      // Name starts with query
-      else if (categoryNameLower.startsWith(searchTerm)) {
-        score += 500
-      }
-      // Name contains query (word boundary match gets priority)
-      else if (
-        categoryNameLower.includes(` ${searchTerm}`) ||
-        categoryNameLower.includes(`${searchTerm} `)
-      ) {
-        score += 250
-      }
-      // Name contains query anywhere
-      else if (categoryNameLower.includes(searchTerm)) {
-        score += 100
-      }
+      // Score against name
+      score = Math.max(score, this._scoreMatch(searchTerm, categoryNameLower, 1000, 500, 250, 100))
 
-      // Check aliases with lower priority than main name
+      // Score against aliases
       for (const alias of category.aliases || []) {
-        const aliasLower = alias.toLowerCase()
-        if (aliasLower === searchTerm) {
-          score += 800
-        } else if (aliasLower.startsWith(searchTerm)) {
-          score += 400
-        } else if (
-          aliasLower.includes(` ${searchTerm}`) ||
-          aliasLower.includes(`${searchTerm} `)
-        ) {
-          score += 200
-        } else if (aliasLower.includes(searchTerm)) {
-          score += 80
-        }
+        score = Math.max(score, this._scoreMatch(searchTerm, alias.toLowerCase(), 800, 400, 200, 80))
       }
 
-      // Check tag values with lowest priority
+      // Score against tag values
       for (const tagValue of Object.values(category.tags)) {
-        const tagLower = tagValue.toLowerCase().replace(/_/g, ' ')
+        const tagLower = (tagValue as string).toLowerCase().replace(/_/g, ' ')
         if (tagLower === searchTerm) {
-          score += 150
+          score = Math.max(score, 150)
         } else if (tagLower.includes(searchTerm)) {
-          score += 50
+          score = Math.max(score, 50)
         }
       }
 
-      // Boost score for shorter names (more specific/relevant)
       if (score > 0) {
         const lengthBonus = Math.max(0, 50 - category.name.length)
         score += lengthBonus
@@ -234,11 +414,35 @@ export class CategoryService {
       }
     }
 
-    // Sort by score (descending) and return top results
     return matches
       .sort((a, b) => b.score - a.score)
       .slice(0, maxResults)
-      .map((match) => match.category)
+  }
+
+  /**
+   * Score a query against a target string.
+   * Checks exact match, prefix, word boundary, substring, and fuzzy prefix.
+   * The fuzzy prefix check handles plurals in any language by checking if
+   * one string is a prefix of the other with ≤2 chars difference.
+   */
+  private _scoreMatch(
+    query: string,
+    target: string,
+    exactScore: number,
+    prefixScore: number,
+    wordBoundaryScore: number,
+    containsScore: number,
+  ): number {
+    if (target === query) return exactScore
+    if (target.startsWith(query)) return prefixScore
+    if (target.includes(` ${query}`) || target.includes(`${query} `)) return wordBoundaryScore
+    if (target.includes(query)) return containsScore
+
+    // Fuzzy near-match: handles plurals like "restaurants" ↔ "restaurant"
+    // without language-specific rules. Scored below exact substring.
+    if (isFuzzyNearMatch(query, target)) return Math.round(prefixScore * 0.9)
+
+    return 0
   }
 
   /**
@@ -246,7 +450,7 @@ export class CategoryService {
    */
   getCategoryById(
     categoryId: string,
-    language: SupportedLanguage = 'en',
+    language: Language = 'en',
   ): CategoryResult | null {
     const categories = this.loadCategories(language)
     return categories.find((cat) => cat.id === categoryId) || null
@@ -255,7 +459,7 @@ export class CategoryService {
   /**
    * Clear category cache (useful for testing or language changes)
    */
-  clearCategoryCache(language?: SupportedLanguage): void {
+  clearCategoryCache(language?: Language): void {
     if (language) {
       categoryCache.delete(language)
     } else {

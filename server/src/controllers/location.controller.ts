@@ -1,8 +1,23 @@
 import Elysia, { t } from 'elysia'
-import { requireAuth } from '../middleware/auth.middleware'
+import { permissions } from '../middleware/auth.middleware'
+import { PermissionId } from '../types/auth.types'
+import { makeUserRateLimit } from '../middleware/rate-limit.middleware'
+import { isFriend } from '../services/friends.service'
 import * as locationE2eeService from '../services/location-e2ee.service'
+import { i18nPlugin } from '../lib/i18n/plugin'
 
-const app = new Elysia({ prefix: '/location' })
+const app = new Elysia({ prefix: '/location' }).use(i18nPlugin)
+
+// Rate-limit the broadcast endpoint. Movement-driven gating in the
+// client (2s floor, 3m distance threshold, 5min stationary refresh)
+// caps a well-behaved client to ~30 req/min while moving. 60/min leaves
+// headroom for burst broadcasts (sharing toggle, refresh-and-broadcast)
+// without throttling real usage. Anything above is either a bug or abuse.
+const updateRateLimit = makeUserRateLimit({
+  name: 'location-update',
+  limit: 60,
+  windowMs: 60_000,
+})
 
 // ============================================================================
 // Location Sharing Configuration
@@ -11,11 +26,11 @@ const app = new Elysia({ prefix: '/location' })
 /**
  * Get location sharing config for all friends
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.LOCATION_SHARING)).get(
   '/e2ee/config',
-  async ({ user, error }) => {
+  async ({ user, status, t }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const configs = await locationE2eeService.getLocationSharingConfigs(user.id)
@@ -32,21 +47,17 @@ app.use(requireAuth).get(
 /**
  * Set location sharing config for a friend
  */
-app.use(requireAuth).post(
+app.use(permissions(PermissionId.LOCATION_SHARING)).post(
   '/e2ee/config',
-  async ({ body, user, error }) => {
+  async ({ body, user, status, t }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const config = await locationE2eeService.setLocationSharingConfig(
       user.id,
-      body.friendHandle,
-      {
-        enabled: body.enabled,
-        refreshInterval: body.refreshInterval,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
-      },
+      body.friendHandle.toLowerCase(),
+      { enabled: body.enabled },
     )
 
     return { config }
@@ -55,8 +66,6 @@ app.use(requireAuth).post(
     body: t.Object({
       friendHandle: t.String(),
       enabled: t.Optional(t.Boolean()),
-      refreshInterval: t.Optional(t.Number()),
-      expiresAt: t.Optional(t.String()),
     }),
     detail: {
       tags: ['Location'],
@@ -68,16 +77,16 @@ app.use(requireAuth).post(
 /**
  * Disable location sharing with a friend
  */
-app.use(requireAuth).delete(
+app.use(permissions(PermissionId.LOCATION_SHARING)).delete(
   '/e2ee/config/:friendHandle',
-  async ({ params, user, error }) => {
+  async ({ params, user, status, t }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const deleted = await locationE2eeService.disableLocationSharing(
       user.id,
-      decodeURIComponent(params.friendHandle),
+      decodeURIComponent(params.friendHandle).toLowerCase(),
     )
 
     return { deleted }
@@ -94,79 +103,93 @@ app.use(requireAuth).delete(
 )
 
 // ============================================================================
-// Location Updates (Broadcasting + History)
+// Location Updates (Broadcasting)
 // ============================================================================
 
 /**
- * Update location: broadcast to friends and optionally store in personal history
- * Single endpoint for all location updates
+ * Broadcast encrypted location to friends.
+ *
+ * Each item is processed independently — one bad item (not a friend,
+ * sharing disabled, replay) doesn't fail the whole batch. The response
+ * mirrors that with per-item status/reason.
+ *
+ * Authorization model: a row is stored ONLY when (a) `forFriendHandle`
+ * is an accepted friend of the caller AND (b) the caller has explicitly
+ * enabled sharing with that friend (`locationSharingConfig.enabled =
+ * true`). This is the only authorization gate; without it an
+ * authenticated user could fan ciphertext rows out to any handle and
+ * use realtime delivery as a presence/fingerprint oracle.
  */
-app.use(requireAuth).post(
-  '/e2ee/update',
-  async ({ body, user, error }) => {
-    if (!user) {
-      return error(401, { message: 'Authentication required' })
-    }
+app
+  .use(permissions(PermissionId.LOCATION_SHARING))
+  .use(updateRateLimit)
+  .post(
+    '/e2ee/update',
+    async ({ body, user, status, t }) => {
+      if (!user) {
+        return status(401, { message: t('errors.auth.authenticationRequired') })
+      }
 
-    const results = []
+      const results = await Promise.all(
+        body.locations.map(async (item) => {
+          const friendHandle = item.forFriendHandle.toLowerCase()
+          try {
+            if (!(await isFriend(user.id, friendHandle))) {
+              return { friendHandle, stored: false, reason: 'not-a-friend' as const }
+            }
 
-    // Store encrypted location for each friend
-    for (const item of body.locations) {
-      await locationE2eeService.storeEncryptedLocation(
-        user.id,
-        item.forFriendHandle,
-        item.encryptedLocation,
-        item.nonce,
-      )
-      results.push({ friendHandle: item.forFriendHandle, stored: true })
-    }
+            const config =
+              await locationE2eeService.getLocationSharingConfigForFriend(
+                user.id,
+                friendHandle,
+              )
+            if (!config?.enabled) {
+              return { friendHandle, stored: false, reason: 'not-enabled' as const }
+            }
 
-    // Store in personal history if provided
-    let historyId: string | null = null
-    if (body.history) {
-      const entry = await locationE2eeService.storeLocationHistory(
-        user.id,
-        body.history.encryptedLocation,
-        body.history.nonce,
-        new Date(body.history.timestamp),
-      )
-      historyId = entry.id
-    }
-
-    return { results, historyId }
-  },
-  {
-    body: t.Object({
-      locations: t.Array(
-        t.Object({
-          forFriendHandle: t.String(),
-          encryptedLocation: t.String(),
-          nonce: t.String(),
+            const result = await locationE2eeService.storeEncryptedLocation(
+              user.id,
+              friendHandle,
+              item.encryptedLocation,
+              item.nonce,
+            )
+            if (!result.stored) {
+              return { friendHandle, stored: false, reason: 'replayed' as const }
+            }
+            return { friendHandle, stored: true as const }
+          } catch (err) {
+            return { friendHandle, stored: false, reason: 'error' as const }
+          }
         }),
-      ),
-      history: t.Optional(
-        t.Object({
-          encryptedLocation: t.String(),
-          nonce: t.String(),
-          timestamp: t.String(),
-        }),
-      ),
-    }),
-    detail: {
-      tags: ['Location'],
-      summary: 'Update location: broadcast to friends and store in history',
+      )
+
+      return { results }
     },
-  },
-)
+    {
+      body: t.Object({
+        locations: t.Array(
+          t.Object({
+            forFriendHandle: t.String(),
+            encryptedLocation: t.String(),
+            nonce: t.String(),
+          }),
+        ),
+      }),
+      detail: {
+        tags: ['Location'],
+        summary: 'Broadcast encrypted location to friends',
+      },
+    },
+  )
 
 /**
  * Get encrypted locations from friends
  */
-app.use(requireAuth).get(
+app.use(permissions(PermissionId.LOCATION_SHARING)).get(
   '/e2ee/friends',
-  async ({ user, error }) => {
+  async ({ user, status, t }) => {
     if (!user) {
-      return error(401, { message: 'Authentication required' })
+      return status(401, { message: t('errors.auth.authenticationRequired') })
     }
 
     const locations =
@@ -187,44 +210,6 @@ app.use(requireAuth).get(
     detail: {
       tags: ['Location'],
       summary: 'Get encrypted locations from friends',
-    },
-  },
-)
-
-// ============================================================================
-// Personal Location History
-// ============================================================================
-
-/**
- * Get encrypted location history
- */
-app.use(requireAuth).get(
-  '/e2ee/history',
-  async ({ query, user, error }) => {
-    if (!user) {
-      return error(401, { message: 'Authentication required' })
-    }
-
-    const entries = await locationE2eeService.getLocationHistory(user.id, {
-      limit: query.limit,
-    })
-
-    return {
-      entries: entries.map((e) => ({
-        id: e.id,
-        encryptedLocation: e.encryptedLocation,
-        nonce: e.nonce,
-        timestamp: e.timestamp.toISOString(),
-      })),
-    }
-  },
-  {
-    query: t.Object({
-      limit: t.Optional(t.Number()),
-    }),
-    detail: {
-      tags: ['Location'],
-      summary: 'Get encrypted location history',
     },
   },
 )

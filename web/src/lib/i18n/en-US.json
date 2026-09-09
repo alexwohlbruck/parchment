@@ -1,4 +1,8 @@
 {
+  "taglines": {
+    "short": "The next generation of digital maps",
+    "long": "Explore the world with beautiful, detailed maps crafted by the community"
+  },
   "general": {
     "yes": "Yes",
     "no": "No",
@@ -7,19 +11,26 @@
     "delete": "Delete",
     "confirm": "Confirm",
     "close": "Close",
+    "done": "Done",
     "back": "Back",
     "save": "Save",
     "share": "Share",
     "name": "Name",
     "edit": "Edit",
+    "view": "View",
     "unsave": "Unsave",
     "clearSearch": "Clear Search",
     "search": "Search",
     "create": "Create",
     "add": "Add",
+    "open": "Open",
+    "remove": "Remove",
+    "more": "More",
     "loading": "Loading...",
     "dateAdded": "Date Added",
     "lastModified": "Last Modified",
+    "lastSeen": "Last seen",
+    "updated": "Updated",
     "description": "Description",
     "icon": "Icon",
     "color": "Color",
@@ -31,7 +42,125 @@
     "enabled": "Enabled",
     "all": "All",
     "recents": "Recents",
-    "seeAll": "See all"
+    "pinned": "Pinned",
+    "seeAll": "See all",
+    "timeAgo": {
+      "justNow": "just now",
+      "minutesAgo": "{n}m ago",
+      "hoursAgo": "{n}h ago",
+      "daysAgo": "{n}d ago"
+    },
+    "unsavedChanges": {
+      "title": "Discard unsaved changes?",
+      "description": "Your edits haven't been saved yet.",
+      "discard": "Discard",
+      "keepEditing": "Keep editing"
+    },
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
+  "weather": {
+    "title": "Weather Conditions",
+    "subtitle": "Current conditions and forecast",
+    "airQuality": "Air Quality",
+    "feelsLike": "Feels Like",
+    "humidity": "Humidity",
+    "wind": "Wind",
+    "visibility": "Visibility",
+    "pressure": "Pressure",
+    "cloudiness": "Cloudiness",
+    "sunrise": "Sunrise",
+    "sunset": "Sunset",
+    "aqi": {
+      "dominant": "Main pollutant",
+      "modeled": "Modeled estimate",
+      "standards": {
+        "us_epa": "US AQI",
+        "eu_eea": "European AQI",
+        "uk_daqi": "UK DAQI",
+        "in_naqi": "India AQI",
+        "cn_mee": "China AQI",
+        "ca_aqhi": "Canada AQHI"
+      },
+      "pollutants": {
+        "pm2_5": "PM2.5",
+        "pm10": "PM10",
+        "o3": "Ozone",
+        "no2": "Nitrogen dioxide",
+        "so2": "Sulphur dioxide",
+        "co": "Carbon monoxide"
+      },
+      "levels": {
+        "1": "Good",
+        "2": "Moderate",
+        "3": "Poor",
+        "4": "Very Poor",
+        "5": "Severe",
+        "6": "Hazardous"
+      },
+      "categories": {
+        "us_epa": {
+          "1": "Good",
+          "2": "Moderate",
+          "3": "Unhealthy for Sensitive Groups",
+          "4": "Unhealthy",
+          "5": "Very Unhealthy",
+          "6": "Hazardous"
+        },
+        "eu_eea": {
+          "1": "Good",
+          "2": "Fair",
+          "3": "Moderate",
+          "4": "Poor",
+          "5": "Very Poor",
+          "6": "Extremely Poor"
+        },
+        "uk_daqi": {
+          "1": "Low",
+          "2": "Low",
+          "3": "Moderate",
+          "4": "High",
+          "5": "High",
+          "6": "Very High"
+        },
+        "ca_aqhi": {
+          "1": "Low",
+          "2": "Low",
+          "3": "Moderate",
+          "4": "High",
+          "5": "High",
+          "6": "Very High"
+        },
+        "cn_mee": {
+          "1": "Excellent",
+          "2": "Good",
+          "3": "Lightly Polluted",
+          "4": "Moderately Polluted",
+          "5": "Heavily Polluted",
+          "6": "Severely Polluted"
+        },
+        "in_naqi": {
+          "1": "Good",
+          "2": "Satisfactory",
+          "3": "Moderate",
+          "4": "Poor",
+          "5": "Very Poor",
+          "6": "Severe"
+        }
+      }
+    }
+  },
+  "environment": {
+    "title": "Environment",
+    "layers": {
+      "airQuality": "Air Quality",
+      "hotspots": "Fire hotspots",
+      "perimeters": "Fire perimeters",
+      "smoke": "Smoke"
+    },
+    "legend": {
+      "aqi": "AQI"
+    }
   },
   "palette": {
     "placeholder": {
@@ -59,6 +188,91 @@
           "places": {
             "name": "Places"
           }
+        },
+        "groups": {
+          "frequents": "Frequents",
+          "suggestedCategories": "Categories",
+          "fullSearch": "Search",
+          "recents": "Recents",
+          "brands": "Brands",
+          "categories": "Categories",
+          "places": "Places"
+        },
+        "commonCategories": {
+          "restaurants": "Restaurants",
+          "coffee": "Coffee",
+          "fastFood": "Fast Food",
+          "groceries": "Groceries",
+          "gas": "Gas",
+          "parking": "Parking",
+          "pharmacy": "Pharmacy",
+          "hotels": "Hotels",
+          "bars": "Bars",
+          "parks": "Parks",
+          "hospitals": "Hospitals",
+          "atms": "ATMs",
+          "banks": "Banks",
+          "evCharging": "EV Charging",
+          "postOffices": "Post Offices",
+          "convenience": "Convenience",
+          "bakeries": "Bakeries",
+          "shoppingMalls": "Shopping Malls",
+          "clothing": "Clothing",
+          "liquorStores": "Liquor Stores",
+          "hardware": "Hardware",
+          "autoRepair": "Auto Repair",
+          "hairSalons": "Hair Salons",
+          "doctors": "Doctors",
+          "veterinarians": "Veterinarians",
+          "gyms": "Gyms",
+          "cinemas": "Cinemas",
+          "museums": "Museums",
+          "theatres": "Theatres",
+          "attractions": "Attractions",
+          "libraries": "Libraries",
+          "wifi": "WiFi",
+          "police": "Police",
+          "restrooms": "Restrooms",
+          "drinkingWater": "Drinking Water",
+          "benches": "Benches",
+          "picnicTables": "Picnic Tables",
+          "shelters": "Shelters",
+          "playgrounds": "Playgrounds",
+          "trashCans": "Trash Cans",
+          "recycling": "Recycling",
+          "bikeParking": "Bike Parking",
+          "transitStops": "Transit",
+          "trainStations": "Train Stations",
+          "airports": "Airports",
+          "placesOfWorship": "Places of Worship",
+          "schools": "Schools",
+          "childcare": "Childcare",
+          "iceCream": "Ice Cream",
+          "dentists": "Dentists",
+          "urgentCare": "Urgent Care",
+          "beautySalons": "Beauty Salons",
+          "laundry": "Laundry",
+          "carWash": "Car Wash",
+          "carRental": "Car Rental",
+          "dogParks": "Dog Parks",
+          "publicArt": "Public Art",
+          "viewpoints": "Viewpoints",
+          "natureReserves": "Nature Reserves",
+          "beaches": "Beaches",
+          "petStores": "Pet Stores",
+          "farmersMarkets": "Farmers Markets",
+          "picnicAreas": "Picnic Areas",
+          "fountains": "Fountains",
+          "showers": "Showers",
+          "publicBookcases": "Public Bookcases",
+          "outdoorGyms": "Outdoor Gyms",
+          "bikeRepair": "Bike Repair",
+          "postBoxes": "Post Boxes",
+          "defibrillators": "Defibrillators"
+        },
+        "brand": {
+          "seeAll": "See all locations",
+          "locationsCount": "{count} locations"
         }
       },
       "goto": {
@@ -147,15 +361,12 @@
           }
         }
       },
-      "openSettings": {
-        "name": "Open settings",
-        "description": "Open the settings page",
-        "keywords": "settings preferences config"
-      },
       "signOut": {
         "name": "Sign out",
         "description": "Sign out of your account",
-        "keywords": "logout exit account user"
+        "keywords": "logout exit account user",
+        "confirmTitle": "Sign out?",
+        "confirmDescription": "Make sure you have your recovery key saved — you'll need it or a passkey to sign back in."
       }
     }
   },
@@ -165,9 +376,15 @@
         "title": "Network error",
         "description": "Try connecting to a different {appName} server"
       },
-      "validation": "{type} error"
+      "validation": "{type} error",
+      "timeout": {
+        "title": "Request timed out",
+        "description": "The server is taking too long to respond"
+      }
     },
     "coordinatesCopied": "Coordinates copied to clipboard",
+    "addressCopied": "Address copied to clipboard",
+    "placeNameCopied": "Place name copied to clipboard",
     "invitationSent": "Invitation sent to {email}",
     "unknownError": "An unknown error occurred",
     "plusCodeCopied": "Plus Code copied to clipboard",
@@ -175,14 +392,88 @@
   },
   "map": {
     "title": "Map",
+    "searchThisArea": "Search this area",
     "contextMenu": {
       "edit": "Edit map",
       "viewIn": "View in",
-      "copyLocation": "Copy location"
+      "copyLocation": "Copy location",
+      "loadingAddress": "Loading address...",
+      "measure": "Measure"
     }
+  },
+  "measure": {
+    "title": "Measure",
+    "distance": "Distance",
+    "circle": "Circle",
+    "addMeasurement": "Add measurement",
+    "close": "Close measure tool",
+    "perimeter": "Perimeter",
+    "area": "Area",
+    "empty": "Click on the map to add points.",
+    "unitsMetric": "Metric",
+    "unitsImperial": "Imperial",
+    "cycleUnit": "Click to cycle unit"
+  },
+  "radius": {
+    "title": "Radius",
+    "close": "Close radius tool",
+    "radius": "Radius",
+    "circumference": "Circumference",
+    "empty": "Click on the map to set the center point.",
+    "clickToConfirm": "Click on the map to set the radius."
+  },
+  "isochrone": {
+    "title": "Reachable area",
+    "close": "Close isochrone tool",
+    "empty": "Click on the map to set a starting point.",
+    "loading": "Computing reachable area…",
+    "errorGeneric": "Couldn't compute the reachable area.",
+    "unreachable": "Nothing is reachable from this point.",
+    "retry": "Try again",
+    "modeWalk": "Walk",
+    "modeBike": "Bike",
+    "modeCar": "Drive",
+    "modeTransit": "Transit",
+    "reach": "Within",
+    "minutes": "{count} min",
+    "bands": "Bands",
+    "bandsCount": "{count} bands",
+    "arriveBy": "Arrive by",
+    "arriveByHint": "Show the area that can reach this point",
+    "stopsReachable": "{count} transit stops reachable"
   },
   "layers": {
     "title": "Layers",
+    "search": {
+      "placeholder": "Search layers…",
+      "noResults": "No matching layers"
+    },
+    "selector": {
+      "tabs": {
+        "map": "Map",
+        "collections": "Collections",
+        "canvases": "Canvases"
+      },
+      "baseMap": "Base map",
+      "overlays": "Overlays",
+      "savedPlaces": "Show saved places",
+      "showCanvases": "Show canvases",
+      "placeCount": "{count} places",
+      "canvasItemCount": "{count} items",
+      "switchBasemap": "Switch to {name}",
+      "emptyCollections": {
+        "title": "No saved places yet",
+        "description": "Collections with saved places will appear here."
+      }
+    },
+    "transit": {
+      "rail": "Rail",
+      "bus": "Bus",
+      "ferry": "Ferry",
+      "other": "Other",
+      "serviceTime": "Service time",
+      "live": "Live"
+    },
     "meta": {
       "title": "Layer Info",
       "fields": {
@@ -192,6 +483,7 @@
         "icon": "Layer Icon",
         "iconPlaceholder": "Choose an icon",
         "showInLayerSelector": "Show in layer selector",
+        "fadeBasemap": "Fade basemap",
         "type": {
           "title": "Layer Type",
           "values": {
@@ -236,11 +528,12 @@
       "editGroup": "Edit Group",
       "deleteGroup": "Delete Group",
       "deleteLayer": "Delete Layer",
-      "ungroupLayer": "Ungroup Layer",
-      "restoreDefaults": "Restore defaults"
+      "ungroupLayer": "Ungroup Layer"
     },
     "empty": {
-      "message": "No layers configured"
+      "message": "No layers configured",
+      "title": "No layers",
+      "description": "Add ready-made layers from the store, or build one of your own."
     },
     "configuration": {
       "title": "Layer Configuration",
@@ -270,16 +563,179 @@
         }
       }
     },
-    "restoreDefaults": {
-      "button": "Restore defaults",
-      "success": "Restored {count} default layers"
-    },
     "badges": {
       "default": "Default",
       "custom": "Custom"
+    },
+    "savedPlaces": {
+      "group": "Saved places",
+      "uncategorized": "Unfiled",
+      "locked": "Locked collection",
+      "frequents": "Frequents"
+    },
+    "canvases": {
+      "group": "Canvases",
+      "locked": "Locked canvas"
+    },
+    "store": {
+      "title": "Layer store",
+      "description": "Add pre-made layers to your library.",
+      "add": "Add",
+      "added": "Added {name} to your library",
+      "inLibrary": "Added",
+      "layers": "1 layer | {count} layers",
+      "allAdded": "Everything here is already in your library.",
+      "empty": "No layers available.",
+      "back": "All layers",
+      "includes": "Includes 1 layer | Includes {count} layers"
+    },
+    "editor": {
+      "newTitle": "New layer",
+      "editTitle": "Edit layer",
+      "namePlaceholder": "Layer name",
+      "layerType": "Draw as",
+      "saved": "Saved {name}",
+      "created": "Added {name} to your library",
+      "saveFailed": "Could not save the layer.",
+      "previewOn": "Previewing on the map",
+      "previewOff": "Preview hidden",
+      "previewFailed": "The map could not draw this layer: {error}",
+      "resetProperty": "Reset to default",
+      "expression": "Expression",
+      "tabs": {
+        "source": "Source",
+        "style": "Style",
+        "options": "Options"
+      },
+      "sections": {
+        "fill": "Fill",
+        "stroke": "Stroke",
+        "shape": "Shape",
+        "circle": "Circle",
+        "icon": "Icon",
+        "text": "Label",
+        "placement": "Placement",
+        "position": "Position",
+        "heatmap": "Heatmap",
+        "extrusion": "Extrusion",
+        "raster": "Imagery",
+        "hillshade": "Hillshade",
+        "background": "Background"
+      },
+      "source": {
+        "type": "Data source",
+        "address": "Address by",
+        "tiles": "Tile URLs",
+        "addTile": "Add another URL",
+        "tileSize": "Tile size",
+        "encoding": "Elevation encoding",
+        "cluster": "Cluster points",
+        "clusterHint": "Groups nearby points into counted clusters.",
+        "sourceLayer": "Source layer",
+        "sourceLayerPlaceholder": "Layer name inside the vector tiles",
+        "zoomRange": "Zoom range",
+        "attribution": "Attribution",
+        "attributionPlaceholder": "© Data provider",
+        "geojsonData": "GeoJSON",
+        "geojsonHint": "Pasted data is stored with the layer. File uploads are coming later.",
+        "kinds": {
+          "raster": "Raster tiles",
+          "raster-dem": "Elevation",
+          "vector": "Vector tiles",
+          "geojson": "GeoJSON",
+          "image": "Image"
+        },
+        "hints": {
+          "raster": "Pre-rendered image tiles — aerial imagery, scanned maps, weather overlays.",
+          "raster-dem": "Elevation tiles, drawn as shaded relief. Not the same as the map's 3D terrain.",
+          "vector": "Mapbox vector tiles. Every layer inside them can be styled separately.",
+          "geojson": "Points, lines and polygons supplied directly or fetched from a URL.",
+          "image": "A single image pinned to four corner coordinates."
+        },
+        "modes": {
+          "tilejson": "TileJSON",
+          "tiles": "Tile URLs",
+          "url": "URL",
+          "inline": "Paste data"
+        },
+        "urlLabel": {
+          "raster": "TileJSON URL",
+          "raster-dem": "TileJSON URL",
+          "vector": "TileJSON URL",
+          "geojson": "GeoJSON URL",
+          "image": "Image URL"
+        },
+        "urlPlaceholder": {
+          "raster": "https://example.com/tiles.json",
+          "raster-dem": "https://example.com/terrain.json",
+          "vector": "https://example.com/tiles.json",
+          "geojson": "https://example.com/data.geojson",
+          "image": "https://example.com/overlay.png"
+        }
+      },
+      "options": {
+        "showInSelectorHint": "List this layer in the map's layer menu.",
+        "fadeBasemapHint": "Mute the basemap while this layer is on, so it reads clearly.",
+        "filter": "Filter",
+        "filterHint": "A style expression. Only features matching it are drawn.",
+        "rawLayer": "Paint and layout JSON",
+        "rawLayerHint": "Edit the style properties directly, including any this editor has no control for."
+      },
+      "import": {
+        "trigger": "Import from a style",
+        "title": "Import a layer",
+        "description": "Paste a style from Mapbox Studio or Maputnik and pick a layer from it.",
+        "placeholder": "Paste style JSON…",
+        "parse": "Read style",
+        "back": "Paste a different style",
+        "untitledStyle": "Untitled style",
+        "count": "{n} of {total} can be imported",
+        "errors": {
+          "invalidJson": "That isn't valid JSON.",
+          "notAStyle": "That isn't a style document or a layer.",
+          "noLayers": "This style has no layers to import."
+        },
+        "warnings": {
+          "mapboxProtocol": "Uses a mapbox:// source, which needs a Mapbox token",
+          "spriteImage": "References sprite images from its original style",
+          "customFont": "Uses fonts that may not exist in this basemap",
+          "missingSource": "Its source isn't in this document",
+          "unsupportedType": "This layer type isn't supported"
+        },
+        "prompt": "Already have a style?"
+      },
+      "errors": {
+        "nameRequired": "Give the layer a name.",
+        "urlRequired": "A URL is required.",
+        "tilesRequired": "Add at least one tile URL.",
+        "tileTemplate": "Tile URLs need {z}, {x} and {y} placeholders.",
+        "sourceLayerRequired": "Vector layers need a source layer.",
+        "invalidGeoJson": "That isn't valid GeoJSON.",
+        "cornersRequired": "An image needs four corner coordinates.",
+        "zoomRange": "The minimum zoom is above the maximum.",
+        "invalidJson": "Invalid JSON."
+      },
+      "addedToCanvas": "Added {name} to this canvas"
     }
   },
   "directions": {
+    "tripTypes": {
+      "bikeshare": "Bike Share",
+      "scootershare": "Scooter Share",
+      "walking": "Walking",
+      "cycling": "Cycling",
+      "driving": "Driving",
+      "rideshare": "Rideshare",
+      "transit": "Transit",
+      "transitWalking": "Transit & Walking",
+      "transitBike": "Transit & Bike",
+      "transitBikeShare": "Transit & Bike Share",
+      "transitScooter": "Transit & Scooter",
+      "transitRideshare": "Transit & Rideshare",
+      "parkAndRide": "Park & Ride"
+    },
+    "toward": "toward {headsign}",
+    "or": "or",
     "title": "Directions",
     "planRouteFromHere": "Plan route from here",
     "directionsHere": "Directions here",
@@ -287,7 +743,26 @@
     "planRoute": "Plan route",
     "to": "To",
     "from": "From",
-    "addStop": "Add stop"
+    "currentLocation": "Current Location",
+    "useCurrentLocation": "Use your current location",
+    "addStop": "Add stop",
+    "modes": {
+      "walking": "Walking",
+      "cycling": "Cycling",
+      "transit": "Transit",
+      "driving": "Driving",
+      "rideshare": "Rideshare"
+    },
+    "preferences": {
+      "general": "General Options",
+      "walking": "Walking Options",
+      "cycling": "Cycling Options",
+      "transit": "Transit Options",
+      "driving": "Driving Options",
+      "routingEngine": "Routing Engine",
+      "useKnownVehicleLocations": "Use known vehicle locations",
+      "useKnownParkingLocations": "Use known parking locations"
+    }
   },
   "library": {
     "title": "Library",
@@ -298,15 +773,23 @@
     "sort": {
       "name": "Name"
     },
+    "collections": {
+      "filter": {
+        "label": "Filter collections",
+        "all": "All collections",
+        "mine": "My collections",
+        "shared": "Shared with me"
+      }
+    },
     "actions": {
       "addToCollection": "Add to Collection",
       "createNewCollection": "Create new collection",
       "searchCollections": "Search collections...",
       "removeFromCollection": "Remove from collection",
       "removedFromCollectionSuccess": "Removed from collection",
-      "makeDefault": "Make Default",
       "addedToCollection": "Added to {collection}",
-      "failedToAddToCollection": "Failed to add to collection"
+      "failedToAddToCollection": "Failed to add to collection",
+      "saveToCollection": "Save to {collection}"
     },
     "empty": {
       "message": "no {entityPlural} yet",
@@ -328,8 +811,11 @@
           "singular": "collection",
           "plural": "collections"
         },
-        "default": "Bookmarks",
-        "manage": "Manage collections"
+        "starterName": "Bookmarks",
+        "manage": "Manage collections",
+        "untitled": "Untitled collection",
+        "lastSaved": "Last saved to",
+        "sharedBy": "Shared by {name}"
       },
       "routes": {
         "title": {
@@ -343,10 +829,10 @@
           "plural": "layers"
         }
       },
-      "maps": {
+      "canvases": {
         "title": {
-          "singular": "map",
-          "plural": "maps"
+          "singular": "canvas",
+          "plural": "canvases"
         }
       }
     },
@@ -370,26 +856,26 @@
       }
     },
     "form": {
+      "frequent": "Frequent",
+      "customName": "Name",
       "placeholders": {
         "collectionName": "Enter collection name",
         "collectionDescription": "Add a description (optional)",
         "collectionType": "Select type (optional)",
         "bookmarkName": "Enter bookmark name",
-        "bookmarkType": "Select bookmark type (optional)"
-      },
-      "isDefault": "Default Collection"
+        "bookmarkType": "Not a frequent",
+        "customName": "Enter a name"
+      }
     },
     "types": {
       "home": "Home",
       "work": "Work",
-      "school": "School"
+      "school": "School",
+      "custom": "Custom"
     },
     "loading": {
       "collection": "Loading collection..."
     }
-  },
-  "timeline": {
-    "title": "Timeline"
   },
   "services": {
     "bookmarks": {
@@ -397,6 +883,7 @@
       "saveErrorNoOsmId": "Cannot bookmark place without an OSM ID",
       "saveErrorNoCoordinates": "Cannot bookmark place without coordinates",
       "saveSuccess": "Bookmarked {name}",
+      "saveSuccessToCollection": "Saved {name} to {collection}",
       "saveError": "Failed to save bookmark",
       "updateSuccess": "Bookmark updated",
       "updateError": "Failed to update bookmark",
@@ -406,12 +893,14 @@
       "removeFromCollectionSuccess": "Bookmark '{name}' removed from collection.",
       "removeFromCollectionError": "Failed to remove bookmark from collection.",
       "unsaveSuccess": "Removed {name}",
-      "updateErrorNotFound": "Bookmark not found. It may have been deleted."
+      "updateErrorNotFound": "Bookmark not found. It may have been deleted.",
+      "frequentSet": "Set as {label}",
+      "frequentRemoved": "{label} removed",
+      "frequentNoCollection": "Create a collection first to save a place."
     },
     "collections": {
       "fetchError": "Failed to fetch collections",
       "fetchOneError": "Collection not found",
-      "fetchDefaultError": "Failed to fetch default collection",
       "createSuccess": "Collection created successfully",
       "createError": "Failed to create collection",
       "updateSuccess": "Collection updated successfully",
@@ -428,8 +917,34 @@
   "offlineMaps": {
     "title": "Offline maps"
   },
-  "customMaps": {
-    "title": "Custom maps"
+  "timeline": {
+    "title": "Timeline",
+    "today": "Today",
+    "thisWeek": "This week",
+    "thisMonth": "This month",
+    "selectDate": "Select date",
+    "customRange": "Custom range",
+    "singleDay": "Single day",
+    "startTime": "Start",
+    "endTime": "End",
+    "noEvents": "No location history for this range",
+    "loadFailed": "Couldn't load timeline",
+    "stop": "Stop",
+    "unnamedStop": "Unnamed location",
+    "duration": "{duration}",
+    "timeRange": "{start} – {end}",
+    "modeUnknown": "Travel",
+    "noIntegration": {
+      "title": "Connect a location tracker",
+      "description": "Configure a location history integration to view your timeline.",
+      "details": "Your config is end-to-end encrypted — your credentials never leave your device unencrypted.",
+      "configure": "Configure integration"
+    },
+    "stats": {
+      "totalDistance": "{distance} km",
+      "totalStops": "{n} stop | {n} stops",
+      "dailyDistance": "Daily distance"
+    }
   },
   "friends": {
     "title": "Friends",
@@ -441,6 +956,8 @@
     "cancel": "Cancel",
     "done": "Done",
     "locationSharing": "Location sharing",
+    "countOne": "{n} friend",
+    "countMany": "{n} friends",
     "invitations": {
       "title": "Pending Invitations",
       "incoming": "Incoming",
@@ -457,7 +974,7 @@
       "title": "Add Friend",
       "description": "Enter a friend's handle to send them an invitation. They can be on this server or any other Parchment server.",
       "handleLabel": "Friend's Handle",
-      "formatHint": "Format: username@server.domain",
+      "formatHint": "Format: username{'@'}server.domain",
       "userNotFound": "User not found. Check the handle and try again.",
       "lookupFailed": "Failed to look up user. Please try again.",
       "sendFailed": "Failed to send invitation",
@@ -470,12 +987,14 @@
     "identity": {
       "title": "Federation Identity",
       "description": "Your identity for connecting with friends across servers",
+      "configuredDescription": "How other people find and verify you",
       "handle": "Handle",
       "handleDescription": "Your unique identifier for federation",
       "username": "Username",
-      "usernameDescription": "Your username (alias) on this server",
+      "usernameDescription": "Your unique name on this server",
       "server": "Server",
       "serverDescription": "The server hosting your identity",
+      "shareHandleHint": "Share this with friends so they can add you.",
       "notSet": "Not set",
       "edit": "Edit",
       "set": "Set",
@@ -488,7 +1007,58 @@
       "viewKey": "View Key",
       "aliasHint": "3-30 characters, letters, numbers, underscores only",
       "updateFailed": "Failed to update alias",
-      "setupInvitations": "Set up your identity to see invitations."
+      "setupInvitations": "Set up your identity to see invitations.",
+      "restoreIdentity": "Restore identity",
+      "restoreIdentityDescription": "Your account has a federation identity — restore it here to connect with friends.",
+      "staleTitle": "This device is out of sync",
+      "staleDescription": "Your keys were rotated on another device. Tap a passkey to sync this device — until you do, your saved data here won't match what's on your other devices.",
+      "syncWithPasskey": "Sync with passkey"
+    },
+    "rotateKeys": {
+      "title": "Rotate all keys",
+      "description": "Swap your master key for a new one and re-encrypt everything under it.",
+      "subDescription": "You'll tap each registered passkey once so we can re-secure it against the new key.",
+      "beforeYouContinue": "Before you continue",
+      "warning": {
+        "keepOpen": "Keep this tab open until it finishes.",
+        "tapEach": "Any passkey you don't tap before finishing won't work for recovery afterward — have at least one passkey or your recovery key ready.",
+        "failsSafe": "If rotation fails partway, nothing changes on the server."
+      },
+      "action": "Rotate keys",
+      "runningTitle": "Rotating keys",
+      "runningDescription": "Don't close this tab. We'll let you know when it's safe to continue.",
+      "doneTitle": "Keys rotated",
+      "doneDescription": "Your data has been re-encrypted under a new master key.",
+      "notResecuredTitle": "Some passkeys were not re-secured",
+      "failedTitle": "Rotation failed",
+      "failedFallback": "Rotation failed",
+      "close": "Close",
+      "slotWarning": "Passkey {id}… was not re-secured ({reason}). It will no longer work for recovery — remove and re-add it.",
+      "unknownReason": "unknown",
+      "progress": {
+        "preparing": "Preparing…",
+        "starting": "Starting rotation…",
+        "listing": "Listing your encrypted data…",
+        "reencryptBlob": "Re-encrypting {type} ({index}/{total})",
+        "reencryptCollection": "Re-encrypting collection {index} of {total}",
+        "resealingSlot": "Tap your passkey to re-secure slot {index} of {total}",
+        "committing": "Finalizing — saving everything at once…",
+        "storingSeed": "Updating this device…",
+        "done": "Done — now on key version {version}"
+      }
+    },
+    "security": {
+      "title": "Encryption keys",
+      "description": "Your private keys encrypt your data end-to-end",
+      "recoveryKey": "Recovery key",
+      "recoveryKeyDescription": "A backup of your encryption keys. Save it to restore access if you lose every device.",
+      "viewKey": "View key",
+      "rotateKeys": "Rotate encryption keys",
+      "rotateKeysDescription": "Generate new encryption keys and re-encrypt your data under them.",
+      "rotate": "Rotate",
+      "setupAnotherDevice": "Set up another device",
+      "setupAnotherDeviceDescription": "Share your encryption keys with a new phone or browser so it can read your encrypted data.",
+      "setupAction": "Set up"
     },
     "recoveryKey": {
       "setupTitle": "Set Up Identity",
@@ -522,15 +1092,6 @@
       "addFriendsPrompt": "Add friends to start sharing your location.",
       "e2eeNotice": "Your location is encrypted on your device before being sent. Only the friends you choose can decrypt and see your location. The server never sees your actual coordinates."
     },
-    "shareDialog": {
-      "title": "Share {name}",
-      "description": "Select friends to share this {type} with. Data will be end-to-end encrypted.",
-      "identityRequired": "You need to set up your identity before sharing.",
-      "noFriends": "Add friends to share with them.",
-      "alreadyShared": "Shared",
-      "e2eeNotice": "End-to-end encrypted sharing",
-      "shareButton": "Share with {count} friend(s)"
-    },
     "detail": {
       "justNow": "Just now",
       "minutesAgo": "{count}m ago",
@@ -538,6 +1099,8 @@
       "daysAgo": "{count}d ago",
       "lastKnownLocation": "Last Known Location",
       "showOnMap": "Show on Map",
+      "recentlySeen": "Recently seen",
+      "lastSeen": "Last seen",
       "noLocationData": "No location data",
       "noLocationDescription": "This friend hasn't shared their location with you yet.",
       "locationSharing": "Location Sharing",
@@ -560,6 +1123,23 @@
       "syncFailed": "Failed to sync keys"
     }
   },
+  "dashboard": {
+    "title": "Dashboard",
+    "yourPlaces": {
+      "title": "Frequents",
+      "add": "Add frequent",
+      "change": "Change place",
+      "setTitle": "Set {label}",
+      "setDescription": "Search for a place to use as your {label}.",
+      "setCustomTitle": "Add a frequent",
+      "setCustomDescription": "Name it, then search for a place.",
+      "customName": "Name",
+      "customNamePlaceholder": "e.g. Gym, Mom's house",
+      "searchPlaceholder": "Search for a place",
+      "searchHint": "Start typing to find a place.",
+      "noResults": "No places found."
+    }
+  },
   "navigation": {
     "title": "Navigation",
     "minimize": "Minimize",
@@ -574,12 +1154,39 @@
     "madeWith": "Made with ❤️ by"
   },
   "feedback": {
-    "title": "Feedback"
+    "title": "Feedback",
+    "description": "Report a bug or suggest an idea. You'll be notified when it ships.",
+    "titleLabel": "Summary",
+    "titlePlaceholder": "Briefly describe it",
+    "contentLabel": "Details",
+    "contentPlaceholder": "Add any steps, context, or screenshots that would help",
+    "submit": "Submit",
+    "submitted": "Thanks for the feedback",
+    "submittedDescription": "We'll let you know when there's an update.",
+    "viewPost": "View",
+    "submitFailed": "Couldn't submit your feedback. Please try again.",
+    "loadFailed": "Couldn't load the feedback boards."
+  },
+  "profileMenu": {
+    "shortcuts": "Shortcuts",
+    "docs": "Docs",
+    "apiDocs": "API Docs",
+    "whatsNew": "What's new",
+    "fullChangelog": "Full changelog",
+    "checkForUpdates": "Check for updates",
+    "updateAvailable": "Update available",
+    "updateInstalling": "Installing update…",
+    "updateBanner": "New version available",
+    "versionAvailable": "Version",
+    "restartToUpdate": "Restart to update",
+    "later": "Later",
+    "osmContributions": "{count} contributions"
   },
   "place": {
     "transit": {
       "viewOnTransitland": "View on Transitland",
       "transitStop": "Transit Stop",
+      "departures": "Departures",
       "upcomingDepartures": "Upcoming Departures",
       "unknownDirection": "Unknown Direction",
       "now": "Now",
@@ -587,11 +1194,284 @@
       "live": "LIVE",
       "realTimeData": "Real-time data",
       "noUpcomingDepartures": "No upcoming departures available",
-      "checkBackLater": "Check back later or visit the transit provider's website"
+      "checkBackLater": "Check back later or visit the transit provider's website",
+      "tonight": "Tonight",
+      "tomorrow": "Tomorrow",
+      "noMoreToday": "No more service today",
+      "showLaterDepartures": "Show later departures",
+      "loadingMore": "Loading…",
+      "vehicleType": {
+        "tram": "tram | trams",
+        "subway": "train | trains",
+        "rail": "train | trains",
+        "bus": "bus | buses",
+        "ferry": "ferry | ferries",
+        "vehicle": "vehicle | vehicles"
+      },
+      "activeVehicles": "{count} {type} active",
+      "selectVehicle": "Select a {type}",
+      "everyNMin": "Every {n} min",
+      "stops": "Stops",
+      "alerts": {
+        "title": "Service alert",
+        "onThisLine": "Alerts on this line",
+        "atThisStop": "Alerts at this stop",
+        "onThisTrip": "Alerts on this trip",
+        "upcoming": "Upcoming alerts",
+        "now": "Now",
+        "tomorrow": "Tomorrow",
+        "untilTime": "Until {time}",
+        "scheduledCount": "{n} scheduled change | {n} scheduled changes",
+        "moreNotices": "{n} more notice | {n} more notices",
+        "showMore": "Show more",
+        "showLess": "Show less",
+        "moreInfo": "More info",
+        "postedAt": "Posted {date}",
+        "inEffectSince": "In effect since {date}",
+        "startsAt": "Starts {date}",
+        "until": "Until {date}",
+        "effect": {
+          "NO_SERVICE": "No service",
+          "REDUCED_SERVICE": "Reduced service",
+          "SIGNIFICANT_DELAYS": "Delays",
+          "DETOUR": "Detour",
+          "ADDITIONAL_SERVICE": "Extra service",
+          "MODIFIED_SERVICE": "Service change",
+          "STOP_MOVED": "Stop moved",
+          "ACCESSIBILITY_ISSUE": "Accessibility issue",
+          "SEVERE": "Disruption",
+          "WARNING": "Alert"
+        }
+      },
+      "notInService": "Not running now",
+      "openRouteDetail": "Show {name}",
+      "notInServiceNamed": "{name} isn't running now",
+      "transfers": "Transfers",
+      "nearby": "Nearby",
+      "transfer": "transfer",
+      "notRunning": "not running now"
+    },
+    "header": {
+      "showMore": "Show more",
+      "showLess": "Show less"
+    },
+    "details": {
+      "address": "Address",
+      "coordinates": "Coordinates",
+      "plusCode": "Plus code",
+      "phoneNumber": "Phone number",
+      "website": "Website",
+      "emailAddress": "Email address",
+      "wifiPassword": "WiFi password",
+      "wifiNetwork": "Network: {ssid}",
+      "outdoorSeating": "Has outdoor seating",
+      "wheelchairAccessible": "Wheelchair accessible",
+      "notWheelchairAccessible": "Not wheelchair accessible",
+      "noSmoking": "No smoking",
+      "smokingOutside": "Smoking allowed outside",
+      "smokingAllowed": "Smoking allowed",
+      "wheelchairRestroom": "Wheelchair accessible restroom",
+      "hasRestroom": "Has restroom",
+      "noRestroom": "No restroom",
+      "viewOnOpenStreetMap": "View on OpenStreetMap",
+      "addressCopied": "Address copied to clipboard",
+      "hoursCopied": "Hours copied to clipboard"
+    },
+    "hours": {
+      "permanentlyClosed": "Permanently closed",
+      "temporarilyClosed": "Temporarily closed",
+      "temporarilyClosedUntil": "Temporarily closed until {date}",
+      "open247": "Open 24/7",
+      "open24hours": "Open 24 hours",
+      "openNow": "Open now",
+      "openUntil": "Open until {time}",
+      "closesAt": "Closes {time}",
+      "opensAt": "Opens at {time}",
+      "opensDay": "Opens {day} at {time}",
+      "closedToday": "Closed today",
+      "closed": "Closed",
+      "seeHours": "See hours",
+      "distanceAway": "{distance} away",
+      "localTimeNotice": "{time} local time ({zone})",
+      "days": {
+        "0": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday"
+      }
+    },
+    "listItem": {
+      "openNow": "Open now"
+    },
+    "sources": {
+      "lastUpdated": "Last updated {date}",
+      "lastUpdatedBy": "Last updated {date} by {updatedBy}",
+      "viewOn": "View on {name}"
+    },
+    "related": {
+      "insideName": "Inside {name}",
+      "insideThisPlace": "Inside this place",
+      "locatedIn": "Located in",
+      "partOf": "Part of",
+      "relatedPlaces": "Related Places"
+    },
+    "reviews": {
+      "title": "Reviews",
+      "ratings": "{count} rating | {count} ratings",
+      "showAll": "Show all {count} reviews",
+      "showLess": "Show less"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "reviews": "Reviews",
+      "visits": "Visits"
+    },
+    "nearby": {
+      "findNearby": "Find nearby"
+    },
+    "brand": {
+      "seeAll": "See all {name}",
+      "locationsCount": "{count} locations"
+    },
+    "osmTags": {
+      "copiedMessage": "{label} copied",
+      "viewOnOpenStreetMap": "View on OpenStreetMap",
+      "speedLimit": "{value} km/h",
+      "values": {
+        "only": "Only",
+        "limited": "Limited",
+        "designated": "Designated",
+        "permissive": "Permissive"
+      },
+      "labels": {
+        "bicycle_parking": "Parking Type",
+        "cargo_bike": "Cargo Bike",
+        "parking": "Parking Type",
+        "parking_condition": "Parking Condition",
+        "parking_orientation": "Orientation",
+        "capacity": "Capacity",
+        "capacity_disabled": "Disabled Spaces",
+        "capacity_charging": "EV Charging Spaces",
+        "capacity_women": "Women's Spaces",
+        "capacity_car_sharing": "Car Sharing Spaces",
+        "capacity_motorcycle": "Motorcycle Spaces",
+        "seats": "Seats",
+        "access": "Access",
+        "fee": "Fee",
+        "charge": "Price",
+        "toll": "Toll",
+        "maxstay": "Max Stay",
+        "indoor": "Indoor",
+        "covered": "Covered",
+        "lit": "Lit",
+        "surface": "Surface",
+        "material": "Material",
+        "colour": "Color",
+        "color": "Color",
+        "height": "Height",
+        "width": "Width",
+        "length": "Length",
+        "depth": "Depth",
+        "diameter": "Diameter",
+        "building_levels": "Floors",
+        "building_material": "Building Material",
+        "roof_shape": "Roof Shape",
+        "start_date": "Year Built",
+        "level": "Floor",
+        "layer": "Level",
+        "wheelchair": "Wheelchair Access",
+        "wheelchair_description": "Wheelchair Notes",
+        "toilets_wheelchair": "Wheelchair Restroom",
+        "tactile_paving": "Tactile Paving",
+        "operator": "Operator",
+        "operator_type": "Operator Type",
+        "brand": "Brand",
+        "network": "Network",
+        "ref": "Reference",
+        "cuisine": "Cuisine",
+        "delivery": "Delivery",
+        "takeaway": "Takeaway",
+        "outdoor_seating": "Outdoor Seating",
+        "microbrewery": "Microbrewery",
+        "brewery": "Brewery",
+        "organic": "Organic",
+        "diet_vegan": "Vegan",
+        "diet_vegetarian": "Vegetarian",
+        "diet_halal": "Halal",
+        "diet_kosher": "Kosher",
+        "diet_gluten_free": "Gluten Free",
+        "toilets": "Restrooms",
+        "toilets_access": "Restroom Access",
+        "toilets_disposal": "Toilet Type",
+        "toilets_position": "Position",
+        "changing_table": "Baby Changing",
+        "diaper": "Diaper",
+        "shower": "Shower",
+        "drinking_water": "Drinking Water",
+        "bottle": "Bottle Fill",
+        "seasonal": "Seasonal",
+        "oneway": "One Way",
+        "lanes": "Lanes",
+        "maxspeed": "Speed Limit",
+        "maxheight": "Height Limit",
+        "maxwidth": "Width Limit",
+        "internet_access": "Internet Access",
+        "internet_access_fee": "Fee",
+        "internet_access_ssid": "Network Name",
+        "smoking": "Smoking",
+        "smoking_outside": "Outdoor Smoking",
+        "voltage": "Voltage",
+        "frequency": "Frequency",
+        "genus": "Genus",
+        "species": "Species",
+        "circumference": "Trunk Circumference",
+        "recycling_glass": "Glass",
+        "recycling_paper": "Paper",
+        "recycling_cans": "Cans",
+        "recycling_plastic": "Plastic",
+        "recycling_clothes": "Clothes",
+        "recycling_batteries": "Batteries",
+        "recycling_electronics": "Electronics",
+        "recycling_cardboard": "Cardboard",
+        "generator_source": "Energy Source",
+        "generator_output_electricity": "Power Output",
+        "denomination": "Denomination",
+        "religion": "Religion",
+        "second_hand": "Second Hand",
+        "bulk_purchase": "Bulk Purchase",
+        "drive_through": "Drive Through",
+        "rooms": "Rooms",
+        "stars": "Stars",
+        "beds": "Beds",
+        "surveillance": "Surveillance",
+        "inscription": "Inscription",
+        "artwork_type": "Artwork Type",
+        "artist_name": "Artist",
+        "heritage": "Heritage Listed"
+      }
+    },
+    "gallery": {
+      "viewPhoto": "View photo {n} of {total}",
+      "previousPhoto": "Previous photo",
+      "nextPhoto": "Next photo",
+      "failedToLoad": "Failed to load image"
+    },
+    "unavailable": {
+      "title": "Place unavailable",
+      "description": "We couldn't load this place"
     }
   },
   "settings": {
     "title": "Settings",
+    "search": {
+      "placeholder": "Search settings…",
+      "clear": "Clear search",
+      "noResults": "No matching settings"
+    },
+    "openHotkeyDescription": "Open the settings page",
     "account": {
       "title": "Account",
       "user": {
@@ -604,8 +1484,287 @@
         "title": "Passkeys"
       }
     },
+    "identity": {
+      "recoveryKey": {
+        "setup": {
+          "title": "Set Up Federation Identity",
+          "description": "Your recovery key is your last-resort way back in if you lose every device. Save it somewhere safe — a password manager is ideal. We'll offer to set up a passkey for everyday recovery in the next step.",
+          "importantTitle": "Important",
+          "importantDescription": "If you lose this key AND every passkey, you will need to create a new identity and re-add all your friends.",
+          "keyLabel": "Your Recovery Key",
+          "generating": "Generating...",
+          "keyCopiedToast": "Recovery key copied. Paste it into your password manager.",
+          "masterPasswordHint": "Like a master password. Keep it secret and safe.",
+          "confirmSavedLabel": "I have saved my recovery key in a secure location",
+          "failedFallback": "Setup failed"
+        },
+        "passkeyOffer": {
+          "title": "Add a passkey for recovery?",
+          "description": "Passkeys let you recover your identity on a new device with a single tap, no recovery key required. You can always add more later from Settings.",
+          "alertDescription": "Your recovery key is already safe. Adding a passkey is optional but strongly recommended.",
+          "existingLabel": "You already have a passkey:",
+          "existingHint": "Tap it below to enable recovery on it. Some browsers or older passkeys can't do this — if it doesn't work, use \"Add new\" instead.",
+          "useExisting": "Use \"{name}\" for recovery",
+          "addNewInstead": "Add a new passkey instead",
+          "addPasskey": "Add passkey",
+          "skipForNow": "Skip for now",
+          "cannotUseError": "This passkey can't be used for recovery. Try adding a new one.",
+          "enableFailedError": "Could not enable passkey recovery. You can still finish setup using your recovery key."
+        },
+        "complete": {
+          "title": "Identity set up",
+          "message": "Identity set up successfully!",
+          "federationId": "Your Federation ID: {handle}"
+        },
+        "import": {
+          "chooseTitle": "Restore your identity",
+          "chooseDescription": "Tap one of your registered passkeys to recover your identity on this device.",
+          "unlockWithPasskey": "Unlock with passkey",
+          "pairWithOtherDevice": "Pair with your other device",
+          "useRecoveryKeyInstead": "Use recovery key instead",
+          "unlockFailed": "Could not unlock with passkey",
+          "typeKeyTitle": "Import Recovery Key",
+          "typeKeyDescription": "Enter your recovery key to restore your identity on this device.",
+          "recoveryKeyLabel": "Recovery Key",
+          "recoveryKeyPlaceholder": "Paste your recovery key here",
+          "invalidKey": "Invalid recovery key",
+          "importAction": "Import",
+          "lostKeyLink": "Lost your recovery key?",
+          "completeTitle": "Identity restored",
+          "completeMessage": "Identity restored successfully!"
+        },
+        "reset": {
+          "confirmTitle": "Reset your account?",
+          "confirmDescription": "This permanently erases all your encrypted data on this account — saved places, collections, friends, and sharing settings. Your email and passkeys stay, so you can keep signing in. This can't be undone.",
+          "typePromptTitle": "Type RESET to confirm",
+          "typePromptLabel": "Confirmation",
+          "failedFallback": "Reset failed. Please try again."
+        },
+        "view": {
+          "title": "Your recovery key",
+          "description": "A backup for your account. Save it somewhere safe.",
+          "federationIdLabel": "Your federation ID — share with friends",
+          "keepSecretTitle": "Keep this secret",
+          "keepSecretDescription": "Anyone with this key can sign in as you on any device.",
+          "keyLabel": "Recovery key — save in a password manager or print it",
+          "copied": "Copied",
+          "copyToClipboard": "Copy to clipboard"
+        }
+      },
+      "transferDevice": {
+        "choose": {
+          "title": "Set up another device",
+          "description": "Sign in on a new phone or browser. Both devices stay signed in — this one doesn't lose anything.",
+          "currentDeviceLabel": "This is my current device",
+          "currentDeviceHint": "Scan the QR on the new device to share your identity with it",
+          "newDeviceLabel": "This is my new device",
+          "newDeviceHint": "Show a QR for your current device to scan"
+        },
+        "receive": {
+          "title": "Scan this with your other device",
+          "description": "On your signed-in device, open Set up another device → This is my current device, then scan this QR.",
+          "preparing": "Preparing secure transfer…",
+          "qrAlt": "Device transfer QR code",
+          "waiting": "Waiting for the other device…",
+          "verifyTitle": "Verify the 6-digit code matches",
+          "verifyDescription": "Compare the code below with the one shown on your other device. If they're different, cancel — someone may be intercepting the transfer.",
+          "unsealing": "Unsealing your identity…",
+          "doneMessage": "Identity restored on this device.",
+          "codesMatchAction": "Codes match — unlock"
+        },
+        "send": {
+          "title": "Scan your new device",
+          "description": "Point the camera at the QR code shown on your new device.",
+          "viewfinderHint": "Point the camera at the QR on your new device.",
+          "sealing": "Encrypting and uploading…",
+          "verifyTitle": "Verify codes match",
+          "verifyDescription": "Your new device should now show the same 6-digit code. If yes, tap \"Codes match\" on the new device to finish."
+        },
+        "errors": {
+          "sessionStart": "Could not start transfer session",
+          "sessionExpired": "Transfer session expired. Close this and try again — each session is good for 60 seconds.",
+          "polling": "Error polling transfer session",
+          "missingState": "Missing transfer state",
+          "noServerIdentity": "Server has no federation identity to verify the sender's signature.",
+          "seedMismatch": "Transferred seed does not derive the expected federation identity.",
+          "openFailed": "Failed to open transferred seed",
+          "cameraUnavailable": "Camera unavailable: {message}",
+          "cameraAccess": "Could not access the camera",
+          "invalidQr": "The scanned QR is not a valid Parchment transfer code.",
+          "missingQrData": "The scanned QR is missing transfer session data.",
+          "noSeed": "This device has no identity seed to transfer.",
+          "sealUploadFailed": "Failed to seal + upload the seed"
+        }
+      }
+    },
+    "auth": {
+      "passkeys": {
+        "addPasskey": "Add passkey",
+        "columns": {
+          "name": "Name",
+          "synced": "Synced",
+          "syncedHint": "Yes means this passkey rides along with your password manager (iCloud Keychain, 1Password, Google) across your other devices. No means it lives only on the device that created it.",
+          "added": "Added",
+          "recovery": "Recovery",
+          "aboutLabel": "About {label}"
+        },
+        "setupIdentityFirst": "Set up identity first",
+        "recoveryOn": "Recovery on",
+        "turnOn": "Turn on",
+        "deleteAction": "Delete passkey",
+        "secondTapToast": "One more tap to finish setup.",
+        "addErrorFallback": "Couldn't add passkey",
+        "addSuccess": "Passkey added. You can use it on any device.",
+        "addNoRecoveryFallback": "Passkey added, but it can't be used for recovery.",
+        "recoveryOnSuccess": "Recovery on. Use this passkey on any device.",
+        "cannotUseForRecovery": "This passkey can't be used for recovery.",
+        "recoveryFailedFallback": "Couldn't turn on recovery.",
+        "deleteConfirmTitle": "Delete this passkey?",
+        "deleteConfirmDescription": "You will no longer be able to use this passkey to sign in on any device.",
+        "refreshKeysTitle": "Refresh account keys?",
+        "refreshKeysDescription": "If this device was lost, refresh to keep your data safe. You'll tap your other passkeys.",
+        "refreshKeysAction": "Refresh"
+      },
+      "sessions": {
+        "columns": {
+          "device": "Device",
+          "signedIn": "Signed in"
+        },
+        "thisDevice": "This device",
+        "unknownDevice": "Unknown",
+        "thisBrowser": "this browser",
+        "thisDeviceFallback": "this device",
+        "signOutThisSession": "Sign out this session",
+        "signOutOtherDevices": "Sign out other devices",
+        "deleteCurrentTitle": "Sign out of this device?",
+        "deleteOtherTitle": "Sign out of {browser} on {osName}?",
+        "deleteCurrentDescription": "You're signed in here — continuing will sign you out immediately.",
+        "deleteOtherDescription": "You'll sign out {browser} on {osName}. You can sign back in later.",
+        "signOutAction": "Sign out",
+        "signOutOthersTitle": "Sign out other devices?",
+        "signOutOthersDescription": "You'll stay signed in here. Recommended if a device was lost or stolen.",
+        "signOutOthersSuccess": "Signed out of other devices.",
+        "signOutOthersFailed": "Couldn't sign out other devices."
+      }
+    },
+    "billing": {
+      "title": "Billing",
+      "canceling": "Canceling",
+      "renews": "Renews {date}",
+      "endsOn": "Your subscription will end on {date}. You'll retain access until then.",
+      "manageSubscription": "Manage subscription",
+      "upgradeToBasic": "Upgrade to Basic",
+      "upgradeToPremium": "Upgrade to Premium",
+      "current": "Current",
+      "plan": {
+        "free": "Free",
+        "freeDescription": "Browse and search the map",
+        "basic": "Basic",
+        "basicDescription": "Save places, share with friends",
+        "premium": "Premium",
+        "premiumDescription": "Everything, plus advanced features",
+        "everythingInFree": "Everything in Free",
+        "everythingInBasic": "Everything in Basic"
+      },
+      "features": {
+        "basicMapLayers": "Basic map layers",
+        "placeSearch": "Place search and details",
+        "directions": "Directions and routing",
+        "bookmarks": "Bookmarks and saved places",
+        "collections": "Collections",
+        "friends": "Friends",
+        "locationSharing": "Real-time location sharing",
+        "mapNotes": "Map notes",
+        "customLayers": "Custom map layers",
+        "integrations": "Integrations",
+        "businessData": "Enhanced business data",
+        "mapboxEngine": "Mapbox map engine",
+        "searchAutoRefresh": "Auto-refresh search results",
+        "advancedLayers": "Advanced map layers",
+        "customMaps": "Custom map configurations",
+        "routingPreferences": "Advanced routing preferences",
+        "weatherVisualizations": "Weather visualizations"
+      },
+      "trial": {
+        "monthFree": "1 month free trial",
+        "monthsFree": "{count} month free trial",
+        "weekFree": "1 week free trial",
+        "weeksFree": "{count} week free trial",
+        "dayFree": "1 day free trial",
+        "daysFree": "{count} day free trial"
+      },
+      "perMonth": "/month",
+      "perYear": "/year",
+      "checkout": {
+        "welcomeTier": "Welcome to {tier}!",
+        "welcomePremium": "Welcome to Premium!",
+        "subscriptionActive": "Your subscription is now active.",
+        "processing": "Processing your subscription...",
+        "processingDescription": "It may take a moment to activate. Refresh to check."
+      }
+    },
+    "developer": {
+      "title": "Developer",
+      "gpxSimulator": {
+        "title": "GPX track simulator",
+        "description": "Replay a recorded GPX file as if it were live GPS. Lets you test location-aware features without physically moving.",
+        "noTrack": "No track loaded",
+        "noTrackHint": "Pick a .gpx file to start. The app will receive simulated GPS positions instead of real ones.",
+        "trackMeta": "{count} points · {duration}",
+        "choose": "Choose file",
+        "replace": "Replace",
+        "unload": "Unload",
+        "dropHere": "or drop a .gpx file here",
+        "play": "Play",
+        "pause": "Pause",
+        "reset": "Reset to start",
+        "playbackSpeed": "Playback speed",
+        "loop": "Loop",
+        "loopDescription": "Restart from the beginning when the track ends",
+        "position": "Position",
+        "speed": "Speed",
+        "heading": "Heading"
+      },
+      "impersonation": {
+        "title": "Impersonate user"
+      },
+      "info": {
+        "title": "About this page",
+        "description": "This page is only visible in development mode.",
+        "modeTitle": "Development build",
+        "modeDescription": "Development-only tooling lives here. None of it ships to production."
+      },
+      "buildingShading": {
+        "title": "Building lighting",
+        "description": "Tune the shadows, occlusion and edges on the 3D buildings. Changes apply to the map live and are not saved."
+      }
+    },
     "behavior": {
-      "title": "Behavior"
+      "title": "Behavior",
+      "language": {
+        "title": "Language"
+      },
+      "mapBehavior": {
+        "title": "Map behavior"
+      },
+      "units": {
+        "title": "Units",
+        "system": "Unit system",
+        "description": "Preferred unit system for temperature, distance, and speed",
+        "metric": "Metric (°C, km, m/s)",
+        "imperial": "Imperial (°F, mi, mph)"
+      },
+      "floorNumbering": {
+        "title": "Floor numbering",
+        "system": "Floor numbering convention",
+        "description": "How floor numbers are displayed. Zero-based counts ground floor as 0 (common in Europe). One-based counts ground floor as 1 (common in the Americas).",
+        "zeroBased": "Zero-based (Ground = 0)",
+        "oneBased": "One-based (Ground = 1)"
+      },
+      "shakeForFeedback": {
+        "title": "Shake to send feedback",
+        "description": "Give your phone a shake to open the feedback form. Needs motion access."
+      }
     },
     "appearance": {
       "title": "Appearance",
@@ -614,18 +1773,24 @@
         "color": {
           "title": "Color",
           "values": {
-            "zinc": "Zinc",
-            "rose": "Rose",
-            "blue": "Blue",
-            "green": "Green",
-            "orange": "Orange",
-            "red": "Red",
-            "slate": "Slate",
-            "stone": "Stone",
-            "gray": "Gray",
-            "neutral": "Neutral",
-            "yellow": "Yellow",
-            "violet": "Violet"
+            "parchment": "Parchment",
+            "ink": "Ink",
+            "compass": "Compass",
+            "coral": "Coral",
+            "amber": "Amber",
+            "peach": "Peach",
+            "citrine": "Citrine",
+            "olive": "Olive",
+            "forest": "Forest",
+            "moss": "Moss",
+            "teal": "Teal",
+            "sky": "Sky",
+            "cobalt": "Cobalt",
+            "periwinkle": "Periwinkle",
+            "indigo": "Indigo",
+            "violet": "Violet",
+            "iris": "Iris",
+            "magenta": "Magenta"
           }
         },
         "radius": {
@@ -638,25 +1803,21 @@
             "dark": "Dark"
           }
         }
-      },
-      "mapTheme": {
-        "title": "Map theme",
-        "values": {
-          "matchTime": "Match app theme and time of day",
-          "match": "Match app theme",
-          "day": "Day",
-          "night": "Night",
-          "dawn": "Dawn",
-          "dusk": "Dusk"
-        }
       }
     },
     "mapSettings": {
       "title": "Map",
       "configuration": {
         "title": "Map configuration",
+        "experimental": "Experimental",
         "3dTerrain": "3D terrain",
+        "3dBuildings": "3D buildings",
         "3dObjects": "3D objects",
+        "3dObjectsDescription": "Draw trees and street furniture as models. MapLibre only.",
+        "hdRoads": "HD roads",
+        "hdRoadsDescription": "High-definition road visualization with enhanced detail",
+        "indoorMaps": "Indoor maps",
+        "indoorMapsDescription": "Show floor plans for airports, malls and stadiums, with a floor selector. Requires the standard basemap.",
         "poiLabels": "POI labels",
         "roadLabels": "Road labels",
         "transitLabels": "Transit labels",
@@ -669,6 +1830,7 @@
         "scale": "Scale bar",
         "streetView": "Street view",
         "locate": "Locate",
+        "weather": "Weather",
         "visibility": {
           "always": "Always",
           "never": "Never",
@@ -676,6 +1838,44 @@
           "whileZooming": "While zooming",
           "whileActive": "While active"
         }
+      },
+      "location": {
+        "title": "Location",
+        "startupLocation": "Startup location",
+        "startupLocationDescription": "Choose what location is shown when the map first loads",
+        "startup": {
+          "locateMe": "My current location",
+          "lastVisited": "Last visited location",
+          "urlParams": "From URL"
+        },
+        "locateFlySpeed": "Locate animation speed",
+        "speed": {
+          "instant": "Instant",
+          "fast": "Fast",
+          "normal": "Normal",
+          "slow": "Slow"
+        }
+      },
+      "rotation": {
+        "title": "Map rotation",
+        "northUpSnap": "Snap to north",
+        "northUpSnapDescription": "Snap the map upright when you rotate near north",
+        "gridSnap": "Snap to street grid",
+        "gridSnapDescription": "Snap rotation to the street grid in cities like New York",
+        "gridSnapModeOff": "Off",
+        "gridSnapModeNorthUp": "North up only",
+        "gridSnapModeAll": "All 90° rotations"
+      },
+      "style": {
+        "title": "Style",
+        "mapStyle": "Map style",
+        "poiStyle": "Place icons",
+        "poiStyleDescription": "How points of interest are drawn on the map.",
+        "poiStyleBadge": "Coloured badges",
+        "poiStyleGlyph": "Icons only",
+        "descriptionMaplibre": "Visual style for the map",
+        "descriptionMapbox": "Mapbox uses its own standard style",
+        "placeholder": "Choose a style"
       },
       "basemaps": {
         "title": "Basemaps",
@@ -691,12 +1891,94 @@
         "description": "Choose layers to display in the layer selector"
       }
     },
+    "vehicles": {
+      "title": "My Vehicles",
+      "description": "Manage your vehicles for trip planning. Active vehicles are used when planning routes with known vehicle locations.",
+      "empty": "No vehicles added yet. Add your car or bike to get personalized routes that start from your vehicle's location.",
+      "add": "Add vehicle",
+      "active": "active",
+      "electric": "electric",
+      "actions": {
+        "setActive": "Set as active",
+        "setLocation": "Set location on map",
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "location": {
+        "notSet": "Location not set",
+        "set": "Location set",
+        "updated": "Updated {time}"
+      },
+      "time": {
+        "justNow": "just now",
+        "minutesAgo": "{count}m ago",
+        "hoursAgo": "{count}h ago",
+        "daysAgo": "{count}d ago"
+      },
+      "dialog": {
+        "addTitle": "Add vehicle",
+        "editTitle": "Edit vehicle",
+        "addDescription": "Add a vehicle to use with trip planning.",
+        "editDescription": "Update your vehicle details."
+      },
+      "form": {
+        "name": "Name (optional)",
+        "namePlaceholder": "e.g. Blue Honda",
+        "type": "Type",
+        "typePlaceholder": "Select type",
+        "fuelType": "Fuel type",
+        "fuelTypePlaceholder": "Select fuel type"
+      },
+      "types": {
+        "car": "Car",
+        "truck": "Truck",
+        "moped": "Moped",
+        "bike": "Bike",
+        "e-bike": "E-bike",
+        "scooter": "Scooter",
+        "e-scooter": "E-scooter"
+      },
+      "energyTypes": {
+        "gas": "Gas",
+        "diesel": "Diesel",
+        "electric": "Electric",
+        "hybrid": "Hybrid"
+      }
+    },
     "integrations": {
       "title": "Integrations",
       "description": "Manage your configured external service connections",
       "available": "Available Integrations",
       "noConfigured": "No configured integrations",
       "noAvailable": "No available integrations",
+      "noResults": "No integrations match your filters",
+      "searchPlaceholder": "Search integrations...",
+      "filter": {
+        "label": "Filter",
+        "reset": "Clear all",
+        "cost": "Cost",
+        "free": "Free",
+        "paid": "Paid",
+        "hosting": "Hosting",
+        "cloud": "Cloud",
+        "selfHosted": "Self-hosted",
+        "scope": "Scope",
+        "system": "System",
+        "user": "User",
+        "status": "Status",
+        "connected": "Connected",
+        "notConnected": "Not connected",
+        "disabled": "Disabled",
+        "encryption": "Encryption",
+        "serverManaged": "Server-managed",
+        "endToEnd": "End-to-end encrypted"
+      },
+      "sort": {
+        "label": "Sort",
+        "popularity": "Popularity",
+        "alphabetical": "Alphabetical",
+        "dateModified": "Date modified"
+      },
       "configure": "Configure {name}",
       "edit": "Edit {name}",
       "success": "Success",
@@ -709,6 +1991,12 @@
         "title": "Delete Integration",
         "description": "Are you sure you want to delete the {name} integration?",
         "success": "{name} integration successfully deleted"
+      },
+      "disconnect": {
+        "title": "Disconnect Integration",
+        "description": "Are you sure you want to disconnect the {name} integration?",
+        "dependentsWarning": "This will also remove {count} dependent integration(s) ({names}) that rely on it.",
+        "success": "{name} integration successfully disconnected"
       },
       "test": {
         "title": "Test Connection",
@@ -727,11 +2015,22 @@
         "routing": "Routing",
         "geocoding": "Geocoding",
         "placeInfo": "Place Info",
-        "imagery": "Imagery",
         "mapEngine": "Map Engine",
         "title": "Capabilities",
         "streetView": "Street View",
-        "transitData": "Transit Data"
+        "transitData": "Transit Data",
+        "weather": "Weather",
+        "logging": "Logging",
+        "spatialParents": "Spatial Parents",
+        "spatialChildren": "Spatial Children",
+        "searchAlongRoute": "Search Along Route",
+        "osmMapEdit": "Edit Map",
+        "tileServer": "Tile Server",
+        "locationHistory": "Location History",
+        "brandCatalog": "Brand Catalog",
+        "transitRouting": "Transit Routing",
+        "rideshareEstimate": "Rideshare",
+        "feedback": "Feedback"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -750,8 +2049,34 @@
         "transitland": "Transit routes tiles and APIs",
         "wikidata": "Structured knowledge base for enriching place information",
         "wikipedia": "Free encyclopedia content and place descriptions",
-        "wikimedia": "Free media repository for place images"
-      }
+        "wikimedia": "Free media repository for place images",
+        "openweathermap": "Weather data and air quality information",
+        "axiom": "Send server logs and traces to Axiom for debugging and monitoring",
+        "barrelman": "Self-hosted OSM search and spatial engine",
+        "openstreetmap": "Configure OSM OAuth",
+        "openstreetmap-account": "Add notes, comments, and make quick edits",
+        "dawarich": "Private, encrypted location history tracking",
+        "openaq": "Open air-quality data from ground monitoring stations",
+        "firms": "Active wildfire detections from satellite (VIIRS/MODIS)",
+        "quackback": "Feedback boards, voting and roadmap for the in-app feedback form"
+      },
+      "scheme": {
+        "endToEnd": {
+          "formNote": "End-to-end encrypted. Your URL and API token are encrypted on this device before upload — the Parchment server never sees them."
+        },
+        "setupRequired": "Set up your encryption keys in Settings → Encryption keys before configuring this integration."
+      },
+      "osm": {
+        "connected": "OpenStreetMap account connected successfully",
+        "disconnected": "OpenStreetMap account disconnected",
+        "authError": "Failed to connect OpenStreetMap account",
+        "disconnectError": "Failed to disconnect OpenStreetMap account",
+        "disconnect": "Disconnect",
+        "viewProfile": "View OSM profile",
+        "configureOAuthApp": "Configure OAuth application on OSM server",
+        "devCallbackInstructions": "Dev mode: After authorizing in the browser, copy the full redirect URL and run window.__osmDevCallback('URL') in the console"
+      },
+      "viewDocs": "View documentation"
     },
     "users": {
       "title": "Users & Roles",
@@ -765,14 +2090,563 @@
         "title": "Permissions"
       }
     },
+    "roles": {
+      "title": "Roles"
+    },
+    "permissions": {
+      "title": "Permissions"
+    },
+    "user-detail": {
+      "title": "User"
+    },
+    "role-detail": {
+      "title": "Role"
+    },
     "system": {
       "title": "System"
     }
+  },
+  "notes": {
+    "noteTitle": "Note #{id}",
+    "open": "Open",
+    "closed": "Resolved",
+    "anonymous": "Anonymous",
+    "comment": "Comment",
+    "resolve": "Resolve",
+    "commentAndResolve": "Comment & resolve",
+    "reopen": "Reactivate",
+    "commentPlaceholder": "Add a comment...",
+    "viewOnOsm": "View on OpenStreetMap",
+    "commentAdded": "Comment added",
+    "commentError": "Failed to add comment",
+    "noteClosed": "Note resolved",
+    "closeError": "Failed to resolve note",
+    "noteReopened": "Note reactivated",
+    "reopenError": "Failed to reactivate note",
+    "actionClosed": "resolved this note",
+    "actionReopened": "reactivated this note",
+    "addNote": "Add note",
+    "createNote": "New Note",
+    "createDescription": "Drag the marker to adjust the location. Describe the issue or suggestion below.",
+    "createPlaceholder": "Describe what needs attention at this location...",
+    "submitNote": "Submit Note",
+    "noteCreated": "Note created",
+    "createError": "Failed to create note"
   },
   "notFound": {
     "title": "404",
     "subtitle": "Wrong continent",
     "message": "Even Columbus was a better navigator.",
     "action": "Return to Spain"
+  },
+  "sharing": {
+    "title": "Share \"{name}\"",
+    "description": "Manage who can access this collection",
+    "searchPlaceholder": "Add people by handle",
+    "addAction": "Add",
+    "noFriendsMatch": "No friends match your search",
+    "peopleWithAccess": "People with access",
+    "role": {
+      "owner": "Owner",
+      "viewer": "Viewer",
+      "editor": "Editor"
+    },
+    "owner": {
+      "identityIncomplete": "Finish identity setup in Settings"
+    },
+    "generalAccess": {
+      "title": "General access",
+      "restricted": {
+        "title": "Restricted",
+        "description": "Only invited people can open this collection.",
+        "enableAction": "Create link"
+      },
+      "anyoneWithLink": {
+        "title": "Anyone with the link",
+        "description": "Anyone on the internet with the link can view.",
+        "copyAction": "Copy link",
+        "revokeAction": "Revoke link"
+      },
+      "e2ee": {
+        "title": "End-to-end encrypted",
+        "description": "Only invited friends can decrypt this collection. Public link unavailable.",
+        "switchAction": "Switch to server-stored encryption"
+      },
+      "serverKey": {
+        "switchAction": "Switch to end-to-end encryption"
+      }
+    },
+    "publicLink": {
+      "copied": "Link copied to clipboard"
+    },
+    "schemeSwitch": {
+      "upgradeConfirm": {
+        "title": "Switch to end-to-end encryption?",
+        "description": "Every saved place in this collection will be re-encrypted under your personal key. The Parchment server will no longer be able to read them. Any public link will be revoked. Friends with access will be re-shared under the new key.",
+        "continueText": "Switch to end-to-end"
+      },
+      "downgradeConfirm": {
+        "title": "Switch to server-stored encryption?",
+        "description": "The Parchment server will be able to read every saved place in this collection. Friends with access will be re-shared under the new scheme. This cannot be undone without switching back and re-encrypting.",
+        "continueText": "Switch to server-stored"
+      },
+      "success": "Encryption scheme switched",
+      "failed": "Failed to switch encryption scheme"
+    },
+    "errors": {
+      "loadFailed": "Failed to load shares",
+      "createFailed": "Failed to share",
+      "revokeFailed": "Failed to remove access",
+      "roleChangeFailed": "Failed to change role",
+      "publicLinkFailed": "Failed to create public link",
+      "publicLinkRevokeFailed": "Failed to revoke public link",
+      "copyFailed": "Copy failed — select and copy the link manually",
+      "identityRequired": "Set up your encryption keys in Settings before sharing",
+      "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
+    }
+  },
+  "auth": {
+    "signIn": {
+      "server": "Server",
+      "email": "Email",
+      "emailPlaceholder": "magellan{'@'}parchment.app",
+      "sendCode": "Send verification code",
+      "signInWithPasskey": "Sign in with passkey",
+      "or": "Or",
+      "termsAndPrivacy": "By continuing, you agree to Parchment's Terms of Service and Privacy Policy"
+    },
+    "otp": {
+      "title": "Verification code",
+      "description": "Code sent to {email}",
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "verifying": "Verifying...",
+      "success": "Success!"
+    },
+    "server": {
+      "addCustom": "Add custom server..."
+    },
+    "passkey": {
+      "restoringTitle": "Restoring your data…",
+      "restoringDescription": "Tap your passkey one more time to unlock your encrypted data.",
+      "restoredSuccess": "Your data is ready.",
+      "restoreFailed": "Couldn't restore your data — try again from Settings → Encryption keys."
+    }
+  },
+  "subscription": {
+    "upgradeBanner": {
+      "title": "Upgrade to {tier}",
+      "description": "This feature requires a {tier} subscription."
+    }
+  },
+  "onboarding": {
+    "finish": "Finish",
+    "profile": {
+      "title": "Set up your profile",
+      "description": "Tell us a bit about yourself to get started.",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "firstNamePlaceholder": "Christopher",
+      "lastNamePlaceholder": "Columbus",
+      "removeAvatar": "Remove avatar"
+    },
+    "alias": {
+      "title": "Choose a username",
+      "description": "Pick a unique username for your federation identity. Others can find and add you with this handle.",
+      "label": "Username",
+      "placeholder": "username",
+      "hint": "3-30 characters, letters, numbers, and underscores only.",
+      "previewLabel": "Your handle",
+      "validationError": "Username must be 3-30 characters using letters, numbers, or underscores.",
+      "aliasTaken": "This username is already taken.",
+      "saveFailed": "Could not save username. Try a different one."
+    },
+    "recoveryKey": {
+      "title": "Save your recovery key",
+      "description": "This key is the only way to recover your encrypted data. Store it somewhere safe."
+    },
+    "theme": {
+      "title": "Preferences",
+      "description": "Set your language, units, and visual style.",
+      "languageLabel": "Language",
+      "unitsLabel": "Units",
+      "colorLabel": "Accent color",
+      "modeLabel": "Display mode",
+      "modes": {
+        "light": "Light",
+        "dark": "Dark",
+        "auto": "System"
+      }
+    },
+    "passkey": {
+      "title": "Add a passkey",
+      "description": "Passkeys let you sign in and restore your encrypted data without typing a recovery key."
+    },
+    "subscription": {
+      "title": "Choose your plan",
+      "description": "Unlock bookmarks, collections, friends, and integrations with a paid plan.",
+      "skipLabel": "Continue with {plan}"
+    },
+    "integrations": {
+      "title": "Set up integrations",
+      "description": "Connect services for maps, search, geocoding, and more. Free integrations have been enabled automatically."
+    },
+    "invite": {
+      "title": "Invite others",
+      "description": "Send invitations to people you'd like to collaborate with. You can always do this later from settings.",
+      "emailLabel": "Email addresses",
+      "placeholder": "Type an email and press Enter...",
+      "send": "Send invitations",
+      "sendFailed": "Failed to send invitation.",
+      "sent": "Sent {count} invitation(s).",
+      "sentSummary": "{count} invitation(s) sent"
+    }
+  },
+  "canvases": {
+    "title": "Canvases",
+    "search": {
+      "placeholder": "Search canvases…",
+      "noResults": "No matching canvases"
+    },
+    "layerCount": "No layers | 1 layer | {count} layers",
+    "showOnMap": "Show on the map",
+    "saved": "Saved",
+    "notFound": "This canvas no longer exists.",
+    "actions": {
+      "new": "New canvas",
+      "rename": "Rename"
+    },
+    "empty": {
+      "title": "No canvases yet",
+      "description": "A canvas is your own map — stack imagery, data and saved places, then switch it on over the basemap."
+    },
+    "dialog": {
+      "newTitle": "New canvas",
+      "editTitle": "Canvas details",
+      "description": "Give it a name and decide who can read it.",
+      "namePlaceholder": "Canvas name",
+      "descriptionPlaceholder": "What is this canvas for? (optional)",
+      "privacy": "Privacy"
+    },
+    "schemes": {
+      "server-key": {
+        "title": "Shareable",
+        "description": "Stored so it can be published with a link later."
+      },
+      "user-e2ee": {
+        "title": "Private",
+        "description": "End-to-end encrypted. Only your devices can read it."
+      }
+    },
+    "layers": {
+      "missing": "Missing layer",
+      "show": "Show",
+      "hide": "Hide",
+      "edit": "Edit layer",
+      "remove": "Remove from canvas",
+      "kinds": {
+        "style": "Custom layer",
+        "library": "From your library",
+        "collection": "Saved places",
+        "data": "Your data",
+        "route": "Route",
+        "people": "People"
+      },
+      "renders": {
+        "points": "Points",
+        "lines": "Lines",
+        "shapes": "Shapes",
+        "heatmap": "Heatmap"
+      },
+      "featureCount": "No features | 1 feature | {count} features",
+      "rename": "Rename layer"
+    },
+    "add": {
+      "trigger": "Add a layer",
+      "title": "Add a layer",
+      "description": "What would you like to put on this canvas?",
+      "noLayers": "No layers in your library yet.",
+      "noCollections": "No collections yet.",
+      "options": {
+        "sources": {
+          "title": "Data sources",
+          "description": "Curated datasets, your files, or a live connection."
+        },
+        "style": {
+          "title": "Design a layer",
+          "description": "Imagery, vector tiles or GeoJSON, styled how you like."
+        },
+        "collection": {
+          "title": "Saved places",
+          "description": "Draw a collection's places as points."
+        },
+        "route": {
+          "title": "Routes",
+          "description": "Put one of your routes on this canvas."
+        },
+        "library": {
+          "title": "Layers",
+          "description": "Reuse a layer you already have."
+        },
+        "people": {
+          "title": "People",
+          "description": "Friends sharing their location with you, live."
+        },
+        "import": {
+          "title": "Upload a file",
+          "description": "GeoJSON, KML, GPX or a CSV with latitude and longitude columns."
+        }
+      },
+      "noRoutes": "No routes yet.",
+      "groups": {
+        "data": "Bring in data",
+        "yours": "From your library"
+      }
+    },
+    "delete": {
+      "title": "Delete canvas?",
+      "description": "\"{name}\" and its layers will be removed. This can't be undone."
+    },
+    "privacy": {
+      "needsIdentity": "Needs your recovery key on this device.",
+      "switched": "Canvas privacy updated",
+      "switchTo": {
+        "server-key": "Make it shareable",
+        "user-e2ee": "Make it private"
+      },
+      "confirm": {
+        "server-key": {
+          "title": "Make this canvas shareable?",
+          "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+        },
+        "user-e2ee": {
+          "title": "Make this canvas private?",
+          "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+        }
+      }
+    },
+    "import": {
+      "errors": {
+        "unsupportedFormat": "That file type isn't supported. Try GeoJSON, KML, GPX or CSV.",
+        "notGeoJson": "That file isn't valid GeoJSON.",
+        "badKml": "That KML file couldn't be read.",
+        "badGpx": "That GPX file couldn't be read.",
+        "csvEmpty": "That CSV has no rows.",
+        "csvNoCoordinates": "That CSV needs latitude and longitude columns.",
+        "csvNoRows": "No rows in that CSV had usable coordinates.",
+        "noFeatures": "There was nothing to map in that file.",
+        "tooLarge": "That file is too big for a canvas. Try simplifying or splitting it.",
+        "failed": "That file couldn't be imported.",
+        "fetchFailed": "That URL couldn't be read."
+      }
+    },
+    "dataSettings": {
+      "title": "Layer settings",
+      "render": "Draw as",
+      "color": "Color",
+      "opacity": "Opacity",
+      "label": "Label with",
+      "size": {
+        "points": "Dot size",
+        "lines": "Line width",
+        "shapes": "Outline width",
+        "heatmap": "Radius"
+      }
+    },
+    "share": {
+      "create": "Create a share link",
+      "copy": "Copy link",
+      "copied": "Link copied",
+      "revoke": "Revoke this link",
+      "revokeConfirm": {
+        "title": "Revoke this link?",
+        "description": "Anyone holding it will stop being able to open this canvas."
+      }
+    },
+    "public": {
+      "subtitle": "Shared with you",
+      "gone": {
+        "title": "This link no longer works",
+        "description": "It may have been revoked, or the canvas made private."
+      }
+    },
+    "toolbar": {
+      "select": "Select",
+      "undo": "Undo last point",
+      "tools": {
+        "pin": "Pin",
+        "line": "Line",
+        "polygon": "Polygon",
+        "rectangle": "Rectangle",
+        "circle": "Circle",
+        "route": "Route",
+        "isochrone": "Travel time",
+        "doodle": "Doodle",
+        "erase": "Erase"
+      },
+      "undoEdit": "Undo",
+      "redoEdit": "Redo",
+      "hints": {
+        "straight": "Hold Shift to hold the angle",
+        "close": "Click the first point to close",
+        "square": "Three clicks for any angle, Shift for a square",
+        "radius": "Hold Shift for a round radius",
+        "isochrone": "Click a point to see how far you can get",
+        "routingUnavailable": "Travel time needs a routing integration — set one up in Settings",
+        "doodle": "Drag to draw freehand",
+        "erase": "Click a mark to take it off the canvas"
+      },
+      "advanced": "More tools"
+    },
+    "annotations": {
+      "remove": "Delete annotation",
+      "labelPlaceholder": "Add a label",
+      "icon": "Icon",
+      "zoomTo": "Zoom to",
+      "showLabel": "Show label on the map",
+      "color": "Color",
+      "labelPosition": "Label position",
+      "positions": {
+        "top": "Above",
+        "bottom": "Below",
+        "left": "Left",
+        "right": "Right",
+        "center": "On the mark"
+      },
+      "name": "Name",
+      "metrics": {
+        "length": "Length",
+        "perimeter": "Perimeter",
+        "area": "Area",
+        "radius": "Radius",
+        "circumference": "Circumference"
+      },
+      "strokeWidth": "Border width",
+      "strokeStyle": "Border style",
+      "strokeOpacity": "Border opacity",
+      "fillColor": "Fill color",
+      "fillOpacity": "Fill opacity",
+      "markerSize": "Pin size",
+      "markerShape": "Pin shape",
+      "markerShapes": {
+        "disc": "Circle",
+        "square": "Square",
+        "glyph": "Icon only"
+      },
+      "labelSize": "Label size",
+      "strokeStyles": {
+        "solid": "Solid",
+        "dashed": "Dashed",
+        "dotted": "Dotted"
+      },
+      "strokeCap": "Ends",
+      "strokeCaps": {
+        "round": "Round",
+        "butt": "Flat",
+        "square": "Square"
+      },
+      "rename": "Rename mark"
+    },
+    "sources": {
+      "title": "Data sources",
+      "description": "Pick a dataset to make a layer from, or bring your own.",
+      "search": "Search data sources",
+      "noResults": "Nothing matches that.",
+      "uploadDirectly": "Upload directly",
+      "connectToSource": "Connect to a source",
+      "connectorSoon": "Live database sources aren't available yet.",
+      "urlPlaceholder": "https://example.com/data.geojson",
+      "formats": "GeoJSON, KML, GPX and CSV. Read on your device — nothing is uploaded.",
+      "sections": {
+        "library": "Library",
+        "new": "Your data"
+      }
+    },
+    "saving": "Saving…",
+    "mapSettings": {
+      "title": "Map appearance",
+      "override": "Custom for this canvas",
+      "description": "Only while this canvas is open."
+    },
+    "stack": {
+      "title": "Layers",
+      "empty": "Nothing on this canvas yet",
+      "emptyHint": "Add a layer, or draw on the map with the toolbar."
+    },
+    "groups": {
+      "add": "New group",
+      "untitled": "Group",
+      "rename": "Rename group",
+      "remove": "Ungroup",
+      "empty": "Drag layers and marks in here",
+      "drawingHere": "New marks land here",
+      "destination": "Where new marks go",
+      "canvas": "Canvas",
+      "delete": "Delete group"
+    },
+    "savedLocally": "Saved on this device · backs up when you reconnect"
+  },
+  "colors": {
+    "compass": "Compass",
+    "coral": "Coral",
+    "amber": "Amber",
+    "peach": "Peach",
+    "citrine": "Citrine",
+    "olive": "Olive",
+    "forest": "Forest",
+    "moss": "Moss",
+    "teal": "Teal",
+    "sky": "Sky",
+    "cobalt": "Cobalt",
+    "periwinkle": "Periwinkle",
+    "indigo": "Indigo",
+    "violet": "Violet",
+    "iris": "Iris",
+    "magenta": "Magenta",
+    "ink": "Ink",
+    "parchment": "Parchment"
+  },
+  "iconPicker": {
+    "trigger": "Choose an icon or color",
+    "customColor": "Custom color",
+    "sampleColor": "Pick a color from the screen",
+    "applyColor": "Apply color",
+    "tabs": {
+      "lucide": "Lucide",
+      "maki": "Maki",
+      "color": "Color"
+    }
+  },
+  "offline": {
+    "badge": "Offline",
+    "reconnecting": "Reconnecting…",
+    "emptyState": {
+      "title": "You're offline",
+      "description": "Go back online to view this",
+      "descriptionCreatable": "Anything you make now syncs when you're back online"
+    },
+    "retry": "Try again",
+    "sync": {
+      "title": "Pending changes",
+      "pendingCount": "{count} pending change | {count} pending changes",
+      "willSync": "Your changes will sync when you reconnect",
+      "syncing": "Syncing…",
+      "failed": "Couldn't sync",
+      "failedToast": "Couldn't sync \"{label}\"",
+      "cancel": "Cancel",
+      "retryAction": "Retry",
+      "dismiss": "Dismiss",
+      "labels": {
+        "save": "Save \"{name}\"",
+        "update": "Update \"{name}\"",
+        "remove": "Remove \"{name}\"",
+        "create": "Create \"{name}\"",
+        "delete": "Delete \"{name}\""
+      }
+    },
+    "viewUnavailable": {
+      "title": "This view needs to load first",
+      "description": "It couldn't be loaded. Try again once you're back online"
+    }
   }
 }

@@ -59,6 +59,8 @@ function onDragEnd() {
   isDragging.value = false
   window.removeEventListener('mousemove', onDrag)
   window.removeEventListener('mouseup', onDragEnd)
+  // Match the native rotate-gesture behavior: snap to north / city grid on release.
+  mapService.snapRotation()
 }
 
 onMounted(() => {

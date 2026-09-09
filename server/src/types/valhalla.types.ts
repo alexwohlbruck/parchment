@@ -21,7 +21,7 @@ export type Directions = {
     type?: string
     original_index?: number
   }>
-  language: string // TODO: We have a type for Locale
+  language: import('../lib/i18n').Language
   status: number
   status_message: string
   summary: {
@@ -49,6 +49,27 @@ export type ValhallaResponse = {
   trip: Directions
 }
 
+export type ValhallaEdgeSegment = {
+  startDistance: number
+  endDistance: number
+  surface: string
+  roadClass: string
+  use: string
+  cycleLane?: string
+  shoulder?: boolean
+  speedLimit?: number
+  laneCount?: number
+  weightedGrade?: number
+  meanElevation?: number
+}
+
+export type ValhallaElevationStats = {
+  totalGain: number
+  totalLoss: number
+  maxElevation: number
+  minElevation: number
+}
+
 export type ValhallaLeg = {
   shape: string
   summary: {
@@ -59,6 +80,10 @@ export type ValhallaLeg = {
     has_ferry?: boolean
   }
   maneuvers: ValhallaManeuver[]
+  // Enrichment fields (from Barrelman /route endpoint)
+  elevation?: number[]
+  edge_segments?: ValhallaEdgeSegment[]
+  elevation_stats?: ValhallaElevationStats
 }
 
 export type ValhallaManeuver = {
@@ -67,6 +92,8 @@ export type ValhallaManeuver = {
   length: number
   time: number
   street_names?: string[]
+  begin_shape_index?: number
+  end_shape_index?: number
   sign?: {
     exit_number?: string
   }

@@ -1,4 +1,8 @@
-import type { SupportedLanguage } from './i18n'
+import type { Language } from './i18n'
+import { getLanguageCode } from './i18n'
+import { getChipLabel } from './display-chips'
+import { translate } from './i18n/translate'
+import { logWarn, logger } from './logger'
 
 export type GeometryType = 'point' | 'line' | 'area' | 'vertex' | 'relation'
 
@@ -131,7 +135,7 @@ function loadPresets(): Record<string, PresetDefinition> {
     const rawData = require('@openstreetmap/id-tagging-schema/dist/translations/en.json')
     presetNames = rawData.en?.presets?.presets || {}
   } catch (error) {
-    console.warn('Could not load preset translations')
+    logWarn('Could not load preset translations', error)
   }
 
   presets = {}
@@ -139,6 +143,14 @@ function loadPresets(): Record<string, PresetDefinition> {
     const def = preset as any
     let name = presetNames[id]?.name
 
+    // If no direct translation, try resolving name references
+    // Raw preset names like "{education/university}" reference another preset
+    if (!name && def.name && typeof def.name === 'string' && def.name.startsWith('{') && def.name.endsWith('}')) {
+      const refId = def.name.slice(1, -1)
+      name = presetNames[refId]?.name
+    }
+
+    // Fall back to parent preset translations
     if (!name && id.includes('/')) {
       const parts = id.split('/')
       if (parts.length === 3) {
@@ -175,13 +187,18 @@ function loadFields(): Record<string, FieldDefinition> {
 
   for (const [id, field] of Object.entries(rawFields)) {
     const def = field as any
+    const rawOptions = def.options
+    const normalizedOptions = Array.isArray(rawOptions)
+      ? Object.fromEntries(rawOptions.map((v: string) => [v, v]))
+      : rawOptions
+
     fields[id] = {
       id,
       key: def.key || id,
       type: def.type || 'text',
       label: def.label || id,
       placeholder: def.placeholder,
-      options: def.options,
+      options: normalizedOptions,
     }
   }
 
@@ -214,19 +231,20 @@ function buildIndex(presets: Record<string, PresetDefinition>): GeometryIndex {
   return geometryIndex
 }
 
-function loadTranslations(language: SupportedLanguage): any {
-  if (translations.has(language)) {
-    return translations.get(language)
+function loadTranslations(language: Language): any {
+  const apiLang = getLanguageCode(language)
+  if (translations.has(apiLang)) {
+    return translations.get(apiLang)
   }
 
   try {
-    const rawData = require(`@openstreetmap/id-tagging-schema/dist/translations/${language}.json`)
-    const data = rawData[language]
-    translations.set(language, data)
+    const rawData = require(`@openstreetmap/id-tagging-schema/dist/translations/${apiLang}.json`)
+    const data = rawData[apiLang]
+    translations.set(apiLang, data)
     return data
   } catch (error) {
-    if (language !== 'en') {
-      return loadTranslations('en')
+    if (apiLang !== 'en') {
+      return loadTranslations('en-US')
     }
     return { presets: { presets: {}, fields: {} } }
   }
@@ -359,29 +377,82 @@ export function matchTags(
   const key = createCacheKey(tags, geometry)
 
   return getCached(c.matches, c.stats.matches, key, () => {
-    const candidates = findCandidates(tags, geometry)
+    let candidates = findCandidates(tags, geometry)
+
+    // For 'point' geometry, also try 'vertex' as many OSM presets
+    // (transit stops, crossings, etc.) only define 'vertex' geometry
+    if (candidates.length === 0 && geometry === 'point') {
+      candidates = findCandidates(tags, 'vertex')
+    }
+
+    // If best match is a generic wildcard (e.g. railway=*), try vertex
+    // to see if a more specific preset exists there
+    if (
+      candidates.length > 0 &&
+      geometry === 'point' &&
+      Object.values(candidates[0].preset.tags).includes('*')
+    ) {
+      const vertexCandidates = findCandidates(tags, 'vertex')
+      if (
+        vertexCandidates.length > 0 &&
+        !Object.values(vertexCandidates[0].preset.tags).includes('*') &&
+        vertexCandidates[0].score >= candidates[0].score
+      ) {
+        candidates = vertexCandidates
+      }
+    }
+
     return candidates.length > 0
       ? candidates[0]
       : handleFallback(tags, geometry)
   })
 }
 
+/**
+ * Display-name overrides for presets whose iD-schema name reads like tagging
+ * documentation rather than something a person would look for on a map. Applied
+ * wherever a preset is named for a user — the place-type line under a search
+ * result, and the browsable category registry (see `category.service`), which
+ * also keeps the original wording as a search alias.
+ *
+ * English only: other locales keep the schema's own translation.
+ */
+export const PRESET_NAME_OVERRIDES: Record<string, string> = {
+  'internet_access/wlan': 'WiFi',
+  'amenity/bicycle_repair_station': 'Bike Repair Stand',
+}
+
 export function getPresetName(
   preset: PresetDefinition,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
 ): string {
-  if (language === 'en') {
-    return preset.name
+  if (getLanguageCode(language) === 'en') {
+    return PRESET_NAME_OVERRIDES[preset.id] ?? preset.name
   }
 
   const c = createCache()
-  const key = `${preset.id}:${language}`
+  const key = `${preset.id}:${getLanguageCode(language)}`
 
   return getCached(c.names, c.stats.names, key, () => {
     const data = loadTranslations(language)
     const presetTranslations = data.presets?.presets || {}
 
     let name = presetTranslations[preset.id]?.name
+
+    // Try resolving name references (e.g. "{education/university}")
+    if (!name) {
+      const rawPresets = loadPresets()
+      const rawDef = rawPresets[preset.id]
+      if (rawDef) {
+        // Check the raw preset data for reference names
+        const rawPresetsData = require('@openstreetmap/id-tagging-schema/dist/presets.min.json')
+        const rawName = rawPresetsData[preset.id]?.name
+        if (rawName && typeof rawName === 'string' && rawName.startsWith('{') && rawName.endsWith('}')) {
+          const refId = rawName.slice(1, -1)
+          name = presetTranslations[refId]?.name
+        }
+      }
+    }
 
     if (!name && preset.id.includes('/')) {
       const parts = preset.id.split('/')
@@ -425,10 +496,10 @@ export function getPresetIcon(
 
 export function getPresetFields(
   preset: PresetDefinition,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
 ): FieldDefinition[] {
   const c = createCache()
-  const key = `${preset.id}:${language}`
+  const key = `${preset.id}:${getLanguageCode(language)}`
 
   return getCached(c.fields, c.stats.fields, key, () => {
     const fieldData = loadFields()
@@ -483,15 +554,34 @@ export function getPresetFields(
           }
         }
 
+        // Enrich with curated display-chip labels where available
+        const t = translate(language)
+        if (translatedField.type === 'check') {
+          const chipLabel = getChipLabel(translatedField.key, 'yes', t)
+          if (chipLabel) translatedField.label = chipLabel
+        }
+
+        if (translatedField.options) {
+          for (const [optKey] of Object.entries(translatedField.options)) {
+            const chipLabel = getChipLabel(translatedField.key, optKey, t)
+            if (chipLabel) translatedField.options[optKey] = chipLabel
+          }
+        }
+
         return translatedField
       })
       .filter((field): field is FieldDefinition => field !== null)
   })
 }
 
+export function getPresetById(id: string): PresetDefinition | null {
+  const data = loadPresets()
+  return data[id] || null
+}
+
 export function getPlaceType(
   tags: Record<string, string>,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
   geometry: GeometryType = 'point',
 ): string {
   const match = matchTags(tags, geometry)
@@ -499,22 +589,12 @@ export function getPlaceType(
     return getPresetName(match.preset, language)
   }
 
-  const fallbacks: Record<
-    SupportedLanguage,
-    { place: string; unnamed: string }
-  > = {
+  const fallbacks: Record<string, { place: string; unnamed: string }> = {
     en: { place: 'Place', unnamed: 'Unnamed Place' },
-    fr: { place: 'Lieu', unnamed: 'Lieu sans nom' },
-    de: { place: 'Ort', unnamed: 'Unbenannter Ort' },
     es: { place: 'Lugar', unnamed: 'Lugar sin nombre' },
-    it: { place: 'Luogo', unnamed: 'Luogo senza nome' },
-    pt: { place: 'Local', unnamed: 'Local sem nome' },
-    ru: { place: 'Место', unnamed: 'Безымянное место' },
-    ja: { place: '場所', unnamed: '名前のない場所' },
-    zh: { place: '地点', unnamed: '未命名地点' },
   }
 
-  const fallback = fallbacks[language] || fallbacks.en
+  const fallback = fallbacks[getLanguageCode(language)] || fallbacks.en
   return tags.name ? fallback.place : fallback.unnamed
 }
 
@@ -547,7 +627,7 @@ export function getPlaceIcon(
 
 export function getPlaceFields(
   tags: Record<string, string>,
-  language: SupportedLanguage = 'en',
+  language: Language = 'en-US',
   geometry: GeometryType = 'point',
 ): FieldDefinition[] {
   const match = matchTags(tags, geometry)
@@ -592,7 +672,7 @@ export function clearAllData(): void {
 }
 
 export function initializeOsmPresets(): void {
-  console.log('🏗️  Initializing OSM preset system...')
+  logger.debug('Initializing OSM preset system...')
   const start = Date.now()
 
   const presetData = loadPresets()
@@ -600,10 +680,10 @@ export function initializeOsmPresets(): void {
   buildIndex(presetData)
   createCache()
 
-  console.log(`✅ OSM preset system ready:`)
-  console.log(`   - ${Object.keys(presetData).length} presets`)
-  console.log(`   - ${Object.keys(fieldData).length} fields`)
-  console.log(`   - Geometry index built`)
-  console.log(`   - Cache initialized`)
-  console.log(`   - Took ${Date.now() - start}ms`)
+  logger.debug(`OSM preset system ready:`)
+  logger.debug(`   - ${Object.keys(presetData).length} presets`)
+  logger.debug(`   - ${Object.keys(fieldData).length} fields`)
+  logger.debug(`   - Geometry index built`)
+  logger.debug(`   - Cache initialized`)
+  logger.debug(`   - Took ${Date.now() - start}ms`)
 }

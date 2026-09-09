@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 <template>
   <h4
     :class="
-      cn('scroll-m-20 text-xl font-semibold tracking-tight', $attrs.class ?? '')
+      cn('scroll-m-20 text-xl', $attrs.class ?? '')
     "
   >
     <slot></slot>

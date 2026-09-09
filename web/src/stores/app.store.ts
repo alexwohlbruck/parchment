@@ -1,13 +1,13 @@
 import { DialogOptions, DialogType } from '@/types/app.types'
 import { defineStore } from 'pinia'
 import { Component, computed, ref, watch, markRaw } from 'vue'
-import { useWindowSize } from '@vueuse/core'
+import { useWindowSize, useStorage } from '@vueuse/core'
+import { UnitSystem, FloorNumbering } from '@/types/map.types'
 
 import ComponentDialog from '@/components/dialogs/ComponentDialog.vue'
 import ConfirmDialog from '@/components/dialogs/ConfirmDialog.vue'
 import PromptDialog from '@/components/dialogs/PromptDialog.vue'
 import AutoformDialog from '@/components/dialogs/AutoformDialog.vue'
-import ProgrammaticDrawer from '@/components/ProgrammaticDrawer.vue'
 
 export interface ManualBounds {
   x: number
@@ -50,6 +50,16 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function updateManualBounds(key: string, bounds: ManualBounds) {
+    const existing = manualBoundsMap.value.get(key)
+    if (
+      existing &&
+      existing.x === bounds.x &&
+      existing.y === bounds.y &&
+      existing.width === bounds.width &&
+      existing.height === bounds.height
+    ) {
+      return
+    }
     manualBoundsMap.value.set(key, bounds)
     refreshObstructingComponents()
   }
@@ -223,8 +233,7 @@ export const useAppStore = defineStore('app', () => {
         [DialogType.Confirm]: ConfirmDialog,
         [DialogType.Prompt]: PromptDialog,
         [DialogType.AutoForm]: AutoformDialog,
-        [DialogType.Template]: ConfirmDialog, // TODO
-        [DialogType.Drawer]: ProgrammaticDrawer,
+        [DialogType.Template]: ConfirmDialog, // TODO: Implement template dialog
       }
 
       if (
@@ -235,15 +244,6 @@ export const useAppStore = defineStore('app', () => {
         const componentOptions =
           options as import('@/types/app.types').ComponentDialogOptions
         componentOptions.component = markRaw(componentOptions.component)
-      }
-
-      if (
-        type === DialogType.Drawer &&
-        (options as import('@/types/app.types').DrawerOptions).component
-      ) {
-        const drawerOptions =
-          options as import('@/types/app.types').DrawerOptions
-        drawerOptions.component = markRaw(drawerOptions.component)
       }
 
       const newDialog: {
@@ -300,6 +300,26 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // Unit system preference (metric vs imperial)
+  const unitSystem = useStorage<UnitSystem>('unit-system', UnitSystem.METRIC)
+
+  // Floor numbering preference (zero-based vs one-based)
+  const floorNumbering = useStorage<FloorNumbering>('floor-numbering', FloorNumbering.ZERO_BASED)
+
+  // Shake the phone to open the feedback form. Off by default: it needs motion
+  // access, and turning it on is the user gesture iOS requires to ask for it.
+  const shakeForFeedback = useStorage<boolean>('shake-for-feedback', false)
+
+  // Width (px) of the peek-out area left by the collapsed left drawer's
+  // floating buttons. Map widgets in the top-left should add this much
+  // horizontal buffer to avoid being covered. 0 when drawer is expanded or
+  // not mounted.
+  const leftSheetOverlayWidth = ref(0)
+
+  // Shared hidden state for the desktop LeftSheet so DesktopNavigation can
+  // open the drawer when a nav link is clicked while it is collapsed.
+  const leftSheetHidden = ref(false)
+
   return {
     dialogs,
     createDialog,
@@ -316,5 +336,10 @@ export const useAppStore = defineStore('app', () => {
     debugObstructingComponents,
     updateManualBounds,
     clearManualBounds,
+    unitSystem,
+    floorNumbering,
+    shakeForFeedback,
+    leftSheetOverlayWidth,
+    leftSheetHidden,
   }
 })

@@ -2,10 +2,12 @@
 import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onClickOutside, useMagicKeys, useDebounceFn } from '@vueuse/core'
+import { useAbortController } from '@/composables/useAbortController'
 import { useRoute, useRouter } from 'vue-router'
 import { useCommandService } from '@/services/command.service'
 import { CommandName, useCommandStore } from '@/stores/command.store'
 import { useAppStore } from '@/stores/app.store'
+import { useRecentsStore } from '@/stores/recents.store'
 import { HotkeyId } from '@/stores/hotkey.store'
 import { AppRoute } from '@/router'
 import {
@@ -27,11 +29,19 @@ import {
   MapPinIcon,
   TerminalIcon,
   XIcon,
-  LoaderIcon,
+  SettingsIcon,
 } from 'lucide-vue-next'
+import { ItemIcon } from '@/components/ui/item-icon'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import { PlaceCard } from '@/components/place/card'
+import { makePlaceDisplay } from '@/lib/place/place-display'
+import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
+import { useSettingsIndex } from '@/composables/useSettingsIndex'
+import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
+import { Spinner } from '@/components/ui/spinner'
 
 const emit = defineEmits<{
   (e: 'inputFocused'): void
@@ -43,12 +53,30 @@ const props = withDefaults(
     searchOnOpen?: boolean
     open?: boolean
     showHints?: boolean
+    /**
+     * Let the results run to their natural length and hand the scrolling to
+     * whatever panel the palette sits in — the bottom sheet on mobile, the side
+     * panel on desktop — so a long list fills the screen instead of stopping
+     * half way down with empty space beneath it. Leave off inside a floating
+     * overlay (the ⌘K dialog), where the list has to bound itself.
+     */
+    fill?: boolean
   }>(),
   {
     searchOnOpen: false,
     open: true,
     showHints: false,
+    fill: false,
   },
+)
+
+// Inline, not a class: this has to beat CommandList's own `max-h-[50vh]`, and
+// which of two competing utility classes wins comes down to stylesheet order.
+// Both axes go visible together — CSS promotes a lone `overflow-y: visible`
+// back to `auto` when the other axis is clipped, which would quietly leave the
+// list a scroller again. Runaway width is caught by the Command root's clip.
+const listStyle = computed(() =>
+  props.fill ? { maxHeight: 'none', overflow: 'visible' } : undefined,
 )
 
 const { t } = useI18n()
@@ -78,6 +106,8 @@ const isDrawerOpen = computed(() => {
 // For async argument options
 const argumentOptions = ref<CommandArgumentOption[]>([])
 const loadingOptions = ref(false)
+let loadingTimer: ReturnType<typeof setTimeout> | null = null
+const { nextSignal } = useAbortController()
 
 const container = ref<HTMLElement>()
 const commandPalette = ref<InstanceType<typeof Command>>()
@@ -94,10 +124,106 @@ const filteredCommands = computed(() => {
     : availableCommands
 })
 
+// --- Settings entries in the palette ---------------------------------------
+// The settings index drives a "Settings" group in the palette so users can
+// jump straight to a section by name (e.g. "3D terrain"). A single shared
+// limit keeps the palette from being dominated by settings results when
+// the query is broad.
+const SETTINGS_PALETTE_RESULT_LIMIT = 8
+const { search: searchSettings } = useSettingsIndex()
+const { navigateToSection } = useSettingsScrollTarget()
+const filteredSettings = computed(() => {
+  return searchSettings(query.value, SETTINGS_PALETTE_RESULT_LIMIT)
+})
+
+function onSettingSelected(entry: { to: string; sectionId: string }) {
+  navigateToSection(entry.to, entry.sectionId)
+  closePalette()
+}
+
 const filteredArgumentOptions = computed(() => {
   return filterFunction.value
     ? filterFunction.value(argumentOptions.value, query.value)
     : argumentOptions.value
+})
+
+const SEARCH_GROUP_ORDER = [
+  'frequents',
+  'suggestedCategories',
+  'fullSearch',
+  'recents',
+  'brands',
+  'categories',
+  'places',
+] as const
+
+/**
+ * A palette option rendered as a place. Tile groups (Frequents) are saved
+ * places, so they get the same card the rest of the app uses; the option
+ * carries no route because selecting one hands the value back to the palette
+ * rather than navigating.
+ */
+function optionDisplay(option: CommandArgumentOption) {
+  return makePlaceDisplay({
+    title: option.name,
+    icon: option.iconName ?? 'MapPin',
+    iconPack: option.iconPack ?? 'lucide',
+    color: option.color,
+    customColor: option.iconColor,
+    imageUrl: option.imageUrl ?? null,
+    address: option.description ?? null,
+  })
+}
+
+/**
+ * Deal chip items into two rows, alternating, so the row order matches the
+ * column-major fill this layout used to get from the grid — the leading items
+ * stay leading across both rows rather than the second row starting halfway
+ * down the list.
+ */
+function chipRows(items: CommandArgumentOption[]): CommandArgumentOption[][] {
+  if (items.length <= 2) return [items]
+  const rows: CommandArgumentOption[][] = [[], []]
+  items.forEach((item, i) => rows[i % 2].push(item))
+  return rows
+}
+
+// Layout per group. Most groups render as a vertical list; Frequents renders as
+// a horizontal row of tile cards, and the common-categories browse shortcuts as
+// a two-column grid of chips. Extend this map to add more.
+const GROUP_LAYOUT: Record<string, 'list' | 'tiles' | 'chips'> = {
+  frequents: 'tiles',
+  // Category results are browse shortcuts whether they were suggested for an
+  // empty query or matched against a typed one, so both render as chips —
+  // several fit in the space one list row would take, and they read as
+  // "narrow the search" rather than "here is a result".
+  suggestedCategories: 'chips',
+  categories: 'chips',
+}
+
+const groupedArgumentOptions = computed(() => {
+  if (!isSearch.value) return null
+
+  const groups: {
+    key: string
+    heading: string
+    layout: 'list' | 'tiles' | 'chips'
+    items: CommandArgumentOption[]
+  }[] = []
+  for (const groupKey of SEARCH_GROUP_ORDER) {
+    const items = filteredArgumentOptions.value.filter(
+      item => item.group === groupKey,
+    )
+    if (items.length > 0) {
+      groups.push({
+        key: groupKey,
+        heading: t(`palette.commands.search.groups.${groupKey}`),
+        layout: GROUP_LAYOUT[groupKey] ?? 'list',
+        items,
+      })
+    }
+  }
+  return groups
 })
 
 function openPalette(withSearch = false) {
@@ -128,7 +254,9 @@ function closeDrawer() {
 }
 
 function resetOrClose() {
-  if (activeArgument.value) {
+  if (query.value) {
+    clearInput()
+  } else if (activeArgument.value) {
     resetCommand()
   } else if (showResults.value) {
     closePalette()
@@ -176,7 +304,7 @@ function inputFocused(event: FocusEvent) {
 // TODO: Come up with better method
 // TODO: Fix type error
 onClickOutside(container as any, event => {
-  showResults.value = false
+  closePalette()
   resetCommand()
 })
 
@@ -211,25 +339,50 @@ async function onArgumentSelected(value: ArgumentType) {
 }
 
 // Load argument options with async support
-async function loadArgumentOptions() {
+async function loadArgumentOptions(signal?: AbortSignal) {
   if (!activeArgument.value) return
 
-  loadingOptions.value = true
+  if (loadingTimer) clearTimeout(loadingTimer)
+  loadingTimer = setTimeout(() => { loadingOptions.value = true }, 400)
   try {
-    const items = activeArgument.value.getItems()
-    // Check if result is a Promise
+    const items = activeArgument.value.getItems(undefined, signal)
     if (items instanceof Promise) {
-      argumentOptions.value = await items
+      const resolved = await items
+      // A superseded request doesn't reject here: the search service turns an
+      // axios cancel into an empty array. Assigning it would blank the list the
+      // newer request is about to fill, which reads as a flicker while typing.
+      if (signal?.aborted) return
+      argumentOptions.value = resolved
     } else {
       argumentOptions.value = items
     }
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
     console.error('Error loading argument options:', error)
     argumentOptions.value = []
   } finally {
-    loadingOptions.value = false
+    // Same reasoning: a superseded request must not clear the spinner that the
+    // request which replaced it is still waiting on.
+    if (!signal?.aborted) {
+      if (loadingTimer) clearTimeout(loadingTimer)
+      loadingOptions.value = false
+    }
   }
 }
+
+// The idle search state renders before recents have been fetched and decrypted
+// (see the empty-query branch in command.store), so the list is rebuilt once
+// they arrive. Only while the input is empty: with a query typed, the options
+// come from a server search that shouldn't be re-issued for this.
+const recentsStore = useRecentsStore()
+watch(
+  () => [recentsStore.searches, recentsStore.places],
+  () => {
+    if (isSearch.value && !query.value && activeArgument.value) {
+      loadArgumentOptions()
+    }
+  },
+)
 
 // Watch for command/argument changes to load options
 watch(activeArgument, async newArg => {
@@ -240,13 +393,20 @@ watch(activeArgument, async newArg => {
   }
 })
 
-// Create a debounced function for loading search options
+// Create a debounced function for loading search options.
+// nextSignal() cancels the previous in-flight autocomplete request before issuing a new one.
+//
+// 150ms: barrelman's autocomplete now answers in ~20-40ms server-side (it was
+// 0.5-1.5s, with short prefixes reaching 10-20s), so the debounce no longer has
+// to hide backend latency — it only has to avoid firing on every keystroke of a
+// fast typist. Superseded requests are aborted above, so the extra in-flight
+// requests a shorter window allows are cancelled rather than raced.
 const debouncedLoadOptions = useDebounceFn(async () => {
   // Load options if we're in search mode
   if (activeCommand.value?.id === CommandName.SEARCH && activeArgument.value) {
-    await loadArgumentOptions()
+    await loadArgumentOptions(nextSignal())
   }
-}, 300)
+}, 150)
 
 // Watch query and handle search
 watch(query, newQuery => {
@@ -283,7 +443,7 @@ const placeholder = computed(() => {
 
 const icon = computed(() => {
   return showResults.value
-    ? activeCommand.value?.icon ?? TerminalIcon
+    ? (activeCommand.value?.icon ?? TerminalIcon)
     : SearchIcon
 })
 
@@ -309,7 +469,7 @@ const filterFunction = computed(() => {
 <template>
   <div ref="container">
     <Command
-      class="border border-border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
+      class="border bg-background/85 backdrop-blur-xl backdrop-saturate-150"
       ref="commandPalette"
       v-model:open="commandOpen"
       :ignore-filter="true"
@@ -340,8 +500,7 @@ const filterFunction = computed(() => {
                 class="absolute flex gap-1 transition-all duration-200"
                 :class="showResults || isDrawerOpen ? 'right-6' : 'right-0'"
               >
-                <!-- TODO: Detect if device has keyboard -->
-                <!-- <Kbd commandId="search"></Kbd> -->
+                <Kbd :hotkey="['mod', 'k']" size="xs" />
               </div>
             </transition-slide>
             <transition-slide :duration="200" :offset="['100%', 0]">
@@ -361,8 +520,8 @@ const filterFunction = computed(() => {
 
       <template v-if="showResults">
         <!-- Top-level commands list -->
-        <CommandList v-if="!activeArgument">
-          <CommandGroup heading="Commands">
+        <CommandList v-if="!activeArgument" :style="listStyle">
+          <CommandGroup v-if="filteredCommands.length" heading="Commands">
             <CommandItem
               v-for="command in filteredCommands"
               :key="command.id"
@@ -376,7 +535,7 @@ const filterFunction = computed(() => {
                   {{ command.name
                   }}<template v-if="command.arguments">...</template>
                 </span>
-                <span class="text-sm text-gray-500" v-if="command.description">
+                <span class="text-sm text-muted-foreground" v-if="command.description">
                   {{ command.description }}
                 </span>
               </div>
@@ -388,26 +547,171 @@ const filterFunction = computed(() => {
             </CommandItem>
           </CommandGroup>
 
+          <!-- Settings entries: only shown while the user is typing, so the
+               idle palette stays focused on top-level commands. -->
+          <CommandGroup
+            v-if="query.length && filteredSettings.length"
+            :heading="t('settings.title')"
+          >
+            <CommandItem
+              v-for="entry in filteredSettings"
+              :key="`settings-${entry.pageId}-${entry.sectionId}-${entry.title}`"
+              :value="entry"
+              class="flex gap-2"
+              @select="onSettingSelected(entry)"
+            >
+              <SettingsIcon class="size-5" />
+              <div class="flex-1 flex flex-col">
+                <span class="font-semibold">{{ entry.title }}</span>
+                <span class="text-sm text-muted-foreground">
+                  {{ entry.pageTitle
+                  }}<template v-if="entry.level === 'item'">
+                    · {{ entry.sectionTitle }}</template>
+                </span>
+              </div>
+            </CommandItem>
+          </CommandGroup>
+
           <!-- TODO: i18n -->
           <CommandEmpty>No matching commands.</CommandEmpty>
         </CommandList>
 
-        <!-- Command selected, display arguments -->
-        <CommandList v-if="activeArgument && (!isSearch || query.length)">
-          <CommandGroup :heading="activeArgument.name">
-            <div v-if="loadingOptions" class="py-6 text-center">
-              <LoaderIcon class="mx-auto h-4 w-4 animate-spin opacity-50" />
-              <p class="mt-2 text-sm text-muted-foreground">
-                Loading suggestions...
-              </p>
-            </div>
-            <CommandEmpty v-else-if="argumentOptions.length === 0">
-              <!-- TODO: Get this to show when no search results are found -->
-              <!-- TODO: i18n -->
+        <!-- Command selected, display arguments. For search we also render with
+             no query typed so the empty state can show recents + shortcuts. -->
+        <CommandList
+          v-if="activeArgument && (!isSearch || query.length || (groupedArgumentOptions && groupedArgumentOptions.length > 0))"
+          :style="listStyle"
+        >
+          <div v-if="loadingOptions" class="py-6 text-center">
+            <Spinner size="icon" class="mx-auto opacity-50" />
+            <p class="mt-2 text-sm text-muted-foreground">
+              Loading suggestions...
+            </p>
+          </div>
+
+          <!-- Grouped rendering for search command -->
+          <template v-else-if="groupedArgumentOptions">
+            <CommandEmpty v-if="groupedArgumentOptions.length === 0">
+              No results found.
+            </CommandEmpty>
+            <CommandGroup
+              v-for="group in groupedArgumentOptions"
+              :key="group.key"
+              :heading="group.heading"
+            >
+              <!-- Tile layout: horizontal scrolling cards (e.g. Frequents). -->
+              <div
+                v-if="group.layout === 'tiles'"
+                class="flex items-stretch gap-2 overflow-x-auto scrollbar-hidden px-1 pb-1"
+              >
+                <!-- Selecting hands the value back to the palette rather than
+                     navigating, so the card acts as a button. -->
+                <PlaceCard
+                  v-for="argumentOption in group.items"
+                  :key="argumentOption.value"
+                  :display="optionDisplay(argumentOption)"
+                  variant="tile"
+                  size="xs"
+                  icon-variant="ghost"
+                  :navigate="false"
+                  as="button"
+                  class="w-40 hover:bg-secondary/40"
+                  @click="onArgumentSelected(argumentOption.value)"
+                />
+              </div>
+
+              <!-- Chip layout: two-row, horizontally scrolling browse shortcuts (Categories).
+                   Two independent flex rows rather than a grid: a grid sizes each
+                   column to its widest cell and stretches the other to match, so
+                   "Coffee" was padded out to "Restaurants" width. Rows here scroll
+                   together but size each chip to its own label. -->
+              <div
+                v-else-if="group.layout === 'chips'"
+                class="overflow-x-auto scrollbar-hidden px-1 pb-1"
+              >
+                <div class="w-max flex flex-col gap-2">
+                  <div
+                    v-for="(row, rowIndex) in chipRows(group.items)"
+                    :key="rowIndex"
+                    class="flex items-center gap-2"
+                  >
+                    <button
+                      v-for="argumentOption in row"
+                      :key="argumentOption.value"
+                      type="button"
+                      class="shrink-0 flex items-center gap-1.5 rounded-full border bg-card depth hover:bg-secondary/40 transition-colors pl-1 pr-2.5 py-1 text-left"
+                      @click="onArgumentSelected(argumentOption.value)"
+                    >
+                      <ItemIcon
+                        :icon="argumentOption.iconName"
+                        :icon-pack="argumentOption.iconPack"
+                        :custom-color="argumentOption.iconColor"
+                        shape="circle"
+                        variant="solid"
+                        size="xs"
+                      />
+                      <span class="text-sm font-medium whitespace-nowrap">{{ argumentOption.name }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Default list layout. -->
+              <CommandItem
+                v-for="argumentOption in group.layout === 'list' ? group.items : []"
+                :key="argumentOption.value"
+                :value="argumentOption"
+                class="flex gap-2"
+                @select="onArgumentSelected(argumentOption.value)"
+              >
+                <!-- A transit line wears its own bullet. Centered in the icon
+                     column; a wordy short name widens into a pill, exactly as
+                     it does on departure boards. -->
+                <span
+                  v-if="argumentOption.bullet"
+                  class="flex items-center justify-center min-w-8 shrink-0"
+                >
+                  <RouteBullet
+                    :label="argumentOption.bullet.label"
+                    :color="argumentOption.bullet.color"
+                    :text-color="argumentOption.bullet.textColor"
+                    size="md"
+                  />
+                </span>
+                <ItemIcon
+                  v-else-if="argumentOption.iconName || argumentOption.iconColor || argumentOption.imageUrl"
+                  :icon="argumentOption.iconName"
+                  :icon-pack="argumentOption.iconPack"
+                  :custom-color="argumentOption.iconColor"
+                  :image-url="argumentOption.imageUrl"
+                  shape="circle"
+                  variant="solid"
+                  size="sm"
+                />
+                <component
+                  v-else-if="argumentOption.icon"
+                  :is="argumentOption.icon"
+                  class="size-5 opacity-50"
+                />
+                <div class="flex-1 flex flex-col">
+                  <span class="font-semibold">{{ argumentOption.name }}</span>
+                  <span
+                    class="text-sm text-muted-foreground"
+                    v-if="argumentOption.description"
+                  >
+                    {{ argumentOption.description }}
+                  </span>
+                </div>
+              </CommandItem>
+            </CommandGroup>
+          </template>
+
+          <!-- Default flat rendering for non-search commands -->
+          <CommandGroup v-else :heading="activeArgument.name">
+            <CommandEmpty v-if="argumentOptions.length === 0">
               No results found.
             </CommandEmpty>
             <CommandItem
-              v-else
               v-for="argumentOption in filteredArgumentOptions"
               :key="argumentOption.value"
               :value="argumentOption"
@@ -421,15 +725,33 @@ const filterFunction = computed(() => {
               />
 
               <template v-else>
+                <ItemIcon
+                  v-if="argumentOption.iconColor"
+                  :icon="argumentOption.iconName"
+                  :icon-pack="argumentOption.iconPack"
+                  :custom-color="argumentOption.iconColor"
+                  shape="circle"
+                  variant="solid"
+                  size="sm"
+                />
                 <component
-                  v-if="argumentOption.icon"
+                  v-else-if="argumentOption.icon"
                   :is="argumentOption.icon"
-                  class="size-5"
+                  class="size-5 opacity-50"
                 />
                 <div class="flex-1 flex flex-col">
-                  <span class="font-semibold">{{ argumentOption.name }}</span>
+                  <span class="flex items-center gap-2 font-semibold">
+                    {{ argumentOption.name }}
+                    <Badge
+                      v-if="argumentOption.premium"
+                      variant="primary"
+                      class="text-[10px] px-1.5 py-0"
+                    >
+                      Premium
+                    </Badge>
+                  </span>
                   <span
-                    class="text-sm text-gray-500"
+                    class="text-sm text-muted-foreground"
                     v-if="argumentOption.description"
                   >
                     {{ argumentOption.description }}
@@ -438,13 +760,40 @@ const filterFunction = computed(() => {
               </template>
             </CommandItem>
           </CommandGroup>
+
+          <!-- Settings entries are surfaced for argument-taking commands, but
+               NOT for place search — a place query ("park") shouldn't turn up
+               settings pages ("My Vehicles"). Settings are still reachable by
+               typing in the idle palette (the top-level list above). -->
+          <CommandGroup
+            v-if="!isSearch && filteredSettings.length"
+            :heading="t('settings.title')"
+          >
+            <CommandItem
+              v-for="entry in filteredSettings"
+              :key="`settings-search-${entry.pageId}-${entry.sectionId}-${entry.title}`"
+              :value="entry"
+              class="flex gap-2"
+              @select="onSettingSelected(entry)"
+            >
+              <SettingsIcon class="size-5 opacity-50" />
+              <div class="flex-1 flex flex-col">
+                <span class="font-semibold">{{ entry.title }}</span>
+                <span class="text-sm text-muted-foreground">
+                  {{ entry.pageTitle
+                  }}<template v-if="entry.level === 'item'">
+                    · {{ entry.sectionTitle }}</template>
+                </span>
+              </div>
+            </CommandItem>
+          </CommandGroup>
         </CommandList>
       </template>
 
       <!-- Keyboard shortcut hints -->
       <div
         v-if="showHints"
-        class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t border-border"
+        class="flex items-center gap-4 px-3 py-2 text-xs text-muted-foreground bg-muted/50 border-t"
       >
         <div class="flex items-center gap-1.5">
           <Kbd :hotkeyId="HotkeyId.COMMAND_PALETTE" size="xs" />

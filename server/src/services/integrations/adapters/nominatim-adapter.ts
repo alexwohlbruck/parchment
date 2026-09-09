@@ -7,10 +7,15 @@ import type {
   TransitStopInfo,
   PlaceRelation,
 } from '../../../types/place.types'
-import { getPlaceType } from '../../../lib/place.utils'
+import { getPlaceType, getLocalizedName } from '../../../lib/place.utils'
+import { matchTags, type GeometryType } from '../../../lib/osm-presets'
+import { buildPlaceIcon } from '../../../lib/place-categories'
 import { SOURCE } from '../../../lib/constants'
-import { parseOpeningHoursForUnifiedFormat } from '../../../lib/place.utils'
+import { parseOpeningHours } from '../../../lib/opening-hours'
+import { isPermanentlyClosedByOsmTags } from '../../../lib/osm-lifecycle'
 import { extractTransitIdentifiers, isTransitStopType, isTransitStop, createTransitInfo } from '../../../lib/transit-utils'
+import { logError } from '../../../lib/logger'
+import { DEFAULT_LANGUAGE, type Language } from '../../../lib/i18n'
 
 /**
  * Interface for Nominatim hierarchy response (parent relations)
@@ -63,34 +68,60 @@ export interface NominatimLookupResult {
  */
 export class NominatimAdapter {
   placeInfo = {
-    adaptPlaceDetails: (data: NominatimLookupResult, id?: string): Place => {
+    adaptPlaceDetails: (
+      data: NominatimLookupResult,
+      id?: string,
+      language: Language = DEFAULT_LANGUAGE,
+    ): Place => {
       const osmId = `${data.osm_type}/${data.osm_id}`
       const primaryId = id || `${SOURCE.OSM}/${osmId}`
       const timestamp = new Date().toISOString()
+
+      const geometry = this.extractGeometry(data)
+      
+      // Build complete tags object for place type detection
+      const tags: Record<string, string> = {
+        [data.class]: data.type,
+        ...data.extratags,
+      }
+      
+      // Map Nominatim geometry types to OSM geometry types
+      const geometryTypeMap: Record<string, 'point' | 'line' | 'area'> = {
+        'point': 'point',
+        'linestring': 'line',
+        'polygon': 'area',
+        'multipolygon': 'area',
+      }
+      const osmGeometryType = geometryTypeMap[geometry.type] || 'point'
+
+      // Match tags to get preset and build icon
+      const presetMatch = matchTags(tags, osmGeometryType as GeometryType)
+      const icon = buildPlaceIcon(presetMatch)
 
       return {
         id: primaryId,
         externalIds: this.extractExternalIds(data, osmId),
         name: {
-          value: this.extractName(data),
+          value: getLocalizedName(tags, language, this.extractName(data)) ?? null,
           sourceId: SOURCE.OSM,
           timestamp,
         },
         description: this.extractDescription(data.extratags),
         placeType: {
-          value: getPlaceType({ [data.class]: data.type }) || data.type || 'unknown',
+          value: getPlaceType(tags, language, osmGeometryType) || data.type || 'unknown',
           sourceId: SOURCE.OSM,
           timestamp,
         },
+        icon,
         geometry: {
-          value: this.extractGeometry(data),
+          value: geometry,
           sourceId: SOURCE.OSM,
           timestamp,
         },
         photos: [], // Nominatim doesn't provide photos
         address: this.extractAddress(data.address),
         contactInfo: this.extractContactInfo(data.extratags),
-        openingHours: this.extractOpeningHours(data.extratags),
+        openingHours: this.extractOpeningHours(data.extratags, data),
         amenities: this.extractAmenities(data),
         ...this.getTransitField(data),
         sources: [
@@ -131,33 +162,32 @@ export class NominatimAdapter {
    * Extract the name from Nominatim data
    */
   private extractName(data: NominatimLookupResult): string | null {
-    // Try namedetails first for language variants
+    // namedetails contains the OSM name tags of the object itself
     if (data.namedetails) {
       return (
         data.namedetails.name ||
         data.namedetails['name:en'] ||
         data.namedetails.brand ||
-        Object.values(data.namedetails)[0] ||
         null
+        // Note: do NOT fall back to Object.values()[0] — it picks up alt_name,
+        // old_name, or other secondary designations that shouldn't become the title.
       )
     }
 
-    // Try extratags
+    // extratags can carry name/brand when namedetails isn't requested
     if (data.extratags) {
       return (
         data.extratags.name ||
         data.extratags['name:en'] ||
         data.extratags.brand ||
+        data.extratags.operator ||
         null
       )
     }
 
-    // Fallback to extracting from display_name (first part before comma)
-    if (data.display_name) {
-      const firstPart = data.display_name.split(',')[0]?.trim()
-      return firstPart || null
-    }
-
+    // Do NOT fall back to display_name — it contains the surrounding area/street
+    // name for unnamed objects (e.g. a picnic table at "The Plaza" returns
+    // display_name "The Plaza, …", which is the park, not the object's name).
     return null
   }
 
@@ -214,15 +244,15 @@ export class NominatimAdapter {
           geometry = {
             type: 'polygon',
             center: { lat, lng },
-            nodes: this.extractPolygonNodes(data.geojson.coordinates),
+            ...this.extractPolygonData(data.geojson.coordinates),
           }
           break
-          
+
         case 'MultiPolygon':
           geometry = {
             type: 'multipolygon',
             center: { lat, lng },
-            polygons: this.extractMultiPolygonNodes(data.geojson.coordinates),
+            polygons: this.extractMultiPolygonRings(data.geojson.coordinates),
           }
           break
           
@@ -270,40 +300,42 @@ export class NominatimAdapter {
   }
 
   /**
-   * Extract coordinate nodes from GeoJSON Polygon coordinates
-   * GeoJSON Polygon format: [[[lng, lat], [lng, lat], ...]]
+   * Extract polygon data from GeoJSON Polygon coordinates, including holes.
+   * GeoJSON Polygon format: [exteriorRing, hole1, hole2, ...]
+   * Returns `nodes` (exterior ring only, for backwards compat) and `rings` (all rings including holes).
    */
-  private extractPolygonNodes(coordinates: number[][][]): Array<{ lat: number; lng: number }> {
-    if (!coordinates || coordinates.length === 0) return []
-    
-    // Take the exterior ring (first array in coordinates)
-    const exteriorRing = coordinates[0]
-    return exteriorRing.map(([lng, lat]) => ({ lat, lng }))
+  private extractPolygonData(coordinates: number[][][]): {
+    nodes: Array<{ lat: number; lng: number }>
+    rings: Array<Array<{ lat: number; lng: number }>>
+  } {
+    if (!coordinates || coordinates.length === 0) return { nodes: [], rings: [] }
+
+    const rings = coordinates
+      .filter(ring => ring && ring.length > 0)
+      .map(ring => ring.map(([lng, lat]) => ({ lat, lng })))
+
+    return {
+      nodes: rings[0] || [],
+      rings,
+    }
   }
 
   /**
-   * Extract all polygons from GeoJSON MultiPolygon coordinates
-   * GeoJSON MultiPolygon format: [[[[lng, lat], [lng, lat], ...]], ...]
-   * Returns array of polygon rings where each polygon can have multiple rings (exterior + holes)
+   * Extract all polygons from GeoJSON MultiPolygon coordinates, including holes.
+   * GeoJSON MultiPolygon format: [polygon1, polygon2, ...]
+   * Each polygon: [exteriorRing, hole1, hole2, ...]
+   * Returns array of polygons, each polygon is an array of rings.
    */
-  private extractMultiPolygonNodes(coordinates: number[][][][]): Array<Array<{ lat: number; lng: number }>> {
+  private extractMultiPolygonRings(coordinates: number[][][][]): Array<Array<Array<{ lat: number; lng: number }>>> {
     if (!coordinates || coordinates.length === 0) return []
-    
-    const polygons: Array<Array<{ lat: number; lng: number }>> = []
-    
-    // Process each polygon in the multipolygon
-    coordinates.forEach((polygonCoords) => {
-      if (polygonCoords && polygonCoords.length > 0) {
-        // For now, just take the exterior ring (first ring) of each polygon
-        // TODO: In the future, we could handle holes by processing all rings
-        const exteriorRing = polygonCoords[0]
-        if (exteriorRing && exteriorRing.length > 0) {
-          polygons.push(exteriorRing.map(([lng, lat]) => ({ lat, lng })))
-        }
-      }
-    })
-    
-    return polygons
+
+    return coordinates
+      .filter(polygonCoords => polygonCoords && polygonCoords.length > 0)
+      .map(polygonCoords =>
+        polygonCoords
+          .filter(ring => ring && ring.length > 0)
+          .map(ring => ring.map(([lng, lat]) => ({ lat, lng })))
+      )
   }
 
   /**
@@ -416,18 +448,35 @@ export class NominatimAdapter {
    */
   private extractOpeningHours(
     extratags?: Record<string, string>,
+    data?: NominatimLookupResult,
   ): AttributedValue<OpeningHours> | null {
-    if (!extratags || !extratags.opening_hours) return null
+    if (!extratags) return null
+
+    const isPermanentlyClosed = isPermanentlyClosedByOsmTags(extratags)
+
+    // A closed place is worth reporting even with no hours to show — otherwise
+    // the place page stays silent instead of saying the place is gone.
+    if (!extratags.opening_hours && !isPermanentlyClosed) return null
 
     const openingHours = extratags.opening_hours
-    const isOpen24_7 = openingHours.includes('24/7')
+
+    // Hours left over from when the place was alive would read as "Open now",
+    // so a permanently closed place reports the status and nothing else.
+    const parsed = isPermanentlyClosed
+      ? null
+      : parseOpeningHours(openingHours, {
+          lat: data ? parseFloat(data.lat) : undefined,
+          lng: data ? parseFloat(data.lon) : undefined,
+          countryCode: data?.address?.country_code,
+          region: data?.address?.state,
+        })
 
     return {
       value: {
-        regularHours: parseOpeningHoursForUnifiedFormat(openingHours) || [],
-        isOpen24_7,
-        isPermanentlyClosed: extratags.disused === 'yes' || extratags.abandoned === 'yes',
-        isTemporarilyClosed: openingHours === 'closed',
+        regularHours: parsed?.regularHours ?? [],
+        isOpen24_7: parsed?.isOpen24_7 ?? false,
+        isPermanentlyClosed,
+        isTemporarilyClosed: !isPermanentlyClosed && openingHours === 'closed',
         rawText: openingHours,
       },
       sourceId: SOURCE.OSM,
@@ -515,7 +564,7 @@ export class NominatimAdapter {
           tags: item.extratags || {}
         }))
     } catch (error) {
-      console.error('Error looking up parent relations:', error)
+      logError('Error looking up parent relations', error)
       return []
     }
   }

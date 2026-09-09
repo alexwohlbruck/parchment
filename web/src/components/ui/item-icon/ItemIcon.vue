@@ -1,27 +1,47 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getThemeColorClasses, type ThemeColor } from '@/lib/utils'
+import {
+  getThemeColorClasses,
+  getThemeColorGhostClasses,
+  getCustomColorTint,
+  type ThemeColor,
+} from '@/lib/utils'
 import * as LucideIcons from 'lucide-vue-next'
 import { FolderIcon } from 'lucide-vue-next'
+import MakiIcon from './MakiIcon.vue'
+import { useThemeStore } from '@/stores/theme.store'
+
+const themeStore = useThemeStore()
 
 const props = withDefaults(
   defineProps<{
     icon?: string
     color?: ThemeColor
-    size?: 'sm' | 'md' | 'lg'
+    size?: 'xs' | 'sm' | 'md' | 'lg'
     variant?: 'solid' | 'ghost'
     plain?: boolean
+    iconPack?: 'lucide' | 'maki'
+    customColor?: string // Direct CSS color value (overrides ThemeColor)
+    shape?: 'square' | 'circle' // Shape of the container
+    imageUrl?: string // When set, renders this image instead of an icon glyph (e.g. a brand logo)
   }>(),
   {
     icon: 'Folder',
-    color: 'blue',
+    color: 'cobalt',
     size: 'md',
     variant: 'solid',
     plain: false,
+    iconPack: 'lucide',
+    shape: 'square',
   },
 )
 
+const hasImage = computed(() => !!props.imageUrl)
+const isMaki = computed(() => props.iconPack === 'maki')
+
 const iconComponent = computed(() => {
+  if (isMaki.value) return null
+
   const fullName = props.icon.endsWith('Icon')
     ? props.icon
     : `${props.icon}Icon`
@@ -35,35 +55,57 @@ const iconComponent = computed(() => {
     : FolderIcon
 })
 
-// Ghost variant color classes using opacity for reliable rendering
-const ghostColorClasses: Record<ThemeColor, string> = {
-  zinc: 'bg-zinc-500/10 text-zinc-700 dark:bg-zinc-500/20 dark:text-zinc-300',
-  rose: 'bg-rose-500/10 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300',
-  blue: 'bg-blue-500/10 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300',
-  green: 'bg-green-500/10 text-green-700 dark:bg-green-500/20 dark:text-green-300',
-  orange: 'bg-orange-500/10 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300',
-  red: 'bg-red-500/10 text-red-700 dark:bg-red-500/20 dark:text-red-300',
-  slate: 'bg-slate-500/10 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
-  stone: 'bg-stone-500/10 text-stone-700 dark:bg-stone-500/20 dark:text-stone-300',
-  gray: 'bg-gray-500/10 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300',
-  neutral: 'bg-neutral-500/10 text-neutral-700 dark:bg-neutral-500/20 dark:text-neutral-300',
-  yellow: 'bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300',
-  violet: 'bg-violet-500/10 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
-  primary: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
-}
+const useCustomColor = computed(() => !!props.customColor && !props.plain)
 
 const colorClasses = computed(() => {
-  if (props.plain) return ''
+  // A logo image sits on a neutral surface so transparent logos read cleanly.
+  if (hasImage.value) return 'bg-background border overflow-hidden'
+  if (props.plain || useCustomColor.value) return ''
 
   if (props.variant === 'ghost') {
-    return ghostColorClasses[props.color as ThemeColor]
+    return getThemeColorGhostClasses(props.color as ThemeColor)
   }
 
   return getThemeColorClasses(props.color as ThemeColor)
 })
 
+/**
+ * A custom colour is tinted the same way a themed one is: a light background
+ * with a dark glyph of the same hue, inverted in dark mode. Previously the
+ * solid variant painted the raw colour behind a flat white or black glyph,
+ * which read as a different design language from the themed (bookmark) tiles
+ * sitting beside it in the same lists.
+ */
+const customColorStyle = computed(() => {
+  if (hasImage.value) return {}
+  if (!useCustomColor.value) return {}
+
+  const color = props.customColor!
+  const tint = getCustomColorTint(color, props.variant, themeStore.isDark)
+  // Unparseable colour — fall back to painting it raw rather than rendering
+  // an untinted, invisible glyph.
+  if (!tint) return { backgroundColor: color, color: '#fff' }
+
+  if (props.variant === 'ghost') {
+    // Translucent wash rather than an opaque tint, so the tile settles onto
+    // whatever surface it sits on. Matches `bg-{c}-500/10` and its dark /20.
+    return {
+      backgroundColor: `color-mix(in srgb, ${color} ${themeStore.isDark ? 20 : 10}%, transparent)`,
+      color: tint.foreground,
+    }
+  }
+
+  return { backgroundColor: tint.background!, color: tint.foreground }
+})
+
+const shapeClass = computed(() => {
+  return props.shape === 'circle' ? 'rounded-full' : 'rounded-md'
+})
+
 const containerSizeClass = computed(() => {
   switch (props.size) {
+    case 'xs':
+      return 'size-5'
     case 'sm':
       return 'size-8'
     case 'lg':
@@ -76,6 +118,8 @@ const containerSizeClass = computed(() => {
 
 const iconSizeClass = computed(() => {
   switch (props.size) {
+    case 'xs':
+      return 'size-3'
     case 'sm':
       return 'size-4'
     case 'lg':
@@ -89,9 +133,26 @@ const iconSizeClass = computed(() => {
 
 <template>
   <div
-    class="rounded-md flex items-center justify-center shrink-0"
-    :class="[containerSizeClass, colorClasses]"
+    class="flex items-center justify-center shrink-0"
+    :class="[containerSizeClass, colorClasses, shapeClass]"
+    :style="customColorStyle"
   >
-    <component :is="iconComponent as any" :class="iconSizeClass" />
+    <img
+      v-if="hasImage"
+      :src="imageUrl"
+      alt=""
+      class="w-full h-full object-contain p-0.5"
+    />
+    <MakiIcon
+      v-else-if="isMaki"
+      :name="icon"
+      :size="size"
+      class="fill-current"
+    />
+    <component
+      v-else
+      :is="iconComponent as any"
+      :class="iconSizeClass"
+    />
   </div>
 </template>

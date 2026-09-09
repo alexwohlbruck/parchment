@@ -2,17 +2,111 @@
 export * from '@server/types/integration.types'
 
 // Client-side types
-import { z, ZodObject } from 'zod'
+import { z } from 'zod'
 import { IntegrationDefinition } from '@server/types/integration.types'
+import {
+  DependencyType,
+  type Dependency,
+  type Config,
+} from '@/components/ui/auto-form/interface'
 
 // TODO: i18n translate error messages
 
+export interface SchemaConfig {
+  fieldConfig?: Config<any>
+  dependencies?: Dependency<any>[]
+}
+
+/** Per-schema field config and dependencies for AutoForm. */
+export const schemaConfigs: Partial<Record<string, SchemaConfig>> = {
+  apiKeySchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'API Key',
+      },
+    },
+  },
+  firmsMapKeySchema: {
+    fieldConfig: {
+      apiKey: {
+        label: 'MAP_KEY',
+      },
+    },
+  },
+  quackbackSchema: {
+    fieldConfig: {
+      url: {
+        label: 'Instance URL',
+        description: 'Base URL of your Quackback instance',
+        inputProps: {
+          placeholder: 'https://feedback.example.com',
+        },
+      },
+      apiKey: {
+        label: 'API Key',
+        description:
+          'Must be an admin-role key — attributing a post to its author is admin-gated, and a member key files everything under itself.',
+        inputProps: {
+          placeholder: 'qb_...',
+        },
+      },
+    },
+  },
+  openstreetmapSystemSchema: {
+    fieldConfig: {
+      server: {
+        label: 'Server',
+        description: 'Which OpenStreetMap instance to connect to',
+      },
+      customServerUrl: {
+        label: 'Custom Server URL',
+        inputProps: {
+          placeholder: 'https://your-osm-instance.example.com',
+        },
+      },
+      clientId: {
+        label: 'Client ID',
+      },
+      clientSecret: {
+        label: 'Client Secret',
+      },
+      redirectUri: {
+        label: 'Redirect URI',
+        description:
+          'Must match the redirect URI registered in your OSM OAuth app. HTTPS is required by OSM.',
+        inputProps: {
+          placeholder:
+            'https://your-server.example.com/integrations/osm/callback',
+        },
+      },
+    },
+    dependencies: [
+      {
+        sourceField: 'server',
+        targetField: 'customServerUrl',
+        type: DependencyType.HIDES,
+        when: (serverValue: string) => serverValue !== 'custom',
+      },
+      {
+        sourceField: 'server',
+        targetField: 'customServerUrl',
+        type: DependencyType.REQUIRES,
+        when: (serverValue: string) => serverValue === 'custom',
+      },
+    ],
+  },
+}
+
 export const configSchemas: Record<
   IntegrationDefinition['configSchema'],
-  ZodObject<any>
+  z.ZodTypeAny
 > = {
   apiKeySchema: z.object({
-    apiKey: z.string().min(1, 'API Key is required'),
+    apiKey: z.string().min(1, 'API Key is required').describe('public'),
+  }),
+
+  firmsMapKeySchema: z.object({
+    apiKey: z.string().min(1, 'MAP_KEY is required').describe('public'),
   }),
 
   hostConfigSchema: z.object({
@@ -23,6 +117,26 @@ export const configSchemas: Record<
   oauthConfigSchema: z.object({
     clientId: z.string().min(1, 'Client ID is required'),
     clientSecret: z.string().min(1, 'Client Secret is required'),
+  }),
+
+  openstreetmapSystemSchema: z.object({
+    server: z
+      .enum(['production', 'sandbox', 'custom'])
+      .default('production')
+      .describe('public'),
+    customServerUrl: z
+      .string()
+      .url('Please enter a valid URL')
+      .optional()
+      .describe('public'),
+    clientId: z.string().min(1, 'Client ID is required'),
+    clientSecret: z.string().optional(),
+    redirectUri: z.string().url('Please enter a valid URL').optional(),
+  }),
+
+  quackbackSchema: z.object({
+    url: z.string().url('Please enter a valid URL'),
+    apiKey: z.string().min(1, 'API key is required'),
   }),
 
   nominatimSchema: z.object({
@@ -43,20 +157,45 @@ export const configSchemas: Record<
     apiKey: z.string().min(1, 'API Key is required'),
   }),
 
+  foursquareSchema: z.object({
+    apiKey: z.string().min(1, 'API Key is required'),
+  }),
+
   peliasSchema: z.object({
     host: z.string().url('Please enter a valid URL'),
   }),
 
   mapboxSchema: z.object({
-    accessToken: z.string().min(1, 'Access token is required'),
+    accessToken: z
+      .string()
+      .min(1, 'Access token is required')
+      .describe('public'),
   }),
 
   valhallaSchema: z.object({
     host: z.string().url('Please enter a valid URL'),
   }),
 
+  graphhopperSchema: z
+    .object({
+      host: z
+        .string()
+        .url('Please enter a valid URL')
+        .optional()
+        .default('https://graphhopper.com/api/1'),
+      apiKey: z.string().min(1, 'API Key is required').optional(),
+    })
+    .refine(data => data.host || data.apiKey, {
+      message:
+        'Either host (for self-hosted) or API Key (for GraphHopper API) is required',
+      path: ['host'],
+    }),
+
   mapillarySchema: z.object({
-    accessToken: z.string().min(1, 'Access token is required'),
+    accessToken: z
+      .string()
+      .min(1, 'Access token is required')
+      .describe('public'),
   }),
 
   transitlandSchema: z.object({
@@ -77,5 +216,46 @@ export const configSchemas: Record<
 
   wikimediaSchema: z.object({
     // Wikimedia Commons doesn't require any configuration
+  }),
+
+  barrelmanSchema: z.object({
+    // The hosted instance, as with the other services that offer one. The
+    // previous default assumed barrelman was something you ran yourself,
+    // which was true before it had a public host — it left every new
+    // integration pointing at a port that answers on a developer's laptop
+    // and nowhere else.
+    //
+    // Self-hosting is still first-class: overwrite this with your own origin.
+    host: z
+      .string()
+      .url('Please enter a valid URL')
+      .default('https://api.barrelman.dev'),
+    apiKey: z.string().optional(),
+    tileKey: z.string().optional(),
+  }),
+
+  axiomSchema: z.object({
+    endpoint: z
+      .string()
+      .url('Please enter a valid URL')
+      .optional()
+      .default('https://api.axiom.co'),
+    apiToken: z.string().min(1, 'API token is required'),
+    dataset: z.string().min(1, 'Dataset name is required'),
+  }),
+
+  openstreetmapOAuthSchema: z.object({
+    // No user-editable fields — config is managed by OAuth2 flow
+  }),
+
+  dawarichSchema: z.object({
+    url: z
+      .string()
+      .url('Please enter a valid URL')
+      .describe('Base URL of your Dawarich instance'),
+    apiToken: z
+      .string()
+      .min(1, 'API token is required')
+      .describe('API token from your Dawarich account'),
   }),
 }

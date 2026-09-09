@@ -301,8 +301,14 @@ export class MapStrategy {
     east: number
     west: number
   } | null {
-    // This method should be overridden by specific implementations
-    return null
+    const bounds = this.mapInstance?.getBounds()
+    if (!bounds) return null
+    return {
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest(),
+    }
   }
 
   addMarker(id: string, lngLat: LngLat) {}

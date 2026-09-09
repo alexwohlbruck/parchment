@@ -743,20 +743,6 @@ export class MapboxStrategy extends MapStrategy {
 
 
 
-  getBounds() {
-    if (!this.mapInstance) return null
-
-    const bounds = this.mapInstance.getBounds()
-    if (!bounds) return null
-
-    return {
-      north: bounds.getNorth(),
-      south: bounds.getSouth(),
-      east: bounds.getEast(),
-      west: bounds.getWest(),
-    }
-  }
-
   locate() {
     // Geolocation is now handled by the centralized geolocation service.
     // See map.service.ts locate() which uses useGeolocationService().

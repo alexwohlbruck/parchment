@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 
 import { FolderIcon } from 'lucide-vue-next'
-import EmptyState from '@/components/library/EmptyState.vue'
+import LibraryEmptyState from '@/components/library/LibraryEmptyState.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useConnectivity } from '@/composables/useConnectivity'
@@ -43,7 +43,7 @@ const loading = computed(() => {
 
 <template>
   <div class="min-h-full flex flex-col">
-    <EmptyState
+    <LibraryEmptyState
       v-if="showEmptyState"
       :icon="FolderIcon"
       entity-id="collections"

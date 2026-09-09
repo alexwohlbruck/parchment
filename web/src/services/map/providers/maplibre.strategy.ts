@@ -1228,20 +1228,6 @@ export class MaplibreStrategy extends MapStrategy {
 
 
 
-  getBounds() {
-    if (!this.mapInstance) return null
-
-    const bounds = this.mapInstance.getBounds()
-    if (!bounds) return null
-
-    return {
-      north: bounds.getNorth(),
-      south: bounds.getSouth(),
-      east: bounds.getEast(),
-      west: bounds.getWest(),
-    }
-  }
-
   locate() {
     this.geolocateControl.trigger()
   }

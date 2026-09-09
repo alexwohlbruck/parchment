@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.11.5] - 2026-09-09
+
+### Added
+
 * Integration changes and outages now sync instantly across your open devices
 
 ### Changed

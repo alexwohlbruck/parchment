@@ -1844,6 +1844,7 @@ export class TripService {
             ...baseRequest,
             preTransitModes: ['CAR_PARKING'],
             postTransitModes: ['WALK'],
+            maxPreTransitTime: TripService.VEHICLE_ACCESS_MAX_SEC,
             maxPostTransitTime: maxWalkSec,
           },
           'driving', car, from, to, startTime, dataSources, preferences, useKnownLocations,
@@ -1859,7 +1860,7 @@ export class TripService {
             ...baseRequest,
             preTransitModes: ['BIKE'],
             postTransitModes: ['WALK'],
-            maxPreTransitTime: 1800,
+            maxPreTransitTime: TripService.VEHICLE_ACCESS_MAX_SEC,
             maxPostTransitTime: maxWalkSec,
           },
           'biking', bike, from, to, startTime, dataSources, preferences, useKnownLocations,
@@ -2775,6 +2776,15 @@ export class TripService {
 
   /** Time to queue and tap through fare control at a subway entrance. */
   private static readonly FARE_GATE_DELAY_SEC = 10
+
+  /** Cap on the street leg that reaches transit under its own power.
+   *
+   *  MOTIS applies this to the *whole* pre-transit chain, which for
+   *  `CAR_PARKING` is the drive **plus** the walk from the lot to the stop.
+   *  Its 900s default leaves no room for that pair — a 12-minute drive and a
+   *  7-minute walk is an ordinary park-and-ride and blows straight past it,
+   *  which is why the query silently returned nothing. */
+  private static readonly VEHICLE_ACCESS_MAX_SEC = 1800
 
   /** Straight-line distance at/under which a transit search also offers a
    *  plain walk (~35 min on foot). Short trips often walk faster than they

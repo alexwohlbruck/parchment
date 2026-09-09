@@ -1627,6 +1627,26 @@ describe('TripService — scoring', () => {
         expect(carQuery).toBeDefined()
         expect(carQuery.from).toEqual(CHARLOTTE_ORIGIN.location)
       })
+
+      test('allows the drive and the walk from the lot within one pre-transit budget', async () => {
+        mockIntermodalByAccessMode()
+        mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+        await tripService.planTrip({
+          waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+          selectedMode: 'transit',
+          preferredDepartureTime: '2026-01-15T08:00:00Z',
+        })
+
+        // MOTIS caps the whole pre-transit chain, and for CAR_PARKING that is
+        // drive + walk-to-stop. Left unset it defaults to 900s, which an
+        // ordinary park-and-ride exceeds — so the query returns nothing.
+        const queries = mockGetIntermodalRoute.mock.calls.map(([req]: any[]) => req)
+        for (const mode of ['CAR_PARKING', 'BIKE']) {
+          const q = queries.find((req: any) => req.preTransitModes?.includes(mode))
+          expect(q.maxPreTransitTime).toBeGreaterThanOrEqual(1080)
+        }
+      })
     })
   })
 

@@ -1550,6 +1550,80 @@ describe('TripService — scoring', () => {
       const transitStart = new Date(transitSeg.startTime).getTime()
       expect(bikeEnd).toBeLessThanOrEqual(transitStart)
     })
+
+    // Park-and-ride and bike-to-station describe the network, not the user's
+    // garage. A rider who has never registered a vehicle must still be offered
+    // them — MOTIS locates the parking and the rack.
+    describe('without a registered vehicle', () => {
+      test('offers park-and-ride', async () => {
+        mockIntermodalByAccessMode()
+        mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+        const response = await tripService.planTrip({
+          waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+          selectedMode: 'transit',
+          preferredDepartureTime: '2026-01-15T08:00:00Z',
+        })
+
+        const carTransit = response.trips.find((t) =>
+          t.trip.segments.some((s) => s.mode === 'driving'),
+        )
+        expect(carTransit).toBeDefined()
+        expect(carTransit!.trip.segments.map((s) => s.mode)).toContain('transit')
+      })
+
+      test('offers bike-to-station', async () => {
+        mockIntermodalByAccessMode()
+        mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+        const response = await tripService.planTrip({
+          waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+          selectedMode: 'transit',
+          preferredDepartureTime: '2026-01-15T08:00:00Z',
+        })
+
+        const bikeTransit = response.trips.find((t) =>
+          t.trip.segments.some((s) => s.mode === 'biking'),
+        )
+        expect(bikeTransit).toBeDefined()
+        expect(bikeTransit!.trip.segments.map((s) => s.mode)).toContain('transit')
+      })
+
+      test('leaves the ride untagged and records no parked vehicle', async () => {
+        mockIntermodalByAccessMode()
+        mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+        const response = await tripService.planTrip({
+          waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+          selectedMode: 'transit',
+          preferredDepartureTime: '2026-01-15T08:00:00Z',
+        })
+
+        const carTransit = response.trips.find((t) =>
+          t.trip.segments.some((s) => s.mode === 'driving'),
+        )!
+        const driveSeg = carTransit.trip.segments.find((s) => s.mode === 'driving')!
+        expect(driveSeg.vehicle).toBeUndefined()
+        expect(carTransit.trip.parkedVehicles).toBeUndefined()
+      })
+
+      test('starts at the origin rather than a vehicle location', async () => {
+        mockIntermodalByAccessMode()
+        mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+        await tripService.planTrip({
+          waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+          selectedMode: 'transit',
+          preferredDepartureTime: '2026-01-15T08:00:00Z',
+        })
+
+        const carQuery = mockGetIntermodalRoute.mock.calls
+          .map(([req]: any[]) => req)
+          .find((req: any) => req.preTransitModes?.includes('CAR_PARKING'))
+        expect(carQuery).toBeDefined()
+        expect(carQuery.from).toEqual(CHARLOTTE_ORIGIN.location)
+      })
+    })
   })
 
   // ── Parking-aware driving ───────────────────────────────────────────────────

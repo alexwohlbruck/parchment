@@ -2,6 +2,10 @@
 
 ### Added
 
+* Transit directions now offer park-and-ride and bike-to-station options
+  without needing a vehicle saved in the app. Saving one still improves them —
+  the trip starts by walking you to where you actually parked.
+
 ### Changed
 
 ### Fixed

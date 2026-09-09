@@ -1838,38 +1838,38 @@ export class TripService {
       const availableVehicles = request.availableVehicles || []
       const useKnownLocations = preferences.useKnownVehicleLocations !== false
 
-      const car = availableVehicles.find(v => v.type === 'car')
-      if (car) {
-        extraQueries.push(
-          this.planVehicleAccessTransitQuery(
-            {
-              ...baseRequest,
-              preTransitModes: ['CAR_PARKING'],
-              postTransitModes: ['WALK'],
-              maxPostTransitTime: maxWalkSec,
-            },
-            car, from, to, startTime, dataSources, preferences, useKnownLocations,
-          ),
-        )
-      }
+      // Park-and-ride and bike-to-station are properties of the network, not
+      // of the user's garage — MOTIS locates station parking and racks itself.
+      // A registered vehicle only refines the query, by anchoring it where the
+      // vehicle actually sits and attributing the ride to it.
+      const car = availableVehicles.find(v => v.type === 'car') ?? null
+      extraQueries.push(
+        this.planVehicleAccessTransitQuery(
+          {
+            ...baseRequest,
+            preTransitModes: ['CAR_PARKING'],
+            postTransitModes: ['WALK'],
+            maxPostTransitTime: maxWalkSec,
+          },
+          'driving', car, from, to, startTime, dataSources, preferences, useKnownLocations,
+        ),
+      )
 
       const bike = availableVehicles.find(v =>
         ['bike', 'e-bike', 'scooter', 'e-scooter'].includes(v.type),
+      ) ?? null
+      extraQueries.push(
+        this.planVehicleAccessTransitQuery(
+          {
+            ...baseRequest,
+            preTransitModes: ['BIKE'],
+            postTransitModes: ['WALK'],
+            maxPreTransitTime: 1800,
+            maxPostTransitTime: maxWalkSec,
+          },
+          'biking', bike, from, to, startTime, dataSources, preferences, useKnownLocations,
+        ),
       )
-      if (bike) {
-        extraQueries.push(
-          this.planVehicleAccessTransitQuery(
-            {
-              ...baseRequest,
-              preTransitModes: ['BIKE'],
-              postTransitModes: ['WALK'],
-              maxPreTransitTime: 1800,
-              maxPostTransitTime: maxWalkSec,
-            },
-            bike, from, to, startTime, dataSources, preferences, useKnownLocations,
-          ),
-        )
-      }
     }
 
     const extraPromise = Promise.all(extraQueries)
@@ -2197,17 +2197,21 @@ export class TripService {
   /**
    * Run a vehicle-access intermodal query (CAR_PARKING or BIKE pre-transit).
    *
+   * `vehicle` is optional: park-and-ride and bike-to-station stand on their
+   * own, since MOTIS finds the parking or rack. Passing one refines the
+   * result — the ride leg is attributed to it, emissions and energy cost use
+   * its energy type, and the parking spot is recorded for return trips.
+   *
    * When the vehicle's known location is used and lies more than 200m from
    * the origin, a walk-to-vehicle leg is planned first: the MOTIS query
    * departs from the vehicle once the walk completes, and the walk segment
    * is prepended to each resulting trip (back-timed from the itinerary's
-   * first leg, never earlier than the requested departure). For car access,
-   * the parking location (end of the driving leg) is recorded in
-   * parkedVehicles for return-trip planning.
+   * first leg, never earlier than the requested departure).
    */
   private async planVehicleAccessTransitQuery(
     query: import('../types/integration.types').IntermodalRouteRequest,
-    vehicle: Vehicle,
+    rideMode: Extract<Mode, 'driving' | 'biking'>,
+    vehicle: Vehicle | null,
     from: Waypoint,
     to: Waypoint,
     startTime: string,
@@ -2217,7 +2221,7 @@ export class TripService {
   ): Promise<TripResponse[]> {
     try {
       const vehicleLocation =
-        useKnownLocation && vehicle.location ? vehicle.location : null
+        useKnownLocation && vehicle?.location ? vehicle.location : null
 
       let walkToVehicle: TripSegment | null = null
       let queryFrom = from.location
@@ -2235,7 +2239,7 @@ export class TripService {
             {
               location: vehicleLocation,
               type: 'via',
-              label: vehicle.name || `Your ${vehicle.type}`,
+              label: vehicle?.name || `Your ${vehicle?.type ?? rideMode}`,
             },
             startTime,
             preferences,
@@ -2251,12 +2255,10 @@ export class TripService {
         from, to, startTime, dataSources, preferences,
       )
 
-      const rideMode: Mode = vehicle.type === 'car' ? 'driving' : 'biking'
-
       for (const trip of trips) {
         // Tag the MOTIS ride leg with the user's vehicle
         const rideSeg = trip.segments.find(s => s.mode === rideMode)
-        if (rideSeg) {
+        if (rideSeg && vehicle) {
           rideSeg.vehicle = vehicle
           if (vehicle.type === 'car') {
             // Recompute emissions and add energy cost using the car's
@@ -2311,7 +2313,7 @@ export class TripService {
 
       return trips
     } catch (error) {
-      logError(`Vehicle-access (${vehicle.type}) transit query failed`, error)
+      logError(`Vehicle-access (${vehicle?.type ?? rideMode}) transit query failed`, error)
       return []
     }
   }

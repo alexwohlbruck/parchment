@@ -2,6 +2,8 @@
 
 ### Added
 
+* Integration changes and outages now sync instantly across your open devices
+
 ### Changed
 
 ### Fixed

@@ -365,14 +365,16 @@ watch(
   },
 )
 
-mapEventBus.on('style.load', () => {
+function handleStyleLoad() {
   if (isActive.value) {
     addRadiusLayers()
     updateRadiusCircle()
     setRadiusLayerColors()
     syncRadiusMarkers()
   }
-})
+}
+
+mapEventBus.on('style.load', handleStyleLoad)
 
 watch(
   () => themeStore.themePrimary,
@@ -390,6 +392,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  mapEventBus.off('style.load', handleStyleLoad)
   teardownClickOverride()
   teardownMouseMove()
   removeRadiusLayers()

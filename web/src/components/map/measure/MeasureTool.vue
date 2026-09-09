@@ -445,14 +445,15 @@ watch(
   { immediate: true, deep: true },
 )
 
-// Re-add layers after style load (e.g. theme change)
-mapEventBus.on('style.load', () => {
+function handleStyleLoad() {
   if (isActive.value) {
     addMeasureLayers()
     updateMeasureLineSource()
     syncMeasureMarkers()
   }
-})
+}
+
+mapEventBus.on('style.load', handleStyleLoad)
 
 // Update line color when light/dark or accent theme changes
 watch(
@@ -471,6 +472,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  mapEventBus.off('style.load', handleStyleLoad)
   teardownClickOverride()
   removeMeasureLayers()
   removeMeasureMarkers()

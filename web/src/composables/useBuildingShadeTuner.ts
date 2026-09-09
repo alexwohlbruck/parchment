@@ -5,7 +5,7 @@
  * Every value writes straight onto the live layer, whose options are plain
  * fields read once per frame, so the map updates as a slider moves.
  */
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch, onUnmounted} from 'vue'
 import {
   liveBuildingShade,
   buildingShadeDefaults,
@@ -274,14 +274,22 @@ export function useBuildingShadeTuner() {
   // first render, which happens before mount, and a missing number throws there.
   loadFrom(liveBuildingShade())
 
+  const handleLoad = (m: any) => (map.value = m)
+  const handleStyleLoad = (m: any) => {
+    map.value = m
+    // A style swap builds a fresh layer on the baked defaults; push these
+    // values back onto it so a theme change does not undo the session.
+    setTimeout(apply, 0)
+  }
+
   onMounted(() => {
-    mapEventBus.on('load', (m: any) => (map.value = m))
-    mapEventBus.on('style.load', (m: any) => {
-      map.value = m
-      // A style swap builds a fresh layer on the baked defaults; push these
-      // values back onto it so a theme change does not undo the session.
-      setTimeout(apply, 0)
-    })
+    mapEventBus.on('load', handleLoad)
+    mapEventBus.on('style.load', handleStyleLoad)
+  })
+
+  onUnmounted(() => {
+    mapEventBus.off('load', handleLoad)
+    mapEventBus.off('style.load', handleStyleLoad)
   })
 
   watch(state, apply, { deep: true })

@@ -142,5 +142,8 @@
     "workbox-precaching": "^7.4.1",
     "workbox-routing": "^7.4.1",
     "workbox-strategies": "^7.4.1"
+  },
+  "patchedDependencies": {
+    "@alexwohlbruck/vaul-vue@0.4.4": "patches/@alexwohlbruck%2Fvaul-vue@0.4.4.patch"
   }
 }

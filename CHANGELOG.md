@@ -6,6 +6,9 @@
 
 ### Fixed
 
+* Dragging the bottom sheet upward and releasing now lands on the next
+  position instead of always expanding all the way
+
 ## [0.11.4] - 2026-09-08
 
 ### Fixed

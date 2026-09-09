@@ -7,8 +7,8 @@
 ### Fixed
 
 * The trip suggestions timeline scrolls sideways, so a trip that runs past the
-  visible range can be followed to its end. Each suggestion's duration, arrival
-  and summary stay pinned in place while the bars pan.
+  visible range can be followed to its end. Each suggestion's type and route
+  description stay pinned at the edge so you can tell the rows apart.
 
 ## [0.11.5] - 2026-09-09
 

@@ -261,7 +261,6 @@ function navigateToTripDetail(trip: TripOption) {
     <div
       ref="scrollRef"
       class="trip-scroll overflow-x-auto overflow-y-hidden overscroll-x-contain pb-3 -mb-3"
-      :data-scrolled="scrollLeft > 0"
       @scroll.passive="onScroll"
     >
       <!-- Trip rows — staggered entrance as a fresh set of suggestions loads -->
@@ -306,10 +305,6 @@ function navigateToTripDetail(trip: TripOption) {
 }
 .trip-scroll::-webkit-scrollbar {
   display: none;
-}
-
-.trip-scroll[data-scrolled='true'] :deep([data-sidebar]) {
-  box-shadow: 6px 0 8px -6px hsl(var(--foreground) / 0.15);
 }
 
 /* Staggered entrance: each row fades and lifts in, offset by its index via

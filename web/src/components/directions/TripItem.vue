@@ -284,34 +284,29 @@ function handleMouseEnter() {
 
 <template>
   <div
-    class="group grid transition-colors"
+    class="grid py-3 transition-colors"
     :class="{ 'cursor-pointer hover:bg-accent/50': isClickable }"
     :style="{ gridTemplateColumns: sidebarWidth ? `${sidebarWidth}px 1fr` : 'auto 1fr' }"
     @click="handleClick"
     @mouseenter="handleMouseEnter"
   >
-    <!-- Duration sidebar — pinned so it stays readable while the bar pans -->
-    <div data-sidebar class="sticky left-0 z-[21] grid bg-background transition-shadow">
-      <div
-        class="text-right tabular-nums pt-3.5 pb-3 pl-3 pr-5 whitespace-nowrap transition-colors"
-        :class="{ 'group-hover:bg-accent/50': isClickable }"
-      >
-        <div class="text-base font-semibold leading-tight">
-          <template v-for="(part, i) in formatDurationParts(trip.summary.totalDuration).parts" :key="i">
-            <span v-if="i > 0" class="inline-block w-1" />{{ part.value }}<span class="text-[11px] font-medium ml-px">{{ part.unit }}</span>
-          </template>
-        </div>
-        <div class="text-[10px] text-muted-foreground font-medium mt-0.5">
-          {{ getArrivalTime() }}
-        </div>
-        <div class="text-[10px] text-muted-foreground font-medium">
-          {{ formatDistance(trip.summary.totalDistance) }}
-        </div>
+    <!-- Duration sidebar -->
+    <div data-sidebar class="text-right tabular-nums pt-0.5 pl-3 pr-5 whitespace-nowrap">
+      <div class="text-base font-semibold leading-tight">
+        <template v-for="(part, i) in formatDurationParts(trip.summary.totalDuration).parts" :key="i">
+          <span v-if="i > 0" class="inline-block w-1" />{{ part.value }}<span class="text-[11px] font-medium ml-px">{{ part.unit }}</span>
+        </template>
+      </div>
+      <div class="text-[10px] text-muted-foreground font-medium mt-0.5">
+        {{ getArrivalTime() }}
+      </div>
+      <div class="text-[10px] text-muted-foreground font-medium">
+        {{ formatDistance(trip.summary.totalDistance) }}
       </div>
     </div>
 
     <!-- Bar + meta -->
-    <div class="py-3">
+    <div>
       <!-- Trip bar -->
       <div class="relative h-7 flex items-center">
         <!-- Faint baseline for the empty axis (before departure / after arrival) -->
@@ -382,11 +377,8 @@ function handleMouseEnter() {
         />
       </div>
 
-      <!-- Trip summary — pinned beside the sidebar so it stays on screen -->
-      <div
-        class="sticky w-fit"
-        :style="{ left: `${sidebarWidth}px`, maxWidth: `${barAreaWidth}px` }"
-      >
+      <!-- Trip summary — travels with the bar, then pins at the panel edge -->
+      <div class="sticky left-3 w-fit" :style="{ maxWidth: `${barAreaWidth}px` }">
         <!-- Trip meta -->
         <div class="flex items-center gap-1.5 flex-wrap mt-1.5 pr-4 text-[11px] text-muted-foreground">
           <span class="inline-flex items-center gap-1">

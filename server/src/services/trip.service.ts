@@ -19,6 +19,8 @@ import {
   SharedMobilityDetails,
   TripWarning,
   TripScore,
+  TripLeg,
+  CurrencyAmount,
 } from '../types/trip.types'
 import { Coordinate } from '../types/unified-routing.types'
 import type { Place } from '../types/place.types'
@@ -40,6 +42,21 @@ export class TripService {
     const startTime = Date.now()
     this.validateRequest(request)
 
+    return request.waypoints.length > 2
+      ? this.planMultiStopTrip(request, startTime)
+      : this.planLegTrip(request, startTime)
+  }
+
+  /**
+   * Plan one origin→destination hop across every applicable mode.
+   *
+   * Multi-stop requests are decomposed into these by `planMultiStopTrip`, so
+   * this only ever sees a two-waypoint request.
+   */
+  private async planLegTrip(
+    request: TripRequest,
+    startTime: number,
+  ): Promise<MultimodalTripResponse> {
     const candidates: TripResponse[] = []
     const dataSources: DataSource[] = []
 
@@ -170,6 +187,276 @@ export class TripService {
         processingTime: Date.now() - startTime,
         dataSourcesUsed: dataSources,
       },
+    }
+  }
+
+  // ── Multi-stop planning ───────────────────────────────────────────
+
+  /**
+   * Plan a multi-stop trip as a sequence of independent hops.
+   *
+   * Each waypoint pair is planned as a trip in its own right, so every leg
+   * gets the full strategy set — park-and-ride, bike-to-station, bikeshare —
+   * rather than the walk-access-only chain this used to build. `trips` holds
+   * one chain assembled from each leg's top option; `legs` carries the rest,
+   * so a rider can take the subway to the first stop and a bike to the next.
+   *
+   * Legs are planned in order because leg N+1 departs when leg N arrives,
+   * and because a leg that ends with the rider still holding a car or bike
+   * forces the next one to keep using it.
+   */
+  private async planMultiStopTrip(
+    request: TripRequest,
+    startTime: number,
+  ): Promise<MultimodalTripResponse> {
+    const waypoints = request.waypoints
+    const legs: TripLeg[] = []
+    const dataSources: DataSource[] = []
+    const warnings: TripWarning[] = []
+    let totalCandidates = 0
+
+    let state: SegmentState = {
+      currentTime: request.preferredDepartureTime || new Date().toISOString(),
+      currentLocation: waypoints[0].location,
+      currentMode: 'transit',
+      parkedVehicles: [],
+    }
+    let carried: { mode: SelectedMode; vehicle?: Vehicle } | null = null
+
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const from = waypoints[i]
+      const to = waypoints[i + 1]
+
+      const constrained = this.applyWaypointTimeConstraints(from, i, state)
+      warnings.push(...constrained.warnings)
+      state = constrained.state
+
+      const legResponse = await this.planLegTrip(
+        this.buildLegRequest(request, from, to, state.currentTime, carried),
+        Date.now(),
+      )
+
+      totalCandidates += legResponse.metadata.totalCandidatesGenerated
+      for (const source of legResponse.metadata.dataSourcesUsed) {
+        if (!dataSources.some((d) => d.name === source.name)) {
+          dataSources.push(source)
+        }
+      }
+
+      // A leg with no option at all leaves nothing to chain onto.
+      if (!legResponse.trips.length) break
+
+      const options = this.orderLegOptions(
+        legResponse.trips,
+        carried?.mode ?? request.selectedMode,
+      )
+      legs.push({
+        legIndex: i,
+        from,
+        to,
+        options,
+        ...(carried && { carriedMode: carried.mode }),
+      })
+
+      const chosen = options[0].trip
+      carried = this.vehicleLeftInHand(chosen)
+      if (carried?.vehicle) carried.vehicle.location = to.location
+      state = {
+        ...state,
+        currentTime: chosen.latestEndTime,
+        currentLocation: to.location,
+      }
+    }
+
+    const complete = legs.length === waypoints.length - 1
+    if (complete) {
+      warnings.push(
+        ...this.arrivalOvershootWarnings(request, state.currentTime),
+      )
+    }
+
+    const chained = complete
+      ? this.chainLegTrips(request, legs, warnings, dataSources)
+      : null
+
+    return {
+      request,
+      trips: chained ? [this.rankSingle(request, chained)] : [],
+      legs,
+      metadata: {
+        totalCandidatesGenerated: totalCandidates,
+        processingTime: Date.now() - startTime,
+        dataSourcesUsed: dataSources,
+      },
+    }
+  }
+
+  /**
+   * Put the option the rider asked for at the front of a leg's shortlist.
+   *
+   * A leg is scored on its own merits, so a short hop in the middle of a
+   * drive can rank a walk first — accurate for that hop, but not what
+   * someone who picked "driving" wants the chain to do with their car.
+   * Only reorders; nothing is dropped, so the walk stays one tap away.
+   */
+  private orderLegOptions(
+    options: TripCandidate[],
+    selectedMode?: SelectedMode,
+  ): TripCandidate[] {
+    const wanted = selectedMode && selectedMode !== 'multi'
+      ? options.findIndex((o) => o.trip.segments.some((s) => s.mode === selectedMode))
+      : -1
+    if (wanted <= 0) return options
+
+    const reordered = [options[wanted], ...options.filter((_, i) => i !== wanted)]
+    return reordered.map((option, index) => ({ ...option, rank: index + 1 }))
+  }
+
+  /**
+   * Turn one waypoint pair into a standalone two-stop request.
+   *
+   * Time constraints on `from` are already folded into `departAt` by the
+   * caller, and the trip-level arrival target is dropped: planning a later
+   * leg backwards from it would happily depart before the previous leg
+   * lands. Overshoot is reported as a warning on the assembled chain
+   * instead, which is what multi-stop has always done.
+   */
+  private buildLegRequest(
+    request: TripRequest,
+    from: Waypoint,
+    to: Waypoint,
+    departAt: string,
+    carried: { mode: SelectedMode; vehicle?: Vehicle } | null,
+  ): TripRequest {
+    // Constraints on `from` are already spent — the caller folded them into
+    // `departAt` — and `arriveBy` is reported rather than routed towards.
+    const origin: Waypoint = {
+      ...from, departAfter: undefined, dwellTime: undefined, arriveBy: undefined,
+    }
+    const destination: Waypoint = { ...to, arriveBy: undefined }
+
+    return {
+      ...request,
+      waypoints: [origin, destination],
+      preferredDepartureTime: departAt,
+      preferredArrivalTime: undefined,
+      // The rider is still holding the vehicle the last leg ended on, so
+      // this one can't set off on foot and leave it behind.
+      selectedMode: carried?.mode ?? request.selectedMode,
+      ...(carried?.vehicle && { availableVehicles: [carried.vehicle] }),
+    }
+  }
+
+  /**
+   * The personal vehicle a trip leaves the rider holding, if any.
+   *
+   * Read off the last segment rather than any parking bookkeeping: a trip
+   * that leaves its vehicle somewhere always finishes on foot or on transit,
+   * whether or not it knew the vehicle well enough to record where it went.
+   * A shared bike ends docked, so it is never carried on.
+   */
+  private vehicleLeftInHand(
+    trip: TripResponse,
+  ): { mode: SelectedMode; vehicle?: Vehicle } | null {
+    const last = trip.segments[trip.segments.length - 1]
+    if (!last || last.ownership === 'shared') return null
+    if (last.mode !== 'driving' && last.mode !== 'biking') return null
+
+    return {
+      mode: last.mode,
+      ...(last.vehicle && { vehicle: { ...last.vehicle } }),
+    }
+  }
+
+  /** Warn when the assembled chain lands after the requested arrival. */
+  private arrivalOvershootWarnings(
+    request: TripRequest,
+    arrivedAt: string,
+  ): TripWarning[] {
+    const target = this.getArrivalTarget(request)
+    if (!target) return []
+
+    const overshoot = Math.round(
+      (new Date(arrivedAt).getTime() - new Date(target).getTime()) / 1000,
+    )
+    if (overshoot <= 0) return []
+
+    return [{
+      type: 'time_constraint_violated',
+      waypointIndex: request.waypoints.length - 1,
+      message: `Arrived ${Math.ceil(overshoot / 60)} min after requested arrival time`,
+      overshootSeconds: overshoot,
+    }]
+  }
+
+  /**
+   * Assemble each leg's recommended option into one end-to-end trip.
+   *
+   * Segments are copied rather than renumbered in place, so the per-leg
+   * options keep their own indices and stay usable on their own.
+   */
+  private chainLegTrips(
+    request: TripRequest,
+    legs: TripLeg[],
+    warnings: TripWarning[],
+    dataSources: DataSource[],
+  ): TripResponse {
+    const chosen = legs.map((leg) => leg.options[0].trip)
+    const segments = chosen.flatMap((trip, legIndex) =>
+      trip.segments.map((segment) => ({ ...segment, legIndex })),
+    )
+    segments.forEach((segment, index) => {
+      segment.segmentIndex = index
+    })
+
+    const tripStats = this.calculateStats(segments)
+    // Each leg's own total is authoritative for that leg — a transit fare is
+    // folded onto the trip rather than onto any one segment, so re-deriving
+    // the cost from segments alone would lose it.
+    const fare = this.sumLegFares(chosen)
+    if (fare) tripStats.totalCost = fare
+
+    const parkedVehicles = chosen.flatMap((trip) => trip.parkedVehicles ?? [])
+
+    return {
+      segments,
+      tripStats,
+      earliestStartTime: segments[0]?.startTime
+        ?? request.preferredDepartureTime
+        ?? new Date().toISOString(),
+      latestEndTime: segments[segments.length - 1]?.endTime
+        ?? new Date().toISOString(),
+      ...(warnings.length > 0 && { warnings }),
+      ...(parkedVehicles.length > 0 && { parkedVehicles }),
+      dataSources,
+      requestId: request.requestId,
+      generatedAt: new Date().toISOString(),
+    }
+  }
+
+  /** Total fare across legs, or null when currencies disagree. */
+  private sumLegFares(trips: TripResponse[]): CurrencyAmount | null {
+    let total: CurrencyAmount | null = null
+    for (const trip of trips) {
+      const cost = trip.tripStats.totalCost
+      if (!cost) continue
+      if (!total) total = { ...cost }
+      else if (total.currency === cost.currency) total.value += cost.value
+      else return null
+    }
+    return total
+  }
+
+  /** Score a single assembled trip so it can be returned as a candidate. */
+  private rankSingle(request: TripRequest, trip: TripResponse): TripCandidate {
+    const score = this.scoreTrip(
+      trip,
+      request.preferredDepartureTime || new Date().toISOString(),
+    )
+    return {
+      trip,
+      score: { ...score, overall: this.computeOverallScore(score) },
+      rank: 1,
     }
   }
 
@@ -1739,15 +2026,6 @@ export class TripService {
     const dist = TripService.haversineDistance(from.location, to.location)
     if (dist < 1500 && request.selectedMode !== 'transit') return []
 
-    // Multi-stop trips chain one query per waypoint pair. Vehicle-access
-    // queries and rideshare variants are origin→destination concepts and
-    // don't apply to chained trips.
-    if (request.waypoints.length > 2) {
-      return this.planChainedIntermodalTrips(
-        request, dataSources, startTime, preferences,
-      )
-    }
-
     // Scale search scope to trip distance — shorter trips need less
     // walking radius, longer trips can afford more RAPTOR iterations
     const maxWalkSec = TripService.walkSecondsBudget(
@@ -2074,141 +2352,6 @@ export class TripService {
       selected.push(fasterTrade ?? leastWalk)
     }
     return selected
-  }
-
-  /**
-   * Multi-stop transit: chain one intermodal query per waypoint pair, with
-   * each leg departing when the previous one arrives (plus any dwell time
-   * or departAfter constraint on the intermediate waypoint). Returns one
-   * combined candidate.
-   *
-   * Legs are inherently sequential — leg N+1's departure depends on leg N's
-   * arrival. Short legs with no transit option fall back to a walking
-   * connection instead of dropping the whole chain. Arrive-by targets are
-   * checked (warning) but not back-propagated through the chain.
-   */
-  private async planChainedIntermodalTrips(
-    request: TripRequest,
-    dataSources: DataSource[],
-    startTime: string,
-    preferences: any,
-  ): Promise<TripResponse[]> {
-    const waypoints = request.waypoints
-    const warnings: TripWarning[] = []
-    const allSegments: TripSegment[] = []
-    let fare: { value: number; currency: string } | null = null
-    let fareMixed = false
-
-    let state: SegmentState = {
-      currentTime: startTime,
-      currentLocation: waypoints[0].location,
-      currentMode: 'transit',
-      parkedVehicles: [],
-    }
-
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const from = waypoints[i]
-      const to = waypoints[i + 1]
-
-      const constrained = this.applyWaypointTimeConstraints(from, i, state)
-      warnings.push(...constrained.warnings)
-      state = constrained.state
-
-      const legDist = TripService.haversineDistance(from.location, to.location)
-      const maxWalkSec = TripService.walkSecondsBudget(
-        preferences?.maxWalkingDistance,
-        legDist < 5000 ? 600 : 900,
-        TripService.TRANSIT_ACCESS_WALK_FLOOR_SEC,
-      )
-
-      const trips = await this.executeIntermodalQuery(
-        {
-          from: from.location,
-          to: to.location,
-          time: state.currentTime,
-          arriveBy: false,
-          numItineraries: 1,
-          searchWindow: legDist < 5000 ? 1800 : 3600,
-          transitModes: preferences?.transitModes,
-          maxTransfers: preferences?.maxTransfers,
-          wheelchair: preferences?.wheelchairAccessible,
-          preTransitModes: ['WALK'],
-          postTransitModes: ['WALK'],
-          maxPreTransitTime: maxWalkSec,
-          maxPostTransitTime: maxWalkSec,
-        },
-        from, to, state.currentTime, dataSources, preferences,
-      )
-
-      let legSegments = trips[0]?.segments
-      if (!legSegments) {
-        // No transit for this leg — walk it if it's walkable, otherwise
-        // there is no chained transit option.
-        if (legDist > 1500) return []
-        const walk = await this.planConnectionWalk(
-          from, to, state.currentTime, preferences,
-        )
-        if (!walk) return []
-        legSegments = [walk]
-      }
-
-      for (const seg of legSegments) {
-        seg.legIndex = i
-        allSegments.push(seg)
-      }
-
-      // Sum per-leg transit fares when currencies agree
-      const legCost = trips[0]?.tripStats.totalCost
-      if (legCost) {
-        if (!fare) fare = { ...legCost }
-        else if (fare.currency === legCost.currency) fare.value += legCost.value
-        else fareMixed = true
-      }
-
-      state = {
-        ...state,
-        currentTime: allSegments[allSegments.length - 1].endTime,
-        currentLocation: to.location,
-      }
-    }
-
-    // Final-waypoint arrival check
-    const arrivalTarget = this.getArrivalTarget(request)
-    if (arrivalTarget) {
-      const targetMs = new Date(arrivalTarget).getTime()
-      const actualMs = new Date(state.currentTime).getTime()
-      if (actualMs > targetMs) {
-        const overshoot = Math.round((actualMs - targetMs) / 1000)
-        warnings.push({
-          type: 'time_constraint_violated',
-          waypointIndex: waypoints.length - 1,
-          message: `Arrived ${Math.ceil(overshoot / 60)} min after requested arrival time`,
-          overshootSeconds: overshoot,
-        })
-      }
-    }
-
-    allSegments.forEach((seg, idx) => {
-      seg.segmentIndex = idx
-    })
-    const tripStats = this.calculateStats(allSegments)
-    if (fare && !fareMixed) {
-      // Chained segments carry no per-segment cost, so the summed fares
-      // ARE the trip cost.
-      tripStats.totalCost = fare
-    }
-
-    return [{
-      segments: allSegments,
-      tripStats,
-      earliestStartTime: allSegments[0]?.startTime || startTime,
-      latestEndTime:
-        allSegments[allSegments.length - 1]?.endTime || state.currentTime,
-      ...(warnings.length > 0 && { warnings }),
-      dataSources,
-      requestId: request.requestId,
-      generatedAt: new Date().toISOString(),
-    }]
   }
 
   /**

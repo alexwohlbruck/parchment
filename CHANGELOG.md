@@ -5,6 +5,9 @@
 * Stops a trip makes for you — the bike rack it parks at, the lot it leaves the
   car in — now show on the map as their own labelled POI marker, matching the
   timeline
+* Trip suggestions can be shown as a plain list instead of the timeline, with
+  each option's legs as a row of route badges. The toggle sits next to the
+  sort control and is remembered
 
 ### Changed
 

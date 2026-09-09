@@ -30,6 +30,9 @@ export type SelectedMode =
   | 'transit'
   | 'rideshare'
 
+/** How trip suggestions are laid out in the results panel. */
+export type TripView = 'timeline' | 'list'
+
 export type SortPreference =
   | 'shortest'
   | 'earliest_arrival'

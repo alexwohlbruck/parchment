@@ -28,7 +28,7 @@ import {
 } from '@/lib/map-style/draft'
 import type { ImportCandidate } from '@/lib/map-style/import'
 import { candidateToDraft } from '@/lib/map-style/import'
-import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
+import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 import SourceForm from '@/components/map/layers/editor/SourceForm.vue'
 import StyleForm from '@/components/map/layers/editor/StyleForm.vue'
 import ImportStyleDialog from '@/components/map/layers/editor/ImportStyleDialog.vue'

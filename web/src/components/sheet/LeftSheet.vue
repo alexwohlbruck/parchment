@@ -11,7 +11,7 @@ import { useElementBounding, useTransition } from '@vueuse/core'
 import { Card } from '@/components/ui/card'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useAppStore } from '@/stores/app.store'
-import SheetActionButtons from '@/components/SheetActionButtons.vue'
+import SheetActionButtons from '@/components/sheet/SheetActionButtons.vue'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 
 const OBSTRUCTING_KEY = 'left-sheet'

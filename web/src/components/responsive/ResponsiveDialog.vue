@@ -4,7 +4,7 @@ import {
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayTitleProps,
 } from '@/composables/useResponsiveOverlay'
-import BottomSheet from '@/components/BottomSheet.vue'
+import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import {
   Dialog,
   DialogContent,

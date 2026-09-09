@@ -27,8 +27,8 @@ import {
   getMinutesUntil,
   getRouteBulletLabel,
 } from '@/lib/transit'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
-import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
+import SheetPageHeader from '@/components/sheet/SheetPageHeader.vue'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 

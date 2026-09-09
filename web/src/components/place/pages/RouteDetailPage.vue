@@ -13,7 +13,7 @@ import {
   bulletFor,
   ensureBulletsAt,
 } from '@/services/layers/features/portolan/portolan-bullets'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import {
   ensureStopIndexAt,
   osmForStop,

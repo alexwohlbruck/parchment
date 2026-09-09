@@ -15,7 +15,7 @@ import {
   ArrowDownRightIcon,
   LockIcon,
 } from 'lucide-vue-next'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import {

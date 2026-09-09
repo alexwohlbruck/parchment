@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
+import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 import { SheetFooter } from '@/components/sheet'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'

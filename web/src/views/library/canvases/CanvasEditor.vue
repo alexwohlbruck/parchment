@@ -40,7 +40,7 @@ import CanvasContextMenu from '@/components/library/canvas/CanvasContextMenu.vue
 import { useDrawOverlay } from '@/composables/useDrawOverlay'
 import { annotationFeature } from '@/lib/canvas-annotations'
 import { useRoutesService } from '@/services/library/routes.service'
-import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
+import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 import AddCanvasLayerDialog from '@/components/library/canvas/AddCanvasLayerDialog.vue'
 import CanvasDialog from '@/components/library/canvas/CanvasDialog.vue'
 import CanvasDataLayerSettings from '@/components/library/canvas/CanvasDataLayerSettings.vue'

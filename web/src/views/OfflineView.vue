@@ -12,7 +12,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EmptyState } from '@/components/ui/empty-state'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { AppRoute } from '@/router'
 

@@ -18,8 +18,8 @@ import type {
   PlaceVisitHistory,
   PlaceVisitSummary,
 } from '@server/types/location-history.types'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
-import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
+import SheetPageHeader from '@/components/sheet/SheetPageHeader.vue'
 
 dayjs.extend(relativeTime)
 

@@ -28,7 +28,7 @@ import { useElementSize } from '@vueuse/core'
 import { useSheetPeek } from '@/composables/useSheetPeek'
 import { Waypoint } from '@/types/map.types'
 import { SelectedMode, SortPreference } from '@/types/multimodal.types'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import {

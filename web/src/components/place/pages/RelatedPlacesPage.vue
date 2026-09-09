@@ -11,8 +11,8 @@ import type {
 import PlaceListItem from '@/components/place/PlaceListItem.vue'
 import { api } from '@/lib/api'
 import { WidgetType } from '@/types/place.types'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
-import SheetPageHeader from '@/components/place/SheetPageHeader.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
+import SheetPageHeader from '@/components/sheet/SheetPageHeader.vue'
 import { SkeletonList } from '@/components/ui/skeleton'
 
 const { t } = useI18n()

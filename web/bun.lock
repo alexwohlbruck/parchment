@@ -5,7 +5,7 @@
     "": {
       "name": "parchment",
       "dependencies": {
-        "@alexwohlbruck/vaul-vue": "^0.4.4",
+        "@alexwohlbruck/vaul-vue": "^0.4.5",
         "@fontsource/geist-mono": "^5.2.8",
         "@fontsource/geist-sans": "^5.2.5",
         "@internationalized/date": "^3.5.4",
@@ -116,7 +116,7 @@
     "@morev/vue-transitions",
   ],
   "packages": {
-    "@alexwohlbruck/vaul-vue": ["@alexwohlbruck/vaul-vue@0.4.4", "", { "dependencies": { "@vueuse/core": "^10.8.0", "reka-ui": "^2.0.0", "vue": "^3.4.5" } }, "sha512-AijOpqkGBgr/u2tQlMPcz7JU23WIaGs000gmXXSP9wpv4AtZ8WHaGyTFp/Gg47KnY30ItNDSTcQV8TBbMbwsew=="],
+    "@alexwohlbruck/vaul-vue": ["@alexwohlbruck/vaul-vue@0.4.5", "", { "dependencies": { "@vueuse/core": "^10.8.0", "reka-ui": "^2.0.0", "vue": "^3.4.5" } }, "sha512-wETvCMBPkzB+7YtKGLVQZzhB1VYaSGWC+qpoSoSQ/9PN8akJsMJnwlCkg7v6mdvISogfwZCGRM+kQfR5DzN9Tg=="],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 

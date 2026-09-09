@@ -38,7 +38,7 @@
     "@morev/vue-transitions"
   ],
   "dependencies": {
-    "@alexwohlbruck/vaul-vue": "^0.4.4",
+    "@alexwohlbruck/vaul-vue": "^0.4.5",
     "@fontsource/geist-mono": "^5.2.8",
     "@fontsource/geist-sans": "^5.2.5",
     "@internationalized/date": "^3.5.4",

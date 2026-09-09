@@ -9,7 +9,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
-import { useLayersService } from './layers.service'
+import { useLayersService } from '@/services/layers/layers.service'
 import type { Layer } from '@/types/map.types'
 import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
 
@@ -59,7 +59,7 @@ vi.mock('./core/layer-visibility.service', () => ({
   }),
 }))
 
-vi.mock('@/lib/transit.utils', () => ({
+vi.mock('@/lib/transit/transit.utils', () => ({
   isTransitStopLayer: (id: string) => id?.includes('transit-stops'),
 }))
 

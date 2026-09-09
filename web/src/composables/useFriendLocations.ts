@@ -28,7 +28,7 @@ import {
   importPublicKey,
   type FriendShareBinding,
   type LocationData,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 import type { LngLat } from '@/types/map.types'
 
 export interface FriendLocation {

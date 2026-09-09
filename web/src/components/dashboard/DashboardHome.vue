@@ -26,7 +26,7 @@ import { recentPlaceIdentity, recentSearchIdentity } from '@/lib/recents'
 import { capitalize } from '@/lib/string.utils'
 import Palette from '@/components/palette/Palette.vue'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
-import { appEventBus } from '@/lib/eventBus'
+import { appEventBus } from '@/lib/event-bus'
 import { findScrollAncestor } from '@/lib/scroll'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -36,7 +36,7 @@ import {
   recentPlaceToDisplay,
   recentSearchToDisplay,
   type PlaceDisplay,
-} from '@/lib/place-display'
+} from '@/lib/place/place-display'
 
 dayjs.extend(relativeTime)
 

@@ -17,12 +17,12 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { bulletFor } from '@/services/layers/features/portolan/portolan-bullets'
-import { getRouteBulletLabel } from '@/lib/transit'
+import { getRouteBulletLabel } from '@/lib/transit/transit'
 import type { StationLine } from '@/composables/usePlaceTransitLines'
 import type { Dayjs } from 'dayjs'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import { ChevronRightIcon } from 'lucide-vue-next'
-import { formatCountdown, type RouteGroup } from '@/lib/transit-departures'
+import { formatCountdown, type RouteGroup } from '@/lib/transit/transit-departures'
 
 const props = defineProps<{
   lines: StationLine[]

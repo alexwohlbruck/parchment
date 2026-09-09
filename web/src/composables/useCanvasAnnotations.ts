@@ -14,18 +14,18 @@
 
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import type { Position } from 'geojson'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { useDrawingSurface } from '@/composables/useDrawingSurface'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { themeColorToHex } from '@/lib/utils'
 import type { OverlayScene } from '@/composables/useDrawOverlay'
-import { snapWaypointsToPath } from '@/lib/route-snapping'
+import { snapWaypointsToPath } from '@/lib/directions/route-snapping'
 import { SUPERSEDED, useLatestRequest } from '@/composables/useLatestRequest'
 import type { RouteMode } from '@/types/routes.types'
 import type { IsochroneMode } from '@server/types/isochrone.types'
-import { fetchIsochroneBands } from '@/lib/isochrone-request'
-import { contourDurations } from '@/lib/isochrone.utils'
+import { fetchIsochroneBands } from '@/lib/directions/isochrone-request'
+import { contourDurations } from '@/lib/directions/isochrone.utils'
 import type { LngLat, MapEvents } from '@/types/map.types'
 import type {
   AnnotationTool,
@@ -43,8 +43,8 @@ import {
   TOOL_AUTOCOMPLETES,
   TOOL_MINIMUM,
   DEFAULT_ANNOTATION_COLOR,
-} from '@/lib/canvas-annotations'
-import { drawStylePatch, type DrawStyle } from '@/lib/canvas-draw-style'
+} from '@/lib/canvas/canvas-annotations'
+import { drawStylePatch, type DrawStyle } from '@/lib/canvas/canvas-draw-style'
 
 /** How close to the first vertex closing a shape starts to pull, in pixels. */
 const SNAP_PX = 12

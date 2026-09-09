@@ -11,7 +11,7 @@ import {
 import { useLayersService } from '@/services/layers/layers.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useStorage } from '@vueuse/core'
-import { jsonSerializer } from '@/lib/storage'
+import { jsonSerializer } from '@/lib/storage-serializer'
 import {
   CORE_LAYERS,
   CORE_LAYER_IDS,
@@ -24,9 +24,9 @@ import {
   isVirtualLayerId,
   EMPTY_SAVED_PLACES_VISIBILITY,
   SAVED_PLACES_GROUP_ID,
-} from '@/lib/saved-places-layers'
+} from '@/lib/map/saved-places-layers'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
-import { buildCanvasesProjection } from '@/lib/canvas-layers'
+import { buildCanvasesProjection } from '@/lib/canvas/canvas-layers'
 import {
   buildLayerStoreItems,
   collectGroupLayerTemplateIds,
@@ -34,7 +34,7 @@ import {
   isLayerTemplateAdded,
   resolveAddedGroupIds,
   type LayerStoreItem,
-} from '@/lib/layer-templates'
+} from '@/lib/map/layer-templates'
 import { i18n } from '@/lib/i18n'
 
 /**

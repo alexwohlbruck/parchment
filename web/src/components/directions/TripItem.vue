@@ -4,8 +4,8 @@ import dayjs from 'dayjs'
 import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map.service'
 import { useUnits } from '@/composables/useUnits'
-import { getTravelModeCssClass, getTravelModeColor } from '@/lib/travel-mode-colors'
-import { getSegmentIcon, getModeIcon } from '@/lib/travel-mode-icons'
+import { getTravelModeCssClass, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
+import { getSegmentIcon, getModeIcon } from '@/lib/directions/travel-mode-icons'
 import type {
   TripOption,
   TripsResponse,

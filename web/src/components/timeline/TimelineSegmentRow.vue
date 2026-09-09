@@ -7,7 +7,7 @@ import {
   TrainIcon,
 } from 'lucide-vue-next'
 import { TravelMode } from '@server/types/unified-routing.types'
-import { getTravelModeColor } from '@/lib/travel-mode-colors'
+import { getTravelModeColor } from '@/lib/directions/travel-mode-colors'
 import type { LocationHistorySegment } from '@server/types/location-history.types'
 
 const props = defineProps<{

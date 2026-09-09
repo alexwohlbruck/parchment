@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import LayerStoreCard from './LayerStoreCard.vue'
 import LayerStoreDetail from './LayerStoreDetail.vue'
 import en from '@/lib/i18n/en-US.json'
-import type { LayerStoreItem } from '@/lib/layer-templates'
+import type { LayerStoreItem } from '@/lib/map/layer-templates'
 
 /**
  * The store's two presentational pieces.

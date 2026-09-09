@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PlaceCategory } from '@/types/place.types'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { getCategoryColor } from '@/lib/place-colors'
+import { getCategoryColor } from '@/lib/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { computed } from 'vue'
 

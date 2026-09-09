@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
 import { Locale } from '@/lib/i18n'
-import { getPlaceRoute, getTransitStopRoute } from '@/lib/place.utils'
+import { getPlaceRoute, getTransitStopRoute } from '@/lib/place/place.utils'
 import {
   ensureStopIndexAt,
   osmForStop,
@@ -33,7 +33,7 @@ import { PermissionId } from '@/types/auth.types'
 import { ENGINE_PROJECTIONS, MapEngine } from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
-import { getCategoryColor } from '@/lib/place-colors'
+import { getCategoryColor } from '@/lib/place/place-colors'
 import type { PlaceCategory } from '@/types/place.types'
 import { useCategoryStore } from '@/stores/category.store'
 import { useRecentsStore } from '@/stores/recents.store'
@@ -44,10 +44,10 @@ import {
   type RecentPlaceEntry,
 } from '@/lib/recents'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
-import { getBookmarkPlaceId } from '@/lib/place.utils'
+import { getBookmarkPlaceId } from '@/lib/place/place.utils'
 import { frequentChipMeta } from '@/lib/frequents'
-import { COMMON_CATEGORIES } from '@/lib/common-categories'
-import { appEventBus } from '@/lib/eventBus'
+import { COMMON_CATEGORIES } from '@/lib/place/common-categories'
+import { appEventBus } from '@/lib/event-bus'
 
 import { AppRoute } from '@/router'
 import ColorCommandArgumentOption from '@/components/palette/custom-items/ColorCommandArgumentOption.vue'

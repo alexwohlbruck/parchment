@@ -1,5 +1,5 @@
 import { ref, watch, computed } from 'vue'
-import { haversineMeters } from '@/lib/geo-line'
+import { haversineMeters } from '@/lib/geo/geo-line'
 import { createSharedComposable } from '@vueuse/core'
 import { useMapStore } from '@/stores/map.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'

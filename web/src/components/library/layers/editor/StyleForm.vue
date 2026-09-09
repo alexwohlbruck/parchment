@@ -10,12 +10,12 @@
  */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { LayerDraft } from '@/lib/map-style/draft'
+import type { LayerDraft } from '@/lib/layer-editor/draft'
 import {
   LAYER_SECTIONS,
   sectionProperties,
   type StyleProperty,
-} from '@/lib/map-style/spec'
+} from '@/lib/layer-editor/style-spec-catalogue'
 import EditorSection from './EditorSection.vue'
 import PropertyField from './PropertyField.vue'
 import JsonField from './JsonField.vue'

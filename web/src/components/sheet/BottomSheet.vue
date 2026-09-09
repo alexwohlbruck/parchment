@@ -112,7 +112,7 @@ import {
 } from '@alexwohlbruck/vaul-vue'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-vue-next'
-import { handleVaulRelease } from '@/lib/vaulChromeWorkaround'
+import { handleVaulRelease } from '@/lib/vaul-chrome-workaround'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 
 const props = withDefaults(

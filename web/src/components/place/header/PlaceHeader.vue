@@ -9,13 +9,13 @@ import {
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
 import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
-import { getSearchResultCategory } from '@/lib/search.utils'
-import { haversineMeters } from '@/lib/geo-line'
-import { getCategoryColor } from '@/lib/place-colors'
+import { getSearchResultCategory } from '@/lib/search/search.utils'
+import { haversineMeters } from '@/lib/geo/geo-line'
+import { getCategoryColor } from '@/lib/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place-open.utils'
+import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place/place-open.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
 import {
@@ -24,7 +24,7 @@ import {
   type StationLine,
 } from '@/composables/usePlaceTransitLines'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
-import { getRouteBulletLabel } from '@/lib/transit'
+import { getRouteBulletLabel } from '@/lib/transit/transit'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   Tooltip,

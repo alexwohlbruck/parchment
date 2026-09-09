@@ -12,7 +12,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDownIcon } from 'lucide-vue-next'
-import { alertEffectKey } from '@/lib/transit-alerts'
+import { alertEffectKey } from '@/lib/transit/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 
 const props = defineProps<{

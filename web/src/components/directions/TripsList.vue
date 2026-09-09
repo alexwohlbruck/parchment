@@ -5,8 +5,8 @@ import { useRouter } from 'vue-router'
 import type { TripsResponse, TripOption } from '@/types/directions.types'
 import TripItem from './TripItem.vue'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { serializeDirectionsQuery, shareableWaypointId } from '@/lib/directions-url'
-import { tripSignature } from '@/lib/trip-signature'
+import { serializeDirectionsQuery, shareableWaypointId } from '@/lib/directions/directions-url'
+import { tripSignature } from '@/lib/directions/trip-signature'
 import { api } from '@/lib/api'
 
 interface Props {

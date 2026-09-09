@@ -49,7 +49,7 @@ import {
   annotationMetrics,
   DEFAULT_ANNOTATION_COLOR,
   DEFAULT_LABEL_POSITION,
-} from '@/lib/canvas-annotations'
+} from '@/lib/canvas/canvas-annotations'
 import { themeColorToHex } from '@/lib/utils'
 import {
   ANNOTATION_LABEL_POSITIONS,

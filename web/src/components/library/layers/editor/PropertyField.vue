@@ -13,7 +13,7 @@
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { isExpression, type StyleProperty } from '@/lib/map-style/spec'
+import { isExpression, type StyleProperty } from '@/lib/layer-editor/style-spec-catalogue'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Slider } from '@/components/ui/slider'

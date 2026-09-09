@@ -12,7 +12,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TriangleAlertIcon, ChevronDownIcon } from 'lucide-vue-next'
-import { alertTone, alertEffectKey } from '@/lib/transit-alerts'
+import { alertTone, alertEffectKey } from '@/lib/transit/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 
 const props = defineProps<{

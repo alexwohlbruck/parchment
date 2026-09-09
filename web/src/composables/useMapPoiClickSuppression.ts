@@ -1,5 +1,5 @@
 import { onScopeDispose, toValue, watch, type MaybeRefOrGetter } from 'vue'
-import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
+import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 
 /** Suppress place-like map actions for this component's lifetime. */
 export function useMapPoiClickSuppression(

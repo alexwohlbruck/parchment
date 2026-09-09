@@ -6,7 +6,7 @@
  */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { aqiSeverityClass } from '@/lib/aqi-colors'
+import { aqiSeverityClass } from '@/lib/weather/aqi-colors'
 import { useWeatherService } from '@/services/weather.service'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useMapStore } from '@/stores/map.store'

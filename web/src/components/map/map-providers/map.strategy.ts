@@ -13,14 +13,14 @@ import {
 } from '@/types/map.types'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Component } from 'vue'
-import { destroyVueMarkerElement } from '@/lib/vue-marker.utils'
-import { mapEventBus } from '@/lib/eventBus'
+import { destroyVueMarkerElement } from '@/lib/map/vue-marker.utils'
+import { mapEventBus } from '@/lib/event-bus'
 import { impactFeedback } from '@tauri-apps/plugin-haptics'
 import {
   mapPoiClickPolicy,
   PoiTapController,
   type PoiPointerEvent,
-} from '@/lib/map-poi-interaction'
+} from '@/lib/map/map-poi-interaction'
 
 export class MapStrategy {
   mapInstance: any
@@ -404,10 +404,10 @@ export class MapStrategy {
   // Trip visualization methods
   setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {}
   unsetTrips() {}
-  setRouteProfile(profile: import('@/lib/route-profile-colors').RouteProfileType | null) {}
+  setRouteProfile(profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null) {}
   setSegmentRouteProfile(
     tripId: string,
     segmentIndex: number,
-    profile: import('@/lib/route-profile-colors').RouteProfileType | null,
+    profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null,
   ) {}
 }

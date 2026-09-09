@@ -26,12 +26,12 @@ import { PermissionId } from '@/types/auth.types'
 import {
   connect as realtimeConnect,
   disconnect as realtimeDisconnect,
-} from '@/lib/realtime'
+} from '@/lib/realtime/realtime'
 // Side-effect import: each store that cares about realtime calls
 // `registerRealtimeHandlers` at import time, so we just need to make sure
 // those modules run. A dedicated bootstrap file keeps the side-effect
 // imports in one obvious place.
-import '@/lib/realtime-bootstrap'
+import '@/lib/realtime/realtime-bootstrap'
 
 import { SIDEBAR_WIDTH } from '@/components/ui/sidebar'
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'

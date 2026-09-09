@@ -15,14 +15,14 @@ import { useAppService } from '@/services/app.service'
 import { useMapService } from '@/services/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { useGeocodingService } from '@/services/geocoding.service'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { LngLat } from '@/types/map.types'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIsochroneStore } from '@/stores/isochrone.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
+import { VEHICLE_TYPE_LABELS } from '@/lib/transit/vehicle-mode-mapping'
 import type { VehicleType } from '@/types/multimodal.types'
 import { encode } from 'pluscodes'
 import type { MenuItemDefinition } from '@/components/responsive/ResponsiveDropdown.vue'
@@ -33,8 +33,8 @@ import {
   mapEditorUrl,
   type ExternalMapService,
   type MapEditor,
-} from '@/lib/external-map-links'
-import { nextMeasurePoints } from '@/lib/measure-click'
+} from '@/lib/map/external-map-links'
+import { nextMeasurePoints } from '@/lib/measure/measure-click'
 import { siOpenstreetmap, siGooglemaps, siApple } from 'simple-icons/icons'
 import {
   PencilIcon,
@@ -55,7 +55,7 @@ import {
 import ResponsiveDropdown from '@/components/responsive/ResponsiveDropdown.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
-import { formatAddress, getPlaceRouteFromExternalIds } from '@/lib/place.utils'
+import { formatAddress, getPlaceRouteFromExternalIds } from '@/lib/place/place.utils'
 import type { Place } from '@/types/place.types'
 import {
   findSegmentToInsert,
@@ -64,7 +64,7 @@ import {
   INSERT_THRESHOLD_PX,
   CLOSE_LOOP_THRESHOLD_PX,
   VERTEX_NEAR_PX,
-} from '@/lib/measure.utils'
+} from '@/lib/measure/measure.utils'
 import { AppRoute } from '@/router'
 
 const router = useRouter()

@@ -12,8 +12,8 @@
 
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { send as wsSend, connectionState } from '@/lib/realtime'
-import { registerRealtimeHandlers } from '@/lib/realtime-events'
+import { send as wsSend, connectionState } from '@/lib/realtime/realtime'
+import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
 /** Drop vehicles whose last report is older than this (ms). */

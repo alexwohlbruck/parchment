@@ -8,7 +8,7 @@ import {
   type StopTransferRoute,
 } from '@/stores/route-detail.store'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
-import { orderBullets } from '@/lib/transit-bullets'
+import { orderBullets } from '@/lib/transit/transit-bullets'
 import {
   bulletFor,
   ensureBulletsAt,
@@ -21,7 +21,7 @@ import {
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import ServiceAlerts from '@/components/transit/alerts/ServiceAlerts.vue'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
-import { alertServiceOverrides, alertStopSkips } from '@/lib/alert-service-overrides'
+import { alertServiceOverrides, alertStopSkips } from '@/lib/transit/alert-service-overrides'
 import { Separator } from '@/components/ui/separator'
 import { SheetHeader } from '@/components/sheet'
 import {
@@ -35,7 +35,7 @@ import { useTransitClock } from '@/composables/useTransitClock'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { formatDepartureTime, getMinutesUntil } from '@/lib/transit'
+import { formatDepartureTime, getMinutesUntil } from '@/lib/transit/transit'
 import {
   TrainFrontIcon,
   BusIcon,

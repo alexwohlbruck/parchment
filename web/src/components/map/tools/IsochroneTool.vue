@@ -35,11 +35,11 @@ import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIsochroneStore } from '@/stores/isochrone.store'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { themeHslToHex, getThemeColorHex } from '@/lib/utils'
-import { formatMeasureArea } from '@/lib/measure.utils'
-import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure.utils'
+import { formatMeasureArea } from '@/lib/measure/measure.utils'
+import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure.utils'
 import { UnitSystem } from '@/types/map.types'
 import type { LngLat } from '@/types/map.types'
 import {
@@ -48,7 +48,7 @@ import {
   MIN_CONTOUR_MINUTES,
   bandsToGeoJson,
   maxMinutesForMode,
-} from '@/lib/isochrone.utils'
+} from '@/lib/directions/isochrone.utils'
 import {
   EMPTY_ISOCHRONE_GEOJSON,
   ISOCHRONE_FILL_LAYER_ID,

@@ -1,4 +1,4 @@
-import type { SavedPlacesLayerMeta } from '@/lib/saved-places-layers'
+import type { SavedPlacesLayerMeta } from '@/lib/map/saved-places-layers'
 
 /**
  * A row in the map's layer selector.

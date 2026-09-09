@@ -10,7 +10,7 @@ import { computed } from 'vue'
 import { Switch } from '@/components/ui/switch'
 import ItemIcon from '@/components/ui/item-icon/ItemIcon.vue'
 import { ChevronRightIcon } from 'lucide-vue-next'
-import type { SelectorNode } from './layer-selector.types'
+import type { SelectorNode } from '@/components/map/layers/layer-selector.types'
 import type { ThemeColor } from '@/lib/utils'
 
 const props = withDefaults(

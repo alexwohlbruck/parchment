@@ -11,7 +11,7 @@ import { isTauri, getIsTauri } from '@/lib/api'
 import { useWindowSize } from '@vueuse/core'
 import { useMapService } from '@/services/map.service'
 import { useUpdater } from '@/composables/useUpdater'
-import { appEventBus } from '@/lib/eventBus'
+import { appEventBus } from '@/lib/event-bus'
 
 import { Button } from '@/components/ui/button'
 import {

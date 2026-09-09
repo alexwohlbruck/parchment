@@ -4,7 +4,7 @@
  * action at the foot adds it without leaving the grid.
  */
 import { useI18n } from 'vue-i18n'
-import type { LayerStoreItem } from '@/lib/layer-templates'
+import type { LayerStoreItem } from '@/lib/map/layer-templates'
 import { ItemIcon } from '@/components/ui/item-icon'
 // Same surface and hover as every other tile in the app, rather than a
 // one-off: see `ui/item-row/scale.ts`.

@@ -34,7 +34,7 @@ import { Spinner } from '@/components/ui/spinner'
 import {
   getSearchResultName,
   autocompleteResultToPlace,
-} from '@/lib/search.utils'
+} from '@/lib/search/search.utils'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useI18n } from 'vue-i18n'
 import { PlaceCard } from '@/components/place/card'
@@ -42,7 +42,7 @@ import {
   autocompleteToDisplay,
   makePlaceDisplay,
   waypointToDisplay,
-} from '@/lib/place-display'
+} from '@/lib/place/place-display'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { useThemeStore } from '@/stores/theme.store'
 import { fuzzyFilter } from '@/lib/utils'

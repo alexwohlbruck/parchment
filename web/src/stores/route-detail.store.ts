@@ -10,7 +10,7 @@ import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import type { TransitDeparture } from '@/types/place.types'
-import type { AlertServiceOverrides } from '@/lib/alert-service-overrides'
+import type { AlertServiceOverrides } from '@/lib/transit/alert-service-overrides'
 
 /** Another line available at a stop on this route. `station` calls there;
  *  `transfer` is reached from it without leaving the paid area. */

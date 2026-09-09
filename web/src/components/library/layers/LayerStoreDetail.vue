@@ -6,7 +6,7 @@
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { LayerStoreItem } from '@/lib/layer-templates'
+import type { LayerStoreItem } from '@/lib/map/layer-templates'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { Button } from '@/components/ui/button'
 import { CheckIcon, PlusIcon } from 'lucide-vue-next'

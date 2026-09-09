@@ -7,8 +7,8 @@ import {
   getSearchResultIconName,
   getSearchResultIconPack,
   getSearchResultCategory,
-} from '@/lib/search.utils'
-import { categoryMarkerPaint } from '@/lib/place-colors'
+} from '@/lib/search/search.utils'
+import { categoryMarkerPaint } from '@/lib/place/place-colors'
 import { markerCss, type MarkerShape } from '@/lib/map-marker'
 import { useThemeStore } from '@/stores/theme.store'
 import type { Place } from '@/types/place.types'

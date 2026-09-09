@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useIdentityStore } from '@/stores/identity.store'
-import type { RotationPhase } from '@/lib/km-rotation'
+import type { RotationPhase } from '@/lib/identity/km-rotation'
 import {
   Dialog,
   DialogContent,

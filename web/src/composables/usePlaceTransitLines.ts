@@ -1,6 +1,6 @@
 import { computed, reactive, type Ref } from 'vue'
 import type { TransitStopInfo } from '@/types/place.types'
-import { orderBullets } from '@/lib/transit-bullets'
+import { orderBullets } from '@/lib/transit/transit-bullets'
 
 type StationRoute = NonNullable<TransitStopInfo['routes']>[number]
 

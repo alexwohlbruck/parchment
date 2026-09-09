@@ -8,7 +8,7 @@ import {
   type IntegrationRecord,
   type IntegrationScheme,
 } from '@server/types/integration.types'
-import { jsonSerializer } from '@/lib/storage'
+import { jsonSerializer } from '@/lib/storage-serializer'
 import {
   siFoursquare,
   siGooglemaps,

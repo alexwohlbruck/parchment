@@ -9,8 +9,8 @@
  */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { LayerDraft } from '@/lib/map-style/draft'
-import { SOURCE_MODES } from '@/lib/map-style/draft'
+import type { LayerDraft } from '@/lib/layer-editor/draft'
+import { SOURCE_MODES } from '@/lib/layer-editor/draft'
 import {
   inferLayerKind,
   LAYER_KINDS_BY_SOURCE,
@@ -18,8 +18,8 @@ import {
   STYLE_SOURCE_KINDS,
   type StyleLayerKind,
   type StyleSourceKind,
-} from '@/lib/map-style/spec'
-import { parseGeoJson } from '@/lib/map-style/draft'
+} from '@/lib/layer-editor/style-spec-catalogue'
+import { parseGeoJson } from '@/lib/layer-editor/draft'
 import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'

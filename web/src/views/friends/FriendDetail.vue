@@ -45,7 +45,7 @@ import {
 import UserHandle from '@/components/identity/UserHandle.vue'
 import { useMapService } from '@/services/map.service'
 import { useDirectionsService } from '@/services/directions.service'
-import { appEventBus } from '@/lib/eventBus'
+import { appEventBus } from '@/lib/event-bus'
 import { useUnits } from '@/composables/useUnits'
 import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
 

@@ -2,7 +2,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
-import { applyDepartureChange } from '@/lib/trip-rebooking'
+import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map.service'
@@ -11,7 +11,7 @@ import {
   departureReachability,
   remainingAccessWalkSec,
   type DepartureReachability,
-} from '@/lib/transit-reachability'
+} from '@/lib/transit/transit-reachability'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -35,24 +35,24 @@ import {
   ShareIcon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
-import { tripSignature } from '@/lib/trip-signature'
+import { tripSignature } from '@/lib/directions/trip-signature'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { Place } from '@/types/place.types'
-import type { RouteProfileType } from '@/lib/route-profile-colors'
+import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import type { SharedMobilityDetails } from '@/types/multimodal.types'
-import { getSegmentIcon } from '@/lib/travel-mode-icons'
-import { getPlaceRoute } from '@/lib/place.utils'
+import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
+import { getPlaceRoute } from '@/lib/place/place.utils'
 import {
   getSearchResultIconName,
   getSearchResultIconPack,
   getSearchResultCategory,
   getSearchResultName,
-} from '@/lib/search.utils'
-import { getCategoryColor } from '@/lib/place-colors'
+} from '@/lib/search/search.utils'
+import { getCategoryColor } from '@/lib/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
-import { waypointToDisplay, type PlaceDisplay } from '@/lib/place-display'
+import { waypointToDisplay, type PlaceDisplay } from '@/lib/place/place-display'
 import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
 import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
 import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
@@ -60,7 +60,7 @@ import DepartureBoard from '@/components/transit/departures/DepartureBoard.vue'
 import ServiceAlertRow from '@/components/transit/alerts/ServiceAlertRow.vue'
 import ServiceAlertCard from '@/components/transit/alerts/ServiceAlertCard.vue'
 import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
-import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit-alerts'
+import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { SheetHeader } from '@/components/sheet'

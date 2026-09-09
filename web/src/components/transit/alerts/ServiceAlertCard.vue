@@ -14,7 +14,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TriangleAlertIcon, ExternalLinkIcon } from 'lucide-vue-next'
-import { alertTone, alertStart, alertEnd } from '@/lib/transit-alerts'
+import { alertTone, alertStart, alertEnd } from '@/lib/transit/transit-alerts'
 import { useExternalLink } from '@/composables/useExternalLink'
 import type { ServiceAlert } from '@/types/transit.types'
 

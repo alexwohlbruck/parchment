@@ -25,9 +25,9 @@ import {
   validateDraft,
   withGeneratedIds,
   type LayerDraft,
-} from '@/lib/map-style/draft'
-import type { ImportCandidate } from '@/lib/map-style/import'
-import { candidateToDraft } from '@/lib/map-style/import'
+} from '@/lib/layer-editor/draft'
+import type { ImportCandidate } from '@/lib/layer-editor/import'
+import { candidateToDraft } from '@/lib/layer-editor/import'
 import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 import SourceForm from '@/components/library/layers/editor/SourceForm.vue'
 import StyleForm from '@/components/library/layers/editor/StyleForm.vue'

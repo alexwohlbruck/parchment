@@ -22,12 +22,12 @@ import {
   buildTrack,
   predict,
   type Track,
-} from '@/lib/movement-interpolation'
+} from '@/lib/map/movement-interpolation'
 import {
   register as registerTick,
   requestTick,
   type Tick,
-} from '@/lib/animation-scheduler'
+} from '@/lib/map/animation-scheduler'
 import UserLocationMarker from '@/components/map/markers/UserLocationMarker.vue'
 
 const MARKER_ID = 'self'

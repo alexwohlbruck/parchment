@@ -1,4 +1,4 @@
-import { MapStrategy } from './map.strategy'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import {
   Map as MaplibreMap,
   NavigationControl,
@@ -48,22 +48,22 @@ import {
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import { palette } from '@/lib/palette'
-import { mapEventBus } from '@/lib/eventBus'
-import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
+import { mapEventBus } from '@/lib/event-bus'
+import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import {
   mapboxLayerToMaplibreLayer,
   parsePlanetilerOsmId,
-} from '@/lib/map.utils'
+} from '@/lib/map/map.utils'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
-import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
-import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
+import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman.utils'
+import { MapLayerGroup, TripGroup } from '@/lib/map/layer-group'
 import { Component, watch } from 'vue'
-import { createVueMarkerElement } from '@/lib/vue-marker.utils'
+import { createVueMarkerElement } from '@/lib/map/vue-marker.utils'
 import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
 import InstructionPointMarker from '@/components/map/markers/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
-import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
+import { calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import {
@@ -106,7 +106,7 @@ import {
   shadeLight,
   sunShadow,
   BUILDING_SHADE_LAYER_ID,
-} from '@/lib/building-shade'
+} from '@/lib/map/building-shade'
 function getPrimaryThemeHex(): string {
   try {
     const span = document.createElement('span')
@@ -1483,7 +1483,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
-  setRouteProfile(profile: import('@/lib/route-profile-colors').RouteProfileType | null) {
+  setRouteProfile(profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null) {
     for (const [groupId, group] of this.layerGroups.entries()) {
       if (groupId.startsWith('trip-') && group instanceof TripGroup) {
         group.setRouteProfile(profile)
@@ -1494,7 +1494,7 @@ export class MaplibreStrategy extends MapStrategy {
   setSegmentRouteProfile(
     tripId: string,
     segmentIndex: number,
-    profile: import('@/lib/route-profile-colors').RouteProfileType | null,
+    profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null,
   ) {
     const group = this.layerGroups.get(`trip-${tripId}`)
     if (group instanceof TripGroup) {

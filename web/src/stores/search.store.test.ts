@@ -9,7 +9,7 @@
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useSearchStore } from './search.store'
+import { useSearchStore } from '@/stores/search.store'
 import type { Place } from '@/types/place.types'
 
 describe('useSearchStore', () => {

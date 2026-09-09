@@ -4,7 +4,7 @@ import { createI18n } from 'vue-i18n'
 import { createPinia, setActivePinia } from 'pinia'
 import PropertyField from './PropertyField.vue'
 import en from '@/lib/i18n/en-US.json'
-import type { StyleProperty } from '@/lib/map-style/spec'
+import type { StyleProperty } from '@/lib/layer-editor/style-spec-catalogue'
 
 /**
  * The property row carries the editor's two central rules: an unset property

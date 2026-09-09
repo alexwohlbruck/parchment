@@ -10,7 +10,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Place } from '@/types/place.types'
-import { formatAddress } from '@/lib/place.utils'
+import { formatAddress } from '@/lib/place/place.utils'
 import { useAuthStore } from '@/stores/auth.store'
 import {
   recentSearches,

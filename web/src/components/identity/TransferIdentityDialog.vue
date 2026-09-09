@@ -26,20 +26,20 @@ import { storeToRefs } from 'pinia'
 import { api } from '@/lib/api'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useAuthStore } from '@/stores/auth.store'
-import { getSeed, storeSeed } from '@/lib/key-storage'
+import { getSeed, storeSeed } from '@/lib/identity/key-storage'
 import {
   generateEphemeralKeypair,
   deriveSAS,
   sealSeedForTransfer,
   openTransferredSeed,
   type SealedTransferPayload,
-} from '@/lib/device-transfer'
+} from '@/lib/identity/device-transfer'
 import {
   deriveAllKeys,
   importPublicKey,
   bytesToBase64,
   base64ToBytes,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 import {
   Dialog,
   DialogContent,

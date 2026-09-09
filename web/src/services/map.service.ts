@@ -19,7 +19,7 @@ import {
   GridSnapMode,
 } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
-import { useMapStore } from '../stores/map.store'
+import { useMapStore } from '@/stores/map.store'
 import { useLayersStore } from '@/stores/layers.store'
 import { useLayersService } from '@/services/layers/layers.service'
 import { usePlacePolygonLayerService } from '@/services/layers/features/place-polygon-layer.service'
@@ -31,19 +31,19 @@ import { useEnvironmentDataService } from '@/services/layers/features/environmen
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
-import { useAppStore } from '../stores/app.store'
-import { createAnimationHold } from '@/lib/animation-hold'
+import { useAppStore } from '@/stores/app.store'
+import { createAnimationHold } from '@/lib/map/animation-hold'
 import {
   calculateFitPadding,
   toContainerRect,
   type Padding,
-} from '@/lib/map-padding'
+} from '@/lib/map/map-padding'
 import {
   findGriddedCity,
   gridOrientations,
   angularDistanceDeg,
   GRID_SNAP_THRESHOLD_DEG,
-} from '@/lib/grid-orientation'
+} from '@/lib/geo/grid-orientation'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
@@ -52,7 +52,7 @@ import { createSharedComposable, useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { MapboxStrategy } from '@/components/map/map-providers/mapbox.strategy'
 import { MaplibreStrategy } from '@/components/map/map-providers/maplibre.strategy'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import { AppRoute } from '@/router'
 import { useRouter } from 'vue-router'
@@ -1603,12 +1603,12 @@ function mapService() {
     showOnlyWaypoints,
     showTripOnHover,
     showDefaultTrip,
-    setRouteProfile: (profile: import('@/lib/route-profile-colors').RouteProfileType | null) =>
+    setRouteProfile: (profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null) =>
       mapStrategy?.setRouteProfile(profile),
     setSegmentRouteProfile: (
       tripId: string,
       segmentIndex: number,
-      profile: import('@/lib/route-profile-colors').RouteProfileType | null,
+      profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null,
     ) => mapStrategy?.setSegmentRouteProfile(tripId, segmentIndex, profile),
     // Expose mapStrategy for layers service
     get mapStrategy() {

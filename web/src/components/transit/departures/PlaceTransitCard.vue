@@ -10,7 +10,7 @@
 import { computed, markRaw, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { setPlaceTransitLines, usePlaceTransferLines, type StationLine } from '@/composables/usePlaceTransitLines'
 import { useTransitAlerts } from '@/composables/useTransitAlerts'
-import { alertStopSkips, filterSkippedDepartures } from '@/lib/alert-service-overrides'
+import { alertStopSkips, filterSkippedDepartures } from '@/lib/transit/alert-service-overrides'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { useI18n } from 'vue-i18n'
 import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
@@ -31,8 +31,8 @@ import {
   type BoardDeparture,
   type DirectionGroup,
   type RouteGroup,
-} from '@/lib/transit-departures'
-import { formatDepartureTime, getRouteBulletLabel } from '@/lib/transit'
+} from '@/lib/transit/transit-departures'
+import { formatDepartureTime, getRouteBulletLabel } from '@/lib/transit/transit'
 import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
 import StopDeparturesPage from '@/components/transit/departures/StopDeparturesPage.vue'
 import { useRouter } from 'vue-router'

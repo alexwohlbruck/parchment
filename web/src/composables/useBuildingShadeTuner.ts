@@ -13,11 +13,11 @@ import {
   setSunOverride,
   shadeLight,
   sunShadow,
-} from '@/lib/building-shade'
-import { sunPosition } from '@/lib/sun-position'
+} from '@/lib/map/building-shade'
+import { sunPosition } from '@/lib/map/sun-position'
 import { buildingColor } from '@/lib/map-style/building-color.mjs'
 import { layerGroups } from '@/lib/map-style'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { useThemeStore } from '@/stores/theme.store'
 import { useMapStore } from '@/stores/map.store'
 import { MapEngine } from '@/types/map.types'

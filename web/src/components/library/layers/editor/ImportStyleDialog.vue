@@ -17,7 +17,7 @@ import {
   parseStyleDocument,
   StyleParseError,
   type ImportCandidate,
-} from '@/lib/map-style/import'
+} from '@/lib/layer-editor/import'
 import { AlertTriangleIcon } from 'lucide-vue-next'
 
 const open = defineModel<boolean>('open', { required: true })

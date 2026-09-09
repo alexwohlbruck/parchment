@@ -3,7 +3,7 @@ import { watch, onMounted, onUnmounted, ref, computed } from 'vue'
 import * as turf from '@turf/turf'
 import { useMapService } from '@/services/map.service'
 import { useMapToolsStore } from '@/stores/map-tools.store'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { useHotkeys } from '@/composables/useHotkeys'
 import { useMeasureUnits } from '@/composables/useMeasureUnits'
 import MeasureToolPanel from './MeasureToolPanel.vue'
@@ -14,8 +14,8 @@ import {
   distanceMeters,
   circleCircumferenceMeters,
   circleAreaSquareMeters,
-} from '@/lib/measure.utils'
-import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure.utils'
+} from '@/lib/measure/measure.utils'
+import type { UnitSystem as MeasureUnitSystem } from '@/lib/measure/measure.utils'
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app.store'
 import { useThemeStore } from '@/stores/theme.store'

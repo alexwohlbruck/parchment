@@ -34,12 +34,12 @@ import {
   buildTrack,
   predict,
   type Track,
-} from '@/lib/movement-interpolation'
+} from '@/lib/map/movement-interpolation'
 import {
   register as registerTick,
   requestTick,
   type Tick,
-} from '@/lib/animation-scheduler'
+} from '@/lib/map/animation-scheduler'
 import FriendLocationMarker from '@/components/map/markers/FriendLocationMarker.vue'
 
 // Skip `setMarkerLngLat` when the predicted position hasn't moved by

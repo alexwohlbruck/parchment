@@ -14,8 +14,8 @@ import type {
   DeleteCanvasMutation,
   SaveCanvasBodyMutation,
   UpdateCanvasMutation,
-} from './canvases.sync'
-import { getSeed } from '@/lib/key-storage'
+} from '@/services/library/canvases.sync'
+import { getSeed } from '@/lib/identity/key-storage'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import {
@@ -24,7 +24,7 @@ import {
   encryptCanvasBody,
   decryptCanvasBody,
   type CanvasMetadata,
-} from '@/lib/library-crypto'
+} from '@/lib/identity/library-crypto'
 import {
   emptyCanvasBody,
   type Canvas,

@@ -23,7 +23,7 @@ import {
   bulletTextColor,
   isBulletShape,
   type BulletShape,
-} from '@/lib/transit-bullets'
+} from '@/lib/transit/transit-bullets'
 
 const props = withDefaults(
   defineProps<{

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Place, DisplayChip } from '@/types/place.types'
-import { resolveIconByName } from '@/lib/osm-tag-icons'
+import { resolveIconByName } from '@/lib/place/osm-tag-icons'
 
 const props = defineProps<{
   place: Partial<Place>

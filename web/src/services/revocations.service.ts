@@ -21,7 +21,7 @@ import {
   buildSignableMessageV2,
   generateNonce,
   sign as signEd25519,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 
 interface PendingRevocationResponse {
   revocations: Array<{

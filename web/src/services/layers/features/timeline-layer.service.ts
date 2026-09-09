@@ -14,7 +14,7 @@ import {
   TRAVEL_MODE_COLORS,
   getTravelModeColor,
   getTravelModeCaseColor,
-} from '@/lib/travel-mode-colors'
+} from '@/lib/directions/travel-mode-colors'
 import type {
   LocationHistoryEntry,
   LocationHistorySegment,

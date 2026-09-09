@@ -10,7 +10,7 @@ vi.mock('maplibre-gl', () => ({ getVersion: () => '6.4.1-transit.3' }))
 vi.mock('@/router', () => ({ default: {}, AppRoute: {} }))
 vi.mock('@/lib/api', () => ({ api: { defaults: { baseURL: 'http://test' } } }))
 
-import { usePortolanTransitService } from './portolan-transit.service'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import { MapEngine, MapTheme } from '@/types/map.types'
 
 const FLAG_KEY = 'parchment.portolan-transit'

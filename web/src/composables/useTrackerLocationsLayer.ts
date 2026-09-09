@@ -8,7 +8,7 @@
 
 import { createSharedComposable } from '@vueuse/core'
 import { useRouter } from 'vue-router'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { AppRoute } from '@/router'
 
 function trackerLocationsLayerComposable() {

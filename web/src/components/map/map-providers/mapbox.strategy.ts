@@ -1,4 +1,4 @@
-import { MapStrategy } from './map.strategy'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 // `IndoorControl` is only reachable through the default export — mapbox-gl's
 // typings don't re-export the experimental indoor API as a named binding.
 import mapboxgl, {
@@ -35,12 +35,12 @@ import standardStyle from '@/components/map/styles/standard.json'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import { palette } from '@/lib/palette'
-import { mapEventBus } from '@/lib/eventBus'
-import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
-import { parseMapboxToOsmId } from '@/lib/map.utils'
+import { mapEventBus } from '@/lib/event-bus'
+import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman.utils'
+import { parseMapboxToOsmId } from '@/lib/map/map.utils'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
+import { MapLayerGroup, TripGroup } from '@/lib/map/layer-group'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -48,15 +48,15 @@ import {
 } from '@/lib/map-style/terrain'
 import { MAX_PITCH } from '@/lib/map-style'
 import { Component, watch } from 'vue'
-import { createVueMarkerElement } from '@/lib/vue-marker.utils'
+import { createVueMarkerElement } from '@/lib/map/vue-marker.utils'
 import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
 import InstructionPointMarker from '@/components/map/markers/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
-import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
+import { calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { getPrimaryThemeHex, adjustLightness, cssHslToHex } from '@/lib/utils'
-import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
+import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 
 /**
  * The zoom at which the globe has finished becoming a flat map.
@@ -1002,7 +1002,7 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
-  setRouteProfile(profile: import('@/lib/route-profile-colors').RouteProfileType | null) {
+  setRouteProfile(profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null) {
     for (const [groupId, group] of this.layerGroups.entries()) {
       if (groupId.startsWith('trip-') && group instanceof TripGroup) {
         group.setRouteProfile(profile)
@@ -1013,7 +1013,7 @@ export class MapboxStrategy extends MapStrategy {
   setSegmentRouteProfile(
     tripId: string,
     segmentIndex: number,
-    profile: import('@/lib/route-profile-colors').RouteProfileType | null,
+    profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null,
   ) {
     const group = this.layerGroups.get(`trip-${tripId}`)
     if (group instanceof TripGroup) {

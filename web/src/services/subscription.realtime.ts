@@ -1,4 +1,4 @@
-import { registerRealtimeHandlers } from '@/lib/realtime-events'
+import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 import { useSubscriptionService } from '@/services/subscription.service'
 
 registerRealtimeHandlers('subscription', {

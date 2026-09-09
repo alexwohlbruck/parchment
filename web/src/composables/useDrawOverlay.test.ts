@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import type { Position } from 'geojson'
 import { useMapStore } from '@/stores/map.store'
 import { useDrawOverlay, type OverlayScene } from './useDrawOverlay'
-import { annotationFeature, guideFeature } from '@/lib/canvas-annotations'
+import { annotationFeature, guideFeature } from '@/lib/canvas/canvas-annotations'
 import type { CanvasAnnotation } from '@/types/canvas.types'
 
 /**

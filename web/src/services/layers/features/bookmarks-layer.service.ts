@@ -23,17 +23,17 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useLayersStore } from '@/stores/layers.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import type { Layer } from '@/types/map.types'
-import { ensureIconImages } from '@/lib/map-icon-images'
+import { ensureIconImages } from '@/lib/map/map-icon-images'
 import { themeColorToHex } from '@/lib/utils'
-import { getPlaceRouteFromExternalIds } from '@/lib/place.utils'
-import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
+import { getPlaceRouteFromExternalIds } from '@/lib/place/place.utils'
+import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import {
   selectSavedPlaces,
   buildSavedPlacesGeoJSON,
   savedPlaceIconSpecs,
   type SavedPlace,
   type CollectionStyle,
-} from '@/lib/saved-places-features'
+} from '@/lib/map/saved-places-features'
 import {
   BOOKMARKS_SOURCE_ID,
   BOOKMARKS_CIRCLES_LAYER_ID,

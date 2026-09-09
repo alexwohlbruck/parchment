@@ -1,8 +1,8 @@
 import type { Component } from 'vue'
 import type { Place } from '@/types/place.types'
 import type { ChipOption } from '@/components/ui/chip'
-import { isPlaceOpenNow } from '@/lib/place-open.utils'
-import { getOsmTagLabel } from '@/lib/osm-tag-labels'
+import { isPlaceOpenNow } from '@/lib/place/place-open.utils'
+import { getOsmTagLabel } from '@/lib/place/osm-tag-labels'
 import * as turf from '@turf/turf'
 import {
   ClockIcon,

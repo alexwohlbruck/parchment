@@ -16,11 +16,11 @@ vi.mock('vue-i18n', () => ({
   }),
 }))
 // Icons → trivial stub components so getSegmentIcon/getModeIcon resolve
-vi.mock('@/lib/travel-mode-icons', () => ({
+vi.mock('@/lib/directions/travel-mode-icons', () => ({
   getSegmentIcon: () => ({ template: '<i class="seg-icon" />' }),
   getModeIcon: () => ({ template: '<i class="mode-icon" />' }),
 }))
-vi.mock('@/lib/travel-mode-colors', () => ({
+vi.mock('@/lib/directions/travel-mode-colors', () => ({
   getTravelModeCssClass: (m: string) => `mode-${m}`,
   getTravelModeColor: () => '#888',
 }))

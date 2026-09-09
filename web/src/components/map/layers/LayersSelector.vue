@@ -27,8 +27,8 @@ import type { Layer, LayerGroup } from '@/types/map.types'
 import {
   isVirtualLayerId,
   SAVED_PLACES_GROUP_ID,
-} from '@/lib/saved-places-layers'
-import { canvasIdFromLayerId, CANVASES_GROUP_ID } from '@/lib/canvas-layers'
+} from '@/lib/map/saved-places-layers'
+import { canvasIdFromLayerId, CANVASES_GROUP_ID } from '@/lib/canvas/canvas-layers'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { usePortolanTransitStore } from '@/stores/portolan.store'
 import {
@@ -39,7 +39,7 @@ import {
 } from '@/services/layers/features/portolan/portolan-ui'
 import LayerSelectorRow from './LayerSelectorRow.vue'
 import TransitServiceTimeControl from '@/components/transit/TransitServiceTimeControl.vue'
-import type { SelectorNode } from './layer-selector.types'
+import type { SelectorNode } from '@/components/map/layers/layer-selector.types'
 import { BookmarkIcon, Paintbrush2Icon } from 'lucide-vue-next'
 
 const layersStore = useLayersStore()

@@ -13,13 +13,13 @@ import type { CanvasAnnotation } from '@/types/canvas.types'
  * moving, a rectangle keeps its three defining clicks.
  */
 
-vi.mock('@/lib/route-snapping', () => ({
+vi.mock('@/lib/directions/route-snapping', () => ({
   RouteSnapAborted: class extends Error {},
   snapWaypointsToPath: vi.fn(async () => null),
 }))
 
 const fetchIsochroneBands = vi.fn(async () => ({ bands: [], meta: null }))
-vi.mock('@/lib/isochrone-request', () => ({
+vi.mock('@/lib/directions/isochrone-request', () => ({
   fetchIsochroneBands: (...args: unknown[]) => fetchIsochroneBands(...(args as [])),
 }))
 

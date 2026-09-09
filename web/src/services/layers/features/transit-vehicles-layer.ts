@@ -37,14 +37,14 @@ import {
   MIN_DR_SPEED,
   updateDrConfidence,
   type PolylineDistances,
-} from '@/lib/movement-interpolation'
+} from '@/lib/map/movement-interpolation'
 import { api } from '@/lib/api'
 import type { LngLat } from '@/types/map.types'
 import {
   register as registerTick,
   requestTick,
   type Tick,
-} from '@/lib/animation-scheduler'
+} from '@/lib/map/animation-scheduler'
 import TransitVehicleMarker from '@/components/map/markers/TransitVehicleMarker.vue'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 

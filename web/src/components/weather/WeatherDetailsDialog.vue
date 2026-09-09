@@ -6,7 +6,7 @@ import { storeToRefs } from 'pinia'
 import type { WeatherData } from '@server/types/integration.types'
 import ResponsiveDialog from '@/components/responsive/ResponsiveDialog.vue'
 import { useI18n } from 'vue-i18n'
-import { aqiSeverityClass, aqiCategoryLabel } from '@/lib/aqi-colors'
+import { aqiSeverityClass, aqiCategoryLabel } from '@/lib/weather/aqi-colors'
 import {
   Sun,
   Moon,

@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import dayjs from 'dayjs'
-import { useRouter } from 'vue-router'
-import type { TripsResponse, TripOption } from '@/types/directions.types'
+import type { TripsResponse } from '@/types/directions.types'
 import TripItem from './TripItem.vue'
-import { useDirectionsStore } from '@/stores/directions.store'
-import { serializeDirectionsQuery, shareableWaypointId } from '@/lib/directions/directions-url'
-import { tripSignature } from '@/lib/directions/trip-signature'
-import { api } from '@/lib/api'
+import TripRows from './TripRows.vue'
+import { useTripNavigation } from '@/composables/directions/useTripNavigation'
+import { byRank } from '@/lib/directions/trip-display'
 
 interface Props {
   trips: TripsResponse
@@ -18,8 +16,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   stickyTop: 0,
 })
-const router = useRouter()
-const directionsStore = useDirectionsStore()
 
 const MIN_PX_PER_MIN = 1.5
 const MAX_PX_PER_MIN = 50
@@ -66,9 +62,7 @@ onUnmounted(() => {
   observer?.disconnect()
 })
 
-const sortedTrips = computed(() => {
-  return [...props.trips.trips].sort((a, b) => a.rank - b.rank)
-})
+const sortedTrips = computed(() => byRank(props.trips.trips))
 
 const actualStart = computed(() => {
   const starts = props.trips.trips.flatMap(t => t.segments.map(s => new Date(s.startTime).getTime()))
@@ -178,44 +172,7 @@ const timeTicks = computed(() => {
   return result
 })
 
-function navigateToTripDetail(trip: TripOption) {
-  // The trip URL carries the full planning inputs (same wp/mode/sort/depart
-  // format as the directions URL) plus the trip's stable signature, so a
-  // refresh or a shared link can re-plan and find this same trip again.
-  const query = {
-    ...serializeDirectionsQuery({
-      waypoints: props.trips.request.waypoints.map((wp) => ({
-        lat: wp.coordinate.lat,
-        lng: wp.coordinate.lng,
-        label: wp.name || undefined,
-        id: shareableWaypointId(wp.place),
-      })),
-      mode: directionsStore.selectedMode,
-      sort: directionsStore.sortPreference || undefined,
-      depart: directionsStore.departureTime || undefined,
-    }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sig: tripSignature((trip as any).segments),
-  }
-  router.push({ name: 'trip', params: { id: trip.id }, query })
-
-  // Persist a server-side snapshot in the background and slip its token
-  // into the URL — the snapshot makes refresh and cross-device shares
-  // exact, independent of schedule drift. Best-effort: the sig/re-plan
-  // path still recovers the trip if this fails.
-  api
-    .post('/directions/trips', { request: query, trip })
-    .then(({ data }) => {
-      router
-        .replace({
-          name: 'trip',
-          params: { id: trip.id },
-          query: { ...query, pt: data.id },
-        })
-        .catch(() => {})
-    })
-    .catch(() => {})
-}
+const { openTrip } = useTripNavigation(() => props.trips.request)
 </script>
 
 <template>
@@ -265,19 +222,14 @@ function navigateToTripDetail(trip: TripOption) {
       class="trip-scroll overflow-x-auto overflow-y-hidden overscroll-x-contain pb-3 -mb-3"
       @scroll.passive="onScroll"
     >
-      <!-- Trip rows — staggered entrance as a fresh set of suggestions loads -->
-      <TransitionGroup
-        name="trip"
-        tag="div"
-        class="flex flex-col"
-        :style="{ minWidth: `${timelineWidth + sidebarWidth}px` }"
-        appear
+      <div
+        :style="{
+          minWidth: sortedTrips.length
+            ? `${timelineWidth + sidebarWidth}px`
+            : undefined,
+        }"
       >
-        <div
-          v-for="(trip, tripIndex) in sortedTrips"
-          :key="trip.id || tripIndex"
-          :style="{ '--trip-delay': `${Math.min(tripIndex, 8) * 45}ms` }"
-        >
+        <TripRows :trips="trips.trips" v-slot="{ trip }">
           <TripItem
             :trip="trip"
             :trip-request="trips.request"
@@ -285,18 +237,10 @@ function navigateToTripDetail(trip: TripOption) {
             :px-per-minute="pxPerMinute"
             :sidebar-width="sidebarWidth"
             :bar-area-width="barAreaWidth"
-            @click="navigateToTripDetail"
+            @click="openTrip"
           />
-          <div v-if="tripIndex < sortedTrips.length - 1" class="border-b border-border/50 mx-4" />
-        </div>
-      </TransitionGroup>
-    </div>
-
-    <div
-      v-if="sortedTrips.length === 0"
-      class="text-center py-8 text-muted-foreground"
-    >
-      <p class="text-sm">No trips available</p>
+        </TripRows>
+      </div>
     </div>
   </div>
 </template>
@@ -307,30 +251,5 @@ function navigateToTripDetail(trip: TripOption) {
 }
 .trip-scroll::-webkit-scrollbar {
   display: none;
-}
-
-/* Staggered entrance: each row fades and lifts in, offset by its index via
-   the inline --trip-delay. `appear` replays it whenever a new result set
-   mounts (new trip ids). */
-.trip-enter-active {
-  transition:
-    opacity 0.4s ease,
-    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-  transition-delay: var(--trip-delay, 0ms);
-}
-
-.trip-enter-from {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .trip-enter-active {
-    transition: opacity 0.2s ease;
-    transition-delay: 0ms;
-  }
-  .trip-enter-from {
-    transform: none;
-  }
 }
 </style>

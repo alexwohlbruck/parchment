@@ -3,6 +3,7 @@ import {
   depCountdown,
   entrancePhrase,
   formatCo2,
+  formatTimeRange,
   joinStatus,
   modeColor,
   movingDuration,
@@ -128,5 +129,23 @@ describe('rail paint', () => {
 
   test('falls back for an unknown mode', () => {
     expect(modeColor('teleport')).toBe('bg-parchment-500')
+  })
+})
+
+describe('formatTimeRange', () => {
+  test('drops the shared am/pm marker from the start', () => {
+    const range = formatTimeRange(
+      new Date('2026-06-12T15:30:00'),
+      new Date('2026-06-12T15:48:00'),
+    )
+    expect(range).toBe('3:30 – 3:48 PM')
+  })
+
+  test('keeps both markers across noon', () => {
+    const range = formatTimeRange(
+      new Date('2026-06-12T11:50:00'),
+      new Date('2026-06-12T12:10:00'),
+    )
+    expect(range).toBe('11:50 AM – 12:10 PM')
   })
 })

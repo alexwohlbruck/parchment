@@ -31,6 +31,21 @@ export function formatClockCompact(date: Date): string {
     .trim()
 }
 
+/** Clock time with its am/pm marker — "3:48 PM". */
+export function formatClock(date: Date): string {
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+/**
+ * "3:30 – 3:48 PM" for a trip's departure and arrival. The am/pm marker is
+ * dropped from the start only when both ends share it, so a trip over noon
+ * or midnight still reads unambiguously.
+ */
+export function formatTimeRange(start: Date, end: Date): string {
+  const samePeriod = start.getHours() < 12 === end.getHours() < 12
+  return `${samePeriod ? formatClockCompact(start) : formatClock(start)} – ${formatClock(end)}`
+}
+
 /**
  * Lead line and clock sub-line for a departure chip. Departure is detected by
  * the sign of the delta, not the rounded minute, so the last thirty seconds
@@ -143,4 +158,9 @@ export function railStyleAt(
     return lineColor ? { background: `#${lineColor}` } : {}
   }
   return {}
+}
+
+/** Suggestions are shown in the planner's ranking, best first. */
+export function byRank<T extends { rank: number }>(trips: readonly T[]): T[] {
+  return [...trips].sort((a, b) => a.rank - b.rank)
 }

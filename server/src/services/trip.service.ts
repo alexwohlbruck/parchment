@@ -1807,18 +1807,17 @@ export class TripService {
           additionalTransferTime: 15,
         })
 
-    // Rental query (transit+rental combos) — skip in multi mode where
-    // planSharedVehicleTrips covers shared-mobility separately.
-    const rentalFetch = isMulti
-      ? Promise.resolve([] as import('../types/integration.types').TransitItinerary[])
-      : fetchMotis('rental', {
-          ...baseRequest,
-          numItineraries: 4,
-          preTransitModes: ['WALK'],
-          postTransitModes: ['RENTAL'],
-          maxPreTransitTime: maxWalkSec,
-          maxPostTransitTime: maxWalkSec,
-        })
+    // Transit + shared-mobility egress. Its own trip type, so multi runs it
+    // too — narrower, since multi wants one of each type rather than four
+    // variants of this one.
+    const rentalFetch = fetchMotis('rental', {
+      ...baseRequest,
+      numItineraries: isMulti ? 2 : 4,
+      preTransitModes: ['WALK'],
+      postTransitModes: ['RENTAL'],
+      maxPreTransitTime: maxWalkSec,
+      maxPostTransitTime: maxWalkSec,
+    })
 
     const extraQueries: Promise<TripResponse[]>[] = []
 
@@ -1830,18 +1829,14 @@ export class TripService {
       )
     }
 
-    // Vehicle-access transit queries (drive-to-station, bike-to-station) are
-    // only included in dedicated transit mode — in multi mode, the top-level
-    // parking-driving and parking-biking modes already cover the vehicle+walk
-    // use case without the extra MOTIS round-trips.
-    if (!isMulti) {
+    // Park-and-ride and bike-to-station are properties of the network, not of
+    // the user's garage — MOTIS locates the station parking and racks itself.
+    // A registered vehicle only refines the query, by anchoring it where the
+    // vehicle actually sits and attributing the ride to it.
+    {
       const availableVehicles = request.availableVehicles || []
       const useKnownLocations = preferences.useKnownVehicleLocations !== false
 
-      // Park-and-ride and bike-to-station are properties of the network, not
-      // of the user's garage — MOTIS locates station parking and racks itself.
-      // A registered vehicle only refines the query, by anchoring it where the
-      // vehicle actually sits and attributing the ride to it.
       const car = availableVehicles.find(v => v.type === 'car') ?? null
       extraQueries.push(
         this.planVehicleAccessTransitQuery(
@@ -3523,13 +3518,28 @@ export class TripService {
     // first trip seen for a signature is its best representative.
     const transitPreferred = new Set<typeof sorted[number]>()
     const seenSignatures = new Set<string>()
+
+    // Strategies first: one slot for each way of reaching transit, before any
+    // are spent on alternatives within a strategy. Walk+transit dominates the
+    // ranking in a dense network and would otherwise take every slot, hiding
+    // park-and-ride and bike-to-station entirely.
+    const seenStrategies = new Set<string>()
     for (const c of sorted) {
+      const strategy = this.getTripMode(c.trip)
+      if (!strategy.includes('transit')) continue
+      if (seenStrategies.has(strategy)) continue
+      seenStrategies.add(strategy)
+      seenSignatures.add(this.transitSignature(c.trip))
+      transitPreferred.add(c)
+    }
+
+    for (const c of sorted) {
+      if (transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS) break
       if (!this.getTripMode(c.trip).includes('transit')) continue
       const sig = this.transitSignature(c.trip)
       if (seenSignatures.has(sig)) continue
       seenSignatures.add(sig)
       transitPreferred.add(c)
-      if (transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS) break
     }
 
     // Pre-select the best trip per mode so we always show at least one
@@ -3598,14 +3608,24 @@ export class TripService {
   private getTripMode(trip: TripResponse): string {
     const hasTransit = trip.segments.some((s) => s.mode === 'transit')
     if (hasTransit) {
-      // Distinguish transit access strategies so each gets its own
-      // per-mode cap slot. A bike+transit trip is meaningfully different
-      // from a walk+transit trip.
-      const firstNonWalk = trip.segments.find(
+      const vehicleIndex = trip.segments.findIndex(
         (s) => s.mode !== 'walking' && s.mode !== 'transit',
       )
-      if (firstNonWalk) return `${firstNonWalk.mode}+transit`
-      return 'transit'
+      if (vehicleIndex === -1) return 'transit'
+
+      // Riding to the station, riding away from it, and riding between legs
+      // are three different trips, and a dock bike is not your own bike.
+      const vehicle = trip.segments[vehicleIndex]
+      const firstTransit = trip.segments.findIndex((s) => s.mode === 'transit')
+      const lastTransit = trip.segments.findLastIndex((s) => s.mode === 'transit')
+      const leg =
+        vehicleIndex < firstTransit
+          ? 'access'
+          : vehicleIndex > lastTransit
+            ? 'egress'
+            : 'transfer'
+      const owner = vehicle.ownership === 'shared' ? '-shared' : ''
+      return `${vehicle.mode}${owner}+transit:${leg}`
     }
 
     // Shared bike/scooter is its own strategy — a vehicle you fetch from a

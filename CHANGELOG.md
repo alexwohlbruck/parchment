@@ -2,6 +2,9 @@
 
 ### Added
 
+* The combined travel mode now shows one of every kind of trip that works for
+  your route — riding to the station, transit with a shared bike at the far
+  end — instead of only the plain walk-and-ride options.
 * Transit directions now offer park-and-ride and bike-to-station options
   without needing a vehicle saved in the app. Saving one still improves them —
   the trip starts by walking you to where you actually parked.

@@ -1961,24 +1961,24 @@ describe('TripService — getTripMode', () => {
     expect((tripService as any).getTripMode(trip)).toBe('transit')
   })
 
-  test('transit with biking access returns biking+transit', () => {
+  test('transit with biking access is keyed as bike access', () => {
     const trip = makeTripWithSegments([
       { mode: 'walking', duration: 60 },
       { mode: 'biking', duration: 300 },
       { mode: 'transit', duration: 1200 },
       { mode: 'walking', duration: 300 },
     ])
-    expect((tripService as any).getTripMode(trip)).toBe('biking+transit')
+    expect((tripService as any).getTripMode(trip)).toBe('biking+transit:access')
   })
 
-  test('transit with driving access returns driving+transit', () => {
+  test('transit with driving access is keyed as drive access', () => {
     const trip = makeTripWithSegments([
       { mode: 'walking', duration: 60 },
       { mode: 'driving', duration: 300 },
       { mode: 'transit', duration: 1200 },
       { mode: 'walking', duration: 300 },
     ])
-    expect((tripService as any).getTripMode(trip)).toBe('driving+transit')
+    expect((tripService as any).getTripMode(trip)).toBe('driving+transit:access')
   })
 
   test('mixed non-transit returns mode with longest duration', () => {
@@ -2271,11 +2271,32 @@ describe('TripService — filterQualityTrips', () => {
       (c: any) => (tripService as any).getTripMode(c.trip) === 'transit',
     )
     const bikeTransit = result.filter(
-      (c: any) => (tripService as any).getTripMode(c.trip) === 'biking+transit',
+      (c: any) => (tripService as any).getTripMode(c.trip) === 'biking+transit:access',
     )
     // Each sub-type should have up to MAX_PER_MODE (2)
     expect(walkTransit.length).toBeLessThanOrEqual(2)
     expect(bikeTransit.length).toBeLessThanOrEqual(2)
+  })
+
+  test('a lone strategy survives a full slate of better-ranked walk+transit', () => {
+    /** Walk+transit on a named line, so each has its own routing signature. */
+    function onLine(line: string, totalDuration: number) {
+      const c = makeTransitCandidate(null, totalDuration, '2026-01-15T08:30:00Z')
+      const transit = c.trip.segments.find((s: any) => s.mode === 'transit')!
+      transit.details = { transitDetails: { shortName: line } }
+      return c
+    }
+
+    // MAX_TRANSIT_OPTIONS (8) distinct walk+transit routings, every one faster
+    // than the park-and-ride that follows them in rank order.
+    const candidates: any[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map(
+      (line, i) => onLine(line, 1800 + i * 10),
+    )
+    candidates.push(makeTransitCandidate('driving', 2400, '2026-01-15T08:40:00Z'))
+
+    const result = (tripService as any).filterQualityTrips(candidates)
+    const strategies = result.map((c: any) => (tripService as any).getTripMode(c.trip))
+    expect(strategies).toContain('driving+transit:access')
   })
 })
 

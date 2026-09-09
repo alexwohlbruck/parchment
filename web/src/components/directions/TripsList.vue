@@ -228,15 +228,17 @@ function navigateToTripDetail(trip: TripOption) {
          z above the trip caps (z-20) so rows are fully hidden under it, but
          below the pinned controls (z-30). -->
     <div
-      class="sticky z-[25] pt-2 pb-1 border-b border-border/40 bg-background grid"
-      :style="{
-        gridTemplateColumns: 'auto 1fr',
-        top: `calc(var(--sheet-sticky-top, 0px) + ${stickyTop}px)`,
-      }"
+      class="sticky z-[25] pt-2 pb-1 border-b border-border/40 bg-background"
+      :style="{ top: `calc(var(--sheet-sticky-top, 0px) + ${stickyTop}px)` }"
     >
-      <span :style="{ width: `${sidebarWidth}px` }" />
+      <!-- Ticks are positioned from the bar column's origin, so the track is
+           offset by the sidebar and then panned with the rows. It spans the
+           full width: once scrolled, bars reach the panel's left edge too. -->
       <div class="relative h-7 overflow-hidden">
-        <div class="absolute inset-0" :style="{ transform: `translateX(${-scrollLeft}px)` }">
+        <div
+          class="absolute inset-0"
+          :style="{ transform: `translateX(${sidebarWidth - scrollLeft}px)` }"
+        >
           <template v-for="tick in timeTicks" :key="tick.time">
             <div
               class="absolute bottom-0"

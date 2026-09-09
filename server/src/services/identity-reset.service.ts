@@ -20,12 +20,21 @@
  *   - Passkeys (can still be used to sign in; recovery slots are
  *     deleted, user can re-add them).
  *   - Role membership + preferences (not encrypted under the seed).
+ *   - `scheme='server-key'` integrations (OSM etc.) — their config is
+ *     encrypted under the server's key, not the user's seed, so they
+ *     keep working and there's nothing to recover.
  *
  * What's DELETED (user-E2EE'd data):
  *   - Wrapped-master-key slots.
  *   - Device wrap secrets.
  *   - Personal blobs (search history, friend pins, etc.).
  *   - Bookmarks, collections, encrypted points, canvases.
+ *   - Routes — `metadata_encrypted` is under the user key for both
+ *     schemes, so even a server-key route loses its name.
+ *   - `scheme='user-e2ee'` integrations. Their config lives in a
+ *     personal blob that's about to be wiped; leaving the metadata row
+ *     behind would strand the integration, because the unique index on
+ *     (user_id, integration_id, scheme) then rejects a reconnect.
  *   - Encrypted live-location rows.
  *   - Shares (outgoing + incoming).
  *   - Location-sharing configs + relationships + tracked devices.
@@ -52,7 +61,7 @@
  * registration.
  */
 
-import { eq, or } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { db } from '../db'
 import { users } from '../schema/users.schema'
 import { wrappedMasterKeys } from '../schema/wrapped-master-keys.schema'
@@ -60,6 +69,8 @@ import { deviceWrapSecrets } from '../schema/device-wrap-secrets.schema'
 import { encryptedUserBlobs } from '../schema/personal-blobs.schema'
 import { bookmarks, collections } from '../schema/library.schema'
 import { canvases } from '../schema/canvases.schema'
+import { routes } from '../schema/routes.schema'
+import { integrations } from '../schema/integrations.schema'
 import {
   encryptedLocations,
   locationSharingConfig,
@@ -168,6 +179,16 @@ export async function resetUserIdentity(userId: string): Promise<void> {
     await tx.delete(collections).where(eq(collections.userId, userId))
     await tx.delete(bookmarks).where(eq(bookmarks.userId, userId))
     await tx.delete(canvases).where(eq(canvases.userId, userId))
+    await tx.delete(routes).where(eq(routes.userId, userId))
+
+    // user-e2ee integrations only. These rows never enter the adapter
+    // cache (`createIntegration` skips `initializeIntegration` for the
+    // scheme), so there's nothing to evict alongside the delete.
+    await tx
+      .delete(integrations)
+      .where(
+        and(eq(integrations.userId, userId), eq(integrations.scheme, 'user-e2ee')),
+      )
 
     // Location / sharing state.
     await tx

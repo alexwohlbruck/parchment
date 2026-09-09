@@ -50,6 +50,7 @@ function mountTrip(segments: Record<string, unknown>[]) {
       timelineStart: new Date('2026-06-12T13:55:00Z'),
       pxPerMinute: 8,
       sidebarWidth: 80,
+      barAreaWidth: 280,
     },
   })
 }

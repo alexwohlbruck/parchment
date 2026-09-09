@@ -1,3 +1,10 @@
+import { LngLatBounds, type CameraOptions } from 'maplibre-gl'
+import {
+  TERRAIN_SOURCE_ID,
+  TERRAIN_EXAGGERATION,
+  terrainSource,
+} from '@/lib/map-style/terrain'
+import { MapLayerGroup, TripGroup } from '@/lib/map/layer-group'
 import {
   Basemap,
   Layer,
@@ -28,6 +35,8 @@ export class MapStrategy {
   options: MapSettings
   accessToken?: string
   markers: Map<string, any> = new Map() // Track active markers
+  layerGroups: Map<string, MapLayerGroup> = new Map()
+  protected fitMapToTrips(_trips: TripsResponse, _visibleTripIds: Set<string>) {}
   protected longPressTimer: ReturnType<typeof setTimeout> | null = null
   protected touchStartPoint: { x: number; y: number } | null = null
   protected clickDebounceTimer: number | null = null
@@ -177,18 +186,9 @@ export class MapStrategy {
     this.clickDebounceTimer = null
   }
 
-  resize() {}
   addDataSource() {}
-  flyTo(camera: Partial<MapCamera>) {}
-  jumpTo(camera: Partial<MapCamera>) {}
-  fitBounds(
-    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
-    options?: any,
-  ) {}
   setDirections(directions: Directions) {}
-  unsetDirections() {}
   setPegman(pegman: Pegman) {}
-  removePegman() {}
   setPoiLabels(value: boolean) {}
   setRoadLabels(value: boolean) {}
   setTransitLabels(value: boolean) {}
@@ -245,7 +245,6 @@ export class MapStrategy {
    * which it has to undo when the map is tilted — so it also tracks pitch.
    */
   updateCameraProjection() {}
-  setMap3dTerrain(value: boolean) {}
   /** Extrude the basemap's buildings. */
   setMap3dBuildings(value: boolean) {}
   /**
@@ -277,12 +276,10 @@ export class MapStrategy {
     return false // Default: no reinitialization needed
   }
   addSource(sourceId: string, source: any) {}
-  removeSource(sourceId: string) {}
   /**
    * Replace a live GeoJSON source's data without touching the layers drawn
    * from it — the cheap path for content that changes while you work.
    */
-  setSourceData(sourceId: string, data: any) {}
   addLayer(layer: Layer, overwrite: boolean = false) {}
   removeLayer(layerId: Layer['configuration']['id']) {}
   updateLayer(layerId: Layer['configuration']['id'], updates: Partial<Layer>) {}
@@ -297,9 +294,6 @@ export class MapStrategy {
     // See map.service.ts locate() which uses useGeolocationService().
   }
 
-  zoomIn() {}
-  zoomOut() {}
-  resetNorth() {}
 
   getBounds(): {
     north: number
@@ -402,12 +396,183 @@ export class MapStrategy {
   }
 
   // Trip visualization methods
-  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {}
-  unsetTrips() {}
-  setRouteProfile(profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null) {}
+  fitBounds(
+    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
+    options: any = {},
+  ) {
+    const mapboxBounds = new LngLatBounds(
+      [bounds.minLng, bounds.minLat],
+      [bounds.maxLng, bounds.maxLat],
+    )
+
+    this.mapInstance.fitBounds(mapboxBounds, {
+      padding: options.padding || 100,
+      duration: options.duration || 1000,
+      easing: options.easing || (t => t * (2 - t)),
+      ...options,
+    })
+  }
+
+  flyTo(camera: Partial<CameraOptions>) {
+    this.mapInstance.flyTo(camera)
+  }
+
+  jumpTo(camera: Partial<CameraOptions>) {
+    this.mapInstance.jumpTo(camera)
+  }
+
+  removePegman() {
+    // Remove pegman layers if they exist
+    if (this.mapInstance.getLayer('pegman-fov')) {
+      this.mapInstance.removeLayer('pegman-fov')
+    }
+    if (this.mapInstance.getLayer('pegman-position')) {
+      this.mapInstance.removeLayer('pegman-position')
+    }
+    if (this.mapInstance.getSource('pegman')) {
+      this.mapInstance.removeSource('pegman')
+    }
+  }
+
+  removeSource(sourceId: string) {
+    if (this.mapInstance.getSource(sourceId)) {
+      this.mapInstance.removeSource(sourceId)
+    }
+  }
+
+  resetNorth() {
+    this.mapInstance.easeTo({
+      bearing: 0,
+      pitch: 0,
+    })
+  }
+
+  resize() {
+    this.mapInstance.resize()
+  }
+
+  setMap3dTerrain(value: boolean) {
+    const present = !!this.mapInstance.getSource(TERRAIN_SOURCE_ID)
+    if (value && !present) {
+      this.mapInstance.addSource(TERRAIN_SOURCE_ID, terrainSource() as any)
+      this.mapInstance.setTerrain({
+        source: TERRAIN_SOURCE_ID,
+        exaggeration: TERRAIN_EXAGGERATION,
+      })
+    } else if (!value && present) {
+      // Order matters: a source still referenced by the terrain cannot be
+      // removed, so the terrain has to be cleared first.
+      this.mapInstance.setTerrain(null)
+      this.mapInstance.removeSource(TERRAIN_SOURCE_ID)
+    }
+  }
+
+  setRouteProfile(profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null) {
+    for (const [groupId, group] of this.layerGroups.entries()) {
+      if (groupId.startsWith('trip-') && group instanceof TripGroup) {
+        group.setRouteProfile(profile)
+      }
+    }
+  }
+
   setSegmentRouteProfile(
     tripId: string,
     segmentIndex: number,
     profile: import('@/lib/directions/route-profile-colors').RouteProfileType | null,
-  ) {}
+  ) {
+    const group = this.layerGroups.get(`trip-${tripId}`)
+    if (group instanceof TripGroup) {
+      group.setSegmentRouteProfile(segmentIndex, profile)
+    }
+  }
+
+  setSourceData(sourceId: string, data: any) {
+    // Only a GeoJSON source can take data in place; anything else is a no-op.
+    const source = this.mapInstance.getSource(sourceId) as
+      | { setData?: (data: any) => void }
+      | undefined
+    source?.setData?.(data)
+  }
+
+  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
+    // Idempotent: if we already show exactly these trips, skip destroy+recreate
+    const currentTripIds = new Set(
+      [...this.layerGroups.keys()]
+        .filter(k => k.startsWith('trip-'))
+        .map(k => k.slice('trip-'.length)),
+    )
+    if (
+      currentTripIds.size === visibleTripIds.size &&
+      [...visibleTripIds].every(id => currentTripIds.has(id))
+    ) {
+      return
+    }
+
+    for (const groupId of this.layerGroups.keys()) {
+      if (groupId.startsWith('trip-')) {
+        this.layerGroups.get(groupId)?.destroy()
+        this.layerGroups.delete(groupId)
+      }
+    }
+
+    const visibleTrips: any[] = []
+    trips.trips.forEach(trip => {
+      if (visibleTripIds.has(trip.id)) {
+        const groupId = `trip-${trip.id}`
+        const tripGroup = new TripGroup(this, trip)
+        this.layerGroups.set(groupId, tripGroup)
+        visibleTrips.push(trip)
+      }
+    })
+
+    if (visibleTripIds.size > 0) {
+      this.fitMapToTrips(trips, visibleTripIds)
+    }
+  }
+
+  unsetDirections() {
+    const style = this.mapInstance.getStyle()
+    if (!style) return
+    const mapLayers = style.layers
+    const ids = mapLayers.map(layer => layer.id)
+
+    // Remove route layers
+    ids.forEach(id => {
+      if (id.startsWith('route-')) {
+        this.mapInstance.removeLayer(id)
+      }
+    })
+
+    // Remove route sources
+    const sources = Object.keys(this.mapInstance.getStyle()?.sources || {})
+    sources.forEach(source => {
+      if (source.startsWith('route-')) {
+        this.mapInstance.removeSource(source)
+      }
+    })
+
+    // Remove route stop markers
+    const markersToRemove = Array.from(this.markers.keys()).filter(id =>
+      id.startsWith('route-stop-'),
+    )
+    markersToRemove.forEach(id => this.removeMarker(id))
+  }
+
+  unsetTrips() {
+    for (const groupId of this.layerGroups.keys()) {
+      if (groupId.startsWith('trip-')) {
+        this.layerGroups.get(groupId)?.destroy()
+        this.layerGroups.delete(groupId)
+      }
+    }
+  }
+
+  zoomIn() {
+    this.mapInstance.zoomIn()
+  }
+
+  zoomOut() {
+    this.mapInstance.zoomOut()
+  }
+
 }

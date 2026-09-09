@@ -21,7 +21,7 @@ import {
   BaseMarkerLayer,
   type MapMarkerAPI,
   type MarkerData,
-} from './base-marker-layer'
+} from '@/services/layers/markers/base-marker-layer'
 import { useLayersStore } from '@/stores/layers.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
 import { useRouteDetailStore } from '@/stores/route-detail.store'

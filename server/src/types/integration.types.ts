@@ -324,6 +324,9 @@ export interface IntermodalRouteRequest extends TransitRouteRequest {
   postTransitRentalFormFactors?: string[]
   /** Minutes reserved per interchange (transfer penalty). Barrelman defaults to 3. */
   additionalTransferTime?: number
+  /** Keep only trips that allow bike carriage. Read from GTFS `bikes_allowed`,
+   *  where "no information" counts as no — a feed that omits it yields nothing. */
+  requireBikeTransport?: boolean
 }
 
 export interface TransitRouteResponse {

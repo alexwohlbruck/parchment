@@ -1854,6 +1854,25 @@ export class TripService {
       const bike = availableVehicles.find(v =>
         ['bike', 'e-bike', 'scooter', 'e-scooter'].includes(v.type),
       ) ?? null
+
+      // Carrying the bike through, rather than leaving it at the station.
+      // MOTIS answers this from GTFS bikes_allowed and treats "no information"
+      // as no, so on a feed that doesn't declare carriage this returns nothing
+      // rather than inventing permission the rider may not have.
+      extraQueries.push(
+        this.planBikeCarryOnTransitQuery(
+          {
+            ...baseRequest,
+            preTransitModes: ['BIKE'],
+            postTransitModes: ['BIKE'],
+            requireBikeTransport: true,
+            maxPreTransitTime: TripService.VEHICLE_ACCESS_MAX_SEC,
+            maxPostTransitTime: TripService.VEHICLE_ACCESS_MAX_SEC,
+          },
+          bike, from, to, startTime, dataSources, preferences,
+        ),
+      )
+
       extraQueries.push(
         this.planVehicleAccessTransitQuery(
           {
@@ -2362,6 +2381,26 @@ export class TripService {
     return hit
   }
 
+  /** One routed leg between two points, or null if routing can't answer. */
+  private routeLeg(
+    start: Coordinate,
+    end: Coordinate,
+    profile: 'bicycle' | 'pedestrian',
+    preferences: any,
+  ) {
+    return routingService
+      .getRoute(
+        [
+          { type: 'coordinates', value: [start.lat, start.lng] },
+          { type: 'coordinates', value: [end.lat, end.lng] },
+        ],
+        profile,
+        preferences,
+      )
+      .then(r => r.routes[0]?.legs[0] ?? null)
+      .catch(() => null)
+  }
+
   /**
    * Rewrite a bike-access transit trip so the ride ends locked to a real rack.
    *
@@ -2394,26 +2433,9 @@ export class TripService {
       place: rack,
     }
 
-    const legTo = (
-      start: Coordinate,
-      end: Coordinate,
-      profile: 'bicycle' | 'pedestrian',
-    ) =>
-      routingService
-        .getRoute(
-          [
-            { type: 'coordinates', value: [start.lat, start.lng] },
-            { type: 'coordinates', value: [end.lat, end.lng] },
-          ],
-          profile,
-          preferences,
-        )
-        .then(r => r.routes[0]?.legs[0] ?? null)
-        .catch(() => null)
-
     const [toRack, toStop] = await Promise.all([
-      legTo(ride.start.location, rackWaypoint.location, 'bicycle'),
-      legTo(rackWaypoint.location, ride.end.location, 'pedestrian'),
+      this.routeLeg(ride.start.location, rackWaypoint.location, 'bicycle', preferences),
+      this.routeLeg(rackWaypoint.location, ride.end.location, 'pedestrian', preferences),
     ])
 
     // A routing outage says nothing about whether the rack is usable, so the
@@ -2473,6 +2495,154 @@ export class TripService {
     trip.tripStats.totalWalkingDistance =
       (trip.tripStats.totalWalkingDistance ?? 0) + toStop.distance
     trip.earliestStartTime = parkedRide.startTime
+
+    if (vehicle) {
+      trip.parkedVehicles = [{
+        vehicle,
+        location: rackWaypoint.location,
+        parkedAt: parkedRide.endTime,
+      }]
+    }
+
+    return true
+  }
+
+  /**
+   * Bike carried onto transit and ridden away at the far end.
+   *
+   * MOTIS returns ride → transit → ride; the closing ride is re-aimed at a
+   * rack near the destination and the rest walked, so the bike ends the trip
+   * somewhere it can actually be left.
+   */
+  private async planBikeCarryOnTransitQuery(
+    query: import('../types/integration.types').IntermodalRouteRequest,
+    vehicle: Vehicle | null,
+    from: Waypoint,
+    to: Waypoint,
+    startTime: string,
+    dataSources: DataSource[],
+    preferences: any,
+  ): Promise<TripResponse[]> {
+    try {
+      const trips = await this.executeIntermodalQuery(
+        query, from, to, startTime, dataSources, preferences,
+      )
+
+      const kept: TripResponse[] = []
+      for (const trip of trips) {
+        // Only a genuine carry-on: a ride on each side of the transit legs.
+        const lastTransit = trip.segments.findLastIndex(s => s.mode === 'transit')
+        const firstTransit = trip.segments.findIndex(s => s.mode === 'transit')
+        const ridesBefore = trip.segments.findIndex(s => s.mode === 'biking')
+        const ridesAfter = trip.segments.findLastIndex(s => s.mode === 'biking')
+        if (
+          firstTransit === -1 ||
+          ridesBefore === -1 ||
+          ridesBefore > firstTransit ||
+          ridesAfter < lastTransit
+        ) continue
+
+        if (vehicle) {
+          for (const seg of trip.segments) {
+            if (seg.mode === 'biking') seg.vehicle = vehicle
+          }
+        }
+
+        if (!(await this.parkBikeAfterAlighting(trip, to, vehicle, preferences))) continue
+        kept.push(trip)
+      }
+
+      return kept
+    } catch (error) {
+      logError('Bike carry-on transit query failed', error)
+      return []
+    }
+  }
+
+  /**
+   * Rewrite the closing ride of a carry-on trip so it ends locked to a real
+   * rack, walking the remainder. Timed forward from the alighting, so the
+   * trip simply arrives later rather than arriving by teleport.
+   *
+   * Returns false when the destination has no reachable rack.
+   */
+  private async parkBikeAfterAlighting(
+    trip: TripResponse,
+    to: Waypoint,
+    vehicle: Vehicle | null,
+    preferences: any,
+  ): Promise<boolean> {
+    const rideIdx = trip.segments.findLastIndex(s => s.mode === 'biking')
+    if (rideIdx === -1) return true
+
+    const ride = trip.segments[rideIdx]
+    const rack = await this.cachedStationRack(to.location)
+    if (!rack) return false
+
+    const rackWaypoint: Waypoint = {
+      location: rack.geometry.value.center,
+      type: 'via',
+      label: rack.name?.value || 'Bike parking',
+      place: rack,
+    }
+
+    const [toRack, toDest] = await Promise.all([
+      this.routeLeg(ride.start.location, rackWaypoint.location, 'bicycle', preferences),
+      this.routeLeg(rackWaypoint.location, to.location, 'pedestrian', preferences),
+    ])
+
+    if (!toRack || !toDest) return true
+    if (!this.segmentsConnect(toRack.geometry, toDest.geometry)) return false
+
+    const rideStart = new Date(ride.startTime).getTime()
+    const rideEnd = rideStart + toRack.duration * 1000
+    const walkStart = rideEnd + TripService.BIKE_LOCK_DELAY_SEC * 1000
+    const walkEnd = walkStart + toDest.duration * 1000
+
+    const parkedRide: TripSegment = {
+      ...ride,
+      end: rackWaypoint,
+      startTime: new Date(rideStart).toISOString(),
+      endTime: new Date(rideEnd).toISOString(),
+      duration: toRack.duration,
+      distance: toRack.distance,
+      geometry: toRack.geometry,
+      instructions: toRack.instructions,
+      totalElevationGain: toRack.totalElevationGain,
+      totalElevationLoss: toRack.totalElevationLoss,
+      maxElevation: toRack.maxElevation,
+      minElevation: toRack.minElevation,
+      edgeSegments: toRack.edgeSegments,
+    }
+
+    const walkOut: TripSegment = {
+      segmentIndex: 0,
+      mode: 'walking',
+      start: rackWaypoint,
+      end: to,
+      startTime: new Date(walkStart).toISOString(),
+      endTime: new Date(walkEnd).toISOString(),
+      duration: toDest.duration,
+      distance: toDest.distance,
+      geometry: toDest.geometry,
+      instructions: toDest.instructions,
+      co2: 0,
+      totalElevationGain: toDest.totalElevationGain,
+      totalElevationLoss: toDest.totalElevationLoss,
+      maxElevation: toDest.maxElevation,
+      minElevation: toDest.minElevation,
+      edgeSegments: toDest.edgeSegments,
+    }
+
+    // Everything after the closing ride is replaced: MOTIS's own egress walk
+    // started from the old ride end, which no longer exists.
+    trip.segments.splice(rideIdx, trip.segments.length - rideIdx, parkedRide, walkOut)
+    trip.segments.forEach((seg, idx) => { seg.segmentIndex = idx })
+
+    const stats = this.calculateStats(trip.segments)
+    trip.tripStats.totalDuration = stats.totalDuration
+    trip.tripStats.totalDistance = stats.totalDistance
+    trip.tripStats.totalWalkingDistance = stats.totalWalkingDistance
 
     if (vehicle) {
       trip.parkedVehicles = [{
@@ -3794,17 +3964,25 @@ export class TripService {
       )
       if (vehicleIndex === -1) return 'transit'
 
-      // Riding to the station, riding away from it, and riding between legs
-      // are three different trips, and a dock bike is not your own bike.
+      // Riding to the station, riding away from it, riding between legs and
+      // carrying the bike through are four different trips, and a dock bike is
+      // not your own bike.
       const vehicle = trip.segments[vehicleIndex]
+      const lastVehicleIndex = trip.segments.findLastIndex(
+        (s) => s.mode !== 'walking' && s.mode !== 'transit',
+      )
       const firstTransit = trip.segments.findIndex((s) => s.mode === 'transit')
       const lastTransit = trip.segments.findLastIndex((s) => s.mode === 'transit')
+      const ridesBefore = vehicleIndex < firstTransit
+      const ridesAfter = lastVehicleIndex > lastTransit
       const leg =
-        vehicleIndex < firstTransit
-          ? 'access'
-          : vehicleIndex > lastTransit
-            ? 'egress'
-            : 'transfer'
+        ridesBefore && ridesAfter
+          ? 'carry'
+          : ridesBefore
+            ? 'access'
+            : ridesAfter
+              ? 'egress'
+              : 'transfer'
       const owner = vehicle.ownership === 'shared' ? '-shared' : ''
       return `${vehicle.mode}${owner}+transit:${leg}`
     }

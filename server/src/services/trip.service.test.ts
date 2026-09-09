@@ -1650,6 +1650,105 @@ describe('TripService — scoring', () => {
     })
   })
 
+  // ── Bike carried onto transit ───────────────────────────────────────────────
+
+  describe('bike carried onto transit', () => {
+    const destRack = {
+      geometry: { value: { center: { lat: 35.2262, lng: -80.8438 } } },
+      name: { value: 'Destination bike rack' },
+      tags: {},
+    }
+
+    /** MOTIS answers a carry-on query with ride → transit → ride. */
+    function mockCarryOn({ carriageAllowed }: { carriageAllowed: boolean }) {
+      mockGetIntermodalRoute.mockImplementation(async (req: any) => {
+        if (req.requireBikeTransport) {
+          if (!carriageAllowed) return { itineraries: [], metadata: { searchWindow: 3600 } }
+          const itinerary = makeTransitItinerary()
+          itinerary.legs[0] = {
+            ...itinerary.legs[0],
+            mode: 'BIKE',
+            distance: 1800,
+            duration: 480,
+          }
+          itinerary.legs[2] = {
+            ...itinerary.legs[2],
+            mode: 'BIKE',
+            distance: 1500,
+            duration: 420,
+          }
+          return { itineraries: [itinerary], metadata: { searchWindow: 3600 } }
+        }
+        return {
+          itineraries: [makeTransitItinerary()],
+          metadata: { searchWindow: 3600 },
+        }
+      })
+    }
+
+    const carryOnTrip = (response: any) =>
+      response.trips.find(
+        (t: any) =>
+          t.trip.segments.filter((s: any) => s.mode === 'biking').length >= 1 &&
+          t.trip.segments.some((s: any) => s.mode === 'transit') &&
+          t.trip.segments[0].mode === 'biking',
+      )
+
+    const plan = () =>
+      tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        routingPreferences: { useKnownParkingLocations: true },
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+    test('rides on, rides off, and locks up at the destination', async () => {
+      mockCarryOn({ carriageAllowed: true })
+      mockSearchByCategory.mockImplementation(async () => [destRack])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const trip = carryOnTrip(await plan())
+      expect(trip).toBeDefined()
+
+      const modes = trip!.trip.segments.map((s: any) => s.mode)
+      expect(modes[0]).toBe('biking')
+      expect(modes).toContain('transit')
+      // The closing ride ends at the rack, and the trip walks in from there.
+      expect(modes[modes.length - 1]).toBe('walking')
+      const lastRide = trip!.trip.segments.findLast((s: any) => s.mode === 'biking')
+      expect(lastRide.end.label).toBe('Destination bike rack')
+    })
+
+    test('is not offered when the services do not allow carriage', async () => {
+      mockCarryOn({ carriageAllowed: false })
+      mockSearchByCategory.mockImplementation(async () => [destRack])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await plan()
+      const carried = response.trips.find(
+        (t: any) => t.trip.segments[0].mode === 'biking' &&
+          t.trip.segments.some((s: any) => s.mode === 'transit') &&
+          t.trip.segments.findLast((s: any) => s.mode === 'biking') !==
+            t.trip.segments.find((s: any) => s.mode === 'biking'),
+      )
+      expect(carried).toBeUndefined()
+    })
+
+    test('asks MOTIS to require carriage rather than assuming it', async () => {
+      mockCarryOn({ carriageAllowed: true })
+      mockSearchByCategory.mockImplementation(async () => [destRack])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      await plan()
+
+      const carryQuery = mockGetIntermodalRoute.mock.calls
+        .map(([req]: any[]) => req)
+        .find((req: any) => req.postTransitModes?.includes('BIKE'))
+      expect(carryQuery).toBeDefined()
+      expect(carryQuery.requireBikeTransport).toBe(true)
+    })
+  })
+
   // ── Bike parking before boarding ────────────────────────────────────────────
 
   describe('bike parking before boarding transit', () => {

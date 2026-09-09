@@ -335,6 +335,10 @@ export interface TransitRouteResponse {
     searchWindow: number
     nextPageCursor?: string
     prevPageCursor?: string
+    /** Set when the provider actually enforced `requireBikeTransport`. Absent
+     *  from a provider too old to know the flag, which would otherwise have
+     *  ignored it and returned rides the bike may not be allowed on. */
+    requireBikeTransport?: boolean
   }
 }
 

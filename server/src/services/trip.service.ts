@@ -2526,9 +2526,22 @@ export class TripService {
     preferences: any,
   ): Promise<TripResponse[]> {
     try {
-      const trips = await this.executeIntermodalQuery(
-        query, from, to, startTime, dataSources, preferences,
+      const response = await transitRoutingService.getIntermodalRoute(query)
+
+      // Only offer to take the bike aboard on a provider that says it checked.
+      // An older one drops the flag silently, and its results would be ordinary
+      // bike-either-end itineraries dressed up as permission we never verified.
+      if (response.metadata?.requireBikeTransport !== true) return []
+      if (!response.itineraries?.length) return []
+
+      const adapted = await Promise.all(
+        response.itineraries.map(itinerary =>
+          this.adaptIntermodalItinerary(
+            itinerary, from, to, startTime, dataSources, preferences,
+          ),
+        ),
       )
+      const trips = adapted.filter((t): t is TripResponse => t !== null)
 
       const kept: TripResponse[] = []
       for (const trip of trips) {

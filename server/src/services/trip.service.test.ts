@@ -1761,7 +1761,8 @@ describe('TripService — scoring', () => {
     function mockCarryOn({ carriageAllowed }: { carriageAllowed: boolean }) {
       mockGetIntermodalRoute.mockImplementation(async (req: any) => {
         if (req.requireBikeTransport) {
-          if (!carriageAllowed) return { itineraries: [], metadata: { searchWindow: 3600 } }
+          const metadata = { searchWindow: 3600, requireBikeTransport: true }
+          if (!carriageAllowed) return { itineraries: [], metadata }
           const itinerary = makeTransitItinerary()
           itinerary.legs[0] = {
             ...itinerary.legs[0],
@@ -1775,7 +1776,7 @@ describe('TripService — scoring', () => {
             distance: 1500,
             duration: 420,
           }
-          return { itineraries: [itinerary], metadata: { searchWindow: 3600 } }
+          return { itineraries: [itinerary], metadata }
         }
         return {
           itineraries: [makeTransitItinerary()],
@@ -1829,6 +1830,27 @@ describe('TripService — scoring', () => {
           t.trip.segments.findLast((s: any) => s.mode === 'biking') !==
             t.trip.segments.find((s: any) => s.mode === 'biking'),
       )
+      expect(carried).toBeUndefined()
+    })
+
+    test('is not offered when the provider never confirms it enforced carriage', async () => {
+      // An older Barrelman drops the flag and answers as an ordinary
+      // bike-both-ends query — permission we never actually checked.
+      mockGetIntermodalRoute.mockImplementation(async (req: any) => {
+        const itinerary = makeTransitItinerary()
+        if (req.postTransitModes?.includes('BIKE')) {
+          itinerary.legs[0] = { ...itinerary.legs[0], mode: 'BIKE', distance: 1800, duration: 480 }
+          itinerary.legs[2] = { ...itinerary.legs[2], mode: 'BIKE', distance: 1500, duration: 420 }
+        }
+        return { itineraries: [itinerary], metadata: { searchWindow: 3600 } }
+      })
+      mockSearchByCategory.mockImplementation(async () => [destRack])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const carried = (await plan()).trips.find((t: any) => {
+        const rides = t.trip.segments.filter((s: any) => s.mode === 'biking')
+        return rides.length > 1 && t.trip.segments.some((s: any) => s.mode === 'transit')
+      })
       expect(carried).toBeUndefined()
     })
 

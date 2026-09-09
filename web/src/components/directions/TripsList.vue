@@ -30,6 +30,13 @@ const sidebarWidth = ref(0)
 
 let observer: ResizeObserver | null = null
 
+const scrollRef = ref<HTMLElement | null>(null)
+const scrollLeft = ref(0)
+
+function onScroll() {
+  scrollLeft.value = scrollRef.value?.scrollLeft ?? 0
+}
+
 function updateWidth() {
   if (containerRef.value) {
     containerWidth.value = containerRef.value.clientWidth
@@ -50,6 +57,8 @@ onMounted(() => {
 
 watch(() => props.trips, () => {
   sidebarWidth.value = 0
+  if (scrollRef.value) scrollRef.value.scrollLeft = 0
+  scrollLeft.value = 0
   nextTick(() => updateWidth())
 })
 
@@ -210,25 +219,24 @@ function navigateToTripDetail(trip: TripOption) {
 </script>
 
 <template>
-  <!-- overflow-x-clip contains an over-long outlier bar without becoming a
-       scroll container (which would capture the sticky axis and fight the
-       sheet's single scroll surface). overflow-y stays visible so rows scroll
-       in the host scroller. -->
-  <div ref="containerRef" class="min-w-0 overflow-x-clip">
-    <div :style="{ minWidth: `${timelineWidth + sidebarWidth}px` }">
-      <!-- Time axis — opaque so suggestions are fully hidden as they scroll
-           under it, docked just below the pinned controls. -->
-      <!-- z above the trip caps (z-20) so rows are fully hidden under it, but
-           below the pinned controls (z-30). -->
-      <div
-        class="sticky z-[25] pt-2 pb-1 border-b border-border/40 bg-background grid"
-        :style="{
-          gridTemplateColumns: 'auto 1fr',
-          top: `calc(var(--sheet-sticky-top, 0px) + ${stickyTop}px)`,
-        }"
-      >
-        <span :style="{ width: `${sidebarWidth}px` }" />
-        <div class="relative h-7">
+  <div ref="containerRef" class="min-w-0">
+    <!-- Time axis — opaque so suggestions are fully hidden as they scroll
+         under it, docked just below the pinned controls. It sits outside the
+         horizontal scroller (which would capture its vertical stickiness) and
+         mirrors that scroller's offset instead.
+
+         z above the trip caps (z-20) so rows are fully hidden under it, but
+         below the pinned controls (z-30). -->
+    <div
+      class="sticky z-[25] pt-2 pb-1 border-b border-border/40 bg-background grid"
+      :style="{
+        gridTemplateColumns: 'auto 1fr',
+        top: `calc(var(--sheet-sticky-top, 0px) + ${stickyTop}px)`,
+      }"
+    >
+      <span :style="{ width: `${sidebarWidth}px` }" />
+      <div class="relative h-7 overflow-hidden">
+        <div class="absolute inset-0" :style="{ transform: `translateX(${-scrollLeft}px)` }">
           <template v-for="tick in timeTicks" :key="tick.time">
             <div
               class="absolute bottom-0"
@@ -245,9 +253,25 @@ function navigateToTripDetail(trip: TripOption) {
           </template>
         </div>
       </div>
+    </div>
 
+    <!-- The timeline outruns the panel whenever a trip is longer than the
+         fitted range, so the rows pan horizontally. Bottom padding gives the
+         entrance transform room before overflow clips it. -->
+    <div
+      ref="scrollRef"
+      class="trip-scroll overflow-x-auto overflow-y-hidden overscroll-x-contain pb-3 -mb-3"
+      :data-scrolled="scrollLeft > 0"
+      @scroll.passive="onScroll"
+    >
       <!-- Trip rows — staggered entrance as a fresh set of suggestions loads -->
-      <TransitionGroup name="trip" tag="div" class="flex flex-col" appear>
+      <TransitionGroup
+        name="trip"
+        tag="div"
+        class="flex flex-col"
+        :style="{ minWidth: `${timelineWidth + sidebarWidth}px` }"
+        appear
+      >
         <div
           v-for="(trip, tripIndex) in sortedTrips"
           :key="trip.id || tripIndex"
@@ -259,23 +283,35 @@ function navigateToTripDetail(trip: TripOption) {
             :timeline-start="timelineStart.toDate()"
             :px-per-minute="pxPerMinute"
             :sidebar-width="sidebarWidth"
+            :bar-area-width="barAreaWidth"
             @click="navigateToTripDetail"
           />
           <div v-if="tripIndex < sortedTrips.length - 1" class="border-b border-border/50 mx-4" />
         </div>
       </TransitionGroup>
+    </div>
 
-      <div
-        v-if="sortedTrips.length === 0"
-        class="text-center py-8 text-muted-foreground"
-      >
-        <p class="text-sm">No trips available</p>
-      </div>
+    <div
+      v-if="sortedTrips.length === 0"
+      class="text-center py-8 text-muted-foreground"
+    >
+      <p class="text-sm">No trips available</p>
     </div>
   </div>
 </template>
 
 <style scoped>
+.trip-scroll {
+  scrollbar-width: none;
+}
+.trip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.trip-scroll[data-scrolled='true'] :deep([data-sidebar]) {
+  box-shadow: 6px 0 8px -6px hsl(var(--foreground) / 0.15);
+}
+
 /* Staggered entrance: each row fades and lifts in, offset by its index via
    the inline --trip-delay. `appear` replays it whenever a new result set
    mounts (new trip ids). */

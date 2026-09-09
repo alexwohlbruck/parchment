@@ -1,5 +1,6 @@
 import { api } from '@/lib/api'
 import { useIntegrationsStore } from '@/stores/integrations.store'
+import { IntegrationId } from '@server/types/integration.types'
 import type {
   LocationHistory,
   PlaceVisitHistory,
@@ -10,6 +11,35 @@ export class MissingDawarichConfigError extends Error {
     super('Dawarich is not configured')
     this.name = 'MissingDawarichConfigError'
   }
+}
+
+/**
+ * The Dawarich config is decrypted client-side at sign-in (user-e2ee scheme),
+ * so the URL + token live only in memory. They're forwarded to our server via
+ * `X-Integration-Endpoint` and `X-Integration-Token` headers per request; our
+ * server uses them in-memory to call Dawarich and never persists or logs them.
+ *
+ * `integrationId` routes upstream failures into the degraded-integration flow
+ * (settings badge) instead of an error toast.
+ */
+async function dawarichGet<T>(
+  path: string,
+  params: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<T> {
+  const config = useIntegrationsStore().dawarichConfig
+  if (!config) throw new MissingDawarichConfigError()
+
+  const response = await api.get<T>(path, {
+    params,
+    headers: {
+      'X-Integration-Endpoint': config.url,
+      'X-Integration-Token': config.apiToken,
+    },
+    signal,
+    integrationId: IntegrationId.DAWARICH,
+  })
+  return response.data
 }
 
 export interface FetchLocationHistoryArgs {
@@ -24,21 +54,10 @@ export interface FetchLocationHistoryArgs {
   signal?: AbortSignal
 }
 
-/**
- * Fetch unified location history for a date range.
- *
- * The Dawarich config is decrypted client-side at sign-in (user-e2ee scheme),
- * so the URL + token live only in memory. They're forwarded to our server via
- * `X-Integration-Endpoint` and `X-Integration-Token` headers per request; our
- * server uses them in-memory to call Dawarich and never persists or logs them.
- */
+/** Fetch unified location history for a date range. */
 export async function fetchLocationHistory(
   args: FetchLocationHistoryArgs,
 ): Promise<LocationHistory> {
-  const integrationsStore = useIntegrationsStore()
-  const config = integrationsStore.dawarichConfig
-  if (!config) throw new MissingDawarichConfigError()
-
   const timezone =
     args.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC'
 
@@ -52,16 +71,7 @@ export async function fetchLocationHistory(
     params.statsEnd = args.statsEnd.toISOString()
   }
 
-  const response = await api.get<LocationHistory>('/location-history', {
-    params,
-    headers: {
-      'X-Integration-Endpoint': config.url,
-      'X-Integration-Token': config.apiToken,
-    },
-    signal: args.signal,
-  })
-
-  return response.data
+  return dawarichGet<LocationHistory>('/location-history', params, args.signal)
 }
 
 export interface FetchPlaceVisitHistoryArgs {
@@ -85,18 +95,10 @@ export interface FetchPlaceVisitHistoryArgs {
   signal?: AbortSignal
 }
 
-/**
- * Fetch "You've been here N times" aggregate for a coordinate. Same e2ee
- * passthrough as the timeline endpoint — Dawarich credentials forwarded
- * via headers, never persisted server-side.
- */
+/** Fetch "You've been here N times" aggregate for a coordinate. */
 export async function fetchPlaceVisitHistory(
   args: FetchPlaceVisitHistoryArgs,
 ): Promise<PlaceVisitHistory> {
-  const integrationsStore = useIntegrationsStore()
-  const config = integrationsStore.dawarichConfig
-  if (!config) throw new MissingDawarichConfigError()
-
   const params: Record<string, string> = {
     lat: String(args.lat),
     lng: String(args.lng),
@@ -111,13 +113,9 @@ export async function fetchPlaceVisitHistory(
   if (args.recentLimit !== undefined)
     params.recentLimit = String(args.recentLimit)
 
-  const response = await api.get<PlaceVisitHistory>('/location-history/place', {
+  return dawarichGet<PlaceVisitHistory>(
+    '/location-history/place',
     params,
-    headers: {
-      'X-Integration-Endpoint': config.url,
-      'X-Integration-Token': config.apiToken,
-    },
-    signal: args.signal,
-  })
-  return response.data
+    args.signal,
+  )
 }

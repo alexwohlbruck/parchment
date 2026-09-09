@@ -2,7 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { Waypoint } from '@/types/map.types'
-import { RoutingPreferences, SelectedMode, SortPreference } from '@/types/multimodal.types'
+import { RoutingPreferences, SelectedMode, SortPreference, TripView } from '@/types/multimodal.types'
 import { getTimezoneWarning, type TimezoneWarning } from '@/lib/timezone-warning'
 
 // Rideshare has no working integration yet, so the mode is hidden everywhere it
@@ -141,6 +141,12 @@ export const useDirectionsStore = defineStore('directions', () => {
   }
 
   const selectedMode = ref<SelectedMode>(loadSelectedMode())
+
+  const loadTripView = (): TripView =>
+    localStorage.getItem('tripView') === 'list' ? 'list' : 'timeline'
+
+  /** How suggestions are drawn: the time-scaled timeline, or a plain list. */
+  const tripView = ref<TripView>(loadTripView())
   const sortPreference = ref<SortPreference | null>(null)
   const departureTime = ref<string | null>(null) // ISO 8601 or null for "now"
   const isLoading = ref(false)
@@ -192,6 +198,10 @@ export const useDirectionsStore = defineStore('directions', () => {
   // Watch and save selected mode to localStorage
   watch(selectedMode, newVal => {
     localStorage.setItem('selectedMode', newVal)
+  })
+
+  watch(tripView, newVal => {
+    localStorage.setItem('tripView', newVal)
   })
 
   function setDirections(directions_: Directions) {
@@ -271,6 +281,7 @@ export const useDirectionsStore = defineStore('directions', () => {
     trips,
     waypoints,
     selectedMode,
+    tripView,
     sortPreference,
     departureTime,
     isLoading,

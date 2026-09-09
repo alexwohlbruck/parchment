@@ -83,6 +83,11 @@
  */
 import type { HTMLAttributes } from 'vue'
 import {
+  resolveSnapPoints,
+  snapPointToPixels as toPixels,
+  type SnapPoint as ResolvedSnapPoint,
+} from '@/components/sheet/snap-points'
+import {
   ref,
   computed,
   watch,
@@ -240,11 +245,8 @@ const drawerId =
 type SnapPoint = number | string
 
 // Convert any snap point format to pixel height
-function snapPointToPixels(point: SnapPoint): number {
-  if (typeof point === 'string') return parseFloat(point)
-  if (point > 0 && point <= 1) return windowHeight.value * point
-  return point
-}
+const snapPointToPixels = (point: SnapPoint) =>
+  toPixels(point, windowHeight.value)
 
 // ==================== OBSTRUCTING BOUNDS ====================
 //
@@ -538,63 +540,28 @@ const baseSnapPoints = computed<SnapPoint[]>(
   () => props.customSnapPoints ?? [props.peekHeight, 0.5, 1],
 )
 
-// Grow a snap point by a pixel amount, preserving whichever format it came in
-// as. Non-pixel strings (e.g. '50%') pass through untouched.
-function addPixels(point: SnapPoint, px: number): SnapPoint {
-  if (px <= 0) return point
-  if (typeof point === 'string') {
-    return point.endsWith('px') ? `${parseFloat(point) + px}px` : point
-  }
-  if (point > 0 && point <= 1) {
-    return (point * windowHeight.value + px) / windowHeight.value
-  }
-  return point + px
-}
+// Final snap points handed to vaul: measured peek in the first slot when
+// dynamic peek is on, clamped below the next detent, then safe-area adjusted.
+// Peek swapped in and clamped, but before safe-area adjustment — this is what
+// a parent driving `activeSnapPoint` by a static value matches against.
+const userSnapPoints = computed<SnapPoint[]>(() =>
+  resolveSnapPoints({
+    base: baseSnapPoints.value,
+    measuredPeekPx: props.dynamicPeek ? dynamicPeekPx.value : null,
+    viewportHeight: windowHeight.value,
+    insets: null,
+  }),
+)
 
-// User-provided snap points, with the measured peek height swapped into the
-// first slot when dynamic peek is active and we have a measurement.
-const userSnapPoints = computed<SnapPoint[]>(() => {
-  const base = baseSnapPoints.value
-  if (!base.length) return base
-  const peek =
-    props.dynamicPeek && dynamicPeekPx.value != null
-      ? `${dynamicPeekPx.value}px`
-      : base[0]
-  // The peek fits the peek content and nothing else — the footer is parked
-  // below the fold at this detent and slides up as the sheet grows.
-  return [clampPeek(peek), ...base.slice(1)]
-})
-
-// Keep the peek strictly below the next detent so snap points stay monotonic
-// (Vaul's drag math assumes ascending heights). On a short screen a tall header
-// would otherwise overshoot the 0.5 detent.
-function clampPeek(point: SnapPoint): SnapPoint {
-  if (typeof point !== 'string' || !point.endsWith('px')) return point
-  const next = baseSnapPoints.value[1]
-  if (next === undefined) return point
-  const max = snapPointToPixels(next) - 24
-  if (max <= 0) return point
-  return `${Math.min(parseFloat(point), max)}px`
-}
-
-// Apply safe area adjustments to a snap point
-function adjustForSafeArea(point: SnapPoint, index: number): SnapPoint {
-  if (!props.respectSafeArea) return point
-
-  // Full height (1) → respect top safe area (notch/status bar)
-  if (point === 1 && safeAreaInsetTop.value > 0) {
-    return (windowHeight.value - safeAreaInsetTop.value) / windowHeight.value
-  }
-
-  // First snap point (peek) → add bottom safe area (home indicator)
-  if (index === 0) return addPixels(point, safeAreaInsetBottom.value)
-
-  return point
-}
-
-// Final snap points passed to vaul (with safe area adjustments applied)
 const snapPoints = computed<SnapPoint[]>(() =>
-  userSnapPoints.value.map((point, i) => adjustForSafeArea(point, i)),
+  resolveSnapPoints({
+    base: baseSnapPoints.value,
+    measuredPeekPx: props.dynamicPeek ? dynamicPeekPx.value : null,
+    viewportHeight: windowHeight.value,
+    insets: props.respectSafeArea
+      ? { top: safeAreaInsetTop.value, bottom: safeAreaInsetBottom.value }
+      : null,
+  }),
 )
 
 // ==================== SNAP POINT STATE ====================

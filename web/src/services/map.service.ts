@@ -34,6 +34,7 @@ import { usePortolanTransitStore } from '@/stores/portolan.store'
 import { useAppStore } from '@/stores/app.store'
 import { createAnimationHold } from '@/lib/map/animation-hold'
 import {
+  calculateCameraPadding,
   calculateFitPadding,
   toContainerRect,
   type Padding,
@@ -644,65 +645,16 @@ function mapService() {
 
   let isInitializingGroups = false
 
-  /**
-   * Calculate padding values based on visible map area
-   * Extracted utility function to avoid code duplication
-   */
-  function calculateMapPadding(): {
-    padding: MapCamera['padding']
-    isFullyVisible: boolean
-  } | null {
-    if (!mapContainer) {
-      return null
-    }
-
-    // Obstruction bounds are viewport-space; everything below is relative to
-    // the canvas, which the sidebar has already pushed off the viewport edge.
-    const visibleArea = toContainerRect(
-      appStore.visibleMapArea,
-      mapContainer.getBoundingClientRect(),
+  function calculateMapPadding() {
+    if (!mapContainer) return null
+    return calculateCameraPadding(
+      toContainerRect(
+        appStore.visibleMapArea,
+        mapContainer.getBoundingClientRect(),
+      ),
+      mapContainer.clientWidth,
+      mapContainer.clientHeight,
     )
-    const mapWidth = mapContainer.clientWidth
-    const mapHeight = mapContainer.clientHeight
-
-    // Check if we have valid dimensions
-    if (!mapWidth || !mapHeight) {
-      return null
-    }
-
-    // Check if the full map is visible
-    const isFullyVisible =
-      visibleArea.width === mapWidth && visibleArea.height === mapHeight
-
-    if (isFullyVisible) {
-      return {
-        padding: { top: 0, bottom: 0, left: 0, right: 0 },
-        isFullyVisible: true,
-      }
-    }
-
-    // Calculate padding values, then cap each side at 50% of its dimension
-    // so the vanishing point never crosses the viewport midpoint. Concrete
-    // reason: the mobile bottom sheet can expand to 100% of the screen,
-    // but we never want to pin the map's effective center below the middle
-    // of the viewport — past 50% the drawer is just reading content, and
-    // the map's displayed center should stop where it is.
-    const halfW = mapWidth / 2
-    const halfH = mapHeight / 2
-    const padding = {
-      left: Math.min(halfW, Math.max(0, visibleArea.x)),
-      top: Math.min(halfH, Math.max(0, visibleArea.y)),
-      right: Math.min(
-        halfW,
-        Math.max(0, mapWidth - (visibleArea.x + visibleArea.width)),
-      ),
-      bottom: Math.min(
-        halfH,
-        Math.max(0, mapHeight - (visibleArea.y + visibleArea.height)),
-      ),
-    }
-
-    return { padding, isFullyVisible: false }
   }
 
   // Helper function to adjust camera center based on visible map area
@@ -1091,60 +1043,35 @@ function mapService() {
     mapStrategy?.setPoiLabels(value)
   })
 
-  function toggleRoadLabels(value?: boolean) {
-    mapStore.settings.roadLabels = value ?? !mapStore.settings.roadLabels
+  // Each of these is the same shape: flip a stored flag, push it at the
+  // strategy. Kept as a table so a new one cannot land with a mismatched pair.
+  const STRATEGY_TOGGLES = {
+    roadLabels: (v: boolean) => mapStrategy?.setRoadLabels(v),
+    transitLabels: (v: boolean) => mapStrategy?.setTransitLabels(v),
+    placeLabels: (v: boolean) => mapStrategy?.setPlaceLabels(v),
+    hdRoads: (v: boolean) => mapStrategy?.setHdRoads(v),
+    indoorMaps: (v: boolean) => mapStrategy?.setIndoorMaps(v),
+  } as const
+
+  type StrategyToggle = keyof typeof STRATEGY_TOGGLES
+
+  function setStrategyToggle(key: StrategyToggle, value?: boolean) {
+    mapStore.settings[key] = value ?? !mapStore.settings[key]
   }
 
-  watch(
-    () => mapStore.settings.roadLabels,
-    value => {
-      mapStrategy?.setRoadLabels(value)
-    },
-  )
-
-  function toggleTransitLabels(value?: boolean) {
-    mapStore.settings.transitLabels = value ?? !mapStore.settings.transitLabels
+  for (const [key, apply] of Object.entries(STRATEGY_TOGGLES)) {
+    watch(
+      () => mapStore.settings[key as StrategyToggle],
+      value => apply(value),
+    )
   }
 
-  watch(
-    () => mapStore.settings.transitLabels,
-    value => {
-      mapStrategy?.setTransitLabels(value)
-    },
-  )
-
-  function togglePlaceLabels(value?: boolean) {
-    mapStore.settings.placeLabels = value ?? !mapStore.settings.placeLabels
-  }
-
-  watch(
-    () => mapStore.settings.placeLabels,
-    value => {
-      mapStrategy?.setPlaceLabels(value)
-    },
-  )
-
-  function toggleHdRoads(value?: boolean) {
-    mapStore.settings.hdRoads = value ?? !mapStore.settings.hdRoads
-  }
-
-  watch(
-    () => mapStore.settings.hdRoads,
-    value => {
-      mapStrategy?.setHdRoads(value)
-    },
-  )
-
-  function toggleIndoorMaps(value?: boolean) {
-    mapStore.settings.indoorMaps = value ?? !mapStore.settings.indoorMaps
-  }
-
-  watch(
-    () => mapStore.settings.indoorMaps,
-    value => {
-      mapStrategy?.setIndoorMaps(value)
-    },
-  )
+  const toggleRoadLabels = (v?: boolean) => setStrategyToggle('roadLabels', v)
+  const toggleTransitLabels = (v?: boolean) =>
+    setStrategyToggle('transitLabels', v)
+  const togglePlaceLabels = (v?: boolean) => setStrategyToggle('placeLabels', v)
+  const toggleHdRoads = (v?: boolean) => setStrategyToggle('hdRoads', v)
+  const toggleIndoorMaps = (v?: boolean) => setStrategyToggle('indoorMaps', v)
 
   function toggleNorthUpSnap(value?: boolean) {
     // Default-on: a persisted settings object may predate this key.

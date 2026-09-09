@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { calculateFitPadding, toContainerRect } from './map-padding'
+import { describe, it, test, expect } from 'vitest'
+import {
+  calculateCameraPadding,
+  calculateFitPadding,
+  toContainerRect,
+} from './map-padding'
 
 /**
  * The desktop sidebar is a flex sibling of the map canvas, so the canvas
@@ -48,5 +52,46 @@ describe('calculateFitPadding', () => {
     )
     expect(padding.left).toBe(48)
     expect(padding.top).toBe(64)
+  })
+})
+
+describe('calculateCameraPadding', () => {
+  test('returns null when the container has no size yet', () => {
+    expect(calculateCameraPadding({ x: 0, y: 0, width: 0, height: 0 }, 0, 0)).toBeNull()
+  })
+
+  test('reports no padding when nothing occludes the map', () => {
+    const result = calculateCameraPadding(
+      { x: 0, y: 0, width: 800, height: 600 }, 800, 600,
+    )
+    expect(result).toEqual({
+      padding: { top: 0, bottom: 0, left: 0, right: 0 },
+      isFullyVisible: true,
+    })
+  })
+
+  test('pads by the occluded gutter on each side', () => {
+    const result = calculateCameraPadding(
+      { x: 100, y: 50, width: 600, height: 400 }, 800, 600,
+    )
+    expect(result).toEqual({
+      padding: { left: 100, top: 50, right: 100, bottom: 150 },
+      isFullyVisible: false,
+    })
+  })
+
+  test('caps each side at half its dimension so the centre stops at the midpoint', () => {
+    // A sheet covering the bottom 90% would otherwise push the centre off-screen.
+    const result = calculateCameraPadding(
+      { x: 0, y: 0, width: 800, height: 60 }, 800, 600,
+    )
+    expect(result!.padding.bottom).toBe(300)
+  })
+
+  test('never returns negative padding for a rect larger than the container', () => {
+    const result = calculateCameraPadding(
+      { x: -50, y: -50, width: 900, height: 700 }, 800, 600,
+    )
+    expect(Object.values(result!.padding).every(v => v >= 0)).toBe(true)
   })
 })

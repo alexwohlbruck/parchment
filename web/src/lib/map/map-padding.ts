@@ -84,3 +84,42 @@ export function calculateFitPadding(
     bottom: bottomGutter + marginY,
   }
 }
+
+/**
+ * Padding that keeps the camera's vanishing point inside the unoccluded
+ * rectangle. Each side is capped at half its dimension: the mobile sheet can
+ * cover the whole screen, but past the midpoint it is being read, not
+ * navigated, so the displayed centre should stop moving.
+ */
+export function calculateCameraPadding(
+  visibleArea: Rect,
+  containerWidth: number,
+  containerHeight: number,
+): { padding: Padding; isFullyVisible: boolean } | null {
+  if (!containerWidth || !containerHeight) return null
+
+  if (
+    visibleArea.width === containerWidth &&
+    visibleArea.height === containerHeight
+  ) {
+    return {
+      padding: { top: 0, bottom: 0, left: 0, right: 0 },
+      isFullyVisible: true,
+    }
+  }
+
+  const halfW = containerWidth / 2
+  const halfH = containerHeight / 2
+  const cap = (limit: number, gutter: number) =>
+    Math.min(limit, Math.max(0, gutter))
+
+  return {
+    padding: {
+      left: cap(halfW, visibleArea.x),
+      top: cap(halfH, visibleArea.y),
+      right: cap(halfW, containerWidth - (visibleArea.x + visibleArea.width)),
+      bottom: cap(halfH, containerHeight - (visibleArea.y + visibleArea.height)),
+    },
+    isFullyVisible: false,
+  }
+}

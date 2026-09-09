@@ -1,4 +1,11 @@
 import { defineStore } from 'pinia'
+import {
+  buildGroupLayerCounts,
+  buildGroupTree,
+  groupsWithLayers,
+  mainReorderableItems,
+  ungroupedLayers,
+} from '@/lib/map/layer-tree'
 import { ref, computed, watch } from 'vue'
 import type { Layer, LayerGroup, LayerGroupWithLayers } from '@/types/map.types'
 import { LayerType, MapEngine } from '@/types/map.types'
@@ -485,101 +492,33 @@ export const useLayersStore = defineStore('layers', () => {
   // GROUP TREE / SETTINGS VIEWS
   // ==========================================================================
 
-  interface GroupTreeNode extends LayerGroup {
-    layers: Layer[]
-    children: GroupTreeNode[]
-  }
+  const groupTree = computed(() =>
+    buildGroupTree(filteredMergedLayers.value, allLayerGroups.value),
+  )
 
-  function buildGroupNode(group: LayerGroup): GroupTreeNode {
-    return {
-      ...group,
-      layers: filteredMergedLayers.value
-        .filter(l => l.groupId === group.id)
-        .sort((a, b) => a.order - b.order),
-      children: allLayerGroups.value
-        .filter(g => g.parentGroupId === group.id)
-        .sort((a, b) => a.order - b.order)
-        .map(buildGroupNode),
-    }
-  }
-
-  const groupTree = computed(() => {
-    const topLevel = allLayerGroups.value.filter(g => !g.parentGroupId)
-    return topLevel.sort((a, b) => a.order - b.order).map(buildGroupNode)
-  })
-
-  // Precompute total layer counts for every group in a single pass, rather
-  // than recursively walking the group tree each time a template asks for a
-  // count. With nested groups and dozens of layers, the old implementation
-  // was O(groups * groups * layers) per render. This is O(layers + groups).
-  const groupLayerCountMap = computed(() => {
-    const directCounts = new Map<string, number>()
-    for (const layer of filteredMergedLayers.value) {
-      if (!layer.groupId) continue
-      directCounts.set(
-        layer.groupId,
-        (directCounts.get(layer.groupId) ?? 0) + 1,
-      )
-    }
-
-    const childrenByParent = new Map<string, string[]>()
-    for (const group of allLayerGroups.value) {
-      if (!group.parentGroupId) continue
-      const list = childrenByParent.get(group.parentGroupId) ?? []
-      list.push(group.id)
-      childrenByParent.set(group.parentGroupId, list)
-    }
-
-    const totals = new Map<string, number>()
-    const inProgress = new Set<string>()
-    function computeTotal(groupId: string): number {
-      const cached = totals.get(groupId)
-      if (cached !== undefined) return cached
-      if (inProgress.has(groupId)) return 0 // guard against cycles
-      inProgress.add(groupId)
-      let total = directCounts.get(groupId) ?? 0
-      const children = childrenByParent.get(groupId) ?? []
-      for (const childId of children) total += computeTotal(childId)
-      inProgress.delete(groupId)
-      totals.set(groupId, total)
-      return total
-    }
-
-    for (const group of allLayerGroups.value) computeTotal(group.id)
-    return totals
-  })
+  const groupLayerCountMap = computed(() =>
+    buildGroupLayerCounts(filteredMergedLayers.value, allLayerGroups.value),
+  )
 
   function getGroupTotalLayerCount(groupId: string): number {
     return groupLayerCountMap.value.get(groupId) ?? 0
   }
 
-  const ungroupedLayers = computed(() =>
-    filteredMergedLayers.value
-      .filter(layer => !layer.groupId && !layer.isSubLayer)
-      .sort((a, b) => a.order - b.order),
+  const ungroupedLayersList = computed(() =>
+    ungroupedLayers(filteredMergedLayers.value),
   )
 
   const sortedGroups = computed(() =>
     allLayerGroups.value.slice().sort((a, b) => a.order - b.order),
   )
 
-  const groupsWithLayers = computed<LayerGroupWithLayers[]>(() =>
-    sortedGroups.value.map(group => ({
-      ...group,
-      layers: filteredMergedLayers.value
-        .filter(layer => layer.groupId === group.id)
-        .sort((a, b) => a.order - b.order),
-    })),
+  const groupsWithLayersList = computed(() =>
+    groupsWithLayers(filteredMergedLayers.value, allLayerGroups.value),
   )
 
-  const mainReorderableItems = computed(() => {
-    const userUngrouped = filteredMergedLayers.value.filter(
-      layer => !layer.groupId && !layer.isSubLayer,
-    )
-    const topLevelGroups = allLayerGroups.value.filter(g => !g.parentGroupId)
-    const items: (Layer | LayerGroup)[] = [...userUngrouped, ...topLevelGroups]
-    return items.sort((a, b) => a.order - b.order)
-  })
+  const mainReorderableItemsList = computed(() =>
+    mainReorderableItems(filteredMergedLayers.value, allLayerGroups.value),
+  )
 
   // ==========================================================================
   // LOADING
@@ -1265,9 +1204,9 @@ export const useLayersStore = defineStore('layers', () => {
     SAVED_PLACES_GROUP_ID,
 
     // Settings-panel views
-    ungroupedLayers,
-    groupsWithLayers,
-    mainReorderableItems,
+    ungroupedLayers: ungroupedLayersList,
+    groupsWithLayers: groupsWithLayersList,
+    mainReorderableItems: mainReorderableItemsList,
     groupTree,
     getGroupTotalLayerCount,
 

@@ -20,7 +20,7 @@ import {
   isLocationClearedPayload,
   useFriendLocations,
 } from '@/composables/useFriendLocations'
-import { registerRealtimeHandlers } from '@/lib/realtime-events'
+import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 
 function applyUpdate(payload: unknown) {
   if (!isEncryptedLocationPayload(payload)) {

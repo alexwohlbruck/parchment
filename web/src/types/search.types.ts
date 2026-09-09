@@ -1,5 +1,5 @@
 import { Component } from 'vue'
-import { Place, TransitLineRef, TransitStopRef } from './place.types'
+import { Place, TransitLineRef, TransitStopRef } from '@/types/place.types'
 
 // Category/Preset types for OSM tagging schema
 export interface CategoryResult {

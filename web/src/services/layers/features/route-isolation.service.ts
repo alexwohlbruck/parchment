@@ -11,9 +11,14 @@
  */
 
 import { watch, type WatchStopHandle } from 'vue'
-import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail.store'
-import { densifyLine } from '@/lib/geo-densify'
-import { projectAlong, sliceAlong } from '@/lib/geo-line'
+import {
+  NETWORK_DIM_DARK,
+  NETWORK_DIM_LIGHT,
+} from './portolan/portolan-isolation-tuning'
+import type { RouteDetailStop } from '@/types/transit.types'
+import { useRouteDetailStore } from '@/stores/route-detail.store'
+import { densifyLine } from '@/lib/geo/geo-densify'
+import { projectAlong, sliceAlong } from '@/lib/geo/geo-line'
 import { widthExpr } from '@/services/layers/features/portolan/portolan-expressions'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import type { FitBoundsFn } from '@/types/map.types'
@@ -56,8 +61,6 @@ const TRANSIT_LAYER_IDS = [
 /** How far the rest of the network steps back while a route is isolated —
  *  dimmed, not hidden, so the line still reads inside its network. Matches
  *  portolan's own ISOLATION_DIM — keep the two in step. */
-const NETWORK_DIM_LIGHT = 0.25
-const NETWORK_DIM_DARK = 0.42
 /** Theme-dependent for the same reason portolan's is: the same alpha reads
  *  as "gone" against a near-black basemap. */
 const NETWORK_DIM = () =>

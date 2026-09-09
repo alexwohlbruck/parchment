@@ -1,4 +1,4 @@
-import { MapStrategy } from './map.strategy'
+import { MapStrategy } from '@/components/map/map-providers/map.strategy'
 import {
   Map as MaplibreMap,
   NavigationControl,
@@ -48,22 +48,22 @@ import {
 import { Directions, TripsResponse } from '@/types/directions.types'
 import { decodeShape } from '@/lib/utils'
 import { palette } from '@/lib/palette'
-import { mapEventBus } from '@/lib/eventBus'
-import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
+import { mapEventBus } from '@/lib/event-bus'
+import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import {
   mapboxLayerToMaplibreLayer,
   parsePlanetilerOsmId,
-} from '@/lib/map.utils'
+} from '@/lib/map/map.utils'
 import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
-import { createPegmanLayers, updatePegmanData } from '@/lib/pegman.utils'
-import { MapLayerGroup, TripGroup } from '@/lib/layer-group'
+import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman.utils'
+import { MapLayerGroup, TripGroup } from '@/lib/map/layer-group'
 import { Component, watch } from 'vue'
-import { createVueMarkerElement } from '@/lib/vue-marker.utils'
-import WaypointMapIcon from '@/components/map/WaypointMapIcon.vue'
-import InstructionPointMarker from '@/components/map/InstructionPointMarker.vue'
+import { createVueMarkerElement } from '@/lib/map/vue-marker.utils'
+import WaypointMarker from '@/components/map/markers/WaypointMarker.vue'
+import InstructionPointMarker from '@/components/map/markers/InstructionPointMarker.vue'
 import { useAppStore } from '@/stores/app.store'
-import { calculateFitPadding, toContainerRect } from '@/lib/map-padding'
+import { calculateFitPadding, toContainerRect } from '@/lib/map/map-padding'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
 import {
@@ -106,7 +106,7 @@ import {
   shadeLight,
   sunShadow,
   BUILDING_SHADE_LAYER_ID,
-} from '@/lib/building-shade'
+} from '@/lib/map/building-shade'
 function getPrimaryThemeHex(): string {
   try {
     const span = document.createElement('span')
@@ -243,7 +243,6 @@ function firstLabelLayer(map: MaplibreMap): string | undefined {
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
-  layerGroups: Map<string, MapLayerGroup> = new Map()
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
   private tileServerUrl?: string
@@ -500,34 +499,9 @@ export class MaplibreStrategy extends MapStrategy {
     })
   }
 
-  resize() {
-    this.mapInstance.resize()
-  }
 
-  flyTo(camera: Partial<CameraOptions>) {
-    this.mapInstance.flyTo(camera)
-  }
 
-  jumpTo(camera: Partial<CameraOptions>) {
-    this.mapInstance.jumpTo(camera)
-  }
 
-  fitBounds(
-    bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
-    options: any = {},
-  ) {
-    const mapboxBounds = new LngLatBounds(
-      [bounds.minLng, bounds.minLat],
-      [bounds.maxLng, bounds.maxLat],
-    )
-
-    this.mapInstance.fitBounds(mapboxBounds, {
-      padding: options.padding || 100,
-      duration: options.duration || 1000,
-      easing: options.easing || (t => t * (2 - t)),
-      ...options,
-    })
-  }
 
   setDirections(directions: Directions) {
     this.unsetDirections()
@@ -587,7 +561,7 @@ export class MaplibreStrategy extends MapStrategy {
       this.addVueMarker(
         `route-stop-${index}`,
         { lat: location.lat, lng: location.lon },
-        WaypointMapIcon,
+        WaypointMarker,
         {
           index,
           totalWaypoints: directions.locations.length,
@@ -626,33 +600,6 @@ export class MaplibreStrategy extends MapStrategy {
     })
   }
 
-  unsetDirections() {
-    const style = this.mapInstance.getStyle()
-    if (!style) return
-    const mapLayers = style.layers
-    const ids = mapLayers.map(layer => layer.id)
-
-    // Remove route layers
-    ids.forEach(id => {
-      if (id.startsWith('route-')) {
-        this.mapInstance.removeLayer(id)
-      }
-    })
-
-    // Remove route sources
-    const sources = Object.keys(this.mapInstance.getStyle()?.sources || {})
-    sources.forEach(source => {
-      if (source.startsWith('route-')) {
-        this.mapInstance.removeSource(source)
-      }
-    })
-
-    // Remove route stop markers
-    const markersToRemove = Array.from(this.markers.keys()).filter(id =>
-      id.startsWith('route-stop-'),
-    )
-    markersToRemove.forEach(id => this.removeMarker(id))
-  }
 
   setPegman(pegman: Pegman) {
     if (!this.mapInstance.getSource('pegman')) {
@@ -664,18 +611,6 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
-  removePegman() {
-    // Remove pegman layers if they exist
-    if (this.mapInstance.getLayer('pegman-fov')) {
-      this.mapInstance.removeLayer('pegman-fov')
-    }
-    if (this.mapInstance.getLayer('pegman-position')) {
-      this.mapInstance.removeLayer('pegman-position')
-    }
-    if (this.mapInstance.getSource('pegman')) {
-      this.mapInstance.removeSource('pegman')
-    }
-  }
 
   setPoiLabels(value: boolean) {
     this.setLayerGroupVisibility(layerGroups.poi, value)
@@ -693,21 +628,6 @@ export class MaplibreStrategy extends MapStrategy {
     this.setLayerGroupVisibility(layerGroups.placeLabels, value)
   }
 
-  setMap3dTerrain(value: boolean) {
-    const present = !!this.mapInstance.getSource(TERRAIN_SOURCE_ID)
-    if (value && !present) {
-      this.mapInstance.addSource(TERRAIN_SOURCE_ID, terrainSource() as any)
-      this.mapInstance.setTerrain({
-        source: TERRAIN_SOURCE_ID,
-        exaggeration: TERRAIN_EXAGGERATION,
-      })
-    } else if (!value && present) {
-      // Order matters: a source still referenced by the terrain cannot be
-      // removed, so the terrain has to be cleared first.
-      this.mapInstance.setTerrain(null)
-      this.mapInstance.removeSource(TERRAIN_SOURCE_ID)
-    }
-  }
 
   setMap3dBuildings(value: boolean) {
     const buildingLayerId = layerGroups.building3d
@@ -1216,19 +1136,7 @@ export class MaplibreStrategy extends MapStrategy {
     return false // MapLibre doesn't require reinitialization
   }
 
-  removeSource(sourceId: string) {
-    if (this.mapInstance.getSource(sourceId)) {
-      this.mapInstance.removeSource(sourceId)
-    }
-  }
 
-  setSourceData(sourceId: string, data: any) {
-    // Only a GeoJSON source can take data in place; anything else is a no-op.
-    const source = this.mapInstance.getSource(sourceId) as
-      | { setData?: (data: any) => void }
-      | undefined
-    source?.setData?.(data)
-  }
 
   addSource(sourceId: string, source: any) {
     try {
@@ -1319,20 +1227,8 @@ export class MaplibreStrategy extends MapStrategy {
     )
   }
 
-  zoomIn() {
-    this.mapInstance.zoomIn()
-  }
 
-  zoomOut() {
-    this.mapInstance.zoomOut()
-  }
 
-  resetNorth() {
-    this.mapInstance.easeTo({
-      bearing: 0,
-      pitch: 0,
-    })
-  }
 
   getBounds() {
     if (!this.mapInstance) return null
@@ -1438,71 +1334,11 @@ export class MaplibreStrategy extends MapStrategy {
 
   // Note: Waypoint markers are handled by base MapStrategy class
 
-  setTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
-    // Idempotent: if we already show exactly these trips, skip destroy+recreate
-    const currentTripIds = new Set(
-      [...this.layerGroups.keys()]
-        .filter(k => k.startsWith('trip-'))
-        .map(k => k.slice('trip-'.length)),
-    )
-    if (
-      currentTripIds.size === visibleTripIds.size &&
-      [...visibleTripIds].every(id => currentTripIds.has(id))
-    ) {
-      return
-    }
 
-    for (const groupId of this.layerGroups.keys()) {
-      if (groupId.startsWith('trip-')) {
-        this.layerGroups.get(groupId)?.destroy()
-        this.layerGroups.delete(groupId)
-      }
-    }
 
-    const visibleTrips: any[] = []
-    trips.trips.forEach(trip => {
-      if (visibleTripIds.has(trip.id)) {
-        const groupId = `trip-${trip.id}`
-        const tripGroup = new TripGroup(this, trip)
-        this.layerGroups.set(groupId, tripGroup)
-        visibleTrips.push(trip)
-      }
-    })
 
-    if (visibleTripIds.size > 0) {
-      this.fitMapToTrips(trips, visibleTripIds)
-    }
-  }
 
-  unsetTrips() {
-    for (const groupId of this.layerGroups.keys()) {
-      if (groupId.startsWith('trip-')) {
-        this.layerGroups.get(groupId)?.destroy()
-        this.layerGroups.delete(groupId)
-      }
-    }
-  }
-
-  setRouteProfile(profile: import('@/lib/route-profile-colors').RouteProfileType | null) {
-    for (const [groupId, group] of this.layerGroups.entries()) {
-      if (groupId.startsWith('trip-') && group instanceof TripGroup) {
-        group.setRouteProfile(profile)
-      }
-    }
-  }
-
-  setSegmentRouteProfile(
-    tripId: string,
-    segmentIndex: number,
-    profile: import('@/lib/route-profile-colors').RouteProfileType | null,
-  ) {
-    const group = this.layerGroups.get(`trip-${tripId}`)
-    if (group instanceof TripGroup) {
-      group.setSegmentRouteProfile(segmentIndex, profile)
-    }
-  }
-
-  private fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
+  protected override fitMapToTrips(trips: TripsResponse, visibleTripIds: Set<string>) {
     const visibleTrips = trips.trips.filter(trip => visibleTripIds.has(trip.id))
     if (visibleTrips.length === 0) return
 

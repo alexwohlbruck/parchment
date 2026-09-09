@@ -18,7 +18,7 @@ import {
   reportServerUnreachable,
 } from '@/lib/connectivity'
 import { registerMutationHandler } from '@/lib/sync/mutation-registry'
-import { useSyncStore } from './sync.store'
+import { useSyncStore } from '@/stores/sync.store'
 
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 vi.mock('@/lib/i18n', () => ({

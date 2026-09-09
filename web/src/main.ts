@@ -14,11 +14,10 @@ import router from './router'
 import VueTransitions from '@morev/vue-transitions'
 import { MotionPlugin } from '@vueuse/motion'
 import VueVirtualScroller from 'vue-virtual-scroller'
-import { initVaulChromeWorkaround } from '@/lib/vaulChromeWorkaround'
+import { initVaulChromeWorkaround } from '@/lib/vaul-chrome-workaround'
 import { setupPWA } from '@/lib/pwa'
-import { prefetchRouteChunks } from '@/lib/route-prefetch'
+import { prefetchRouteChunks } from '@/lib/router-chunk-prefetch'
 import '@/services/library/sync-bootstrap'
-import { install as installGpxSimulator } from '@/dev/gpx-simulator'
 
 import '@morev/vue-transitions/styles'
 import '@/styles/themes.css'
@@ -38,18 +37,11 @@ app.use(MotionPlugin)
 app.use(VueVirtualScroller)
 
 initVaulChromeWorkaround()
-
-// Dev-only GPX track simulator. Static import (no top-level await — TLA
-// here delays app.mount enough to break the initial layout pass on `/`).
-// The conditional call is dead-code eliminated in production; the
-// import remains in the prod bundle but the module is side-effect-free
-// so an unused-export tree-shake removes it.
-//
-// To remove this feature entirely: delete the import line above, this
-// block, AND the `web/src/dev/gpx-simulator/` directory. No other
-// touches needed — the simulator is fully decoupled from app code.
+// Dev-only GPX track simulator. Dynamically imported so `@/dev/` never enters
+// the production graph. To remove the feature: delete this block and
+// `web/src/dev/gpx-simulator/`.
 if (import.meta.env.DEV) {
-  installGpxSimulator()
+  void import('@/dev/gpx-simulator').then(({ install }) => install())
 }
 
 // Start geolocation as early as possible — before any component mounts

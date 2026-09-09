@@ -5,10 +5,10 @@ import { useMapStore } from '@/stores/map.store'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useCanvasAnnotations } from './useCanvasAnnotations'
-import { mapEventBus } from '@/lib/eventBus'
-import { fetchIsochroneBands } from '@/lib/isochrone-request'
+import { mapEventBus } from '@/lib/event-bus'
+import { fetchIsochroneBands } from '@/lib/directions/isochrone-request'
 import type { CanvasAnnotation } from '@/types/canvas.types'
-import type { DrawStyle } from '@/lib/canvas-draw-style'
+import type { DrawStyle } from '@/lib/canvas/canvas-draw-style'
 
 /**
  * What a tool does to the map while it is armed.
@@ -19,12 +19,12 @@ import type { DrawStyle } from '@/lib/canvas-draw-style'
  * simply never gains a point.
  */
 
-vi.mock('@/lib/route-snapping', () => ({
+vi.mock('@/lib/directions/route-snapping', () => ({
   RouteSnapAborted: class extends Error {},
   snapWaypointsToPath: vi.fn(async () => null),
 }))
 
-vi.mock('@/lib/isochrone-request', () => ({
+vi.mock('@/lib/directions/isochrone-request', () => ({
   fetchIsochroneBands: vi.fn(),
 }))
 

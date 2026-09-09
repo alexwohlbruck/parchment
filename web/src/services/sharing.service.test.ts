@@ -6,7 +6,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest'
-import { buildPublicLinkUrl } from './sharing.service'
+import { buildPublicLinkUrl } from '@/services/sharing.service'
 
 describe('buildPublicLinkUrl', () => {
   test('joins server URL + token at /public/collections/', () => {
@@ -57,7 +57,7 @@ import {
   updateShareRole,
   createPublicLink,
   revokePublicLink,
-} from './sharing.service'
+} from '@/services/sharing.service'
 
 describe('sharing.service HTTP contract', () => {
   beforeEach(() => {

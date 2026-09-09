@@ -25,7 +25,7 @@ import type {
   CreateBookmarkMutation,
   RemoveBookmarkMutation,
   UpdateBookmarkMutation,
-} from './bookmarks.sync'
+} from '@/services/library/bookmarks.sync'
 
 /** Plain-JSON snapshot of a (possibly reactive) row, for queue payloads. */
 function snapshot<T>(value: T | undefined): T | undefined {

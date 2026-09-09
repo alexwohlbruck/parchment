@@ -18,7 +18,7 @@ import {
   ArrowDownRightIcon,
   ClockIcon,
 } from 'lucide-vue-next'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {

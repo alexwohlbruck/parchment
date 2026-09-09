@@ -29,7 +29,7 @@ import {
 } from './marker-metrics.mjs'
 import type { MarkerShape } from './marker-shape'
 import type { MarkerPaint } from './marker-paint'
-import { resolveIconSvg, type MapIconPack } from '@/lib/map-icon-images'
+import { resolveIconSvg, type MapIconPack } from '@/lib/map/map-icon-images'
 
 /** Marks an image this module builds, so ids cannot collide with the sprite's. */
 export const MARKER_IMAGE_PREFIX = 'pm|'

@@ -7,18 +7,18 @@
 
 import type { LngLat } from '@/types/map.types'
 import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { WaypointsLayer } from '@/components/map/layers/waypoints-layer'
-import type { MarkerDragOptions } from '@/components/map/layers/base-marker-layer'
-import { FriendLocationsLayer } from '@/components/map/layers/friend-locations-layer'
-import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions-layer'
-import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
-import { TrackerLocationsLayer } from '@/components/map/layers/tracker-locations-layer'
-import { TransitVehiclesLayer } from '@/components/map/layers/transit-vehicles-layer'
+import { WaypointsLayer } from '@/services/layers/markers/waypoints-layer'
+import type { MarkerDragOptions } from '@/services/layers/markers/base-marker-layer'
+import { FriendLocationsLayer } from '@/services/layers/markers/friend-locations-layer'
+import { TripInstructionsLayer } from '@/services/layers/markers/trip-instructions-layer'
+import { UserLocationLayer } from '@/services/layers/markers/user-location-layer'
+import { TrackerLocationsLayer } from '@/services/layers/markers/tracker-locations-layer'
+import { TransitVehiclesLayer } from '@/services/layers/features/transit-vehicles-layer'
 import {
   RouteBuilderLayer,
   RouteBuilderLineLayer,
   RouteBuilderTurnaroundLayer,
-} from '@/components/map/layers/route-builder-layer'
+} from '@/services/layers/markers/route-builder-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
 import { useRouteIsolationService } from '@/services/layers/features/route-isolation.service'

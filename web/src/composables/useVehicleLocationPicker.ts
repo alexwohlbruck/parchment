@@ -16,7 +16,7 @@
 
 import { watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useAppStore } from '@/stores/app.store'
 import { AppRoute } from '@/router'

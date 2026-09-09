@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useCanvasesStore } from './canvases.store'
+import { useCanvasesStore } from '@/stores/library/canvases.store'
 import type { Canvas } from '@/types/canvas.types'
 
 /**

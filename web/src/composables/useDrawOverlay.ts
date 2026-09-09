@@ -24,7 +24,7 @@
 import { onScopeDispose, watch, type ComputedRef } from 'vue'
 import type { Feature, Position } from 'geojson'
 import { useMapStore } from '@/stores/map.store'
-import { mercatorLerp } from '@/lib/canvas-annotations'
+import { mercatorLerp } from '@/lib/canvas/canvas-annotations'
 
 /** Matches the committed styling in `useCanvasRendering`, so nothing jumps on commit. */
 const FILL_OPACITY = 0.18

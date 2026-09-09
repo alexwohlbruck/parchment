@@ -1,6 +1,6 @@
 import { ref, watch, computed, type Ref, type ComputedRef } from 'vue'
 import { useTransitAlertsStore, alertQueryKey, type AlertQuery } from '@/stores/transit-alerts.store'
-import { worstAlert, isInEffect, isUpcoming, sortByRelevance } from '@/lib/transit-alerts'
+import { worstAlert, isInEffect, isUpcoming, sortByRelevance } from '@/lib/transit/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
 
 export interface TransitAlerts {

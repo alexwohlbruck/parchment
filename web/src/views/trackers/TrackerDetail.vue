@@ -6,7 +6,7 @@ import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useMapService } from '@/services/map.service'
 import { useDirectionsService } from '@/services/directions.service'
 import { useVehicleLocationPicker } from '@/composables/useVehicleLocationPicker'
-import { VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
+import { VEHICLE_TYPE_LABELS } from '@/lib/transit/vehicle-mode-mapping'
 import type { VehicleType } from '@/types/multimodal.types'
 import { AppRoute } from '@/router'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,7 @@ import {
   ArrowRightIcon,
   SettingsIcon,
 } from 'lucide-vue-next'
-import { getVehicleIcon } from '@/lib/travel-mode-icons'
+import { getVehicleIcon } from '@/lib/directions/travel-mode-icons'
 import { useI18n } from 'vue-i18n'
 import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
 

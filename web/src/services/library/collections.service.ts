@@ -12,18 +12,18 @@ import type {
   DecryptedPoint,
 } from '@/types/library.types'
 import { api } from '@/lib/api'
-import { getSeed } from '@/lib/key-storage'
+import { getSeed } from '@/lib/identity/key-storage'
 import {
   encryptCollectionMetadata,
   decryptCollectionMetadata,
   decryptCollectionPoint,
   type CollectionMetadata,
-} from '@/lib/library-crypto'
+} from '@/lib/identity/library-crypto'
 import {
   decryptFromFriend,
   encryptForFriend,
   importPublicKey,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 import {
   listSharesForResource,
   updateShareEnvelope,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { inject, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import PasskeyOfferContent from '@/components/friends/PasskeyOfferContent.vue'
+import PasskeyOfferContent from '@/components/identity/PasskeyOfferContent.vue'
 import { validateKey } from './types'
 
 const { t } = useI18n()

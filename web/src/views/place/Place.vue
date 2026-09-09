@@ -6,7 +6,7 @@ import { MarkerIds } from '@/types/map.types'
 import { LngLat } from 'mapbox-gl'
 import { usePlaceService } from '@/services/place.service'
 import { useAbortController } from '@/composables/useAbortController'
-import Place from '@/components/place/Place.vue'
+import Place from '@/components/place/PlacePanel.vue'
 import { AppRoute } from '@/router'
 
 const route = useRoute()

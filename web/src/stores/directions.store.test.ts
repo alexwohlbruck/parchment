@@ -11,7 +11,7 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { nextTick } from 'vue'
-import { useDirectionsStore } from './directions.store'
+import { useDirectionsStore } from '@/stores/directions.store'
 import type { TripsResponse } from '@/types/directions.types'
 import type { Waypoint } from '@/types/map.types'
 

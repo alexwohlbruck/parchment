@@ -10,7 +10,7 @@
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useNotesStore, parseBbox, bboxToString } from './notes.store'
+import { useNotesStore, parseBbox, bboxToString } from '@/stores/notes.store'
 import type { OsmNote } from '@/types/notes.types'
 
 function makeNote(overrides: Partial<OsmNote> = {}): OsmNote {

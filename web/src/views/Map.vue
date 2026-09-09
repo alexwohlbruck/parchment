@@ -6,30 +6,29 @@ import { useResponsive } from '@/lib/utils'
 
 import { TransitionSlide } from '@morev/vue-transitions'
 import { useAppStore } from '@/stores/app.store'
-import Map from '@/components/map/Map.vue'
-import StreetView from '@/components/map/StreetView.vue'
+import Map from '@/components/map/MapCanvas.vue'
+import StreetView from '@/components/map/street-view/StreetView.vue'
 import LayerControl from '@/components/map/controls/LayerControl.vue'
-import StreetViewControl from '@/components/map/controls/StreetViewControl.vue'
+import StreetViewControl from '@/components/map/street-view/StreetViewControl.vue'
 import ZoomControl from '@/components/map/controls/ZoomControl.vue'
 import CompassControl from '@/components/map/controls/CompassControl.vue'
 import LocateControl from '@/components/map/controls/LocateControl.vue'
 import ScaleControl from '@/components/map/controls/ScaleControl.vue'
 import AttributionControl from '@/components/map/controls/AttributionControl.vue'
-import BottomSheet from '@/components/BottomSheet.vue'
-import LeftSheet from '@/components/LeftSheet.vue'
-import SheetActionButtons from '@/components/SheetActionButtons.vue'
-import StreetViewPip from '@/components/map/StreetViewPip.vue'
-import StreetImageryPeek from '@/components/map/StreetImageryPeek.vue'
+import BottomSheet from '@/components/sheet/BottomSheet.vue'
+import LeftSheet from '@/components/sheet/LeftSheet.vue'
+import SheetActionButtons from '@/components/sheet/SheetActionButtons.vue'
+import StreetViewPip from '@/components/map/street-view/StreetViewPip.vue'
+import StreetImageryPeek from '@/components/map/street-view/StreetImageryPeek.vue'
 import { useMapService } from '@/services/map.service'
 import { useLayersStore } from '@/stores/layers.store'
 import { storeToRefs } from 'pinia'
 import { useStreetViewLayersService } from '@/services/layers/features/street-view-layers.service'
 
-import MapChips from '@/components/map/MapChips.vue'
-import WeatherControl from '@/components/map/controls/WeatherControl.vue'
-import MeasureTool from '@/components/map/measure/MeasureTool.vue'
-import RadiusTool from '@/components/map/measure/RadiusTool.vue'
-import IsochroneTool from '@/components/map/measure/IsochroneTool.vue'
+import WeatherControl from '@/components/weather/WeatherControl.vue'
+import MeasureTool from '@/components/map/tools/MeasureTool.vue'
+import RadiusTool from '@/components/map/tools/RadiusTool.vue'
+import IsochroneTool from '@/components/map/tools/IsochroneTool.vue'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 import { useSearchStore } from '@/stores/search.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
@@ -95,12 +94,7 @@ function handleHome() {
  * (the canvas editor) opts out of swipe-to-dismiss so a stray drag can't
  * discard unsaved work, and picks its own detents.
  */
-const sheetMeta = computed(
-  () =>
-    route.meta.sheet as
-      | { dismissable?: boolean; snapPoints?: (number | string)[] }
-      | undefined,
-)
+const sheetMeta = computed(() => route.meta.sheet)
 
 const MOBILE_SNAP_POINTS = computed<(number | string)[]>(() => {
   if (sheetMeta.value?.snapPoints) return sheetMeta.value.snapPoints
@@ -493,7 +487,6 @@ defineExpose({
                 v-if="isNavTransitioning && !isMobileScreen"
                 class="pointer-events-auto flex gap-2"
               >
-                <!-- <MapChips v-if="!isDrawerOpen" /> -->
               </div>
             </transition-slide>
           </div>

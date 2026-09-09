@@ -8,6 +8,11 @@
 
 * Dragging the bottom sheet upward and releasing now lands on the next
   position instead of always expanding all the way
+* The measure, radius and isochrone tools keep working after a theme, basemap
+  or map engine change
+* Your unit system preference now applies when signing in on a new device
+* Collections created from the library keep the icon you picked
+* The developer page is no longer reachable in released builds
 
 ## [0.11.4] - 2026-09-08
 

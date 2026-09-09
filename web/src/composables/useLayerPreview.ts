@@ -30,8 +30,8 @@ import {
   draftToSourceSpec,
   validateDraft,
   type LayerDraft,
-} from '@/lib/map-style/draft'
-import { resolveSourceBounds, sourceDataKey } from '@/lib/map-style/bounds'
+} from '@/lib/layer-editor/draft'
+import { resolveSourceBounds, sourceDataKey } from '@/lib/layer-editor/bounds'
 
 const PREVIEW_PREFIX = 'layer-preview'
 

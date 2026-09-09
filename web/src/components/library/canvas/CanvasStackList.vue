@@ -14,7 +14,7 @@ import CanvasGroupRow from './CanvasGroupRow.vue'
 import CanvasLayerRow from './CanvasLayerRow.vue'
 import CanvasAnnotationRow from './CanvasAnnotationRow.vue'
 import { CANVAS_STACK } from './canvas-stack-context'
-import type { StackEntry } from '@/lib/canvas-stack'
+import type { StackEntry } from '@/lib/canvas/canvas-stack'
 
 defineProps<{
   entries: StackEntry[]

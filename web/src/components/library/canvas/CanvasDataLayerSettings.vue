@@ -23,8 +23,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { IconPicker } from '@/components/ui/icon-picker'
-import { DATA_RENDERS, defaultStyleFor } from '@/lib/map-style/data-presets'
-import { collectPropertyNames } from '@/lib/geo-import'
+import { DATA_RENDERS, defaultStyleFor } from '@/lib/canvas/data-presets'
+import { collectPropertyNames } from '@/lib/canvas/geo-import'
 import type { CanvasDataLayer, CanvasDataRender } from '@/types/canvas.types'
 import {
   CircleDotIcon,

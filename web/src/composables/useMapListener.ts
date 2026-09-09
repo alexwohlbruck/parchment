@@ -1,5 +1,5 @@
 import { onUnmounted } from 'vue'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import type { MapEvents } from '@/types/map.types'
 
 export function useMapListener<K extends keyof MapEvents>(

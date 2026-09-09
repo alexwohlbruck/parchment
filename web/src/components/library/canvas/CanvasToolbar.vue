@@ -35,7 +35,7 @@ import {
   WaypointsIcon,
 } from 'lucide-vue-next'
 import type { CanvasTool } from '@/types/canvas.types'
-import { TOOL_STYLE_OPTIONS } from '@/lib/canvas-draw-style'
+import { TOOL_STYLE_OPTIONS } from '@/lib/canvas/canvas-draw-style'
 
 const props = defineProps<{
   tool: CanvasTool | null

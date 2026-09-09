@@ -17,7 +17,7 @@ import {
   exportPublicKey,
   type FriendShareBinding,
   type LocationData,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 
 // Mock the stores and services
 const mockFriends = ref<any[]>([])

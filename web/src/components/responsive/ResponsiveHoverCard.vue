@@ -5,7 +5,7 @@ import {
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayPositionProps,
 } from '@/composables/useResponsiveOverlay'
-import BottomSheet from '@/components/BottomSheet.vue'
+import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import {
   HoverCard,
   HoverCardContent,

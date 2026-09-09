@@ -5,7 +5,7 @@
  */
 
 import { api } from '@/lib/api'
-import { signFederationMessage } from './identity.service'
+import { signFederationMessage } from '@/services/identity.service'
 
 export interface Friendship {
   id: string

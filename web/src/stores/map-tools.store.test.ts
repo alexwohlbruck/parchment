@@ -4,7 +4,7 @@
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useMapToolsStore } from './map-tools.store'
+import { useMapToolsStore } from '@/stores/map-tools.store'
 import type { LngLat } from '@/types/map.types'
 
 const p1: LngLat = { lng: -122.4194, lat: 37.7749 }

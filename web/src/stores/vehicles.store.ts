@@ -7,7 +7,7 @@ import {
   isQuietNetworkError,
 } from '@/lib/network-errors'
 import type { UserVehicle, LocationStaleness } from '@/types/multimodal.types'
-import { getRoutingMode } from '@/lib/vehicle-mode-mapping'
+import { getRoutingMode } from '@/lib/transit/vehicle-mode-mapping'
 
 export const useVehiclesStore = defineStore('vehicles', () => {
   // Persisted: trip planning reads these, and a cold or offline start

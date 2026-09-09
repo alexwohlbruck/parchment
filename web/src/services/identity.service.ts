@@ -19,24 +19,24 @@ import {
   sign,
   buildSignableMessage,
   type DerivedKeys,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 import {
   storeSeed,
   getSeed,
   hasIdentity,
   clearIdentity,
-} from '@/lib/key-storage'
+} from '@/lib/identity/key-storage'
 import {
   buildWrappedKmSlot,
   unwrapKmFromSlot,
   verifyWrappedKmSlot,
   type WrappedKmSlot,
-} from '@/lib/passkey-prf'
+} from '@/lib/identity/passkey-prf'
 import {
   extractPrfOutputFromAssertion,
   extractPrfOutputFromRegistration,
   registrationHasPrfEnabled,
-} from '@/lib/passkey-prf-support'
+} from '@/lib/identity/passkey-prf-support'
 
 export interface Identity {
   handle: string | null

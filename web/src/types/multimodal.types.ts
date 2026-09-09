@@ -1,7 +1,7 @@
 // Frontend types for multimodal trip planning
 // Mirrors the backend types but adapted for frontend use
 
-import type { RouteEdgeSegment } from './directions.types'
+import type { RouteEdgeSegment } from '@/types/directions.types'
 
 export type VehicleType =
   | 'car'

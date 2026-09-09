@@ -54,6 +54,7 @@ import type { Place } from '@/types/place.types'
 import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import type { SharedMobilityDetails } from '@/types/multimodal.types'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
+import { tripPlaceStops, type TripPlaceStop } from '@/lib/directions/trip-stops'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import {
   getSearchResultIconName,
@@ -856,7 +857,7 @@ const formatDistanceDisplay = (meters: number | undefined): string => {
   return formatDistance(meters)
 }
 
-const formatTime = (date: Date): string => {
+const formatTime = (date: Date | string): string => {
   return new Date(date).toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
@@ -950,6 +951,15 @@ const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
   })
 })
 
+/** Stops the plan makes on its own — a bike rack, a parking lot. */
+const placeStopsBySegment = computed(
+  () =>
+    new Map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tripPlaceStops((trip.value as any)?.segments).map(s => [s.segmentIndex, s]),
+    ),
+)
+
 // ── Unified timeline ───────────────────────────────────────────────
 
 interface TimelineWaypointEntry {
@@ -965,11 +975,8 @@ interface TimelineSegmentEntry {
   segmentIndex: number
 }
 
-interface TimelinePlaceStopEntry {
+interface TimelinePlaceStopEntry extends TripPlaceStop {
   kind: 'place-stop'
-  place: Place
-  label: string
-  time: Date | null
 }
 
 type TimelineEntry = TimelineWaypointEntry | TimelineSegmentEntry | TimelinePlaceStopEntry
@@ -998,19 +1005,8 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
   for (let i = 0; i < segs.length; i++) {
     entries.push({ kind: 'segment', segment: segs[i], segmentIndex: i })
 
-    // Check for a place-bearing intermediate waypoint (e.g. parking) between
-    // consecutive segments. The backend attaches a full Place object to the
-    // segment end waypoint when it represents an OSM POI like a bike rack.
-    const seg = segs[i]
-    const nextSeg = segs[i + 1]
-    if (nextSeg && seg.end?.place) {
-      entries.push({
-        kind: 'place-stop',
-        place: seg.end.place as Place,
-        label: seg.end.label || seg.end.place.name?.value || 'Stop',
-        time: seg.endTime ?? null,
-      })
-    }
+    const stop = placeStopsBySegment.value.get(i)
+    if (stop) entries.push({ kind: 'place-stop', ...stop })
 
     const viaIndex = i + 1
     if (viaIndex < wps.length - 1) {
@@ -1183,7 +1179,7 @@ function showSegmentChart(segment: any): boolean {
       <div class="mt-4">
         <div
           v-for="(entry, i) in timelineEntries"
-          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
+          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.id}` : `seg-${entry.segmentIndex}`"
           class="flex"
           :class="!isTransitCard(entry) && 'pl-2'"
         >

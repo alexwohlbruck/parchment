@@ -447,8 +447,6 @@ export class MapboxStrategy extends MapStrategy {
         { lat: location.lat, lng: location.lon },
         WaypointMarker,
         {
-          index,
-          totalWaypoints: directions.locations.length,
           type:
             index === 0
               ? 'origin'

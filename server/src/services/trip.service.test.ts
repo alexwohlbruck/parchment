@@ -83,7 +83,14 @@ const CHARLOTTE_DEST = {
   label: 'NoDa',
 }
 
-function makeTransitItinerary(overrides: Record<string, any> = {}) {
+/** Legs stay loose so a test can swap in a bike/car access leg or move a
+ *  boarding stop without restating the whole itinerary. */
+type ItineraryFixture = {
+  legs: Record<string, any>[]
+  [key: string]: any
+}
+
+function makeTransitItinerary(overrides: Record<string, any> = {}): ItineraryFixture {
   return {
     duration: 1800,
     startTime: '2026-01-15T08:00:00Z',
@@ -1647,6 +1654,97 @@ describe('TripService — scoring', () => {
           expect(q.maxPreTransitTime).toBeGreaterThanOrEqual(1080)
         }
       })
+    })
+  })
+
+  // ── Multi strategy coverage ─────────────────────────────────────────────────
+
+  describe('multi shows each strategy once', () => {
+    /** Three walk+transit departures on distinct lines, plus a bike access. */
+    function mockManyWalkVariants() {
+      mockGetIntermodalRoute.mockImplementation(async (req: any) => {
+        if (req.preTransitModes?.includes('BIKE') && !req.requireBikeTransport) {
+          const bike = makeTransitItinerary()
+          bike.legs[0] = { ...bike.legs[0], mode: 'BIKE', distance: 2000, duration: 600 }
+          return { itineraries: [bike], metadata: { searchWindow: 3600 } }
+        }
+        if (req.preTransitModes?.includes('CAR_PARKING') || req.requireBikeTransport) {
+          return { itineraries: [], metadata: { searchWindow: 3600 } }
+        }
+        // Distinct stop pairs, so these are real alternatives rather than
+        // interchangeable routes over the same track (which merge into "4 or 5").
+        const variants = ['9X', '7', '4'].map((route, i) => {
+          const it = makeTransitItinerary()
+          const board = { name: `Stop A${i}`, lat: 35.21 + i * 0.01, lng: -80.85, stopId: `stop-a${i}` }
+          const alight = { name: `Stop B${i}`, lat: 35.225 + i * 0.01, lng: -80.845, stopId: `stop-b${i}` }
+          it.duration = 1800 + i * 300
+          it.endTime = `2026-01-15T08:${30 + i * 5}:00Z`
+          it.legs[0] = { ...it.legs[0], to: board }
+          it.legs[1] = {
+            ...it.legs[1],
+            from: board,
+            to: alight,
+            routeShortName: route,
+            routeLongName: `Line ${route}`,
+            routeId: `route-${route}`,
+            tripId: `trip-${route}`,
+            duration: 1200 + i * 300,
+            endTime: `2026-01-15T08:${25 + i * 5}:00Z`,
+          }
+          it.legs[2] = { ...it.legs[2], from: alight, startTime: `2026-01-15T08:${25 + i * 5}:00Z` }
+          return it
+        })
+        return { itineraries: variants, metadata: { searchWindow: 3600 } }
+      })
+    }
+
+    const strategyOf = (trip: any) => {
+      const segs = trip.segments
+      const ride = segs.find((s: any) => s.mode !== 'walking' && s.mode !== 'transit')
+      return ride ? ride.mode : 'walk'
+    }
+
+    test('multi keeps one per strategy rather than many of the best one', async () => {
+      mockManyWalkVariants()
+      mockSearchByCategory.mockImplementation(async () => [])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'multi',
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const transitTrips = response.trips
+        .map((t) => t.trip)
+        .filter((t) => t.segments.some((s) => s.mode === 'transit'))
+      const counts = transitTrips.reduce<Record<string, number>>((acc, t) => {
+        const k = strategyOf(t)
+        acc[k] = (acc[k] || 0) + 1
+        return acc
+      }, {})
+
+      for (const [strategy, n] of Object.entries(counts)) {
+        expect(`${strategy}=${n}`).toBe(`${strategy}=1`)
+      }
+    })
+
+    test('a transit search still offers the alternative departures', async () => {
+      mockManyWalkVariants()
+      mockSearchByCategory.mockImplementation(async () => [])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      const response = await tripService.planTrip({
+        waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+        selectedMode: 'transit',
+        preferredDepartureTime: '2026-01-15T08:00:00Z',
+      })
+
+      const walkTransit = response.trips
+        .map((t) => t.trip)
+        .filter((t) => t.segments.some((s) => s.mode === 'transit') &&
+          !t.segments.some((s) => s.mode === 'biking' || s.mode === 'driving'))
+      expect(walkTransit.length).toBeGreaterThan(1)
     })
   })
 

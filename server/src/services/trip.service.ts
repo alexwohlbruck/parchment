@@ -157,7 +157,9 @@ export class TripService {
     const sorted = scored
       .sort((a, b) => b.score.overall - a.score.overall)
 
-    const rankedTrips: TripCandidate[] = this.filterQualityTrips(sorted, request.sortPreference)
+    const rankedTrips: TripCandidate[] = this.filterQualityTrips(
+      sorted, request.sortPreference, request.selectedMode === 'multi',
+    )
       .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
 
     return {
@@ -3855,6 +3857,7 @@ export class TripService {
   private filterQualityTrips(
     sorted: Array<{ trip: TripResponse; score: TripScore; rank: number }>,
     sortPreference?: SortPreference,
+    oneOfEachStrategy = false,
   ): Array<{ trip: TripResponse; score: TripScore; rank: number }> {
     if (sorted.length <= 2) return sorted
 
@@ -3884,13 +3887,18 @@ export class TripService {
       transitPreferred.add(c)
     }
 
-    for (const c of sorted) {
-      if (transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS) break
-      if (!this.getTripMode(c.trip).includes('transit')) continue
-      const sig = this.transitSignature(c.trip)
-      if (seenSignatures.has(sig)) continue
-      seenSignatures.add(sig)
-      transitPreferred.add(c)
+    // Multi is a survey of what's possible, so it stops at one per strategy.
+    // A transit-only search is a shortlist of departures, and there the
+    // remaining slots go to genuinely different lines.
+    if (!oneOfEachStrategy) {
+      for (const c of sorted) {
+        if (transitPreferred.size >= TripService.MAX_TRANSIT_OPTIONS) break
+        if (!this.getTripMode(c.trip).includes('transit')) continue
+        const sig = this.transitSignature(c.trip)
+        if (seenSignatures.has(sig)) continue
+        seenSignatures.add(sig)
+        transitPreferred.add(c)
+      }
     }
 
     // Pre-select the best trip per mode so we always show at least one

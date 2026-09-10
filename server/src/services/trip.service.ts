@@ -107,8 +107,18 @@ export class TripService {
       )
     }
 
+    // Driving somewhere you could walk in ten minutes, then hunting for a
+    // space, is not an option anyone wants offered — and pricing it costs a
+    // routed drive and walk for every candidate space, which is most of the
+    // routing a short trip does. An explicit driving request still gets it.
+    const drivingIsPlausible = request.selectedMode === 'driving'
+      || TripService.haversineDistance(
+        request.waypoints[0].location,
+        request.waypoints[request.waypoints.length - 1].location,
+      ) >= TripService.PARK_AND_RIDE_MIN_M
+
     if (useParking) {
-      if (modes.includes('driving')) {
+      if (modes.includes('driving') && drivingIsPlausible) {
         modePromises.push(
           this.planDrivingWithParkingTrip(request, dataSources)
             .then((trip) => trip ? [trip] : [])
@@ -4120,6 +4130,9 @@ export class TripService {
   private static readonly MAX_PER_MODE = 2
   /** Distinct transit routings (by line signature) to surface. */
   private static readonly MAX_TRANSIT_OPTIONS = 8
+  /** Below this, park-and-ride isn't offered unless driving was asked for.
+   *  Matches the floor transit already uses for the same reason. */
+  private static readonly PARK_AND_RIDE_MIN_M = 1500
   /** Whole journeys a multi-stop trip offers. Each one costs a full plan per
    *  remaining stop, so this bounds the fan-out as stops are added. */
   private static readonly MAX_MULTI_STOP_STRATEGIES = 5

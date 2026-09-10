@@ -35,6 +35,9 @@
   walk from the car park take more than fifteen minutes.
 * Each leg of a multi-stop trip can now use bikes, park-and-ride and shared
   vehicles, rather than only walking to and from transit.
+* Short trips are much faster to plan. Driving somewhere you could walk in ten
+  minutes is no longer costed out as a park-and-ride, which was most of the
+  work a short trip did. Asking for driving directions still offers it.
 * Trips that park a bike on the way to transit no longer tell you to set off
   before your chosen departure time.
 * The clock on each stop is now always visible, rather than appearing only on

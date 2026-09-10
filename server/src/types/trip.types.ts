@@ -501,33 +501,9 @@ export interface TripCandidate {
 // MULTIMODAL TRIP OPTIONS
 // =============================================================================
 
-/**
- * One waypoint pair of a multi-stop trip, planned in its own right.
- *
- * `options` are that hop's own ranked trips — the same shortlist a two-stop
- * request would return, so a leg can be walked while the next is driven.
- * Options are computed against the *recommended* choice for every earlier
- * leg; picking a different one moves this leg's departure, so the legs after
- * it need re-planning from where that choice actually leaves the rider.
- */
-export interface TripLeg {
-  legIndex: number
-  from: Waypoint
-  to: Waypoint
-  /** Ranked options. The first is the one folded into `trips`. */
-  options: TripCandidate[]
-  /** Set when the previous leg leaves the rider holding a car or bike. The
-   *  options here lead with the one that keeps using it, so the chain never
-   *  strands a vehicle; the alternatives that abandon it stay available. */
-  carriedMode?: SelectedMode
-}
-
 export interface MultimodalTripResponse {
   request: TripRequest
   trips: TripCandidate[]
-  /** Present for multi-stop requests: each hop's own options. `trips` holds
-   *  the single chain built from the recommended option of each. */
-  legs?: TripLeg[]
   metadata: {
     totalCandidatesGenerated: number
     processingTime: number // milliseconds

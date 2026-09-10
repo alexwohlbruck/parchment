@@ -3546,7 +3546,7 @@ describe('TripService — mode generation edge cases', () => {
 })
 
 
-describe('TripService — per-leg options', () => {
+describe('TripService — multi-stop journeys', () => {
   const MIDPOINT = {
     location: { lat: 35.22, lng: -80.85 },
     type: 'via' as const,
@@ -3560,46 +3560,54 @@ describe('TripService — per-leg options', () => {
       ...overrides,
     } as any)
 
-  test('every waypoint pair gets its own shortlist', async () => {
+  const modesOf = (candidate: any) =>
+    candidate.trip.segments.map((s: any) => s.mode)
+
+  test('every journey reaches the final stop', async () => {
     mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1200, 900))
 
-    const response = await multiStop({ selectedMode: 'walking' })
+    const response = await multiStop({ selectedMode: 'multi' })
 
-    expect(response.legs).toHaveLength(2)
-    expect(response.legs![0].to.label).toBe('Midpoint')
-    expect(response.legs![1].from.label).toBe('Midpoint')
-    expect(response.legs!.every((leg) => leg.options.length > 0)).toBe(true)
+    expect(response.trips.length).toBeGreaterThan(0)
+    for (const candidate of response.trips) {
+      const legs = new Set(candidate.trip.segments.map((s: any) => s.legIndex))
+      expect([...legs].sort()).toEqual([0, 1])
+    }
   })
 
-  test('a two-stop request carries no legs', async () => {
+  test('a journey is renumbered end to end', async () => {
     mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1200, 900))
 
-    const response = await tripService.planTrip({
-      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
-      selectedMode: 'walking',
-      preferredDepartureTime: '2026-01-15T08:00:00Z',
-    })
-
-    expect(response.legs).toBeUndefined()
-  })
-
-  test('the chain is renumbered without disturbing the leg it came from', async () => {
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1200, 900))
-
-    const response = await multiStop({ selectedMode: 'walking' })
-    const chain = response.trips[0].trip
+    const chain = (await multiStop({ selectedMode: 'walking' })).trips[0].trip
 
     expect(chain.segments.map((s) => s.segmentIndex)).toEqual([0, 1])
     expect(chain.segments.map((s) => s.legIndex)).toEqual([0, 1])
-    // The leg's own option is still a standalone trip starting at 0.
-    expect(response.legs![1].options[0].trip.segments[0].segmentIndex).toBe(0)
+  })
+
+  test('a walking journey walks the whole way', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1200, 900))
+
+    const response = await multiStop({ selectedMode: 'walking' })
+
+    expect(modesOf(response.trips[0])).toEqual(['walking', 'walking'])
+  })
+
+  test('a journey that starts by driving keeps the car for the next stop', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(9000, 900))
+
+    const response = await multiStop({ selectedMode: 'driving' })
+    const driving = response.trips.find((t) => modesOf(t).includes('driving'))
+
+    expect(driving).toBeDefined()
+    // Both legs driven — the car cannot be left at the midpoint and walked away from.
+    expect(modesOf(driving)).toEqual(['driving', 'driving'])
   })
 
   test('each leg departs when the one before it arrives', async () => {
     mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1200, 900))
 
-    const response = await multiStop({ selectedMode: 'walking' })
-    const [first, second] = response.trips[0].trip.segments
+    const [first, second] = (await multiStop({ selectedMode: 'walking' }))
+      .trips[0].trip.segments
 
     expect(new Date(second.startTime).getTime()).toBeGreaterThanOrEqual(
       new Date(first.endTime).getTime(),
@@ -3610,64 +3618,35 @@ describe('TripService — per-leg options', () => {
     mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1200, 900))
 
     const response = await tripService.planTrip({
-      waypoints: [
-        CHARLOTTE_ORIGIN,
-        { ...MIDPOINT, dwellTime: 30 },
-        CHARLOTTE_DEST,
-      ],
+      waypoints: [CHARLOTTE_ORIGIN, { ...MIDPOINT, dwellTime: 30 }, CHARLOTTE_DEST],
       selectedMode: 'walking',
       preferredDepartureTime: '2026-01-15T08:00:00Z',
     })
 
     const [first, second] = response.trips[0].trip.segments
     const gap =
-      (new Date(second.startTime).getTime() -
-        new Date(first.endTime).getTime()) / 60000
+      (new Date(second.startTime).getTime() - new Date(first.endTime).getTime()) / 60000
     expect(gap).toBeGreaterThanOrEqual(30)
   })
 
-  test('a leg the rider drives leaves the car in hand for the next', async () => {
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(9000, 900))
+  test('journeys are distinct strategies rather than repeats of one', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(4000, 900))
 
-    const response = await multiStop({ selectedMode: 'driving' })
+    const response = await multiStop({ selectedMode: 'multi' })
+    const shapes = response.trips.map((t) => modesOf(t).join('>'))
 
-    expect(response.legs![0].carriedMode).toBeUndefined()
-    expect(response.legs![1].carriedMode).toBe('driving')
-    expect(
-      response.legs![1].options[0].trip.segments.some((s) => s.mode === 'driving'),
-    ).toBe(true)
+    expect(new Set(shapes).size).toBe(shapes.length)
   })
 
-  test('a leg that parks the car hands nothing on to the next', async () => {
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(9000, 900))
-    mockSearchByCategory.mockImplementation(async () => [
-      {
-        geometry: { value: { center: { lat: 35.2205, lng: -80.8495 } } },
-        name: { value: 'Midpoint Deck' },
-        tags: {},
-      },
-    ])
+  test('a two-stop request is planned as one leg, not a chain', async () => {
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(1200, 900))
 
-    const response = await multiStop({
-      selectedMode: 'driving',
-      routingPreferences: { useKnownParkingLocations: true },
+    const response = await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'walking',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
     })
 
-    // Park-and-ride ends on foot, so the car is at the lot, not with them.
-    expect(response.legs![0].options[0].trip.segments.map((s) => s.mode))
-      .toEqual(['driving', 'walking'])
-    expect(response.legs![1].carriedMode).toBeUndefined()
-  })
-
-  test('walking a leg of a driving trip stays on offer', async () => {
-    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(9000, 900))
-
-    const response = await multiStop({ selectedMode: 'driving' })
-
-    expect(
-      response.legs![1].options.some((o) =>
-        o.trip.segments.every((s) => s.mode === 'walking'),
-      ),
-    ).toBe(true)
+    expect(response.trips[0].trip.segments.every((s) => (s.legIndex ?? 0) === 0)).toBe(true)
   })
 })

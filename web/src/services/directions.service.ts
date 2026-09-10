@@ -7,8 +7,7 @@ import { createSharedComposable } from '@vueuse/core'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { Waypoint } from '@/types/map.types'
-import { TripsResponse, TripLegOptions, WaypointType } from '@/types/directions.types'
-import { composeLegChain } from '@/lib/directions/leg-chain'
+import { TripsResponse, WaypointType } from '@/types/directions.types'
 import { LngLat } from 'mapbox-gl'
 import type { Place } from '@/types/place.types'
 import { useGeocodingService } from '@/services/geocoding.service'
@@ -183,9 +182,6 @@ function directionsService() {
           preferences: { optimize: 'time', alternatives: true },
         },
         trips: data.trips.map((c: any, i: number) => mapCandidate(c, i)),
-        ...(data.legs && {
-          legs: data.legs.map((leg: any) => mapLeg(leg, leg.legIndex)),
-        }),
         earliestStart:
           data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
         latestEnd:
@@ -363,71 +359,6 @@ function directionsService() {
         ? { total: { amount: stats.totalCost.value, currency: stats.totalCost.currency } }
         : undefined,
       co2Emissions: stats.totalCo2 ?? undefined,
-    }
-  }
-
-  /** Map a backend leg into the UI's per-leg option list. */
-  function mapLeg(leg: any, legIndex: number): TripLegOptions {
-    return {
-      legIndex,
-      options: leg.options.map((option: any, idx: number) =>
-        mapCandidate(option, idx, `leg${legIndex}`),
-      ),
-      ...(leg.carriedMode && { carriedMode: normalizeMode(leg.carriedMode) }),
-    } as TripLegOptions
-  }
-
-  /**
-   * Swap one leg of a multi-stop trip for another of its options.
-   *
-   * Earlier legs are left exactly as they are. This one and every leg after
-   * it are re-planned from where the new choice actually lands, because a
-   * leg that arrives twenty minutes later meets different departures — the
-   * times a purely local swap would leave on screen are fiction.
-   */
-  async function selectLegOption(legIndex: number, optionId: string) {
-    const current = store.trips
-    const legs = current?.legs
-    if (!current || !legs?.length) return
-
-    const leg = legs.find(l => l.legIndex === legIndex)
-    const option = leg?.options.find(o => o.id === optionId)
-    if (!leg || !option || option.id === leg.options[0]?.id) return
-
-    const remaining = waypoints.value.filter(wp => wp.lngLat).slice(legIndex + 1)
-
-    store.setLoading(true)
-    try {
-      let tail: TripLegOptions[] = []
-      if (remaining.length >= MIN_WAYPOINTS) {
-        const { data } = await api.post(
-          '/directions/',
-          buildTripRequest(remaining, {
-            preferredDepartureTime: option.endTime.toISOString(),
-          }),
-          { timeout: 30_000 },
-        )
-
-        // A two-waypoint tail comes back as a plain trip list, with no legs
-        // of its own — it is the last leg.
-        tail = data.legs?.length
-          ? data.legs.map((l: any) => mapLeg(l, legIndex + 1 + l.legIndex))
-          : [mapLeg({ options: data.trips }, legIndex + 1)]
-
-        // Nothing routable downstream: leave the trip on screen untouched
-        // rather than replacing it with a chain that stops halfway.
-        if (tail.some(l => !l.options.length)) return
-      }
-
-      store.setTrips(composeLegChain(current, [
-        ...legs.filter(l => l.legIndex < legIndex),
-        { ...leg, options: [option, ...leg.options.filter(o => o.id !== option.id)] },
-        ...tail,
-      ]))
-    } catch (error) {
-      console.error('Failed to re-plan trip legs:', error)
-    } finally {
-      store.setLoading(false)
     }
   }
 
@@ -775,7 +706,6 @@ function directionsService() {
 
   return {
     getDirections,
-    selectLegOption,
     fillWaypoint,
     setWaypoint,
     setWaypoints,

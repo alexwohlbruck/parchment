@@ -494,26 +494,9 @@ export interface SingleTripRequest {
   requestId?: string
 }
 
-/**
- * One waypoint pair of a multi-stop trip, with its own ranked options.
- *
- * `options[0]` is the leg currently folded into `trips`; choosing another
- * moves this leg's arrival, so every later leg is re-planned from it.
- */
-export interface TripLegOptions {
-  legIndex: number
-  options: TripOption[]
-  /** Set when the previous leg leaves the rider holding a car or bike. */
-  carriedMode?: TravelMode
-}
-
 export interface TripsResponse {
   request: TripsRequest
   trips: TripOption[]
-
-  /** Present for multi-stop trips only. `trips` holds the one chain built
-   *  from the leading option of each leg. */
-  legs?: TripLegOptions[]
 
   // Timeline bounds for UI
   earliestStart: Date

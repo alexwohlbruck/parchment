@@ -726,15 +726,7 @@
     "from": "Desde",
     "currentLocation": "Ubicación actual",
     "useCurrentLocation": "Usar tu ubicación actual",
-    "addStop": "Añadir parada",
-    "legOptions": {
-      "waysTo": "{count} formas de llegar a {stop}",
-      "carried": {
-        "driving": "El coche se queda contigo",
-        "cycling": "La bici se queda contigo"
-      },
-      "nextStop": "la siguiente parada"
-    }
+    "addStop": "Añadir parada"
   },
   "library": {
     "title": "Biblioteca",

@@ -762,14 +762,6 @@
       "routingEngine": "Routing Engine",
       "useKnownVehicleLocations": "Use known vehicle locations",
       "useKnownParkingLocations": "Use known parking locations"
-    },
-    "legOptions": {
-      "waysTo": "{count} ways to {stop}",
-      "carried": {
-        "driving": "Car stays with you",
-        "cycling": "Bike stays with you"
-      },
-      "nextStop": "the next stop"
     }
   },
   "library": {

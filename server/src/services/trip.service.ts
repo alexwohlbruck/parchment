@@ -19,7 +19,6 @@ import {
   SharedMobilityDetails,
   TripWarning,
   TripScore,
-  TripLeg,
   CurrencyAmount,
 } from '../types/trip.types'
 import { Coordinate } from '../types/unified-routing.types'
@@ -193,133 +192,165 @@ export class TripService {
   // ── Multi-stop planning ───────────────────────────────────────────
 
   /**
-   * Plan a multi-stop trip as a sequence of independent hops.
+   * Plan a multi-stop trip as one coherent journey per travel strategy.
    *
-   * Each waypoint pair is planned as a trip in its own right, so every leg
-   * gets the full strategy set — park-and-ride, bike-to-station, bikeshare —
-   * rather than the walk-access-only chain this used to build. `trips` holds
-   * one chain assembled from each leg's top option; `legs` carries the rest,
-   * so a rider can take the subway to the first stop and a bike to the next.
+   * A multi-stop trip is not a pick-and-mix: someone cycling to the first
+   * stop still has the bike at the second, and someone who chose the train
+   * wants the train the whole way. So the first leg's strategies — walking,
+   * cycling, park-and-ride, bike-carried-on-transit — each become a whole
+   * journey, extended stop by stop while holding that strategy.
    *
-   * Legs are planned in order because leg N+1 departs when leg N arrives,
-   * and because a leg that ends with the rider still holding a car or bike
-   * forces the next one to keep using it.
+   * Legs run in order within a chain, because leg N+1 departs when leg N
+   * arrives; the chains themselves run concurrently.
    */
   private async planMultiStopTrip(
     request: TripRequest,
     startTime: number,
   ): Promise<MultimodalTripResponse> {
     const waypoints = request.waypoints
-    const legs: TripLeg[] = []
     const dataSources: DataSource[] = []
-    const warnings: TripWarning[] = []
-    let totalCandidates = 0
 
-    let state: SegmentState = {
+    const opening = this.applyWaypointTimeConstraints(waypoints[0], 0, {
       currentTime: request.preferredDepartureTime || new Date().toISOString(),
       currentLocation: waypoints[0].location,
       currentMode: 'transit',
       parkedVehicles: [],
+    })
+
+    const first = await this.planLegTrip(
+      this.buildLegRequest(request, waypoints[0], waypoints[1],
+        opening.state.currentTime, null),
+      Date.now(),
+    )
+    this.collectDataSources(dataSources, first.metadata.dataSourcesUsed)
+
+    const seeds = this.seedStrategies(first.trips)
+    const chains = (await Promise.all(
+      seeds.map((seed) => this.extendChain(request, seed, dataSources)),
+    )).filter((chain): chain is TripResponse => chain !== null)
+
+    for (const chain of chains) {
+      const warnings = [
+        ...opening.warnings,
+        ...(chain.warnings ?? []),
+        ...this.arrivalOvershootWarnings(request, chain.latestEndTime),
+      ]
+      if (warnings.length) chain.warnings = warnings
     }
-    let carried: { mode: SelectedMode; vehicle?: Vehicle } | null = null
-
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      const from = waypoints[i]
-      const to = waypoints[i + 1]
-
-      const constrained = this.applyWaypointTimeConstraints(from, i, state)
-      warnings.push(...constrained.warnings)
-      state = constrained.state
-
-      const legResponse = await this.planLegTrip(
-        this.buildLegRequest(request, from, to, state.currentTime, carried),
-        Date.now(),
-      )
-
-      totalCandidates += legResponse.metadata.totalCandidatesGenerated
-      for (const source of legResponse.metadata.dataSourcesUsed) {
-        if (!dataSources.some((d) => d.name === source.name)) {
-          dataSources.push(source)
-        }
-      }
-
-      // A leg with no option at all leaves nothing to chain onto.
-      if (!legResponse.trips.length) break
-
-      const options = this.orderLegOptions(
-        legResponse.trips,
-        carried?.mode ?? request.selectedMode,
-      )
-      legs.push({
-        legIndex: i,
-        from,
-        to,
-        options,
-        ...(carried && { carriedMode: carried.mode }),
-      })
-
-      const chosen = options[0].trip
-      carried = this.vehicleLeftInHand(chosen)
-      if (carried?.vehicle) carried.vehicle.location = to.location
-      state = {
-        ...state,
-        currentTime: chosen.latestEndTime,
-        currentLocation: to.location,
-      }
-    }
-
-    const complete = legs.length === waypoints.length - 1
-    if (complete) {
-      warnings.push(
-        ...this.arrivalOvershootWarnings(request, state.currentTime),
-      )
-    }
-
-    const chained = complete
-      ? this.chainLegTrips(request, legs, warnings, dataSources)
-      : null
 
     return {
       request,
-      trips: chained ? [this.rankSingle(request, chained)] : [],
-      legs,
+      trips: this.rankChains(request, chains),
       metadata: {
-        totalCandidatesGenerated: totalCandidates,
+        totalCandidatesGenerated: first.metadata.totalCandidatesGenerated,
         processingTime: Date.now() - startTime,
         dataSourcesUsed: dataSources,
       },
     }
   }
 
-  /**
-   * Put the option the rider asked for at the front of a leg's shortlist.
-   *
-   * A leg is scored on its own merits, so a short hop in the middle of a
-   * drive can rank a walk first — accurate for that hop, but not what
-   * someone who picked "driving" wants the chain to do with their car.
-   * Only reorders; nothing is dropped, so the walk stays one tap away.
-   */
-  private orderLegOptions(
-    options: TripCandidate[],
-    selectedMode?: SelectedMode,
-  ): TripCandidate[] {
-    const wanted = selectedMode && selectedMode !== 'multi'
-      ? options.findIndex((o) => o.trip.segments.some((s) => s.mode === selectedMode))
-      : -1
-    if (wanted <= 0) return options
+  /** Distinct ways of making the first leg, each worth a whole journey. */
+  private seedStrategies(candidates: TripCandidate[]): TripCandidate[] {
+    const seen = new Set<string>()
+    const seeds: TripCandidate[] = []
+    for (const candidate of candidates) {
+      const strategy = this.getTripMode(candidate.trip)
+      if (seen.has(strategy)) continue
+      seen.add(strategy)
+      seeds.push(candidate)
+      if (seeds.length >= TripService.MAX_MULTI_STOP_STRATEGIES) break
+    }
+    return seeds
+  }
 
-    const reordered = [options[wanted], ...options.filter((_, i) => i !== wanted)]
-    return reordered.map((option, index) => ({ ...option, rank: index + 1 }))
+  /**
+   * Carry one first-leg strategy through the remaining stops.
+   *
+   * Returns null when a later leg can't be made at all, which drops that
+   * strategy rather than offering a journey that stops halfway.
+   */
+  private async extendChain(
+    request: TripRequest,
+    seed: TripCandidate,
+    dataSources: DataSource[],
+  ): Promise<TripResponse | null> {
+    const waypoints = request.waypoints
+    const strategy = this.getTripMode(seed.trip)
+    const legs = [seed.trip]
+    const warnings: TripWarning[] = []
+
+    let carried = this.vehicleLeftInHand(seed.trip)
+    let state: SegmentState = {
+      currentTime: seed.trip.latestEndTime,
+      currentLocation: waypoints[1].location,
+      currentMode: 'transit',
+      parkedVehicles: [],
+    }
+
+    for (let i = 1; i < waypoints.length - 1; i++) {
+      const constrained = this.applyWaypointTimeConstraints(waypoints[i], i, state)
+      warnings.push(...constrained.warnings)
+      state = constrained.state
+
+      const leg = await this.planLegTrip(
+        this.buildLegRequest(request, waypoints[i], waypoints[i + 1],
+          state.currentTime, carried, strategy),
+        Date.now(),
+      )
+      this.collectDataSources(dataSources, leg.metadata.dataSourcesUsed)
+
+      const next = this.matchStrategy(leg.trips, strategy, carried)
+      if (!next) return null
+
+      legs.push(next)
+      carried = this.vehicleLeftInHand(next)
+      state = {
+        ...state,
+        currentTime: next.latestEndTime,
+        currentLocation: waypoints[i + 1].location,
+      }
+    }
+
+    return this.chainLegTrips(request, legs, warnings, dataSources)
+  }
+
+  /**
+   * The leg option that continues a journey planned this way.
+   *
+   * An exact strategy match is the journey carrying on unchanged. Failing
+   * that, a leg holding a vehicle must keep using it — a two-block hop where
+   * transit makes no sense is still ridden, not walked away from. Only a leg
+   * that leaves the rider empty-handed may fall back to its own best.
+   */
+  private matchStrategy(
+    candidates: TripCandidate[],
+    strategy: string,
+    carried: { mode: SelectedMode } | null,
+  ): TripResponse | null {
+    const exact = candidates.find((c) => this.getTripMode(c.trip) === strategy)
+    if (exact) return exact.trip
+
+    if (carried) {
+      const keeps = candidates.find((c) =>
+        c.trip.segments.some((s) => s.mode === carried.mode && s.ownership !== 'shared'),
+      )
+      return keeps?.trip ?? null
+    }
+
+    return candidates[0]?.trip ?? null
   }
 
   /**
    * Turn one waypoint pair into a standalone two-stop request.
    *
-   * Time constraints on `from` are already folded into `departAt` by the
-   * caller, and the trip-level arrival target is dropped: planning a later
-   * leg backwards from it would happily depart before the previous leg
-   * lands. Overshoot is reported as a warning on the assembled chain
-   * instead, which is what multi-stop has always done.
+   * Time constraints on `from` are already spent — the caller folded them
+   * into `departAt` — and the trip-level arrival target is dropped: planning
+   * a later leg backwards from it would happily depart before the previous
+   * leg lands. Overshoot is reported as a warning on the assembled chain.
+   *
+   * `strategy` narrows what the leg even plans. Extending a walking journey
+   * has no use for park-and-ride candidates, and planning them costs a MOTIS
+   * query per stop per strategy.
    */
   private buildLegRequest(
     request: TripRequest,
@@ -327,9 +358,8 @@ export class TripService {
     to: Waypoint,
     departAt: string,
     carried: { mode: SelectedMode; vehicle?: Vehicle } | null,
+    strategy?: string,
   ): TripRequest {
-    // Constraints on `from` are already spent — the caller folded them into
-    // `departAt` — and `arriveBy` is reported rather than routed towards.
     const origin: Waypoint = {
       ...from, departAfter: undefined, dwellTime: undefined, arriveBy: undefined,
     }
@@ -340,11 +370,25 @@ export class TripService {
       waypoints: [origin, destination],
       preferredDepartureTime: departAt,
       preferredArrivalTime: undefined,
-      // The rider is still holding the vehicle the last leg ended on, so
-      // this one can't set off on foot and leave it behind.
-      selectedMode: carried?.mode ?? request.selectedMode,
+      selectedMode:
+        (strategy ? TripService.strategyMode(strategy) : null)
+        ?? carried?.mode
+        ?? request.selectedMode,
       ...(carried?.vehicle && { availableVehicles: [carried.vehicle] }),
     }
+  }
+
+  /** The mode selection that can still produce a given strategy. */
+  private static strategyMode(strategy: string): SelectedMode | null {
+    if (strategy.includes('transit')) return 'transit'
+    if (strategy.startsWith('bikeshare') || strategy.startsWith('scootershare')) {
+      return 'biking'
+    }
+    const modes: Record<string, SelectedMode> = {
+      walking: 'walking', biking: 'biking', driving: 'driving',
+      rideshare: 'rideshare',
+    }
+    return modes[strategy] ?? null
   }
 
   /**
@@ -365,6 +409,13 @@ export class TripService {
     return {
       mode: last.mode,
       ...(last.vehicle && { vehicle: { ...last.vehicle } }),
+    }
+  }
+
+  /** Merge a leg's sources into the trip's, without repeating any. */
+  private collectDataSources(into: DataSource[], from: DataSource[]) {
+    for (const source of from) {
+      if (!into.some((d) => d.name === source.name)) into.push(source)
     }
   }
 
@@ -390,19 +441,18 @@ export class TripService {
   }
 
   /**
-   * Assemble each leg's recommended option into one end-to-end trip.
+   * Assemble a journey's legs into one end-to-end trip.
    *
-   * Segments are copied rather than renumbered in place, so the per-leg
-   * options keep their own indices and stay usable on their own.
+   * Segments are copied rather than renumbered in place, so each leg's own
+   * trip keeps its indices and stays usable on its own.
    */
   private chainLegTrips(
     request: TripRequest,
-    legs: TripLeg[],
+    legs: TripResponse[],
     warnings: TripWarning[],
     dataSources: DataSource[],
   ): TripResponse {
-    const chosen = legs.map((leg) => leg.options[0].trip)
-    const segments = chosen.flatMap((trip, legIndex) =>
+    const segments = legs.flatMap((trip, legIndex) =>
       trip.segments.map((segment) => ({ ...segment, legIndex })),
     )
     segments.forEach((segment, index) => {
@@ -413,10 +463,10 @@ export class TripService {
     // Each leg's own total is authoritative for that leg — a transit fare is
     // folded onto the trip rather than onto any one segment, so re-deriving
     // the cost from segments alone would lose it.
-    const fare = this.sumLegFares(chosen)
+    const fare = this.sumLegFares(legs)
     if (fare) tripStats.totalCost = fare
 
-    const parkedVehicles = chosen.flatMap((trip) => trip.parkedVehicles ?? [])
+    const parkedVehicles = legs.flatMap((trip) => trip.parkedVehicles ?? [])
 
     return {
       segments,
@@ -447,18 +497,30 @@ export class TripService {
     return total
   }
 
-  /** Score a single assembled trip so it can be returned as a candidate. */
-  private rankSingle(request: TripRequest, trip: TripResponse): TripCandidate {
-    const score = this.scoreTrip(
-      trip,
-      request.preferredDepartureTime || new Date().toISOString(),
-    )
-    return {
-      trip,
-      score: { ...score, overall: this.computeOverallScore(score) },
-      rank: 1,
+  /** Score and order the completed journeys, best first. */
+  private rankChains(
+    request: TripRequest,
+    chains: TripResponse[],
+  ): TripCandidate[] {
+    const referenceTime =
+      request.preferredDepartureTime || new Date().toISOString()
+
+    const scored = chains.map((trip) => {
+      const score = this.scoreTrip(trip, referenceTime)
+      return { trip, score: { ...score, overall: this.computeOverallScore(score) }, rank: 0 }
+    })
+
+    if (request.sortPreference) {
+      this.rankByMetric(scored, TripService.SORT_METRICS[request.sortPreference])
+    } else {
+      this.applyDurationDominance(scored)
     }
+
+    return scored
+      .sort((a, b) => b.score.overall - a.score.overall)
+      .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
   }
+
 
   /**
    * Determine which modes to generate based on user selection
@@ -4009,6 +4071,9 @@ export class TripService {
   private static readonly MAX_PER_MODE = 2
   /** Distinct transit routings (by line signature) to surface. */
   private static readonly MAX_TRANSIT_OPTIONS = 8
+  /** Whole journeys a multi-stop trip offers. Each one costs a full plan per
+   *  remaining stop, so this bounds the fan-out as stops are added. */
+  private static readonly MAX_MULTI_STOP_STRATEGIES = 5
 
   private filterQualityTrips(
     sorted: Array<{ trip: TripResponse; score: TripScore; rank: number }>,

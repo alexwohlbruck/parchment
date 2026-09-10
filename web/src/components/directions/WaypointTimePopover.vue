@@ -1,24 +1,29 @@
 <script setup lang="ts">
 /**
- * Per-waypoint time constraint popover.
+ * Per-waypoint time constraint.
  *
- * A clock icon button that opens a ResponsivePopover where the user
- * can set departure/arrival time + optional dwell time for a waypoint.
- * Validates constraints against adjacent waypoints and shows inline
- * warnings for conflicts.
+ * Reached from a stop's row and shown as a bottom sheet on touch. Everything
+ * here is chosen by tapping: the date is a choice between today and tomorrow
+ * rather than a calendar, the time is the platform's own time control, and a
+ * stay is a set of durations rather than a number to type. Nothing is applied
+ * until "Done", because each change re-plans the whole trip.
  */
 import { computed, ref, watch } from 'vue'
 import dayjs from 'dayjs'
-import { ClockIcon, AlertTriangleIcon, XIcon } from 'lucide-vue-next'
+import { ClockIcon, AlertTriangleIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  DWELL_OPTIONS,
+  QUICK_OFFSETS,
+  buildConstraint,
+  constraintSummary,
+  constraintWarning,
+  formatDwell,
+  roundUpToFive,
+  waypointRole,
+} from '@/lib/directions/waypoint-time'
 import type { WaypointTimeConstraint, WaypointTimeMode } from '@/types/map.types'
 
 const props = defineProps<{
@@ -34,10 +39,10 @@ const props = defineProps<{
   nextConstraint?: WaypointTimeConstraint | null
   /** Controlled open state (for programmatic opening from mobile menu). */
   open?: boolean
-  /** When the planned trip reaches this stop. The leg after it sets off
-   *  then unless the rider says otherwise, so it stands in for a constraint
-   *  they haven't set and seeds the picker when they open it. */
+  /** When the planned trip reaches this stop. */
   arrivesAt?: Date | null
+  /** Name of this stop, for the sheet's heading. */
+  label?: string
 }>()
 
 const emit = defineEmits<{
@@ -46,141 +51,96 @@ const emit = defineEmits<{
 }>()
 
 const open = ref(props.open ?? false)
-
-// Sync with controlled prop
-watch(() => props.open, (v) => {
-  if (v !== undefined) open.value = v
-})
+watch(() => props.open, (v) => { if (v !== undefined) open.value = v })
 watch(open, (v) => emit('update:open', v))
 
-const isOrigin = computed(() => props.index === 0)
-const isDestination = computed(() => props.index === props.waypointCount - 1)
-const isIntermediate = computed(() => !isOrigin.value && !isDestination.value)
+const role = computed(() => waypointRole(props.index, props.waypointCount))
+const isStop = computed(() => role.value === 'stop')
 
-// Local editing state
-const mode = ref<WaypointTimeMode>(props.modelValue?.mode ?? 'departAfter')
-const timeLocal = ref(
-  props.modelValue?.time
-    ? dayjs(props.modelValue.time).format('YYYY-MM-DDTHH:mm')
-    : '',
-)
-const dwellMinutes = ref<number | null>(props.modelValue?.dwellTime ?? null)
+// ── Draft state ─────────────────────────────────────────────────
+// Held locally and only handed over on Done. Editing in place would re-plan
+// the trip on every keystroke, and a plan takes seconds.
 
-/** What the trip already implies, shown until the rider overrides it. */
-const derived = computed(() =>
-  !props.modelValue?.time && props.arrivesAt && isIntermediate.value
-    ? dayjs(props.arrivesAt)
-    : null,
+const mode = ref<WaypointTimeMode>('departAfter')
+const day = ref<string>('')       // YYYY-MM-DD
+const clock = ref<string>('')     // HH:mm
+const dwell = ref<number | null>(null)
+
+/** What this stop's time should start from when nothing is set yet. */
+const baseline = computed(() =>
+  roundUpToFive(props.arrivesAt ? dayjs(props.arrivesAt) : dayjs()),
 )
 
-// Opening the picker on an automatic time starts from that time, so
-// deferring the stop is a nudge later rather than a date entered from
-// scratch. Nothing is emitted until the rider actually changes it.
-watch(open, (isOpen) => {
-  if (isOpen && !timeLocal.value && derived.value) {
-    timeLocal.value = derived.value.format('YYYY-MM-DDTHH:mm')
-  }
-})
+function loadDraft() {
+  const current = props.modelValue
+  mode.value = current?.mode
+    ?? (role.value === 'destination' ? 'arriveBy' : 'departAfter')
+  dwell.value = current?.dwellTime ?? null
 
-// Sync local state when prop changes externally
-watch(
-  () => props.modelValue,
-  (val) => {
-    if (val) {
-      mode.value = val.mode
-      timeLocal.value = dayjs(val.time).format('YYYY-MM-DDTHH:mm')
-      dwellMinutes.value = val.dwellTime ?? null
-    }
-  },
-)
+  const start = current?.time ? dayjs(current.time) : baseline.value
+  day.value = start.format('YYYY-MM-DD')
+  clock.value = current?.time ? start.format('HH:mm') : ''
+}
 
-// Origin can only depart, destination can only arrive
-const availableModes = computed(() => {
-  if (isOrigin.value) return [{ value: 'departAfter' as const, label: 'Depart after' }]
-  if (isDestination.value) return [{ value: 'arriveBy' as const, label: 'Arrive by' }]
+// Reload whenever the sheet opens, so a draft abandoned last time doesn't
+// come back, and an edit made elsewhere is picked up.
+watch(open, (isOpen) => { if (isOpen) loadDraft() }, { immediate: true })
+watch(() => props.modelValue, () => { if (!open.value) loadDraft() })
+
+const dayOptions = computed(() => {
+  const from = baseline.value
   return [
-    { value: 'departAfter' as const, label: 'Depart after' },
-    { value: 'arriveBy' as const, label: 'Arrive by' },
+    { value: from.format('YYYY-MM-DD'), label: 'Today' },
+    { value: from.add(1, 'day').format('YYYY-MM-DD'), label: 'Tomorrow' },
   ]
 })
 
-// Auto-correct mode when waypoint position changes (e.g., user reorders)
-watch([isOrigin, isDestination], () => {
-  if (isOrigin.value && mode.value !== 'departAfter') mode.value = 'departAfter'
-  if (isDestination.value && mode.value !== 'arriveBy') mode.value = 'arriveBy'
-})
+/** Composed instant, or null while no time of day has been picked. */
+const draftTime = computed(() =>
+  clock.value ? dayjs(`${day.value}T${clock.value}`) : null,
+)
 
-// ── Validation ──────────────────────────────────────────────────
+const warning = computed(() => constraintWarning({
+  time: draftTime.value,
+  dwellMinutes: dwell.value,
+  previous: props.prevConstraint,
+  next: props.nextConstraint,
+}))
 
-const warning = computed<string | null>(() => {
-  if (!timeLocal.value) return null
-  const time = dayjs(timeLocal.value)
-  if (!time.isValid()) return null
-
-  // Check against previous waypoint
-  if (props.prevConstraint?.time) {
-    const prevTime = dayjs(props.prevConstraint.time)
-    const prevDwell = props.prevConstraint.dwellTime ?? 0
-    const earliestHere = prevTime.add(prevDwell, 'minute')
-
-    if (time.isBefore(earliestHere)) {
-      const diff = earliestHere.diff(time, 'minute')
-      return `This is ${diff} min before the previous stop's departure${prevDwell ? ` + ${prevDwell} min dwell` : ''}. Allow more time between stops.`
-    }
-  }
-
-  // Check against next waypoint
-  if (props.nextConstraint?.time) {
-    const nextTime = dayjs(props.nextConstraint.time)
-    const thisDwell = Math.max(0, dwellMinutes.value ?? 0)
-    const latestDepart = dayjs(timeLocal.value).add(thisDwell, 'minute')
-
-    if (latestDepart.isAfter(nextTime)) {
-      return `Departing here${thisDwell ? ` with ${thisDwell} min dwell` : ''} would miss the next stop's time. Adjust the schedule.`
-    }
-  }
-
-  // Check if time is in the past
-  if (time.isBefore(dayjs())) {
-    return 'This time is in the past.'
-  }
-
-  return null
-})
-
-// ── Emit changes ────────────────────────────────────────────────
-
-function emitUpdate() {
-  if (!timeLocal.value) {
-    emit('update:modelValue', null)
-    return
-  }
-  emit('update:modelValue', {
-    mode: mode.value,
-    time: new Date(timeLocal.value).toISOString(),
-    ...(dwellMinutes.value != null && dwellMinutes.value > 0 && { dwellTime: dwellMinutes.value }),
-  })
+function shiftBy(minutes: number) {
+  const from = draftTime.value ?? baseline.value
+  const next = from.add(minutes, 'minute')
+  day.value = next.format('YYYY-MM-DD')
+  clock.value = next.format('HH:mm')
 }
 
-watch([mode, timeLocal, dwellMinutes], emitUpdate)
+function setDwell(minutes: number) {
+  dwell.value = dwell.value === minutes ? null : minutes
+}
 
-function clear() {
-  timeLocal.value = ''
-  dwellMinutes.value = null
+function apply() {
+  emit('update:modelValue', buildConstraint({
+    mode: mode.value,
+    time: draftTime.value,
+    dwellMinutes: dwell.value,
+  }))
+  open.value = false
+}
+
+function remove() {
   emit('update:modelValue', null)
   open.value = false
 }
 
-const hasConstraint = computed(() => !!props.modelValue?.time)
-const hasWarning = computed(() => !!warning.value)
+// ── Trigger ─────────────────────────────────────────────────────
 
-const chipLabel = computed(() => {
-  if (!props.modelValue?.time) {
-    return derived.value ? `Arrives ${derived.value.format('h:mm A')}` : null
-  }
-  const t = dayjs(props.modelValue.time)
-  const prefix = props.modelValue.mode === 'departAfter' ? 'Dep' : 'Arr'
-  return `${prefix} ${t.format('h:mm A')}`
+const summary = computed(() => constraintSummary(props.modelValue, props.arrivesAt))
+const isSet = computed(() => summary.value?.tone === 'set')
+
+const heading = computed(() => {
+  if (role.value === 'origin') return 'Leave'
+  if (role.value === 'destination') return 'Arrive'
+  return props.label?.trim() || 'This stop'
 })
 </script>
 
@@ -188,100 +148,132 @@ const chipLabel = computed(() => {
   <ResponsivePopover
     v-model:open="open"
     side="bottom"
-    align="start"
+    align="end"
     :side-offset="8"
     fit-content
-    desktop-content-class="w-72 p-0"
+    desktop-content-class="w-80 p-0"
   >
     <template #trigger>
+      <!-- Always present, never hover-gated: on a touch screen there is no
+           hover, and a control you cannot find is a control you do not have. -->
       <Button
         variant="ghost"
-        :size="derived ? 'sm' : 'icon'"
-        class="shrink-0 gap-1"
-        :class="[
-          derived ? 'h-7 px-1.5' : 'size-7',
-          hasConstraint ? 'text-primary' : 'text-muted-foreground',
-          hasWarning && hasConstraint ? 'text-amber-500' : '',
-        ]"
-        :title="chipLabel ?? 'Set time constraint'"
+        size="sm"
+        class="h-10 min-w-10 shrink-0 gap-1.5 px-2"
+        :class="isSet ? 'text-primary' : 'text-muted-foreground'"
+        :aria-label="summary ? `Time for ${heading}: ${summary.text}` : `Set a time for ${heading}`"
       >
-        <ClockIcon class="size-3.5" />
-        <span v-if="derived" class="text-xs font-normal tabular-nums">
-          {{ derived.format('h:mm') }}
+        <ClockIcon class="size-4" />
+        <span v-if="summary" class="text-xs tabular-nums" :class="isSet && 'font-medium'">
+          {{ summary.text }}
         </span>
       </Button>
     </template>
 
-    <template #content="{ close }">
-      <div class="p-3 space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium">Time constraint</span>
-          <Button
-            v-if="hasConstraint"
-            variant="ghost"
-            size="sm"
-            class="h-6 text-xs text-muted-foreground"
-            @click="clear"
+    <template #content>
+      <div class="p-4 space-y-4">
+        <div class="space-y-0.5">
+          <p class="text-sm font-medium leading-tight">{{ heading }}</p>
+          <p v-if="arrivesAt && !modelValue?.time" class="text-xs text-muted-foreground">
+            Arriving {{ dayjs(arrivesAt).format('h:mm A') }} — the next leg leaves then.
+          </p>
+        </div>
+
+        <!-- Only a stop in the middle has a choice; the origin departs and
+             the destination arrives, and offering the other reads as a bug. -->
+        <ToggleGroup
+          v-if="isStop"
+          type="single"
+          :model-value="mode"
+          class="grid grid-cols-2 gap-1"
+          @update:model-value="v => v && (mode = v as WaypointTimeMode)"
+        >
+          <ToggleGroupItem
+            value="departAfter"
+            variant="outline"
+            class="h-10 w-full text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
           >
-            Clear
-          </Button>
-        </div>
+            Leave after
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="arriveBy"
+            variant="outline"
+            class="h-10 w-full text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
+            Arrive by
+          </ToggleGroupItem>
+        </ToggleGroup>
 
-        <!-- Mode selector (depart after / arrive by) -->
-        <Select v-model="mode">
-          <SelectTrigger class="h-8 text-xs">
-            <!-- Render the label rather than leaning on the item registry,
-                 which is empty until the list has been opened once. -->
-            <SelectValue>
-              {{ availableModes.find(o => o.value === mode)?.label }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem
-              v-for="opt in availableModes"
-              :key="opt.value"
-              :value="opt.value"
-              class="text-xs"
+        <div class="space-y-2">
+          <div class="grid grid-cols-2 gap-1">
+            <Button
+              v-for="option in dayOptions"
+              :key="option.value"
+              :variant="day === option.value ? 'default' : 'outline'"
+              class="h-10 text-xs"
+              @click="day = option.value"
             >
-              {{ opt.label }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+              {{ option.label }}
+            </Button>
+          </div>
 
-        <p v-if="derived" class="text-xs text-muted-foreground">
-          Arriving {{ derived.format('h:mm A') }}. The next leg leaves then —
-          set a later time to stay longer.
-        </p>
-
-        <!-- Time input -->
-        <input
-          type="datetime-local"
-          class="flex w-full h-8 px-2 text-xs rounded-md border border-input bg-background ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :value="timeLocal"
-          @input="(e: any) => timeLocal = e.target.value"
-        />
-
-        <!-- Dwell time (intermediate stops only) -->
-        <div v-if="isIntermediate" class="space-y-1.5">
-          <label class="text-xs text-muted-foreground">Time at this stop (min)</label>
+          <!-- The platform's own time control: a wheel on a phone, a spinner
+               on a desktop. A date field here would ask for a year nobody
+               needs to enter. -->
           <input
-            type="number"
-            min="0"
-            max="480"
-            :value="dwellMinutes ?? ''"
-            @input="(e: any) => dwellMinutes = e.target.value ? Number(e.target.value) : null"
-            placeholder="0"
-            class="flex w-full h-8 px-2 text-xs rounded-md border border-input bg-background ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
+            v-model="clock"
+            type="time"
+            step="300"
+            aria-label="Time"
+            class="flex h-12 w-full rounded-md border border-input bg-background px-3 text-base tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+
+          <div class="grid grid-cols-3 gap-1">
+            <Button
+              v-for="offset in QUICK_OFFSETS"
+              :key="offset"
+              variant="ghost"
+              class="h-9 text-xs text-muted-foreground"
+              @click="shiftBy(offset)"
+            >
+              +{{ formatDwell(offset) }}
+            </Button>
+          </div>
         </div>
 
-        <!-- Validation warning -->
+        <div v-if="isStop" class="space-y-2">
+          <p class="text-xs text-muted-foreground">Stay here</p>
+          <div class="grid grid-cols-3 gap-1">
+            <Button
+              v-for="minutes in DWELL_OPTIONS"
+              :key="minutes"
+              :variant="dwell === minutes ? 'default' : 'outline'"
+              class="h-10 text-xs"
+              @click="setDwell(minutes)"
+            >
+              {{ formatDwell(minutes) }}
+            </Button>
+          </div>
+        </div>
+
         <div
           v-if="warning"
-          class="flex gap-2 p-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-md"
+          class="flex gap-2 rounded-md bg-amber-50 p-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
         >
-          <AlertTriangleIcon class="size-3.5 shrink-0 mt-0.5" />
+          <AlertTriangleIcon class="mt-0.5 size-3.5 shrink-0" />
           <span>{{ warning }}</span>
+        </div>
+
+        <div class="flex gap-2">
+          <Button
+            v-if="modelValue"
+            variant="outline"
+            class="h-11 flex-1 text-xs"
+            @click="remove"
+          >
+            Remove
+          </Button>
+          <Button class="h-11 flex-1 text-sm" @click="apply">Done</Button>
         </div>
       </div>
     </template>

@@ -538,7 +538,7 @@ defineExpose({
                         :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
                         :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
                         :arrives-at="handoffTimes.get(index) ?? null"
-                        :class="element.timeConstraint || handoffTimes.has(index) ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
+                        :label="inputTexts[index] || undefined"
                         @update:model-value="c => updateTimeConstraint(index, c)"
                       />
                       <Button
@@ -572,6 +572,7 @@ defineExpose({
                         :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
                         :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
                         :arrives-at="handoffTimes.get(index) ?? null"
+                        :label="inputTexts[index] || undefined"
                         :open="openTimePopoverIndex === index"
                         @update:open="v => { if (!v) openTimePopoverIndex = null }"
                         @update:model-value="c => updateTimeConstraint(index, c)"

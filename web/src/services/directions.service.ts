@@ -14,6 +14,7 @@ import { useGeocodingService } from '@/services/geocoding.service'
 import { getSearchResultName } from '@/lib/search/search-result'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { usePlaceService } from '@/services/place/place.service'
+import { constraintRequestFields } from '@/lib/directions/waypoint-time'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
@@ -84,9 +85,7 @@ function directionsService() {
               : 'via',
         label: wp.place ? getSearchResultName(wp.place as Place) : '',
         // Per-waypoint time constraints
-        ...(wp.timeConstraint?.mode === 'departAfter' && { departAfter: wp.timeConstraint.time }),
-        ...(wp.timeConstraint?.mode === 'arriveBy' && { arriveBy: wp.timeConstraint.time }),
-        ...(wp.timeConstraint?.dwellTime && { dwellTime: wp.timeConstraint.dwellTime }),
+        ...constraintRequestFields(wp.timeConstraint),
       })),
       selectedMode: selectedMode.value,
       ...(sortPreference.value && { sortPreference: sortPreference.value }),

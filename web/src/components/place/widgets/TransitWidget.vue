@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { WidgetResponse, WidgetDescriptor, TransitStopInfo, Place } from '@/types/place.types'
-import PlaceTransit from '@/components/place/details/PlaceTransit.vue'
+import PlaceTransit from '@/components/transit/departures/PlaceTransitCard.vue'
 
 const props = defineProps<{
   data: WidgetResponse<TransitStopInfo>

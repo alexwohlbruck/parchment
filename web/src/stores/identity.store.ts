@@ -23,13 +23,13 @@ import {
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 import { api } from '@/lib/api'
-import type { DerivedKeys } from '@/lib/federation-crypto'
+import type { DerivedKeys } from '@/lib/identity/federation-crypto'
 import {
   rotateMasterKey,
   RotationConflictError,
   type RotationPhase,
-} from '@/lib/km-rotation'
-import { getSeed } from '@/lib/key-storage'
+} from '@/lib/identity/km-rotation'
+import { getSeed } from '@/lib/identity/key-storage'
 import { flushAllPendingRevocations } from '@/services/revocations.service'
 
 /**
@@ -402,7 +402,7 @@ export const useIdentityStore = defineStore('identity', () => {
       }
       keys = loadedKeys
       // We need the raw seed to wrap; re-read from storage.
-      const { getSeed } = await import('@/lib/key-storage')
+      const { getSeed } = await import('@/lib/identity/key-storage')
       const loaded = await getSeed()
       if (!loaded) {
         return {

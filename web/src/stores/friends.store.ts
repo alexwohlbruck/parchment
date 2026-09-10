@@ -15,7 +15,7 @@ import {
   type FriendInvitation,
   type RemoteUserInfo,
 } from '@/services/friends.service'
-import { useIdentityStore } from './identity.store'
+import { useIdentityStore } from '@/stores/identity.store'
 
 export const useFriendsStore = defineStore('friends', () => {
   const identityStore = useIdentityStore()

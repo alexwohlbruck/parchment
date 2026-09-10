@@ -1,0 +1,419 @@
+<script setup lang="ts">
+/**
+ * Transit departures widget — Apple Maps style.
+ *
+ * Compact, scannable layout:
+ *   Route badge + name
+ *     Headsign     Now, 7 min  📶
+ *     Headsign     12, 25 min  📶
+ */
+import { computed, markRaw, onBeforeUnmount, onUnmounted, watch } from 'vue'
+import { setPlaceTransitLines, usePlaceTransferLines, type StationLine } from '@/composables/transit/usePlaceTransitLines'
+import { useTransitAlerts } from '@/composables/transit/useTransitAlerts'
+import { alertStopSkips, filterSkippedDepartures } from '@/lib/transit/alert-service-overrides'
+import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
+import { useI18n } from 'vue-i18n'
+import type { Place, TransitDeparture, TransitStopInfo } from '@/types/place.types'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ChevronRightIcon } from 'lucide-vue-next'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
+import { usePlaceTabs } from '@/composables/place/usePlaceTabs'
+import { useTransitClock } from '@/composables/transit/useTransitClock'
+import {
+  groupDepartures,
+  formatCountdown,
+  type BoardDeparture,
+  type DirectionGroup,
+  type RouteGroup,
+} from '@/lib/transit/transit-departures'
+import { formatDepartureTime, getRouteBulletLabel } from '@/lib/transit/transit'
+import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
+import StopDeparturesPage from '@/components/transit/departures/StopDeparturesPage.vue'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
+
+/** Past this, a countdown stops being easier to read than a clock time. */
+
+const props = defineProps<{
+  place?: Partial<Place>
+  transitInfo?: TransitStopInfo
+  /** Passed to the full board so it can reach further ahead on demand. */
+  widgetParams?: Record<string, string>
+}>()
+
+const { t } = useI18n()
+const { register, unregister, activate } = usePlaceTabs()
+const router = useRouter()
+const currentTime = useTransitClock()
+
+const transitInfo = computed((): TransitStopInfo | null => {
+  return props.transitInfo || props.place?.transit?.value || null
+})
+
+const hasTransitData = computed(() => {
+  return transitInfo.value && (transitInfo.value.onestopId || transitInfo.value.stopId || transitInfo.value.departures?.length)
+})
+
+const portolan = usePortolanTransitService()
+
+// The board with the runs a skip alert disowns removed — a station closed
+// for a parade until 9:30 must not list a 2 "in 5 minutes". Judged per run
+// against the alert's window, so the trains after it stay: their times ARE
+// the reopening.
+const departures = computed((): TransitDeparture[] => {
+  const raw = transitInfo.value?.departures || []
+  return filterSkippedDepartures(raw, stopAlertsInEffect.value, [
+    transitInfo.value?.stopId,
+    transitInfo.value?.parentStation,
+  ])
+})
+
+/** Every line serving this station, across its whole transfer complex.
+ *  Rendered by the place header next to the title (Apple-Maps style) —
+ *  published there as soon as the widget data arrives. */
+const stationLines = computed(() => transitInfo.value?.routes || [])
+
+/**
+ * Which of those lines have a run on the board.
+ *
+ * This is the honest reading of "in service": the board looked ahead
+ * `windowMinutes` and this line had nothing in it. Systems shorten and
+ * suspend lines by hour — the MTA's B stops at night, the 5 runs a
+ * fraction of its route — and a bullet that looks identical at 3am to
+ * one at 3pm is telling the rider something false.
+ *
+ * Published alongside the lines rather than computed in the header,
+ * because the departures live here.
+ */
+const runningRouteIds = computed(() => {
+  const ids = new Set<string>()
+  for (const d of departures.value) if (d.route?.id) ids.add(d.route.id)
+  return ids
+})
+
+// The stop's own alerts. The board reads MOTIS — the schedule plus what
+// realtime reached it — and a planned skip often never does: on parade day
+// Eastern Pkwy's board went on listing 2s and 3s at a station all three
+// lines were skipping. The agency's skip alert outranks a scheduled run.
+const stopAlertQuery = computed(() => {
+  const feedId = transitInfo.value?.feedId
+  const stopId = transitInfo.value?.stopId
+  return feedId && stopId ? { feedId, stopIds: [stopId] } : null
+})
+const { inEffect: stopAlertsInEffect } = useTransitAlerts(stopAlertQuery)
+
+/** Board answers minus alert skips — what is truly calling here now. */
+const servedRouteIds = computed(() => {
+  const running = runningRouteIds.value
+  if (!running.size) return running
+  const stopId = transitInfo.value?.stopId
+  const parent = transitInfo.value?.parentStation
+  const skips = alertStopSkips(stopAlertsInEffect.value)
+  const skipped = new Set([
+    ...(stopId ? skips.get(stopId) ?? [] : []),
+    ...(parent ? skips.get(parent) ?? [] : []),
+  ])
+  if (!skipped.size) return running
+  return new Set([...running].filter((id) => !skipped.has(id)))
+})
+
+watch(
+  [stationLines, servedRouteIds],
+  ([lines, running]) =>
+    setPlaceTransitLines(props.place?.id, lines, {
+      feedId: transitInfo.value?.feedId,
+      runningRouteIds: running,
+      // The board vouched even when the skips emptied it: a station every
+      // line passes today should show every bullet dimmed, not all lit.
+      serviceKnown: runningRouteIds.value.size > 0,
+    }),
+  { immediate: true },
+)
+
+/**
+ * The same reading, given to the map, so this station's bullets there fade
+ * exactly as the ones under the title do.
+ *
+ * The map's own answer comes from the tiles' activity masks, which are a
+ * WEEKLY timetable: today is a Monday, so they report the Monday service
+ * even when the agency is running a Sunday one for the holiday. Only a
+ * board knows that, and this is a board.
+ */
+watch(
+  [() => transitInfo.value?.stopId, servedRouteIds],
+  ([stopId, running]) => {
+    // An emptied set still publishes — the map should dim every bullet at
+    // a station the boards answered for and the alerts emptied. Only a
+    // board that never answered publishes nothing.
+    portolan.setStopService(
+      'place',
+      stopId && runningRouteIds.value.size ? new Map([[stopId, running]]) : null,
+    )
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => portolan.setStopService('place', null))
+
+/** The bullets the map draws for these routes: portolan's curated shape,
+ *  colour and label, resolved against the stop's own coordinates. */
+watch(
+  () => [transitInfo.value?.lat, transitInfo.value?.lng],
+  () => {
+    void ensureBulletsAt(transitInfo.value?.lat, transitInfo.value?.lng)
+    void ensureStopIndexAt(transitInfo.value?.lat, transitInfo.value?.lng)
+  },
+  { immediate: true },
+)
+const styleOfRoute = (route: {
+  id: string
+  type?: number
+  shortName?: string
+  longName?: string
+}) =>
+  bulletFor(
+    route.id,
+    transitInfo.value?.lat,
+    transitInfo.value?.lng,
+    route.type,
+    route.shortName || route.longName,
+  )
+
+/**
+ * The connecting stations, each with its own grouped board.
+ *
+ * Kept per-station all the way from Barrelman: these runs leave another
+ * platform, and merging them into the board above would say they depart from
+ * here. The name rides along because a connection is a place — "the R in 6
+ * minutes" only helps once you know it leaves Court St — and it is what a
+ * rider taps to go and look at it.
+ */
+const transferStations = computed(() =>
+  (transitInfo.value?.transferStations || []).map((station) => ({
+    name: station.name,
+    lat: station.lat,
+    lng: station.lng,
+    // Portolan's own join, which is the only exact one.
+    osm:
+      osmForStop(station.feedOnestopId, station.stopId, station.lat, station.lng) ??
+      undefined,
+    groups: groupDepartures(station.departures, currentTime.value, {
+      unknownDirectionLabel: t('place.transit.unknownDirection'),
+      limit: 2,
+      dayLabels: {
+        tonight: t('place.transit.tonight'),
+        tomorrow: t('place.transit.tomorrow'),
+      },
+    }),
+  })).filter((s) => s.groups.length),
+)
+
+/**
+ * Open a connecting station's own page.
+ *
+ * By name and point, which is how the app addresses a place it holds no OSM id
+ * for — the server resolves that pair back to the same OSM node a tap on the
+ * map would have opened.
+ *
+ * `complex` rides along for the same reason every station tap carries it: the
+ * name names an interchange, not one platform group, and without it the page
+ * answers for whichever member the point resolved to.
+ */
+function openTransferStation(station: {
+  name: string
+  lat?: number
+  lng?: number
+  osm?: string
+}) {
+  // Portolan's OSM object when it has one: it opens the station the map opens,
+  // and it is the only way to tell three stations called "Chambers St" apart —
+  // a name search ranks by importance and picked the A/C/E one 428m from the
+  // J/Z platform the rider was standing on.
+  const [type, id] = (station.osm ?? '').split('/')
+  if (type && id) {
+    router.push({ name: AppRoute.PLACE, params: { type, id }, query: { complex: '1' } })
+    return
+  }
+
+  // Otherwise the name and the point, which resolves to the same node wherever
+  // the name is unambiguous.
+  if (station.lat == null || station.lng == null) return
+  router.push({
+    name: AppRoute.PLACE_LOCATION,
+    params: { name: station.name, lat: String(station.lat), lng: String(station.lng) },
+    query: { complex: '1' },
+  })
+}
+
+const routeGroups = computed(() =>
+  groupDepartures(departures.value, currentTime.value, {
+    unknownDirectionLabel: t('place.transit.unknownDirection'),
+    limit: 3,
+    dayLabels: {
+      tonight: t('place.transit.tonight'),
+      tomorrow: t('place.transit.tomorrow'),
+    },
+  }),
+)
+
+/**
+ * A countdown is only useful while it's short. Past an hour or so a rider
+ * wants the clock time, and past today they want to know which day — "6:00 AM"
+ * alone reads as this morning when the tramway has been shut since 2am.
+ */
+function formatCountdownShort(dep: BoardDeparture): string {
+  return formatCountdown(dep, currentTime.value)
+}
+
+function directionCountdowns(dir: DirectionGroup): string {
+  return dir.departures
+    .map(d => formatCountdownShort(d))
+    .filter(Boolean)
+    .join(', ')
+}
+
+const agencyName = computed(() => {
+  const first = departures.value[0]
+  return first?.agency?.name || null
+})
+
+const TAB_ID = 'transit'
+watch(
+  [hasTransitData, transitInfo],
+  () => {
+    if (hasTransitData.value && transitInfo.value) {
+      register({
+        id: TAB_ID,
+        label: t('place.transit.departures'),
+        component: markRaw(StopDeparturesPage),
+        props: { transitInfo: transitInfo.value, widgetParams: props.widgetParams },
+        order: 10,
+      })
+    } else {
+      unregister(TAB_ID)
+    }
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => unregister(TAB_ID))
+
+function openFullTransit() {
+  if (!transitInfo.value) return
+  activate(TAB_ID)
+}
+
+function openRouteDetail(group: RouteGroup) {
+  openRoute(group.route.id)
+}
+
+/** Lines reached by an in-station transfer — their own section below the
+ *  board, because they do not depart from here. */
+const transferLines = usePlaceTransferLines(computed(() => props.place?.id))
+
+function openRoute(routeId?: string) {
+  const feedId = transitInfo.value?.feedId
+  if (!feedId || !routeId) return
+
+  router.push({
+    name: AppRoute.TRANSIT_ROUTE,
+    params: { feedId, routeId },
+  })
+}
+</script>
+
+<template>
+  <Card v-if="hasTransitData">
+    <CardHeader class="p-3 pb-0">
+      <button
+        type="button"
+        class="flex items-center justify-between gap-2 w-full text-left group"
+        @click="openFullTransit"
+      >
+        <CardTitle class="text-base">
+          {{ t('place.transit.departures') }}
+        </CardTitle>
+        <ChevronRightIcon class="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+      </button>
+
+    </CardHeader>
+
+    <CardContent class="p-3 pt-2">
+      <div v-if="routeGroups.length > 0" class="space-y-4">
+        <div
+          v-for="group in routeGroups"
+          :key="group.routeKey"
+        >
+          <!-- Route header (clickable → route detail) -->
+          <button
+            class="flex items-center gap-2 mb-2 group/route cursor-pointer"
+            @click="openRouteDetail(group)"
+          >
+            <RouteBullet
+              :label="styleOfRoute(group.route)?.label || getRouteBulletLabel(group.route, t)"
+              :color="styleOfRoute(group.route)?.color || group.route.color"
+              :shape="styleOfRoute(group.route)?.shape"
+              :text-color="styleOfRoute(group.route)?.color ? null : group.route.textColor"
+              class="group-hover/route:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+            />
+            <span class="text-sm text-muted-foreground truncate group-hover/route:text-foreground transition-colors">
+              {{ group.route.longName || group.route.shortName }}
+            </span>
+          </button>
+
+          <!-- Direction rows -->
+          <div class="space-y-1.5 ml-1">
+            <div
+              v-for="dir in group.directions"
+              :key="dir.headsign"
+              class="flex items-center justify-between gap-3"
+            >
+              <span class="text-sm truncate min-w-0">
+                {{ dir.headsign }}
+              </span>
+              <div class="flex items-center gap-0.5 shrink-0">
+                <template v-for="(dep, i) in dir.departures" :key="i">
+                  <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
+                  <span class="text-sm tabular-nums">{{ formatCountdownShort(dep) }}</span>
+                  <RealtimeIndicator
+                    v-if="dep.realTime"
+                    :real-time="true"
+                    :delay="dep.delay"
+                    class="shrink-0"
+                  />
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No departures -->
+      <div v-else class="py-4 text-center text-sm text-muted-foreground">
+        {{ t('place.transit.noUpcomingDepartures') }}
+      </div>
+
+      <StationTransfers
+        :stations="transferStations"
+        :now="currentTime"
+        :lines="transferLines"
+        :lat="transitInfo?.lat"
+        :lng="transitInfo?.lng"
+        :feed-id="transitInfo?.feedId"
+        @open="(line: StationLine) => openRoute(line.id)"
+        @open-route="(routeId: string) => openRoute(routeId)"
+        @open-station="openTransferStation"
+      />
+
+      <!-- Agency attribution -->
+      <div v-if="agencyName" class="mt-3 pt-2 border-t text-xs text-muted-foreground">
+        Transit information provided by {{ agencyName }}
+      </div>
+    </CardContent>
+  </Card>
+</template>

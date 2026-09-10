@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useLayersStore } from '@/stores/layers.store'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import {
   CLASS_GROUP_ROW_ID_PREFIX,

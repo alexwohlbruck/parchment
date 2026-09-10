@@ -2,12 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 
 import { FolderIcon } from 'lucide-vue-next'
-import EmptyState from '@/components/library/EmptyState.vue'
+import LibraryEmptyState from '@/components/library/LibraryEmptyState.vue'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { storeToRefs } from 'pinia'
-import CollectionsList from '@/components/library/CollectionsList.vue'
+import CollectionList from '@/components/library/collections/CollectionList.vue'
 
 const collectionsService = useCollectionsService()
 const collectionsStore = useCollectionsStore()
@@ -43,7 +43,7 @@ const loading = computed(() => {
 
 <template>
   <div class="min-h-full flex flex-col">
-    <EmptyState
+    <LibraryEmptyState
       v-if="showEmptyState"
       :icon="FolderIcon"
       entity-id="collections"
@@ -52,7 +52,7 @@ const loading = computed(() => {
       @retry="load"
     />
 
-    <CollectionsList
+    <CollectionList
       v-else
       :collections="collections"
       :loading="loading"

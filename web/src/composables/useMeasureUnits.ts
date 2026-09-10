@@ -13,7 +13,7 @@ import {
   getSmartDistanceUnitIndex,
   getSmartAreaUnitIndex,
   type UnitSystem as MeasureUnitSystem,
-} from '@/lib/measure.utils'
+} from '@/lib/measure/measure'
 
 /**
  * The measure panels' unit behaviour: pick a sensible unit automatically, and

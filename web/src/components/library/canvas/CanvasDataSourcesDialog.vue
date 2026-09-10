@@ -23,13 +23,13 @@ import {
   DATABASE_CONNECTORS,
   searchLibrary,
   type DataSourceDefinition,
-} from '@/lib/data-sources/catalogue'
+} from '@/lib/canvas/data-source-catalogue'
 import {
   ACCEPTED_EXTENSIONS,
   GeoImportError,
   importGeoFile,
   parseGeoData,
-} from '@/lib/geo-import'
+} from '@/lib/canvas/geo-import'
 import { LinkIcon, LockIcon, SearchIcon, UploadIcon } from 'lucide-vue-next'
 
 const open = defineModel<boolean>('open', { required: true })

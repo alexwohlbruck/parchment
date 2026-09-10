@@ -19,7 +19,7 @@ import { useThemeStore } from '@/stores/theme.store'
 import { useAuthService } from '@/services/auth.service'
 import { useIntegrationService } from '@/services/integration.service'
 import { APP_VERSION } from '@/lib/constants'
-import { appEventBus } from '@/lib/eventBus'
+import { appEventBus } from '@/lib/event-bus'
 import { fetchLatestRelease } from '@/composables/useGitHubReleases'
 import type { GitHubReleaseSummary } from '@/composables/useGitHubReleases'
 
@@ -47,9 +47,10 @@ import {
   CalendarIcon,
 } from 'lucide-vue-next'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
+import IntegrationHealthDot from '@/components/integration/IntegrationHealthDot.vue'
 import AboutDialog from '@/components/dialogs/AboutDialog.vue'
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
-import { useFeedback } from '@/composables/useFeedback'
+import { useFeedback } from '@/composables/integrations/useFeedback'
 
 const props = defineProps<{
   mini?: boolean
@@ -196,6 +197,7 @@ const menuItems = computed((): MenuItemDefinition[] => {
       label: t('settings.title'),
       icon: SettingsIcon,
       to: '/settings',
+      trailing: markRaw(IntegrationHealthDot),
     },
     {
       type: 'separator',

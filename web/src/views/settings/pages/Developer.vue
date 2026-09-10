@@ -27,7 +27,7 @@ import {
   XIcon,
 } from 'lucide-vue-next'
 import { SettingsSection, SettingsItem } from '@/components/settings'
-import BuildingShadeSection from './developer/BuildingShadeSection.vue'
+import BuildingShadeSection from '@/components/settings/developer/BuildingShadeSection.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
@@ -37,7 +37,7 @@ import {
   simulatorStore,
   type SimulatorState,
 } from '@/dev/gpx-simulator'
-import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast'
+import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
 import { useUserService } from '@/services/user.service'
 import { useAuthService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
@@ -45,7 +45,7 @@ import { useAppService } from '@/services/app.service'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { User } from '@/types/auth.types'
-import { formatStopwatch } from '@/lib/time.utils'
+import { formatStopwatch } from '@/lib/time-format'
 
 const state = ref<SimulatorState>(simulatorStore.getState())
 const errorMsg = ref<string | null>(null)

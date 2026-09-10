@@ -1,4 +1,4 @@
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import { api } from '@/lib/api'
 
 /**

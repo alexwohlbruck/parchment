@@ -1,0 +1,671 @@
+<script setup lang="ts">
+import draggable from 'vuedraggable'
+import { computed, ref, watch, onMounted } from 'vue'
+import { XIcon, PlusIcon, Check, LocateFixedIcon, ArrowUpDownIcon, GripVerticalIcon, ClockIcon, EllipsisVerticalIcon } from 'lucide-vue-next'
+import WaypointTimePopover from './WaypointTimePopover.vue'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Waypoint, type WaypointTimeConstraint } from '@/types/map.types'
+import { useDirectionsService } from '@/services/directions.service'
+import {
+  Combobox,
+  ComboboxInput,
+  ComboboxList,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxItem,
+  ComboboxItemIndicator,
+  ComboboxAnchor,
+} from '@/components/ui/combobox'
+import { Place } from '@/types/place.types'
+import { AutocompleteResult } from '@/types/search.types'
+import { useSearchService } from '@/services/search.service'
+import { useMapCamera } from '@/composables/map/useMapCamera'
+import { useAbortController } from '@/composables/useAbortController'
+import { cn, useResponsive } from '@/lib/utils'
+import { useDebounceFn } from '@vueuse/core'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  getSearchResultName,
+  autocompleteResultToPlace,
+} from '@/lib/search/search-result'
+import { useGeolocationService } from '@/services/geolocation.service'
+import { useI18n } from 'vue-i18n'
+import { PlaceCard } from '@/components/place/card'
+import {
+  autocompleteToDisplay,
+  makePlaceDisplay,
+  waypointToDisplay,
+} from '@/services/place/place-display'
+import { ItemIcon } from '@/components/ui/item-icon'
+import { useThemeStore } from '@/stores/theme.store'
+import { fuzzyFilter } from '@/lib/utils'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { frequentChipMeta, type FrequentType } from '@/lib/frequents'
+import type { Bookmark } from '@/types/library.types'
+
+const searchService = useSearchService()
+const mapCamera = useMapCamera()
+const { coords, isSupported: isGeolocationSupported, resume } = useGeolocationService()
+const { t } = useI18n()
+
+const directionsService = useDirectionsService()
+const bookmarksStore = useBookmarksStore()
+const themeStore = useThemeStore()
+const { isMobileScreen } = useResponsive()
+
+// Home / Work / School as quick destinations. A category can hold several
+// places, so this lists every tagged bookmark by its own name, with the
+// category (Home/Work/School) as the subtitle and its canonical icon.
+const presetBookmarks = computed(() =>
+  bookmarksStore.bookmarks
+    .filter(b => b.frequentType)
+    .map(b => ({ type: b.frequentType as FrequentType, bookmark: b })),
+)
+
+function presetToResult(entry: {
+  type: FrequentType
+  bookmark: Bookmark
+}): AutocompleteResult {
+  const { bookmark } = entry
+  // Canonical types → fixed icon + "Home" subtitle; custom → own icon + address.
+  const meta = frequentChipMeta(bookmark)
+  return {
+    id: bookmark.id,
+    type: 'bookmark',
+    title: bookmark.name,
+    description: meta.labelKey ? t(meta.labelKey) : bookmark.address || '',
+    icon: meta.icon,
+    color: meta.color,
+    lat: bookmark.lat,
+    lng: bookmark.lng,
+  }
+}
+
+const MIN_LOCATIONS = 2
+
+const props = defineProps<{
+  modelValue: Waypoint[]
+}>()
+
+const emit = defineEmits<{
+  'update:modelValue': [value: Waypoint[]]
+}>()
+
+const waypoints = computed({
+  get: () => props.modelValue,
+  set: newValue => {
+    emit('update:modelValue', newValue)
+  },
+})
+
+const inputTexts = ref<string[]>([])
+const userModifiedInputs = ref<Set<number>>(new Set())
+const blurPhase = ref<Record<number, 'out' | 'wipe'>>({})
+
+const BLUR_OUT_MS = 200
+const SWAP_AT_MS = 100 // swap text while blur-out is still fading
+const WIPE_IN_MS = 1300
+
+function triggerTextSwap(index: number, newText: string) {
+  // Phase 1: blur out old text on the input
+  blurPhase.value[index] = 'out'
+
+  setTimeout(() => {
+    // Swap text mid-blur and start wipe — overlaps with tail of blur-out
+    inputTexts.value[index] = newText
+    blurPhase.value[index] = 'wipe'
+
+    setTimeout(() => {
+      delete blurPhase.value[index]
+    }, WIPE_IN_MS)
+  }, SWAP_AT_MS)
+}
+
+watch(
+  () => waypoints.value,
+  newWaypoints => {
+    inputTexts.value.length = newWaypoints.length
+
+    newWaypoints.forEach((waypoint, index) => {
+      // Only update input text if user hasn't manually modified it
+      if (!userModifiedInputs.value.has(index)) {
+        const newText = getWaypointName(waypoint)
+        const oldText = inputTexts.value[index] || ''
+        // Animate blur swap only when resolving a name from coordinates
+        const isCoordText = /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(oldText)
+        if (newText && newText !== oldText && isCoordText) {
+          triggerTextSwap(index, newText)
+        } else {
+          inputTexts.value[index] = newText
+        }
+      }
+    })
+  },
+  { immediate: true, deep: true },
+)
+
+function clearWaypoint(index: number) {
+  // Clear the input text
+  inputTexts.value[index] = ''
+
+  // Clear user-modified flag
+  userModifiedInputs.value.delete(index)
+
+  if (waypoints.value.length > MIN_LOCATIONS) {
+    const newWaypoints = [...waypoints.value]
+    newWaypoints.splice(index, 1)
+
+    // Remove the corresponding input text
+    inputTexts.value.splice(index, 1)
+
+    // Update user-modified flags for remaining inputs
+    const newUserModified = new Set<number>()
+    userModifiedInputs.value.forEach(i => {
+      if (i < index) {
+        newUserModified.add(i)
+      } else if (i > index) {
+        newUserModified.add(i - 1)
+      }
+    })
+    userModifiedInputs.value = newUserModified
+
+    emit('update:modelValue', newWaypoints)
+  } else {
+    const newWaypoints = [...waypoints.value]
+    newWaypoints[index] = { lngLat: null }
+    emit('update:modelValue', newWaypoints)
+  }
+}
+
+function addWaypoint() {
+  inputTexts.value.push('')
+  emit('update:modelValue', [...waypoints.value, { lngLat: null }])
+}
+
+/** Index of waypoint whose time popover should open (triggered from mobile menu). */
+const openTimePopoverIndex = ref<number | null>(null)
+
+function updateTimeConstraint(index: number, constraint: WaypointTimeConstraint | null) {
+  const updated = [...waypoints.value]
+  updated[index] = { ...updated[index], timeConstraint: constraint }
+  emit('update:modelValue', updated)
+}
+
+function getWaypointName(waypoint: Waypoint) {
+  // Current location renders as a chip beside the caret, so the field itself
+  // stays empty — see `isCurrentLocationChip`.
+  if (waypoint.place?.id === 'current-location') return ''
+  if (waypoint.place) {
+    const placeName = getSearchResultName(waypoint.place as Place)
+    // If place exists but has no name, fall back to coordinates
+    if (placeName) {
+      return placeName
+    }
+  }
+  if (waypoint.lngLat) {
+    // Show coordinates as fallback if no place name available
+    return `${waypoint.lngLat.lat.toFixed(5)}, ${waypoint.lngLat.lng.toFixed(
+      5,
+    )}`
+  }
+  return ''
+}
+
+function selectPlace(index: number, place: Place) {
+  const newWaypoints = [...waypoints.value]
+
+  // Create waypoint with place and coordinates - all place types follow the same pattern
+  newWaypoints[index] = {
+    ...newWaypoints[index],
+    place: place,
+    lngLat: {
+      lat: place.geometry.value.center.lat,
+      lng: place.geometry.value.center.lng,
+    },
+  }
+
+  emit('update:modelValue', newWaypoints)
+
+  // Update input text to show the selected place name
+  inputTexts.value[index] = getWaypointName(newWaypoints[index])
+
+  // Clear user-modified flag since we're setting a system value
+  userModifiedInputs.value.delete(index)
+}
+
+const autocompleteResults = ref<AutocompleteResult[]>([])
+const isLoading = ref(false)
+const currentQuery = ref('')
+const { nextSignal } = useAbortController()
+
+// Combined results with current location prepended if not already used and matches query
+const combinedResults = computed(() => {
+  // Drop any server autocomplete rows that duplicate a preset — we surface
+  // presets ourselves with canonical labels/icons at the top.
+  const presetIds = new Set(presetBookmarks.value.map(p => p.bookmark!.id))
+  const results = autocompleteResults.value.filter(r => !presetIds.has(r.id))
+
+  // Preset quick-destinations (Home / Work / School). Empty query shows all;
+  // otherwise fuzzy-match by label/address.
+  const query = currentQuery.value.trim()
+  const presetResults = presetBookmarks.value.map(e =>
+    presetToResult({ type: e.type, bookmark: e.bookmark }),
+  )
+  const shownPresets = query
+    ? fuzzyFilter(presetResults, query, {
+        keys: ['title', 'description'],
+        threshold: -10000,
+      })
+    : presetResults
+  results.unshift(...shownPresets)
+
+  // Only add current location if it's not already used AND (query is empty OR fuzzy matches)
+  if (!isCurrentLocationUsed.value) {
+    const currentLocationResult = createCurrentLocationResult()
+    if (currentLocationResult) {
+      // Show current location if query is empty or if it fuzzy matches the query
+      if (!currentQuery.value.trim()) {
+        // Empty query - always show current location
+        results.unshift(currentLocationResult)
+      } else {
+        // Non-empty query - check if it fuzzy matches current location
+        const matches = fuzzyFilter(
+          [currentLocationResult],
+          currentQuery.value,
+          {
+            keys: ['title', 'description'],
+            threshold: -10000, // Lower threshold to be more permissive
+          },
+        )
+        if (matches.length > 0) {
+          results.unshift(currentLocationResult)
+        }
+      }
+    }
+  }
+
+  return results
+})
+
+// 150ms: barrelman's autocomplete now answers in ~20-40ms server-side, so the
+// debounce only has to avoid firing on every keystroke rather than hide backend
+// latency. nextSignal() cancels the previous request, which a shorter window
+// makes essential: without it a slower earlier response could land after a
+// newer one and overwrite the list with stale suggestions.
+const getAutocomplete = useDebounceFn(async (index: number, value: string) => {
+  currentQuery.value = value
+  const signal = nextSignal()
+  isLoading.value = true
+  try {
+    const { camera } = mapCamera
+    const center = camera.value.center
+
+    // Extract coordinates from various center formats
+    const [lng, lat] = Array.isArray(center)
+      ? center
+      : 'lng' in center
+        ? [center.lng, center.lat]
+        : [center.lon, center.lat]
+
+    const results = await searchService.getAutocompleteSuggestions(
+      { query: value, lat, lng },
+      signal,
+    )
+    // A cancelled request resolves to [] rather than rejecting, so assigning it
+    // would blank the list the newer request is about to fill.
+    if (signal.aborted) return
+    autocompleteResults.value = results
+  } finally {
+    // Don't clear the spinner the request that superseded this one still needs.
+    if (!signal.aborted) isLoading.value = false
+  }
+}, 150)
+
+/**
+ * Current location is not a place you can type, so the field shows it as a
+ * chip rather than as text: a value the user chose, not a query they wrote.
+ *
+ * The chip stands in for the input's contents, so it holds only while the
+ * field is empty — the first keystroke is the user replacing it, and the chip
+ * gives way to what they are typing.
+ */
+function isCurrentLocationChip(index: number): boolean {
+  return (
+    waypoints.value[index]?.place?.id === 'current-location' &&
+    !inputTexts.value[index]
+  )
+}
+
+/**
+ * The mark in front of each field: the stop's own POI glyph where it has one,
+ * so a field holding a restaurant looks like the restaurant it will be on the
+ * map and in the trip. Current location is the exception — the chip inside the
+ * field already carries that mark, and drawing it twice on one row reads as
+ * two different things.
+ */
+const waypointMarks = computed(() =>
+  waypoints.value.map((waypoint, index) => {
+    const { display, ownIcon } = waypointToDisplay(waypoint.place, {
+      isDark: themeStore.isDark,
+      t,
+    })
+    return {
+      display,
+      // The origin is the one field that isn't a place; everything else shows
+      // a mark, its own glyph or the pin. Current location is the exception:
+      // the chip inside the field already carries that mark.
+      showGlyph:
+        (ownIcon || index > 0) && waypoint.place?.id !== 'current-location',
+    }
+  }),
+)
+
+const currentLocationDisplay = computed(() =>
+  makePlaceDisplay({
+    title: t('directions.currentLocation', 'Current Location'),
+    icon: 'Locate',
+  }),
+)
+
+// Don't offer current location again while a field is already holding it.
+const isCurrentLocationUsed = computed(() =>
+  waypoints.value.some((_, index) => isCurrentLocationChip(index)),
+)
+
+// Create current location autocomplete result
+const createCurrentLocationResult = (): AutocompleteResult | null => {
+  if (
+    !isGeolocationSupported.value ||
+    !coords.value.latitude ||
+    !coords.value.longitude ||
+    coords.value.latitude === Infinity ||
+    coords.value.longitude === Infinity
+  ) {
+    return null
+  }
+
+  return {
+    id: 'current-location',
+    type: 'current_location',
+    title: t('directions.currentLocation', 'Current Location'),
+    description: t(
+      'directions.useCurrentLocation',
+      'Use your current location',
+    ),
+    lat: coords.value.latitude,
+    lng: coords.value.longitude,
+  }
+}
+
+onMounted(() => {
+  // Request geolocation permissions early so current location is available
+  if (isGeolocationSupported.value) {
+    resume()
+  }
+})
+
+const swapRotations = ref<Record<number, number>>({})
+
+function swapAdjacentWaypoints(index: number) {
+  swapRotations.value[index] = (swapRotations.value[index] || 0) + 180
+  const newWaypoints = [...waypoints.value]
+  ;[newWaypoints[index], newWaypoints[index + 1]] = [newWaypoints[index + 1], newWaypoints[index]]
+  emit('update:modelValue', newWaypoints)
+  const newTexts = [...inputTexts.value]
+  ;[newTexts[index], newTexts[index + 1]] = [newTexts[index + 1], newTexts[index]]
+  inputTexts.value = newTexts
+}
+
+function locateUser(index: number) {
+  if (!isGeolocationSupported.value || !coords.value.latitude || !coords.value.longitude) return
+  const result = createCurrentLocationResult()
+  if (result) {
+    selectPlace(index, autocompleteResultToPlace(result))
+  }
+}
+
+defineExpose({
+  clearWaypoint,
+})
+</script>
+
+<template>
+  <div class="relative flex flex-col gap-2">
+    <draggable
+      v-model="waypoints"
+      :animation="200"
+      handle=".handle"
+      tag="div"
+      class="relative flex flex-col gap-2"
+    >
+      <template #item="{ element, index }">
+        <div class="relative flex items-center group">
+          <div class="flex-1 relative">
+            <!-- Connecting line between icons -->
+            <div
+              v-if="index < waypoints.length - 1"
+              class="absolute left-[1.375rem] top-full w-px h-2 bg-border z-0"
+            />
+
+            <Combobox
+              class="flex-1"
+              ignore-filter
+              :reset-search-term-on-select="false"
+              :reset-search-term-on-blur="false"
+            >
+              <ComboboxAnchor>
+                <ComboboxInput
+                  :placeholder="isCurrentLocationChip(index) ? '' : index === 0 ? $t('directions.from') : $t('directions.to')"
+                  :model-value="inputTexts[index] || ''"
+                  :class="blurPhase[index] === 'out' ? 'animate-blur-out' : blurPhase[index] === 'wipe' ? 'animate-wipe-in' : ''"
+                  hide-search-icon
+                  @update:model-value="
+                    value => {
+                      inputTexts[index] = value
+                      userModifiedInputs.add(index)
+                      getAutocomplete(index, value)
+                    }
+                  "
+                  @focus="
+                    () => {
+                      const currentValue = inputTexts[index] || ''
+                      currentQuery = currentValue
+                      getAutocomplete(index, currentValue)
+                    }
+                  "
+                >
+                  <template #prefix>
+                    <div class="shrink-0 size-5 flex items-center justify-center handle cursor-grab active:cursor-grabbing relative">
+                      <ItemIcon
+                        v-if="waypointMarks[index]?.showGlyph"
+                        :icon="waypointMarks[index].display.icon"
+                        :icon-pack="waypointMarks[index].display.iconPack"
+                        :color="waypointMarks[index].display.color"
+                        :custom-color="waypointMarks[index].display.customColor"
+                        :image-url="waypointMarks[index].display.imageUrl ?? undefined"
+                        size="xs"
+                        variant="solid"
+                        shape="circle"
+                        class="group-hover:opacity-0 transition-opacity"
+                      />
+                      <!-- Where the trip starts. Every other field holds a
+                           place, and shows it. -->
+                      <div
+                        v-else
+                        class="size-4 rounded-full bg-background border-[1.5px] border-foreground/60 group-hover:opacity-0 transition-opacity"
+                      />
+                      <GripVerticalIcon class="size-4 text-muted-foreground absolute opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <!-- Current location isn't typed text, so it sits in the
+                         field as a chip rather than as a value that looks
+                         editable. Typing replaces it; the caret is already
+                         waiting after it. -->
+                    <PlaceCard
+                      v-if="isCurrentLocationChip(index)"
+                      :display="currentLocationDisplay"
+                      variant="chip"
+                      size="xs"
+                      icon-variant="ghost"
+                      :navigate="false"
+                      class="shrink-0 -ml-0.5 pointer-events-none"
+                    />
+                  </template>
+                  <template #postfix>
+                    <!-- Desktop: icon buttons hidden until row hover -->
+                    <div v-if="!isMobileScreen" class="flex items-center -mr-1.5">
+                      <!-- Active time badge stays visible without hover -->
+                      <WaypointTimePopover
+                        v-if="element.lngLat || element.timeConstraint"
+                        :model-value="element.timeConstraint"
+                        :index="index"
+                        :waypoint-count="waypoints.length"
+                        :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
+                        :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
+                        :class="element.timeConstraint ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
+                        @update:model-value="c => updateTimeConstraint(index, c)"
+                      />
+                      <Button
+                        v-if="!inputTexts[index]"
+                        @click="locateUser(index)"
+                        variant="ghost"
+                        size="icon"
+                        class="size-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        :title="$t('directions.currentLocation')"
+                      >
+                        <LocateFixedIcon class="size-4" />
+                      </Button>
+                      <Button
+                        @click="clearWaypoint(index)"
+                        variant="ghost"
+                        size="icon"
+                        class="size-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <XIcon class="size-4" />
+                      </Button>
+                    </div>
+
+                    <!-- Mobile: consolidated dropdown menu, always visible -->
+                    <div v-else class="flex items-center -mr-1.5">
+                      <!-- Time popover (rendered but trigger hidden — opened programmatically from menu) -->
+                      <WaypointTimePopover
+                        v-if="element.lngLat || element.timeConstraint"
+                        :model-value="element.timeConstraint"
+                        :index="index"
+                        :waypoint-count="waypoints.length"
+                        :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
+                        :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
+                        :open="openTimePopoverIndex === index"
+                        @update:open="v => { if (!v) openTimePopoverIndex = null }"
+                        @update:model-value="c => updateTimeConstraint(index, c)"
+                      />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger as-child>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="size-7"
+                          >
+                            <EllipsisVerticalIcon class="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-44">
+                          <DropdownMenuItem
+                            v-if="element.lngLat || element.timeConstraint"
+                            @click="openTimePopoverIndex = index"
+                          >
+                            <ClockIcon class="size-4 mr-2" />
+                            {{ element.timeConstraint ? 'Edit time' : 'Set time' }}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            v-if="!inputTexts[index]"
+                            @click="locateUser(index)"
+                          >
+                            <LocateFixedIcon class="size-4 mr-2" />
+                            {{ $t('directions.currentLocation') }}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator v-if="element.lngLat || !inputTexts[index]" />
+                          <DropdownMenuItem @click="clearWaypoint(index)">
+                            <XIcon class="size-4 mr-2" />
+                            Clear
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </template>
+                </ComboboxInput>
+              </ComboboxAnchor>
+
+              <ComboboxList>
+                <div
+                  v-if="isLoading && combinedResults.length === 0"
+                  class="flex items-center justify-center p-4"
+                >
+                  <Spinner class="h-4 w-4" />
+                </div>
+
+                <ComboboxEmpty v-else-if="!isLoading && combinedResults.length === 0">
+                  No results found.
+                </ComboboxEmpty>
+
+                <ComboboxGroup v-if="!isLoading || combinedResults.length > 0">
+                  <ComboboxItem
+                    v-for="result in combinedResults"
+                    :key="result.id"
+                    class="p-0"
+                    :value="autocompleteResultToPlace(result)"
+                    @select="selectPlace(index, autocompleteResultToPlace(result))"
+                  >
+                    <PlaceCard
+                      :display="autocompleteToDisplay(result, { isDark: themeStore.isDark })"
+                      variant="plain"
+                      size="sm"
+                      density="compact"
+                      icon-variant="ghost"
+                      :navigate="false"
+                      class="flex-1 min-w-0"
+                    />
+
+                    <ComboboxItemIndicator>
+                      <Check :class="cn('mr-2 h-4 w-4')" />
+                    </ComboboxItemIndicator>
+                  </ComboboxItem>
+                </ComboboxGroup>
+              </ComboboxList>
+            </Combobox>
+
+          </div>
+
+          <!-- Swap button between adjacent inputs -->
+          <Button
+            v-if="index < waypoints.length - 1"
+            variant="outline"
+            size="icon-sm"
+            class="absolute -bottom-4 left-8 z-10 rounded-full size-7 bg-background shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+            @click.stop="swapAdjacentWaypoints(index)"
+            title="Swap"
+          >
+            <ArrowUpDownIcon class="size-3.5 transition-transform duration-300" :style="{ transform: `rotate(${swapRotations[index] || 0}deg)` }" />
+          </Button>
+        </div>
+      </template>
+    </draggable>
+  </div>
+
+  <div class="-mt-1">
+    <Button
+      variant="outline"
+      :icon="PlusIcon"
+      @click="addWaypoint()"
+      class="w-full h-10"
+    >
+      {{ $t('directions.addStop') }}
+    </Button>
+  </div>
+</template>

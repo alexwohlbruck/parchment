@@ -4,8 +4,8 @@ import {
   useResponsiveOverlay,
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayPositionProps,
-} from '@/composables/useResponsiveOverlay'
-import BottomSheet from '@/components/BottomSheet.vue'
+} from '@/composables/sheet/useResponsiveOverlay'
+import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import { cn } from '@/lib/utils'
 import {
   Popover,

@@ -43,12 +43,14 @@
  */
 
 import { getVersion } from 'maplibre-gl'
+import { networkDim } from './portolan-isolation-tuning'
+import { proxyBase, ensureRegions } from './portolan-client'
 import router, { AppRoute } from '@/router'
 import { api } from '@/lib/api'
-import { densifyLine } from '@/lib/geo-densify'
+import { densifyLine } from '@/lib/geo/geo-densify'
 import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { MapEngine, MapTheme } from '@/types/map.types'
 import { useMapStore } from '@/stores/map.store'
 import { layerGroups } from '@/lib/map-style'
@@ -82,8 +84,10 @@ import { cssFontFor, drawPortolanImage, estRows, estRowsFromAdvances } from './p
 import { glyphAdvances } from './portolan-glyphs'
 import { TRANSIT_GROUP_ID, stopTargetFor } from './portolan-ui'
 import { firstLabelLayerId } from './portolan-anchors'
-import { resolveRouteRef, routeRefFor } from './portolan-routes'
-import { mapPoiClickPolicy } from '@/lib/map-poi-interaction'
+import { resolveRouteRef, routeRefFor,
+  bareRouteId,
+} from './portolan-routes'
+import { mapPoiClickPolicy } from '@/lib/map/map-poi-interaction'
 import { useMapToolsStore } from '@/stores/map-tools.store'
 
 const FLAG_KEY = 'parchment.portolan-transit'
@@ -199,7 +203,6 @@ let boundHandlers: { [event: string]: any } = {}
 let boundLayerHandlers: Array<{ event: string; layer: string; fn: any }> = []
 let warnedOnce = false
 
-let regionsPromise: Promise<PortolanIndexEntry[]> | null = null
 const feedStyles = new Map<string, PortolanStyleSet | null>()
 
 let serviceTime: Date | null = null
@@ -252,9 +255,7 @@ let networkHidden = false
  * near-black basemap than against a pale one, so a dim that reads as
  * "stepped back" in daylight reads as "gone" at night.
  */
-const ISOLATION_DIM_LIGHT = 0.25
-const ISOLATION_DIM_DARK = 0.42
-const isolationDim = () => (themeDark ? ISOLATION_DIM_DARK : ISOLATION_DIM_LIGHT)
+const isolationDim = () => networkDim(themeDark)
 
 /** How much wider the isolated route draws than it normally would. The
  *  dim alone leaves it the same weight as everything else, just brighter;
@@ -624,7 +625,6 @@ function serviceAt(props: any): Set<string> | null {
 
 /** Portolan tokens are prefixed per feed (`f3:2`); a board names the route
  *  the feed does (`2`). */
-const bareRouteId = (token: string) => token.replace(/^f\d+:/, '')
 
 /**
  * A station's bullets, with the lines not running here faded.
@@ -1121,20 +1121,10 @@ function unbindListeners() {
   }
 }
 
-const proxyBase = () => `${api.defaults.baseURL}/proxy/portolan`
 
 /** The feed list, probed once per session. A missing index (portolan not
  *  yet deployed on this barrelman, or barrelman not configured) resolves
  *  to [] and the feature is silently absent. */
-function ensureRegions(): Promise<PortolanIndexEntry[]> {
-  if (!regionsPromise) {
-    regionsPromise = fetch(`${proxyBase()}/index.json`)
-      .then(r => (r.ok ? r.json() : []))
-      .then(list => (Array.isArray(list) ? list : []))
-      .catch(() => [])
-  }
-  return regionsPromise
-}
 
 /** Per-feed resolved style manifests, served next to the tiles. Missing
  *  is fine — colors ride inline in the tiles; the manifest only carries

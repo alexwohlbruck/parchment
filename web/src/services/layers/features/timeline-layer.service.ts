@@ -1,7 +1,7 @@
 import { watch, markRaw } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTimelineStore } from '@/stores/timeline.store'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 import TimelineStopMarker from '@/components/map/markers/TimelineStopMarker.vue'
 import {
   LayerType,
@@ -14,7 +14,7 @@ import {
   TRAVEL_MODE_COLORS,
   getTravelModeColor,
   getTravelModeCaseColor,
-} from '@/lib/travel-mode-colors'
+} from '@/lib/directions/travel-mode-colors'
 import type {
   LocationHistoryEntry,
   LocationHistorySegment,

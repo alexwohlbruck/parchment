@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { MapPinIcon } from 'lucide-vue-next'
-import { categoryMarkerPaint } from '@/lib/place-colors'
+import { categoryMarkerPaint } from '@/services/place/place-colors'
 import { markerCss } from '@/lib/map-marker'
 import { useThemeStore } from '@/stores/theme.store'
 

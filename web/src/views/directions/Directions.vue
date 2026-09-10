@@ -4,13 +4,15 @@ import duration from 'dayjs/plugin/duration'
 import { computed, onUnmounted, onMounted, inject, type Ref } from 'vue'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDirectionsService } from '@/services/directions.service'
-import { useMapListener } from '@/composables/useMapListener'
+import { useMapListener } from '@/composables/map/useMapListener'
 import {
   BikeIcon,
   BusFrontIcon,
   CarFrontIcon,
   CarTaxiFrontIcon,
+  ChartNoAxesGanttIcon,
   ClockIcon,
+  ListIcon,
   FootprintsIcon,
   ShuffleIcon,
   SlidersHorizontalIcon,
@@ -20,15 +22,16 @@ import {
 } from 'lucide-vue-next'
 import { useDirectionsStore, RIDESHARE_ENABLED } from '@/stores/directions.store'
 import { storeToRefs } from 'pinia'
-import WaypointInput from './WaypointInput.vue'
-import TripsList from './TripsList.vue'
-import RoutingPreferences from './RoutingPreferences.vue'
-import DirectionsLoading from './DirectionsLoading.vue'
+import WaypointInput from '@/components/directions/WaypointInput.vue'
+import TripsList from '@/components/directions/TripsList.vue'
+import TripList from '@/components/directions/TripList.vue'
+import RoutingPreferences from '@/components/directions/preferences/RoutingPreferences.vue'
+import DirectionsLoading from '@/components/directions/DirectionsLoading.vue'
 import { useElementSize } from '@vueuse/core'
-import { useSheetPeek } from '@/composables/useSheetPeek'
+import { useSheetPeek } from '@/composables/sheet/useSheetPeek'
 import { Waypoint } from '@/types/map.types'
 import { SelectedMode, SortPreference } from '@/types/multimodal.types'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import {
@@ -48,8 +51,12 @@ const route = useRoute()
 const directionsService = useDirectionsService()
 const directionsStore = useDirectionsStore()
 
-const { waypoints, trips, selectedMode, departureTime, sortPreference, isLoading, timezoneWarning } =
+const { waypoints, trips, selectedMode, departureTime, sortPreference, tripView, isLoading, timezoneWarning } =
   storeToRefs(directionsStore)
+
+function toggleTripView() {
+  tripView.value = tripView.value === 'timeline' ? 'list' : 'timeline'
+}
 
 const showPreferences = ref(false)
 
@@ -290,6 +297,17 @@ useMapListener(
           </SelectContent>
         </Select>
 
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-7 w-7 p-0 shrink-0"
+          :title="tripView === 'timeline' ? 'Show as a list' : 'Show as a timeline'"
+          @click="toggleTripView"
+        >
+          <ListIcon v-if="tripView === 'timeline'" class="size-3.5" />
+          <ChartNoAxesGanttIcon v-else class="size-3.5" />
+        </Button>
+
         <ResponsivePopover
           v-model:open="showPreferences"
           side="bottom"
@@ -348,13 +366,16 @@ useMapListener(
       <DirectionsLoading />
     </div>
 
-    <!-- Trips results (full-bleed timeline) -->
-    <TripsList
-      v-else-if="trips"
-      :trips="trips"
-      :sticky-top="controlsHeight"
-      class="-mx-3"
-    />
+    <!-- Trips results — the time-scaled timeline, or a plain list -->
+    <template v-else-if="trips">
+      <TripsList
+        v-if="tripView === 'timeline'"
+        :trips="trips"
+        :sticky-top="controlsHeight"
+        class="-mx-3"
+      />
+      <TripList v-else :trips="trips" class="-mx-3" />
+    </template>
 
     <!-- No results -->
     <div

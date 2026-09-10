@@ -5,8 +5,8 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
-import { useFriendLocations } from '@/composables/useFriendLocations'
-import { useE2eeLocationBroadcast } from '@/composables/useE2eeLocationBroadcast'
+import { useFriendLocations } from '@/composables/friends/useFriendLocations'
+import { useE2eeLocationBroadcast } from '@/composables/friends/useE2eeLocationBroadcast'
 import { useAppService } from '@/services/app.service'
 import { useLocationService } from '@/services/location.service'
 import { AppRoute } from '@/router'
@@ -42,12 +42,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import UserHandle from '@/components/UserHandle.vue'
-import { useMapService } from '@/services/map.service'
+import UserHandle from '@/components/identity/UserHandle.vue'
+import { useMapService } from '@/services/map/map.service'
 import { useDirectionsService } from '@/services/directions.service'
-import { appEventBus } from '@/lib/eventBus'
+import { appEventBus } from '@/lib/event-bus'
 import { useUnits } from '@/composables/useUnits'
-import { formatTimeAgo as sharedTimeAgo } from '@/lib/time.utils'
+import { formatTimeAgo as sharedTimeAgo } from '@/lib/time-format'
 
 const props = defineProps<{
   handle: string

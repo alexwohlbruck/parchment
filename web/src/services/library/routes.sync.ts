@@ -8,7 +8,7 @@
 
 import { registerMutationHandler } from '@/lib/sync/mutation-registry'
 import { useRoutesStore } from '@/stores/library/routes.store'
-import { useRoutesService } from './routes.service'
+import { useRoutesService } from '@/services/library/routes.service'
 import type { CreateRouteParams, Route, RouteBody } from '@/types/routes.types'
 
 export interface RouteUpdates {

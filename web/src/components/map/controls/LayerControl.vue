@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import { Layers3Icon } from 'lucide-vue-next'
-import LayersSelector from '@/components/navigation/LayersSelector.vue'
+import LayersSelector from '@/components/map/layers/LayersSelector.vue'
 import ResponsiveHoverCard from '@/components/responsive/ResponsiveHoverCard.vue'
 </script>
 

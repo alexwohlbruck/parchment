@@ -6,19 +6,20 @@
  */
 
 import type { LngLat } from '@/types/map.types'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
-import { WaypointsLayer } from '@/components/map/layers/waypoints-layer'
-import type { MarkerDragOptions } from '@/components/map/layers/base-marker-layer'
-import { FriendLocationsLayer } from '@/components/map/layers/friend-locations-layer'
-import { TripInstructionsLayer } from '@/components/map/layers/trip-instructions-layer'
-import { UserLocationLayer } from '@/components/map/layers/user-location-layer'
-import { TrackerLocationsLayer } from '@/components/map/layers/tracker-locations-layer'
-import { TransitVehiclesLayer } from '@/components/map/layers/transit-vehicles-layer'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
+import { WaypointsLayer } from '@/services/layers/markers/waypoints-layer'
+import type { MarkerDragOptions } from '@/services/layers/markers/base-marker-layer'
+import { FriendLocationsLayer } from '@/services/layers/markers/friend-locations-layer'
+import { TripInstructionsLayer } from '@/services/layers/markers/trip-instructions-layer'
+import { TripStopsLayer } from '@/services/layers/markers/trip-stops-layer'
+import { UserLocationLayer } from '@/services/layers/markers/user-location-layer'
+import { TrackerLocationsLayer } from '@/services/layers/markers/tracker-locations-layer'
+import { TransitVehiclesLayer } from '@/services/layers/features/transit-vehicles-layer'
 import {
   RouteBuilderLayer,
   RouteBuilderLineLayer,
   RouteBuilderTurnaroundLayer,
-} from '@/components/map/layers/route-builder-layer'
+} from '@/services/layers/markers/route-builder-layer'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
 import { useRouteIsolationService } from '@/services/layers/features/route-isolation.service'
@@ -33,6 +34,7 @@ export function useMarkerLayersService() {
   let waypointsLayer: WaypointsLayer | null = null
   let friendLocationsLayer: FriendLocationsLayer | null = null
   let tripInstructionsLayer: TripInstructionsLayer | null = null
+  let tripStopsLayer: TripStopsLayer | null = null
   let userLocationLayer: UserLocationLayer | null = null
   let trackerLocationsLayer: TrackerLocationsLayer | null = null
   let transitVehiclesLayer: TransitVehiclesLayer | null = null
@@ -62,6 +64,7 @@ export function useMarkerLayersService() {
     waypointsLayer = new WaypointsLayer()
     friendLocationsLayer = new FriendLocationsLayer()
     tripInstructionsLayer = new TripInstructionsLayer()
+    tripStopsLayer = new TripStopsLayer()
     userLocationLayer = new UserLocationLayer()
     trackerLocationsLayer = new TrackerLocationsLayer()
     transitVehiclesLayer = new TransitVehiclesLayer()
@@ -98,6 +101,7 @@ export function useMarkerLayersService() {
     waypointsLayer.initialize(markerAPI)
     friendLocationsLayer.initialize(markerAPI)
     tripInstructionsLayer.initialize(markerAPI)
+    tripStopsLayer.initialize(markerAPI)
     userLocationLayer.initialize(markerAPI)
     trackerLocationsLayer.initialize(markerAPI)
     transitVehiclesLayer.initialize(markerAPI)
@@ -134,24 +138,25 @@ export function useMarkerLayersService() {
    * Set up watchers to sync marker layers with store state
    */
   function setupMarkerLayerWatchers() {
+    // Instruction points and the plan's own stops both belong to whichever
+    // single trip is on the map, so they follow the same trip.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const showTrip = (trip: any | null) => {
+      tripInstructionsLayer?.setTrip(trip)
+      tripStopsLayer?.setTrip(trip)
+    }
+
     watchStops.push(watch(
       () => directionsStore.trips,
       trips => {
-        if (trips) {
-          // Show the first trip by default (recommended or first in list)
-          const firstTrip =
-            trips.trips.find(trip => trip.isRecommended) || trips.trips[0]
-
-          // Update instruction markers if showing single trip
-          if (firstTrip) {
-            tripInstructionsLayer?.setTrip(firstTrip)
-          } else {
-            tripInstructionsLayer?.setTrip(null)
-          }
-        } else {
-          // Clear instruction markers when trips are cleared
-          tripInstructionsLayer?.setTrip(null)
+        if (!trips) {
+          showTrip(null)
+          return
         }
+        // Show the first trip by default (recommended or first in list)
+        showTrip(
+          trips.trips.find(trip => trip.isRecommended) || trips.trips[0] || null,
+        )
       },
     ))
 
@@ -160,12 +165,11 @@ export function useMarkerLayersService() {
       selectedTripId => {
         const trips = directionsStore.trips
         if (!trips || !selectedTripId) {
-          tripInstructionsLayer?.setTrip(null)
+          showTrip(null)
           return
         }
 
-        const trip = trips.trips.find(t => t.id === selectedTripId)
-        tripInstructionsLayer?.setTrip(trip || null)
+        showTrip(trips.trips.find(t => t.id === selectedTripId) || null)
       },
     ))
   }
@@ -190,6 +194,7 @@ export function useMarkerLayersService() {
     waypointsLayer?.destroy()
     friendLocationsLayer?.destroy()
     tripInstructionsLayer?.destroy()
+    tripStopsLayer?.destroy()
     userLocationLayer?.destroy()
     trackerLocationsLayer?.destroy()
     transitVehiclesLayer?.destroy()
@@ -200,6 +205,7 @@ export function useMarkerLayersService() {
     waypointsLayer = null
     friendLocationsLayer = null
     tripInstructionsLayer = null
+    tripStopsLayer = null
     userLocationLayer = null
     trackerLocationsLayer = null
     transitVehiclesLayer = null

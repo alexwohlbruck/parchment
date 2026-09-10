@@ -4,7 +4,7 @@ import { CommandName, useCommandStore } from '@/stores/command.store'
 import { ArgumentType, Command } from '@/types/command.types'
 import { type Command as TCommand } from '@/types/command.types'
 import { createSharedComposable } from '@vueuse/core'
-import { appEventBus } from '@/lib/eventBus'
+import { appEventBus } from '@/lib/event-bus'
 
 const activeCommand = ref<TCommand | null>(null)
 const activeArgumentIndex = ref<number | null>(null)

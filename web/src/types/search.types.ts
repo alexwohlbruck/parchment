@@ -1,5 +1,5 @@
 import { Component } from 'vue'
-import { Place, TransitLineRef, TransitStopRef } from './place.types'
+import { Place, TransitLineRef, TransitStopRef } from '@/types/place.types'
 
 // Category/Preset types for OSM tagging schema
 export interface CategoryResult {
@@ -145,4 +145,13 @@ export interface SearchCategory {
   icon: Component
   keywords: string[]
   osmTags: Record<string, string[]>
+}
+
+/** A selectable value a search filter offers. Structurally a `ChipOption`,
+ *  which is how the filter bar renders it. */
+export interface FilterOption {
+  label: string
+  value: string | number | boolean
+  disabled?: boolean
+  icon?: Component
 }

@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Collection, Bookmark } from '@/types/library.types'
 import { isOfflineId } from '@/lib/sync/offline-id'
-import { useBookmarksStore } from './bookmarks.store'
+import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 
 interface NormalizedCollection extends Omit<Collection, 'places'> {
   bookmarkIds?: string[]

@@ -7,12 +7,12 @@
 
 import type { Layer } from '@/types/map.types'
 import type { Place } from '@/types/place.types'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { watch } from 'vue'
 import { useSearchStore } from '@/stores/search.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { useCategoryPaletteStore } from '@/stores/category-palette.store'
-import SearchResultMapIcon from '@/components/map/SearchResultMapIcon.vue'
+import SearchResultMarker from '@/components/map/markers/SearchResultMarker.vue'
 import {
   SEARCH_RESULTS_LAYER_ID,
   SEARCH_RESULTS_SOURCE_ID,
@@ -20,7 +20,7 @@ import {
   SEARCH_RESULTS_LAYER_CONFIG,
   EMPTY_SEARCH_RESULTS_GEOJSON,
   searchResultLabelPaint,
-} from '@/constants/layer.constants'
+} from '@/constants/layers'
 
 export function useSearchResultsLayerService() {
   // State tracking
@@ -216,7 +216,7 @@ export function useSearchResultsLayerService() {
       const marker = mapStrategy.addVueMarker(
         markerId,
         { lat, lng },
-        SearchResultMapIcon,
+        SearchResultMarker,
         {
           place,
           isHovered: hoveredPlaceId === place.id,

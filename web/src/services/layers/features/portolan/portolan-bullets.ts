@@ -22,6 +22,11 @@
  * in the feed's own colours, which is what it always was.
  */
 import { reactive } from 'vue'
+import {
+  proxyBase,
+  ensureRegions,
+  _resetRegionsForTest,
+} from './portolan-client'
 import { api } from '@/lib/api'
 import { portolanClassOf, type PortolanIndexEntry } from '@/types/portolan.types'
 
@@ -35,30 +40,26 @@ export interface PortolanBullet {
 
 type RouteIndex = Record<string, PortolanBullet>
 
-const proxyBase = () => `${api.defaults.baseURL}/proxy/portolan`
 
 /** Loaded route indexes, per feed. `null` marks a feed that has none. */
 const indexes = reactive<Record<string, RouteIndex | null>>({})
 const pending = new Map<string, Promise<void>>()
 
-let regionsPromise: Promise<PortolanIndexEntry[]> | null = null
 let regions: PortolanIndexEntry[] = []
 /** Bumped when regions arrive, so a consumer computed re-runs. */
 const state = reactive({ generation: 0 })
 
-function ensureRegions(): Promise<PortolanIndexEntry[]> {
-  if (!regionsPromise) {
-    regionsPromise = fetch(`${proxyBase()}/index.json`)
-      .then(r => (r.ok ? r.json() : []))
-      .then(list => (Array.isArray(list) ? list : []))
-      .catch(() => [])
-      .then(list => {
-        regions = list
-        state.generation++
-        return list
-      })
+let regionsHydrated: Promise<PortolanIndexEntry[]> | null = null
+
+function hydrateRegions(): Promise<PortolanIndexEntry[]> {
+  if (!regionsHydrated) {
+    regionsHydrated = ensureRegions().then(list => {
+      regions = list
+      state.generation++
+      return list
+    })
   }
-  return regionsPromise
+  return regionsHydrated
 }
 
 function ensureIndex(feed: string): Promise<void> {
@@ -104,7 +105,7 @@ export function feedsAt(lat: number, lng: number): string[] {
  */
 export async function ensureBulletsAt(lat?: number, lng?: number): Promise<void> {
   if (lat === undefined || lng === undefined) return
-  await ensureRegions()
+  await hydrateRegions()
   await Promise.all(feedsAt(lat, lng).map(ensureIndex))
 }
 
@@ -179,7 +180,8 @@ export function bulletFor(
 export function resetPortolanBullets(regionList: PortolanIndexEntry[] = []) {
   for (const k of Object.keys(indexes)) delete indexes[k]
   pending.clear()
-  regionsPromise = regionList.length ? Promise.resolve(regionList) : null
+  regionsHydrated = regionList.length ? Promise.resolve(regionList) : null
+  _resetRegionsForTest()
   regions = regionList
   state.generation++
 }

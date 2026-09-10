@@ -8,7 +8,7 @@ const boards = ref([
 ])
 const submitFeedback = vi.fn()
 
-vi.mock('@/composables/useFeedback', () => ({
+vi.mock('@/composables/integrations/useFeedback', () => ({
   useFeedback: () => ({
     boards,
     available: ref(true),

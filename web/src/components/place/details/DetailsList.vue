@@ -19,14 +19,14 @@ import DetailItem from './DetailItem.vue'
 import type { Place, DisplayChip, OpeningHours } from '@/types/place.types'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getWifiStatus, parseCuisines } from '@/lib/place.utils'
+import { getWifiStatus, parseCuisines } from '@/lib/place/place-details'
 import {
   getLocalDayAndTime,
   resolveOpeningStatus,
   getTimezoneDifference,
   formatRawHours,
-} from '@/lib/place-open.utils'
-import { resolveIconByName } from '@/lib/osm-tag-icons'
+} from '@/lib/place/place-hours'
+import { resolveIconByName } from '@/lib/place/osm-tag-icons'
 import { SOURCE } from '@/lib/constants'
 import { encode } from 'pluscodes'
 import PlaceSection from './PlaceSection.vue'
@@ -34,8 +34,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDownIcon, ExternalLinkIcon } from 'lucide-vue-next'
 import CopyButton from '@/components/CopyButton.vue'
 import { Button } from '@/components/ui/button'
-import { formatClockTime } from '@/lib/time.utils'
-import { getOsmTagLabel } from '@/lib/osm-tag-labels'
+import { formatClockTime } from '@/lib/time-format'
+import { getOsmTagLabel } from '@/lib/place/osm-tag-labels'
 
 const props = defineProps<{
   place: Partial<Place>

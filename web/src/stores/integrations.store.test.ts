@@ -10,7 +10,8 @@
 
 import { describe, test, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useIntegrationsStore } from './integrations.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { clearAllIntegrationHealth } from '@/lib/integration-health'
 import { IntegrationId, IntegrationCapabilityId } from '@server/types/integration.types'
 import type { IntegrationRecord } from '@server/types/integration.types'
 
@@ -333,6 +334,44 @@ describe('useIntegrationsStore', () => {
 
       expect(store.integrationConfigurations).toBeNull()
       expect(store.availableIntegrations).toBeNull()
+    })
+  })
+
+  describe('degraded integrations', () => {
+    beforeEach(() => {
+      clearAllIntegrationHealth()
+    })
+
+    test('mark and clear toggle the flag', () => {
+      const store = useIntegrationsStore()
+
+      expect(store.isIntegrationDegraded(IntegrationId.DAWARICH)).toBe(false)
+      store.markIntegrationDegraded(IntegrationId.DAWARICH, 'upstream 502')
+      expect(store.isIntegrationDegraded(IntegrationId.DAWARICH)).toBe(true)
+      store.clearIntegrationDegraded(IntegrationId.DAWARICH)
+      expect(store.isIntegrationDegraded(IntegrationId.DAWARICH)).toBe(false)
+    })
+
+    test('hasDegradedIntegrations only counts configured integrations', () => {
+      const store = useIntegrationsStore()
+      store.integrationConfigurations = []
+      store.markIntegrationDegraded(IntegrationId.DAWARICH)
+
+      expect(store.hasDegradedIntegrations).toBe(false)
+
+      store.integrationConfigurations = [
+        makeRecord({ integrationId: IntegrationId.DAWARICH }),
+      ]
+      expect(store.hasDegradedIntegrations).toBe(true)
+    })
+
+    test('clearCache resets degraded flags', () => {
+      const store = useIntegrationsStore()
+      store.markIntegrationDegraded(IntegrationId.DAWARICH)
+
+      store.clearCache()
+
+      expect(store.isIntegrationDegraded(IntegrationId.DAWARICH)).toBe(false)
     })
   })
 })

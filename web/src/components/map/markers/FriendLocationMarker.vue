@@ -17,12 +17,12 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip'
 import MapMarker from './MapMarker.vue'
-import { mapEventBus } from '@/lib/eventBus'
+import { mapEventBus } from '@/lib/event-bus'
 import { useI18n } from 'vue-i18n'
-import { formatTimeAgo } from '@/lib/time.utils'
+import { formatTimeAgo } from '@/lib/time-format'
 import { MARKER_LIVE_PLATE_SIZE } from '@/lib/map-marker'
-import { categoryMarkerPaint } from '@/lib/place-colors'
-import { useAccentMarkerPaint } from '@/composables/useAccentMarkerPaint'
+import { categoryMarkerPaint } from '@/services/place/place-colors'
+import { useAccentMarkerPaint } from '@/composables/map/useAccentMarkerPaint'
 import { useThemeStore } from '@/stores/theme.store'
 
 interface Props {

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { useVehicleLocationPicker } from '@/composables/useVehicleLocationPicker'
-import { VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
+import { useVehicleLocationPicker } from '@/composables/transit/useVehicleLocationPicker'
+import { VEHICLE_TYPE_LABELS } from '@/lib/transit/vehicle-mode-mapping'
 import type { VehicleType } from '@/types/multimodal.types'
 import { Button } from '@/components/ui/button'
 import { MapPinIcon, XIcon } from 'lucide-vue-next'

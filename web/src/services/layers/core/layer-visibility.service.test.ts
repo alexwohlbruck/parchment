@@ -9,10 +9,10 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
-import { useLayerVisibilityService } from './layer-visibility.service'
+import { useLayerVisibilityService } from '@/services/layers/core/layer-visibility.service'
 import type { Layer, LayerGroup } from '@/types/map.types'
 import { LayerType, MapColorTheme } from '@/types/map.types'
-import type { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import type { MapStrategy } from '@/services/map/providers/map.strategy'
 
 // Mock the theme store
 const mockThemeStore = { isDark: false }

@@ -9,7 +9,7 @@ import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useRouteDetailStore } from '@/stores/route-detail.store'
 import { useAppStore } from '@/stores/app.store'
-import RouteDetailPage from '@/components/place/pages/RouteDetailPage.vue'
+import TransitRouteDetailPanel from '@/components/transit/routes/TransitRouteDetailPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -71,7 +71,7 @@ watch(
 </script>
 
 <template>
-  <RouteDetailPage
+  <TransitRouteDetailPanel
     v-if="feedId && routeId"
     :key="`${feedId}/${routeId}`"
     :feedId="feedId"

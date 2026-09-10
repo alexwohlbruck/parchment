@@ -18,7 +18,7 @@
  * return them newest-first for display.
  */
 
-import { loadBlob, saveBlob } from '../personal-blob'
+import { loadBlob, saveBlob } from '@/lib/identity/personal-blob'
 import {
   getNetworkErrorKind,
   isRetriableNetworkError,

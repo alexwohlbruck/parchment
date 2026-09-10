@@ -11,9 +11,10 @@
  */
 
 import { watch, type WatchStopHandle } from 'vue'
-import { useRouteDetailStore, type RouteDetailStop } from '@/stores/route-detail.store'
-import { densifyLine } from '@/lib/geo-densify'
-import { projectAlong, sliceAlong } from '@/lib/geo-line'
+import type { RouteDetailStop } from '@/types/transit.types'
+import { useRouteDetailStore } from '@/stores/route-detail.store'
+import { densifyLine } from '@/lib/geo/geo-densify'
+import { projectAlong, sliceAlong } from '@/lib/geo/geo-line'
 import { widthExpr } from '@/services/layers/features/portolan/portolan-expressions'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
 import {

@@ -12,6 +12,8 @@
  * back.
  */
 
+import { networkDim } from '@/services/layers/features/portolan/portolan-isolation-tuning'
+
 /** Transitland layer IDs that should be faded (retired from the default
  *  template — kept for user-cloned copies still on the map). Excludes
  *  `transitland-route-active` — it's a hover utility layer with a
@@ -41,17 +43,11 @@ const TRANSIT_LAYER_IDS = [
   'transitland-stops-labels',
 ]
 
-/** How far the network steps back — dimmed, not hidden. Matches portolan's
- *  own ISOLATION_DIM; keep the two in step. */
-const NETWORK_DIM_LIGHT = 0.25
-const NETWORK_DIM_DARK = 0.42
-
-/** Theme-dependent for the same reason portolan's is: the same alpha reads
- *  as "gone" against a near-black basemap. */
+/** Theme-dependent because the same alpha buys far less contrast against a
+ *  near-black basemap: a dim that reads as "stepped back" in daylight reads
+ *  as "gone" at night. */
 export const networkDimOpacity = () =>
-  document.documentElement.classList.contains('dark')
-    ? NETWORK_DIM_DARK
-    : NETWORK_DIM_LIGHT
+  networkDim(document.documentElement.classList.contains('dark'))
 
 /** Which opacity paint props carry a layer type's fade. */
 const OPACITY_PROPS: Record<string, string[]> = {

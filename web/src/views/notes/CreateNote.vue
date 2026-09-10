@@ -3,11 +3,11 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useNotesService } from '@/services/notes.service'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useAppService } from '@/services/app.service'
 import { LngLat } from '@/types/map.types'
 import { AppRoute } from '@/router'
-import CreateNoteMarker from '@/components/map/CreateNoteMarker.vue'
+import CreateNoteMarker from '@/components/map/markers/CreateNoteMarker.vue'
 import CreateNotePanel from '@/components/notes/CreateNotePanel.vue'
 
 const route = useRoute()

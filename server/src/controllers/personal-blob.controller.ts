@@ -8,6 +8,20 @@ import {
   listPersonalBlobTypes,
 } from '../services/personal-blob.service'
 import { i18nPlugin } from '../lib/i18n/plugin'
+import { publish } from '../services/realtime/event-bus.service'
+import { INTEGRATION_CONFIG_BLOB_PREFIX } from '../services/integration.service'
+
+// A blob write under integration-config:* IS an integration edit (user-e2ee
+// configs live here, not in the integrations table) — notify the user's
+// other devices just like the integrations endpoints do.
+function emitIfIntegrationConfig(userId: string, blobType: string): void {
+  if (!blobType.startsWith(INTEGRATION_CONFIG_BLOB_PREFIX)) return
+  publish(
+    'integration:updated',
+    { integrationId: blobType.slice(INTEGRATION_CONFIG_BLOB_PREFIX.length) },
+    { localUserIds: [userId], remoteHandles: [] },
+  )
+}
 
 /**
  * Personal-blob storage.
@@ -70,6 +84,7 @@ app.use(permissions(PermissionId.LIBRARY_WRITE)).put(
       nonce: body.nonce ?? '',
       kmVersion: body.kmVersion ?? 1,
     })
+    emitIfIntegrationConfig(user.id, type)
     return { success: true }
   },
   {

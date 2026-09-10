@@ -3,17 +3,15 @@ import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
-import {
-  FriendsList,
-  FriendInvitations,
-  AddFriendDialog,
-  RecoveryKeyDialog,
-} from '@/components/friends'
+import FriendsList from '@/components/friends/FriendsList.vue'
+import FriendInvitations from '@/components/friends/FriendInvitations.vue'
+import AddFriendDialog from '@/components/friends/AddFriendDialog.vue'
+import RecoveryKeyDialog from '@/components/identity/RecoveryKeyDialog.vue'
 import TrackersList from '@/components/trackers/TrackersList.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { UserPlusIcon } from 'lucide-vue-next'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'

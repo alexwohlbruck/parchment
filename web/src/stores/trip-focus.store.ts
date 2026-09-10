@@ -15,13 +15,13 @@
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useDirectionsStore } from '@/stores/directions.store'
-import { fetchVehiclesOnRoutes } from '@/lib/transit-vehicle-fetch'
+import { fetchVehiclesOnRoutes } from '@/lib/transit/transit-vehicle-fetch'
 import {
   focusedLegs,
   routeIdsByFeed,
   yourVehicleIds,
   type FocusedLeg,
-} from '@/lib/transit-focus'
+} from '@/lib/transit/transit-focus'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
 /** Matches the route panel's cadence, so the two pages animate alike. */

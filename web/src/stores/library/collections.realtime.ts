@@ -11,8 +11,8 @@
  * landing twice is harmless.
  */
 
-import { useCollectionsStore } from './collections.store'
-import { registerRealtimeHandlers } from '@/lib/realtime-events'
+import { useCollectionsStore } from '@/stores/library/collections.store'
+import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 import { useCollectionsService } from '@/services/library/collections.service'
 import type { Collection } from '@/types/library.types'
 

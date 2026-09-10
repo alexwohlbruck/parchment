@@ -52,7 +52,7 @@ const hoisted = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/key-storage', () => ({
+vi.mock('@/lib/identity/key-storage', () => ({
   storeSeed: (seed: Uint8Array) => hoisted.storeSeedSpy(seed),
   getSeed: () => hoisted.getSeedSpy(),
   hasIdentity: async () => hoisted.state.stubSeed !== null,
@@ -78,18 +78,18 @@ import {
   bytesToBase64,
   exportPublicKey,
   base64ToBytes,
-} from '@/lib/federation-crypto'
+} from '@/lib/identity/federation-crypto'
 import {
   buildWrappedKmSlot,
   deriveWrapKey,
-} from '@/lib/passkey-prf'
+} from '@/lib/identity/passkey-prf'
 import {
   enrollPasskeySlot,
   enrollExistingPasskeyAsSlot,
   unlockSeedWithPasskey,
   fetchWrappedKeySlots,
   hasAnyWrappedKeySlot,
-} from './identity.service'
+} from '@/services/identity.service'
 
 // ---------------------------------------------------------------------------
 // Helpers

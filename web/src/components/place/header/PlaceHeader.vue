@@ -8,22 +8,23 @@ import {
 } from 'lucide-vue-next'
 import type { Place } from '@/types/place.types'
 import { getLogoPhoto } from '@/types/place.types'
-import PlaceCategoryIcon from '@/components/place/PlaceCategoryIcon.vue'
-import { getSearchResultCategory } from '@/lib/search.utils'
-import { getCategoryColor } from '@/lib/place-colors'
+import PlaceCategoryIcon from '@/components/place/card/PlaceCategoryIcon.vue'
+import { getSearchResultCategory } from '@/lib/search/search-result'
+import { haversineMeters } from '@/lib/geo/geo-line'
+import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
-import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place-open.utils'
+import { resolveOpeningStatus, getTimezoneDifference } from '@/lib/place/place-hours'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useUnits } from '@/composables/useUnits'
 import {
   usePlaceTransitLines,
   usePlaceTransitLinesContext,
   type StationLine,
-} from '@/composables/usePlaceTransitLines'
-import RouteBullet from '@/components/transit/RouteBullet.vue'
-import { getRouteBulletLabel } from '@/lib/transit'
+} from '@/composables/transit/usePlaceTransitLines'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import { getRouteBulletLabel } from '@/lib/transit/transit'
 import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
 import {
   Tooltip,
@@ -31,7 +32,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { formatClockTime } from '@/lib/time.utils'
+import { formatClockTime } from '@/lib/time-format'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -216,17 +217,6 @@ watch(
 const formatTime = (time: string) =>
   formatClockTime(time, { omitZeroMinutes: true })
 
-function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
 
 const distanceText = computed(() => {
   const userLoc = geo.lngLat.value

@@ -1,4 +1,4 @@
-import { capitalize } from '@/filters/text.filters'
+import { capitalize } from '@/lib/string'
 import axios, { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
 import { toast } from '@/lib/toast'
@@ -19,6 +19,11 @@ import {
   classifyNetworkError,
   tagNetworkError,
 } from '@/lib/network-errors'
+import {
+  INTEGRATION_FAILURE_STATUSES,
+  clearIntegrationDegraded,
+  markIntegrationDegraded,
+} from '@/lib/integration-health'
 
 // Detect Tauri environment using the Tauri API
 // Try to use @tauri-apps/api/os for reliable detection
@@ -245,6 +250,9 @@ function getErrorMessage(
 api.interceptors.response.use(
   response => {
     reportServerReachable()
+    if (response.config.integrationId) {
+      clearIntegrationDegraded(response.config.integrationId)
+    }
     return response
   },
   error => {
@@ -276,6 +284,21 @@ api.interceptors.response.use(
 
     // Session probe — any failure is handled silently by the caller.
     if (error.request?.responseURL?.includes('/auth/sessions/current')) {
+      return Promise.reject(error)
+    }
+
+    // A broken third-party integration isn't the user's fault mid-task:
+    // flag it for repair in settings instead of toasting.
+    const integrationId = error.config?.integrationId as string | undefined
+    if (
+      integrationId &&
+      status !== undefined &&
+      INTEGRATION_FAILURE_STATUSES.includes(status)
+    ) {
+      markIntegrationDegraded(
+        integrationId,
+        (error.response?.data as { message?: string } | undefined)?.message,
+      )
       return Promise.reject(error)
     }
 

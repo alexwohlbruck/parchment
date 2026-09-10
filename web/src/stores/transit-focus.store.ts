@@ -19,7 +19,7 @@ import { computed } from 'vue'
 import { defineStore } from 'pinia'
 import { useRouteDetailStore } from '@/stores/route-detail.store'
 import { useTripFocusStore } from '@/stores/trip-focus.store'
-import type { FocusedStop } from '@/lib/transit-focus'
+import type { FocusedStop } from '@/lib/transit/transit-focus'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
 export type TransitFocusSource = 'route' | 'trip'

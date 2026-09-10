@@ -6,9 +6,9 @@ import type { WidgetResponse, WidgetDescriptor, Place } from '@/types/place.type
 import PlaceSection from '@/components/place/details/PlaceSection.vue'
 import CopyButton from '@/components/CopyButton.vue'
 import { ExternalLinkIcon } from 'lucide-vue-next'
-import { formatWord } from '@/lib/string.utils'
-import { getOsmTagLabel, osmKeyToI18nKey } from '@/lib/osm-tag-labels'
-import { getOsmTagIcon } from '@/lib/osm-tag-icons'
+import { formatWord } from '@/lib/string'
+import { getOsmTagLabel, osmKeyToI18nKey } from '@/lib/place/osm-tag-labels'
+import { getOsmTagIcon } from '@/lib/place/osm-tag-icons'
 import { useAppStore } from '@/stores/app.store'
 import { FloorNumbering } from '@/types/map.types'
 

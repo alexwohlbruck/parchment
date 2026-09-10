@@ -20,13 +20,14 @@ import { useResponsive } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 
 import { ItemIcon } from '@/components/ui/item-icon'
+import IntegrationHealthDot from '@/components/integration/IntegrationHealthDot.vue'
 import { AppRoute } from '@/router'
 import type { ThemeColor } from '@/lib/utils'
 import { recentPlaceIdentity, recentSearchIdentity } from '@/lib/recents'
-import { capitalize } from '@/filters/text.filters'
+import { capitalize } from '@/lib/string'
 import Palette from '@/components/palette/Palette.vue'
-import PresetPlacesRow from '@/components/library/PresetPlacesRow.vue'
-import { appEventBus } from '@/lib/eventBus'
+import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
+import { appEventBus } from '@/lib/event-bus'
 import { findScrollAncestor } from '@/lib/scroll'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -36,7 +37,7 @@ import {
   recentPlaceToDisplay,
   recentSearchToDisplay,
   type PlaceDisplay,
-} from '@/lib/place-display'
+} from '@/services/place/place-display'
 
 dayjs.extend(relativeTime)
 
@@ -265,7 +266,7 @@ function recentSubtitle(subtitle: string | null | undefined, at: number): string
         </div>
 
         <!-- Home / Work / School quick places -->
-        <PresetPlacesRow class="mt-2" />
+        <FrequentPlacesRow class="mt-2" />
       </div>
 
       <!-- Navigation Section (mobile only) -->
@@ -302,6 +303,7 @@ function recentSubtitle(subtitle: string | null | undefined, at: number): string
           >
             <ItemIcon icon="Settings" color="parchment" size="sm" variant="ghost" />
             <span class="font-medium text-sm">{{ t('settings.title') }}</span>
+            <IntegrationHealthDot class="ml-auto" />
           </Card>
         </div>
       </div>

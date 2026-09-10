@@ -8,13 +8,13 @@ import { useRouteBuilderStore } from '@/stores/route-builder.store'
 import { useRoutesService } from '@/services/library/routes.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useGeocodingService } from '@/services/geocoding.service'
-import { getSearchResultName } from '@/lib/search.utils'
+import { getSearchResultName } from '@/lib/search/search-result'
 import type { Place } from '@/types/place.types'
 import {
   backendMode,
   RouteSnapAborted,
   snapWaypointsToPath,
-} from '@/lib/route-snapping'
+} from '@/lib/directions/route-snapping'
 import type {
   RouteBody,
   RouteMode,

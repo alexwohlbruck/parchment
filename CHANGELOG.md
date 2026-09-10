@@ -2,6 +2,13 @@
 
 ### Added
 
+* Stops a trip makes for you — the bike rack it parks at, the lot it leaves the
+  car in — now show on the map as their own labelled POI marker, matching the
+  timeline
+* Trip suggestions can be shown as a plain list instead of the timeline, with
+  each option's legs as a row of route badges. The toggle sits next to the
+  sort control and is remembered
+
 ### Changed
 
 * Viewing a trip now fades the surrounding transit network so the route you're
@@ -13,8 +20,44 @@
 
 ### Fixed
 
-* One-finger double-tap zoom no longer opens a place underneath the gesture,
-  and points of interest stay inactive throughout canvas editing
+* The trip suggestions timeline scrolls sideways, so a trip that runs past the
+  visible range can be followed to its end. Each suggestion's type and route
+  description stay pinned at the edge so you can tell the rows apart.
+
+## [0.11.5] - 2026-09-09
+
+### Added
+
+* Integration changes and outages now sync instantly across your open devices
+
+### Changed
+
+* The "set up your encryption keys" warning on an integration now links
+  straight to the setup screen
+
+### Fixed
+
+* A failing integration (like an unreachable location history server) no
+  longer shows repeated error popups — warning badges in settings and on the
+  Settings menu lead you to a banner explaining how to repair it
+* Dragging the bottom sheet upward and releasing now lands on the next
+  position instead of always expanding all the way
+* The measure, radius and isochrone tools keep working after a theme, basemap
+  or map engine change
+* Your unit system preference now applies when signing in on a new device
+* Collections created from the library keep the icon you picked
+* The developer page is no longer reachable in released builds
+* Resetting your encryption key now clears the integrations that relied on it, so they can be connected again afterwards
+* Integrations stranded by an earlier encryption key reset are cleared, so they can be connected again
+* Resetting your encryption key now removes saved routes, which were left behind unreadable
+
+## [0.11.4] - 2026-09-08
+
+### Fixed
+
+* One-finger double-tap-and-drag zoom no longer opens a place or jumps an
+  extra level when released, and points of interest stay inactive throughout
+  canvas editing
 
 ## [0.11.3] - 2026-09-08
 

@@ -1,0 +1,265 @@
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, onActivated, useTemplateRef, watch, nextTick } from 'vue'
+import { useMapStore } from '@/stores/map.store'
+import { useIntegrationsStore } from '@/stores/integrations.store'
+import { useMapService } from '@/services/map/map.service'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
+import { MapEngine } from '@/types/map.types'
+import { IntegrationId } from '@server/types/integration.types'
+
+import ContextMenu from '@/components/map/ContextMenu.vue'
+import MapLoading from '@/components/map/MapLoading.vue'
+import MapboxFallback from '@/components/map/MapboxFallback.vue'
+import VehicleLocationPickerBanner from '@/components/map/VehicleLocationPickerBanner.vue'
+
+const mapService = useMapService()
+const mapStore = useMapStore()
+const integrationsStore = useIntegrationsStore()
+
+const mapContainer = useTemplateRef<HTMLElement>('mapContainer')
+let mapStrategy: MapStrategy
+
+const props = defineProps<{
+  pipSwapped: boolean
+}>()
+
+const mapControlsVisibility = computed(() =>
+  props.pipSwapped ? 'hidden' : 'visible',
+)
+
+// Computed properties for map state
+const isLoadingIntegrations = computed(() => {
+  return !integrationsStore.integrationsReady
+})
+
+const shouldShowMapboxFallback = computed(() => {
+  // Only show fallback if integrations are ready, we're using Mapbox, and Mapbox is available but not configured
+  return (
+    integrationsStore.integrationsReady &&
+    mapStore.settings.engine === MapEngine.MAPBOX &&
+    integrationsStore.isMapboxAvailableButNotConfigured
+  )
+})
+
+const canInitializeMapContainer = computed(() => {
+  // We can initialize the map container as soon as integrations are ready
+  return integrationsStore.integrationsReady
+})
+
+const shouldShowMap = computed(() => {
+  // Show the map if integrations are ready and we're not showing the Mapbox fallback
+  return integrationsStore.integrationsReady && !shouldShowMapboxFallback.value
+})
+
+onMounted(() => {
+  // Set the map container reference immediately when component mounts
+  if (mapContainer.value) {
+    mapService.setMapContainer(mapContainer.value)
+  }
+
+  // Watch for integrations to be ready and then initialize map
+  watch(
+    [() => canInitializeMapContainer.value],
+    ([canInit]) => {
+      if (canInit && mapContainer.value && !mapStrategy) {
+        const result = mapService.initializeMap(
+          mapContainer.value,
+          mapStore.settings.engine,
+        )
+        // Only set mapStrategy if initialization was successful
+        if (result) {
+          mapStrategy = result
+          // Ensure map is properly sized after initialization
+          nextTick(() => {
+            mapService.resize()
+          })
+        }
+      }
+    },
+    { immediate: true },
+  )
+  
+  // Watch for Mapbox integration changes and refresh map
+  watch(
+    () => integrationsStore.integrationConfigurations,
+    (newConfigs, oldConfigs) => {
+      if (mapStore.settings.engine !== MapEngine.MAPBOX) return
+      if (!mapContainer.value) return
+      
+      const newMapbox = (Array.isArray(newConfigs) ? newConfigs : [])
+        .find(c => c.integrationId === IntegrationId.MAPBOX)
+      const oldMapbox = (Array.isArray(oldConfigs) ? oldConfigs : [])
+        .find(c => c.integrationId === IntegrationId.MAPBOX)
+      
+      // Refresh if Mapbox config changed
+      if (JSON.stringify(newMapbox) !== JSON.stringify(oldMapbox)) {
+        // Destroy existing map and reset local reference
+        mapService.destroy()
+        mapStrategy = undefined as any
+        
+        // Reinitialize if we can
+        const result = mapService.initializeMap(
+          mapContainer.value,
+          mapStore.settings.engine,
+        )
+        if (result) {
+          mapStrategy = result
+          // Ensure map is properly sized after reinitialization
+          nextTick(() => {
+            mapService.resize()
+          })
+        }
+      }
+    },
+    { deep: true },
+  )
+})
+
+// Handle component activation when kept alive (e.g., after sign in)
+onActivated(() => {
+  // Ensure map container is properly sized when component is reactivated
+  nextTick(() => {
+    if (mapStrategy) {
+      mapService.resize()
+    }
+  })
+})
+
+onUnmounted(() => {
+  mapService.destroy()
+})
+
+// Resize the map when street view pip is swapped. We are accounting for the transition animation.
+watch(
+  () => props.pipSwapped,
+  () => {
+    if (props.pipSwapped) {
+      const interval = setInterval(() => {
+        mapService.resize()
+      }, 1000 / 30)
+      setTimeout(() => {
+        clearInterval(interval)
+      }, 300)
+    } else {
+      setTimeout(() => {
+        mapService.resize()
+      }, 0)
+    }
+  },
+)
+</script>
+
+<template>
+  <!-- Always render the map container, but conditionally show content -->
+  <div ref="mapContainer" class="w-full h-full">
+    <!-- Show loading state while integrations are loading -->
+    <MapLoading v-if="isLoadingIntegrations" />
+
+    <!-- Show Mapbox fallback if Mapbox is selected but not configured -->
+    <MapboxFallback v-else-if="shouldShowMapboxFallback" />
+  </div>
+
+  <!-- Context menu is always available -->
+  <ContextMenu v-if="shouldShowMap" />
+  <VehicleLocationPickerBanner v-if="shouldShowMap" />
+</template>
+
+<style>
+.mapboxgl-canvas,
+.maplibregl-canvas {
+  outline: none;
+}
+
+/*
+ * What sits behind the globe.
+ *
+ * MapLibre draws nothing outside the sphere — the atmosphere that would
+ * otherwise halo it is off, because it doubles the day/night layer's
+ * terminator (see `SKY` in `map-style/build`) — so the page shows through
+ * around it. A flat map covers the canvas edge to edge, which is why this is
+ * only ever visible under the globe projection. The colours are the basemap's
+ * own land and night sky rather than a photographic space, so the globe reads
+ * as sitting on the map's paper by day and in its own dark by night.
+ */
+.maplibregl-canvas-container {
+  background: hsl(44, 52%, 95%);
+}
+
+.dark .maplibregl-canvas-container {
+  background: hsl(217, 45%, 10%);
+}
+
+.mapboxgl-ctrl-scale,
+.maplibregl-ctrl-scale {
+  font-weight: 700;
+  font-family: var(--font);
+}
+
+.dark .mapboxgl-ctrl-scale,
+.dark .maplibregl-ctrl-scale {
+  color: hsl(var(--foreground));
+}
+
+.dark .mapboxgl-ctrl-group,
+.dark .maplibregl-ctrl-group,
+.dark .mapboxgl-ctrl-scale,
+.dark .maplibregl-ctrl-scale {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.dark .mapboxgl-ctrl-icon,
+.dark .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+
+.mapboxgl-control-container {
+  visibility: v-bind(mapControlsVisibility);
+}
+
+.mapboxgl-ctrl-top,
+.mapboxgl-ctrl-top-left,
+.mapboxgl-ctrl-top-right {
+  padding-top: env(safe-area-inset-top);
+}
+
+.mapboxgl-ctrl-bottom,
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mapboxgl-ctrl-left,
+.mapboxgl-ctrl-left-top,
+.mapboxgl-ctrl-right-bottom {
+  padding-right: env(safe-area-inset-right);
+}
+
+.mapboxgl-ctrl-right,
+.mapboxgl-ctrl-right-top,
+.mapboxgl-ctrl-right-bottom {
+  padding-right: env(safe-area-inset-right);
+}
+
+.mapboxgl-ctrl-logo {
+  display: none !important;
+}
+
+.mapboxgl-ctrl-attrib,
+.maplibregl-ctrl-attrib {
+  display: none !important;
+}
+
+/**
+ * MapLibre's own geolocate button.
+ *
+ * The control is added to the map only for its `trigger()` API — the app draws
+ * its own locate button in the map controls — so the button it renders is a
+ * duplicate. The group is hidden as well as the button, or an empty rounded
+ * box is left sitting in the corner where the control used to be.
+ */
+.maplibregl-ctrl-geolocate,
+.maplibregl-ctrl-group:has(> .maplibregl-ctrl-geolocate) {
+  display: none !important;
+}
+</style>

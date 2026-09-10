@@ -944,7 +944,8 @@
       "totalDistance": "{distance} km",
       "totalStops": "{n} stop | {n} stops",
       "dailyDistance": "Daily distance"
-    }
+    },
+    "checkIntegration": "Check your location history integration in Settings"
   },
   "friends": {
     "title": "Friends",
@@ -2064,7 +2065,8 @@
         "endToEnd": {
           "formNote": "End-to-end encrypted. Your URL and API token are encrypted on this device before upload — the Parchment server never sees them."
         },
-        "setupRequired": "Set up your encryption keys in Settings → Encryption keys before configuring this integration."
+        "setupRequired": "Set up your encryption keys before configuring this integration.",
+          "setupRequiredAction": "Set up"
       },
       "osm": {
         "connected": "OpenStreetMap account connected successfully",
@@ -2076,7 +2078,13 @@
         "configureOAuthApp": "Configure OAuth application on OSM server",
         "devCallbackInstructions": "Dev mode: After authorizing in the browser, copy the full redirect URL and run window.__osmDevCallback('URL') in the console"
       },
-      "viewDocs": "View documentation"
+      "viewDocs": "View documentation",
+      "degraded": {
+        "label": "Not responding",
+        "hint": "Requests to this service are failing. Check its connection settings.",
+        "bannerTitle": "{names} isn't responding | Some integrations aren't responding: {names}",
+        "bannerBody": "Check that the service is running, then open it below and test the connection. | Check that the services are running, then open them below and test their connections."
+      }
     },
     "users": {
       "title": "Users & Roles",

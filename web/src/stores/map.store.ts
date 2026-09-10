@@ -18,7 +18,7 @@ import {
   StartupLocation,
   GridSnapMode,
 } from '@/types/map.types'
-import { MapStrategy } from '@/components/map/map-providers/map.strategy'
+import { MapStrategy } from '@/services/map/providers/map.strategy'
 import { useStorage } from '@vueuse/core'
 
 const emitter = mitt<MapEvents>()

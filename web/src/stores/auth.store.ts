@@ -8,7 +8,7 @@ import { isTauri } from '@/lib/api'
 import { auth as deviceStore } from '@/lib/device-store'
 import { api } from '@/lib/api'
 import { useStorage } from '@vueuse/core'
-import { jsonSerializer } from '@/lib/storage'
+import { jsonSerializer } from '@/lib/storage-serializer'
 
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()

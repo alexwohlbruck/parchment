@@ -1,0 +1,411 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import type { TransitDeparture, TransitStopInfo, WidgetResponse } from '@/types/place.types'
+import { WidgetType } from '@/types/place.types'
+import { ClockIcon, ExternalLinkIcon } from 'lucide-vue-next'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import { bulletFor, ensureBulletsAt } from '@/services/layers/features/portolan/portolan-bullets'
+import {
+  ensureStopIndexAt,
+  osmForStop,
+} from '@/services/layers/features/portolan/portolan-stops'
+import ServiceAlerts from '@/components/transit/alerts/ServiceAlerts.vue'
+import ServiceAlertBadge from '@/components/transit/alerts/ServiceAlertBadge.vue'
+import { useTransitAlerts } from '@/composables/transit/useTransitAlerts'
+import { filterSkippedDepartures } from '@/lib/transit/alert-service-overrides'
+import { alertsFor, worstAlert } from '@/lib/transit/transit-alerts'
+import { api } from '@/lib/api'
+import { useExternalLink } from '@/composables/useExternalLink'
+import { useTransitClock } from '@/composables/transit/useTransitClock'
+import {
+  groupDepartures,
+  formatCountdown,
+  type BoardDeparture,
+} from '@/lib/transit/transit-departures'
+import { transferLinesOf, type StationLine } from '@/composables/transit/usePlaceTransitLines'
+import StationTransfers from '@/components/transit/departures/StationTransfers.vue'
+import {
+  formatDepartureTime,
+  getMinutesUntil,
+  getRouteBulletLabel,
+} from '@/lib/transit/transit'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
+import SheetPageHeader from '@/components/sheet/SheetPageHeader.vue'
+import { useRouter } from 'vue-router'
+import { AppRoute } from '@/router'
+
+/** Past this, a countdown stops being easier to read than a clock time. */
+
+/** Matches the server's expanded board window (24h). */
+const EXPANDED_WINDOW_MINUTES = 1440
+
+const props = defineProps<{
+  transitInfo: TransitStopInfo
+  /** Params the transit widget was fetched with — reused to reach further
+   *  ahead when the rider asks for later departures. */
+  widgetParams?: Record<string, string>
+  /** When rendered inside a place tab: drop the page chrome (header/padding). */
+  embedded?: boolean
+}>()
+
+const { t } = useI18n()
+const { openExternalLink } = useExternalLink()
+const router = useRouter()
+const currentTime = useTransitClock()
+
+/** Runs loaded on demand replace the widget's opening set. */
+const laterDepartures = ref<TransitDeparture[] | null>(null)
+const isLoadingMore = ref(false)
+
+watch(
+  () => props.transitInfo,
+  () => { laterDepartures.value = null },
+)
+
+// Same rule the widget applies: runs a skip alert disowns come off the
+// board; the ones after the window stay, because they say when it lifts.
+const departures = computed((): TransitDeparture[] => {
+  const raw = laterDepartures.value || props.transitInfo?.departures || []
+  return filterSkippedDepartures(raw, stopAlerts.value, [
+    props.transitInfo?.stopId,
+    props.transitInfo?.parentStation,
+  ])
+})
+
+/** Same curated bullets as the card this page expands. */
+watch(
+  () => [props.transitInfo?.lat, props.transitInfo?.lng],
+  () => {
+    void ensureBulletsAt(props.transitInfo?.lat, props.transitInfo?.lng)
+    void ensureStopIndexAt(props.transitInfo?.lat, props.transitInfo?.lng)
+  },
+  { immediate: true },
+)
+const styleOfRoute = (route: {
+  id: string
+  type?: number
+  shortName?: string
+  longName?: string
+}) =>
+  bulletFor(
+    route.id,
+    props.transitInfo?.lat,
+    props.transitInfo?.lng,
+    route.type,
+    route.shortName || route.longName,
+  )
+
+/** Lines an in-station transfer reaches — listed below the board, since they
+ *  do not depart from here. */
+const transferLines = computed(() => transferLinesOf(props.transitInfo?.routes))
+
+function openRoute(routeId?: string) {
+  const feedId = props.transitInfo?.feedId
+  if (!feedId || !routeId) return
+  router.push({ name: AppRoute.TRANSIT_ROUTE, params: { feedId, routeId } })
+}
+
+/**
+ * The connecting stations, each with its own grouped board.
+ *
+ * Kept per-station all the way from Barrelman: these runs leave another
+ * platform, and merging them into the board above would say they depart from
+ * here. The name rides along because a connection is a place — "the R in 6
+ * minutes" only helps once you know it leaves Court St — and it is what a
+ * rider taps to go and look at it.
+ */
+const transferStations = computed(() =>
+  (props.transitInfo?.transferStations || []).map((station) => ({
+    name: station.name,
+    lat: station.lat,
+    lng: station.lng,
+    // Portolan's own join, which is the only exact one.
+    osm:
+      osmForStop(station.feedOnestopId, station.stopId, station.lat, station.lng) ??
+      undefined,
+    groups: groupDepartures(station.departures, currentTime.value, {
+      unknownDirectionLabel: t('place.transit.unknownDirection'),
+      limit: 2,
+      dayLabels: {
+        tonight: t('place.transit.tonight'),
+        tomorrow: t('place.transit.tomorrow'),
+      },
+    }),
+  })).filter((s) => s.groups.length),
+)
+
+/**
+ * Open a connecting station's own page.
+ *
+ * By name and point, which is how the app addresses a place it holds no OSM id
+ * for — the server resolves that pair back to the same OSM node a tap on the
+ * map would have opened.
+ *
+ * `complex` rides along for the same reason every station tap carries it: the
+ * name names an interchange, not one platform group, and without it the page
+ * answers for whichever member the point resolved to.
+ */
+function openTransferStation(station: {
+  name: string
+  lat?: number
+  lng?: number
+  osm?: string
+}) {
+  // Portolan's OSM object when it has one: it opens the station the map opens,
+  // and it is the only way to tell three stations called "Chambers St" apart —
+  // a name search ranks by importance and picked the A/C/E one 428m from the
+  // J/Z platform the rider was standing on.
+  const [type, id] = (station.osm ?? '').split('/')
+  if (type && id) {
+    router.push({ name: AppRoute.PLACE, params: { type, id }, query: { complex: '1' } })
+    return
+  }
+
+  // Otherwise the name and the point, which resolves to the same node wherever
+  // the name is unambiguous.
+  if (station.lat == null || station.lng == null) return
+  router.push({
+    name: AppRoute.PLACE_LOCATION,
+    params: { name: station.name, lat: String(station.lat), lng: String(station.lng) },
+    query: { complex: '1' },
+  })
+}
+
+const routeGroups = computed(() =>
+  groupDepartures(departures.value, currentTime.value, {
+    unknownDirectionLabel: t('place.transit.unknownDirection'),
+    dayLabels: {
+      tonight: t('place.transit.tonight'),
+      tomorrow: t('place.transit.tomorrow'),
+    },
+  }),
+)
+
+// ── Service alerts ──────────────────────────────────────────
+// One query covers the whole board: the stop itself plus every line calling
+// at it, so each route heading can carry its own badge off a single fetch.
+
+const alertQuery = computed(() => {
+  const feedId = props.transitInfo?.feedId
+  const stopId = props.transitInfo?.stopId
+  if (!feedId || !stopId) return null
+  return {
+    feedId,
+    stopIds: [stopId],
+    // Off the RAW board, not the filtered one — the filter reads these
+    // alerts, and a query that read the filter back would chase itself.
+    routeIds: [...new Set(
+      (laterDepartures.value || props.transitInfo?.departures || [])
+        .map((d) => d.route?.id)
+        .filter(Boolean) as string[],
+    )],
+    includeUpcoming: true,
+  }
+})
+
+const { inEffect: stopAlerts } = useTransitAlerts(alertQuery)
+
+/** The one alert a route heading's badge stands for, if any. */
+function routeAlert(routeId: string) {
+  return worstAlert(alertsFor(stopAlerts.value, { routeId }))
+}
+
+/** True when nothing on the board runs today — the stop is shut for the night
+ *  and every run shown belongs to a later day. */
+const isClosedForToday = computed(
+  () =>
+    routeGroups.value.length > 0 &&
+    routeGroups.value.every((group) =>
+      group.directions.every((dir) => dir.departures[0]?.dayLabel),
+    ),
+)
+
+const canLoadMore = computed(
+  () => Boolean(props.transitInfo?.hasMore) && !laterDepartures.value,
+)
+
+/** Refetch the same stops over a wider window. */
+async function loadLaterDepartures() {
+  if (isLoadingMore.value || !props.widgetParams) return
+  isLoadingMore.value = true
+  try {
+    const response = await api.get<WidgetResponse<TransitStopInfo>>(
+      `/places/widgets/${WidgetType.TRANSIT}`,
+      { params: { ...props.widgetParams, window: String(EXPANDED_WINDOW_MINUTES) } },
+    )
+    laterDepartures.value = response.data.data.value?.departures || []
+  } catch {
+    // Leave the opening board in place — it's still valid, just shorter.
+  } finally {
+    isLoadingMore.value = false
+  }
+}
+
+function formatMin(dep: BoardDeparture): string {
+  return formatCountdown(dep, currentTime.value) || formatDepartureTime(dep)
+}
+
+function openRouteDetail(departure: TransitDeparture) {
+  const feedId = props.transitInfo?.feedId
+  const routeId = departure.route.id
+  if (!feedId || !routeId) return
+  router.push({ name: AppRoute.TRANSIT_ROUTE, params: { feedId, routeId } })
+}
+
+function openTransitlandLink() {
+  if (props.transitInfo?.onestopId) {
+    openExternalLink(`https://www.transit.land/stops/${props.transitInfo.onestopId}`, '_blank')
+  }
+}
+</script>
+
+<template>
+  <component :is="embedded ? 'div' : PanelLayout">
+    <SheetPageHeader
+      v-if="!embedded"
+      :title="transitInfo?.name || t('place.transit.transitStop')"
+    />
+
+    <div v-if="transitInfo?.code" class="text-xs text-muted-foreground mb-3 -mt-1">
+      Stop ID: {{ transitInfo.code }}
+    </div>
+
+    <!-- Service has finished for the day; everything below is a later day -->
+    <div
+      v-if="isClosedForToday"
+      class="mb-4 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground"
+    >
+      {{ t('place.transit.noMoreToday') }}
+    </div>
+
+    <ServiceAlerts
+      :query="alertQuery"
+      :title="t('place.transit.alerts.atThisStop')"
+      class="mb-4"
+    />
+
+    <div v-if="routeGroups.length > 0" class="space-y-5">
+      <section v-for="group in routeGroups" :key="group.routeKey">
+        <!-- Route badge + name -->
+        <button
+          class="flex items-center gap-2 mb-3 group cursor-pointer"
+          @click="openRouteDetail(group.representative)"
+        >
+          <RouteBullet
+            :label="styleOfRoute(group.route)?.label || getRouteBulletLabel(group.route, t)"
+            :color="styleOfRoute(group.route)?.color || group.route.color"
+            :shape="styleOfRoute(group.route)?.shape"
+            :text-color="styleOfRoute(group.route)?.color ? null : group.route.textColor"
+            class="group-hover:ring-2 ring-offset-1 ring-foreground/20 transition-shadow"
+          />
+          <span class="text-sm text-muted-foreground truncate group-hover:text-foreground transition-colors">
+            {{ group.route.longName || group.route.shortName }}
+          </span>
+          <ServiceAlertBadge
+            v-if="routeAlert(group.route.id)"
+            :alert="routeAlert(group.route.id)!"
+          />
+        </button>
+
+        <!-- Departure table: one row per direction -->
+        <div class="space-y-2">
+          <div
+            v-for="dir in group.directions"
+            :key="dir.headsign"
+            class="grid gap-x-3 items-baseline"
+            style="grid-template-columns: 1fr auto"
+          >
+            <!-- Row 1: headsign + next 2 countdowns -->
+            <span class="text-sm truncate">{{ dir.headsign }}</span>
+            <div class="flex items-center gap-1 justify-end">
+              <template v-for="(dep, i) in dir.departures.slice(0, 2)" :key="i">
+                <span v-if="i > 0" class="text-muted-foreground text-xs">,</span>
+                <span
+                  class="text-sm tabular-nums"
+                  :class="{ 'text-green-600 dark:text-green-400 font-medium': i === 0 && getMinutesUntil(dep, currentTime) !== null && getMinutesUntil(dep, currentTime)! <= 1 }"
+                >{{ formatMin(dep) }}</span>
+                <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
+              </template>
+            </div>
+
+            <!-- Row 2: additional departure times (smaller, muted) -->
+            <div
+              v-if="dir.departures.length > 2"
+              class="col-span-2 flex items-center gap-1 flex-wrap"
+            >
+              <template v-for="(dep, i) in dir.departures.slice(2, 8)" :key="i">
+                <!-- Day boundary: the times that follow are on a later day -->
+                <span
+                  v-if="dep.dayLabel"
+                  class="text-[10px] text-muted-foreground rounded bg-muted px-1.5 py-0.5"
+                >{{ dep.dayLabel }}</span>
+                <span v-else-if="i > 0" class="text-muted-foreground text-[10px]">,</span>
+                <span class="text-xs tabular-nums text-muted-foreground">{{ formatDepartureTime(dep) }}</span>
+                <RealtimeIndicator v-if="dep.realTime" :realTime="true" class="shrink-0" />
+              </template>
+              <span v-if="dir.departures.length > 8" class="text-xs text-muted-foreground">
+                +{{ dir.departures.length - 8 }} more
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- The opening board covers a few hours; the rest of the day is a tap away -->
+      <button
+        v-if="canLoadMore && widgetParams"
+        type="button"
+        class="w-full rounded-md border py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-60"
+        :disabled="isLoadingMore"
+        @click="loadLaterDepartures"
+      >
+        {{ isLoadingMore ? t('place.transit.loadingMore') : t('place.transit.showLaterDepartures') }}
+      </button>
+    </div>
+
+    <!-- No departures -->
+    <div v-else class="text-center py-12 text-muted-foreground">
+      <ClockIcon class="h-10 w-10 mx-auto mb-3 opacity-40" />
+      <p class="text-sm">{{ t('place.transit.noUpcomingDepartures') }}</p>
+      <p class="text-xs mt-1">{{ t('place.transit.checkBackLater') }}</p>
+    </div>
+
+    <StationTransfers
+      :stations="transferStations"
+      :now="currentTime"
+      :lines="transferLines"
+      :lat="transitInfo?.lat"
+      :lng="transitInfo?.lng"
+      :feed-id="transitInfo?.feedId"
+      class="mt-6"
+      @open="(line: StationLine) => openRoute(line.id)"
+      @open-route="(routeId: string) => openRoute(routeId)"
+        @open-station="openTransferStation"
+    />
+
+    <!-- Footer -->
+    <div class="mt-6 pt-3 border-t space-y-2 text-xs text-muted-foreground">
+      <div v-if="departures.length > 0 && departures[0].agency">
+        Operated by
+        <a
+          v-if="departures[0].agency?.url"
+          :href="departures[0].agency.url"
+          target="_blank"
+          class="text-primary hover:underline"
+        ><strong>{{ departures[0].agency.name }}</strong></a>
+        <strong v-else>{{ departures[0].agency?.name }}</strong>
+      </div>
+      <button
+        v-if="transitInfo?.onestopId"
+        type="button"
+        class="flex items-center gap-1 hover:text-foreground transition-colors"
+        @click="openTransitlandLink"
+      >
+        <ExternalLinkIcon class="h-3 w-3" />
+        View on Transitland
+      </button>
+    </div>
+  </component>
+</template>

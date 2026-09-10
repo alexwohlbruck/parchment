@@ -1,18 +1,31 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
+import {
+  TRIP_MODE_COLORS,
+  depCountdown,
+  entrancePhrase,
+  formatClockCompact,
+  formatCo2,
+  joinStatus,
+  movingDuration,
+  railColorAt,
+  railStyleAt,
+  segmentRail,
+  waitMinutes,
+} from '@/lib/directions/trip-display'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
-import { applyDepartureChange } from '@/lib/trip-rebooking'
+import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { useDirectionsService } from '@/services/directions.service'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
 import {
   departureReachability,
   remainingAccessWalkSec,
   type DepartureReachability,
-} from '@/lib/transit-reachability'
+} from '@/lib/transit/transit-reachability'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -36,37 +49,38 @@ import {
   ShareIcon,
 } from 'lucide-vue-next'
 import { AppRoute } from '@/router'
-import { tripSignature } from '@/lib/trip-signature'
+import { tripSignature } from '@/lib/directions/trip-signature'
 import type { RouteInstruction } from '@/types/directions.types'
 import type { Place } from '@/types/place.types'
-import type { RouteProfileType } from '@/lib/route-profile-colors'
+import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import type { SharedMobilityDetails } from '@/types/multimodal.types'
-import { getSegmentIcon } from '@/lib/travel-mode-icons'
-import { getPlaceRoute } from '@/lib/place.utils'
+import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
+import { tripPlaceStops, type TripPlaceStop } from '@/lib/directions/trip-stops'
+import { getPlaceRoute } from '@/lib/place/place-route'
 import {
   getSearchResultIconName,
   getSearchResultIconPack,
   getSearchResultCategory,
   getSearchResultName,
-} from '@/lib/search.utils'
-import { getCategoryColor } from '@/lib/place-colors'
+} from '@/lib/search/search-result'
+import { getCategoryColor } from '@/services/place/place-colors'
 import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { PlaceCard } from '@/components/place/card'
-import { waypointToDisplay, type PlaceDisplay } from '@/lib/place-display'
-import SegmentDetails from '@/components/directions/timeline/SegmentDetails.vue'
-import RealtimeIndicator from '@/components/transit/RealtimeIndicator.vue'
-import RouteBullet from '@/components/transit/RouteBullet.vue'
-import DepartureBoard from '@/components/directions/timeline/DepartureBoard.vue'
-import ServiceAlertRow from '@/components/transit/ServiceAlertRow.vue'
-import ServiceAlertCard from '@/components/transit/ServiceAlertCard.vue'
+import { waypointToDisplay, type PlaceDisplay } from '@/services/place/place-display'
+import SegmentDetails from '@/components/directions/trip/SegmentDetails.vue'
+import RealtimeIndicator from '@/components/transit/departures/RealtimeIndicator.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
+import DepartureBoard from '@/components/transit/departures/DepartureBoard.vue'
+import ServiceAlertRow from '@/components/transit/alerts/ServiceAlertRow.vue'
+import ServiceAlertCard from '@/components/transit/alerts/ServiceAlertCard.vue'
 import { useTransitAlertsStore } from '@/stores/transit-alerts.store'
-import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit-alerts'
+import { splitFeedId, isInEffect, sortByRelevance } from '@/lib/transit/transit-alerts'
 import type { ServiceAlert } from '@/types/transit.types'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { SheetHeader } from '@/components/sheet'
 import { useUnits } from '@/composables/useUnits'
-import { formatDurationCompact } from '@/lib/time.utils'
+import { formatDurationCompact } from '@/lib/time-format'
 import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
@@ -415,26 +429,6 @@ function departuresFor(segmentIndex: number): DepartureOption[] {
   return segmentDepartures.value[segmentIndex] ?? []
 }
 
-/** Board-card countdown: a glanceable lead plus the absolute clock time as a
- *  sub-line. Already-departed runs read "Nm ago" (NOT "now" — that's only the
- *  current minute); upcoming runs read "now" / "5 min" / "1h 4m". Both lines are
- *  always present so the cards stay uniform. Recomputes off the nowMs tick. */
-function depCountdown(ms: number): { lead: string; sub: string } {
-  const clock = formatClockCompact(new Date(ms))
-  const deltaMs = ms - nowMs.value
-  // Already departed — detect by exact sign (not the rounded minute, which would
-  // fold the last ~30s into "now") so a struck card never reads "now".
-  if (deltaMs < 0) {
-    const ago = Math.max(1, Math.round(-deltaMs / 60_000))
-    return { lead: ago < 60 ? `${ago}m ago` : 'departed', sub: clock }
-  }
-  const min = Math.round(deltaMs / 60_000)
-  if (min === 0) return { lead: 'now', sub: clock }
-  if (min < 60) return { lead: `${min} min`, sub: clock }
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return { lead: m ? `${h}h ${m}m` : `${h}h`, sub: clock }
-}
 
 // ── Departure rebooking ──────────────────────────────────────────────
 // Choosing a later run is pure schedule math on the existing plan — no
@@ -627,7 +621,7 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
   const unreachable = state === 'unreachable'
   const hurry = state === 'hurry'
   const cancelled = dep.cancelled === true
-  const { lead, sub } = depCountdown(dep.ms)
+  const { lead, sub } = depCountdown(dep.ms, nowMs.value)
   const arriving = !departed && !cancelled && lead === 'now'
   const name = dep.route?.shortName ?? segment.lineName
   const switchTo = `Switch to the ${name} at ${dep.label}`
@@ -690,10 +684,6 @@ function depCard(segment: any, segmentIndex: number, dep: DepartureOption): DepC
   }
 }
 
-/** "Planned departure" + "3 min late" → "Planned departure — 3 min late". */
-function joinStatus(base: string, extra: string | null): string {
-  return extra ? `${base} — ${extra}` : base
-}
 
 /** Per-segment board cards, each enriched with its visual state. Recomputes off
  *  the nowMs tick and whenever fresh departures land. */
@@ -712,38 +702,8 @@ const boardCards = computed(() => {
   return out
 })
 
-/** Time actually in motion — a walk's duration minus the wait at the stop. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function movingDuration(segment: any): number {
-  return Math.max(0, (segment.duration || 0) - (segment.waitSeconds ?? 0))
-}
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function waitMinutes(segment: any): number {
-  const w = segment.waitSeconds ?? 0
-  return w >= 60 ? Math.round(w / 60) : 0
-}
 
-/** Full entrance phrase for the timeline. A real entrance name reads "Enter
- *  at <name>". A train-direction description (e.g. "1 trains Downtown") is
- *  about which platform a stair serves — useful when entering ("Enter · 1
- *  trains Downtown"), but noise when exiting (you're heading to the street,
- *  not a platform), so it's shown only on enter. Empty when the entrance
- *  carries nothing usable — never fabricated. */
-function entrancePhrase(
-  entrance:
-    | { role?: string; name?: string | null; description?: string | null }
-    | null
-    | undefined,
-): string {
-  if (!entrance) return ''
-  const verb = entrance.role === 'exit' ? 'Exit' : 'Enter'
-  if (entrance.name) return `${verb} at ${entrance.name}`
-  if (entrance.role !== 'exit' && entrance.description) {
-    return `${verb} · ${entrance.description}`
-  }
-  return ''
-}
 
 const hoveredInstructionKey = ref<string | null>(null)
 
@@ -852,14 +812,6 @@ watch(
 )
 
 
-const modeColors = {
-  walking: 'bg-cobalt-500',
-  driving: 'bg-violet-500',
-  cycling: 'bg-forest-500',
-  biking: 'bg-forest-500',
-  transit: 'bg-parchment-500',
-  truck: 'bg-compass-500',
-} as const
 
 const modeTextColors: Record<string, string> = {
   walking: 'text-cobalt-500',
@@ -933,25 +885,13 @@ const formatDistanceDisplay = (meters: number | undefined): string => {
   return formatDistance(meters)
 }
 
-const formatTime = (date: Date): string => {
+const formatTime = (date: Date | string): string => {
   return new Date(date).toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
   })
 }
 
-/** Clock time without the AM/PM. Every departure chip is one fixed width, and
- *  the countdown sitting right above already says which side of noon this is —
- *  so the day period is the first thing to go. Locales that don't use one are
- *  unaffected. */
-function formatClockCompact(date: Date): string {
-  return new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' })
-    .formatToParts(date)
-    .filter((p) => p.type !== 'dayPeriod')
-    .map((p) => p.value)
-    .join('')
-    .trim()
-}
 
 function onRouteProfileChange(
   segmentIndex: number,
@@ -984,10 +924,6 @@ const formatFareBreakdown = (p: RentalPricing): string => {
   return unlock
 }
 
-function formatCo2(kg: number): string {
-  if (kg >= 1) return `${kg.toFixed(1)} kg`
-  return `${Math.round(kg * 1000)} g`
-}
 
 
 // ── Route waypoints ────────────────────────────────────────────────
@@ -1043,6 +979,15 @@ const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
   })
 })
 
+/** Stops the plan makes on its own — a bike rack, a parking lot. */
+const placeStopsBySegment = computed(
+  () =>
+    new Map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tripPlaceStops((trip.value as any)?.segments).map(s => [s.segmentIndex, s]),
+    ),
+)
+
 // ── Unified timeline ───────────────────────────────────────────────
 
 interface TimelineWaypointEntry {
@@ -1058,11 +1003,8 @@ interface TimelineSegmentEntry {
   segmentIndex: number
 }
 
-interface TimelinePlaceStopEntry {
+interface TimelinePlaceStopEntry extends TripPlaceStop {
   kind: 'place-stop'
-  place: Place
-  label: string
-  time: Date | null
 }
 
 type TimelineEntry = TimelineWaypointEntry | TimelineSegmentEntry | TimelinePlaceStopEntry
@@ -1091,19 +1033,8 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
   for (let i = 0; i < segs.length; i++) {
     entries.push({ kind: 'segment', segment: segs[i], segmentIndex: i })
 
-    // Check for a place-bearing intermediate waypoint (e.g. parking) between
-    // consecutive segments. The backend attaches a full Place object to the
-    // segment end waypoint when it represents an OSM POI like a bike rack.
-    const seg = segs[i]
-    const nextSeg = segs[i + 1]
-    if (nextSeg && seg.end?.place) {
-      entries.push({
-        kind: 'place-stop',
-        place: seg.end.place as Place,
-        label: seg.end.label || seg.end.place.name?.value || 'Stop',
-        time: seg.endTime ?? null,
-      })
-    }
+    const stop = placeStopsBySegment.value.get(i)
+    if (stop) entries.push({ kind: 'place-stop', ...stop })
 
     const viaIndex = i + 1
     if (viaIndex < wps.length - 1) {
@@ -1132,34 +1063,7 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
 
 // ── Rail color helper ──────────────────────────────────────────────
 
-function getRailColor(entryIndex: number, position: 'above' | 'below'): string {
-  const entries = timelineEntries.value
-  const search = position === 'above' ? -1 : 1
-  for (let j = entryIndex + search; j >= 0 && j < entries.length; j += search) {
-    const e = entries[j]
-    if (e.kind === 'segment') {
-      return modeColors[e.segment.mode as keyof typeof modeColors] || 'bg-parchment-500'
-    }
-  }
-  return 'bg-border'
-}
 
-/**
- * Get inline style for rail color — uses transit line color when available,
- * otherwise returns empty (falls back to class-based coloring).
- */
-function getRailStyle(entryIndex: number, position: 'above' | 'below'): Record<string, string> {
-  const entries = timelineEntries.value
-  const search = position === 'above' ? -1 : 1
-  for (let j = entryIndex + search; j >= 0 && j < entries.length; j += search) {
-    const e = entries[j]
-    if (e.kind === 'segment' && e.segment.lineColor) {
-      return { background: `#${e.segment.lineColor}` }
-    }
-    if (e.kind === 'segment') return {}
-  }
-  return {}
-}
 
 // ── Transit card rail ──────────────────────────────────────────────
 
@@ -1178,20 +1082,6 @@ function isTransitCard(entry: TimelineEntry): boolean {
   )
 }
 
-/**
- * Paint for the rail inside a transit card. It is the same line as the rail
- * above and below the card, so it takes the segment's colour at full strength
- * — nodes and line alike. Spread onto an element with `v-bind`.
- */
-function segmentRail(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  segment: any,
-): { class?: string; style?: Record<string, string> } {
-  if (segment.lineColor) return { style: { background: `#${segment.lineColor}` } }
-  return {
-    class: modeColors[segment.mode as keyof typeof modeColors] || 'bg-parchment-500',
-  }
-}
 
 // ── Segment helpers ────────────────────────────────────────────────
 
@@ -1317,7 +1207,7 @@ function showSegmentChart(segment: any): boolean {
       <div class="mt-4">
         <div
           v-for="(entry, i) in timelineEntries"
-          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
+          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.id}` : `seg-${entry.segmentIndex}`"
           class="flex"
           :class="!isTransitCard(entry) && 'pl-2'"
         >
@@ -1339,13 +1229,13 @@ function showSegmentChart(segment: any): boolean {
               <div
                 v-if="i > 0"
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[20px]"
-                :class="getRailColor(i, 'above')"
+                :class="railColorAt(timelineEntries, i, 'above')"
               />
               <!-- Line below the node -->
               <div
                 v-if="i < timelineEntries.length - 1"
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[18px] bottom-[-2px]"
-                :class="getRailColor(i, 'above')"
+                :class="railColorAt(timelineEntries, i, 'above')"
               />
               <!-- Every stop but the start wears a marker: its own POI glyph
                    where it has one, the marker system's pin where it doesn't.
@@ -1383,14 +1273,14 @@ function showSegmentChart(segment: any): boolean {
               <div
                 v-if="i > 0"
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[20px]"
-                :class="getRailColor(i, 'above')"
-                :style="getRailStyle(i, 'above')"
+                :class="railColorAt(timelineEntries, i, 'above')"
+                :style="railStyleAt(timelineEntries, i, 'above')"
               />
               <div
                 v-if="i < timelineEntries.length - 1"
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[18px] bottom-[-2px]"
-                :class="getRailColor(i, 'below')"
-                :style="getRailStyle(i, 'below')"
+                :class="railColorAt(timelineEntries, i, 'below')"
+                :style="railStyleAt(timelineEntries, i, 'below')"
               />
               <ItemIcon
                 :icon="getSearchResultIconName(entry.place)"
@@ -1408,20 +1298,20 @@ function showSegmentChart(segment: any): boolean {
               <!-- Line above icon: previous segment's color, from top (with overlap) to icon center -->
               <div
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[21px]"
-                :class="getRailColor(i, 'above')"
-                :style="getRailStyle(i, 'above')"
+                :class="railColorAt(timelineEntries, i, 'above')"
+                :style="railStyleAt(timelineEntries, i, 'above')"
               />
               <!-- Line below icon: this segment's color, from icon center to bottom (with overlap) -->
               <div
                 v-if="i < timelineEntries.length - 1"
                 class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[19px] bottom-[-2px]"
-                :class="!entry.segment.lineColor && (modeColors[entry.segment.mode as keyof typeof modeColors] || 'bg-parchment-500')"
+                :class="!entry.segment.lineColor && (TRIP_MODE_COLORS[entry.segment.mode as keyof typeof TRIP_MODE_COLORS] || 'bg-parchment-500')"
                 :style="entry.segment.lineColor ? { background: `#${entry.segment.lineColor}` } : {}"
               />
               <!-- Mode icon — mt-[5px] centers 28px icon against ~38px header (title + subtitle) -->
               <div
                 class="relative z-10 mt-[5px] shrink-0 size-7 rounded-full flex items-center justify-center text-white"
-                :class="!entry.segment.lineColor && (modeColors[entry.segment.mode as keyof typeof modeColors] || 'bg-parchment-500')"
+                :class="!entry.segment.lineColor && (TRIP_MODE_COLORS[entry.segment.mode as keyof typeof TRIP_MODE_COLORS] || 'bg-parchment-500')"
                 :style="entry.segment.lineColor ? {
                   background: `#${entry.segment.lineColor}`,
                   color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',
@@ -1529,8 +1419,8 @@ function showSegmentChart(segment: any): boolean {
                       <!-- Above the icon: the colour of whatever came before -->
                       <div
                         class="absolute left-1/2 -translate-x-1/2 w-0.5 top-[-2px] h-[calc(50%+2px)]"
-                        :class="getRailColor(i, 'above')"
-                        :style="getRailStyle(i, 'above')"
+                        :class="railColorAt(timelineEntries, i, 'above')"
+                        :style="railStyleAt(timelineEntries, i, 'above')"
                       />
                       <!-- Below the icon: this line's colour, on down the card -->
                       <div
@@ -1539,7 +1429,7 @@ function showSegmentChart(segment: any): boolean {
                       />
                       <div
                         class="relative z-10 size-7 rounded-full flex items-center justify-center text-white shrink-0"
-                        :class="!entry.segment.lineColor && (modeColors[entry.segment.mode as keyof typeof modeColors] || 'bg-parchment-500')"
+                        :class="!entry.segment.lineColor && (TRIP_MODE_COLORS[entry.segment.mode as keyof typeof TRIP_MODE_COLORS] || 'bg-parchment-500')"
                         :style="entry.segment.lineColor ? {
                           background: `#${entry.segment.lineColor}`,
                           color: entry.segment.lineTextColor ? `#${entry.segment.lineTextColor}` : '#fff',

@@ -17,7 +17,7 @@ import { useCanvasesStore } from '@/stores/library/canvases.store'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { useAppService } from '@/services/app.service'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
-import { useLayerPreview } from '@/composables/useLayerPreview'
+import { useLayerPreview } from '@/composables/map/useLayerPreview'
 import {
   createLayerDraft,
   draftToLayerFields,
@@ -25,15 +25,15 @@ import {
   validateDraft,
   withGeneratedIds,
   type LayerDraft,
-} from '@/lib/map-style/draft'
-import type { ImportCandidate } from '@/lib/map-style/import'
-import { candidateToDraft } from '@/lib/map-style/import'
-import DetailPanelLayout from '@/components/layouts/DetailPanelLayout.vue'
-import SourceForm from '@/components/map/layers/editor/SourceForm.vue'
-import StyleForm from '@/components/map/layers/editor/StyleForm.vue'
-import ImportStyleDialog from '@/components/map/layers/editor/ImportStyleDialog.vue'
-import JsonField from '@/components/map/layers/editor/JsonField.vue'
-import EditorSection from '@/components/map/layers/editor/EditorSection.vue'
+} from '@/lib/layer-editor/draft'
+import type { ImportCandidate } from '@/lib/layer-editor/import'
+import { candidateToDraft } from '@/lib/layer-editor/import'
+import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
+import SourceForm from '@/components/library/layers/editor/SourceForm.vue'
+import StyleForm from '@/components/library/layers/editor/StyleForm.vue'
+import ImportStyleDialog from '@/components/library/layers/editor/ImportStyleDialog.vue'
+import JsonField from '@/components/library/layers/editor/JsonField.vue'
+import EditorSection from '@/components/library/layers/editor/EditorSection.vue'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

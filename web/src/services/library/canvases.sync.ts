@@ -9,8 +9,8 @@
 
 import { registerMutationHandler } from '@/lib/sync/mutation-registry'
 import { useCanvasesStore } from '@/stores/library/canvases.store'
-import { useCanvasesService } from './canvases.service'
-import type { CanvasMetadata } from '@/lib/library-crypto'
+import { useCanvasesService } from '@/services/library/canvases.service'
+import type { CanvasMetadata } from '@/lib/identity/library-crypto'
 import type { Canvas, CanvasBody, CreateCanvasParams } from '@/types/canvas.types'
 
 export interface CreateCanvasMutation {

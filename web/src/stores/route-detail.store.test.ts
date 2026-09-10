@@ -6,8 +6,9 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
+import type { RouteDetailStop, VehicleOnRoute } from '@/types/transit.types'
 import { setActivePinia, createPinia } from 'pinia'
-import { useRouteDetailStore, type RouteDetailStop, type VehicleOnRoute } from './route-detail.store'
+import { useRouteDetailStore } from '@/stores/route-detail.store'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 
 // Mock the API and realtime modules
@@ -17,12 +18,12 @@ vi.mock('@/lib/api', () => ({
   },
 }))
 
-vi.mock('@/lib/realtime', () => ({
+vi.mock('@/lib/realtime/realtime', () => ({
   send: vi.fn(),
   connectionState: { value: 'open' },
 }))
 
-vi.mock('@/lib/realtime-events', () => ({
+vi.mock('@/lib/realtime/realtime-events', () => ({
   registerRealtimeHandlers: vi.fn(),
 }))
 

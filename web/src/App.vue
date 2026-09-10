@@ -18,32 +18,32 @@ import { useResponsive } from '@/lib/utils'
 import { isTauri } from '@/lib/api'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useVirtualKeyboard } from '@/composables/useVirtualKeyboard'
-import { useFriendLocationsLayer } from '@/composables/useFriendLocationsLayer'
-import { useTrackerLocationsLayer } from '@/composables/useTrackerLocationsLayer'
+import { useFriendLocationsLayer } from '@/composables/friends/useFriendLocationsLayer'
+import { useTrackerLocationsLayer } from '@/composables/trackers/useTrackerLocationsLayer'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useRecentsStore } from '@/stores/recents.store'
 import { PermissionId } from '@/types/auth.types'
 import {
   connect as realtimeConnect,
   disconnect as realtimeDisconnect,
-} from '@/lib/realtime'
+} from '@/lib/realtime/realtime'
 // Side-effect import: each store that cares about realtime calls
 // `registerRealtimeHandlers` at import time, so we just need to make sure
 // those modules run. A dedicated bootstrap file keeps the side-effect
 // imports in one obvious place.
-import '@/lib/realtime-bootstrap'
+import '@/lib/realtime/realtime-bootstrap'
 
 import { SIDEBAR_WIDTH } from '@/components/ui/sidebar'
 import DesktopNav from '@/components/navigation/DesktopNavigation.vue'
 import MobileNav from '@/components/navigation/MobileNavigation.vue'
 import FeedbackDialog from '@/components/feedback/FeedbackDialog.vue'
-import { useFeedback } from '@/composables/useFeedback'
+import { useFeedback } from '@/composables/integrations/useFeedback'
 import { useShakeGesture } from '@/composables/useShakeGesture'
-import DialogView from '@/views/DialogView.vue'
+import DialogView from '@/components/shell/DialogHost.vue'
 import HotkeysMenu from '@/components/HotkeysMenu.vue'
 import ImpersonationBanner from '@/components/ImpersonationBanner.vue'
 import OnboardingDialog from '@/components/onboarding/OnboardingDialog.vue'
-import KeyRestoreDialog from '@/components/onboarding/KeyRestoreDialog.vue'
+import KeyRestoreDialog from '@/components/identity/KeyRestoreDialog.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { TransitionSlide } from '@morev/vue-transitions'
 

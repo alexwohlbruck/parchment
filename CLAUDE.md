@@ -26,6 +26,102 @@
 - Skip purely internal work (refactors, test-only changes, dependency bumps) — if a user wouldn't notice it, it doesn't belong here.
 - Never edit the released `## [X.Y.Z]` sections. `deploy.sh` retitles `[Unreleased]` at release time and opens a fresh empty one; `scripts/changelog.sh` is the only thing that should rewrite the file.
 
+## Frontend architecture (`web/src`)
+
+These rules exist because the codebase drifted away from each of them. When
+something here conflicts with what a nearby file does, follow the rule — the
+neighbour is what we are moving away from.
+
+### Where code goes
+
+Organise by **module** (the entity: place, transit, directions, library,
+identity, …), then by layer inside it. A module owns its UI, state and logic.
+
+| Directory | Holds | Never holds |
+|---|---|---|
+| `views/` | Components a route renders, one folder per module | Child components. If the router doesn't name it, it belongs in `components/<module>/` |
+| `components/<module>/` | Vue SFCs, plus small helpers only those SFCs use (`context.ts`, local `types.ts`) | A class or service the rest of the app calls. Two map strategies lived here for years |
+| `components/ui/` | Design-system primitives, which may read ambient app context (theme, hotkeys) | Any domain module — place, transit, directions, library. A primitive that knows what a Place is has stopped being a primitive |
+| `services/` | I/O and orchestration for a module | Reactive UI state — that is a store |
+| `stores/` | Named singleton state | HTTP calls, or imports of `.vue` files |
+| `composables/<module>/` | Reusable `use*` returning caller-scoped state | Module-level singleton state (that is a store), or logic used by exactly one component (co-locate it) |
+| `lib/<module>/` | Pure, framework-free functions | Anything reaching into a store or service |
+
+`lib/` root is for genuinely cross-cutting infrastructure only (api, toast,
+connectivity, time, utils). A new file there needs a reason not to live in
+`lib/<module>/`.
+
+**Dependencies point one way:** `views → components → composables → stores →
+services → lib`. A `lib/` file importing a store, or a service importing a
+`.vue`, is a defect — fix the direction rather than adding the import.
+
+`composables/` root is for the genuinely cross-cutting ones (`useAbortController`,
+`useClipboard`, `useHotkeys`); anything a module owns goes in
+`composables/<module>/`.
+
+**Split a directory before it hits ~20 files.** Every flat dumping ground in
+this repo started as "just a few more files here".
+
+### Naming
+
+- Files: kebab-case, except `composables/` (camelCase, mirroring the export)
+  and `.vue` (PascalCase).
+- Suffixes carry meaning and are not decorative: `.store.ts`, `.service.ts`,
+  `.types.ts`, `.test.ts`. Do **not** add `.utils.ts` — a file in `lib/` is
+  already utilities. Do not invent new suffixes.
+- The filename must describe the contents. If the file exports one renderer,
+  do not call it `*.utils.ts`; if it holds one serializer, do not call it
+  `storage.ts`.
+- The local identifier in an import matches the file it came from.
+- No two files share a name unless they are the same thing at different
+  layers, and even then prefer distinct names (`MapCanvas.vue` vs `Map.vue`).
+- List components are singular-per-entity: `RouteList.vue`, not `RoutesList.vue`.
+
+### Duplication
+
+- The second copy of a block is a warning; the **third is a bug**. Extract it.
+  Three hand-written copies of one dialog's params is how collections silently
+  lost their icon pack.
+- Before writing a helper, grep for it. Distance, capitalize and countdown
+  formatting each existed 3–6 times here.
+- Two exports with the same name in one package hide dead code: a live
+  `getRouteColor` in `lib/transit/transit.ts` masked an unused one next to it
+  long enough that the whole file it lived in went stale unnoticed.
+- Frontend types that mirror the server must re-export from `@server/...`, not
+  restate the shape. See `types/place.types.ts` for the pattern.
+
+### Deleting
+
+- Delete dead code the moment you find it; do not comment it out and do not
+  leave it "for symmetry". Verify with a grep across `src/` and `e2e/` first.
+- A feature removed from the UI is not removed until its component, its type,
+  its store field and its dependency are gone.
+
+### Reactivity and cleanup
+
+- Every `on`/`addEventListener`/`setInterval`/`observe` needs its matching
+  teardown in the same file, keyed to the same lifetime.
+- `mitt`'s `off(type)` with no handler removes **every** listener for that
+  type, including other modules'. Always pass the handler.
+- Wrap large or non-plain payloads in `shallowRef`, and `markRaw` anything
+  holding a map instance, a GL object or a Vue component. Deep reactivity over
+  a route shape or a maplibre `Map` is a performance defect.
+- Do not `watch(..., { deep: true })` an unbounded array to mirror it into a
+  local ref. Watch an id, or read the prop.
+
+### Dev-only code
+
+Gate the **route**, not just the nav entry:
+`...(import.meta.env.DEV ? [devRoute] : [])`. A DEV-gated menu item still ships
+a reachable page — `/settings/developer` shipped working impersonation controls
+to production this way.
+
+### Tests
+
+Test the shipped module, never a copy of its logic pasted into the test file.
+If a test needs to reimplement a component's computed to test it, extract that
+computed to `lib/` and test it there.
+
 ## Important rules
 
 - Do NOT start new dev servers. The user runs their own.

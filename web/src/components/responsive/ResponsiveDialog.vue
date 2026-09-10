@@ -3,8 +3,8 @@ import {
   useResponsiveOverlay,
   type ResponsiveOverlayBaseProps,
   type ResponsiveOverlayTitleProps,
-} from '@/composables/useResponsiveOverlay'
-import BottomSheet from '@/components/BottomSheet.vue'
+} from '@/composables/sheet/useResponsiveOverlay'
+import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import {
   Dialog,
   DialogContent,

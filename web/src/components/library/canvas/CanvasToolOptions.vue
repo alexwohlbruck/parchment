@@ -30,14 +30,14 @@ import {
   FootprintsIcon,
   TrainIcon,
 } from 'lucide-vue-next'
-import { annotationStyle } from '@/lib/canvas-annotations'
+import { annotationStyle } from '@/lib/canvas/canvas-annotations'
 import {
   hasStyleOption,
   percentLabel,
   STYLE_RANGES,
   type DrawStyle,
-} from '@/lib/canvas-draw-style'
-import { maxMinutesForMode } from '@/lib/isochrone.utils'
+} from '@/lib/canvas/canvas-draw-style'
+import { maxMinutesForMode } from '@/lib/directions/isochrone'
 import { themeColorToHex } from '@/lib/utils'
 import {
   ANNOTATION_STROKE_CAPS,

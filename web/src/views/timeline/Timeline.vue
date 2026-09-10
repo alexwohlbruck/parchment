@@ -6,18 +6,19 @@ import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import localizedFormat from 'dayjs/plugin/localizedFormat'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-vue-next'
-import PanelLayout from '@/components/layouts/PanelLayout.vue'
+import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { useTimelineStore } from '@/stores/timeline.store'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import type { LocationHistoryStop, LocationHistoryEntry } from '@server/types/location-history.types'
-import TimelineStopRow from './components/TimelineStopRow.vue'
-import TimelineSegmentRow from './components/TimelineSegmentRow.vue'
-import DailyDistanceChart from './components/DailyDistanceChart.vue'
-import TimelineDatePicker from './components/TimelineDatePicker.vue'
-import TimelineNoIntegration from './TimelineNoIntegration.vue'
+import { IntegrationId } from '@server/types/integration.types'
+import TimelineStopRow from '@/components/timeline/TimelineStopRow.vue'
+import TimelineSegmentRow from '@/components/timeline/TimelineSegmentRow.vue'
+import DailyDistanceChart from '@/components/timeline/DailyDistanceChart.vue'
+import TimelineDatePicker from '@/components/timeline/TimelineDatePicker.vue'
+import TimelineNoIntegration from '@/components/timeline/TimelineNoIntegration.vue'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
 import UpgradeBanner from '@/components/subscription/UpgradeBanner.vue'
@@ -355,6 +356,13 @@ onBeforeUnmount(() => {
         class="text-center py-12 text-sm text-destructive"
       >
         {{ t('timeline.loadFailed') }}
+        <router-link
+          v-if="integrationsStore.isIntegrationDegraded(IntegrationId.DAWARICH)"
+          to="/settings/integrations"
+          class="block mt-1.5 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+        >
+          {{ t('timeline.checkIntegration') }}
+        </router-link>
       </div>
       <div
         v-else-if="entries.length === 0"

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { useMapCamera } from '@/composables/useMapCamera'
+import { useMapCamera } from '@/composables/map/useMapCamera'
 import { computed, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { LngLat } from '@/types/map.types'
 import { MapProjection, ControlVisibility, UnitSystem } from '@/types/map.types'
-import { useMapService } from '@/services/map.service'
+import { useMapService } from '@/services/map/map.service'
 import { useMapStore } from '@/stores/map.store'
 import { useAppStore } from '@/stores/app.store'
 import { useResponsive } from '@/lib/utils'

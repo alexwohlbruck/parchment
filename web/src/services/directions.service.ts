@@ -10,16 +10,16 @@ import { Waypoint } from '@/types/map.types'
 import { TripsResponse, WaypointType } from '@/types/directions.types'
 import { LngLat } from 'mapbox-gl'
 import type { Place } from '@/types/place.types'
-import { useGeocodingService } from './geocoding.service'
-import { getSearchResultName } from '@/lib/search.utils'
+import { useGeocodingService } from '@/services/geocoding.service'
+import { getSearchResultName } from '@/lib/search/search-result'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { usePlaceService } from '@/services/place.service'
+import { usePlaceService } from '@/services/place/place.service'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
   directionsQueryEquals,
   shareableWaypointId,
-} from '@/lib/directions-url'
+} from '@/lib/directions/directions-url'
 
 const MIN_WAYPOINTS = 2
 

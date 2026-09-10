@@ -13,7 +13,7 @@ import {
   type SortDef,
   type SortContext,
   type FieldDefinition,
-} from '@/config/search-filters'
+} from '@/lib/search/search-filters'
 
 function resolveMapCenter(center: any): [number, number] {
   if (Array.isArray(center)) return [center[0], center[1]]

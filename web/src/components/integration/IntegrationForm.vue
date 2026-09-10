@@ -20,6 +20,7 @@ import { toTypedSchema } from '@vee-validate/zod'
 import * as z from 'zod'
 import { TransitionExpand } from '@morev/vue-transitions'
 import { useServerUrl } from '@/lib/api'
+import { clearIntegrationDegraded } from '@/lib/integration-health'
 import { ExternalLinkIcon, ShieldCheckIcon } from 'lucide-vue-next'
 
 const props = withDefaults(
@@ -220,6 +221,7 @@ async function testConnection() {
     isConnectionTested.value = true
 
     if (result.success) {
+      clearIntegrationDegraded(props.integration.id)
       toast.success(t('settings.integrations.test.success'))
     } else {
       toast.error(result.message || t('settings.integrations.test.failure'))

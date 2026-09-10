@@ -32,15 +32,15 @@ import {
   SettingsIcon,
 } from 'lucide-vue-next'
 import { ItemIcon } from '@/components/ui/item-icon'
-import RouteBullet from '@/components/transit/RouteBullet.vue'
+import RouteBullet from '@/components/transit/bullets/RouteBullet.vue'
 import { PlaceCard } from '@/components/place/card'
-import { makePlaceDisplay } from '@/lib/place-display'
+import { makePlaceDisplay } from '@/services/place/place-display'
 import { Badge } from '@/components/ui/badge'
 import Kbd from '@/components/ui/kbd/Kbd.vue'
 import { fuzzyFilter, noFilter } from '@/lib/utils'
 import { TransitionSlide } from '@morev/vue-transitions'
-import { useSettingsIndex } from '@/composables/useSettingsIndex'
-import { useSettingsScrollTarget } from '@/composables/useSettingsScrollTarget'
+import { useSettingsIndex } from '@/composables/settings/useSettingsIndex'
+import { useSettingsScrollTarget } from '@/composables/settings/useSettingsScrollTarget'
 import { Spinner } from '@/components/ui/spinner'
 
 const emit = defineEmits<{

@@ -11,9 +11,9 @@
  * this hurting responsiveness on large accounts.
  */
 
-import { useFriendsStore } from './friends.store'
-import { useAuthStore } from './auth.store'
-import { registerRealtimeHandlers } from '@/lib/realtime-events'
+import { useFriendsStore } from '@/stores/friends.store'
+import { useAuthStore } from '@/stores/auth.store'
+import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 import { PermissionId } from '@/types/auth.types'
 
 /** Guard — skip the fetch when the user lacks SOCIAL_READ (free tier). */

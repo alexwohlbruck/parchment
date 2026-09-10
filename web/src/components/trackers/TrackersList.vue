@@ -3,9 +3,9 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { useVehicleLocationPicker } from '@/composables/useVehicleLocationPicker'
-import { useMapService } from '@/services/map.service'
-import { VEHICLE_TYPE_LABELS } from '@/lib/vehicle-mode-mapping'
+import { useVehicleLocationPicker } from '@/composables/transit/useVehicleLocationPicker'
+import { useMapService } from '@/services/map/map.service'
+import { VEHICLE_TYPE_LABELS } from '@/lib/transit/vehicle-mode-mapping'
 import type { UserVehicle, VehicleType } from '@/types/multimodal.types'
 import { AppRoute } from '@/router'
 import { Card } from '@/components/ui/card'
@@ -27,7 +27,7 @@ import {
   CheckIcon,
   SettingsIcon,
 } from 'lucide-vue-next'
-import { getVehicleIcon } from '@/lib/travel-mode-icons'
+import { getVehicleIcon } from '@/lib/directions/travel-mode-icons'
 
 const router = useRouter()
 const vehiclesStore = useVehiclesStore()

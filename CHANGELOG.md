@@ -10,9 +10,11 @@
   the trip starts by walking you to where you actually parked.
 * You can now get trips that take your bike onto transit and park it near
   where you're going, on services that allow bikes on board.
-* Every stop on a multi-stop trip now offers its own ways of getting to the
-  next one, so you can take the subway to one errand and bike to the next.
-  Picking a different one re-plans the rest of the trip from it.
+* Trips with several stops now offer a full journey for each way of
+  travelling — all walking, all cycling, park-and-ride, transit throughout —
+  rather than a single mixed itinerary.
+* Each stop now shows when the trip gets you there, and the leg after it
+  leaves then. Set a later time on that stop to stay longer.
 
 ### Changed
 
@@ -28,6 +30,10 @@
   walk from the car park take more than fifteen minutes.
 * Each leg of a multi-stop trip can now use bikes, park-and-ride and shared
   vehicles, rather than only walking to and from transit.
+* Trips that park a bike on the way to transit no longer tell you to set off
+  before your chosen departure time.
+* The time constraint picker no longer shows a blank box where "Depart after"
+  or "Arrive by" should be.
 * Stops on a multi-stop trip now appear at the right point in the timeline
   when a leg takes more than one segment to get there.
 

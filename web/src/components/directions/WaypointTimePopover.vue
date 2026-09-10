@@ -34,6 +34,10 @@ const props = defineProps<{
   nextConstraint?: WaypointTimeConstraint | null
   /** Controlled open state (for programmatic opening from mobile menu). */
   open?: boolean
+  /** When the planned trip reaches this stop. The leg after it sets off
+   *  then unless the rider says otherwise, so it stands in for a constraint
+   *  they haven't set and seeds the picker when they open it. */
+  arrivesAt?: Date | null
 }>()
 
 const emit = defineEmits<{
@@ -61,6 +65,22 @@ const timeLocal = ref(
     : '',
 )
 const dwellMinutes = ref<number | null>(props.modelValue?.dwellTime ?? null)
+
+/** What the trip already implies, shown until the rider overrides it. */
+const derived = computed(() =>
+  !props.modelValue?.time && props.arrivesAt && isIntermediate.value
+    ? dayjs(props.arrivesAt)
+    : null,
+)
+
+// Opening the picker on an automatic time starts from that time, so
+// deferring the stop is a nudge later rather than a date entered from
+// scratch. Nothing is emitted until the rider actually changes it.
+watch(open, (isOpen) => {
+  if (isOpen && !timeLocal.value && derived.value) {
+    timeLocal.value = derived.value.format('YYYY-MM-DDTHH:mm')
+  }
+})
 
 // Sync local state when prop changes externally
 watch(
@@ -155,7 +175,9 @@ const hasConstraint = computed(() => !!props.modelValue?.time)
 const hasWarning = computed(() => !!warning.value)
 
 const chipLabel = computed(() => {
-  if (!props.modelValue?.time) return null
+  if (!props.modelValue?.time) {
+    return derived.value ? `Arrives ${derived.value.format('h:mm A')}` : null
+  }
   const t = dayjs(props.modelValue.time)
   const prefix = props.modelValue.mode === 'departAfter' ? 'Dep' : 'Arr'
   return `${prefix} ${t.format('h:mm A')}`
@@ -174,15 +196,19 @@ const chipLabel = computed(() => {
     <template #trigger>
       <Button
         variant="ghost"
-        size="icon"
-        class="size-7 shrink-0"
+        :size="derived ? 'sm' : 'icon'"
+        class="shrink-0 gap-1"
         :class="[
+          derived ? 'h-7 px-1.5' : 'size-7',
           hasConstraint ? 'text-primary' : 'text-muted-foreground',
           hasWarning && hasConstraint ? 'text-amber-500' : '',
         ]"
         :title="chipLabel ?? 'Set time constraint'"
       >
         <ClockIcon class="size-3.5" />
+        <span v-if="derived" class="text-xs font-normal tabular-nums">
+          {{ derived.format('h:mm') }}
+        </span>
       </Button>
     </template>
 
@@ -204,7 +230,11 @@ const chipLabel = computed(() => {
         <!-- Mode selector (depart after / arrive by) -->
         <Select v-model="mode">
           <SelectTrigger class="h-8 text-xs">
-            <SelectValue />
+            <!-- Render the label rather than leaning on the item registry,
+                 which is empty until the list has been opened once. -->
+            <SelectValue>
+              {{ availableModes.find(o => o.value === mode)?.label }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem
@@ -217,6 +247,11 @@ const chipLabel = computed(() => {
             </SelectItem>
           </SelectContent>
         </Select>
+
+        <p v-if="derived" class="text-xs text-muted-foreground">
+          Arriving {{ derived.format('h:mm A') }}. The next leg leaves then —
+          set a later time to stay longer.
+        </p>
 
         <!-- Time input -->
         <input

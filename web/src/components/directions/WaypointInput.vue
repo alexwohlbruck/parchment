@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Waypoint, type WaypointTimeConstraint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { legHandoffTimes } from '@/lib/directions/leg-times'
 import {
   Combobox,
   ComboboxInput,
@@ -56,6 +58,13 @@ const { coords, isSupported: isGeolocationSupported, resume } = useGeolocationSe
 const { t } = useI18n()
 
 const directionsService = useDirectionsService()
+const directionsStore = useDirectionsStore()
+
+// The best trip's hand-offs, so a stop can show when the plan reaches it.
+// Other trips reach it at other times; this is the one on offer by default.
+const handoffTimes = computed(() =>
+  legHandoffTimes(directionsStore.trips?.trips?.[0]),
+)
 const bookmarksStore = useBookmarksStore()
 const themeStore = useThemeStore()
 const { isMobileScreen } = useResponsive()
@@ -528,7 +537,8 @@ defineExpose({
                         :waypoint-count="waypoints.length"
                         :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
                         :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
-                        :class="element.timeConstraint ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
+                        :arrives-at="handoffTimes.get(index) ?? null"
+                        :class="element.timeConstraint || handoffTimes.has(index) ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
                         @update:model-value="c => updateTimeConstraint(index, c)"
                       />
                       <Button
@@ -561,6 +571,7 @@ defineExpose({
                         :waypoint-count="waypoints.length"
                         :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
                         :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
+                        :arrives-at="handoffTimes.get(index) ?? null"
                         :open="openTimePopoverIndex === index"
                         @update:open="v => { if (!v) openTimePopoverIndex = null }"
                         @update:model-value="c => updateTimeConstraint(index, c)"

@@ -44,7 +44,11 @@ function update(change: Partial<ClockParts>) {
 </script>
 
 <template>
+  <!-- A flick inside the columns is a dial, not a drag on the sheet holding
+       them: without this, spinning to an earlier hour throws the bottom
+       sheet closed. The fork's shouldDrag() bails on this attribute. -->
   <div
+    data-vaul-no-drag
     class="relative flex items-start overflow-hidden rounded-lg border border-input bg-background"
     :class="disabled && 'pointer-events-none opacity-40'"
     :style="{ height: `${ROW_HEIGHT * VISIBLE_ROWS}px` }"

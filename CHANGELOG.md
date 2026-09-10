@@ -16,7 +16,7 @@
 * Each stop now shows when the trip gets you there, and the leg after it
   leaves then. Set a later time on that stop to stay longer.
 * Setting a time on a stop is now built for tapping: pick today or tomorrow,
-  use the time control your phone already has, and nudge by 15 minutes, half
+  dial the time on a set of scrolling columns, and nudge by 15 minutes, half
   an hour or an hour. Nothing re-plans the trip until you press Done.
 * You can now ask to stay a while at a stop without also fixing a time to
   arrive there.

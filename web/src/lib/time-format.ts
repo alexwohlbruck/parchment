@@ -74,6 +74,35 @@ export function formatClockTime(
   return `${hour}:${minutes.toString().padStart(2, '0')} ${period}`
 }
 
+export interface ClockParts {
+  /** 1-12, as a clock face shows it. */
+  hour: number
+  minute: number
+  period: 'AM' | 'PM'
+}
+
+/** What a 12-hour clock shows for a 24-hour `"13:45"`. */
+export function splitClockTime(time: string): ClockParts | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim())
+  if (!match) return null
+
+  const hours = Number(match[1])
+  const minute = Number(match[2])
+  if (hours > 23 || minute > 59) return null
+
+  return {
+    hour: hours % 12 || 12,
+    minute,
+    period: hours >= 12 ? 'PM' : 'AM',
+  }
+}
+
+/** The 24-hour `"13:45"` behind what a 12-hour clock shows. */
+export function joinClockTime({ hour, minute, period }: ClockParts): string {
+  const hours = (hour % 12) + (period === 'PM' ? 12 : 0)
+  return `${hours.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+}
+
 // ── Relative time ──────────────────────────────────────────────────────────
 
 /** Which bucket an elapsed time falls into, and how many of that unit. */

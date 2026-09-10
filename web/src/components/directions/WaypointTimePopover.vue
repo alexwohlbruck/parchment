@@ -14,6 +14,7 @@ import { ClockIcon, AlertTriangleIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { TimePicker } from '@/components/ui/time-picker'
 import {
   DWELL_OPTIONS,
   QUICK_OFFSETS,
@@ -65,6 +66,7 @@ const mode = ref<WaypointTimeMode>('departAfter')
 const day = ref<string>('')       // YYYY-MM-DD
 const clock = ref<string>('')     // HH:mm
 const dwell = ref<number | null>(null)
+const timed = ref(true)
 
 /** What this stop's time should start from when nothing is set yet. */
 const baseline = computed(() =>
@@ -79,7 +81,10 @@ function loadDraft() {
 
   const start = current?.time ? dayjs(current.time) : baseline.value
   day.value = start.format('YYYY-MM-DD')
-  clock.value = current?.time ? start.format('HH:mm') : ''
+  clock.value = start.format('HH:mm')
+  // A stop can be asked to hold a stay without being pinned to a clock, so
+  // the wheel showing a time doesn't mean one is being demanded.
+  timed.value = !current || !!current.time
 }
 
 // Reload whenever the sheet opens, so a draft abandoned last time doesn't
@@ -97,7 +102,7 @@ const dayOptions = computed(() => {
 
 /** Composed instant, or null while no time of day has been picked. */
 const draftTime = computed(() =>
-  clock.value ? dayjs(`${day.value}T${clock.value}`) : null,
+  timed.value && clock.value ? dayjs(`${day.value}T${clock.value}`) : null,
 )
 
 const warning = computed(() => constraintWarning({
@@ -108,8 +113,8 @@ const warning = computed(() => constraintWarning({
 }))
 
 function shiftBy(minutes: number) {
-  const from = draftTime.value ?? baseline.value
-  const next = from.add(minutes, 'minute')
+  const next = (draftTime.value ?? baseline.value).add(minutes, 'minute')
+  timed.value = true
   day.value = next.format('YYYY-MM-DD')
   clock.value = next.format('HH:mm')
 }
@@ -209,31 +214,31 @@ const heading = computed(() => {
             <Button
               v-for="option in dayOptions"
               :key="option.value"
-              :variant="day === option.value ? 'default' : 'outline'"
+              :variant="day === option.value && timed ? 'default' : 'outline'"
               class="h-10 text-xs"
-              @click="day = option.value"
+              @click="day = option.value; timed = true"
             >
               {{ option.label }}
             </Button>
           </div>
 
-          <!-- The platform's own time control: a wheel on a phone, a spinner
-               on a desktop. A date field here would ask for a year nobody
-               needs to enter. -->
-          <input
-            v-model="clock"
-            type="time"
-            step="300"
-            aria-label="Time"
-            class="flex h-12 w-full rounded-md border border-input bg-background px-3 text-base tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
+          <TimePicker v-model="clock" :disabled="!timed" @update:model-value="timed = true" />
 
-          <div class="grid grid-cols-3 gap-1">
+          <div class="grid gap-1" :class="isStop ? 'grid-cols-4' : 'grid-cols-3'">
+            <Button
+              v-if="isStop"
+              :variant="timed ? 'ghost' : 'default'"
+              class="h-9 px-1 text-xs"
+              :class="timed && 'text-muted-foreground'"
+              @click="timed = !timed"
+            >
+              Any time
+            </Button>
             <Button
               v-for="offset in QUICK_OFFSETS"
               :key="offset"
               variant="ghost"
-              class="h-9 text-xs text-muted-foreground"
+              class="h-9 px-1 text-xs text-muted-foreground"
               @click="shiftBy(offset)"
             >
               +{{ formatDwell(offset) }}

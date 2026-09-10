@@ -55,6 +55,7 @@ export class TripService {
   private async planLegTrip(
     request: TripRequest,
     startTime: number,
+    strategy?: string,
   ): Promise<MultimodalTripResponse> {
     const candidates: TripResponse[] = []
     const dataSources: DataSource[] = []
@@ -77,7 +78,9 @@ export class TripService {
       .map(async (mode): Promise<TripResponse[]> => {
         try {
           if (mode === 'transit') {
-            return await this.planIntermodalTransitTrips(request, dataSources)
+            return await this.planIntermodalTransitTrips(
+              request, dataSources, strategy,
+            )
           } else if (mode === 'rideshare') {
             return await this.planRideshareTrips(request, dataSources)
           } else {
@@ -90,7 +93,12 @@ export class TripService {
         }
       })
 
-    if (modes.includes('biking')) {
+    // A continuation only needs the one strategy it is carrying on, and a
+    // dock bike is only that when the journey already started on one.
+    const wantsShared = !strategy
+      || strategy.startsWith('bikeshare')
+      || strategy.startsWith('scootershare')
+    if (modes.includes('biking') && wantsShared) {
       modePromises.push(
         this.planSharedVehicleTrips(request, dataSources).catch((error) => {
           logError('Shared vehicle planning failed', error)
@@ -296,6 +304,7 @@ export class TripService {
         this.buildLegRequest(request, waypoints[i], waypoints[i + 1],
           state.currentTime, carried, strategy),
         Date.now(),
+        strategy,
       )
       this.collectDataSources(dataSources, leg.metadata.dataSourcesUsed)
 
@@ -375,6 +384,28 @@ export class TripService {
         ?? carried?.mode
         ?? request.selectedMode,
       ...(carried?.vehicle && { availableVehicles: [carried.vehicle] }),
+    }
+  }
+
+  /**
+   * Which access queries a leg still needs, given the journey it continues.
+   *
+   * The first leg surveys everything, because that survey is what offers the
+   * rider their choices. Every leg after it is carrying one of those choices
+   * forward, and each query it doesn't need is a MOTIS round trip saved —
+   * multiplied by the strategies in flight and the stops still to come.
+   */
+  private static continuationNeeds(strategy?: string) {
+    if (!strategy) {
+      return { car: true, bikeCarry: true, bikeAccess: true, walkDirect: true, rideshare: true }
+    }
+    return {
+      car: strategy.startsWith('driving+transit'),
+      bikeCarry: strategy === 'biking+transit:carry',
+      bikeAccess: strategy.startsWith('biking+transit:')
+        && strategy !== 'biking+transit:carry',
+      walkDirect: false,
+      rideshare: strategy.startsWith('rideshare'),
     }
   }
 
@@ -2075,7 +2106,9 @@ export class TripService {
   private async planIntermodalTransitTrips(
     request: TripRequest,
     dataSources: DataSource[],
+    strategy?: string,
   ): Promise<TripResponse[]> {
+    const needs = TripService.continuationNeeds(strategy)
     const preferences = request.routingPreferences || {}
     const startTime = request.preferredDepartureTime || new Date().toISOString()
     const from = request.waypoints[0]
@@ -2100,14 +2133,18 @@ export class TripService {
     // itineraries land before it, instead of departing as soon as possible.
     const arrivalTarget = this.getArrivalTarget(request)
     const isMulti = request.selectedMode === 'multi'
+    // A continuation is one leg of a journey already chosen, not a shortlist
+    // of departures — it needs the next workable ride, not the best eight.
+    // The wide sweep costs seconds per leg per strategy in flight.
+    const isContinuation = strategy != null
 
     const baseRequest = {
       from: from.location,
       to: to.location,
       time: arrivalTarget ?? startTime,
       arriveBy: arrivalTarget != null,
-      numItineraries: isMulti ? 3 : 5,
-      searchWindow: isMulti ? 1200 : 1800,
+      numItineraries: isContinuation ? 2 : isMulti ? 3 : 5,
+      searchWindow: isContinuation ? 900 : isMulti ? 1200 : 1800,
       transitModes: preferences?.transitModes,
       maxTransfers: preferences?.maxTransfers,
       wheelchair: preferences?.wheelchairAccessible,
@@ -2137,7 +2174,7 @@ export class TripService {
     // that arrives after a transfer combo — a heavy per-interchange pad makes
     // it surface simpler itineraries. Skipped in multi mode (3 itineraries is
     // already enough for a mode overview).
-    const fewTransfersFetch = isMulti
+    const fewTransfersFetch = isMulti || isContinuation
       ? Promise.resolve([] as import('../types/integration.types').TransitItinerary[])
       : fetchMotis('fewTransfers', {
           ...baseRequest,
@@ -2163,7 +2200,7 @@ export class TripService {
 
     const extraQueries: Promise<TripResponse[]>[] = []
 
-    if (dist <= TripService.WALK_OFFER_MAX_M) {
+    if (dist <= TripService.WALK_OFFER_MAX_M && needs.walkDirect) {
       extraQueries.push(
         this.planModeTrip(request, 'walking', dataSources)
           .then((trip) => (trip ? [trip] : []))
@@ -2180,7 +2217,7 @@ export class TripService {
       const useKnownLocations = preferences.useKnownVehicleLocations !== false
 
       const car = availableVehicles.find(v => v.type === 'car') ?? null
-      extraQueries.push(
+      if (needs.car) extraQueries.push(
         this.planVehicleAccessTransitQuery(
           {
             ...baseRequest,
@@ -2201,7 +2238,7 @@ export class TripService {
       // MOTIS answers this from GTFS bikes_allowed and treats "no information"
       // as no, so on a feed that doesn't declare carriage this returns nothing
       // rather than inventing permission the rider may not have.
-      extraQueries.push(
+      if (needs.bikeCarry) extraQueries.push(
         this.planBikeCarryOnTransitQuery(
           {
             ...baseRequest,
@@ -2215,7 +2252,7 @@ export class TripService {
         ),
       )
 
-      extraQueries.push(
+      if (needs.bikeAccess) extraQueries.push(
         this.planVehicleAccessTransitQuery(
           {
             ...baseRequest,
@@ -2259,7 +2296,7 @@ export class TripService {
     const transitTrips = adapted.filter((t): t is TripResponse => t !== null)
 
     let rideshareTrips: TripResponse[] = []
-    if (rideshareService.isRideshareAvailable()) {
+    if (rideshareService.isRideshareAvailable() && needs.rideshare) {
       try {
         const walkTrips = transitTrips.filter(t =>
           t.segments.every(s => s.mode === 'walking' || !['biking', 'driving'].includes(s.mode)),
@@ -2514,7 +2551,14 @@ export class TripService {
         // same preference as parking-aware driving, which is what asks for
         // real parking to be routed to at all.
         if (rideMode === 'biking' && preferences?.useKnownParkingLocations) {
-          if (!(await this.parkBikeBeforeBoarding(trip, vehicle, preferences))) continue
+          // Riding via a rack takes longer than MOTIS's direct bike leg, and
+          // the extra time comes out of the start. It may not come out of a
+          // departure the rider hasn't reached yet.
+          const earliestRide = new Date(startTime).getTime()
+            + (walkToVehicle ? walkToVehicle.duration * 1000 : 0)
+          if (!(await this.parkBikeBeforeBoarding(
+            trip, vehicle, preferences, earliestRide,
+          ))) continue
         }
 
         if (walkToVehicle) {
@@ -2624,6 +2668,7 @@ export class TripService {
     trip: TripResponse,
     vehicle: Vehicle | null,
     preferences: any,
+    earliestRide: number,
   ): Promise<boolean> {
     const rideIdx = trip.segments.findIndex(s => s.mode === 'biking')
     const boardIdx = trip.segments.findIndex(s => s.mode === 'transit')
@@ -2655,6 +2700,10 @@ export class TripService {
     const walkStart = handoff - toStop.duration * 1000
     const rideEnd = walkStart - TripService.BIKE_LOCK_DELAY_SEC * 1000
     const rideStart = rideEnd - toRack.duration * 1000
+
+    // Setting off before the rider can leave isn't a trip — this boarding is
+    // out of reach by way of the rack, so the next itinerary gets a turn.
+    if (rideStart < earliestRide) return false
 
     const parkedRide: TripSegment = {
       ...ride,

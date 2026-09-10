@@ -1883,7 +1883,9 @@ describe('TripService — scoring', () => {
       location: { lat: 35.209, lng: -80.861 },
     }
 
-    /** MOTIS rides the bike to Stop A and says nothing about parking it. */
+    /** MOTIS rides the bike to Stop A and says nothing about parking it.
+     *  The ride leaves when asked and boards ten minutes later, so routing a
+     *  rack detour into it still fits after the requested departure. */
     function mockBikeAccessItinerary() {
       mockGetIntermodalRoute.mockImplementation(async (req: any) => {
         if (req.preTransitModes?.includes('BIKE')) {
@@ -1893,8 +1895,12 @@ describe('TripService — scoring', () => {
             mode: 'BIKE',
             distance: 2000,
             duration: 600,
-            startTime: '2026-01-15T07:55:00Z',
-            endTime: '2026-01-15T08:05:00Z',
+            startTime: '2026-01-15T08:00:00Z',
+            endTime: '2026-01-15T08:10:00Z',
+          }
+          itinerary.legs[1] = {
+            ...itinerary.legs[1],
+            startTime: '2026-01-15T08:10:00Z',
           }
           return { itineraries: [itinerary], metadata: { searchWindow: 3600 } }
         }
@@ -1955,6 +1961,30 @@ describe('TripService — scoring', () => {
       const at = (t: string) => new Date(t).getTime()
       expect(at(walkIn.startTime) - at(ride.endTime)).toBe(60_000)
       expect(at(walkIn.endTime)).toBeLessThanOrEqual(at(board.startTime))
+    })
+
+    test('drops a boarding the rack detour can only make by leaving early', async () => {
+      mockGetIntermodalRoute.mockImplementation(async (req: any) => {
+        if (req.preTransitModes?.includes('BIKE')) {
+          const itinerary = makeTransitItinerary()
+          // Five minutes of riding, then straight onto the bus — no room to
+          // detour via a rack without setting off before the rider can.
+          itinerary.legs[0] = {
+            ...itinerary.legs[0],
+            mode: 'BIKE',
+            distance: 1000,
+            duration: 300,
+            startTime: '2026-01-15T08:00:00Z',
+            endTime: '2026-01-15T08:05:00Z',
+          }
+          return { itineraries: [itinerary], metadata: { searchWindow: 3600 } }
+        }
+        return { itineraries: [makeTransitItinerary()], metadata: { searchWindow: 3600 } }
+      })
+      mockSearchByCategory.mockImplementation(async () => [stationRack])
+      mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(300, 240))
+
+      expect(bikeTransitTrip(await plan(true))).toBeUndefined()
     })
 
     test('drops the trip when the stop has no rack', async () => {

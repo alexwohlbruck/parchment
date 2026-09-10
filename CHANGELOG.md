@@ -11,6 +11,13 @@
 
 ### Changed
 
+* Viewing a trip now fades the surrounding transit network so the route you're
+  taking stands out, matching how a line's own page already looks
+* A trip now shows just the train or bus you're actually catching on each leg,
+  instead of every vehicle running those lines
+* Trips that don't ride transit at all now hide the transit network entirely
+  rather than dimming it, including while you hover a suggestion in the list
+
 ### Fixed
 
 * The trip suggestions timeline scrolls sideways, so a trip that runs past the

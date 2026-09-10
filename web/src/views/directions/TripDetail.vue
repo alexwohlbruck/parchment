@@ -17,6 +17,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -85,6 +86,7 @@ import { useI18n } from 'vue-i18n'
 const route = useRoute()
 const router = useRouter()
 const directionsStore = useDirectionsStore()
+const tripFocusStore = useTripFocusStore()
 const directionsService = useDirectionsService()
 const mapService = useMapService()
 const themeStore = useThemeStore()
@@ -764,6 +766,30 @@ watch(
   { immediate: true },
 )
 
+/**
+ * Tell the map which run each leg is riding.
+ *
+ * The planner names a run with its own encoded token, which the realtime
+ * feed has never heard of; the board names it with the feed's own trip id,
+ * which is exactly what a vehicle carries. Matching by departure time is
+ * what ties the two together — and it re-ties after a rebooking, so the
+ * highlighted vehicle follows the train the rider actually picked.
+ */
+watch(
+  [trip, segmentDepartures],
+  ([t]) => {
+    const ids: Record<number, string> = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;((t?.segments ?? []) as any[]).forEach((seg, idx) => {
+      if (seg.mode !== 'transit') return
+      const run = departuresFor(idx).find((d) => isCurrentDeparture(seg, d.ms))
+      if (run?.tripId) ids[idx] = splitFeedId(run.tripId).localId
+    })
+    tripFocusStore.setLegTripIds(ids)
+  },
+  { immediate: true },
+)
+
 // Keep the URL's id canonical after a signature match, so departure
 // rebooking and further shares reference the live trip object.
 watch(trip, (t) => {
@@ -817,6 +843,8 @@ onBeforeRouteLeave(to => {
 // the service's syncUrl watcher, whose router.replace cancels the outgoing
 // navigation. `route.name` is the committed destination here.
 onUnmounted(() => {
+  // The board's run ids belong to this page's boards; the list page has none.
+  tripFocusStore.setLegTripIds({})
   if (route.name === AppRoute.DIRECTIONS) return
   directionsService.clearWaypoints()
   directionsStore.unsetTrips()

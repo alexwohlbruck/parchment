@@ -20,6 +20,8 @@
   "bike rack" finds bicycle parking.
 * The raw tag editor suggests tag keys and values as you type, and closed
   sections show what they hold rather than just a count.
+* Every field links to its OpenStreetMap wiki page, for when you want to know
+  what a tag actually means.
 
 ### Fixed
 

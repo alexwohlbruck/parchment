@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import WikiLink from './WikiLink.vue'
+import { fieldWikiUrl } from '@/lib/quick-edit/osm-wiki'
 import ComboField from './ComboField.vue'
 import MultiValueField from './MultiValueField.vue'
 import OpeningHoursField from './OpeningHoursField.vue'
@@ -101,7 +103,10 @@ function setPrefix(values: string[]) {
 
 <template>
   <div class="space-y-1">
-    <Label class="text-xs text-muted-foreground">{{ field.label }}</Label>
+    <div class="flex items-center gap-1">
+      <Label class="text-xs text-muted-foreground">{{ field.label }}</Label>
+      <WikiLink :url="fieldWikiUrl(field, tags)" :label="field.label" />
+    </div>
 
     <OpeningHoursField
       v-if="widget === 'hours'"

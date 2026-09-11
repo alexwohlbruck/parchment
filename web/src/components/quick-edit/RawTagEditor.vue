@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { PlusIcon, XIcon } from 'lucide-vue-next'
 import TagSuggestInput from './TagSuggestInput.vue'
+import WikiLink from './WikiLink.vue'
+import { osmWikiUrl } from '@/lib/quick-edit/osm-wiki'
 
 const props = defineProps<{
   tags: Record<string, string>
@@ -47,6 +49,7 @@ function addRow() {
         class="flex-1"
         @commit="emit('set', String(key), $event)"
       />
+      <WikiLink :url="osmWikiUrl(String(key), value)" :label="String(key)" />
       <Button
         variant="ghost"
         size="icon"

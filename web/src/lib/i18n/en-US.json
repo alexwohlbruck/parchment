@@ -2728,6 +2728,7 @@
       "address": "Address",
       "contact": "Contact",
       "more": "More details"
-    }
+    },
+    "wikiLink": "About {label} on the OpenStreetMap wiki"
   }
 }

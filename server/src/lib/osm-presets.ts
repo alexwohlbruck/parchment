@@ -28,6 +28,8 @@ export interface FieldDefinition {
   options?: Record<string, string | { title: string }>
   /** From the preset's own `fields`, rather than its secondary `moreFields`. */
   primary?: boolean
+  /** The tag this field documents, when it differs from `key`. */
+  reference?: { key: string; value?: string }
 }
 
 export interface MatchResult {
@@ -201,6 +203,7 @@ function loadFields(): Record<string, FieldDefinition> {
       label: def.label || id,
       placeholder: def.placeholder,
       options: normalizedOptions,
+      reference: def.reference,
     }
   }
 

@@ -98,6 +98,27 @@ describe('cycling defaults', () => {
     }
   })
 
+  /**
+   * The one place two layers may describe the same street is the zoom where
+   * one hands over to the other. A signed route drawn on top of the lanes it
+   * follows is a third green line claiming the middle of a street whose sides
+   * are already marked.
+   */
+  test('the signed route hands over to the infrastructure at z12', () => {
+    const route = lines.find(t => t.configuration.id === 'bicycle-routes')!
+    expect(route.configuration.maxzoom).toBe(12)
+    expect(route.configuration.minzoom).toBeLessThan(12)
+  })
+
+  /** Past the handover the route's name is what says it is signed. */
+  test('route labels draw past the handover, at every zoom', () => {
+    const labels = CYCLING_LAYER_TEMPLATES.find(
+      t => t.configuration.type === 'symbol',
+    )!
+    expect(labels.configuration.maxzoom).toBeUndefined()
+    expect(labels.configuration.minzoom).toBeGreaterThanOrEqual(10)
+  })
+
   test('every cycling group owns a layer or the basemap behind it', () => {
     const groups = DEFAULT_LAYER_GROUPS.filter(g =>
       g.templateId.startsWith('default:group:cycling'),

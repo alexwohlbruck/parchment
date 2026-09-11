@@ -31,8 +31,10 @@
 * Bike lanes now show which side of the street they're on once you're zoomed in,
   with the dash saying how protected they are: solid is separated from traffic,
   a short dash is a painted lane, dots are a shoulder
-* Signed bike routes are drawn dash-dot, the way a boundary is — they're a
-  designation rather than something built, and shouldn't read as a lane
+* Signed bike routes now show as a dash-dot line while you're zoomed out, then
+  hand over to the actual lanes and paths as you zoom in — their name keeps
+  saying the route is signed, without a second line down the middle of a street
+  that already has its lanes marked
 * Proposed and under-construction bikeways read as not-yet-ridable — amber for
   roadworks, a faint ghost for a plan
 * The cycling layer now draws under place names and under transit lines, so a

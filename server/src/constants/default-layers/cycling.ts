@@ -98,6 +98,8 @@ interface WayLayer {
   color: any
   width: any
   dash?: number[]
+  /** Exclusive upper bound, for a layer another one takes over from. */
+  maxzoom?: number
   visible?: boolean
 }
 
@@ -123,6 +125,7 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
       source: SOURCE,
       'source-layer': 'bicycle_ways',
       minzoom: l.minzoom,
+      ...(l.maxzoom ? { maxzoom: l.maxzoom } : {}),
       filter: l.filter,
       paint: {
         'line-color': l.color,
@@ -222,15 +225,20 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   }),
 
   /**
-   * Signed route relations (icn / ncn / rcn / lcn).
+   * Signed route relations (icn / ncn / rcn / lcn), at overview zooms only.
    *
-   * Dash-dot, which is how every map draws a line that exists by designation
-   * rather than in the ground — a boundary, a jurisdiction. That is exactly
-   * what a signed route is: a recommendation laid over whatever is actually
-   * built, and often over nothing. It keeps the route legible while making it
-   * unmistakable for a facility, which matters most on a street that already
-   * carries its own marks and would otherwise gain a third green line down the
-   * middle claiming you ride there.
+   * A signed route is a recommendation laid over whatever is actually built,
+   * and often over nothing — so it is worth drawing exactly while nothing else
+   * is: below z12 the infrastructure layers have not started and this line is
+   * the only thing carrying the network. From z12 they take over, and the
+   * route would only add a third green line down the middle of a street whose
+   * lanes are already marked on both sides, claiming you ride between them.
+   * Past the handover the route's NAME is what says it is signed; see the
+   * labels layer, which draws at every zoom.
+   *
+   * Dash-dot while it does draw, which is how a line that exists by
+   * designation rather than in the ground is drawn everywhere else — a
+   * boundary, a jurisdiction.
    */
   wayLayer({
     id: 'bicycle-routes',
@@ -238,9 +246,10 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bike-routes',
     order: 10,
     minzoom: 9,
+    maxzoom: 12,
     filter: ['!=', ['get', 'state'], 'proposed'],
     color: themed(INK.route),
-    width: width(9, 0.8, 12, 1.1, 14, 1.4, 16, 1.8),
+    width: width(9, 0.8, 10, 1, 12, 1.4),
     dash: [5, 2, 1, 2],
   }),
 

@@ -2,35 +2,18 @@
 
 ### Added
 
-* Quick edit: add businesses and other places straight to OpenStreetMap from
-  the map's edit menu, with a guided form for hours, contact info and other
-  details — no OSM knowledge needed.
-* Suggest an edit on any OpenStreetMap place to fix its details or move a
-  misplaced marker, published through your connected OSM account.
-* Quick edit recognises chains: type a business name and pick the brand to fill
-  in its logo, category and standard details at once. Editing a chain that's
-  missing them offers the same as a one-tap fix.
+* Quick edit: add a business or anything else on the map straight to
+  OpenStreetMap, from the map's edit menu. Pick what it is, then fill in hours,
+  contact details and features with a guided form — no OSM knowledge needed.
+* Suggest an edit on any OpenStreetMap place to correct its details, or drag its
+  marker to the right spot. Edits are published under your own OSM account.
+* Quick edit knows the chains: type a business name and pick the brand to fill
+  in its logo, category and the details that chain always carries. Editing a
+  chain that's missing them offers the same as a one-tap fix.
+* Before you add a place, nearby ones that look like the same thing are shown on
+  the map and offered for editing instead, so nothing gets mapped twice.
 
 ### Changed
-
-* Quick edit's form is organised into sections instead of one long list, with
-  yes/no details as compact chips that can also say "not answered".
-* Addresses can be filled in by searching for them, or taken from the pin.
-* Place type search understands the same everyday names as the app's search, so
-  "bike rack" finds bicycle parking.
-* The raw tag editor suggests tag keys and values as you type, and closed
-  sections show what they hold rather than just a count.
-* Every field links to its OpenStreetMap wiki page, for when you want to know
-  what a tag actually means.
-* Chain lookup is forgiving about how you type a name — "mcdonalds" finds
-  McDonald's — and no longer depends on picking exactly the right place type.
-* Searching a place type also offers chains, so typing "mcdonalds" sets the
-  type and the chain's details in one step.
-* Opening hours are quicker to set: one line per day, days you haven't set say
-  "Closed", and times are dialled with the app's own time picker.
-* The pin on the map shows the place's name as you type it, and nearby
-  duplicates show theirs.
-* The "saved" message links straight to the changeset on OpenStreetMap.
 
 ### Fixed
 

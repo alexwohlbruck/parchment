@@ -282,7 +282,8 @@ export const USER_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       paint: {
         'text-color': '#334155',
         'text-halo-color': '#ffffff',
-        'text-halo-width': 1,
+        'text-halo-width': 1.4,
+        'text-halo-blur': 0.4,
       },
       layout: {
         'symbol-placement': 'line',

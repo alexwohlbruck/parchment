@@ -172,14 +172,24 @@ const POI_ICON_STEM = [
  *
  * A square plate for transit, a disc for everything else — see `TILE_PREFIX`.
  */
-const poiTint = kind => [
-  'case',
-  isTransitPoi(),
-  `@poi_transit_${kind}`,
-  ['match', ['get', 'class'],
-    ...Object.entries(POI_CATEGORY).flatMap(([category, classes]) => [classes, `@poi_${kind}_${category}`]),
-    `@poi_${kind}_default`],
+const categoryTint = kind => [
+  'match', ['get', 'class'],
+  ...Object.entries(POI_CATEGORY).flatMap(([category, classes]) => [classes, `@poi_${kind}_${category}`]),
+  `@poi_${kind}_default`,
 ]
+
+const poiTint = kind => ['case', isTransitPoi(), `@poi_transit_${kind}`, categoryTint(kind)]
+
+/**
+ * The ink a POI's NAME takes, which is the badge's ink everywhere except a
+ * transit stop.
+ *
+ * Apple tints the mark and letters the stop like a place: the blue square is
+ * the wayfinding, the name under it is a name. Ours used to letter both in
+ * transit blue, which put a station on the same rung as a café — and at the
+ * zooms where stations matter, they outrank everything on screen.
+ */
+const poiTextInk = ['case', isTransitPoi(), '@label_ink_strong', categoryTint('ink')]
 
 const POI_PLATE_ICON = [
   'concat',
@@ -1042,6 +1052,244 @@ function toExpressionFilter(f) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Typography
+// ---------------------------------------------------------------------------
+
+/**
+ * The label system, retuned after Apple Maps.
+ *
+ * MapTiler letters almost entirely by size: near-black ink, a hard 1px halo,
+ * and MapLibre's default 1.2 leading throughout. Apple's map carries its
+ * hierarchy four other ways, and each is worth more than a point of size.
+ *
+ *   weight    rises with importance — Bold for a station, SemiBold for a
+ *             place or a POI, Medium for a street, Regular for water.
+ *   ink       a desaturated slate rather than black, and a warm grey for
+ *             streets, so the two families never compete for the same rung.
+ *   halo      wider and slightly soft, so it holds a gap around the letters
+ *             rather than tracing their edges.
+ *   leading   tight — a four-word shop name has to read as one block.
+ *
+ * Streets are the one reversal. Past `ROAD_CAPS_ZOOM` they go to small
+ * tracked capitals and step back, because by then the POIs are what the map
+ * is being read for. Apple does the same, and it is what keeps their close-in
+ * maps legible at a density that would otherwise be noise.
+ */
+
+/** Where street names become small tracked capitals and yield to the POIs. */
+const ROAD_CAPS_ZOOM = 17
+
+/** Place classes MapTiler already sets in capitals; they keep the treatment. */
+const CAPS_PLACES = ['suburb', 'neighborhood', 'neighbourhood', 'quarter', 'island']
+
+/**
+ * A halo wide enough to read as space around the letters.
+ *
+ * Soft rather than hard: a traced 1px outline reads as a second glyph at map
+ * sizes, which is the single loudest difference between MapTiler's labels and
+ * Apple's. The blur is small — past about 0.6 the halo stops being a gap and
+ * starts being a glow.
+ */
+const labelHalo = (width, blur = 0.5) => ({
+  'text-halo-color': '@label_halo',
+  'text-halo-width': width,
+  'text-halo-blur': blur,
+})
+
+/** Leading for anything that can wrap. MapLibre's own default is 1.2. */
+const TIGHT_LEADING = 1.05
+
+/**
+ * Per-layer typography, merged over the converted spec.
+ *
+ * Keyed by layer id and holding only what changes, for the same reason
+ * `poiStyles` is: the filters and the draw order stay defined once, in the
+ * layer list. `applyTypography` fails loudly if an id here stops existing,
+ * so a regenerated spec cannot silently drop a layer out of the system.
+ *
+ * The POI layers are absent on purpose — they are lettered wholesale in
+ * `POI_LAYOUT` / `POI_PAINT`, since every one of them takes the same
+ * treatment. `Station` appears only for the two things that differ.
+ */
+const TYPOGRAPHY = {
+  // ── streets ──────────────────────────────────────────────────────────
+  'Road labels': {
+    layout: {
+      'text-font': ['Geist Medium'],
+      // Smaller past the capitals switch, since caps read larger than
+      // mixed case at the same point size.
+      'text-size': ['interpolate', ['linear'], ['zoom'], 13, 10, 16, 11.5, ROAD_CAPS_ZOOM, 11, 22, 12.5],
+      'text-transform': ['step', ['zoom'], 'none', ROAD_CAPS_ZOOM, 'uppercase'],
+      // A step, not a ramp: tracking interpolated onto mixed-case text just
+      // looks loose. It arrives with the capitals it is there to open up.
+      'text-letter-spacing': ['step', ['zoom'], 0, ROAD_CAPS_ZOOM, 0.08],
+    },
+    paint: {
+      'text-color': ['step', ['zoom'], '@label_ink_road', ROAD_CAPS_ZOOM, '@label_ink_road_minor'],
+      ...labelHalo(1.4, 0.4),
+    },
+    // No `icon-image` on this layer, so the icon colour it inherited from
+    // MapTiler paints nothing and only keeps a token alive.
+    drop: ['icon-color'],
+  },
+  Housenumber: {
+    paint: {
+      'text-color': '@label_ink_road_minor',
+      // Reference detail rather than content: present when looked for,
+      // never competing with a name.
+      'text-opacity': 0.8,
+      ...labelHalo(1.2, 0.4),
+    },
+  },
+
+  // ── transit and air ──────────────────────────────────────────────────
+  // A stop's NAME is lettered like a place name, not in the badge's blue:
+  // Apple tints the mark and leaves the lettering alone. Bold, because a
+  // station outranks everything around it — see `poiTextInk`.
+  Station: {
+    layout: { 'text-font': ['Geist Bold'], 'text-line-height': TIGHT_LEADING },
+    paint: { 'text-color': '@label_ink_strong', ...labelHalo(1.6, 0.4) },
+  },
+  // All three inherited a halo from whatever MapTiler happened to paint the
+  // line under them — the cable car's own colour behind a gondola name, and a
+  // ferry name on 15% white, which is no halo at all over water.
+  Gondola: { layout: { 'text-font': ['Geist Medium'] }, paint: labelHalo(1.4, 0.4) },
+  Ferry: { layout: { 'text-font': ['Geist Medium'] }, paint: labelHalo(1.4, 0.4) },
+  'Airport gate': { layout: { 'text-font': ['Geist Medium'] }, paint: labelHalo(1.4, 0.4) },
+  Airport: {
+    layout: { 'text-font': ['Geist SemiBold'], 'text-line-height': TIGHT_LEADING },
+  },
+
+  // ── places ───────────────────────────────────────────────────────────
+  // Neighbourhoods stay in capitals but lose a third of their tracking —
+  // 0.2em is a gazetteer heading, not a label on a street map — and take
+  // the muted ink, so a district never reads as loud as a town.
+  'Place labels': {
+    layout: {
+      'text-font': ['Geist Medium'],
+      'text-line-height': TIGHT_LEADING,
+      'text-letter-spacing': ['match', ['get', 'class'], CAPS_PLACES, 0.14, 0],
+    },
+    paint: {
+      'text-color': ['match', ['get', 'class'], CAPS_PLACES, '@label_ink_muted', '@label_ink_strong'],
+      ...labelHalo(1.4, 0.4),
+    },
+  },
+  'Town labels': {
+    layout: { 'text-font': ['Geist Medium'], 'text-line-height': TIGHT_LEADING },
+    paint: { 'text-color': '@label_ink_strong', ...labelHalo(1.4, 0.4) },
+  },
+  'City labels': {
+    layout: { 'text-font': ['Geist SemiBold'], 'text-line-height': TIGHT_LEADING },
+    paint: { 'text-color': '@label_ink_strong', ...labelHalo(1.5, 0.4) },
+  },
+  'Capital city labels': {
+    layout: { 'text-font': ['Geist SemiBold'], 'text-line-height': TIGHT_LEADING },
+    paint: { 'text-color': '@label_ink_strong', ...labelHalo(1.5, 0.4) },
+  },
+  'State labels': {
+    layout: { 'text-font': ['Geist Medium'] },
+    paint: { 'text-color': '@label_ink_muted', ...labelHalo(1.2, 0.5) },
+  },
+  'Country labels': {
+    layout: {
+      'text-font': ['Geist SemiBold'],
+      'text-line-height': TIGHT_LEADING,
+      'text-letter-spacing': 0.05,
+    },
+    paint: { 'text-color': '@label_ink_strong', ...labelHalo(1.5, 0.6) },
+  },
+  'Continent labels': {
+    layout: { 'text-font': ['Geist SemiBold'], 'text-letter-spacing': 0.16 },
+    paint: { 'text-color': '@label_ink_muted', ...labelHalo(1.4, 0.6) },
+  },
+
+  // ── water ────────────────────────────────────────────────────────────
+  // Water keeps its own blue ink and its own pale halo — that family is
+  // already distinct, and repainting it would only merge it with the land.
+  // What it takes is the tracking a water label is traditionally set with,
+  // and the softer edge everything else now has.
+  'River labels': {
+    layout: { 'text-letter-spacing': 0.16 },
+    paint: { 'text-halo-blur': 0.6 },
+  },
+  'Lake labels': {
+    layout: { 'text-letter-spacing': 0.14 },
+    paint: { 'text-halo-width': 1.6, 'text-halo-blur': 0.6 },
+  },
+  'Ocean labels': {
+    layout: { 'text-letter-spacing': 0.12 },
+    paint: { 'text-halo-width': 1.4, 'text-halo-blur': 0.8 },
+  },
+}
+
+/**
+ * Layers `TYPOGRAPHY` deliberately does not letter.
+ *
+ * `Oneway` is an arrow with no text at all. The two shield layers are sign
+ * lettering rather than map lettering: their size and weight are fixed by the
+ * sprite art they sit inside, so they are set where that art is generated.
+ */
+const TYPOGRAPHY_EXEMPT = new Set(['Oneway', 'Highway junction', 'Highway shield'])
+
+/**
+ * Letter the converted layers, and refuse to produce a spec that has drifted.
+ *
+ * Two failures rather than one, because both have already happened to the
+ * other override tables here: an id that no longer exists silently does
+ * nothing, and a *new* text layer silently keeps MapTiler's typography and
+ * sits a weight and a halo away from everything around it.
+ */
+function applyTypography(layers) {
+  const byId = new Map(layers.map(l => [l.id, l]))
+
+  const missing = Object.keys(TYPOGRAPHY).filter(id => !byId.has(id))
+  if (missing.length) throw new Error(`typography names absent layers: ${missing.join(', ')}`)
+
+  for (const [id, patch] of Object.entries(TYPOGRAPHY)) {
+    const layer = byId.get(id)
+    if (patch.layout) layer.layout = { ...layer.layout, ...patch.layout }
+    if (patch.paint) layer.paint = { ...layer.paint, ...patch.paint }
+    for (const dead of patch.drop ?? []) delete layer.paint?.[dead]
+  }
+
+  const unlettered = layers
+    .filter(l => l.type === 'symbol' && l.layout?.['text-field'])
+    .filter(l => !(l.id in TYPOGRAPHY) && !TYPOGRAPHY_EXEMPT.has(l.id))
+    .filter(l => l['source-layer'] !== 'poi')
+    .map(l => l.id)
+  if (unlettered.length) throw new Error(`layers outside the type system: ${unlettered.join(', ')}`)
+}
+
+/**
+ * What the label system resolves to, per flavor.
+ *
+ * The inks are two families deliberately kept apart. Places, stations and
+ * countries take a cool slate — Apple's is around `#3a4256`, and a neutral
+ * black in its place is what makes a map look printed rather than drawn.
+ * Streets take a warm grey that belongs to the cream ground they run over,
+ * and sit a clear step lighter, so a street name never competes with the
+ * name of a thing.
+ *
+ * Every one of them clears 4.5:1 against the surface it is lettered on —
+ * white for the streets, the flavor's ground for the rest. Apple lets the
+ * capitalised streets go lighter than that; ours stop at the line.
+ */
+const LABEL_TOKENS = {
+  // Not quite opaque, and not the ground's own colour: Apple's halo reads a
+  // touch lighter than the land it sits on, which is what separates a label
+  // from a fill they happen to share a value with.
+  label_halo: { light: 'rgba(255, 255, 255, 0.9)', dark: 'rgba(13, 16, 22, 0.9)' },
+  // Kept in step with `LABEL_TEXT_LIGHT_MAP` / `LABEL_TEXT_DARK_MAP` in
+  // `portolan-expressions.ts`, which letters transit stations over whatever
+  // basemap is loaded — including ones that are not this style.
+  label_ink_strong: { light: 'hsl(222, 25%, 21%)', dark: 'hsl(222, 25%, 93%)' },
+  label_ink_muted: { light: 'hsl(222, 10%, 46%)', dark: 'hsl(220, 12%, 76%)' },
+  label_ink_road: { light: 'hsl(30, 6%, 42%)', dark: 'hsl(220, 12%, 84%)' },
+  label_ink_road_minor: { light: 'hsl(30, 5%, 45%)', dark: 'hsl(220, 10%, 80%)' },
+}
+
 /**
  * The badge is one image now, drawn at its natural size.
  *
@@ -1061,26 +1309,33 @@ const POI_LAYOUT = {
   'icon-size': ['case', IS_TRANSIT_POI, 0.78, 1],
   'icon-allow-overlap': false,
   'icon-ignore-placement': false,
-  // A weight above the map's own labels. A POI name is a thing you are reading
-  // the map *for*, and at 13px over a busy background Regular sits back into
-  // the streets around it. Medium rather than SemiBold keeps a step below the
-  // transit stops, which are heavier again.
-  'text-font': ['Geist Medium'],
+  // Two weights above the streets. A POI name is a thing you are reading the
+  // map *for*, and past `ROAD_CAPS_ZOOM` the streets step back into tracked
+  // capitals precisely so these can carry the map. Still a step below the
+  // stations, which are Bold.
+  'text-font': ['Geist SemiBold'],
   'text-size': 13,
+  // A shop with four words in its name is one block of text, not a ribbon.
+  'text-line-height': TIGHT_LEADING,
   // Clears the badge — offset is in ems of text-size, so 1.1em ≈ 14px below
   // the icon's centre.
   'text-offset': [0, 1.1],
   'text-anchor': 'top',
   'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
-  'text-max-width': 8,
+  // Narrow enough that a long name wraps into a compact stack under its
+  // badge rather than reaching across the block either side of it.
+  'text-max-width': 7,
   // Keep the badge when the name would collide — Standard does the same, and
   // it is what stops a dense block from losing its icons along with its labels.
   'text-optional': true,
 }
 
 const POI_PAINT = {
-  'text-halo-width': 1,
-  'text-halo-blur': 0,
+  // Wider and softer than MapTiler's traced 1px outline; see `labelHalo`.
+  // The colour stays `@poi_halo` rather than `@label_halo` because search
+  // results and DOM markers letter themselves from the same value.
+  'text-halo-width': 1.5,
+  'text-halo-blur': 0.4,
   'text-halo-color': '@poi_halo',
   // No `icon-color` and no halo: the badge arrives already coloured. Both used
   // to be set here, and between them they could only ever produce two colours —
@@ -1336,16 +1591,14 @@ async function main() {
     // takes the same colour as the icon, which is how MapTiler letters theirs
     // — only keyed to our categories rather than their families.
     if (sl === 'poi' && out.type === 'symbol') {
-      // The name takes the badge's glyph colour, transit included — a blue
-      // square above a purple label reads as two unrelated marks. The glyph
-      // rather than the plate: the plate is a pale tint and would be unreadable
-      // as lettering, where the ink is the pair's contrasting half.
-      const tint = poiTint('ink')
+      // The name takes the badge's glyph colour — the glyph rather than the
+      // plate, which is a pale tint and would be unreadable as lettering.
+      // Transit is the exception; see `poiTextInk`.
       out.filter = out.filter
         ? ['all', toExpressionFilter(out.filter), RANK_GATE]
         : RANK_GATE
       out.layout = { ...out.layout, ...POI_LAYOUT }
-      out.paint = { ...out.paint, ...POI_PAINT, 'text-color': tint }
+      out.paint = { ...out.paint, ...POI_PAINT, 'text-color': poiTextInk }
       // MapTiler tints its glyphs with these; ours arrive already coloured, and
       // a non-SDF image ignores them anyway. Left in they are dead paint that
       // keeps a handful of their family tokens alive.
@@ -1473,6 +1726,7 @@ async function main() {
     })
   }
   orderPedestrianSurfaces(layers)
+  applyTypography(layers)
 
   // The roofline edge, for the plan view.
   //
@@ -1518,6 +1772,12 @@ async function main() {
   for (const t of orphaned) {
     delete tokens.light[t]
     delete tokens.dark[t]
+  }
+
+  // The label system's ink and halo; see `TYPOGRAPHY`.
+  for (const [name, value] of Object.entries(LABEL_TOKENS)) {
+    tokens.light[name] = value.light
+    tokens.dark[name] = value.dark
   }
 
   // POI label halo. Standard switches these two with `measure-light`; we bake

@@ -17,9 +17,19 @@
   instead of every vehicle running those lines
 * Trips that don't ride transit at all now hide the transit network entirely
   rather than dimming it, including while you hover a suggestion in the list
+* Map labels are retuned for readability: places and stations in a cool slate,
+  streets in a lighter grey a clear step below them, and softer halos throughout
+* Station names are now set bold, above the POIs and streets around them, and a
+  name that wraps reads as one block instead of separate lines
+* Street names shrink to small spaced capitals as you zoom in, so the shops and
+  stations you're looking for carry the map
 
 ### Fixed
 
+* Bike route, timezone and contour labels draw again — they asked the map for a
+  font it has never had, and silently drew nothing
+* Station names on a line's own page now follow the map's theme instead of
+  always being dark text in a white halo
 * The trip suggestions timeline scrolls sideways, so a trip that runs past the
   visible range can be followed to its end. Each suggestion's type and route
   description stay pinned at the edge so you can tell the rows apart.

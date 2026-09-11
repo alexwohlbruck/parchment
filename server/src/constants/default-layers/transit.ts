@@ -236,7 +236,7 @@ export const TRANSIT_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
           'hsl(230, 50%, 40%)',
         ],
         'text-halo-width': 1.5,
-        'text-halo-blur': 0,
+        'text-halo-blur': 0.4,
         'text-halo-color': [
           'interpolate',
           ['linear'],

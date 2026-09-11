@@ -123,6 +123,7 @@ export const TIMEZONE_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
           'rgba(255, 255, 255, 0.6)',
         ],
         'text-halo-width': 1.5,
+        'text-halo-blur': 0.4,
         'text-emissive-strength': 0.7,
       },
       layout: {

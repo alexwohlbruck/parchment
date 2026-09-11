@@ -199,9 +199,13 @@ describe('flavors', () => {
      * palette read as turquoise rather than as sand. Anything else added to
      * that map and present in both styles has to be listed here too, or this
      * test will report our own deliberate value as a drift from theirs.
+     *
+     * `label_` is the whole label system — ink and halo both. MapTiler
+     * letters in near-black over a traced outline; ours is authored after
+     * Apple's, so their values are not the answer for any of it.
      */
     const authored =
-      /^(poi_|road_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$)/
+      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$)/
 
     const wrong: string[] = []
     let checked = 0
@@ -330,9 +334,21 @@ describe('badge POI treatment', () => {
     expect(image).toContain('@poi_plate_')
     expect(image).toContain('@poi_ink_')
     expect(image).toContain('@poi_lift')
-    // The label takes the glyph's colour, not the plate's — the plate is a pale
-    // tint and would be unreadable as lettering.
-    expect(JSON.stringify(l.paint['text-color'])).toContain('@poi_ink_')
+  })
+
+  /**
+   * A place's name is lettered in its badge's ink — the glyph's colour, not
+   * the plate's, since the plate is a pale tint and unreadable as lettering.
+   * A transit stop's is the deliberate exception: Apple tints the mark and
+   * letters the stop like a place, and lettering a station in transit blue
+   * put it on the same rung as the café next door.
+   */
+  test.each(poi.map(l => [l.id, l]))('%s: places letter in their ink, stops in the place ink', (_id, l: any) => {
+    const ink = JSON.stringify(l.paint['text-color'])
+    expect(ink).toContain('@label_ink_strong')
+    // `Station` draws stops and nothing else, so it has no category arm.
+    if (l.id !== 'Station') expect(ink).toContain('@poi_ink_')
+    expect(ink).not.toContain('@poi_transit_ink')
   })
 
   test.each(poi.map(l => [l.id, l]))('%s: nothing tints the badge at draw time', (_id, l: any) => {
@@ -1216,3 +1232,184 @@ describe('projection', () => {
     expect(new Set(offered.map(maplibreProjection)).size).toBe(offered.length)
   })
 })
+
+/**
+ * The label system, retuned after Apple Maps: weight, ink, halo and leading
+ * carry the hierarchy, not size alone. See `TYPOGRAPHY` in
+ * `convert-basemap-style.mjs` for what each rung is and why.
+ *
+ * Asserted on the generated spec rather than on the table, so a layer that
+ * slips out of the pass — renamed upstream, added by a later MapTiler release
+ * — fails here instead of shipping in MapTiler's own near-black-on-a-traced-
+ * outline treatment, a weight and a halo away from everything around it.
+ */
+describe('label typography', () => {
+  /** Layers that actually letter something. */
+  const lettered = layers.filter(l => l.type === 'symbol' && l.layout?.['text-field'])
+
+  /**
+   * Sign lettering rather than map lettering: these sit inside sprite art
+   * whose size and weight are fixed where that art is generated.
+   */
+  const SHIELDS = ['Highway junction', 'Highway shield']
+
+  test('there are labels to check', () => {
+    expect(lettered.length).toBeGreaterThan(15)
+  })
+
+  /** Only four faces are generated; see `build-glyphs.mjs`. */
+  test('every label names a weight we ship', () => {
+    const faces = new Set(lettered.map(l => JSON.stringify(l.layout['text-font'])))
+    for (const f of faces) {
+      expect(['Geist Regular', 'Geist Medium', 'Geist SemiBold', 'Geist Bold']).toContain(
+        JSON.parse(f)[0],
+      )
+    }
+  })
+
+  /**
+   * The rungs, in order. A station name outranks a POI outranks a street,
+   * and on a map whose sizes are already decided by zoom, weight is what
+   * says so — lettering all three the same is how a dense block turns into
+   * one undifferentiated field of names.
+   */
+  test('weight rises with what the label is', () => {
+    const WEIGHT = { 'Geist Regular': 0, 'Geist Medium': 1, 'Geist SemiBold': 2, 'Geist Bold': 3 }
+    const faceOf = (id: string) =>
+      WEIGHT[layers.find(l => l.id === id)!.layout['text-font'][0] as keyof typeof WEIGHT]
+
+    const street = faceOf('Road labels')
+    const poi = faceOf('Food')
+    const station = faceOf('Station')
+    expect(street).toBeLessThan(poi)
+    expect(poi).toBeLessThan(station)
+  })
+
+  /**
+   * MapTiler's 1px halo traces the letters, which at map sizes reads as a
+   * second glyph behind the first. Apple's holds a gap instead: wider, and
+   * soft enough that it has no edge of its own.
+   */
+  test.each(lettered.filter(l => !SHIELDS.includes(l.id)).map(l => [l.id, l]))(
+    '%s: the halo holds a gap rather than tracing the letters',
+    (_id, l: any) => {
+      const width = l.paint['text-halo-width']
+      // A zoom ramp is its own answer; only flat widths are checked here.
+      if (typeof width === 'number') expect(width).toBeGreaterThanOrEqual(1.2)
+      expect(l.paint['text-halo-color']).toBeDefined()
+    },
+  )
+
+  /** A four-word shop name has to read as one block, not four lines. */
+  test.each(
+    lettered.filter(l => l.layout['text-line-height'] !== undefined).map(l => [l.id, l]),
+  )('%s: wrapped names are set tight', (_id, l: any) => {
+    // MapLibre's own default is 1.2, which is body-copy leading.
+    expect(l.layout['text-line-height']).toBeLessThan(1.2)
+  })
+
+  test('the POI labels all take the tight leading', () => {
+    const poi = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
+    expect(poi.length).toBeGreaterThan(5)
+    for (const l of poi) expect(l.layout['text-line-height'], l.id).toBe(1.05)
+  })
+
+  /**
+   * Past this zoom the POIs are what the map is being read for, so the
+   * streets go to small tracked capitals and step back — Apple's move, and
+   * what keeps a close-in map legible at a density that would be noise.
+   */
+  describe('streets step back where the POIs take over', () => {
+    const road = () => layers.find(l => l.id === 'Road labels')!
+    /** A zoom `step`'s value at a zoom: its default, then each stop it passes. */
+    const at = (prop: any, zoom: number) => {
+      const [, , fallback, ...stops] = prop as any[]
+      let value = fallback
+      for (let i = 0; i < stops.length; i += 2) if (zoom >= stops[i]) value = stops[i + 1]
+      return value
+    }
+
+    test('capitals, tracking and a lighter ink arrive together', () => {
+      const { layout, paint } = road()
+      // Every one of them is a step on zoom, and they all step at the same one.
+      const zoomOf = (prop: any) => (prop as any[])[3]
+      const caps = zoomOf(layout['text-transform'])
+      expect(zoomOf(layout['text-letter-spacing'])).toBe(caps)
+      expect(zoomOf(paint['text-color'])).toBe(caps)
+
+      expect(at(layout['text-transform'], caps - 1)).toBe('none')
+      expect(at(layout['text-transform'], caps)).toBe('uppercase')
+      // Tracking belongs to the capitals: interpolated onto mixed case it
+      // would only read as loose.
+      expect(at(layout['text-letter-spacing'], caps - 1)).toBe(0)
+      expect(at(layout['text-letter-spacing'], caps)).toBeGreaterThan(0.05)
+      expect(at(paint['text-color'], caps)).toBe('@label_ink_road_minor')
+    })
+
+    /** Capitals read larger than mixed case at the same point size. */
+    test('the size drops where the capitals arrive', () => {
+      const [, , , ...stops] = road().layout['text-size'] as any[]
+      const caps = (road().layout['text-transform'] as any[])[3]
+      // Stops are (zoom, size) pairs, so only even positions are zooms.
+      const zooms = stops.filter((_: unknown, i: number) => i % 2 === 0)
+      const sizeAt = (z: number) => stops[stops.indexOf(z, zooms.indexOf(z) * 2) + 1]
+      const before = zooms[zooms.indexOf(caps) - 1]
+      expect(sizeAt(caps)).toBeLessThan(sizeAt(before))
+    })
+  })
+
+  /**
+   * Two ink families, deliberately apart: a cool slate for names of things,
+   * a warm grey for the streets they sit on. A street name in the same ink
+   * as a place name competes with it for the same rung.
+   */
+  test('streets and places are lettered in different families', () => {
+    const inkOf = (id: string) => JSON.stringify(layers.find(l => l.id === id)!.paint['text-color'])
+    expect(inkOf('Road labels')).toContain('@label_ink_road')
+    expect(inkOf('Town labels')).toContain('@label_ink_strong')
+    expect(inkOf('Road labels')).not.toContain('@label_ink_strong')
+  })
+
+  /**
+   * Contrast is what makes the retune a retune rather than a wash. Every ink
+   * clears 4.5:1 against the surface it is lettered on — white for the
+   * streets, the flavor's own ground for the rest.
+   */
+  test.each([
+    ['light', lightTokens as Record<string, string>, 'hsl(0, 0%, 100%)'],
+    ['dark', darkTokens as Record<string, string>, 'hsl(211, 22%, 34%)'],
+  ])('%s: every label ink clears 4.5:1 on the surface it sits on', (_flavor, tokens, road) => {
+    const inks = Object.keys(tokens).filter(k => k.startsWith('label_ink_'))
+    expect(inks.length).toBeGreaterThan(3)
+    const ground = tokens.background_background_color
+    for (const ink of inks) {
+      const on = ink.startsWith('label_ink_road') ? road : ground
+      expect(contrastRatio(tokens[ink], on), `${ink} on ${on}`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})
+
+/** WCAG relative luminance of an `hsl()` or `#rgb` colour. */
+function relativeLuminance(color: string): number {
+  let rgb: [number, number, number]
+  const hsl = /hsla?\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/.exec(color)
+  if (hsl) {
+    const [h, s, l] = [+hsl[1] / 360, +hsl[2] / 100, +hsl[3] / 100]
+    const a = s * Math.min(l, 1 - l)
+    const f = (n: number) => {
+      const k = (n + h * 12) % 12
+      return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+    }
+    rgb = [f(0), f(8), f(4)]
+  } else {
+    const hex = color.replace('#', '')
+    rgb = [0, 1, 2].map(i => parseInt(hex.slice(i * 2, i * 2 + 2), 16) / 255) as any
+  }
+  const lin = rgb.map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+}
+
+function contrastRatio(a: string, b: string): number {
+  const [x, y] = [relativeLuminance(a), relativeLuminance(b)].sort((p, q) => q - p)
+  return (x + 0.05) / (y + 0.05)
+}

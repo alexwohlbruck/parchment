@@ -1160,6 +1160,8 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
           '#ffffff',
         ],
         'text-halo-width': 1.5,
+        // Soft rather than traced, like every other label on the map.
+        'text-halo-blur': 0.4,
         'text-emissive-strength': 0.8,
       },
       layout: {
@@ -1167,7 +1169,8 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
         'text-field': ['coalesce', ['get', 'ref'], ['get', 'name']],
         'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
         'text-transform': 'uppercase',
-        'text-letter-spacing': 0.01,
+        // Capitals need opening up; 0.01 set them as tight as mixed case.
+        'text-letter-spacing': 0.08,
         'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 13],
         'text-max-angle': 30,
         'text-padding': 30,

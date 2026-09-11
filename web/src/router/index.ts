@@ -62,6 +62,8 @@ export enum AppRoute {
   DEVELOPER = 'developer',
   NOTE = 'note',
   NOTE_CREATE = 'note-create',
+  QUICK_EDIT_NEW = 'quick-edit-new',
+  QUICK_EDIT_ELEMENT = 'quick-edit-element',
   LOOKOUT = 'lookout',
   FRIEND_DETAIL = 'friend-detail',
   TRACKER_DETAIL = 'tracker-detail',
@@ -187,6 +189,17 @@ const router = createRouter({
           path: '/note/create',
           name: AppRoute.NOTE_CREATE,
           component: () => import('@/views/notes/CreateNote.vue'),
+        },
+        {
+          path: '/edit/new',
+          name: AppRoute.QUICK_EDIT_NEW,
+          component: () => import('@/views/quick-edit/QuickEditNew.vue'),
+        },
+        {
+          path: '/edit/:type(node|way|relation)/:id(\\d+)',
+          name: AppRoute.QUICK_EDIT_ELEMENT,
+          component: () => import('@/views/quick-edit/QuickEditElement.vue'),
+          props: true,
         },
         {
           path: '/note/:id',

@@ -126,9 +126,9 @@ const STRENGTH: Record<FlavorId, Record<string, string>> = {
  */
 const STROKE: Record<FlavorId, Record<string, string>> = {
   light: {
-    track: 'hsl(160, 64%, 27%)',
-    lane: 'hsl(158, 56%, 35%)',
-    shoulder: 'hsl(158, 30%, 49%)',
+    track: 'hsl(160, 58%, 33%)',
+    lane: 'hsl(158, 60%, 39%)',
+    shoulder: 'hsl(158, 34%, 50%)',
   },
   dark: {
     track: 'hsl(158, 52%, 62%)',
@@ -149,13 +149,33 @@ const STROKE_KINDS: { kind: string; values: string[]; dash?: number[] }[] = [
   {
     kind: 'lane',
     values: ['lane', 'opposite_lane', 'buffered_lane'],
-    dash: [6, 3],
+    dash: [4, 2],
   },
   {
     kind: 'shoulder',
     values: ['shoulder'],
-    dash: [2, 6],
+    dash: [1, 3],
   },
+]
+
+/**
+ * How wide a marking is drawn.
+ *
+ * Roughly a quarter of the street it sits on, which is about what a 1.5m lane
+ * is of a 10m carriageway — wide enough to be the thing you see when the layer
+ * is on, which it has to be, since that is the whole reason the layer is on.
+ *
+ * The ramp has to cover the layer's entire range. It used to start at z16 and
+ * MapLibre clamps below a ramp's first stop, so z12 through z15 all drew at the
+ * minimum and the network faded out exactly as the streets around it grew.
+ */
+const STROKE_WIDTH: any = [
+  'interpolate', ['linear'], ['zoom'],
+  12, 1,
+  14, 1.4,
+  16, 2.3,
+  18, 3.4,
+  20, 4.8,
 ]
 
 /**
@@ -173,6 +193,21 @@ const INFRA_AS_SIDE: any = [
   ['cycle_lane'], 'lane',
   ['shoulder'], 'shoulder',
   '',
+]
+
+/**
+ * Highway values that are a road a bike lane can be painted on.
+ *
+ * An offset only makes sense when the geometry IS the carriageway. Where OSM
+ * maps the provision as its own way beside the road — a `highway=cycleway`
+ * sidepath — that line already sits where the lane is, and offsetting it by
+ * half a road again puts it out on the pavement. Those ways are drawn by the
+ * dedicated-cycleway layers instead, on their own geometry.
+ */
+const ROAD_HIGHWAYS = [
+  'motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary',
+  'primary_link', 'secondary', 'secondary_link', 'tertiary', 'tertiary_link',
+  'unclassified', 'residential', 'living_street', 'road', 'service',
 ]
 
 /**
@@ -400,6 +435,7 @@ export function cyclingStrokeLayers(
       filter: [
         'all',
         ['!', ['has', 'state']],
+        ['match', ['get', 'highway'], ROAD_HIGHWAYS, true, false],
         ['match', sideValue(side), values, true, false],
       ],
       layout: {
@@ -409,7 +445,7 @@ export function cyclingStrokeLayers(
       },
       paint: {
         'line-color': STROKE[flavor][kind],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 16, 1.1, 19, 2],
+        'line-width': STROKE_WIDTH,
         'line-offset': offsetRamp(width, side === 'right' ? 0.5 : -0.5),
         ...(dash ? { 'line-dasharray': dash } : {}),
       },

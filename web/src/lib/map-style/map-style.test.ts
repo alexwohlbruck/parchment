@@ -1807,3 +1807,90 @@ describe('cycling markings', () => {
     }
   })
 })
+
+/**
+ * Legibility of the markings, which is what the layer exists for.
+ *
+ * The first cut ramped width from z16 while the layers drew from z12, and
+ * MapLibre clamps below a ramp's first stop — so across four zoom levels the
+ * network drew at its thinnest exactly as the streets around it grew, and by
+ * z17 it was the faintest thing on the map.
+ */
+describe('cycling markings are legible', () => {
+  const built = buildLayers({ flavor: 'light' }) as any[]
+  const strokes = built.filter(l => l.id.startsWith('Cycling '))
+  const compile = (e: any) => {
+    const r = (expression.createExpression as any)(
+      e,
+      latest.paint_line['line-width'],
+      'layers[0].paint.line-width',
+    )
+    if (r.result !== 'success') throw new Error(r.value.join(', '))
+    return r.value
+  }
+
+  test('the width ramp covers every zoom the layer draws at', () => {
+    for (const l of strokes) {
+      const [, , , ...stops] = l.paint['line-width'] as any[]
+      expect(stops[0], l.id).toBeLessThanOrEqual(l.minzoom)
+    }
+  })
+
+  test('a marking keeps growing with the street, and never thins', () => {
+    const w = compile(strokes[0].paint['line-width'])
+    let previous = 0
+    for (const zoom of [12, 13, 14, 15, 16, 17, 18, 19, 20]) {
+      const at = w.evaluate({ zoom }, { type: 2, properties: {} } as any)
+      expect(at, `z${zoom}`).toBeGreaterThanOrEqual(previous)
+      previous = at
+    }
+  })
+
+  /**
+   * Wide enough to read against the street it is painted on. A quarter of the
+   * carriageway is about what a 1.5m lane is of a 10m road.
+   */
+  test('a marking is a real fraction of its street', () => {
+    const road = compile(built.find(l => l.id === 'Minor road')!.paint['line-width'])
+    const stroke = compile(strokes[0].paint['line-width'])
+    for (const zoom of [16, 17, 18, 19]) {
+      const w = road.evaluate({ zoom }, { type: 2, properties: { class: 'minor' } } as any)
+      const s = stroke.evaluate({ zoom }, { type: 2, properties: {} } as any)
+      expect(s / w, `z${zoom}`).toBeGreaterThan(0.15)
+      // And not so wide it reads as the street having been repainted, which is
+      // what the tint means and this deliberately does not.
+      expect(s / w, `z${zoom}`).toBeLessThan(0.5)
+    }
+  })
+})
+
+/**
+ * An offset is only meaningful when the geometry is the carriageway.
+ *
+ * Where OSM maps the provision as its own way beside the road — a
+ * `highway=cycleway` sidepath — that line already sits where the lane is, and
+ * offsetting it by half a road again puts it out on the pavement. Seen on
+ * Bedford Avenue at z18: a dashed lane drawn clear of the street.
+ */
+describe('markings only offset from a carriageway', () => {
+  const strokes = (buildLayers({ flavor: 'light' }) as any[]).filter(l =>
+    l.id.startsWith('Cycling '),
+  )
+
+  test.each(strokes.map(l => [l.id, l]))('%s: requires a road highway', (_id, l: any) => {
+    const clause = (l.filter as any[]).find(
+      (c: any) =>
+        Array.isArray(c) &&
+        c[0] === 'match' &&
+        JSON.stringify(c[1]) === JSON.stringify(['get', 'highway']),
+    )
+    expect(clause, `${l.id} does not gate on highway`).toBeDefined()
+    const allowed: string[] = clause[2]
+    expect(allowed).toContain('residential')
+    expect(allowed).toContain('secondary')
+    // A way built for bikes is drawn on its own geometry, never offset.
+    expect(allowed).not.toContain('cycleway')
+    expect(allowed).not.toContain('footway')
+    expect(allowed).not.toContain('path')
+  })
+})

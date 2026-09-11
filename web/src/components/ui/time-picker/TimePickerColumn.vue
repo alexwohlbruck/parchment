@@ -9,7 +9,7 @@
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 
 const props = defineProps<{
-  options: { value: number | string; label: string }[]
+  options: { value: number | string; label: string; disabled?: boolean }[]
   modelValue: number | string
   /** Announced to screen readers, e.g. "Hour". */
   label: string
@@ -65,9 +65,10 @@ function onScroll() {
   }, 90)
 }
 
-function pick(value: number | string) {
-  emit('update:modelValue', value)
-  scrollToValue(value, true)
+function pick(option: { value: number | string; disabled?: boolean }) {
+  if (option.disabled) return
+  emit('update:modelValue', option.value)
+  scrollToValue(option.value, true)
 }
 
 // A column inside a sheet is laid out before it is shown, and scrollTop on a
@@ -108,12 +109,15 @@ watch(() => props.options, () => nextTick(() => scrollToValue(props.modelValue))
       type="button"
       role="option"
       :aria-selected="option.value === modelValue"
+      :aria-disabled="option.disabled || undefined"
       class="flex w-full snap-center items-center justify-center text-base tabular-nums transition-colors"
-      :class="option.value === modelValue
-        ? 'font-medium text-foreground'
-        : 'text-muted-foreground/70'"
+      :class="option.disabled
+        ? 'text-muted-foreground/25'
+        : option.value === modelValue
+          ? 'font-medium text-foreground'
+          : 'text-muted-foreground/70'"
       :style="{ height: `${ROW}px` }"
-      @click="pick(option.value)"
+      @click="pick(option)"
     >
       {{ option.label }}
     </button>

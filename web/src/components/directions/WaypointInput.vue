@@ -15,6 +15,7 @@ import { Waypoint, type WaypointTimeConstraint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
 import { useDirectionsStore } from '@/stores/directions.store'
 import { legHandoffTimes } from '@/lib/directions/leg-times'
+import { cascadeConstraints, stopWindows } from '@/lib/directions/leg-schedule'
 import {
   Combobox,
   ComboboxInput,
@@ -65,6 +66,12 @@ const directionsStore = useDirectionsStore()
 const handoffTimes = computed(() =>
   legHandoffTimes(directionsStore.trips?.trips?.[0]),
 )
+
+/** What each stop's time can be, given every leg around it. */
+const windows = computed(() => stopWindows(
+  directionsStore.trips?.trips?.[0],
+  waypoints.value.map(w => w.timeConstraint),
+))
 const bookmarksStore = useBookmarksStore()
 const themeStore = useThemeStore()
 const { isMobileScreen } = useResponsive()
@@ -201,10 +208,26 @@ function addWaypoint() {
 /** Index of waypoint whose time popover should open (triggered from mobile menu). */
 const openTimePopoverIndex = ref<number | null>(null)
 
+/**
+ * Set one stop's time, then move whatever it made impossible.
+ *
+ * Pushing a stop later drags the ones after it along — a stop the rider
+ * pinned to an earlier time is now unreachable, so it moves to the earliest
+ * that still works rather than sitting there as a contradiction.
+ */
 function updateTimeConstraint(index: number, constraint: WaypointTimeConstraint | null) {
-  const updated = [...waypoints.value]
-  updated[index] = { ...updated[index], timeConstraint: constraint }
-  emit('update:modelValue', updated)
+  const pending = waypoints.value.map(w => w.timeConstraint ?? null)
+  pending[index] = constraint
+
+  const settled = cascadeConstraints(
+    directionsStore.trips?.trips?.[0], pending, index,
+  )
+
+  emit('update:modelValue', waypoints.value.map((waypoint, i) => (
+    settled[i] === (waypoint.timeConstraint ?? null)
+      ? waypoint
+      : { ...waypoint, timeConstraint: settled[i] }
+  )))
 }
 
 function getWaypointName(waypoint: Waypoint) {
@@ -538,6 +561,8 @@ defineExpose({
                         :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
                         :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
                         :arrives-at="handoffTimes.get(index) ?? null"
+                        :earliest="windows[index]?.earliest ?? null"
+                        :latest="windows[index]?.latest ?? null"
                         :label="inputTexts[index] || undefined"
                         @update:model-value="c => updateTimeConstraint(index, c)"
                       />
@@ -572,6 +597,8 @@ defineExpose({
                         :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
                         :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
                         :arrives-at="handoffTimes.get(index) ?? null"
+                        :earliest="windows[index]?.earliest ?? null"
+                        :latest="windows[index]?.latest ?? null"
                         :label="inputTexts[index] || undefined"
                         :open="openTimePopoverIndex === index"
                         @update:open="v => { if (!v) openTimePopoverIndex = null }"

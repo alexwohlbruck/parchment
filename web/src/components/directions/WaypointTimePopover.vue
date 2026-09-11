@@ -44,6 +44,10 @@ const props = defineProps<{
   arrivesAt?: Date | null
   /** Name of this stop, for the sheet's heading. */
   label?: string
+  /** Earliest this stop may be left, given every leg before it. */
+  earliest?: Date | null
+  /** Latest, given any deadline further along the trip. */
+  latest?: Date | null
 }>()
 
 const emit = defineEmits<{
@@ -68,10 +72,34 @@ const clock = ref<string>('')     // HH:mm
 const dwell = ref<number | null>(null)
 const timed = ref(true)
 
-/** What this stop's time should start from when nothing is set yet. */
-const baseline = computed(() =>
-  roundUpToFive(props.arrivesAt ? dayjs(props.arrivesAt) : dayjs()),
-)
+/**
+ * What this stop's time should start from when nothing is set yet.
+ *
+ * The floor wins over the arrival: a stop can't be left before the legs
+ * before it have run, so opening the picker on an impossible time would
+ * only invite the rider to confirm one.
+ */
+const baseline = computed(() => {
+  const from = props.earliest
+    ? dayjs(props.earliest)
+    : roundUpToFive(props.arrivesAt ? dayjs(props.arrivesAt) : dayjs())
+  return roundUpToFive(from)
+})
+
+/** The bounds as clock times, but only on the day actually being edited. */
+const dayBound = (bound: Date | null | undefined, edge: 'min' | 'max') => {
+  if (!bound) return null
+  const at = dayjs(bound)
+  const editing = dayjs(day.value)
+  if (at.isSame(editing, 'day')) return at.format('HH:mm')
+  // A whole day before the floor (or after the ceiling) is out of reach.
+  const before = at.isAfter(editing, 'day')
+  if (edge === 'min') return before ? '23:59' : null
+  return before ? null : '00:00'
+}
+
+const minTime = computed(() => dayBound(props.earliest, 'min'))
+const maxTime = computed(() => dayBound(props.latest, 'max'))
 
 function loadDraft() {
   const current = props.modelValue
@@ -93,11 +121,23 @@ watch(open, (isOpen) => { if (isOpen) loadDraft() }, { immediate: true })
 watch(() => props.modelValue, () => { if (!open.value) loadDraft() })
 
 const dayOptions = computed(() => {
-  const from = baseline.value
+  const from = roundUpToFive(dayjs())
+  const floor = props.earliest ? dayjs(props.earliest) : null
+  const ceiling = props.latest ? dayjs(props.latest) : null
+
   return [
     { value: from.format('YYYY-MM-DD'), label: 'Today' },
     { value: from.add(1, 'day').format('YYYY-MM-DD'), label: 'Tomorrow' },
-  ]
+  ].map((option) => {
+    const at = dayjs(option.value)
+    return {
+      ...option,
+      // A day entirely before the floor, or after the deadline, is not a
+      // day this stop can happen on.
+      disabled: (!!floor && at.isBefore(floor, 'day'))
+        || (!!ceiling && at.isAfter(ceiling, 'day')),
+    }
+  })
 })
 
 /** Composed instant, or null while no time of day has been picked. */
@@ -113,7 +153,8 @@ const warning = computed(() => constraintWarning({
 }))
 
 function shiftBy(minutes: number) {
-  const next = (draftTime.value ?? baseline.value).add(minutes, 'minute')
+  let next = (draftTime.value ?? baseline.value).add(minutes, 'minute')
+  if (props.latest && next.isAfter(dayjs(props.latest))) next = dayjs(props.latest)
   timed.value = true
   day.value = next.format('YYYY-MM-DD')
   clock.value = next.format('HH:mm')
@@ -215,6 +256,7 @@ const heading = computed(() => {
               v-for="option in dayOptions"
               :key="option.value"
               :variant="day === option.value && timed ? 'default' : 'outline'"
+              :disabled="option.disabled"
               class="h-10 text-xs"
               @click="day = option.value; timed = true"
             >
@@ -222,7 +264,13 @@ const heading = computed(() => {
             </Button>
           </div>
 
-          <TimePicker v-model="clock" :disabled="!timed" @update:model-value="timed = true" />
+          <TimePicker
+            v-model="clock"
+            :disabled="!timed"
+            :min="minTime"
+            :max="maxTime"
+            @update:model-value="timed = true"
+          />
 
           <div class="grid gap-1" :class="isStop ? 'grid-cols-4' : 'grid-cols-3'">
             <Button

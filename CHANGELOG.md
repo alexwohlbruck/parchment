@@ -20,6 +20,8 @@
   an hour or an hour. Nothing re-plans the trip until you press Done.
 * You can now ask to stay a while at a stop without also fixing a time to
   arrive there.
+* Stop times can no longer overlap. A stop can't be set earlier than the trip
+  can reach it, and moving one later carries the stops after it along.
 
 ### Changed
 

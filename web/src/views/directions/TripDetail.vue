@@ -17,6 +17,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { api } from '@/lib/api'
 import { applyDepartureChange } from '@/lib/directions/trip-rebooking'
 import { useDirectionsStore } from '@/stores/directions.store'
+import { useTripFocusStore } from '@/stores/trip-focus.store'
 import { useDirectionsService } from '@/services/directions.service'
 import { useMapService } from '@/services/map/map.service'
 import { useGeolocationService } from '@/services/geolocation.service'
@@ -54,6 +55,7 @@ import type { Place } from '@/types/place.types'
 import type { RouteProfileType } from '@/lib/directions/route-profile-colors'
 import type { SharedMobilityDetails } from '@/types/multimodal.types'
 import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
+import { tripPlaceStops, type TripPlaceStop } from '@/lib/directions/trip-stops'
 import { getPlaceRoute } from '@/lib/place/place-route'
 import {
   getSearchResultIconName,
@@ -84,6 +86,7 @@ import { useI18n } from 'vue-i18n'
 const route = useRoute()
 const router = useRouter()
 const directionsStore = useDirectionsStore()
+const tripFocusStore = useTripFocusStore()
 const directionsService = useDirectionsService()
 const mapService = useMapService()
 const themeStore = useThemeStore()
@@ -763,6 +766,30 @@ watch(
   { immediate: true },
 )
 
+/**
+ * Tell the map which run each leg is riding.
+ *
+ * The planner names a run with its own encoded token, which the realtime
+ * feed has never heard of; the board names it with the feed's own trip id,
+ * which is exactly what a vehicle carries. Matching by departure time is
+ * what ties the two together — and it re-ties after a rebooking, so the
+ * highlighted vehicle follows the train the rider actually picked.
+ */
+watch(
+  [trip, segmentDepartures],
+  ([t]) => {
+    const ids: Record<number, string> = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;((t?.segments ?? []) as any[]).forEach((seg, idx) => {
+      if (seg.mode !== 'transit') return
+      const run = departuresFor(idx).find((d) => isCurrentDeparture(seg, d.ms))
+      if (run?.tripId) ids[idx] = splitFeedId(run.tripId).localId
+    })
+    tripFocusStore.setLegTripIds(ids)
+  },
+  { immediate: true },
+)
+
 // Keep the URL's id canonical after a signature match, so departure
 // rebooking and further shares reference the live trip object.
 watch(trip, (t) => {
@@ -816,6 +843,8 @@ onBeforeRouteLeave(to => {
 // the service's syncUrl watcher, whose router.replace cancels the outgoing
 // navigation. `route.name` is the committed destination here.
 onUnmounted(() => {
+  // The board's run ids belong to this page's boards; the list page has none.
+  tripFocusStore.setLegTripIds({})
   if (route.name === AppRoute.DIRECTIONS) return
   directionsService.clearWaypoints()
   directionsStore.unsetTrips()
@@ -856,7 +885,7 @@ const formatDistanceDisplay = (meters: number | undefined): string => {
   return formatDistance(meters)
 }
 
-const formatTime = (date: Date): string => {
+const formatTime = (date: Date | string): string => {
   return new Date(date).toLocaleTimeString([], {
     hour: 'numeric',
     minute: '2-digit',
@@ -950,6 +979,15 @@ const routeWaypoints = computed<RouteWaypointDisplay[]>(() => {
   })
 })
 
+/** Stops the plan makes on its own — a bike rack, a parking lot. */
+const placeStopsBySegment = computed(
+  () =>
+    new Map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tripPlaceStops((trip.value as any)?.segments).map(s => [s.segmentIndex, s]),
+    ),
+)
+
 // ── Unified timeline ───────────────────────────────────────────────
 
 interface TimelineWaypointEntry {
@@ -965,11 +1003,8 @@ interface TimelineSegmentEntry {
   segmentIndex: number
 }
 
-interface TimelinePlaceStopEntry {
+interface TimelinePlaceStopEntry extends TripPlaceStop {
   kind: 'place-stop'
-  place: Place
-  label: string
-  time: Date | null
 }
 
 type TimelineEntry = TimelineWaypointEntry | TimelineSegmentEntry | TimelinePlaceStopEntry
@@ -998,24 +1033,14 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
   for (let i = 0; i < segs.length; i++) {
     entries.push({ kind: 'segment', segment: segs[i], segmentIndex: i })
 
-    // Check for a place-bearing intermediate waypoint (e.g. parking) between
-    // consecutive segments. The backend attaches a full Place object to the
-    // segment end waypoint when it represents an OSM POI like a bike rack.
-    const seg = segs[i]
-    if (segs[i + 1] && seg.end?.place) {
-      entries.push({
-        kind: 'place-stop',
-        place: seg.end.place as Place,
-        label: seg.end.label || seg.end.place.name?.value || 'Stop',
-        time: seg.endTime ?? null,
-      })
-    }
+    const stop = placeStopsBySegment.value.get(i)
+    if (stop) entries.push({ kind: 'place-stop', ...stop })
 
     // A stop sits at the end of its leg, not after every segment — a leg
     // that walks to a station and rides on has several.
     const nextSeg = segs[i + 1]
     const viaIndex = nextSeg ? nextSeg.legIndex ?? 0 : null
-    if (viaIndex !== null && viaIndex !== (seg.legIndex ?? 0) && viaIndex < wps.length - 1) {
+    if (viaIndex !== null && viaIndex !== (segs[i].legIndex ?? 0) && viaIndex < wps.length - 1) {
       const via = wps[viaIndex]
       if (via?.role === 'via') {
         entries.push({ kind: 'waypoint', wp: via, waypointIndex: viaIndex })
@@ -1185,7 +1210,7 @@ function showSegmentChart(segment: any): boolean {
       <div class="mt-4">
         <div
           v-for="(entry, i) in timelineEntries"
-          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.place.id}` : `seg-${entry.segmentIndex}`"
+          :key="entry.kind === 'waypoint' ? entry.wp.id : entry.kind === 'place-stop' ? `place-${entry.id}` : `seg-${entry.segmentIndex}`"
           class="flex"
           :class="!isTransitCard(entry) && 'pl-2'"
         >

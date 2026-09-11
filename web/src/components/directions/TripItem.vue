@@ -4,8 +4,9 @@ import dayjs from 'dayjs'
 import { useI18n } from 'vue-i18n'
 import { useMapService } from '@/services/map/map.service'
 import { useUnits } from '@/composables/useUnits'
-import { getTravelModeCssClass, getTravelModeColor } from '@/lib/directions/travel-mode-colors'
-import { getSegmentIcon, getModeIcon } from '@/lib/directions/travel-mode-icons'
+import { getTravelModeCssClass } from '@/lib/directions/travel-mode-colors'
+import { getSegmentIcon } from '@/lib/directions/travel-mode-icons'
+import TripMeta from './TripMeta.vue'
 import type {
   TripOption,
   TripsResponse,
@@ -19,6 +20,8 @@ interface Props {
   timelineStart: Date
   pxPerMinute: number
   sidebarWidth: number
+  /** Visible width of the bar column; bounds the pinned summary. */
+  barAreaWidth: number
   isClickable?: boolean
 }
 
@@ -33,73 +36,6 @@ const emit = defineEmits<{
 const mapService = useMapService()
 const { t } = useI18n()
 const { formatDistance } = useUnits()
-
-function formatCo2(kg: number): string {
-  if (kg >= 1) return `${kg.toFixed(1)} kg`
-  return `${Math.round(kg * 1000)} g`
-}
-
-/**
- * Trip type — the combination pattern, not the longest mode. A subway trip
- * with two long walks is still a transit trip ("Transit & Walking"), a
- * drive to the station is "Park & Ride". Mirrors the trip-combination
- * taxonomy the planner generates from.
- */
-const tripType = computed<{ key: string; iconMode: string }>(() => {
-  const segs = props.trip.segments as any[]
-  const has = (m: string) => segs.some(s => s.mode === m)
-
-  if (!has('transit')) {
-    const shared = segs.find(s => s.sharedMobilityDetails)
-    if (shared) {
-      const kind = shared.sharedMobilityDetails?.vehicleType === 'scooter'
-        ? 'scootershare' : 'bikeshare'
-      return { key: kind, iconMode: 'cycling' }
-    }
-    if (has('rideshare')) return { key: 'rideshare', iconMode: 'rideshare' }
-    if (has('driving')) return { key: 'driving', iconMode: 'driving' }
-    if (has('cycling')) return { key: 'cycling', iconMode: 'cycling' }
-    return { key: 'walking', iconMode: 'walking' }
-  }
-
-  if (has('driving')) return { key: 'parkAndRide', iconMode: 'transit' }
-  if (has('rideshare')) return { key: 'transitRideshare', iconMode: 'transit' }
-  const shared = segs.find(s => s.sharedMobilityDetails)
-  if (shared) {
-    const kind = shared.sharedMobilityDetails?.vehicleType === 'scooter'
-      ? 'transitScooter' : 'transitBikeShare'
-    return { key: kind, iconMode: 'transit' }
-  }
-  if (has('cycling')) return { key: 'transitBike', iconMode: 'transit' }
-
-  // "Transit & Walking" only when walking is a significant journey of its
-  // own (15+ min in motion) — ordinary access and transfer walks are just
-  // part of riding transit.
-  const walkSec = segs.reduce(
-    (sum, s) => sum + (s.mode === 'walking' ? (s.duration || 0) - (s.waitSeconds ?? 0) : 0),
-    0,
-  )
-  if (walkSec >= 900) {
-    return { key: 'transitWalking', iconMode: 'transit' }
-  }
-  return { key: 'transit', iconMode: 'transit' }
-})
-
-/** Icon for the trip type — transit types use the longest transit segment's route type */
-const tripIcon = computed(() => {
-  if (tripType.value.iconMode !== 'transit') {
-    return getModeIcon(tripType.value.iconMode)
-  }
-  let longestSeg: any = null
-  let longestDur = 0
-  for (const seg of props.trip.segments) {
-    if (seg.mode === 'transit' && seg.duration > longestDur) {
-      longestDur = seg.duration
-      longestSeg = seg
-    }
-  }
-  return getSegmentIcon('transit', longestSeg?.routeType)
-})
 
 function segLeft(segment: { startTime: Date }) {
   return dayjs(segment.startTime).diff(props.timelineStart, 'minute', true) * props.pxPerMinute
@@ -195,18 +131,6 @@ function getSegmentTooltip(segment: any): string {
   return `${mode}: ${duration}${distance ? ', ' + distance : ''}`
 }
 
-/** "Q · toward Coney Island" — single quiet context line under the bar.
- *  Merged interchangeable legs read "4 or 5 · toward …". */
-const firstTransitHeadsign = computed(() => {
-  const seg = props.trip.segments.find(s => s.mode === 'transit' && (s as any).headsign) as any
-  if (!seg) return null
-  const opts: { shortName?: string }[] = seg.routeOptions ?? []
-  const line = opts.length > 1
-    ? opts.map(o => o.shortName).filter(Boolean).join(` ${t('directions.or')} `)
-    : seg.lineName
-  return `${line ? line + ' · ' : ''}${t('directions.toward', { headsign: seg.headsign })}`
-})
-
 const legs = computed(() => {
   const groups: { legIndex: number; segments: typeof props.trip.segments }[] = []
   for (const seg of props.trip.segments) {
@@ -282,14 +206,14 @@ function handleMouseEnter() {
 
 <template>
   <div
-    class="grid gap-3.5 py-3 transition-colors"
+    class="grid py-3 transition-colors"
     :class="{ 'cursor-pointer hover:bg-accent/50': isClickable }"
     :style="{ gridTemplateColumns: sidebarWidth ? `${sidebarWidth}px 1fr` : 'auto 1fr' }"
     @click="handleClick"
     @mouseenter="handleMouseEnter"
   >
     <!-- Duration sidebar -->
-    <div data-sidebar class="text-right tabular-nums pt-0.5 pl-3 pr-2 whitespace-nowrap">
+    <div data-sidebar class="text-right tabular-nums pt-0.5 pl-3 pr-5 whitespace-nowrap">
       <div class="text-base font-semibold leading-tight">
         <template v-for="(part, i) in formatDurationParts(trip.summary.totalDuration).parts" :key="i">
           <span v-if="i > 0" class="inline-block w-1" />{{ part.value }}<span class="text-[11px] font-medium ml-px">{{ part.unit }}</span>
@@ -375,34 +299,9 @@ function handleMouseEnter() {
         />
       </div>
 
-      <!-- Trip meta -->
-      <div class="flex items-center gap-1.5 flex-wrap mt-1.5 pr-4 text-[11px] text-muted-foreground">
-        <span class="inline-flex items-center gap-1">
-          <component
-            :is="tripIcon"
-            class="size-3"
-            :style="{ color: getTravelModeColor(tripType.iconMode) }"
-          />
-          <span class="font-semibold text-foreground/80">{{ t(`directions.tripTypes.${tripType.key}`) }}</span>
-        </span>
-
-        <template v-if="trip.cost?.total">
-          <span class="size-0.5 rounded-full bg-muted-foreground/50" />
-          <span class="tabular-nums">${{ trip.cost.total.amount.toFixed(2) }}</span>
-        </template>
-
-        <template v-if="trip.co2Emissions != null && trip.co2Emissions > 0">
-          <span class="size-0.5 rounded-full bg-muted-foreground/50" />
-          <span class="tabular-nums">{{ formatCo2(trip.co2Emissions) }} CO₂</span>
-        </template>
-      </div>
-
-      <!-- First transit leg headsign — one quiet line instead of a card row -->
-      <div
-        v-if="firstTransitHeadsign"
-        class="mt-1 text-[11px] text-muted-foreground truncate pr-4"
-      >
-        {{ firstTransitHeadsign }}
+      <!-- Trip summary — travels with the bar, then pins at the panel edge -->
+      <div class="sticky left-3 w-fit" :style="{ maxWidth: `${barAreaWidth}px` }">
+        <TripMeta :trip="trip" class="mt-1.5 pr-4" />
       </div>
     </div>
   </div>

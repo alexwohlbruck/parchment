@@ -24,12 +24,24 @@
   can reach it, and moving one later carries the stops after it along.
 * A stop's time can now be set on any date, not just today or tomorrow. A time
   on another day says which day it is on the stop itself.
+* Stops a trip makes for you — the bike rack it parks at, the lot it leaves the
+  car in — now show on the map as their own labelled POI marker, matching the
+  timeline
+* Trip suggestions can be shown as a plain list instead of the timeline, with
+  each option's legs as a row of route badges. The toggle sits next to the
+  sort control and is remembered
 
 ### Changed
 
 * The combined travel mode now shows one trip per kind rather than several of
   whichever kind ranks best. Transit directions still list the alternative
   departures.
+* Viewing a trip now fades the surrounding transit network so the route you're
+  taking stands out, matching how a line's own page already looks
+* A trip now shows just the train or bus you're actually catching on each leg,
+  instead of every vehicle running those lines
+* Trips that don't ride transit at all now hide the transit network entirely
+  rather than dimming it, including while you hover a suggestion in the list
 
 ### Fixed
 
@@ -54,6 +66,9 @@
   you never chose.
 * Stops on a multi-stop trip now appear at the right point in the timeline
   when a leg takes more than one segment to get there.
+* The trip suggestions timeline scrolls sideways, so a trip that runs past the
+  visible range can be followed to its end. Each suggestion's type and route
+  description stay pinned at the edge so you can tell the rows apart.
 
 ## [0.11.5] - 2026-09-09
 

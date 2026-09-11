@@ -6,6 +6,98 @@
 
 ### Fixed
 
+## [0.12.0] - 2026-09-11
+
+### Added
+
+* Quick edit: add a business or anything else on the map straight to
+  OpenStreetMap, from the map's edit menu. Pick what it is, then fill in hours,
+  contact details and features with a guided form — no OSM knowledge needed.
+* Suggest an edit on any OpenStreetMap place to correct its details, or drag its
+  marker to the right spot. Edits are published under your own OSM account.
+* Quick edit knows the chains: type a business name and pick the brand to fill
+  in its logo, category and the details that chain always carries. Editing a
+  chain that's missing them offers the same as a one-tap fix.
+* Before you add a place, nearby ones that look like the same thing are shown on
+  the map and offered for editing instead, so nothing gets mapped twice.
+
+### Fixed
+
+* Opening a link with extra details in it — a note or a map edit at a specific
+  spot — no longer loses them while signing in.
+
+## [0.11.6] - 2026-09-11
+
+### Added
+
+* The combined travel mode now shows one of every kind of trip that works for
+  your route — riding to the station, transit with a shared bike at the far
+  end — instead of only the plain walk-and-ride options.
+* Transit directions now offer park-and-ride and bike-to-station options
+  without needing a vehicle saved in the app. Saving one still improves them —
+  the trip starts by walking you to where you actually parked.
+* You can now get trips that take your bike onto transit and park it near
+  where you're going, on services that allow bikes on board.
+* Trips with several stops now offer a full journey for each way of
+  travelling — all walking, all cycling, park-and-ride, transit throughout —
+  rather than a single mixed itinerary.
+* Each stop now shows when the trip gets you there, and the leg after it
+  leaves then. Set a later time on that stop to stay longer.
+* Setting a time on a stop is now built for tapping: pick today or tomorrow,
+  dial the time on a set of scrolling columns, and nudge by 15 minutes, half
+  an hour or an hour. Nothing re-plans the trip until you press Done.
+* You can now ask to stay a while at a stop without also fixing a time to
+  arrive there.
+* Stop times can no longer overlap. A stop can't be set earlier than the trip
+  can reach it, and moving one later carries the stops after it along.
+* A stop's time can now be set on any date, not just today or tomorrow. A time
+  on another day says which day it is on the stop itself.
+* Stops a trip makes for you — the bike rack it parks at, the lot it leaves the
+  car in — now show on the map as their own labelled POI marker, matching the
+  timeline
+* Trip suggestions can be shown as a plain list instead of the timeline, with
+  each option's legs as a row of route badges. The toggle sits next to the
+  sort control and is remembered
+
+### Changed
+
+* The combined travel mode now shows one trip per kind rather than several of
+  whichever kind ranks best. Transit directions still list the alternative
+  departures.
+* Viewing a trip now fades the surrounding transit network so the route you're
+  taking stands out, matching how a line's own page already looks
+* A trip now shows just the train or bus you're actually catching on each leg,
+  instead of every vehicle running those lines
+* Trips that don't ride transit at all now hide the transit network entirely
+  rather than dimming it, including while you hover a suggestion in the list
+
+### Fixed
+
+* Trips that ride a bike to transit now park it at a real bike rack and walk
+  you in, instead of leaving the bike unaccounted for once you board.
+* Park-and-ride options no longer go missing on trips where the drive plus the
+  walk from the car park take more than fifteen minutes.
+* Each leg of a multi-stop trip can now use bikes, park-and-ride and shared
+  vehicles, rather than only walking to and from transit.
+* Short trips are much faster to plan. Driving somewhere you could walk in ten
+  minutes is no longer costed out as a park-and-ride, which was most of the
+  work a short trip did. Asking for driving directions still offers it.
+* Trips that park a bike on the way to transit no longer tell you to set off
+  before your chosen departure time.
+* The clock on each stop is now always visible, rather than appearing only on
+  hover — it was unreachable on a touch screen.
+* Scrolling areas inside a bottom sheet can now be dragged both ways. The
+  sheet was cancelling downward swipes on their behalf, so the time dial
+  would only turn one way.
+* The time constraint picker no longer shows a blank box where "Depart after"
+  or "Arrive by" should be, and opening it no longer pins the stop to a time
+  you never chose.
+* Stops on a multi-stop trip now appear at the right point in the timeline
+  when a leg takes more than one segment to get there.
+* The trip suggestions timeline scrolls sideways, so a trip that runs past the
+  visible range can be followed to its end. Each suggestion's type and route
+  description stay pinned at the edge so you can tell the rows apart.
+
 ## [0.11.5] - 2026-09-09
 
 ### Added

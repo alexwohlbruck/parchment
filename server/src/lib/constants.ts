@@ -92,3 +92,10 @@ export const GOOGLE_PLACES_API_URL = 'https://places.googleapis.com/v1/places'
 export const DEFAULT_SEARCH_RADIUS = 500 // meters
 // Pelias constants
 export const PELIAS_API_URL = 'http://pelias_api:4000/v1/autocomplete'
+
+/**
+ * User-Agent for requests to public OSM-ecosystem services. They ask clients
+ * to identify themselves, and overpass-api.de rejects axios's default UA
+ * outright (HTTP 406).
+ */
+export const APP_USER_AGENT = 'Parchment (+https://parchment.app)'

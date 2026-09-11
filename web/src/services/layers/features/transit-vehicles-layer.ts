@@ -24,7 +24,7 @@ import {
 } from '@/services/layers/markers/base-marker-layer'
 import { useLayersStore } from '@/stores/layers.store'
 import { useTransitVehiclesStore } from '@/stores/transit-vehicles.store'
-import { useRouteDetailStore } from '@/stores/route-detail.store'
+import { useTransitFocusStore } from '@/stores/transit-focus.store'
 import {
   buildPolylineDistances,
   distanceMeters,
@@ -192,7 +192,7 @@ const pendingShapeFetches = new Set<string>()
 export class TransitVehiclesLayer extends BaseMarkerLayer {
   private layersStore = useLayersStore()
   private transitVehiclesStore = useTransitVehiclesStore()
-  private routeDetailStore = useRouteDetailStore()
+  private transitFocusStore = useTransitFocusStore()
 
   private tracks = new Map<string, TransitTrack>()
   private lastRendered = new Map<string, { lat: number; lng: number }>()
@@ -212,10 +212,10 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
 
   constructor() {
     const layersStore = useLayersStore()
-    const routeDetailStore = useRouteDetailStore()
+    const transitFocusStore = useTransitFocusStore()
     const isEnabled = computed(() => {
-      // Enable when route detail is active (isolated line view)
-      if (routeDetailStore.isActive) return true
+      // Enable whenever a route or an itinerary is the map's subject
+      if (transitFocusStore.isActive) return true
       // Or when the legacy layer toggle is on
       const layer = layersStore.layers.find(
         (l) => l.configuration?.id === 'transit-vehicles',
@@ -258,26 +258,22 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
   }
 
   protected getData(): MarkerData[] {
-    // When route detail is active, use its filtered vehicles
-    let vehicleEntries: TransitVehiclePosition[]
-    if (this.routeDetailStore.isActive) {
-      // Only show vehicles matching the selected direction
-      const dirFilter = this.routeDetailStore.directionFilteredVehicleIds
-      vehicleEntries = Array.from(this.routeDetailStore.vehicles.values())
-        .filter(v => dirFilter.has(v.vehicleId))
-    } else {
-      vehicleEntries = Array.from(this.transitVehiclesStore.vehicles.values())
-    }
+    const focus = this.transitFocusStore
+    // A focused route or itinerary supplies its own vehicles, already
+    // scoped to the lines it rides; otherwise the viewport feed answers.
+    const visible = focus.visibleVehicleIds
+    const vehicleEntries: TransitVehiclePosition[] = focus.isActive
+      ? Array.from(focus.vehicles.values()).filter(v => visible.has(v.vehicleId))
+      : Array.from(this.transitVehiclesStore.vehicles.values())
 
-    const selectedId = this.routeDetailStore.selectedVehicleId
-    const hasSelection = !!selectedId
+    // Empty emphasis means nothing on screen can be called the rider's, and
+    // so nothing fades: every train at full strength beats the wrong one lit.
+    const emphasized = focus.emphasizedVehicleIds
+    const hasEmphasis = emphasized.size > 0
 
-    // When in route detail mode, use the route's type (from the route-detail
-    // API which has correct data) instead of the vehicle's type (from the
-    // vehicles enrichment cache which may have stale/wrong GTFS data).
-    const routeTypeOverride = this.routeDetailStore.isActive
-      ? this.routeDetailStore.activeRoute?.routeType
-      : undefined
+    // The focused view's own data is the authority on a line's mode; the
+    // vehicle feed's enrichment cache can be stale about it.
+    const routeTypeOverride = focus.routeTypeOverride
 
     return vehicleEntries.map((v: TransitVehiclePosition) => ({
       id: v.vehicleId,
@@ -290,9 +286,9 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
         routeType: routeTypeOverride ?? v.routeType,
         bearing: v.bearing,
         timestamp: v.timestamp,
-        selected: v.vehicleId === selectedId,
-        dimmed: hasSelection && v.vehicleId !== selectedId,
-        onSelect: (id: string) => this.routeDetailStore.selectVehicle(id),
+        selected: emphasized.has(v.vehicleId),
+        dimmed: hasEmphasis && !emphasized.has(v.vehicleId),
+        onSelect: (id: string) => focus.selectVehicle(id),
       },
     }))
   }
@@ -309,9 +305,9 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     this.pollingWatchStop = watch(
       this.enabled,
       (visible) => {
-        if (visible && !this.routeDetailStore.isActive) {
-          // Only subscribe to the global WS feed when NOT in route-detail
-          // mode. Route-detail has its own HTTP polling via the store.
+        if (visible && !this.transitFocusStore.isActive) {
+          // Only subscribe to the global WS feed when nothing is focused.
+          // A focused route or trip does its own HTTP polling.
           this.transitVehiclesStore.subscribe(getBounds)
         } else if (!visible) {
           this.transitVehiclesStore.unsubscribe()
@@ -365,8 +361,8 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     this.samplesWatchStop = watch(
       () => {
         // Read from whichever store is providing vehicle data
-        const source = this.routeDetailStore.isActive
-          ? this.routeDetailStore.vehicles
+        const source = this.transitFocusStore.isActive
+          ? this.transitFocusStore.vehicles
           : this.transitVehiclesStore.vehicles
 
         return Array.from(source.values()).map(
@@ -754,8 +750,8 @@ export class TransitVehiclesLayer extends BaseMarkerLayer {
     cumulativeDistances: number[],
     totalLength: number,
   ): number | null {
-    if (!stopId || !this.routeDetailStore.activeRoute) return null
-    const stops = this.routeDetailStore.activeRoute.stops
+    const stops = this.transitFocusStore.focusedStops
+    if (!stopId || !stops.length) return null
     // Try exact match and stripped-suffix match (e.g. "101N" → "101")
     const stop = stops.find(s => s.stopId === stopId)
       ?? stops.find(s => stopId.startsWith(s.stopId))

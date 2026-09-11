@@ -23,12 +23,16 @@ import type { Place } from '@/types/place.types'
  * at 13px, 1.1em below the icon's centre. A stop is a POI, so it should not be
  * possible to tell which of the two labels the style drew.
  */
-const props = defineProps<{
-  index: number
-  totalWaypoints: number
-  type?: 'origin' | 'destination' | 'waypoint'
-  place?: Partial<Place> | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    type?: 'origin' | 'destination' | 'waypoint'
+    place?: Partial<Place> | null
+    /** Overrides the name derived from `place`, for a stop the plan named. */
+    label?: string
+    draggable?: boolean
+  }>(),
+  { type: 'waypoint', place: null, label: '', draggable: false },
+)
 
 const themeStore = useThemeStore()
 const { t } = useI18n()
@@ -44,7 +48,7 @@ const mark = computed(() =>
 
 /** The origin is the one stop that isn't a place; the rest all draw a plate. */
 const drawsPlate = computed(
-  () => mark.value.ownIcon || (props.index > 0 && props.type !== 'origin'),
+  () => mark.value.ownIcon || props.type !== 'origin',
 )
 
 const iconName = computed(() => mark.value.display.icon)
@@ -56,6 +60,7 @@ const iconPack = computed(() => mark.value.display.iconPack)
  * itself already says "a stop is here", so that gets no label.
  */
 const label = computed(() => {
+  if (props.label) return props.label
   const place = props.place
   if (!place?.name?.value && !place?.bookmark) return ''
   return mark.value.display.title
@@ -101,7 +106,10 @@ const lucideIcon = computed(() => {
 </script>
 
 <template>
-  <div class="relative size-8 shrink-0 cursor-move flex items-center justify-center">
+  <div
+    class="relative size-8 shrink-0 flex items-center justify-center"
+    :class="draggable ? 'cursor-move' : 'cursor-default'"
+  >
     <!-- The place's own marker -->
     <div v-if="css" class="shadow-md select-none" :style="css.plate">
       <MakiIcon

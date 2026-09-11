@@ -30,6 +30,7 @@ import {
   environment as environmentController,
   locationHistory as locationHistoryController,
   osmOAuth as osmOAuthController,
+  osmEdit as osmEditController,
   notes as notesController,
   personalBlob as personalBlobController,
   wrappedMasterKeys as wrappedMasterKeysController,
@@ -113,6 +114,7 @@ async function main() {
   app.use(environmentController)
   app.use(locationHistoryController)
   app.use(osmOAuthController)
+  app.use(osmEditController)
   app.use(notesController)
   app.use(personalBlobController)
   app.use(wrappedMasterKeysController)

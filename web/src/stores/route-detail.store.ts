@@ -8,6 +8,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
+import { fetchVehiclesOnRoutes } from '@/lib/transit/transit-vehicle-fetch'
 import type { TransitVehiclePosition } from '@/types/multimodal.types'
 import { projectVehicleOnRoute } from '@/lib/transit/route-projection'
 import type {
@@ -539,34 +540,11 @@ export const useRouteDetailStore = defineStore('route-detail', () => {
     if (routeIds.length === 0) return
 
     try {
-      // Try the route-specific endpoint first (no bounds needed)
-      let vehicleData: TransitVehiclePosition[] | null = null
-
-      try {
-        const { data } = await api.get<{ vehicles: TransitVehiclePosition[] }>(
-          '/transit/route-vehicles',
-          { params: { routeIds: routeIds.join(','), feedId: activeRoute.value.feedId } },
-        )
-        vehicleData = data?.vehicles ?? null
-      } catch {
-        // Endpoint not available (server needs restart) — fall back to bbox
-      }
-
-      // Fallback: use the bbox vehicles endpoint with a wide bounds
-      if (!vehicleData) {
-        const bounds = routeBounds()
-        if (!bounds) return
-        const { data } = await api.get<{ vehicles: TransitVehiclePosition[] }>(
-          '/transit/vehicles',
-          { params: bounds },
-        )
-        // Filter to our routes client-side
-        const routeIdSet = new Set(routeIds)
-        vehicleData = (data?.vehicles ?? []).filter(v =>
-          (v.routeId && routeIdSet.has(v.routeId)) ||
-          (v.routeShortName && routeIdSet.has(v.routeShortName)),
-        )
-      }
+      const vehicleData = await fetchVehiclesOnRoutes(
+        activeRoute.value.feedId,
+        routeIds,
+        routeBounds,
+      )
 
       const updated = new Map<string, TransitVehiclePosition>()
       for (const v of vehicleData) {

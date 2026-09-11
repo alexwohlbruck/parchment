@@ -1,6 +1,6 @@
 {
   "name": "parchment",
-  "version": "0.11.5",
+  "version": "0.12.0",
   "scripts": {
     "dev": "bun src/index.ts --watch",
     "build:emails": "cd emails && bun install && npx maizzle build production",
@@ -56,6 +56,7 @@
     "lodash": "^4.17.21",
     "lucia": "^3.2.2",
     "md5": "^2.3.0",
+    "name-suggestion-index": "^8.0.20260729",
     "nodemailer": "^6.9.13",
     "opening_hours": "^3.14.0",
     "oslo": "^1.2.1",

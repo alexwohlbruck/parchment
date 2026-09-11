@@ -42,6 +42,11 @@
  * scrolling rows (photo galleries, chip rows) are fine anywhere inside: they
  * only take over the x axis, so vertical pans still reach the sheet.
  *
+ * A small vertical scroller that is a *control* rather than a surface — the
+ * dial in `<TimePicker>` — is the one exception. It is bounded, it stops the
+ * sheet reading it as a drag with `data-vaul-no-drag`, and the touchmove
+ * guard below stands down while it still has somewhere to scroll.
+ *
  * ── How the drag and the scroll cooperate ───────────────────────────────────
  *
  * Below the top detent the surface is `overflow-hidden` with `touch-action:
@@ -49,7 +54,9 @@
  * scrollable, and two guards hand the gesture back: `data-vaul-no-drag` once
  * scrolled off the top (Vaul stops treating pans as drags), and a touchmove
  * guard that swallows the overscroll at `scrollTop === 0` so a downward pull
- * collapses the sheet instead of rubber-banding the page.
+ * collapses the sheet instead of rubber-banding the page. That guard cancels
+ * the gesture for everything under it, so it defers to a nested scroller that
+ * still has room — otherwise such a control only pans one way.
  *
  * ── Why the footer has to be portaled ───────────────────────────────────────
  *
@@ -742,6 +749,16 @@ function handleTouchStart(e: TouchEvent) {
   lastTouchY = e.touches[0].clientY
 }
 
+/** Whether a scroller between the touch and the sheet has room left to scroll. */
+function nestedScrollerCanScrollUp(target: EventTarget | null): boolean {
+  let node = target instanceof HTMLElement ? target : null
+  while (node && node !== scrollContainer.value) {
+    if (node.scrollHeight > node.clientHeight && node.scrollTop > 0) return true
+    node = node.parentElement
+  }
+  return false
+}
+
 function handleTouchMove(e: TouchEvent) {
   if (!isFullyExpanded.value) return
 
@@ -753,7 +770,15 @@ function handleTouchMove(e: TouchEvent) {
   // `cancelable`: once native scroll momentum is in flight the touchmove is
   // non-cancelable, and calling preventDefault then just spams the console
   // with an "Ignored attempt to cancel a touchmove" intervention warning.
-  if (isAtTop.value && isScrollingUp && e.cancelable) {
+  // Skipped when something nested is mid-scroll: cancelling the gesture
+  // here cancels it for them too, which left a scroll area inside a sheet
+  // draggable one way only.
+  if (
+    isAtTop.value
+    && isScrollingUp
+    && e.cancelable
+    && !nestedScrollerCanScrollUp(e.target)
+  ) {
     e.preventDefault()
     return false
   }

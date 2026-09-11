@@ -7,6 +7,7 @@ import {
   BookmarkPlusIcon,
   RouteIcon,
   ArrowDownToDotIcon,
+  PencilIcon,
 } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksService } from '@/services/library/bookmarks.service'
@@ -57,6 +58,11 @@ const canBookmark = computed(() => {
   return ids && Object.keys(ids).length > 0
 })
 
+const canEdit = computed(() => {
+  const osm = props.place.externalIds?.osm
+  return Boolean(osm && /^(node|way|relation)\//.test(osm))
+})
+
 // `place.collectionIds` is the source of truth for the badge; sync it
 // from each picker event without touching the bookmark identity unless
 // the bookmark itself was created or deleted. Cast through `any` —
@@ -99,6 +105,14 @@ function onBookmarkDeleted() {
           </Button>
         </TooltipTrigger>
         <TooltipContent>{{ t('general.share') }}</TooltipContent>
+      </Tooltip>
+      <Tooltip v-if="canEdit">
+        <TooltipTrigger as-child>
+          <Button size="icon" variant="outline" @click="$emit('edit')">
+            <PencilIcon class="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{{ t('quickEdit.editPlace') }}</TooltipContent>
       </Tooltip>
 
       <!-- Bookmark button — single behavior regardless of saved state.

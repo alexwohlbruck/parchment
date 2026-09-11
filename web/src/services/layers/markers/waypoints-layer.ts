@@ -33,8 +33,6 @@ export class WaypointsLayer extends BaseMarkerLayer {
           id: String(index),
           lngLat: waypoint.lngLat,
           props: {
-            index,
-            totalWaypoints: waypoints.length,
             type: index === 0
               ? 'origin'
               : index === waypoints.length - 1
@@ -43,6 +41,7 @@ export class WaypointsLayer extends BaseMarkerLayer {
             // The marker draws the place's own icon when it has one, so the
             // record has to reach it.
             place: waypoint.place ?? null,
+            draggable: true,
           },
           dragOptions: {
             onDragEnd: (lngLat) => {
@@ -68,8 +67,6 @@ export class WaypointsLayer extends BaseMarkerLayer {
       // be rebuilt when it is, or it keeps the numbered dot it was born with.
       const place = markerData.props.place
       const snapshot = [
-        markerData.props.index,
-        markerData.props.totalWaypoints,
         markerData.props.type,
         place?.id ?? '',
         place?.icon?.icon ?? '',

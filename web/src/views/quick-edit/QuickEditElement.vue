@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
@@ -60,6 +60,7 @@ const sandboxServer = ref<string | null>(null)
 const brandMatch = ref<BrandSuggestion | null>(null)
 const brandOffered = ref(false)
 const brandLogo = ref<string | null>(null)
+const markerAt = ref<LngLat | null>(null)
 
 const osmConnected = computed(() =>
   Boolean(
@@ -102,24 +103,10 @@ onMounted(async () => {
       response.element.lat !== undefined
     ) {
       const at = { lat: response.element.lat, lng: response.element.lon! }
+      markerAt.value = at
       whenMapReady(() => {
         flyTo({ center: [at.lng, at.lat], zoom: 18 })
-        addVueMarker(
-          MARKER_ID,
-          at,
-          QuickEditMarker,
-          {
-            iconName: response.preset?.iconName,
-            iconPack: response.preset?.iconPack,
-            category: response.preset?.iconCategory,
-          },
-          undefined,
-          {
-            onDragEnd: (lngLat: LngLat) => {
-              movedTo.value = lngLat
-            },
-          },
-        )
+        placeMarker()
       })
     }
   } catch (error: any) {
@@ -130,13 +117,48 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearTimeout(labelTimer)
   removeMarker(MARKER_ID)
 })
+
+function placeMarker() {
+  const at = movedTo.value ?? markerAt.value
+  if (!at) return
+  removeMarker(MARKER_ID)
+  addVueMarker(
+    MARKER_ID,
+    at,
+    QuickEditMarker,
+    {
+      iconName: preset.value?.iconName,
+      iconPack: preset.value?.iconPack,
+      category: preset.value?.iconCategory,
+      label: tags.name,
+    },
+    undefined,
+    {
+      onDragEnd: (lngLat: LngLat) => {
+        movedTo.value = lngLat
+      },
+    },
+  )
+}
 
 function setTag(key: string, value: string | null) {
   if (value === null) delete tags[key]
   else tags[key] = value
 }
+
+// Marker props are set when the marker is created, so the pin is re-placed to
+// pick up a new name. Debounced: otherwise it remounts on every keystroke.
+let labelTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => tags.name,
+  () => {
+    clearTimeout(labelTimer)
+    labelTimer = setTimeout(placeMarker, 400)
+  },
+)
 
 function applyBrand(brand: NsiBrand) {
   for (const [key, value] of Object.entries(brand.tags)) tags[key] = value

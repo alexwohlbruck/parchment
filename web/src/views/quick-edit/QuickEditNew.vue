@@ -95,6 +95,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearTimeout(labelTimer)
   removeMarker(MARKER_ID)
 })
 
@@ -109,6 +110,7 @@ function placeMarker() {
       iconName: preset.value?.iconName,
       iconPack: preset.value?.iconPack,
       category: preset.value?.iconCategory,
+      label: tags.name,
     },
     undefined,
     {
@@ -124,6 +126,17 @@ function setTag(key: string, value: string | null) {
   if (value === null) delete tags[key]
   else tags[key] = value
 }
+
+// Marker props are set when the marker is created, so the pin is re-placed to
+// pick up a new name. Debounced: otherwise it remounts on every keystroke.
+let labelTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => tags.name,
+  () => {
+    clearTimeout(labelTimer)
+    labelTimer = setTimeout(placeMarker, 400)
+  },
+)
 
 async function selectPreset(result: PresetSummary) {
   preset.value = await quickEditService.getPreset(result.id)

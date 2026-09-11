@@ -34,6 +34,7 @@ export function useDuplicateMarkers(
           iconName: icon.iconName,
           iconPack: icon.iconPack,
           category: icon.iconCategory,
+          label: candidate.name ?? undefined,
           muted: true,
           onClick: () => onSelect(candidate),
         },

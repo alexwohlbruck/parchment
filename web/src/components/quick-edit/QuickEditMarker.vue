@@ -5,6 +5,7 @@ defineProps<{
   iconName?: string
   iconPack?: 'lucide' | 'maki'
   category?: string
+  label?: string
 }>()
 </script>
 
@@ -15,6 +16,7 @@ defineProps<{
       :icon-name="iconName ?? 'MapPin'"
       :icon-pack="iconPack ?? 'lucide'"
       :category="category ?? 'default'"
+      :label="label"
     />
   </div>
 </template>

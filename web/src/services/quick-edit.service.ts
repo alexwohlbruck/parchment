@@ -9,6 +9,7 @@ import type {
   OsmLiveElement,
   OsmElementType,
   PresetSummary,
+  TagSuggestion,
   SubmitEditInput,
   SubmitEditResult,
 } from '@/types/quick-edit.types'
@@ -57,6 +58,14 @@ export function useQuickEditService() {
     return response.data.results
   }
 
+  async function suggestTags(q: string, key?: string): Promise<TagSuggestion[]> {
+    const response = await api.get<{ results: TagSuggestion[] }>(
+      '/osm/tags/suggest',
+      { params: { q, key } },
+    )
+    return response.data.results
+  }
+
   async function findDuplicates(
     lat: number,
     lng: number,
@@ -100,6 +109,7 @@ export function useQuickEditService() {
     getPreset,
     getElement,
     searchBrands,
+    suggestTags,
     findDuplicates,
     submitEdit,
     getPendingEdits,

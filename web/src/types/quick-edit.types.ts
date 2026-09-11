@@ -8,9 +8,11 @@ import type {
 import type { FieldDefinition, GeometryType } from '@server/lib/osm-presets'
 import type { OsmEdit } from '@server/schema/osm-edits.schema'
 import type { NsiBrand } from '@server/lib/nsi'
+import type { TagSuggestion } from '@server/lib/osm-taginfo'
 
 export type {
   NsiBrand,
+  TagSuggestion,
   OsmElementType,
   OsmLiveElement,
   SubmitEditInput,

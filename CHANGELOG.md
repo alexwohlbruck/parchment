@@ -18,6 +18,8 @@
 * Addresses can be filled in by searching for them, or taken from the pin.
 * Place type search understands the same everyday names as the app's search, so
   "bike rack" finds bicycle parking.
+* The raw tag editor suggests tag keys and values as you type, and closed
+  sections show what they hold rather than just a count.
 
 ### Fixed
 

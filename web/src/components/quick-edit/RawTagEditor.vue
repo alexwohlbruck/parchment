@@ -2,8 +2,8 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { PlusIcon, XIcon } from 'lucide-vue-next'
+import TagSuggestInput from './TagSuggestInput.vue'
 
 const props = defineProps<{
   tags: Record<string, string>
@@ -22,53 +22,63 @@ const newValue = ref('')
 function addRow() {
   const key = newKey.value.trim()
   if (!key) return
-  emit('set', key, newValue.value.trim() || '')
+  emit('set', key, newValue.value.trim())
   newKey.value = ''
   newValue.value = ''
 }
 </script>
 
 <template>
-  <div class="space-y-1.5">
+  <div class="space-y-1">
     <div
       v-for="(value, key) in props.tags"
       :key="key"
-      class="flex items-center gap-1.5"
+      class="flex items-center gap-1"
     >
-      <Input
+      <TagSuggestInput
         :model-value="String(key)"
-        class="h-8 flex-1 font-mono text-xs"
-        @change="emit('rename', String(key), ($event.target as HTMLInputElement).value.trim())"
+        class="flex-1"
+        @commit="emit('rename', String(key), $event.trim())"
       />
-      <Input
+      <span class="text-xs text-muted-foreground">=</span>
+      <TagSuggestInput
         :model-value="value"
-        class="h-8 flex-1 font-mono text-xs"
-        @update:model-value="emit('set', String(key), String($event))"
+        :for-key="String(key)"
+        class="flex-1"
+        @commit="emit('set', String(key), $event)"
       />
       <Button
         variant="ghost"
         size="icon"
-        class="size-7 shrink-0"
+        class="size-7 shrink-0 text-muted-foreground"
         @click="emit('set', String(key), null)"
       >
         <XIcon class="size-3.5" />
       </Button>
     </div>
 
-    <div class="flex items-center gap-1.5">
-      <Input
-        v-model="newKey"
+    <div class="flex items-center gap-1 pt-1">
+      <TagSuggestInput
+        :model-value="newKey"
         :placeholder="t('quickEdit.rawKey')"
-        class="h-8 flex-1 font-mono text-xs"
-        @keydown.enter="addRow"
+        class="flex-1"
+        @commit="newKey = $event"
       />
-      <Input
-        v-model="newValue"
+      <span class="text-xs text-muted-foreground">=</span>
+      <TagSuggestInput
+        :model-value="newValue"
+        :for-key="newKey"
         :placeholder="t('quickEdit.rawValue')"
-        class="h-8 flex-1 font-mono text-xs"
-        @keydown.enter="addRow"
+        class="flex-1"
+        @commit="newValue = $event"
       />
-      <Button variant="ghost" size="icon" class="size-7 shrink-0" @click="addRow">
+      <Button
+        variant="ghost"
+        size="icon"
+        class="size-7 shrink-0 text-muted-foreground"
+        :disabled="!newKey.trim()"
+        @click="addRow"
+      >
         <PlusIcon class="size-3.5" />
       </Button>
     </div>

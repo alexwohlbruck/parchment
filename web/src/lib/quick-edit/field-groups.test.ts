@@ -3,6 +3,7 @@ import {
   groupFields,
   isFieldVisible,
   sectionFor,
+  sectionPreview,
   hasValue,
 } from './field-groups'
 import type { FieldDefinition } from '@/types/quick-edit.types'
@@ -111,5 +112,53 @@ describe('hasValue', () => {
   it('recognises multiCombo values spread across prefixed keys', () => {
     const payment = field({ id: 'payment_multi', key: 'payment', type: 'multiCombo' })
     expect(hasValue(payment, { 'payment:cash': 'yes' })).toBe(true)
+  })
+})
+
+describe('sectionPreview', () => {
+  const section = (id: any, fields: FieldDefinition[]) => ({ id, fields, filled: 0 })
+
+  it('lists the features that are switched on', () => {
+    const fields = [
+      field({ id: 'outdoor_seating', type: 'check', label: 'Outdoor Seating' }),
+      field({ id: 'drive_through', type: 'check', label: 'Drive-Thru' }),
+    ]
+    expect(
+      sectionPreview(section('features', fields), {
+        outdoor_seating: 'yes',
+        drive_through: 'no',
+      }),
+    ).toBe('Outdoor Seating')
+  })
+
+  it('shows the hours themselves', () => {
+    expect(
+      sectionPreview(section('hours', []), { opening_hours: 'Mo-Fr 09:00-17:00' }),
+    ).toBe('Mo-Fr 09:00-17:00')
+  })
+
+  it('composes a short address line', () => {
+    expect(
+      sectionPreview(section('address', []), {
+        'addr:housenumber': '155',
+        'addr:street': 'New Bern Street',
+        'addr:city': 'Charlotte',
+      }),
+    ).toBe('155 New Bern Street, Charlotte')
+  })
+
+  it('names which other details are filled, rather than their values', () => {
+    const fields = [
+      field({ id: 'brand', key: 'brand', label: 'Brand' }),
+      field({ id: 'takeaway', key: 'takeaway', label: 'Takeaway' }),
+      field({ id: 'fhrs', key: 'fhrs:id', label: 'FHRS ID' }),
+    ]
+    expect(
+      sectionPreview(section('more', fields), { brand: 'Taco Bell', takeaway: 'yes' }),
+    ).toBe('Brand, Takeaway')
+  })
+
+  it('is empty when the section holds nothing', () => {
+    expect(sectionPreview(section('contact', []), {})).toBe('')
   })
 })

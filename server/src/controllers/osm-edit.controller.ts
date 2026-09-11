@@ -11,6 +11,7 @@ import {
 } from '../lib/osm-presets'
 import { categoryService } from '../services/category.service'
 import { searchBrands, matchBrand, brandTagDiff } from '../lib/nsi'
+import { suggestKeys, suggestValues } from '../lib/osm-taginfo'
 import {
   getLiveElement,
   submitEdit,
@@ -280,6 +281,30 @@ publicApi.get(
       summary: 'Search brands in the Name Suggestion Index',
       description:
         'Returns chains matching a name for the preset\'s primary tag, with their canonical tags and logo.',
+    },
+  },
+)
+
+/**
+ * GET /osm/tags/suggest — Key suggestions, or value suggestions for a key.
+ */
+publicApi.get(
+  '/tags/suggest',
+  ({ query }) => ({
+    results: query.key
+      ? suggestValues(query.key, query.q ?? '')
+      : suggestKeys(query.q ?? ''),
+  }),
+  {
+    query: t.Object({
+      q: t.Optional(t.String()),
+      key: t.Optional(t.String()),
+    }),
+    detail: {
+      tags: ['OSM'],
+      summary: 'Suggest tag keys and values',
+      description:
+        "Suggestions come from the tagging schema's own taginfo export — the documented keys and values, not live taginfo.io usage.",
     },
   },
 )

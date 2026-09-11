@@ -154,3 +154,36 @@ export function hasValue(
   // multiCombo fields spread across prefixed keys, e.g. payment:cash=yes
   return Object.keys(tags).some((key) => key.startsWith(`${field.key}:`))
 }
+
+/**
+ * A one-line summary of what a collapsed section holds. A count tells you
+ * there's something inside; the value tells you whether you need to open it.
+ */
+export function sectionPreview(
+  section: FieldSection,
+  tags: Record<string, string>,
+): string {
+  switch (section.id) {
+    case 'features': {
+      const on = section.fields.filter((f) => tags[f.key] === 'yes')
+      return on.map((f) => f.label).join(', ')
+    }
+    case 'hours':
+      return tags.opening_hours ?? ''
+    case 'address':
+      return [
+        [tags['addr:housenumber'], tags['addr:street']].filter(Boolean).join(' '),
+        tags['addr:city'],
+      ]
+        .filter(Boolean)
+        .join(', ')
+    case 'contact':
+      return tags.phone ?? tags.website ?? tags.email ?? ''
+    default: {
+      // Which details are filled in, not their values — "Brand, Takeaway"
+      // reads; "Taco Bell, yes" is a riddle.
+      const filled = section.fields.filter((f) => hasValue(f, tags))
+      return filled.map((f) => f.label).join(', ')
+    }
+  }
+}

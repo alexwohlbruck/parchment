@@ -1,17 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { SendIcon, FlaskConicalIcon } from 'lucide-vue-next'
+import {
+  SendIcon,
+  FlaskConicalIcon,
+  ListChecksIcon,
+  ClockIcon,
+  MapPinIcon,
+  PhoneIcon,
+  EllipsisIcon,
+  TagIcon,
+} from 'lucide-vue-next'
 import TagFieldRow from './TagFieldRow.vue'
 import RawTagEditor from './RawTagEditor.vue'
 import BrandSuggestions from './BrandSuggestions.vue'
 import FeatureChips from './FeatureChips.vue'
 import AddressField from './AddressField.vue'
 import FormSection from './FormSection.vue'
-import { groupFields, type SectionId } from '@/lib/quick-edit/field-groups'
+import {
+  groupFields,
+  sectionPreview,
+  type SectionId,
+} from '@/lib/quick-edit/field-groups'
 import type { EditablePreset, NsiBrand } from '@/types/quick-edit.types'
 
 const props = defineProps<{
@@ -39,13 +51,13 @@ const comment = ref('')
 
 const sections = computed(() => groupFields(props.preset?.fields ?? [], props.tags))
 
-const SECTION_TITLES: Record<SectionId, string> = {
-  basics: 'quickEdit.section.basics',
-  features: 'quickEdit.section.features',
-  hours: 'quickEdit.section.hours',
-  address: 'quickEdit.section.address',
-  contact: 'quickEdit.section.contact',
-  more: 'quickEdit.section.more',
+const SECTIONS: Record<SectionId, { title: string; icon: Component }> = {
+  basics: { title: 'quickEdit.section.basics', icon: ListChecksIcon },
+  features: { title: 'quickEdit.section.features', icon: ListChecksIcon },
+  hours: { title: 'quickEdit.section.hours', icon: ClockIcon },
+  address: { title: 'quickEdit.section.address', icon: MapPinIcon },
+  contact: { title: 'quickEdit.section.contact', icon: PhoneIcon },
+  more: { title: 'quickEdit.section.more', icon: EllipsisIcon },
 }
 
 const basics = computed(() => sections.value.find((s) => s.id === 'basics'))
@@ -77,8 +89,8 @@ function renameTag(oldKey: string, newKey: string) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <div v-if="basics" class="space-y-3">
+  <div class="flex flex-col gap-2">
+    <div v-if="basics" class="space-y-3 pb-1">
       <template v-for="field in basics.fields" :key="field.id">
         <TagFieldRow :field="field" :tags="tags" @set="set" />
         <BrandSuggestions
@@ -90,12 +102,16 @@ function renameTag(oldKey: string, newKey: string) {
       </template>
     </div>
 
+    <div class="h-px bg-border" />
+
     <FormSection
       v-for="section in collapsible"
       :key="section.id"
-      :title="t(SECTION_TITLES[section.id])"
+      :title="t(SECTIONS[section.id].title)"
+      :icon="SECTIONS[section.id].icon"
+      :preview="sectionPreview(section, tags)"
       :filled="section.filled"
-      :default-open="section.filled > 0"
+      :default-open="false"
     >
       <FeatureChips
         v-if="section.id === 'features'"
@@ -117,23 +133,28 @@ function renameTag(oldKey: string, newKey: string) {
       </template>
     </FormSection>
 
-    <FormSection :title="t('quickEdit.allTags')" :filled="rawTagCount">
+    <FormSection
+      :title="t('quickEdit.allTags')"
+      :icon="TagIcon"
+      :filled="rawTagCount"
+    >
       <RawTagEditor :tags="tags" @set="set" @rename="renameTag" />
     </FormSection>
 
-    <div class="space-y-1 border-t border-border pt-3">
-      <Label class="text-xs text-muted-foreground">
-        {{ t('quickEdit.changesetComment') }}
-      </Label>
-      <Input v-model="comment" :placeholder="t('quickEdit.commentPlaceholder')" />
-    </div>
+    <div class="space-y-2 border-t border-border pt-3">
+      <Input
+        v-model="comment"
+        :placeholder="t('quickEdit.commentPlaceholder')"
+        class="h-9 text-sm"
+      />
 
-    <div
-      v-if="sandboxServer"
-      class="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
-    >
-      <FlaskConicalIcon class="size-3.5 shrink-0" />
-      {{ t('quickEdit.sandboxNotice', { server: sandboxServer }) }}
+      <p
+        v-if="sandboxServer"
+        class="flex items-center gap-1.5 text-xs text-muted-foreground"
+      >
+        <FlaskConicalIcon class="size-3.5 shrink-0" />
+        {{ t('quickEdit.sandboxNotice', { server: sandboxServer }) }}
+      </p>
     </div>
 
     <Button

@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.12.0] - 2026-09-11
+
+### Added
+
 * Quick edit: add a business or anything else on the map straight to
   OpenStreetMap, from the map's edit menu. Pick what it is, then fill in hours,
   contact details and features with a guided form — no OSM knowledge needed.
@@ -12,8 +20,6 @@
   chain that's missing them offers the same as a one-tap fix.
 * Before you add a place, nearby ones that look like the same thing are shown on
   the map and offered for editing instead, so nothing gets mapped twice.
-
-### Changed
 
 ### Fixed
 

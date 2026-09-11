@@ -119,6 +119,14 @@ describe('cycling defaults', () => {
     expect(labels.configuration.minzoom).toBeGreaterThanOrEqual(10)
   })
 
+  /** House style, and mixed case is what the basemap letters streets in. */
+  test('route names are not set in capitals', () => {
+    const labels = CYCLING_LAYER_TEMPLATES.find(
+      t => t.configuration.type === 'symbol',
+    )!
+    expect(labels.configuration.layout['text-transform']).toBeUndefined()
+  })
+
   test('every cycling group owns a layer or the basemap behind it', () => {
     const groups = DEFAULT_LAYER_GROUPS.filter(g =>
       g.templateId.startsWith('default:group:cycling'),

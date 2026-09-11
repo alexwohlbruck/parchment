@@ -29,8 +29,9 @@
 * Dedicated cycleways and bike paths keep their own cased line, solid where the
   surface is paved and dashed where it isn't
 * Bike lanes now show which side of the street they're on once you're zoomed in,
-  with the dash saying how protected they are: solid is separated from traffic,
-  a short dash is a painted lane, dots are a shoulder
+  sitting at that street's own kerb whatever size of road it is, with the dash
+  saying how protected they are: solid is separated from traffic, a short dash
+  is a painted lane, dots are a shoulder
 * Signed bike routes now show as a dash-dot line while you're zoomed out, then
   hand over to the actual lanes and paths as you zoom in — their name keeps
   saying the route is signed, without a second line down the middle of a street

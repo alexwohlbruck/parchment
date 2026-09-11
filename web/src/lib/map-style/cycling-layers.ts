@@ -89,17 +89,21 @@ export function forBarrelmanProperties(expression: any): any {
  * overlap — a corner, a junction, a street carrying both a lane and a route —
  * and leave a dark blot at every one of them, which no paint property can
  * prevent. Opaque colours of the same value simply coincide.
+ *
+ * Strength is carried by chroma rather than by lightness, because the street's
+ * own name is printed on top: taking the daylight tint darker to make it read
+ * more pushes `label_ink_road` under 4.5:1 against it.
  */
 const STRENGTH: Record<FlavorId, Record<string, string>> = {
   light: {
-    strong: 'hsl(158, 44%, 90%)',
-    medium: 'hsl(158, 40%, 93%)',
-    faint: 'hsl(158, 34%, 96%)',
+    strong: 'hsl(158, 78%, 90%)',
+    medium: 'hsl(158, 60%, 92%)',
+    faint: 'hsl(158, 45%, 94%)',
   },
   dark: {
-    strong: 'hsl(158, 28%, 35%)',
-    medium: 'hsl(158, 24%, 32%)',
-    faint: 'hsl(158, 18%, 29%)',
+    strong: 'hsl(158, 46%, 28%)',
+    medium: 'hsl(158, 38%, 30%)',
+    faint: 'hsl(158, 30%, 32%)',
   },
 }
 
@@ -301,6 +305,65 @@ export const CYCLING_WAYS_LAYER_IDS = [
 /** Where a street becomes wide enough to show which side a lane is on. */
 const SIDES_FROM = 16
 
+/** A class `match`'s arms and its fallback, or just the value if it is flat. */
+function classArms(value: any): { arms: any[]; fallback: any } {
+  if (Array.isArray(value) && value[0] === 'match') {
+    return { arms: value.slice(2, -1), fallback: value[value.length - 1] }
+  }
+  return { arms: [], fallback: value }
+}
+
+/**
+ * One width ramp covering every rung of the road network.
+ *
+ * The basemap draws roads in three layers, each holding only its own classes:
+ * `Minor road` sizes a residential street and falls back to that width for
+ * everything else, so reading it alone put a lane on a primary avenue at
+ * residential width — inside the carriageway rather than at its kerb.
+ *
+ * Above `SIDES_FROM` the three layers share their stop zooms, so the arms of
+ * each stop's class `match` can simply be concatenated: the motorway arm from
+ * `Highway`, the trunk and primary arms from `Major road`, the rest and the
+ * fallback from `Minor road`. Structural, so it stays exact as those ramps are
+ * retuned, and it fails loudly if they ever stop sharing stops.
+ */
+export function roadWidthByClass(roadWidth: (layerId: string) => any): any {
+  const rungs = ['Highway', 'Major road', 'Minor road'].map(roadWidth)
+  if (rungs.some(r => !Array.isArray(r) || r[0] !== 'interpolate')) return null
+
+  const stopsOf = (e: any) => {
+    const out: [number, any][] = []
+    for (let i = 3; i < e.length; i += 2) {
+      if (e[i] >= SIDES_FROM) out.push([e[i], e[i + 1]])
+    }
+    return out
+  }
+  const [highway, major, minor] = rungs.map(stopsOf)
+  const zooms = minor.map(([z]) => z)
+  const shares = (r: [number, any][]) =>
+    r.length === zooms.length && r.every(([z], i) => z === zooms[i])
+  if (!shares(highway) || !shares(major)) {
+    throw new Error('road width ramps no longer share their stops above z16')
+  }
+
+  const merged: any[] = ['interpolate', ['linear', 2], ['zoom']]
+  zooms.forEach((zoom, i) => {
+    const seen = new Set<string>()
+    const arms: any[] = []
+    for (const rung of [highway[i][1], major[i][1], minor[i][1]]) {
+      const { arms: own } = classArms(rung)
+      for (let a = 0; a < own.length; a += 2) {
+        const label = JSON.stringify(own[a])
+        if (seen.has(label)) continue
+        seen.add(label)
+        arms.push(own[a], own[a + 1])
+      }
+    }
+    merged.push(zoom, ['match', CLASS_OF_HIGHWAY, ...arms, classArms(minor[i][1]).fallback])
+  })
+  return merged
+}
+
 /**
  * Half the road above `SIDES_FROM`, nothing below it.
  *
@@ -324,9 +387,7 @@ export function cyclingStrokeLayers(
   flavor: FlavorId,
   roadWidth: (layerId: string) => any,
 ): any[] {
-  // Every tinted street is a road, and the minor rung is the one nearly all of
-  // them sit on — its ramp is what puts the stroke at the kerb.
-  const width = roadWidth('Minor road')
+  const width = roadWidthByClass(roadWidth)
   if (!width) return []
 
   return STROKE_KINDS.flatMap(({ kind, values, dash }) =>
@@ -349,10 +410,7 @@ export function cyclingStrokeLayers(
       paint: {
         'line-color': STROKE[flavor][kind],
         'line-width': ['interpolate', ['linear'], ['zoom'], 16, 1.1, 19, 2],
-        'line-offset': offsetRamp(
-          forBarrelmanProperties(width),
-          side === 'right' ? 0.5 : -0.5,
-        ),
+        'line-offset': offsetRamp(width, side === 'right' ? 0.5 : -0.5),
         ...(dash ? { 'line-dasharray': dash } : {}),
       },
     })),

@@ -1746,32 +1746,52 @@ describe('cycling markings', () => {
    * a marking drifts off the kerb it is describing. Evaluated against the real
    * road expression rather than compared structurally.
    */
-  test('the offset is exactly half the road it sits on', () => {
-    const road = built.find(l => l.id === 'Minor road')!
-    const compile = (e: any) => {
-      const r = (expression.createExpression as any)(
-        e,
-        latest.paint_line['line-width'],
-        'layers[0].paint.line-width',
+  test.each([
+    ['Minor road', 'minor', 'residential'],
+    ['Minor road', 'service', 'service'],
+    ['Minor road', 'secondary', 'secondary'],
+    ['Minor road', 'tertiary', 'tertiary'],
+    ['Major road', 'primary', 'primary'],
+    ['Major road', 'trunk', 'trunk'],
+    ['Highway', 'motorway', 'motorway'],
+  ])(
+    'the offset is half a %s on a %s',
+    (roadLayer, cls, highway) => {
+      const road = built.find(l => l.id === roadLayer)!
+      const compile = (e: any) => {
+        const r = (expression.createExpression as any)(
+          e,
+          latest.paint_line['line-width'],
+          'layers[0].paint.line-width',
+        )
+        if (r.result !== 'success') throw new Error(r.value.join(', '))
+        return r.value
+      }
+      const width = compile(road.paint['line-width'])
+      const offset = compile(
+        strokes.find(l => l.id === 'Cycling track right')!.paint['line-offset'],
       )
-      if (r.result !== 'success') throw new Error(r.value.join(', '))
-      return r.value
-    }
-    const width = compile(road.paint['line-width'])
-    const offset = compile(
-      strokes.find(l => l.id === 'Cycling track right')!.paint['line-offset'],
-    )
-
-    for (const zoom of [16, 17, 18, 19, 20, 22]) {
-      for (const cls of ['minor', 'service', 'secondary', 'tertiary', 'track']) {
-        // The stroke reads Barrelman's `highway`; the road reads `class`.
-        const highway = { minor: 'residential', service: 'service', secondary: 'secondary', tertiary: 'tertiary', track: 'track' }[cls]
-        const at = (properties: Record<string, unknown>) =>
-          ({ type: 2, properties }) as any
+      const at = (properties: Record<string, unknown>) =>
+        ({ type: 2, properties }) as any
+      for (const zoom of [16, 17, 18, 19, 20, 22]) {
         const w = (width as any).evaluate({ zoom }, at({ class: cls }))
         const o = (offset as any).evaluate({ zoom }, at({ highway }))
         expect(o, `${cls} @z${zoom}`).toBeCloseTo(w / 2, 6)
       }
+    },
+  )
+
+  test('below z16 both sides sit on the centreline', () => {
+    const road = built.find(l => l.id === 'Minor road')!
+    void road
+    const r = (expression.createExpression as any)(
+      strokes.find(l => l.id === 'Cycling track right')!.paint['line-offset'],
+      latest.paint_line['line-width'],
+      'layers[0].paint.line-width',
+    )
+    for (const zoom of [12, 14, 15, 15.4]) {
+      const o = r.value.evaluate({ zoom }, { type: 2, properties: { highway: 'residential' } } as any)
+      expect(o, `z${zoom}`).toBe(0)
     }
   })
 

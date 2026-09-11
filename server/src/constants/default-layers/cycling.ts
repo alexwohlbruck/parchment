@@ -315,9 +315,6 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
         'symbol-placement': 'line',
         'text-field': ['coalesce', ['get', 'ref'], ['get', 'name']],
         'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-        'text-transform': 'uppercase',
-        // Capitals need opening up; 0.01 set them as tight as mixed case.
-        'text-letter-spacing': 0.08,
         'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 12],
         'text-max-angle': 30,
         'text-padding': 30,

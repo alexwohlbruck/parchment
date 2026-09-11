@@ -1132,8 +1132,8 @@ function addCyclingSurface(layers) {
  * a dashed line used to and it needs an edge to be a shape at all.
  */
 const CYCLING_INK = {
-  cycling_surface: { light: 'hsl(146, 44%, 90%)', dark: 'hsl(152, 28%, 36%)' },
-  cycling_casing: { light: 'hsl(146, 34%, 71%)', dark: 'hsl(152, 26%, 25%)' },
+  cycling_surface: { light: 'hsl(158, 78%, 90%)', dark: 'hsl(158, 46%, 28%)' },
+  cycling_casing: { light: 'hsl(158, 52%, 72%)', dark: 'hsl(158, 44%, 20%)' },
 }
 
 // ---------------------------------------------------------------------------

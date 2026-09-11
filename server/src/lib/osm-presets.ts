@@ -26,6 +26,8 @@ export interface FieldDefinition {
   label: string
   placeholder?: string
   options?: Record<string, string | { title: string }>
+  /** From the preset's own `fields`, rather than its secondary `moreFields`. */
+  primary?: boolean
 }
 
 export interface MatchResult {
@@ -517,8 +519,9 @@ export function getPresetFields(
       })
     }
 
+    const primaryIds = new Set(resolveFieldRefs(preset.fields || []))
     const allFieldIds = [
-      ...resolveFieldRefs(preset.fields || []),
+      ...primaryIds,
       ...resolveFieldRefs(preset.moreFields || []),
     ]
 
@@ -527,7 +530,10 @@ export function getPresetFields(
         const field = fieldData[fieldId]
         if (!field) return null
 
-        const translatedField = { ...field }
+        const translatedField: FieldDefinition = {
+          ...field,
+          primary: primaryIds.has(fieldId),
+        }
         const fieldTranslation = fieldTranslations[fieldId]
 
         if (fieldTranslation) {
@@ -679,7 +685,6 @@ export function clearAllData(): void {
   geometryIndex = null
   cache = null
   translations.clear()
-  searchIndexes.clear()
 }
 
 export function initializeOsmPresets(): void {
@@ -720,101 +725,4 @@ export function getPrimaryTag(
   }
   const [key, value] = Object.entries(tags)[0] ?? []
   return key ? { key, value } : null
-}
-
-// ─── Preset search ───────────────────────────────────────────────────────────
-
-export interface PresetSearchResult {
-  id: string
-  name: string
-  icon: string
-  geometry: GeometryType[]
-  tags: Record<string, string>
-  addTags?: Record<string, string>
-}
-
-interface SearchEntry {
-  id: string
-  name: string
-  nameLower: string
-  terms: string[]
-  preset: PresetDefinition
-}
-
-const searchIndexes = new Map<string, SearchEntry[]>()
-
-function getSearchIndex(language: Language): SearchEntry[] {
-  const lang = getLanguageCode(language)
-  const cached = searchIndexes.get(lang)
-  if (cached) return cached
-
-  const data = loadPresets()
-  const presetTranslations = loadTranslations(language).presets?.presets || {}
-
-  const index: SearchEntry[] = []
-  for (const preset of Object.values(data)) {
-    if (preset.searchable === false) continue
-    // Presets keyed by tag value only (e.g. "amenity") are too generic to add.
-    if (!preset.id.includes('/')) continue
-
-    const name = getPresetName(preset, language)
-    const translation = presetTranslations[preset.id]
-    const terms: string[] = []
-    if (typeof translation?.terms === 'string') {
-      terms.push(...translation.terms.split(',').map((t: string) => t.trim().toLowerCase()))
-    }
-    if (typeof translation?.aliases === 'string') {
-      terms.push(...translation.aliases.split('\n').map((t: string) => t.trim().toLowerCase()))
-    }
-
-    index.push({ id: preset.id, name, nameLower: name.toLowerCase(), terms, preset })
-  }
-
-  searchIndexes.set(lang, index)
-  return index
-}
-
-function scoreSearchEntry(entry: SearchEntry, query: string): number {
-  if (entry.nameLower === query) return 100
-  if (entry.nameLower.startsWith(query)) return 80
-  if (entry.nameLower.split(/\s+/).some((w) => w.startsWith(query))) return 70
-  if (entry.nameLower.includes(query)) return 60
-  if (entry.terms.some((t) => t === query)) return 55
-  if (entry.terms.some((t) => t.startsWith(query))) return 50
-  if (entry.terms.some((t) => t.includes(query))) return 35
-  return 0
-}
-
-/** Search presets by translated name, terms and aliases, for the preset picker. */
-export function searchPresets(
-  query: string,
-  language: Language = 'en-US',
-  geometry?: GeometryType,
-  limit = 12,
-): PresetSearchResult[] {
-  const q = query.trim().toLowerCase()
-  if (q.length < 2) return []
-
-  const scored: Array<{ entry: SearchEntry; score: number }> = []
-  for (const entry of getSearchIndex(language)) {
-    if (geometry && !entry.preset.geometry.includes(geometry)) continue
-    const score = scoreSearchEntry(entry, q)
-    if (score > 0) scored.push({ entry, score })
-  }
-
-  scored.sort(
-    (a, b) =>
-      b.score - a.score ||
-      (b.entry.preset.originalScore ?? 1) - (a.entry.preset.originalScore ?? 1) ||
-      a.entry.name.length - b.entry.name.length,
-  )
-
-  return scored.slice(0, limit).map(({ entry }) => ({
-    id: entry.id,
-    name: entry.name,
-    icon: getPresetIcon(entry.preset),
-    geometry: entry.preset.geometry,
-    tags: entry.preset.tags,
-    addTags: entry.preset.addTags,
-  }))
 }

@@ -2,16 +2,14 @@ import { Elysia, t } from 'elysia'
 import { requireAuth } from '../middleware/auth.middleware'
 import { i18nPlugin } from '../lib/i18n/plugin'
 import type { Language } from '../lib/i18n'
+import type { CategoryResult } from '../types/search.types'
 import {
-  searchPresets,
   getPresetById,
-  getPresetName,
-  getPresetIcon,
   getPresetFields,
   getPrimaryTag,
   matchTags,
-  type GeometryType,
 } from '../lib/osm-presets'
+import { categoryService } from '../services/category.service'
 import { searchBrands, matchBrand, brandTagDiff } from '../lib/nsi'
 import {
   getLiveElement,
@@ -62,16 +60,26 @@ function brandSuggestion(tags: Record<string, string>) {
   return diff.length ? { brand, diff } : null
 }
 
+/** A preset as the picker shows it, with the app's own resolved POI icon. */
+function presetSummary(category: CategoryResult) {
+  return {
+    id: category.id,
+    name: category.name,
+    iconName: category.iconName ?? 'MapPin',
+    iconPack: category.iconPack ?? 'lucide',
+    iconCategory: category.iconCategory ?? 'default',
+    geometry: category.geometry,
+    tags: category.tags,
+    addTags: category.addTags,
+  }
+}
+
 function presetPayload(presetId: string, language: Language) {
   const preset = getPresetById(presetId)
-  if (!preset) return null
+  const category = categoryService.getCategoryById(presetId, language)
+  if (!preset || !category) return null
   return {
-    id: preset.id,
-    name: getPresetName(preset, language),
-    icon: getPresetIcon(preset),
-    geometry: preset.geometry,
-    tags: preset.tags,
-    addTags: preset.addTags,
+    ...presetSummary(category),
     fields: getPresetFields(preset, language),
   }
 }
@@ -90,10 +98,13 @@ const publicApi = new Elysia({ prefix: '/osm' }).use(i18nPlugin)
 publicApi.get(
   '/presets/search',
   ({ query, language }) => {
-    const geometry = query.geometry as GeometryType | undefined
-    return {
-      results: searchPresets(query.q, language, geometry),
-    }
+    const results = categoryService
+      .searchCategories(query.q, language, 20)
+      .filter((c) => !query.geometry || c.geometry.includes(query.geometry))
+      .slice(0, 12)
+      .map(presetSummary)
+
+    return { results }
   },
   {
     query: t.Object({
@@ -106,7 +117,7 @@ publicApi.get(
       tags: ['OSM'],
       summary: 'Search OSM tagging presets',
       description:
-        'Search the iD tagging schema presets by localized name, terms and aliases.',
+        'Searches the same category index the app search uses, so curated aliases ("bike rack") resolve.',
     },
   },
 )

@@ -1,60 +1,79 @@
 import { describe, test, expect } from 'vitest'
-import { groundBeforeId, slotBeforeId } from './layer-slots'
+import { belowLabelsBeforeId, belowRoadsBeforeId, slotBeforeId } from './layer-slots'
 
 /**
- * The rule: ground draws under the labels AND under the transit network.
- * Both halves shipped wrong — the cycling lanes went over the POI names, and
- * over the train lines that are supposed to cross above them.
+ * Both halves shipped wrong. The cycling lanes drew over the POI names and
+ * over the train lines that are supposed to cross above them, and the route
+ * corridor drew over the roads — where, being translucent, it blotted at
+ * every junction because MapLibre blends each feature on its own.
  */
-describe('where a ground layer slots in', () => {
+describe('where an overlay slots into the basemap', () => {
   const STYLE = [
     { id: 'Background', type: 'background' },
+    { id: 'Residential', type: 'fill' },
+    { id: 'Water', type: 'fill' },
+    { id: 'River', type: 'line' },
+    { id: 'Minor road outline', type: 'line' },
     { id: 'Minor road', type: 'line' },
     { id: 'Building', type: 'fill' },
     { id: 'Oneway', type: 'symbol' },
     { id: 'Road labels', type: 'symbol' },
-    { id: 'Food', type: 'symbol' },
   ]
 
-  test('ground stops at the first label', () => {
-    expect(groundBeforeId(STYLE)).toBe('Oneway')
+  test('bottom lands above the polygons and below the first stroke', () => {
+    expect(belowRoadsBeforeId(STYLE)).toBe('River')
   })
 
-  test('the transit network ends it sooner', () => {
+  test('middle lands below the first label', () => {
+    expect(belowLabelsBeforeId(STYLE)).toBe('Oneway')
+  })
+
+  test('the transit network ends the ground sooner than the labels do', () => {
     const withTransit = [
-      ...STYLE.slice(0, 3),
+      ...STYLE.slice(0, 6),
       { id: 'portolan-ribbon-14-steady', type: 'line' },
-      ...STYLE.slice(3),
+      ...STYLE.slice(6),
     ]
-    expect(groundBeforeId(withTransit)).toBe('portolan-ribbon-14-steady')
+    expect(belowLabelsBeforeId(withTransit)).toBe('portolan-ribbon-14-steady')
   })
 
   /**
-   * The transit overlay inserts its own labels above the basemap's, so a
-   * `portolan-` symbol must not be mistaken for the basemap's first label —
-   * that would anchor ground above the ribbons instead of below them.
+   * The overlay's own layers must not stand in for the basemap's. A
+   * `portolan-` line is not the basemap's first road, and treating it as one
+   * would drop a corridor beneath a style that has not drawn its roads yet.
    */
-  test('an overlay label does not stand in for a basemap one', () => {
+  test('an overlay stroke is not mistaken for the first road', () => {
+    const layers = [
+      { id: 'Residential', type: 'fill' },
+      { id: 'portolan-ribbon-14-steady', type: 'line' },
+      { id: 'Minor road', type: 'line' },
+    ]
+    expect(belowRoadsBeforeId(layers)).toBe('Minor road')
+  })
+
+  test('an overlay label is not mistaken for a basemap one', () => {
     const layers = [
       { id: 'Minor road', type: 'line' },
       { id: 'portolan-station-labels', type: 'symbol' },
     ]
-    expect(groundBeforeId(layers)).toBe('portolan-station-labels')
+    expect(belowLabelsBeforeId(layers)).toBe('portolan-station-labels')
   })
 
-  test('a style that is all ground has no anchor, so the layer goes on top', () => {
-    expect(groundBeforeId([{ id: 'Minor road', type: 'line' }])).toBeUndefined()
+  test('a style with nothing to anchor against draws on top', () => {
+    expect(belowRoadsBeforeId([{ id: 'Background', type: 'background' }])).toBeUndefined()
+    expect(belowLabelsBeforeId([{ id: 'Minor road', type: 'line' }])).toBeUndefined()
   })
 
-  /**
-   * Only `bottom` is emulated. Anything else already means "above the
-   * basemap" on MapLibre, which is where an unanchored layer lands — giving
-   * those an anchor would move layers that are correct today.
-   */
-  test('only the ground slot resolves to an anchor', () => {
-    expect(slotBeforeId(STYLE, 'bottom')).toBe('Oneway')
-    expect(slotBeforeId(STYLE, 'middle')).toBeUndefined()
+  test('top and an unnamed slot stay on top, where they already are', () => {
+    expect(slotBeforeId(STYLE, 'bottom')).toBe('River')
+    expect(slotBeforeId(STYLE, 'middle')).toBe('Oneway')
     expect(slotBeforeId(STYLE, 'top')).toBeUndefined()
     expect(slotBeforeId(STYLE, undefined)).toBeUndefined()
+  })
+
+  /** The slots stack in the order they name. */
+  test('bottom is below middle', () => {
+    const at = (id: string | undefined) => STYLE.findIndex(l => l.id === id)
+    expect(at(slotBeforeId(STYLE, 'bottom'))).toBeLessThan(at(slotBeforeId(STYLE, 'middle')))
   })
 })

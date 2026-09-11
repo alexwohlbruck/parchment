@@ -20,8 +20,9 @@ import { LayerType } from '../../schema/layers.schema'
  * thin line along the street. The lane is part of the road, not the road, and
  * tinting the whole carriageway for it would claim the traffic lanes too.
  *
- * Everything here slots to `bottom`: the network is ground, so it draws under
- * the labels and under the transit lines that cross above it.
+ * Everything here is ground, so it draws under the labels and under the
+ * transit lines that cross above it. The signed-route corridor goes a band
+ * lower still, under the roads themselves; see it for why.
  */
 
 const SOURCE = {
@@ -52,6 +53,9 @@ const INK = {
   shared: { light: 'hsl(150, 32%, 50%)', dark: 'hsl(148, 26%, 56%)' },
   permitted: { light: 'hsl(150, 24%, 62%)', dark: 'hsl(148, 18%, 48%)' },
   route: { light: 'hsl(146, 52%, 40%)', dark: 'hsl(148, 44%, 54%)' },
+  // The corridor is opaque and sits under the streets, so it is a pale wash a
+  // step off the ground rather than a colour laid on top of one.
+  corridor: { light: 'hsl(146, 46%, 87%)', dark: 'hsl(152, 22%, 27%)' },
   proposed: { light: 'hsl(150, 18%, 58%)', dark: 'hsl(150, 14%, 52%)' },
   construction: { light: 'hsl(36, 78%, 48%)', dark: 'hsl(38, 72%, 60%)' },
 }
@@ -91,7 +95,8 @@ interface WayLayer {
   color: any
   width: any
   dash?: number[]
-  opacity?: number
+  /** Mapbox Standard's bands; see `layer-slots.ts`. Defaults to on-street. */
+  slot?: 'bottom' | 'middle'
   visible?: boolean
 }
 
@@ -112,7 +117,8 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
     configuration: {
       id: l.id,
       type: 'line',
-      slot: 'bottom',
+      // Above the roads and below the labels, unless the layer says otherwise.
+      slot: l.slot ?? 'middle',
       source: SOURCE,
       'source-layer': 'bicycle_ways',
       minzoom: l.minzoom,
@@ -121,7 +127,6 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
         'line-color': l.color,
         'line-width': l.width,
         ...(l.dash ? { 'line-dasharray': l.dash } : {}),
-        'line-opacity': l.opacity ?? 1,
         'line-emissive-strength': 1,
       },
       layout: { 'line-cap': l.dash ? 'butt' : 'round', 'line-join': 'round' },
@@ -134,14 +139,21 @@ const BUILT = ['!has', 'state']
 
 export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   /**
-   * Signed route relations (icn / ncn / rcn / lcn), as a soft corridor under
-   * the network rather than a line in it.
+   * Signed route relations (icn / ncn / rcn / lcn), as a corridor UNDER the
+   * street network rather than a line in it.
    *
    * A signed route is not a piece of infrastructure — it is a recommendation
-   * laid over whatever infrastructure exists, and often over none. Drawing it
-   * as another green line put it in competition with the lanes it runs along;
-   * a wide, pale band behind them says "this way is signed" without claiming
-   * to be the thing you ride on.
+   * laid over whatever infrastructure exists, and often over none. Drawn as
+   * another green line it competed with the lanes it runs along; drawn as a
+   * wide translucent band over the roads it blotted at every corner and
+   * junction, because MapLibre blends each feature separately and overlapping
+   * alpha compounds.
+   *
+   * Both problems go away below the roads. The band is opaque — nothing to
+   * compound — and wider than the street it follows, so what shows is a green
+   * verge either side of a street that stays crisply drawn on top of it. That
+   * is also the more honest picture: the route is the corridor, not the
+   * asphalt.
    */
   wayLayer({
     id: 'bicycle-routes',
@@ -149,10 +161,10 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bike-routes',
     order: 10,
     minzoom: 5,
+    slot: 'bottom',
     filter: ['!=', ['get', 'state'], 'proposed'],
-    color: themed(INK.route),
-    width: width(5, 3, 10, 6, 14, 10, 16, 14),
-    opacity: 0.16,
+    color: themed(INK.corridor),
+    width: width(5, 3, 10, 6, 12, 9, 14, 13, 16, 18, 19, 26),
   }),
 
   // Protected tracks: a lane of the street, kerbed or posted off for bikes.

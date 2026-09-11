@@ -41,6 +41,8 @@
 * Station names on a line's own page now follow the map's theme instead of
   always being dark text in a white halo
 * Bike route labels no longer sit on top of the places you're looking at
+* Signed bike routes no longer leave a dark blot at every corner and junction
+  they pass through
 * The trip suggestions timeline scrolls sideways, so a trip that runs past the
   visible range can be followed to its end. Each suggestion's type and route
   description stay pinned at the edge so you can tell the rows apart.

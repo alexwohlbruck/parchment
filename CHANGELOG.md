@@ -13,7 +13,16 @@
 
 ### Changed
 
+* Quick edit's form is organised into sections instead of one long list, with
+  yes/no details as compact chips that can also say "not answered".
+* Addresses can be filled in by searching for them, or taken from the pin.
+* Place type search understands the same everyday names as the app's search, so
+  "bike rack" finds bicycle parking.
+
 ### Fixed
+
+* Opening a link with extra details in it — a note or a map edit at a specific
+  spot — no longer loses them while signing in.
 
 ## [0.11.6] - 2026-09-11
 

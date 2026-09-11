@@ -14,7 +14,7 @@ import {
 } from '../../types/integration.types'
 import type { Place } from '../../types/place.types'
 import { OverpassAdapter } from './adapters/overpass-adapter'
-import { SOURCE } from '../../lib/constants'
+import { SOURCE, APP_USER_AGENT } from '../../lib/constants'
 import { calculateOSMCenter } from '../../util/geometry-conversion'
 import { logError, logger } from '../../lib/logger'
 import type { Language } from '../../lib/i18n'
@@ -69,6 +69,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': APP_USER_AGENT,
           },
         },
       )
@@ -131,6 +132,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': APP_USER_AGENT,
           },
         },
       )
@@ -242,6 +244,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': APP_USER_AGENT,
           },
         },
       )
@@ -292,6 +295,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': APP_USER_AGENT,
           },
           timeout: 30000,
         },
@@ -360,6 +364,7 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': APP_USER_AGENT,
           },
           timeout: 30000,
         },
@@ -519,7 +524,10 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         this.config.host,
         new URLSearchParams({ data: query }),
         {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': APP_USER_AGENT,
+          },
           timeout: 30000,
         },
       )
@@ -570,7 +578,10 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         this.config.host,
         new URLSearchParams({ data: query }),
         {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': APP_USER_AGENT,
+          },
           timeout: 30000,
         },
       )
@@ -616,7 +627,10 @@ export class OverpassIntegration implements Integration<OverpassConfig> {
         this.config.host,
         new URLSearchParams({ data: query }),
         {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': APP_USER_AGENT,
+          },
           timeout: 15000,
         },
       )

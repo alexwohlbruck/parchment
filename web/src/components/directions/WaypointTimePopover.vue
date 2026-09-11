@@ -110,7 +110,9 @@ function loadDraft() {
     ?? (role.value === 'destination' ? 'arriveBy' : 'departAfter')
   dwell.value = current?.dwellTime ?? null
 
-  const start = current?.time ? dayjs(current.time) : baseline.value
+  // The dial only offers five-minute steps, so a time between them has no
+  // row to rest on and the column falls back to showing :00.
+  const start = roundUpToFive(current?.time ? dayjs(current.time) : baseline.value)
   day.value = start.format('YYYY-MM-DD')
   clock.value = start.format('HH:mm')
   // A stop can be asked to hold a stay without being pinned to a clock, so

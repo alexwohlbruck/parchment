@@ -104,6 +104,11 @@ describe('constraintWarning', () => {
       .toBeNull()
   })
 
+  it('ignores a next stop the rider can simply wait at', () => {
+    const next = { mode: 'departAfter' as const, time: at('14:00').toISOString() }
+    expect(constraintWarning({ time: at('13:00'), dwellMinutes: 90, next, now })).toBeNull()
+  })
+
   it('counts this stop\'s stay before deciding the next one is missed', () => {
     const next = { mode: 'arriveBy' as const, time: at('14:00').toISOString() }
     expect(constraintWarning({ time: at('13:00'), dwellMinutes: 30, next, now })).toBeNull()

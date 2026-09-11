@@ -220,9 +220,10 @@ app.post(
       summary: 'Plan a multimodal trip',
       description:
         'Generate multiple trip options using different transportation modes and combinations. '
-        + 'A request with more than two waypoints also returns `legs`: each waypoint pair with '
-        + 'its own ranked options, so a leg can be swapped without re-planning the whole trip. '
-        + '`trips` then holds the single chain built from each leg\'s leading option.',
+        + 'A request with more than two waypoints returns one whole journey per travel '
+        + 'strategy, each carried from stop to stop — a journey that cycles to the first stop '
+        + 'still has the bike at the second. Segments carry `legIndex` to say which hop they '
+        + 'belong to.',
       tags: ['Trip Planning'],
     },
   },

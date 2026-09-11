@@ -91,9 +91,11 @@ export function stopWindows(
 
     if (arriveBy !== null && i < count - 1) {
       const departBy = arriveBy - (legs[i] ?? 0)
-      latest[i] = departBy
       // Arriving, waiting out the gap and any stay, then leaving by then.
       const cap = departBy - MIN_LEG_GAP_MS - dwellOf(constraints[i])
+      // "Arrive by" is answered on arrival, so it is the arrival that has to
+      // leave room for the stay; "leave after" only has to clear the leg.
+      latest[i] = constraints[i]?.mode === 'arriveBy' ? cap : departBy
       arriveHereBy = arriveHereBy === null ? cap : Math.min(arriveHereBy, cap)
     }
 

@@ -100,7 +100,9 @@ export function constraintWarning({
     }
   }
 
-  if (next?.time) {
+  // Only a deadline can be missed. Asking to leave the next stop after some
+  // time says nothing about this one — the rider can arrive and wait.
+  if (next?.time && next.mode === 'arriveBy') {
     const leaving = time.add(Math.max(0, dwellMinutes ?? 0), 'minute')
     if (leaving.isAfter(dayjs(next.time))) {
       return `Leaving at ${leaving.format('h:mm A')} misses the next stop.`

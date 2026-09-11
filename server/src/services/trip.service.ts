@@ -33,6 +33,13 @@ import { logError, logWarn } from '../lib/logger'
  * Simplified multimodal trip planning service
  * Supports: walking, driving, biking with optional vehicle locations
  */
+/** A leg that carries an already-chosen journey on to the next stop. */
+interface Continuation {
+  strategy: string
+  /** Whether the rider still holds the car or bike the strategy names. */
+  carriesVehicle: boolean
+}
+
 export class TripService {
   /**
    * Plan multimodal trip with multiple transportation options
@@ -55,7 +62,7 @@ export class TripService {
   private async planLegTrip(
     request: TripRequest,
     startTime: number,
-    strategy?: string,
+    continuation?: Continuation,
   ): Promise<MultimodalTripResponse> {
     const candidates: TripResponse[] = []
     const dataSources: DataSource[] = []
@@ -79,7 +86,7 @@ export class TripService {
         try {
           if (mode === 'transit') {
             return await this.planIntermodalTransitTrips(
-              request, dataSources, strategy,
+              request, dataSources, continuation,
             )
           } else if (mode === 'rideshare') {
             return await this.planRideshareTrips(request, dataSources)
@@ -95,9 +102,9 @@ export class TripService {
 
     // A continuation only needs the one strategy it is carrying on, and a
     // dock bike is only that when the journey already started on one.
-    const wantsShared = !strategy
-      || strategy.startsWith('bikeshare')
-      || strategy.startsWith('scootershare')
+    const wantsShared = !continuation
+      || continuation.strategy.startsWith('bikeshare')
+      || continuation.strategy.startsWith('scootershare')
     if (modes.includes('biking') && wantsShared) {
       modePromises.push(
         this.planSharedVehicleTrips(request, dataSources).catch((error) => {
@@ -314,7 +321,7 @@ export class TripService {
         this.buildLegRequest(request, waypoints[i], waypoints[i + 1],
           state.currentTime, carried, strategy),
         Date.now(),
-        strategy,
+        { strategy, carriesVehicle: carried !== null },
       )
       this.collectDataSources(dataSources, leg.metadata.dataSourcesUsed)
 
@@ -393,7 +400,12 @@ export class TripService {
         (strategy ? TripService.strategyMode(strategy) : null)
         ?? carried?.mode
         ?? request.selectedMode,
-      ...(carried?.vehicle && { availableVehicles: [carried.vehicle] }),
+      // Mid-journey the rider is wherever the last leg left them, so the
+      // only vehicle in reach is the one they brought. Carrying the saved
+      // ones forward would route this leg from the driveway at home.
+      availableVehicles: strategy
+        ? (carried?.vehicle ? [carried.vehicle] : [])
+        : request.availableVehicles,
     }
   }
 
@@ -405,14 +417,18 @@ export class TripService {
    * forward, and each query it doesn't need is a MOTIS round trip saved —
    * multiplied by the strategies in flight and the stops still to come.
    */
-  private static continuationNeeds(strategy?: string) {
-    if (!strategy) {
+  private static continuationNeeds(continuation?: Continuation) {
+    if (!continuation) {
       return { car: true, bikeCarry: true, bikeAccess: true, walkDirect: true, rideshare: true }
     }
+    const { strategy, carriesVehicle } = continuation
     return {
-      car: strategy.startsWith('driving+transit'),
+      // Driving to a station and parking needs a car to drive; a journey
+      // that already left one at the first station hasn't got it any more.
+      car: carriesVehicle && strategy.startsWith('driving+transit'),
       bikeCarry: strategy === 'biking+transit:carry',
-      bikeAccess: strategy.startsWith('biking+transit:')
+      bikeAccess: carriesVehicle
+        && strategy.startsWith('biking+transit:')
         && strategy !== 'biking+transit:carry',
       walkDirect: false,
       rideshare: strategy.startsWith('rideshare'),
@@ -2116,9 +2132,9 @@ export class TripService {
   private async planIntermodalTransitTrips(
     request: TripRequest,
     dataSources: DataSource[],
-    strategy?: string,
+    continuation?: Continuation,
   ): Promise<TripResponse[]> {
-    const needs = TripService.continuationNeeds(strategy)
+    const needs = TripService.continuationNeeds(continuation)
     const preferences = request.routingPreferences || {}
     const startTime = request.preferredDepartureTime || new Date().toISOString()
     const from = request.waypoints[0]
@@ -2146,7 +2162,7 @@ export class TripService {
     // A continuation is one leg of a journey already chosen, not a shortlist
     // of departures — it needs the next workable ride, not the best eight.
     // The wide sweep costs seconds per leg per strategy in flight.
-    const isContinuation = strategy != null
+    const isContinuation = continuation != null
 
     const baseRequest = {
       from: from.location,
@@ -2248,7 +2264,7 @@ export class TripService {
       // MOTIS answers this from GTFS bikes_allowed and treats "no information"
       // as no, so on a feed that doesn't declare carriage this returns nothing
       // rather than inventing permission the rider may not have.
-      if (needs.bikeCarry) extraQueries.push(
+      if (needs.bikeCarry && this.enforcesBikeCarriage !== false) extraQueries.push(
         this.planBikeCarryOnTransitQuery(
           {
             ...baseRequest,
@@ -2610,6 +2626,9 @@ export class TripService {
   /** Time to lock a bike to a rack before walking away. */
   private static readonly BIKE_LOCK_DELAY_SEC = 60
 
+  /** Whether the transit provider checks bike carriage. Null until asked. */
+  private enforcesBikeCarriage: boolean | null = null
+
   /** Cached nearest-rack lookups — bicycle parking is static OSM data. */
   private stationRackCache = new Map<string, Promise<Place | null>>()
   private static readonly STATION_RACK_CACHE_MAX = 200
@@ -2633,6 +2652,11 @@ export class TripService {
           null,
         ),
       )
+      // A POI search that failed comes back empty, indistinguishable from a
+      // station with no rack — and caching that drops bike-to-station there
+      // for the life of the process. Only a rack we actually found is worth
+      // remembering.
+      hit.then((rack) => { if (!rack) this.stationRackCache.delete(key) })
       this.stationRackCache.set(key, hit)
       if (this.stationRackCache.size > TripService.STATION_RACK_CACHE_MAX) {
         const oldest = this.stationRackCache.keys().next().value
@@ -2795,7 +2819,10 @@ export class TripService {
       // Only offer to take the bike aboard on a provider that says it checked.
       // An older one drops the flag silently, and its results would be ordinary
       // bike-either-end itineraries dressed up as permission we never verified.
-      if (response.metadata?.requireBikeTransport !== true) return []
+      // A provider that drops the flag can never answer this, so stop
+      // spending a MOTIS round trip on it every time a trip is planned.
+      this.enforcesBikeCarriage = response.metadata?.requireBikeTransport === true
+      if (!this.enforcesBikeCarriage) return []
       if (!response.itineraries?.length) return []
 
       const adapted = await Promise.all(

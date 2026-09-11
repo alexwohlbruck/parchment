@@ -329,16 +329,11 @@ function directionsService() {
     }
   }
 
-  /**
-   * Map one scored backend candidate to the flattened UI trip.
-   *
-   * `scope` keeps ids unique when the same trip is mapped both as a leg
-   * option and as part of the assembled chain.
-   */
-  function mapCandidate(candidate: any, idx: number, scope = 'trip'): any {
+  /** Map one scored backend candidate to the flattened UI trip. */
+  function mapCandidate(candidate: any, idx: number): any {
     const stats = candidate.trip.tripStats
     return {
-      id: `${candidate.trip.requestId || `trip-${Date.now()}`}-${scope}-${idx}`,
+      id: `${candidate.trip.requestId || `trip-${Date.now()}`}-${idx}`,
       mode: normalizeMode(candidate.trip.segments[0]?.mode || 'walking'),
       vehicleType: candidate.trip.segments[0]?.vehicle?.type || 'walking',
       summary: {

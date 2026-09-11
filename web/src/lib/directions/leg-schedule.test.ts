@@ -89,6 +89,16 @@ describe('stopWindows', () => {
     expect(windows[1].latest).toBeNull()
   })
 
+  it('leaves room for a stay when the stop answers a deadline on arrival', () => {
+    const windows = stopWindows(
+      trip(['08:00', '08:20'], ['08:20', '08:50']),
+      [null, { ...arriveBy('09:00'), dwellTime: 20 }, arriveBy('11:00')],
+    )
+
+    // Arriving by 10:30 would leave at 10:51 and miss the 11:00 deadline.
+    expect(hhmm(windows[1].latest)).toBe('10:09')
+  })
+
   it('reaches back through the leg when capping an earlier stop', () => {
     const windows = stopWindows(
       trip(['08:00', '08:20'], ['08:20', '08:50']),

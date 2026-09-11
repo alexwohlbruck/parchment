@@ -56,6 +56,48 @@ describe('cycling defaults', () => {
     }
   })
 
+  /**
+   * Off-street ways say their surface the way Google and OpenCycleMap do:
+   * solid where it is hard, dashed where it is not. The on-street dash grammar
+   * never appears here, so a dash can only mean one thing in each family.
+   */
+  test.each([
+    ['bicycle-cycleways', 'bicycle-cycleways-unpaved'],
+    ['bicycle-paths', 'bicycle-paths-unpaved'],
+  ])('%s draws solid and %s dashed', (paved, unpaved) => {
+    const of = (id: string) =>
+      lines.find(t => t.configuration.id === id)!.configuration
+    expect(of(paved).paint['line-dasharray']).toBeUndefined()
+    expect(of(unpaved).paint['line-dasharray']).toBeDefined()
+    // Same colour and width — only the surface differs.
+    expect(of(paved).paint['line-color']).toEqual(of(unpaved).paint['line-color'])
+    expect(of(paved).paint['line-width']).toEqual(of(unpaved).paint['line-width'])
+  })
+
+  /** What you cannot ride yet must not look like what you can. */
+  test('proposed and construction leave more gap than mark', () => {
+    for (const id of ['bicycle-proposed', 'bicycle-construction']) {
+      const dash = lines.find(t => t.configuration.id === id)!.configuration.paint[
+        'line-dasharray'
+      ]
+      expect(dash[1] / dash[0], id).toBeGreaterThanOrEqual(1)
+    }
+  })
+
+  /** Amber is the roadworks convention, and the only warm mark in the set. */
+  test('construction is the one thing that is not green', () => {
+    const hue = (id: string) => {
+      const c = lines.find(t => t.configuration.id === id)!.configuration.paint[
+        'line-color'
+      ]
+      return Number(/hsl\(\s*([\d.]+)/.exec(c[c.length - 1])![1])
+    }
+    expect(hue('bicycle-construction')).toBeLessThan(60)
+    for (const id of ['bicycle-cycleways', 'bicycle-paths', 'bicycle-routes']) {
+      expect(hue(id), id).toBeGreaterThan(140)
+    }
+  })
+
   test('every cycling group owns a layer or the basemap behind it', () => {
     const groups = DEFAULT_LAYER_GROUPS.filter(g =>
       g.templateId.startsWith('default:group:cycling'),

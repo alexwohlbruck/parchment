@@ -13,8 +13,10 @@ import {
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
+import { CYCLING_WAYS_SUFFIX } from './cycling-layers'
 import {
   CYCLING_WAYS_LAYER_IDS,
+  cyclingStrokeLayers,
   cyclingWaysLayers,
   cyclingWaysSource,
 } from './cycling-layers'
@@ -559,11 +561,17 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.
   // Descending, because splicing shifts everything after the insertion point.
-  const tints = cyclingWaysLayers(flavor, id => out.find(l => l.id === id)?.paint?.['line-width'])
+  const roadWidth = (id: string) => out.find(l => l.id === id)?.paint?.['line-width']
+  const tints = cyclingWaysLayers(flavor, roadWidth)
   for (const { above, layer } of tints.reverse()) {
     const at = out.findIndex(l => l.id === above)
     if (at >= 0) out.splice(at + 1, 0, layer)
   }
+
+  // The markings go over every tint, since they describe the street rather
+  // than any one rung of it. Above the topmost road, still below the labels.
+  const lastRoad = out.map(l => l.id.endsWith(CYCLING_WAYS_SUFFIX)).lastIndexOf(true)
+  if (lastRoad >= 0) out.splice(lastRoad + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth))
 
   return out
 }

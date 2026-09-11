@@ -26,8 +26,13 @@
 * Roads and paths marked for bikes — a lane, a sharrow, a designated footpath
   — now tint the street itself green at exactly that street's width, in a
   stronger green the better the provision is
-* Dedicated cycleways and bike paths keep their own cased line, so a path built
-  for bikes still reads differently from a street that allows them
+* Dedicated cycleways and bike paths keep their own cased line, solid where the
+  surface is paved and dashed where it isn't
+* Bike lanes now show which side of the street they're on once you're zoomed in,
+  with the dash saying how protected they are: solid is separated from traffic,
+  a short dash is a painted lane, a dotted line is shared with cars
+* Proposed and under-construction bikeways read as not-yet-ridable — amber for
+  roadworks, a faint ghost for a plan
 * The cycling layer now draws under place names and under transit lines, so a
   train crossing a bike lane passes over it
 

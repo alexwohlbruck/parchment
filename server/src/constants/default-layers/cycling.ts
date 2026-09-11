@@ -47,14 +47,20 @@ const SOURCE = {
  * there and the marking still has to be the brighter of the two.
  */
 const INK = {
-  track: { light: 'hsl(152, 62%, 31%)', dark: 'hsl(150, 52%, 60%)' },
-  lane: { light: 'hsl(150, 55%, 38%)', dark: 'hsl(148, 46%, 56%)' },
-  route: { light: 'hsl(146, 52%, 40%)', dark: 'hsl(148, 44%, 54%)' },
+  // A cooler green than the basemap's vegetation, which sits at hue 95-100, so
+  // a bike path never reads as a strip of planting. Matches the on-street
+  // markings in `cycling-layers.ts`.
+  track: { light: 'hsl(160, 64%, 27%)', dark: 'hsl(158, 52%, 62%)' },
+  lane: { light: 'hsl(158, 56%, 35%)', dark: 'hsl(156, 46%, 57%)' },
+  route: { light: 'hsl(158, 50%, 38%)', dark: 'hsl(156, 44%, 54%)' },
   // The edge under a dedicated way's stroke, so it reads as a path with a
   // width rather than a line ruled across the ground.
-  casing: { light: 'hsl(146, 30%, 97%)', dark: 'hsl(152, 24%, 16%)' },
-  proposed: { light: 'hsl(150, 18%, 58%)', dark: 'hsl(150, 14%, 52%)' },
-  construction: { light: 'hsl(36, 78%, 48%)', dark: 'hsl(38, 72%, 60%)' },
+  casing: { light: 'hsl(158, 30%, 97%)', dark: 'hsl(158, 24%, 15%)' },
+  proposed: { light: 'hsl(158, 16%, 62%)', dark: 'hsl(158, 12%, 48%)' },
+  // Amber, because roadworks are amber everywhere. The one warm mark in the
+  // set, so the thing you cannot ride yet is the thing that does not look
+  // like the network.
+  construction: { light: 'hsl(36, 82%, 46%)', dark: 'hsl(38, 74%, 60%)' },
 }
 
 /**
@@ -132,6 +138,19 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
 /** Barrelman marks a way's state; absent means it is built and open. */
 const BUILT = ['!has', 'state']
 
+/**
+ * Surfaces you can ride on a road bike. Off-street ways draw solid when the
+ * surface is hard and dashed when it is not — the on-street dash grammar
+ * (`cycling-layers.ts`) never appears on these, so the two cannot be confused.
+ */
+const PAVED = [
+  'in', 'surface',
+  'asphalt', 'paved', 'concrete', 'concrete:plates', 'paving_stones',
+  'chipseal', 'sett', 'metal', 'wood',
+]
+const HARD = ['all', PAVED]
+const SOFT = ['!', PAVED]
+
 export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways: their own way, not a street. A casing under a solid
   // stroke, the way the basemap cases a path — so it reads as a route you can
@@ -152,9 +171,20 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'cycleways',
     order: 31,
     minzoom: 11,
-    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT],
+    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT, HARD],
     color: themed(INK.track),
     width: width(11, 1, 14, 1.8, 16, 2.8, 19, 4.4),
+  }),
+  wayLayer({
+    id: 'bicycle-cycleways-unpaved',
+    name: 'Cycleways Unpaved',
+    group: 'cycleways',
+    order: 32,
+    minzoom: 11,
+    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT, SOFT],
+    color: themed(INK.track),
+    width: width(11, 1, 14, 1.8, 16, 2.8, 19, 4.4),
+    dash: [3, 2],
   }),
 
   // Paths and steps built for bikes. Same treatment, dashed: a path is a
@@ -175,10 +205,20 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bicycle-paths',
     order: 61,
     minzoom: 12,
-    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT],
+    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT, HARD],
     color: themed(INK.lane),
     width: width(12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6),
-    dash: [2.5, 1.5],
+  }),
+  wayLayer({
+    id: 'bicycle-paths-unpaved',
+    name: 'Bicycle Paths Unpaved',
+    group: 'bicycle-paths',
+    order: 62,
+    minzoom: 12,
+    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT, SOFT],
+    color: themed(INK.lane),
+    width: width(12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6),
+    dash: [3, 2],
   }),
 
   // Signed route relations (icn / ncn / rcn / lcn): a recommendation laid over
@@ -206,7 +246,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     filter: ['==', 'state', 'proposed'],
     color: themed(INK.proposed),
     width: width(11, 0.8, 14, 1.4, 16, 2.2),
-    dash: [1, 3],
+    dash: [1, 4],
   }),
   wayLayer({
     id: 'bicycle-construction',

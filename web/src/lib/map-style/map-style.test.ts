@@ -28,7 +28,11 @@ import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
 import { slotBeforeId } from '@/lib/map/layer-slots'
-import { CYCLING_WAYS_LAYER_IDS, CYCLING_WAYS_SUFFIX } from './cycling-layers'
+import {
+  CYCLING_WAYS_LAYER_IDS,
+  CYCLING_WAYS_SUFFIX,
+  scaleOutputs,
+} from './cycling-layers'
 import { BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
@@ -1615,7 +1619,9 @@ describe('cycling ways from Barrelman', () => {
     built.find(b => b.id === l.id.slice(0, -CYCLING_WAYS_SUFFIX.length))
 
   test('there is a tint for each rung of the network', () => {
-    expect(tints.map(l => l.id).sort()).toEqual(CYCLING_WAYS_LAYER_IDS.slice().sort())
+    expect(tints.map(l => l.id).sort()).toEqual(
+      CYCLING_WAYS_LAYER_IDS.filter(id => id.endsWith(CYCLING_WAYS_SUFFIX)).sort(),
+    )
   })
 
   test.each(tints.map(l => [l.id, l]))('%s: sits directly over its road', (_id, l: any) => {
@@ -1655,5 +1661,95 @@ describe('cycling ways from Barrelman', () => {
   test('the style declares the source they read', () => {
     const style = buildMapStyle({ ...opts, theme: 'light' } as any)
     expect(style.sources[tints[0].source]).toBeDefined()
+  })
+})
+
+/**
+ * The markings on a tinted street: dash grammar, and which side they sit on.
+ *
+ * The grammar is CyclOSM's — the dash gap depicts the separation that is
+ * missing, so solid is kerbed off, a short dash is paint, and a dot is a
+ * marking in a lane shared with cars. `line-dasharray` takes no feature
+ * expression, so each pattern is its own layer, and each side of the street
+ * is its own layer again.
+ */
+describe('cycling markings', () => {
+  const built = buildLayers({ flavor: 'light' }) as any[]
+  const strokes = built.filter(l => l.id.startsWith('Cycling '))
+
+  test('one layer per pattern per side', () => {
+    expect(strokes).toHaveLength(6)
+    for (const kind of ['track', 'lane', 'shared']) {
+      for (const side of ['left', 'right']) {
+        expect(strokes.map(l => l.id)).toContain(`Cycling ${kind} ${side}`)
+      }
+    }
+  })
+
+  /** Solid = kerbed, short dash = paint, dot = shared with traffic. */
+  test('the gap grows as the separation goes away', () => {
+    const gap = (id: string) => {
+      const dash = strokes.find(l => l.id === id)!.paint['line-dasharray']
+      return dash ? dash[1] / dash[0] : 0
+    }
+    expect(gap('Cycling track right')).toBe(0)
+    expect(gap('Cycling lane right')).toBeGreaterThan(0)
+    expect(gap('Cycling shared right')).toBeGreaterThan(gap('Cycling lane right'))
+  })
+
+  test('they only draw once the street is wide enough to have sides', () => {
+    for (const l of strokes) expect(l.minzoom).toBe(16)
+  })
+
+  test('left and right are mirrored, and right is positive', () => {
+    for (const kind of ['track', 'lane', 'shared']) {
+      const right = strokes.find(l => l.id === `Cycling ${kind} right`)!
+      const left = strokes.find(l => l.id === `Cycling ${kind} left`)!
+      // Negating outputs only — the zoom stops are not the thing being mirrored.
+      expect(scaleOutputs(right.paint['line-offset'], -1)).toEqual(
+        left.paint['line-offset'],
+      )
+    }
+  })
+
+  /**
+   * The offset has to be half the road, at every zoom and for every class, or
+   * a marking drifts off the kerb it is describing. Evaluated against the real
+   * road expression rather than compared structurally.
+   */
+  test('the offset is exactly half the road it sits on', () => {
+    const road = built.find(l => l.id === 'Minor road')!
+    const compile = (e: any, key: string) => {
+      const r = expression.createExpression(e, latest.paint_line['line-width'], key)
+      if (r.result !== 'success') throw new Error(`${key}: ${r.value.join(', ')}`)
+      return r.value
+    }
+    const width = compile(road.paint['line-width'], 'layers[0].paint.line-width')
+    const offset = compile(
+      strokes.find(l => l.id === 'Cycling track right')!.paint['line-offset'],
+      'layers[1].paint.line-width',
+    )
+
+    for (const zoom of [16, 17, 18, 19, 20, 22]) {
+      for (const cls of ['minor', 'service', 'secondary', 'tertiary', 'track']) {
+        // The stroke reads Barrelman's `highway`; the road reads `class`.
+        const highway = { minor: 'residential', service: 'service', secondary: 'secondary', tertiary: 'tertiary', track: 'track' }[cls]
+        const w = width.evaluate({ zoom }, { properties: { class: cls } })
+        const o = offset.evaluate({ zoom }, { properties: { highway } })
+        expect(o, `${cls} @z${zoom}`).toBeCloseTo(w / 2, 6)
+      }
+    }
+  })
+
+  test('the toggle reaches them', () => {
+    for (const l of strokes) expect(layerGroups.cycling).toContain(l.id)
+  })
+
+  /** Parks and street trees live at hue 95-100; a lane must not read as planting. */
+  test('the green is cooler than the vegetation', () => {
+    for (const l of strokes) {
+      const hue = Number(/hsl\(\s*([\d.]+)/.exec(l.paint['line-color'])![1])
+      expect(hue, l.id).toBeGreaterThan(140)
+    }
   })
 })

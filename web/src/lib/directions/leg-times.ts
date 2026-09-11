@@ -14,14 +14,14 @@ export function legHandoffTimes(trip: TripOption | undefined): Map<number, Date>
   if (!trip) return handoffs
 
   for (const segment of trip.segments) {
-    const leg = (segment as { legIndex?: number }).legIndex ?? 0
+    const leg = segment.legIndex ?? 0
     // The last segment of leg N ends at waypoint N+1.
     handoffs.set(leg + 1, new Date(segment.endTime))
   }
 
   // The final leg ends at the destination, which nothing departs from.
   const last = trip.segments[trip.segments.length - 1]
-  if (last) handoffs.delete(((last as { legIndex?: number }).legIndex ?? 0) + 1)
+  if (last) handoffs.delete((last.legIndex ?? 0) + 1)
 
   return handoffs
 }

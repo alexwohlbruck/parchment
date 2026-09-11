@@ -40,6 +40,12 @@ interface Continuation {
   carriesVehicle: boolean
 }
 
+/** A personal vehicle the rider still has with them between legs. */
+interface CarriedVehicle {
+  mode: SelectedMode
+  vehicle?: Vehicle
+}
+
 export class TripService {
   /**
    * Plan multimodal trip with multiple transportation options
@@ -157,49 +163,10 @@ export class TripService {
     // sees one option boarding whichever train comes first.
     const mergedCandidates = this.mergeInterchangeableTrips(candidates)
 
-    // Score and rank trips.
-    // referenceTime = when the user wants to depart. Used so a transit trip
-    // that doesn't leave for 6 hours scores worse than an immediate drive.
-    const referenceTime =
-      request.preferredDepartureTime || new Date().toISOString()
-
-    const scored = mergedCandidates.map((trip) => {
-      const score = this.scoreTrip(trip, referenceTime)
-      return {
-        trip,
-        score: {
-          ...score,
-          overall: this.computeOverallScore(score),
-        },
-        rank: 0,
-      }
-    })
-
-    // All named sort preferences use direct ranking — the primary metric
-    // determines order, with balanced score as a tiebreaker. Only the
-    // default "balanced" mode uses the weighted scoring system.
-    if (request.sortPreference) {
-      this.rankByMetric(scored, TripService.SORT_METRICS[request.sortPreference])
-    } else if (this.getArrivalTarget(request)) {
-      // Arrive-by with no explicit sort: all candidates land near the
-      // target, so prefer the one that lets the user leave latest.
-      this.rankByMetric(scored, (c) =>
-        c.trip.segments.length
-          ? -new Date(c.trip.segments[0].startTime).getTime()
-          : Infinity,
-      )
-    } else {
-      // Balanced mode: a trip several times slower than the best option is
-      // dominated no matter how cheap or green it is — a 100-min walk must
-      // not outrank a 20-min drive on perfect cost/CO2 sub-scores.
-      this.applyDurationDominance(scored)
-    }
-
-    const sorted = scored
-      .sort((a, b) => b.score.overall - a.score.overall)
-
     const rankedTrips: TripCandidate[] = this.filterQualityTrips(
-      sorted, request.sortPreference, request.selectedMode === 'multi',
+      this.scoreAndOrder(request, mergedCandidates, this.getArrivalTarget(request)),
+      request.sortPreference,
+      request.selectedMode === 'multi',
     )
       .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
 
@@ -265,7 +232,8 @@ export class TripService {
 
     return {
       request,
-      trips: this.rankChains(request, chains),
+      trips: this.scoreAndOrder(request, chains)
+        .map((candidate, index) => ({ ...candidate, rank: index + 1 })),
       metadata: {
         totalCandidatesGenerated: first.metadata.totalCandidatesGenerated,
         processingTime: Date.now() - startTime,
@@ -351,7 +319,7 @@ export class TripService {
   private matchStrategy(
     candidates: TripCandidate[],
     strategy: string,
-    carried: { mode: SelectedMode } | null,
+    carried: CarriedVehicle | null,
   ): TripResponse | null {
     const exact = candidates.find((c) => this.getTripMode(c.trip) === strategy)
     if (exact) return exact.trip
@@ -383,7 +351,7 @@ export class TripService {
     from: Waypoint,
     to: Waypoint,
     departAt: string,
-    carried: { mode: SelectedMode; vehicle?: Vehicle } | null,
+    carried: CarriedVehicle | null,
     strategy?: string,
   ): TripRequest {
     const origin: Waypoint = {
@@ -458,7 +426,7 @@ export class TripService {
    */
   private vehicleLeftInHand(
     trip: TripResponse,
-  ): { mode: SelectedMode; vehicle?: Vehicle } | null {
+  ): CarriedVehicle | null {
     const last = trip.segments[trip.segments.length - 1]
     if (!last || last.ownership === 'shared') return null
     if (last.mode !== 'driving' && last.mode !== 'biking') return null
@@ -553,31 +521,6 @@ export class TripService {
     }
     return total
   }
-
-  /** Score and order the completed journeys, best first. */
-  private rankChains(
-    request: TripRequest,
-    chains: TripResponse[],
-  ): TripCandidate[] {
-    const referenceTime =
-      request.preferredDepartureTime || new Date().toISOString()
-
-    const scored = chains.map((trip) => {
-      const score = this.scoreTrip(trip, referenceTime)
-      return { trip, score: { ...score, overall: this.computeOverallScore(score) }, rank: 0 }
-    })
-
-    if (request.sortPreference) {
-      this.rankByMetric(scored, TripService.SORT_METRICS[request.sortPreference])
-    } else {
-      this.applyDurationDominance(scored)
-    }
-
-    return scored
-      .sort((a, b) => b.score.overall - a.score.overall)
-      .map((candidate, index) => ({ ...candidate, rank: index + 1 }))
-  }
-
 
   /**
    * Determine which modes to generate based on user selection
@@ -4684,6 +4627,58 @@ export class TripService {
    * the balanced weighted score scaled down to a pure tiebreaker.
    * Non-finite metric values rank last.
    */
+  /**
+   * Score every candidate and put the best first.
+   *
+   * The reference time is when the rider wants to set off, so a transit trip
+   * that doesn't leave for six hours scores worse than an immediate drive.
+   */
+  private scoreAndOrder(
+    request: TripRequest,
+    trips: TripResponse[],
+    /**
+     * Set when these candidates were planned backwards onto a deadline, so
+     * they all land near it and the best is whichever leaves latest. A chain
+     * is planned forwards from the departure instead — its journeys all leave
+     * at once, so ranking them that way would say nothing.
+     */
+    arrivalTarget: string | null = null,
+  ): Array<{ trip: TripResponse; score: TripScore; rank: number }> {
+    const referenceTime =
+      request.preferredDepartureTime || new Date().toISOString()
+
+    const scored = trips.map((trip) => {
+      const score = this.scoreTrip(trip, referenceTime)
+      return {
+        trip,
+        score: { ...score, overall: this.computeOverallScore(score) },
+        rank: 0,
+      }
+    })
+
+    // All named sort preferences use direct ranking — the primary metric
+    // determines order, with balanced score as a tiebreaker. Only the
+    // default "balanced" mode uses the weighted scoring system.
+    if (request.sortPreference) {
+      this.rankByMetric(scored, TripService.SORT_METRICS[request.sortPreference])
+    } else if (arrivalTarget) {
+      // Arrive-by with no explicit sort: all candidates land near the
+      // target, so prefer the one that lets the user leave latest.
+      this.rankByMetric(scored, (c) =>
+        c.trip.segments.length
+          ? -new Date(c.trip.segments[0].startTime).getTime()
+          : Infinity,
+      )
+    } else {
+      // Balanced mode: a trip several times slower than the best option is
+      // dominated no matter how cheap or green it is — a 100-min walk must
+      // not outrank a 20-min drive on perfect cost/CO2 sub-scores.
+      this.applyDurationDominance(scored)
+    }
+
+    return scored.sort((a, b) => b.score.overall - a.score.overall)
+  }
+
   private rankByMetric(
     candidates: Array<{ trip: TripResponse; score: TripScore }>,
     metric: (c: { trip: TripResponse; score: TripScore }) => number,

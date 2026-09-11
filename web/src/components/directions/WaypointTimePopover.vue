@@ -3,10 +3,10 @@
  * Per-waypoint time constraint.
  *
  * Reached from a stop's row and shown as a bottom sheet on touch. Everything
- * here is chosen by tapping: the date is a choice between today and tomorrow
- * rather than a calendar, the time is the platform's own time control, and a
- * stay is a set of durations rather than a number to type. Nothing is applied
- * until "Done", because each change re-plans the whole trip.
+ * here is chosen by tapping: today and tomorrow are one tap with the rest of
+ * the calendar behind "Other", the time is a dial, and a stay is a set of
+ * durations rather than a number to type. Nothing is applied until "Done",
+ * because each change re-plans the whole trip.
  */
 import { computed, ref, watch } from 'vue'
 import dayjs from 'dayjs'
@@ -96,9 +96,9 @@ const dayBound = (bound: Date | null | undefined, edge: 'min' | 'max') => {
   const editing = dayjs(day.value)
   if (at.isSame(editing, 'day')) return at.format('HH:mm')
   // A whole day before the floor (or after the ceiling) is out of reach.
-  const before = at.isAfter(editing, 'day')
-  if (edge === 'min') return before ? '23:59' : null
-  return before ? null : '00:00'
+  const boundIsLater = at.isAfter(editing, 'day')
+  if (edge === 'min') return boundIsLater ? '23:59' : null
+  return boundIsLater ? null : '00:00'
 }
 
 const minTime = computed(() => dayBound(props.earliest, 'min'))

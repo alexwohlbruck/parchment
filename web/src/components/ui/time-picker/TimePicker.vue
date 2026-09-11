@@ -40,16 +40,16 @@ const asMinutes = (time: string | null | undefined) => {
 const floor = computed(() => asMinutes(props.min))
 const ceiling = computed(() => asMinutes(props.max))
 
-const allows = (minutesOfDay: number) =>
-  (floor.value === null || minutesOfDay >= floor.value)
-  && (ceiling.value === null || minutesOfDay <= ceiling.value)
-
 /**
- * Whether any minute of a given hour, or any hour of a period, is reachable.
+ * Whether any minute in a span of the day is reachable.
  *
- * A whole column is dimmed at that granularity rather than per-minute, so
+ * An hour or a period is judged whole rather than minute by minute, so
  * scrolling past an unreachable hour doesn't flicker row by row.
  */
+const allows = (start: number, length = 1) =>
+  (floor.value === null || start + length - 1 >= floor.value)
+  && (ceiling.value === null || start <= ceiling.value)
+
 const hours = computed(() =>
   Array.from({ length: 12 }, (_, i) => {
     const hour = i + 1
@@ -57,7 +57,7 @@ const hours = computed(() =>
     return {
       value: hour,
       label: String(hour),
-      disabled: !Array.from({ length: 60 }, (_, m) => base + m).some(allows),
+      disabled: !allows(base, 60),
     }
   }),
 )
@@ -77,7 +77,7 @@ const minutes = computed(() =>
 const periods = computed(() => (['AM', 'PM'] as const).map((period) => ({
   value: period,
   label: period,
-  disabled: !Array.from({ length: 720 }, (_, m) => (period === 'PM' ? 720 : 0) + m).some(allows),
+  disabled: !allows(period === 'PM' ? 720 : 0, 720),
 })))
 
 /**

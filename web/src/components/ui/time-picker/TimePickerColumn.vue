@@ -7,22 +7,16 @@
  * and a tap on any visible row scrolls it home.
  */
 import { onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
+import { CENTRE_OFFSET, ROW_HEIGHT, VISIBLE_ROWS } from './geometry'
 
 const props = defineProps<{
   options: { value: number | string; label: string; disabled?: boolean }[]
   modelValue: number | string
   /** Announced to screen readers, e.g. "Hour". */
   label: string
-  /** Row height in pixels; the column shows five. */
-  rowHeight?: number
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: number | string] }>()
-
-import { ROW_HEIGHT, VISIBLE_ROWS } from './geometry'
-
-const ROW = props.rowHeight ?? ROW_HEIGHT
-const VISIBLE = VISIBLE_ROWS
 
 const list = ref<HTMLElement | null>(null)
 /** Set while we drive the scroll ourselves, so it isn't read back as a pick. */
@@ -37,7 +31,7 @@ function indexOfValue(value: number | string) {
 function scrollToValue(value: number | string, smooth = false) {
   const element = list.value
   if (!element) return
-  const top = indexOfValue(value) * ROW
+  const top = indexOfValue(value) * ROW_HEIGHT
   if (Math.abs(element.scrollTop - top) < 1) return
 
   settling.value = true
@@ -56,7 +50,7 @@ function onScroll() {
     if (!element) return
     const index = Math.max(
       0,
-      Math.min(props.options.length - 1, Math.round(element.scrollTop / ROW)),
+      Math.min(props.options.length - 1, Math.round(element.scrollTop / ROW_HEIGHT)),
     )
     const picked = props.options[index]?.value
     if (picked !== undefined && picked !== props.modelValue) {
@@ -100,7 +94,7 @@ watch(() => props.options, () => nextTick(() => scrollToValue(props.modelValue))
     role="listbox"
     :aria-label="label"
     class="scrollbar-hidden flex-1 snap-y snap-mandatory touch-pan-y overflow-y-auto overscroll-contain"
-    :style="{ height: `${ROW * VISIBLE}px`, paddingBlock: `${ROW * (VISIBLE - 1) / 2}px` }"
+    :style="{ height: `${ROW_HEIGHT * VISIBLE_ROWS}px`, paddingBlock: `${CENTRE_OFFSET}px` }"
     @scroll="onScroll"
   >
     <button
@@ -116,7 +110,7 @@ watch(() => props.options, () => nextTick(() => scrollToValue(props.modelValue))
         : option.value === modelValue
           ? 'font-medium text-foreground'
           : 'text-muted-foreground/70'"
-      :style="{ height: `${ROW}px` }"
+      :style="{ height: `${ROW_HEIGHT}px` }"
       @click="pick(option)"
     >
       {{ option.label }}

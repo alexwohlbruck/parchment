@@ -1,4 +1,5 @@
 import dayjs, { type Dayjs } from 'dayjs'
+import { formatDurationLong } from '@/lib/time-format'
 import type { WaypointTimeConstraint } from '@/types/map.types'
 
 /** Where a stop sits in the trip, which decides what can be asked of it. */
@@ -58,12 +59,9 @@ export function constraintSummary(
   return null
 }
 
-/** "45 min" / "1 hr" / "1 hr 30 min" — a duration a person would say. */
+/** "45 min" / "1 hr 30 min", from minutes rather than seconds. */
 export function formatDwell(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  return rest ? `${hours} hr ${rest} min` : `${hours} hr`
+  return formatDurationLong(minutes * 60)
 }
 
 export interface ConstraintCheck {

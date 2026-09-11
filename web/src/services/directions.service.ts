@@ -67,13 +67,11 @@ function directionsService() {
   /**
    * Build the API request for a run of waypoints.
    *
-   * Takes the waypoints rather than reading them off the store, so a single
-   * leg can be re-planned from the tail of a trip the user is already in.
    * Uses getSearchResultName so reverse-geocoded map-clicks (which often have
    * no place.name but do have an address) still produce a useful label —
    * the same helper the waypoint input uses.
    */
-  function buildTripRequest(wps: Waypoint[], overrides: Record<string, unknown> = {}) {
+  function buildTripRequest(wps: Waypoint[]) {
     return {
       waypoints: wps.map((wp, i) => ({
         location: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
@@ -93,7 +91,6 @@ function directionsService() {
       routingPreferences: routingPreferences.value,
       ...(departureTime.value && { preferredDepartureTime: departureTime.value }),
       requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      ...overrides,
     }
   }
 

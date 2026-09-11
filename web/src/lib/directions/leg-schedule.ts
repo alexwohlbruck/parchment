@@ -25,7 +25,7 @@ function legDurations(trip: TripOption | undefined): number[] {
 
   const spans: { start: number; end: number }[] = []
   for (const segment of trip.segments) {
-    const leg = (segment as { legIndex?: number }).legIndex ?? 0
+    const leg = segment.legIndex ?? 0
     const start = new Date(segment.startTime).getTime()
     const end = new Date(segment.endTime).getTime()
     const span = spans[leg]

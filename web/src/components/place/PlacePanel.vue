@@ -209,6 +209,13 @@ watch(
   { immediate: true },
 )
 
+function editPlace() {
+  const osm = props.place?.externalIds?.osm
+  if (!osm) return
+  const [type, id] = osm.split('/')
+  router.push({ name: AppRoute.QUICK_EDIT_ELEMENT, params: { type, id } })
+}
+
 function sharePlace() {
   const url = window.location.href
   if (navigator.share) {
@@ -292,6 +299,7 @@ function handleBrandLogoError() {
               @directions="handleDirectionsClick"
               @directionsFrom="handleDirectionsFromClick"
               @share="sharePlace"
+              @edit="editPlace"
             />
           </div>
 

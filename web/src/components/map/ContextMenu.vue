@@ -38,6 +38,7 @@ import { nextMeasurePoints } from '@/lib/measure/measure-click'
 import { siOpenstreetmap, siGooglemaps, siApple } from 'simple-icons/icons'
 import {
   PencilIcon,
+  MapPinPlusIcon,
   MessageSquarePlusIcon,
   CopyIcon,
   ArrowDownToDotIcon,
@@ -590,6 +591,23 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
     label: t('map.contextMenu.edit'),
     icon: PencilIcon,
     items: [
+      {
+        type: 'item',
+        id: 'edit-quick-add',
+        label: t('quickEdit.addPlace'),
+        icon: MapPinPlusIcon,
+        onSelect: () => {
+          if (!clickedLngLat.value) return
+          router.push({
+            name: AppRoute.QUICK_EDIT_NEW,
+            query: {
+              lat: clickedLngLat.value.lat.toString(),
+              lng: clickedLngLat.value.lng.toString(),
+            },
+          })
+        },
+      },
+      { type: 'separator', id: 'edit-separator' },
       {
         type: 'item',
         id: 'edit-id',

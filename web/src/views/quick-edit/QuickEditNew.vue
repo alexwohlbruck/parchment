@@ -9,6 +9,7 @@ import { PencilIcon, LinkIcon } from 'lucide-vue-next'
 import { useQuickEditService } from '@/services/quick-edit.service'
 import { useMapService } from '@/services/map/map.service'
 import { useAppService } from '@/services/app.service'
+import { useExternalLink } from '@/composables/useExternalLink'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@/types/integrations.types'
 import { AppRoute } from '@/router'
@@ -22,6 +23,7 @@ import BrandLogo from '@/components/quick-edit/BrandLogo.vue'
 import { useDuplicateMarkers } from '@/composables/quick-edit/useDuplicateMarkers'
 import { whenMapReady } from '@/composables/map/whenMapReady'
 import type {
+  BrandChoice,
   DuplicateCandidate,
   EditablePreset,
   NsiBrand,
@@ -34,6 +36,7 @@ const { t } = useI18n()
 const quickEditService = useQuickEditService()
 const { addVueMarker, removeMarker } = useMapService()
 const { toast } = useAppService()
+const { openExternalLink } = useExternalLink()
 const integrationsStore = useIntegrationsStore()
 
 const MARKER_ID = 'quick-edit-marker'
@@ -45,6 +48,7 @@ const tags = reactive<Record<string, string>>({})
 const duplicates = ref<DuplicateCandidate[]>([])
 const submitting = ref(false)
 const sandboxServer = ref<string | null>(null)
+const osmServerUrl = ref<string | null>(null)
 const brandLogo = ref<string | null>(null)
 
 const hasLocation = computed(
@@ -89,6 +93,7 @@ watch(
 onMounted(async () => {
   showPin()
   const server = await quickEditService.getOsmServer()
+  osmServerUrl.value = server?.serverUrl ?? null
   if (server && server.server !== 'production') {
     sandboxServer.value = server.serverUrl.replace(/^https?:\/\//, '')
   }
@@ -159,6 +164,13 @@ async function selectPreset(result: PresetSummary) {
 function applyBrand(brand: NsiBrand) {
   for (const [key, value] of Object.entries(brand.tags)) tags[key] = value
   brandLogo.value = brand.logoUrl
+  placeMarker()
+}
+
+/** Picking a chain from the type search settles both at once. */
+async function selectBrand(choice: BrandChoice) {
+  await selectPreset(choice.preset)
+  applyBrand(choice.brand)
 }
 
 function editDuplicate(candidate: DuplicateCandidate) {
@@ -166,6 +178,21 @@ function editDuplicate(candidate: DuplicateCandidate) {
   router.replace({
     name: AppRoute.QUICK_EDIT_ELEMENT,
     params: { type, id },
+  })
+}
+
+/** Success, with a way through to the changeset it produced. */
+function announceSubmitted(changesetId: number) {
+  const url = osmServerUrl.value
+    ? `${osmServerUrl.value}/changeset/${changesetId}`
+    : null
+  toast.success(t('quickEdit.submitted'), {
+    action: url
+      ? {
+          label: t('quickEdit.viewChangeset'),
+          onClick: () => openExternalLink(url, '_blank'),
+        }
+      : undefined,
   })
 }
 
@@ -183,9 +210,7 @@ async function handleSubmit(comment: string) {
         tags: { ...tags },
       },
     })
-    toast.success(
-      t('quickEdit.submitted', { changeset: result.changesetId }),
-    )
+    announceSubmitted(result.changesetId)
     router.replace({ name: AppRoute.MAP })
   } catch (error: any) {
     toast.error(error.response?.data?.message ?? t('quickEdit.submitError'))
@@ -249,7 +274,11 @@ async function handleSubmit(comment: string) {
         <p class="mb-3 text-sm text-muted-foreground">
           {{ t('quickEdit.addDescription') }}
         </p>
-        <PresetPicker geometry="point" @select="selectPreset" />
+        <PresetPicker
+          geometry="point"
+          @select="selectPreset"
+          @select-brand="selectBrand"
+        />
       </template>
 
       <template v-else>

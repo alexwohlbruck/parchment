@@ -39,6 +39,12 @@ export interface EditablePreset extends PresetSummary {
   fields: FieldDefinition[]
 }
 
+/** A chain offered in the place-type search, with the type it belongs to. */
+export interface BrandChoice {
+  brand: NsiBrand
+  preset: PresetSummary
+}
+
 /** A chain a feature's name matches, with the tags it would add or correct. */
 export interface BrandSuggestion {
   brand: NsiBrand

@@ -16,6 +16,7 @@ import {
 import { useQuickEditService } from '@/services/quick-edit.service'
 import { useMapService } from '@/services/map/map.service'
 import { useAppService } from '@/services/app.service'
+import { useExternalLink } from '@/composables/useExternalLink'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@/types/integrations.types'
 import { AppRoute } from '@/router'
@@ -44,6 +45,7 @@ const { t } = useI18n()
 const quickEditService = useQuickEditService()
 const { flyTo, addVueMarker, removeMarker } = useMapService()
 const { toast } = useAppService()
+const { openExternalLink } = useExternalLink()
 const integrationsStore = useIntegrationsStore()
 
 const MARKER_ID = 'quick-edit-marker'
@@ -57,6 +59,7 @@ const movedTo = ref<LngLat | null>(null)
 const hasPendingEdit = ref(false)
 const submitting = ref(false)
 const sandboxServer = ref<string | null>(null)
+const osmServerUrl = ref<string | null>(null)
 const brandMatch = ref<BrandSuggestion | null>(null)
 const brandOffered = ref(false)
 const brandLogo = ref<string | null>(null)
@@ -83,6 +86,7 @@ onMounted(async () => {
     brandMatch.value = response.brand
     brandOffered.value = Boolean(response.brand)
     Object.assign(tags, response.element.tags)
+    osmServerUrl.value = server?.serverUrl ?? null
     if (server && server.server !== 'production') {
       sandboxServer.value = server.serverUrl.replace(/^https?:\/\//, '')
     }
@@ -166,6 +170,21 @@ function applyBrand(brand: NsiBrand) {
   brandMatch.value = null
 }
 
+/** Success, with a way through to the changeset it produced. */
+function announceSubmitted(changesetId: number) {
+  const url = osmServerUrl.value
+    ? `${osmServerUrl.value}/changeset/${changesetId}`
+    : null
+  toast.success(t('quickEdit.submitted'), {
+    action: url
+      ? {
+          label: t('quickEdit.viewChangeset'),
+          onClick: () => openExternalLink(url, '_blank'),
+        }
+      : undefined,
+  })
+}
+
 async function handleSubmit(comment: string) {
   if (!element.value) return
   submitting.value = true
@@ -184,7 +203,7 @@ async function handleSubmit(comment: string) {
         tags: { ...tags },
       },
     })
-    toast.success(t('quickEdit.submitted', { changeset: result.changesetId }))
+    announceSubmitted(result.changesetId)
     router.back()
   } catch (error: any) {
     if (error.response?.status === 409) {

@@ -10,7 +10,7 @@ import {
   matchTags,
 } from '../lib/osm-presets'
 import { categoryService } from '../services/category.service'
-import { searchBrands, matchBrand, brandTagDiff } from '../lib/nsi'
+import { searchBrands, matchBrand, brandTagDiff, type NsiBrand } from '../lib/nsi'
 import { suggestKeys, suggestValues } from '../lib/osm-taginfo'
 import {
   getLiveElement,
@@ -75,6 +75,19 @@ function presetSummary(category: CategoryResult) {
   }
 }
 
+/**
+ * The place type a chain belongs to, so picking "McDonald's" straight from the
+ * type search can set the type and the chain's tags in one step.
+ */
+function brandWithPreset(brand: NsiBrand, language: Language) {
+  const match = matchTags(brand.tags, 'point')
+  const category = match
+    ? categoryService.getCategoryById(match.preset.id, language)
+    : null
+  if (!category) return null
+  return { brand, preset: presetSummary(category) }
+}
+
 function presetPayload(presetId: string, language: Language) {
   const preset = getPresetById(presetId)
   const category = categoryService.getCategoryById(presetId, language)
@@ -105,18 +118,30 @@ publicApi.get(
       .slice(0, 12)
       .map(presetSummary)
 
-    return { results }
+    // Chains are offered alongside place types: someone adding a McDonald's
+    // types its name, not "Fast Food". Only strong matches, since a loose hit
+    // on a common word would bury the type the user is actually after.
+    const brands = searchBrands(query.q, {
+      country: query.cc?.toLowerCase(),
+      limit: 3,
+      minScore: 60,
+    })
+      .map((brand) => brandWithPreset(brand, language))
+      .filter((entry) => entry !== null)
+
+    return { results, brands }
   },
   {
     query: t.Object({
       q: t.String(),
+      cc: t.Optional(t.String({ maxLength: 2 })),
       geometry: t.Optional(
         t.Union([t.Literal('point'), t.Literal('area'), t.Literal('line'), t.Literal('vertex')]),
       ),
     }),
     detail: {
       tags: ['OSM'],
-      summary: 'Search OSM tagging presets',
+      summary: 'Search OSM tagging presets and chains',
       description:
         'Searches the same category index the app search uses, so curated aliases ("bike rack") resolve.',
     },
@@ -263,11 +288,10 @@ publicApi.get(
     if (!primary) return { results: [] }
 
     return {
-      results: searchBrands(
-        query.q,
-        `${primary.key}/${primary.value}`,
-        query.cc?.toLowerCase(),
-      ),
+      results: searchBrands(query.q, {
+        kv: `${primary.key}/${primary.value}`,
+        country: query.cc?.toLowerCase(),
+      }),
     }
   },
   {

@@ -3,18 +3,18 @@ import { searchBrands, matchBrand, brandTagDiff } from './nsi'
 
 describe('searchBrands', () => {
   it('ranks the canonical chain above transliterations sharing its QID', () => {
-    const results = searchBrands('starb', 'amenity/cafe')
+    const results = searchBrands('starb', { kv: 'amenity/cafe' })
     expect(results[0].name).toBe('Starbucks')
     expect(results.filter((b) => b.wikidata === 'Q37158')).toHaveLength(1)
   })
 
   it('ranks a far-reaching chain above a shorter-named local one', () => {
-    const names = searchBrands('taco', 'amenity/fast_food').map((b) => b.name)
+    const names = searchBrands('taco', { kv: 'amenity/fast_food' }).map((b) => b.name)
     expect(names[0]).toBe('Taco Bell')
   })
 
   it('carries the tags and logo needed to fill in a form', () => {
-    const [tacoBell] = searchBrands('taco bell', 'amenity/fast_food')
+    const [tacoBell] = searchBrands('taco bell', { kv: 'amenity/fast_food' })
     expect(tacoBell.tags['brand:wikidata']).toBe('Q752941')
     expect(tacoBell.tags.cuisine).toBe('tex-mex')
     expect(tacoBell.logoUrl).toBeTruthy()
@@ -22,28 +22,28 @@ describe('searchBrands', () => {
 
   it('finds chains typed without their punctuation', () => {
     for (const query of ['mcdonalds', "mcdonald's", 'McDonalds']) {
-      expect(searchBrands(query, 'amenity/fast_food')[0].name).toBe("McDonald's")
+      expect(searchBrands(query, { kv: 'amenity/fast_food' })[0].name).toBe("McDonald's")
     }
-    expect(searchBrands('raising canes', 'amenity/fast_food')[0].name).toBe(
+    expect(searchBrands('raising canes', { kv: 'amenity/fast_food' })[0].name).toBe(
       "Raising Cane's",
     )
-    expect(searchBrands('ben and jerrys', 'amenity/ice_cream')[0].name).toBe(
+    expect(searchBrands('ben and jerrys', { kv: 'amenity/ice_cream' })[0].name).toBe(
       "Ben & Jerry's",
     )
   })
 
   it('finds chains typed without their spacing', () => {
-    expect(searchBrands('tacobell', 'amenity/fast_food')[0].name).toBe('Taco Bell')
+    expect(searchBrands('tacobell', { kv: 'amenity/fast_food' })[0].name).toBe('Taco Bell')
   })
 
   it('searches the whole match group, so the chosen tag need not be exact', () => {
-    expect(searchBrands('mcdonalds', 'amenity/restaurant')[0].name).toBe(
+    expect(searchBrands('mcdonalds', { kv: 'amenity/restaurant' })[0].name).toBe(
       "McDonald's",
     )
   })
 
   it('ignores queries too short to be meaningful', () => {
-    expect(searchBrands('t', 'amenity/fast_food')).toEqual([])
+    expect(searchBrands('t', { kv: 'amenity/fast_food' })).toEqual([])
   })
 })
 

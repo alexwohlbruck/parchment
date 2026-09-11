@@ -2678,7 +2678,7 @@
     "sandboxNotice": "Test mode — edits go to {server}, not the real map.",
     "submitAdd": "Add to OpenStreetMap",
     "submitEdit": "Save to OpenStreetMap",
-    "submitted": "Saved to OpenStreetMap (changeset {changeset})",
+    "submitted": "Saved to OpenStreetMap",
     "submitError": "Couldn’t save your edit. Please try again.",
     "conflictError": "This place changed on OpenStreetMap while you were editing. The latest version has been reloaded.",
     "loadError": "Couldn’t load this place from OpenStreetMap.",
@@ -2701,7 +2701,6 @@
     },
     "hours": {
       "alwaysOpen": "Open 24/7",
-      "addHours": "Add hours",
       "copyToAll": "Copy to all days",
       "rawPlaceholder": "e.g. Mo-Fr 09:00-17:00",
       "rawNote": "These hours use advanced OpenStreetMap syntax, so they’re edited as text to keep them intact.",
@@ -2711,7 +2710,10 @@
       "th": "Thu",
       "fr": "Fri",
       "sa": "Sat",
-      "su": "Sun"
+      "su": "Sun",
+      "closed": "Closed",
+      "addInterval": "Add another time",
+      "removeInterval": "Remove"
     },
     "brand": {
       "isThis": "Is this one of these chains?",
@@ -2719,7 +2721,8 @@
       "matchTitle": "This looks like {brand}",
       "matchHint": "Chains are tagged the same way everywhere. Apply the standard details?",
       "apply": "Apply",
-      "dismiss": "Not this chain"
+      "dismiss": "Not this chain",
+      "chainsHeading": "Chains"
     },
     "section": {
       "basics": "Details",
@@ -2729,6 +2732,7 @@
       "contact": "Contact",
       "more": "More details"
     },
-    "wikiLink": "About {label} on the OpenStreetMap wiki"
+    "wikiLink": "About {label} on the OpenStreetMap wiki",
+    "viewChangeset": "View"
   }
 }

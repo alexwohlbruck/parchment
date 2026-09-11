@@ -1,5 +1,6 @@
 import { api } from '@/lib/api'
 import type {
+  BrandChoice,
   BrandSuggestion,
   DuplicateCandidate,
   NsiBrand,
@@ -18,12 +19,12 @@ export function useQuickEditService() {
   async function searchPresets(
     q: string,
     geometry?: GeometryType,
-  ): Promise<PresetSummary[]> {
-    const response = await api.get<{ results: PresetSummary[] }>(
-      '/osm/presets/search',
-      { params: { q, geometry } },
-    )
-    return response.data.results
+  ): Promise<{ results: PresetSummary[]; brands: BrandChoice[] }> {
+    const response = await api.get<{
+      results: PresetSummary[]
+      brands: BrandChoice[]
+    }>('/osm/presets/search', { params: { q, geometry } })
+    return response.data
   }
 
   async function getPreset(id: string): Promise<EditablePreset> {

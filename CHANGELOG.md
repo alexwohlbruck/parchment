@@ -24,8 +24,13 @@
   what a tag actually means.
 * Chain lookup is forgiving about how you type a name — "mcdonalds" finds
   McDonald's — and no longer depends on picking exactly the right place type.
+* Searching a place type also offers chains, so typing "mcdonalds" sets the
+  type and the chain's details in one step.
+* Opening hours are quicker to set: one line per day, days you haven't set say
+  "Closed", and times are dialled with the app's own time picker.
 * The pin on the map shows the place's name as you type it, and nearby
   duplicates show theirs.
+* The "saved" message links straight to the changeset on OpenStreetMap.
 
 ### Fixed
 

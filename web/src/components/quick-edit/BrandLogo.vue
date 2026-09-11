@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{
   src: string | null
@@ -7,26 +7,41 @@ const props = defineProps<{
   size?: 'sm' | 'md'
 }>()
 
-// Brand logos come from third-party CDNs; a dead one falls back to the initial.
+// Logos come from third-party CDNs. The initial shows until one arrives and
+// stays if it never does, so the slot is never an empty box.
+const loaded = ref(false)
 const failed = ref(false)
-watch(() => props.src, () => { failed.value = false })
+watch(
+  () => props.src,
+  () => {
+    loaded.value = false
+    failed.value = false
+  },
+)
+
+const sizeClass = computed(() =>
+  props.size === 'sm' ? 'size-8 text-xs' : 'size-10 text-sm',
+)
 </script>
 
 <template>
-  <img
-    v-if="src && !failed"
-    :src="src"
-    :alt="name"
-    :class="size === 'sm' ? 'size-8' : 'size-10'"
-    class="shrink-0 rounded-md bg-white object-contain p-0.5 ring-1 ring-border"
-    loading="lazy"
-    @error="failed = true"
-  />
   <div
-    v-else
-    :class="size === 'sm' ? 'size-8 text-xs' : 'size-10 text-sm'"
-    class="flex shrink-0 items-center justify-center rounded-md bg-muted font-medium text-muted-foreground"
+    class="relative shrink-0 overflow-hidden rounded-md"
+    :class="sizeClass"
   >
-    {{ name.charAt(0) }}
+    <div
+      class="flex size-full items-center justify-center bg-muted font-medium text-muted-foreground"
+    >
+      {{ name.charAt(0) }}
+    </div>
+    <img
+      v-if="src && !failed"
+      :src="src"
+      :alt="name"
+      class="absolute inset-0 size-full rounded-md bg-white object-contain p-0.5 ring-1 ring-border transition-opacity"
+      :class="loaded ? 'opacity-100' : 'opacity-0'"
+      @load="loaded = true"
+      @error="failed = true"
+    />
   </div>
 </template>

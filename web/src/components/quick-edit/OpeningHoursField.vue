@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { PlusIcon, XIcon, CopyIcon } from 'lucide-vue-next'
+import TimeButton from './TimeButton.vue'
 import {
   WEEKDAYS,
   type Weekday,
@@ -28,6 +29,8 @@ const initial = parseOpeningHours(props.modelValue ?? '')
 /** Values outside the structured subset are edited as raw text, never rewritten. */
 const rawMode = ref(initial === null)
 const week = ref<WeekSchedule>(initial ?? emptyWeek())
+
+const DEFAULT_INTERVAL = '09:00-17:00'
 
 const DAY_LABEL_KEYS: Record<Weekday, string> = {
   Mo: 'quickEdit.hours.mo',
@@ -54,16 +57,22 @@ function setAlwaysOpen(on: boolean) {
   publish()
 }
 
-function setInterval(day: Weekday, index: number, part: 0 | 1, time: string) {
-  const current = week.value[day].intervals[index]?.split('-') ?? ['09:00', '17:00']
+function parts(day: Weekday, index: number): [string, string] {
+  const [from = '', to = ''] = week.value[day].intervals[index].split('-')
+  return [from, to]
+}
+
+function setPart(day: Weekday, index: number, part: 0 | 1, time: string) {
+  const current = parts(day, index)
   current[part] = time
   week.value[day].intervals[index] = current.join('-')
   publish()
 }
 
 function addInterval(day: Weekday) {
-  const last = week.value[day].intervals.at(-1)
-  week.value[day].intervals.push(last ?? '09:00-17:00')
+  week.value[day].intervals.push(
+    week.value[day].intervals.at(-1) ?? DEFAULT_INTERVAL,
+  )
   publish()
 }
 
@@ -74,20 +83,15 @@ function removeInterval(day: Weekday, index: number) {
 
 function copyToAll(day: Weekday) {
   const source = [...week.value[day].intervals]
-  for (const d of WEEKDAYS) week.value[d].intervals = [...source]
+  for (const other of WEEKDAYS) week.value[other].intervals = [...source]
   publish()
 }
 
-function intervalParts(day: Weekday, index: number): [string, string] {
-  const [from = '', to = ''] = week.value[day].intervals[index].split('-')
-  return [from, to]
-}
-
-// An external prefill (element load, pending-edit merge) replaces local state
+// An external prefill (element load, brand apply) replaces local state
 watch(
   () => props.modelValue,
   (value) => {
-    if ((value ?? '') === (rawMode.value ? value : serializeOpeningHours(week.value))) return
+    if ((value ?? '') === serializeOpeningHours(week.value)) return
     const parsed = parseOpeningHours(value ?? '')
     rawMode.value = parsed === null
     if (parsed) week.value = parsed
@@ -103,72 +107,85 @@ watch(
       class="font-mono text-xs"
       @update:model-value="emit('update:modelValue', String($event))"
     />
-    <p class="text-xs text-muted-foreground">
-      {{ t('quickEdit.hours.rawNote') }}
-    </p>
+    <p class="text-xs text-muted-foreground">{{ t('quickEdit.hours.rawNote') }}</p>
   </div>
 
   <div v-else class="space-y-2">
-    <div class="flex items-center justify-between">
-      <span class="text-sm text-muted-foreground">{{ t('quickEdit.hours.alwaysOpen') }}</span>
+    <label class="flex cursor-pointer items-center justify-between">
+      <span class="text-sm">{{ t('quickEdit.hours.alwaysOpen') }}</span>
       <Switch :model-value="alwaysOpen" @update:model-value="setAlwaysOpen" />
-    </div>
+    </label>
 
-    <div v-if="!alwaysOpen" class="space-y-1.5">
+    <div v-if="!alwaysOpen" class="space-y-0.5">
       <div
         v-for="day in WEEKDAYS"
         :key="day"
-        class="flex items-start gap-2"
+        class="group flex min-h-8 items-start gap-2"
       >
-        <span class="w-9 pt-1.5 text-xs font-medium text-muted-foreground">
+        <span class="w-8 shrink-0 pt-1.5 text-xs text-muted-foreground">
           {{ t(DAY_LABEL_KEYS[day]) }}
         </span>
-        <div class="flex-1 space-y-1">
-          <div
-            v-for="(interval, index) in week[day].intervals"
-            :key="index"
-            class="flex items-center gap-1"
-          >
-            <Input
-              type="time"
-              :model-value="intervalParts(day, index)[0]"
-              class="h-8 text-xs"
-              @update:model-value="setInterval(day, index, 0, String($event))"
-            />
-            <span class="text-xs text-muted-foreground">–</span>
-            <Input
-              type="time"
-              :model-value="intervalParts(day, index)[1]"
-              class="h-8 text-xs"
-              @update:model-value="setInterval(day, index, 1, String($event))"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              class="size-7 shrink-0"
-              @click="removeInterval(day, index)"
+
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1 py-1">
+          <template v-if="week[day].intervals.length">
+            <span
+              v-for="(interval, index) in week[day].intervals"
+              :key="index"
+              class="flex items-center gap-1"
             >
-              <XIcon class="size-3.5" />
-            </Button>
-            <Button
-              v-if="index === 0"
-              variant="ghost"
-              size="icon"
-              class="size-7 shrink-0"
-              :title="t('quickEdit.hours.copyToAll')"
-              @click="copyToAll(day)"
-            >
-              <CopyIcon class="size-3.5" />
-            </Button>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 px-2 text-xs text-muted-foreground"
+              <TimeButton
+                :model-value="parts(day, index)[0]"
+                @update:model-value="setPart(day, index, 0, $event)"
+              />
+              <span class="text-xs text-muted-foreground">–</span>
+              <TimeButton
+                :model-value="parts(day, index)[1]"
+                :min="parts(day, index)[0]"
+                @update:model-value="setPart(day, index, 1, $event)"
+              />
+              <button
+                type="button"
+                class="text-muted-foreground/60 transition-colors hover:text-foreground"
+                :aria-label="t('quickEdit.hours.removeInterval')"
+                @click="removeInterval(day, index)"
+              >
+                <XIcon class="size-3" />
+              </button>
+            </span>
+          </template>
+
+          <button
+            v-else
+            type="button"
+            class="text-xs text-muted-foreground transition-colors hover:text-foreground"
             @click="addInterval(day)"
           >
-            <PlusIcon class="mr-1 size-3" />
-            {{ t('quickEdit.hours.addHours') }}
+            {{ t('quickEdit.hours.closed') }}
+          </button>
+        </div>
+
+        <!-- Row actions stay quiet until the row is in play. -->
+        <div
+          class="flex shrink-0 items-center gap-0.5 pt-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            class="size-6 text-muted-foreground"
+            :title="t('quickEdit.hours.addInterval')"
+            @click="addInterval(day)"
+          >
+            <PlusIcon class="size-3" />
+          </Button>
+          <Button
+            v-if="week[day].intervals.length"
+            variant="ghost"
+            size="icon"
+            class="size-6 text-muted-foreground"
+            :title="t('quickEdit.hours.copyToAll')"
+            @click="copyToAll(day)"
+          >
+            <CopyIcon class="size-3" />
           </Button>
         </div>
       </div>

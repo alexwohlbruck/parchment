@@ -218,32 +218,43 @@ function scoreEntry(entry: BrandEntry, query: string, simpleQuery: string): numb
   return score
 }
 
+export interface SearchBrandsOptions {
+  /** Restrict to a primary tag and its match group; omit to search every chain. */
+  kv?: string
+  country?: string
+  limit?: number
+  /** Drop weak matches. Raise it when searching everything, where loose
+   *  substring hits on a common word would bury the real answers. */
+  minScore?: number
+}
+
 /**
- * Brands matching a name, within the feature's primary tag.
+ * Brands matching a name, optionally within the feature's primary tag.
  *
  * `country` only reorders: a brand whose location set excludes the country is
  * still offered, since NSI location sets lag reality and the user knows better.
  */
 export function searchBrands(
   query: string,
-  kv: string,
-  country?: string,
-  limit = 6,
+  options: SearchBrandsOptions = {},
 ): NsiBrand[] {
+  const { kv, country, limit = 6, minScore = 1 } = options
   const idx = getIndex()
   const q = query.trim().toLowerCase()
   if (!idx || q.length < 2) return []
   const simpleQuery = simplify(query)
 
-  // Search the whole match group, so picking "Restaurant" for a McDonald's
-  // still surfaces it — NSI catalogues it under fast food. The chosen tag
-  // still wins ties.
+  // Within a tag, search the whole match group, so picking "Restaurant" for a
+  // McDonald's still surfaces it — NSI catalogues it under fast food. The
+  // chosen tag still wins ties.
+  const searchKvs = kv ? (idx.matchGroups.get(kv) ?? [kv]) : [...idx.byKv.keys()]
+
   const scored: Array<{ brand: NsiBrand; score: number }> = []
-  for (const candidateKv of idx.matchGroups.get(kv) ?? [kv]) {
-    const sameTag = candidateKv === kv
+  for (const candidateKv of searchKvs) {
+    const sameTag = !kv || candidateKv === kv
     for (const entry of idx.byKv.get(candidateKv)?.entries ?? []) {
       const score = scoreEntry(entry, q, simpleQuery)
-      if (score <= 0) continue
+      if (score < minScore) continue
       const { brand } = entry
       const local =
         !country || !brand.countries.length || brand.countries.includes(country)
@@ -254,9 +265,11 @@ export function searchBrands(
     }
   }
 
-  // NSI carries several entries per chain — localized names and
-  // transliterations sharing one QID. Collapse them to a single row, keeping
-  // the entry with the widest reach, which is the chain's canonical spelling.
+  // NSI carries several entries per chain — localized names, transliterations
+  // and sub-brands sharing one QID. Collapse them to a single row, represented
+  // by whichever entry answers the query best: searching "mcdonalds" should
+  // land on McDonald's, not its PlayPlace sub-brand. Reach breaks ties, which
+  // is what picks the canonical spelling over a transliteration.
   const byChain = new Map<string, { brand: NsiBrand; score: number }>()
   for (const candidate of scored) {
     const chain = candidate.brand.wikidata ?? candidate.brand.id
@@ -265,11 +278,11 @@ export function searchBrands(
       byChain.set(chain, candidate)
       continue
     }
-    if (candidate.brand.reach > current.brand.reach) {
-      byChain.set(chain, { brand: candidate.brand, score: Math.max(candidate.score, current.score) })
-    } else {
-      current.score = Math.max(current.score, candidate.score)
-    }
+    const better =
+      candidate.score > current.score ||
+      (candidate.score === current.score &&
+        candidate.brand.reach > current.brand.reach)
+    if (better) byChain.set(chain, candidate)
   }
 
   // Reach breaks score ties: searching "taco" should reach Taco Bell before a

@@ -460,7 +460,7 @@ router.beforeEach(async (to, from) => {
   // The offline fallback is a dead end to return to after signing in — it
   // only makes sense alongside the route that failed.
   if (to.name !== AppRoute.SIGNIN && to.name !== AppRoute.OFFLINE) {
-    authStore.stashPath(to.path)
+    authStore.stashPath(to.fullPath)
   }
   if (to.meta.auth) {
     // Wait for current user response (or timeout) so we don't block forever

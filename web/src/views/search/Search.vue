@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { useSearchStore } from '@/stores/search.store'
 import { useConnectivity } from '@/composables/useConnectivity'
 import { useMapService } from '@/services/map/map.service'
+import { whenMapReady } from '@/composables/map/whenMapReady'
 import { useMapCamera } from '@/composables/map/useMapCamera'
 import { useMapListener } from '@/composables/map/useMapListener'
 import { useDebounceFn } from '@vueuse/core'
@@ -539,22 +540,8 @@ onMounted(async () => {
     categoryStore.loadCategories()
   }
 
-  // Wait for the map to be ready (has valid bounds) before searching.
-  // On a fresh tab the map initializes async — searching before bounds are
-  // available causes Overpass to fail.
-  if (!mapService.isMapReady.value) {
-    const unwatch = watch(
-      () => mapService.isMapReady.value,
-      (ready) => {
-        if (ready) {
-          unwatch()
-          performSearch()
-        }
-      },
-    )
-  } else {
-    performSearch()
-  }
+  // Searching before the map has bounds causes Overpass to fail.
+  whenMapReady(performSearch)
 })
 
 onUnmounted(() => {

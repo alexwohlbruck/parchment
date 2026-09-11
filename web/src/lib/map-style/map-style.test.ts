@@ -27,6 +27,7 @@ import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
+import { slotBeforeId } from '@/lib/map/layer-slots'
 import { BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
@@ -1545,5 +1546,54 @@ describe('cycling surface', () => {
       const light = (n: string) => Number(/([\d.]+)%\)/.exec(tokens[n])![1])
       expect(light('cycling_casing')).toBeLessThan(light('cycling_surface'))
     }
+  })
+})
+
+/**
+ * Where an overlay actually lands in the style we ship.
+ *
+ * `layer-slots.test.ts` checks the rule against a hand-written stack; this
+ * checks it against the real one, because that is where it went wrong — a
+ * bike lane drew across a station name on a map where every unit test passed.
+ */
+describe('slot anchors in the shipped style', () => {
+  const built = buildLayers({ flavor: 'light' }) as any[]
+  const at = (id: string | undefined) => built.findIndex(l => l.id === id)
+  const firstOfType = (type: string) => built.findIndex(l => l.type === type)
+
+  test('middle lands above every road and below every label', () => {
+    const anchor = at(slotBeforeId(built, 'middle'))
+    expect(anchor).toBeGreaterThan(-1)
+    // Nothing lettered draws below it.
+    expect(anchor).toBeLessThanOrEqual(firstOfType('symbol'))
+    // Every road does.
+    for (const id of ['Minor road', 'Major road', 'Highway', 'Path']) {
+      expect(at(id), id).toBeLessThan(anchor)
+    }
+  })
+
+  test('bottom lands above the fills and below every road', () => {
+    const anchor = at(slotBeforeId(built, 'bottom'))
+    expect(anchor).toBeGreaterThan(-1)
+    for (const id of ['Minor road outline', 'Minor road', 'Highway']) {
+      expect(at(id), id).toBeGreaterThan(anchor)
+    }
+    // The ground it sits on is still underneath.
+    expect(built.slice(0, anchor).some(l => l.type === 'background')).toBe(true)
+    expect(built.slice(0, anchor).every(l => l.type !== 'symbol')).toBe(true)
+  })
+
+  /**
+   * The trap the first attempt fell into. The transit overlay inserts its
+   * ribbons below the basemap's labels, so an anchor computed once against a
+   * bare basemap puts a bike lane *above* them the moment transit is on.
+   */
+  test('with the transit network present, middle drops below its ribbons', () => {
+    const withTransit = [...built]
+    withTransit.splice(at('Minor road') + 1, 0, {
+      id: 'portolan-ribbon-14-steady',
+      type: 'line',
+    } as any)
+    expect(slotBeforeId(withTransit, 'middle')).toBe('portolan-ribbon-14-steady')
   })
 })

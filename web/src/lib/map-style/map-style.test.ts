@@ -28,6 +28,7 @@ import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
 import { slotBeforeId } from '@/lib/map/layer-slots'
+import { CYCLING_WAYS_LAYER_IDS, CYCLING_WAYS_SUFFIX } from './cycling-layers'
 import { BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
@@ -1488,7 +1489,7 @@ describe('cycling surface', () => {
   })
 
   test('the toggle finds every one of them', () => {
-    expect(layerGroups.cycling.slice().sort()).toEqual(twins.map(l => l.id).sort())
+    for (const l of twins) expect(layerGroups.cycling).toContain(l.id)
   })
 
   test('the tint is green in both flavors', () => {
@@ -1595,5 +1596,63 @@ describe('slot anchors in the shipped style', () => {
       type: 'line',
     } as any)
     expect(slotBeforeId(withTransit, 'middle')).toBe('portolan-ribbon-14-steady')
+  })
+})
+
+/**
+ * The on-street network, drawn from Barrelman onto the basemap's roads.
+ *
+ * Our own tiles cannot see a bike lane — a street tagged `cycleway:right=lane`
+ * says nothing about `bicycle` — so the geometry is Barrelman's. The width
+ * must not be: it is read off the road layer the tint sits on, with only the
+ * property lookups rewritten, or a green street stops being street-width.
+ */
+describe('cycling ways from Barrelman', () => {
+  const built = buildLayers({ flavor: 'light' }) as any[]
+  const tints = built.filter(l => l.id.endsWith(CYCLING_WAYS_SUFFIX))
+  const roadOf = (l: any) =>
+    built.find(b => b.id === l.id.slice(0, -CYCLING_WAYS_SUFFIX.length))
+
+  test('there is a tint for each rung of the network', () => {
+    expect(tints.map(l => l.id).sort()).toEqual(CYCLING_WAYS_LAYER_IDS.slice().sort())
+  })
+
+  test.each(tints.map(l => [l.id, l]))('%s: sits directly over its road', (_id, l: any) => {
+    expect(built[built.indexOf(l) - 1].id).toBe(roadOf(l)!.id)
+  })
+
+  /**
+   * The width is the road's expression with `["get","class"]` swapped for the
+   * mapping off Barrelman's `highway`. Rewriting it back has to give the road's
+   * own expression exactly — that is the whole guarantee.
+   */
+  test.each(tints.map(l => [l.id, l]))('%s: is its road’s width', (_id, l: any) => {
+    const road = roadOf(l)!
+    const backToClass = (e: any): any =>
+      Array.isArray(e)
+        ? e[0] === 'match' && JSON.stringify(e[1]) === JSON.stringify(['get', 'highway'])
+          ? ['get', 'class']
+          : e.map(backToClass)
+        : e
+    expect(backToClass(l.paint['line-width'])).toEqual(road.paint['line-width'])
+  })
+
+  test.each(tints.map(l => [l.id, l]))('%s: ships hidden and opaque', (_id, l: any) => {
+    expect(l.layout.visibility).toBe('none')
+    // A translucent tint compounds wherever two ways overlap.
+    expect(l.paint['line-opacity']).toBeUndefined()
+  })
+
+  test('permission alone is not tinted', () => {
+    for (const l of tints) expect(JSON.stringify(l.filter)).not.toContain('bicycle_yes')
+  })
+
+  test('the toggle reaches the Barrelman tint as well as the basemap twins', () => {
+    for (const id of CYCLING_WAYS_LAYER_IDS) expect(layerGroups.cycling).toContain(id)
+  })
+
+  test('the style declares the source they read', () => {
+    const style = buildMapStyle({ ...opts, theme: 'light' } as any)
+    expect(style.sources[tints[0].source]).toBeDefined()
   })
 })

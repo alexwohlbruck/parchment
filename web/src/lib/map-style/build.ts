@@ -13,6 +13,11 @@ import {
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
+import {
+  CYCLING_WAYS_LAYER_IDS,
+  cyclingWaysLayers,
+  cyclingWaysSource,
+} from './cycling-layers'
 import { barrelmanBuildingsReady } from './barrelman-buildings'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -323,7 +328,16 @@ export const layerGroups = {
    * `convert-basemap-style.mjs`. They ship hidden, so nothing switches them on
    * but the cycling layer group.
    */
-  cycling: idsWhere(l => l.id.endsWith(CYCLING_SUFFIX)),
+  /**
+   * Everything green: the twins the spec carries for ways our own tiles know
+   * are cycling infrastructure, and the tint drawn from Barrelman for the
+   * on-street network they cannot see. One toggle, because to a rider they are
+   * one network.
+   */
+  cycling: [
+    ...idsWhere(l => l.id.endsWith(CYCLING_SUFFIX)),
+    ...CYCLING_WAYS_LAYER_IDS,
+  ],
   building3d: specLayers.find(l => l.type === 'fill-extrusion')?.id ?? 'Building 3D',
 }
 
@@ -542,6 +556,15 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
     .lastIndexOf(true)
   out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor))
 
+  // Each tint goes straight over the road it repaints, so it covers the
+  // asphalt and stays under that road's casing, its markings and every label.
+  // Descending, because splicing shifts everything after the insertion point.
+  const tints = cyclingWaysLayers(flavor, id => out.find(l => l.id === id)?.paint?.['line-width'])
+  for (const { above, layer } of tints.reverse()) {
+    const at = out.findIndex(l => l.id === above)
+    if (at >= 0) out.splice(at + 1, 0, layer)
+  }
+
   return out
 }
 
@@ -558,6 +581,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sources: {
       [SOURCE]: vectorSource(tileServerUrl, tileKey),
       ...detailSources(source => buildTileUrl(tileServerUrl, tileKey, source)),
+      ...cyclingWaysSource(source => buildTileUrl(tileServerUrl, tileKey, source)),
     },
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),

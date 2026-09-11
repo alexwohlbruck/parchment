@@ -22,6 +22,10 @@
   sections show what they hold rather than just a count.
 * Every field links to its OpenStreetMap wiki page, for when you want to know
   what a tag actually means.
+* Chain lookup is forgiving about how you type a name — "mcdonalds" finds
+  McDonald's — and no longer depends on picking exactly the right place type.
+* The pin on the map shows the place's name as you type it, and nearby
+  duplicates show theirs.
 
 ### Fixed
 

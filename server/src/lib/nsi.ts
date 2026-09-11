@@ -27,8 +27,17 @@ export interface NsiBrand {
   reach: number
 }
 
+/** A brand plus the normalized names it can be found by. */
+interface BrandEntry {
+  brand: NsiBrand
+  /** `simplify(displayName)` — punctuation, case and spacing removed. */
+  simple: string
+  /** Simplified alternates: the chain's own name tags and NSI's matchNames. */
+  aliases: string[]
+}
+
 interface KvEntry {
-  brands: NsiBrand[]
+  entries: BrandEntry[]
   /** Simplified name (NSI's own normalization) → brand. */
   byName: Map<string, NsiBrand>
   /** Names too generic to imply a brand, e.g. "pizzeria" for fast food. */
@@ -116,7 +125,7 @@ function buildIndex(): BrandIndex | null {
 
       const kv = `${key}/${value}`
       const kvEntry: KvEntry = byKv.get(kv) ?? {
-        brands: [],
+        entries: [],
         byName: new Map(),
         exclusions: compileExclusions(entry.properties),
       }
@@ -140,19 +149,24 @@ function buildIndex(): BrandIndex | null {
           reach: locations.includes('001') ? WORLDWIDE_REACH : locations.length,
         }
 
-        kvEntry.brands.push(brand)
         byId.set(brand.id, brand)
 
-        const names = [
-          item.displayName,
+        const simple = simplify(brand.name)
+        const aliases = new Set<string>()
+        for (const name of [
           item.tags?.name,
           item.tags?.brand,
           item.tags?.operator,
           ...(item.matchNames ?? []),
-        ]
-        for (const name of names) {
+        ]) {
           if (!name) continue
           const simplified = simplify(name)
+          if (simplified && simplified !== simple) aliases.add(simplified)
+        }
+
+        kvEntry.entries.push({ brand, simple, aliases: [...aliases] })
+
+        for (const simplified of [simple, ...aliases]) {
           if (simplified && !kvEntry.byName.has(simplified)) {
             kvEntry.byName.set(simplified, brand)
           }
@@ -188,6 +202,23 @@ function scoreName(name: string, query: string): number {
 }
 
 /**
+ * How well a brand answers a query, matching the way people actually type
+ * chain names: "mcdonalds" has to reach "McDonald's", so the comparison also
+ * runs over NSI's normalized forms, which drop punctuation and spacing.
+ */
+function scoreEntry(entry: BrandEntry, query: string, simpleQuery: string): number {
+  let score = scoreName(entry.brand.name, query)
+  if (simpleQuery) {
+    score = Math.max(score, scoreName(entry.simple, simpleQuery))
+    for (const alias of entry.aliases) {
+      // An alias is a weaker signal than the chain's display name.
+      score = Math.max(score, scoreName(alias, simpleQuery) - 10)
+    }
+  }
+  return score
+}
+
+/**
  * Brands matching a name, within the feature's primary tag.
  *
  * `country` only reorders: a brand whose location set excludes the country is
@@ -202,14 +233,25 @@ export function searchBrands(
   const idx = getIndex()
   const q = query.trim().toLowerCase()
   if (!idx || q.length < 2) return []
+  const simpleQuery = simplify(query)
 
+  // Search the whole match group, so picking "Restaurant" for a McDonald's
+  // still surfaces it — NSI catalogues it under fast food. The chosen tag
+  // still wins ties.
   const scored: Array<{ brand: NsiBrand; score: number }> = []
-  for (const brand of idx.byKv.get(kv)?.brands ?? []) {
-    const score = scoreName(brand.name, q)
-    if (!score) continue
-    const local =
-      !country || !brand.countries.length || brand.countries.includes(country)
-    scored.push({ brand, score: local ? score : score - 20 })
+  for (const candidateKv of idx.matchGroups.get(kv) ?? [kv]) {
+    const sameTag = candidateKv === kv
+    for (const entry of idx.byKv.get(candidateKv)?.entries ?? []) {
+      const score = scoreEntry(entry, q, simpleQuery)
+      if (score <= 0) continue
+      const { brand } = entry
+      const local =
+        !country || !brand.countries.length || brand.countries.includes(country)
+      scored.push({
+        brand,
+        score: score - (local ? 0 : 20) - (sameTag ? 0 : 5),
+      })
+    }
   }
 
   // NSI carries several entries per chain — localized names and

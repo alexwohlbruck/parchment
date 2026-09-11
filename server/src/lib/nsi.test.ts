@@ -20,6 +20,28 @@ describe('searchBrands', () => {
     expect(tacoBell.logoUrl).toBeTruthy()
   })
 
+  it('finds chains typed without their punctuation', () => {
+    for (const query of ['mcdonalds', "mcdonald's", 'McDonalds']) {
+      expect(searchBrands(query, 'amenity/fast_food')[0].name).toBe("McDonald's")
+    }
+    expect(searchBrands('raising canes', 'amenity/fast_food')[0].name).toBe(
+      "Raising Cane's",
+    )
+    expect(searchBrands('ben and jerrys', 'amenity/ice_cream')[0].name).toBe(
+      "Ben & Jerry's",
+    )
+  })
+
+  it('finds chains typed without their spacing', () => {
+    expect(searchBrands('tacobell', 'amenity/fast_food')[0].name).toBe('Taco Bell')
+  })
+
+  it('searches the whole match group, so the chosen tag need not be exact', () => {
+    expect(searchBrands('mcdonalds', 'amenity/restaurant')[0].name).toBe(
+      "McDonald's",
+    )
+  })
+
   it('ignores queries too short to be meaningful', () => {
     expect(searchBrands('t', 'amenity/fast_food')).toEqual([])
   })

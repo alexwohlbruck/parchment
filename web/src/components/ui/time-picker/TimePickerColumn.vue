@@ -99,7 +99,7 @@ watch(() => props.options, () => nextTick(() => scrollToValue(props.modelValue))
     ref="list"
     role="listbox"
     :aria-label="label"
-    class="scrollbar-hidden flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain"
+    class="scrollbar-hidden flex-1 snap-y snap-mandatory touch-pan-y overflow-y-auto overscroll-contain"
     :style="{ height: `${ROW * VISIBLE}px`, paddingBlock: `${ROW * (VISIBLE - 1) / 2}px` }"
     @scroll="onScroll"
   >

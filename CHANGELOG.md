@@ -44,6 +44,9 @@
   before your chosen departure time.
 * The clock on each stop is now always visible, rather than appearing only on
   hover — it was unreachable on a touch screen.
+* Scrolling areas inside a bottom sheet can now be dragged both ways. The
+  sheet was cancelling downward swipes on their behalf, so the time dial
+  would only turn one way.
 * The time constraint picker no longer shows a blank box where "Depart after"
   or "Arrive by" should be, and opening it no longer pins the stop to a time
   you never chose.

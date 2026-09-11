@@ -1500,6 +1500,45 @@ describe('cycling surface', () => {
     }
   })
 
+  /**
+   * The filters, run against real OpenMapTiles features — the shapes the
+   * Brooklyn tiles actually carry. A tint that selects nothing is invisible
+   * and a tint that selects everything is a green map, and neither shows up
+   * in a filter that merely compiles.
+   */
+  describe('what the tint selects', () => {
+    const matches = (layerId: string, properties: Record<string, unknown>) => {
+      const l = layers.find(x => x.id === layerId)!
+      const f = featureFilter(l.filter, `${layerId}.filter`)
+      return f.filter(
+        { zoom: 16 } as any,
+        { type: 2, properties } as any,
+        {} as any,
+      )
+    }
+
+    test.each([
+      ['a dedicated cycleway', 'Path (cycling)', { class: 'path', subclass: 'cycleway' }, true],
+      ['a footpath bikes are designated on', 'Path (cycling)', { class: 'path', subclass: 'footway', bicycle: 'designated' }, true],
+      ['a plain footpath', 'Path (cycling)', { class: 'path', subclass: 'footway' }, false],
+      ['a street bikes are designated on', 'Minor road (cycling)', { class: 'minor', bicycle: 'designated' }, true],
+      ['a street bikes are merely allowed on', 'Minor road (cycling)', { class: 'minor', bicycle: 'yes' }, false],
+      ['a street with nothing said about bikes', 'Minor road (cycling)', { class: 'minor' }, false],
+      ['a road told to use the sidepath', 'Minor road (cycling)', { class: 'minor', bicycle: 'use_sidepath' }, false],
+    ])('%s', (_what, layerId, properties, expected) => {
+      expect(matches(layerId as string, properties as any)).toBe(expected)
+    })
+
+    /**
+     * The road's own filter still applies. A tunnel is not drawn by the layer
+     * this twin derives from, so the twin must not draw one either — a green
+     * ribbon through a hillside with no road under it.
+     */
+    test('a designated way in a tunnel stays untinted, as its road does', () => {
+      expect(matches('Minor road (cycling)', { class: 'minor', bicycle: 'designated', brunnel: 'tunnel' })).toBe(false)
+    })
+  })
+
   /** A casing has to be darker than the surface it edges, or it is not an edge. */
   test('the casing is deeper than the surface', () => {
     for (const tokens of [lightTokens, darkTokens] as Record<string, string>[]) {

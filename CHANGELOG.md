@@ -23,6 +23,16 @@
   name that wraps reads as one block instead of separate lines
 * Street names shrink to small spaced capitals as you zoom in, so the shops and
   stations you're looking for carry the map
+* Cycleways and paths where bikes are designated now show as a green road
+  surface rather than a dotted line laid over the street, exactly as wide as
+  the road itself at every zoom
+* Bike lanes, tracks and sharrows are redrawn as thin markings along the street
+  they're painted on, with each form a different weight so a protected track
+  reads apart from a shared lane
+* Signed bike routes now show as a soft corridor behind the network instead of
+  another green line competing with it
+* The cycling layer now draws under place names and under transit lines, so a
+  train crossing a bike lane passes over it
 
 ### Fixed
 
@@ -30,6 +40,7 @@
   font it has never had, and silently drew nothing
 * Station names on a line's own page now follow the map's theme instead of
   always being dark text in a white halo
+* Bike route labels no longer sit on top of the places you're looking at
 * The trip suggestions timeline scrolls sideways, so a trip that runs past the
   visible range can be followed to its end. Each suggestion's type and route
   description stay pinned at the edge so you can tell the rows apart.

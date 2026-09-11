@@ -161,17 +161,7 @@ const POI_ICON_STEM = [
   ['coalesce', ['get', 'class'], ''],
 ]
 
-/**
- * The badge image, named rather than drawn from the sheet.
- *
- * A badge is four colours — a lift, an outline, a tinted plate and the glyph —
- * and a symbol layer offers two. The sprite's art carries the shape; the name
- * carries the colours, and `poi-badge.ts` composites the two the first time
- * MapLibre asks for one. Naming them here rather than resolving colours in that
- * module is what keeps the palette live and every colour decision in the style.
- *
- * A square plate for transit, a disc for everything else — see `TILE_PREFIX`.
- */
+/** One of a POI category's three tints, keyed off the feature's class. */
 const categoryTint = kind => [
   'match', ['get', 'class'],
   ...Object.entries(POI_CATEGORY).flatMap(([category, classes]) => [classes, `@poi_${kind}_${category}`]),
@@ -191,6 +181,17 @@ const poiTint = kind => ['case', isTransitPoi(), `@poi_transit_${kind}`, categor
  */
 const poiTextInk = ['case', isTransitPoi(), '@label_ink_strong', categoryTint('ink')]
 
+/**
+ * The badge image, named rather than drawn from the sheet.
+ *
+ * A badge is four colours — a lift, an outline, a tinted plate and the glyph —
+ * and a symbol layer offers two. The sprite's art carries the shape; the name
+ * carries the colours, and `poi-badge.ts` composites the two the first time
+ * MapLibre asks for one. Naming them here rather than resolving colours in that
+ * module is what keeps the palette live and every colour decision in the style.
+ *
+ * A square plate for transit, a disc for everything else — see `TILE_PREFIX`.
+ */
 const POI_PLATE_ICON = [
   'concat',
   'poi|',

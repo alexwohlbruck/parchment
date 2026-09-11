@@ -48,6 +48,7 @@ const OUT_TOKENS_DARK = resolve(WEB, 'src/lib/map-style/tokens.dark.json')
 
 import { buildingColor, BUILDING_TINT } from '../src/lib/map-style/building-color.mjs'
 import { isTransitPoi } from '../src/lib/map-style/transit-poi.mjs'
+import { CYCLING_SUFFIX, isCyclingWay } from '../src/lib/map-style/cycling.mjs'
 
 const SOURCE = 'openmaptiles'
 
@@ -1054,6 +1055,88 @@ function toExpressionFilter(f) {
 }
 
 // ---------------------------------------------------------------------------
+// Cycling surface
+// ---------------------------------------------------------------------------
+
+/**
+ * The cycling network, as a tint on the road itself.
+ *
+ * A bike map usually draws its network *over* the roads — a dotted or dashed
+ * line riding the centreline. At street zooms that line is a second object on
+ * top of a first: it hides the road's own casing, it never quite lines up with
+ * the curve underneath, and a dense grid of them reads as hatching rather than
+ * as streets you can ride.
+ *
+ * So the road is painted green instead. These layers are twins of the basemap's
+ * own surface and casing layers — same source, same filter with a cycling
+ * clause added, same geometry, and critically the same `line-width` expression,
+ * copied by reference rather than by hand. A green road is therefore exactly as
+ * wide as the road it replaces at every zoom, because it IS that road's width;
+ * there is no second ramp that can drift out of step with the first.
+ *
+ * Each twin is spliced directly above the layer it derives from, so casings
+ * stay under surfaces and the whole set stays below every label and everything
+ * any overlay draws.
+ *
+ * Hidden until the cycling group asks for them; see `layerGroups.cycling`.
+ */
+
+/** Surface layers that take the tint, and the casing under each. */
+const CYCLING_TINTED = [
+  ['Minor road outline', '@cycling_casing'],
+  ['Major road outline', '@cycling_casing'],
+  ['Highway outline', '@cycling_casing'],
+  ['Path outline', '@cycling_casing'],
+  ['Path outline bridge', '@cycling_casing'],
+  ['Minor road', '@cycling_surface'],
+  ['Major road', '@cycling_surface'],
+  ['Highway', '@cycling_surface'],
+  [PATH_LAYER, '@cycling_surface'],
+  ['Path bridge', '@cycling_surface'],
+]
+
+function addCyclingSurface(layers) {
+  const missing = CYCLING_TINTED.filter(([id]) => !layers.some(l => l.id === id))
+  if (missing.length) {
+    throw new Error(`cycling tint names absent layers: ${missing.map(m => m[0]).join(', ')}`)
+  }
+
+  for (const [id, color] of CYCLING_TINTED) {
+    const at = layers.findIndex(l => l.id === id)
+    const road = layers[at]
+    // The road filters are MapTiler's legacy syntax; the cycling clause is an
+    // expression, and the two cannot be mixed — a legacy filter wrapping an
+    // expression makes the validator read the whole thing as legacy.
+    const filter = road.filter
+      ? ['all', toExpressionFilter(road.filter), isCyclingWay()]
+      : isCyclingWay()
+    layers.splice(at + 1, 0, {
+      ...road,
+      id: road.id + CYCLING_SUFFIX,
+      filter,
+      // Spread, so a retune of the road's width or dashes reaches its twin.
+      // Only the colour is the twin's own.
+      paint: { ...road.paint, 'line-color': color },
+      layout: { ...road.layout, visibility: 'none' },
+    })
+  }
+}
+
+/**
+ * What a cycling way is painted.
+ *
+ * A pale green that sits at the road's own value rather than above or below
+ * it, so switching the layer on recolours the network without redrawing its
+ * hierarchy — a residential street stays as quiet as it was, it is just green
+ * now. The casing goes a good deal deeper, because the tint is doing the work
+ * a dashed line used to and it needs an edge to be a shape at all.
+ */
+const CYCLING_INK = {
+  cycling_surface: { light: 'hsl(146, 44%, 90%)', dark: 'hsl(152, 28%, 36%)' },
+  cycling_casing: { light: 'hsl(146, 34%, 71%)', dark: 'hsl(152, 26%, 25%)' },
+}
+
+// ---------------------------------------------------------------------------
 // Typography
 // ---------------------------------------------------------------------------
 
@@ -1727,6 +1810,9 @@ async function main() {
     })
   }
   orderPedestrianSurfaces(layers)
+  // After every pass that touches a road's width or its place in the stack,
+  // so the twins inherit the widths the roads actually ship with.
+  addCyclingSurface(layers)
   applyTypography(layers)
 
   // The roofline edge, for the plan view.
@@ -1773,6 +1859,12 @@ async function main() {
   for (const t of orphaned) {
     delete tokens.light[t]
     delete tokens.dark[t]
+  }
+
+  // The cycling network's tint; see `addCyclingSurface`.
+  for (const [name, value] of Object.entries(CYCLING_INK)) {
+    tokens.light[name] = value.light
+    tokens.dark[name] = value.dark
   }
 
   // The label system's ink and halo; see `TYPOGRAPHY`.

@@ -9,20 +9,16 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     icon: 'BikeIcon',
     showInLayerSelector: true,
     visible: false,
-    order: 0,
+    // Under transit. A bike network is ground you ride on and the transit
+    // network is drawn above the ground it runs over, so where the two cross
+    // the train should pass over the bike lane, not under it.
+    order: 3,
     parentGroupId: null,
+    // The green road surface; see `addCyclingSurface` in
+    // `web/scripts/convert-basemap-style.mjs`.
+    basemapGroup: 'cycling',
   },
   // Cycling subgroups
-  {
-    templateId: 'default:group:cycling:cycleways',
-    name: 'Cycleways',
-    icon: 'BikeIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 0,
-    parentGroupId: 'default:group:cycling',
-    integrationId: 'barrelman',
-  },
   {
     templateId: 'default:group:cycling:cycle-tracks',
     name: 'Cycle Tracks',
@@ -50,16 +46,6 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     showInLayerSelector: true,
     visible: false,
     order: 3,
-    parentGroupId: 'default:group:cycling',
-    integrationId: 'barrelman',
-  },
-  {
-    templateId: 'default:group:cycling:bicycle-paths',
-    name: 'Bicycle Paths',
-    icon: 'BikeIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 4,
     parentGroupId: 'default:group:cycling',
     integrationId: 'barrelman',
   },

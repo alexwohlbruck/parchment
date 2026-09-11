@@ -82,6 +82,7 @@ import {
 } from '@/lib/map-style/barrelman-buildings'
 import { OBJECT_FLAT_LAYERS, TREE_OPACITY, BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
+import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
   OBJECT_MODELS,
@@ -622,6 +623,12 @@ export class MaplibreStrategy extends MapStrategy {
 
   setPlaceLabels(value: boolean) {
     this.setLayerGroupVisibility(layerGroups.placeLabels, value)
+  }
+
+  setBasemapGroup(name: string, value: boolean) {
+    const ids = (layerGroups as Record<string, string | string[]>)[name]
+    if (!Array.isArray(ids)) return
+    this.setLayerGroupVisibility(ids, value)
   }
 
 
@@ -1183,13 +1190,21 @@ export class MaplibreStrategy extends MapStrategy {
     }
     if (!existingLayer || overwrite) {
       try {
-        this.mapInstance.addLayer({
-          ...(configuration as any),
-          layout: {
-            ...configuration.layout,
-            visibility: layer.visible ? 'visible' : 'none',
+        // MapLibre has no slots, so the one we honour is resolved to an anchor
+        // here; see `layer-slots.ts`. Without it every overlay lands on top of
+        // the whole style, labels included.
+        const { slot, ...spec } = configuration as any
+        const before = slotBeforeId(this.mapInstance.getStyle()?.layers ?? [], slot)
+        this.mapInstance.addLayer(
+          {
+            ...spec,
+            layout: {
+              ...configuration.layout,
+              visibility: layer.visible ? 'visible' : 'none',
+            },
           },
-        })
+          before && this.mapInstance.getLayer(before) ? before : undefined,
+        )
         if (layer.type === LayerType.STREET_VIEW) {
           this.streetViewLayerIds.add(configuration.id)
         }

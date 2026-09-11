@@ -1682,6 +1682,139 @@
    ]
   },
   {
+   "id": "Path outline (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1.2,
+     18,
+     3,
+     22,
+     4.5
+    ],
+    "line-gap-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     0,
+     18,
+     6,
+     22,
+     80
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "==",
+       [
+        "geometry-type"
+       ],
+       "LineString"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "path",
+        "pedestrian"
+       ],
+       true,
+       false
+      ],
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ]
+     ],
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "bridge"
+      ],
+      [
+       "<=",
+       [
+        "case",
+        [
+         "has",
+         "layer"
+        ],
+        [
+         "to-number",
+         [
+          "get",
+          "layer"
+         ]
+        ],
+        0
+       ],
+       0
+      ]
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ]
+    ]
+   ]
+  },
+  {
    "id": "Pedestrian",
    "type": "fill",
    "source": "openmaptiles",
@@ -1808,6 +1941,123 @@
        0
       ],
       0
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Path (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     0,
+     18,
+     6,
+     22,
+     80
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "==",
+       [
+        "geometry-type"
+       ],
+       "LineString"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "path",
+        "pedestrian"
+       ],
+       true,
+       false
+      ],
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ]
+     ],
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "bridge"
+      ],
+      [
+       "<=",
+       [
+        "case",
+        [
+         "has",
+         "layer"
+        ],
+        [
+         "to-number",
+         [
+          "get",
+          "layer"
+         ]
+        ],
+        0
+       ],
+       0
+      ]
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
      ]
     ]
    ]
@@ -1962,6 +2212,190 @@
    ]
   },
   {
+   "id": "Minor road outline (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.75,
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary",
+       "tertiary"
+      ],
+      2.73,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      2.5,
+      2.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      6.9,
+      [
+       "tertiary"
+      ],
+      5.4,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      4.5,
+      4.5
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      10.4,
+      [
+       "tertiary"
+      ],
+      10.4,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      8,
+      8
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      34.2,
+      [
+       "tertiary"
+      ],
+      34.2,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      27,
+      27
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "aerialway",
+        "bridge",
+        "ferry",
+        "minor_construction",
+        "motorway",
+        "motorway_construction",
+        "path",
+        "path_construction",
+        "pier",
+        "primary",
+        "primary_construction",
+        "rail",
+        "secondary_construction",
+        "service_construction",
+        "tertiary_construction",
+        "track_construction",
+        "transit",
+        "trunk_construction"
+       ],
+       true,
+       false
+      ]
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ]
+    ]
+   ]
+  },
+  {
    "id": "Major road outline",
    "type": "line",
    "source": "openmaptiles",
@@ -2075,6 +2509,155 @@
      "class",
      "primary",
      "trunk"
+    ]
+   ]
+  },
+  {
+   "id": "Major road outline (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.5,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      2.4,
+      0
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      3,
+      0.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk"
+      ],
+      4,
+      [
+       "primary"
+      ],
+      6,
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      10,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      26,
+      18
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "primary",
+       "trunk"
+      ],
+      true,
+      false
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ]
     ]
    ]
   },
@@ -2210,6 +2793,169 @@
      "==",
      "class",
      "motorway"
+    ]
+   ]
+  },
+  {
+   "id": "Highway outline (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.5,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       0,
+       2.5
+      ],
+      0
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       2,
+       6
+      ],
+      0.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       5,
+       8
+      ],
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      10,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      26,
+      18
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "motorway"
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ]
     ]
    ]
   },
@@ -2631,6 +3377,189 @@
    ]
   },
   {
+   "id": "Minor road (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     5,
+     0.75,
+     10,
+     1.5,
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary",
+       "tertiary"
+      ],
+      1.73,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      1.5,
+      1.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      4.6,
+      [
+       "tertiary"
+      ],
+      3.9,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      3,
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      8.05,
+      [
+       "tertiary"
+      ],
+      7.8,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      6,
+      6
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      31.2,
+      [
+       "tertiary"
+      ],
+      31.2,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      24,
+      24
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "aerialway",
+        "bridge",
+        "ferry",
+        "minor_construction",
+        "motorway",
+        "motorway_construction",
+        "path",
+        "path_construction",
+        "pier",
+        "primary",
+        "primary_construction",
+        "rail",
+        "secondary_construction",
+        "service_construction",
+        "tertiary_construction",
+        "track_construction",
+        "transit",
+        "trunk_construction"
+       ],
+       true,
+       false
+      ]
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ]
+    ]
+   ]
+  },
+  {
    "id": "Major road",
    "type": "line",
    "source": "openmaptiles",
@@ -2741,6 +3670,152 @@
      "class",
      "primary",
      "trunk"
+    ]
+   ]
+  },
+  {
+   "id": "Major road (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0.75,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      1.5,
+      1
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      2.5,
+      1
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk"
+      ],
+      3,
+      [
+       "primary"
+      ],
+      5,
+      2
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      8,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      24,
+      16
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "primary",
+       "trunk"
+      ],
+      true,
+      false
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ]
     ]
    ]
   },
@@ -2897,6 +3972,190 @@
      "==",
      "class",
      "motorway"
+    ]
+   ]
+  },
+  {
+   "id": "Highway (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     5,
+     0.5,
+     6,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "bridge"
+       ],
+       0,
+       1
+      ],
+      0
+     ],
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       0,
+       2.5
+      ],
+      1
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       1,
+       4
+      ],
+      1
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       5,
+       6
+      ],
+      2
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      8,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      24,
+      16
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "motorway"
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ]
     ]
    ]
   },
@@ -3268,6 +4527,139 @@
    ]
   },
   {
+   "id": "Path outline bridge (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1.2,
+     18,
+     3,
+     22,
+     4.5
+    ],
+    "line-gap-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     0,
+     18,
+     6,
+     22,
+     80
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "==",
+       [
+        "geometry-type"
+       ],
+       "LineString"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "path",
+        "pedestrian"
+       ],
+       true,
+       false
+      ],
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ]
+     ],
+     [
+      "any",
+      [
+       "==",
+       [
+        "get",
+        "brunnel"
+       ],
+       "bridge"
+      ],
+      [
+       ">",
+       [
+        "case",
+        [
+         "has",
+         "layer"
+        ],
+        [
+         "to-number",
+         [
+          "get",
+          "layer"
+         ]
+        ],
+        0
+       ],
+       0
+      ]
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ]
+    ]
+   ]
+  },
+  {
    "id": "Path bridge",
    "type": "line",
    "source": "openmaptiles",
@@ -3358,6 +4750,123 @@
        0
       ],
       0
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Path bridge (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "layout": {
+    "line-cap": "round",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     0,
+     18,
+     6,
+     22,
+     80
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "==",
+       [
+        "geometry-type"
+       ],
+       "LineString"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "path",
+        "pedestrian"
+       ],
+       true,
+       false
+      ],
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ]
+     ],
+     [
+      "any",
+      [
+       "==",
+       [
+        "get",
+        "brunnel"
+       ],
+       "bridge"
+      ],
+      [
+       ">",
+       [
+        "case",
+        [
+         "has",
+         "layer"
+        ],
+        [
+         "to-number",
+         [
+          "get",
+          "layer"
+         ]
+        ],
+        0
+       ],
+       0
+      ]
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
      ]
     ]
    ]

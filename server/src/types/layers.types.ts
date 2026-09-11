@@ -79,6 +79,16 @@ export interface DefaultLayerGroupTemplate extends DefaultTemplateBase {
   showInLayerSelector: boolean
   visible: boolean
   fadeBasemap?: boolean
+  /**
+   * A group of the basemap's own layers this group switches on with itself,
+   * named as a key of the client's `layerGroups` (`web/src/lib/map-style`).
+   *
+   * For cartography the basemap is the only place that can draw correctly —
+   * the cycling tint has to be exactly as wide as the road under it at every
+   * zoom, which only the layer that draws that road can promise. Template-only
+   * and never user-editable, so unlike `fadeBasemap` it needs no column.
+   */
+  basemapGroup?: string
   icon?: string | null
   order: number
   parentGroupId?: string | null

@@ -12,6 +12,7 @@ import {
 } from './detail-layers'
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
+import { CYCLING_SUFFIX } from './cycling.mjs'
 import { barrelmanBuildingsReady } from './barrelman-buildings'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -317,6 +318,12 @@ export const layerGroups = {
    */
   transit: idsWhere(isTransitStopLayer),
   placeLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'place'),
+  /**
+   * The green twins of the road layers; see `addCyclingSurface` in
+   * `convert-basemap-style.mjs`. They ship hidden, so nothing switches them on
+   * but the cycling layer group.
+   */
+  cycling: idsWhere(l => l.id.endsWith(CYCLING_SUFFIX)),
   building3d: specLayers.find(l => l.type === 'fill-extrusion')?.id ?? 'Building 3D',
 }
 

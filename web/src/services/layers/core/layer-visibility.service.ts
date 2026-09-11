@@ -173,6 +173,18 @@ export function useLayerVisibilityService() {
       })
       mapStrategy.setTransitLabels(!hasVisibleTransitLayers)
     }
+
+    // Groups whose cartography the basemap draws — the cycling tint is the
+    // road layer itself, recoloured, so only the basemap can switch it on.
+    // Every affected group, not just this one: toggling the parent has to
+    // reach a child that carries the flag.
+    if (mapStrategy && allLayerGroups) {
+      for (const g of allLayerGroups) {
+        if (g.basemapGroup && affectedGroupIds.has(g.id)) {
+          mapStrategy.setBasemapGroup(g.basemapGroup, visible)
+        }
+      }
+    }
   }
 
   /**

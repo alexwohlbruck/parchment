@@ -26,6 +26,7 @@ import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
+import { CYCLING_SUFFIX } from './cycling.mjs'
 import { BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
@@ -1413,3 +1414,97 @@ function contrastRatio(a: string, b: string): number {
   const [x, y] = [relativeLuminance(a), relativeLuminance(b)].sort((p, q) => q - p)
   return (x + 0.05) / (y + 0.05)
 }
+
+/**
+ * The cycling network, painted onto the road instead of over it.
+ *
+ * The guarantee the whole approach rests on: a green road is exactly as wide
+ * as the road it replaces, at every zoom, because it is drawn with that road's
+ * own width expression rather than a second ramp cut to look similar. These
+ * tests assert that on the generated spec, so a hand-edit that breaks the
+ * link — or a regenerated spec that renames a road layer — fails here.
+ */
+describe('cycling surface', () => {
+  const twins = layers.filter(l => l.id.endsWith(CYCLING_SUFFIX))
+  const baseOf = (l: any) =>
+    layers.find(b => b.id === l.id.slice(0, -CYCLING_SUFFIX.length))
+
+  test('every road surface and casing has a twin', () => {
+    const ids = twins.map(t => t.id)
+    const TINTED = [
+      'Minor road', 'Minor road outline',
+      'Major road', 'Major road outline',
+      'Highway', 'Highway outline',
+      'Path', 'Path outline',
+      'Path bridge', 'Path outline bridge',
+    ]
+    expect(ids.slice().sort()).toEqual(TINTED.map(id => id + CYCLING_SUFFIX).sort())
+  })
+
+  test.each(twins.map(l => [l.id, l]))('%s: derives from a real road layer', (_id, l: any) => {
+    expect(baseOf(l)).toBeDefined()
+  })
+
+  /** The point of the exercise. */
+  test.each(twins.map(l => [l.id, l]))('%s: is exactly its road’s width', (_id, l: any) => {
+    const base = baseOf(l)!
+    expect(l.paint['line-width']).toEqual(base.paint['line-width'])
+    // The path casing draws its stroke outside a gap the width of the surface;
+    // a twin that dropped the gap would paint over the path it outlines.
+    expect(l.paint['line-gap-width']).toEqual(base.paint['line-gap-width'])
+  })
+
+  test.each(twins.map(l => [l.id, l]))('%s: sits directly above its road', (_id, l: any) => {
+    const at = layers.indexOf(l)
+    expect(layers[at - 1].id).toBe(baseOf(l)!.id)
+  })
+
+  test.each(twins.map(l => [l.id, l]))('%s: ships hidden', (_id, l: any) => {
+    expect(l.layout.visibility).toBe('none')
+  })
+
+  /**
+   * The twin draws where its road draws and nowhere else, so the cycling
+   * clause has to *narrow* the road's filter rather than replace it —
+   * otherwise a tinted tunnel appears under a map that draws no tunnel.
+   */
+  test.each(twins.map(l => [l.id, l]))('%s: narrows its road’s filter', (_id, l: any) => {
+    const base = baseOf(l)!
+    expect(l.filter[0]).toBe('all')
+    expect(JSON.stringify(l.filter)).toContain('"bicycle"')
+    expect(JSON.stringify(l.filter)).toContain('"designated"')
+    expect(JSON.stringify(l.filter)).toContain('"cycleway"')
+    if (base.filter) expect(l.filter.length).toBeGreaterThan(1)
+  })
+
+  /**
+   * Access is not provision. `bicycle=yes` is on most of the residential grid
+   * and tinting it paints whole neighbourhoods green while saying nothing
+   * about where it is good to ride.
+   */
+  test('permission alone does not tint a road', () => {
+    for (const l of twins) expect(JSON.stringify(l.filter)).not.toContain('"yes"')
+  })
+
+  test('the toggle finds every one of them', () => {
+    expect(layerGroups.cycling.slice().sort()).toEqual(twins.map(l => l.id).sort())
+  })
+
+  test('the tint is green in both flavors', () => {
+    for (const tokens of [lightTokens, darkTokens] as Record<string, string>[]) {
+      for (const name of ['cycling_surface', 'cycling_casing']) {
+        const hue = Number(/hsl\(\s*([\d.]+)/.exec(tokens[name])![1])
+        expect(hue, `${name} ${tokens[name]}`).toBeGreaterThan(100)
+        expect(hue, `${name} ${tokens[name]}`).toBeLessThan(180)
+      }
+    }
+  })
+
+  /** A casing has to be darker than the surface it edges, or it is not an edge. */
+  test('the casing is deeper than the surface', () => {
+    for (const tokens of [lightTokens, darkTokens] as Record<string, string>[]) {
+      const light = (n: string) => Number(/([\d.]+)%\)/.exec(tokens[n])![1])
+      expect(light('cycling_casing')).toBeLessThan(light('cycling_surface'))
+    }
+  })
+})

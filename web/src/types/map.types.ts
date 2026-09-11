@@ -358,6 +358,8 @@ export interface LayerGroup {
   showInLayerSelector: boolean
   visible: boolean
   fadeBasemap?: boolean
+  /** Basemap layers this group draws with; see `DefaultLayerGroupTemplate`. */
+  basemapGroup?: string
   icon?: string
   order: number
   parentGroupId?: string | null

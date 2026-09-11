@@ -199,6 +199,14 @@ export class MapStrategy {
    */
   setBasemapTransitPoisVisible(_visible: boolean) {}
   setPlaceLabels(value: boolean) {}
+
+  /**
+   * Show or hide a named group of the basemap's own layers, for an overlay
+   * group whose cartography the basemap has to draw; see `basemapGroup` on
+   * `DefaultLayerGroupTemplate`. A no-op on an engine whose basemap is not
+   * ours to address.
+   */
+  setBasemapGroup(name: string, value: boolean) {}
   setLandmarkIcons(value: boolean) {}
   setMapProjection(projection: MapProjection) {}
 

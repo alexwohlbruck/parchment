@@ -107,7 +107,7 @@ const STRENGTH: Record<FlavorId, Record<string, string>> = {
 const TINT_OF_INFRA = (flavor: FlavorId): any => [
   'match',
   ['get', 'infra_type'],
-  ['cycle_track', 'bicycle_road', 'cycle_street', 'bicycle_designated', 'cycleway'],
+  ['cycle_track', 'bicycle_road', 'cycle_street', 'bicycle_designated'],
   STRENGTH[flavor].strong,
   ['cycle_lane'],
   STRENGTH[flavor].medium,
@@ -117,13 +117,16 @@ const TINT_OF_INFRA = (flavor: FlavorId): any => [
 ]
 
 /**
- * What the tint is drawn for. `bicycle_yes` is deliberately absent — that is
- * permission rather than provision, and it is on most of the residential grid.
+ * What the tint is drawn for: provision ON a road.
+ *
+ * `cycleway` and the bicycle paths are absent — those are ways built for
+ * bikes, not roads marked for them, and they keep their own cased mark.
+ * `bicycle_yes` is absent too: permission rather than provision, and on most
+ * of the residential grid.
  */
 const TINTED_INFRA = [
   'cycle_track', 'cycle_lane', 'shared_lane', 'opposite', 'shoulder',
   'share_busway', 'bicycle_road', 'cycle_street', 'bicycle_designated',
-  'cycleway',
 ]
 
 /**

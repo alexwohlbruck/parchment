@@ -11,22 +11,23 @@
 export const CYCLING_SUFFIX = ' (cycling)'
 
 /**
- * A way that is cycling infrastructure in its own right.
+ * A road or footpath MARKED for bikes — the kind of way whose own surface is
+ * painted green, because riding it means riding that street.
  *
- * `subclass = cycleway` is `highway=cycleway` — a way built for bikes, which
- * is designated whether or not anyone tagged it so. `bicycle = designated`
- * is the same statement made about a road or a footpath that also carries
- * other traffic.
+ * `highway = cycleway` is deliberately excluded even though it qualifies on
+ * every other reading: a dedicated bike path is not a road that allows bikes,
+ * it is its own piece of infrastructure, and it keeps its own cased mark. See
+ * the cycling layer templates.
  *
- * Deliberately NOT `bicycle = yes`. That is permission, not provision, and it
+ * `bicycle = yes` is excluded too. That is permission, not provision, and it
  * is on most of the residential grid — tinting it paints whole neighbourhoods
  * green and says nothing, which is the failure mode of every bike map that
  * draws access rather than infrastructure.
  */
 export function isCyclingWay() {
   return [
-    'any',
-    ['==', ['get', 'subclass'], 'cycleway'],
+    'all',
     ['==', ['get', 'bicycle'], 'designated'],
+    ['!=', ['get', 'subclass'], 'cycleway'],
   ]
 }

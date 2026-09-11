@@ -1794,15 +1794,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -1810,6 +1802,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -2042,15 +2042,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -2058,6 +2050,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -2375,15 +2375,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -2391,6 +2383,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -2641,15 +2641,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -2657,6 +2649,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -2939,15 +2939,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -2955,6 +2947,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -3539,15 +3539,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -3555,6 +3547,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -3799,15 +3799,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -3815,6 +3807,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -4139,15 +4139,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -4155,6 +4147,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -4639,15 +4639,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -4655,6 +4647,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]
@@ -4851,15 +4851,7 @@
      ]
     ],
     [
-     "any",
-     [
-      "==",
-      [
-       "get",
-       "subclass"
-      ],
-      "cycleway"
-     ],
+     "all",
      [
       "==",
       [
@@ -4867,6 +4859,14 @@
        "bicycle"
       ],
       "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
      ]
     ]
    ]

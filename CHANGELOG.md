@@ -23,11 +23,11 @@
   name that wraps reads as one block instead of separate lines
 * Street names shrink to small spaced capitals as you zoom in, so the shops and
   stations you're looking for carry the map
-* Cycleways and paths where bikes are designated now show as a green road
-  surface rather than a dotted line laid over the street, exactly as wide as
-  the road itself at every zoom
-* Bike lanes, tracks and sharrows now tint the street they're on at that
-  street's own width, in a stronger green the better the provision is
+* Roads and paths marked for bikes — a lane, a sharrow, a designated footpath
+  — now tint the street itself green at exactly that street's width, in a
+  stronger green the better the provision is
+* Dedicated cycleways and bike paths keep their own cased line, so a path built
+  for bikes still reads differently from a street that allows them
 * The cycling layer now draws under place names and under transit lines, so a
   train crossing a bike lane passes over it
 

@@ -1475,7 +1475,6 @@ describe('cycling surface', () => {
     expect(l.filter[0]).toBe('all')
     expect(JSON.stringify(l.filter)).toContain('"bicycle"')
     expect(JSON.stringify(l.filter)).toContain('"designated"')
-    expect(JSON.stringify(l.filter)).toContain('"cycleway"')
     if (base.filter) expect(l.filter.length).toBeGreaterThan(1)
   })
 
@@ -1520,7 +1519,9 @@ describe('cycling surface', () => {
     }
 
     test.each([
-      ['a dedicated cycleway', 'Path (cycling)', { class: 'path', subclass: 'cycleway' }, true],
+      // A way BUILT for bikes keeps its own cased mark; see the cycling
+      // layer templates. Only ways MARKED for bikes are painted as roads.
+      ['a dedicated cycleway', 'Path (cycling)', { class: 'path', subclass: 'cycleway' }, false],
       ['a footpath bikes are designated on', 'Path (cycling)', { class: 'path', subclass: 'footway', bicycle: 'designated' }, true],
       ['a plain footpath', 'Path (cycling)', { class: 'path', subclass: 'footway' }, false],
       ['a street bikes are designated on', 'Minor road (cycling)', { class: 'minor', bicycle: 'designated' }, true],

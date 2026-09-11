@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
@@ -19,18 +19,20 @@ import PresetIcon from '@/components/quick-edit/PresetIcon.vue'
 import DuplicateList from '@/components/quick-edit/DuplicateList.vue'
 import QuickEditForm from '@/components/quick-edit/QuickEditForm.vue'
 import BrandLogo from '@/components/quick-edit/BrandLogo.vue'
+import { useDuplicateMarkers } from '@/composables/quick-edit/useDuplicateMarkers'
+import { whenMapReady } from '@/composables/map/whenMapReady'
 import type {
   DuplicateCandidate,
   EditablePreset,
   NsiBrand,
-  PresetSearchResult,
+  PresetSummary,
 } from '@/types/quick-edit.types'
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const quickEditService = useQuickEditService()
-const { flyTo, addVueMarker, removeMarker } = useMapService()
+const { addVueMarker, removeMarker } = useMapService()
 const { toast } = useAppService()
 const integrationsStore = useIntegrationsStore()
 
@@ -45,15 +47,47 @@ const submitting = ref(false)
 const sandboxServer = ref<string | null>(null)
 const brandLogo = ref<string | null>(null)
 
+const hasLocation = computed(
+  () => Number.isFinite(lat.value) && Number.isFinite(lng.value),
+)
+
+useDuplicateMarkers(
+  duplicates,
+  preset,
+  computed(() => ({ lat: lat.value, lng: lng.value })),
+  editDuplicate,
+)
+
 const osmConnected = computed(() =>
   Boolean(
     integrationsStore.getIntegrationConfig(IntegrationId.OPENSTREETMAP_ACCOUNT),
   ),
 )
 
+// The camera stays where it is: the pin lands on the spot the user just
+// clicked, so it is already on screen. Only the duplicate check, which brings
+// in places off screen, is worth moving the map for.
+function showPin() {
+  whenMapReady(placeMarker)
+}
+
+// Dropping a second pin only changes the query, so the router reuses this
+// component — without this, the new POI keeps the first pin's location.
+watch(
+  () => [route.query.lat, route.query.lng],
+  ([nextLat, nextLng]) => {
+    if (!Number.isFinite(Number(nextLat)) || !Number.isFinite(Number(nextLng))) return
+    lat.value = Number(nextLat)
+    lng.value = Number(nextLng)
+    preset.value = null
+    duplicates.value = []
+    for (const key of Object.keys(tags)) delete tags[key]
+    showPin()
+  },
+)
+
 onMounted(async () => {
-  placeMarker()
-  flyTo({ center: [lng.value, lat.value] })
+  showPin()
   const server = await quickEditService.getOsmServer()
   if (server && server.server !== 'production') {
     sandboxServer.value = server.serverUrl.replace(/^https?:\/\//, '')
@@ -65,12 +99,17 @@ onUnmounted(() => {
 })
 
 function placeMarker() {
+  if (!hasLocation.value) return
   removeMarker(MARKER_ID)
   addVueMarker(
     MARKER_ID,
     { lng: lng.value, lat: lat.value },
     QuickEditMarker,
-    {},
+    {
+      iconName: preset.value?.iconName,
+      iconPack: preset.value?.iconPack,
+      category: preset.value?.iconCategory,
+    },
     undefined,
     {
       onDragEnd: (lngLat: LngLat) => {
@@ -86,7 +125,7 @@ function setTag(key: string, value: string | null) {
   else tags[key] = value
 }
 
-async function selectPreset(result: PresetSearchResult) {
+async function selectPreset(result: PresetSummary) {
   preset.value = await quickEditService.getPreset(result.id)
   for (const key of Object.keys(tags)) delete tags[key]
   for (const [key, value] of Object.entries({
@@ -96,6 +135,7 @@ async function selectPreset(result: PresetSearchResult) {
     if (value !== '*') tags[key] = value
   }
 
+  placeMarker()
   duplicates.value = await quickEditService.findDuplicates(
     lat.value,
     lng.value,
@@ -166,17 +206,12 @@ async function handleSubmit(comment: string) {
             :name="tags.name || preset?.name || ''"
             size="sm"
           />
+          <PresetIcon v-else-if="preset" :preset="preset" size="sm" />
           <div
             v-else
             class="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600"
           >
-            <PresetIcon
-              v-if="preset"
-              :icon="preset.icon"
-              size="sm"
-              class="text-white"
-            />
-            <PencilIcon v-else class="size-4 text-white" />
+            <PencilIcon class="size-4 text-white" />
           </div>
           <div class="min-w-0">
             <h2 class="truncate text-lg font-semibold leading-tight">
@@ -216,6 +251,8 @@ async function handleSubmit(comment: string) {
           :tags="tags"
           :submitting="submitting"
           :submit-label="t('quickEdit.submitAdd')"
+          :lat="lat"
+          :lng="lng"
           :sandbox-server="sandboxServer"
           @set="setTag"
           @brand="applyBrand"

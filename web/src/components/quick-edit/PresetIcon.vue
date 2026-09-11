@@ -1,19 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import MakiIcon from '@/components/ui/item-icon/MakiIcon.vue'
+import { ItemIcon } from '@/components/ui/item-icon'
+import { getCategoryColor } from '@/services/place/place-colors'
+import { useThemeStore } from '@/stores/theme.store'
+import type { PresetSummary } from '@/types/quick-edit.types'
 
 const props = defineProps<{
-  icon: string
+  preset: Pick<PresetSummary, 'iconName' | 'iconPack' | 'iconCategory'>
   size?: 'xs' | 'sm' | 'md' | 'lg'
 }>()
 
-// Presets reference several icon packs (maki-, temaki-, fas-…); only maki
-// ships with the app, so anything else falls back to MakiIcon's marker.
-const makiName = computed(() =>
-  props.icon.startsWith('maki-') ? props.icon.slice(5) : props.icon,
+const themeStore = useThemeStore()
+
+const color = computed(() =>
+  getCategoryColor(props.preset.iconCategory, themeStore.isDark),
 )
 </script>
 
 <template>
-  <MakiIcon :name="makiName" :size="size" />
+  <ItemIcon
+    :icon="preset.iconName"
+    :icon-pack="preset.iconPack"
+    :custom-color="color"
+    :size="size ?? 'md'"
+    shape="circle"
+  />
 </template>

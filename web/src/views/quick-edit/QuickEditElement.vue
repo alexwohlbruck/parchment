@@ -6,7 +6,13 @@ import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
-import { PencilIcon, LinkIcon, ClockIcon, InfoIcon, TriangleAlertIcon } from 'lucide-vue-next'
+import {
+  PencilIcon,
+  LinkIcon,
+  ClockIcon,
+  InfoIcon,
+  TriangleAlertIcon,
+} from 'lucide-vue-next'
 import { useQuickEditService } from '@/services/quick-edit.service'
 import { useMapService } from '@/services/map/map.service'
 import { useAppService } from '@/services/app.service'
@@ -19,6 +25,7 @@ import PresetIcon from '@/components/quick-edit/PresetIcon.vue'
 import QuickEditForm from '@/components/quick-edit/QuickEditForm.vue'
 import BrandLogo from '@/components/quick-edit/BrandLogo.vue'
 import BrandMatchCard from '@/components/quick-edit/BrandMatchCard.vue'
+import { whenMapReady } from '@/composables/map/whenMapReady'
 import type {
   BrandSuggestion,
   EditablePreset,
@@ -90,18 +97,33 @@ onMounted(async () => {
       }
     }
 
-    if (response.element.type === 'node' && response.element.lat !== undefined) {
+    if (
+      response.element.type === 'node' &&
+      response.element.lat !== undefined
+    ) {
       const at = { lat: response.element.lat, lng: response.element.lon! }
-      flyTo({ center: [at.lng, at.lat] })
-      addVueMarker(MARKER_ID, at, QuickEditMarker, {}, undefined, {
-        onDragEnd: (lngLat: LngLat) => {
-          movedTo.value = lngLat
-        },
+      whenMapReady(() => {
+        flyTo({ center: [at.lng, at.lat], zoom: 18 })
+        addVueMarker(
+          MARKER_ID,
+          at,
+          QuickEditMarker,
+          {
+            iconName: response.preset?.iconName,
+            iconPack: response.preset?.iconPack,
+            category: response.preset?.iconCategory,
+          },
+          undefined,
+          {
+            onDragEnd: (lngLat: LngLat) => {
+              movedTo.value = lngLat
+            },
+          },
+        )
       })
     }
   } catch (error: any) {
-    loadError.value =
-      error.response?.data?.message ?? t('quickEdit.loadError')
+    loadError.value = error.response?.data?.message ?? t('quickEdit.loadError')
   } finally {
     loading.value = false
   }
@@ -128,7 +150,8 @@ async function handleSubmit(comment: string) {
   try {
     const result = await quickEditService.submitEdit({
       comment:
-        comment || t('quickEdit.defaultEditComment', { name: displayName.value }),
+        comment ||
+        t('quickEdit.defaultEditComment', { name: displayName.value }),
       action: 'modify',
       element: {
         type: element.value.type,
@@ -194,24 +217,23 @@ async function handleSubmit(comment: string) {
             :name="displayName"
             size="sm"
           />
+          <PresetIcon v-else-if="preset" :preset="preset" size="sm" />
           <div
             v-else
             class="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600"
           >
-            <PresetIcon
-              v-if="preset"
-              :icon="preset.icon"
-              size="sm"
-              class="text-white"
-            />
-            <PencilIcon v-else class="size-4 text-white" />
+            <PencilIcon class="size-4 text-white" />
           </div>
           <div class="min-w-0">
             <h2 class="truncate text-lg font-semibold leading-tight">
               {{ displayName }}
             </h2>
             <span class="text-xs text-muted-foreground">
-              {{ t('quickEdit.editingElement', { element: `${element.type} ${element.id}` }) }}
+              {{
+                t('quickEdit.editingElement', {
+                  element: `${element.type} ${element.id}`,
+                })
+              }}
             </span>
           </div>
         </div>
@@ -232,10 +254,7 @@ async function handleSubmit(comment: string) {
         <InfoIcon class="size-3.5 shrink-0" />
         {{ t('quickEdit.geometryNotice') }}
       </div>
-      <p
-        v-else
-        class="mb-3 text-xs text-muted-foreground"
-      >
+      <p v-else class="mb-3 text-xs text-muted-foreground">
         {{ t('quickEdit.dragHint') }}
       </p>
 
@@ -252,6 +271,8 @@ async function handleSubmit(comment: string) {
         :tags="tags"
         :submitting="submitting"
         :submit-label="t('quickEdit.submitEdit')"
+        :lat="movedTo?.lat ?? element.lat ?? 0"
+        :lng="movedTo?.lng ?? element.lon ?? 0"
         :sandbox-server="sandboxServer"
         :brands-offered="brandOffered"
         @set="setTag"

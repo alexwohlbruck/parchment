@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { MapPinIcon } from 'lucide-vue-next'
+import PoiMarker from '@/components/map/markers/PoiMarker.vue'
+
+defineProps<{
+  iconName?: string
+  iconPack?: 'lucide' | 'maki'
+  category?: string
+}>()
 </script>
 
 <template>
-  <div class="relative flex items-center justify-center">
-    <div class="pulse-ring absolute size-[36px] rounded-full" />
-    <div
-      class="size-[26px] border-2 border-white dark:border-[#0C0C0C] rounded-full flex items-center justify-center shadow-lg cursor-grab select-none bg-emerald-600"
-    >
-      <MapPinIcon class="text-white dark:text-[#0C0C0C] size-3.5" />
-    </div>
+  <div class="relative flex cursor-grab items-center justify-center">
+    <div class="pulse-ring absolute size-[40px] rounded-full" />
+    <PoiMarker
+      :icon-name="iconName ?? 'MapPin'"
+      :icon-pack="iconPack ?? 'lucide'"
+      :category="category ?? 'default'"
+    />
   </div>
 </template>
 
@@ -18,8 +24,9 @@ div {
   pointer-events: all;
 }
 
+/* Marks the pin as the thing being placed, and as draggable. */
 .pulse-ring {
-  background: rgba(5, 150, 105, 0.3);
+  background: hsl(var(--primary) / 0.25);
   animation: pulse-expand 2s ease-out infinite;
 }
 

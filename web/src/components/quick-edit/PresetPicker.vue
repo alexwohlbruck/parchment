@@ -6,21 +6,21 @@ import { Spinner } from '@/components/ui/spinner'
 import { SearchIcon } from 'lucide-vue-next'
 import { useQuickEditService } from '@/services/quick-edit.service'
 import PresetIcon from './PresetIcon.vue'
-import type { GeometryType, PresetSearchResult } from '@/types/quick-edit.types'
+import type { GeometryType, PresetSummary } from '@/types/quick-edit.types'
 
 const props = defineProps<{
   geometry?: GeometryType
 }>()
 
 const emit = defineEmits<{
-  select: [preset: PresetSearchResult]
+  select: [preset: PresetSummary]
 }>()
 
 const { t } = useI18n()
 const quickEditService = useQuickEditService()
 
 const query = ref('')
-const results = ref<PresetSearchResult[]>([])
+const results = ref<PresetSummary[]>([])
 const searching = ref(false)
 
 let debounce: ReturnType<typeof setTimeout> | undefined
@@ -69,14 +69,10 @@ onUnmounted(() => clearTimeout(debounce))
         class="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent"
         @click="emit('select', preset)"
       >
-        <span
-          class="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted"
-        >
-          <PresetIcon :icon="preset.icon" size="sm" />
-        </span>
+        <PresetIcon :preset="preset" size="sm" />
         <span class="min-w-0">
           <span class="block truncate font-medium">{{ preset.name }}</span>
-          <span class="block truncate text-xs text-muted-foreground">
+          <span class="block truncate font-mono text-xs text-muted-foreground">
             {{ Object.entries(preset.tags).map(([k, v]) => `${k}=${v}`).join(' ') }}
           </span>
         </span>

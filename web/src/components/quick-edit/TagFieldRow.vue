@@ -3,7 +3,6 @@ import { computed } from 'vue'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import ComboField from './ComboField.vue'
 import MultiValueField from './MultiValueField.vue'
 import OpeningHoursField from './OpeningHoursField.vue'
@@ -38,21 +37,9 @@ const options = computed(() =>
   })),
 )
 
-const ADDRESS_PARTS = [
-  { key: 'addr:housenumber', labelKey: 'quickEdit.address.housenumber', span: 'col-span-1' },
-  { key: 'addr:street', labelKey: 'quickEdit.address.street', span: 'col-span-2' },
-  { key: 'addr:city', labelKey: 'quickEdit.address.city', span: 'col-span-2' },
-  { key: 'addr:postcode', labelKey: 'quickEdit.address.postcode', span: 'col-span-1' },
-]
-
 const widget = computed(() => {
   if (props.field.key === 'opening_hours') return 'hours'
-  if (props.field.type === 'address') return 'address'
   switch (props.field.type) {
-    case 'check':
-    case 'defaultCheck':
-    case 'onewayCheck':
-      return 'check'
     case 'combo':
     case 'typeCombo':
     case 'networkCombo':
@@ -122,21 +109,6 @@ function setPrefix(values: string[]) {
       @update:model-value="set"
     />
 
-    <ToggleGroup
-      v-else-if="widget === 'check'"
-      type="single"
-      :model-value="value"
-      class="justify-start gap-1"
-      @update:model-value="set(($event as string) ?? '')"
-    >
-      <ToggleGroupItem value="yes" class="h-8 px-3 text-xs">
-        {{ $t('general.yes') }}
-      </ToggleGroupItem>
-      <ToggleGroupItem value="no" class="h-8 px-3 text-xs">
-        {{ $t('general.no') }}
-      </ToggleGroupItem>
-    </ToggleGroup>
-
     <ComboField
       v-else-if="widget === 'combo'"
       :model-value="value"
@@ -160,17 +132,6 @@ function setPrefix(values: string[]) {
       :placeholder="field.placeholder"
       @update:model-value="setPrefix"
     />
-
-    <div v-else-if="widget === 'address'" class="grid grid-cols-3 gap-1.5">
-      <Input
-        v-for="part in ADDRESS_PARTS"
-        :key="part.key"
-        :model-value="tags[part.key] ?? ''"
-        :placeholder="$t(part.labelKey)"
-        :class="part.span"
-        @update:model-value="emit('set', part.key, String($event) || null)"
-      />
-    </div>
 
     <Textarea
       v-else-if="widget === 'textarea'"

@@ -18,9 +18,11 @@ import PresetPicker from '@/components/quick-edit/PresetPicker.vue'
 import PresetIcon from '@/components/quick-edit/PresetIcon.vue'
 import DuplicateList from '@/components/quick-edit/DuplicateList.vue'
 import QuickEditForm from '@/components/quick-edit/QuickEditForm.vue'
+import BrandLogo from '@/components/quick-edit/BrandLogo.vue'
 import type {
   DuplicateCandidate,
   EditablePreset,
+  NsiBrand,
   PresetSearchResult,
 } from '@/types/quick-edit.types'
 
@@ -41,6 +43,7 @@ const tags = reactive<Record<string, string>>({})
 const duplicates = ref<DuplicateCandidate[]>([])
 const submitting = ref(false)
 const sandboxServer = ref<string | null>(null)
+const brandLogo = ref<string | null>(null)
 
 const osmConnected = computed(() =>
   Boolean(
@@ -100,6 +103,11 @@ async function selectPreset(result: PresetSearchResult) {
   )
 }
 
+function applyBrand(brand: NsiBrand) {
+  for (const [key, value] of Object.entries(brand.tags)) tags[key] = value
+  brandLogo.value = brand.logoUrl
+}
+
 function editDuplicate(candidate: DuplicateCandidate) {
   const [type, id] = candidate.osm.split('/')
   router.replace({
@@ -152,7 +160,14 @@ async function handleSubmit(comment: string) {
     <template v-else>
       <div class="mb-4 flex items-start gap-2">
         <div class="flex min-w-0 items-center gap-2">
+          <BrandLogo
+            v-if="tags['brand:wikidata']"
+            :src="brandLogo"
+            :name="tags.name || preset?.name || ''"
+            size="sm"
+          />
           <div
+            v-else
             class="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600"
           >
             <PresetIcon
@@ -164,8 +179,8 @@ async function handleSubmit(comment: string) {
             <PencilIcon v-else class="size-4 text-white" />
           </div>
           <div class="min-w-0">
-            <h2 class="text-lg font-semibold leading-tight">
-              {{ preset ? preset.name : t('quickEdit.addTitle') }}
+            <h2 class="truncate text-lg font-semibold leading-tight">
+              {{ tags['brand:wikidata'] && tags.name ? tags.name : preset ? preset.name : t('quickEdit.addTitle') }}
             </h2>
             <button
               v-if="preset"
@@ -203,6 +218,7 @@ async function handleSubmit(comment: string) {
           :submit-label="t('quickEdit.submitAdd')"
           :sandbox-server="sandboxServer"
           @set="setTag"
+          @brand="applyBrand"
           @submit="handleSubmit"
         />
       </template>

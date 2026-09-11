@@ -7,6 +7,9 @@
   details — no OSM knowledge needed.
 * Suggest an edit on any OpenStreetMap place to fix its details or move a
   misplaced marker, published through your connected OSM account.
+* Quick edit recognises chains: type a business name and pick the brand to fill
+  in its logo, category and standard details at once. Editing a chain that's
+  missing them offers the same as a one-tap fix.
 
 ### Changed
 

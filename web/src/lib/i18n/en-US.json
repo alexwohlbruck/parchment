@@ -2709,6 +2709,14 @@
       "fr": "Fri",
       "sa": "Sat",
       "su": "Sun"
+    },
+    "brand": {
+      "isThis": "Is this one of these chains?",
+      "addsTags": "Fills in {count} detail | Fills in {count} detail | Fills in {count} details",
+      "matchTitle": "This looks like {brand}",
+      "matchHint": "Chains are tagged the same way everywhere. Apply the standard details?",
+      "apply": "Apply",
+      "dismiss": "Not this chain"
     }
   }
 }

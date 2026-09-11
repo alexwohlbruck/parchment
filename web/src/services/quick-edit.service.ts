@@ -1,6 +1,8 @@
 import { api } from '@/lib/api'
 import type {
+  BrandSuggestion,
   DuplicateCandidate,
+  NsiBrand,
   EditablePreset,
   GeometryType,
   OsmEdit,
@@ -31,12 +33,28 @@ export function useQuickEditService() {
   async function getElement(
     type: OsmElementType,
     id: string | number,
-  ): Promise<{ element: OsmLiveElement; preset: EditablePreset | null }> {
+  ): Promise<{
+    element: OsmLiveElement
+    preset: EditablePreset | null
+    brand: BrandSuggestion | null
+  }> {
     const response = await api.get<{
       element: OsmLiveElement
       preset: EditablePreset | null
+      brand: BrandSuggestion | null
     }>(`/osm/element/${type}/${id}`)
     return response.data
+  }
+
+  async function searchBrands(
+    q: string,
+    presetId: string,
+  ): Promise<NsiBrand[]> {
+    const response = await api.get<{ results: NsiBrand[] }>(
+      '/osm/brands/search',
+      { params: { q, presetId } },
+    )
+    return response.data.results
   }
 
   async function findDuplicates(
@@ -81,6 +99,7 @@ export function useQuickEditService() {
     searchPresets,
     getPreset,
     getElement,
+    searchBrands,
     findDuplicates,
     submitEdit,
     getPendingEdits,

@@ -12,7 +12,8 @@ import {
 import { ChevronDownIcon, SendIcon, FlaskConicalIcon } from 'lucide-vue-next'
 import TagFieldRow from './TagFieldRow.vue'
 import RawTagEditor from './RawTagEditor.vue'
-import type { EditablePreset } from '@/types/quick-edit.types'
+import BrandSuggestions from './BrandSuggestions.vue'
+import type { EditablePreset, NsiBrand } from '@/types/quick-edit.types'
 
 const props = defineProps<{
   preset: EditablePreset | null
@@ -21,10 +22,13 @@ const props = defineProps<{
   submitLabel: string
   /** Set when edits go to a non-production OSM server. */
   sandboxServer?: string | null
+  /** Set when a brand match is already offered above the form. */
+  brandsOffered?: boolean
 }>()
 
 const emit = defineEmits<{
   set: [key: string, value: string | null]
+  brand: [brand: NsiBrand]
   submit: [comment: string]
 }>()
 
@@ -46,18 +50,33 @@ const fields = computed(() => {
 const canSubmit = computed(
   () => Object.keys(props.tags).length > 0 && !props.submitting,
 )
+
+// Offer chains only while the feature isn't already identified as one, and
+// never alongside a brand match card offering the same thing.
+const showBrands = computed(
+  () =>
+    Boolean(props.preset && props.tags.name) &&
+    !props.tags['brand:wikidata'] &&
+    !props.brandsOffered,
+)
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
     <div class="space-y-3">
-      <TagFieldRow
-        v-for="field in fields"
-        :key="field.id"
-        :field="field"
-        :tags="tags"
-        @set="(key, value) => emit('set', key, value)"
-      />
+      <template v-for="field in fields" :key="field.id">
+        <TagFieldRow
+          :field="field"
+          :tags="tags"
+          @set="(key, value) => emit('set', key, value)"
+        />
+        <BrandSuggestions
+          v-if="field.key === 'name' && showBrands"
+          :name="tags.name"
+          :preset-id="preset!.id"
+          @select="emit('brand', $event)"
+        />
+      </template>
     </div>
 
     <Collapsible v-model:open="rawOpen">

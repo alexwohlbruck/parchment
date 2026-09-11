@@ -17,8 +17,12 @@ import { LngLat } from '@/types/map.types'
 import QuickEditMarker from '@/components/quick-edit/QuickEditMarker.vue'
 import PresetIcon from '@/components/quick-edit/PresetIcon.vue'
 import QuickEditForm from '@/components/quick-edit/QuickEditForm.vue'
+import BrandLogo from '@/components/quick-edit/BrandLogo.vue'
+import BrandMatchCard from '@/components/quick-edit/BrandMatchCard.vue'
 import type {
+  BrandSuggestion,
   EditablePreset,
+  NsiBrand,
   OsmElementType,
   OsmLiveElement,
 } from '@/types/quick-edit.types'
@@ -46,6 +50,9 @@ const movedTo = ref<LngLat | null>(null)
 const hasPendingEdit = ref(false)
 const submitting = ref(false)
 const sandboxServer = ref<string | null>(null)
+const brandMatch = ref<BrandSuggestion | null>(null)
+const brandOffered = ref(false)
+const brandLogo = ref<string | null>(null)
 
 const osmConnected = computed(() =>
   Boolean(
@@ -65,6 +72,8 @@ onMounted(async () => {
     ])
     element.value = response.element
     preset.value = response.preset
+    brandMatch.value = response.brand
+    brandOffered.value = Boolean(response.brand)
     Object.assign(tags, response.element.tags)
     if (server && server.server !== 'production') {
       sandboxServer.value = server.serverUrl.replace(/^https?:\/\//, '')
@@ -105,6 +114,12 @@ onUnmounted(() => {
 function setTag(key: string, value: string | null) {
   if (value === null) delete tags[key]
   else tags[key] = value
+}
+
+function applyBrand(brand: NsiBrand) {
+  for (const [key, value] of Object.entries(brand.tags)) tags[key] = value
+  brandLogo.value = brand.logoUrl
+  brandMatch.value = null
 }
 
 async function handleSubmit(comment: string) {
@@ -173,7 +188,14 @@ async function handleSubmit(comment: string) {
     <template v-else-if="element">
       <div class="mb-4 flex items-start gap-2">
         <div class="flex min-w-0 items-center gap-2">
+          <BrandLogo
+            v-if="tags['brand:wikidata']"
+            :src="brandLogo"
+            :name="displayName"
+            size="sm"
+          />
           <div
+            v-else
             class="flex size-8 shrink-0 items-center justify-center rounded-full bg-emerald-600"
           >
             <PresetIcon
@@ -217,13 +239,23 @@ async function handleSubmit(comment: string) {
         {{ t('quickEdit.dragHint') }}
       </p>
 
+      <BrandMatchCard
+        v-if="brandMatch"
+        :suggestion="brandMatch"
+        class="mb-3"
+        @apply="applyBrand(brandMatch.brand)"
+        @dismiss="brandMatch = null"
+      />
+
       <QuickEditForm
         :preset="preset"
         :tags="tags"
         :submitting="submitting"
         :submit-label="t('quickEdit.submitEdit')"
         :sandbox-server="sandboxServer"
+        :brands-offered="brandOffered"
         @set="setTag"
+        @brand="applyBrand"
         @submit="handleSubmit"
       />
     </template>

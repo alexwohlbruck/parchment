@@ -1036,8 +1036,11 @@ const timelineEntries = computed<TimelineEntry[]>(() => {
     const stop = placeStopsBySegment.value.get(i)
     if (stop) entries.push({ kind: 'place-stop', ...stop })
 
-    const viaIndex = i + 1
-    if (viaIndex < wps.length - 1) {
+    // A stop sits at the end of its leg, not after every segment — a leg
+    // that walks to a station and rides on has several.
+    const nextSeg = segs[i + 1]
+    const viaIndex = nextSeg ? nextSeg.legIndex ?? 0 : null
+    if (viaIndex !== null && viaIndex !== (segs[i].legIndex ?? 0) && viaIndex < wps.length - 1) {
       const via = wps[viaIndex]
       if (via?.role === 'via') {
         entries.push({ kind: 'waypoint', wp: via, waypointIndex: viaIndex })

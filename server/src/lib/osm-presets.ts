@@ -504,7 +504,7 @@ export function getPresetFields(
   return getCached(c.fields, c.stats.fields, key, () => {
     const fieldData = loadFields()
     const translations = loadTranslations(language)
-    const fieldTranslations = translations.fields || {}
+    const fieldTranslations = translations.presets?.fields || {}
 
     const resolveFieldRefs = (fieldIds: string[]): string[] => {
       return fieldIds.flatMap((fieldId) => {
@@ -552,6 +552,16 @@ export function getPresetFields(
               }
             }
           }
+        }
+
+        // A "{other_field}" label inherits that field's label (e.g.
+        // building_area_yes → building)
+        const labelRef = translatedField.label.match(/^\{(.+)\}$/)
+        if (labelRef) {
+          translatedField.label =
+            fieldTranslations[labelRef[1]]?.label ||
+            fieldData[labelRef[1]]?.label ||
+            labelRef[1]
         }
 
         // Enrich with curated display-chip labels where available

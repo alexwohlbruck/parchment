@@ -2,6 +2,12 @@
 
 ### Added
 
+* Quick edit: add businesses and other places straight to OpenStreetMap from
+  the map's edit menu, with a guided form for hours, contact info and other
+  details — no OSM knowledge needed.
+* Suggest an edit on any OpenStreetMap place to fix its details or move a
+  misplaced marker, published through your connected OSM account.
+
 ### Changed
 
 ### Fixed

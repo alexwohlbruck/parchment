@@ -25,6 +25,13 @@ import { getOsmConfig } from '../config/osm.config'
 import { logError } from '../lib/logger'
 import { haversineMeters } from '../util/geometry-conversion'
 
+const OSM_PRIMARY_KEYS = new Set([
+  'amenity', 'shop', 'tourism', 'leisure', 'craft', 'office', 'emergency',
+  'healthcare', 'man_made', 'natural', 'barrier', 'highway', 'railway',
+  'public_transport', 'aeroway', 'historic', 'landuse', 'military', 'power',
+  'club', 'advertising',
+])
+
 const OSM_ELEMENT_TYPE = t.Union([
   t.Literal('node'),
   t.Literal('way'),
@@ -155,15 +162,17 @@ publicApi.get(
     const preset = getPresetById(query.presetId)
     if (!preset) return status(404, { message: 'Preset not found' })
 
-    const primaryTags = Object.entries(preset.tags).filter(([, v]) => v !== '*')
-    const wildcardKeys = Object.entries(preset.tags)
-      .filter(([, v]) => v === '*')
-      .map(([k]) => k)
-    if (!primaryTags.length && !wildcardKeys.length) return { results: [] }
+    // Match on the primary feature tag only: a sub-preset like
+    // amenity/cafe/coffee_shop should surface every nearby cafe, not just
+    // ones sharing its cuisine.
+    const primary = Object.entries(preset.tags).find(([k]) =>
+      OSM_PRIMARY_KEYS.has(k),
+    )
+    const fallback = Object.entries(preset.tags)[0]
+    const [key, value] = primary ?? fallback ?? []
+    if (!key) return { results: [] }
 
-    const selector = primaryTags.length
-      ? primaryTags.map(([k, v]) => `["${k}"="${v}"]`).join('')
-      : `["${wildcardKeys[0]}"]`
+    const selector = value === '*' ? `["${key}"]` : `["${key}"="${value}"]`
     const radius = query.radius ?? 100
     const overpassQuery = `[out:json][timeout:10];(node${selector}(around:${radius},${query.lat},${query.lng});way${selector}(around:${radius},${query.lat},${query.lng}););out tags center 10;`
 

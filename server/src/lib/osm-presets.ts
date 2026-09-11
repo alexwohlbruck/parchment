@@ -699,6 +699,29 @@ export function initializeOsmPresets(): void {
   logger.debug(`   - Took ${Date.now() - start}ms`)
 }
 
+/**
+ * Keys that identify what a feature *is*, most-significant first. The primary
+ * tag drives duplicate checks and brand lookups, where a sub-preset like
+ * amenity/cafe/coffee_shop must still be treated as a cafe.
+ */
+const PRIMARY_KEYS = [
+  'amenity', 'shop', 'tourism', 'leisure', 'craft', 'office', 'healthcare',
+  'emergency', 'club', 'historic', 'man_made', 'aeroway', 'railway',
+  'public_transport', 'highway', 'barrier', 'power', 'landuse', 'natural',
+  'military', 'advertising',
+]
+
+/** The primary feature tag of a tag set, or null when none is present. */
+export function getPrimaryTag(
+  tags: Record<string, string>,
+): { key: string; value: string } | null {
+  for (const key of PRIMARY_KEYS) {
+    if (tags[key]) return { key, value: tags[key] }
+  }
+  const [key, value] = Object.entries(tags)[0] ?? []
+  return key ? { key, value } : null
+}
+
 // ─── Preset search ───────────────────────────────────────────────────────────
 
 export interface PresetSearchResult {

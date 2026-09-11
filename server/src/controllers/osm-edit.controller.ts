@@ -8,9 +8,11 @@ import {
   getPresetName,
   getPresetIcon,
   getPresetFields,
+  getPrimaryTag,
   matchTags,
   type GeometryType,
 } from '../lib/osm-presets'
+import { searchBrands, matchBrand, brandTagDiff } from '../lib/nsi'
 import {
   getLiveElement,
   submitEdit,
@@ -24,13 +26,6 @@ import type { OverpassIntegration } from '../services/integrations/overpass-inte
 import { getOsmConfig } from '../config/osm.config'
 import { logError } from '../lib/logger'
 import { haversineMeters } from '../util/geometry-conversion'
-
-const OSM_PRIMARY_KEYS = new Set([
-  'amenity', 'shop', 'tourism', 'leisure', 'craft', 'office', 'emergency',
-  'healthcare', 'man_made', 'natural', 'barrier', 'highway', 'railway',
-  'public_transport', 'aeroway', 'historic', 'landuse', 'military', 'power',
-  'club', 'advertising',
-])
 
 const OSM_ELEMENT_TYPE = t.Union([
   t.Literal('node'),
@@ -46,6 +41,25 @@ function editErrorStatus(error: OsmEditError): number {
     case 'invalid': return 400
     default: return 502
   }
+}
+
+/**
+ * The chain a feature's name identifies, when its tags don't already say so.
+ * Mirrors iD's "looks like a common feature with nonstandard tags" check.
+ */
+function brandSuggestion(tags: Record<string, string>) {
+  if (tags['brand:wikidata'] || tags['nobrand'] || tags['not:brand:wikidata']) {
+    return null
+  }
+  const primary = getPrimaryTag(tags)
+  const name = tags.name || tags.brand || tags.operator
+  if (!primary || !name) return null
+
+  const brand = matchBrand(`${primary.key}/${primary.value}`, name)
+  if (!brand) return null
+
+  const diff = brandTagDiff(brand, tags)
+  return diff.length ? { brand, diff } : null
 }
 
 function presetPayload(presetId: string, language: Language) {
@@ -131,7 +145,7 @@ publicApi.get(
       const geometryHint = element.type === 'node' ? 'point' : 'area'
       const match = matchTags(element.tags, geometryHint)
       const preset = match ? presetPayload(match.preset.id, language) : null
-      return { element, preset }
+      return { element, preset, brand: brandSuggestion(element.tags) }
     } catch (error: any) {
       if (error instanceof OsmEditError) {
         return status(editErrorStatus(error), { message: error.message })
@@ -165,13 +179,10 @@ publicApi.get(
     // Match on the primary feature tag only: a sub-preset like
     // amenity/cafe/coffee_shop should surface every nearby cafe, not just
     // ones sharing its cuisine.
-    const primary = Object.entries(preset.tags).find(([k]) =>
-      OSM_PRIMARY_KEYS.has(k),
-    )
-    const fallback = Object.entries(preset.tags)[0]
-    const [key, value] = primary ?? fallback ?? []
-    if (!key) return { results: [] }
+    const primary = getPrimaryTag(preset.tags)
+    if (!primary) return { results: [] }
 
+    const { key, value } = primary
     const selector = value === '*' ? `["${key}"]` : `["${key}"="${value}"]`
     const radius = query.radius ?? 100
     const overpassQuery = `[out:json][timeout:10];(node${selector}(around:${radius},${query.lat},${query.lng});way${selector}(around:${radius},${query.lat},${query.lng}););out tags center 10;`
@@ -223,6 +234,41 @@ publicApi.get(
       summary: 'Find nearby elements matching a preset',
       description:
         'Checks Overpass for existing elements with the same primary tags near a point, to avoid duplicate POIs.',
+    },
+  },
+)
+
+/**
+ * GET /osm/brands/search — Brand suggestions for a name, within a preset.
+ */
+publicApi.get(
+  '/brands/search',
+  ({ query, status }) => {
+    const preset = getPresetById(query.presetId)
+    if (!preset) return status(404, { message: 'Preset not found' })
+
+    const primary = getPrimaryTag(preset.tags)
+    if (!primary) return { results: [] }
+
+    return {
+      results: searchBrands(
+        query.q,
+        `${primary.key}/${primary.value}`,
+        query.cc?.toLowerCase(),
+      ),
+    }
+  },
+  {
+    query: t.Object({
+      q: t.String(),
+      presetId: t.String(),
+      cc: t.Optional(t.String({ maxLength: 2 })),
+    }),
+    detail: {
+      tags: ['OSM'],
+      summary: 'Search brands in the Name Suggestion Index',
+      description:
+        'Returns chains matching a name for the preset\'s primary tag, with their canonical tags and logo.',
     },
   },
 )

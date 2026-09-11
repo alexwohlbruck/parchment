@@ -5,11 +5,7 @@ import type {
   SubmitEditInput,
   SubmitEditResult,
 } from '@server/services/osm-edit.service'
-import type {
-  FieldDefinition,
-  GeometryType,
-  PresetSearchResult,
-} from '@server/lib/osm-presets'
+import type { FieldDefinition, GeometryType } from '@server/lib/osm-presets'
 import type { OsmEdit } from '@server/schema/osm-edits.schema'
 import type { NsiBrand } from '@server/lib/nsi'
 
@@ -21,18 +17,23 @@ export type {
   SubmitEditResult,
   FieldDefinition,
   GeometryType,
-  PresetSearchResult,
   OsmEdit,
 }
 
-/** A preset with its editable field definitions, as served by GET /osm/presets/:id. */
-export interface EditablePreset {
+/** A preset in the picker, carrying the app's resolved POI icon. */
+export interface PresetSummary {
   id: string
   name: string
-  icon: string
+  iconName: string
+  iconPack: 'lucide' | 'maki'
+  iconCategory: string
   geometry: GeometryType[]
   tags: Record<string, string>
   addTags?: Record<string, string>
+}
+
+/** A preset with its editable field definitions, as served by GET /osm/presets/:id. */
+export interface EditablePreset extends PresetSummary {
   fields: FieldDefinition[]
 }
 

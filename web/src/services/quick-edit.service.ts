@@ -8,7 +8,7 @@ import type {
   OsmEdit,
   OsmLiveElement,
   OsmElementType,
-  PresetSearchResult,
+  PresetSummary,
   SubmitEditInput,
   SubmitEditResult,
 } from '@/types/quick-edit.types'
@@ -17,8 +17,8 @@ export function useQuickEditService() {
   async function searchPresets(
     q: string,
     geometry?: GeometryType,
-  ): Promise<PresetSearchResult[]> {
-    const response = await api.get<{ results: PresetSearchResult[] }>(
+  ): Promise<PresetSummary[]> {
+    const response = await api.get<{ results: PresetSummary[] }>(
       '/osm/presets/search',
       { params: { q, geometry } },
     )

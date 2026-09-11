@@ -2,6 +2,14 @@
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.11.6] - 2026-09-11
+
+### Added
+
 * The combined travel mode now shows one of every kind of trip that works for
   your route — riding to the station, transit with a shared bike at the far
   end — instead of only the plain walk-and-ride options.

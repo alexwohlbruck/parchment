@@ -38,11 +38,16 @@ export function roundUpToFive(time: Dayjs): Dayjs {
 export function constraintSummary(
   constraint: WaypointTimeConstraint | null | undefined,
   arrivesAt: Date | null | undefined,
+  now: Dayjs = dayjs(),
 ): { text: string; tone: 'set' | 'derived' } | null {
   if (constraint?.time) {
-    const at = dayjs(constraint.time).format('h:mm A')
+    const at = dayjs(constraint.time)
+    // A time alone reads as today; any other day has to say which.
+    const when = at.isSame(now, 'day')
+      ? at.format('h:mm A')
+      : `${at.format('D MMM')}, ${at.format('h:mm A')}`
     const verb = constraint.mode === 'arriveBy' ? 'By' : 'From'
-    return { text: `${verb} ${at}`, tone: 'set' }
+    return { text: `${verb} ${when}`, tone: 'set' }
   }
   if (constraint?.dwellTime) {
     return { text: formatDwell(constraint.dwellTime), tone: 'set' }

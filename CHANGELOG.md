@@ -22,6 +22,8 @@
   arrive there.
 * Stop times can no longer overlap. A stop can't be set earlier than the trip
   can reach it, and moving one later carries the stops after it along.
+* A stop's time can now be set on any date, not just today or tomorrow. A time
+  on another day says which day it is on the stop itself.
 
 ### Changed
 

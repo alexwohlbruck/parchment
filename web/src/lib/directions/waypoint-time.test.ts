@@ -45,10 +45,19 @@ describe('formatDwell', () => {
 
 describe('constraintSummary', () => {
   it('states the rider\'s own instruction', () => {
-    expect(constraintSummary({ mode: 'departAfter', time: at('13:30').toISOString() }, null))
+    expect(constraintSummary({ mode: 'departAfter', time: at('13:30').toISOString() }, null, at('09:00')))
       .toEqual({ text: 'From 1:30 PM', tone: 'set' })
-    expect(constraintSummary({ mode: 'arriveBy', time: at('13:30').toISOString() }, null))
+    expect(constraintSummary({ mode: 'arriveBy', time: at('13:30').toISOString() }, null, at('09:00')))
       .toEqual({ text: 'By 1:30 PM', tone: 'set' })
+  })
+
+  it('names the day when the time is not today', () => {
+    const summary = constraintSummary(
+      { mode: 'departAfter', time: at('13:30').add(1, 'week').toISOString() },
+      null,
+      at('13:30'),
+    )
+    expect(summary).toEqual({ text: 'From 22 Jan, 1:30 PM', tone: 'set' })
   })
 
   it('shows a stay when that is all that was asked for', () => {
@@ -65,6 +74,7 @@ describe('constraintSummary', () => {
     const summary = constraintSummary(
       { mode: 'departAfter', time: at('14:00').toISOString() },
       at('13:29').toDate(),
+      at('09:00'),
     )
     expect(summary).toEqual({ text: 'From 2:00 PM', tone: 'set' })
   })

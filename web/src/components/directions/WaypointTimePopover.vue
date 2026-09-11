@@ -10,7 +10,9 @@
  */
 import { computed, ref, watch } from 'vue'
 import dayjs from 'dayjs'
-import { ClockIcon, AlertTriangleIcon } from 'lucide-vue-next'
+import { CalendarIcon, ClockIcon, AlertTriangleIcon } from 'lucide-vue-next'
+import { CalendarDate, type DateValue } from '@internationalized/date'
+import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -71,6 +73,7 @@ const day = ref<string>('')       // YYYY-MM-DD
 const clock = ref<string>('')     // HH:mm
 const dwell = ref<number | null>(null)
 const timed = ref(true)
+const showCalendar = ref(false)
 
 /**
  * What this stop's time should start from when nothing is set yet.
@@ -117,28 +120,57 @@ function loadDraft() {
 
 // Reload whenever the sheet opens, so a draft abandoned last time doesn't
 // come back, and an edit made elsewhere is picked up.
-watch(open, (isOpen) => { if (isOpen) loadDraft() }, { immediate: true })
+watch(open, (isOpen) => {
+  if (!isOpen) return
+  loadDraft()
+  showCalendar.value = false
+}, { immediate: true })
 watch(() => props.modelValue, () => { if (!open.value) loadDraft() })
 
-const dayOptions = computed(() => {
-  const from = roundUpToFive(dayjs())
-  const floor = props.earliest ? dayjs(props.earliest) : null
-  const ceiling = props.latest ? dayjs(props.latest) : null
+const floorDay = computed(() => (props.earliest ? dayjs(props.earliest) : null))
+const ceilingDay = computed(() => (props.latest ? dayjs(props.latest) : null))
 
+/** A day entirely before the floor, or after the deadline, is out of reach. */
+function dayOutOfRange(value: string) {
+  const at = dayjs(value)
+  return (!!floorDay.value && at.isBefore(floorDay.value, 'day'))
+    || (!!ceilingDay.value && at.isAfter(ceilingDay.value, 'day'))
+}
+
+const quickDays = computed(() => {
+  const today = dayjs().startOf('day')
   return [
-    { value: from.format('YYYY-MM-DD'), label: 'Today' },
-    { value: from.add(1, 'day').format('YYYY-MM-DD'), label: 'Tomorrow' },
-  ].map((option) => {
-    const at = dayjs(option.value)
-    return {
-      ...option,
-      // A day entirely before the floor, or after the deadline, is not a
-      // day this stop can happen on.
-      disabled: (!!floor && at.isBefore(floor, 'day'))
-        || (!!ceiling && at.isAfter(ceiling, 'day')),
-    }
-  })
+    { value: today.format('YYYY-MM-DD'), label: 'Today' },
+    { value: today.add(1, 'day').format('YYYY-MM-DD'), label: 'Tomorrow' },
+  ].map((option) => ({ ...option, disabled: dayOutOfRange(option.value) }))
 })
+
+/** Any day that isn't one of the two on offer is shown on its own chip. */
+const isOtherDay = computed(
+  () => !quickDays.value.some((option) => option.value === day.value),
+)
+
+const toCalendarDate = (value: dayjs.Dayjs) =>
+  new CalendarDate(value.year(), value.month() + 1, value.date())
+
+const calendarValue = computed(() => toCalendarDate(dayjs(day.value)))
+const calendarMin = computed(() =>
+  floorDay.value ? toCalendarDate(floorDay.value) : undefined,
+)
+const calendarMax = computed(() =>
+  ceilingDay.value ? toCalendarDate(ceilingDay.value) : undefined,
+)
+
+function pickDay(value: string) {
+  day.value = value
+  timed.value = true
+  showCalendar.value = false
+}
+
+function pickFromCalendar(value: DateValue | undefined) {
+  if (!value) return
+  pickDay(`${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`)
+}
 
 /** Composed instant, or null while no time of day has been picked. */
 const draftTime = computed(() =>
@@ -251,18 +283,39 @@ const heading = computed(() => {
         </ToggleGroup>
 
         <div class="space-y-2">
-          <div class="grid grid-cols-2 gap-1">
+          <div class="grid grid-cols-3 gap-1">
             <Button
-              v-for="option in dayOptions"
+              v-for="option in quickDays"
               :key="option.value"
               :variant="day === option.value && timed ? 'default' : 'outline'"
               :disabled="option.disabled"
-              class="h-10 text-xs"
-              @click="day = option.value; timed = true"
+              class="h-10 px-1 text-xs"
+              @click="pickDay(option.value)"
             >
               {{ option.label }}
             </Button>
+            <Button
+              :variant="isOtherDay && timed ? 'default' : 'outline'"
+              class="h-10 gap-1 px-1 text-xs"
+              :aria-expanded="showCalendar"
+              @click="showCalendar = !showCalendar"
+            >
+              <CalendarIcon class="size-3.5 shrink-0" />
+              <span class="truncate">
+                {{ isOtherDay ? dayjs(day).format('D MMM') : 'Other' }}
+              </span>
+            </Button>
           </div>
+
+          <Calendar
+            v-if="showCalendar"
+            :model-value="calendarValue"
+            :min-value="calendarMin"
+            :max-value="calendarMax"
+            class="rounded-lg border border-input p-2"
+            initial-focus
+            @update:model-value="pickFromCalendar"
+          />
 
           <TimePicker
             v-model="clock"

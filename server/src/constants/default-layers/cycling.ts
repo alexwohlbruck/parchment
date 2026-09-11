@@ -221,9 +221,17 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     dash: [3, 2],
   }),
 
-  // Signed route relations (icn / ncn / rcn / lcn): a recommendation laid over
-  // whatever infrastructure exists, so a thin line rather than a claim about
-  // the road.
+  /**
+   * Signed route relations (icn / ncn / rcn / lcn).
+   *
+   * Dash-dot, which is how every map draws a line that exists by designation
+   * rather than in the ground — a boundary, a jurisdiction. That is exactly
+   * what a signed route is: a recommendation laid over whatever is actually
+   * built, and often over nothing. It keeps the route legible while making it
+   * unmistakable for a facility, which matters most on a street that already
+   * carries its own marks and would otherwise gain a third green line down the
+   * middle claiming you ride there.
+   */
   wayLayer({
     id: 'bicycle-routes',
     name: 'Bike Routes',
@@ -232,7 +240,8 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     minzoom: 9,
     filter: ['!=', ['get', 'state'], 'proposed'],
     color: themed(INK.route),
-    width: width(9, 0.8, 12, 1.2, 14, 1.8, 16, 2.4),
+    width: width(9, 0.8, 12, 1.1, 14, 1.4, 16, 1.8),
+    dash: [5, 2, 1, 2],
   }),
 
   // Not built yet. Both are dashed and quiet — a plan is not a route — and the

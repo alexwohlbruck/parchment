@@ -124,12 +124,12 @@ const STROKE: Record<FlavorId, Record<string, string>> = {
   light: {
     track: 'hsl(160, 64%, 27%)',
     lane: 'hsl(158, 56%, 35%)',
-    shared: 'hsl(158, 30%, 49%)',
+    shoulder: 'hsl(158, 30%, 49%)',
   },
   dark: {
     track: 'hsl(158, 52%, 62%)',
     lane: 'hsl(156, 46%, 57%)',
-    shared: 'hsl(156, 24%, 55%)',
+    shoulder: 'hsl(156, 24%, 55%)',
   },
 }
 
@@ -148,18 +148,49 @@ const STROKE_KINDS: { kind: string; values: string[]; dash?: number[] }[] = [
     dash: [6, 3],
   },
   {
-    kind: 'shared',
-    values: ['shared_lane', 'share_busway', 'shoulder', 'opposite'],
+    kind: 'shoulder',
+    values: ['shoulder'],
     dash: [2, 6],
   },
 ]
 
-/** What a side's tag says, falling back to the tag that covers both sides. */
-const sideValue = (side: string): any => [
-  'coalesce',
-  ['get', `cycleway_${side}`],
-  ['get', 'cycleway'],
+/**
+ * Barrelman's computed `infra_type`, back as the tag value a side would carry.
+ *
+ * The last resort, and not a rare one: `cycleway:both=lane` sets neither side
+ * tag nor the plain `cycleway` one, so a street tinted as having a lane would
+ * carry no marking at all. Anything the tint draws has to get a stroke, or the
+ * grammar has a hole exactly where the map is busiest.
+ */
+const INFRA_AS_SIDE: any = [
+  'match',
+  ['get', 'infra_type'],
+  ['cycle_track'], 'track',
+  ['cycle_lane'], 'lane',
+  ['shoulder'], 'shoulder',
+  '',
 ]
+
+/**
+ * What a side's tag says: that side, then the tag covering both sides, then
+ * what Barrelman worked out. Empty strings count as absent — the columns are
+ * served from Postgres and an untagged side arrives as `''`, which `coalesce`
+ * would otherwise treat as an answer.
+ */
+const sideValue = (side: string): any => {
+  const said = (value: any): any => [
+    'case',
+    ['all', ['has', value[1]], ['!=', value, '']],
+    value,
+    null,
+  ]
+  return [
+    'coalesce',
+    said(['get', `cycleway_${side}`]),
+    said(['get', 'cycleway']),
+    INFRA_AS_SIDE,
+  ]
+}
 
 /**
  * Scale an expression's OUTPUTS, leaving its zoom stops alone.
@@ -169,7 +200,8 @@ const sideValue = (side: string): any => [
  * the ramp produces gets the same number with the zoom still on the outside.
  */
 export function scaleOutputs(expression: any, factor: number): any {
-  if (typeof expression === 'number') return expression * factor
+  // `-0` is a legal number and an illegible one to find in a style file.
+  if (typeof expression === 'number') return expression * factor || 0
   if (!Array.isArray(expression)) return expression
   const [op] = expression
   if (op === 'interpolate' || op === 'step') {
@@ -205,26 +237,31 @@ export function scaleOutputs(expression: any, factor: number): any {
 const TINT_OF_INFRA = (flavor: FlavorId): any => [
   'match',
   ['get', 'infra_type'],
-  ['cycle_track', 'bicycle_road', 'cycle_street', 'bicycle_designated'],
+  ['bicycle_road', 'cycle_street', 'bicycle_designated'],
   STRENGTH[flavor].strong,
-  ['cycle_lane'],
+  ['shared_lane', 'share_busway', 'opposite'],
+  STRENGTH[flavor].faint,
   STRENGTH[flavor].medium,
-  ['shared_lane', 'opposite', 'shoulder', 'share_busway'],
-  STRENGTH[flavor].faint,
-  STRENGTH[flavor].faint,
 ]
 
 /**
- * What the tint is drawn for: provision ON a road.
+ * What the tint is drawn for: streets you ride IN.
  *
- * `cycleway` and the bicycle paths are absent — those are ways built for
- * bikes, not roads marked for them, and they keep their own cased mark.
- * `bicycle_yes` is absent too: permission rather than provision, and on most
- * of the residential grid.
+ * The tint claims the whole carriageway, so it has to mean the whole
+ * carriageway is yours — a bicycle road, a cycle street, a road designated for
+ * bikes, or a lane shared with traffic that you take by riding in it. Where
+ * the provision is a strip at the edge, the street is left alone and the strip
+ * is drawn where it actually is; see `STROKE_KINDS`. Bedford Avenue has a lane
+ * down each side, and painting the middle green would say you belong in the
+ * traffic between them.
+ *
+ * `cycleway` and the bicycle paths are absent — ways built for bikes, not
+ * roads marked for them, and they keep their own cased mark. `bicycle_yes` is
+ * absent too: permission rather than provision, and on most of the grid.
  */
 const TINTED_INFRA = [
-  'cycle_track', 'cycle_lane', 'shared_lane', 'opposite', 'shoulder',
-  'share_busway', 'bicycle_road', 'cycle_street', 'bicycle_designated',
+  'shared_lane', 'share_busway', 'opposite',
+  'bicycle_road', 'cycle_street', 'bicycle_designated',
 ]
 
 /**
@@ -250,15 +287,39 @@ export const CYCLING_WAYS_LAYER_IDS = [
 ]
 
 /**
- * The markings on a tinted street, one layer per pattern per side.
+ * The strip of a street that is yours, one layer per pattern per side.
  *
- * From z16 only. Below that the offset is smaller than the line drawn at it,
- * so the two sides collapse onto each other and the map gains nothing but
- * twice the geometry; the road tint carries the network at those zooms.
+ * These are the only mark an edge-lane street gets — such a street is
+ * deliberately not tinted — so they draw from z12. What waits for z16 is the
+ * OFFSET: below that the two sides are less than a line apart, so they collapse
+ * onto the centreline and read as one route, which is the right answer at a
+ * zoom where you are looking at a network rather than at a street.
  *
  * `line-offset` is positive to the right of the way's direction, which is what
  * `cycleway:right` means too, so the sign needs no correction.
  */
+/** Where a street becomes wide enough to show which side a lane is on. */
+const SIDES_FROM = 16
+
+/**
+ * Half the road above `SIDES_FROM`, nothing below it.
+ *
+ * Built by rebuilding the ramp's stops rather than wrapping it in a `step`:
+ * `["zoom"]` is only legal as the direct input of a top-level expression, and
+ * a step around an interpolate nests two of them.
+ */
+export function offsetRamp(width: any, factor: number): any {
+  const scaled = scaleOutputs(width, factor)
+  if (!Array.isArray(scaled) || scaled[0] !== 'interpolate') return scaled
+  const [op, interpolation, input, ...stops] = scaled
+  const kept: any[] = []
+  for (let i = 0; i < stops.length; i += 2) {
+    if (stops[i] >= SIDES_FROM) kept.push(stops[i], stops[i + 1])
+  }
+  // Half a zoom of fade, so the lanes slide out to the kerb rather than jump.
+  return [op, interpolation, input, SIDES_FROM - 0.5, 0, ...kept]
+}
+
 export function cyclingStrokeLayers(
   flavor: FlavorId,
   roadWidth: (layerId: string) => any,
@@ -274,7 +335,7 @@ export function cyclingStrokeLayers(
       type: 'line',
       source: CYCLING_WAYS_SOURCE,
       'source-layer': CYCLING_WAYS_TILES,
-      minzoom: 16,
+      minzoom: 12,
       filter: [
         'all',
         ['!', ['has', 'state']],
@@ -288,7 +349,7 @@ export function cyclingStrokeLayers(
       paint: {
         'line-color': STROKE[flavor][kind],
         'line-width': ['interpolate', ['linear'], ['zoom'], 16, 1.1, 19, 2],
-        'line-offset': scaleOutputs(
+        'line-offset': offsetRamp(
           forBarrelmanProperties(width),
           side === 'right' ? 0.5 : -0.5,
         ),

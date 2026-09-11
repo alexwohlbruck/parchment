@@ -23,14 +23,16 @@
   name that wraps reads as one block instead of separate lines
 * Street names shrink to small spaced capitals as you zoom in, so the shops and
   stations you're looking for carry the map
-* Roads and paths marked for bikes — a lane, a sharrow, a designated footpath
-  — now tint the street itself green at exactly that street's width, in a
-  stronger green the better the provision is
+* Streets you ride *in* — bicycle roads, cycle streets, sharrows, designated
+  footpaths — now tint green at exactly that street's width. Streets with a
+  lane down one side aren't tinted; the lane is drawn where it actually is
 * Dedicated cycleways and bike paths keep their own cased line, solid where the
   surface is paved and dashed where it isn't
 * Bike lanes now show which side of the street they're on once you're zoomed in,
   with the dash saying how protected they are: solid is separated from traffic,
-  a short dash is a painted lane, a dotted line is shared with cars
+  a short dash is a painted lane, dots are a shoulder
+* Signed bike routes are drawn dash-dot, the way a boundary is — they're a
+  designation rather than something built, and shouldn't read as a lane
 * Proposed and under-construction bikeways read as not-yet-ridable — amber for
   roadworks, a faint ghost for a plan
 * The cycling layer now draws under place names and under transit lines, so a

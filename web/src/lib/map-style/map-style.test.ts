@@ -1679,7 +1679,7 @@ describe('cycling markings', () => {
 
   test('one layer per pattern per side', () => {
     expect(strokes).toHaveLength(6)
-    for (const kind of ['track', 'lane', 'shared']) {
+    for (const kind of ['track', 'lane', 'shoulder']) {
       for (const side of ['left', 'right']) {
         expect(strokes.map(l => l.id)).toContain(`Cycling ${kind} ${side}`)
       }
@@ -1694,15 +1694,44 @@ describe('cycling markings', () => {
     }
     expect(gap('Cycling track right')).toBe(0)
     expect(gap('Cycling lane right')).toBeGreaterThan(0)
-    expect(gap('Cycling shared right')).toBeGreaterThan(gap('Cycling lane right'))
+    expect(gap('Cycling shoulder right')).toBeGreaterThan(gap('Cycling lane right'))
   })
 
-  test('they only draw once the street is wide enough to have sides', () => {
-    for (const l of strokes) expect(l.minzoom).toBe(16)
+  /**
+   * An edge-lane street gets no tint, so the strokes are its only mark and
+   * have to draw well before the offset is meaningful. Below z16 they sit on
+   * the centreline and read as one route.
+   */
+  test('they draw from z12, but only take a side at z16', () => {
+    for (const l of strokes) {
+      expect(l.minzoom).toBe(12)
+      const [, , , ...stops] = l.paint['line-offset'] as any[]
+      expect(stops[0]).toBe(15.5)
+      expect(stops[1]).toBe(0)
+    }
+  })
+
+  /**
+   * The two treatments are exclusive: a street is either one you ride in, or
+   * one with a strip at its edge. Tinting a street that has side lanes would
+   * say you belong in the traffic between them.
+   */
+  test('a street with an edge lane is not also tinted', () => {
+    const tinted = JSON.stringify(
+      built.find(l => l.id === `Minor road${CYCLING_WAYS_SUFFIX}`)!.filter,
+    )
+    for (const edge of ['cycle_lane', 'cycle_track', 'shoulder']) {
+      expect(tinted, edge).not.toContain(edge)
+    }
+    // And the ones you ride in get no side stroke.
+    const sides = JSON.stringify(strokes.map(l => l.filter))
+    for (const middle of ['shared_lane', 'bicycle_road', 'cycle_street']) {
+      expect(sides, middle).not.toContain(middle)
+    }
   })
 
   test('left and right are mirrored, and right is positive', () => {
-    for (const kind of ['track', 'lane', 'shared']) {
+    for (const kind of ['track', 'lane', 'shoulder']) {
       const right = strokes.find(l => l.id === `Cycling ${kind} right`)!
       const left = strokes.find(l => l.id === `Cycling ${kind} left`)!
       // Negating outputs only — the zoom stops are not the thing being mirrored.
@@ -1719,23 +1748,28 @@ describe('cycling markings', () => {
    */
   test('the offset is exactly half the road it sits on', () => {
     const road = built.find(l => l.id === 'Minor road')!
-    const compile = (e: any, key: string) => {
-      const r = expression.createExpression(e, latest.paint_line['line-width'], key)
-      if (r.result !== 'success') throw new Error(`${key}: ${r.value.join(', ')}`)
+    const compile = (e: any) => {
+      const r = (expression.createExpression as any)(
+        e,
+        latest.paint_line['line-width'],
+        'layers[0].paint.line-width',
+      )
+      if (r.result !== 'success') throw new Error(r.value.join(', '))
       return r.value
     }
-    const width = compile(road.paint['line-width'], 'layers[0].paint.line-width')
+    const width = compile(road.paint['line-width'])
     const offset = compile(
       strokes.find(l => l.id === 'Cycling track right')!.paint['line-offset'],
-      'layers[1].paint.line-width',
     )
 
     for (const zoom of [16, 17, 18, 19, 20, 22]) {
       for (const cls of ['minor', 'service', 'secondary', 'tertiary', 'track']) {
         // The stroke reads Barrelman's `highway`; the road reads `class`.
         const highway = { minor: 'residential', service: 'service', secondary: 'secondary', tertiary: 'tertiary', track: 'track' }[cls]
-        const w = width.evaluate({ zoom }, { properties: { class: cls } })
-        const o = offset.evaluate({ zoom }, { properties: { highway } })
+        const at = (properties: Record<string, unknown>) =>
+          ({ type: 2, properties }) as any
+        const w = (width as any).evaluate({ zoom }, at({ class: cls }))
+        const o = (offset as any).evaluate({ zoom }, at({ highway }))
         expect(o, `${cls} @z${zoom}`).toBeCloseTo(w / 2, 6)
       }
     }

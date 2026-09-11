@@ -127,6 +127,32 @@ describe('cycling defaults', () => {
     expect(labels.configuration.layout['text-transform']).toBeUndefined()
   })
 
+  /**
+   * MapLibre reads a filter as legacy OR as an expression, never both, and a
+   * mixed one fails at style load — the layer simply never draws, with nothing
+   * on the map to say so. That is how the paved/unpaved split shipped invisible.
+   *
+   * The tell is the operand: legacy names a property with a bare string,
+   * an expression wraps it in `["get", …]`.
+   */
+  test.each(CYCLING_LAYER_TEMPLATES.map(t => [t.templateId, t]))(
+    '%s: the filter speaks one syntax',
+    (_id, t: any) => {
+      const OPS = new Set(['==', '!=', '<', '<=', '>', '>=', 'in', '!in', 'has', '!has'])
+      const seen = new Set<string>()
+      const walk = (f: any) => {
+        if (!Array.isArray(f)) return
+        if (OPS.has(f[0])) seen.add(typeof f[1] === 'string' ? 'legacy' : 'expression')
+        f.forEach(walk)
+      }
+      walk(t.configuration.filter)
+      expect([...seen].sort(), `${t.templateId} mixes syntaxes`).not.toEqual([
+        'expression',
+        'legacy',
+      ])
+    },
+  )
+
   test('every cycling group owns a layer or the basemap behind it', () => {
     const groups = DEFAULT_LAYER_GROUPS.filter(g =>
       g.templateId.startsWith('default:group:cycling'),

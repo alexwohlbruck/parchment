@@ -142,17 +142,24 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
 const BUILT = ['!has', 'state']
 
 /**
- * Surfaces you can ride on a road bike. Off-street ways draw solid when the
- * surface is hard and dashed when it is not — the on-street dash grammar
+ * Surfaces that are not a hard ride. Off-street ways draw solid where the
+ * surface is hard and dashed where it is not — the on-street dash grammar
  * (`cycling-layers.ts`) never appears on these, so the two cannot be confused.
+ *
+ * Named by what is soft rather than by what is paved, so an untagged path —
+ * which is most of them — comes out solid. Claiming a way is rough on no
+ * evidence is the worse error: it is the one that sends a road bike around.
+ *
+ * Legacy filter syntax, like the `infra_type` clauses these sit beside. The two
+ * syntaxes cannot be mixed inside one filter, and an expression here made every
+ * unpaved layer fail to parse and silently not draw.
  */
-const PAVED = [
-  'in', 'surface',
-  'asphalt', 'paved', 'concrete', 'concrete:plates', 'paving_stones',
-  'chipseal', 'sett', 'metal', 'wood',
+const SOFT_SURFACES = [
+  'unpaved', 'gravel', 'fine_gravel', 'compacted', 'dirt', 'ground', 'earth',
+  'grass', 'sand', 'mud', 'pebblestone', 'woodchips',
 ]
-const HARD = ['all', PAVED]
-const SOFT = ['!', PAVED]
+const HARD = ['!in', 'surface', ...SOFT_SURFACES]
+const SOFT = ['in', 'surface', ...SOFT_SURFACES]
 
 export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways: their own way, not a street. A casing under a solid

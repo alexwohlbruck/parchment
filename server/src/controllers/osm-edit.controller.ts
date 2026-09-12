@@ -17,8 +17,8 @@ import {
   submitEdit,
   getPendingEdits,
   OsmEditError,
-  type OsmElementType,
 } from '../services/osm-edit.service'
+import type { OsmElementType } from '../types/osm-edit.types'
 import { integrationManager } from '../services/integrations'
 import { IntegrationId } from '../types/integration.enums'
 import type { OverpassIntegration } from '../services/integrations/overpass-integration'

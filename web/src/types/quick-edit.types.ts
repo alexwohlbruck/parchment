@@ -4,7 +4,7 @@ import type {
   OsmLiveElement,
   SubmitEditInput,
   SubmitEditResult,
-} from '@server/services/osm-edit.service'
+} from '@server/types/osm-edit.types'
 import type { FieldDefinition, GeometryType } from '@server/lib/osm-presets'
 import type { OsmEdit } from '@server/schema/osm-edits.schema'
 import type { NsiBrand } from '@server/lib/nsi'

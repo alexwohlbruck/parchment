@@ -3,12 +3,10 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
-import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
 import {
   PencilIcon,
-  LinkIcon,
   ClockIcon,
   InfoIcon,
   TriangleAlertIcon,
@@ -19,8 +17,8 @@ import { useAppService } from '@/services/app.service'
 import { useExternalLink } from '@/composables/useExternalLink'
 import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@/types/integrations.types'
-import { AppRoute } from '@/router'
 import { LngLat } from '@/types/map.types'
+import ConnectPrompt from '@/components/quick-edit/ConnectPrompt.vue'
 import QuickEditMarker from '@/components/quick-edit/QuickEditMarker.vue'
 import PresetIcon from '@/components/quick-edit/PresetIcon.vue'
 import QuickEditForm from '@/components/quick-edit/QuickEditForm.vue'
@@ -225,18 +223,7 @@ async function handleSubmit(comment: string) {
 
 <template>
   <PanelLayout>
-    <EmptyState
-      v-if="!osmConnected"
-      :icon="LinkIcon"
-      :title="t('quickEdit.connectTitle')"
-      :description="t('quickEdit.connectDescription')"
-    >
-      <template #action>
-        <Button @click="router.push({ name: AppRoute.INTEGRATIONS })">
-          {{ t('quickEdit.connectAction') }}
-        </Button>
-      </template>
-    </EmptyState>
+    <ConnectPrompt v-if="!osmConnected" />
 
     <div v-else-if="loading" class="flex justify-center py-12">
       <Spinner size="sm" />

@@ -2076,7 +2076,8 @@
         "disconnect": "Disconnect",
         "viewProfile": "View OSM profile",
         "configureOAuthApp": "Configure OAuth application on OSM server",
-        "devCallbackInstructions": "Dev mode: After authorizing in the browser, copy the full redirect URL and run window.__osmDevCallback('URL') in the console"
+        "devCallbackInstructions": "This deployment can't be redirected back to. After authorizing, copy the URL OpenStreetMap lands on and run window.__osmDevCallback('URL') in the console",
+        "manualCallbackNoCode": "That URL has no authorization code in it — copy the whole address, including everything after the ?"
       },
       "viewDocs": "View documentation",
       "degraded": {

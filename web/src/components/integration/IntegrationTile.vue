@@ -119,6 +119,61 @@ function listenForOauthResult(popup: Window | null) {
   }, 1000)
 }
 
+/**
+ * Finish an OAuth flow whose redirect never made it back, by pasting the URL
+ * OpenStreetMap landed on into the console.
+ */
+function offerManualCallback() {
+  const finish = async (redirectUrl: string) => {
+    const params = new URL(redirectUrl).searchParams
+    const code = params.get('code')
+    const state = params.get('state')
+
+    if (!code || !state) {
+      toast.error(t('settings.integrations.osm.manualCallbackNoCode'))
+      return
+    }
+
+    try {
+      const { data } = await api.get('/integrations/osm/callback', {
+        params: { code, state },
+        headers: { Accept: 'application/json' },
+      })
+
+      if (data.status !== 'connected') {
+        toast.error(data.message || t('settings.integrations.osm.authError'))
+        return
+      }
+
+      delete (window as any).__osmDevCallback
+      toast.success(t('settings.integrations.osm.connected'))
+      await integrationService.fetchConfiguredIntegrations()
+      await integrationService.fetchAvailableIntegrations()
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message ||
+          error.message ||
+          t('settings.integrations.osm.authError'),
+      )
+    }
+  }
+
+  ;(window as any).__osmDevCallback = finish
+
+  console.log(
+    '%cConnecting an OpenStreetMap account',
+    'font-weight: bold; font-size: 14px;',
+  )
+  console.log(
+    "After you authorize, OpenStreetMap sends you to this app's registered\n" +
+      'redirect URI, which this deployment does not answer on — the page will\n' +
+      'fail to load. Copy its full URL (it carries ?code=...&state=...) and run:\n\n' +
+      "  window.__osmDevCallback('PASTE_FULL_URL_HERE')\n",
+  )
+
+  toast.info(t('settings.integrations.osm.devCallbackInstructions'))
+}
+
 async function handleOAuthClick() {
   const integration = props.integration
   const config = props.configuration
@@ -128,80 +183,14 @@ async function handleOAuthClick() {
     // Open OAuth authorization in a popup/new tab
     try {
       const response = await api.get('/integrations/osm/authorize')
-      const { url } = response.data
+      const { url, manualCallback } = response.data
 
-      const isDevMode = window.location.protocol === 'http:'
-
-      if (isDevMode) {
-        // Dev mode: OSM doesn't allow HTTP redirect URIs, so provide a console-based workaround.
-        // Open the auth URL - the redirect will fail, but the user can copy the URL from the browser.
+      // Some setups can't be redirected back to — the OAuth app's registered
+      // redirect URI points somewhere this deployment isn't. The server says
+      // so; the user finishes the exchange by hand.
+      if (manualCallback) {
         window.open(url, '_blank')
-
-        // Register a global callback for the dev workaround
-        ;(window as any).__osmDevCallback = async (redirectUrl: string) => {
-          try {
-            const parsedUrl = new URL(redirectUrl)
-            const code = parsedUrl.searchParams.get('code')
-            const state = parsedUrl.searchParams.get('state')
-
-            if (!code || !state) {
-              console.error(
-                'Missing code or state in URL. Make sure you copied the full URL.',
-              )
-              return
-            }
-
-            // Call the callback endpoint directly - it returns HTML but the server-side
-            // still performs the token exchange and creates the integration record
-            const response = await api.get('/integrations/osm/callback', {
-              params: { code, state },
-              // Accept any response type since it returns HTML
-              transformResponse: [(data: any) => data],
-            })
-
-            // Parse the HTML response to check for success/error
-            const html = response.data as string
-            if (html.includes('"status":"error"')) {
-              const msgMatch = html.match(/"message":"([^"]*)"/)
-              const errorMsg = msgMatch?.[1] || 'OAuth callback failed'
-              console.error(
-                `%c❌ ${errorMsg}`,
-                'color: red; font-weight: bold;',
-              )
-              toast.error(errorMsg)
-              return
-            }
-
-            toast.success(t('settings.integrations.osm.connected'))
-            await integrationService.fetchConfiguredIntegrations()
-            await integrationService.fetchAvailableIntegrations()
-
-            delete (window as any).__osmDevCallback
-            console.log(
-              '%c✅ OSM account connected successfully!',
-              'color: green; font-weight: bold;',
-            )
-          } catch (error: any) {
-            console.error('Dev OAuth callback failed:', error)
-            toast.error(
-              error.message || t('settings.integrations.osm.authError'),
-            )
-          }
-        }
-
-        console.log(
-          '%c🔑 OSM OAuth Dev Mode',
-          'font-weight: bold; font-size: 14px;',
-        )
-        console.log(
-          'After authorizing on OSM, the redirect will fail because the\n' +
-            'redirect URI uses HTTPS but your local server runs on HTTP.\n\n' +
-            'Copy the full URL from the browser address bar (it will contain\n' +
-            '?code=...&state=... parameters) and run:\n\n' +
-            "  window.__osmDevCallback('PASTE_FULL_URL_HERE')\n",
-        )
-
-        toast.info(t('settings.integrations.osm.devCallbackInstructions'))
+        offerManualCallback()
       } else {
         const popup = window.open(
           url,

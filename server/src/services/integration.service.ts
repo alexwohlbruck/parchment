@@ -1096,6 +1096,32 @@ export async function deleteIntegration(
   integrationManager.removeIntegration(userId, id)
 }
 
+/**
+ * Remove every row this user holds for one integration, readable or not.
+ *
+ * Reconnecting an OAuth account has to clear the old row to satisfy the
+ * (user, integration, scheme) unique index, and a row encrypted under a
+ * retired key never reaches `getConfiguredIntegrations` — so a caller that
+ * looks there sees nothing to delete and then collides on insert.
+ */
+export async function deleteUserIntegrations(
+  userId: string,
+  integrationId: IntegrationId,
+): Promise<number> {
+  const rows = await db
+    .select({ id: integrations.id })
+    .from(integrations)
+    .where(
+      and(
+        eq(integrations.userId, userId),
+        eq(integrations.integrationId, integrationId),
+      ),
+    )
+
+  for (const row of rows) await deleteIntegration(row.id, userId)
+  return rows.length
+}
+
 export async function testIntegrationConfig(
   integrationId: IntegrationId,
   config: Record<string, any>,

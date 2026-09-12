@@ -94,7 +94,7 @@ export function useTripIsolationService() {
   /** Bumps on every leg change, so a deferred answer for an itinerary the
    *  rider has already left does nothing at all. */
   let generation = 0
-  let reconciler: (() => void) | null = null
+  let reconciler: Array<[string, (e?: any) => void]> | null = null
   /** Segment indices whose stops are currently drawn as the overlay. */
   let overlaid = new Set<number>()
 
@@ -156,13 +156,18 @@ export function useTripIsolationService() {
   }
 
   /**
-   * Split the legs between the two renderers and draw both.
+   * Split the legs between the two renderers and draw.
    *
-   * Returns whether every leg has an answer — until then the caller keeps
-   * asking, because a leg portolan has simply not loaded the tiles for yet
-   * is indistinguishable from one it does not draw.
+   * `settled` is whether portolan's answer is final. Until it is, a leg it
+   * has not claimed is drawn by NOBODY: the tiles a leg runs through arrive
+   * over the fit's ease, so "no token yet" and "no pyramid draws this" look
+   * identical, and drawing the overlay in that gap puts plain circles and
+   * right-hand labels on screen only to replace them with portolan's
+   * bulleted ones a moment later.
+   *
+   * Returns whether every leg has a renderer.
    */
-  function drawResolved(legs: FocusedLeg[]): boolean {
+  function drawLegs(legs: FocusedLeg[], settled: boolean): boolean {
     const drawn: PortolanTripLeg[] = []
     const rest: FocusedLeg[] = []
     for (const leg of legs) {
@@ -177,19 +182,11 @@ export function useTripIsolationService() {
       }
     }
     portolan.setTripLegs(drawn)
-    drawOverlay(rest)
+    drawOverlay(settled ? rest : [])
     return rest.length === 0
   }
 
-  /**
-   * Ask portolan first, and keep asking.
-   *
-   * Drawing the overlay before portolan has had its chance puts plain
-   * circles and labels on screen only to replace them with portolan's
-   * bulleted ones a moment later; nothing at all is the better first
-   * frame. The reconciler fills it in as soon as the tiles can answer, and
-   * the overlay is still what a feed portolan does not draw gets.
-   */
+  /** Ask portolan first, and keep asking until its answer is definitive. */
   function renderStops() {
     if (!mapInstance) return
     const legs = focusedLegs()
@@ -201,38 +198,53 @@ export function useTripIsolationService() {
     }
 
     if (!portolan.isPortolanTransitEnabled()) {
-      portolan.setTripLegs(null)
-      drawOverlay(legs)
+      drawLegs(legs, true)
       return
     }
 
     const mine = generation
-    if (portolan.portolanTransitActive() && drawResolved(legs)) return
+    if (portolan.portolanTransitActive() && drawLegs(legs, false)) return
 
     let waitsForHydration = 0
     let missesWhileReady = 0
-    const reconcile = () => {
+    const onIdle = () => {
       if (mine !== generation) return detachReconciler()
       if (!portolan.portolanTransitActive()) {
         if (++waitsForHydration >= HYDRATION_IDLES) {
-          portolan.setTripLegs(null)
-          drawOverlay(legs)
+          drawLegs(legs, true)
           detachReconciler()
         }
         return
       }
-      if (drawResolved(legs)) return detachReconciler()
+      if (drawLegs(legs, false)) return detachReconciler()
       // Ready, tiles idle, some leg still unknown: once the fit has landed
       // and the tiles under it have answered a few times, that IS the
-      // answer, and the overlay drawResolved already left there stands.
-      if (++missesWhileReady >= MISS_IDLES) detachReconciler()
+      // answer, and the overlay is what the leg gets.
+      if (++missesWhileReady >= MISS_IDLES) {
+        drawLegs(legs, true)
+        detachReconciler()
+      }
     }
-    reconciler = reconcile
-    mapInstance.on('idle', reconcile)
+    // A portolan tile source finishing is the earliest instant its token can
+    // be resolved — idle also waits on the basemap, which is a frame or more
+    // later, and that frame is the one the rider sees empty. It only ever
+    // ANSWERS: the miss budget is counted on idle alone, or the flood of
+    // source events would exhaust it before the route's tiles arrived.
+    const onSourceData = (e: any) => {
+      if (mine !== generation) return detachReconciler()
+      if (!String(e?.sourceId ?? '').startsWith('portolan-tiles-')) return
+      if (!e.isSourceLoaded || !portolan.portolanTransitActive()) return
+      if (drawLegs(legs, false)) detachReconciler()
+    }
+    reconciler = [
+      ['idle', onIdle],
+      ['sourcedata', onSourceData],
+    ]
+    for (const [ev, fn] of reconciler) mapInstance.on(ev, fn)
   }
 
   function detachReconciler() {
-    if (reconciler && mapInstance) mapInstance.off('idle', reconciler)
+    for (const [ev, fn] of reconciler ?? []) mapInstance?.off(ev, fn)
     reconciler = null
   }
 

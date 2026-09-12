@@ -6,6 +6,11 @@
 
 ### Fixed
 
+* Reconnecting an OpenStreetMap account no longer fails with an "already
+  configured" error.
+* Quick edit's "connect your account" screen now has a button through to the
+  OpenStreetMap integration in settings.
+
 ## [0.12.0] - 2026-09-11
 
 ### Added

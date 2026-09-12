@@ -13,6 +13,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Waypoint, type WaypointTimeConstraint } from '@/types/map.types'
 import { useDirectionsService } from '@/services/directions.service'
+import { useDirectionsStore } from '@/stores/directions.store'
+import { legHandoffTimes } from '@/lib/directions/leg-times'
+import { cascadeConstraints, stopWindows } from '@/lib/directions/leg-schedule'
 import {
   Combobox,
   ComboboxInput,
@@ -56,6 +59,20 @@ const { coords, isSupported: isGeolocationSupported, resume } = useGeolocationSe
 const { t } = useI18n()
 
 const directionsService = useDirectionsService()
+const directionsStore = useDirectionsStore()
+
+/** The trip on offer by default — the one whose times a stop row shows. */
+const bestTrip = computed(() => directionsStore.trips?.trips?.[0])
+
+// Where the best trip hands one leg over to the next, so a stop can show
+// when the plan reaches it. Other trips reach it at other times.
+const handoffTimes = computed(() => legHandoffTimes(bestTrip.value))
+
+/** What each stop's time can be, given every leg around it. */
+const windows = computed(() => stopWindows(
+  bestTrip.value,
+  waypoints.value.map(w => w.timeConstraint),
+))
 const bookmarksStore = useBookmarksStore()
 const themeStore = useThemeStore()
 const { isMobileScreen } = useResponsive()
@@ -192,10 +209,42 @@ function addWaypoint() {
 /** Index of waypoint whose time popover should open (triggered from mobile menu). */
 const openTimePopoverIndex = ref<number | null>(null)
 
+/**
+ * Set one stop's time, then move whatever it made impossible.
+ *
+ * Pushing a stop later drags the ones after it along — a stop the rider
+ * pinned to an earlier time is now unreachable, so it moves to the earliest
+ * that still works rather than sitting there as a contradiction.
+ */
 function updateTimeConstraint(index: number, constraint: WaypointTimeConstraint | null) {
-  const updated = [...waypoints.value]
-  updated[index] = { ...updated[index], timeConstraint: constraint }
-  emit('update:modelValue', updated)
+  const pending = waypoints.value.map(w => w.timeConstraint ?? null)
+  pending[index] = constraint
+
+  const settled = cascadeConstraints(bestTrip.value, pending, index)
+
+  emit('update:modelValue', waypoints.value.map((waypoint, i) => (
+    settled[i] === (waypoint.timeConstraint ?? null)
+      ? waypoint
+      : { ...waypoint, timeConstraint: settled[i] }
+  )))
+}
+
+/** What a stop's time control needs — bound the same way in both layouts. */
+function timeProps(index: number) {
+  const count = waypoints.value.length
+  return {
+    modelValue: waypoints.value[index]?.timeConstraint,
+    index,
+    waypointCount: count,
+    prevConstraint: index > 0 ? waypoints.value[index - 1]?.timeConstraint : null,
+    nextConstraint: index < count - 1
+      ? waypoints.value[index + 1]?.timeConstraint
+      : null,
+    arrivesAt: handoffTimes.value.get(index) ?? null,
+    earliest: windows.value[index]?.earliest ?? null,
+    latest: windows.value[index]?.latest ?? null,
+    label: inputTexts.value[index] || undefined,
+  }
 }
 
 function getWaypointName(waypoint: Waypoint) {
@@ -523,12 +572,7 @@ defineExpose({
                       <!-- Active time badge stays visible without hover -->
                       <WaypointTimePopover
                         v-if="element.lngLat || element.timeConstraint"
-                        :model-value="element.timeConstraint"
-                        :index="index"
-                        :waypoint-count="waypoints.length"
-                        :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
-                        :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
-                        :class="element.timeConstraint ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity'"
+                        v-bind="timeProps(index)"
                         @update:model-value="c => updateTimeConstraint(index, c)"
                       />
                       <Button
@@ -556,11 +600,7 @@ defineExpose({
                       <!-- Time popover (rendered but trigger hidden — opened programmatically from menu) -->
                       <WaypointTimePopover
                         v-if="element.lngLat || element.timeConstraint"
-                        :model-value="element.timeConstraint"
-                        :index="index"
-                        :waypoint-count="waypoints.length"
-                        :prev-constraint="index > 0 ? waypoints[index - 1]?.timeConstraint : null"
-                        :next-constraint="index < waypoints.length - 1 ? waypoints[index + 1]?.timeConstraint : null"
+                        v-bind="timeProps(index)"
                         :open="openTimePopoverIndex === index"
                         @update:open="v => { if (!v) openTimePopoverIndex = null }"
                         @update:model-value="c => updateTimeConstraint(index, c)"

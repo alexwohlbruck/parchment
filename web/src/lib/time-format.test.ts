@@ -5,6 +5,8 @@ import {
   formatDurationParts,
   formatStopwatch,
   formatClockTime,
+  splitClockTime,
+  joinClockTime,
   timeAgoParts,
   formatTimeAgo,
 } from '@/lib/time-format'
@@ -106,5 +108,32 @@ describe('formatTimeAgo', () => {
     expect(formatTimeAgo(old, t, { absoluteAfterDays: Infinity })).toContain(
       'general.timeAgo.daysAgo',
     )
+  })
+})
+
+describe('splitClockTime / joinClockTime', () => {
+  it('reads a 24-hour time the way a clock face shows it', () => {
+    expect(splitClockTime('13:45')).toEqual({ hour: 1, minute: 45, period: 'PM' })
+    expect(splitClockTime('09:05')).toEqual({ hour: 9, minute: 5, period: 'AM' })
+  })
+
+  it('puts both twelves on the right side of the day', () => {
+    expect(splitClockTime('00:30')).toEqual({ hour: 12, minute: 30, period: 'AM' })
+    expect(splitClockTime('12:30')).toEqual({ hour: 12, minute: 30, period: 'PM' })
+  })
+
+  it('refuses what isn\'t a time', () => {
+    expect(splitClockTime('')).toBeNull()
+    expect(splitClockTime('25:00')).toBeNull()
+    expect(splitClockTime('10:75')).toBeNull()
+  })
+
+  it('round-trips every minute of the day', () => {
+    for (let hours = 0; hours < 24; hours++) {
+      for (const minute of [0, 7, 30, 59]) {
+        const time = `${String(hours).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+        expect(joinClockTime(splitClockTime(time)!)).toBe(time)
+      }
+    }
   })
 })

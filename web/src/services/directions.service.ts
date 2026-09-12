@@ -14,6 +14,7 @@ import { useGeocodingService } from '@/services/geocoding.service'
 import { getSearchResultName } from '@/lib/search/search-result'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { usePlaceService } from '@/services/place/place.service'
+import { constraintRequestFields } from '@/lib/directions/waypoint-time'
 import {
   serializeDirectionsQuery,
   parseDirectionsQuery,
@@ -47,6 +48,50 @@ function directionsService() {
       .map(wp => `${wp.lngLat!.lat},${wp.lngLat!.lng}`)
       .join(';')
     return `${coords}|${mode}|${sortPreference.value || ''}|${departureTime.value || ''}|${JSON.stringify(prefs)}`
+  }
+
+  /** Active vehicles whose location the user is happy to route from. */
+  function collectAvailableVehicles() {
+    if (routingPreferences.value.useKnownVehicleLocations === false) return []
+    return useVehiclesStore().activeVehicles
+      .filter((v) => v.lastKnownLocation)
+      .map((v) => ({
+        id: v.id,
+        type: v.type,
+        energyType: v.energyType ?? undefined,
+        name: v.name ?? undefined,
+        location: v.lastKnownLocation!,
+      }))
+  }
+
+  /**
+   * Build the API request for a run of waypoints.
+   *
+   * Uses getSearchResultName so reverse-geocoded map-clicks (which often have
+   * no place.name but do have an address) still produce a useful label —
+   * the same helper the waypoint input uses.
+   */
+  function buildTripRequest(wps: Waypoint[]) {
+    return {
+      waypoints: wps.map((wp, i) => ({
+        location: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
+        type:
+          i === 0
+            ? 'origin'
+            : i === wps.length - 1
+              ? 'destination'
+              : 'via',
+        label: wp.place ? getSearchResultName(wp.place as Place) : '',
+        // Per-waypoint time constraints
+        ...constraintRequestFields(wp.timeConstraint),
+      })),
+      selectedMode: selectedMode.value,
+      ...(sortPreference.value && { sortPreference: sortPreference.value }),
+      availableVehicles: collectAvailableVehicles(),
+      routingPreferences: routingPreferences.value,
+      ...(departureTime.value && { preferredDepartureTime: departureTime.value }),
+      requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    }
   }
 
   /**
@@ -92,48 +137,7 @@ function directionsService() {
     store.setLoading(true)
 
     try {
-      // Send active vehicles with known locations from the user's vehicle store
-      const useVehicleLocations =
-        routingPreferences.value.useKnownVehicleLocations !== false
-
-      const vehiclesStore = useVehiclesStore()
-      const availableVehicles = useVehicleLocations
-        ? vehiclesStore.activeVehicles
-            .filter((v) => v.lastKnownLocation)
-            .map((v) => ({
-              id: v.id,
-              type: v.type,
-              energyType: v.energyType ?? undefined,
-              name: v.name ?? undefined,
-              location: v.lastKnownLocation!,
-            }))
-        : []
-
-      // Build API request. Use getSearchResultName so reverse-geocoded
-      // map-clicks (which often have no place.name but do have an address)
-      // still produce a useful label — same helper the waypoint input uses.
-      const request = {
-        waypoints: validWaypoints.map((wp, i) => ({
-          location: { lat: wp.lngLat!.lat, lng: wp.lngLat!.lng },
-          type:
-            i === 0
-              ? 'origin'
-              : i === validWaypoints.length - 1
-                ? 'destination'
-                : 'via',
-          label: wp.place ? getSearchResultName(wp.place as Place) : '',
-          // Per-waypoint time constraints
-          ...(wp.timeConstraint?.mode === 'departAfter' && { departAfter: wp.timeConstraint.time }),
-          ...(wp.timeConstraint?.mode === 'arriveBy' && { arriveBy: wp.timeConstraint.time }),
-          ...(wp.timeConstraint?.dwellTime && { dwellTime: wp.timeConstraint.dwellTime }),
-        })),
-        selectedMode: selectedMode.value,
-        ...(sortPreference.value && { sortPreference: sortPreference.value }),
-        availableVehicles,
-        routingPreferences: routingPreferences.value,
-        ...(departureTime.value && { preferredDepartureTime: departureTime.value }),
-        requestId: `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      }
+      const request = buildTripRequest(validWaypoints)
 
       // Same inputs planned recently in this tab? Restore the exact
       // response (same trip ids and times) instead of re-planning — a page
@@ -168,33 +172,12 @@ function directionsService() {
               ...(place ? { place } : {}),
             }
           }),
-          availableVehicles: availableVehicles.map(v => v.type),
+          availableVehicles: request.availableVehicles.map(v => v.type),
           maxOptions: 5,
           includeWalking: true,
           preferences: { optimize: 'time', alternatives: true },
         },
-        trips: data.trips.map((candidate: any, idx: number) => ({
-          id: `${candidate.trip.requestId || `trip-${Date.now()}`}-${idx}`,
-          mode: normalizeMode(candidate.trip.segments[0]?.mode || 'walking'),
-          vehicleType: candidate.trip.segments[0]?.vehicle?.type || 'walking',
-          summary: {
-            totalDuration: candidate.trip.tripStats.totalDuration,
-            totalDistance: candidate.trip.tripStats.totalDistance,
-            hasTolls: false,
-            hasHighways: false,
-            hasFerries: false,
-          },
-          segments: flattenSegments(candidate.trip.segments),
-          startTime: new Date(candidate.trip.earliestStartTime),
-          endTime: new Date(candidate.trip.latestEndTime),
-          isRecommended: candidate.rank === 1,
-          rank: candidate.rank,
-          provider: 'multimodal',
-          cost: candidate.trip.tripStats.totalCost
-            ? { total: { amount: candidate.trip.tripStats.totalCost.value, currency: candidate.trip.tripStats.totalCost.currency } }
-            : undefined,
-          co2Emissions: candidate.trip.tripStats.totalCo2 ?? undefined,
-        })),
+        trips: data.trips.map((c: any, i: number) => mapCandidate(c, i)),
         earliestStart:
           data.trips[0]?.trip.earliestStartTime || new Date().toISOString(),
         latestEnd:
@@ -340,6 +323,33 @@ function directionsService() {
       sharedMobilityDetails: seg.details?.sharedMobilityDetails ?? null,
       stationEntrance: seg.stationEntrance ?? null,
       ...extractTransitFields(seg),
+    }
+  }
+
+  /** Map one scored backend candidate to the flattened UI trip. */
+  function mapCandidate(candidate: any, idx: number): any {
+    const stats = candidate.trip.tripStats
+    return {
+      id: `${candidate.trip.requestId || `trip-${Date.now()}`}-${idx}`,
+      mode: normalizeMode(candidate.trip.segments[0]?.mode || 'walking'),
+      vehicleType: candidate.trip.segments[0]?.vehicle?.type || 'walking',
+      summary: {
+        totalDuration: stats.totalDuration,
+        totalDistance: stats.totalDistance,
+        hasTolls: false,
+        hasHighways: false,
+        hasFerries: false,
+      },
+      segments: flattenSegments(candidate.trip.segments),
+      startTime: new Date(candidate.trip.earliestStartTime),
+      endTime: new Date(candidate.trip.latestEndTime),
+      isRecommended: candidate.rank === 1,
+      rank: candidate.rank,
+      provider: 'multimodal',
+      cost: stats.totalCost
+        ? { total: { amount: stats.totalCost.value, currency: stats.totalCost.currency } }
+        : undefined,
+      co2Emissions: stats.totalCo2 ?? undefined,
     }
   }
 

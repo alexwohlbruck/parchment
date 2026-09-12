@@ -161,7 +161,8 @@ export type WaypointTimeMode = 'departAfter' | 'arriveBy'
 
 export type WaypointTimeConstraint = {
   mode: WaypointTimeMode
-  time: string // ISO 8601
+  /** ISO 8601. Absent when the rider only asked to stay a while. */
+  time?: string
   dwellTime?: number // minutes to spend at this stop
 }
 

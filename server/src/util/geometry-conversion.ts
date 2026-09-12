@@ -81,3 +81,13 @@ export function calculateOSMCenter(
 
   return null
 }
+
+/** Great-circle distance between two points, in meters. */
+export function haversineMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  return turf.distance([lng1, lat1], [lng2, lat2], { units: 'meters' })
+}

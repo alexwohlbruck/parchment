@@ -26,6 +26,10 @@ export interface FieldDefinition {
   label: string
   placeholder?: string
   options?: Record<string, string | { title: string }>
+  /** From the preset's own `fields`, rather than its secondary `moreFields`. */
+  primary?: boolean
+  /** The tag this field documents, when it differs from `key`. */
+  reference?: { key: string; value?: string }
 }
 
 export interface MatchResult {
@@ -199,6 +203,7 @@ function loadFields(): Record<string, FieldDefinition> {
       label: def.label || id,
       placeholder: def.placeholder,
       options: normalizedOptions,
+      reference: def.reference,
     }
   }
 
@@ -504,7 +509,7 @@ export function getPresetFields(
   return getCached(c.fields, c.stats.fields, key, () => {
     const fieldData = loadFields()
     const translations = loadTranslations(language)
-    const fieldTranslations = translations.fields || {}
+    const fieldTranslations = translations.presets?.fields || {}
 
     const resolveFieldRefs = (fieldIds: string[]): string[] => {
       return fieldIds.flatMap((fieldId) => {
@@ -517,8 +522,9 @@ export function getPresetFields(
       })
     }
 
+    const primaryIds = new Set(resolveFieldRefs(preset.fields || []))
     const allFieldIds = [
-      ...resolveFieldRefs(preset.fields || []),
+      ...primaryIds,
       ...resolveFieldRefs(preset.moreFields || []),
     ]
 
@@ -527,7 +533,10 @@ export function getPresetFields(
         const field = fieldData[fieldId]
         if (!field) return null
 
-        const translatedField = { ...field }
+        const translatedField: FieldDefinition = {
+          ...field,
+          primary: primaryIds.has(fieldId),
+        }
         const fieldTranslation = fieldTranslations[fieldId]
 
         if (fieldTranslation) {
@@ -552,6 +561,16 @@ export function getPresetFields(
               }
             }
           }
+        }
+
+        // A "{other_field}" label inherits that field's label (e.g.
+        // building_area_yes → building)
+        const labelRef = translatedField.label.match(/^\{(.+)\}$/)
+        if (labelRef) {
+          translatedField.label =
+            fieldTranslations[labelRef[1]]?.label ||
+            fieldData[labelRef[1]]?.label ||
+            labelRef[1]
         }
 
         // Enrich with curated display-chip labels where available
@@ -686,4 +705,27 @@ export function initializeOsmPresets(): void {
   logger.debug(`   - Geometry index built`)
   logger.debug(`   - Cache initialized`)
   logger.debug(`   - Took ${Date.now() - start}ms`)
+}
+
+/**
+ * Keys that identify what a feature *is*, most-significant first. The primary
+ * tag drives duplicate checks and brand lookups, where a sub-preset like
+ * amenity/cafe/coffee_shop must still be treated as a cafe.
+ */
+const PRIMARY_KEYS = [
+  'amenity', 'shop', 'tourism', 'leisure', 'craft', 'office', 'healthcare',
+  'emergency', 'club', 'historic', 'man_made', 'aeroway', 'railway',
+  'public_transport', 'highway', 'barrier', 'power', 'landuse', 'natural',
+  'military', 'advertising',
+]
+
+/** The primary feature tag of a tag set, or null when none is present. */
+export function getPrimaryTag(
+  tags: Record<string, string>,
+): { key: string; value: string } | null {
+  for (const key of PRIMARY_KEYS) {
+    if (tags[key]) return { key, value: tags[key] }
+  }
+  const [key, value] = Object.entries(tags)[0] ?? []
+  return key ? { key, value } : null
 }

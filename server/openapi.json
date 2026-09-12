@@ -1175,7 +1175,7 @@
         "parameters": [],
         "operationId": "postDirections",
         "summary": "Plan a multimodal trip",
-        "description": "Generate multiple trip options using different transportation modes and combinations",
+        "description": "Generate multiple trip options using different transportation modes and combinations. A request with more than two waypoints returns one whole journey per travel strategy, each carried from stop to stop — a journey that cycles to the first stop still has the bike at the second. Segments carry `legIndex` to say which hop they belong to.",
         "tags": [
           "Trip Planning"
         ],
@@ -10288,6 +10288,557 @@
             }
           }
         },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/osm/presets/search": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "q",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2
+            },
+            "in": "query",
+            "name": "cc",
+            "required": false
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "point",
+                  "type": "string"
+                },
+                {
+                  "const": "area",
+                  "type": "string"
+                },
+                {
+                  "const": "line",
+                  "type": "string"
+                },
+                {
+                  "const": "vertex",
+                  "type": "string"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "geometry",
+            "required": false
+          }
+        ],
+        "operationId": "getOsmPresetsSearch",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Search OSM tagging presets and chains",
+        "description": "Searches the same category index the app search uses, so curated aliases (\"bike rack\") resolve.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/osm/element/{type}/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "node",
+                  "type": "string"
+                },
+                {
+                  "const": "way",
+                  "type": "string"
+                },
+                {
+                  "const": "relation",
+                  "type": "string"
+                }
+              ]
+            },
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "operationId": "getOsmElementByTypeById",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Fetch a live OSM element for editing",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/osm/duplicates": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "lat",
+            "required": true
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "lng",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "presetId",
+            "required": true
+          },
+          {
+            "schema": {
+              "minimum": 10,
+              "maximum": 500,
+              "anyOf": [
+                {
+                  "format": "numeric",
+                  "default": 0,
+                  "type": "string"
+                },
+                {
+                  "minimum": 10,
+                  "maximum": 500,
+                  "type": "number"
+                }
+              ]
+            },
+            "in": "query",
+            "name": "radius",
+            "required": false
+          }
+        ],
+        "operationId": "getOsmDuplicates",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Find nearby elements matching a preset",
+        "description": "Checks Overpass for existing elements with the same primary tags near a point, to avoid duplicate POIs.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/osm/brands/search": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "q",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "presetId",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2
+            },
+            "in": "query",
+            "name": "cc",
+            "required": false
+          }
+        ],
+        "operationId": "getOsmBrandsSearch",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Search brands in the Name Suggestion Index",
+        "description": "Returns chains matching a name for the preset's primary tag, with their canonical tags and logo.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/osm/tags/suggest": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "q",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "key",
+            "required": false
+          }
+        ],
+        "operationId": "getOsmTagsSuggest",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Suggest tag keys and values",
+        "description": "Suggestions come from the tagging schema's own taginfo export — the documented keys and values, not live taginfo.io usage.",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/osm/config": {
+      "get": {
+        "operationId": "getOsmConfig",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Get the configured OSM server",
+        "responses": {
+          "200": {}
+        }
+      }
+    },
+    "/osm/edits": {
+      "post": {
+        "parameters": [],
+        "operationId": "postOsmEdits",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Submit a quick edit to OpenStreetMap",
+        "description": "Creates a changeset, uploads the change, and closes the changeset using the user's connected OSM account.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "comment": {
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "type": "string"
+                  },
+                  "action": {
+                    "anyOf": [
+                      {
+                        "const": "create",
+                        "type": "string"
+                      },
+                      {
+                        "const": "modify",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "element": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "anyOf": [
+                          {
+                            "const": "node",
+                            "type": "string"
+                          },
+                          {
+                            "const": "way",
+                            "type": "string"
+                          },
+                          {
+                            "const": "relation",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "id": {
+                        "type": "number"
+                      },
+                      "version": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lon": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      },
+                      "tags": {
+                        "type": "object",
+                        "patternProperties": {
+                          "^(.*)$": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "tags"
+                    ]
+                  }
+                },
+                "required": [
+                  "comment",
+                  "action",
+                  "element"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "comment": {
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "type": "string"
+                  },
+                  "action": {
+                    "anyOf": [
+                      {
+                        "const": "create",
+                        "type": "string"
+                      },
+                      {
+                        "const": "modify",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "element": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "anyOf": [
+                          {
+                            "const": "node",
+                            "type": "string"
+                          },
+                          {
+                            "const": "way",
+                            "type": "string"
+                          },
+                          {
+                            "const": "relation",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "id": {
+                        "type": "number"
+                      },
+                      "version": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lon": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      },
+                      "tags": {
+                        "type": "object",
+                        "patternProperties": {
+                          "^(.*)$": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "tags"
+                    ]
+                  }
+                },
+                "required": [
+                  "comment",
+                  "action",
+                  "element"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "comment": {
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "type": "string"
+                  },
+                  "action": {
+                    "anyOf": [
+                      {
+                        "const": "create",
+                        "type": "string"
+                      },
+                      {
+                        "const": "modify",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "element": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "anyOf": [
+                          {
+                            "const": "node",
+                            "type": "string"
+                          },
+                          {
+                            "const": "way",
+                            "type": "string"
+                          },
+                          {
+                            "const": "relation",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "id": {
+                        "type": "number"
+                      },
+                      "version": {
+                        "type": "number"
+                      },
+                      "lat": {
+                        "minimum": -90,
+                        "maximum": 90,
+                        "type": "number"
+                      },
+                      "lon": {
+                        "minimum": -180,
+                        "maximum": 180,
+                        "type": "number"
+                      },
+                      "tags": {
+                        "type": "object",
+                        "patternProperties": {
+                          "^(.*)$": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "tags"
+                    ]
+                  }
+                },
+                "required": [
+                  "comment",
+                  "action",
+                  "element"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      },
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "osmType",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "osmId",
+            "required": false
+          }
+        ],
+        "operationId": "getOsmEdits",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "List the user's pending quick edits",
         "responses": {
           "200": {}
         }

@@ -8,12 +8,12 @@ import { db } from '../db'
 import { tokens } from '../schema/tokens.schema'
 import {
   createIntegration,
-  deleteIntegration,
+  deleteUserIntegrations,
   updateIntegration,
   getConfiguredIntegrations,
 } from '../services/integration.service'
 import { IntegrationId } from '../types/integration.types'
-import { getOsmConfig } from '../config/osm.config'
+import { getOsmConfig, type OsmConfig } from '../config/osm.config'
 import { generateId } from '../util'
 import { logError } from '../lib/logger'
 import { i18nPlugin } from '../lib/i18n/plugin'
@@ -31,35 +31,29 @@ function getOsmClient() {
   )
 }
 
+type OauthResult = { status: 'connected' | 'error'; message?: string }
+
 /**
- * Render a minimal HTML page that posts a message to the opener window and closes itself.
- * Used as the OAuth callback response so the SPA isn't disrupted by a redirect.
+ * Hand the OAuth result back to whoever asked for it.
+ *
+ * A browser is sent on to `/oauth/osm.html` on the *client* origin.
+ * OpenStreetMap serves `Cross-Origin-Opener-Policy: same-origin`, so the popup
+ * loses `window.opener` on the way through and can only report back from a
+ * page that shares the app's origin.
+ *
+ * When the app calls this itself — the manual flow below, for setups whose
+ * registered redirect URI isn't reachable — it asks for JSON instead.
  */
-function oauthCallbackPage(result: { status: 'connected' | 'error'; message?: string }) {
-  // Sanitize message for safe inline script embedding:
-  // - Escape </ to prevent </script> breakout
-  // - Use only the status enum for the fallback URL message to avoid injection
-  const safeMessage = JSON.stringify({ type: 'osm-oauth-callback', ...result })
-    .replace(/</g, '\\u003c')
-  const safeOrigin = clientOrigin.replace(/'/g, "\\'")
-  const fallbackUrl = `${clientOrigin}/settings/integrations?osm=${encodeURIComponent(result.status)}${result.message ? `&message=${encodeURIComponent(result.message)}` : ''}`
-  const safeFallbackUrl = fallbackUrl.replace(/'/g, "\\'")
-  return new Response(
-    `<!DOCTYPE html>
-<html><head><title>Connecting...</title></head>
-<body>
-<script>
-  if (window.opener) {
-    window.opener.postMessage(${safeMessage}, '${safeOrigin}');
-    window.close();
-  } else {
-    window.location.href = '${safeFallbackUrl}';
-  }
-</script>
-<noscript>You can close this window.</noscript>
-</body></html>`,
-    { headers: { 'Content-Type': 'text/html' } },
-  )
+function oauthCallbackResponse(result: OauthResult, wantsJson: boolean) {
+  if (wantsJson) return result
+
+  const query = new URLSearchParams({ status: result.status })
+  if (result.message) query.set('message', result.message)
+
+  return new Response(null, {
+    status: 302,
+    headers: { Location: `${clientOrigin}/oauth/osm.html?${query}` },
+  })
 }
 
 /**
@@ -73,6 +67,23 @@ const publicApi = new Elysia({ prefix: '/integrations/osm' }).use(i18nPlugin)
 
 /** Everything that requires an authenticated session. */
 const app = new Elysia({ prefix: '/integrations/osm' }).use(i18nPlugin)
+
+/**
+ * Whether the browser can be expected to come back here on its own.
+ *
+ * OSM sends the user to the redirect URI registered on the OAuth application,
+ * which it will not vary per deployment. When that host isn't this server —
+ * a branch preview, or local dev behind a `localhost` URI — the popup
+ * dead-ends on an unreachable page and the code has to be handed over by hand.
+ */
+function needsManualCallback(config: OsmConfig): boolean {
+  if (!config.redirectUri || !serverOrigin) return false
+  try {
+    return new URL(config.redirectUri).origin !== new URL(serverOrigin).origin
+  } catch {
+    return false
+  }
+}
 
 /**
  * Initiate OSM OAuth2 authorization flow.
@@ -108,7 +119,7 @@ app.use(requireAuth).get(
         OSM_SCOPES,
       )
 
-      return { url: url.toString() }
+      return { url: url.toString(), manualCallback: needsManualCallback(osmCfg) }
     } catch (error: any) {
       return status(500, {
         message: error.message || 'Failed to initiate OAuth2 flow',
@@ -124,17 +135,23 @@ app.use(requireAuth).get(
 )
 
 /**
- * OAuth2 callback from OpenStreetMap.
- * Opens in a popup/new tab — posts result back to opener via postMessage.
- * Falls back to redirect if there's no opener (e.g. popup was blocked).
+ * OAuth2 callback from OpenStreetMap. Reached either as a browser navigation
+ * from the popup, or as a request from the app itself when the code had to be
+ * handed over by hand.
  */
 publicApi.get(
   '/callback',
-  async ({ query, t }) => {
+  async ({ query, request, t }) => {
+    const wantsJson = (request.headers.get('accept') ?? '').includes(
+      'application/json',
+    )
     const { code, state } = query
 
     if (!code || !state) {
-      return oauthCallbackPage({ status: 'error', message: t('errors.osm.missingCodeOrState') })
+      return oauthCallbackResponse(
+        { status: 'error', message: t('errors.osm.missingCodeOrState') },
+        wantsJson,
+      )
     }
 
     try {
@@ -145,7 +162,10 @@ publicApi.get(
         .where(and(eq(tokens.type, 'token'), eq(tokens.value, state)))
 
       if (matchingTokens.length === 0) {
-        return oauthCallbackPage({ status: 'error', message: t('errors.osm.invalidState') })
+        return oauthCallbackResponse(
+          { status: 'error', message: t('errors.osm.invalidState') },
+          wantsJson,
+        )
       }
 
       const stateToken = matchingTokens[0]
@@ -154,7 +174,10 @@ publicApi.get(
       // Check expiry
       if (stateToken.expires && new Date(stateToken.expires) < new Date()) {
         await db.delete(tokens).where(eq(tokens.id, stateToken.id))
-        return oauthCallbackPage({ status: 'error', message: t('errors.osm.authorizationExpired') })
+        return oauthCallbackResponse(
+          { status: 'error', message: t('errors.osm.authorizationExpired') },
+          wantsJson,
+        )
       }
 
       // Clean up the state token
@@ -181,17 +204,17 @@ publicApi.get(
 
       const osmUser = userResponse.data?.user
       if (!osmUser) {
-        return oauthCallbackPage({ status: 'error', message: t('errors.osm.userDetailsFailed') })
+        return oauthCallbackResponse(
+          { status: 'error', message: t('errors.osm.userDetailsFailed') },
+          wantsJson,
+        )
       }
 
-      // Check if user already has an OSM integration and remove it
-      const existingIntegrations = await getConfiguredIntegrations(userId)
-      const existingOsm = existingIntegrations.find(
-        (i) => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT,
-      )
-      if (existingOsm) {
-        await deleteIntegration(existingOsm.id, userId)
-      }
+      // Clear any previous connection before writing the new one. This goes
+      // through the raw rows: an account connected under a retired encryption
+      // key is invisible to getConfiguredIntegrations, and leaving it in place
+      // makes every reconnect collide on the unique index.
+      await deleteUserIntegrations(userId, IntegrationId.OPENSTREETMAP_ACCOUNT)
 
       // Create the integration record
       const config = {
@@ -206,14 +229,14 @@ publicApi.get(
 
       await createIntegration(userId, IntegrationId.OPENSTREETMAP_ACCOUNT, config)
 
-      return oauthCallbackPage({ status: 'connected' })
+      return oauthCallbackResponse({ status: 'connected' }, wantsJson)
     } catch (error: any) {
       logError('OSM OAuth2 callback error', error)
       const message =
         error instanceof arctic.OAuth2RequestError
           ? `OAuth2 error: ${error.code}`
           : error.message || 'OAuth2 callback failed'
-      return oauthCallbackPage({ status: 'error', message })
+      return oauthCallbackResponse({ status: 'error', message }, wantsJson)
     }
   },
   {
@@ -309,16 +332,14 @@ app.use(requireAuth).post(
   '/disconnect',
   async ({ user, status, t }) => {
     try {
-      const userIntegrations = await getConfiguredIntegrations(user.id)
-      const osmIntegration = userIntegrations.find(
-        (i) => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT,
+      const removed = await deleteUserIntegrations(
+        user.id,
+        IntegrationId.OPENSTREETMAP_ACCOUNT,
       )
 
-      if (!osmIntegration) {
+      if (!removed) {
         return status(404, { message: t('errors.osm.integrationNotFound') })
       }
-
-      await deleteIntegration(osmIntegration.id, user.id)
 
       return { success: true }
     } catch (error: any) {

@@ -407,6 +407,13 @@
       "when": 1787411583038,
       "tag": "0057_orphaned_e2ee_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1789149077385,
+      "tag": "0058_clean_sasquatch",
+      "breakpoints": true
     }
   ]
 }

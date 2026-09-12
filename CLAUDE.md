@@ -26,6 +26,15 @@
 - Skip purely internal work (refactors, test-only changes, dependency bumps) — if a user wouldn't notice it, it doesn't belong here.
 - Never edit the released `## [X.Y.Z]` sections. `deploy.sh` retitles `[Unreleased]` at release time and opens a fresh empty one; `scripts/changelog.sh` is the only thing that should rewrite the file.
 
+### Release titles
+
+`deploy.sh` prompts for a title that becomes the PR title, the GitHub Release name, and the heading users see on the app store listing. **Name the thing that shipped, as a noun phrase.** "Multimodal trip types", "Offline ready", "Tappable route bullets" — someone who reads the title with no changelog in front of them should know what they are getting.
+
+- Nouns, not slogans. "Every way to get there" is not a title: get where? Anything that needs the changelog to make sense has failed.
+- Two to four words. It is rendered next to the version number, not on its own.
+- Name the headline feature when one dominates the release. When the release is a grab-bag with no single theme, take the script's default `Release vX.Y.Z` rather than inventing a theme to cover it.
+- No questions, no imperatives, no wordplay on the product name.
+
 ## Frontend architecture (`web/src`)
 
 These rules exist because the codebase drifted away from each of them. When

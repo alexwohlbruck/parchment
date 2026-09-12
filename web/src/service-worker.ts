@@ -39,8 +39,14 @@ cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 
 // Every navigation serves the app shell — this is what makes a cold offline
-// launch render at all.
-registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')))
+// launch render at all. Except `/oauth/`: those are real static pages that
+// close themselves, and serving the shell there boots a second copy of the app
+// inside the OAuth popup.
+registerRoute(
+  new NavigationRoute(createHandlerBoundToURL('index.html'), {
+    denylist: [/^\/oauth\//],
+  }),
+)
 
 const DAY = 24 * 60 * 60
 

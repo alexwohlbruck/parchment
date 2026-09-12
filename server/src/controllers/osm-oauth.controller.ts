@@ -32,31 +32,31 @@ function getOsmClient() {
 }
 
 /**
- * Render a minimal HTML page that posts a message to the opener window and closes itself.
- * Used as the OAuth callback response so the SPA isn't disrupted by a redirect.
+ * Hand the OAuth result back to the app through a page on the *client* origin.
+ *
+ * OpenStreetMap serves `Cross-Origin-Opener-Policy: same-origin`, so the popup
+ * loses `window.opener` the moment it navigates there — postMessage from here
+ * can never arrive. `/oauth/osm.html` is same-origin with the app, so it can
+ * broadcast the result and close itself.
+ *
+ * This stays a 200 with a scripted redirect rather than a 302: the dev-mode
+ * workaround fetches this endpoint with axios and reads the embedded result.
  */
 function oauthCallbackPage(result: { status: 'connected' | 'error'; message?: string }) {
-  // Sanitize message for safe inline script embedding:
-  // - Escape </ to prevent </script> breakout
-  // - Use only the status enum for the fallback URL message to avoid injection
-  const safeMessage = JSON.stringify({ type: 'osm-oauth-callback', ...result })
+  const query = new URLSearchParams({ status: result.status })
+  if (result.message) query.set('message', result.message)
+  const target = `${clientOrigin}/oauth/osm.html?${query}`
+
+  const payload = JSON.stringify({ type: 'osm-oauth-callback', ...result })
     .replace(/</g, '\\u003c')
-  const safeOrigin = clientOrigin.replace(/'/g, "\\'")
-  const fallbackUrl = `${clientOrigin}/settings/integrations?osm=${encodeURIComponent(result.status)}${result.message ? `&message=${encodeURIComponent(result.message)}` : ''}`
-  const safeFallbackUrl = fallbackUrl.replace(/'/g, "\\'")
+
   return new Response(
     `<!DOCTYPE html>
 <html><head><title>Connecting...</title></head>
 <body>
-<script>
-  if (window.opener) {
-    window.opener.postMessage(${safeMessage}, '${safeOrigin}');
-    window.close();
-  } else {
-    window.location.href = '${safeFallbackUrl}';
-  }
-</script>
-<noscript>You can close this window.</noscript>
+<script type="application/json" id="osm-oauth-result">${payload}</script>
+<script>location.replace(${JSON.stringify(target)})</script>
+<noscript><a href="${target.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Continue</a></noscript>
 </body></html>`,
     { headers: { 'Content-Type': 'text/html' } },
   )

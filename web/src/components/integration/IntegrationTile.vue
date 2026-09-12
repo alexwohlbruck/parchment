@@ -17,7 +17,7 @@ import {
   IntegrationScheme,
   IntegrationScope,
 } from '@/types/integrations.types'
-import { computed, h } from 'vue'
+import { computed, h, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Button } from '@/components/ui/button'
@@ -78,6 +78,46 @@ const requiresSetup = computed(
 )
 
 const tileDisabled = computed(() => props.disabled || requiresSetup.value)
+
+/** Open while an OAuth popup is in flight; closed as soon as it reports back. */
+let oauthChannel: BroadcastChannel | null = null
+let oauthPoll: ReturnType<typeof setInterval> | undefined
+
+function stopListeningForOauthResult() {
+  oauthChannel?.close()
+  oauthChannel = null
+  clearInterval(oauthPoll)
+}
+
+onUnmounted(stopListeningForOauthResult)
+
+function listenForOauthResult(popup: Window | null) {
+  stopListeningForOauthResult()
+
+  oauthChannel = new BroadcastChannel('osm-oauth')
+  oauthChannel.onmessage = async ({ data }) => {
+    if (data?.type !== 'osm-oauth-callback') return
+    stopListeningForOauthResult()
+    popup?.close()
+
+    if (data.status === 'connected') {
+      toast.success(t('settings.integrations.osm.connected'))
+      await integrationService.fetchConfiguredIntegrations()
+      await integrationService.fetchAvailableIntegrations()
+    } else {
+      toast.error(data.message || t('settings.integrations.osm.authError'))
+    }
+  }
+
+  // Severing the opener also detaches our handle, so `closed` can read true
+  // while the popup is very much open. Treat it as "the flow may be over" —
+  // refresh once, quietly, and leave the channel listening for the real word.
+  oauthPoll = setInterval(() => {
+    if (!popup?.closed) return
+    clearInterval(oauthPoll)
+    integrationService.fetchConfiguredIntegrations()
+  }, 1000)
+}
 
 async function handleOAuthClick() {
   const integration = props.integration
@@ -169,33 +209,10 @@ async function handleOAuthClick() {
           'width=600,height=700,popup=yes',
         )
 
-        // Listen for the callback postMessage from the popup
-        const expectedOrigin = new URL(api.defaults.baseURL as string).origin
-        const onMessage = async (event: MessageEvent) => {
-          if (event.data?.type !== 'osm-oauth-callback') return
-          if (event.origin !== expectedOrigin) return
-          window.removeEventListener('message', onMessage)
-
-          if (event.data.status === 'connected') {
-            toast.success(t('settings.integrations.osm.connected'))
-            await integrationService.fetchConfiguredIntegrations()
-            await integrationService.fetchAvailableIntegrations()
-          } else {
-            toast.error(
-              event.data.message || t('settings.integrations.osm.authError'),
-            )
-          }
-        }
-
-        window.addEventListener('message', onMessage)
-
-        // Clean up listener if popup is closed without completing
-        const checkClosed = setInterval(() => {
-          if (popup?.closed) {
-            clearInterval(checkClosed)
-            window.removeEventListener('message', onMessage)
-          }
-        }, 500)
+        // The popup can't postMessage back: OSM's COOP header severs its
+        // opener. It ends on `/oauth/osm.html`, same-origin with us, which
+        // broadcasts the result here.
+        listenForOauthResult(popup)
       }
     } catch (error) {
       console.error('Failed to initiate OAuth flow:', error)

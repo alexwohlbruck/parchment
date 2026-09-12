@@ -127,6 +127,7 @@ export function useMarkerLayersService() {
     routeIsolation.initialize(mapStrategy.mapInstance, fitBounds)
 
     // Trip isolation: dims the network behind an open itinerary's line
+    // and draws that line's own stops on top of it
     tripIsolation = useTripIsolationService()
     tripIsolation.initialize(mapStrategy.mapInstance)
 

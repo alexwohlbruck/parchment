@@ -14,6 +14,7 @@ import type { TransitVehiclePosition } from '@/types/multimodal.types'
  *  list and a leg's stop list reduce to. */
 export interface FocusedStop {
   stopId: string
+  name: string
   lat: number
   lng: number
 }
@@ -30,6 +31,9 @@ export interface FocusedLeg {
   tripId: string | null
   /** Every stop the leg calls at, ends included. */
   stops: FocusedStop[]
+  /** The line's own colour, as the trip's polyline draws it (`#rrggbb`), or
+   *  null for a feed that publishes none. */
+  color: string | null
 }
 
 /** Feed-local id, or null when there is nothing to strip. */
@@ -68,10 +72,13 @@ export function focusedLegs(trip: { segments?: unknown[] } | null | undefined): 
     const stops: FocusedStop[] = ((td?.stops ?? []) as Array<Record<string, any>>)
       .map((s) => ({
         stopId: local(s?.id) ?? '',
+        name: s?.name ?? '',
         lat: s?.location?.lat,
         lng: s?.location?.lng,
       }))
       .filter((s) => s.stopId && Number.isFinite(s.lat) && Number.isFinite(s.lng))
+
+    const color = td?.route?.color ?? td?.color ?? null
 
     out.push({
       segmentIndex,
@@ -79,6 +86,7 @@ export function focusedLegs(trip: { segments?: unknown[] } | null | undefined): 
       routeIds: [...new Set(routeIds)],
       tripId: local(td?.trip?.id),
       stops,
+      color: color ? (color.startsWith('#') ? color : `#${color}`) : null,
     })
   })
 

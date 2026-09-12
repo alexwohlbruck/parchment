@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { haversineMeters, projectAlong, sliceAlong } from './geo-line'
+import { distanceToLine, haversineMeters, projectAlong, sliceAlong } from './geo-line'
 
 // A straight west→east line at NYC's latitude, ~842 m per 0.01° of
 // longitude. Four vertices, three equal segments.
@@ -58,5 +58,28 @@ describe('sliceAlong', () => {
     const s = sliceAlong(LINE, SEG * 2, SEG * 99)
     expect(s[s.length - 1][0]).toBeCloseTo(LINE[3][0], 9)
     expect(sliceAlong(LINE, SEG, SEG)).toEqual([])
+  })
+})
+
+describe('distanceToLine', () => {
+  it('is 0 on the line and the perpendicular distance beside it', () => {
+    expect(distanceToLine(LINE, [-73.985, 40.70])).toBeCloseTo(0, 6)
+    // 0.001° of latitude ≈ 111 m, whatever the longitude
+    expect(distanceToLine(LINE, [-73.985, 40.701])).toBeCloseTo(110.5, 0)
+  })
+
+  it('measures a point past an end to that end, not to the line through it', () => {
+    // Straight off the west end: the perpendicular to the infinite line
+    // would be 0, but the line stops here.
+    // Equirectangular against haversine: metres apart over a 1.7 km gap.
+    expect(distanceToLine(LINE, [-74.02, 40.70])).toBeCloseTo(
+      haversineMeters(40.70, -74.02, 40.70, -74.00),
+      -1,
+    )
+  })
+
+  it('falls back to the lone vertex of a degenerate line', () => {
+    expect(distanceToLine([[-74.0, 40.70]], [-74.0, 40.701])).toBeCloseTo(111, 0)
+    expect(distanceToLine([], [-74.0, 40.70])).toBe(Infinity)
   })
 })

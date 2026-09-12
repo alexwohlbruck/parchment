@@ -31,8 +31,8 @@ const transitSegment = (over: Record<string, unknown> = {}) => ({
     route: { id: 'f1_A' },
     trip: { id: 'f1_trip-7' },
     stops: [
-      { id: 'f1_s1', location: { lat: 1, lng: 2 } },
-      { id: 'f1_s2', location: { lat: 3, lng: 4 } },
+      { id: 'f1_s1', name: 'First St', location: { lat: 1, lng: 2 } },
+      { id: 'f1_s2', name: 'Second St', location: { lat: 3, lng: 4 } },
     ],
     ...(over as Record<string, unknown>),
   },
@@ -45,9 +45,18 @@ describe('focusedLegs', () => {
     expect(leg.routeIds).toEqual(['A'])
     expect(leg.tripId).toBe('trip-7')
     expect(leg.stops).toEqual([
-      { stopId: 's1', lat: 1, lng: 2 },
-      { stopId: 's2', lat: 3, lng: 4 },
+      { stopId: 's1', name: 'First St', lat: 1, lng: 2 },
+      { stopId: 's2', name: 'Second St', lat: 3, lng: 4 },
     ])
+  })
+
+  it('takes the line\'s colour, with the # a GTFS feed leaves off', () => {
+    const [bare] = focusedLegs({
+      segments: [transitSegment({ route: { id: 'f1_A', color: '2850AD' } })],
+    })
+    expect(bare.color).toBe('#2850AD')
+    const [none] = focusedLegs({ segments: [transitSegment()] })
+    expect(none.color).toBeNull()
   })
 
   it('keeps interchangeable lines, which are one leg to the rider', () => {
@@ -87,11 +96,14 @@ describe('focusedLegs', () => {
     const [leg] = focusedLegs({
       segments: [
         transitSegment({
-          stops: [{ id: 'f1_s1' }, { id: 'f1_s2', location: { lat: 3, lng: 4 } }],
+          stops: [
+            { id: 'f1_s1', name: 'First St' },
+            { id: 'f1_s2', name: 'Second St', location: { lat: 3, lng: 4 } },
+          ],
         }),
       ],
     })
-    expect(leg.stops).toEqual([{ stopId: 's2', lat: 3, lng: 4 }])
+    expect(leg.stops).toEqual([{ stopId: 's2', name: 'Second St', lat: 3, lng: 4 }])
   })
 })
 

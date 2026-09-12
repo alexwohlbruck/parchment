@@ -48,6 +48,7 @@ import { proxyBase, ensureRegions } from './portolan-client'
 import router, { AppRoute } from '@/router'
 import { api } from '@/lib/api'
 import { densifyLine } from '@/lib/geo/geo-densify'
+import { distanceToLine } from '@/lib/geo/geo-line'
 import { useLayersStore } from '@/stores/layers.store'
 import { useThemeStore } from '@/stores/theme.store'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
@@ -320,6 +321,7 @@ export function usePortolanTransitService() {
     setNetworkHidden,
     setIsolatedRouteStops,
     setIsolatedRouteGeometry,
+    setTripLegs,
     setStopService,
     portolanRouteToken,
     portolanTransitActive,
@@ -408,6 +410,84 @@ function setIsolatedRouteStops(points: [number, number][] | null) {
   isolatedStopsSig = sig
   isolatedStops = next
   if (isolatedRoute) applyStations()
+}
+
+/** One leg of an open itinerary, in the terms the tiles are keyed by. */
+export interface PortolanTripLeg {
+  /** Portolan's own tokens for the line the leg rides — resolved, never a
+   *  bare GTFS id, for the reason portolanRouteToken exists. Several when
+   *  the leg is one ride to the rider and two lines to the feed (the 4 and
+   *  the 5). */
+  routes: string[]
+  /** Every stop the leg calls at, in order, [lng, lat]. */
+  stops: [number, number][]
+}
+
+/**
+ * The legs of the itinerary on the map, or null for none.
+ *
+ * A trip is NOT an isolation: its own polyline is the subject and the
+ * ribbons only step back behind it (see the trip isolation service). But
+ * a line drawn with nothing on it is a coloured stripe — the stations it
+ * calls at, their names and the bullets that say which line this is are
+ * what make it a journey. So the stops narrow exactly as they do under
+ * isolation, to the legs' own, and keep full strength while the ribbons
+ * dim.
+ */
+let tripLegs: PortolanTripLeg[] | null = null
+let tripLegsSig = ''
+
+function setTripLegs(legs: PortolanTripLeg[] | null) {
+  const next = legs?.length ? legs : null
+  const sig = next
+    ? next.map(l => `${l.routes.join('+')}@${l.stops.length}`).join(';')
+    : ''
+  if (sig === tripLegsSig) return
+  tripLegsSig = sig
+  tripLegs = next
+  applyStations()
+  applyStationZoomRelax()
+  applyStationScale()
+  applyStationDim()
+}
+
+/** Whether the symbols on the map have been narrowed to one line or one
+ *  itinerary — in which case they are the subject of the view, not the
+ *  network's own thinning-by-zoom crowd. */
+function stopsNarrowed(): boolean {
+  return !!isolatedRoute || !!tripLegs
+}
+
+/** A cat rides the line rather than sitting at a stop, so its span is
+ *  measured against the chain of stops, not against any one of them.
+ *  Loose enough for track that curves between two stops, tight enough to
+ *  leave the line's un-ridden tail behind. */
+const LEG_PATH_M = 400
+
+/**
+ * The leg this symbol belongs to, and which of that leg's lines it is,
+ * or null when it belongs to none.
+ *
+ * Structure decides the line, and the leg's own stop list decides the
+ * span: the planner already said which stops the ride calls at, so no
+ * activity mask is consulted — a trip planned for tomorrow morning draws
+ * exactly the stops it will call at then.
+ */
+function tripLegFor(f: any): { routes: string[]; route: string } | null {
+  const p = f?.properties
+  if (!p || !tripLegs) return null
+  const [lng, lat] = f.geometry?.coordinates ?? []
+  if (lng == null) return null
+  const isCat = p.ftype === 'cat'
+  for (const leg of tripLegs) {
+    const route = leg.routes.find(r => stationServesRoute(p, r, NO_MASKS, null))
+    if (!route) continue
+    const onLeg = isCat
+      ? leg.stops.length > 1 && distanceToLine(leg.stops, [lng, lat]) <= LEG_PATH_M
+      : nearAnyStop([lng, lat], leg.stops)
+    if (onLeg) return { routes: leg.routes, route }
+  }
+  return null
 }
 
 /** The running span's geometry, when it differs from the tiles', plus a
@@ -667,11 +747,7 @@ function serviceDimmedBullets(f: any, at: Date | null): any {
  *  enough not to bleed into the next station. */
 const PATH_MATCH_M = 160
 
-function onIsolatedPath(f: any): boolean {
-  const pts = isolatedStops
-  if (!pts) return true
-  const [lng, lat] = f.geometry?.coordinates ?? []
-  if (lng == null) return false
+function nearAnyStop([lng, lat]: [number, number], pts: [number, number][]): boolean {
   const kx = 111_320 * Math.cos((lat * Math.PI) / 180)
   const ky = 110_540
   for (const [plng, plat] of pts) {
@@ -680,6 +756,14 @@ function onIsolatedPath(f: any): boolean {
     if (dx * dx + dy * dy <= PATH_MATCH_M * PATH_MATCH_M) return true
   }
   return false
+}
+
+function onIsolatedPath(f: any): boolean {
+  const pts = isolatedStops
+  if (!pts) return true
+  const [lng, lat] = f.geometry?.coordinates ?? []
+  if (lng == null) return false
+  return nearAnyStop([lng, lat], pts)
 }
 
 /**
@@ -725,7 +809,7 @@ function applyStationScale() {
   for (let i = 3; i < MARKER_SIZE.length; i += 2) {
     out.push(
       MARKER_SIZE[i],
-      isolatedRoute ? MARKER_SIZE[i + 1] * ISOLATION_WIDTH : MARKER_SIZE[i + 1],
+      stopsNarrowed() ? MARKER_SIZE[i + 1] * ISOLATION_WIDTH : MARKER_SIZE[i + 1],
     )
   }
   map.setLayoutProperty('portolan-station-markers', 'icon-size', out)
@@ -735,7 +819,7 @@ function applyStationZoomRelax() {
   if (!map?.getStyle()) return
   for (const [id, z] of Object.entries(STATION_ZOOM)) {
     if (!map.getLayer(id)) continue
-    map.setLayerZoomRange(id, isolatedRoute ? z.isolated : z.usual, 24)
+    map.setLayerZoomRange(id, stopsNarrowed() ? z.isolated : z.usual, 24)
   }
   // the connection bullets under each name follow the same relaxation
   if (map.getLayer('portolan-station-labels')) {
@@ -743,7 +827,7 @@ function applyStationZoomRelax() {
       'step',
       ['zoom'],
       '',
-      isolatedRoute ? BULLET_ROW_STEP.isolated : BULLET_ROW_STEP.usual,
+      stopsNarrowed() ? BULLET_ROW_STEP.isolated : BULLET_ROW_STEP.usual,
       ['coalesce', ['get', 'brow'], ''],
     ])
   }
@@ -921,6 +1005,8 @@ function teardownPortolanTransit() {
   map = null
   activeStrategy = null
   isolatedRoute = null
+  tripLegs = null
+  tripLegsSig = ''
   clearHydration()
   clearMounts()
   inkDark = null
@@ -2191,7 +2277,7 @@ function applyRibbonDim() {
  */
 function applyStationDim() {
   if (!map) return
-  const o = networkDimmed && !isolatedRoute ? isolationDim() : 1
+  const o = networkDimmed && !stopsNarrowed() ? isolationDim() : 1
   let layers: any[] = []
   try {
     layers = map.getStyle()?.layers ?? []
@@ -2496,6 +2582,19 @@ function applyStations() {
       )
       .map((f: any) => serviceDimmedBullets(f, at))
       .map((f: any) => isolatedMarkerFeature(f, isolatedRoute!))
+    src.setData({ type: 'FeatureCollection', features: feats })
+    return
+  }
+  // Same narrowing for an itinerary, over several lines at once: each leg
+  // keeps the stops it calls at and the bullets riding the span it rides.
+  if (tripLegs) {
+    const at = isolationTime()
+    const feats: any[] = []
+    for (const f of stationsRaw.features) {
+      const hit = tripLegFor(f)
+      if (!hit) continue
+      feats.push(isolatedMarkerFeature(serviceDimmedBullets(f, at), hit.route))
+    }
     src.setData({ type: 'FeatureCollection', features: feats })
     return
   }

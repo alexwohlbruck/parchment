@@ -26,6 +26,13 @@ import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
+import { CYCLING_SUFFIX } from './cycling.mjs'
+import { slotBeforeId } from '@/lib/map/layer-slots'
+import {
+  CYCLING_WAYS_LAYER_IDS,
+  CYCLING_WAYS_SUFFIX,
+  scaleOutputs,
+} from './cycling-layers'
 import { BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
@@ -199,9 +206,13 @@ describe('flavors', () => {
      * palette read as turquoise rather than as sand. Anything else added to
      * that map and present in both styles has to be listed here too, or this
      * test will report our own deliberate value as a drift from theirs.
+     *
+     * `label_` is the whole label system — ink and halo both. MapTiler
+     * letters in near-black over a traced outline; ours is authored after
+     * Apple's, so their values are not the answer for any of it.
      */
     const authored =
-      /^(poi_|road_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$)/
+      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$)/
 
     const wrong: string[] = []
     let checked = 0
@@ -330,9 +341,21 @@ describe('badge POI treatment', () => {
     expect(image).toContain('@poi_plate_')
     expect(image).toContain('@poi_ink_')
     expect(image).toContain('@poi_lift')
-    // The label takes the glyph's colour, not the plate's — the plate is a pale
-    // tint and would be unreadable as lettering.
-    expect(JSON.stringify(l.paint['text-color'])).toContain('@poi_ink_')
+  })
+
+  /**
+   * A place's name is lettered in its badge's ink — the glyph's colour, not
+   * the plate's, since the plate is a pale tint and unreadable as lettering.
+   * A transit stop's is the deliberate exception: Apple tints the mark and
+   * letters the stop like a place, and lettering a station in transit blue
+   * put it on the same rung as the café next door.
+   */
+  test.each(poi.map(l => [l.id, l]))('%s: places letter in their ink, stops in the place ink', (_id, l: any) => {
+    const ink = JSON.stringify(l.paint['text-color'])
+    expect(ink).toContain('@label_ink_strong')
+    // `Station` draws stops and nothing else, so it has no category arm.
+    if (l.id !== 'Station') expect(ink).toContain('@poi_ink_')
+    expect(ink).not.toContain('@poi_transit_ink')
   })
 
   test.each(poi.map(l => [l.id, l]))('%s: nothing tints the badge at draw time', (_id, l: any) => {
@@ -1214,5 +1237,660 @@ describe('projection', () => {
   test("every projection MapLibre is offered draws something different", () => {
     const offered = ENGINE_PROJECTIONS[MapEngine.MAPLIBRE]
     expect(new Set(offered.map(maplibreProjection)).size).toBe(offered.length)
+  })
+})
+
+/**
+ * The label system, retuned after Apple Maps: weight, ink, halo and leading
+ * carry the hierarchy, not size alone. See `TYPOGRAPHY` in
+ * `convert-basemap-style.mjs` for what each rung is and why.
+ *
+ * Asserted on the generated spec rather than on the table, so a layer that
+ * slips out of the pass — renamed upstream, added by a later MapTiler release
+ * — fails here instead of shipping in MapTiler's own near-black-on-a-traced-
+ * outline treatment, a weight and a halo away from everything around it.
+ */
+describe('label typography', () => {
+  /** Layers that actually letter something. */
+  const lettered = layers.filter(l => l.type === 'symbol' && l.layout?.['text-field'])
+
+  /**
+   * Sign lettering rather than map lettering: these sit inside sprite art
+   * whose size and weight are fixed where that art is generated.
+   */
+  const SHIELDS = ['Highway junction', 'Highway shield']
+
+  test('there are labels to check', () => {
+    expect(lettered.length).toBeGreaterThan(15)
+  })
+
+  /** Only four faces are generated; see `build-glyphs.mjs`. */
+  test('every label names a weight we ship', () => {
+    const faces = new Set(lettered.map(l => JSON.stringify(l.layout['text-font'])))
+    for (const f of faces) {
+      expect(['Geist Regular', 'Geist Medium', 'Geist SemiBold', 'Geist Bold']).toContain(
+        JSON.parse(f)[0],
+      )
+    }
+  })
+
+  /**
+   * The rungs, in order. A station name outranks a POI outranks a street,
+   * and on a map whose sizes are already decided by zoom, weight is what
+   * says so — lettering all three the same is how a dense block turns into
+   * one undifferentiated field of names.
+   */
+  test('weight rises with what the label is', () => {
+    const WEIGHT = { 'Geist Regular': 0, 'Geist Medium': 1, 'Geist SemiBold': 2, 'Geist Bold': 3 }
+    const faceOf = (id: string) =>
+      WEIGHT[layers.find(l => l.id === id)!.layout['text-font'][0] as keyof typeof WEIGHT]
+
+    const street = faceOf('Road labels')
+    const poi = faceOf('Food')
+    const station = faceOf('Station')
+    expect(street).toBeLessThan(poi)
+    expect(poi).toBeLessThan(station)
+  })
+
+  /**
+   * MapTiler's 1px halo traces the letters, which at map sizes reads as a
+   * second glyph behind the first. Apple's holds a gap instead: wider, and
+   * soft enough that it has no edge of its own.
+   */
+  test.each(lettered.filter(l => !SHIELDS.includes(l.id)).map(l => [l.id, l]))(
+    '%s: the halo holds a gap rather than tracing the letters',
+    (_id, l: any) => {
+      const width = l.paint['text-halo-width']
+      // A zoom ramp is its own answer; only flat widths are checked here.
+      if (typeof width === 'number') expect(width).toBeGreaterThanOrEqual(1.2)
+      expect(l.paint['text-halo-color']).toBeDefined()
+    },
+  )
+
+  /** A four-word shop name has to read as one block, not four lines. */
+  test.each(
+    lettered.filter(l => l.layout['text-line-height'] !== undefined).map(l => [l.id, l]),
+  )('%s: wrapped names are set tight', (_id, l: any) => {
+    // MapLibre's own default is 1.2, which is body-copy leading.
+    expect(l.layout['text-line-height']).toBeLessThan(1.2)
+  })
+
+  test('the POI labels all take the tight leading', () => {
+    const poi = layers.filter(l => l['source-layer'] === 'poi' && l.type === 'symbol')
+    expect(poi.length).toBeGreaterThan(5)
+    for (const l of poi) expect(l.layout['text-line-height'], l.id).toBe(1.05)
+  })
+
+  /**
+   * Past this zoom the POIs are what the map is being read for, so the
+   * streets go to small tracked capitals and step back — Apple's move, and
+   * what keeps a close-in map legible at a density that would be noise.
+   */
+  describe('streets step back where the POIs take over', () => {
+    const road = () => layers.find(l => l.id === 'Road labels')!
+    /** A zoom `step`'s value at a zoom: its default, then each stop it passes. */
+    const at = (prop: any, zoom: number) => {
+      const [, , fallback, ...stops] = prop as any[]
+      let value = fallback
+      for (let i = 0; i < stops.length; i += 2) if (zoom >= stops[i]) value = stops[i + 1]
+      return value
+    }
+
+    test('capitals, tracking and a lighter ink arrive together', () => {
+      const { layout, paint } = road()
+      // Every one of them is a step on zoom, and they all step at the same one.
+      const zoomOf = (prop: any) => (prop as any[])[3]
+      const caps = zoomOf(layout['text-transform'])
+      expect(zoomOf(layout['text-letter-spacing'])).toBe(caps)
+      expect(zoomOf(paint['text-color'])).toBe(caps)
+
+      expect(at(layout['text-transform'], caps - 1)).toBe('none')
+      expect(at(layout['text-transform'], caps)).toBe('uppercase')
+      // Tracking belongs to the capitals: interpolated onto mixed case it
+      // would only read as loose.
+      expect(at(layout['text-letter-spacing'], caps - 1)).toBe(0)
+      expect(at(layout['text-letter-spacing'], caps)).toBeGreaterThan(0.05)
+      expect(at(paint['text-color'], caps)).toBe('@label_ink_road_minor')
+    })
+
+    /** Capitals read larger than mixed case at the same point size. */
+    test('the size drops where the capitals arrive', () => {
+      const [, , , ...stops] = road().layout['text-size'] as any[]
+      const caps = (road().layout['text-transform'] as any[])[3]
+      // Stops are (zoom, size) pairs, so only even positions are zooms.
+      const zooms = stops.filter((_: unknown, i: number) => i % 2 === 0)
+      const sizeAt = (z: number) => stops[stops.indexOf(z, zooms.indexOf(z) * 2) + 1]
+      const before = zooms[zooms.indexOf(caps) - 1]
+      expect(sizeAt(caps)).toBeLessThan(sizeAt(before))
+    })
+  })
+
+  /**
+   * Two ink families, deliberately apart: a cool slate for names of things,
+   * a warm grey for the streets they sit on. A street name in the same ink
+   * as a place name competes with it for the same rung.
+   */
+  test('streets and places are lettered in different families', () => {
+    const inkOf = (id: string) => JSON.stringify(layers.find(l => l.id === id)!.paint['text-color'])
+    expect(inkOf('Road labels')).toContain('@label_ink_road')
+    expect(inkOf('Town labels')).toContain('@label_ink_strong')
+    expect(inkOf('Road labels')).not.toContain('@label_ink_strong')
+  })
+
+  /**
+   * Contrast is what makes the retune a retune rather than a wash. Every ink
+   * clears 4.5:1 against the surface it is lettered on — white for the
+   * streets, the flavor's own ground for the rest.
+   */
+  test.each([
+    ['light', lightTokens as Record<string, string>, 'hsl(0, 0%, 100%)'],
+    ['dark', darkTokens as Record<string, string>, 'hsl(211, 22%, 34%)'],
+  ])('%s: every label ink clears 4.5:1 on the surface it sits on', (_flavor, tokens, road) => {
+    const inks = Object.keys(tokens).filter(k => k.startsWith('label_ink_'))
+    expect(inks.length).toBeGreaterThan(3)
+    const ground = tokens.background_background_color
+    for (const ink of inks) {
+      const on = ink.startsWith('label_ink_road') ? road : ground
+      expect(contrastRatio(tokens[ink], on), `${ink} on ${on}`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})
+
+/** WCAG relative luminance of an `hsl()` or `#rgb` colour. */
+function relativeLuminance(color: string): number {
+  let rgb: [number, number, number]
+  const hsl = /hsla?\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/.exec(color)
+  if (hsl) {
+    const [h, s, l] = [+hsl[1] / 360, +hsl[2] / 100, +hsl[3] / 100]
+    const a = s * Math.min(l, 1 - l)
+    const f = (n: number) => {
+      const k = (n + h * 12) % 12
+      return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+    }
+    rgb = [f(0), f(8), f(4)]
+  } else {
+    const hex = color.replace('#', '')
+    rgb = [0, 1, 2].map(i => parseInt(hex.slice(i * 2, i * 2 + 2), 16) / 255) as any
+  }
+  const lin = rgb.map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+}
+
+function contrastRatio(a: string, b: string): number {
+  const [x, y] = [relativeLuminance(a), relativeLuminance(b)].sort((p, q) => q - p)
+  return (x + 0.05) / (y + 0.05)
+}
+
+/**
+ * The cycling network, painted onto the road instead of over it.
+ *
+ * The guarantee the whole approach rests on: a green road is exactly as wide
+ * as the road it replaces, at every zoom, because it is drawn with that road's
+ * own width expression rather than a second ramp cut to look similar. These
+ * tests assert that on the generated spec, so a hand-edit that breaks the
+ * link — or a regenerated spec that renames a road layer — fails here.
+ */
+describe('cycling surface', () => {
+  const twins = layers.filter(l => l.id.endsWith(CYCLING_SUFFIX))
+  const baseOf = (l: any) =>
+    layers.find(b => b.id === l.id.slice(0, -CYCLING_SUFFIX.length))
+
+  test('every road surface and casing has a twin', () => {
+    const ids = twins.map(t => t.id)
+    const TINTED = [
+      'Minor road', 'Minor road outline',
+      'Major road', 'Major road outline',
+      'Highway', 'Highway outline',
+      'Path', 'Path outline',
+      'Path bridge', 'Path outline bridge',
+    ]
+    expect(ids.slice().sort()).toEqual(TINTED.map(id => id + CYCLING_SUFFIX).sort())
+  })
+
+  test.each(twins.map(l => [l.id, l]))('%s: derives from a real road layer', (_id, l: any) => {
+    expect(baseOf(l)).toBeDefined()
+  })
+
+  /** The point of the exercise. */
+  test.each(twins.map(l => [l.id, l]))('%s: is exactly its road’s width', (_id, l: any) => {
+    const base = baseOf(l)!
+    expect(l.paint['line-width']).toEqual(base.paint['line-width'])
+    // The path casing draws its stroke outside a gap the width of the surface;
+    // a twin that dropped the gap would paint over the path it outlines.
+    expect(l.paint['line-gap-width']).toEqual(base.paint['line-gap-width'])
+  })
+
+  test.each(twins.map(l => [l.id, l]))('%s: sits directly above its road', (_id, l: any) => {
+    const at = layers.indexOf(l)
+    expect(layers[at - 1].id).toBe(baseOf(l)!.id)
+  })
+
+  test.each(twins.map(l => [l.id, l]))('%s: ships hidden', (_id, l: any) => {
+    expect(l.layout.visibility).toBe('none')
+  })
+
+  /**
+   * The twin draws where its road draws and nowhere else, so the cycling
+   * clause has to *narrow* the road's filter rather than replace it —
+   * otherwise a tinted tunnel appears under a map that draws no tunnel.
+   */
+  test.each(twins.map(l => [l.id, l]))('%s: narrows its road’s filter', (_id, l: any) => {
+    const base = baseOf(l)!
+    expect(l.filter[0]).toBe('all')
+    expect(JSON.stringify(l.filter)).toContain('"bicycle"')
+    expect(JSON.stringify(l.filter)).toContain('"designated"')
+    if (base.filter) expect(l.filter.length).toBeGreaterThan(1)
+  })
+
+  /**
+   * Access is not provision. `bicycle=yes` is on most of the residential grid
+   * and tinting it paints whole neighbourhoods green while saying nothing
+   * about where it is good to ride.
+   */
+  test('permission alone does not tint a road', () => {
+    for (const l of twins) expect(JSON.stringify(l.filter)).not.toContain('"yes"')
+  })
+
+  test('the toggle finds every one of them', () => {
+    for (const l of twins) expect(layerGroups.cycling).toContain(l.id)
+  })
+
+  test('the tint is green in both flavors', () => {
+    for (const tokens of [lightTokens, darkTokens] as Record<string, string>[]) {
+      for (const name of ['cycling_surface', 'cycling_casing']) {
+        const hue = Number(/hsl\(\s*([\d.]+)/.exec(tokens[name])![1])
+        expect(hue, `${name} ${tokens[name]}`).toBeGreaterThan(100)
+        expect(hue, `${name} ${tokens[name]}`).toBeLessThan(180)
+      }
+    }
+  })
+
+  /**
+   * The filters, run against real OpenMapTiles features — the shapes the
+   * Brooklyn tiles actually carry. A tint that selects nothing is invisible
+   * and a tint that selects everything is a green map, and neither shows up
+   * in a filter that merely compiles.
+   */
+  describe('what the tint selects', () => {
+    const matches = (layerId: string, properties: Record<string, unknown>) => {
+      const l = layers.find(x => x.id === layerId)!
+      const f = featureFilter(l.filter, `${layerId}.filter`)
+      return f.filter(
+        { zoom: 16 } as any,
+        { type: 2, properties } as any,
+        {} as any,
+      )
+    }
+
+    test.each([
+      // A way BUILT for bikes keeps its own cased mark; see the cycling
+      // layer templates. Only ways MARKED for bikes are painted as roads.
+      ['a dedicated cycleway', 'Path (cycling)', { class: 'path', subclass: 'cycleway' }, false],
+      ['a footpath bikes are designated on', 'Path (cycling)', { class: 'path', subclass: 'footway', bicycle: 'designated' }, true],
+      ['a plain footpath', 'Path (cycling)', { class: 'path', subclass: 'footway' }, false],
+      ['a street bikes are designated on', 'Minor road (cycling)', { class: 'minor', bicycle: 'designated' }, true],
+      ['a street bikes are merely allowed on', 'Minor road (cycling)', { class: 'minor', bicycle: 'yes' }, false],
+      ['a street with nothing said about bikes', 'Minor road (cycling)', { class: 'minor' }, false],
+      ['a road told to use the sidepath', 'Minor road (cycling)', { class: 'minor', bicycle: 'use_sidepath' }, false],
+    ])('%s', (_what, layerId, properties, expected) => {
+      expect(matches(layerId as string, properties as any)).toBe(expected)
+    })
+
+    /**
+     * The road's own filter still applies. A tunnel is not drawn by the layer
+     * this twin derives from, so the twin must not draw one either — a green
+     * ribbon through a hillside with no road under it.
+     */
+    test('a designated way in a tunnel stays untinted, as its road does', () => {
+      expect(matches('Minor road (cycling)', { class: 'minor', bicycle: 'designated', brunnel: 'tunnel' })).toBe(false)
+    })
+  })
+
+  /** A casing has to be darker than the surface it edges, or it is not an edge. */
+  test('the casing is deeper than the surface', () => {
+    for (const tokens of [lightTokens, darkTokens] as Record<string, string>[]) {
+      const light = (n: string) => Number(/([\d.]+)%\)/.exec(tokens[n])![1])
+      expect(light('cycling_casing')).toBeLessThan(light('cycling_surface'))
+    }
+  })
+})
+
+/**
+ * Where an overlay actually lands in the style we ship.
+ *
+ * `layer-slots.test.ts` checks the rule against a hand-written stack; this
+ * checks it against the real one, because that is where it went wrong — a
+ * bike lane drew across a station name on a map where every unit test passed.
+ */
+describe('slot anchors in the shipped style', () => {
+  const built = buildLayers({ flavor: 'light' }) as any[]
+  const at = (id: string | undefined) => built.findIndex(l => l.id === id)
+  const firstOfType = (type: string) => built.findIndex(l => l.type === type)
+
+  test('middle lands above every road and below every label', () => {
+    const anchor = at(slotBeforeId(built, 'middle'))
+    expect(anchor).toBeGreaterThan(-1)
+    // Nothing lettered draws below it.
+    expect(anchor).toBeLessThanOrEqual(firstOfType('symbol'))
+    // Every road does.
+    for (const id of ['Minor road', 'Major road', 'Highway', 'Path']) {
+      expect(at(id), id).toBeLessThan(anchor)
+    }
+  })
+
+  test('bottom lands above the fills and below every road', () => {
+    const anchor = at(slotBeforeId(built, 'bottom'))
+    expect(anchor).toBeGreaterThan(-1)
+    for (const id of ['Minor road outline', 'Minor road', 'Highway']) {
+      expect(at(id), id).toBeGreaterThan(anchor)
+    }
+    // The ground it sits on is still underneath.
+    expect(built.slice(0, anchor).some(l => l.type === 'background')).toBe(true)
+    expect(built.slice(0, anchor).every(l => l.type !== 'symbol')).toBe(true)
+  })
+
+  /**
+   * The trap the first attempt fell into. The transit overlay inserts its
+   * ribbons below the basemap's labels, so an anchor computed once against a
+   * bare basemap puts a bike lane *above* them the moment transit is on.
+   */
+  test('with the transit network present, middle drops below its ribbons', () => {
+    const withTransit = [...built]
+    withTransit.splice(at('Minor road') + 1, 0, {
+      id: 'portolan-ribbon-14-steady',
+      type: 'line',
+    } as any)
+    expect(slotBeforeId(withTransit, 'middle')).toBe('portolan-ribbon-14-steady')
+  })
+})
+
+/**
+ * The on-street network, drawn from Barrelman onto the basemap's roads.
+ *
+ * Our own tiles cannot see a bike lane — a street tagged `cycleway:right=lane`
+ * says nothing about `bicycle` — so the geometry is Barrelman's. The width
+ * must not be: it is read off the road layer the tint sits on, with only the
+ * property lookups rewritten, or a green street stops being street-width.
+ */
+describe('cycling ways from Barrelman', () => {
+  const built = buildLayers({ flavor: 'light' }) as any[]
+  const tints = built.filter(l => l.id.endsWith(CYCLING_WAYS_SUFFIX))
+  const roadOf = (l: any) =>
+    built.find(b => b.id === l.id.slice(0, -CYCLING_WAYS_SUFFIX.length))
+
+  test('there is a tint for each rung of the network', () => {
+    expect(tints.map(l => l.id).sort()).toEqual(
+      CYCLING_WAYS_LAYER_IDS.filter(id => id.endsWith(CYCLING_WAYS_SUFFIX)).sort(),
+    )
+  })
+
+  test.each(tints.map(l => [l.id, l]))('%s: sits directly over its road', (_id, l: any) => {
+    expect(built[built.indexOf(l) - 1].id).toBe(roadOf(l)!.id)
+  })
+
+  /**
+   * The width is the road's expression with `["get","class"]` swapped for the
+   * mapping off Barrelman's `highway`. Rewriting it back has to give the road's
+   * own expression exactly — that is the whole guarantee.
+   */
+  test.each(tints.map(l => [l.id, l]))('%s: is its road’s width', (_id, l: any) => {
+    const road = roadOf(l)!
+    const backToClass = (e: any): any =>
+      Array.isArray(e)
+        ? e[0] === 'match' && JSON.stringify(e[1]) === JSON.stringify(['get', 'highway'])
+          ? ['get', 'class']
+          : e.map(backToClass)
+        : e
+    expect(backToClass(l.paint['line-width'])).toEqual(road.paint['line-width'])
+  })
+
+  test.each(tints.map(l => [l.id, l]))('%s: ships hidden and opaque', (_id, l: any) => {
+    expect(l.layout.visibility).toBe('none')
+    // A translucent tint compounds wherever two ways overlap.
+    expect(l.paint['line-opacity']).toBeUndefined()
+  })
+
+  test('permission alone is not tinted', () => {
+    for (const l of tints) expect(JSON.stringify(l.filter)).not.toContain('bicycle_yes')
+  })
+
+  test('the toggle reaches the Barrelman tint as well as the basemap twins', () => {
+    for (const id of CYCLING_WAYS_LAYER_IDS) expect(layerGroups.cycling).toContain(id)
+  })
+
+  test('the style declares the source they read', () => {
+    const style = buildMapStyle({ ...opts, theme: 'light' } as any)
+    expect(style.sources[tints[0].source]).toBeDefined()
+  })
+})
+
+/**
+ * The markings on a tinted street: dash grammar, and which side they sit on.
+ *
+ * The grammar is CyclOSM's — the dash gap depicts the separation that is
+ * missing, so solid is kerbed off, a short dash is paint, and a dot is a
+ * marking in a lane shared with cars. `line-dasharray` takes no feature
+ * expression, so each pattern is its own layer, and each side of the street
+ * is its own layer again.
+ */
+describe('cycling markings', () => {
+  const built = buildLayers({ flavor: 'light' }) as any[]
+  const strokes = built.filter(l => l.id.startsWith('Cycling '))
+
+  test('one layer per pattern per side', () => {
+    expect(strokes).toHaveLength(6)
+    for (const kind of ['track', 'lane', 'shoulder']) {
+      for (const side of ['left', 'right']) {
+        expect(strokes.map(l => l.id)).toContain(`Cycling ${kind} ${side}`)
+      }
+    }
+  })
+
+  /** Solid = kerbed, short dash = paint, dot = shared with traffic. */
+  test('the gap grows as the separation goes away', () => {
+    const gap = (id: string) => {
+      const dash = strokes.find(l => l.id === id)!.paint['line-dasharray']
+      return dash ? dash[1] / dash[0] : 0
+    }
+    expect(gap('Cycling track right')).toBe(0)
+    expect(gap('Cycling lane right')).toBeGreaterThan(0)
+    expect(gap('Cycling shoulder right')).toBeGreaterThan(gap('Cycling lane right'))
+  })
+
+  /**
+   * An edge-lane street gets no tint, so the strokes are its only mark and
+   * have to draw well before the offset is meaningful. Below z16 they sit on
+   * the centreline and read as one route.
+   */
+  test('they draw from z12, but only take a side at z16', () => {
+    for (const l of strokes) {
+      expect(l.minzoom).toBe(12)
+      const [, , , ...stops] = l.paint['line-offset'] as any[]
+      expect(stops[0]).toBe(15.5)
+      expect(stops[1]).toBe(0)
+    }
+  })
+
+  /**
+   * The two treatments are exclusive: a street is either one you ride in, or
+   * one with a strip at its edge. Tinting a street that has side lanes would
+   * say you belong in the traffic between them.
+   */
+  test('a street with an edge lane is not also tinted', () => {
+    const tinted = JSON.stringify(
+      built.find(l => l.id === `Minor road${CYCLING_WAYS_SUFFIX}`)!.filter,
+    )
+    for (const edge of ['cycle_lane', 'cycle_track', 'shoulder']) {
+      expect(tinted, edge).not.toContain(edge)
+    }
+    // And the ones you ride in get no side stroke.
+    const sides = JSON.stringify(strokes.map(l => l.filter))
+    for (const middle of ['shared_lane', 'bicycle_road', 'cycle_street']) {
+      expect(sides, middle).not.toContain(middle)
+    }
+  })
+
+  test('left and right are mirrored, and right is positive', () => {
+    for (const kind of ['track', 'lane', 'shoulder']) {
+      const right = strokes.find(l => l.id === `Cycling ${kind} right`)!
+      const left = strokes.find(l => l.id === `Cycling ${kind} left`)!
+      // Negating outputs only — the zoom stops are not the thing being mirrored.
+      expect(scaleOutputs(right.paint['line-offset'], -1)).toEqual(
+        left.paint['line-offset'],
+      )
+    }
+  })
+
+  /**
+   * The offset has to be half the road, at every zoom and for every class, or
+   * a marking drifts off the kerb it is describing. Evaluated against the real
+   * road expression rather than compared structurally.
+   */
+  test.each([
+    ['Minor road', 'minor', 'residential'],
+    ['Minor road', 'service', 'service'],
+    ['Minor road', 'secondary', 'secondary'],
+    ['Minor road', 'tertiary', 'tertiary'],
+    ['Major road', 'primary', 'primary'],
+    ['Major road', 'trunk', 'trunk'],
+    ['Highway', 'motorway', 'motorway'],
+  ])(
+    'the offset is half a %s on a %s',
+    (roadLayer, cls, highway) => {
+      const road = built.find(l => l.id === roadLayer)!
+      const compile = (e: any) => {
+        const r = (expression.createExpression as any)(
+          e,
+          latest.paint_line['line-width'],
+          'layers[0].paint.line-width',
+        )
+        if (r.result !== 'success') throw new Error(r.value.join(', '))
+        return r.value
+      }
+      const width = compile(road.paint['line-width'])
+      const offset = compile(
+        strokes.find(l => l.id === 'Cycling track right')!.paint['line-offset'],
+      )
+      const at = (properties: Record<string, unknown>) =>
+        ({ type: 2, properties }) as any
+      for (const zoom of [16, 17, 18, 19, 20, 22]) {
+        const w = (width as any).evaluate({ zoom }, at({ class: cls }))
+        const o = (offset as any).evaluate({ zoom }, at({ highway }))
+        expect(o, `${cls} @z${zoom}`).toBeCloseTo(w / 2, 6)
+      }
+    },
+  )
+
+  test('below z16 both sides sit on the centreline', () => {
+    const road = built.find(l => l.id === 'Minor road')!
+    void road
+    const r = (expression.createExpression as any)(
+      strokes.find(l => l.id === 'Cycling track right')!.paint['line-offset'],
+      latest.paint_line['line-width'],
+      'layers[0].paint.line-width',
+    )
+    for (const zoom of [12, 14, 15, 15.4]) {
+      const o = r.value.evaluate({ zoom }, { type: 2, properties: { highway: 'residential' } } as any)
+      expect(o, `z${zoom}`).toBe(0)
+    }
+  })
+
+  test('the toggle reaches them', () => {
+    for (const l of strokes) expect(layerGroups.cycling).toContain(l.id)
+  })
+
+  /** Parks and street trees live at hue 95-100; a lane must not read as planting. */
+  test('the green is cooler than the vegetation', () => {
+    for (const l of strokes) {
+      const hue = Number(/hsl\(\s*([\d.]+)/.exec(l.paint['line-color'])![1])
+      expect(hue, l.id).toBeGreaterThan(140)
+    }
+  })
+})
+
+/**
+ * Legibility of the markings, which is what the layer exists for.
+ *
+ * The first cut ramped width from z16 while the layers drew from z12, and
+ * MapLibre clamps below a ramp's first stop — so across four zoom levels the
+ * network drew at its thinnest exactly as the streets around it grew, and by
+ * z17 it was the faintest thing on the map.
+ */
+describe('cycling markings are legible', () => {
+  const built = buildLayers({ flavor: 'light' }) as any[]
+  const strokes = built.filter(l => l.id.startsWith('Cycling '))
+  const compile = (e: any) => {
+    const r = (expression.createExpression as any)(
+      e,
+      latest.paint_line['line-width'],
+      'layers[0].paint.line-width',
+    )
+    if (r.result !== 'success') throw new Error(r.value.join(', '))
+    return r.value
+  }
+
+  test('the width ramp covers every zoom the layer draws at', () => {
+    for (const l of strokes) {
+      const [, , , ...stops] = l.paint['line-width'] as any[]
+      expect(stops[0], l.id).toBeLessThanOrEqual(l.minzoom)
+    }
+  })
+
+  test('a marking keeps growing with the street, and never thins', () => {
+    const w = compile(strokes[0].paint['line-width'])
+    let previous = 0
+    for (const zoom of [12, 13, 14, 15, 16, 17, 18, 19, 20]) {
+      const at = w.evaluate({ zoom }, { type: 2, properties: {} } as any)
+      expect(at, `z${zoom}`).toBeGreaterThanOrEqual(previous)
+      previous = at
+    }
+  })
+
+  /**
+   * Wide enough to read against the street it is painted on. A quarter of the
+   * carriageway is about what a 1.5m lane is of a 10m road.
+   */
+  test('a marking is a real fraction of its street', () => {
+    const road = compile(built.find(l => l.id === 'Minor road')!.paint['line-width'])
+    const stroke = compile(strokes[0].paint['line-width'])
+    for (const zoom of [16, 17, 18, 19]) {
+      const w = road.evaluate({ zoom }, { type: 2, properties: { class: 'minor' } } as any)
+      const s = stroke.evaluate({ zoom }, { type: 2, properties: {} } as any)
+      expect(s / w, `z${zoom}`).toBeGreaterThan(0.15)
+      // And not so wide it reads as the street having been repainted, which is
+      // what the tint means and this deliberately does not.
+      expect(s / w, `z${zoom}`).toBeLessThan(0.5)
+    }
+  })
+})
+
+/**
+ * An offset is only meaningful when the geometry is the carriageway.
+ *
+ * Where OSM maps the provision as its own way beside the road — a
+ * `highway=cycleway` sidepath — that line already sits where the lane is, and
+ * offsetting it by half a road again puts it out on the pavement. Seen on
+ * Bedford Avenue at z18: a dashed lane drawn clear of the street.
+ */
+describe('markings only offset from a carriageway', () => {
+  const strokes = (buildLayers({ flavor: 'light' }) as any[]).filter(l =>
+    l.id.startsWith('Cycling '),
+  )
+
+  test.each(strokes.map(l => [l.id, l]))('%s: requires a road highway', (_id, l: any) => {
+    const clause = (l.filter as any[]).find(
+      (c: any) =>
+        Array.isArray(c) &&
+        c[0] === 'match' &&
+        JSON.stringify(c[1]) === JSON.stringify(['get', 'highway']),
+    )
+    expect(clause, `${l.id} does not gate on highway`).toBeDefined()
+    const allowed: string[] = clause[2]
+    expect(allowed).toContain('residential')
+    expect(allowed).toContain('secondary')
+    // A way built for bikes is drawn on its own geometry, never offset.
+    expect(allowed).not.toContain('cycleway')
+    expect(allowed).not.toContain('footway')
+    expect(allowed).not.toContain('path')
   })
 })

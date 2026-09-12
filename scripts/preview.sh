@@ -190,7 +190,14 @@ After=network-online.target
 Type=simple
 EnvironmentFile=%h/.parchment-preview/%i/env
 # systemd does not expand variables in WorkingDirectory, so the shell does it.
-ExecStart=/bin/bash -c 'cd "$PREVIEW_WORKTREE/server" && exec "$PREVIEW_BUN" --env-file=../.env.preview src/index.ts'
+#
+# `--hot`, like the dev compose file uses. Without it the API holds whatever it
+# imported at startup, and server-side constants — the default layer templates
+# above all — keep being served from before the branch changed them. That is
+# invisible from the outside: the web app hot-reloads, the map redraws, and the
+# layer it redraws is the old one. A preview that silently serves stale
+# cartography is worse than one that is plainly down.
+ExecStart=/bin/bash -c 'cd "$PREVIEW_WORKTREE/server" && exec "$PREVIEW_BUN" --hot --env-file=../.env.preview src/index.ts'
 Restart=on-failure
 RestartSec=3
 

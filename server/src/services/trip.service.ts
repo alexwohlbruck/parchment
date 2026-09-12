@@ -3224,6 +3224,54 @@ export class TripService {
   >()
   private static readonly ENTRANCE_CACHE_MAX = 500
 
+  /**
+   * Cached pedestrian re-routes, keyed by endpoints and preferences.
+   *
+   * One plan enriches every walk leg of every itinerary across ~5 MOTIS
+   * queries, and those itineraries overlap heavily — the access walk to a
+   * given station is identical in each itinerary boarding there. Without
+   * this, the same route is fetched once per itinerary.
+   */
+  private walkRouteCache = new Map<
+    string,
+    Promise<Awaited<ReturnType<typeof routingService.getRoute>>>
+  >()
+  private static readonly WALK_ROUTE_CACHE_MAX = 500
+
+  private cachedWalkRoute(
+    start: Coordinate,
+    end: Coordinate,
+    preferences?: any,
+  ): Promise<Awaited<ReturnType<typeof routingService.getRoute>>> {
+    // Preferences ride in the key: they change the route and the language of
+    // its instructions, so two requests may share endpoints but not a result.
+    const key = [
+      start.lat.toFixed(5), start.lng.toFixed(5),
+      end.lat.toFixed(5), end.lng.toFixed(5),
+      JSON.stringify(preferences ?? null),
+    ].join(',')
+
+    let hit = this.walkRouteCache.get(key)
+    if (!hit) {
+      hit = routingService.getRoute(
+        [
+          { type: 'coordinates', value: [start.lat, start.lng] },
+          { type: 'coordinates', value: [end.lat, end.lng] },
+        ],
+        'pedestrian',
+        preferences,
+      )
+      this.walkRouteCache.set(key, hit)
+      // A rejected route must not be cached — the next plan should retry.
+      hit.catch(() => this.walkRouteCache.delete(key))
+      if (this.walkRouteCache.size > TripService.WALK_ROUTE_CACHE_MAX) {
+        const oldest = this.walkRouteCache.keys().next().value
+        if (oldest) this.walkRouteCache.delete(oldest)
+      }
+    }
+    return hit
+  }
+
   private cachedNearestEntrance(
     lat: number,
     lng: number,
@@ -3365,15 +3413,13 @@ export class TripService {
 
         // 3. GraphHopper re-route between the (possibly moved) endpoints
         try {
-          const route = await routingService.getRoute(
-            [
-              { type: 'coordinates', value: [seg.start.location.lat, seg.start.location.lng] },
-              { type: 'coordinates', value: [seg.end.location.lat, seg.end.location.lng] },
-            ],
-            'pedestrian',
+          const route = await this.cachedWalkRoute(
+            seg.start.location,
+            seg.end.location,
             preferences,
           )
           if (!route.routes.length) return
+          // Shared with every other segment on this route — read, never mutate.
           const leg = route.routes[0].legs[0]
 
           seg.geometry = leg.geometry

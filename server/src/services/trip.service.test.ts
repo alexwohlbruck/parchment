@@ -2211,6 +2211,67 @@ describe('TripService — scoring', () => {
 
 // ── Validation ──────────────────────────────────────────────────────────────
 
+describe('TripService — walk route deduplication', () => {
+  /** Two itineraries on different lines that share the same access/egress walks. */
+  function makeSharedWalkItineraries() {
+    const a = makeTransitItinerary()
+    const b = makeTransitItinerary()
+    b.legs[1] = { ...b.legs[1], routeId: 'route-7y', routeShortName: '7Y' }
+    return [a, b]
+  }
+
+  test('routes each distinct walk once across itineraries', async () => {
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: makeSharedWalkItineraries(),
+      metadata: { searchWindow: 3600 },
+    }))
+    mockGetRoute.mockImplementation(async () => makeBasicWalkRoute(250, 200))
+
+    await tripService.planTrip({
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'transit',
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    })
+
+    // Four walk legs (access + egress on each itinerary), two distinct routes.
+    const walkCalls = mockGetRoute.mock.calls.filter(
+      ([, profile]: any[]) => profile === 'pedestrian',
+    )
+    const distinct = new Set(walkCalls.map(([pts]: any[]) => JSON.stringify(pts)))
+    expect(distinct.size).toBe(2)
+    expect(walkCalls.length).toBe(distinct.size)
+  })
+
+  test('a failed walk route is not cached', async () => {
+    mockGetIntermodalRoute.mockImplementation(async () => ({
+      itineraries: [makeTransitItinerary()],
+      metadata: { searchWindow: 3600 },
+    }))
+    // Every walk route fails for the whole of the first plan. Failing only the
+    // first call no longer proves anything: a plan enriches enough legs that
+    // the same key is asked for again within it, succeeds, and is cached — so
+    // the second plan legitimately has nothing left to fetch.
+    let failing = true
+    mockGetRoute.mockImplementation(async () => {
+      if (failing) throw new Error('routing unavailable')
+      return makeBasicWalkRoute(250, 200)
+    })
+
+    const req = {
+      waypoints: [CHARLOTTE_ORIGIN, CHARLOTTE_DEST],
+      selectedMode: 'transit' as const,
+      preferredDepartureTime: '2026-01-15T08:00:00Z',
+    }
+    await tripService.planTrip(req)
+    const afterFirst = mockGetRoute.mock.calls.length
+    expect(afterFirst).toBeGreaterThan(0)
+
+    failing = false
+    await tripService.planTrip({ ...req, requestId: 'second' })
+    expect(mockGetRoute.mock.calls.length).toBeGreaterThan(afterFirst)
+  })
+})
+
 describe('TripService — validateRequest', () => {
   test('throws on fewer than 2 waypoints', () => {
     expect(() =>

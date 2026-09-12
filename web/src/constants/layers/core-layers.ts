@@ -62,8 +62,15 @@ export const SEARCH_RESULTS_LAYER_CONFIG: Omit<
       'symbol-z-elevate': true,
       'text-size': 13,
       'text-field': ['get', 'name'],
-      // Matches Mapbox Standard's native POI label font stack
+      // Matches Mapbox Standard's native POI label font stack — and, through
+      // the MapLibre font table, the SemiBold the basemap's own POI labels
+      // are set in. A search result and the basemap POI under it are the same
+      // place, so they have to be lettered the same way.
       'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+      // A long name wraps into a block under its marker rather than reaching
+      // across the street either side of it; the basemap uses the same width.
+      'text-max-width': 7,
+      'text-line-height': 1.05,
       'text-padding': ['interpolate', ['linear'], ['zoom'], 16, 6, 17, 4],
       'text-offset': [0, 1],
       'text-anchor': 'top',
@@ -117,8 +124,11 @@ export function searchResultLabelPaint(options: {
   const named = categories.filter(c => c !== 'default')
 
   return {
-    'text-halo-width': 1,
-    'text-halo-blur': 0,
+    // Wide and slightly soft, so the halo reads as space around the letters
+    // rather than as an outline traced behind them. Same pair as `POI_PAINT`
+    // in `convert-basemap-style.mjs`.
+    'text-halo-width': 1.5,
+    'text-halo-blur': 0.4,
     'text-halo-color': isDark ? POI_LABEL_HALO.dark : POI_LABEL_HALO.light,
     'text-color': named.length
       ? ['match', ['get', 'category'], ...named.flatMap(c => [c, ink(c)]), ink('default')]

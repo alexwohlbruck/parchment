@@ -536,6 +536,18 @@ function mapService() {
         layersService.initializeLayers(allLayers, mapStrategy),
       )
 
+      // Groups whose cartography the basemap draws — the cycling tint is the
+      // road layer itself, recoloured. `setStyle` brings those back hidden, and
+      // only a toggle switched them on, so without this a reload or a theme
+      // change silently drops the layer while the group still reads as on.
+      initStep('basemap groups', () => {
+        for (const group of layersStore.allLayerGroups) {
+          if (group.basemapGroup) {
+            mapStrategy.setBasemapGroup(group.basemapGroup, group.visible)
+          }
+        }
+      })
+
       // Initialize place polygon layers
       initStep('place polygons', () => {
         placePolygonLayerService.initializePlacePolygonLayers(mapStrategy)

@@ -11,6 +11,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { labelPaintFor } from '@/services/layers/features/portolan/portolan-expressions'
+
 const DEFAULT_COLOR = '#007cbf'
 
 export interface OverlayStop {
@@ -103,17 +105,18 @@ export function addStopOverlay(
     source: ids.source,
     layout: {
       'text-field': ['get', 'name'],
-      'text-font': ['DIN Pro Medium', 'Arial Unicode MS Bold'],
+      // Named outright rather than through the Mapbox font table: these
+      // layers go straight onto the map, so a name the glyph endpoint does
+      // not carry 404s and the labels never draw.
+      'text-font': ['Geist SemiBold'],
       'text-size': 11,
       'text-offset': [1, 0],
       'text-anchor': 'left',
       'text-allow-overlap': false,
       'text-max-width': 12,
     },
-    paint: {
-      'text-color': '#333333',
-      'text-halo-width': 1.5,
-      'text-halo-color': '#ffffff',
-    },
+    // Lettered the way every other station name on the map is, out of the
+    // same function, so the night map does not get a dark name in a white box.
+    paint: labelPaintFor(map.getStyle?.()?.layers ?? []),
   })
 }

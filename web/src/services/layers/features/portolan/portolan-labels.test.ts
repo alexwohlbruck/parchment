@@ -17,6 +17,7 @@ import { buildMapStyle, buildSatelliteStyle } from '@/lib/map-style'
 import {
   basemapTextColors,
   darkFromLightPreset,
+  labelFontFor,
   labelPaintFor,
   luminanceOf,
   styleIsDark,
@@ -193,5 +194,75 @@ describe('a style whose basemap is an import', () => {
       if (halo === null) continue
       expect(Math.abs(text - halo)).toBeGreaterThan(0.5)
     }
+  })
+})
+
+/**
+ * Which face a station name is set in. A station outranks every name around
+ * it, and on a map where sizes are already fixed by zoom, weight is the only
+ * thing left to say so.
+ */
+describe('the face a station name takes', () => {
+  const FALLBACK = ['Geist SemiBold']
+
+  /** Every upright face a style letters with, in the order it names them. */
+  const uprightFaces = (layers: any[]) =>
+    layers
+      .filter(l => l.type === 'symbol' && !String(l.id).startsWith('portolan-'))
+      .map(l => (l.layout as any)?.['text-font'])
+      .filter(f => Array.isArray(f) && f.length)
+      .map(f => String(f[0]))
+      .filter(f => !/italic|oblique|condensed/i.test(f))
+
+  test.each(STYLES)('%s: the heaviest upright face the basemap uses', (_name, make) => {
+    const layers = make().layers as any[]
+    const chosen = labelFontFor(layers, FALLBACK)[0]
+    const upright = uprightFaces(layers)
+
+    // Bare imagery letters nothing, so there is no face to read and the
+    // fallback is the only honest answer.
+    if (!upright.length) {
+      expect(chosen).toBe(FALLBACK[0])
+      return
+    }
+
+    expect(upright).toContain(chosen)
+    // Nothing upright in the style is heavier than what we picked.
+    const rank = (f: string) => ['Regular', 'Medium', 'SemiBold', 'Bold'].indexOf(f.split(' ').pop()!)
+    for (const f of upright) expect(rank(f)).toBeLessThanOrEqual(rank(chosen))
+  })
+
+  /**
+   * The bug this replaced: the first symbol layer in our own style is
+   * `Oneway`, an arrow layer set in Regular, so taking the first upright face
+   * lettered every station name at street weight — the one thing the
+   * treatment exists to avoid.
+   */
+  test('an early Regular layer does not decide it', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' } as any).layers as any[]
+    expect((layers.find(l => l.type === 'symbol') as any).layout['text-font'][0]).toBe('Geist Regular')
+    expect(labelFontFor(layers, FALLBACK)[0]).not.toBe('Geist Regular')
+  })
+
+  test('a style that letters nothing falls back', () => {
+    expect(labelFontFor([], FALLBACK)).toBe(FALLBACK)
+    expect(labelFontFor([{ id: 'bg', type: 'background' }], FALLBACK)).toBe(FALLBACK)
+  })
+
+  /**
+   * A face the glyph endpoint does not carry draws nothing at all, so an
+   * italic-only style still has to yield the name it actually named.
+   */
+  test('an italic-only style yields its italic rather than a face it lacks', () => {
+    const layers = [{ id: 'x', type: 'symbol', layout: { 'text-font': ['Custom Italic'] } }]
+    expect(labelFontFor(layers, FALLBACK)).toEqual(['Custom Italic'])
+  })
+
+  test('our own layers never vote', () => {
+    const layers = [
+      { id: 'portolan-station-labels', type: 'symbol', layout: { 'text-font': ['Geist Bold'] } },
+      { id: 'Road labels', type: 'symbol', layout: { 'text-font': ['Geist Medium'] } },
+    ]
+    expect(labelFontFor(layers, FALLBACK)).toEqual(['Geist Medium'])
   })
 })

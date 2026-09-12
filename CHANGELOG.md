@@ -8,6 +8,42 @@
 
 ### Fixed
 
+## [0.12.2] - 2026-09-12
+
+### Changed
+
+* Map labels are retuned for readability: places and stations in a cool slate,
+  streets in a lighter grey a clear step below them, and softer halos throughout
+* Station names are now set bold, above the POIs and streets around them, and a
+  name that wraps reads as one block instead of separate lines
+* Street names shrink to small spaced capitals as you zoom in, so the shops and
+  stations you're looking for carry the map
+* Streets you ride *in* — bicycle roads, cycle streets, sharrows, designated
+  footpaths — now tint green at exactly that street's width. Streets with a
+  lane down one side aren't tinted; the lane is drawn where it actually is
+* Dedicated cycleways and bike paths keep their own cased line, solid where the
+  surface is paved and dashed where it isn't
+* Bike lanes now show which side of the street they're on once you're zoomed in,
+  sitting at that street's own kerb whatever size of road it is, with the dash
+  saying how protected they are: solid is separated from traffic, a short dash
+  is a painted lane, dots are a shoulder
+* Signed bike routes now show as a dash-dot line while you're zoomed out, then
+  hand over to the actual lanes and paths as you zoom in — their name keeps
+  saying the route is signed, without a second line down the middle of a street
+  that already has its lanes marked
+* Proposed and under-construction bikeways read as not-yet-ridable — amber for
+  roadworks, a faint ghost for a plan
+* The cycling layer now draws under place names and under transit lines, so a
+  train crossing a bike lane passes over it
+
+### Fixed
+
+* Bike route, timezone and contour labels draw again — they asked the map for a
+  font it has never had, and silently drew nothing
+* Station names on a line's own page now follow the map's theme instead of
+  always being dark text in a white halo
+* Bike route labels no longer sit on top of the places you're looking at
+
 ## [0.12.1] - 2026-09-12
 
 ### Fixed

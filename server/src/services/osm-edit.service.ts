@@ -10,42 +10,12 @@ import { generateId } from '../util'
 import { logError } from '../lib/logger'
 import { version as appVersion } from '../../package.json'
 import { APP_USER_AGENT } from '../lib/constants'
-
-export type OsmElementType = 'node' | 'way' | 'relation'
-
-export interface OsmLiveElement {
-  type: OsmElementType
-  id: number
-  version: number
-  lat?: number
-  lon?: number
-  tags: Record<string, string>
-  /** Node refs for ways — echoed back verbatim on modify. */
-  nodeRefs?: number[]
-  /** Members for relations — echoed back verbatim on modify. */
-  members?: Array<{ type: OsmElementType; ref: number; role: string }>
-}
-
-export interface SubmitEditInput {
-  comment: string
-  action: 'create' | 'modify'
-  element: {
-    type: OsmElementType
-    id?: number
-    /** Version the client prefilled from — a mismatch at submit time is a conflict. */
-    version?: number
-    lat?: number
-    lon?: number
-    tags: Record<string, string>
-  }
-}
-
-export interface SubmitEditResult {
-  changesetId: number
-  osmType: OsmElementType
-  osmId: number
-  version: number
-}
+import type {
+  OsmElementType,
+  OsmLiveElement,
+  SubmitEditInput,
+  SubmitEditResult,
+} from '../types/osm-edit.types'
 
 export class OsmEditError extends Error {
   constructor(

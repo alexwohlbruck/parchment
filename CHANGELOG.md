@@ -4,6 +4,12 @@
 
 ### Changed
 
+### Fixed
+
+## [0.12.2] - 2026-09-12
+
+### Changed
+
 * Map labels are retuned for readability: places and stations in a cool slate,
   streets in a lighter grey a clear step below them, and softer halos throughout
 * Station names are now set bold, above the POIs and streets around them, and a

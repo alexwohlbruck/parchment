@@ -2687,7 +2687,7 @@
     "defaultEditComment": "Update {name}",
     "connectTitle": "Connect your OpenStreetMap account",
     "connectDescription": "Quick edits are published under your own OpenStreetMap account. Connect it once in settings to start editing the map.",
-    "connectAction": "Open integrations",
+    "connectAction": "Connect account",
     "rawKey": "key",
     "rawValue": "value",
     "address": {

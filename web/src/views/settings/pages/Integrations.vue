@@ -113,6 +113,24 @@ function handleOAuthCallback() {
   router.replace({ query: {} })
 }
 
+/**
+ * `?integration=<id>` deep-links one tile — quick edit sends people here to
+ * connect their OSM account. Seeding the search rather than filtering leaves
+ * a state the existing clear button can undo.
+ */
+function focusQueriedIntegration() {
+  const id = route.query.integration
+  if (typeof id !== 'string') return
+
+  const match = integrationStore.allIntegrations.find(
+    ({ integration }) => integration.id === id,
+  )
+  if (match) searchQuery.value = match.integration.name
+
+  const { integration: _removed, ...rest } = route.query
+  router.replace({ query: rest })
+}
+
 onMounted(async () => {
   handleOAuthCallback()
 
@@ -122,6 +140,8 @@ onMounted(async () => {
   } catch (error) {
     console.error('Failed to load integrations:', error)
   }
+
+  focusQueriedIntegration()
 })
 </script>
 

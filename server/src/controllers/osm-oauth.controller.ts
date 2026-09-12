@@ -8,7 +8,7 @@ import { db } from '../db'
 import { tokens } from '../schema/tokens.schema'
 import {
   createIntegration,
-  deleteIntegration,
+  deleteUserIntegrations,
   updateIntegration,
   getConfiguredIntegrations,
 } from '../services/integration.service'
@@ -184,14 +184,11 @@ publicApi.get(
         return oauthCallbackPage({ status: 'error', message: t('errors.osm.userDetailsFailed') })
       }
 
-      // Check if user already has an OSM integration and remove it
-      const existingIntegrations = await getConfiguredIntegrations(userId)
-      const existingOsm = existingIntegrations.find(
-        (i) => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT,
-      )
-      if (existingOsm) {
-        await deleteIntegration(existingOsm.id, userId)
-      }
+      // Clear any previous connection before writing the new one. This goes
+      // through the raw rows: an account connected under a retired encryption
+      // key is invisible to getConfiguredIntegrations, and leaving it in place
+      // makes every reconnect collide on the unique index.
+      await deleteUserIntegrations(userId, IntegrationId.OPENSTREETMAP_ACCOUNT)
 
       // Create the integration record
       const config = {
@@ -309,16 +306,14 @@ app.use(requireAuth).post(
   '/disconnect',
   async ({ user, status, t }) => {
     try {
-      const userIntegrations = await getConfiguredIntegrations(user.id)
-      const osmIntegration = userIntegrations.find(
-        (i) => i.integrationId === IntegrationId.OPENSTREETMAP_ACCOUNT,
+      const removed = await deleteUserIntegrations(
+        user.id,
+        IntegrationId.OPENSTREETMAP_ACCOUNT,
       )
 
-      if (!osmIntegration) {
+      if (!removed) {
         return status(404, { message: t('errors.osm.integrationNotFound') })
       }
-
-      await deleteIntegration(osmIntegration.id, user.id)
 
       return { success: true }
     } catch (error: any) {

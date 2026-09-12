@@ -3,9 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PanelLayout from '@/components/sheet/layouts/PanelLayout.vue'
-import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/ui/empty-state'
-import { PencilIcon, LinkIcon } from 'lucide-vue-next'
+import { PencilIcon } from 'lucide-vue-next'
 import { useQuickEditService } from '@/services/quick-edit.service'
 import { useMapService } from '@/services/map/map.service'
 import { useAppService } from '@/services/app.service'
@@ -14,6 +12,7 @@ import { useIntegrationsStore } from '@/stores/integrations.store'
 import { IntegrationId } from '@/types/integrations.types'
 import { AppRoute } from '@/router'
 import { LngLat } from '@/types/map.types'
+import ConnectPrompt from '@/components/quick-edit/ConnectPrompt.vue'
 import QuickEditMarker from '@/components/quick-edit/QuickEditMarker.vue'
 import PresetPicker from '@/components/quick-edit/PresetPicker.vue'
 import PresetIcon from '@/components/quick-edit/PresetIcon.vue'
@@ -222,18 +221,7 @@ async function handleSubmit(comment: string) {
 
 <template>
   <PanelLayout>
-    <EmptyState
-      v-if="!osmConnected"
-      :icon="LinkIcon"
-      :title="t('quickEdit.connectTitle')"
-      :description="t('quickEdit.connectDescription')"
-    >
-      <template #action>
-        <Button @click="router.push({ name: AppRoute.INTEGRATIONS })">
-          {{ t('quickEdit.connectAction') }}
-        </Button>
-      </template>
-    </EmptyState>
+    <ConnectPrompt v-if="!osmConnected" />
 
     <template v-else>
       <div class="mb-4 flex items-start gap-2">

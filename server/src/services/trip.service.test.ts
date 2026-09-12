@@ -2247,9 +2247,13 @@ describe('TripService — walk route deduplication', () => {
       itineraries: [makeTransitItinerary()],
       metadata: { searchWindow: 3600 },
     }))
-    let attempt = 0
+    // Every walk route fails for the whole of the first plan. Failing only the
+    // first call no longer proves anything: a plan enriches enough legs that
+    // the same key is asked for again within it, succeeds, and is cached — so
+    // the second plan legitimately has nothing left to fetch.
+    let failing = true
     mockGetRoute.mockImplementation(async () => {
-      if (++attempt === 1) throw new Error('routing unavailable')
+      if (failing) throw new Error('routing unavailable')
       return makeBasicWalkRoute(250, 200)
     })
 
@@ -2260,7 +2264,9 @@ describe('TripService — walk route deduplication', () => {
     }
     await tripService.planTrip(req)
     const afterFirst = mockGetRoute.mock.calls.length
+    expect(afterFirst).toBeGreaterThan(0)
 
+    failing = false
     await tripService.planTrip({ ...req, requestId: 'second' })
     expect(mockGetRoute.mock.calls.length).toBeGreaterThan(afterFirst)
   })

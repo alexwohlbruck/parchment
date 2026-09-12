@@ -28,10 +28,17 @@ const MAPBOX_LAYOUT_PROPERTIES = [
  * falls through to the SPA's index.html and the labels just do not draw.
  * `Noto Sans Regular` used to sit here and was never one of them — Noto is
  * composited *inside* each stack as the non-Latin fallback, not served alone.
+ *
+ * Matched by weight on the page rather than by weight in the name: DIN Pro is
+ * squarer and more open, and holds its colour at label sizes where Geist at
+ * the same nominal weight goes thin. Each name therefore lands a notch heavier
+ * — which is also what puts an overlay's labels on the same rung as the
+ * basemap's own, since those are SemiBold (see `TYPOGRAPHY` in
+ * `convert-basemap-style.mjs`).
  */
 const MAPBOX_TO_MAPLIBRE_FONTS: Record<string, string> = {
-  'DIN Pro Medium':         'Geist Medium',
-  'DIN Pro':                'Geist Regular',
+  'DIN Pro Medium':         'Geist SemiBold',
+  'DIN Pro':                'Geist Medium',
   'DIN Pro Bold':           'Geist Bold',
   // Geist has no italic face; see build-glyphs.mjs.
   'DIN Pro Italic':         'Geist Regular',
@@ -146,14 +153,19 @@ export function mapboxLayerToMaplibreLayer(
     // Translate text-font: replace Mapbox font names with MapLibre equivalents.
     // Handle both flat arrays (['DIN Pro', ...]) and arrays that contained
     // expressions which were resolved to strings by stripMapboxExpressions.
+    //
+    // Down to ONE name, always. A Mapbox stack lists its non-Latin fallback
+    // after the face, and MapLibre asks our glyph endpoint for the whole stack
+    // joined into a single `encodeURIComponent`d path segment — so a two-name
+    // stack becomes `Geist%20SemiBold%2CGeist%20Regular`, which is no directory
+    // under `public/fonts`, falls through to index.html, and takes every label
+    // on the layer with it. Noto is composited inside each stack already, so
+    // the fallback has nothing left to do here; see `build-glyphs.mjs`.
     if (Array.isArray(maplibreConfig.layout['text-font'])) {
-      maplibreConfig.layout['text-font'] = maplibreConfig.layout['text-font']
+      const stack = maplibreConfig.layout['text-font']
         .filter((entry: unknown) => typeof entry === 'string')
         .map((font: string) => MAPBOX_TO_MAPLIBRE_FONTS[font] ?? 'Geist Regular')
-      // Ensure at least one font remains
-      if (maplibreConfig.layout['text-font'].length === 0) {
-        maplibreConfig.layout['text-font'] = ['Geist Regular']
-      }
+      maplibreConfig.layout['text-font'] = [stack[0] ?? 'Geist Regular']
     } else if (maplibreConfig.type === 'symbol') {
       // No text-font specified — inject a known-good default so MapLibre doesn't
       // fall back to the basemap style's default (e.g. "Open Sans Regular") which

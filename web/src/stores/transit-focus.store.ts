@@ -95,6 +95,7 @@ export const useTransitFocusStore = defineStore('transit-focus', () => {
     if (source.value === 'route') {
       return (routeDetail.activeRoute?.stops ?? []).map((s) => ({
         stopId: s.stopId,
+        name: s.stopName,
         lat: s.lat,
         lng: s.lng,
       }))

@@ -60,6 +60,40 @@ export function projectAlong(
 }
 
 /**
+ * Metres from `pt` to the nearest point ON `coords` — clamped to each
+ * segment, so a point past either end measures to that end rather than to
+ * the infinite line through it.
+ */
+export function distanceToLine(
+  coords: [number, number][],
+  [plng, plat]: [number, number],
+): number {
+  let best = Infinity
+  for (let i = 1; i < coords.length; i++) {
+    const [alng, alat] = coords[i - 1]
+    const [blng, blat] = coords[i]
+    const kx = 111_320 * Math.cos((alat * Math.PI) / 180)
+    const ky = 110_540
+    const dx = (blng - alng) * kx
+    const dy = (blat - alat) * ky
+    const px = (plng - alng) * kx
+    const py = (plat - alat) * ky
+    const len2 = dx * dx + dy * dy
+    const t = len2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / len2)) : 0
+    const ddx = px - t * dx
+    const ddy = py - t * dy
+    const d2 = ddx * ddx + ddy * ddy
+    if (d2 < best) best = d2
+  }
+  if (best === Infinity) {
+    const only = coords[0]
+    if (!only) return Infinity
+    return haversineMeters(plat, plng, only[1], only[0])
+  }
+  return Math.sqrt(best)
+}
+
+/**
  * The sub-polyline between two distances (metres) along `coords`, with both
  * cut ends interpolated exactly. Out-of-range bounds clamp to the line's
  * ends; an empty or inverted span returns an empty array.

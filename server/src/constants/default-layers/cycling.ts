@@ -4,1118 +4,288 @@ import { LayerType } from '../../schema/layers.schema'
 /**
  * Cycling default layer templates.
  *
- * Convention: layer `order` values are spaced in intervals of 10 within each
- * subgroup (110, 120, 130, …) so that user-driven reorders can slot new
- * templates or clones between existing ones without immediately needing a
- * full re-index. When adjusting values, keep the spacing consistent so the
- * client-side sort stays predictable.
+ * The network is drawn in two halves, and which half a way belongs to is the
+ * whole design.
+ *
+ * A road or a footpath that is **marked** bike-friendly — a street with a lane
+ * or a sharrow, a path where bikes are designated — is a road you ride on, so
+ * the road itself is painted. The BASEMAP does that, repainting that road's
+ * own surface green at exactly the width it already draws it; see
+ * `cycling-layers.ts` and `addCyclingSurface`. Those switch on with this group
+ * through `basemapGroup` on the group template.
+ *
+ * A **dedicated bike path** is not a road that happens to allow bikes, it is
+ * its own piece of infrastructure, and it keeps its own mark: a cased line,
+ * drawn here from Barrelman, solid where it is paved and dashed where it is
+ * not. Tinting those as roads would say a cycleway and a residential street
+ * are the same kind of thing.
+ *
+ * Everything here is ground, so it draws under the labels and under the
+ * transit lines that cross above it.
  */
+
+const SOURCE = {
+  id: 'bicycle-ways',
+  type: 'vector' as const,
+  tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+  maxzoom: 16,
+}
+
+/**
+ * The on-street palette, keyed to how much of a bike's own space a form is.
+ *
+ * A protected track is a lane of the street given over to bikes, and takes the
+ * deepest green; a painted lane is a line on the asphalt and sits a step back;
+ * a sharrow is a marking on a lane shared with traffic and is dashed, because
+ * that is honestly what it offers. `permitted` is a road bikes may use and no
+ * more, which is most of the residential grid — faint, and off unless asked
+ * for.
+ *
+ * Every one of them lands between the basemap's road surface and its casing in
+ * value, so a green line reads as painted ON the street rather than as another
+ * street. The night values are lifted rather than inverted: the roads are dark
+ * there and the marking still has to be the brighter of the two.
+ */
+const INK = {
+  // A cooler green than the basemap's vegetation, which sits at hue 95-100, so
+  // a bike path never reads as a strip of planting. Matches the on-street
+  // markings in `cycling-layers.ts`.
+  track: { light: 'hsl(160, 64%, 27%)', dark: 'hsl(158, 52%, 62%)' },
+  lane: { light: 'hsl(158, 56%, 35%)', dark: 'hsl(156, 46%, 57%)' },
+  route: { light: 'hsl(158, 50%, 38%)', dark: 'hsl(156, 44%, 54%)' },
+  // The edge under a dedicated way's stroke, so it reads as a path with a
+  // width rather than a line ruled across the ground.
+  casing: { light: 'hsl(158, 30%, 97%)', dark: 'hsl(158, 24%, 15%)' },
+  proposed: { light: 'hsl(158, 16%, 62%)', dark: 'hsl(158, 12%, 48%)' },
+  // Amber, because roadworks are amber everywhere. The one warm mark in the
+  // set, so the thing you cannot ride yet is the thing that does not look
+  // like the network.
+  construction: { light: 'hsl(36, 82%, 46%)', dark: 'hsl(38, 74%, 60%)' },
+}
+
+/**
+ * A light/dark pair, as the expression both engines understand.
+ *
+ * Mapbox reads `measure-light` natively; on MapLibre `stripMapboxExpressions`
+ * resolves it against the app theme, darkest stop first. Written once here
+ * because it was written out longhand fourteen times.
+ */
+const themed = (pair: { light: string; dark: string }) => [
+  'interpolate',
+  ['linear'],
+  ['measure-light', 'brightness'],
+  0.25,
+  pair.dark,
+  0.3,
+  pair.light,
+]
+
+/** A width ramp, as (zoom, px) pairs. */
+const width = (...stops: number[]) => [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  ...stops,
+]
+
+interface WayLayer {
+  id: string
+  name: string
+  group: string
+  order: number
+  minzoom: number
+  filter: any
+  color: any
+  width: any
+  dash?: number[]
+  /** Exclusive upper bound, for a layer another one takes over from. */
+  maxzoom?: number
+  visible?: boolean
+}
+
+/** Everything drawn from Barrelman's `bicycle_ways`, as one shape. */
+function wayLayer(l: WayLayer): DefaultLayerTemplate {
+  return {
+    templateId: `default:${l.id}`,
+    name: l.name,
+    type: LayerType.CUSTOM,
+    engine: ['mapbox', 'maplibre'],
+    icon: 'BikeIcon',
+    showInLayerSelector: false,
+    visible: l.visible ?? false,
+    order: l.order,
+    groupId: `default:group:cycling:${l.group}`,
+    isSubLayer: true,
+    integrationId: 'barrelman',
+    configuration: {
+      id: l.id,
+      type: 'line',
+      // Above the roads, below the labels; see `layer-slots.ts`.
+      slot: 'middle',
+      source: SOURCE,
+      'source-layer': 'bicycle_ways',
+      minzoom: l.minzoom,
+      ...(l.maxzoom ? { maxzoom: l.maxzoom } : {}),
+      filter: l.filter,
+      paint: {
+        'line-color': l.color,
+        'line-width': l.width,
+        ...(l.dash ? { 'line-dasharray': l.dash } : {}),
+        'line-emissive-strength': 1,
+      },
+      layout: { 'line-cap': l.dash ? 'butt' : 'round', 'line-join': 'round' },
+    },
+  }
+}
+
+/** Barrelman marks a way's state; absent means it is built and open. */
+const BUILT = ['!has', 'state']
+
+/**
+ * Surfaces that are not a hard ride. Off-street ways draw solid where the
+ * surface is hard and dashed where it is not — the on-street dash grammar
+ * (`cycling-layers.ts`) never appears on these, so the two cannot be confused.
+ *
+ * Named by what is soft rather than by what is paved, so an untagged path —
+ * which is most of them — comes out solid. Claiming a way is rough on no
+ * evidence is the worse error: it is the one that sends a road bike around.
+ *
+ * Legacy filter syntax, like the `infra_type` clauses these sit beside. The two
+ * syntaxes cannot be mixed inside one filter, and an expression here made every
+ * unpaved layer fail to parse and silently not draw.
+ */
+const SOFT_SURFACES = [
+  'unpaved', 'gravel', 'fine_gravel', 'compacted', 'dirt', 'ground', 'earth',
+  'grass', 'sand', 'mud', 'pebblestone', 'woodchips',
+]
+const HARD = ['!in', 'surface', ...SOFT_SURFACES]
+const SOFT = ['in', 'surface', ...SOFT_SURFACES]
+
 export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
-  // ── Bicycle routes (relations: icn, ncn, rcn, lcn) ─────────
-  {
-    templateId: 'default:bicycle-routes',
-    name: 'Bike Routes',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 110,
-    groupId: 'default:group:cycling:bike-routes',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-routes',
-      type: 'line',
-      source: {
-        id: 'bicycle-routes',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
-      'source-layer': 'bicycle_routes',
-      minzoom: 5,
-      filter: ['!=', ['get', 'state'], 'proposed'],
-      paint: {
-        'line-color': [
-          'match',
-          ['get', 'network'],
-          'icn',
-          '#145a32',
-          'ncn',
-          '#1a7a3a',
-          'rcn',
-          '#276749',
-          'lcn',
-          '#2d8a4e',
-          '#2d8a4e',
-        ],
-        'line-width': [
-          'interpolate',
-          ['exponential', 1.5],
-          ['zoom'],
-          5,
-          1,
-          8,
-          1.5,
-          10,
-          2,
-          12,
-          3,
-          14,
-          4,
-          16,
-          5,
-        ],
-        'line-opacity': 0.3,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-
-  // Dedicated cycleways (highway=cycleway) — casing (outline)
-  {
-    templateId: 'default:bicycle-cycleways-casing',
+  // Dedicated cycleways: their own way, not a street. A casing under a solid
+  // stroke, the way the basemap cases a path — so it reads as a route you can
+  // follow rather than as a line drawn on something else.
+  wayLayer({
+    id: 'bicycle-cycleways-casing',
     name: 'Cycleways Casing',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
+    group: 'cycleways',
     order: 30,
-    groupId: 'default:group:cycling:cycleways',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-cycleways-casing',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 10,
-      filter: ['all', ['==', 'infra_type', 'cycleway'], ['!has', 'state']],
-      paint: {
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#1a2a1f',
-          0.3,
-          '#ffffff',
-        ],
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          10,
-          2.5,
-          14,
-          5,
-          16,
-          8,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.5,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Dedicated cycleways — fill (paved)
-  {
-    templateId: 'default:bicycle-cycleways',
-    name: 'Cycleways Paved',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
+    minzoom: 11,
+    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT],
+    color: themed(INK.casing),
+    width: width(11, 2.2, 14, 3.6, 16, 5.4, 19, 8),
+  }),
+  wayLayer({
+    id: 'bicycle-cycleways',
+    name: 'Cycleways',
+    group: 'cycleways',
     order: 31,
-    groupId: 'default:group:cycling:cycleways',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-cycleways',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 10,
-      filter: [
-        'all',
-        ['==', 'infra_type', 'cycleway'],
-        ['!has', 'state'],
-        [
-          '!in',
-          'surface',
-          'gravel',
-          'dirt',
-          'grass',
-          'ground',
-          'earth',
-          'sand',
-          'mud',
-          'unpaved',
-          'fine_gravel',
-          'compacted',
-        ],
-      ],
-      paint: {
-        'line-color': '#1a7a3a',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          10,
-          1.5,
-          14,
-          3.5,
-          16,
-          6,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Dedicated cycleways — fill (unpaved surfaces)
-  {
-    templateId: 'default:bicycle-cycleways-unpaved',
+    minzoom: 11,
+    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT, HARD],
+    color: themed(INK.track),
+    width: width(11, 1, 14, 1.8, 16, 2.8, 19, 4.4),
+  }),
+  wayLayer({
+    id: 'bicycle-cycleways-unpaved',
     name: 'Cycleways Unpaved',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
+    group: 'cycleways',
     order: 32,
-    groupId: 'default:group:cycling:cycleways',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-cycleways-unpaved',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 10,
-      filter: [
-        'all',
-        ['==', 'infra_type', 'cycleway'],
-        ['!has', 'state'],
-        [
-          'in',
-          'surface',
-          'gravel',
-          'dirt',
-          'grass',
-          'ground',
-          'earth',
-          'sand',
-          'mud',
-          'unpaved',
-          'fine_gravel',
-          'compacted',
-        ],
-      ],
-      paint: {
-        'line-color': '#2d8a4e',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          10,
-          1.5,
-          14,
-          3.5,
-          16,
-          6,
-        ],
-        'line-dasharray': [4, 2],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
+    minzoom: 11,
+    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT, SOFT],
+    color: themed(INK.track),
+    width: width(11, 1, 14, 1.8, 16, 2.8, 19, 4.4),
+    dash: [3, 2],
+  }),
 
-  // Cycle tracks (physically separated, cycleway=track)
-  {
-    templateId: 'default:bicycle-tracks',
-    name: 'Cycle Tracks',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 40,
-    groupId: 'default:group:cycling:cycle-tracks',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-tracks',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 11,
-      filter: ['all', ['==', 'infra_type', 'cycle_track'], ['!has', 'state']],
-      paint: {
-        'line-color': '#2d8a4e',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11,
-          1.2,
-          14,
-          3,
-          16,
-          5,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-
-  // Bike lanes — casing
-  {
-    templateId: 'default:bicycle-lanes-casing',
-    name: 'Bike Lanes Casing',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 50,
-    groupId: 'default:group:cycling:bike-lanes',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-lanes-casing',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 12,
-      filter: ['all', ['==', 'infra_type', 'cycle_lane'], ['!has', 'state']],
-      paint: {
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#1a2a1f',
-          0.3,
-          '#ffffff',
-        ],
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          1,
-          14,
-          2.5,
-          16,
-          4.5,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.5,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Dedicated painted bike lanes (cycle_lane only)
-  {
-    templateId: 'default:bicycle-lanes',
-    name: 'Bike Lanes',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 51,
-    groupId: 'default:group:cycling:bike-lanes',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-lanes',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 12,
-      filter: ['all', ['==', 'infra_type', 'cycle_lane'], ['!has', 'state']],
-      paint: {
-        'line-color': '#38a169',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          1,
-          14,
-          2.5,
-          16,
-          4.5,
-        ],
-        'line-dasharray': [0.1, 1.5],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-
-  // Shared lanes (sharrows, shoulders, bus-lanes) — casing
-  {
-    templateId: 'default:bicycle-shared-lanes-casing',
-    name: 'Shared Lanes Casing',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 52,
-    groupId: 'default:group:cycling:shared-lanes',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-shared-lanes-casing',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 12,
-      filter: [
-        'all',
-        [
-          'in',
-          'infra_type',
-          'shared_lane',
-          'opposite',
-          'shoulder',
-          'share_busway',
-        ],
-        ['!has', 'state'],
-      ],
-      paint: {
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#1a2a1f',
-          0.3,
-          '#ffffff',
-        ],
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          1,
-          14,
-          2.5,
-          16,
-          4.5,
-        ],
-        'line-opacity': 0.55,
-        'line-emissive-strength': 0.5,
-      },
-      layout: {
-        'line-cap': 'butt',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Shared lanes — fill
-  {
-    templateId: 'default:bicycle-shared-lanes',
-    name: 'Shared Lanes',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 53,
-    groupId: 'default:group:cycling:shared-lanes',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-shared-lanes',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 12,
-      filter: [
-        'all',
-        [
-          'in',
-          'infra_type',
-          'shared_lane',
-          'opposite',
-          'shoulder',
-          'share_busway',
-        ],
-        ['!has', 'state'],
-      ],
-      paint: {
-        'line-color': '#9ae6b4',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          1,
-          14,
-          2.5,
-          16,
-          4.5,
-        ],
-        'line-dasharray': [2, 3],
-        'line-opacity': 0.55,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'butt',
-        'line-join': 'round',
-      },
-    },
-  },
-
-  // Bicycle paths (footway/path with bicycle=designated) — paved
-  {
-    templateId: 'default:bicycle-paths',
-    name: 'Bicycle Paths Paved',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
+  // Paths and steps built for bikes. Same treatment, dashed: a path is a
+  // rougher promise than a cycleway.
+  wayLayer({
+    id: 'bicycle-paths-casing',
+    name: 'Bicycle Paths Casing',
+    group: 'bicycle-paths',
     order: 60,
-    groupId: 'default:group:cycling:bicycle-paths',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-paths',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 11,
-      filter: [
-        'all',
-        ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'],
-        ['!has', 'state'],
-        [
-          '!in',
-          'surface',
-          'gravel',
-          'dirt',
-          'grass',
-          'ground',
-          'earth',
-          'sand',
-          'mud',
-          'unpaved',
-          'fine_gravel',
-          'compacted',
-        ],
-      ],
-      paint: {
-        'line-color': '#2f855a',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11,
-          1,
-          14,
-          2.5,
-          16,
-          4,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Bicycle paths — unpaved casing
-  {
-    templateId: 'default:bicycle-paths-unpaved-casing',
-    name: 'Bicycle Paths Unpaved Casing',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
+    minzoom: 12,
+    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT],
+    color: themed(INK.casing),
+    width: width(12, 2, 14, 3.2, 16, 4.6, 19, 6.6),
+  }),
+  wayLayer({
+    id: 'bicycle-paths',
+    name: 'Bicycle Paths',
+    group: 'bicycle-paths',
     order: 61,
-    groupId: 'default:group:cycling:bicycle-paths',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-paths-unpaved-casing',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 11,
-      filter: [
-        'all',
-        ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'],
-        ['!has', 'state'],
-        [
-          'in',
-          'surface',
-          'gravel',
-          'dirt',
-          'grass',
-          'ground',
-          'earth',
-          'sand',
-          'mud',
-          'unpaved',
-          'fine_gravel',
-          'compacted',
-        ],
-      ],
-      paint: {
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#1a2a1f',
-          0.3,
-          '#ffffff',
-        ],
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11,
-          1,
-          14,
-          2.5,
-          16,
-          4,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.5,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Bicycle paths — unpaved
-  {
-    templateId: 'default:bicycle-paths-unpaved',
+    minzoom: 12,
+    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT, HARD],
+    color: themed(INK.lane),
+    width: width(12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6),
+  }),
+  wayLayer({
+    id: 'bicycle-paths-unpaved',
     name: 'Bicycle Paths Unpaved',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
+    group: 'bicycle-paths',
     order: 62,
-    groupId: 'default:group:cycling:bicycle-paths',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-paths-unpaved',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 11,
-      filter: [
-        'all',
-        ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'],
-        ['!has', 'state'],
-        [
-          'in',
-          'surface',
-          'gravel',
-          'dirt',
-          'grass',
-          'ground',
-          'earth',
-          'sand',
-          'mud',
-          'unpaved',
-          'fine_gravel',
-          'compacted',
-        ],
-      ],
-      paint: {
-        'line-color': '#68d391',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11,
-          1,
-          14,
-          2.5,
-          16,
-          4,
-        ],
-        'line-dasharray': [3, 2],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
+    minzoom: 12,
+    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT, SOFT],
+    color: themed(INK.lane),
+    width: width(12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6),
+    dash: [3, 2],
+  }),
 
-  // Bicycle roads & cycle streets
-  {
-    templateId: 'default:bicycle-roads',
-    name: 'Bicycle Roads',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 70,
-    groupId: 'default:group:cycling:bicycle-roads',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-roads',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 12,
-      filter: [
-        'all',
-        [
-          'in',
-          'infra_type',
-          'bicycle_road',
-          'cycle_street',
-          'bicycle_designated',
-        ],
-        ['!has', 'state'],
-      ],
-      paint: {
-        'line-color': '#276749',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          12,
-          1.2,
-          14,
-          3,
-          16,
-          5,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
+  /**
+   * Signed route relations (icn / ncn / rcn / lcn), at overview zooms only.
+   *
+   * A signed route is a recommendation laid over whatever is actually built,
+   * and often over nothing — so it is worth drawing exactly while nothing else
+   * is: below z12 the infrastructure layers have not started and this line is
+   * the only thing carrying the network. From z12 they take over, and the
+   * route would only add a third green line down the middle of a street whose
+   * lanes are already marked on both sides, claiming you ride between them.
+   * Past the handover the route's NAME is what says it is signed; see the
+   * labels layer, which draws at every zoom.
+   *
+   * Dash-dot while it does draw, which is how a line that exists by
+   * designation rather than in the ground is drawn everywhere else — a
+   * boundary, a jurisdiction.
+   */
+  wayLayer({
+    id: 'bicycle-routes',
+    name: 'Bike Routes',
+    group: 'bike-routes',
+    order: 10,
+    minzoom: 9,
+    maxzoom: 12,
+    filter: ['!=', ['get', 'state'], 'proposed'],
+    color: themed(INK.route),
+    width: width(9, 0.8, 10, 1, 12, 1.4),
+    dash: [5, 2, 1, 2],
+  }),
 
-  // Bicycle permitted — casing
-  {
-    templateId: 'default:bicycle-permitted-casing',
-    name: 'Bicycle Permitted Casing',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 80,
-    groupId: 'default:group:cycling:bicycle-permitted',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-permitted-casing',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 13,
-      filter: ['all', ['==', 'infra_type', 'bicycle_yes'], ['!has', 'state']],
-      paint: {
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#1a2a1f',
-          0.3,
-          '#ffffff',
-        ],
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          13,
-          0.8,
-          15,
-          2,
-          16,
-          3.5,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.5,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Bicycle permitted (bicycle=yes on roads)
-  {
-    templateId: 'default:bicycle-permitted',
-    name: 'Bicycle Permitted',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 81,
-    groupId: 'default:group:cycling:bicycle-permitted',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-permitted',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 13,
-      filter: ['all', ['==', 'infra_type', 'bicycle_yes'], ['!has', 'state']],
-      paint: {
-        'line-color': '#9ae6b4',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          13,
-          0.8,
-          15,
-          2,
-          16,
-          3.5,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-
-  // ── Proposed / Under construction bikeways ──────────────────
-  // Proposed — casing
-  {
-    templateId: 'default:bicycle-proposed-casing',
-    name: 'Proposed Bikeways Casing',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 100,
-    groupId: 'default:group:cycling:proposed-bikeways',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-proposed-casing',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 11,
-      filter: ['==', 'state', 'proposed'],
-      paint: {
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#261a36',
-          0.3,
-          '#9c7ec4',
-        ],
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11,
-          0.8,
-          14,
-          1.5,
-          16,
-          2.5,
-        ],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.5,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Proposed bikeways
-  {
-    templateId: 'default:bicycle-proposed',
+  // Not built yet. Both are dashed and quiet — a plan is not a route — and the
+  // only one that takes a warm colour is the one with a machine on it.
+  wayLayer({
+    id: 'bicycle-proposed',
     name: 'Proposed Bikeways',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 101,
-    groupId: 'default:group:cycling:proposed-bikeways',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-proposed',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 11,
-      filter: ['==', 'state', 'proposed'],
-      paint: {
-        'line-color': '#873beb',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11,
-          0.8,
-          14,
-          1.5,
-          16,
-          2.5,
-        ],
-        'line-dasharray': [1, 3],
-        'line-opacity': 1,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Under construction — casing
-  {
-    templateId: 'default:bicycle-construction-casing',
-    name: 'Under Construction Casing',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 102,
-    groupId: 'default:group:cycling:proposed-bikeways',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-construction-casing',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 11,
-      filter: ['==', 'state', 'construction'],
-      paint: {
-        'line-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#1a2a1f',
-          0.3,
-          '#f79107',
-        ],
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11,
-          1,
-          14,
-          2,
-          16,
-          3,
-        ],
-        'line-opacity': 0.8,
-        'line-emissive-strength': 0.5,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Under construction bikeways
-  {
-    templateId: 'default:bicycle-construction',
+    group: 'proposed-bikeways',
+    order: 100,
+    minzoom: 11,
+    filter: ['==', 'state', 'proposed'],
+    color: themed(INK.proposed),
+    width: width(11, 0.8, 14, 1.4, 16, 2.2),
+    dash: [1, 4],
+  }),
+  wayLayer({
+    id: 'bicycle-construction',
     name: 'Under Construction',
-    type: LayerType.CUSTOM,
-    engine: ['mapbox', 'maplibre'],
-    icon: 'BikeIcon',
-    showInLayerSelector: false,
-    visible: false,
-    order: 103,
-    groupId: 'default:group:cycling:proposed-bikeways',
-    isSubLayer: true,
-    integrationId: 'barrelman',
-    configuration: {
-      id: 'bicycle-construction',
-      type: 'line',
-      source: {
-        id: 'bicycle-ways',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-        maxzoom: 16,
-      },
-      'source-layer': 'bicycle_ways',
-      minzoom: 11,
-      filter: ['==', 'state', 'construction'],
-      paint: {
-        'line-color': '#FC8',
-        'line-width': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          11,
-          1,
-          14,
-          2,
-          16,
-          3,
-        ],
-        'line-dasharray': [0.2, 2],
-        'line-opacity': 0.8,
-        'line-emissive-strength': 0.8,
-      },
-      layout: {
-        'line-cap': 'round',
-        'line-join': 'round',
-      },
-    },
-  },
-  // Bicycle route labels
+    group: 'proposed-bikeways',
+    order: 102,
+    minzoom: 11,
+    filter: ['==', 'state', 'construction'],
+    color: themed(INK.construction),
+    width: width(11, 1, 14, 1.8, 16, 2.6),
+    dash: [1.5, 1.5],
+  }),
+
+  // Route names along the corridor they belong to.
   {
     templateId: 'default:bicycle-routes-labels',
     name: 'Bike Routes Labels',
@@ -1124,7 +294,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     icon: 'BikeIcon',
     showInLayerSelector: false,
     visible: false,
-    order: 999,
+    order: 110,
     groupId: 'default:group:cycling:bike-routes',
     isSubLayer: true,
     integrationId: 'barrelman',
@@ -1141,34 +311,18 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       minzoom: 10,
       filter: ['any', ['has', 'name'], ['has', 'ref']],
       paint: {
-        'text-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#4ade80',
-          0.3,
-          '#1a7a3a',
-        ],
-        'text-halo-color': [
-          'interpolate',
-          ['linear'],
-          ['measure-light', 'brightness'],
-          0.25,
-          '#0a1f14',
-          0.3,
-          '#ffffff',
-        ],
+        'text-color': themed(INK.route),
+        'text-halo-color': themed({ light: '#ffffff', dark: '#0d1016' }),
         'text-halo-width': 1.5,
+        // Soft rather than traced, like every other label on the map.
+        'text-halo-blur': 0.4,
         'text-emissive-strength': 0.8,
       },
       layout: {
         'symbol-placement': 'line',
         'text-field': ['coalesce', ['get', 'ref'], ['get', 'name']],
         'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
-        'text-transform': 'uppercase',
-        'text-letter-spacing': 0.01,
-        'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 13],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 12],
         'text-max-angle': 30,
         'text-padding': 30,
       },

@@ -12,6 +12,14 @@ import {
 } from './detail-layers'
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
+import { CYCLING_SUFFIX } from './cycling.mjs'
+import { CYCLING_WAYS_SUFFIX } from './cycling-layers'
+import {
+  CYCLING_WAYS_LAYER_IDS,
+  cyclingStrokeLayers,
+  cyclingWaysLayers,
+  cyclingWaysSource,
+} from './cycling-layers'
 import { barrelmanBuildingsReady } from './barrelman-buildings'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -317,6 +325,21 @@ export const layerGroups = {
    */
   transit: idsWhere(isTransitStopLayer),
   placeLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'place'),
+  /**
+   * The green twins of the road layers; see `addCyclingSurface` in
+   * `convert-basemap-style.mjs`. They ship hidden, so nothing switches them on
+   * but the cycling layer group.
+   */
+  /**
+   * Everything green: the twins the spec carries for ways our own tiles know
+   * are cycling infrastructure, and the tint drawn from Barrelman for the
+   * on-street network they cannot see. One toggle, because to a rider they are
+   * one network.
+   */
+  cycling: [
+    ...idsWhere(l => l.id.endsWith(CYCLING_SUFFIX)),
+    ...CYCLING_WAYS_LAYER_IDS,
+  ],
   building3d: specLayers.find(l => l.type === 'fill-extrusion')?.id ?? 'Building 3D',
 }
 
@@ -535,6 +558,21 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
     .lastIndexOf(true)
   out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor))
 
+  // Each tint goes straight over the road it repaints, so it covers the
+  // asphalt and stays under that road's casing, its markings and every label.
+  // Descending, because splicing shifts everything after the insertion point.
+  const roadWidth = (id: string) => out.find(l => l.id === id)?.paint?.['line-width']
+  const tints = cyclingWaysLayers(flavor, roadWidth)
+  for (const { above, layer } of tints.reverse()) {
+    const at = out.findIndex(l => l.id === above)
+    if (at >= 0) out.splice(at + 1, 0, layer)
+  }
+
+  // The markings go over every tint, since they describe the street rather
+  // than any one rung of it. Above the topmost road, still below the labels.
+  const lastRoad = out.map(l => l.id.endsWith(CYCLING_WAYS_SUFFIX)).lastIndexOf(true)
+  if (lastRoad >= 0) out.splice(lastRoad + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth))
+
   return out
 }
 
@@ -551,6 +589,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sources: {
       [SOURCE]: vectorSource(tileServerUrl, tileKey),
       ...detailSources(source => buildTileUrl(tileServerUrl, tileKey, source)),
+      ...cyclingWaysSource(source => buildTileUrl(tileServerUrl, tileKey, source)),
     },
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),

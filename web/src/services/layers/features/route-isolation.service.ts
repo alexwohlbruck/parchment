@@ -21,13 +21,18 @@ import {
   fadeTransitNetwork,
   networkDimOpacity,
 } from '@/services/layers/features/transit-network-dim'
+import {
+  addStopOverlay,
+  removeLayerIfExists,
+  removeSourceIfExists,
+  removeStopOverlay,
+  stopOverlayIds,
+} from '@/services/layers/features/transit-stop-overlay'
 import type { FitBoundsFn } from '@/types/map.types'
 
 const ROUTE_SOURCE_ID = 'route-detail-shape'
 const ROUTE_LAYER_ID = 'route-detail-line'
-const STOPS_SOURCE_ID = 'route-detail-stops'
-const STOPS_LAYER_ID = 'route-detail-stops-circles'
-const STOPS_LABELS_LAYER_ID = 'route-detail-stops-labels'
+const STOPS = stopOverlayIds('route-detail-stops')
 
 export function useRouteIsolationService() {
   const routeDetailStore = useRouteDetailStore()
@@ -117,11 +122,9 @@ export function useRouteIsolationService() {
    * ours. Only one of them may be on the map at a time.
    */
   function removeRouteOverlay() {
-    removeLayerIfExists(STOPS_LABELS_LAYER_ID)
-    removeLayerIfExists(STOPS_LAYER_ID)
-    removeSourceIfExists(STOPS_SOURCE_ID)
-    removeLayerIfExists(ROUTE_LAYER_ID)
-    removeSourceIfExists(ROUTE_SOURCE_ID)
+    removeStopOverlay(mapInstance, STOPS)
+    removeLayerIfExists(mapInstance, ROUTE_LAYER_ID)
+    removeSourceIfExists(mapInstance, ROUTE_SOURCE_ID)
   }
 
   type IsolatableRoute = {
@@ -238,9 +241,12 @@ export function useRouteIsolationService() {
       const stops = routeDetailStore.servedStops.length
         ? routeDetailStore.servedStops
         : route.stops
-      if (stops.length > 0) {
-        addStationMarkers(stops, route.routeColor)
-      }
+      addStopOverlay(
+        mapInstance,
+        STOPS,
+        stops.map(s => ({ name: s.stopName, lng: s.lng, lat: s.lat })),
+        route.routeColor,
+      )
     }
 
     // A confirmed break does not change WHO renders — portolan keeps the
@@ -422,8 +428,8 @@ export function useRouteIsolationService() {
   function addRouteShape(coordinates: [number, number][], color: string | null) {
     if (!mapInstance) return
 
-    removeLayerIfExists(ROUTE_LAYER_ID)
-    removeSourceIfExists(ROUTE_SOURCE_ID)
+    removeLayerIfExists(mapInstance, ROUTE_LAYER_ID)
+    removeSourceIfExists(mapInstance, ROUTE_SOURCE_ID)
 
     const lineColor = color ? `#${color}` : '#007cbf'
 
@@ -463,97 +469,6 @@ export function useRouteIsolationService() {
         'line-opacity': 1,
       },
     })
-  }
-
-  function addStationMarkers(
-    stops: RouteDetailStop[],
-    color: string | null,
-  ) {
-    if (!mapInstance) return
-
-    removeLayerIfExists(STOPS_LABELS_LAYER_ID)
-    removeLayerIfExists(STOPS_LAYER_ID)
-    removeSourceIfExists(STOPS_SOURCE_ID)
-
-    const features = stops.map((stop, i) => ({
-      type: 'Feature' as const,
-      properties: {
-        name: stop.stopName,
-        isTerminus: i === 0 || i === stops.length - 1,
-      },
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [stop.lng, stop.lat],
-      },
-    }))
-
-    mapInstance.addSource(STOPS_SOURCE_ID, {
-      type: 'geojson',
-      data: {
-        type: 'FeatureCollection',
-        features,
-      },
-    })
-
-    const stationColor = color ? `#${color}` : '#007cbf'
-
-    // Station circles
-    mapInstance.addLayer({
-      id: STOPS_LAYER_ID,
-      type: 'circle',
-      source: STOPS_SOURCE_ID,
-      paint: {
-        'circle-radius': [
-          'case',
-          ['get', 'isTerminus'], 6,
-          4,
-        ],
-        'circle-color': '#ffffff',
-        'circle-stroke-width': [
-          'case',
-          ['get', 'isTerminus'], 3,
-          2.5,
-        ],
-        'circle-stroke-color': stationColor,
-      },
-    })
-
-    // Station labels
-    mapInstance.addLayer({
-      id: STOPS_LABELS_LAYER_ID,
-      type: 'symbol',
-      source: STOPS_SOURCE_ID,
-      layout: {
-        'text-field': ['get', 'name'],
-        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Bold'],
-        'text-size': 11,
-        'text-offset': [1, 0],
-        'text-anchor': 'left',
-        'text-allow-overlap': false,
-        'text-max-width': 12,
-      },
-      paint: {
-        'text-color': '#333333',
-        'text-halo-width': 1.5,
-        'text-halo-color': '#ffffff',
-      },
-    })
-  }
-
-  function removeLayerIfExists(id: string) {
-    try {
-      if (mapInstance?.getLayer(id)) {
-        mapInstance.removeLayer(id)
-      }
-    } catch { /* layer doesn't exist */ }
-  }
-
-  function removeSourceIfExists(id: string) {
-    try {
-      if (mapInstance?.getSource(id)) {
-        mapInstance.removeSource(id)
-      }
-    } catch { /* source doesn't exist */ }
   }
 
   function destroy() {

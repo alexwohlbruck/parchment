@@ -452,9 +452,18 @@ export function luminanceOf(color: unknown): number | null {
   return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
 }
 
-/** Near-white on a dark map, near-black on a light one. */
-export const LABEL_TEXT_DARK_MAP = '#f4f4f8'
-export const LABEL_TEXT_LIGHT_MAP = '#16161c'
+/**
+ * The ink a station name takes, on a dark map and on a light one.
+ *
+ * A cool slate rather than black — `hsl(222, 25%, 21%)` and its inverse,
+ * which is `label_ink_strong` in the basemap's own token files. The two
+ * letter the same kind of thing, a named place you are navigating to, and a
+ * station in neutral black beside a basemap place name in slate reads as a
+ * different map's label dropped on top. Written as hex because this value is
+ * also compared for equality (`inkDark`) and passed to canvas.
+ */
+export const LABEL_TEXT_DARK_MAP = '#e9ebf2'
+export const LABEL_TEXT_LIGHT_MAP = '#283043'
 
 /**
  * Every colour the basemap letters its own labels with.
@@ -581,7 +590,9 @@ export function labelPaintFor(
   // import at all.
   const dark = darkOverride ?? styleIsDark(layers, fallbackDark)
   const text = dark ? LABEL_TEXT_DARK_MAP : LABEL_TEXT_LIGHT_MAP
-  const ownHalo = dark ? 'rgba(8,8,12,0.95)' : 'rgba(255,255,255,0.95)'
+  // The basemap's `label_halo`: not quite opaque, so it reads as space around
+  // the letters rather than as a second glyph traced behind them.
+  const ownHalo = dark ? 'rgba(13,16,22,0.9)' : 'rgba(255,255,255,0.9)'
 
   let halo: any = ownHalo
   let width: number | undefined
@@ -600,8 +611,64 @@ export function labelPaintFor(
   return {
     'text-color': text,
     'text-halo-color': halo,
-    'text-halo-width': width ?? 1.4,
+    'text-halo-width': width ?? 1.6,
   }
+}
+
+
+/**
+ * How heavy a face reads, by name. A face that says nothing about its weight
+ * scores 0, so it can never outrank one that does.
+ */
+const FACE_WEIGHTS: [RegExp, number][] = [
+  [/black|heavy/i, 5],
+  [/extra ?bold/i, 4],
+  [/\bbold/i, 3],
+  [/semi ?bold|demi/i, 2],
+  [/medium/i, 1],
+]
+
+function faceWeight(name: string): number {
+  return FACE_WEIGHTS.find(([re]) => re.test(name))?.[1] ?? 0
+}
+
+/**
+ * The font to letter station names in: the heaviest UPRIGHT face the
+ * basemap letters anything with.
+ *
+ * Heaviest, because a station name outranks every name around it — Apple
+ * sets theirs bold over streets in medium, and weight is what carries that
+ * without making the label bigger. Taking the FIRST face is what this used
+ * to do, and on our own basemap the first symbol layer is `Oneway`, so the
+ * intended SemiBold quietly came out Regular — level with the street names
+ * it exists to outrank.
+ *
+ * Read off the style rather than named outright because a custom basemap
+ * brings its own glyph endpoint, and a face it does not carry 404s and
+ * draws nothing. Upright for two reasons: a station name in the italic
+ * reserved for POIs reads as a shop, and the row estimate has to measure
+ * this face on a canvas, where a face the browser lacks measures as
+ * whatever it substitutes.
+ */
+export function labelFontFor(layers: any[], fallback: string[]): string[] {
+  let best: string[] | undefined
+  let bestRank = -1
+  let italic: string[] | undefined
+  for (const l of layers ?? []) {
+    if (l?.type !== 'symbol' || String(l.id ?? '').startsWith('portolan-')) continue
+    const f = (l.layout as any)?.['text-font']
+    if (!Array.isArray(f) || !f.length) continue
+    if (/italic|oblique|condensed/i.test(String(f[0]))) {
+      italic ??= f as string[]
+      continue
+    }
+    const rank = faceWeight(String(f[0]))
+    if (rank > bestRank) {
+      bestRank = rank
+      best = f as string[]
+    }
+  }
+  return best ?? italic ?? fallback
 }
 
 

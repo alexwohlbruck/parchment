@@ -312,6 +312,7 @@ export const useLayersStore = defineStore('layers', () => {
         state?.showInLayerSelector ?? template.showInLayerSelector,
       visible: visibilityOverride ?? state?.visible ?? template.visible,
       fadeBasemap: template.fadeBasemap ?? false,
+      basemapGroup: template.basemapGroup ?? undefined,
       icon: template.icon ?? undefined,
       order: state?.order ?? template.order,
       parentGroupId:

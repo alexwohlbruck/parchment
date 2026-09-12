@@ -9,8 +9,14 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     icon: 'BikeIcon',
     showInLayerSelector: true,
     visible: false,
-    order: 0,
+    // Under transit. A bike network is ground you ride on and the transit
+    // network is drawn above the ground it runs over, so where the two cross
+    // the train should pass over the bike lane, not under it.
+    order: 3,
     parentGroupId: null,
+    // The green road surface; see `addCyclingSurface` in
+    // `web/scripts/convert-basemap-style.mjs`.
+    basemapGroup: 'cycling',
   },
   // Cycling subgroups
   {
@@ -24,62 +30,12 @@ export const DEFAULT_LAYER_GROUPS: DefaultLayerGroupTemplate[] = [
     integrationId: 'barrelman',
   },
   {
-    templateId: 'default:group:cycling:cycle-tracks',
-    name: 'Cycle Tracks',
-    icon: 'BikeIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 1,
-    parentGroupId: 'default:group:cycling',
-    integrationId: 'barrelman',
-  },
-  {
-    templateId: 'default:group:cycling:bike-lanes',
-    name: 'Bike Lanes',
-    icon: 'BikeIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 2,
-    parentGroupId: 'default:group:cycling',
-    integrationId: 'barrelman',
-  },
-  {
-    templateId: 'default:group:cycling:shared-lanes',
-    name: 'Shared Lanes',
-    icon: 'BikeIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 3,
-    parentGroupId: 'default:group:cycling',
-    integrationId: 'barrelman',
-  },
-  {
     templateId: 'default:group:cycling:bicycle-paths',
     name: 'Bicycle Paths',
     icon: 'BikeIcon',
     showInLayerSelector: true,
     visible: false,
     order: 4,
-    parentGroupId: 'default:group:cycling',
-    integrationId: 'barrelman',
-  },
-  {
-    templateId: 'default:group:cycling:bicycle-roads',
-    name: 'Bicycle Roads',
-    icon: 'BikeIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 5,
-    parentGroupId: 'default:group:cycling',
-    integrationId: 'barrelman',
-  },
-  {
-    templateId: 'default:group:cycling:bicycle-permitted',
-    name: 'Bicycle Permitted',
-    icon: 'BikeIcon',
-    showInLayerSelector: true,
-    visible: false,
-    order: 6,
     parentGroupId: 'default:group:cycling',
     integrationId: 'barrelman',
   },

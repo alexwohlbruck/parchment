@@ -60,6 +60,7 @@ import {
   KINDS,
   darkFromLightPreset,
   LABEL_TEXT_DARK_MAP,
+  labelFontFor,
   labelPaintFor,
   RIBBON_COLOR,
   ribbonColorWithAlpha,
@@ -143,6 +144,16 @@ const EMPTY_FC = { type: 'FeatureCollection', features: [] } as any
 // directory that has never existed.
 const LABEL_FONT = ['Geist SemiBold']
 const LABEL_FONT_ITALIC = ['Geist Regular']
+
+/**
+ * Leading for a wrapped station name, matching the basemap's own labels.
+ *
+ * "Franklin Av–Medgar Evers College" is three rows and has to read as one
+ * name; MapLibre's default 1.2 spreads it into three separate ones. The
+ * bullet strip is positioned from the same number — it hangs below the last
+ * row — so the two cannot be changed apart.
+ */
+const STATION_LINE_HEIGHT = 1.05
 
 // ── module state (one map at a time, like the other layer services) ────
 let map: any = null
@@ -1737,27 +1748,9 @@ function labelsItsOwnName(p: any): boolean {
   return p?.ftype !== 'marker' || p?.nmarkers > 1
 }
 
-/**
- * The font to letter station names in.
- *
- * Prefers the basemap's own UPRIGHT face over a condensed or italic one.
- * Two reasons: a station name in the italic reserved for POIs reads as a
- * shop, and — less obviously — the row estimate has to measure this face
- * on a canvas, so a face the browser does not have measures as whatever
- * it falls back to. The plain face is the one both the glyph endpoint and
- * the browser are most likely to actually have.
- */
+/** The station-name face for whatever basemap is loaded; see `labelFontFor`. */
 function basemapLabelFont(): string[] {
-  let fallback: string[] | undefined
-  for (const l of map?.getStyle?.()?.layers ?? []) {
-    if (l.type !== 'symbol' || l.id.startsWith('portolan-')) continue
-    const f = (l.layout as any)?.['text-font']
-    if (!Array.isArray(f) || !f.length) continue
-    const plain = !/italic|oblique|condensed/i.test(String(f[0]))
-    if (plain) return f as string[]
-    fallback ??= f as string[]
-  }
-  return fallback ?? LABEL_FONT
+  return labelFontFor(map?.getStyle?.()?.layers ?? [], LABEL_FONT)
 }
 
 /** The symbol stack, above every ribbon (MapView.vue:1016-1254). Symbols
@@ -1907,7 +1900,7 @@ function addSymbolLayers() {
   const rankBump: Expr = ['case', ['>=', ['get', 'rank'], 8], 2.5, ['>=', ['get', 'rank'], 4], 1, 0]
   const rk: Expr = ['get', 'rank']
   const TEXT_TOP_EM = 0.5 // the layers' text-offset, in ems
-  const LINE_EM = 1.2 // MapLibre's default text-line-height
+  const LINE_EM = STATION_LINE_HEIGHT
   const GAP_EM = 0.3
   const [Z_LO, Z_HI, SIZE_LO, SIZE_HI] = [11, 16, 10, 13]
   const textSize: Expr = [
@@ -1966,6 +1959,7 @@ function addSymbolLayers() {
     layout: {
       'text-field': ['get', 'name'],
       'text-font': labelFont,
+      'text-line-height': STATION_LINE_HEIGHT,
       'symbol-sort-key': ['*', -1, imp],
       // fixed top anchor: name under the marker, bullet strip under the
       // name (variable anchors would detach the strip from the text)
@@ -1994,6 +1988,7 @@ function addSymbolLayers() {
     layout: {
       'text-field': ['get', 'name'],
       'text-font': labelFont,
+      'text-line-height': STATION_LINE_HEIGHT,
       'symbol-sort-key': ['*', -1, imp],
       'text-anchor': 'top',
       'text-offset': [0, TEXT_TOP_EM],

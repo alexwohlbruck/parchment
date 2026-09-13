@@ -36,6 +36,8 @@ import { createAnimationHold } from '@/lib/map/animation-hold'
 import {
   calculateCameraPadding,
   calculateFitPadding,
+  paddingEquals,
+  roundPadding,
   toContainerRect,
   type Padding,
 } from '@/lib/map/map-padding'
@@ -898,7 +900,7 @@ function mapService() {
         if (pendingFit.settleTimer) clearTimeout(pendingFit.settleTimer)
         pendingFit.settleTimer = setTimeout(triggerSettledRefit, SETTLE_MS)
       },
-      { deep: true, flush: 'post' },
+      { flush: 'post' },
     )
 
     const stopTimer = setTimeout(() => {
@@ -1114,7 +1116,15 @@ function mapService() {
     const padding = effectiveMapPadding()
     if (!padding) return
 
-    mapStrategy.mapInstance?.setPadding(padding as any)
+    const map = mapStrategy.mapInstance
+    if (!map) return
+    // setPadding is a jumpTo underneath — each call rebuilds the camera
+    // matrices and repaints every layer — so skip frames where the rounded
+    // answer hasn't moved. A sheet travelling through the half-screen cap
+    // produces long runs of identical padding.
+    const target = roundPadding(padding as Padding)
+    if (paddingEquals(target, map.getPadding())) return
+    map.setPadding(target as any)
   }
 
   /**
@@ -1142,8 +1152,9 @@ function mapService() {
   }
 
   // Watch for changes in the visible map area and apply padding immediately.
+  // The computed returns a fresh object per recompute, so identity alone
+  // fires the watcher — a deep traversal per drag frame bought nothing.
   watch(() => appStore.visibleMapArea, updateMapPadding, {
-    deep: true,
     flush: 'post',
   })
 

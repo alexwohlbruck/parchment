@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
+
 ## [0.12.2] - 2026-09-12
 
 ### Changed

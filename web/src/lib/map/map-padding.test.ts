@@ -2,6 +2,8 @@ import { describe, it, test, expect } from 'vitest'
 import {
   calculateCameraPadding,
   calculateFitPadding,
+  paddingEquals,
+  roundPadding,
   toContainerRect,
 } from './map-padding'
 
@@ -93,5 +95,29 @@ describe('calculateCameraPadding', () => {
       { x: -50, y: -50, width: 900, height: 700 }, 800, 600,
     )
     expect(Object.values(result!.padding).every(v => v >= 0)).toBe(true)
+  })
+})
+
+describe('roundPadding', () => {
+  it('rounds every side to whole pixels', () => {
+    expect(
+      roundPadding({ top: 0.4, right: 12.5, bottom: 421.9, left: 0 }),
+    ).toEqual({ top: 0, right: 13, bottom: 422, left: 0 })
+  })
+})
+
+describe('paddingEquals', () => {
+  const applied = { top: 0, right: 0, bottom: 422, left: 0 }
+
+  it('treats sub-pixel drift as equal', () => {
+    expect(
+      paddingEquals(applied, { top: 0.2, right: 0, bottom: 421.8, left: 0 }),
+    ).toBe(true)
+  })
+
+  it('sees a one-pixel move', () => {
+    expect(
+      paddingEquals(applied, { top: 0, right: 0, bottom: 421, left: 0 }),
+    ).toBe(false)
   })
 })

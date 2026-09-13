@@ -40,23 +40,34 @@ function onDragStart(e: MouseEvent) {
   window.addEventListener('mouseup', onDragEnd)
 }
 
+// mousemove outpaces the display; one jumpTo per frame is all it can show.
+let dragRaf = 0
+let pendingBearing = 0
+let pendingPitch = 0
 function onDrag(e: MouseEvent) {
   if (!isDragging.value) return
 
   const deltaX = e.clientX - startX.value
   const deltaY = e.clientY - startY.value
 
-  const newBearing = startBearing.value + deltaX * 0.5
-  const newPitch = Math.max(0, Math.min(85, startPitch.value - deltaY * 0.5))
+  pendingBearing = startBearing.value + deltaX * 0.5
+  pendingPitch = Math.max(0, Math.min(85, startPitch.value - deltaY * 0.5))
 
-  mapService.jumpTo({
-    bearing: newBearing,
-    pitch: newPitch,
+  if (dragRaf) return
+  dragRaf = requestAnimationFrame(() => {
+    dragRaf = 0
+    if (!isDragging.value) return
+    mapService.jumpTo({
+      bearing: pendingBearing,
+      pitch: pendingPitch,
+    })
   })
 }
 
 function onDragEnd() {
   isDragging.value = false
+  if (dragRaf) cancelAnimationFrame(dragRaf)
+  dragRaf = 0
   window.removeEventListener('mousemove', onDrag)
   window.removeEventListener('mouseup', onDragEnd)
   // Match the native rotate-gesture behavior: snap to north / city grid on release.

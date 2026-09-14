@@ -936,7 +936,7 @@ function exitShieldLayer(layer) {
   return {
     layout: {
       ...layer.layout,
-      'icon-image': ['concat', 'motorway-exit-', ['to-string', ['get', 'ref_length']]],
+      'icon-image': ['concat', 'motorway-exit-', ['to-string', ['get', 'ref_length']], '@shield_variant'],
       'text-field': ['get', 'ref'],
       'text-font': ['Geist Bold'],
       'text-size': 9,

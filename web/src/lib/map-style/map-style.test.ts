@@ -616,15 +616,23 @@ describe('badge POI treatment', () => {
      * plaques back over the dark basemap.
      */
     test('the night map names its own cut of every marker', () => {
-      const suffix = (theme: 'light' | 'dark') => {
-        const layer = buildMapStyle({ ...opts, theme }).layers.find(
-          l => l.id === 'Highway shield',
-        )! as any
-        const [, primary] = layer.layout['icon-image']
-        return primary[1].at(-1)
+      // Every `concat` under `icon-image`, whichever layer builds the name.
+      const suffixes = (theme: 'light' | 'dark') => {
+        const found: unknown[] = []
+        const walk = (node: any) => {
+          if (!Array.isArray(node)) return
+          if (node[0] === 'concat') found.push(node.at(-1))
+          node.forEach(walk)
+        }
+        for (const id of ['Highway shield', 'Highway junction']) {
+          const layer = buildMapStyle({ ...opts, theme }).layers.find(l => l.id === id)! as any
+          walk(layer.layout['icon-image'])
+        }
+        return found
       }
-      expect(suffix('light')).toBe('')
-      expect(suffix('dark')).toBe('-dark')
+      expect(suffixes('light').length).toBeGreaterThanOrEqual(3)
+      expect(new Set(suffixes('light'))).toEqual(new Set(['']))
+      expect(new Set(suffixes('dark'))).toEqual(new Set(['-dark']))
 
       const networks = ['us-interstate', 'us-highway', 'us-state', 'default', 'motorway-exit']
       const marks = Object.keys(sprite).filter(name =>

@@ -91,6 +91,24 @@ export function calculateFitPadding(
  * cover the whole screen, but past the midpoint it is being read, not
  * navigated, so the displayed centre should stop moving.
  */
+export function roundPadding(padding: Padding): Padding {
+  return {
+    top: Math.round(padding.top),
+    right: Math.round(padding.right),
+    bottom: Math.round(padding.bottom),
+    left: Math.round(padding.left),
+  }
+}
+
+export function paddingEquals(a: Padding, b: Padding): boolean {
+  return (
+    Math.abs(a.top - b.top) < 0.5 &&
+    Math.abs(a.right - b.right) < 0.5 &&
+    Math.abs(a.bottom - b.bottom) < 0.5 &&
+    Math.abs(a.left - b.left) < 0.5
+  )
+}
+
 export function calculateCameraPadding(
   visibleArea: Rect,
   containerWidth: number,

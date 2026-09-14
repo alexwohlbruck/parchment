@@ -134,12 +134,12 @@ watch(
   () => props.pipSwapped,
   () => {
     if (props.pipSwapped) {
-      const interval = setInterval(() => {
+      const start = performance.now()
+      const step = () => {
         mapService.resize()
-      }, 1000 / 30)
-      setTimeout(() => {
-        clearInterval(interval)
-      }, 300)
+        if (performance.now() - start < 300) requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
     } else {
       setTimeout(() => {
         mapService.resize()

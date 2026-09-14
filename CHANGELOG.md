@@ -8,6 +8,8 @@
 
 ### Fixed
 
+* With 3D terrain on, buildings near tile borders no longer render as two interleaved copies at different ground heights, and no longer change elevation as the map zooms.
+
 * The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
 * The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.
 

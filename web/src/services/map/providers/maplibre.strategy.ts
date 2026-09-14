@@ -299,6 +299,16 @@ export class MaplibreStrategy extends MapStrategy {
       // mapped straight to bearing wherever the cursor was — which is what this
       // map has always felt like, and what Mapbox does.
       aroundCenter: false,
+      // Overscale vector tiles past the source maxzoom instead of splitting
+      // them (the engine default of 4 re-parses tiles into re-clipped deeper
+      // canonical tiles up to maxZoom - 4). Every split level cuts buildings
+      // along a new tile grid, and with 3D terrain each cut stands the pieces
+      // at a new DEM elevation — buildings changed height once per zoom
+      // level, at a zoom that depended on their distance from the camera.
+      // Overscaling reuses the same buckets at every zoom, so a building
+      // keeps one elevation; scripts/patch-maplibre-terrain.mjs reconciles
+      // the remaining tile-border seams of that one grid.
+      zoomLevelsToOverscale: undefined,
       transformRequest: (url, resourceType) => {
         // Add auth header for tile requests to the barrelman tile proxy
         if (

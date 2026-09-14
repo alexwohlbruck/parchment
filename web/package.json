@@ -4,6 +4,7 @@
   "version": "0.12.2",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/patch-maplibre-terrain.mjs",
     "dev": "vite --host",
     "build:sprite": "node scripts/build-sprite.mjs",
     "build:pwa-icons": "node scripts/build-pwa-icons.mjs",

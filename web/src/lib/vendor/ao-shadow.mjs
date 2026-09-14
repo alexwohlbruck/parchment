@@ -80,6 +80,24 @@ const TERRAIN = `
     return mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y) * u_terrain_exaggeration;
   }
 
+  // PARCHMENT: mirror of the patched fill-extrusion shader's
+  // sb_anchor_elevation (scripts/patch-maplibre-terrain.mjs). a_centroid is an
+  // anchor snapped to an 8-unit grid with the polygon's half-extents
+  // log2-packed into the low bits, and the building stands on the MINIMUM
+  // elevation over that region so it never floats off the downhill side. The
+  // shadow layer's building draw and masks must stand on the same value.
+  float anchor_elevation(vec2 a) {
+    vec2 sc = floor(a / 8.0) * 8.0;
+    vec2 code = a - sc;
+    vec2 ext = vec2(code.x < 0.5 ? 0.0 : 8.0 * exp2(code.x), code.y < 0.5 ? 0.0 : 8.0 * exp2(code.y));
+    float e = get_elevation(sc);
+    e = min(e, get_elevation(sc + ext));
+    e = min(e, get_elevation(sc - ext));
+    e = min(e, get_elevation(sc + vec2(ext.x, -ext.y)));
+    e = min(e, get_elevation(sc + vec2(-ext.x, ext.y)));
+    return e;
+  }
+
   attribute vec2 a_centroid;`;
 
 /** Uniform names every program that samples the DEM has to be handed. */
@@ -165,7 +183,7 @@ const BUILD_VS = `
     //
     // Applied after wallRatio, which is a fraction of the wall and would be
     // skewed by the basement if it were measured against the offset values.
-    float groundTop = get_elevation(a_centroid);
+    float groundTop = anchor_elevation(a_centroid);
     float basement = (u_terrain_on < 0.5 || base > 0.0) ? 0.0 : 10.0;
     float groundBase = groundTop - basement;
     float ground = mix(groundBase, groundTop, t);
@@ -263,7 +281,7 @@ const SHAD_VS = `
     // PARCHMENT: the shadow lands on the ground, and with terrain on the
     // ground is not at zero — it has to be sheared at the height the building
     // is actually standing at or it projects to the wrong place on screen.
-    gl_Position = u_matrix * vec4(a_pos + u_shadowOff * h, get_elevation(a_centroid), 1.0);
+    gl_Position = u_matrix * vec4(a_pos + u_shadowOff * h, anchor_elevation(a_centroid), 1.0);
   }`;
 const SHAD_FS = `
   precision highp float;
@@ -274,7 +292,7 @@ const SEED_VS = `
   uniform mat4 u_matrix;
   attribute vec2 a_pos;
   ${TERRAIN}
-  void main() { gl_Position = u_matrix * vec4(a_pos, get_elevation(a_centroid), 1.0); }`;
+  void main() { gl_Position = u_matrix * vec4(a_pos, anchor_elevation(a_centroid), 1.0); }`;
 const SEED_FS = `
   precision highp float;
   uniform vec2 u_res;

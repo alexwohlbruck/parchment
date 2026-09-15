@@ -2,9 +2,15 @@
 
 ### Added
 
-* Trip maps now draw the stops, station names and line bullets along each transit leg, instead of a bare coloured line.
-
 ### Changed
+
+### Fixed
+
+## [0.12.3] - 2026-09-15
+
+### Added
+
+* Trip maps now draw the stops, station names and line bullets along each transit leg, instead of a bare coloured line.
 
 ### Fixed
 

@@ -68,6 +68,7 @@
  "label_ink_road_minor": "hsl(30, 5%, 45%)",
  "poi_halo": "#FFFFFF",
  "poi_lift": "rgba(0,0,0,0.34)",
+ "shield_variant": "",
  "shield_ink": "hsl(0, 0%, 12%)",
  "shield_ink_reversed": "hsl(0, 0%, 100%)",
  "poi_transit_plate": "@@tint-plate:hsl(214, 78%, 52%)",

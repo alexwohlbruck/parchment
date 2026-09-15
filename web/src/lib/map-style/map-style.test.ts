@@ -608,6 +608,56 @@ describe('badge POI treatment', () => {
         expect(sprite[name]?.sdf, name).toBe(false)
       }
     })
+
+    /**
+     * The night map draws a second cut of the art rather than tinting the
+     * first — the markers are full-colour rasters, so there is nothing to
+     * tint. Regenerating the spec has already dropped this once, putting white
+     * plaques back over the dark basemap.
+     */
+    test('the night map names its own cut of every marker', () => {
+      // Every `concat` under `icon-image`, whichever layer builds the name.
+      const suffixes = (theme: 'light' | 'dark') => {
+        const found: unknown[] = []
+        const walk = (node: any) => {
+          if (!Array.isArray(node)) return
+          if (node[0] === 'concat') found.push(node.at(-1))
+          node.forEach(walk)
+        }
+        for (const id of ['Highway shield', 'Highway junction']) {
+          const layer = buildMapStyle({ ...opts, theme }).layers.find(l => l.id === id)! as any
+          walk(layer.layout['icon-image'])
+        }
+        return found
+      }
+      expect(suffixes('light').length).toBeGreaterThanOrEqual(3)
+      expect(new Set(suffixes('light'))).toEqual(new Set(['']))
+      expect(new Set(suffixes('dark'))).toEqual(new Set(['-dark']))
+
+      const networks = ['us-interstate', 'us-highway', 'us-state', 'default', 'motorway-exit']
+      const marks = Object.keys(sprite).filter(name =>
+        networks.some(n => new RegExp(`^${n}-\\d$`).test(name)),
+      )
+      expect(marks.length).toBeGreaterThan(0)
+      for (const name of marks) expect(sprite[`${name}-dark`], `${name}-dark`).toBeTruthy()
+    })
+
+    /**
+     * Markers thin out with zoom: every numbered road at street level, only the
+     * motorways at country level, where neither the road nor the marker has the
+     * room. Exit numbers belong to `Highway junction` and would draw twice.
+     */
+    test('only the biggest roads carry a marker when zoomed out', () => {
+      const filter = featureFilter((shieldLayer() as any).filter, 'Highway shield.filter')
+      const draws = (zoom: number, properties: Record<string, unknown>) =>
+        filter.filter({ zoom } as any, { properties: { ref: 'I 95', ref_length: 4, ...properties }, type: 2 } as any, {} as any)
+
+      expect(draws(6, { class: 'motorway' })).toBe(true)
+      expect(draws(6, { class: 'primary' })).toBe(false)
+      expect(draws(12, { class: 'primary' })).toBe(true)
+      expect(draws(12, { class: 'service' })).toBe(false)
+      expect(draws(12, { class: 'motorway', subclass: 'junction' })).toBe(false)
+    })
   })
 })
 

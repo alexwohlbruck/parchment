@@ -839,13 +839,46 @@ function longestRef(art, network) {
   return max
 }
 
-/** The sprite name for a feature's marker, falling back to the plaque. */
+/**
+ * The sprite name for a feature's marker, falling back to the plaque.
+ *
+ * `@shield_variant` is the flavor suffix: empty by day, `-dark` at night, where
+ * `build-sprite.mjs` ships a second cut of every marker. It belongs in the name
+ * rather than in a paint property because the art is full-colour, not an SDF —
+ * there is nothing to tint, so the night version has to be its own image.
+ */
 function shieldImageExpression() {
   const len = ['to-string', ['get', 'ref_length']]
   return [
     'coalesce',
-    ['image', ['concat', ['coalesce', ['get', 'network'], 'default'], '-', len]],
-    ['image', ['concat', 'default-', len]],
+    [
+      'image',
+      ['concat', ['coalesce', ['get', 'network'], 'default'], '-', len, '@shield_variant'],
+    ],
+    ['image', ['concat', 'default-', len, '@shield_variant']],
+  ]
+}
+
+/**
+ * Which roads carry a marker, by zoom: motorways alone at the top, then trunks,
+ * then primaries, and every numbered road from z12 down.
+ *
+ * Without the ramp a state-highway ref is drawn at z6 beside an interstate,
+ * where neither the road nor the marker has room, and the country reads as a
+ * field of plaques.
+ */
+function shieldRoadClassFilter() {
+  const only = (...classes) => ['match', ['get', 'class'], classes, true, false]
+  return [
+    'step',
+    ['zoom'],
+    only('motorway'),
+    8,
+    only('motorway', 'trunk'),
+    10,
+    only('motorway', 'trunk', 'primary'),
+    12,
+    ['match', ['get', 'class'], ['pedestrian', 'service', 'path'], false, true],
   ]
 }
 
@@ -863,7 +896,7 @@ function routeShieldLayer(layer, art) {
       'icon-image': shieldImageExpression(),
       'icon-rotation-alignment': 'viewport',
       'symbol-placement': ['step', ['zoom'], 'point', 11, 'line'],
-      'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 11, 400, 14, 600],
+      'symbol-spacing': ['interpolate', ['linear'], ['zoom'], 11, 350, 13, 200, 16, 150],
       'icon-size': 1,
       'text-field': ['get', 'ref'],
       'text-font': ['Geist Bold'],
@@ -891,7 +924,9 @@ function routeShieldLayer(layer, art) {
       'all',
       ['has', 'ref'],
       ['<=', ['get', 'ref_length'], 6],
-      ['match', ['get', 'class'], ['pedestrian', 'service', 'path'], false, true],
+      // Exit numbers are `Highway junction`'s job; without this they draw twice.
+      ['!=', ['coalesce', ['get', 'subclass'], ''], 'junction'],
+      shieldRoadClassFilter(),
     ],
   }
 }
@@ -901,7 +936,7 @@ function exitShieldLayer(layer) {
   return {
     layout: {
       ...layer.layout,
-      'icon-image': ['concat', 'motorway-exit-', ['to-string', ['get', 'ref_length']]],
+      'icon-image': ['concat', 'motorway-exit-', ['to-string', ['get', 'ref_length']], '@shield_variant'],
       'text-field': ['get', 'ref'],
       'text-font': ['Geist Bold'],
       'text-size': 9,
@@ -1887,13 +1922,16 @@ async function main() {
 
   // Shield lettering is ours, not MapTiler's — their shields are sprite art.
   //
-  // Both flavors get the same two values, which is deliberate: the markers are
-  // full-colour art rather than tintable SDFs, so a blue interstate marker is
-  // blue on the night map too, and its numerals have to stay white to be
-  // legible against it. Mapbox does the same — a route marker is a physical
-  // sign, and darkness does not repaint it.
+  // `shield_variant` picks the flavor's cut of that art (see
+  // `shieldImageExpression`). The night plaques are charcoal, so their numerals
+  // invert with them; the interstate marker keeps white numerals in both, since
+  // its field stays blue — a route marker is a physical sign, and darkness does
+  // not repaint it.
+  tokens.light.shield_variant = ''
+  tokens.dark.shield_variant = '-dark'
+  tokens.light.shield_ink = 'hsl(0, 0%, 12%)'
+  tokens.dark.shield_ink = 'hsl(220, 12%, 82%)'
   for (const flavor of [tokens.light, tokens.dark]) {
-    flavor.shield_ink = 'hsl(0, 0%, 12%)'
     flavor.shield_ink_reversed = 'hsl(0, 0%, 100%)'
   }
 

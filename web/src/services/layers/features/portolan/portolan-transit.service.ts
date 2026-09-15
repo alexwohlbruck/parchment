@@ -2449,6 +2449,10 @@ function requestHydrate() {
   if (!map || hydrateQueued) return
   hydrateQueued = requestAnimationFrame(() => {
     hydrateQueued = 0
+    // Mid-gesture, tiles land one sourcedata at a time and each sweep walks
+    // querySourceFeatures across every mounted source. moveend re-requests,
+    // so waiting the gesture out loses nothing.
+    if (map.isMoving?.()) return
     hydrateSymbols()
     hydrateTransitions()
   })

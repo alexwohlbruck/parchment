@@ -282,6 +282,13 @@ export class MaplibreStrategy extends MapStrategy {
       zoom,
       maxPitch: MAX_PITCH,
       attributionControl: false,
+      // A 3× display renders 2.25× the fragments of a 2× cap for sharpness
+      // the eye can't use on a moving map — a large GPU/battery cost on
+      // phones for no visible gain.
+      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      // The default 300ms symbol crossfade keeps the map repainting for
+      // ~20 frames after every camera change.
+      fadeDuration: 100,
       // Disable the engine's built-in north snap — we do north + grid snapping
       // ourselves in map.service (snapRotation) so both settings toggle live.
       bearingSnap: 0,
@@ -396,8 +403,11 @@ export class MaplibreStrategy extends MapStrategy {
     // does not cost a couple of reads.
     this.mapInstance.on('zoom', () => this.updateCameraProjection())
     // A quarter of a degree a minute: five is far finer than the eye needs and
-    // costs one trig evaluation.
-    this.sunTimer = setInterval(() => this.updateSunShadow(), 5 * 60 * 1000)
+    // costs one trig evaluation. A hidden tab skips the tick — the next one,
+    // or the next moveend, catches the sun up.
+    this.sunTimer = setInterval(() => {
+      if (!document.hidden) this.updateSunShadow()
+    }, 5 * 60 * 1000)
     // Style load fires on the initial style load AND on every subsequent
     // setStyle() call (theme change, basemap change, map style change). We
     // use this single listener to re-emit to the mapEventBus so that
@@ -1092,13 +1102,22 @@ export class MaplibreStrategy extends MapStrategy {
   private updateRoofEdge() {
     if (!this.mapInstance.getLayer(BUILDING_ROOF_EDGE_LAYER)) return
     const pitch = Math.abs(this.mapInstance.getPitch())
-    const opacity = 1 - Math.min(pitch / ROOF_EDGE_FADE_PITCH, 1)
+    // Runs on every pitch AND zoom event; quantize and skip the no-op writes
+    // so a flat-on pan doesn't re-set the same opacity all gesture long.
+    const opacity =
+      Math.round((1 - Math.min(pitch / ROOF_EDGE_FADE_PITCH, 1)) * 100) / 100
+    if (opacity === this.lastRoofEdgeOpacity) return
+    this.lastRoofEdgeOpacity = opacity
     this.mapInstance.setPaintProperty(BUILDING_ROOF_EDGE_LAYER, 'line-opacity', opacity)
   }
+
+  private lastRoofEdgeOpacity = -1
 
   private defaultFov?: number
 
   private reloadStyle() {
+    // The rebuilt style carries the layer's default opacity again.
+    this.lastRoofEdgeOpacity = -1
     this.mapInstance.setStyle(this.buildCurrentStyle(), { diff: false })
   }
 

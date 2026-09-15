@@ -213,7 +213,9 @@ export function useObstructingComponent(
           if (bounds) appStore.updateManualBounds(trackingId, bounds)
           else appStore.clearManualBounds(trackingId)
         },
-        { immediate: true, deep: true },
+        // Publishers replace the bounds object wholesale each frame, so
+        // identity is the signal; deep traversal here ran per drag frame.
+        { immediate: true },
       )
       return
     }

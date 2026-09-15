@@ -175,42 +175,44 @@ const showStreetPeek = computed(
   () => !!route.name && PLACE_ROUTES.has(route.name) && !streetView.value,
 )
 
-// Fade away once the mobile sheet covers more than half the screen. Driven by
-// the sheet's live bounds (published each frame while dragging) so the fade
-// tracks the drag in real time rather than waiting for the snap to settle.
-const streetPeekFaded = computed(() => {
+// Fade the floating chrome — street peek and the map FABs together — once the
+// mobile sheet covers more than half the screen: past the midpoint the map is
+// being read, not navigated (the padding cap stops the centre there too).
+// Driven by the sheet's live bounds so the fade tracks the drag in real time.
+const mapChromeHidden = computed(() => {
   if (!isMobileScreen.value) return false
   const sheet = appStore.componentDimensions.get('map-content-sheet')
   if (!sheet) return false
   return window.innerHeight - sheet.y > window.innerHeight * 0.5
 })
 
-// Anchor the peek to the bottom-left of the map (viewport-fixed) with a uniform
-// inset, clearing whichever sheet is open. On desktop sit just right of the
-// left sheet panel; on mobile float just above the bottom sheet's top edge.
-// Reading componentDimensions keeps this reactive as the sheets slide/drag.
+// Anchor the peek to the bottom-left of the map (viewport-fixed) with the
+// same inset the control overlay uses (p-2 + safe area), clearing whichever
+// sheet is open. On desktop sit just right of the left sheet panel; on mobile
+// float just above the bottom sheet's top edge. Reading componentDimensions
+// keeps this reactive as the sheets slide/drag.
 const PEEK_INSET = 8
+const PEEK_EDGE = `calc(${PEEK_INSET}px + env(safe-area-inset-bottom))`
 const streetPeekStyle = computed<CSSProperties>(() => {
   const dims = appStore.componentDimensions
+  const left = `calc(${PEEK_INSET}px + env(safe-area-inset-left))`
   if (!isMobileScreen.value) {
     const panel = document.querySelector('.bg-muted-light')
     const right = panel ? panel.getBoundingClientRect().right : 0
-    return { position: 'fixed', left: `${right + PEEK_INSET}px`, bottom: `${PEEK_INSET}px` }
+    return {
+      position: 'fixed',
+      left: right ? `${right + PEEK_INSET}px` : left,
+      bottom: PEEK_EDGE,
+    }
   }
   const sheet = dims.get('map-content-sheet')
   const sheetTop = sheet ? sheet.y : window.innerHeight
-  const bottom = Math.max(PEEK_INSET, window.innerHeight - sheetTop + PEEK_INSET)
-  return { position: 'fixed', left: `${PEEK_INSET}px`, bottom: `${bottom}px` }
-})
-// Keep the bottom-right controls reachable while the mobile sheet is up:
-// ride its top edge (live bounds update each frame during drags), and once
-// the sheet covers most of the screen fade them out — the map is hidden, so
-// stacking them mid-screen would only add noise.
-const mapFabsHidden = computed(() => {
-  if (!isMobileScreen.value) return false
-  const sheet = appStore.componentDimensions.get('map-content-sheet')
-  if (!sheet) return false
-  return window.innerHeight - sheet.y > window.innerHeight * 0.7
+  const overSheet = window.innerHeight - sheetTop + PEEK_INSET
+  return {
+    position: 'fixed',
+    left,
+    bottom: `max(${overSheet}px, ${PEEK_EDGE})`,
+  }
 })
 
 // 4.5rem = the cluster's resting offset (overlay p-2 + mb-16); min() keeps
@@ -569,10 +571,10 @@ defineExpose({
 
               <!-- Right bottom -->
               <div
-                class="flex flex-col gap-2 transition-opacity duration-200"
+                class="flex flex-col gap-2 transition-opacity duration-300"
                 :class="[
                   isMobileScreen && 'mb-16',
-                  mapFabsHidden
+                  mapChromeHidden
                     ? 'opacity-0 pointer-events-none'
                     : 'pointer-events-auto',
                 ]"
@@ -634,8 +636,8 @@ defineExpose({
       >
         <div
           v-if="showStreetPeek"
-          class="pointer-events-none absolute z-20 h-24 w-36 transition-opacity duration-300 safe-area-inset"
-          :class="streetPeekFaded ? 'opacity-0' : 'opacity-100'"
+          class="pointer-events-none absolute z-20 h-20 w-32 transition-opacity duration-300"
+          :class="mapChromeHidden ? 'opacity-0' : 'opacity-100'"
           :style="streetPeekStyle"
         >
           <StreetImageryPeek />

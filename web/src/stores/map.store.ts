@@ -126,15 +126,22 @@ export const useMapStore = defineStore('map', () => {
     getDefaultControlSettings(),
   )
 
-  const mapCamera = useStorage<MapCamera>('map-camera', {
+  const persistedCamera = useStorage<MapCamera>('map-camera', {
     center: [-44.808291513887866, 21.851187958608364],
     zoom: 2,
     bearing: 0,
     pitch: 0,
   })
 
+  // Live camera, written on every `move` frame during gestures. Kept out of
+  // useStorage: writing through that ref serializes to localStorage
+  // synchronously, which is a per-frame main-thread cost. setMapCamera
+  // (moveend) is the only writer that persists.
+  const mapCamera = ref<MapCamera>(persistedCamera.value)
+
   function setMapCamera(camera: MapCamera) {
     mapCamera.value = camera
+    persistedCamera.value = camera
   }
 
   function setBasemap(basemap: Basemap) {

@@ -240,7 +240,7 @@ export class BarrelmanIntegration
   readonly integrationId = IntegrationId.BARRELMAN
   // PELIAS: Barrelman also fronts the Pelias geocoder for address results, so it
   // resolves `source=pelias` place lookups (getConfiguredIntegrationForSource).
-  readonly sources = [SOURCE.OSM, SOURCE.PELIAS]
+  readonly sources = [SOURCE.OSM, SOURCE.PELIAS, SOURCE.TRANSITLAND]
   private graphhopperAdapter = new BarrelmanGraphHopperAdapter()
 
   readonly capabilityIds: IntegrationCapabilityId[] = [
@@ -757,6 +757,63 @@ export class BarrelmanIntegration
   }
 
   /**
+   * GTFS `route_type` to the mode string the rest of the pipeline uses.
+   *
+   * Barrelman's search rows carry `transit.mode` already; a station lookup
+   * returns its routes instead, so the mode is read off the first one. Covers
+   * the basic types and the extended HVT ranges, which agencies do publish.
+   */
+  private modeForRouteType(routeType: number | null | undefined): string | null {
+    const t = routeType ?? -1
+    if (t < 0) return null
+    if (t === 0 || (t >= 900 && t < 1000)) return 'tram'
+    if (t === 1 || (t >= 400 && t < 500)) return 'subway'
+    if (t === 2 || (t >= 100 && t < 300)) return 'rail'
+    if (t === 3 || (t >= 700 && t < 900)) return 'bus'
+    if (t === 11) return 'trolleybus'
+    if (t === 4 || t === 1000 || t === 1200) return 'ferry'
+    if (t === 5 || t === 1701) return 'cable_car'
+    if (t === 6 || t === 1300) return 'gondola'
+    if (t === 7 || t === 1400) return 'funicular'
+    if (t === 12 || t === 405) return 'monorail'
+    return null
+  }
+
+  /**
+   * A station from `/transit/station/:feedRef/:stopId` as a transit place.
+   *
+   * Shaped into the same pseudo-result a transit SEARCH hit produces and handed
+   * to the one adapter, so a station opened from the map and the same station
+   * found by search are the same object to the client — `transitStop` set, and
+   * therefore opening in the transit view rather than the place detail view.
+   */
+  private adaptStationToPlace(
+    station: any,
+    stopKey: string,
+    language: Language = DEFAULT_LANGUAGE,
+  ): Place | null {
+    if (!station?.stopId) return null
+    const [feedOnestopId] = stopKey.split(':')
+    const mode = this.modeForRouteType(station.routes?.[0]?.routeType)
+    return this.adaptTransitHit(
+      {
+        id: stopKey,
+        kind: 'transit_stop',
+        name: station.stopName ?? null,
+        geometry: { type: 'Point', coordinates: [station.lon, station.lat] },
+        transit: {
+          feedId: station.feedId,
+          feedOnestopId,
+          stopId: station.stopId,
+          mode,
+          agency: station.routes?.[0]?.agencyName ?? null,
+        },
+      } as any,
+      language,
+    )
+  }
+
+  /**
    * A transit search hit as a minimal pseudo-place. `transitLine` /
    * `transitStop` is what tells the rest of the pipeline (and the client)
    * that this row opens in the transit views, not the place detail view.
@@ -1053,6 +1110,27 @@ export class BarrelmanIntegration
       // no geo_places/OSM row, so resolve via /geocode/place (Pelias /v1/place)
       // rather than /place/:osmType/:osmId. Real OSM ids start with the element
       // type; anything else is treated as a geocoder gid.
+      // A transitland STOP KEY, `<feed-onestop-id>:<stop_id>`. This is the only
+      // identity a station carries on the map: portolan writes it into a
+      // station's `gtfs_ids`, and it is what the click falls back to when a
+      // station has no OSM match. It used to be resolved against transit.land's
+      // own API, which needs a key nobody holds once the transit data comes from
+      // Barrelman — so every station click 404'd. Barrelman has the stop, and
+      // its station route takes the feed's onestop id directly.
+      //
+      // Feed onestop ids always start with `f-`, which keeps this clear of
+      // Pelias gids (`openaddresses:address:…`, `whosonfirst:…`) that also
+      // carry a colon.
+      const stopKey = /^(f-[^:]+):(.+)$/.exec(id)
+      if (stopKey) {
+        const [, feedOnestopId, stopId] = stopKey
+        const response = await barrelmanSearchHttp.get(
+          `${this.config.host}/transit/station/${encodeURIComponent(feedOnestopId)}/${encodeURIComponent(stopId)}`,
+          { headers: this.headers, timeout: 10000 },
+        )
+        return this.adaptStationToPlace(response.data, id, options?.language)
+      }
+
       const isOsmId = /^(node|way|relation|intersection)\//.test(id)
       if (!isOsmId) {
         const response = await barrelmanSearchHttp.get(

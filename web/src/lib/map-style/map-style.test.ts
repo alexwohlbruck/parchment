@@ -1650,29 +1650,32 @@ describe('slot anchors in the shipped style', () => {
   const built = buildLayers({ flavor: 'light' }) as any[]
   const at = (id: string | undefined) => built.findIndex(l => l.id === id)
 
-  const firstLabel = built.findIndex(
-    l => l.type === 'symbol' && l.layout?.['text-field'],
-  )
+  const firstOfType = (type: string) => built.findIndex(l => l.type === type)
 
-  /**
-   * A bridge deck is the top of the road network, and the basemap draws it over
-   * every road — so an overlay anchored below it loses its mark wherever a way
-   * crosses one, which reads as a gap in the network rather than as a bridge.
-   */
-  test('middle lands above every road and its bridges, and below every label', () => {
+  test('middle lands above every road and below every label', () => {
     const anchor = at(slotBeforeId(built, 'middle'))
     expect(anchor).toBeGreaterThan(-1)
-    // Nothing lettered draws below it. The oneway arrows are not lettering:
-    // they are drawn on the roads, under the decks.
-    expect(anchor).toBeLessThanOrEqual(firstLabel)
-    for (const id of ['Minor road', 'Major road', 'Highway', 'Path', 'Path bridge']) {
+    // Nothing lettered draws below it.
+    expect(anchor).toBeLessThanOrEqual(firstOfType('symbol'))
+    // Every road does.
+    for (const id of ['Minor road', 'Major road', 'Highway', 'Path']) {
       expect(at(id), id).toBeLessThan(anchor)
     }
   })
 
-  /** Ground, still: a line floating over the buildings is not on the ground. */
-  test('middle stays under the buildings', () => {
-    expect(at(slotBeforeId(built, 'middle'))).toBeLessThanOrEqual(at('Building'))
+  /**
+   * A deck is the top of the network and the basemap draws it over every road,
+   * so a mark anchored below one is lost wherever a way crosses a bridge —
+   * which reads as a gap in the network rather than as a bridge.
+   */
+  test('bridge lands above every deck and under the buildings', () => {
+    const anchor = at(slotBeforeId(built, 'bridge'))
+    expect(anchor).toBeGreaterThan(-1)
+    for (const id of ['Path outline bridge', 'Path bridge', 'Minor road']) {
+      expect(at(id), id).toBeLessThan(anchor)
+    }
+    // Ground, still: a line floating over the buildings is not on the ground.
+    expect(anchor).toBeLessThanOrEqual(at('Building'))
   })
 
   /**
@@ -1695,6 +1698,7 @@ describe('slot anchors in the shipped style', () => {
     const index = (slot: string) => at(slotBeforeId(built, slot))
     expect(index('bottom')).toBeLessThan(index('tunnel'))
     expect(index('tunnel')).toBeLessThan(index('middle'))
+    expect(index('middle')).toBeLessThan(index('bridge'))
   })
 
   test('bottom lands above the fills and below every road', () => {

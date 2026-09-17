@@ -144,24 +144,28 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
 const BUILT = ['!has', 'state']
 
 /**
- * A way in a tunnel is drawn down in the basemap's tunnel band, so the road
- * above it draws over the crossing and the way reads as dipping under. Which
- * means the surface layers have to leave it alone, or it is painted twice —
- * once where it runs and once on top of everything it runs beneath.
+ * Which band of the basemap a way is drawn in, by its brunnel.
  *
- * Bridges need no clause: a deck is the top of the network, and `middle` is
- * above it.
+ * The basemap draws a path bridge over the whole network and a tunnel under it,
+ * so a way that is either one is not where the surface layers put it: a bridge
+ * loses its mark under the deck, and a tunnel keeps one on top of the street it
+ * passes beneath. Each gets the band it belongs to, and the surface layers
+ * leave it alone — drawn in both, it is painted twice.
  */
-const SURFACE = ['!=', 'tunnel', true]
+const AT_GRADE = ['all', ['!=', 'bridge', true], ['!=', 'tunnel', true]]
+const ON_BRIDGE = ['==', 'bridge', true]
 const UNDERGROUND = ['==', 'tunnel', true]
 
 /**
- * Where an underpass is drawn.
+ * A deck and an underpass carry the stroke alone, no casing: the basemap has
+ * already drawn the way there — cased on the bridge, cased in the tunnel — and
+ * a second casing rubs out the crossing it is drawn on.
  *
- * One layer per group rather than the group's full grammar: a tunnel is short,
- * hard-surfaced and unlit, so the paved/unpaved distinction has nothing to say
- * about it, and the basemap's own tunnel casing is already drawn underneath.
+ * One layer each rather than the group's full grammar. Both are short and
+ * hard-surfaced, so the paved/unpaved split has nothing to say about them.
  */
+const bridgeLayer = (l: Omit<WayLayer, 'slot'>) =>
+  wayLayer({ ...l, slot: 'bridge' })
 const tunnelLayer = (l: Omit<WayLayer, 'slot'>) =>
   wayLayer({ ...l, slot: 'tunnel' })
 
@@ -201,7 +205,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'cycleways',
     order: 30,
     minzoom: 11,
-    filter: ['all', CYCLEWAY, BUILT, SURFACE],
+    filter: ['all', CYCLEWAY, BUILT, AT_GRADE],
     color: themed(INK.casing),
     width: width(11, 2.2, 14, 3.6, 16, 5.4, 19, 8),
   }),
@@ -211,7 +215,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'cycleways',
     order: 31,
     minzoom: 11,
-    filter: ['all', CYCLEWAY, BUILT, SURFACE, HARD],
+    filter: ['all', CYCLEWAY, BUILT, AT_GRADE, HARD],
     color: themed(INK.track),
     width: width(...CYCLEWAY_WIDTH),
   }),
@@ -221,16 +225,26 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'cycleways',
     order: 32,
     minzoom: 11,
-    filter: ['all', CYCLEWAY, BUILT, SURFACE, SOFT],
+    filter: ['all', CYCLEWAY, BUILT, AT_GRADE, SOFT],
     color: themed(INK.track),
     width: width(...CYCLEWAY_WIDTH),
     dash: [3, 2],
+  }),
+  bridgeLayer({
+    id: 'bicycle-cycleways-bridge',
+    name: 'Cycleways Bridge',
+    group: 'cycleways',
+    order: 33,
+    minzoom: 11,
+    filter: ['all', CYCLEWAY, BUILT, ON_BRIDGE],
+    color: themed(INK.track),
+    width: width(...CYCLEWAY_WIDTH),
   }),
   tunnelLayer({
     id: 'bicycle-cycleways-tunnel',
     name: 'Cycleways Tunnel',
     group: 'cycleways',
-    order: 33,
+    order: 34,
     minzoom: 11,
     filter: ['all', CYCLEWAY, BUILT, UNDERGROUND],
     color: themed(INK.track),
@@ -245,7 +259,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bicycle-paths',
     order: 60,
     minzoom: 12,
-    filter: ['all', BICYCLE_PATH, BUILT, SURFACE],
+    filter: ['all', BICYCLE_PATH, BUILT, AT_GRADE],
     color: themed(INK.casing),
     width: width(12, 2, 14, 3.2, 16, 4.6, 19, 6.6),
   }),
@@ -255,7 +269,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bicycle-paths',
     order: 61,
     minzoom: 12,
-    filter: ['all', BICYCLE_PATH, BUILT, SURFACE, HARD],
+    filter: ['all', BICYCLE_PATH, BUILT, AT_GRADE, HARD],
     color: themed(INK.lane),
     width: width(...BICYCLE_PATH_WIDTH),
   }),
@@ -265,16 +279,26 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bicycle-paths',
     order: 62,
     minzoom: 12,
-    filter: ['all', BICYCLE_PATH, BUILT, SURFACE, SOFT],
+    filter: ['all', BICYCLE_PATH, BUILT, AT_GRADE, SOFT],
     color: themed(INK.lane),
     width: width(...BICYCLE_PATH_WIDTH),
     dash: [3, 2],
+  }),
+  bridgeLayer({
+    id: 'bicycle-paths-bridge',
+    name: 'Bicycle Paths Bridge',
+    group: 'bicycle-paths',
+    order: 63,
+    minzoom: 12,
+    filter: ['all', BICYCLE_PATH, BUILT, ON_BRIDGE],
+    color: themed(INK.lane),
+    width: width(...BICYCLE_PATH_WIDTH),
   }),
   tunnelLayer({
     id: 'bicycle-paths-tunnel',
     name: 'Bicycle Paths Tunnel',
     group: 'bicycle-paths',
-    order: 63,
+    order: 64,
     minzoom: 12,
     filter: ['all', BICYCLE_PATH, BUILT, UNDERGROUND],
     color: themed(INK.lane),

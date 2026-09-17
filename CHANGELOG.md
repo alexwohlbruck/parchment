@@ -13,7 +13,7 @@
 * Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.
 * The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
 * The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.
-* Cycleways and bike paths keep their green line across bridges instead of breaking at every deck, and underpasses now pass beneath the streets above them.
+* Cycleways and bike paths now run along a bridge deck instead of breaking at it, and an underpass passes beneath the street above it rather than across.
 
 ## [0.12.2] - 2026-09-12
 

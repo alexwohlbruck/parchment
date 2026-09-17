@@ -45,33 +45,48 @@ describe('cycling defaults', () => {
   })
 
   /**
-   * Ground, and which band of it: a way runs above the roads unless it runs
-   * under them, and the basemap redraws whatever is painted in the wrong one.
+   * Ground, and which band of it: the basemap draws a bridge deck over the
+   * whole network and a tunnel under it, and redraws the way over anything
+   * painted in the wrong band.
    */
+  const asks = (t: any, clause: string) =>
+    JSON.stringify(t.configuration.filter).includes(clause)
+
   test('a way is drawn in the band its brunnel puts it in', () => {
     for (const t of lines) {
-      const underground = JSON.stringify(t.configuration.filter).includes(
-        '["==","tunnel",true]',
-      )
-      expect(t.configuration.slot, t.templateId).toBe(
-        underground ? 'tunnel' : 'middle',
-      )
+      const slot = asks(t, '["==","bridge",true]')
+        ? 'bridge'
+        : asks(t, '["==","tunnel",true]')
+          ? 'tunnel'
+          : 'middle'
+      expect(t.configuration.slot, t.templateId).toBe(slot)
     }
   })
 
-  /** Drawn in both bands, a tunnel is painted on top of everything above it. */
-  test('the surface layers leave the tunnels to the tunnel layers', () => {
-    const surface = lines.filter(t => t.configuration.slot === 'middle')
-    const tunnels = lines.filter(t => t.configuration.slot === 'tunnel')
-    expect(tunnels.length).toBeGreaterThan(0)
-    for (const t of tunnels) {
-      const group = surface.filter(s => s.groupId === t.groupId)
-      expect(group.length, t.templateId).toBeGreaterThan(0)
-      for (const s of group) {
-        expect(JSON.stringify(s.configuration.filter), s.templateId).toContain(
-          '["!=","tunnel",true]',
-        )
+  /** Drawn in two bands, a way is painted twice — once in the wrong place. */
+  test('the surface layers leave the bridges and tunnels alone', () => {
+    const banded = lines.filter(t => t.configuration.slot !== 'middle')
+    expect(banded.length).toBe(4)
+    for (const t of banded) {
+      const surface = lines.filter(
+        s => s.groupId === t.groupId && s.configuration.slot === 'middle',
+      )
+      expect(surface.length, t.templateId).toBeGreaterThan(0)
+      for (const s of surface) {
+        expect(asks(s, '["!=","bridge",true]'), s.templateId).toBe(true)
+        expect(asks(s, '["!=","tunnel",true]'), s.templateId).toBe(true)
       }
+    }
+  })
+
+  /**
+   * The basemap has already cased the way on its deck and in its bore. A second
+   * casing over either rubs out the crossing the mark is drawn on.
+   */
+  test('a deck and a bore carry the stroke alone', () => {
+    for (const t of lines.filter(t => t.configuration.slot !== 'middle')) {
+      expect(t.configuration.id, t.templateId).not.toContain('casing')
+      expect(t.configuration.paint['line-dasharray'], t.templateId).toBeUndefined()
     }
   })
 

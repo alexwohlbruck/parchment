@@ -14,9 +14,11 @@
  *   middle   above the roads, below the labels
  *   top      above the labels
  *
- * `tunnel` is ours, for the one thing the three cannot say: a way that runs
- * under the network rather than over or beside it. Standard has no slot for it,
- * so there it resolves to `bottom`, the nearest band it does have.
+ * `bridge` and `tunnel` are ours, for the thing the three cannot say: which
+ * brunnel a way has. The basemap draws a path bridge over the whole network and
+ * a tunnel under it, so a mark on one lands in that band or the basemap simply
+ * redraws the way on top of the paint. Standard has no such slots; there they
+ * resolve to the nearest band it does have.
  *
  * `bottom` is the one that is easy to get wrong, and it is the one that
  * matters most: a translucent band belongs under the road network, not over
@@ -55,24 +57,25 @@ export function belowRoadsBeforeId(layers: readonly StyleLayer[]): string | unde
 /**
  * The first thing that is no longer ground.
  *
- * The ground ends above the bridges, because a bridge deck is the network's
- * own top layer and the basemap draws it over every road — an overlay anchored
- * below it loses its mark at every bridge, which is not something a rider can
- * read as a bridge rather than as a gap. The basemap's own symbols do not end
- * the ground: the oneway arrows are drawn on the roads, under the decks.
- *
- * The transit network does end it, wherever it sits. Its ribbons take this same
- * slot, so anchoring past them would slot a bike lane above the train line it
+ * Two things end the ground and it has to be whichever comes first. Labels are
+ * the obvious one — a POI name is above everything the map draws flat. The
+ * transit network is the other: its ribbons are inserted *below* the labels,
+ * so anchoring on labels alone would slot a bike lane above the train line it
  * runs under and leave the crossing reading backwards.
  */
 export function belowLabelsBeforeId(layers: readonly StyleLayer[]): string | undefined {
-  const groundTop =
-    aboveBridgesIndex(layers) ??
-    layers.findIndex(l => isOverlay(l) || l.type === 'symbol')
-  const overlay = layers.findIndex(isOverlay)
-  const anchor =
-    overlay >= 0 && (groundTop < 0 || overlay < groundTop) ? overlay : groundTop
-  return layers[anchor]?.id
+  return layers.find(l => isOverlay(l) || l.type === 'symbol')?.id
+}
+
+/**
+ * Just above the basemap's bridge decks, where a mark on a bridge belongs: the
+ * deck is drawn first and the mark runs along it, so the crossing still reads
+ * as a bridge. A mark in this band carries no casing of its own — the deck is
+ * the casing, and a second one would rub it out.
+ */
+export function onBridgesBeforeId(layers: readonly StyleLayer[]): string | undefined {
+  const at = aboveBridgesIndex(layers)
+  return at === undefined ? belowLabelsBeforeId(layers) : layers[at]?.id
 }
 
 /**
@@ -98,9 +101,10 @@ export function slotBeforeId(
   if (slot === 'bottom') return belowRoadsBeforeId(layers)
   if (slot === 'middle') return belowLabelsBeforeId(layers)
   if (slot === 'tunnel') return inTunnelsBeforeId(layers)
+  if (slot === 'bridge') return onBridgesBeforeId(layers)
   return undefined
 }
 
-/** The nearest slot Mapbox Standard has, for the one name it does not know. */
+/** The nearest slot Mapbox Standard has, for the names it does not know. */
 export const mapboxSlot = (slot: string | undefined) =>
-  slot === 'tunnel' ? 'bottom' : slot
+  slot === 'tunnel' ? 'bottom' : slot === 'bridge' ? 'middle' : slot

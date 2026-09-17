@@ -99,8 +99,8 @@ describe('where an overlay slots into the basemap', () => {
       { id: 'Road labels', type: 'symbol', source: 'openmaptiles' },
     ]
 
-    test('middle clears the bridges, and the arrows drawn under them', () => {
-      expect(belowLabelsBeforeId(BRUNNEL_STYLE)).toBe('Building')
+    test('bridge clears the decks, and the arrows drawn under them', () => {
+      expect(slotBeforeId(BRUNNEL_STYLE, 'bridge')).toBe('Building')
     })
 
     test('tunnel lands between the tunnels and the surface', () => {
@@ -108,30 +108,30 @@ describe('where an overlay slots into the basemap', () => {
     })
 
     test('the slots stack in the order they name', () => {
-      const at = (id: string | undefined) => BRUNNEL_STYLE.findIndex(l => l.id === id)
-      expect(at(slotBeforeId(BRUNNEL_STYLE, 'bottom')))
-        .toBeLessThan(at(slotBeforeId(BRUNNEL_STYLE, 'tunnel')))
-      expect(at(slotBeforeId(BRUNNEL_STYLE, 'tunnel')))
-        .toBeLessThan(at(slotBeforeId(BRUNNEL_STYLE, 'middle')))
+      const at = (slot: string) =>
+        BRUNNEL_STYLE.findIndex(l => l.id === slotBeforeId(BRUNNEL_STYLE, slot))
+      expect(at('bottom')).toBeLessThan(at('tunnel'))
+      expect(at('tunnel')).toBeLessThan(at('middle'))
+      expect(at('middle')).toBeLessThan(at('bridge'))
     })
 
     /**
-     * An anchor is a position, and overlays are inserted at it — so it has to
-     * name a layer of the basemap's, or the second mark added lands under the
-     * first and a casing covers the stroke it is supposed to edge.
+     * An anchor is a position and overlays are inserted at it, so the bridge
+     * band has to name a layer of the basemap's: one answering `whatever sits
+     * here now` would name the mark added last and stack the rest in reverse.
      */
-    test('a second mark stacks above the first, not under it', () => {
+    test('a second mark on a deck stacks above the first', () => {
       const stack = [...BRUNNEL_STYLE]
-      for (const id of ['bicycle-cycleways-casing', 'bicycle-cycleways']) {
-        const before = slotBeforeId(stack, 'middle')
+      for (const id of ['bicycle-cycleways-bridge', 'bicycle-paths-bridge']) {
+        const before = slotBeforeId(stack, 'bridge')
         stack.splice(stack.findIndex(l => l.id === before), 0, {
           id,
           type: 'line',
           source: 'bicycle-ways',
         } as any)
       }
-      expect(stack.findIndex(l => l.id === 'bicycle-cycleways-casing'))
-        .toBeLessThan(stack.findIndex(l => l.id === 'bicycle-cycleways'))
+      expect(stack.findIndex(l => l.id === 'bicycle-cycleways-bridge'))
+        .toBeLessThan(stack.findIndex(l => l.id === 'bicycle-paths-bridge'))
     })
 
     /** A mark on a tunnel goes above the basemap's, not under it. */
@@ -150,13 +150,14 @@ describe('where an overlay slots into the basemap', () => {
       expect(slotBeforeId(marked, 'tunnel')).toBe('Pier')
     })
 
-    test('the transit network still ends the ground first', () => {
-      const withTransit = [
-        ...BRUNNEL_STYLE.slice(0, 6),
-        { id: 'portolan-ribbon-14-steady', type: 'line' },
-        ...BRUNNEL_STYLE.slice(6),
+    /** A style with no bridges of its own still has to put a mark somewhere. */
+    test('without a band to find, both fall back to a slot that exists', () => {
+      const bare = [
+        { id: 'Minor road', type: 'line', source: 'openmaptiles' },
+        { id: 'Road labels', type: 'symbol', source: 'openmaptiles' },
       ]
-      expect(belowLabelsBeforeId(withTransit)).toBe('portolan-ribbon-14-steady')
+      expect(slotBeforeId(bare, 'bridge')).toBe('Road labels')
+      expect(slotBeforeId(bare, 'tunnel')).toBe('Minor road')
     })
   })
 

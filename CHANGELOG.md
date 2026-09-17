@@ -13,6 +13,7 @@
 * Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.
 * The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
 * The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.
+* With 3D terrain on, the ground no longer jumps when you finish panning between different elevations.
 
 ## [0.12.2] - 2026-09-12
 

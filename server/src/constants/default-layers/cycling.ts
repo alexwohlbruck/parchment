@@ -101,6 +101,8 @@ interface WayLayer {
   /** Exclusive upper bound, for a layer another one takes over from. */
   maxzoom?: number
   visible?: boolean
+  /** Which band of the basemap it draws in; see `layer-slots.ts`. */
+  slot?: string
 }
 
 /** Everything drawn from Barrelman's `bicycle_ways`, as one shape. */
@@ -121,7 +123,7 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
       id: l.id,
       type: 'line',
       // Above the roads, below the labels; see `layer-slots.ts`.
-      slot: 'middle',
+      slot: l.slot ?? 'middle',
       source: SOURCE,
       'source-layer': 'bicycle_ways',
       minzoom: l.minzoom,
@@ -140,6 +142,28 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
 
 /** Barrelman marks a way's state; absent means it is built and open. */
 const BUILT = ['!has', 'state']
+
+/**
+ * A way in a tunnel is drawn down in the basemap's tunnel band, so the road
+ * above it draws over the crossing and the way reads as dipping under. Which
+ * means the surface layers have to leave it alone, or it is painted twice —
+ * once where it runs and once on top of everything it runs beneath.
+ *
+ * Bridges need no clause: a deck is the top of the network, and `middle` is
+ * above it.
+ */
+const SURFACE = ['!=', 'tunnel', true]
+const UNDERGROUND = ['==', 'tunnel', true]
+
+/**
+ * Where an underpass is drawn.
+ *
+ * One layer per group rather than the group's full grammar: a tunnel is short,
+ * hard-surfaced and unlit, so the paved/unpaved distinction has nothing to say
+ * about it, and the basemap's own tunnel casing is already drawn underneath.
+ */
+const tunnelLayer = (l: Omit<WayLayer, 'slot'>) =>
+  wayLayer({ ...l, slot: 'tunnel' })
 
 /**
  * Surfaces that are not a hard ride. Off-street ways draw solid where the
@@ -161,6 +185,12 @@ const SOFT_SURFACES = [
 const HARD = ['!in', 'surface', ...SOFT_SURFACES]
 const SOFT = ['in', 'surface', ...SOFT_SURFACES]
 
+/** The two halves of the off-street network, and the width each is drawn at. */
+const CYCLEWAY = ['==', 'infra_type', 'cycleway']
+const CYCLEWAY_WIDTH = [11, 1, 14, 1.8, 16, 2.8, 19, 4.4]
+const BICYCLE_PATH = ['in', 'infra_type', 'path_bicycle', 'steps_bicycle']
+const BICYCLE_PATH_WIDTH = [12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6]
+
 export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways: their own way, not a street. A casing under a solid
   // stroke, the way the basemap cases a path — so it reads as a route you can
@@ -171,7 +201,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'cycleways',
     order: 30,
     minzoom: 11,
-    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT],
+    filter: ['all', CYCLEWAY, BUILT, SURFACE],
     color: themed(INK.casing),
     width: width(11, 2.2, 14, 3.6, 16, 5.4, 19, 8),
   }),
@@ -181,9 +211,9 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'cycleways',
     order: 31,
     minzoom: 11,
-    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT, HARD],
+    filter: ['all', CYCLEWAY, BUILT, SURFACE, HARD],
     color: themed(INK.track),
-    width: width(11, 1, 14, 1.8, 16, 2.8, 19, 4.4),
+    width: width(...CYCLEWAY_WIDTH),
   }),
   wayLayer({
     id: 'bicycle-cycleways-unpaved',
@@ -191,10 +221,20 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'cycleways',
     order: 32,
     minzoom: 11,
-    filter: ['all', ['==', 'infra_type', 'cycleway'], BUILT, SOFT],
+    filter: ['all', CYCLEWAY, BUILT, SURFACE, SOFT],
     color: themed(INK.track),
-    width: width(11, 1, 14, 1.8, 16, 2.8, 19, 4.4),
+    width: width(...CYCLEWAY_WIDTH),
     dash: [3, 2],
+  }),
+  tunnelLayer({
+    id: 'bicycle-cycleways-tunnel',
+    name: 'Cycleways Tunnel',
+    group: 'cycleways',
+    order: 33,
+    minzoom: 11,
+    filter: ['all', CYCLEWAY, BUILT, UNDERGROUND],
+    color: themed(INK.track),
+    width: width(...CYCLEWAY_WIDTH),
   }),
 
   // Paths and steps built for bikes. Same treatment, dashed: a path is a
@@ -205,7 +245,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bicycle-paths',
     order: 60,
     minzoom: 12,
-    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT],
+    filter: ['all', BICYCLE_PATH, BUILT, SURFACE],
     color: themed(INK.casing),
     width: width(12, 2, 14, 3.2, 16, 4.6, 19, 6.6),
   }),
@@ -215,9 +255,9 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bicycle-paths',
     order: 61,
     minzoom: 12,
-    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT, HARD],
+    filter: ['all', BICYCLE_PATH, BUILT, SURFACE, HARD],
     color: themed(INK.lane),
-    width: width(12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6),
+    width: width(...BICYCLE_PATH_WIDTH),
   }),
   wayLayer({
     id: 'bicycle-paths-unpaved',
@@ -225,10 +265,20 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     group: 'bicycle-paths',
     order: 62,
     minzoom: 12,
-    filter: ['all', ['in', 'infra_type', 'path_bicycle', 'steps_bicycle'], BUILT, SOFT],
+    filter: ['all', BICYCLE_PATH, BUILT, SURFACE, SOFT],
     color: themed(INK.lane),
-    width: width(12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6),
+    width: width(...BICYCLE_PATH_WIDTH),
     dash: [3, 2],
+  }),
+  tunnelLayer({
+    id: 'bicycle-paths-tunnel',
+    name: 'Bicycle Paths Tunnel',
+    group: 'bicycle-paths',
+    order: 63,
+    minzoom: 12,
+    filter: ['all', BICYCLE_PATH, BUILT, UNDERGROUND],
+    color: themed(INK.lane),
+    width: width(...BICYCLE_PATH_WIDTH),
   }),
 
   /**

@@ -44,8 +44,35 @@ describe('cycling defaults', () => {
     }
   })
 
-  test('everything is ground, above the roads and below the labels', () => {
-    for (const t of lines) expect(t.configuration.slot).toBe('middle')
+  /**
+   * Ground, and which band of it: a way runs above the roads unless it runs
+   * under them, and the basemap redraws whatever is painted in the wrong one.
+   */
+  test('a way is drawn in the band its brunnel puts it in', () => {
+    for (const t of lines) {
+      const underground = JSON.stringify(t.configuration.filter).includes(
+        '["==","tunnel",true]',
+      )
+      expect(t.configuration.slot, t.templateId).toBe(
+        underground ? 'tunnel' : 'middle',
+      )
+    }
+  })
+
+  /** Drawn in both bands, a tunnel is painted on top of everything above it. */
+  test('the surface layers leave the tunnels to the tunnel layers', () => {
+    const surface = lines.filter(t => t.configuration.slot === 'middle')
+    const tunnels = lines.filter(t => t.configuration.slot === 'tunnel')
+    expect(tunnels.length).toBeGreaterThan(0)
+    for (const t of tunnels) {
+      const group = surface.filter(s => s.groupId === t.groupId)
+      expect(group.length, t.templateId).toBeGreaterThan(0)
+      for (const s of group) {
+        expect(JSON.stringify(s.configuration.filter), s.templateId).toContain(
+          '["!=","tunnel",true]',
+        )
+      }
+    }
   })
 
   /** Translucency compounds wherever two ways overlap; see `layer-slots.ts`. */

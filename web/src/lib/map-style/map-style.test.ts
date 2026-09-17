@@ -1649,17 +1649,52 @@ describe('cycling surface', () => {
 describe('slot anchors in the shipped style', () => {
   const built = buildLayers({ flavor: 'light' }) as any[]
   const at = (id: string | undefined) => built.findIndex(l => l.id === id)
-  const firstOfType = (type: string) => built.findIndex(l => l.type === type)
 
-  test('middle lands above every road and below every label', () => {
+  const firstLabel = built.findIndex(
+    l => l.type === 'symbol' && l.layout?.['text-field'],
+  )
+
+  /**
+   * A bridge deck is the top of the road network, and the basemap draws it over
+   * every road — so an overlay anchored below it loses its mark wherever a way
+   * crosses one, which reads as a gap in the network rather than as a bridge.
+   */
+  test('middle lands above every road and its bridges, and below every label', () => {
     const anchor = at(slotBeforeId(built, 'middle'))
     expect(anchor).toBeGreaterThan(-1)
-    // Nothing lettered draws below it.
-    expect(anchor).toBeLessThanOrEqual(firstOfType('symbol'))
-    // Every road does.
-    for (const id of ['Minor road', 'Major road', 'Highway', 'Path']) {
+    // Nothing lettered draws below it. The oneway arrows are not lettering:
+    // they are drawn on the roads, under the decks.
+    expect(anchor).toBeLessThanOrEqual(firstLabel)
+    for (const id of ['Minor road', 'Major road', 'Highway', 'Path', 'Path bridge']) {
       expect(at(id), id).toBeLessThan(anchor)
     }
+  })
+
+  /** Ground, still: a line floating over the buildings is not on the ground. */
+  test('middle stays under the buildings', () => {
+    expect(at(slotBeforeId(built, 'middle'))).toBeLessThanOrEqual(at('Building'))
+  })
+
+  /**
+   * A tunnel is the one thing that belongs under the network. Drawn in the
+   * basemap's own tunnel band, the road above it draws over the crossing and
+   * the way reads as dipping under rather than as running across.
+   */
+  test('tunnel lands above the basemap’s tunnels and below its surface', () => {
+    const anchor = at(slotBeforeId(built, 'tunnel'))
+    expect(anchor).toBeGreaterThan(-1)
+    for (const id of ['Tunnel', 'Footway tunnel']) {
+      expect(at(id), id).toBeLessThan(anchor)
+    }
+    for (const id of ['Minor road', 'Path', 'Path bridge']) {
+      expect(at(id), id).toBeGreaterThan(anchor)
+    }
+  })
+
+  test('the slots stack in the order they name', () => {
+    const index = (slot: string) => at(slotBeforeId(built, slot))
+    expect(index('bottom')).toBeLessThan(index('tunnel'))
+    expect(index('tunnel')).toBeLessThan(index('middle'))
   })
 
   test('bottom lands above the fills and below every road', () => {
@@ -1812,6 +1847,37 @@ describe('cycling markings', () => {
     for (const middle of ['shared_lane', 'bicycle_road', 'cycle_street']) {
       expect(sides, middle).not.toContain(middle)
     }
+  })
+
+  /**
+   * The roads these marks sit on are not drawn where a way is in a tunnel, so a
+   * mark on one is a green ribbon through a hillside with no road under it. The
+   * dedicated-cycleway layers draw their tunnels in the basemap's tunnel band.
+   */
+  test('nothing paints a way that is in a tunnel', () => {
+    const marks = [
+      ...strokes,
+      ...built.filter(l => l.id.endsWith(CYCLING_WAYS_SUFFIX)),
+    ]
+    for (const l of marks) {
+      const f = featureFilter(l.filter, `${l.id}.filter`)
+      const draws = (properties: Record<string, unknown>) =>
+        f.filter({ zoom: 17 } as any, { type: 2, properties } as any, {} as any)
+      expect(
+        draws({ highway: 'residential', infra_type: 'cycle_lane', cycleway_right: 'lane', tunnel: true }),
+        l.id,
+      ).toBe(false)
+      expect(
+        draws({ highway: 'residential', infra_type: 'bicycle_road', tunnel: true }),
+        l.id,
+      ).toBe(false)
+    }
+    // And a surface way still is.
+    const tint = built.find(l => l.id === `Minor road${CYCLING_WAYS_SUFFIX}`)!
+    const f = featureFilter(tint.filter, 'tint.filter')
+    expect(
+      f.filter({ zoom: 17 } as any, { type: 2, properties: { highway: 'residential', infra_type: 'bicycle_road' } } as any, {} as any),
+    ).toBe(true)
   })
 
   test('left and right are mirrored, and right is positive', () => {

@@ -196,6 +196,14 @@ const INFRA_AS_SIDE: any = [
 ]
 
 /**
+ * A way in a tunnel is not drawn by the road layers these marks sit on, so a
+ * mark on one is a green ribbon through a hillside with no road under it. The
+ * dedicated-cycleway layers draw their tunnels in the basemap's own tunnel
+ * band instead; see `layer-slots.ts`.
+ */
+const NOT_TUNNEL: any = ['!=', ['get', 'tunnel'], true]
+
+/**
  * Highway values that are a road a bike lane can be painted on.
  *
  * An offset only makes sense when the geometry IS the carriageway. Where OSM
@@ -435,6 +443,7 @@ export function cyclingStrokeLayers(
       filter: [
         'all',
         ['!', ['has', 'state']],
+        NOT_TUNNEL,
         ['match', ['get', 'highway'], ROAD_HIGHWAYS, true, false],
         ['match', sideValue(side), values, true, false],
       ],
@@ -490,6 +499,7 @@ export function cyclingWaysLayers(
           'all',
           ['match', ['get', 'infra_type'], TINTED_INFRA, true, false],
           ['!', ['has', 'state']],
+          NOT_TUNNEL,
           ['match', CLASS_OF_HIGHWAY, classes, true, false],
         ],
         layout: { 'line-cap': 'butt', 'line-join': 'round', visibility: 'none' },

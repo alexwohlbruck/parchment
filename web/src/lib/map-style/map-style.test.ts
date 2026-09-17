@@ -210,9 +210,12 @@ describe('flavors', () => {
      * `label_` is the whole label system — ink and halo both. MapTiler
      * letters in near-black over a traced outline; ours is authored after
      * Apple's, so their values are not the answer for any of it.
+     *
+     * The planted family goes the same way through `DARK_FOLIAGE`: theirs is
+     * blue at the ground's own lightness, which hides a wooded county.
      */
     const authored =
-      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$)/
+      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$|(wood|grass|stadium)_fill_color$|stadium_outline_color$)/
 
     const wrong: string[] = []
     let checked = 0
@@ -244,6 +247,26 @@ describe('flavors', () => {
     // a normal thing to do and should not need this number revisited.
     expect(checked).toBeGreaterThan(50)
     expect(wrong).toEqual([])
+  })
+
+  test('night foliage carries its hue, not its lightness', () => {
+    const ground = dark.background_background_color
+    const hue = (color: string) => Number(/hsla?\(\s*([\d.]+)/.exec(color)?.[1])
+    const apart = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b))
+    // Grass is the one that draws at half opacity, so the ground is half of
+    // what it lands as; see the `Grass` layer's `fill-opacity`.
+    const onMap: Record<string, string | Rgb> = {
+      wood_fill_color: dark.wood_fill_color,
+      grass_fill_color: mix(dark.grass_fill_color, ground),
+      stadium_fill_color: dark.stadium_fill_color,
+    }
+
+    for (const [token, landed] of Object.entries(onMap)) {
+      expect(apart(hue(dark[token]), hue(ground)), `${token} hue`).toBeGreaterThan(40)
+      const ratio = relativeLuminance(landed) / relativeLuminance(ground)
+      expect(ratio, `${token} luminance`).toBeGreaterThan(0.8)
+      expect(ratio, `${token} luminance`).toBeLessThan(1.25)
+    }
   })
 
   test('the ground inverts between flavors', () => {
@@ -1446,22 +1469,33 @@ describe('label typography', () => {
   })
 })
 
-/** WCAG relative luminance of an `hsl()` or `#rgb` colour. */
-function relativeLuminance(color: string): number {
-  let rgb: [number, number, number]
+type Rgb = [number, number, number]
+
+/** An `hsl()` or `#rgb` colour as 0–1 channels. */
+function toRgb(color: string): Rgb {
   const hsl = /hsla?\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/.exec(color)
-  if (hsl) {
-    const [h, s, l] = [+hsl[1] / 360, +hsl[2] / 100, +hsl[3] / 100]
-    const a = s * Math.min(l, 1 - l)
-    const f = (n: number) => {
-      const k = (n + h * 12) % 12
-      return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
-    }
-    rgb = [f(0), f(8), f(4)]
-  } else {
+  if (!hsl) {
     const hex = color.replace('#', '')
-    rgb = [0, 1, 2].map(i => parseInt(hex.slice(i * 2, i * 2 + 2), 16) / 255) as any
+    return [0, 1, 2].map(i => parseInt(hex.slice(i * 2, i * 2 + 2), 16) / 255) as Rgb
   }
+  const [h, s, l] = [+hsl[1] / 360, +hsl[2] / 100, +hsl[3] / 100]
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => {
+    const k = (n + h * 12) % 12
+    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+  }
+  return [f(0), f(8), f(4)]
+}
+
+/** Half of `a` over `b`, where a fill draws at half opacity. */
+function mix(a: string, b: string): Rgb {
+  const [x, y] = [toRgb(a), toRgb(b)]
+  return [0, 1, 2].map(i => (x[i] + y[i]) / 2) as Rgb
+}
+
+/** WCAG relative luminance of an `hsl()` or `#rgb` colour. */
+function relativeLuminance(color: string | Rgb): number {
+  const rgb = typeof color === 'string' ? toRgb(color) : color
   const lin = rgb.map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
   return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
 }

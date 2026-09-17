@@ -13,7 +13,7 @@
 import { describe, test, expect, mock, beforeEach, afterAll } from 'bun:test'
 import { authMockModule, setAuthUser, resetAuth } from '../test/auth-mock'
 import { createTestApp, req } from '../test/app'
-import { portolanTileCache } from '../lib/tile-cache'
+import { martinTileCache, portolanTileCache } from '../lib/tile-cache'
 
 let configuredIntegrations: any[] = []
 
@@ -66,6 +66,7 @@ const barrelmanIntegration = {
 beforeEach(() => {
   resetAuth()
   portolanTileCache.clear()
+  martinTileCache.clear()
   fetchCalls.length = 0
   fetchHeaders.length = 0
   fetchResponses = []
@@ -148,6 +149,61 @@ describe('GET /proxy/mapillary/...', () => {
 
     expect(String(res.body)).not.toContain('mly-token')
     expect(res.headers.get('cache-control')).toBe('public, max-age=3600')
+  })
+
+  // Martin answers in 1-6 ms; the rest of the ~2 s a client waited was the trip
+  // to the Barrelman host. These tiles were forwarded uncached, so every
+  // basemap tile for every user paid it.
+  test('serves a repeat tile from cache instead of re-fetching upstream', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    fetchResponses = [tileResponse()]
+
+    const first = await req(app).get('/proxy/barrelman/basemap/12/1170/1567')
+    expect(first.headers.get('X-Cache')).toBe('MISS')
+    expect(fetchCalls.length).toBe(1)
+
+    const second = await req(app).get('/proxy/barrelman/basemap/12/1170/1567')
+    expect(second.headers.get('X-Cache')).toBe('HIT')
+    // the whole point: no second trip upstream
+    expect(fetchCalls.length).toBe(1)
+    expect(second.status).toBe(200)
+  })
+
+  test('caches per tile, so a different tile still goes upstream', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    fetchResponses = [tileResponse(), tileResponse()]
+
+    await req(app).get('/proxy/barrelman/basemap/12/1170/1567')
+    await req(app).get('/proxy/barrelman/basemap/12/1170/1568')
+    expect(fetchCalls.length).toBe(2)
+  })
+
+  // A 404 is a stable answer; a 5xx is the upstream having a bad moment, and
+  // remembering it for an hour would turn a blip into an outage.
+  test('caches a 404 but never a 5xx', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    fetchResponses = [
+      new Response('nope', { status: 404 }),
+      new Response('boom', { status: 503 }),
+      new Response('boom', { status: 503 }),
+    ]
+
+    await req(app).get('/proxy/barrelman/basemap/9/1/1')
+    const cached404 = await req(app).get('/proxy/barrelman/basemap/9/1/1')
+    expect(cached404.headers.get('X-Cache')).toBe('HIT')
+    expect(cached404.status).toBe(404)
+    expect(fetchCalls.length).toBe(1)
+
+    await req(app).get('/proxy/barrelman/basemap/9/2/2')
+    await req(app).get('/proxy/barrelman/basemap/9/2/2')
+    // both 503s went upstream — the failure was not remembered
+    expect(fetchCalls.length).toBe(3)
   })
 
   test('forwards the upstream status on failure', async () => {

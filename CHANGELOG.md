@@ -6,6 +6,23 @@
 
 ### Fixed
 
+## [0.12.4] - 2026-09-16
+
+### Changed
+
+* The map holds recently drawn tiles in memory instead of fetching every one
+  from Barrelman again. Basemap and building tiles were forwarded uncached
+  while transit tiles were not, so panning around re-fetched the heaviest
+  tiles on the map every time.
+
+### Fixed
+
+* Tapping a station on the transit map opens it again instead of failing.
+  Stations are identified by their transit feed's stop key, and looking one up
+  went out to transit.land — which needs an account this server has no reason
+  to hold now that the transit data comes from Barrelman. Station details now
+  come from Barrelman, which already has them.
+
 ## [0.12.3] - 2026-09-15
 
 ### Added

@@ -14,7 +14,7 @@
 
 import { Elysia } from 'elysia'
 import { integrationManager } from '../services/integrations'
-import { portolanTileCache, type CachedResponse } from '../lib/tile-cache'
+import { martinTileCache, portolanTileCache, type CachedResponse } from '../lib/tile-cache'
 import { IntegrationId } from '../types/integration.types'
 import { resolveBarrelmanConfig } from '../services/barrelman.service'
 import { logError } from '../lib/logger'
@@ -169,6 +169,36 @@ app.get(
   },
 )
 
+/** The body a cached Martin miss replays, matching the live path so a hit and
+ *  a miss are indistinguishable to the client. */
+const MARTIN_MISSING_BODY = new TextEncoder().encode('Upstream error')
+  .buffer as ArrayBuffer
+
+/** Turn a cached Martin answer back into a response. Headers are rebuilt
+ *  rather than stored — they are a pure function of the status. */
+function martinResponse(hit: CachedResponse, state: 'HIT' | 'MISS'): Response {
+  if (hit.status !== 200) {
+    return new Response(hit.body ?? null, {
+      status: hit.status,
+      headers: { 'X-Cache': state },
+    })
+  }
+  return new Response(hit.body ?? null, {
+    headers: {
+      'Content-Type': hit.contentType || 'application/x-protobuf',
+      'Cache-Control': 'public, max-age=86400',
+      'X-Cache': state,
+    },
+  })
+}
+
+/** Remember an answer, then serve it. Every cacheable exit from the Martin
+ *  route goes through here, so what is stored and what is sent cannot drift. */
+function storeMartin(key: string, value: CachedResponse): Response {
+  martinTileCache.set(key, value)
+  return martinResponse(value, 'MISS')
+}
+
 // Proxy vector tile requests through the Barrelman integration.
 //
 // Barrelman fronts Martin at /tiles/{source}/{z}/{x}/{y} — the same prefix the
@@ -183,6 +213,13 @@ app.get(
 app.get(
   '/barrelman/:source/:z/:x/:y',
   async ({ params }) => {
+    // Served from memory when we have it. Martin answers in 1-6 ms; the rest
+    // of the ~2 s a client used to wait was the trip to the Barrelman host and
+    // back, which a hit removes entirely.
+    const { source, z, x, y } = params
+    const hit = martinTileCache.get(`${source}/${z}/${x}/${y}`)
+    if (hit) return martinResponse(hit, 'HIT')
+
     try {
       const config = resolveBarrelmanConfig()
       // Kept as an escape hatch for a Martin reachable directly, which is what
@@ -200,6 +237,8 @@ app.get(
       )?.tileKey
 
       const { source, z, x, y } = params
+      const cacheKey = `${source}/${z}/${x}/${y}`
+
       const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
       if (tileKey) tileUrl.searchParams.set('token', tileKey)
 
@@ -212,18 +251,25 @@ app.get(
         logError(
           `Barrelman tile proxy: ${response.status} ${response.statusText}`,
         )
+        // A 404 is a stable answer and worth remembering; a 5xx is the
+        // upstream having a bad moment, and caching it for an hour would turn
+        // a blip into an outage.
+        const miss: CachedResponse = {
+          status: response.status,
+          body: MARTIN_MISSING_BODY,
+          contentType: null,
+        }
+        if (response.status === 404) return storeMartin(cacheKey, miss)
         return new Response('Upstream error', { status: response.status })
       }
 
       const data = await response.arrayBuffer()
 
-      return new Response(data, {
-        headers: {
-          'Content-Type':
-            response.headers.get('content-type') ||
-            'application/x-protobuf',
-          'Cache-Control': 'public, max-age=86400',
-        },
+      return storeMartin(cacheKey, {
+        status: 200,
+        body: data,
+        contentType:
+          response.headers.get('content-type') || 'application/x-protobuf',
       })
     } catch (error) {
       logError('Barrelman tile proxy error', error, { params })

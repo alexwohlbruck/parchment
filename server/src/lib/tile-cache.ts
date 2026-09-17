@@ -147,3 +147,26 @@ export const portolanTileCache = new TileCache(
   envNumber('PORTOLAN_TILE_CACHE_MB', 256) * 1024 * 1024,
   envNumber('PORTOLAN_TILE_CACHE_TTL_S', 3600) * 1000,
 )
+
+/**
+ * The Martin tile proxy's cache.
+ *
+ * The same argument as above, and measurably more urgent: these tiles were
+ * forwarded uncached, so every basemap tile for every user made a fresh round
+ * trip to the Barrelman host. Measured against the portolan route, which does
+ * cache, over the same network to the same origin:
+ *
+ *     /proxy/portolan/*   X-Cache: HIT    107-118 ms
+ *     /proxy/barrelman/*  uncached        640-2380 ms
+ *
+ * Martin itself answers in 1-6 ms, so nearly all of that is the trip, and a
+ * hit removes it.
+ *
+ * A bigger budget than portolan's: basemap tiles are the largest thing the map
+ * fetches (a z14 tile is ~500 KB, against ~9 KB for a transit tile), so the
+ * same byte budget would hold far fewer of them and thrash.
+ */
+export const martinTileCache = new TileCache(
+  envNumber('MARTIN_TILE_CACHE_MB', 512) * 1024 * 1024,
+  envNumber('MARTIN_TILE_CACHE_TTL_S', 3600) * 1000,
+)

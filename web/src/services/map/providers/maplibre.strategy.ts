@@ -1019,6 +1019,14 @@ export class MaplibreStrategy extends MapStrategy {
     )
   }
 
+  /** Clamped to the ground, MapLibre freezes centre elevation for a gesture and
+   *  re-solves it in one frame on release, which reads as the ground jumping.
+   *  Unclamped, zoom stops meaning height above ground. */
+  override setMap3dTerrain(value: boolean) {
+    super.setMap3dTerrain(value)
+    this.mapInstance.setCenterClampedToGround(!value)
+  }
+
   /**
    * MapLibre has no orthographic camera — `setVerticalFieldOfView` is the same
    * trick behind a nicer name — so this narrows the field of view instead. A

@@ -749,6 +749,58 @@ describe('BarrelmanIntegration', () => {
       expect(place?.name?.value).toBe('Central Park')
       expect(place?.id).toBe('osm/node/123456')
     })
+
+    // A station opened from the transit map carries only its transitland stop
+    // key — portolan writes `<feed-onestop-id>:<stop_id>` into the tile, and the
+    // click falls back to it when the station has no OSM match. That used to be
+    // resolved against transit.land's API, which needs a key nobody holds once
+    // the transit data comes from Barrelman, so every station click 404'd.
+    describe('transitland stop keys', () => {
+      const station = {
+        stopId: '640',
+        feedId: '5',
+        stopName: 'Brooklyn Bridge-City Hall',
+        lat: 40.713065,
+        lon: -74.004131,
+        entrances: [],
+        buildings: [],
+        routes: [
+          { routeId: '4', routeShortName: '4', routeType: 1, agencyName: 'MTA New York City Transit' },
+        ],
+      }
+
+      test('resolves through the station route, not the geocoder', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: station })
+        await integration.getPlaceInfo('f-dr5r-nyctsubway:640')
+        expect(mockAxiosGet).toHaveBeenCalledWith(
+          'http://localhost:3100/transit/station/f-dr5r-nyctsubway/640',
+          expect.any(Object),
+        )
+      })
+
+      test('adapts to a transit place the client opens in the transit view', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: station })
+        const place = await integration.getPlaceInfo('f-dr5r-nyctsubway:640')
+        expect(place?.name?.value).toBe('Brooklyn Bridge-City Hall')
+        // transitStop is what routes it to the transit view rather than the
+        // place detail view.
+        expect(place?.transitStop?.stopId).toBe('640')
+        expect(place?.transitStop?.feedOnestopId).toBe('f-dr5r-nyctsubway')
+        expect(place?.geometry?.value?.center).toEqual({ lat: 40.713065, lng: -74.004131 })
+        // route_type 1 is a subway, and the icon follows the mode
+        expect(place?.transitStop?.mode).toBe('subway')
+      })
+
+      // Pelias gids carry a colon too; only a feed onestop id starts with 'f-'.
+      test('leaves a Pelias gid on the geocoder path', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: baseResult })
+        await integration.getPlaceInfo('openaddresses:address:us/ny/statewide:1234')
+        expect(mockAxiosGet).toHaveBeenCalledWith(
+          'http://localhost:3100/geocode/place',
+          expect.objectContaining({ params: { id: 'openaddresses:address:us/ny/statewide:1234' } }),
+        )
+      })
+    })
   })
 
   describe('getContainingAreas', () => {

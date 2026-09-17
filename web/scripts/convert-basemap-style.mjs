@@ -231,6 +231,27 @@ const DARK_OVERRIDES = {
 }
 
 /**
+ * Anything planted, at night, in the green family the daylight map uses.
+ *
+ * MapTiler's dark landcover is a set of blues at the ground's own lightness —
+ * woodland `hsl(203, 47%, 22%)` under ground `hsl(216, 37%, 24%)` — so the
+ * forest a county is half covered in disappears into the land it sits on. Hue
+ * carries this, not lightness: a green a shade under the ground reads as
+ * woodland where a two-point lift would turn the whole Piedmont into a slab.
+ *
+ * Grass draws at half opacity over that blue ground, which drags a green
+ * towards teal, so its token is pitched past the intended green by as much as
+ * the blend pulls back — the same correction `LIGHT_LAND` makes, further,
+ * because the ground underneath is more saturated.
+ */
+const DARK_FOLIAGE = {
+  wood_fill_color: 'hsl(145, 22%, 19%)',
+  grass_fill_color: 'hsl(96, 59%, 17%)',
+  stadium_fill_color: 'hsl(150, 20%, 21%)',
+  stadium_outline_color: 'hsl(150, 18%, 24%)',
+}
+
+/**
  * Route shields, rebuilt on Mapbox Standard's `road-number-shield` — see that
  * layer in `src/components/map/styles/standard.json`.
  *
@@ -1954,11 +1975,6 @@ async function main() {
     tokens[flavor].poi_transit_ring = `@@tint-ring:${TRANSIT_BLUE[flavor]}`
   }
 
-  // The pitch edge is authored, not lifted, so the night value is set here
-  // rather than in `DARK_OVERRIDES`: a shade off its own fill in each flavor,
-  // which at night means lighter, since there the fill is the dark thing.
-  tokens.dark.stadium_outline_color = 'hsl(183, 20%, 27%)'
-
   tokens.light.path_surface = 'hsl(44, 40%, 96%)'
   tokens.light.path_casing = 'hsl(42, 16%, 81%)'
   tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
@@ -1972,6 +1988,8 @@ async function main() {
   for (const [name, color] of Object.entries(DARK_OVERRIDES)) {
     if (name in tokens.dark) tokens.dark[name] = color
   }
+
+  Object.assign(tokens.dark, DARK_FOLIAGE)
 
   // Category palette tokens, resolved at runtime from the app's own palette
   // so basemap POIs match the colours search results already use.

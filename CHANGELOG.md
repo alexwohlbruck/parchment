@@ -6,6 +6,8 @@
 
 ### Changed
 
+* Woodland, parks and playing fields now read as green on the night map instead of vanishing into the ground.
+
 ### Fixed
 
 * Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.

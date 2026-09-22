@@ -494,11 +494,33 @@ describe('badge POI treatment', () => {
     for (const id of ['Path', 'Path outline']) {
       expect(layers.find(l => l.id === id)!.layout['line-cap'], id).toBe('round')
     }
-    // And the casing either side of a deck is the path's own, unchanged, so
-    // the two meet without a seam.
-    for (const [deck, path] of [['Path bridge', 'Path'], ['Path outline bridge', 'Path outline']]) {
-      const of = (id: string) => layers.find(l => l.id === id)!.paint
-      expect(of(deck), deck).toEqual(of(path))
+    // The surface between the casings is the path's own, so a way does not
+    // widen where it is carried.
+    const paint = (id: string) => layers.find(l => l.id === id)!.paint
+    expect(paint('Path bridge')).toEqual(paint('Path'))
+    expect(paint('Path outline bridge')['line-gap-width'])
+      .toEqual(paint('Path outline')['line-gap-width'])
+  })
+
+  /**
+   * What says bridge, once the deck no longer ends in a lozenge, is the edge:
+   * the drop either side, drawn heavier and a shade deeper than the casing the
+   * path carries at grade.
+   */
+  test('a deck is edged heavier and deeper than the path it carries', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const width = (id: string) =>
+      (layers.find(l => l.id === id)!.paint['line-width'] as any[]).slice(3)
+    const [deck, path] = ['Path outline bridge', 'Path outline'].map(width)
+    expect(deck.length).toBe(path.length)
+    for (let i = 0; i < deck.length; i += 2) {
+      expect(deck[i], `stop z${deck[i]}`).toBe(path[i])
+      expect(deck[i + 1], `z${deck[i]}`).toBeGreaterThan(path[i + 1])
+    }
+
+    for (const tokens of [lightTokens, darkTokens] as Record<string, string>[]) {
+      const lightness = (name: string) => Number(/([\d.]+)%\)/.exec(tokens[name])![1])
+      expect(lightness('path_bridge_casing')).toBeLessThan(lightness('path_casing'))
     }
   })
 

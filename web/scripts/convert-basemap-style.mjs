@@ -701,6 +701,11 @@ const PATH_CASING_WIDTH = [
   'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.2, 18, 3, 22, 4.5,
 ]
 
+/** Half again the path's, so a deck reads as one without changing its width. */
+const BRIDGE_CASING_WIDTH = [
+  'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.8, 18, 4.5, 22, 6.8,
+]
+
 /**
  * Draw every casing, then every surface — the ordering the whole effect rests
  * on, and the reason these four layers have to sit together.
@@ -773,10 +778,20 @@ function orderPedestrianSurfaces(layers) {
   // Cut square at the ends. A round cap on a line this wide overshoots the
   // bridge's last node by half its width, so the deck ends in a lozenge laid
   // over the path it joins — cap and casing drawn across the junction. Butt
-  // caps end the deck where the bridge ends, and the path's own casing, the
-  // same colour at the same width, carries straight on out of it.
+  // caps end the deck where the bridge ends and the path runs out of it.
+  //
+  // What says bridge is the edge: the same line, drawn heavier and a shade
+  // deeper, for the drop either side. The surface between keeps the path's
+  // width, so the way itself does not widen where it is carried.
   const elevated = [
-    withCondition(pathCasing, ELEVATED, ' bridge'),
+    {
+      ...withCondition(pathCasing, ELEVATED, ' bridge'),
+      paint: {
+        ...pathCasing.paint,
+        'line-color': '@path_bridge_casing',
+        'line-width': BRIDGE_CASING_WIDTH,
+      },
+    },
     withCondition(path, ELEVATED, ' bridge'),
   ].map(l => ({ ...l, layout: { ...l.layout, 'line-cap': 'butt' } }))
 
@@ -1983,8 +1998,10 @@ async function main() {
 
   tokens.light.path_surface = 'hsl(44, 40%, 96%)'
   tokens.light.path_casing = 'hsl(42, 16%, 81%)'
+  tokens.light.path_bridge_casing = 'hsl(42, 16%, 73%)'
   tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
   tokens.dark.path_casing = 'hsl(216, 20%, 20%)'
+  tokens.dark.path_bridge_casing = 'hsl(216, 24%, 13%)'
 
   for (const [rung, color] of Object.entries(ROAD_INK.light)) tokens.light[`road_${rung}`] = color
   for (const [rung, color] of Object.entries(ROAD_INK.dark)) tokens.dark[`road_${rung}`] = color

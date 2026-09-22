@@ -14,7 +14,7 @@
 * The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
 * The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.
 * Cycleways and bike paths now run along a bridge deck instead of breaking at it, and an underpass passes beneath the street above it rather than across.
-* Footbridges now join the path they carry instead of ending in a lozenge laid over the junction.
+* Footbridges now join the path they carry instead of ending in a lozenge laid over the junction, and are edged a shade deeper so the deck still reads as one.
 
 ## [0.12.2] - 2026-09-12
 

@@ -26,7 +26,7 @@
  * tree on every reload, and uncorrelated between properties, so a row of them
  * does not come out as a repeating pattern.
  */
-import { TREE_SOURCE, TREE_TILES, TREE_ROW_SOURCE, TREE_ROW_TILES } from '@/lib/map-style/detail-layers'
+import { DETAIL_SOURCE, TREE_TILES, TREE_ROW_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
 import { hash, lerp, pick, tagged } from './vary'
 
@@ -126,7 +126,7 @@ export function treeInstance(
 }
 
 export const TREE_OBJECTS: ObjectSourceSpec = {
-  source: TREE_SOURCE,
+  source: DETAIL_SOURCE,
   sourceLayer: TREE_TILES,
   // Matches the flat form's minzoom: the two are the same features, and a zoom
   // where one draws and the other does not would show as trees appearing twice.
@@ -201,7 +201,7 @@ function rowPositions(feature: any): Array<[number, number]> {
 }
 
 export const TREE_ROW_OBJECTS: ObjectSourceSpec = {
-  source: TREE_ROW_SOURCE,
+  source: DETAIL_SOURCE,
   sourceLayer: TREE_ROW_TILES,
   minzoom: 16,
   positions: rowPositions,

@@ -4,7 +4,7 @@
  * The buildings the extrusion draws moved from the basemap to Barrelman's own
  * `buildings_3d` source, because only that one carries `hide_3d` — the flag
  * that says which of a part-mapped building's two footprints is the outline to
- * drop. See `BUILDING_3D_SOURCE` in `detail-layers.ts`.
+ * drop. See `DETAIL_SOURCE` in `detail-layers.ts`.
  *
  * That source has to be created on the Barrelman instance before it answers,
  * and until it does, a style pointed at it draws no buildings at all: the tiles

@@ -769,10 +769,16 @@ function orderPedestrianSurfaces(layers) {
   // A footbridge is the exception, and the reason this is split at all: it
   // crosses over the road rather than under it, so it is drawn after every road
   // and rail — but still below the buildings.
+  //
+  // Cut square at the ends. A round cap on a line this wide overshoots the
+  // bridge's last node by half its width, so the deck ends in a lozenge laid
+  // over the path it joins — cap and casing drawn across the junction. Butt
+  // caps end the deck where the bridge ends, and the path's own casing, the
+  // same colour at the same width, carries straight on out of it.
   const elevated = [
     withCondition(pathCasing, ELEVATED, ' bridge'),
     withCondition(path, ELEVATED, ' bridge'),
-  ]
+  ].map(l => ({ ...l, layout: { ...l.layout, 'line-cap': 'butt' } }))
 
   const roads = layers.findIndex(l => l.id === FIRST_ROAD_LAYER)
   layers.splice(roads < 0 ? layers.length : roads, 0, ...ground)

@@ -477,6 +477,32 @@ describe('badge POI treatment', () => {
   })
 
   /**
+   * A deck is the same line as the path, drawn a band higher. A round cap on a
+   * line that wide overshoots the bridge's last node by half its width, so the
+   * deck ends in a lozenge laid across the junction it joins — cap and casing
+   * over the path that carries on out of it.
+   */
+  test('a deck is cut square, so the path it continues runs out of it', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const decks = layers.filter(l => l.id.includes('bridge') && l['source-layer'] === 'transportation')
+    expect(decks.map(l => l.id)).toContain('Path bridge')
+    for (const deck of decks) {
+      expect(deck.layout?.['line-cap'], deck.id).toBe('butt')
+    }
+    // The path itself keeps its round ends: a way that stops mid-block is a
+    // stub, not a cut edge.
+    for (const id of ['Path', 'Path outline']) {
+      expect(layers.find(l => l.id === id)!.layout['line-cap'], id).toBe('round')
+    }
+    // And the casing either side of a deck is the path's own, unchanged, so
+    // the two meet without a seam.
+    for (const [deck, path] of [['Path bridge', 'Path'], ['Path outline bridge', 'Path outline']]) {
+      const of = (id: string) => layers.find(l => l.id === id)!.paint
+      expect(of(deck), deck).toEqual(of(path))
+    }
+  })
+
+  /**
    * A one-way arrow is paint on the roadway, so a building standing over that
    * road hides it. MapLibre draws every layer at or after the first 3D one with
    * depth testing off (`opaquePassCutoff`), so the only way a building can

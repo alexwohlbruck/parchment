@@ -1491,6 +1491,48 @@
    ]
   },
   {
+   "id": "Bridge area outline",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Polygon"
+    ],
+    [
+     "==",
+     "brunnel",
+     "bridge"
+    ]
+   ],
+   "layout": {
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "@path_bridge_casing",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1.8,
+     18,
+     4.5,
+     22,
+     6.8
+    ]
+   }
+  },
+  {
    "id": "Bridge",
    "type": "fill",
    "source": "openmaptiles",
@@ -1500,8 +1542,7 @@
    },
    "paint": {
     "fill-antialias": true,
-    "fill-color": "@pier_fill_color",
-    "fill-opacity": 0.6
+    "fill-color": "@path_surface"
    },
    "filter": [
     "all",

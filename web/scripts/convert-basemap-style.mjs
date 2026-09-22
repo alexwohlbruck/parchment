@@ -342,6 +342,8 @@ const PATH_CASING_LAYER = 'Path outline'
 const PATH_LAYER = 'Path'
 const PEDESTRIAN_AREA_LAYER = 'Pedestrian'
 const PEDESTRIAN_AREA_CASING_LAYER = 'Pedestrian area outline'
+const BRIDGE_AREA_LAYER = 'Bridge'
+const BRIDGE_AREA_CASING_LAYER = 'Bridge area outline'
 
 /** The lowest road layer — the casings, which everything else stacks onto. */
 const FIRST_ROAD_LAYER = 'Minor road outline'
@@ -1849,6 +1851,12 @@ async function main() {
       // as the paths running into it or the joins show as a change of tone.
       out.paint = { 'fill-color': '@path_surface' }
     }
+    if (layer.id === BRIDGE_AREA_LAYER) {
+      // A deck mapped as an area is the same deck as one mapped as a way, so it
+      // takes the same surface. MapTiler had it in the pier colour at 0.6,
+      // which let the water it carries over show through the structure.
+      out.paint = { 'fill-antialias': true, 'fill-color': '@path_surface' }
+    }
 
     layers.push(out)
   }
@@ -1884,6 +1892,21 @@ async function main() {
       filter: area.filter,
       layout: { 'line-join': 'round' },
       paint: { 'line-color': '@path_casing', 'line-width': PATH_CASING_WIDTH },
+    })
+  }
+  // The deck's edge, the same drop the cased bridge ways carry, so an area and
+  // a way that are one bridge in life are drawn as one bridge here.
+  const deck = layers.find(l => l.id === BRIDGE_AREA_LAYER)
+  if (deck) {
+    layers.splice(layers.indexOf(deck), 0, {
+      id: BRIDGE_AREA_CASING_LAYER,
+      type: 'line',
+      source: SOURCE,
+      'source-layer': deck['source-layer'],
+      minzoom: pathCasingMinzoom(layers),
+      filter: deck.filter,
+      layout: { 'line-join': 'round' },
+      paint: { 'line-color': '@path_bridge_casing', 'line-width': BRIDGE_CASING_WIDTH },
     })
   }
   orderPedestrianSurfaces(layers)

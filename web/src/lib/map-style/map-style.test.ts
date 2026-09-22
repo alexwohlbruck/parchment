@@ -525,6 +525,29 @@ describe('badge POI treatment', () => {
   })
 
   /**
+   * A deck mapped as an area is the same structure as one mapped as a way —
+   * often the same bridge, carrying ways drawn across it — so it takes the same
+   * surface and the same edge.
+   */
+  test('a bridge area is drawn as the deck it is', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    const fill = layers[at('Bridge')]
+    const edge = layers[at('Bridge area outline')]
+    expect(fill.paint['fill-color']).toBe(lightTokens.path_surface)
+    // A structure the water under it shows through is not carrying anything.
+    expect(fill.paint['fill-opacity']).toBeUndefined()
+    expect(edge.paint['line-color']).toBe(lightTokens.path_bridge_casing)
+    expect(edge.paint['line-width'])
+      .toEqual(layers[at('Path outline bridge')].paint['line-width'])
+    expect(edge.filter).toEqual(fill.filter)
+    // The edge under the surface, as every casing in this style is, and the
+    // deck under the carriageway it carries.
+    expect(at('Bridge area outline')).toBeLessThan(at('Bridge'))
+    expect(at('Bridge')).toBeLessThan(at('Minor road'))
+  })
+
+  /**
    * A one-way arrow is paint on the roadway, so a building standing over that
    * road hides it. MapLibre draws every layer at or after the first 3D one with
    * depth testing off (`opaquePassCutoff`), so the only way a building can

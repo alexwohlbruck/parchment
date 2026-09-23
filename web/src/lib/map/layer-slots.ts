@@ -14,11 +14,13 @@
  *   middle   above the roads, below the labels
  *   top      above the labels
  *
- * `bridge` and `tunnel` are ours, for the thing the three cannot say: which
- * brunnel a way has. The basemap draws a path bridge over the whole network and
- * a tunnel under it, so a mark on one lands in that band or the basemap simply
- * redraws the way on top of the paint. Standard has no such slots; there they
- * resolve to the nearest band it does have.
+ * `grade`, `bridge` and `tunnel` are ours, for the thing the three cannot say:
+ * which brunnel a way has. The basemap draws its bridges over the whole network
+ * and its tunnels under it, so a mark lands in the band of the way it marks or
+ * the basemap simply redraws that way on top of the paint — and a mark on a way
+ * at grade has to stay under the decks crossing over it, which `middle` does
+ * not, since a bridge deck is drawn after everything at grade. Standard has
+ * none of the three; there they resolve to the nearest band it does have.
  *
  * `bottom` is the one that is easy to get wrong, and it is the one that
  * matters most: a translucent band belongs under the road network, not over
@@ -33,6 +35,7 @@
 import {
   aboveBridgesIndex,
   aboveTunnelsIndex,
+  bridgeBandIndex,
   type BrunnelLayer,
 } from '@/lib/map-style/brunnel'
 
@@ -65,6 +68,15 @@ export function belowRoadsBeforeId(layers: readonly StyleLayer[]): string | unde
  */
 export function belowLabelsBeforeId(layers: readonly StyleLayer[]): string | undefined {
   return layers.find(l => isOverlay(l) || l.type === 'symbol')?.id
+}
+
+/**
+ * Just under the basemap's bridges, where a mark on a way at grade belongs: a
+ * deck crossing over that way covers its mark exactly as it covers the way.
+ */
+export function atGradeBeforeId(layers: readonly StyleLayer[]): string | undefined {
+  const at = bridgeBandIndex(layers)
+  return at === undefined ? belowLabelsBeforeId(layers) : layers[at]?.id
 }
 
 /**
@@ -101,10 +113,11 @@ export function slotBeforeId(
   if (slot === 'bottom') return belowRoadsBeforeId(layers)
   if (slot === 'middle') return belowLabelsBeforeId(layers)
   if (slot === 'tunnel') return inTunnelsBeforeId(layers)
+  if (slot === 'grade') return atGradeBeforeId(layers)
   if (slot === 'bridge') return onBridgesBeforeId(layers)
   return undefined
 }
 
 /** The nearest slot Mapbox Standard has, for the names it does not know. */
 export const mapboxSlot = (slot: string | undefined) =>
-  slot === 'tunnel' ? 'bottom' : slot === 'bridge' ? 'middle' : slot
+  slot === 'tunnel' ? 'bottom' : slot === 'bridge' || slot === 'grade' ? 'middle' : slot

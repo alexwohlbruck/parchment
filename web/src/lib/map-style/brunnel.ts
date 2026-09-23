@@ -44,6 +44,9 @@ const isBrunnelKey = (operand: unknown, key: string) =>
 function asserts(filter: unknown, key: string, value: unknown): boolean {
   if (!Array.isArray(filter)) return false
   const [op, left, right] = filter
+  // Not under a negation: `none` converts to `["!", ["any", …]]`, and the
+  // equality inside it says the layer draws everything BUT that brunnel.
+  if (op === '!') return false
   if (op === '==' && isBrunnelKey(left, key) && right === value) return true
   return filter.some(part => asserts(part, key, value))
 }
@@ -66,6 +69,17 @@ const bandEnd = (
     if (draws(layers[i], brunnel)) return i + 1
   }
   return undefined
+}
+
+/**
+ * The index the basemap's bridges start at — where a mark on a way at grade
+ * goes, so the deck crossing above it covers the mark as it covers the way.
+ */
+export function bridgeBandIndex(
+  layers: readonly BrunnelLayer[],
+): number | undefined {
+  const at = layers.findIndex(l => draws(l, 'bridge'))
+  return at < 0 ? undefined : at
 }
 
 /**

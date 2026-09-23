@@ -725,18 +725,17 @@ const BRIDGE_CASING_WIDTH = [
  * road crosses a square: the square is drawn over it. Pedestrian areas are
  * car-free by definition, so that is the cheaper of the two errors.
  */
-/** Ground level: not a bridge, and not stacked above the surface. */
-const AT_GRADE = [
-  'all',
-  ['!=', ['get', 'brunnel'], 'bridge'],
-  ['<=', ['case', ['has', 'layer'], ['to-number', ['get', 'layer']], 0], 0],
-]
-/** Carried over whatever it crosses. */
-const ELEVATED = [
-  'any',
-  ['==', ['get', 'brunnel'], 'bridge'],
-  ['>', ['case', ['has', 'layer'], ['to-number', ['get', 'layer']], 0], 0],
-]
+/**
+ * Ground level, and carried over whatever it crosses.
+ *
+ * The brunnel alone, matching the tunnel split and matching what Barrelman
+ * serves for the cycling network: a `layer` clause here and a `bridge` boolean
+ * there disagree on a way tagged `layer=1` with no bridge, and the disagreement
+ * is silent — the road rises into the elevated band and its green tint stays
+ * below, where the road it describes is no longer drawn.
+ */
+const AT_GRADE = ['!=', ['get', 'brunnel'], 'bridge']
+const ELEVATED = ['==', ['get', 'brunnel'], 'bridge']
 
 function withCondition(layer, condition, suffix) {
   const base = layer.filter ? toExpressionFilter(layer.filter) : null

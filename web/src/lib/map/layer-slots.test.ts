@@ -103,6 +103,13 @@ describe('where an overlay slots into the basemap', () => {
       expect(slotBeforeId(BRUNNEL_STYLE, 'bridge')).toBe('Building')
     })
 
+    /** A deck crossing over a way covers its mark as it covers the way. */
+    test('grade lands under the decks, above the network at grade', () => {
+      expect(slotBeforeId(BRUNNEL_STYLE, 'grade')).toBe('Path bridge')
+      const at = (id: string | undefined) => BRUNNEL_STYLE.findIndex(l => l.id === id)
+      expect(at('Minor road')).toBeLessThan(at(slotBeforeId(BRUNNEL_STYLE, 'grade')))
+    })
+
     test('tunnel lands between the tunnels and the surface', () => {
       expect(slotBeforeId(BRUNNEL_STYLE, 'tunnel')).toBe('Pier')
     })
@@ -111,8 +118,28 @@ describe('where an overlay slots into the basemap', () => {
       const at = (slot: string) =>
         BRUNNEL_STYLE.findIndex(l => l.id === slotBeforeId(BRUNNEL_STYLE, slot))
       expect(at('bottom')).toBeLessThan(at('tunnel'))
-      expect(at('tunnel')).toBeLessThan(at('middle'))
-      expect(at('middle')).toBeLessThan(at('bridge'))
+      expect(at('tunnel')).toBeLessThan(at('grade'))
+      expect(at('grade')).toBeLessThan(at('bridge'))
+    })
+
+    /**
+     * `none` converts to a negated `any`, so an equality can sit under a `!`
+     * and say the layer draws everything BUT that brunnel.
+     */
+    test('a negated brunnel does not stand in for the band', () => {
+      const negated = [
+        ...BRUNNEL_STYLE.slice(0, 2),
+        {
+          id: 'Everything but a bridge',
+          type: 'line',
+          source: 'openmaptiles',
+          'source-layer': 'transportation',
+          filter: ['!', ['any', ['==', ['get', 'brunnel'], 'bridge']]],
+        },
+        ...BRUNNEL_STYLE.slice(2),
+      ]
+      expect(slotBeforeId(negated, 'grade')).toBe('Path bridge')
+      expect(slotBeforeId(negated, 'bridge')).toBe('Building')
     })
 
     /**

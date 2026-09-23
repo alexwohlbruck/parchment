@@ -58,18 +58,20 @@ describe('cycling defaults', () => {
         ? 'bridge'
         : asks(t, '["==","tunnel",true]')
           ? 'tunnel'
-          : 'middle'
+          : asks(t, '["!=","bridge",true]')
+            ? 'grade'
+            : 'middle'
       expect(t.configuration.slot, t.templateId).toBe(slot)
     }
   })
 
   /** Drawn in two bands, a way is painted twice — once in the wrong place. */
   test('the surface layers leave the bridges and tunnels alone', () => {
-    const banded = lines.filter(t => t.configuration.slot !== 'middle')
+    const banded = lines.filter(t => ['bridge', 'tunnel'].includes(t.configuration.slot))
     expect(banded.length).toBe(4)
     for (const t of banded) {
       const surface = lines.filter(
-        s => s.groupId === t.groupId && s.configuration.slot === 'middle',
+        s => s.groupId === t.groupId && s.configuration.slot === 'grade',
       )
       expect(surface.length, t.templateId).toBeGreaterThan(0)
       for (const s of surface) {
@@ -84,7 +86,7 @@ describe('cycling defaults', () => {
    * casing over either rubs out the crossing the mark is drawn on.
    */
   test('a deck and a bore carry the stroke alone', () => {
-    for (const t of lines.filter(t => t.configuration.slot !== 'middle')) {
+    for (const t of lines.filter(t => ['bridge', 'tunnel'].includes(t.configuration.slot))) {
       expect(t.configuration.id, t.templateId).not.toContain('casing')
       expect(t.configuration.paint['line-dasharray'], t.templateId).toBeUndefined()
     }

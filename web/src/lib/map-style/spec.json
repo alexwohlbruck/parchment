@@ -1623,34 +1623,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -1736,34 +1714,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -1887,34 +1843,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -1984,34 +1918,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -2199,34 +2111,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -2396,34 +2286,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -2576,34 +2444,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -2738,34 +2584,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -2932,34 +2756,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -3108,34 +2910,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -3591,34 +3371,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -3787,34 +3545,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -3964,34 +3700,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -4123,34 +3837,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -4338,34 +4030,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -4535,34 +4205,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -4664,34 +4312,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -4766,34 +4392,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -4841,34 +4445,12 @@
      false
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -4920,34 +4502,12 @@
      false
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -5115,34 +4675,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -5312,34 +4850,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -5492,34 +5008,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -5654,34 +5148,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -5848,34 +5320,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -6024,34 +5474,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -6306,34 +5734,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -6502,34 +5908,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -6679,34 +6063,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -6838,34 +6200,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -7053,34 +6393,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -7250,34 +6568,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -7380,34 +6676,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -7483,34 +6757,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -7559,34 +6811,12 @@
      false
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -7639,34 +6869,12 @@
      false
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -7813,34 +7021,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -7926,34 +7112,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -8041,34 +7205,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -8138,34 +7280,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [

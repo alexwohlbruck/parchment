@@ -341,18 +341,20 @@ const BY_ROAD_LAYER: { road: string; classes: string[] }[] = [
  * stay under the footbridges crossing over it.
  */
 const RUNGS = BY_ROAD_LAYER.flatMap(rung => [
-  { ...rung, brunnel: AT_GRADE, street: rung.road !== 'Path' },
-  { ...rung, road: `${rung.road} bridge`, brunnel: ON_BRIDGE, street: rung.road !== 'Path' },
+  { ...rung, brunnel: AT_GRADE, bridge: false, street: rung.road !== 'Path' },
+  { ...rung, road: `${rung.road} bridge`, brunnel: ON_BRIDGE, bridge: true, street: rung.road !== 'Path' },
 ])
 
 /** Appended to a stroke layer's id: which side, drawn in which grammar. */
-export const strokeLayerId = (kind: string, side: string) =>
-  `Cycling ${kind} ${side}`
+export const strokeLayerId = (kind: string, side: string, bridge = false) =>
+  `Cycling ${kind} ${side}${bridge ? ' bridge' : ''}`
 
 /** The ids every cycling layer takes, so the toggle can name them up front. */
 export const CYCLING_WAYS_LAYER_IDS = [
   ...RUNGS.map(r => r.road + CYCLING_WAYS_SUFFIX),
-  ...STROKE_KINDS.flatMap(k => ['left', 'right'].map(s => strokeLayerId(k.kind, s))),
+  ...STROKE_KINDS.flatMap(k =>
+    ['left', 'right'].flatMap(s => [strokeLayerId(k.kind, s), strokeLayerId(k.kind, s, true)]),
+  ),
 ]
 
 /**
@@ -448,16 +450,22 @@ export function offsetRamp(width: any, factor: number): any {
   return [op, interpolation, input, SIDES_FROM - 0.5, 0, ...kept]
 }
 
+/**
+ * The markings for one band of the network: the street's own, so they follow
+ * the street between the two, and a marking on a way at grade stays under the
+ * deck crossing over it.
+ */
 export function cyclingStrokeLayers(
   flavor: FlavorId,
   roadWidth: (layerId: string) => any,
+  bridge = false,
 ): any[] {
   const width = roadWidthByClass(roadWidth)
   if (!width) return []
 
   return STROKE_KINDS.flatMap(({ kind, values, dash }) =>
     ['left', 'right'].map(side => ({
-      id: strokeLayerId(kind, side),
+      id: strokeLayerId(kind, side, bridge),
       type: 'line',
       source: CYCLING_WAYS_SOURCE,
       'source-layer': CYCLING_WAYS_TILES,
@@ -466,6 +474,7 @@ export function cyclingStrokeLayers(
         'all',
         ['!', ['has', 'state']],
         NOT_TUNNEL,
+        bridge ? ON_BRIDGE : AT_GRADE,
         ['match', ['get', 'highway'], ROAD_HIGHWAYS, true, false],
         ['match', sideValue(side), values, true, false],
       ],
@@ -505,13 +514,14 @@ export function cyclingWaysSource(tileUrl: (source: string) => string) {
 export function cyclingWaysLayers(
   flavor: FlavorId,
   roadWidth: (layerId: string) => any,
-): { above: string; street: boolean; layer: any }[] {
-  return RUNGS.flatMap(({ road, classes, brunnel, street }) => {
+): { above: string; street: boolean; bridge: boolean; layer: any }[] {
+  return RUNGS.flatMap(({ road, classes, brunnel, street, bridge }) => {
     const width = roadWidth(road)
     if (!width) return []
     return [{
       above: road,
       street,
+      bridge,
       layer: {
         id: road + CYCLING_WAYS_SUFFIX,
         type: 'line',

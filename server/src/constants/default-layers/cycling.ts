@@ -164,6 +164,8 @@ const UNDERGROUND = ['==', 'tunnel', true]
  * One layer each rather than the group's full grammar. Both are short and
  * hard-surfaced, so the paved/unpaved split has nothing to say about them.
  */
+const atGradeLayer = (l: Omit<WayLayer, 'slot'>) =>
+  wayLayer({ ...l, slot: 'grade' })
 const bridgeLayer = (l: Omit<WayLayer, 'slot'>) =>
   wayLayer({ ...l, slot: 'bridge' })
 const tunnelLayer = (l: Omit<WayLayer, 'slot'>) =>
@@ -199,7 +201,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways: their own way, not a street. A casing under a solid
   // stroke, the way the basemap cases a path — so it reads as a route you can
   // follow rather than as a line drawn on something else.
-  wayLayer({
+  atGradeLayer({
     id: 'bicycle-cycleways-casing',
     name: 'Cycleways Casing',
     group: 'cycleways',
@@ -209,7 +211,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     color: themed(INK.casing),
     width: width(11, 2.2, 14, 3.6, 16, 5.4, 19, 8),
   }),
-  wayLayer({
+  atGradeLayer({
     id: 'bicycle-cycleways',
     name: 'Cycleways',
     group: 'cycleways',
@@ -219,7 +221,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     color: themed(INK.track),
     width: width(...CYCLEWAY_WIDTH),
   }),
-  wayLayer({
+  atGradeLayer({
     id: 'bicycle-cycleways-unpaved',
     name: 'Cycleways Unpaved',
     group: 'cycleways',
@@ -253,7 +255,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
 
   // Paths and steps built for bikes. Same treatment, dashed: a path is a
   // rougher promise than a cycleway.
-  wayLayer({
+  atGradeLayer({
     id: 'bicycle-paths-casing',
     name: 'Bicycle Paths Casing',
     group: 'bicycle-paths',
@@ -263,7 +265,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     color: themed(INK.casing),
     width: width(12, 2, 14, 3.2, 16, 4.6, 19, 6.6),
   }),
-  wayLayer({
+  atGradeLayer({
     id: 'bicycle-paths',
     name: 'Bicycle Paths',
     group: 'bicycle-paths',
@@ -273,7 +275,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     color: themed(INK.lane),
     width: width(...BICYCLE_PATH_WIDTH),
   }),
-  wayLayer({
+  atGradeLayer({
     id: 'bicycle-paths-unpaved',
     name: 'Bicycle Paths Unpaved',
     group: 'bicycle-paths',

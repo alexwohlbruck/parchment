@@ -586,18 +586,41 @@ describe('badge POI treatment', () => {
       expect(surfaces).toEqual([...surfaces].sort((a, b) => a - b))
     })
 
+    /**
+     * The brunnel decides, and nothing else. Barrelman serves the cycling
+     * network a `bridge` boolean and no `layer`, so a rule that also lifted
+     * `layer > 0` would raise a street out from under its own green tint.
+     */
     test('a rung at grade sheds what is carried, and its twin takes it', () => {
       const ground = { class: 'minor' }
       const bridge = { class: 'minor', brunnel: 'bridge' }
       const stacked = { class: 'minor', layer: '1' }
       expect(carried('Minor road', ground)).toBe(true)
       expect(carried('Minor road', bridge)).toBe(false)
-      expect(carried('Minor road', stacked)).toBe(false)
+      expect(carried('Minor road', stacked)).toBe(true)
       expect(carried('Minor road bridge', ground)).toBe(false)
       expect(carried('Minor road bridge', bridge)).toBe(true)
-      expect(carried('Minor road bridge', stacked)).toBe(true)
+      expect(carried('Minor road bridge', stacked)).toBe(false)
       // A tunnel belongs to neither: the basemap draws it in its own band.
       expect(carried('Minor road bridge', { class: 'minor', brunnel: 'tunnel' })).toBe(false)
+    })
+
+    /**
+     * The tint splits on Barrelman's `bridge`, the road on the basemap's
+     * `brunnel`. They have to agree, or a tinted street rises into the elevated
+     * band while its tint stays below, where the road is no longer drawn.
+     */
+    test('a tinted street and its road land in the same band', () => {
+      const tinted = { highway: 'residential', infra_type: 'bicycle_road' }
+      for (const [road, tint] of [
+        ['Minor road', `Minor road${CYCLING_WAYS_SUFFIX}`],
+        ['Minor road bridge', `Minor road bridge${CYCLING_WAYS_SUFFIX}`],
+      ]) {
+        for (const brunnel of [{}, { brunnel: 'bridge', bridge: true }]) {
+          expect(carried(road, { class: 'minor', ...brunnel }), `${road} ${JSON.stringify(brunnel)}`)
+            .toBe(carried(tint, { ...tinted, ...brunnel }))
+        }
+      }
     })
 
     /**
@@ -1860,10 +1883,27 @@ describe('slot anchors in the shipped style', () => {
     }
   })
 
+  /**
+   * A mark on a way at grade belongs under the decks crossing over it, which
+   * `middle` cannot say: a deck is drawn after everything at grade, so the
+   * cycling network anchored there ran its green line across every viaduct.
+   */
+  test('grade lands above the network at grade and under the decks', () => {
+    const anchor = at(slotBeforeId(built, 'grade'))
+    expect(anchor).toBeGreaterThan(-1)
+    for (const id of ['Minor road', 'Highway', 'Path']) {
+      expect(at(id), id).toBeLessThan(anchor)
+    }
+    for (const id of ['Bridge', 'Minor road bridge', 'Path bridge']) {
+      expect(at(id), id).toBeGreaterThan(anchor)
+    }
+  })
+
   test('the slots stack in the order they name', () => {
     const index = (slot: string) => at(slotBeforeId(built, slot))
     expect(index('bottom')).toBeLessThan(index('tunnel'))
-    expect(index('tunnel')).toBeLessThan(index('middle'))
+    expect(index('tunnel')).toBeLessThan(index('grade'))
+    expect(index('grade')).toBeLessThan(index('bridge'))
     expect(index('middle')).toBeLessThan(index('bridge'))
   })
 
@@ -1966,13 +2006,35 @@ describe('cycling markings', () => {
   const built = buildLayers({ flavor: 'light' }) as any[]
   const strokes = built.filter(l => l.id.startsWith('Cycling '))
 
-  test('one layer per pattern per side', () => {
-    expect(strokes).toHaveLength(6)
+  test('one layer per pattern per side, in each band', () => {
+    expect(strokes).toHaveLength(12)
     for (const kind of ['track', 'lane', 'shoulder']) {
       for (const side of ['left', 'right']) {
-        expect(strokes.map(l => l.id)).toContain(`Cycling ${kind} ${side}`)
+        for (const band of ['', ' bridge']) {
+          expect(strokes.map(l => l.id)).toContain(`Cycling ${kind} ${side}${band}`)
+        }
       }
     }
+  })
+
+  /**
+   * A marking follows its street across the basemap's split. Left in one band
+   * above both, a lane marking on a street passing under a viaduct was drawn
+   * across the deck carrying the traffic over it.
+   */
+  test('a marking is drawn in the band of the street it marks', () => {
+    const at = (id: string) => built.findIndex(l => l.id === id)
+    expect(at('Cycling lane right')).toBeLessThan(at('Bridge'))
+    expect(at('Cycling lane right')).toBeGreaterThan(at('Minor road'))
+    expect(at('Cycling lane right bridge')).toBeGreaterThan(at('Minor road bridge'))
+    const draws = (id: string, properties: Record<string, unknown>) =>
+      featureFilter(built.find(l => l.id === id)!.filter, `${id}.filter`)
+        .filter({ zoom: 17 } as any, { type: 2, properties } as any, {} as any)
+    const lane = { highway: 'residential', cycleway_right: 'lane' }
+    expect(draws('Cycling lane right', lane)).toBe(true)
+    expect(draws('Cycling lane right', { ...lane, bridge: true })).toBe(false)
+    expect(draws('Cycling lane right bridge', lane)).toBe(false)
+    expect(draws('Cycling lane right bridge', { ...lane, bridge: true })).toBe(true)
   })
 
   /** Solid = kerbed, short dash = paint, dot = shared with traffic. */

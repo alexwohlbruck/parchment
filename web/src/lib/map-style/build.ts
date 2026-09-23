@@ -15,6 +15,8 @@ import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
 import {
   CYCLING_WAYS_LAYER_IDS,
+  CYCLING_WAYS_SUFFIX,
+  cyclingRoutesLayer,
   cyclingStrokeLayers,
   cyclingWaysLayers,
   cyclingWaysSource,
@@ -566,6 +568,10 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
     const at = out.findIndex(l => l.id === above)
     if (at >= 0) out.splice(at + 1, 0, layer)
   }
+
+  const routes = cyclingRoutesLayer(flavor, roadWidth)
+  const minorTint = out.findIndex(l => l.id === `Minor road${CYCLING_WAYS_SUFFIX}`)
+  if (routes && minorTint >= 0) out.splice(minorTint + 1, 0, routes)
 
   // The markings go over every tint of their band, since they describe the
   // street rather than any one rung of it — and they follow that street across

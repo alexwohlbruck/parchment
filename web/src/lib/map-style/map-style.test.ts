@@ -30,6 +30,7 @@ import { CYCLING_SUFFIX } from './cycling.mjs'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   CYCLING_WAYS_LAYER_IDS,
+  CYCLING_ROUTES_LAYER_ID,
   CYCLING_WAYS_SUFFIX,
   scaleOutputs,
 } from './cycling-layers'
@@ -1992,6 +1993,19 @@ describe('cycling ways from Barrelman', () => {
       {} as any,
     )
     expect(draws).toBe(true)
+  })
+
+  test('a signed route is tinted from its own line, at a minor street’s width', () => {
+    const route = built.find(l => l.id === CYCLING_ROUTES_LAYER_ID)!
+    expect(built[built.indexOf(route) - 1].id).toBe(`Minor road${CYCLING_WAYS_SUFFIX}`)
+    const minor = built.find(l => l.id === 'Minor road')!
+    const at = (l: any, properties: object) =>
+      (expression.createPropertyExpression(
+        l.paint['line-width'],
+        `${l.id}.paint.line-width`,
+        (latest as any).paint_line['line-width'],
+      ) as any).value.evaluate({ zoom: 16 }, { properties })
+    expect(at(route, {})).toBe(at(minor, { class: 'minor' }))
   })
 
   test('the toggle reaches the Barrelman tint as well as the basemap twins', () => {

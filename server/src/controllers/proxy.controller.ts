@@ -300,7 +300,20 @@ app.get(
       const headers: Record<string, string> = {}
       if (config?.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
 
-      const response = await fetch(tileUrl.toString(), { headers })
+      // Only gzip or nothing: an upstream that could also answer br or zstd
+      // would hand us an encoding the cache and the response do not handle.
+      headers['Accept-Encoding'] = 'gzip'
+
+      // `decompress: false` keeps Barrelman's gzip exactly as it arrived. By
+      // default Bun's fetch unzips the body — while still reporting
+      // `content-encoding: gzip` — so the tile would have to be zipped all
+      // over again to be sent on. See the comment where it is stored.
+      // Bun honours `decompress` at runtime; bun-types does not declare it.
+      const init: BunFetchRequestInit & { decompress: false } = {
+        headers,
+        decompress: false,
+      }
+      const response = await fetch(tileUrl.toString(), init)
 
       if (!response.ok) {
         logError(
@@ -319,22 +332,29 @@ app.get(
       }
 
       /**
-       * Re-compress, because otherwise nobody does.
+       * Forward the tile compressed, as Barrelman sent it.
        *
-       * Barrelman gzips its tiles, and `fetch()` transparently decompresses
-       * them and drops the Content-Encoding with it — so what arrived as
-       * 282 KB was being handed on as 463 KB with no encoding header, and the
-       * CDN in front re-compressed it for the browser. That hid the cost on
-       * the one hop that actually crosses a network: the edge filling its
-       * cache from an origin ~100 ms away, where 180 KB of extra body is
-       * roughly an extra round trip of TCP slow start. Barrelman fixed exactly
-       * this on its own hop; the fix was being undone here.
+       * This used to read the body through `fetch()`'s transparent unzip and
+       * re-emit it with no Content-Encoding, so a tile that left Barrelman at
+       * 275 KB left here at 463 KB, and the CDN re-compressed it for the
+       * browser. That hid the cost on the one hop that crosses a network —
+       * the edge filling its cache from an origin ~100 ms away, where the
+       * extra 190 KB is roughly another round trip of TCP slow start.
        *
-       * Stored gzipped as well as sent gzipped, so the cache's byte budget
-       * holds ~1.6x the tiles and a hit is a handoff rather than a re-zip.
+       * Passed through rather than re-zipped: gzipping a dense tile takes
+       * ~10 ms of synchronous CPU, per tile, on the one thread serving every
+       * request. Only an upstream that sent it plain pays that.
+       *
+       * Stored gzipped too, so the cache's byte budget holds ~1.7x the tiles
+       * and a hit is a straight handoff.
        */
-      const raw = new Uint8Array(await response.arrayBuffer())
-      const gzipped = Bun.gzipSync(raw)
+      // Judged by the gzip magic number, never the header: a fetch that
+      // unzipped anyway still reports `content-encoding: gzip`, and trusting
+      // it would label plain bytes as gzip and hand every client a corrupt
+      // tile. An MVT itself opens with 0x1a, so the two cannot be confused.
+      const body = new Uint8Array(await response.arrayBuffer())
+      const gzipped =
+        body[0] === 0x1f && body[1] === 0x8b ? body : Bun.gzipSync(body)
 
       return storeMartin(
         cacheKey,

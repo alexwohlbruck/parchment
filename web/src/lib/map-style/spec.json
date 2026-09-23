@@ -4780,74 +4780,6 @@
    ]
   },
   {
-   "id": "Bridge area outline",
-   "type": "line",
-   "source": "openmaptiles",
-   "source-layer": "transportation",
-   "minzoom": 12,
-   "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "Polygon"
-    ],
-    [
-     "==",
-     "brunnel",
-     "bridge"
-    ]
-   ],
-   "layout": {
-    "line-join": "round"
-   },
-   "paint": {
-    "line-color": "@path_bridge_casing",
-    "line-width": [
-     "interpolate",
-     [
-      "exponential",
-      1.5
-     ],
-     [
-      "zoom"
-     ],
-     14,
-     1.8,
-     18,
-     4.5,
-     22,
-     6.8
-    ]
-   }
-  },
-  {
-   "id": "Bridge",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "transportation",
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": true,
-    "fill-color": "@path_surface"
-   },
-   "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "Polygon"
-    ],
-    [
-     "==",
-     "brunnel",
-     "bridge"
-    ]
-   ]
-  },
-  {
    "id": "Minor road outline bridge",
    "type": "line",
    "source": "openmaptiles",
@@ -5968,6 +5900,74 @@
       ],
       "cycleway"
      ]
+    ]
+   ]
+  },
+  {
+   "id": "Bridge area outline",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Polygon"
+    ],
+    [
+     "==",
+     "brunnel",
+     "bridge"
+    ]
+   ],
+   "layout": {
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "@path_bridge_casing",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1.8,
+     18,
+     4.5,
+     22,
+     6.8
+    ]
+   }
+  },
+  {
+   "id": "Bridge",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "@path_surface"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Polygon"
+    ],
+    [
+     "==",
+     "brunnel",
+     "bridge"
     ]
    ]
   },

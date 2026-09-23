@@ -542,9 +542,11 @@ describe('badge POI treatment', () => {
       .toEqual(layers[at('Path outline bridge')].paint['line-width'])
     expect(edge.filter).toEqual(fill.filter)
     // The edge under the surface, as every casing in this style is; the deck
-    // over the network it crosses, and under the carriageway it carries.
+    // over the network it crosses and over the casings of what it carries,
+    // under the carriageways themselves.
     expect(at('Bridge area outline')).toBeLessThan(at('Bridge'))
     expect(at('Minor road')).toBeLessThan(at('Bridge area outline'))
+    expect(at('Minor road outline bridge')).toBeLessThan(at('Bridge area outline'))
     expect(at('Bridge')).toBeLessThan(at('Minor road bridge'))
   })
 
@@ -570,11 +572,17 @@ describe('badge POI treatment', () => {
       }
     })
 
-    /** Two carriageways of one bridge merge; they do not case their join. */
-    test('the deck stack is cased first and surfaced after, as at grade', () => {
+    /**
+     * Two carriageways of one bridge merge; they do not case their join. And
+     * the deck sits between the two, because a deck is the casing for whatever
+     * stands on it — under the casings, a bridge carrying four lanes of traffic
+     * came out striped with the edge of each one.
+     */
+    test('the deck stack is cased, then decked, then surfaced', () => {
       const casings = RUNGS.map(r => at(`${r} outline bridge`))
       const surfaces = RUNGS.map(r => at(`${r} bridge`))
-      expect(Math.max(...casings)).toBeLessThan(Math.min(...surfaces))
+      expect(Math.max(...casings)).toBeLessThan(at('Bridge'))
+      expect(at('Bridge')).toBeLessThan(Math.min(...surfaces))
       expect(surfaces).toEqual([...surfaces].sort((a, b) => a - b))
     })
 

@@ -759,17 +759,14 @@ function withCondition(layer, condition, suffix) {
  *
  * Casings first, then surfaces, mirroring the order at grade: two carriageways
  * of one bridge have to merge, not draw a casing down the join between them.
+ * The deck goes between the two, because a deck IS the casing for everything
+ * standing on it — under it, each carriageway drew its own edge on the slab and
+ * a bridge carrying four of them came out striped.
  */
-const ROAD_BRIDGE_LAYERS = [
-  'Minor road outline',
-  'Major road outline',
-  'Highway outline',
-  'Minor road',
-  'Major road',
-  'Highway',
-]
+const ROAD_BRIDGE_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outline']
+const ROAD_BRIDGE_SURFACES = ['Minor road', 'Major road', 'Highway']
 
-/** The deck a bridge stands on, drawn under every carriageway it carries. */
+/** The deck a bridge stands on, with its own edge under it. */
 const BRIDGE_DECK_LAYERS = [BRIDGE_AREA_CASING_LAYER, BRIDGE_AREA_LAYER]
 
 function raiseRoadBridges(layers) {
@@ -779,24 +776,25 @@ function raiseRoadBridges(layers) {
   }
   const deck = BRIDGE_DECK_LAYERS.map(take).filter(Boolean)
 
-  const elevated = []
-  for (const id of ROAD_BRIDGE_LAYERS) {
+  const raise = ids => ids.flatMap(id => {
     const at = layers.findIndex(l => l.id === id)
-    if (at < 0) continue
+    if (at < 0) return []
     const road = layers[at]
     layers[at] = withCondition(road, AT_GRADE)
-    elevated.push({
+    return [{
       ...withCondition(road, ELEVATED, ' bridge'),
       layout: { ...road.layout, 'line-cap': 'butt' },
-    })
-  }
-  if (!elevated.length) return
+    }]
+  })
+  const casings = raise(ROAD_BRIDGE_CASINGS)
+  const surfaces = raise(ROAD_BRIDGE_SURFACES)
+  if (!surfaces.length) return
 
   // Below the one-way arrows: an arrow is paint on the carriageway, and a
   // carriageway that is carried still carries its markings.
   const marking = layers.findIndex(l => l.id === ROAD_MARKING_LAYER)
   const at = marking < 0 ? layers.length : marking
-  layers.splice(at, 0, ...deck, ...elevated)
+  layers.splice(at, 0, ...casings, ...deck, ...surfaces)
 }
 
 /** Whatever zoom the path casing starts at, so the plaza edge matches it. */

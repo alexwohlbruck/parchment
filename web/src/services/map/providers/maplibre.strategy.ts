@@ -80,7 +80,7 @@ import {
   probeBarrelmanBuildings,
   barrelmanBuildingsReady,
 } from '@/lib/map-style/barrelman-buildings'
-import { OBJECT_FLAT_LAYERS, TREE_OPACITY, BUILDING_3D_TILES } from '@/lib/map-style/detail-layers'
+import { OBJECT_FLAT_LAYERS, TREE_OPACITY, DETAIL_TILES } from '@/lib/map-style/detail-layers'
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
@@ -364,8 +364,12 @@ export class MaplibreStrategy extends MapStrategy {
     if (!this.tileServerUrl) return
     const base = this.tileServerUrl
     const key = this.tileKey
+    // Ask for the bundle, not `buildings_3d` alone: the extrusion reads the
+    // bundle, and a Barrelman from before bundles serves `buildings_3d` but 404s
+    // `detail` — so probing the member would switch the style onto a source
+    // that draws no buildings at all.
     await probeBarrelmanBuildings(
-      (z, x, y) => `${base}/${BUILDING_3D_TILES}/${z}/${x}/${y}${key ? `?token=${key}` : ''}`,
+      (z, x, y) => `${base}/${DETAIL_TILES}/${z}/${x}/${y}${key ? `?token=${key}` : ''}`,
       this.mapInstance.getCenter(),
     )
     // Only when the answer is yes. The style is already built on the basemap,

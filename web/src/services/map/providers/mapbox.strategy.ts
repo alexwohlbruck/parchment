@@ -38,6 +38,7 @@ import { palette } from '@/lib/palette'
 import { mapEventBus } from '@/lib/event-bus'
 import { createPegmanLayers, updatePegmanData } from '@/lib/street-view/pegman'
 import { parseMapboxToOsmId } from '@/lib/map/osm-feature-id'
+import { mapboxSlot } from '@/lib/map/layer-slots'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { MapLayerGroup, TripGroup } from '@/services/map/providers/layer-group'
@@ -702,6 +703,7 @@ export class MapboxStrategy extends MapStrategy {
     if (!existingLayer || overwrite) {
       this.mapInstance.addLayer({
         ...(configuration as any),
+        ...(configuration.slot ? { slot: mapboxSlot(configuration.slot) } : {}),
         layout: {
           ...configuration.layout,
           visibility: themedLayer.visible ? 'visible' : 'none',

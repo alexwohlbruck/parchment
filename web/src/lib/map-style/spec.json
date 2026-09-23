@@ -1491,33 +1491,6 @@
    ]
   },
   {
-   "id": "Bridge",
-   "type": "fill",
-   "source": "openmaptiles",
-   "source-layer": "transportation",
-   "layout": {
-    "visibility": "visible"
-   },
-   "paint": {
-    "fill-antialias": true,
-    "fill-color": "@pier_fill_color",
-    "fill-opacity": 0.6
-   },
-   "filter": [
-    "all",
-    [
-     "==",
-     "$type",
-     "Polygon"
-    ],
-    [
-     "==",
-     "brunnel",
-     "bridge"
-    ]
-   ]
-  },
-  {
    "id": "Pedestrian area outline",
    "type": "line",
    "source": "openmaptiles",
@@ -1650,34 +1623,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -1763,34 +1714,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -1914,34 +1843,12 @@
      ]
     ],
     [
-     "all",
+     "!=",
      [
-      "!=",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      "<=",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -2011,34 +1918,12 @@
       ]
      ],
      [
-      "all",
+      "!=",
       [
-       "!=",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       "<=",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -2075,155 +1960,6 @@
    },
    "paint": {
     "line-color": "@road_minor_casing",
-    "line-opacity": 1,
-    "line-width": [
-     "interpolate",
-     [
-      "linear",
-      2
-     ],
-     [
-      "zoom"
-     ],
-     6,
-     0,
-     7,
-     0.75,
-     12,
-     [
-      "match",
-      [
-       "get",
-       "class"
-      ],
-      [
-       "secondary",
-       "tertiary"
-      ],
-      2.73,
-      [
-       "minor",
-       "service",
-       "track"
-      ],
-      2.5,
-      2.5
-     ],
-     14,
-     [
-      "match",
-      [
-       "get",
-       "class"
-      ],
-      [
-       "secondary"
-      ],
-      6.9,
-      [
-       "tertiary"
-      ],
-      5.4,
-      [
-       "minor",
-       "service",
-       "track"
-      ],
-      4.5,
-      4.5
-     ],
-     16,
-     [
-      "match",
-      [
-       "get",
-       "class"
-      ],
-      [
-       "secondary"
-      ],
-      10.4,
-      [
-       "tertiary"
-      ],
-      10.4,
-      [
-       "minor",
-       "service",
-       "track"
-      ],
-      8,
-      8
-     ],
-     20,
-     [
-      "match",
-      [
-       "get",
-       "class"
-      ],
-      [
-       "secondary"
-      ],
-      34.2,
-      [
-       "tertiary"
-      ],
-      34.2,
-      [
-       "minor",
-       "service",
-       "track"
-      ],
-      27,
-      27
-     ]
-    ]
-   },
-   "filter": [
-    "all",
-    [
-     "!=",
-     "brunnel",
-     "tunnel"
-    ],
-    [
-     "!in",
-     "class",
-     "aerialway",
-     "bridge",
-     "ferry",
-     "minor_construction",
-     "motorway",
-     "motorway_construction",
-     "path",
-     "path_construction",
-     "pier",
-     "primary",
-     "primary_construction",
-     "rail",
-     "secondary_construction",
-     "service_construction",
-     "tertiary_construction",
-     "track_construction",
-     "transit",
-     "trunk_construction"
-    ]
-   ]
-  },
-  {
-   "id": "Minor road outline (cycling)",
-   "type": "line",
-   "source": "openmaptiles",
-   "source-layer": "transportation",
-   "minzoom": 4,
-   "layout": {
-    "line-cap": "butt",
-    "line-join": "round",
-    "visibility": "none"
-   },
-   "paint": {
-    "line-color": "@cycling_casing",
     "line-opacity": 1,
     "line-width": [
      "interpolate",
@@ -2375,6 +2111,190 @@
      ]
     ],
     [
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Minor road outline (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.75,
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary",
+       "tertiary"
+      ],
+      2.73,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      2.5,
+      2.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      6.9,
+      [
+       "tertiary"
+      ],
+      5.4,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      4.5,
+      4.5
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      10.4,
+      [
+       "tertiary"
+      ],
+      10.4,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      8,
+      8
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      34.2,
+      [
+       "tertiary"
+      ],
+      34.2,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      27,
+      27
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "!",
+       [
+        "match",
+        [
+         "get",
+         "class"
+        ],
+        [
+         "aerialway",
+         "bridge",
+         "ferry",
+         "minor_construction",
+         "motorway",
+         "motorway_construction",
+         "path",
+         "path_construction",
+         "pier",
+         "primary",
+         "primary_construction",
+         "rail",
+         "secondary_construction",
+         "service_construction",
+         "tertiary_construction",
+         "track_construction",
+         "transit",
+         "trunk_construction"
+        ],
+        true,
+        false
+       ]
+      ]
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ]
+    ],
+    [
      "all",
      [
       "==",
@@ -2500,15 +2420,36 @@
    "filter": [
     "all",
     [
-     "!=",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "primary",
+       "trunk"
+      ],
+      true,
+      false
+     ]
     ],
     [
-     "in",
-     "class",
-     "primary",
-     "trunk"
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
     ]
    ]
   },
@@ -2619,25 +2560,36 @@
     [
      "all",
      [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "primary",
+        "trunk"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
       "!=",
       [
        "get",
        "brunnel"
       ],
-      "tunnel"
-     ],
-     [
-      "match",
-      [
-       "get",
-       "class"
-      ],
-      [
-       "primary",
-       "trunk"
-      ],
-      true,
-      false
+      "bridge"
      ]
     ],
     [
@@ -2785,14 +2737,31 @@
    "filter": [
     "all",
     [
-     "!=",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "motorway"
+     ]
     ],
     [
-     "==",
-     "class",
-     "motorway"
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
     ]
    ]
   },
@@ -2922,20 +2891,31 @@
     [
      "all",
      [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "==",
+       [
+        "get",
+        "class"
+       ],
+       "motorway"
+      ]
+     ],
+     [
       "!=",
       [
        "get",
        "brunnel"
       ],
-      "tunnel"
-     ],
-     [
-      "==",
-      [
-       "get",
-       "class"
-      ],
-      "motorway"
+      "bridge"
      ]
     ],
     [
@@ -3348,31 +3328,55 @@
    "filter": [
     "all",
     [
-     "!=",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "aerialway",
+        "bridge",
+        "ferry",
+        "minor_construction",
+        "motorway",
+        "motorway_construction",
+        "path",
+        "path_construction",
+        "pier",
+        "primary",
+        "primary_construction",
+        "rail",
+        "secondary_construction",
+        "service_construction",
+        "tertiary_construction",
+        "track_construction",
+        "transit",
+        "trunk_construction"
+       ],
+       true,
+       false
+      ]
+     ]
     ],
     [
-     "!in",
-     "class",
-     "aerialway",
-     "bridge",
-     "ferry",
-     "minor_construction",
-     "motorway",
-     "motorway_construction",
-     "path",
-     "path_construction",
-     "pier",
-     "primary",
-     "primary_construction",
-     "rail",
-     "secondary_construction",
-     "service_construction",
-     "tertiary_construction",
-     "track_construction",
-     "transit",
-     "trunk_construction"
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
     ]
    ]
   },
@@ -3498,44 +3502,55 @@
     [
      "all",
      [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "!",
+       [
+        "match",
+        [
+         "get",
+         "class"
+        ],
+        [
+         "aerialway",
+         "bridge",
+         "ferry",
+         "minor_construction",
+         "motorway",
+         "motorway_construction",
+         "path",
+         "path_construction",
+         "pier",
+         "primary",
+         "primary_construction",
+         "rail",
+         "secondary_construction",
+         "service_construction",
+         "tertiary_construction",
+         "track_construction",
+         "transit",
+         "trunk_construction"
+        ],
+        true,
+        false
+       ]
+      ]
+     ],
+     [
       "!=",
       [
        "get",
        "brunnel"
       ],
-      "tunnel"
-     ],
-     [
-      "!",
-      [
-       "match",
-       [
-        "get",
-        "class"
-       ],
-       [
-        "aerialway",
-        "bridge",
-        "ferry",
-        "minor_construction",
-        "motorway",
-        "motorway_construction",
-        "path",
-        "path_construction",
-        "pier",
-        "primary",
-        "primary_construction",
-        "rail",
-        "secondary_construction",
-        "service_construction",
-        "tertiary_construction",
-        "track_construction",
-        "transit",
-        "trunk_construction"
-       ],
-       true,
-       false
-      ]
+      "bridge"
      ]
     ],
     [
@@ -3661,15 +3676,36 @@
    "filter": [
     "all",
     [
-     "!=",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "primary",
+       "trunk"
+      ],
+      true,
+      false
+     ]
     ],
     [
-     "in",
-     "class",
-     "primary",
-     "trunk"
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
     ]
    ]
   },
@@ -3777,25 +3813,36 @@
     [
      "all",
      [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "primary",
+        "trunk"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
       "!=",
       [
        "get",
        "brunnel"
       ],
-      "tunnel"
-     ],
-     [
-      "match",
-      [
-       "get",
-       "class"
-      ],
-      [
-       "primary",
-       "trunk"
-      ],
-      true,
-      false
+      "bridge"
      ]
     ],
     [
@@ -3964,14 +4011,31 @@
    "filter": [
     "all",
     [
-     "!=",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "motorway"
+     ]
     ],
     [
-     "==",
-     "class",
-     "motorway"
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
     ]
    ]
   },
@@ -3988,6 +4052,2196 @@
    },
    "paint": {
     "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     5,
+     0.5,
+     6,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "bridge"
+       ],
+       0,
+       1
+      ],
+      0
+     ],
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       0,
+       2.5
+      ],
+      1
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       1,
+       4
+      ],
+      1
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       5,
+       6
+      ],
+      2
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      8,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      24,
+      16
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "==",
+       [
+        "get",
+        "class"
+       ],
+       "motorway"
+      ]
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Major rail",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       8,
+       "@major_rail_line_color"
+      ],
+      [
+       16,
+       "@major_rail_line_color_2"
+      ]
+     ]
+    },
+    "line-opacity": [
+     "match",
+     [
+      "get",
+      "service"
+     ],
+     "yard",
+     0.5,
+     1
+    ],
+    "line-width": {
+     "base": 1.4,
+     "stops": [
+      [
+       14,
+       0.4
+      ],
+      [
+       15,
+       0.75
+      ],
+      [
+       20,
+       2
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "tunnel"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "rail"
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Major rail hatching",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@major_rail_line_color",
+    "line-dasharray": [
+     0.2,
+     9
+    ],
+    "line-opacity": [
+     "match",
+     [
+      "get",
+      "service"
+     ],
+     "yard",
+     0.5,
+     1
+    ],
+    "line-width": {
+     "base": 1.4,
+     "stops": [
+      [
+       14.5,
+       0
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       20,
+       8
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "tunnel"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "rail"
+     ]
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Minor rail",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@railway_tunnel_line_color",
+    "line-width": {
+     "base": 1.4,
+     "stops": [
+      [
+       14,
+       0.4
+      ],
+      [
+       15,
+       0.75
+      ],
+      [
+       20,
+       2
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "all",
+    [
+     "match",
+     [
+      "get",
+      "subclass"
+     ],
+     [
+      "light_rail",
+      "tram"
+     ],
+     true,
+     false
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Minor rail hatching",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@railway_tunnel_line_color",
+    "line-dasharray": [
+     0.2,
+     4
+    ],
+    "line-width": {
+     "base": 1.4,
+     "stops": [
+      [
+       14.5,
+       0
+      ],
+      [
+       15,
+       2
+      ],
+      [
+       20,
+       6
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "all",
+    [
+     "match",
+     [
+      "get",
+      "subclass"
+     ],
+     [
+      "tram",
+      "light_rail"
+     ],
+     true,
+     false
+    ],
+    [
+     "!=",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Minor road outline bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@road_minor_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.75,
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary",
+       "tertiary"
+      ],
+      2.73,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      2.5,
+      2.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      6.9,
+      [
+       "tertiary"
+      ],
+      5.4,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      4.5,
+      4.5
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      10.4,
+      [
+       "tertiary"
+      ],
+      10.4,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      8,
+      8
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      34.2,
+      [
+       "tertiary"
+      ],
+      34.2,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      27,
+      27
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "aerialway",
+        "bridge",
+        "ferry",
+        "minor_construction",
+        "motorway",
+        "motorway_construction",
+        "path",
+        "path_construction",
+        "pier",
+        "primary",
+        "primary_construction",
+        "rail",
+        "secondary_construction",
+        "service_construction",
+        "tertiary_construction",
+        "track_construction",
+        "transit",
+        "trunk_construction"
+       ],
+       true,
+       false
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Minor road outline bridge (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.75,
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary",
+       "tertiary"
+      ],
+      2.73,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      2.5,
+      2.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      6.9,
+      [
+       "tertiary"
+      ],
+      5.4,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      4.5,
+      4.5
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      10.4,
+      [
+       "tertiary"
+      ],
+      10.4,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      8,
+      8
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      34.2,
+      [
+       "tertiary"
+      ],
+      34.2,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      27,
+      27
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "!",
+       [
+        "match",
+        [
+         "get",
+         "class"
+        ],
+        [
+         "aerialway",
+         "bridge",
+         "ferry",
+         "minor_construction",
+         "motorway",
+         "motorway_construction",
+         "path",
+         "path_construction",
+         "pier",
+         "primary",
+         "primary_construction",
+         "rail",
+         "secondary_construction",
+         "service_construction",
+         "tertiary_construction",
+         "track_construction",
+         "transit",
+         "trunk_construction"
+        ],
+        true,
+        false
+       ]
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Major road outline bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@road_major_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.5,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      2.4,
+      0
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      3,
+      0.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk"
+      ],
+      4,
+      [
+       "primary"
+      ],
+      6,
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      10,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      26,
+      18
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "primary",
+       "trunk"
+      ],
+      true,
+      false
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Major road outline bridge (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.5,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      2.4,
+      0
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      3,
+      0.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk"
+      ],
+      4,
+      [
+       "primary"
+      ],
+      6,
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      10,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      26,
+      18
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "primary",
+        "trunk"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Highway outline bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@road_highway_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.5,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       0,
+       2.5
+      ],
+      0
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       2,
+       6
+      ],
+      0.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       5,
+       8
+      ],
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      10,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      26,
+      18
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "motorway"
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Highway outline bridge (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_casing",
+    "line-opacity": 1,
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0,
+     7,
+     0.5,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       0,
+       2.5
+      ],
+      0
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       2,
+       6
+      ],
+      0.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       5,
+       8
+      ],
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      10,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      26,
+      18
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "==",
+       [
+        "get",
+        "class"
+       ],
+       "motorway"
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Bridge area outline",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 12,
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Polygon"
+    ],
+    [
+     "==",
+     "brunnel",
+     "bridge"
+    ]
+   ],
+   "layout": {
+    "line-join": "round"
+   },
+   "paint": {
+    "line-color": "@path_bridge_casing",
+    "line-width": [
+     "interpolate",
+     [
+      "exponential",
+      1.5
+     ],
+     [
+      "zoom"
+     ],
+     14,
+     1.8,
+     18,
+     4.5,
+     22,
+     6.8
+    ]
+   }
+  },
+  {
+   "id": "Bridge",
+   "type": "fill",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible"
+   },
+   "paint": {
+    "fill-antialias": true,
+    "fill-color": "@path_surface"
+   },
+   "filter": [
+    "all",
+    [
+     "==",
+     "$type",
+     "Polygon"
+    ],
+    [
+     "==",
+     "brunnel",
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Minor road bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@road_minor",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     5,
+     0.75,
+     10,
+     1.5,
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary",
+       "tertiary"
+      ],
+      1.73,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      1.5,
+      1.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      4.6,
+      [
+       "tertiary"
+      ],
+      3.9,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      3,
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      8.05,
+      [
+       "tertiary"
+      ],
+      7.8,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      6,
+      6
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      31.2,
+      [
+       "tertiary"
+      ],
+      31.2,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      24,
+      24
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "aerialway",
+        "bridge",
+        "ferry",
+        "minor_construction",
+        "motorway",
+        "motorway_construction",
+        "path",
+        "path_construction",
+        "pier",
+        "primary",
+        "primary_construction",
+        "rail",
+        "secondary_construction",
+        "service_construction",
+        "tertiary_construction",
+        "track_construction",
+        "transit",
+        "trunk_construction"
+       ],
+       true,
+       false
+      ]
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Minor road bridge (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     5,
+     0.75,
+     10,
+     1.5,
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary",
+       "tertiary"
+      ],
+      1.73,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      1.5,
+      1.5
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      4.6,
+      [
+       "tertiary"
+      ],
+      3.9,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      3,
+      3
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      8.05,
+      [
+       "tertiary"
+      ],
+      7.8,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      6,
+      6
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "secondary"
+      ],
+      31.2,
+      [
+       "tertiary"
+      ],
+      31.2,
+      [
+       "minor",
+       "service",
+       "track"
+      ],
+      24,
+      24
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "!",
+       [
+        "match",
+        [
+         "get",
+         "class"
+        ],
+        [
+         "aerialway",
+         "bridge",
+         "ferry",
+         "minor_construction",
+         "motorway",
+         "motorway_construction",
+         "path",
+         "path_construction",
+         "pier",
+         "primary",
+         "primary_construction",
+         "rail",
+         "secondary_construction",
+         "service_construction",
+         "tertiary_construction",
+         "track_construction",
+         "transit",
+         "trunk_construction"
+        ],
+        true,
+        false
+       ]
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Major road bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@road_major",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0.75,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      1.5,
+      1
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      2.5,
+      1
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk"
+      ],
+      3,
+      [
+       "primary"
+      ],
+      5,
+      2
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      8,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      24,
+      16
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "tunnel"
+     ],
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "primary",
+       "trunk"
+      ],
+      true,
+      false
+     ]
+    ],
+    [
+     "==",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Major road bridge (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     6,
+     0.75,
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      1.5,
+      1
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      2.5,
+      1
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk"
+      ],
+      3,
+      [
+       "primary"
+      ],
+      5,
+      2
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      8,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "trunk",
+       "primary"
+      ],
+      24,
+      16
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "class"
+       ],
+       [
+        "primary",
+        "trunk"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ]
+    ],
+    [
+     "all",
+     [
+      "==",
+      [
+       "get",
+       "bicycle"
+      ],
+      "designated"
+     ],
+     [
+      "!=",
+      [
+       "get",
+       "subclass"
+      ],
+      "cycleway"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Highway bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "visible"
+   },
+   "paint": {
+    "line-color": "@road_highway",
     "line-width": [
      "interpolate",
      [
@@ -4139,6 +6393,190 @@
      ]
     ],
     [
+     "==",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
+   ]
+  },
+  {
+   "id": "Highway bridge (cycling)",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "minzoom": 4,
+   "layout": {
+    "line-cap": "butt",
+    "line-join": "round",
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": "@cycling_surface",
+    "line-width": [
+     "interpolate",
+     [
+      "linear",
+      2
+     ],
+     [
+      "zoom"
+     ],
+     5,
+     0.5,
+     6,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "bridge"
+       ],
+       0,
+       1
+      ],
+      0
+     ],
+     10,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       0,
+       2.5
+      ],
+      1
+     ],
+     12,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       1,
+       4
+      ],
+      1
+     ],
+     14,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      [
+       "match",
+       [
+        "get",
+        "ramp"
+       ],
+       1,
+       5,
+       6
+      ],
+      2
+     ],
+     16,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      8,
+      4
+     ],
+     20,
+     [
+      "match",
+      [
+       "get",
+       "class"
+      ],
+      [
+       "motorway"
+      ],
+      24,
+      16
+     ]
+    ]
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "all",
+      [
+       "!=",
+       [
+        "get",
+        "brunnel"
+       ],
+       "tunnel"
+      ],
+      [
+       "==",
+       [
+        "get",
+        "class"
+       ],
+       "motorway"
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ]
+    ],
+    [
      "all",
      [
       "==",
@@ -4160,12 +6598,13 @@
    ]
   },
   {
-   "id": "Major rail",
+   "id": "Major rail bridge",
    "type": "line",
    "source": "openmaptiles",
    "source-layer": "transportation",
    "layout": {
-    "visibility": "visible"
+    "visibility": "visible",
+    "line-cap": "butt"
    },
    "paint": {
     "line-color": {
@@ -4211,24 +6650,49 @@
    "filter": [
     "all",
     [
-     "!in",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "tunnel"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "rail"
+     ]
     ],
     [
      "==",
-     "class",
-     "rail"
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
     ]
    ]
   },
   {
-   "id": "Major rail hatching",
+   "id": "Major rail hatching bridge",
    "type": "line",
    "source": "openmaptiles",
    "source-layer": "transportation",
    "layout": {
-    "visibility": "visible"
+    "visibility": "visible",
+    "line-cap": "butt"
    },
    "paint": {
     "line-color": "@major_rail_line_color",
@@ -4267,24 +6731,49 @@
    "filter": [
     "all",
     [
-     "!in",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "tunnel"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "rail"
+     ]
     ],
     [
      "==",
-     "class",
-     "rail"
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
     ]
    ]
   },
   {
-   "id": "Minor rail",
+   "id": "Minor rail bridge",
    "type": "line",
    "source": "openmaptiles",
    "source-layer": "transportation",
    "layout": {
-    "visibility": "visible"
+    "visibility": "visible",
+    "line-cap": "butt"
    },
    "paint": {
     "line-color": "@railway_tunnel_line_color",
@@ -4307,19 +6796,38 @@
     }
    },
    "filter": [
-    "in",
-    "subclass",
-    "light_rail",
-    "tram"
+    "all",
+    [
+     "match",
+     [
+      "get",
+      "subclass"
+     ],
+     [
+      "light_rail",
+      "tram"
+     ],
+     true,
+     false
+    ],
+    [
+     "==",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
    ]
   },
   {
-   "id": "Minor rail hatching",
+   "id": "Minor rail hatching bridge",
    "type": "line",
    "source": "openmaptiles",
    "source-layer": "transportation",
    "layout": {
-    "visibility": "visible"
+    "visibility": "visible",
+    "line-cap": "butt"
    },
    "paint": {
     "line-color": "@railway_tunnel_line_color",
@@ -4346,10 +6854,28 @@
     }
    },
    "filter": [
-    "in",
-    "subclass",
-    "tram",
-    "light_rail"
+    "all",
+    [
+     "match",
+     [
+      "get",
+      "subclass"
+     ],
+     [
+      "tram",
+      "light_rail"
+     ],
+     true,
+     false
+    ],
+    [
+     "==",
+     [
+      "get",
+      "brunnel"
+     ],
+     "bridge"
+    ]
    ]
   },
   {
@@ -4422,12 +6948,12 @@
    "source-layer": "transportation",
    "minzoom": 12,
    "layout": {
-    "line-cap": "round",
+    "line-cap": "butt",
     "line-join": "round",
     "visibility": "visible"
    },
    "paint": {
-    "line-color": "@path_casing",
+    "line-color": "@path_bridge_casing",
     "line-width": [
      "interpolate",
      [
@@ -4438,11 +6964,11 @@
       "zoom"
      ],
      14,
-     1.2,
+     1.8,
      18,
-     3,
+     4.5,
      22,
-     4.5
+     6.8
     ],
     "line-gap-width": [
      "interpolate",
@@ -4495,34 +7021,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -4533,7 +7037,7 @@
    "source-layer": "transportation",
    "minzoom": 12,
    "layout": {
-    "line-cap": "round",
+    "line-cap": "butt",
     "line-join": "round",
     "visibility": "none"
    },
@@ -4549,11 +7053,11 @@
       "zoom"
      ],
      14,
-     1.2,
+     1.8,
      18,
-     3,
+     4.5,
      22,
-     4.5
+     6.8
     ],
     "line-gap-width": [
      "interpolate",
@@ -4608,34 +7112,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [
@@ -4666,7 +7148,7 @@
    "source-layer": "transportation",
    "minzoom": 12,
    "layout": {
-    "line-cap": "round",
+    "line-cap": "butt",
     "line-join": "round",
     "visibility": "visible"
    },
@@ -4723,34 +7205,12 @@
      ]
     ],
     [
-     "any",
+     "==",
      [
-      "==",
-      [
-       "get",
-       "brunnel"
-      ],
-      "bridge"
+      "get",
+      "brunnel"
      ],
-     [
-      ">",
-      [
-       "case",
-       [
-        "has",
-        "layer"
-       ],
-       [
-        "to-number",
-        [
-         "get",
-         "layer"
-        ]
-       ],
-       0
-      ],
-      0
-     ]
+     "bridge"
     ]
    ]
   },
@@ -4761,7 +7221,7 @@
    "source-layer": "transportation",
    "minzoom": 12,
    "layout": {
-    "line-cap": "round",
+    "line-cap": "butt",
     "line-join": "round",
     "visibility": "none"
    },
@@ -4820,34 +7280,12 @@
       ]
      ],
      [
-      "any",
+      "==",
       [
-       "==",
-       [
-        "get",
-        "brunnel"
-       ],
-       "bridge"
+       "get",
+       "brunnel"
       ],
-      [
-       ">",
-       [
-        "case",
-        [
-         "has",
-         "layer"
-        ],
-        [
-         "to-number",
-         [
-          "get",
-          "layer"
-         ]
-        ],
-        0
-       ],
-       0
-      ]
+      "bridge"
      ]
     ],
     [

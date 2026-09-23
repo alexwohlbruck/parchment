@@ -44,8 +44,52 @@ describe('cycling defaults', () => {
     }
   })
 
-  test('everything is ground, above the roads and below the labels', () => {
-    for (const t of lines) expect(t.configuration.slot).toBe('middle')
+  /**
+   * Ground, and which band of it: the basemap draws a bridge deck over the
+   * whole network and a tunnel under it, and redraws the way over anything
+   * painted in the wrong band.
+   */
+  const asks = (t: any, clause: string) =>
+    JSON.stringify(t.configuration.filter).includes(clause)
+
+  test('a way is drawn in the band its brunnel puts it in', () => {
+    for (const t of lines) {
+      const slot = asks(t, '["==","bridge",true]')
+        ? 'bridge'
+        : asks(t, '["==","tunnel",true]')
+          ? 'tunnel'
+          : asks(t, '["!=","bridge",true]')
+            ? 'grade'
+            : 'middle'
+      expect(t.configuration.slot, t.templateId).toBe(slot)
+    }
+  })
+
+  /** Drawn in two bands, a way is painted twice — once in the wrong place. */
+  test('the surface layers leave the bridges and tunnels alone', () => {
+    const banded = lines.filter(t => ['bridge', 'tunnel'].includes(t.configuration.slot))
+    expect(banded.length).toBe(4)
+    for (const t of banded) {
+      const surface = lines.filter(
+        s => s.groupId === t.groupId && s.configuration.slot === 'grade',
+      )
+      expect(surface.length, t.templateId).toBeGreaterThan(0)
+      for (const s of surface) {
+        expect(asks(s, '["!=","bridge",true]'), s.templateId).toBe(true)
+        expect(asks(s, '["!=","tunnel",true]'), s.templateId).toBe(true)
+      }
+    }
+  })
+
+  /**
+   * The basemap has already cased the way on its deck and in its bore. A second
+   * casing over either rubs out the crossing the mark is drawn on.
+   */
+  test('a deck and a bore carry the stroke alone', () => {
+    for (const t of lines.filter(t => ['bridge', 'tunnel'].includes(t.configuration.slot))) {
+      expect(t.configuration.id, t.templateId).not.toContain('casing')
+      expect(t.configuration.paint['line-dasharray'], t.templateId).toBeUndefined()
+    }
   })
 
   /** Translucency compounds wherever two ways overlap; see `layer-slots.ts`. */

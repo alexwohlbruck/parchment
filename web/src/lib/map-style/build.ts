@@ -13,7 +13,6 @@ import {
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
-import { CYCLING_WAYS_SUFFIX } from './cycling-layers'
 import {
   CYCLING_WAYS_LAYER_IDS,
   cyclingStrokeLayers,
@@ -568,10 +567,19 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
     if (at >= 0) out.splice(at + 1, 0, layer)
   }
 
-  // The markings go over every tint, since they describe the street rather
-  // than any one rung of it. Above the topmost road, still below the labels.
-  const lastRoad = out.map(l => l.id.endsWith(CYCLING_WAYS_SUFFIX)).lastIndexOf(true)
-  if (lastRoad >= 0) out.splice(lastRoad + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth))
+  // The markings go over every tint of their band, since they describe the
+  // street rather than any one rung of it — and they follow that street across
+  // the split, so a marking on a deck is drawn on the deck and one at grade
+  // stays under it.
+  for (const bridge of [false, true]) {
+    const band = new Set(
+      tints.filter(t => t.street && t.bridge === bridge).map(t => t.layer.id),
+    )
+    const last = out.map(l => band.has(l.id)).lastIndexOf(true)
+    if (last >= 0) {
+      out.splice(last + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth, bridge))
+    }
+  }
 
   return out
 }

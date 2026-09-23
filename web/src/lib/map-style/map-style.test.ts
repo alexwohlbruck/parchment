@@ -1983,6 +1983,17 @@ describe('cycling ways from Barrelman', () => {
     for (const l of tints) expect(JSON.stringify(l.filter)).not.toContain('bicycle_yes')
   })
 
+  test('a street a signed route follows is tinted', () => {
+    const minor = tints.find(l => l.id === `Minor road${CYCLING_WAYS_SUFFIX}`)!
+    const f = featureFilter(minor.filter, 'filter')
+    const draws = f.filter(
+      { zoom: 16 } as any,
+      { type: 2, properties: { highway: 'residential', infra_type: 'bicycle_route' } } as any,
+      {} as any,
+    )
+    expect(draws).toBe(true)
+  })
+
   test('the toggle reaches the Barrelman tint as well as the basemap twins', () => {
     for (const id of CYCLING_WAYS_LAYER_IDS) expect(layerGroups.cycling).toContain(id)
   })

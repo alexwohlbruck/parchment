@@ -22,7 +22,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
 } from './build'
-import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
+import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES } from './detail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -1002,7 +1002,7 @@ describe('assembled styles', () => {
 
     test('the extrusion reads Barrelman, and the flat fill still reads the basemap', () => {
       for (const l of extrusions()) {
-        expect(l.source, l.id).toBe(BUILDING_3D_SOURCE)
+        expect(l.source, l.id).toBe(DETAIL_SOURCE)
         expect(l['source-layer'], l.id).toBe(BUILDING_3D_TILES)
       }
       // The flat footprint is left alone: an outline and a part painted the same
@@ -1012,10 +1012,12 @@ describe('assembled styles', () => {
       expect(flat['source-layer']).toBe('building')
     })
 
-    test('the source it reads is declared', () => {
+    test('the source it reads is declared, and is the shared detail bundle', () => {
       const style = buildMapStyle({ ...opts, theme: 'dark' })
-      expect(style.sources[BUILDING_3D_SOURCE]).toBeTruthy()
-      expect((style.sources[BUILDING_3D_SOURCE] as any).tiles[0]).toContain(BUILDING_3D_TILES)
+      expect(style.sources[DETAIL_SOURCE]).toBeTruthy()
+      // One request carries buildings alongside parking, trees and cycling —
+      // the tile is addressed by the bundle's name, not the building layer's.
+      expect((style.sources[DETAIL_SOURCE] as any).tiles[0]).toContain(DETAIL_TILES)
     })
 
     test('the outline filter is still there, to bite on the flag Barrelman adds', () => {
@@ -1063,7 +1065,7 @@ describe('assembled styles', () => {
       // hidden outlines — an edge around nothing — and miss the parts.
       const edge = (buildLayers({ flavor: 'dark' }) as any[])
         .find(l => l.id === BUILDING_ROOF_EDGE_LAYER)
-      expect(edge.source).toBe(BUILDING_3D_SOURCE)
+      expect(edge.source).toBe(DETAIL_SOURCE)
       expect(edge['source-layer']).toBe(BUILDING_3D_TILES)
       expect(edge.filter).toEqual(['!has', 'hide_3d'])
     })
@@ -1277,10 +1279,38 @@ describe('assembled styles', () => {
     const style = buildMapStyle({ ...opts, theme: 'light' })
     const at = (id: string) => style.layers.findIndex(l => l.id === id)
 
-    test('the detail sources are declared and separate from the basemap', () => {
-      expect(Object.keys(style.sources)).toContain('parking')
-      expect(Object.keys(style.sources)).toContain('trees')
+    test('the detail overlays share one source, separate from the basemap', () => {
+      // Five sources became one bundle: a map view is thirty to sixty tiles
+      // per source, so each extra source was another full viewport of
+      // requests. They still arrive as their own layers.
+      expect(Object.keys(style.sources)).toContain(DETAIL_SOURCE)
+      expect(Object.keys(style.sources)).not.toContain('parking')
+      expect(Object.keys(style.sources)).not.toContain('trees')
       for (const id of ['Parking', 'Parking outline', 'Trees']) expect(at(id)).toBeGreaterThan(-1)
+      for (const id of ['Parking', 'Trees']) {
+        expect((style.layers.find(l => l.id === id) as any).source).toBe(DETAIL_SOURCE)
+      }
+    })
+
+    /**
+     * Street furniture is minzoom 17 upstream and the bundle is read at z≤16,
+     * so it cannot join — folding it in would take benches off the map.
+     */
+    test('street furniture stays its own source', () => {
+      expect(Object.keys(style.sources)).toContain('furniture')
+      const furniture = style.layers.find(l => l.id === 'Street furniture') as any
+      expect(furniture.source).toBe('furniture')
+    })
+
+    /**
+     * Stopping at 16 is what keeps buildings on the map above it — the tile
+     * over-zooms the way the basemap over-zooms from 14. Running to 17 would
+     * ask for a tile buildings_3d no longer answers at.
+     */
+    test('the bundle stops at 16 so its members over-zoom rather than vanish', () => {
+      const src = style.sources[DETAIL_SOURCE] as any
+      expect(src.minzoom).toBe(9)
+      expect(src.maxzoom).toBe(16)
     })
 
     test('parking is the lowest paving on the street', () => {

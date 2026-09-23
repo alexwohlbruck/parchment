@@ -17,9 +17,27 @@
  */
 import type { FlavorId } from './build'
 
-export const PARKING_SOURCE = 'parking'
-export const TREE_SOURCE = 'trees'
-export const TREE_ROW_SOURCE = 'tree-rows'
+/**
+ * One source for every detail overlay a client reads at z≤16.
+ *
+ * These used to be five separate vector sources, which meant five tile
+ * requests for every tile of ground — and a map view is thirty to sixty tiles
+ * *per source*. Barrelman serves them as a single bundle (`/tiles/detail`),
+ * each still arriving as its own layer under its own name, so only the
+ * `source` changed here. Measured against the deployment, a six-tile viewport
+ * over Manhattan went from 18 requests to 6, and from 2.04 s to 1.14 s warm.
+ */
+export const DETAIL_SOURCE = 'detail'
+
+/**
+ * Street furniture cannot join the bundle, so it stays its own source.
+ *
+ * It is minzoom 17 upstream, and a bundle is read at z≤16 — so it could
+ * contribute nothing to a `detail` tile, and folding it in would take benches
+ * and bins off the map rather than speed them up. Drop its minzoom to 16 in
+ * barrelman's `martin-config.yaml` and it joins, at which point this source
+ * and the `detail` entry below collapse into one.
+ */
 export const FURNITURE_SOURCE = 'furniture'
 /**
  * 3D buildings, served by Barrelman rather than read off the basemap.
@@ -40,7 +58,8 @@ export const FURNITURE_SOURCE = 'furniture'
  * the same colour on top of each other look like one, so the outline costs
  * nothing there, and the basemap is the cheaper source for it.
  */
-export const BUILDING_3D_SOURCE = 'buildings-3d'
+/** The barrelman bundle behind {@link DETAIL_SOURCE}; see its `TILE_BUNDLES`. */
+export const DETAIL_TILES = 'detail'
 
 /** Martin source names; see barrelman's `martin-config.yaml`. */
 export const PARKING_TILES = 'parking_areas'
@@ -109,37 +128,31 @@ const SURFACE_ONLY = [
 
 export function detailSources(tileUrl: (source: string) => string) {
   return {
-    [PARKING_SOURCE]: {
+    /**
+     * The bundle's window is the union of its members': `bicycle_ways` starts
+     * at 9, `parking_areas` at 13, `buildings_3d` at 14, the trees at 16, and
+     * every one of them stops at 16. A member below its own floor contributes
+     * nothing to the tile, so the low zooms cost only what the cycling layers
+     * put there — and MapLibre asks for nothing at all until a *visible* layer
+     * consumes the source, which below z13 means only the cycling layers, and
+     * they ship hidden.
+     *
+     * Stopping at 16 is what keeps buildings on the map above it: the tile is
+     * over-zoomed from 16 the way the basemap is over-zoomed from 14. Letting
+     * the source run to 17 would ask for a tile that `buildings_3d` no longer
+     * answers at, and they would vanish rather than over-zoom.
+     */
+    [DETAIL_SOURCE]: {
       type: 'vector' as const,
-      tiles: [tileUrl(PARKING_TILES)],
-      minzoom: 13,
+      tiles: [tileUrl(DETAIL_TILES)],
+      minzoom: 9,
       maxzoom: 16,
-    },
-    [TREE_SOURCE]: {
-      type: 'vector' as const,
-      tiles: [tileUrl(TREE_TILES)],
-      minzoom: 16,
-      maxzoom: 17,
-    },
-    [TREE_ROW_SOURCE]: {
-      type: 'vector' as const,
-      tiles: [tileUrl(TREE_ROW_TILES)],
-      minzoom: 16,
-      maxzoom: 17,
     },
     [FURNITURE_SOURCE]: {
       type: 'vector' as const,
       tiles: [tileUrl(FURNITURE_TILES)],
       minzoom: 17,
       maxzoom: 17,
-    },
-    // Zooms match the basemap's own building layer, so switching source changes
-    // nothing about when buildings appear or when they start over-zooming.
-    [BUILDING_3D_SOURCE]: {
-      type: 'vector' as const,
-      tiles: [tileUrl(BUILDING_3D_TILES)],
-      minzoom: 14,
-      maxzoom: 16,
     },
   }
 }
@@ -151,7 +164,7 @@ export function parkingLayers(flavor: FlavorId): any[] {
     {
       id: PARKING_LAYER,
       type: 'fill',
-      source: PARKING_SOURCE,
+      source: DETAIL_SOURCE,
       'source-layer': PARKING_TILES,
       minzoom: 13,
       filter: SURFACE_ONLY,
@@ -160,7 +173,7 @@ export function parkingLayers(flavor: FlavorId): any[] {
     {
       id: PARKING_CASING_LAYER,
       type: 'line',
-      source: PARKING_SOURCE,
+      source: DETAIL_SOURCE,
       'source-layer': PARKING_TILES,
       // A lot's edge is only worth drawing once the lot is big enough to read
       // as a shape rather than as a smudge.
@@ -189,7 +202,7 @@ export function treeLayers(flavor: FlavorId): any[] {
     {
       id: TREE_LAYER,
       type: 'circle',
-      source: TREE_SOURCE,
+      source: DETAIL_SOURCE,
       'source-layer': TREE_TILES,
       minzoom: 16,
       paint: {
@@ -207,7 +220,7 @@ export function treeLayers(flavor: FlavorId): any[] {
       // path. The 3D form walks the same line and plants along it.
       id: TREE_ROW_LAYER,
       type: 'line',
-      source: TREE_ROW_SOURCE,
+      source: DETAIL_SOURCE,
       'source-layer': TREE_ROW_TILES,
       minzoom: 16,
       layout: { 'line-cap': 'round' },

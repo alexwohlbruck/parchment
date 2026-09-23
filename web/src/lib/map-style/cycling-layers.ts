@@ -20,8 +20,14 @@
  * `detail-layers.ts`.
  */
 import type { FlavorId } from './build'
+import { DETAIL_SOURCE } from './detail-layers'
 
-export const CYCLING_WAYS_SOURCE = 'bicycle-ways'
+/**
+ * Cycling ways come out of the shared `detail` bundle rather than a source of
+ * their own — one request carries them alongside parking, buildings and trees.
+ * Re-exported under the old name so the layer definitions below read the same.
+ */
+export const CYCLING_WAYS_SOURCE = DETAIL_SOURCE
 export const CYCLING_WAYS_TILES = 'bicycle_ways'
 
 /** Appended to the road layer a Barrelman tint is derived from. */
@@ -493,16 +499,6 @@ export function cyclingStrokeLayers(
   )
 }
 
-export function cyclingWaysSource(tileUrl: (source: string) => string) {
-  return {
-    [CYCLING_WAYS_SOURCE]: {
-      type: 'vector' as const,
-      tiles: [tileUrl(CYCLING_WAYS_TILES)],
-      minzoom: 9,
-      maxzoom: 16,
-    },
-  }
-}
 
 /**
  * A tint layer per road rung, each carrying that rung's own width.

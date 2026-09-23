@@ -170,6 +170,32 @@ clone_db() {
   [ "$(table_count "$target")" -gt 0 ] || die "clone of $BASE_DB into $target produced no tables"
 }
 
+# Bring the base's sign-ins into a preview's database, so the session cookie
+# (shared across ports) and the device key the web client copies from the base
+# are both valid there. Runs on every up: a clone predates later sign-ins.
+sync_auth() {
+  local target=$1
+  local pg=(docker exec -i -e PGPASSWORD="$PGPW" "$DB_CONTAINER" psql -h 127.0.0.1 -U "$PGUSER" -v ON_ERROR_STOP=1 -q)
+  {
+    echo "CREATE TEMP TABLE s (id text, user_id text, expires_at timestamptz);"
+    echo "CREATE TEMP TABLE w (user_id text, device_id text, secret text);"
+    echo "COPY s FROM STDIN;"
+    "${pg[@]}" -d "$BASE_DB" -c "COPY (SELECT id, user_id, expires_at FROM sessions WHERE expires_at > now()) TO STDOUT"
+    echo '\.'
+    echo "COPY w FROM STDIN;"
+    "${pg[@]}" -d "$BASE_DB" -c "COPY (SELECT user_id, device_id, secret FROM device_wrap_secrets) TO STDOUT"
+    echo '\.'
+    cat <<'SQL'
+INSERT INTO sessions (id, user_id, expires_at)
+  SELECT s.* FROM s JOIN users u ON u.id = s.user_id
+  ON CONFLICT (id) DO UPDATE SET expires_at = GREATEST(sessions.expires_at, excluded.expires_at);
+INSERT INTO device_wrap_secrets (user_id, device_id, secret)
+  SELECT w.* FROM w JOIN users u ON u.id = w.user_id
+  ON CONFLICT (user_id, device_id) DO UPDATE SET secret = excluded.secret, rotated_at = now();
+SQL
+  } | "${pg[@]}" -d "$target" >/dev/null || log "could not copy sign-ins into $target — sign in by hand"
+}
+
 drop_db() {
   local target=$1
   psql_base -tAc "select 1 from pg_database where datname='$target'" | grep -q 1 || return 0
@@ -323,7 +349,9 @@ EOF
 }
 
 write_unit_env() {
-  local slot=$1 worktree=$2 wport=$3 pub_host=$4 pub_scheme=$5 pub_web_port=$6 api_origin=$7 label=$8
+  local slot=$1 worktree=$2 wport=$3 pub_host=$4 pub_scheme=$5 pub_web_port=$6 api_origin=$7 label=$8 base_origin=$9
+  local identity="PREVIEW_IDENTITY_SOURCE=$base_origin"
+  [ "$slot" -eq 0 ] && identity="PREVIEW_IDENTITY_SHARE=1"
   mkdir -p "$STATE_DIR/$slot"
   cat > "$STATE_DIR/$slot/env" <<EOF
 PREVIEW_WORKTREE=$worktree
@@ -345,6 +373,9 @@ VITE_PUBLIC_PROTOCOL=$pub_scheme
 VITE_PUBLIC_PORT=$pub_web_port
 # Names this preview's browser tab (web/vite.config.ts rewrites <title>).
 VITE_PREVIEW_LABEL=$(env_quote "$label")
+# Slot 0 shares its stored identity; other slots copy it on first load, so a new
+# preview opens signed in without the recovery key (web/vite.config.ts).
+$identity
 EOF
 }
 
@@ -387,7 +418,7 @@ cmd_up() {
   [ -n "$host" ] || die "tailscale is not up on this machine"
 
   log "slot $slot — branch $branch"
-  [ "$slot" -eq 0 ] || clone_db "$dbname"
+  [ "$slot" -eq 0 ] || { clone_db "$dbname"; sync_auth "$dbname"; }
 
   log "installing dependencies"
   (cd "$worktree/server" && "$BUN" install --silent) || die "server deps failed"
@@ -395,21 +426,23 @@ cmd_up() {
 
   # Publish first: the app needs to be told its own public origin (CORS, cookies,
   # the client's API base URL), and that depends on whether HTTPS is available.
-  local scheme_web scheme_api base_web base_api
+  local scheme_web scheme_api base_web base_api identity_origin
   scheme_web=$(publish "$wpub" "$wport")
   scheme_api=$(publish "$apub" "$sport")
   if [ "$scheme_web" = https ] && [ "$scheme_api" = https ]; then
     base_web="https://$host:$wpub"; base_api="https://$host:$apub"
+    identity_origin="https://$host:$(web_pub_port 0)"
   else
     # No tailnet certs — serve plainly on the dev ports over the tailnet IP.
     local ip; ip=$(ts_ip)
     base_web="http://$ip:$wport"; base_api="http://$ip:$sport"
+    identity_origin="http://$ip:$(web_port 0)"
     PREVIEW_INSECURE=1
   fi
 
   local label; label=$(preview_label "$branch" "$worktree")
   write_env "$worktree" "$dbname" "$sport" "$wport" "$base_api" "$base_web"
-  write_unit_env "$slot" "$worktree" "$wport" "$host" "${scheme_web}" "$wpub" "$base_api" "$label"
+  write_unit_env "$slot" "$worktree" "$wport" "$host" "${scheme_web}" "$wpub" "$base_api" "$label" "$identity_origin"
 
   systemctl --user restart "parchment-preview-server@$slot" "parchment-preview-web@$slot"
   registry_put "$slot" "$branch" "$worktree" "${scheme_web}" "$host"

@@ -204,6 +204,16 @@ const INFRA_AS_SIDE: any = [
 const NOT_TUNNEL: any = ['!=', ['get', 'tunnel'], true]
 
 /**
+ * Which of a rung's two layers a way belongs to.
+ *
+ * The basemap draws each rung twice — at grade, and again above the network it
+ * crosses — so a tint has to pick the same side of that split as the road it
+ * repaints, or it is painted under the carriageway and never seen.
+ */
+const ON_BRIDGE: any = ['==', ['get', 'bridge'], true]
+const AT_GRADE: any = ['!=', ['get', 'bridge'], true]
+
+/**
  * Highway values that are a road a bike lane can be painted on.
  *
  * An offset only makes sense when the geometry IS the carriageway. Where OSM
@@ -323,13 +333,25 @@ const BY_ROAD_LAYER: { road: string; classes: string[] }[] = [
   { road: 'Highway', classes: ['motorway'] },
 ]
 
+/**
+ * Every rung the basemap draws: each one at grade, and again on its deck.
+ *
+ * `street` marks the ones a lane can be painted on, which is where the markings
+ * stop: they are a street's marks, so they go above the topmost carriageway and
+ * stay under the footbridges crossing over it.
+ */
+const RUNGS = BY_ROAD_LAYER.flatMap(rung => [
+  { ...rung, brunnel: AT_GRADE, street: rung.road !== 'Path' },
+  { ...rung, road: `${rung.road} bridge`, brunnel: ON_BRIDGE, street: rung.road !== 'Path' },
+])
+
 /** Appended to a stroke layer's id: which side, drawn in which grammar. */
 export const strokeLayerId = (kind: string, side: string) =>
   `Cycling ${kind} ${side}`
 
 /** The ids every cycling layer takes, so the toggle can name them up front. */
 export const CYCLING_WAYS_LAYER_IDS = [
-  ...BY_ROAD_LAYER.map(r => r.road + CYCLING_WAYS_SUFFIX),
+  ...RUNGS.map(r => r.road + CYCLING_WAYS_SUFFIX),
   ...STROKE_KINDS.flatMap(k => ['left', 'right'].map(s => strokeLayerId(k.kind, s))),
 ]
 
@@ -483,12 +505,13 @@ export function cyclingWaysSource(tileUrl: (source: string) => string) {
 export function cyclingWaysLayers(
   flavor: FlavorId,
   roadWidth: (layerId: string) => any,
-): { above: string; layer: any }[] {
-  return BY_ROAD_LAYER.flatMap(({ road, classes }) => {
+): { above: string; street: boolean; layer: any }[] {
+  return RUNGS.flatMap(({ road, classes, brunnel, street }) => {
     const width = roadWidth(road)
     if (!width) return []
     return [{
       above: road,
+      street,
       layer: {
         id: road + CYCLING_WAYS_SUFFIX,
         type: 'line',
@@ -500,6 +523,7 @@ export function cyclingWaysLayers(
           ['match', ['get', 'infra_type'], TINTED_INFRA, true, false],
           ['!', ['has', 'state']],
           NOT_TUNNEL,
+          brunnel,
           ['match', CLASS_OF_HIGHWAY, classes, true, false],
         ],
         layout: { 'line-cap': 'butt', 'line-join': 'round', visibility: 'none' },

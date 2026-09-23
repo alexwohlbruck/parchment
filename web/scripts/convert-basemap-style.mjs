@@ -747,6 +747,58 @@ function withCondition(layer, condition, suffix) {
   }
 }
 
+/**
+ * The road network, carried over whatever it crosses.
+ *
+ * MapTiler draws a bridge inline with the road it is part of, and hints at the
+ * structure with a wide translucent casing underneath. That works until a deck
+ * has to be drawn: an elevated structure with at-grade roads painted over it is
+ * not a bridge, it is a stain on the ground. So the roads split the way the
+ * paths already do — the same layers, the same widths, twice, with the elevated
+ * copy after the network it crosses and the deck it stands on beneath it.
+ *
+ * Casings first, then surfaces, mirroring the order at grade: two carriageways
+ * of one bridge have to merge, not draw a casing down the join between them.
+ */
+const ROAD_BRIDGE_LAYERS = [
+  'Minor road outline',
+  'Major road outline',
+  'Highway outline',
+  'Minor road',
+  'Major road',
+  'Highway',
+]
+
+/** The deck a bridge stands on, drawn under every carriageway it carries. */
+const BRIDGE_DECK_LAYERS = [BRIDGE_AREA_CASING_LAYER, BRIDGE_AREA_LAYER]
+
+function raiseRoadBridges(layers) {
+  const take = id => {
+    const at = layers.findIndex(l => l.id === id)
+    return at < 0 ? null : layers.splice(at, 1)[0]
+  }
+  const deck = BRIDGE_DECK_LAYERS.map(take).filter(Boolean)
+
+  const elevated = []
+  for (const id of ROAD_BRIDGE_LAYERS) {
+    const at = layers.findIndex(l => l.id === id)
+    if (at < 0) continue
+    const road = layers[at]
+    layers[at] = withCondition(road, AT_GRADE)
+    elevated.push({
+      ...withCondition(road, ELEVATED, ' bridge'),
+      layout: { ...road.layout, 'line-cap': 'butt' },
+    })
+  }
+  if (!elevated.length) return
+
+  // Below the one-way arrows: an arrow is paint on the carriageway, and a
+  // carriageway that is carried still carries its markings.
+  const marking = layers.findIndex(l => l.id === ROAD_MARKING_LAYER)
+  const at = marking < 0 ? layers.length : marking
+  layers.splice(at, 0, ...deck, ...elevated)
+}
+
 /** Whatever zoom the path casing starts at, so the plaza edge matches it. */
 function pathCasingMinzoom(layers) {
   return layers.find(l => l.id === PATH_CASING_LAYER)?.minzoom ?? 12
@@ -1167,11 +1219,17 @@ const CYCLING_TINTED = [
   ['Highway outline', '@cycling_casing'],
   ['Path outline', '@cycling_casing'],
   ['Path outline bridge', '@cycling_casing'],
+  ['Minor road outline bridge', '@cycling_casing'],
+  ['Major road outline bridge', '@cycling_casing'],
+  ['Highway outline bridge', '@cycling_casing'],
   ['Minor road', '@cycling_surface'],
   ['Major road', '@cycling_surface'],
   ['Highway', '@cycling_surface'],
   [PATH_LAYER, '@cycling_surface'],
   ['Path bridge', '@cycling_surface'],
+  ['Minor road bridge', '@cycling_surface'],
+  ['Major road bridge', '@cycling_surface'],
+  ['Highway bridge', '@cycling_surface'],
 ]
 
 function addCyclingSurface(layers) {
@@ -1910,6 +1968,7 @@ async function main() {
     })
   }
   orderPedestrianSurfaces(layers)
+  raiseRoadBridges(layers)
   // After every pass that touches a road's width or its place in the stack,
   // so the twins inherit the widths the roads actually ship with.
   addCyclingSurface(layers)

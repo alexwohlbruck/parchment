@@ -15,7 +15,7 @@
 * The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.
 * Cycleways and bike paths now run along a bridge deck instead of breaking at it, and an underpass passes beneath the street above it rather than across.
 * Footbridges now join the path they carry instead of ending in a lozenge laid over the junction, and are edged a shade deeper so the deck still reads as one.
-* Bridges mapped as a structure rather than a line are now drawn as decks too, in the same surface and edge, instead of a pale wash the water showed through.
+* Bridges now draw over the streets they cross instead of having them painted across the deck, and a bridge mapped as a structure is drawn as a deck like any other.
 
 ## [0.12.2] - 2026-09-12
 

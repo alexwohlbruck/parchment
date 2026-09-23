@@ -541,10 +541,76 @@ describe('badge POI treatment', () => {
     expect(edge.paint['line-width'])
       .toEqual(layers[at('Path outline bridge')].paint['line-width'])
     expect(edge.filter).toEqual(fill.filter)
-    // The edge under the surface, as every casing in this style is, and the
-    // deck under the carriageway it carries.
+    // The edge under the surface, as every casing in this style is; the deck
+    // over the network it crosses, and under the carriageway it carries.
     expect(at('Bridge area outline')).toBeLessThan(at('Bridge'))
-    expect(at('Bridge')).toBeLessThan(at('Minor road'))
+    expect(at('Minor road')).toBeLessThan(at('Bridge area outline'))
+    expect(at('Bridge')).toBeLessThan(at('Minor road bridge'))
+  })
+
+  /**
+   * A bridge is drawn where it is: over what it crosses, on the deck that
+   * carries it. Drawn inline with the roads at grade — which is how MapTiler
+   * ships it — the deck can only go under them, and an elevated structure with
+   * a ground-level street painted across it is not a bridge.
+   */
+  describe('the elevated road network', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    const RUNGS = ['Minor road', 'Major road', 'Highway']
+    const carried = (id: string, properties: Record<string, unknown>) =>
+      featureFilter(layers[at(id)].filter, `${id}.filter`)
+        .filter({ zoom: 16 } as any, { type: 2, properties } as any, {} as any)
+
+    test('every rung is drawn twice, at grade and on the deck', () => {
+      for (const rung of RUNGS) {
+        for (const id of [rung, `${rung} outline`]) {
+          expect(at(`${id} bridge`), `${id} bridge`).toBeGreaterThan(-1)
+        }
+      }
+    })
+
+    /** Two carriageways of one bridge merge; they do not case their join. */
+    test('the deck stack is cased first and surfaced after, as at grade', () => {
+      const casings = RUNGS.map(r => at(`${r} outline bridge`))
+      const surfaces = RUNGS.map(r => at(`${r} bridge`))
+      expect(Math.max(...casings)).toBeLessThan(Math.min(...surfaces))
+      expect(surfaces).toEqual([...surfaces].sort((a, b) => a - b))
+    })
+
+    test('a rung at grade sheds what is carried, and its twin takes it', () => {
+      const ground = { class: 'minor' }
+      const bridge = { class: 'minor', brunnel: 'bridge' }
+      const stacked = { class: 'minor', layer: '1' }
+      expect(carried('Minor road', ground)).toBe(true)
+      expect(carried('Minor road', bridge)).toBe(false)
+      expect(carried('Minor road', stacked)).toBe(false)
+      expect(carried('Minor road bridge', ground)).toBe(false)
+      expect(carried('Minor road bridge', bridge)).toBe(true)
+      expect(carried('Minor road bridge', stacked)).toBe(true)
+      // A tunnel belongs to neither: the basemap draws it in its own band.
+      expect(carried('Minor road bridge', { class: 'minor', brunnel: 'tunnel' })).toBe(false)
+    })
+
+    test('what is carried draws over the network it crosses', () => {
+      for (const rung of RUNGS) {
+        expect(at(`${rung} bridge`), rung).toBeGreaterThan(at('Highway'))
+        expect(at(`${rung} bridge`), rung).toBeGreaterThan(at('Major rail'))
+      }
+      // Under the arrows painted on it, and under the footbridges above it.
+      expect(at('Highway bridge')).toBeLessThan(at('Oneway'))
+      expect(at('Highway bridge')).toBeLessThan(at('Path bridge'))
+    })
+
+    /** The same road, a band higher — not a second ramp cut to look similar. */
+    test('a carried carriageway is drawn at its rung’s own width', () => {
+      for (const rung of RUNGS) {
+        for (const id of [rung, `${rung} outline`]) {
+          expect(layers[at(`${id} bridge`)].paint['line-width'], id)
+            .toEqual(layers[at(id)].paint['line-width'])
+        }
+      }
+    })
   })
 
   /**
@@ -1592,10 +1658,14 @@ describe('cycling surface', () => {
 
   test('every road surface and casing has a twin', () => {
     const ids = twins.map(t => t.id)
+    // Each rung twice: at grade, and again on the deck it is carried over.
     const TINTED = [
       'Minor road', 'Minor road outline',
       'Major road', 'Major road outline',
       'Highway', 'Highway outline',
+      'Minor road bridge', 'Minor road outline bridge',
+      'Major road bridge', 'Major road outline bridge',
+      'Highway bridge', 'Highway outline bridge',
       'Path', 'Path outline',
       'Path bridge', 'Path outline bridge',
     ]

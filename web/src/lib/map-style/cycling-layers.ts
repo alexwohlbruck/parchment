@@ -23,8 +23,6 @@ import type { FlavorId } from './build'
 
 export const CYCLING_WAYS_SOURCE = 'bicycle-ways'
 export const CYCLING_WAYS_TILES = 'bicycle_ways'
-export const CYCLING_ROUTES_SOURCE = 'bicycle-route-lines'
-export const CYCLING_ROUTES_TILES = 'bicycle_routes'
 
 /** Appended to the road layer a Barrelman tint is derived from. */
 export const CYCLING_WAYS_SUFFIX = ' (cycling ways)'
@@ -60,20 +58,20 @@ const CLASS_OF_HIGHWAY: any = [
  * stay bit-for-bit the road's own. A retune of the roads reaches these layers
  * without anyone remembering to come here.
  */
-export function forBarrelmanProperties(expression: any, roadClass: any = CLASS_OF_HIGHWAY): any {
+export function forBarrelmanProperties(expression: any): any {
   if (Array.isArray(expression)) {
     if (
       expression.length === 2 &&
       expression[0] === 'get' &&
       expression[1] === 'class'
     ) {
-      return roadClass
+      return CLASS_OF_HIGHWAY
     }
-    return expression.map(e => forBarrelmanProperties(e, roadClass))
+    return expression.map(forBarrelmanProperties)
   }
   if (expression && typeof expression === 'object') {
     return Object.fromEntries(
-      Object.entries(expression).map(([k, v]) => [k, forBarrelmanProperties(v, roadClass)]),
+      Object.entries(expression).map(([k, v]) => [k, forBarrelmanProperties(v)]),
     )
   }
   return expression
@@ -352,13 +350,9 @@ const RUNGS = BY_ROAD_LAYER.flatMap(rung => [
 export const strokeLayerId = (kind: string, side: string, bridge = false) =>
   `Cycling ${kind} ${side}${bridge ? ' bridge' : ''}`
 
-/** The route tint's id; it sits over the minor road tint. */
-export const CYCLING_ROUTES_LAYER_ID = 'Minor road (cycling routes)'
-
 /** The ids every cycling layer takes, so the toggle can name them up front. */
 export const CYCLING_WAYS_LAYER_IDS = [
   ...RUNGS.map(r => r.road + CYCLING_WAYS_SUFFIX),
-  CYCLING_ROUTES_LAYER_ID,
   ...STROKE_KINDS.flatMap(k =>
     ['left', 'right'].flatMap(s => [strokeLayerId(k.kind, s), strokeLayerId(k.kind, s, true)]),
   ),
@@ -507,47 +501,6 @@ export function cyclingWaysSource(tileUrl: (source: string) => string) {
       tiles: [tileUrl(CYCLING_WAYS_TILES)],
       minzoom: 9,
       maxzoom: 16,
-    },
-    [CYCLING_ROUTES_SOURCE]: {
-      type: 'vector' as const,
-      tiles: [tileUrl(CYCLING_ROUTES_TILES)],
-      minzoom: 5,
-      maxzoom: 14,
-    },
-  }
-}
-
-/**
- * A route that is not built yet says so only in its name, as in "McAlpine
- * Creek Greenway (Future)" — Barrelman's route tiles carry no state.
- */
-const UNBUILT_MARKERS = ['future', 'proposed', 'planned', 'construction']
-export const ROUTE_IS_RIDEABLE: any = [
-  '!',
-  ['any', ...UNBUILT_MARKERS.map(m => ['in', m, ['downcase', ['coalesce', ['get', 'name'], '']]])],
-]
-
-/**
- * The streets a signed route follows, tinted from the route's own line.
- *
- * A route relation carries no road class, so this is drawn at a residential
- * street's width: exact on the side streets most routes use, a little inside
- * the kerb on a wider one, and hidden under the major roads, which draw above.
- */
-export function cyclingRoutesLayer(flavor: FlavorId, roadWidth: (layerId: string) => any): any {
-  const width = roadWidth('Minor road')
-  if (!width) return null
-  return {
-    id: CYCLING_ROUTES_LAYER_ID,
-    type: 'line',
-    source: CYCLING_ROUTES_SOURCE,
-    'source-layer': CYCLING_ROUTES_TILES,
-    minzoom: 12,
-    filter: ['all', ['==', ['get', 'route_type'], 'bicycle'], ROUTE_IS_RIDEABLE],
-    layout: { 'line-cap': 'butt', 'line-join': 'round', visibility: 'none' },
-    paint: {
-      'line-color': STRENGTH[flavor].faint,
-      'line-width': forBarrelmanProperties(width, 'minor'),
     },
   }
 }

@@ -396,7 +396,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       },
       layout: {
         'symbol-placement': 'line',
-        'text-field': ['coalesce', ['get', 'ref'], ['get', 'name']],
+        // The full name once a route's segments are long enough to carry it.
+        'text-field': [
+          'step',
+          ['zoom'],
+          ['coalesce', ['get', 'ref'], ['get', 'name']],
+          13,
+          ['coalesce', ['get', 'name'], ['get', 'ref']],
+        ],
         'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
         'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 12],
         'text-max-angle': 30,

@@ -600,6 +600,23 @@ describe('badge POI treatment', () => {
       expect(carried('Minor road bridge', { class: 'minor', brunnel: 'tunnel' })).toBe(false)
     })
 
+    /**
+     * Rail is carried too, and a viaduct is most of what rail bridges are. Left
+     * in the band below, a railway crossing a deck was swallowed by it: the
+     * Charing Cross approach over the Thames came out as a blank slab.
+     */
+    test('a carried railway draws on the deck, over the roads it is carried with', () => {
+      for (const id of ['Major rail', 'Minor rail']) {
+        expect(at(`${id} bridge`), id).toBeGreaterThan(at('Bridge'))
+        expect(at(`${id} bridge`), id).toBeGreaterThan(at('Highway bridge'))
+        // The ties stay on their track.
+        expect(at(`${id} hatching bridge`)).toBe(at(`${id} bridge`) + 1)
+      }
+      expect(carried('Major rail', { class: 'rail', brunnel: 'bridge' })).toBe(false)
+      expect(carried('Major rail bridge', { class: 'rail', brunnel: 'bridge' })).toBe(true)
+      expect(carried('Major rail bridge', { class: 'rail' })).toBe(false)
+    })
+
     test('what is carried draws over the network it crosses', () => {
       for (const rung of RUNGS) {
         expect(at(`${rung} bridge`), rung).toBeGreaterThan(at('Highway'))

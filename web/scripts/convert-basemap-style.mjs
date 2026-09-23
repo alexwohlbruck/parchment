@@ -766,6 +766,15 @@ function withCondition(layer, condition, suffix) {
 const ROAD_BRIDGE_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outline']
 const ROAD_BRIDGE_SURFACES = ['Minor road', 'Major road', 'Highway']
 
+/**
+ * Rail is carried too, and over the roads it is carried with: a line crosses a
+ * street at grade as a level crossing, and everywhere else it is on a viaduct.
+ * Each track keeps its hatching immediately above it.
+ */
+const RAIL_BRIDGE_LAYERS = [
+  'Major rail', 'Major rail hatching', 'Minor rail', 'Minor rail hatching',
+]
+
 /** The deck a bridge stands on, with its own edge under it. */
 const BRIDGE_DECK_LAYERS = [BRIDGE_AREA_CASING_LAYER, BRIDGE_AREA_LAYER]
 
@@ -788,13 +797,14 @@ function raiseRoadBridges(layers) {
   })
   const casings = raise(ROAD_BRIDGE_CASINGS)
   const surfaces = raise(ROAD_BRIDGE_SURFACES)
+  const rail = raise(RAIL_BRIDGE_LAYERS)
   if (!surfaces.length) return
 
   // Below the one-way arrows: an arrow is paint on the carriageway, and a
   // carriageway that is carried still carries its markings.
   const marking = layers.findIndex(l => l.id === ROAD_MARKING_LAYER)
   const at = marking < 0 ? layers.length : marking
-  layers.splice(at, 0, ...casings, ...deck, ...surfaces)
+  layers.splice(at, 0, ...casings, ...deck, ...surfaces, ...rail)
 }
 
 /** Whatever zoom the path casing starts at, so the plaza edge matches it. */

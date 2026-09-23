@@ -4638,14 +4638,60 @@
    "filter": [
     "all",
     [
-     "!in",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "tunnel"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "rail"
+     ]
     ],
     [
-     "==",
-     "class",
-     "rail"
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ],
+     [
+      "<=",
+      [
+       "case",
+       [
+        "has",
+        "layer"
+       ],
+       [
+        "to-number",
+        [
+         "get",
+         "layer"
+        ]
+       ],
+       0
+      ],
+      0
+     ]
     ]
    ]
   },
@@ -4694,14 +4740,60 @@
    "filter": [
     "all",
     [
-     "!in",
-     "brunnel",
-     "tunnel"
+     "all",
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "tunnel"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "rail"
+     ]
     ],
     [
-     "==",
-     "class",
-     "rail"
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ],
+     [
+      "<=",
+      [
+       "case",
+       [
+        "has",
+        "layer"
+       ],
+       [
+        "to-number",
+        [
+         "get",
+         "layer"
+        ]
+       ],
+       0
+      ],
+      0
+     ]
     ]
    ]
   },
@@ -4734,10 +4826,50 @@
     }
    },
    "filter": [
-    "in",
-    "subclass",
-    "light_rail",
-    "tram"
+    "all",
+    [
+     "match",
+     [
+      "get",
+      "subclass"
+     ],
+     [
+      "light_rail",
+      "tram"
+     ],
+     true,
+     false
+    ],
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ],
+     [
+      "<=",
+      [
+       "case",
+       [
+        "has",
+        "layer"
+       ],
+       [
+        "to-number",
+        [
+         "get",
+         "layer"
+        ]
+       ],
+       0
+      ],
+      0
+     ]
+    ]
    ]
   },
   {
@@ -4773,10 +4905,50 @@
     }
    },
    "filter": [
-    "in",
-    "subclass",
-    "tram",
-    "light_rail"
+    "all",
+    [
+     "match",
+     [
+      "get",
+      "subclass"
+     ],
+     [
+      "tram",
+      "light_rail"
+     ],
+     true,
+     false
+    ],
+    [
+     "all",
+     [
+      "!=",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ],
+     [
+      "<=",
+      [
+       "case",
+       [
+        "has",
+        "layer"
+       ],
+       [
+        "to-number",
+        [
+         "get",
+         "layer"
+        ]
+       ],
+       0
+      ],
+      0
+     ]
+    ]
    ]
   },
   {
@@ -7125,6 +7297,375 @@
        "subclass"
       ],
       "cycleway"
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Major rail bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible",
+    "line-cap": "butt"
+   },
+   "paint": {
+    "line-color": {
+     "stops": [
+      [
+       8,
+       "@major_rail_line_color"
+      ],
+      [
+       16,
+       "@major_rail_line_color_2"
+      ]
+     ]
+    },
+    "line-opacity": [
+     "match",
+     [
+      "get",
+      "service"
+     ],
+     "yard",
+     0.5,
+     1
+    ],
+    "line-width": {
+     "base": 1.4,
+     "stops": [
+      [
+       14,
+       0.4
+      ],
+      [
+       15,
+       0.75
+      ],
+      [
+       20,
+       2
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "tunnel"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "rail"
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ],
+     [
+      ">",
+      [
+       "case",
+       [
+        "has",
+        "layer"
+       ],
+       [
+        "to-number",
+        [
+         "get",
+         "layer"
+        ]
+       ],
+       0
+      ],
+      0
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Major rail hatching bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible",
+    "line-cap": "butt"
+   },
+   "paint": {
+    "line-color": "@major_rail_line_color",
+    "line-dasharray": [
+     0.2,
+     9
+    ],
+    "line-opacity": [
+     "match",
+     [
+      "get",
+      "service"
+     ],
+     "yard",
+     0.5,
+     1
+    ],
+    "line-width": {
+     "base": 1.4,
+     "stops": [
+      [
+       14.5,
+       0
+      ],
+      [
+       15,
+       3
+      ],
+      [
+       20,
+       8
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "all",
+    [
+     "all",
+     [
+      "!",
+      [
+       "match",
+       [
+        "get",
+        "brunnel"
+       ],
+       [
+        "tunnel"
+       ],
+       true,
+       false
+      ]
+     ],
+     [
+      "==",
+      [
+       "get",
+       "class"
+      ],
+      "rail"
+     ]
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ],
+     [
+      ">",
+      [
+       "case",
+       [
+        "has",
+        "layer"
+       ],
+       [
+        "to-number",
+        [
+         "get",
+         "layer"
+        ]
+       ],
+       0
+      ],
+      0
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Minor rail bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible",
+    "line-cap": "butt"
+   },
+   "paint": {
+    "line-color": "@railway_tunnel_line_color",
+    "line-width": {
+     "base": 1.4,
+     "stops": [
+      [
+       14,
+       0.4
+      ],
+      [
+       15,
+       0.75
+      ],
+      [
+       20,
+       2
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "all",
+    [
+     "match",
+     [
+      "get",
+      "subclass"
+     ],
+     [
+      "light_rail",
+      "tram"
+     ],
+     true,
+     false
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ],
+     [
+      ">",
+      [
+       "case",
+       [
+        "has",
+        "layer"
+       ],
+       [
+        "to-number",
+        [
+         "get",
+         "layer"
+        ]
+       ],
+       0
+      ],
+      0
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "Minor rail hatching bridge",
+   "type": "line",
+   "source": "openmaptiles",
+   "source-layer": "transportation",
+   "layout": {
+    "visibility": "visible",
+    "line-cap": "butt"
+   },
+   "paint": {
+    "line-color": "@railway_tunnel_line_color",
+    "line-dasharray": [
+     0.2,
+     4
+    ],
+    "line-width": {
+     "base": 1.4,
+     "stops": [
+      [
+       14.5,
+       0
+      ],
+      [
+       15,
+       2
+      ],
+      [
+       20,
+       6
+      ]
+     ]
+    }
+   },
+   "filter": [
+    "all",
+    [
+     "match",
+     [
+      "get",
+      "subclass"
+     ],
+     [
+      "tram",
+      "light_rail"
+     ],
+     true,
+     false
+    ],
+    [
+     "any",
+     [
+      "==",
+      [
+       "get",
+       "brunnel"
+      ],
+      "bridge"
+     ],
+     [
+      ">",
+      [
+       "case",
+       [
+        "has",
+        "layer"
+       ],
+       [
+        "to-number",
+        [
+         "get",
+         "layer"
+        ]
+       ],
+       0
+      ],
+      0
      ]
     ]
    ]

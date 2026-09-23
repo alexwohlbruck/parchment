@@ -2008,6 +2008,17 @@ describe('cycling ways from Barrelman', () => {
     expect(at(route, {})).toBe(at(minor, { class: 'minor' }))
   })
 
+  test('a route that is not built yet is not tinted', () => {
+    const route = built.find(l => l.id === CYCLING_ROUTES_LAYER_ID)!
+    const f = featureFilter(route.filter, 'filter')
+    const draws = (name: string) =>
+      f.filter({ zoom: 16 } as any, { type: 2, properties: { route_type: 'bicycle', name } } as any, {} as any)
+    expect(draws('Charlotte Bike Route 1')).toBe(true)
+    expect(draws('McAlpine Creek Greenway (Future)')).toBe(false)
+    expect(draws('Doby Creek Greenway (proposed)')).toBe(false)
+    expect(draws('Four Mile Creek Greenway (Construction)')).toBe(false)
+  })
+
   test('the toggle reaches the Barrelman tint as well as the basemap twins', () => {
     for (const id of CYCLING_WAYS_LAYER_IDS) expect(layerGroups.cycling).toContain(id)
   })

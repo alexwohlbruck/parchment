@@ -197,6 +197,16 @@ const CYCLEWAY_WIDTH = [11, 1, 14, 1.8, 16, 2.8, 19, 4.4]
 const BICYCLE_PATH = ['in', 'infra_type', 'path_bicycle', 'steps_bicycle']
 const BICYCLE_PATH_WIDTH = [12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6]
 
+/**
+ * A route that is not built yet says so only in its name, as in "McAlpine
+ * Creek Greenway (Future)" — Barrelman's route tiles carry no state.
+ */
+const UNBUILT_MARKERS = ['future', 'proposed', 'planned', 'construction']
+const ROUTE_IS_RIDEABLE = [
+  '!',
+  ['any', ...UNBUILT_MARKERS.map(m => ['in', m, ['downcase', ['coalesce', ['get', 'name'], '']]])],
+]
+
 export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways: their own way, not a street. A casing under a solid
   // stroke, the way the basemap cases a path — so it reads as a route you can
@@ -385,7 +395,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       },
       'source-layer': 'bicycle_routes',
       minzoom: 10,
-      filter: ['any', ['has', 'name'], ['has', 'ref']],
+      filter: ['all', ['any', ['has', 'name'], ['has', 'ref']], ROUTE_IS_RIDEABLE],
       paint: {
         'text-color': themed(INK.route),
         'text-halo-color': themed({ light: '#ffffff', dark: '#0d1016' }),

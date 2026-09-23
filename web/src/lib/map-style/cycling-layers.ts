@@ -518,6 +518,16 @@ export function cyclingWaysSource(tileUrl: (source: string) => string) {
 }
 
 /**
+ * A route that is not built yet says so only in its name, as in "McAlpine
+ * Creek Greenway (Future)" — Barrelman's route tiles carry no state.
+ */
+const UNBUILT_MARKERS = ['future', 'proposed', 'planned', 'construction']
+export const ROUTE_IS_RIDEABLE: any = [
+  '!',
+  ['any', ...UNBUILT_MARKERS.map(m => ['in', m, ['downcase', ['coalesce', ['get', 'name'], '']]])],
+]
+
+/**
  * The streets a signed route follows, tinted from the route's own line.
  *
  * A route relation carries no road class, so this is drawn at a residential
@@ -533,7 +543,7 @@ export function cyclingRoutesLayer(flavor: FlavorId, roadWidth: (layerId: string
     source: CYCLING_ROUTES_SOURCE,
     'source-layer': CYCLING_ROUTES_TILES,
     minzoom: 12,
-    filter: ['==', ['get', 'route_type'], 'bicycle'],
+    filter: ['all', ['==', ['get', 'route_type'], 'bicycle'], ROUTE_IS_RIDEABLE],
     layout: { 'line-cap': 'butt', 'line-join': 'round', visibility: 'none' },
     paint: {
       'line-color': STRENGTH[flavor].faint,

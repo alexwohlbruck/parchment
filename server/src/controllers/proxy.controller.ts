@@ -257,7 +257,7 @@ function storeMartin(
 //
 // Barrelman fronts Martin at /tiles/{source}/{z}/{x}/{y} — the same prefix the
 // portolan proxy below uses, and the same auth: the integration's apiKey as a
-// Bearer header, its tileKey as a query parameter. This used to address a bare
+// Bearer header. This used to address a bare
 // Martin instead, at /{source}/{z}/{x}/{y} on a `martinHost` config field, and
 // both halves of that had rotted: Barrelman moved tiles behind /tiles/* when it
 // made them metered and revocable (there is no unmetered tile key any more),
@@ -284,18 +284,10 @@ app.get(
         return new Response('Barrelman not configured', { status: 501 })
       }
 
-      const tileKey = (
-        integrationManager
-          .getConfiguredIntegrations()
-          .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-          ?.config as { tileKey?: string }
-      )?.tileKey
-
       const { source, z, x, y } = params
       const cacheKey = `${source}/${z}/${x}/${y}`
 
       const tileUrl = new URL(`/tiles/${source}/${z}/${x}/${y}`, host)
-      if (tileKey) tileUrl.searchParams.set('token', tileKey)
 
       const headers: Record<string, string> = {}
       if (config?.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`
@@ -431,9 +423,7 @@ function store(rest: string, value: CachedResponse): Response {
 // Barrelman serves portolan's MVT pyramids at /tiles/portolan/*:
 // index.json lists every feed with a cut pyramid (bounds + maxzoom),
 // each feed directory holds tiles.json, style.json and {z}/{x}/{y}.mvt.
-// Auth mirrors the two existing Barrelman patterns: the integration's
-// apiKey rides as a Bearer header (like requestBarrelman) and tileKey as
-// ?token= (like the Martin tile proxy) — whichever the host enforces.
+// Auth is the integration's apiKey as a Bearer header, like requestBarrelman.
 //
 // tiles.json templates are normalized to RELATIVE so a client resolving
 // them against this proxy's URL lands back on the proxy; in practice the
@@ -460,15 +450,7 @@ app.get(
       if (!config?.host) {
         return new Response('Barrelman not configured', { status: 501 })
       }
-      const tileKey = (
-        integrationManager
-          .getConfiguredIntegrations()
-          .find((i) => i.integrationId === IntegrationId.BARRELMAN)
-          ?.config as { tileKey?: string }
-      )?.tileKey
-
       const targetUrl = new URL(`/tiles/portolan/${rest}`, config.host)
-      if (tileKey) targetUrl.searchParams.set('token', tileKey)
 
       const headers: Record<string, string> = {}
       if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`

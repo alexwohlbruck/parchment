@@ -8,6 +8,7 @@
 
 * The map now fetches its detail overlays — parking, 3D buildings, trees and cycling ways — as a single tileset instead of five separate ones. A map view is thirty to sixty tiles per overlay, so this is five times fewer requests for the same picture; panning settles noticeably sooner.
 * Woodland, parks and playing fields now read as green on the night map instead of vanishing into the ground.
+* The Barrelman integration no longer asks for a tile key; map tiles authenticate with its API key alone.
 
 ### Fixed
 

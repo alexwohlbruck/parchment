@@ -122,7 +122,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: false,
     configSchema: 'barrelmanSchema',
-    publicFields: ['host', 'tileKey'],
+    publicFields: ['host'],
     scope: [IntegrationScope.SYSTEM],
   },
   {

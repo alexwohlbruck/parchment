@@ -1228,13 +1228,6 @@ describe('assembled styles', () => {
     }
   })
 
-  test('the tile URL carries the auth token when we have one', () => {
-    const withKey = buildMapStyle({ ...opts, theme: 'light', tileKey: 'abc' })
-    expect((withKey.sources.openmaptiles as any).tiles[0]).toContain('token=abc')
-    const without = buildMapStyle({ ...opts, theme: 'light' })
-    expect((without.sources.openmaptiles as any).tiles[0]).not.toContain('token=')
-  })
-
   test('a live category palette overrides the fallback tints', () => {
     const style = buildMapStyle({
       ...opts,

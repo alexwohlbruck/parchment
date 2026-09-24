@@ -168,8 +168,6 @@ const barrelmanSearchHttp = createLimitedHttp(
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
   apiKey?: string
-  /** Public tile key — sent to client for authenticated tile requests */
-  tileKey?: string
 }
 
 /**

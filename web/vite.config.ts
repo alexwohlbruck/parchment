@@ -71,14 +71,13 @@ const IDENTITY_KEYS = ['parchment-identity-seed', 'parchment-device-id']
 const IDENTITY_PATH = '/__preview-identity'
 
 /**
- * Carry the base instance's sign-in over to branch previews.
+ * Keep one sign-in across every branch preview.
  *
  * Each preview is its own origin, so its localStorage starts without the
- * wrapped identity seed and the recovery key has to be entered again. The base
- * (PREVIEW_IDENTITY_SHARE) serves a page that hands those keys to same-host
- * frames; a fresh preview (PREVIEW_IDENTITY_SOURCE) fetches them once and
- * reloads. The seed only unwraps with a session, which scripts/preview.sh
- * copies into the preview's database.
+ * wrapped identity seed. The base (PREVIEW_IDENTITY_SHARE) holds the latest
+ * one for same-host frames: a preview (PREVIEW_IDENTITY_SOURCE) without a seed
+ * takes it and reloads, and one that gains a seed hands it back, so a key
+ * entered on a preview outlives that preview.
  */
 function previewIdentity(): Plugin {
   const keys = JSON.stringify(IDENTITY_KEYS)
@@ -86,29 +85,41 @@ function previewIdentity(): Plugin {
   const share = process.env.PREVIEW_IDENTITY_SHARE === '1'
 
   const sharePage = `<!doctype html><script>
+const keys = ${keys}
 addEventListener('message', (e) => {
-  if (e.data !== 'parchment-preview-identity') return
   if (new URL(e.origin).hostname !== location.hostname) return
-  const entries = ${keys}.map((k) => [k, localStorage.getItem(k)])
-  e.source.postMessage(Object.fromEntries(entries), e.origin)
+  if (e.data?.type === 'push') keys.forEach((k) => localStorage.setItem(k, e.data.identity[k]))
+  if (e.data?.type === 'pull') {
+    const identity = Object.fromEntries(keys.map((k) => [k, localStorage.getItem(k)]))
+    e.source.postMessage({ type: 'identity', identity }, e.origin)
+  }
 })
 </script>`
 
-  const fetchScript = `(() => {
+  const syncScript = `(() => {
   const keys = ${keys}, source = ${JSON.stringify(source)}
-  if (localStorage.getItem(keys[0])) return
+  const read = () => Object.fromEntries(keys.map((k) => [k, localStorage.getItem(k)]))
+  const complete = (identity) => keys.every((k) => identity?.[k])
+  let shared = localStorage.getItem(keys[0])
   const frame = document.createElement('iframe')
   frame.hidden = true
   frame.src = source + '${IDENTITY_PATH}'
-  addEventListener('message', function receive(e) {
-    if (e.origin !== source) return
-    removeEventListener('message', receive)
-    frame.remove()
-    if (!keys.every((k) => e.data?.[k])) return
-    keys.forEach((k) => localStorage.setItem(k, e.data[k]))
+  const post = (message) => frame.contentWindow.postMessage(message, source)
+  addEventListener('message', (e) => {
+    if (e.origin !== source || e.data?.type !== 'identity') return
+    if (!complete(e.data.identity) || localStorage.getItem(keys[0])) return
+    keys.forEach((k) => localStorage.setItem(k, e.data.identity[k]))
     location.reload()
   })
-  frame.onload = () => frame.contentWindow.postMessage('parchment-preview-identity', source)
+  frame.onload = () => {
+    if (!shared) post({ type: 'pull' })
+    setInterval(() => {
+      const identity = read()
+      if (!complete(identity) || identity[keys[0]] === shared) return
+      shared = identity[keys[0]]
+      post({ type: 'push', identity })
+    }, 2000)
+  }
   document.documentElement.append(frame)
 })()`
 
@@ -123,7 +134,7 @@ addEventListener('message', (e) => {
       })
     },
     transformIndexHtml: () =>
-      source ? [{ tag: 'script', children: fetchScript, injectTo: 'head-prepend' }] : [],
+      source ? [{ tag: 'script', children: syncScript, injectTo: 'head-prepend' }] : [],
   }
 }
 

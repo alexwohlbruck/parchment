@@ -168,8 +168,6 @@ const barrelmanSearchHttp = createLimitedHttp(
 export interface BarrelmanConfig extends IntegrationConfig {
   host: string
   apiKey?: string
-  /** Public tile key — sent to client for authenticated tile requests */
-  tileKey?: string
 }
 
 /**
@@ -384,6 +382,25 @@ export class BarrelmanIntegration
         return {
           success: false,
           message: config.apiKey ? 'Invalid API key' : 'API key required',
+        }
+      }
+      // Rate limited is not down, for the same reason `degraded` is not: an
+      // answer means Barrelman is up, and a 429 lifts on its own — a throttle
+      // window is a minute, a penalty a few. Failing here threw the whole
+      // integration out of the cache until the background retry, backing off
+      // to five minutes, happened to land after the limit lifted — so one
+      // refused health check at boot took search, transit, routing and every
+      // map tile down with it, tiles answering 501 "not configured" to a
+      // server that was only asking us to slow down. Kept connected, each
+      // request meets the limit on its own and recovers the moment it lifts.
+      //
+      // A penalty refuses before it checks the key, so this does not prove the
+      // key. At startup that was proven when the integration was saved; a bad
+      // key entered during a penalty fails on its first real request instead.
+      if (e.response?.status === 429) {
+        return {
+          success: true,
+          message: 'Connected, but Barrelman is rate-limiting this server for now',
         }
       }
       return { success: false, message: `Connection failed: ${e.message}` }

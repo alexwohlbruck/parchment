@@ -231,6 +231,27 @@ const DARK_OVERRIDES = {
 }
 
 /**
+ * Anything planted, at night, in the green family the daylight map uses.
+ *
+ * MapTiler's dark landcover is a set of blues at the ground's own lightness —
+ * woodland `hsl(203, 47%, 22%)` under ground `hsl(216, 37%, 24%)` — so the
+ * forest a county is half covered in disappears into the land it sits on. Hue
+ * carries this, not lightness: a green a shade under the ground reads as
+ * woodland where a two-point lift would turn the whole Piedmont into a slab.
+ *
+ * Grass draws at half opacity over that blue ground, which drags a green
+ * towards teal, so its token is pitched past the intended green by as much as
+ * the blend pulls back — the same correction `LIGHT_LAND` makes, further,
+ * because the ground underneath is more saturated.
+ */
+const DARK_FOLIAGE = {
+  wood_fill_color: 'hsl(145, 22%, 19%)',
+  grass_fill_color: 'hsl(96, 59%, 17%)',
+  stadium_fill_color: 'hsl(150, 20%, 21%)',
+  stadium_outline_color: 'hsl(150, 18%, 24%)',
+}
+
+/**
  * Route shields, rebuilt on Mapbox Standard's `road-number-shield` — see that
  * layer in `src/components/map/styles/standard.json`.
  *
@@ -321,6 +342,8 @@ const PATH_CASING_LAYER = 'Path outline'
 const PATH_LAYER = 'Path'
 const PEDESTRIAN_AREA_LAYER = 'Pedestrian'
 const PEDESTRIAN_AREA_CASING_LAYER = 'Pedestrian area outline'
+const BRIDGE_AREA_LAYER = 'Bridge'
+const BRIDGE_AREA_CASING_LAYER = 'Bridge area outline'
 
 /** The lowest road layer — the casings, which everything else stacks onto. */
 const FIRST_ROAD_LAYER = 'Minor road outline'
@@ -680,6 +703,11 @@ const PATH_CASING_WIDTH = [
   'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.2, 18, 3, 22, 4.5,
 ]
 
+/** Half again the path's, so a deck reads as one without changing its width. */
+const BRIDGE_CASING_WIDTH = [
+  'interpolate', ['exponential', 1.5], ['zoom'], 14, 1.8, 18, 4.5, 22, 6.8,
+]
+
 /**
  * Draw every casing, then every surface — the ordering the whole effect rests
  * on, and the reason these four layers have to sit together.
@@ -697,18 +725,17 @@ const PATH_CASING_WIDTH = [
  * road crosses a square: the square is drawn over it. Pedestrian areas are
  * car-free by definition, so that is the cheaper of the two errors.
  */
-/** Ground level: not a bridge, and not stacked above the surface. */
-const AT_GRADE = [
-  'all',
-  ['!=', ['get', 'brunnel'], 'bridge'],
-  ['<=', ['case', ['has', 'layer'], ['to-number', ['get', 'layer']], 0], 0],
-]
-/** Carried over whatever it crosses. */
-const ELEVATED = [
-  'any',
-  ['==', ['get', 'brunnel'], 'bridge'],
-  ['>', ['case', ['has', 'layer'], ['to-number', ['get', 'layer']], 0], 0],
-]
+/**
+ * Ground level, and carried over whatever it crosses.
+ *
+ * The brunnel alone, matching the tunnel split and matching what Barrelman
+ * serves for the cycling network: a `layer` clause here and a `bridge` boolean
+ * there disagree on a way tagged `layer=1` with no bridge, and the disagreement
+ * is silent — the road rises into the elevated band and its green tint stays
+ * below, where the road it describes is no longer drawn.
+ */
+const AT_GRADE = ['!=', ['get', 'brunnel'], 'bridge']
+const ELEVATED = ['==', ['get', 'brunnel'], 'bridge']
 
 function withCondition(layer, condition, suffix) {
   const base = layer.filter ? toExpressionFilter(layer.filter) : null
@@ -717,6 +744,66 @@ function withCondition(layer, condition, suffix) {
     id: suffix ? `${layer.id}${suffix}` : layer.id,
     filter: base ? ['all', base, condition] : condition,
   }
+}
+
+/**
+ * The road network, carried over whatever it crosses.
+ *
+ * MapTiler draws a bridge inline with the road it is part of, and hints at the
+ * structure with a wide translucent casing underneath. That works until a deck
+ * has to be drawn: an elevated structure with at-grade roads painted over it is
+ * not a bridge, it is a stain on the ground. So the roads split the way the
+ * paths already do — the same layers, the same widths, twice, with the elevated
+ * copy after the network it crosses and the deck it stands on beneath it.
+ *
+ * Casings first, then surfaces, mirroring the order at grade: two carriageways
+ * of one bridge have to merge, not draw a casing down the join between them.
+ * The deck goes between the two, because a deck IS the casing for everything
+ * standing on it — under it, each carriageway drew its own edge on the slab and
+ * a bridge carrying four of them came out striped.
+ */
+const ROAD_BRIDGE_CASINGS = ['Minor road outline', 'Major road outline', 'Highway outline']
+const ROAD_BRIDGE_SURFACES = ['Minor road', 'Major road', 'Highway']
+
+/**
+ * Rail is carried too, and over the roads it is carried with: a line crosses a
+ * street at grade as a level crossing, and everywhere else it is on a viaduct.
+ * Each track keeps its hatching immediately above it.
+ */
+const RAIL_BRIDGE_LAYERS = [
+  'Major rail', 'Major rail hatching', 'Minor rail', 'Minor rail hatching',
+]
+
+/** The deck a bridge stands on, with its own edge under it. */
+const BRIDGE_DECK_LAYERS = [BRIDGE_AREA_CASING_LAYER, BRIDGE_AREA_LAYER]
+
+function raiseRoadBridges(layers) {
+  const take = id => {
+    const at = layers.findIndex(l => l.id === id)
+    return at < 0 ? null : layers.splice(at, 1)[0]
+  }
+  const deck = BRIDGE_DECK_LAYERS.map(take).filter(Boolean)
+
+  const raise = ids => ids.flatMap(id => {
+    const at = layers.findIndex(l => l.id === id)
+    if (at < 0) return []
+    const road = layers[at]
+    layers[at] = withCondition(road, AT_GRADE)
+    return [{
+      ...withCondition(road, ELEVATED, ' bridge'),
+      layout: { ...road.layout, 'line-cap': 'butt' },
+    }]
+  })
+  const casings = raise(ROAD_BRIDGE_CASINGS)
+  const surfaces = raise(ROAD_BRIDGE_SURFACES)
+  const rail = raise(RAIL_BRIDGE_LAYERS)
+  if (!surfaces.length) return
+
+  // Below the one-way arrows: an arrow is paint on the carriageway, and a
+  // carriageway that is carried still carries its markings.
+  const marking = layers.findIndex(l => l.id === ROAD_MARKING_LAYER)
+  const at = marking < 0 ? layers.length : marking
+  layers.splice(at, 0, ...casings, ...deck, ...surfaces, ...rail)
 }
 
 /** Whatever zoom the path casing starts at, so the plaza edge matches it. */
@@ -748,10 +835,26 @@ function orderPedestrianSurfaces(layers) {
   // A footbridge is the exception, and the reason this is split at all: it
   // crosses over the road rather than under it, so it is drawn after every road
   // and rail — but still below the buildings.
+  //
+  // Cut square at the ends. A round cap on a line this wide overshoots the
+  // bridge's last node by half its width, so the deck ends in a lozenge laid
+  // over the path it joins — cap and casing drawn across the junction. Butt
+  // caps end the deck where the bridge ends and the path runs out of it.
+  //
+  // What says bridge is the edge: the same line, drawn heavier and a shade
+  // deeper, for the drop either side. The surface between keeps the path's
+  // width, so the way itself does not widen where it is carried.
   const elevated = [
-    withCondition(pathCasing, ELEVATED, ' bridge'),
+    {
+      ...withCondition(pathCasing, ELEVATED, ' bridge'),
+      paint: {
+        ...pathCasing.paint,
+        'line-color': '@path_bridge_casing',
+        'line-width': BRIDGE_CASING_WIDTH,
+      },
+    },
     withCondition(path, ELEVATED, ' bridge'),
-  ]
+  ].map(l => ({ ...l, layout: { ...l.layout, 'line-cap': 'butt' } }))
 
   const roads = layers.findIndex(l => l.id === FIRST_ROAD_LAYER)
   layers.splice(roads < 0 ? layers.length : roads, 0, ...ground)
@@ -1123,11 +1226,17 @@ const CYCLING_TINTED = [
   ['Highway outline', '@cycling_casing'],
   ['Path outline', '@cycling_casing'],
   ['Path outline bridge', '@cycling_casing'],
+  ['Minor road outline bridge', '@cycling_casing'],
+  ['Major road outline bridge', '@cycling_casing'],
+  ['Highway outline bridge', '@cycling_casing'],
   ['Minor road', '@cycling_surface'],
   ['Major road', '@cycling_surface'],
   ['Highway', '@cycling_surface'],
   [PATH_LAYER, '@cycling_surface'],
   ['Path bridge', '@cycling_surface'],
+  ['Minor road bridge', '@cycling_surface'],
+  ['Major road bridge', '@cycling_surface'],
+  ['Highway bridge', '@cycling_surface'],
 ]
 
 function addCyclingSurface(layers) {
@@ -1807,6 +1916,12 @@ async function main() {
       // as the paths running into it or the joins show as a change of tone.
       out.paint = { 'fill-color': '@path_surface' }
     }
+    if (layer.id === BRIDGE_AREA_LAYER) {
+      // A deck mapped as an area is the same deck as one mapped as a way, so it
+      // takes the same surface. MapTiler had it in the pier colour at 0.6,
+      // which let the water it carries over show through the structure.
+      out.paint = { 'fill-antialias': true, 'fill-color': '@path_surface' }
+    }
 
     layers.push(out)
   }
@@ -1844,7 +1959,23 @@ async function main() {
       paint: { 'line-color': '@path_casing', 'line-width': PATH_CASING_WIDTH },
     })
   }
+  // The deck's edge, the same drop the cased bridge ways carry, so an area and
+  // a way that are one bridge in life are drawn as one bridge here.
+  const deck = layers.find(l => l.id === BRIDGE_AREA_LAYER)
+  if (deck) {
+    layers.splice(layers.indexOf(deck), 0, {
+      id: BRIDGE_AREA_CASING_LAYER,
+      type: 'line',
+      source: SOURCE,
+      'source-layer': deck['source-layer'],
+      minzoom: pathCasingMinzoom(layers),
+      filter: deck.filter,
+      layout: { 'line-join': 'round' },
+      paint: { 'line-color': '@path_bridge_casing', 'line-width': BRIDGE_CASING_WIDTH },
+    })
+  }
   orderPedestrianSurfaces(layers)
+  raiseRoadBridges(layers)
   // After every pass that touches a road's width or its place in the stack,
   // so the twins inherit the widths the roads actually ship with.
   addCyclingSurface(layers)
@@ -1954,15 +2085,12 @@ async function main() {
     tokens[flavor].poi_transit_ring = `@@tint-ring:${TRANSIT_BLUE[flavor]}`
   }
 
-  // The pitch edge is authored, not lifted, so the night value is set here
-  // rather than in `DARK_OVERRIDES`: a shade off its own fill in each flavor,
-  // which at night means lighter, since there the fill is the dark thing.
-  tokens.dark.stadium_outline_color = 'hsl(183, 20%, 27%)'
-
   tokens.light.path_surface = 'hsl(44, 40%, 96%)'
   tokens.light.path_casing = 'hsl(42, 16%, 81%)'
+  tokens.light.path_bridge_casing = 'hsl(42, 16%, 73%)'
   tokens.dark.path_surface = 'hsl(216, 14%, 33%)'
   tokens.dark.path_casing = 'hsl(216, 20%, 20%)'
+  tokens.dark.path_bridge_casing = 'hsl(216, 24%, 13%)'
 
   for (const [rung, color] of Object.entries(ROAD_INK.light)) tokens.light[`road_${rung}`] = color
   for (const [rung, color] of Object.entries(ROAD_INK.dark)) tokens.dark[`road_${rung}`] = color
@@ -1972,6 +2100,8 @@ async function main() {
   for (const [name, color] of Object.entries(DARK_OVERRIDES)) {
     if (name in tokens.dark) tokens.dark[name] = color
   }
+
+  Object.assign(tokens.dark, DARK_FOLIAGE)
 
   // Category palette tokens, resolved at runtime from the app's own palette
   // so basemap POIs match the colours search results already use.

@@ -7,18 +7,16 @@ import {
   detailSources,
   parkingLayers,
   treeLayers,
-  BUILDING_3D_SOURCE,
+  DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
-import { CYCLING_WAYS_SUFFIX } from './cycling-layers'
 import {
   CYCLING_WAYS_LAYER_IDS,
   cyclingStrokeLayers,
   cyclingWaysLayers,
-  cyclingWaysSource,
 } from './cycling-layers'
 import { barrelmanBuildingsReady } from './barrelman-buildings'
 import lightTokens from './tokens.light.json'
@@ -201,8 +199,6 @@ export interface BasemapStyleOptions {
   mapStyle?: MapStyleId
   /** Language code for labels (e.g. "en") */
   lang?: string
-  /** Auth token for tile requests (appended as query parameter) */
-  tileKey?: string
   /** Live category palette, so basemap POIs match search-result markers. */
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
   /** How POIs are drawn; defaults to the category badge. */
@@ -384,21 +380,18 @@ export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
 // Assembly
 // ---------------------------------------------------------------------------
 
-function buildTileUrl(tileServerUrl: string, tileKey?: string, source = 'basemap'): string {
-  const params = new URLSearchParams()
-  if (tileKey) params.set('token', tileKey)
-  params.set('v', cacheBuster)
-  return `${tileServerUrl}/${source}/{z}/{x}/{y}?${params.toString()}`
+function buildTileUrl(tileServerUrl: string, source = 'basemap'): string {
+  return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${cacheBuster}`
 }
 
 function origin(): string {
   return typeof window !== 'undefined' ? window.location.origin : ''
 }
 
-function vectorSource(tileServerUrl: string, tileKey?: string) {
+function vectorSource(tileServerUrl: string) {
   return {
     type: 'vector' as const,
-    tiles: [buildTileUrl(tileServerUrl, tileKey)],
+    tiles: [buildTileUrl(tileServerUrl)],
     maxzoom: 14,
     attribution: OSM_ATTRIBUTION,
   }
@@ -470,7 +463,7 @@ export function buildLayers(options: {
  * Point the 3D buildings at Barrelman's source, and add the roof-colour layer.
  *
  * The basemap's own building layer cannot tell a part-mapped building's outline
- * from its parts — see `BUILDING_3D_SOURCE` — so the extrusion reads from
+ * from its parts — see `DETAIL_SOURCE` — so the extrusion reads from
  * Barrelman instead, where the outline carries `hide_3d` and the filter the
  * spec already has (`["!has", "hide_3d"]`, MapTiler's own) finally bites.
  *
@@ -495,7 +488,7 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
 
   const fromBarrelman = (layer: any) => ({
     ...layer,
-    source: BUILDING_3D_SOURCE,
+    source: DETAIL_SOURCE,
     'source-layer': BUILDING_3D_TILES,
     // The same outlines have to go from here too, or the layer draws an edge
     // around a building that is no longer extruded under it.
@@ -568,17 +561,26 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
     if (at >= 0) out.splice(at + 1, 0, layer)
   }
 
-  // The markings go over every tint, since they describe the street rather
-  // than any one rung of it. Above the topmost road, still below the labels.
-  const lastRoad = out.map(l => l.id.endsWith(CYCLING_WAYS_SUFFIX)).lastIndexOf(true)
-  if (lastRoad >= 0) out.splice(lastRoad + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth))
+  // The markings go over every tint of their band, since they describe the
+  // street rather than any one rung of it — and they follow that street across
+  // the split, so a marking on a deck is drawn on the deck and one at grade
+  // stays under it.
+  for (const bridge of [false, true]) {
+    const band = new Set(
+      tints.filter(t => t.street && t.bridge === bridge).map(t => t.layer.id),
+    )
+    const last = out.map(l => band.has(l.id)).lastIndexOf(true)
+    if (last >= 0) {
+      out.splice(last + 1, 0, ...cyclingStrokeLayers(flavor, roadWidth, bridge))
+    }
+  }
 
   return out
 }
 
 /** The full street basemap. */
 export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification {
-  const { tileServerUrl, theme, tileKey, mapStyle, lang, categoryColors, poiStyle } = options
+  const { tileServerUrl, theme, mapStyle, lang, categoryColors, poiStyle } = options
   const flavor: FlavorId = theme === 'dark' ? 'dark' : 'light'
 
   return {
@@ -587,9 +589,8 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
-      [SOURCE]: vectorSource(tileServerUrl, tileKey),
-      ...detailSources(source => buildTileUrl(tileServerUrl, tileKey, source)),
-      ...cyclingWaysSource(source => buildTileUrl(tileServerUrl, tileKey, source)),
+      [SOURCE]: vectorSource(tileServerUrl),
+      ...detailSources(source => buildTileUrl(tileServerUrl, source)),
     },
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),
@@ -607,7 +608,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
 export function buildSatelliteStyle(
   options: BasemapStyleOptions & { hybrid?: boolean },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, tileKey, mapStyle, lang, categoryColors, poiStyle } = options
+  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle } = options
 
   const sources: StyleSpecification['sources'] = {
     'satellite-raster': {
@@ -627,7 +628,7 @@ export function buildSatelliteStyle(
   ]
 
   if (hybrid) {
-    sources[SOURCE] = vectorSource(tileServerUrl, tileKey)
+    sources[SOURCE] = vectorSource(tileServerUrl)
     const overlay = buildLayers({
       flavor: 'dark',
       categoryColors,

@@ -76,6 +76,7 @@
  "poi_transit_ring": "@@tint-ring:hsl(214, 78%, 52%)",
  "path_surface": "hsl(44, 40%, 96%)",
  "path_casing": "hsl(42, 16%, 81%)",
+ "path_bridge_casing": "hsl(42, 16%, 73%)",
  "road_highway": "hsl(42, 22%, 87%)",
  "road_highway_casing": "hsl(40, 16%, 72%)",
  "road_major": "hsl(0, 0%, 100%)",

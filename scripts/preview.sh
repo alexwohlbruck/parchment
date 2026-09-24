@@ -170,6 +170,27 @@ clone_db() {
   [ "$(table_count "$target")" -gt 0 ] || die "clone of $BASE_DB into $target produced no tables"
 }
 
+# A preview reads and writes sign-ins in the base database rather than its own
+# copy: the session cookie is shared across ports, so a sign-in on any slot has
+# to be valid on every slot, and has to outlive the preview it was made on.
+# A branch whose migrations alter these tables cannot run against this.
+share_auth() {
+  local target=$1 pw=${PGPW//\'/\'\'}
+  docker exec -i -e PGPASSWORD="$PGPW" "$DB_CONTAINER" \
+      psql -h 127.0.0.1 -U "$PGUSER" -d "$target" -v ON_ERROR_STOP=1 -q >/dev/null <<SQL \
+    || die "could not link $target's sign-ins to $BASE_DB"
+CREATE EXTENSION IF NOT EXISTS postgres_fdw;
+DROP SERVER IF EXISTS parchment_base CASCADE;
+CREATE SERVER parchment_base FOREIGN DATA WRAPPER postgres_fdw
+  OPTIONS (host '127.0.0.1', port '5432', dbname '$BASE_DB');
+CREATE USER MAPPING FOR CURRENT_USER SERVER parchment_base
+  OPTIONS (user '$PGUSER', password '$pw');
+DROP TABLE IF EXISTS sessions, device_wrap_secrets;
+IMPORT FOREIGN SCHEMA public LIMIT TO (sessions, device_wrap_secrets)
+  FROM SERVER parchment_base INTO public OPTIONS (import_default 'true');
+SQL
+}
+
 drop_db() {
   local target=$1
   psql_base -tAc "select 1 from pg_database where datname='$target'" | grep -q 1 || return 0
@@ -323,7 +344,9 @@ EOF
 }
 
 write_unit_env() {
-  local slot=$1 worktree=$2 wport=$3 pub_host=$4 pub_scheme=$5 pub_web_port=$6 api_origin=$7 label=$8
+  local slot=$1 worktree=$2 wport=$3 pub_host=$4 pub_scheme=$5 pub_web_port=$6 api_origin=$7 label=$8 base_origin=$9
+  local identity="PREVIEW_IDENTITY_SOURCE=$base_origin"
+  [ "$slot" -eq 0 ] && identity="PREVIEW_IDENTITY_SHARE=1"
   mkdir -p "$STATE_DIR/$slot"
   cat > "$STATE_DIR/$slot/env" <<EOF
 PREVIEW_WORKTREE=$worktree
@@ -345,6 +368,9 @@ VITE_PUBLIC_PROTOCOL=$pub_scheme
 VITE_PUBLIC_PORT=$pub_web_port
 # Names this preview's browser tab (web/vite.config.ts rewrites <title>).
 VITE_PREVIEW_LABEL=$(env_quote "$label")
+# Slot 0 shares its stored identity; other slots copy it on first load, so a new
+# preview opens signed in without the recovery key (web/vite.config.ts).
+$identity
 EOF
 }
 
@@ -387,7 +413,7 @@ cmd_up() {
   [ -n "$host" ] || die "tailscale is not up on this machine"
 
   log "slot $slot — branch $branch"
-  [ "$slot" -eq 0 ] || clone_db "$dbname"
+  [ "$slot" -eq 0 ] || { clone_db "$dbname"; share_auth "$dbname"; }
 
   log "installing dependencies"
   (cd "$worktree/server" && "$BUN" install --silent) || die "server deps failed"
@@ -395,21 +421,23 @@ cmd_up() {
 
   # Publish first: the app needs to be told its own public origin (CORS, cookies,
   # the client's API base URL), and that depends on whether HTTPS is available.
-  local scheme_web scheme_api base_web base_api
+  local scheme_web scheme_api base_web base_api identity_origin
   scheme_web=$(publish "$wpub" "$wport")
   scheme_api=$(publish "$apub" "$sport")
   if [ "$scheme_web" = https ] && [ "$scheme_api" = https ]; then
     base_web="https://$host:$wpub"; base_api="https://$host:$apub"
+    identity_origin="https://$host:$(web_pub_port 0)"
   else
     # No tailnet certs — serve plainly on the dev ports over the tailnet IP.
     local ip; ip=$(ts_ip)
     base_web="http://$ip:$wport"; base_api="http://$ip:$sport"
+    identity_origin="http://$ip:$(web_port 0)"
     PREVIEW_INSECURE=1
   fi
 
   local label; label=$(preview_label "$branch" "$worktree")
   write_env "$worktree" "$dbname" "$sport" "$wport" "$base_api" "$base_web"
-  write_unit_env "$slot" "$worktree" "$wport" "$host" "${scheme_web}" "$wpub" "$base_api" "$label"
+  write_unit_env "$slot" "$worktree" "$wport" "$host" "${scheme_web}" "$wpub" "$base_api" "$label" "$identity_origin"
 
   systemctl --user restart "parchment-preview-server@$slot" "parchment-preview-web@$slot"
   registry_put "$slot" "$branch" "$worktree" "${scheme_web}" "$host"

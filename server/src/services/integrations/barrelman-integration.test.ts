@@ -93,6 +93,25 @@ describe('BarrelmanIntegration', () => {
       expect(result.success).toBe(true)
     })
 
+    test('stays connected when rate-limited — a 429 lifts on its own', async () => {
+      // A throttled health check at boot used to fail the test, leaving
+      // Barrelman uncached: every tile answered 501 and search, transit and
+      // routing went dark until a retry happened to land after the limit.
+      const err: any = new Error('Request failed with status code 429')
+      err.response = { status: 429, headers: { 'retry-after': '496' } }
+      mockAxiosGet.mockRejectedValueOnce(err)
+      const result = await integration.testConnection({ host: 'http://api.example.com', apiKey: 'k' })
+      expect(result.success).toBe(true)
+      expect(result.message).toContain('rate-limiting')
+    })
+
+    test('still fails when Barrelman cannot be reached at all', async () => {
+      mockAxiosGet.mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+      const result = await integration.testConnection({ host: 'http://api.example.com' })
+      expect(result.success).toBe(false)
+      expect(result.message).toContain('ECONNREFUSED')
+    })
+
     test('fails when the status is error — the database is down', async () => {
       mockAxiosGet.mockResolvedValueOnce({
         data: { status: 'error', database: 'disconnected' },

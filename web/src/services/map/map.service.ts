@@ -156,7 +156,7 @@ function mapService() {
       case MapEngine.MAPLIBRE: {
         // Route tile requests through the Parchment server's proxy to avoid
         // CORS issues with the Barrelman tile server.  The proxy handles
-        // auth (appends tileKey server-side) and caching headers.
+        // auth and caching headers.
         const proxyBaseUrl = `${api.defaults.baseURL}/proxy/barrelman`
         return new MaplibreStrategy(
           container,

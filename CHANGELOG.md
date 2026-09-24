@@ -6,6 +6,26 @@
 
 ### Fixed
 
+## [0.12.5] - 2026-09-24
+
+### Changed
+
+* Bike routes are labelled by number when zoomed out and by their full name up close.
+* The map now fetches its detail overlays — parking, 3D buildings, trees and cycling ways — as a single tileset instead of five separate ones. A map view is thirty to sixty tiles per overlay, so this is five times fewer requests for the same picture; panning settles noticeably sooner.
+* Woodland, parks and playing fields now read as green on the night map instead of vanishing into the ground.
+* The Barrelman integration no longer asks for a tile key; map tiles authenticate with its API key alone.
+
+### Fixed
+
+* Streets along a signed bike route are now tinted green in the cycling layer, even where nothing is painted on the road.
+* Planned greenways tagged only as proposed now show as dotted proposed bikeways instead of being left off the map.
+* Zoomed out, the cycling layer draws signed bike routes instead of covering every bike-friendly street in green.
+* The map, search and transit no longer go dark for minutes when Barrelman is briefly rate-limiting the server as it starts. A throttled connection check used to switch the whole integration off until a background retry happened to land, and every map tile answered as though Barrelman were not configured at all.
+* Map tiles now reach the browser compressed. They were being handed on at 463 KB where 275 KB would do — the tile server compresses them, and decompressing to read them threw that away — so every tile the CDN fetched crossed the network at two-thirds more than its weight. Panning into new ground is quicker, most visibly on a slow connection.
+* Cycleways and bike paths now run along a bridge deck instead of breaking at it, and an underpass passes beneath the street above it rather than across.
+* Footbridges now join the path they carry instead of ending in a lozenge laid over the junction, and are edged a shade deeper so the deck still reads as one.
+* Bridges now draw over the streets they cross instead of having them painted across the deck, and the roads and railways a bridge carries are drawn on it rather than under it.
+
 ## [0.12.4] - 2026-09-16
 
 ### Changed

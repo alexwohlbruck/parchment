@@ -22,7 +22,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
 } from './build'
-import { BUILDING_3D_SOURCE, BUILDING_3D_TILES } from './detail-layers'
+import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES } from './detail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -210,9 +210,12 @@ describe('flavors', () => {
      * `label_` is the whole label system — ink and halo both. MapTiler
      * letters in near-black over a traced outline; ours is authored after
      * Apple's, so their values are not the answer for any of it.
+     *
+     * The planted family goes the same way through `DARK_FOLIAGE`: theirs is
+     * blue at the ground's own lightness, which hides a wooded county.
      */
     const authored =
-      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$)/
+      /^(poi_|road_|label_|shield_ink|path_surface|path_casing|building_3d_|building_roof_edge$|sand_fill_color$|(wood|grass|stadium)_fill_color$|stadium_outline_color$)/
 
     const wrong: string[] = []
     let checked = 0
@@ -244,6 +247,26 @@ describe('flavors', () => {
     // a normal thing to do and should not need this number revisited.
     expect(checked).toBeGreaterThan(50)
     expect(wrong).toEqual([])
+  })
+
+  test('night foliage carries its hue, not its lightness', () => {
+    const ground = dark.background_background_color
+    const hue = (color: string) => Number(/hsla?\(\s*([\d.]+)/.exec(color)?.[1])
+    const apart = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b))
+    // Grass is the one that draws at half opacity, so the ground is half of
+    // what it lands as; see the `Grass` layer's `fill-opacity`.
+    const onMap: Record<string, string | Rgb> = {
+      wood_fill_color: dark.wood_fill_color,
+      grass_fill_color: mix(dark.grass_fill_color, ground),
+      stadium_fill_color: dark.stadium_fill_color,
+    }
+
+    for (const [token, landed] of Object.entries(onMap)) {
+      expect(apart(hue(dark[token]), hue(ground)), `${token} hue`).toBeGreaterThan(40)
+      const ratio = relativeLuminance(landed) / relativeLuminance(ground)
+      expect(ratio, `${token} luminance`).toBeGreaterThan(0.8)
+      expect(ratio, `${token} luminance`).toBeLessThan(1.25)
+    }
   })
 
   test('the ground inverts between flavors', () => {
@@ -451,6 +474,191 @@ describe('badge POI treatment', () => {
     expect(bridge).toBeLessThan(
       layers.findIndex(l => (l as any)['source-layer'] === 'building'),
     )
+  })
+
+  /**
+   * A deck is the same line as the path, drawn a band higher. A round cap on a
+   * line that wide overshoots the bridge's last node by half its width, so the
+   * deck ends in a lozenge laid across the junction it joins — cap and casing
+   * over the path that carries on out of it.
+   */
+  test('a deck is cut square, so the path it continues runs out of it', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const decks = layers.filter(l => l.id.includes('bridge') && l['source-layer'] === 'transportation')
+    expect(decks.map(l => l.id)).toContain('Path bridge')
+    for (const deck of decks) {
+      expect(deck.layout?.['line-cap'], deck.id).toBe('butt')
+    }
+    // The path itself keeps its round ends: a way that stops mid-block is a
+    // stub, not a cut edge.
+    for (const id of ['Path', 'Path outline']) {
+      expect(layers.find(l => l.id === id)!.layout['line-cap'], id).toBe('round')
+    }
+    // The surface between the casings is the path's own, so a way does not
+    // widen where it is carried.
+    const paint = (id: string) => layers.find(l => l.id === id)!.paint
+    expect(paint('Path bridge')).toEqual(paint('Path'))
+    expect(paint('Path outline bridge')['line-gap-width'])
+      .toEqual(paint('Path outline')['line-gap-width'])
+  })
+
+  /**
+   * What says bridge, once the deck no longer ends in a lozenge, is the edge:
+   * the drop either side, drawn heavier and a shade deeper than the casing the
+   * path carries at grade.
+   */
+  test('a deck is edged heavier and deeper than the path it carries', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const width = (id: string) =>
+      (layers.find(l => l.id === id)!.paint['line-width'] as any[]).slice(3)
+    const [deck, path] = ['Path outline bridge', 'Path outline'].map(width)
+    expect(deck.length).toBe(path.length)
+    for (let i = 0; i < deck.length; i += 2) {
+      expect(deck[i], `stop z${deck[i]}`).toBe(path[i])
+      expect(deck[i + 1], `z${deck[i]}`).toBeGreaterThan(path[i + 1])
+    }
+
+    for (const tokens of [lightTokens, darkTokens] as Record<string, string>[]) {
+      const lightness = (name: string) => Number(/([\d.]+)%\)/.exec(tokens[name])![1])
+      expect(lightness('path_bridge_casing')).toBeLessThan(lightness('path_casing'))
+    }
+  })
+
+  /**
+   * A deck mapped as an area is the same structure as one mapped as a way —
+   * often the same bridge, carrying ways drawn across it — so it takes the same
+   * surface and the same edge.
+   */
+  test('a bridge area is drawn as the deck it is', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    const fill = layers[at('Bridge')]
+    const edge = layers[at('Bridge area outline')]
+    expect(fill.paint['fill-color']).toBe(lightTokens.path_surface)
+    // A structure the water under it shows through is not carrying anything.
+    expect(fill.paint['fill-opacity']).toBeUndefined()
+    expect(edge.paint['line-color']).toBe(lightTokens.path_bridge_casing)
+    expect(edge.paint['line-width'])
+      .toEqual(layers[at('Path outline bridge')].paint['line-width'])
+    expect(edge.filter).toEqual(fill.filter)
+    // The edge under the surface, as every casing in this style is; the deck
+    // over the network it crosses and over the casings of what it carries,
+    // under the carriageways themselves.
+    expect(at('Bridge area outline')).toBeLessThan(at('Bridge'))
+    expect(at('Minor road')).toBeLessThan(at('Bridge area outline'))
+    expect(at('Minor road outline bridge')).toBeLessThan(at('Bridge area outline'))
+    expect(at('Bridge')).toBeLessThan(at('Minor road bridge'))
+  })
+
+  /**
+   * A bridge is drawn where it is: over what it crosses, on the deck that
+   * carries it. Drawn inline with the roads at grade — which is how MapTiler
+   * ships it — the deck can only go under them, and an elevated structure with
+   * a ground-level street painted across it is not a bridge.
+   */
+  describe('the elevated road network', () => {
+    const layers = buildMapStyle({ ...opts, theme: 'light' }).layers as any[]
+    const at = (id: string) => layers.findIndex(l => l.id === id)
+    const RUNGS = ['Minor road', 'Major road', 'Highway']
+    const carried = (id: string, properties: Record<string, unknown>) =>
+      featureFilter(layers[at(id)].filter, `${id}.filter`)
+        .filter({ zoom: 16 } as any, { type: 2, properties } as any, {} as any)
+
+    test('every rung is drawn twice, at grade and on the deck', () => {
+      for (const rung of RUNGS) {
+        for (const id of [rung, `${rung} outline`]) {
+          expect(at(`${id} bridge`), `${id} bridge`).toBeGreaterThan(-1)
+        }
+      }
+    })
+
+    /**
+     * Two carriageways of one bridge merge; they do not case their join. And
+     * the deck sits between the two, because a deck is the casing for whatever
+     * stands on it — under the casings, a bridge carrying four lanes of traffic
+     * came out striped with the edge of each one.
+     */
+    test('the deck stack is cased, then decked, then surfaced', () => {
+      const casings = RUNGS.map(r => at(`${r} outline bridge`))
+      const surfaces = RUNGS.map(r => at(`${r} bridge`))
+      expect(Math.max(...casings)).toBeLessThan(at('Bridge'))
+      expect(at('Bridge')).toBeLessThan(Math.min(...surfaces))
+      expect(surfaces).toEqual([...surfaces].sort((a, b) => a - b))
+    })
+
+    /**
+     * The brunnel decides, and nothing else. Barrelman serves the cycling
+     * network a `bridge` boolean and no `layer`, so a rule that also lifted
+     * `layer > 0` would raise a street out from under its own green tint.
+     */
+    test('a rung at grade sheds what is carried, and its twin takes it', () => {
+      const ground = { class: 'minor' }
+      const bridge = { class: 'minor', brunnel: 'bridge' }
+      const stacked = { class: 'minor', layer: '1' }
+      expect(carried('Minor road', ground)).toBe(true)
+      expect(carried('Minor road', bridge)).toBe(false)
+      expect(carried('Minor road', stacked)).toBe(true)
+      expect(carried('Minor road bridge', ground)).toBe(false)
+      expect(carried('Minor road bridge', bridge)).toBe(true)
+      expect(carried('Minor road bridge', stacked)).toBe(false)
+      // A tunnel belongs to neither: the basemap draws it in its own band.
+      expect(carried('Minor road bridge', { class: 'minor', brunnel: 'tunnel' })).toBe(false)
+    })
+
+    /**
+     * The tint splits on Barrelman's `bridge`, the road on the basemap's
+     * `brunnel`. They have to agree, or a tinted street rises into the elevated
+     * band while its tint stays below, where the road is no longer drawn.
+     */
+    test('a tinted street and its road land in the same band', () => {
+      const tinted = { highway: 'residential', infra_type: 'bicycle_road' }
+      for (const [road, tint] of [
+        ['Minor road', `Minor road${CYCLING_WAYS_SUFFIX}`],
+        ['Minor road bridge', `Minor road bridge${CYCLING_WAYS_SUFFIX}`],
+      ]) {
+        for (const brunnel of [{}, { brunnel: 'bridge', bridge: true }]) {
+          expect(carried(road, { class: 'minor', ...brunnel }), `${road} ${JSON.stringify(brunnel)}`)
+            .toBe(carried(tint, { ...tinted, ...brunnel }))
+        }
+      }
+    })
+
+    /**
+     * Rail is carried too, and a viaduct is most of what rail bridges are. Left
+     * in the band below, a railway crossing a deck was swallowed by it: the
+     * Charing Cross approach over the Thames came out as a blank slab.
+     */
+    test('a carried railway draws on the deck, over the roads it is carried with', () => {
+      for (const id of ['Major rail', 'Minor rail']) {
+        expect(at(`${id} bridge`), id).toBeGreaterThan(at('Bridge'))
+        expect(at(`${id} bridge`), id).toBeGreaterThan(at('Highway bridge'))
+        // The ties stay on their track.
+        expect(at(`${id} hatching bridge`)).toBe(at(`${id} bridge`) + 1)
+      }
+      expect(carried('Major rail', { class: 'rail', brunnel: 'bridge' })).toBe(false)
+      expect(carried('Major rail bridge', { class: 'rail', brunnel: 'bridge' })).toBe(true)
+      expect(carried('Major rail bridge', { class: 'rail' })).toBe(false)
+    })
+
+    test('what is carried draws over the network it crosses', () => {
+      for (const rung of RUNGS) {
+        expect(at(`${rung} bridge`), rung).toBeGreaterThan(at('Highway'))
+        expect(at(`${rung} bridge`), rung).toBeGreaterThan(at('Major rail'))
+      }
+      // Under the arrows painted on it, and under the footbridges above it.
+      expect(at('Highway bridge')).toBeLessThan(at('Oneway'))
+      expect(at('Highway bridge')).toBeLessThan(at('Path bridge'))
+    })
+
+    /** The same road, a band higher — not a second ramp cut to look similar. */
+    test('a carried carriageway is drawn at its rung’s own width', () => {
+      for (const rung of RUNGS) {
+        for (const id of [rung, `${rung} outline`]) {
+          expect(layers[at(`${id} bridge`)].paint['line-width'], id)
+            .toEqual(layers[at(id)].paint['line-width'])
+        }
+      }
+    })
   })
 
   /**
@@ -794,7 +1002,7 @@ describe('assembled styles', () => {
 
     test('the extrusion reads Barrelman, and the flat fill still reads the basemap', () => {
       for (const l of extrusions()) {
-        expect(l.source, l.id).toBe(BUILDING_3D_SOURCE)
+        expect(l.source, l.id).toBe(DETAIL_SOURCE)
         expect(l['source-layer'], l.id).toBe(BUILDING_3D_TILES)
       }
       // The flat footprint is left alone: an outline and a part painted the same
@@ -804,10 +1012,12 @@ describe('assembled styles', () => {
       expect(flat['source-layer']).toBe('building')
     })
 
-    test('the source it reads is declared', () => {
+    test('the source it reads is declared, and is the shared detail bundle', () => {
       const style = buildMapStyle({ ...opts, theme: 'dark' })
-      expect(style.sources[BUILDING_3D_SOURCE]).toBeTruthy()
-      expect((style.sources[BUILDING_3D_SOURCE] as any).tiles[0]).toContain(BUILDING_3D_TILES)
+      expect(style.sources[DETAIL_SOURCE]).toBeTruthy()
+      // One request carries buildings alongside parking, trees and cycling —
+      // the tile is addressed by the bundle's name, not the building layer's.
+      expect((style.sources[DETAIL_SOURCE] as any).tiles[0]).toContain(DETAIL_TILES)
     })
 
     test('the outline filter is still there, to bite on the flag Barrelman adds', () => {
@@ -855,7 +1065,7 @@ describe('assembled styles', () => {
       // hidden outlines — an edge around nothing — and miss the parts.
       const edge = (buildLayers({ flavor: 'dark' }) as any[])
         .find(l => l.id === BUILDING_ROOF_EDGE_LAYER)
-      expect(edge.source).toBe(BUILDING_3D_SOURCE)
+      expect(edge.source).toBe(DETAIL_SOURCE)
       expect(edge['source-layer']).toBe(BUILDING_3D_TILES)
       expect(edge.filter).toEqual(['!has', 'hide_3d'])
     })
@@ -1018,13 +1228,6 @@ describe('assembled styles', () => {
     }
   })
 
-  test('the tile URL carries the auth token when we have one', () => {
-    const withKey = buildMapStyle({ ...opts, theme: 'light', tileKey: 'abc' })
-    expect((withKey.sources.openmaptiles as any).tiles[0]).toContain('token=abc')
-    const without = buildMapStyle({ ...opts, theme: 'light' })
-    expect((without.sources.openmaptiles as any).tiles[0]).not.toContain('token=')
-  })
-
   test('a live category palette overrides the fallback tints', () => {
     const style = buildMapStyle({
       ...opts,
@@ -1069,10 +1272,38 @@ describe('assembled styles', () => {
     const style = buildMapStyle({ ...opts, theme: 'light' })
     const at = (id: string) => style.layers.findIndex(l => l.id === id)
 
-    test('the detail sources are declared and separate from the basemap', () => {
-      expect(Object.keys(style.sources)).toContain('parking')
-      expect(Object.keys(style.sources)).toContain('trees')
+    test('the detail overlays share one source, separate from the basemap', () => {
+      // Five sources became one bundle: a map view is thirty to sixty tiles
+      // per source, so each extra source was another full viewport of
+      // requests. They still arrive as their own layers.
+      expect(Object.keys(style.sources)).toContain(DETAIL_SOURCE)
+      expect(Object.keys(style.sources)).not.toContain('parking')
+      expect(Object.keys(style.sources)).not.toContain('trees')
       for (const id of ['Parking', 'Parking outline', 'Trees']) expect(at(id)).toBeGreaterThan(-1)
+      for (const id of ['Parking', 'Trees']) {
+        expect((style.layers.find(l => l.id === id) as any).source).toBe(DETAIL_SOURCE)
+      }
+    })
+
+    /**
+     * Street furniture is minzoom 17 upstream and the bundle is read at z≤16,
+     * so it cannot join — folding it in would take benches off the map.
+     */
+    test('street furniture stays its own source', () => {
+      expect(Object.keys(style.sources)).toContain('furniture')
+      const furniture = style.layers.find(l => l.id === 'Street furniture') as any
+      expect(furniture.source).toBe('furniture')
+    })
+
+    /**
+     * Stopping at 16 is what keeps buildings on the map above it — the tile
+     * over-zooms the way the basemap over-zooms from 14. Running to 17 would
+     * ask for a tile buildings_3d no longer answers at.
+     */
+    test('the bundle stops at 16 so its members over-zoom rather than vanish', () => {
+      const src = style.sources[DETAIL_SOURCE] as any
+      expect(src.minzoom).toBe(9)
+      expect(src.maxzoom).toBe(16)
     })
 
     test('parking is the lowest paving on the street', () => {
@@ -1446,22 +1677,33 @@ describe('label typography', () => {
   })
 })
 
-/** WCAG relative luminance of an `hsl()` or `#rgb` colour. */
-function relativeLuminance(color: string): number {
-  let rgb: [number, number, number]
+type Rgb = [number, number, number]
+
+/** An `hsl()` or `#rgb` colour as 0–1 channels. */
+function toRgb(color: string): Rgb {
   const hsl = /hsla?\(\s*([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/.exec(color)
-  if (hsl) {
-    const [h, s, l] = [+hsl[1] / 360, +hsl[2] / 100, +hsl[3] / 100]
-    const a = s * Math.min(l, 1 - l)
-    const f = (n: number) => {
-      const k = (n + h * 12) % 12
-      return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
-    }
-    rgb = [f(0), f(8), f(4)]
-  } else {
+  if (!hsl) {
     const hex = color.replace('#', '')
-    rgb = [0, 1, 2].map(i => parseInt(hex.slice(i * 2, i * 2 + 2), 16) / 255) as any
+    return [0, 1, 2].map(i => parseInt(hex.slice(i * 2, i * 2 + 2), 16) / 255) as Rgb
   }
+  const [h, s, l] = [+hsl[1] / 360, +hsl[2] / 100, +hsl[3] / 100]
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => {
+    const k = (n + h * 12) % 12
+    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+  }
+  return [f(0), f(8), f(4)]
+}
+
+/** Half of `a` over `b`, where a fill draws at half opacity. */
+function mix(a: string, b: string): Rgb {
+  const [x, y] = [toRgb(a), toRgb(b)]
+  return [0, 1, 2].map(i => (x[i] + y[i]) / 2) as Rgb
+}
+
+/** WCAG relative luminance of an `hsl()` or `#rgb` colour. */
+function relativeLuminance(color: string | Rgb): number {
+  const rgb = typeof color === 'string' ? toRgb(color) : color
   const lin = rgb.map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
   return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
 }
@@ -1487,10 +1729,14 @@ describe('cycling surface', () => {
 
   test('every road surface and casing has a twin', () => {
     const ids = twins.map(t => t.id)
+    // Each rung twice: at grade, and again on the deck it is carried over.
     const TINTED = [
       'Minor road', 'Minor road outline',
       'Major road', 'Major road outline',
       'Highway', 'Highway outline',
+      'Minor road bridge', 'Minor road outline bridge',
+      'Major road bridge', 'Major road outline bridge',
+      'Highway bridge', 'Highway outline bridge',
       'Path', 'Path outline',
       'Path bridge', 'Path outline bridge',
     ]
@@ -1615,6 +1861,7 @@ describe('cycling surface', () => {
 describe('slot anchors in the shipped style', () => {
   const built = buildLayers({ flavor: 'light' }) as any[]
   const at = (id: string | undefined) => built.findIndex(l => l.id === id)
+
   const firstOfType = (type: string) => built.findIndex(l => l.type === type)
 
   test('middle lands above every road and below every label', () => {
@@ -1626,6 +1873,61 @@ describe('slot anchors in the shipped style', () => {
     for (const id of ['Minor road', 'Major road', 'Highway', 'Path']) {
       expect(at(id), id).toBeLessThan(anchor)
     }
+  })
+
+  /**
+   * A deck is the top of the network and the basemap draws it over every road,
+   * so a mark anchored below one is lost wherever a way crosses a bridge —
+   * which reads as a gap in the network rather than as a bridge.
+   */
+  test('bridge lands above every deck and under the buildings', () => {
+    const anchor = at(slotBeforeId(built, 'bridge'))
+    expect(anchor).toBeGreaterThan(-1)
+    for (const id of ['Path outline bridge', 'Path bridge', 'Minor road']) {
+      expect(at(id), id).toBeLessThan(anchor)
+    }
+    // Ground, still: a line floating over the buildings is not on the ground.
+    expect(anchor).toBeLessThanOrEqual(at('Building'))
+  })
+
+  /**
+   * A tunnel is the one thing that belongs under the network. Drawn in the
+   * basemap's own tunnel band, the road above it draws over the crossing and
+   * the way reads as dipping under rather than as running across.
+   */
+  test('tunnel lands above the basemap’s tunnels and below its surface', () => {
+    const anchor = at(slotBeforeId(built, 'tunnel'))
+    expect(anchor).toBeGreaterThan(-1)
+    for (const id of ['Tunnel', 'Footway tunnel']) {
+      expect(at(id), id).toBeLessThan(anchor)
+    }
+    for (const id of ['Minor road', 'Path', 'Path bridge']) {
+      expect(at(id), id).toBeGreaterThan(anchor)
+    }
+  })
+
+  /**
+   * A mark on a way at grade belongs under the decks crossing over it, which
+   * `middle` cannot say: a deck is drawn after everything at grade, so the
+   * cycling network anchored there ran its green line across every viaduct.
+   */
+  test('grade lands above the network at grade and under the decks', () => {
+    const anchor = at(slotBeforeId(built, 'grade'))
+    expect(anchor).toBeGreaterThan(-1)
+    for (const id of ['Minor road', 'Highway', 'Path']) {
+      expect(at(id), id).toBeLessThan(anchor)
+    }
+    for (const id of ['Bridge', 'Minor road bridge', 'Path bridge']) {
+      expect(at(id), id).toBeGreaterThan(anchor)
+    }
+  })
+
+  test('the slots stack in the order they name', () => {
+    const index = (slot: string) => at(slotBeforeId(built, slot))
+    expect(index('bottom')).toBeLessThan(index('tunnel'))
+    expect(index('tunnel')).toBeLessThan(index('grade'))
+    expect(index('grade')).toBeLessThan(index('bridge'))
+    expect(index('middle')).toBeLessThan(index('bridge'))
   })
 
   test('bottom lands above the fills and below every road', () => {
@@ -1704,6 +2006,17 @@ describe('cycling ways from Barrelman', () => {
     for (const l of tints) expect(JSON.stringify(l.filter)).not.toContain('bicycle_yes')
   })
 
+  test('a street a signed route follows is tinted', () => {
+    const minor = tints.find(l => l.id === `Minor road${CYCLING_WAYS_SUFFIX}`)!
+    const f = featureFilter(minor.filter, 'filter')
+    const draws = f.filter(
+      { zoom: 16 } as any,
+      { type: 2, properties: { highway: 'residential', infra_type: 'bicycle_route' } } as any,
+      {} as any,
+    )
+    expect(draws).toBe(true)
+  })
+
   test('the toggle reaches the Barrelman tint as well as the basemap twins', () => {
     for (const id of CYCLING_WAYS_LAYER_IDS) expect(layerGroups.cycling).toContain(id)
   })
@@ -1727,13 +2040,35 @@ describe('cycling markings', () => {
   const built = buildLayers({ flavor: 'light' }) as any[]
   const strokes = built.filter(l => l.id.startsWith('Cycling '))
 
-  test('one layer per pattern per side', () => {
-    expect(strokes).toHaveLength(6)
+  test('one layer per pattern per side, in each band', () => {
+    expect(strokes).toHaveLength(12)
     for (const kind of ['track', 'lane', 'shoulder']) {
       for (const side of ['left', 'right']) {
-        expect(strokes.map(l => l.id)).toContain(`Cycling ${kind} ${side}`)
+        for (const band of ['', ' bridge']) {
+          expect(strokes.map(l => l.id)).toContain(`Cycling ${kind} ${side}${band}`)
+        }
       }
     }
+  })
+
+  /**
+   * A marking follows its street across the basemap's split. Left in one band
+   * above both, a lane marking on a street passing under a viaduct was drawn
+   * across the deck carrying the traffic over it.
+   */
+  test('a marking is drawn in the band of the street it marks', () => {
+    const at = (id: string) => built.findIndex(l => l.id === id)
+    expect(at('Cycling lane right')).toBeLessThan(at('Bridge'))
+    expect(at('Cycling lane right')).toBeGreaterThan(at('Minor road'))
+    expect(at('Cycling lane right bridge')).toBeGreaterThan(at('Minor road bridge'))
+    const draws = (id: string, properties: Record<string, unknown>) =>
+      featureFilter(built.find(l => l.id === id)!.filter, `${id}.filter`)
+        .filter({ zoom: 17 } as any, { type: 2, properties } as any, {} as any)
+    const lane = { highway: 'residential', cycleway_right: 'lane' }
+    expect(draws('Cycling lane right', lane)).toBe(true)
+    expect(draws('Cycling lane right', { ...lane, bridge: true })).toBe(false)
+    expect(draws('Cycling lane right bridge', lane)).toBe(false)
+    expect(draws('Cycling lane right bridge', { ...lane, bridge: true })).toBe(true)
   })
 
   /** Solid = kerbed, short dash = paint, dot = shared with traffic. */
@@ -1778,6 +2113,37 @@ describe('cycling markings', () => {
     for (const middle of ['shared_lane', 'bicycle_road', 'cycle_street']) {
       expect(sides, middle).not.toContain(middle)
     }
+  })
+
+  /**
+   * The roads these marks sit on are not drawn where a way is in a tunnel, so a
+   * mark on one is a green ribbon through a hillside with no road under it. The
+   * dedicated-cycleway layers draw their tunnels in the basemap's tunnel band.
+   */
+  test('nothing paints a way that is in a tunnel', () => {
+    const marks = [
+      ...strokes,
+      ...built.filter(l => l.id.endsWith(CYCLING_WAYS_SUFFIX)),
+    ]
+    for (const l of marks) {
+      const f = featureFilter(l.filter, `${l.id}.filter`)
+      const draws = (properties: Record<string, unknown>) =>
+        f.filter({ zoom: 17 } as any, { type: 2, properties } as any, {} as any)
+      expect(
+        draws({ highway: 'residential', infra_type: 'cycle_lane', cycleway_right: 'lane', tunnel: true }),
+        l.id,
+      ).toBe(false)
+      expect(
+        draws({ highway: 'residential', infra_type: 'bicycle_road', tunnel: true }),
+        l.id,
+      ).toBe(false)
+    }
+    // And a surface way still is.
+    const tint = built.find(l => l.id === `Minor road${CYCLING_WAYS_SUFFIX}`)!
+    const f = featureFilter(tint.filter, 'tint.filter')
+    expect(
+      f.filter({ zoom: 17 } as any, { type: 2, properties: { highway: 'residential', infra_type: 'bicycle_road' } } as any, {} as any),
+    ).toBe(true)
   })
 
   test('left and right are mirrored, and right is positive', () => {

@@ -67,6 +67,77 @@ function previewTitle(): Plugin {
   }
 }
 
+const IDENTITY_KEYS = ['parchment-identity-seed', 'parchment-device-id']
+const IDENTITY_PATH = '/__preview-identity'
+
+/**
+ * Keep one sign-in across every branch preview.
+ *
+ * Each preview is its own origin, so its localStorage starts without the
+ * wrapped identity seed. The base (PREVIEW_IDENTITY_SHARE) holds the latest
+ * one for same-host frames: a preview (PREVIEW_IDENTITY_SOURCE) without a seed
+ * takes it and reloads, and one that gains a seed hands it back, so a key
+ * entered on a preview outlives that preview.
+ */
+function previewIdentity(): Plugin {
+  const keys = JSON.stringify(IDENTITY_KEYS)
+  const source = process.env.PREVIEW_IDENTITY_SOURCE?.trim()
+  const share = process.env.PREVIEW_IDENTITY_SHARE === '1'
+
+  const sharePage = `<!doctype html><script>
+const keys = ${keys}
+addEventListener('message', (e) => {
+  if (new URL(e.origin).hostname !== location.hostname) return
+  if (e.data?.type === 'push') keys.forEach((k) => localStorage.setItem(k, e.data.identity[k]))
+  if (e.data?.type === 'pull') {
+    const identity = Object.fromEntries(keys.map((k) => [k, localStorage.getItem(k)]))
+    e.source.postMessage({ type: 'identity', identity }, e.origin)
+  }
+})
+</script>`
+
+  const syncScript = `(() => {
+  const keys = ${keys}, source = ${JSON.stringify(source)}
+  const read = () => Object.fromEntries(keys.map((k) => [k, localStorage.getItem(k)]))
+  const complete = (identity) => keys.every((k) => identity?.[k])
+  let shared = localStorage.getItem(keys[0])
+  const frame = document.createElement('iframe')
+  frame.hidden = true
+  frame.src = source + '${IDENTITY_PATH}'
+  const post = (message) => frame.contentWindow.postMessage(message, source)
+  addEventListener('message', (e) => {
+    if (e.origin !== source || e.data?.type !== 'identity') return
+    if (!complete(e.data.identity) || localStorage.getItem(keys[0])) return
+    keys.forEach((k) => localStorage.setItem(k, e.data.identity[k]))
+    location.reload()
+  })
+  frame.onload = () => {
+    if (!shared) post({ type: 'pull' })
+    setInterval(() => {
+      const identity = read()
+      if (!complete(identity) || identity[keys[0]] === shared) return
+      shared = identity[keys[0]]
+      post({ type: 'push', identity })
+    }, 2000)
+  }
+  document.documentElement.append(frame)
+})()`
+
+  return {
+    name: 'preview-identity',
+    apply: 'serve',
+    configureServer(server) {
+      if (!share) return
+      server.middlewares.use(IDENTITY_PATH, (_req, res) => {
+        res.setHeader('Content-Type', 'text/html')
+        res.end(sharePage)
+      })
+    },
+    transformIndexHtml: () =>
+      source ? [{ tag: 'script', children: syncScript, injectTo: 'head-prepend' }] : [],
+  }
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -78,6 +149,7 @@ export default defineConfig({
     }),
     maplibreWorkerChunk(),
     previewTitle(),
+    previewIdentity(),
     // Offline-capable PWA. Custom worker (src/service-worker.ts) precaches only the app
     // shell — the full dist is ~24MB across 1600+ files, mostly lazy chunks
     // that runtime caching picks up as they're used. Registration happens in

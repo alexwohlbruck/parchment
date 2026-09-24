@@ -40,10 +40,13 @@ let fetchError: Error | null = null
 const fetchCalls: string[] = []
 /** Headers per call, so auth can be asserted as well as the URL. */
 const fetchHeaders: Record<string, string>[] = []
+/** Whether each call asked Bun to leave the body compressed. */
+const fetchDecompress: (boolean | undefined)[] = []
 
 globalThis.fetch = mock(async (url: any, init?: any) => {
   fetchCalls.push(String(url))
   fetchHeaders.push({ ...(init?.headers ?? {}) })
+  fetchDecompress.push(init?.decompress)
   if (fetchError) throw fetchError
   return fetchResponses.shift() ?? new Response(new Uint8Array([1, 2, 3]))
 }) as any
@@ -69,6 +72,7 @@ beforeEach(() => {
   martinTileCache.clear()
   fetchCalls.length = 0
   fetchHeaders.length = 0
+  fetchDecompress.length = 0
   fetchResponses = []
   fetchError = null
   configuredIntegrations = [barrelmanIntegration]
@@ -204,6 +208,165 @@ describe('GET /proxy/mapillary/...', () => {
     await req(app).get('/proxy/barrelman/basemap/9/2/2')
     // both 503s went upstream — the failure was not remembered
     expect(fetchCalls.length).toBe(3)
+  })
+
+  /**
+   * Barrelman gzips its tiles and `fetch()` silently decompresses them, so
+   * without this every tile was handed on at roughly 1.6x the size Barrelman
+   * produced, with no encoding header — and the CDN re-compressed it for the
+   * browser, hiding the cost on the one hop that crosses a network.
+   */
+  test('gzips the tile and says so when the caller accepts it', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array(4096).fill(0x42)
+    fetchResponses = [
+      new Response(tile, { headers: { 'content-type': 'application/x-protobuf' } }),
+    ]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/basemap/14/4825/6156', {
+        headers: { 'accept-encoding': 'gzip, deflate, br' },
+      }),
+    )
+
+    expect(res.headers.get('content-encoding')).toBe('gzip')
+    expect(res.headers.get('vary')).toBe('Accept-Encoding')
+
+    const sent = new Uint8Array(await res.arrayBuffer())
+    expect(sent.byteLength).toBeLessThan(tile.byteLength)
+    expect(new Uint8Array(Bun.gunzipSync(sent))).toEqual(tile)
+  })
+
+  /**
+   * The gzip Barrelman sent is handed on untouched. Unzipping it and zipping
+   * it again cost ~10 ms of synchronous CPU per dense tile, on the thread that
+   * serves every request, to produce bytes Barrelman had already produced.
+   */
+  test('passes upstream gzip through without re-zipping it', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const upstream = new Uint8Array(Bun.gzipSync(new Uint8Array(4096).fill(0x42)))
+    fetchResponses = [
+      new Response(upstream, {
+        headers: { 'content-type': 'application/x-protobuf', 'content-encoding': 'gzip' },
+      }),
+    ]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/basemap/14/7/7', {
+        headers: { 'accept-encoding': 'gzip' },
+      }),
+    )
+
+    expect(fetchDecompress[0]).toBe(false)
+    expect(fetchHeaders[0]['Accept-Encoding']).toBe('gzip')
+    expect(res.headers.get('content-encoding')).toBe('gzip')
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(upstream)
+  })
+
+  /**
+   * Bun's fetch reports `content-encoding: gzip` even when it has unzipped
+   * the body. Trusting that header would send plain bytes labelled as gzip —
+   * a corrupt tile for every client — so the bytes themselves decide.
+   */
+  test('re-zips a plain body even when the header claims gzip', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array(2048).fill(0x1a)
+    fetchResponses = [
+      new Response(tile, {
+        headers: { 'content-type': 'application/x-protobuf', 'content-encoding': 'gzip' },
+      }),
+    ]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/basemap/14/8/8', {
+        headers: { 'accept-encoding': 'gzip' },
+      }),
+    )
+
+    const sent = new Uint8Array(await res.arrayBuffer())
+    expect(new Uint8Array(Bun.gunzipSync(sent))).toEqual(tile)
+  })
+
+  test('sends plain bytes to a caller that cannot read gzip', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array([1, 2, 3, 4, 5])
+    fetchResponses = [
+      new Response(tile, { headers: { 'content-type': 'application/x-protobuf' } }),
+    ]
+
+    const res = await app.handle(
+      new Request('http://localhost/proxy/barrelman/basemap/14/1/1', {
+        headers: { 'accept-encoding': 'identity' },
+      }),
+    )
+
+    expect(res.headers.get('content-encoding')).toBeNull()
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(tile)
+  })
+
+  /** The cache holds the gzipped bytes, so a hit must still decode. */
+  test('a cached hit is served gzipped too', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array(2048).fill(0x7)
+    fetchResponses = [
+      new Response(tile, { headers: { 'content-type': 'application/x-protobuf' } }),
+    ]
+
+    const url = 'http://localhost/proxy/barrelman/basemap/14/9/9'
+    const opts = { headers: { 'accept-encoding': 'gzip' } }
+    const first = await app.handle(new Request(url, opts))
+    expect(first.headers.get('X-Cache')).toBe('MISS')
+
+    const second = await app.handle(new Request(url, opts))
+    expect(second.headers.get('X-Cache')).toBe('HIT')
+    expect(second.headers.get('content-encoding')).toBe('gzip')
+    expect(fetchCalls.length).toBe(1)
+
+    const sent = new Uint8Array(await second.arrayBuffer())
+    expect(new Uint8Array(Bun.gunzipSync(sent))).toEqual(tile)
+  })
+
+  /** And a hit still unzips for the caller that cannot read gzip. */
+  test('a cached hit unzips for a caller that cannot read gzip', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    const tile = new Uint8Array([9, 8, 7, 6])
+    fetchResponses = [
+      new Response(tile, { headers: { 'content-type': 'application/x-protobuf' } }),
+    ]
+
+    const url = 'http://localhost/proxy/barrelman/basemap/14/3/3'
+    await app.handle(new Request(url, { headers: { 'accept-encoding': 'gzip' } }))
+    const hit = await app.handle(
+      new Request(url, { headers: { 'accept-encoding': 'identity' } }),
+    )
+
+    expect(hit.headers.get('X-Cache')).toBe('HIT')
+    expect(hit.headers.get('content-encoding')).toBeNull()
+    expect(new Uint8Array(await hit.arrayBuffer())).toEqual(tile)
+  })
+
+  test('tiles carry stale-while-revalidate so an expiry is not a cold wait', async () => {
+    configuredIntegrations = [
+      { integrationId: 'barrelman', config: { host: 'http://barrelman.test', apiKey: 'k' } },
+    ]
+    fetchResponses = [tileResponse()]
+
+    const res = await req(app).get('/proxy/barrelman/basemap/12/5/5')
+    expect(res.headers.get('cache-control')).toBe(
+      'public, max-age=86400, stale-while-revalidate=604800',
+    )
   })
 
   test('forwards the upstream status on failure', async () => {

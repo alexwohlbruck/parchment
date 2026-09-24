@@ -7,7 +7,7 @@ import {
   detailSources,
   parkingLayers,
   treeLayers,
-  BUILDING_3D_SOURCE,
+  DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
 import { buildingColor, BUILDING_TINT } from './building-color.mjs'
@@ -17,7 +17,6 @@ import {
   CYCLING_WAYS_LAYER_IDS,
   cyclingStrokeLayers,
   cyclingWaysLayers,
-  cyclingWaysSource,
 } from './cycling-layers'
 import { barrelmanBuildingsReady } from './barrelman-buildings'
 import lightTokens from './tokens.light.json'
@@ -469,7 +468,7 @@ export function buildLayers(options: {
  * Point the 3D buildings at Barrelman's source, and add the roof-colour layer.
  *
  * The basemap's own building layer cannot tell a part-mapped building's outline
- * from its parts — see `BUILDING_3D_SOURCE` — so the extrusion reads from
+ * from its parts — see `DETAIL_SOURCE` — so the extrusion reads from
  * Barrelman instead, where the outline carries `hide_3d` and the filter the
  * spec already has (`["!has", "hide_3d"]`, MapTiler's own) finally bites.
  *
@@ -494,7 +493,7 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
 
   const fromBarrelman = (layer: any) => ({
     ...layer,
-    source: BUILDING_3D_SOURCE,
+    source: DETAIL_SOURCE,
     'source-layer': BUILDING_3D_TILES,
     // The same outlines have to go from here too, or the layer draws an edge
     // around a building that is no longer extruded under it.
@@ -597,7 +596,6 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sources: {
       [SOURCE]: vectorSource(tileServerUrl, tileKey),
       ...detailSources(source => buildTileUrl(tileServerUrl, tileKey, source)),
-      ...cyclingWaysSource(source => buildTileUrl(tileServerUrl, tileKey, source)),
     },
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),

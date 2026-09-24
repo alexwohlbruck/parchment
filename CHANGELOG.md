@@ -7,6 +7,7 @@
 ### Changed
 
 * Bike routes are labelled by number when zoomed out and by their full name up close.
+* The map now fetches its detail overlays — parking, 3D buildings, trees and cycling ways — as a single tileset instead of five separate ones. A map view is thirty to sixty tiles per overlay, so this is five times fewer requests for the same picture; panning settles noticeably sooner.
 * Woodland, parks and playing fields now read as green on the night map instead of vanishing into the ground.
 
 ### Fixed
@@ -14,6 +15,8 @@
 * Streets along a signed bike route are now tinted green in the cycling layer, even where nothing is painted on the road.
 * Planned greenways tagged only as proposed now show as dotted proposed bikeways instead of being left off the map.
 * Zoomed out, the cycling layer draws signed bike routes instead of covering every bike-friendly street in green.
+* The map, search and transit no longer go dark for minutes when Barrelman is briefly rate-limiting the server as it starts. A throttled connection check used to switch the whole integration off until a background retry happened to land, and every map tile answered as though Barrelman were not configured at all.
+* Map tiles now reach the browser compressed. They were being handed on at 463 KB where 275 KB would do — the tile server compresses them, and decompressing to read them threw that away — so every tile the CDN fetched crossed the network at two-thirds more than its weight. Panning into new ground is quicker, most visibly on a slow connection.
 * Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.
 * The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
 * The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.

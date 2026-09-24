@@ -171,7 +171,6 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
 
       <SettingsItem
-        v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.3dTerrain')"
         :icon="MountainSnowIcon"
         :badge="$t('settings.mapSettings.configuration.experimental')"

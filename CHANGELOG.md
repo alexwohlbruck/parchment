@@ -2,6 +2,7 @@
 
 ### Added
 
+* 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
 * Trip maps now draw the stops, station names and line bullets along each transit leg, instead of a bare coloured line.
 
 ### Changed

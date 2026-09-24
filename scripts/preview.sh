@@ -170,30 +170,25 @@ clone_db() {
   [ "$(table_count "$target")" -gt 0 ] || die "clone of $BASE_DB into $target produced no tables"
 }
 
-# Bring the base's sign-ins into a preview's database, so the session cookie
-# (shared across ports) and the device key the web client copies from the base
-# are both valid there. Runs on every up: a clone predates later sign-ins.
-sync_auth() {
-  local target=$1
-  local pg=(docker exec -i -e PGPASSWORD="$PGPW" "$DB_CONTAINER" psql -h 127.0.0.1 -U "$PGUSER" -v ON_ERROR_STOP=1 -q)
-  {
-    echo "CREATE TEMP TABLE s (id text, user_id text, expires_at timestamptz);"
-    echo "CREATE TEMP TABLE w (user_id text, device_id text, secret text);"
-    echo "COPY s FROM STDIN;"
-    "${pg[@]}" -d "$BASE_DB" -c "COPY (SELECT id, user_id, expires_at FROM sessions WHERE expires_at > now()) TO STDOUT"
-    echo '\.'
-    echo "COPY w FROM STDIN;"
-    "${pg[@]}" -d "$BASE_DB" -c "COPY (SELECT user_id, device_id, secret FROM device_wrap_secrets) TO STDOUT"
-    echo '\.'
-    cat <<'SQL'
-INSERT INTO sessions (id, user_id, expires_at)
-  SELECT s.* FROM s JOIN users u ON u.id = s.user_id
-  ON CONFLICT (id) DO UPDATE SET expires_at = GREATEST(sessions.expires_at, excluded.expires_at);
-INSERT INTO device_wrap_secrets (user_id, device_id, secret)
-  SELECT w.* FROM w JOIN users u ON u.id = w.user_id
-  ON CONFLICT (user_id, device_id) DO UPDATE SET secret = excluded.secret, rotated_at = now();
+# A preview reads and writes sign-ins in the base database rather than its own
+# copy: the session cookie is shared across ports, so a sign-in on any slot has
+# to be valid on every slot, and has to outlive the preview it was made on.
+# A branch whose migrations alter these tables cannot run against this.
+share_auth() {
+  local target=$1 pw=${PGPW//\'/\'\'}
+  docker exec -i -e PGPASSWORD="$PGPW" "$DB_CONTAINER" \
+      psql -h 127.0.0.1 -U "$PGUSER" -d "$target" -v ON_ERROR_STOP=1 -q >/dev/null <<SQL \
+    || die "could not link $target's sign-ins to $BASE_DB"
+CREATE EXTENSION IF NOT EXISTS postgres_fdw;
+DROP SERVER IF EXISTS parchment_base CASCADE;
+CREATE SERVER parchment_base FOREIGN DATA WRAPPER postgres_fdw
+  OPTIONS (host '127.0.0.1', port '5432', dbname '$BASE_DB');
+CREATE USER MAPPING FOR CURRENT_USER SERVER parchment_base
+  OPTIONS (user '$PGUSER', password '$pw');
+DROP TABLE IF EXISTS sessions, device_wrap_secrets;
+IMPORT FOREIGN SCHEMA public LIMIT TO (sessions, device_wrap_secrets)
+  FROM SERVER parchment_base INTO public OPTIONS (import_default 'true');
 SQL
-  } | "${pg[@]}" -d "$target" >/dev/null || log "could not copy sign-ins into $target — sign in by hand"
 }
 
 drop_db() {
@@ -418,7 +413,7 @@ cmd_up() {
   [ -n "$host" ] || die "tailscale is not up on this machine"
 
   log "slot $slot — branch $branch"
-  [ "$slot" -eq 0 ] || { clone_db "$dbname"; sync_auth "$dbname"; }
+  [ "$slot" -eq 0 ] || { clone_db "$dbname"; share_auth "$dbname"; }
 
   log "installing dependencies"
   (cd "$worktree/server" && "$BUN" install --silent) || die "server deps failed"

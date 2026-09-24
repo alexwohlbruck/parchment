@@ -67,6 +67,66 @@ function previewTitle(): Plugin {
   }
 }
 
+const IDENTITY_KEYS = ['parchment-identity-seed', 'parchment-device-id']
+const IDENTITY_PATH = '/__preview-identity'
+
+/**
+ * Carry the base instance's sign-in over to branch previews.
+ *
+ * Each preview is its own origin, so its localStorage starts without the
+ * wrapped identity seed and the recovery key has to be entered again. The base
+ * (PREVIEW_IDENTITY_SHARE) serves a page that hands those keys to same-host
+ * frames; a fresh preview (PREVIEW_IDENTITY_SOURCE) fetches them once and
+ * reloads. The seed only unwraps with a session, which scripts/preview.sh
+ * copies into the preview's database.
+ */
+function previewIdentity(): Plugin {
+  const keys = JSON.stringify(IDENTITY_KEYS)
+  const source = process.env.PREVIEW_IDENTITY_SOURCE?.trim()
+  const share = process.env.PREVIEW_IDENTITY_SHARE === '1'
+
+  const sharePage = `<!doctype html><script>
+addEventListener('message', (e) => {
+  if (e.data !== 'parchment-preview-identity') return
+  if (new URL(e.origin).hostname !== location.hostname) return
+  const entries = ${keys}.map((k) => [k, localStorage.getItem(k)])
+  e.source.postMessage(Object.fromEntries(entries), e.origin)
+})
+</script>`
+
+  const fetchScript = `(() => {
+  const keys = ${keys}, source = ${JSON.stringify(source)}
+  if (localStorage.getItem(keys[0])) return
+  const frame = document.createElement('iframe')
+  frame.hidden = true
+  frame.src = source + '${IDENTITY_PATH}'
+  addEventListener('message', function receive(e) {
+    if (e.origin !== source) return
+    removeEventListener('message', receive)
+    frame.remove()
+    if (!keys.every((k) => e.data?.[k])) return
+    keys.forEach((k) => localStorage.setItem(k, e.data[k]))
+    location.reload()
+  })
+  frame.onload = () => frame.contentWindow.postMessage('parchment-preview-identity', source)
+  document.documentElement.append(frame)
+})()`
+
+  return {
+    name: 'preview-identity',
+    apply: 'serve',
+    configureServer(server) {
+      if (!share) return
+      server.middlewares.use(IDENTITY_PATH, (_req, res) => {
+        res.setHeader('Content-Type', 'text/html')
+        res.end(sharePage)
+      })
+    },
+    transformIndexHtml: () =>
+      source ? [{ tag: 'script', children: fetchScript, injectTo: 'head-prepend' }] : [],
+  }
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
@@ -78,6 +138,7 @@ export default defineConfig({
     }),
     maplibreWorkerChunk(),
     previewTitle(),
+    previewIdentity(),
     // Offline-capable PWA. Custom worker (src/service-worker.ts) precaches only the app
     // shell — the full dist is ~24MB across 1600+ files, mostly lazy chunks
     // that runtime caching picks up as they're used. Registration happens in

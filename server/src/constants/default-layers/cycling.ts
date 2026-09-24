@@ -24,11 +24,20 @@ import { LayerType } from '../../schema/layers.schema'
  * transit lines that cross above it.
  */
 
-const SOURCE = {
-  id: 'bicycle-ways',
-  type: 'vector' as const,
-  tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-  maxzoom: 16,
+/** Barrelman's two cycling tile sets, keyed by the layer inside each. */
+const SOURCES = {
+  bicycle_ways: {
+    id: 'bicycle-ways',
+    type: 'vector' as const,
+    tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+    maxzoom: 16,
+  },
+  bicycle_routes: {
+    id: 'bicycle-routes',
+    type: 'vector' as const,
+    tiles: ['{PROXY_URL}/barrelman/bicycle_routes/{z}/{x}/{y}'],
+    maxzoom: 14,
+  },
 }
 
 /**
@@ -103,9 +112,10 @@ interface WayLayer {
   visible?: boolean
   /** Which band of the basemap it draws in; see `layer-slots.ts`. */
   slot?: string
+  tiles?: keyof typeof SOURCES
 }
 
-/** Everything drawn from Barrelman's `bicycle_ways`, as one shape. */
+/** Every line drawn from Barrelman's cycling tiles, as one shape. */
 function wayLayer(l: WayLayer): DefaultLayerTemplate {
   return {
     templateId: `default:${l.id}`,
@@ -124,8 +134,8 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
       type: 'line',
       // Above the roads, below the labels; see `layer-slots.ts`.
       slot: l.slot ?? 'middle',
-      source: SOURCE,
-      'source-layer': 'bicycle_ways',
+      source: SOURCES[l.tiles ?? 'bicycle_ways'],
+      'source-layer': l.tiles ?? 'bicycle_ways',
       minzoom: l.minzoom,
       ...(l.maxzoom ? { maxzoom: l.maxzoom } : {}),
       filter: l.filter,
@@ -340,7 +350,8 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 10,
     minzoom: 9,
     maxzoom: 12,
-    filter: ['!=', ['get', 'state'], 'proposed'],
+    tiles: 'bicycle_routes',
+    filter: ['all', ['==', ['get', 'route_type'], 'bicycle'], ROUTE_IS_RIDEABLE],
     color: themed(INK.route),
     width: width(9, 0.8, 10, 1, 12, 1.4),
     dash: [5, 2, 1, 2],
@@ -387,15 +398,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     configuration: {
       id: 'bicycle-routes-labels',
       type: 'symbol',
-      source: {
-        id: 'bicycle-routes',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
+      source: SOURCES.bicycle_routes,
       'source-layer': 'bicycle_routes',
       minzoom: 10,
-      filter: ['all', ['any', ['has', 'name'], ['has', 'ref']], ROUTE_IS_RIDEABLE],
+      filter: [
+        'all',
+        ['!=', ['coalesce', ['get', 'name'], ['get', 'ref'], ''], ''],
+        ROUTE_IS_RIDEABLE,
+      ],
       paint: {
         'text-color': themed(INK.route),
         'text-halo-color': themed({ light: '#ffffff', dark: '#0d1016' }),
@@ -411,7 +421,7 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
           'step',
           ['zoom'],
           ['coalesce', ['get', 'ref'], ['get', 'name']],
-          13,
+          15,
           ['coalesce', ['get', 'name'], ['get', 'ref']],
         ],
         'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],

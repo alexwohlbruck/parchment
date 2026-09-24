@@ -154,6 +154,12 @@ describe('cycling defaults', () => {
     expect(route.configuration.minzoom).toBeLessThan(12)
   })
 
+  /** Every bike lane in bicycle_ways drawn as a route buries the city in green. */
+  test('the overview draws signed routes, not the whole network', () => {
+    const route = lines.find(t => t.configuration.id === 'bicycle-routes')!
+    expect(route.configuration['source-layer']).toBe('bicycle_routes')
+  })
+
   /** Past the handover the route's name is what says it is signed. */
   test('route labels draw past the handover, at every zoom', () => {
     const labels = CYCLING_LAYER_TEMPLATES.find(
@@ -186,7 +192,9 @@ describe('cycling defaults', () => {
       const seen = new Set<string>()
       const walk = (f: any) => {
         if (!Array.isArray(f)) return
-        if (OPS.has(f[0])) seen.add(typeof f[1] === 'string' ? 'legacy' : 'expression')
+        // Expression `in` searches a string for a substring: a string first, an expression after.
+        const substring = f[0] === 'in' && Array.isArray(f[2])
+        if (OPS.has(f[0])) seen.add(typeof f[1] === 'string' && !substring ? 'legacy' : 'expression')
         f.forEach(walk)
       }
       walk(t.configuration.filter)

@@ -6,13 +6,14 @@
 
 ### Changed
 
-* The cycling layer labels named bike routes by their full name when zoomed in, rather than just the route number.
+* Bike routes are labelled by number when zoomed out and by their full name up close.
 * Woodland, parks and playing fields now read as green on the night map instead of vanishing into the ground.
 
 ### Fixed
 
 * Streets along a signed bike route are now tinted green in the cycling layer, even where nothing is painted on the road.
 * Planned greenways tagged only as proposed now show as dotted proposed bikeways instead of being left off the map.
+* Zoomed out, the cycling layer draws signed bike routes instead of covering every bike-friendly street in green.
 * Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.
 * The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
 * The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.

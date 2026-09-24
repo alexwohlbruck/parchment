@@ -11,6 +11,7 @@
 
 ### Fixed
 
+* The map, search and transit no longer go dark for minutes when Barrelman is briefly rate-limiting the server as it starts. A throttled connection check used to switch the whole integration off until a background retry happened to land, and every map tile answered as though Barrelman were not configured at all.
 * Map tiles now reach the browser compressed. They were being handed on at 463 KB where 275 KB would do — the tile server compresses them, and decompressing to read them threw that away — so every tile the CDN fetched crossed the network at two-thirds more than its weight. Panning into new ground is quicker, most visibly on a slow connection.
 * Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.
 * The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.

@@ -245,7 +245,6 @@ export class MaplibreStrategy extends MapStrategy {
   private streetViewLayerIds: Set<string> = new Set()
   private unwatchTheme?: () => void
   private tileServerUrl?: string
-  private tileKey?: string
   private currentBasemap: Basemap = 'standard'
   private poiHandlerCleanup: (() => void) | null = null
   /** The two switches gating the building lighting; see `applyBuildingShade`. */
@@ -261,11 +260,9 @@ export class MaplibreStrategy extends MapStrategy {
     options: MapSettings,
     accessToken?: string,
     tileServerUrl?: string,
-    tileKey?: string,
   ) {
     super(container, options, accessToken)
     this.tileServerUrl = tileServerUrl
-    this.tileKey = tileKey
     // Seed currentBasemap from the persisted map settings so that engine
     // swaps preserve satellite/hybrid mode. Without this, a fresh strategy
     // instance always started on 'standard' and only picked up the real
@@ -299,22 +296,6 @@ export class MaplibreStrategy extends MapStrategy {
       // mapped straight to bearing wherever the cursor was — which is what this
       // map has always felt like, and what Mapbox does.
       aroundCenter: false,
-      transformRequest: (url, resourceType) => {
-        // Add auth header for tile requests to the barrelman tile proxy
-        if (
-          this.tileKey &&
-          this.tileServerUrl &&
-          url.startsWith(this.tileServerUrl)
-        ) {
-          return {
-            url,
-            headers: {
-              Authorization: `Bearer ${this.tileKey}`,
-            },
-          }
-        }
-        return { url }
-      },
     })
 
     // A console handle for poking the live map — camera, transform, layers —
@@ -363,13 +344,12 @@ export class MaplibreStrategy extends MapStrategy {
   private async adoptBarrelmanBuildings() {
     if (!this.tileServerUrl) return
     const base = this.tileServerUrl
-    const key = this.tileKey
     // Ask for the bundle, not `buildings_3d` alone: the extrusion reads the
     // bundle, and a Barrelman from before bundles serves `buildings_3d` but 404s
     // `detail` — so probing the member would switch the style onto a source
     // that draws no buildings at all.
     await probeBarrelmanBuildings(
-      (z, x, y) => `${base}/${DETAIL_TILES}/${z}/${x}/${y}${key ? `?token=${key}` : ''}`,
+      (z, x, y) => `${base}/${DETAIL_TILES}/${z}/${x}/${y}`,
       this.mapInstance.getCenter(),
     )
     // Only when the answer is yes. The style is already built on the basemap,
@@ -908,7 +888,6 @@ export class MaplibreStrategy extends MapStrategy {
     return buildMapStyle({
       tileServerUrl: this.tileServerUrl,
       theme,
-      tileKey: this.tileKey,
       mapStyle: this.options.mapStyle,
       poiStyle: this.poiStyle(),
       categoryColors: this.categoryColors(theme),
@@ -1133,7 +1112,6 @@ export class MaplibreStrategy extends MapStrategy {
     const styleOpts = {
       tileServerUrl: this.tileServerUrl,
       theme: theme as 'light' | 'dark',
-      tileKey: this.tileKey,
       mapStyle: this.options.mapStyle,
       poiStyle: this.poiStyle(),
       categoryColors: this.categoryColors(theme),

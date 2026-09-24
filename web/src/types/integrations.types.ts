@@ -231,7 +231,6 @@ export const configSchemas: Record<
       .url('Please enter a valid URL')
       .default('https://api.barrelman.dev'),
     apiKey: z.string().optional(),
-    tileKey: z.string().optional(),
   }),
 
   axiomSchema: z.object({

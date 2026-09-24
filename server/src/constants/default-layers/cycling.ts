@@ -24,11 +24,20 @@ import { LayerType } from '../../schema/layers.schema'
  * transit lines that cross above it.
  */
 
-const SOURCE = {
-  id: 'bicycle-ways',
-  type: 'vector' as const,
-  tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
-  maxzoom: 16,
+/** Barrelman's two cycling tile sets, keyed by the layer inside each. */
+const SOURCES = {
+  bicycle_ways: {
+    id: 'bicycle-ways',
+    type: 'vector' as const,
+    tiles: ['{PROXY_URL}/barrelman/bicycle_ways/{z}/{x}/{y}'],
+    maxzoom: 16,
+  },
+  bicycle_routes: {
+    id: 'bicycle-routes',
+    type: 'vector' as const,
+    tiles: ['{PROXY_URL}/barrelman/bicycle_routes/{z}/{x}/{y}'],
+    maxzoom: 14,
+  },
 }
 
 /**
@@ -103,9 +112,10 @@ interface WayLayer {
   visible?: boolean
   /** Which band of the basemap it draws in; see `layer-slots.ts`. */
   slot?: string
+  tiles?: keyof typeof SOURCES
 }
 
-/** Everything drawn from Barrelman's `bicycle_ways`, as one shape. */
+/** Every line drawn from Barrelman's cycling tiles, as one shape. */
 function wayLayer(l: WayLayer): DefaultLayerTemplate {
   return {
     templateId: `default:${l.id}`,
@@ -124,8 +134,8 @@ function wayLayer(l: WayLayer): DefaultLayerTemplate {
       type: 'line',
       // Above the roads, below the labels; see `layer-slots.ts`.
       slot: l.slot ?? 'middle',
-      source: SOURCE,
-      'source-layer': 'bicycle_ways',
+      source: SOURCES[l.tiles ?? 'bicycle_ways'],
+      'source-layer': l.tiles ?? 'bicycle_ways',
       minzoom: l.minzoom,
       ...(l.maxzoom ? { maxzoom: l.maxzoom } : {}),
       filter: l.filter,
@@ -196,6 +206,16 @@ const CYCLEWAY = ['==', 'infra_type', 'cycleway']
 const CYCLEWAY_WIDTH = [11, 1, 14, 1.8, 16, 2.8, 19, 4.4]
 const BICYCLE_PATH = ['in', 'infra_type', 'path_bicycle', 'steps_bicycle']
 const BICYCLE_PATH_WIDTH = [12, 0.9, 14, 1.6, 16, 2.4, 19, 3.6]
+
+/**
+ * A route that is not built yet says so only in its name, as in "McAlpine
+ * Creek Greenway (Future)" — Barrelman's route tiles carry no state.
+ */
+const UNBUILT_MARKERS = ['future', 'proposed', 'planned', 'construction']
+const ROUTE_IS_RIDEABLE = [
+  '!',
+  ['any', ...UNBUILT_MARKERS.map(m => ['in', m, ['downcase', ['coalesce', ['get', 'name'], '']]])],
+]
 
 export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
   // Dedicated cycleways: their own way, not a street. A casing under a solid
@@ -330,7 +350,8 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     order: 10,
     minzoom: 9,
     maxzoom: 12,
-    filter: ['!=', ['get', 'state'], 'proposed'],
+    tiles: 'bicycle_routes',
+    filter: ['all', ['==', ['get', 'route_type'], 'bicycle'], ROUTE_IS_RIDEABLE],
     color: themed(INK.route),
     width: width(9, 0.8, 10, 1, 12, 1.4),
     dash: [5, 2, 1, 2],
@@ -377,15 +398,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
     configuration: {
       id: 'bicycle-routes-labels',
       type: 'symbol',
-      source: {
-        id: 'bicycle-routes',
-        type: 'vector',
-        tiles: ['{PROXY_URL}/barrelman/bicycle_routes/{z}/{x}/{y}'],
-        maxzoom: 14,
-      },
+      source: SOURCES.bicycle_routes,
       'source-layer': 'bicycle_routes',
       minzoom: 10,
-      filter: ['any', ['has', 'name'], ['has', 'ref']],
+      filter: [
+        'all',
+        ['!=', ['coalesce', ['get', 'name'], ['get', 'ref'], ''], ''],
+        ROUTE_IS_RIDEABLE,
+      ],
       paint: {
         'text-color': themed(INK.route),
         'text-halo-color': themed({ light: '#ffffff', dark: '#0d1016' }),
@@ -396,7 +416,14 @@ export const CYCLING_LAYER_TEMPLATES: DefaultLayerTemplate[] = [
       },
       layout: {
         'symbol-placement': 'line',
-        'text-field': ['coalesce', ['get', 'ref'], ['get', 'name']],
+        // The full name once a route's segments are long enough to carry it.
+        'text-field': [
+          'step',
+          ['zoom'],
+          ['coalesce', ['get', 'ref'], ['get', 'name']],
+          15,
+          ['coalesce', ['get', 'name'], ['get', 'ref']],
+        ],
         'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
         'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 12],
         'text-max-angle': 30,

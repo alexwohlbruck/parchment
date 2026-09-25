@@ -302,7 +302,7 @@ const TINT_OF_INFRA = (flavor: FlavorId): any => [
   ['get', 'infra_type'],
   ['bicycle_road', 'cycle_street', 'bicycle_designated'],
   STRENGTH[flavor].strong,
-  ['shared_lane', 'share_busway', 'opposite'],
+  ['shared_lane', 'share_busway', 'opposite', 'bicycle_route'],
   STRENGTH[flavor].faint,
   STRENGTH[flavor].medium,
 ]
@@ -312,9 +312,10 @@ const TINT_OF_INFRA = (flavor: FlavorId): any => [
  *
  * The tint claims the whole carriageway, so it has to mean the whole
  * carriageway is yours — a bicycle road, a cycle street, a road designated for
- * bikes, or a lane shared with traffic that you take by riding in it. Where
- * the provision is a strip at the edge, the street is left alone and the strip
- * is drawn where it actually is; see `STROKE_KINDS`. Bedford Avenue has a lane
+ * bikes, a lane shared with traffic that you take by riding in it, or a street
+ * a signed route sends you down with nothing painted on it. Where the
+ * provision is a strip at the edge, the street is left alone and the strip is
+ * drawn where it actually is; see `STROKE_KINDS`. Bedford Avenue has a lane
  * down each side, and painting the middle green would say you belong in the
  * traffic between them.
  *
@@ -323,7 +324,7 @@ const TINT_OF_INFRA = (flavor: FlavorId): any => [
  * absent too: permission rather than provision, and on most of the grid.
  */
 const TINTED_INFRA = [
-  'shared_lane', 'share_busway', 'opposite',
+  'shared_lane', 'share_busway', 'opposite', 'bicycle_route',
   'bicycle_road', 'cycle_street', 'bicycle_designated',
 ]
 

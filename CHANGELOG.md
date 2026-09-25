@@ -3,23 +3,58 @@
 ### Added
 
 * 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
-* Trip maps now draw the stops, station names and line bullets along each transit leg, instead of a bare coloured line.
-
 ### Changed
-
-* The map now fetches its detail overlays — parking, 3D buildings, trees and cycling ways — as a single tileset instead of five separate ones. A map view is thirty to sixty tiles per overlay, so this is five times fewer requests for the same picture; panning settles noticeably sooner.
-* Woodland, parks and playing fields now read as green on the night map instead of vanishing into the ground.
 
 ### Fixed
 
+## [0.12.5] - 2026-09-24
+
+### Changed
+
+* Bike routes are labelled by number when zoomed out and by their full name up close.
+* The map now fetches its detail overlays — parking, 3D buildings, trees and cycling ways — as a single tileset instead of five separate ones. A map view is thirty to sixty tiles per overlay, so this is five times fewer requests for the same picture; panning settles noticeably sooner.
+* Woodland, parks and playing fields now read as green on the night map instead of vanishing into the ground.
+* The Barrelman integration no longer asks for a tile key; map tiles authenticate with its API key alone.
+
+### Fixed
+
+* Streets along a signed bike route are now tinted green in the cycling layer, even where nothing is painted on the road.
+* Planned greenways tagged only as proposed now show as dotted proposed bikeways instead of being left off the map.
+* Zoomed out, the cycling layer draws signed bike routes instead of covering every bike-friendly street in green.
 * The map, search and transit no longer go dark for minutes when Barrelman is briefly rate-limiting the server as it starts. A throttled connection check used to switch the whole integration off until a background retry happened to land, and every map tile answered as though Barrelman were not configured at all.
 * Map tiles now reach the browser compressed. They were being handed on at 463 KB where 275 KB would do — the tile server compresses them, and decompressing to read them threw that away — so every tile the CDN fetched crossed the network at two-thirds more than its weight. Panning into new ground is quicker, most visibly on a slow connection.
-* Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.
-* The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
-* The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.
 * Cycleways and bike paths now run along a bridge deck instead of breaking at it, and an underpass passes beneath the street above it rather than across.
 * Footbridges now join the path they carry instead of ending in a lozenge laid over the junction, and are edged a shade deeper so the deck still reads as one.
 * Bridges now draw over the streets they cross instead of having them painted across the deck, and the roads and railways a bridge carries are drawn on it rather than under it.
+
+## [0.12.4] - 2026-09-16
+
+### Changed
+
+* The map holds recently drawn tiles in memory instead of fetching every one
+  from Barrelman again. Basemap and building tiles were forwarded uncached
+  while transit tiles were not, so panning around re-fetched the heaviest
+  tiles on the map every time.
+
+### Fixed
+
+* Tapping a station on the transit map opens it again instead of failing.
+  Stations are identified by their transit feed's stop key, and looking one up
+  went out to transit.land — which needs an account this server has no reason
+  to hold now that the transit data comes from Barrelman. Station details now
+  come from Barrelman, which already has them.
+
+## [0.12.3] - 2026-09-15
+
+### Added
+
+* Trip maps now draw the stops, station names and line bullets along each transit leg, instead of a bare coloured line.
+
+### Fixed
+
+* Highway shields are dark again on the night map, and thin out when zoomed out so the country isn't covered in route markers.
+* The map is smoother and lighter on the battery: dragging the bottom sheet no longer re-renders the map every frame, and high-density screens render at a capped resolution the eye can't tell apart.
+* The street view peek and the map buttons now fade out together as the sheet passes half screen, and sit at matching distances from the screen edges.
 
 ## [0.12.2] - 2026-09-12
 

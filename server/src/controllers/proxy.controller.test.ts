@@ -435,11 +435,11 @@ describe('GET /proxy/transitland/...', () => {
  * integration actually stores.
  */
 describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
-  test('proxies to the Barrelman host under /tiles, with the tile token', async () => {
+  test('proxies to the Barrelman host under /tiles', async () => {
     configuredIntegrations = [
       {
         integrationId: 'barrelman',
-        config: { host: 'https://barrelman.test', tileKey: 'tile-key' },
+        config: { host: 'https://barrelman.test' },
       },
     ]
     fetchResponses = [tileResponse()]
@@ -448,7 +448,6 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
 
     expect(res.status).toBe(200)
     expect(fetchCalls[0]).toContain('https://barrelman.test/tiles/geo_places/12/1170/1567')
-    expect(fetchCalls[0]).toContain('token=tile-key')
   })
 
   test('sends the integration apiKey as a bearer, like every other Barrelman call', async () => {
@@ -477,17 +476,6 @@ describe('GET /proxy/barrelman/:source/:z/:x/:y', () => {
 
     expect(res.status).toBe(501)
     expect(fetchCalls).toEqual([])
-  })
-
-  test('omits the token when none is configured', async () => {
-    configuredIntegrations = [
-      { integrationId: 'barrelman', config: { host: 'https://barrelman.test' } },
-    ]
-    fetchResponses = [tileResponse()]
-
-    await req(app).get('/proxy/barrelman/geo_places/12/1170/1567')
-
-    expect(fetchCalls[0]).not.toContain('token=')
   })
 
   test('preserves the upstream content type', async () => {

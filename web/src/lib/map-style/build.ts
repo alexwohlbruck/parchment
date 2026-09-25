@@ -199,8 +199,6 @@ export interface BasemapStyleOptions {
   mapStyle?: MapStyleId
   /** Language code for labels (e.g. "en") */
   lang?: string
-  /** Auth token for tile requests (appended as query parameter) */
-  tileKey?: string
   /** Live category palette, so basemap POIs match search-result markers. */
   categoryColors?: Partial<Record<PlaceCategoryId, string>>
   /** How POIs are drawn; defaults to the category badge. */
@@ -382,21 +380,18 @@ export const BUILDING_MIN_HEIGHT_PROPERTY = 'render_min_height'
 // Assembly
 // ---------------------------------------------------------------------------
 
-function buildTileUrl(tileServerUrl: string, tileKey?: string, source = 'basemap'): string {
-  const params = new URLSearchParams()
-  if (tileKey) params.set('token', tileKey)
-  params.set('v', cacheBuster)
-  return `${tileServerUrl}/${source}/{z}/{x}/{y}?${params.toString()}`
+function buildTileUrl(tileServerUrl: string, source = 'basemap'): string {
+  return `${tileServerUrl}/${source}/{z}/{x}/{y}?v=${cacheBuster}`
 }
 
 function origin(): string {
   return typeof window !== 'undefined' ? window.location.origin : ''
 }
 
-function vectorSource(tileServerUrl: string, tileKey?: string) {
+function vectorSource(tileServerUrl: string) {
   return {
     type: 'vector' as const,
-    tiles: [buildTileUrl(tileServerUrl, tileKey)],
+    tiles: [buildTileUrl(tileServerUrl)],
     maxzoom: 14,
     attribution: OSM_ATTRIBUTION,
   }
@@ -585,7 +580,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
 
 /** The full street basemap. */
 export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification {
-  const { tileServerUrl, theme, tileKey, mapStyle, lang, categoryColors, poiStyle } = options
+  const { tileServerUrl, theme, mapStyle, lang, categoryColors, poiStyle } = options
   const flavor: FlavorId = theme === 'dark' ? 'dark' : 'light'
 
   return {
@@ -594,8 +589,8 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     glyphs: `${origin()}${GLYPHS_PATH}`,
     sprite: `${origin()}${SPRITE_PATH}`,
     sources: {
-      [SOURCE]: vectorSource(tileServerUrl, tileKey),
-      ...detailSources(source => buildTileUrl(tileServerUrl, tileKey, source)),
+      [SOURCE]: vectorSource(tileServerUrl),
+      ...detailSources(source => buildTileUrl(tileServerUrl, source)),
     },
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),
@@ -613,7 +608,7 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
 export function buildSatelliteStyle(
   options: BasemapStyleOptions & { hybrid?: boolean },
 ): StyleSpecification {
-  const { tileServerUrl, hybrid = false, tileKey, mapStyle, lang, categoryColors, poiStyle } = options
+  const { tileServerUrl, hybrid = false, mapStyle, lang, categoryColors, poiStyle } = options
 
   const sources: StyleSpecification['sources'] = {
     'satellite-raster': {
@@ -633,7 +628,7 @@ export function buildSatelliteStyle(
   ]
 
   if (hybrid) {
-    sources[SOURCE] = vectorSource(tileServerUrl, tileKey)
+    sources[SOURCE] = vectorSource(tileServerUrl)
     const overlay = buildLayers({
       flavor: 'dark',
       categoryColors,

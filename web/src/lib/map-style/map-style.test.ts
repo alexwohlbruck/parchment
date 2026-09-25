@@ -1228,13 +1228,6 @@ describe('assembled styles', () => {
     }
   })
 
-  test('the tile URL carries the auth token when we have one', () => {
-    const withKey = buildMapStyle({ ...opts, theme: 'light', tileKey: 'abc' })
-    expect((withKey.sources.openmaptiles as any).tiles[0]).toContain('token=abc')
-    const without = buildMapStyle({ ...opts, theme: 'light' })
-    expect((without.sources.openmaptiles as any).tiles[0]).not.toContain('token=')
-  })
-
   test('a live category palette overrides the fallback tints', () => {
     const style = buildMapStyle({
       ...opts,
@@ -2011,6 +2004,17 @@ describe('cycling ways from Barrelman', () => {
 
   test('permission alone is not tinted', () => {
     for (const l of tints) expect(JSON.stringify(l.filter)).not.toContain('bicycle_yes')
+  })
+
+  test('a street a signed route follows is tinted', () => {
+    const minor = tints.find(l => l.id === `Minor road${CYCLING_WAYS_SUFFIX}`)!
+    const f = featureFilter(minor.filter, 'filter')
+    const draws = f.filter(
+      { zoom: 16 } as any,
+      { type: 2, properties: { highway: 'residential', infra_type: 'bicycle_route' } } as any,
+      {} as any,
+    )
+    expect(draws).toBe(true)
   })
 
   test('the toggle reaches the Barrelman tint as well as the basemap twins', () => {

@@ -2,9 +2,7 @@
  * The elevation source behind 3D terrain, described once for both engines.
  *
  * Mapbox's own DEM (`mapbox://mapbox.terrain-rgb`) is only reachable with a
- * Mapbox token, so it cannot serve the MapLibre engine — which is why terrain
- * has been Mapbox-only, with `setMap3dTerrain` left as a TODO on the MapLibre
- * side.
+ * Mapbox token, so it cannot serve the MapLibre engine.
  *
  * AWS Terrain Tiles is the source that works for both. It is a public dataset
  * on the AWS Open Data registry — SRTM, the USGS National Elevation Dataset and

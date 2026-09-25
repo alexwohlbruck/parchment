@@ -2,6 +2,8 @@
 
 ### Added
 
+* 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
+
 ### Changed
 
 ### Fixed

@@ -436,7 +436,7 @@ export interface MapControlSettings {
     | ControlVisibility.NEVER
   locate: ControlVisibility.ALWAYS | ControlVisibility.NEVER
   weather: ControlVisibility.ALWAYS | ControlVisibility.NEVER
-  debug: ControlVisibility.ALWAYS | ControlVisibility.NEVER
+  camera: ControlVisibility.ALWAYS | ControlVisibility.NEVER
 }
 
 export enum UnitSystem {

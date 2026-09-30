@@ -10,7 +10,6 @@ import {
   osmForStop,
 } from '@/services/layers/features/portolan/portolan-stops'
 import {
-  BugIcon,
   ChevronsRightIcon,
   CogIcon,
   DraftingCompassIcon,
@@ -18,6 +17,7 @@ import {
   HelpCircleIcon,
   LanguagesIcon,
   LogOutIcon,
+  Move3dIcon,
   PaletteIcon,
   SearchIcon,
   SettingsIcon,
@@ -66,7 +66,7 @@ export enum CommandName {
   UPDATE_THEME_RADIUS = 'updateThemeRadius',
   CHOOSE_MAP_ENGINE = 'chooseMapEngine',
   MAP_PROJECTION = 'mapProjection',
-  TOGGLE_MAP_DEBUG = 'toggleMapDebug',
+  TOGGLE_CAMERA_POSITION = 'toggleCameraPosition',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
   UPDATE_LANGUAGE = 'updateLanguage',
   SIGN_OUT = 'signOut',
@@ -382,15 +382,15 @@ export const useCommandStore = defineStore('command', () => {
         ],
       },
       {
-        id: CommandName.TOGGLE_MAP_DEBUG,
-        name: t('palette.commands.toggleMapDebug.name'),
-        description: t('palette.commands.toggleMapDebug.description'),
-        keywords: t('palette.commands.toggleMapDebug.keywords'),
-        icon: BugIcon,
-        hotkey: ['d'],
+        id: CommandName.TOGGLE_CAMERA_POSITION,
+        name: t('palette.commands.toggleCameraPosition.name'),
+        description: t('palette.commands.toggleCameraPosition.description'),
+        keywords: t('palette.commands.toggleCameraPosition.keywords'),
+        icon: Move3dIcon,
+        hotkey: ['c'],
         action: () => {
-          controlSettings.value.debug =
-            controlSettings.value.debug === ControlVisibility.ALWAYS
+          controlSettings.value.camera =
+            controlSettings.value.camera === ControlVisibility.ALWAYS
               ? ControlVisibility.NEVER
               : ControlVisibility.ALWAYS
         },

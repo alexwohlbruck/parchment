@@ -17,7 +17,7 @@ const { controlSettings } = storeToRefs(useMapStore())
 const { camera, onCameraMove } = useMapCamera()
 
 const isVisible = computed(
-  () => controlSettings.value.debug === ControlVisibility.ALWAYS,
+  () => controlSettings.value.camera === ControlVisibility.ALWAYS,
 )
 const readout = computed(() => formatCameraReadout(camera.value))
 const readoutText = computed(() => formatCameraReadoutText(camera.value))
@@ -30,16 +30,22 @@ onUnmounted(() => mapService.off('move', onCameraMove))
   <TransitionFade>
     <div
       v-if="isVisible"
-      class="flex h-6 items-center gap-2.5 rounded-md border border-input bg-background pl-2 pr-px font-mono text-[11px] tabular-nums text-muted-foreground depth"
+      class="flex max-w-full items-center gap-2 rounded-md border border-input bg-background py-0.5 pl-2 pr-px font-mono text-[11px] tabular-nums text-muted-foreground depth md:h-6 md:py-0"
     >
-      <span class="text-foreground">{{ readout.coordinates }}</span>
-      <span>z {{ readout.zoom }}</span>
-      <span>pitch {{ readout.pitch }}</span>
-      <span>bearing {{ readout.bearing }}</span>
+      <div
+        class="flex min-w-0 flex-wrap items-center gap-x-2.5 md:flex-nowrap"
+      >
+        <span class="basis-full text-foreground md:basis-auto">
+          {{ readout.coordinates }}
+        </span>
+        <span>z {{ readout.zoom }}</span>
+        <span>pitch {{ readout.pitch }}</span>
+        <span>bearing {{ readout.bearing }}</span>
+      </div>
       <CopyButton
         :text="readoutText"
-        :message="$t('settings.mapSettings.controls.debugCopied')"
-        class="p-0.5!"
+        :message="$t('settings.mapSettings.controls.cameraCopied')"
+        class="shrink-0 p-0.5!"
       />
     </div>
   </TransitionFade>

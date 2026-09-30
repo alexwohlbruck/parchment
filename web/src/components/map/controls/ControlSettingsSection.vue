@@ -14,10 +14,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  BugIcon,
   CloudSun,
   CompassIcon,
   LocateIcon,
+  Move3dIcon,
   PersonStandingIcon,
   RulerIcon,
   ZoomInIcon,
@@ -25,7 +25,7 @@ import {
 
 const { controlSettings } = storeToRefs(useMapStore())
 
-type ToggleableControl = 'zoom' | 'locate' | 'weather' | 'debug'
+type ToggleableControl = 'zoom' | 'locate' | 'weather' | 'camera'
 
 function isControlShown(control: ToggleableControl) {
   return controlSettings.value[control] === ControlVisibility.ALWAYS
@@ -146,14 +146,14 @@ function setControlShown(control: ToggleableControl, shown: boolean) {
     </SettingsItem>
 
     <SettingsItem
-      :title="$t('settings.mapSettings.controls.debug')"
-      :description="$t('settings.mapSettings.controls.debugDescription')"
-      :icon="BugIcon"
-      :command-id="CommandName.TOGGLE_MAP_DEBUG"
+      :title="$t('settings.mapSettings.controls.camera')"
+      :description="$t('settings.mapSettings.controls.cameraDescription')"
+      :icon="Move3dIcon"
+      :command-id="CommandName.TOGGLE_CAMERA_POSITION"
     >
       <Switch
-        :model-value="isControlShown('debug')"
-        @update:model-value="setControlShown('debug', $event)"
+        :model-value="isControlShown('camera')"
+        @update:model-value="setControlShown('camera', $event)"
       />
     </SettingsItem>
   </SettingsSection>

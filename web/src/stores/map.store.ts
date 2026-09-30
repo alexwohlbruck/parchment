@@ -63,7 +63,7 @@ function getDefaultControlSettings(): MapControlSettings {
       : ControlVisibility.ALWAYS,
     locate: ControlVisibility.ALWAYS,
     weather: ControlVisibility.ALWAYS,
-    debug: ControlVisibility.NEVER,
+    camera: ControlVisibility.NEVER,
   }
 }
 

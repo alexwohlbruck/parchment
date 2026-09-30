@@ -230,8 +230,8 @@ export const settingsIndex: SettingsPageDef[] = [
           { titleKey: 'settings.mapSettings.controls.locate' },
           { titleKey: 'settings.mapSettings.controls.weather' },
           {
-            titleKey: 'settings.mapSettings.controls.debug',
-            descriptionKey: 'settings.mapSettings.controls.debugDescription',
+            titleKey: 'settings.mapSettings.controls.camera',
+            descriptionKey: 'settings.mapSettings.controls.cameraDescription',
           },
         ],
       },

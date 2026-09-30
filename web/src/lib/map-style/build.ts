@@ -19,6 +19,7 @@ import {
   cyclingWaysLayers,
 } from './cycling-layers'
 import { barrelmanBuildingsReady } from './barrelman-buildings'
+import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
 
@@ -308,9 +309,12 @@ function isTransitStopLayer(l: any): boolean {
 }
 
 export const layerGroups = {
-  poi: idsWhere(
-    l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
-  ),
+  poi: [
+    POI_DOTS_LAYER,
+    ...idsWhere(
+      l => l.type === 'symbol' && ['poi', 'housenumber', 'aerodrome_label', 'mountain_peak'].includes(l['source-layer']),
+    ),
+  ],
   roadLabels: idsWhere(l => l.type === 'symbol' && l['source-layer'] === 'transportation_name'),
   /**
    * Transit stop labels, not the rails under them. The transit overlay redraws
@@ -456,7 +460,15 @@ export function buildLayers(options: {
     .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang))
 
-  return spliceDetailLayers(converted, flavor) as LayerSpecification[]
+  return spliceDetailLayers(withPoiDots(converted), flavor) as LayerSpecification[]
+}
+
+/** The dots go under the lowest POI layer, so any badge drawn covers its own dot. */
+function withPoiDots(layers: any[]): any[] {
+  const dots = poiDotLayer(layers)
+  if (!dots) return layers
+  const at = layers.findIndex(l => l['source-layer'] === 'poi')
+  return [...layers.slice(0, at), dots, ...layers.slice(at)]
 }
 
 /**

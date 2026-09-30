@@ -3,6 +3,7 @@ import { buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
+import type { Icon } from '@/types/app.types'
 import { Locale } from '@/lib/i18n'
 import { getPlaceRoute, getTransitStopRoute } from '@/lib/place/place-route'
 import {
@@ -12,15 +13,24 @@ import {
 import {
   ChevronsRightIcon,
   CogIcon,
+  CornerUpRightIcon,
   DraftingCompassIcon,
+  FrameIcon,
   GlobeIcon,
   HelpCircleIcon,
+  HistoryIcon,
   LanguagesIcon,
+  LayersIcon,
+  LayoutDashboardIcon,
+  LibraryIcon,
   LogOutIcon,
+  MapIcon,
   PaletteIcon,
+  RouteIcon,
   SearchIcon,
   SettingsIcon,
   SunMoonIcon,
+  TelescopeIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
@@ -68,6 +78,45 @@ export enum CommandName {
 
 // TODO: Move command options to separate file
 
+// Destinations that open without params. Individual settings pages are
+// already searchable from the top-level palette.
+const GOTO_PAGES: {
+  route: AppRoute
+  key: string
+  icon: Icon
+  library?: boolean
+}[] = [
+  { route: AppRoute.MAP, key: 'map', icon: MapIcon },
+  { route: AppRoute.DASHBOARD, key: 'dashboard', icon: LayoutDashboardIcon },
+  { route: AppRoute.DIRECTIONS, key: 'directions', icon: CornerUpRightIcon },
+  {
+    route: AppRoute.LIBRARY_COLLECTIONS,
+    key: 'collections',
+    library: true,
+    icon: LibraryIcon,
+  },
+  {
+    route: AppRoute.LIBRARY_ROUTES,
+    key: 'routes',
+    library: true,
+    icon: RouteIcon,
+  },
+  {
+    route: AppRoute.LIBRARY_LAYERS,
+    key: 'layers',
+    library: true,
+    icon: LayersIcon,
+  },
+  {
+    route: AppRoute.LIBRARY_CANVASES,
+    key: 'canvases',
+    library: true,
+    icon: FrameIcon,
+  },
+  { route: AppRoute.LOOKOUT, key: 'lookout', icon: TelescopeIcon },
+  { route: AppRoute.TIMELINE, key: 'timeline', icon: HistoryIcon },
+  { route: AppRoute.SETTINGS, key: 'settings', icon: SettingsIcon },
+]
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
@@ -243,13 +292,12 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.goto.arguments.page.name'),
             type: 'string',
             getItems() {
-              const routes = router.getRoutes()
-              return routes.map(route => {
-                return {
-                  value: route.name as string,
-                  name: route.name as string,
-                }
-              })
+              return GOTO_PAGES.map(page => ({
+                value: page.route,
+                name: t(`palette.commands.goto.pages.${page.key}`),
+                description: page.library ? t('library.title') : undefined,
+                icon: page.icon,
+              }))
             },
           },
         ],

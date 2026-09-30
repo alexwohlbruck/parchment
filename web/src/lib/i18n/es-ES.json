@@ -280,6 +280,18 @@
           "page": {
             "name": "Página"
           }
+        },
+        "pages": {
+          "map": "Mapa",
+          "dashboard": "Panel",
+          "directions": "Direcciones",
+          "collections": "Colecciones",
+          "routes": "Rutas",
+          "layers": "Capas",
+          "canvases": "Lienzos",
+          "lookout": "Lookout",
+          "timeline": "Cronología",
+          "settings": "Configuración"
         }
       },
       "toggleTheme": {

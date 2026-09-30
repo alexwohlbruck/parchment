@@ -63,6 +63,18 @@ const { locale } = useI18n()
 const languageCommand = commandStore.useCommand(CommandName.UPDATE_LANGUAGE)
 const engineCommand = commandStore.useCommand(CommandName.CHOOSE_MAP_ENGINE)
 
+type ToggleableControl = 'zoom' | 'locate' | 'weather' | 'debug'
+
+function isControlShown(control: ToggleableControl) {
+  return controlSettings.value[control] === ControlVisibility.ALWAYS
+}
+
+function setControlShown(control: ToggleableControl, shown: boolean) {
+  controlSettings.value[control] = shown
+    ? ControlVisibility.ALWAYS
+    : ControlVisibility.NEVER
+}
+
 const { isMobileScreen } = useResponsive()
 const { available: feedbackAvailable } = useFeedback()
 const shake = useShakeGesture(() => {})
@@ -256,21 +268,10 @@ watch(
         :title="$t('settings.mapSettings.controls.zoom')"
         :icon="ZoomInIcon"
       >
-        <Select v-model="controlSettings.zoom">
-          <SelectTrigger class="w-fit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem :value="ControlVisibility.ALWAYS">
-                {{ $t('settings.mapSettings.controls.visibility.always') }}
-              </SelectItem>
-              <SelectItem :value="ControlVisibility.NEVER">
-                {{ $t('settings.mapSettings.controls.visibility.never') }}
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <Switch
+          :model-value="isControlShown('zoom')"
+          @update:model-value="setControlShown('zoom', $event)"
+        />
       </SettingsItem>
 
       <SettingsItem
@@ -353,42 +354,20 @@ watch(
         :title="$t('settings.mapSettings.controls.locate')"
         :icon="LocateIcon"
       >
-        <Select v-model="controlSettings.locate">
-          <SelectTrigger class="w-fit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem :value="ControlVisibility.ALWAYS">
-                {{ $t('settings.mapSettings.controls.visibility.always') }}
-              </SelectItem>
-              <SelectItem :value="ControlVisibility.NEVER">
-                {{ $t('settings.mapSettings.controls.visibility.never') }}
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <Switch
+          :model-value="isControlShown('locate')"
+          @update:model-value="setControlShown('locate', $event)"
+        />
       </SettingsItem>
 
       <SettingsItem
         :title="$t('settings.mapSettings.controls.weather')"
         :icon="CloudSun"
       >
-        <Select v-model="controlSettings.weather">
-          <SelectTrigger class="w-fit">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem :value="ControlVisibility.ALWAYS">
-                {{ $t('settings.mapSettings.controls.visibility.always') }}
-              </SelectItem>
-              <SelectItem :value="ControlVisibility.NEVER">
-                {{ $t('settings.mapSettings.controls.visibility.never') }}
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <Switch
+          :model-value="isControlShown('weather')"
+          @update:model-value="setControlShown('weather', $event)"
+        />
       </SettingsItem>
 
       <SettingsItem
@@ -397,12 +376,8 @@ watch(
         :icon="BugIcon"
       >
         <Switch
-          :model-value="controlSettings.debug === ControlVisibility.ALWAYS"
-          @update:model-value="
-            controlSettings.debug = $event
-              ? ControlVisibility.ALWAYS
-              : ControlVisibility.NEVER
-          "
+          :model-value="isControlShown('debug')"
+          @update:model-value="setControlShown('debug', $event)"
         />
       </SettingsItem>
     </SettingsSection>

@@ -134,6 +134,7 @@ watch(
         :title="engineCommand.name"
         :description="engineCommand.description"
         :icon="engineCommand.icon"
+        :command-id="CommandName.CHOOSE_MAP_ENGINE"
       >
         <Select
           :model-value="settings.engine"
@@ -174,6 +175,7 @@ watch(
         :title="projectionCommand.name"
         :description="projectionCommand.description"
         :icon="projectionCommand.icon"
+        :command-id="CommandName.MAP_PROJECTION"
       >
         <Select
           :model-value="settings.projection"

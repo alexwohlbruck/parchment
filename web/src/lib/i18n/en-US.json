@@ -1845,7 +1845,7 @@
           "whileActive": "While active"
         },
         "debug": "Debug info",
-        "debugDescription": "Camera position, zoom, pitch and bearing. Press D to toggle.",
+        "debugDescription": "Camera position, zoom, pitch and bearing",
         "debugCopied": "Camera position copied"
       },
       "location": {

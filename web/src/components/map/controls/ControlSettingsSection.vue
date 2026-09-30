@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { useMapStore } from '@/stores/map.store'
 import { ControlVisibility } from '@/types/map.types'
+import { CommandName } from '@/stores/command.store'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -148,6 +149,7 @@ function setControlShown(control: ToggleableControl, shown: boolean) {
       :title="$t('settings.mapSettings.controls.debug')"
       :description="$t('settings.mapSettings.controls.debugDescription')"
       :icon="BugIcon"
+      :command-id="CommandName.TOGGLE_MAP_DEBUG"
     >
       <Switch
         :model-value="isControlShown('debug')"

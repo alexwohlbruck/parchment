@@ -1760,7 +1760,7 @@
           "whileActive": "Mientras está activo"
         },
         "debug": "Información de depuración",
-        "debugDescription": "Posición, zoom, inclinación y rumbo de la cámara. Pulsa D para alternar.",
+        "debugDescription": "Posición, zoom, inclinación y rumbo de la cámara",
         "debugCopied": "Posición de la cámara copiada"
       },
       "location": {

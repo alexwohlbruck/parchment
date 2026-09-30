@@ -76,6 +76,7 @@ import {
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
+import { ISOLATED_COLLISION_LAYERS } from '@/lib/map-style/poi-dots'
 import {
   probeBarrelmanBuildings,
   barrelmanBuildingsReady,
@@ -286,6 +287,7 @@ export class MaplibreStrategy extends MapStrategy {
       // The default 300ms symbol crossfade keeps the map repainting for
       // ~20 frames after every camera change.
       fadeDuration: 100,
+      isolatedCollisionLayers: ISOLATED_COLLISION_LAYERS,
       // Disable the engine's built-in north snap — we do north + grid snapping
       // ourselves in map.service (snapRotation) so both settings toggle live.
       bearingSnap: 0,

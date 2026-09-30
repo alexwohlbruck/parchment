@@ -346,6 +346,11 @@
           }
         }
       },
+      "toggleMapDebug": {
+        "name": "Toggle map debug info",
+        "description": "Show or hide the map camera readout",
+        "keywords": "debug camera coordinates zoom pitch bearing"
+      },
       "openHotkeysMenu": {
         "name": "Keyboard shortcuts",
         "description": "View all available keyboard shortcuts",
@@ -1838,7 +1843,10 @@
           "whileRotating": "While rotating",
           "whileZooming": "While zooming",
           "whileActive": "While active"
-        }
+        },
+        "debug": "Debug info",
+        "debugDescription": "Camera position, zoom, pitch and bearing. Press D to toggle.",
+        "debugCopied": "Camera position copied"
       },
       "location": {
         "title": "Location",

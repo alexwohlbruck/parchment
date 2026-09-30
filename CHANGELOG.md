@@ -3,6 +3,7 @@
 ### Added
 
 * 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
+* An optional map debug readout shows the camera's coordinates, zoom, pitch and bearing, with a copy button. Turn it on in settings or press D.
 
 ### Changed
 

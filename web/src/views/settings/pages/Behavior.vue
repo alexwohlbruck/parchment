@@ -48,6 +48,7 @@ import {
   PersonStandingIcon,
   LocateIcon,
   CloudSun,
+  BugIcon,
 } from 'lucide-vue-next'
 
 const appStore = useAppStore()
@@ -388,6 +389,21 @@ watch(
             </SelectGroup>
           </SelectContent>
         </Select>
+      </SettingsItem>
+
+      <SettingsItem
+        :title="$t('settings.mapSettings.controls.debug')"
+        :description="$t('settings.mapSettings.controls.debugDescription')"
+        :icon="BugIcon"
+      >
+        <Switch
+          :model-value="controlSettings.debug === ControlVisibility.ALWAYS"
+          @update:model-value="
+            controlSettings.debug = $event
+              ? ControlVisibility.ALWAYS
+              : ControlVisibility.NEVER
+          "
+        />
       </SettingsItem>
     </SettingsSection>
 

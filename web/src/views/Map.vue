@@ -15,6 +15,7 @@ import CompassControl from '@/components/map/controls/CompassControl.vue'
 import LocateControl from '@/components/map/controls/LocateControl.vue'
 import ScaleControl from '@/components/map/controls/ScaleControl.vue'
 import AttributionControl from '@/components/map/controls/AttributionControl.vue'
+import DebugControl from '@/components/map/controls/DebugControl.vue'
 import BottomSheet from '@/components/sheet/BottomSheet.vue'
 import LeftSheet from '@/components/sheet/LeftSheet.vue'
 import SheetActionButtons from '@/components/sheet/SheetActionButtons.vue'
@@ -549,10 +550,11 @@ defineExpose({
             <transition-slide appear no-opacity :offset="[0, '130%']">
               <div
                 v-if="isNavTransitioning"
-                class="pointer-events-auto mt-auto flex flex-col gap-2"
+                class="pointer-events-auto mt-auto flex items-center gap-2"
                 :class="{ 'mb-16': isMobileScreen }"
               >
                 <AttributionControl />
+                <DebugControl />
               </div>
             </transition-slide>
           </div>

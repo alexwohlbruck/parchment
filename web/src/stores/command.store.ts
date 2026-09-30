@@ -10,6 +10,7 @@ import {
   osmForStop,
 } from '@/services/layers/features/portolan/portolan-stops'
 import {
+  BugIcon,
   ChevronsRightIcon,
   CogIcon,
   DraftingCompassIcon,
@@ -31,7 +32,11 @@ import { useMapService } from '@/services/map/map.service'
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import { ENGINE_PROJECTIONS, MapEngine } from '@/types/map.types'
+import {
+  ControlVisibility,
+  ENGINE_PROJECTIONS,
+  MapEngine,
+} from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
 import { getCategoryColor } from '@/services/place/place-colors'
@@ -61,6 +66,7 @@ export enum CommandName {
   UPDATE_THEME_RADIUS = 'updateThemeRadius',
   CHOOSE_MAP_ENGINE = 'chooseMapEngine',
   MAP_PROJECTION = 'mapProjection',
+  TOGGLE_MAP_DEBUG = 'toggleMapDebug',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
   UPDATE_LANGUAGE = 'updateLanguage',
   SIGN_OUT = 'signOut',
@@ -81,7 +87,7 @@ export const useCommandStore = defineStore('command', () => {
   const placeSearchService = useSearchService()
 
   const mapStore = useMapStore()
-  const { settings } = storeToRefs(mapStore)
+  const { settings, controlSettings } = storeToRefs(mapStore)
 
   function commandIsAvailable(command: Command) {
     // Check command is compatible with map engine
@@ -374,6 +380,20 @@ export const useCommandStore = defineStore('command', () => {
             },
           },
         ],
+      },
+      {
+        id: CommandName.TOGGLE_MAP_DEBUG,
+        name: t('palette.commands.toggleMapDebug.name'),
+        description: t('palette.commands.toggleMapDebug.description'),
+        keywords: t('palette.commands.toggleMapDebug.keywords'),
+        icon: BugIcon,
+        hotkey: ['d'],
+        action: () => {
+          controlSettings.value.debug =
+            controlSettings.value.debug === ControlVisibility.ALWAYS
+              ? ControlVisibility.NEVER
+              : ControlVisibility.ALWAYS
+        },
       },
       {
         id: CommandName.OPEN_HOTKEYS_MENU,

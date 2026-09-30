@@ -342,6 +342,11 @@
           }
         }
       },
+      "toggleMapDebug": {
+        "name": "Alternar depuración del mapa",
+        "description": "Mostrar u ocultar los datos de la cámara del mapa",
+        "keywords": "depuración cámara coordenadas zoom inclinación rumbo"
+      },
       "openHotkeysMenu": {
         "name": "Atajos de teclado",
         "description": "Ver todos los atajos de teclado disponibles"
@@ -1753,7 +1758,10 @@
           "whileRotating": "Mientras rota",
           "whileZooming": "Mientras hace zoom",
           "whileActive": "Mientras está activo"
-        }
+        },
+        "debug": "Información de depuración",
+        "debugDescription": "Posición, zoom, inclinación y rumbo de la cámara. Pulsa D para alternar.",
+        "debugCopied": "Posición de la cámara copiada"
       },
       "location": {
         "title": "Ubicación",

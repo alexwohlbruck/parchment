@@ -63,6 +63,7 @@ function getDefaultControlSettings(): MapControlSettings {
       : ControlVisibility.ALWAYS,
     locate: ControlVisibility.ALWAYS,
     weather: ControlVisibility.ALWAYS,
+    debug: ControlVisibility.NEVER,
   }
 }
 
@@ -124,6 +125,8 @@ export const useMapStore = defineStore('map', () => {
   const controlSettings = useStorage<MapControlSettings>(
     'map-controls',
     getDefaultControlSettings(),
+    undefined,
+    { mergeDefaults: true },
   )
 
   const persistedCamera = useStorage<MapCamera>('map-camera', {

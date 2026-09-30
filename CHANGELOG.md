@@ -6,7 +6,11 @@
 
 ### Changed
 
+* The "Go to page" command now lists the app's main pages by name, like Directions, Library and Timeline, instead of internal route ids that led nowhere.
+
 ### Fixed
+
+* Inside a command palette command, only that command's options are listed, without unrelated settings results mixed in.
 
 ## [0.12.5] - 2026-09-24
 

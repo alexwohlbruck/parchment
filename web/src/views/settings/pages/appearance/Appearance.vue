@@ -35,6 +35,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SettingsSection, SettingsItem } from '@/components/settings'
 import Layers from '@/components/library/layers/LayerList.vue'
+import ControlSettingsSection from '@/components/map/controls/ControlSettingsSection.vue'
 
 // Theme store
 const themeStore = useThemeStore()
@@ -251,6 +252,8 @@ const handleColorChange = (value: any) => {
         />
       </SettingsItem>
     </SettingsSection>
+
+    <ControlSettingsSection />
 
     <SettingsSection
       id="style"

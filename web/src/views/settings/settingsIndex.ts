@@ -153,22 +153,6 @@ export const settingsIndex: SettingsPageDef[] = [
         ],
       },
       {
-        id: 'controls',
-        titleKey: 'settings.mapSettings.controls.title',
-        items: [
-          { titleKey: 'settings.mapSettings.controls.zoom' },
-          { titleKey: 'settings.mapSettings.controls.compass' },
-          { titleKey: 'settings.mapSettings.controls.scale' },
-          { titleKey: 'settings.mapSettings.controls.streetView' },
-          { titleKey: 'settings.mapSettings.controls.locate' },
-          { titleKey: 'settings.mapSettings.controls.weather' },
-          {
-            titleKey: 'settings.mapSettings.controls.debug',
-            descriptionKey: 'settings.mapSettings.controls.debugDescription',
-          },
-        ],
-      },
-      {
         id: 'location',
         titleKey: 'settings.mapSettings.location.title',
         items: [
@@ -233,6 +217,22 @@ export const settingsIndex: SettingsPageDef[] = [
           { titleKey: 'settings.mapSettings.configuration.roadLabels' },
           { titleKey: 'settings.mapSettings.configuration.transitLabels' },
           { titleKey: 'settings.mapSettings.configuration.placeLabels' },
+        ],
+      },
+      {
+        id: 'controls',
+        titleKey: 'settings.mapSettings.controls.title',
+        items: [
+          { titleKey: 'settings.mapSettings.controls.zoom' },
+          { titleKey: 'settings.mapSettings.controls.compass' },
+          { titleKey: 'settings.mapSettings.controls.scale' },
+          { titleKey: 'settings.mapSettings.controls.streetView' },
+          { titleKey: 'settings.mapSettings.controls.locate' },
+          { titleKey: 'settings.mapSettings.controls.weather' },
+          {
+            titleKey: 'settings.mapSettings.controls.debug',
+            descriptionKey: 'settings.mapSettings.controls.debugDescription',
+          },
         ],
       },
       {

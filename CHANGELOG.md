@@ -3,6 +3,8 @@
 ### Added
 
 * 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
+* An optional camera position readout shows the map's coordinates, zoom, pitch and bearing, with a copy button. Turn it on in settings or press C.
+* Every place on the map now shows as a small coloured dot from zoom 15, so busy streets look busy before their icons have room to appear.
 
 ### Changed
 
@@ -11,6 +13,7 @@
 ### Fixed
 
 * Inside a command palette command, only that command's options are listed, without unrelated settings results mixed in.
+* Searching for a street address no longer buries it under brands that merely share a word with it.
 
 ## [0.12.5] - 2026-09-24
 

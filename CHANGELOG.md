@@ -13,6 +13,7 @@
 
 ### Fixed
 
+* With the Mapbox engine, fitting the map to a place's shape, a brand's locations or a saved route no longer fails and leaves the camera where it was.
 * Inside a command palette command, only that command's options are listed, without unrelated settings results mixed in.
 * Searching for a street address no longer buries it under brands that merely share a word with it.
 

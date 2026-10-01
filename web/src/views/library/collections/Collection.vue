@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
@@ -41,19 +41,21 @@ const collectionName = computed(() => {
 
 let framed = false
 
-/** Fits the camera once, with cached places if there are any, else fetched ones. */
-function frameCollection() {
-  if (framed) return
-  const bounds = boundsOfPoints(bookmarks.value)
-  if (!bounds) return
-  framed = true
-  mapService.fitBounds(bounds, { maxZoom: 15 })
-}
+/** Fits the camera once, as soon as any of the collection's places are known. */
+watch(
+  () => bookmarks.value.length,
+  () => {
+    const bounds = !framed && boundsOfPoints(bookmarks.value)
+    if (!bounds) return
+    framed = true
+    mapService.fitBounds(bounds, { maxZoom: 15 })
+  },
+  { immediate: true },
+)
 
 onMounted(async () => {
   loading.value = true
   collectionsStore.openCollectionId = id
-  frameCollection()
 
   await collectionsService.fetchCollectionById(id)
 
@@ -63,7 +65,6 @@ onMounted(async () => {
   }
 
   loading.value = false
-  frameCollection()
 })
 
 onUnmounted(() => {

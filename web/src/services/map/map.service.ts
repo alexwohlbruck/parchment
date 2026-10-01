@@ -27,6 +27,7 @@ import { useSearchResultsLayerService } from '@/services/layers/features/search-
 import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
 import { useBookmarksLayerService } from '@/services/layers/features/bookmarks-layer.service'
+import { useCollectionMarkersLayerService } from '@/services/layers/features/collection-markers-layer.service'
 import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
@@ -80,6 +81,7 @@ function mapService() {
   const markerLayersService = useMarkerLayersService()
   const notesLayerService = useNotesLayerService()
   const bookmarksLayerService = useBookmarksLayerService()
+  const collectionMarkersLayerService = useCollectionMarkersLayerService()
   const environmentDataService = useEnvironmentDataService()
   const timelineLayerService = useTimelineLayerService()
   const portolanTransitService = usePortolanTransitService()
@@ -575,6 +577,10 @@ function mapService() {
       // the layers AND the registered icon images.
       initStep('bookmarks', () =>
         bookmarksLayerService.initializeBookmarksLayer(mapStrategy),
+      )
+
+      initStep('collection markers', () =>
+        collectionMarkersLayerService.initializeCollectionMarkersLayer(mapStrategy),
       )
 
       // Fill the Environment vector layers (perimeters, smoke) with data —
@@ -1314,6 +1320,7 @@ function mapService() {
     if (mapStrategy) {
       searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
       bookmarksLayerService.removeBookmarksLayer(mapStrategy)
+      collectionMarkersLayerService.removeCollectionMarkersLayer(mapStrategy)
     }
 
     // Unbind the portolan renderer's map listeners and drop its layers

@@ -342,6 +342,11 @@
           }
         }
       },
+      "toggleCameraPosition": {
+        "name": "Alternar posición de la cámara",
+        "description": "Mostrar u ocultar las coordenadas, el zoom, la inclinación y el rumbo del mapa",
+        "keywords": "cámara coordenadas zoom inclinación rumbo depuración"
+      },
       "openHotkeysMenu": {
         "name": "Atajos de teclado",
         "description": "Ver todos los atajos de teclado disponibles"
@@ -1753,7 +1758,10 @@
           "whileRotating": "Mientras rota",
           "whileZooming": "Mientras hace zoom",
           "whileActive": "Mientras está activo"
-        }
+        },
+        "camera": "Posición de la cámara",
+        "cameraDescription": "Coordenadas, zoom, inclinación y rumbo",
+        "cameraCopied": "Posición de la cámara copiada"
       },
       "location": {
         "title": "Ubicación",

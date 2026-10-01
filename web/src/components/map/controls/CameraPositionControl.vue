@@ -37,9 +37,11 @@ onUnmounted(() => mapService.off('move', onCameraMove))
   <TransitionFade>
     <div
       v-if="isVisible"
-      class="flex max-w-full items-center gap-2 rounded-md border border-input bg-background py-0.5 pl-2 pr-px font-mono text-[11px] tabular-nums text-muted-foreground depth md:h-6 md:py-0"
+      class="flex min-w-0 items-center gap-1 rounded-md border border-input bg-background py-0.5 pl-1.5 pr-px font-mono text-[10px] leading-tight tabular-nums md:gap-2 md:pl-2 md:text-[11px] text-muted-foreground depth md:h-6 md:py-0"
     >
-      <div class="flex min-w-0 flex-wrap items-center gap-x-2.5 md:flex-nowrap">
+      <div
+        class="flex min-w-0 flex-wrap items-center gap-x-1.5 md:flex-nowrap md:gap-x-2.5"
+      >
         <span class="basis-full text-foreground md:basis-auto">
           {{ readout.coordinates }}
         </span>

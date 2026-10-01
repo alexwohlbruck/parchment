@@ -550,12 +550,8 @@ defineExpose({
             <transition-slide appear no-opacity :offset="[0, '130%']">
               <div
                 v-if="isNavTransitioning"
-                class="pointer-events-auto mt-auto flex gap-2"
-                :class="
-                  isMobileScreen
-                    ? 'mb-16 flex-col-reverse items-start'
-                    : 'items-center'
-                "
+                class="pointer-events-auto mt-auto flex items-center gap-2"
+                :class="{ 'mb-16': isMobileScreen }"
               >
                 <AttributionControl />
                 <CameraPositionControl />

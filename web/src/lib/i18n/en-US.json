@@ -282,6 +282,18 @@
           "page": {
             "name": "Page"
           }
+        },
+        "pages": {
+          "map": "Map",
+          "dashboard": "Dashboard",
+          "directions": "Directions",
+          "collections": "Collections",
+          "routes": "Routes",
+          "layers": "Layers",
+          "canvases": "Canvases",
+          "lookout": "Lookout",
+          "timeline": "Timeline",
+          "settings": "Settings"
         }
       },
       "toggleTheme": {

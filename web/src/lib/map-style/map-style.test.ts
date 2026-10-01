@@ -957,6 +957,22 @@ describe('assembled styles', () => {
     expect(validateStyleMin(make()).map(e => e.message)).toEqual([])
   })
 
+  test.each(['light', 'dark'] as const)('%s POI dots take the dot tint of their category', theme => {
+    const food = '#FF9933'
+    const style = buildMapStyle({ ...opts, theme, categoryColors: { food_and_drink: food } })
+    const dots: any = style.layers.find(l => l.id === 'POI dots')
+    const tint = getCustomColorTint(food, 'dot', theme === 'dark')!
+    const strings = collectStrings(dots.paint)
+    expect(strings).toContain(tint.foreground)
+    expect(strings).toContain(tint.background)
+  })
+
+  test.each(cases)('%s draws POI dots beneath every badge', (_name, make) => {
+    const ids = make().layers.map((l: any) => l.id)
+    if (!ids.includes('Public')) return
+    expect(ids.indexOf('POI dots')).toBe(ids.indexOf('Public') - 1)
+  })
+
   test.each(cases)('%s leaves no unresolved token behind', (_name, make) => {
     const stray = collectStrings(make().layers).filter(s => /^@/.test(s))
     expect(stray).toEqual([])
@@ -1351,8 +1367,8 @@ describe('assembled styles', () => {
     expect(ids).not.toContain('Background')
   })
 
-  test('every id the strategy toggles exists in the spec', () => {
-    const ids = new Set(layers.map(l => l.id))
+  test('every id the strategy toggles exists in the built style', () => {
+    const ids = new Set(buildLayers({ flavor: 'light' }).map(l => l.id))
     for (const group of ['poi', 'roadLabels', 'transit', 'placeLabels'] as const) {
       expect(layerGroups[group].length, group).toBeGreaterThan(0)
       for (const id of layerGroups[group]) expect(ids, id).toContain(id)

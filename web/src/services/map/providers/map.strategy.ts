@@ -1,4 +1,4 @@
-import { LngLatBounds, type CameraOptions } from 'maplibre-gl'
+import { type CameraOptions } from 'maplibre-gl'
 import {
   TERRAIN_SOURCE_ID,
   TERRAIN_EXAGGERATION,
@@ -414,12 +414,13 @@ export class MapStrategy {
     bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
     options: any = {},
   ) {
-    const mapboxBounds = new LngLatBounds(
+    // A plain array, since either engine rejects the other's LngLatBounds.
+    const lngLatBounds: [[number, number], [number, number]] = [
       [bounds.minLng, bounds.minLat],
       [bounds.maxLng, bounds.maxLat],
-    )
+    ]
 
-    this.mapInstance.fitBounds(mapboxBounds, {
+    this.mapInstance.fitBounds(lngLatBounds, {
       padding: options.padding || 100,
       duration: options.duration || 1000,
       easing: options.easing || (t => t * (2 - t)),

@@ -3,6 +3,7 @@
 ### Added
 
 * 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
+* Every place on the map now shows as a small coloured dot from zoom 15, so busy streets look busy before their icons have room to appear.
 
 ### Changed
 

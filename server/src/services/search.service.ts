@@ -103,6 +103,9 @@ function convertPresetToSearchResult(preset: any): SearchResult {
   }
 }
 
+/** A house number followed by a word: "350 5th Ave", "12b Elm St". */
+const ADDRESS_QUERY = /^\s*\d+[a-z]?\s+\S/i
+
 /** Normalize a brand/query string for exact-match comparison. */
 function normalizeBrandText(s: string): string {
   return s.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
@@ -459,11 +462,14 @@ export async function search(
   }
 
   // Brand suggestions: an exact-name brand pins above the individual locations
-  // (places top out at 0.9); a fuzzy brand match sits just alongside them.
+  // (places top out at 0.9); a fuzzy brand match sits just alongside them,
+  // except under a street address, where it only pushes the addresses down.
   if (brands.length > 0) {
     const qNorm = normalizeBrandText(query || '')
+    const addressQuery = ADDRESS_QUERY.test(query || '')
     for (let i = 0; i < brands.length; i++) {
       const exact = normalizeBrandText(brands[i].name) === qNorm
+      if (!exact && addressQuery) continue
       scoredResults.push({
         result: convertBrandToSearchResult(brands[i]),
         relevance: exact ? 0.97 : 0.9 - i * 0.02,

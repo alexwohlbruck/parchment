@@ -10,6 +10,8 @@
 
 ### Fixed
 
+* Searching for a street address no longer buries it under brands that merely share a word with it.
+
 ## [0.12.5] - 2026-09-24
 
 ### Changed

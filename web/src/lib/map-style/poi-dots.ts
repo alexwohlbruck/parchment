@@ -42,7 +42,7 @@ export function poiDotLayer(layers: any[]): any | null {
     filter: ['all', ['!', isTransitPoi()], ['any', ...badges.map(l => ungated(l.filter))]],
     layout: {
       'icon-image': 'circle',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], MIN_ZOOM, 0.28, 18, 0.4],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], MIN_ZOOM, 0, MIN_ZOOM + 2, 0.3, 19, 0.4],
       'icon-padding': 1,
       'symbol-sort-key': ['to-number', ['get', 'rank']],
     },

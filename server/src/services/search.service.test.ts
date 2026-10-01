@@ -347,6 +347,14 @@ describe('search service', () => {
       expect(resp.results.map((r: any) => r.title)).toEqual(['99 Ranch Market'])
     })
 
+    test('drops fuzzy brand matches for a street name', async () => {
+      mockGetBrandSuggestions.mockResolvedValue([brand('2nd STREET')])
+
+      const resp = (await search('user-1', { query: 'Elm Street', lat: 35.22, lng: -80.84 })) as any
+
+      expect(resp.results).toEqual([])
+    })
+
     test('keeps fuzzy brand matches for ordinary queries', async () => {
       mockGetBrandSuggestions.mockResolvedValue([brand('New York Life')])
 

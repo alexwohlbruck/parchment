@@ -33,8 +33,11 @@ const hint = computed(() => {
   const point = mapService.project(lngLat)
   if (!point) return null
 
+  const area = toContainerRect(appStore.visibleMapArea, el.getBoundingClientRect())
+  // The drawer's obstruction includes its button column, which only covers the map's top corner.
+  const overhang = Math.min(appStore.leftSheetButtonColumnWidth, Math.max(0, area.x))
   const visible = intersectRect(
-    toContainerRect(appStore.visibleMapArea, el.getBoundingClientRect()),
+    { ...area, x: area.x - overhang, width: area.width + overhang },
     { x: 0, y: 0, width: el.clientWidth, height: el.clientHeight },
   )
   return edgeHint(point, visible, EDGE_INSET)

@@ -1,4 +1,5 @@
 import { type CameraOptions } from 'maplibre-gl'
+import { SELECTED_MARKER_COLOR } from '@/lib/map-marker'
 import {
   TERRAIN_SOURCE_ID,
   TERRAIN_EXAGGERATION,
@@ -317,6 +318,11 @@ export class MapStrategy {
       east: bounds.getEast(),
       west: bounds.getWest(),
     }
+  }
+
+  /** Colour of the pin `addMarker` drops. */
+  selectedMarkerColor(): string {
+    return SELECTED_MARKER_COLOR
   }
 
   addMarker(id: string, lngLat: LngLat) {}

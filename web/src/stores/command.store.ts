@@ -79,13 +79,14 @@ export enum CommandName {
 // TODO: Move command options to separate file
 
 // Destinations that open without params. Individual settings pages are
-// already searchable from the top-level palette.
-const GOTO_PAGES: {
+// already searchable from the top-level palette. Built lazily because the
+// router imports this store, so AppRoute is undefined at module load.
+const gotoPages = (): {
   route: AppRoute
   key: string
   icon: Icon
   library?: boolean
-}[] = [
+}[] => [
   { route: AppRoute.MAP, key: 'map', icon: MapIcon },
   { route: AppRoute.DASHBOARD, key: 'dashboard', icon: LayoutDashboardIcon },
   { route: AppRoute.DIRECTIONS, key: 'directions', icon: CornerUpRightIcon },
@@ -292,7 +293,7 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.goto.arguments.page.name'),
             type: 'string',
             getItems() {
-              return GOTO_PAGES.map(page => ({
+              return gotoPages().map(page => ({
                 value: page.route,
                 name: t(`palette.commands.goto.pages.${page.key}`),
                 description: page.library ? t('library.title') : undefined,

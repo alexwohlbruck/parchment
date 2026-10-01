@@ -65,6 +65,7 @@ import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useOrientationService } from '@/services/orientation.service'
 import { useSearchStore } from '@/stores/search.store'
+import { useCollectionsStore } from '@/stores/library/collections.store'
 import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -651,7 +652,7 @@ function mapService() {
   }
 
   function setConfigProperties() {
-    mapStrategy?.setPoiLabels(mapStore.settings.poiLabels)
+    mapStrategy?.setPoiLabels(effectivePoiLabels.value)
     mapStrategy?.setRoadLabels(mapStore.settings.roadLabels)
     mapStrategy?.setTransitLabels(mapStore.settings.transitLabels)
     mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
@@ -1052,12 +1053,15 @@ function mapService() {
     mapStore.settings.poiLabels = value ?? !mapStore.settings.poiLabels
   }
 
-  // POI labels are suppressed while search results are visible so they don't
-  // compete visually with the search result markers and labels.  When results
-  // are cleared the user's stored preference takes effect again automatically.
+  // Basemap POIs stand down while search results or an open collection have the
+  // map, so they don't compete with those markers; the stored preference returns after.
   const searchStore = useSearchStore()
+  const collectionsStore = useCollectionsStore()
   const effectivePoiLabels = computed(
-    () => mapStore.settings.poiLabels && !searchStore.hasResults,
+    () =>
+      mapStore.settings.poiLabels &&
+      !searchStore.hasResults &&
+      !collectionsStore.openCollectionId,
   )
   watch(effectivePoiLabels, value => {
     mapStrategy?.setPoiLabels(value)

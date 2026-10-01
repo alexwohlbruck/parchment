@@ -5,7 +5,7 @@
 * 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
 * An optional camera position readout shows the map's coordinates, zoom, pitch and bearing, with a copy button. Turn it on in settings or press C.
 * Every place on the map now shows as a small coloured dot from zoom 15, so busy streets look busy before their icons have room to appear.
-* Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom.
+* Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
 
 ### Changed
 

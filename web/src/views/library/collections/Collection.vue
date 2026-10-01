@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import { useI18n } from 'vue-i18n'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
+import { useMapService } from '@/services/map/map.service'
+import { boundsOfPoints } from '@/lib/geo/map-bounds'
 import { type ThemeColor } from '@/lib/utils'
 import BookmarkList from '@/components/library/bookmarks/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
@@ -18,6 +20,7 @@ const route = useRoute()
 const router = useRouter()
 const collectionsService = useCollectionsService()
 const collectionsStore = useCollectionsStore()
+const mapService = useMapService()
 const { t } = useI18n()
 
 const id = route.params.id as string
@@ -36,8 +39,21 @@ const collectionName = computed(() => {
   return collectionsService.getCollectionDisplayName(collection.value)
 })
 
+let framed = false
+
+/** Fits the camera once, with cached places if there are any, else fetched ones. */
+function frameCollection() {
+  if (framed) return
+  const bounds = boundsOfPoints(bookmarks.value)
+  if (!bounds) return
+  framed = true
+  mapService.fitBounds(bounds, { maxZoom: 15 })
+}
+
 onMounted(async () => {
   loading.value = true
+  collectionsStore.openCollectionId = id
+  frameCollection()
 
   await collectionsService.fetchCollectionById(id)
 
@@ -47,6 +63,13 @@ onMounted(async () => {
   }
 
   loading.value = false
+  frameCollection()
+})
+
+onUnmounted(() => {
+  if (collectionsStore.openCollectionId === id) {
+    collectionsStore.openCollectionId = null
+  }
 })
 
 function handleCollectionEdit() {

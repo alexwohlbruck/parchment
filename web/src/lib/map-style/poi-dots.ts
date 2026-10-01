@@ -22,16 +22,46 @@ function isPoiBadgeLayer(l: any): boolean {
   return l.type === 'symbol' && l['source-layer'] === 'poi' && Array.isArray(l.filter)
 }
 
-/**
- * The dot layer for a resolved layer list, or null if it has no POI layers.
- * Each dot takes its colour from the label colour of the layer that would badge
- * it, so it matches in either POI style.
- */
+/** The badge name's `|`-separated parts, as expressions; see `parseBadgeName`. */
+function badgeParts(iconImage: any): any[][] | null {
+  if (!Array.isArray(iconImage) || iconImage[0] !== 'concat' || iconImage[1] !== 'poi|') return null
+  const parts: any[][] = [[]]
+  for (const arg of iconImage.slice(2)) {
+    if (arg === '|') parts.push([])
+    else parts[parts.length - 1].push(arg)
+  }
+  return parts
+}
+
+const PLATE_TOKEN = /^@poi_plate_(.+)$/
+
+/** The badge's plate expression, with each category plate swapped for a dot tint. */
+function retint(plate: any, kind: 'fill' | 'edge'): any {
+  if (typeof plate === 'string') {
+    const category = PLATE_TOKEN.exec(plate)?.[1]
+    return category ? `@@category-dot-${kind}:${category}` : plate
+  }
+  return Array.isArray(plate) ? plate.map(p => retint(p, kind)) : plate
+}
+
+/** A dot's fill and edge: its badge's category tint, or the glyph-only style's icon and halo. */
+function dotColors(layer: any): { fill: unknown; edge: unknown } {
+  const plate = badgeParts(layer.layout?.['icon-image'])?.[1][0]
+  if (plate) return { fill: retint(plate, 'fill'), edge: retint(plate, 'edge') }
+  return { fill: layer.paint?.['icon-color'], edge: layer.paint?.['icon-halo-color'] }
+}
+
+/** The dot layer for an unresolved layer list, or null if it has no POI layers. */
 export function poiDotLayer(layers: any[]): any | null {
   const badges = layers.filter(isPoiBadgeLayer)
   if (!badges.length) return null
 
-  const color = ['case', ...badges.flatMap(l => [ungated(l.filter), l.paint['text-color']]), badges[0].paint['text-color']]
+  const colors = badges.map(dotColors)
+  const byLayer = (key: 'fill' | 'edge') => [
+    'case',
+    ...badges.flatMap((l, i) => [ungated(l.filter), colors[i][key]]),
+    colors[0][key],
+  ]
 
   return {
     id: POI_DOTS_LAYER,
@@ -47,8 +77,8 @@ export function poiDotLayer(layers: any[]): any | null {
       'symbol-sort-key': ['to-number', ['get', 'rank']],
     },
     paint: {
-      'icon-color': color,
-      'icon-halo-color': badges[0].paint['text-halo-color'],
+      'icon-color': byLayer('fill'),
+      'icon-halo-color': byLayer('edge'),
       'icon-halo-width': 1,
     },
   }

@@ -212,7 +212,7 @@ export interface BasemapStyleOptions {
 
 const CATEGORY_PREFIX = '@@category:'
 /** A palette colour run through the icon-tile treatment; see `tintOf`. */
-const CATEGORY_TINT_PREFIX = /^@@category-(plate|ink|ring):/
+const CATEGORY_TINT_PREFIX = /^@@category-(plate|ink|ring|dot-fill|dot-edge):/
 /** A literal colour run through the same treatment. */
 const TINT_PREFIX = /^@@tint-(plate|ink|ring):/
 
@@ -229,8 +229,11 @@ function tokenMap(flavor: FlavorId): Record<string, string> {
  * badge rather than none at all.
  */
 function tintOf(color: string, kind: string, flavor: FlavorId): string {
-  const tint = getCustomColorTint(color, 'solid', flavor === 'dark')
+  const dot = kind.startsWith('dot-')
+  const tint = getCustomColorTint(color, dot ? 'dot' : 'solid', flavor === 'dark')
   if (!tint) return color
+  if (kind === 'dot-fill') return tint.foreground
+  if (kind === 'dot-edge') return tint.background ?? color
   if (kind === 'ink') return tint.foreground
   if (kind === 'ring') return tint.ring ?? tint.foreground
   return tint.background ?? color
@@ -250,7 +253,7 @@ function resolve(
 ): any {
   if (typeof value === 'string') {
     if (!value.startsWith('@')) return value
-    const resolved = tokens[value.slice(1)]
+    const resolved = value.startsWith('@@') ? value : tokens[value.slice(1)]
     if (resolved === undefined) return value
     if (resolved.startsWith(CATEGORY_PREFIX)) {
       const category = resolved.slice(CATEGORY_PREFIX.length)
@@ -455,12 +458,13 @@ export function buildLayers(options: {
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
   base = useBarrelmanBuildings(base, flavor)
+  base = withPoiDots(base)
 
   const converted = base
     .map(l => resolve(l, tokens, categories, flavor))
     .map(l => localize(l, lang))
 
-  return spliceDetailLayers(withPoiDots(converted), flavor) as LayerSpecification[]
+  return spliceDetailLayers(converted, flavor) as LayerSpecification[]
 }
 
 /** The dots go under the lowest POI layer, so any badge drawn covers its own dot. */

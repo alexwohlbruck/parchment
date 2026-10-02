@@ -2,6 +2,7 @@
 
 ### Added
 
+* Famous landmarks can be drawn as small 3D models instead of plain blocks, lit and shadowed like the buildings around them. It starts with the Eiffel Tower, and needs the MapLibre engine with 3D objects turned on.
 * Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
 
 ### Changed

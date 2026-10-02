@@ -479,6 +479,10 @@ export class WallShadowLayer {
     this._heightScale = opts.heightScale ?? 0.38;
     this.shadowOffset = opts.shadowOffset ?? [-0.5, 0.5];
     this.shadowBlur = opts.shadowBlur ?? 2.0;
+    // PARCHMENT: other layers' geometry drawn into the same shadow mask — see
+    // `_casterShadows`. A live collection, so callers can come and go without
+    // the layer being rebuilt.
+    this.shadowCasters = opts.shadowCasters ?? new Set();
 
     // PARCHMENT: how the ground effects fade in and out — see `groundOpacity`.
     this.fadeZoom = opts.fadeZoom ?? 1.2;
@@ -682,8 +686,11 @@ export class WallShadowLayer {
 
   /* ── render orchestrator ── */
 
-  render(gl) {
+  render(gl, args) {
     if (!this.enabled || this._map.getZoom() < this._minZoom) return;
+    // PARCHMENT: the camera matrix in mercator, for shadow casters drawn in
+    // world space rather than per tile.
+    this._mainMatrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? null;
     const source = this._resolveSource();
     const layer = this._map.getLayer(this._layerId);
     if (!source || !layer) return;
@@ -787,8 +794,30 @@ export class WallShadowLayer {
       gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
       this._drawSegs(gl, sg);
     }
+    this._casterShadows(gl); // PARCHMENT
     this._vao.bind(null);
     gl.disable(gl.STENCIL_TEST);
+  }
+
+  /**
+   * PARCHMENT: let other layers cast into this mask — 3D landmarks, which
+   * replace a building and so have to throw its shadow too.
+   *
+   * Drawing into the same mask, under the same stencil, is the point: the
+   * blur, the darkness and the daylight fade all apply to it unchanged, and
+   * where a landmark's shadow crosses a building's it is not darkened twice.
+   *
+   * A caster gets the shear in mercator units per metre of height. The tile
+   * draw above shifts by `shadowOffset * s` tile units per (scaled) metre,
+   * `s = 2^z / tileSize / 8`; a tile is 8192 units across 2^-z of the world,
+   * and z cancels — `shadowOffset * heightScale / 2^25`, with y flipped the
+   * same way `u_shadowOff` flips it.
+   */
+  _casterShadows(gl) {
+    if (!this.shadowCasters.size || !this._mainMatrix) return;
+    const k = this._heightScale / 2 ** 25;
+    const shear = [this.shadowOffset[0] * k, -this.shadowOffset[1] * k];
+    for (const caster of this.shadowCasters) caster.drawShadow(gl, { matrix: this._mainMatrix, shear });
   }
 
   /* ── 2. seed footprints → FBO[0] ── */

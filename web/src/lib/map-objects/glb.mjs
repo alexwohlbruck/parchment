@@ -1,12 +1,18 @@
 /**
  * A minimal GLB reader, shared by the app and by `build-3d-objects.mjs`.
  *
- * Deliberately not a glTF library. It reads what a static, untextured,
- * flat-or-smooth-shaded model needs and nothing else: node transforms,
- * `POSITION` and `NORMAL` as float vec3, unsigned indices, and a material name
- * and base colour per primitive. Textures, skins, animation, sparse accessors,
- * Draco and morph targets are all out of scope — pulling in three.js to avoid
- * 150 lines would add more to the bundle than MapLibre's own renderer costs.
+ * Deliberately not a glTF library. It reads what a static, flat-or-smooth-
+ * shaded model needs and nothing else: node transforms, `POSITION` and
+ * `NORMAL` as float vec3, indices, and a material name and base colour per
+ * primitive. Skins, animation, sparse accessors, Draco and morph targets are
+ * all out of scope — pulling in three.js to avoid 150 lines would add more to
+ * the bundle than MapLibre's own renderer costs.
+ *
+ * One texture is read, for landmarks: a base-colour image with its
+ * `TEXCOORD_0`, alpha mode and cutoff. That is what a lattice or a railing is
+ * made of — a few quads with holes cut by the alpha — and it is the one thing
+ * a stylised building cannot do without. The image is handed back as bytes;
+ * decoding it is the renderer's business.
  *
  * Anything outside that throws rather than degrading, because a model that
  * loads wrong draws garbage rather than nothing.
@@ -120,6 +126,16 @@ export function parseGlb(buffer) {
     return new Type(bin.buffer, offset, accessor.count * per)
   }
 
+  /** A texture's image as bytes and type, copied out of the BIN chunk. */
+  const imageOf = ref => {
+    if (!ref) return null
+    const image = json.images?.[json.textures?.[ref.index]?.source]
+    if (image?.bufferView === undefined) return null
+    const view = json.bufferViews[image.bufferView]
+    const start = bin.byteOffset + (view.byteOffset ?? 0)
+    return { bytes: new Uint8Array(bin.buffer.slice(start, start + view.byteLength)), mimeType: image.mimeType }
+  }
+
   const min = [Infinity, Infinity, Infinity]
   const max = [-Infinity, -Infinity, -Infinity]
   const primitives = []
@@ -159,10 +175,22 @@ export function parseGlb(buffer) {
         }
 
         const material = json.materials?.[primitive.material]
+        const uv = primitive.attributes?.TEXCOORD_0 !== undefined
+          ? Float32Array.from(read(primitive.attributes.TEXCOORD_0))
+          : null
         primitives.push({
           position,
           normal,
-          index: read(primitive.indices).slice(),
+          // Unindexed triangles are legal glTF and what a flat-shaded export
+          // often is; a sequential index keeps one draw path for both.
+          index: primitive.indices !== undefined
+            ? read(primitive.indices).slice()
+            : (count > 65535 ? Uint32Array : Uint16Array).from({ length: count }, (_, i) => i),
+          uv,
+          image: imageOf(material?.pbrMetallicRoughness?.baseColorTexture),
+          alphaMode: material?.alphaMode ?? 'OPAQUE',
+          alphaCutoff: material?.alphaCutoff ?? 0.5,
+          doubleSided: material?.doubleSided ?? false,
           color: material?.pbrMetallicRoughness?.baseColorFactor ?? [1, 1, 1, 1],
           // The name is how a role travels: glTF has no field for "this is
           // bark", so `build-3d-objects.mjs` writes the role as the material

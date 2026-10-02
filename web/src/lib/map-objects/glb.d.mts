@@ -6,6 +6,13 @@ export type GlbPrimitive = {
   color: [number, number, number, number]
   /** The material's name, which is how a primitive's role travels. */
   material: string
+  /** `TEXCOORD_0`, when the primitive has one. */
+  uv: Float32Array | null
+  /** The base-colour texture's image, undecoded. */
+  image: { bytes: Uint8Array; mimeType: string } | null
+  alphaMode: 'OPAQUE' | 'MASK' | 'BLEND'
+  alphaCutoff: number
+  doubleSided: boolean
 }
 
 export type GlbModel = {

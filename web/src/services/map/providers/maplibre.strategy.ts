@@ -81,7 +81,14 @@ import {
   probeBarrelmanBuildings,
   barrelmanBuildingsReady,
 } from '@/lib/map-style/barrelman-buildings'
-import { OBJECT_FLAT_LAYERS, TREE_OPACITY, DETAIL_TILES } from '@/lib/map-style/detail-layers'
+import {
+  OBJECT_FLAT_LAYERS,
+  TREE_OPACITY,
+  DETAIL_TILES,
+  BUILDING_3D_TILES,
+  LANDMARK_SOURCE,
+  LANDMARK_TILES,
+} from '@/lib/map-style/detail-layers'
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
@@ -91,6 +98,8 @@ import {
   OBJECT_SOLID,
   OBJECT_SPECS,
 } from '@/lib/map-objects'
+import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
+import { LANDMARK_TINT, withoutReplaced } from '@/lib/map-objects/landmarks'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -106,6 +115,7 @@ import {
   shadeLight,
   sunShadow,
   BUILDING_SHADE_LAYER_ID,
+  shadowCasters,
 } from '@/lib/map/building-shade'
 function getPrimaryThemeHex(): string {
   try {
@@ -217,6 +227,9 @@ const ROOF_EDGE_FADE_PITCH = 8
 /** The one custom layer every 3D scene object is drawn by. */
 const OBJECT_LAYER_ID = 'map-objects'
 
+/** The custom layer drawing 3D landmarks; see `applyLandmarks`. */
+const LANDMARK_LAYER_ID = 'map-landmarks'
+
 /**
  * The first label layer the 3D objects have to stay behind.
  *
@@ -257,6 +270,9 @@ export class MaplibreStrategy extends MapStrategy {
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
   private objectModels: Promise<Record<string, GlbModel>> | null = null
+  /** Landmarks, and the building filters as the style had them before any were hidden. */
+  private landmarkLayer: LandmarkLayer | null = null
+  private buildingFilters = new Map<string, unknown>()
 
   constructor(
     container: string | HTMLElement,
@@ -416,6 +432,10 @@ export class MaplibreStrategy extends MapStrategy {
       // visibility from the stylesheet.
       this.objectLayer = null
       void this.applyMapObjects()
+      // The new style has its own building filters and no landmark layer.
+      this.landmarkLayer = null
+      this.buildingFilters.clear()
+      this.applyLandmarks()
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {
@@ -675,6 +695,73 @@ export class MaplibreStrategy extends MapStrategy {
   override setMap3dObjects(value: boolean) {
     this.map3dObjects = value
     void this.applyMapObjects()
+    this.applyLandmarks()
+  }
+
+  /**
+   * Landmarks ride on the 3D objects setting: they are models standing in the
+   * scene like the trees, and a user who has turned models off wants none.
+   *
+   * The layer loads its own models, lazily and per landmark, so turning it on
+   * costs nothing until one is in view.
+   */
+  private applyLandmarks() {
+    const map = this.mapInstance
+    const want = this.map3dObjects && !!this.tileServerUrl && !!map.getSource(LANDMARK_SOURCE)
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+
+    if (!want) {
+      const layer = this.landmarkLayer
+      if (layer) {
+        shadowCasters.delete(layer)
+        // Removing it hands the buildings back, through `onReplace([])`.
+        if (map.getLayer(layer.id)) map.removeLayer(layer.id)
+      }
+      this.landmarkLayer = null
+      return
+    }
+    if (this.landmarkLayer && map.getLayer(LANDMARK_LAYER_ID)) {
+      this.landmarkLayer.setTint(LANDMARK_TINT[flavor])
+      return
+    }
+
+    const base = this.tileServerUrl!
+    const layer: LandmarkLayer = new LandmarkLayer({
+      id: LANDMARK_LAYER_ID,
+      source: LANDMARK_SOURCE,
+      sourceLayer: LANDMARK_TILES,
+      modelUrl: file => `${base}/${LANDMARK_TILES}/models/${file}`,
+      tint: LANDMARK_TINT[flavor],
+      // Ignored once this layer is no longer the live one: a style swap
+      // removes it after the next style's filters are already in place.
+      onReplace: refs => {
+        if (this.landmarkLayer === layer) this.hideReplacedBuildings(refs)
+      },
+    })
+    this.landmarkLayer = layer
+    shadowCasters.add(layer)
+    // Beside the other models: above the buildings, below every label.
+    map.addLayer(layer as any, firstLabelLayer(map))
+  }
+
+  /**
+   * Take the buildings a landmark replaces out of every layer that draws
+   * them — the extrusion, its roof-colour twin, the roof edge and the flat
+   * footprint — so nothing of the old building shows through the model.
+   *
+   * All of them, and with the same filter, for a reason beyond tidiness: the
+   * roof-colour layer only works while it shares the extrusion's bucket, and
+   * MapLibre only shares a bucket between layers whose filters match.
+   */
+  private hideReplacedBuildings(refs: string[]) {
+    const map = this.mapInstance
+    for (const layer of map.getStyle()?.layers ?? []) {
+      const sourceLayer = (layer as any)['source-layer']
+      if (sourceLayer !== 'building' && sourceLayer !== BUILDING_3D_TILES) continue
+      if (!this.buildingFilters.has(layer.id))
+        this.buildingFilters.set(layer.id, (layer as any).filter ?? null)
+      map.setFilter(layer.id, withoutReplaced(this.buildingFilters.get(layer.id), sourceLayer, refs) as any)
+    }
   }
 
   private async applyMapObjects() {

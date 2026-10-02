@@ -863,6 +863,48 @@
     },
     "loading": {
       "collection": "Cargando colección..."
+    },
+    "privacy": {
+      "label": "Privacidad",
+      "schemes": {
+        "server-key": {
+          "title": "Compartible",
+          "description": "El servidor puede leerlo, así que puede publicarse con un enlace."
+        },
+        "user-e2ee": {
+          "title": "Privado",
+          "description": "Cifrado de extremo a extremo. Solo tus dispositivos pueden leerlo."
+        }
+      },
+      "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
+      "switchTo": {
+        "server-key": "Hacerlo compartible",
+        "user-e2ee": "Hacerlo privado"
+      },
+      "switched": "Se actualizó la privacidad",
+      "switchFailed": "No se pudo cambiar la privacidad",
+      "confirm": {
+        "collection": {
+          "server-key": {
+            "title": "¿Hacer compartible esta colección?",
+            "description": "Su nombre y sus lugares se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
+          },
+          "user-e2ee": {
+            "title": "¿Hacer privada esta colección?",
+            "description": "Su nombre y sus lugares se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirla, y se revocará cualquier enlace público."
+          }
+        },
+        "canvas": {
+          "server-key": {
+            "title": "¿Hacer compartible este lienzo?",
+            "description": "Su nombre y sus capas se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
+          },
+          "user-e2ee": {
+            "title": "¿Hacer privado este lienzo?",
+            "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
+          }
+        }
+      }
     }
   },
   "services": {
@@ -2083,32 +2125,10 @@
         "description": "Cualquier persona en internet con el enlace puede ver.",
         "copyAction": "Copiar enlace",
         "revokeAction": "Revocar enlace"
-      },
-      "e2ee": {
-        "title": "Cifrado de extremo a extremo",
-        "description": "Sólo los amigos invitados pueden descifrar esta colección. El enlace público no está disponible.",
-        "switchAction": "Cambiar a cifrado gestionado por el servidor"
-      },
-      "serverKey": {
-        "switchAction": "Cambiar a cifrado de extremo a extremo"
       }
     },
     "publicLink": {
       "copied": "Enlace copiado al portapapeles"
-    },
-    "schemeSwitch": {
-      "upgradeConfirm": {
-        "title": "¿Cambiar a cifrado de extremo a extremo?",
-        "description": "Cada lugar guardado en esta colección se volverá a cifrar con tu clave personal. El servidor de Parchment ya no podrá leerlos. Cualquier enlace público será revocado. Los amigos con acceso se volverán a compartir con la nueva clave.",
-        "continueText": "Cambiar a extremo a extremo"
-      },
-      "downgradeConfirm": {
-        "title": "¿Cambiar a cifrado gestionado por el servidor?",
-        "description": "El servidor de Parchment podrá leer cada lugar guardado en esta colección. Los amigos con acceso se volverán a compartir con el nuevo esquema. Esto no se puede deshacer sin volver a cambiar y cifrar.",
-        "continueText": "Cambiar a gestionado por el servidor"
-      },
-      "success": "Esquema de cifrado cambiado",
-      "failed": "No se pudo cambiar el esquema de cifrado"
     },
     "errors": {
       "loadFailed": "No se pudieron cargar los recursos compartidos",
@@ -2242,18 +2262,7 @@
       "editTitle": "Detalles del lienzo",
       "description": "Ponle un nombre y decide quién puede leerlo.",
       "namePlaceholder": "Nombre del lienzo",
-      "descriptionPlaceholder": "¿Para qué es este lienzo? (opcional)",
-      "privacy": "Privacidad"
-    },
-    "schemes": {
-      "server-key": {
-        "title": "Compartible",
-        "description": "Se guarda de forma que pueda publicarse con un enlace más adelante."
-      },
-      "user-e2ee": {
-        "title": "Privado",
-        "description": "Cifrado de extremo a extremo. Solo tus dispositivos pueden leerlo."
-      }
+      "descriptionPlaceholder": "¿Para qué es este lienzo? (opcional)"
     },
     "layers": {
       "missing": "Capa no encontrada",
@@ -2323,24 +2332,6 @@
     "delete": {
       "title": "¿Eliminar el lienzo?",
       "description": "«{name}» y sus capas se eliminarán. Esto no se puede deshacer."
-    },
-    "privacy": {
-      "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
-      "switched": "Se actualizó la privacidad del lienzo",
-      "switchTo": {
-        "server-key": "Hacerlo compartible",
-        "user-e2ee": "Hacerlo privado"
-      },
-      "confirm": {
-        "server-key": {
-          "title": "¿Hacer compartible este lienzo?",
-          "description": "Su nombre y sus capas se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
-        },
-        "user-e2ee": {
-          "title": "¿Hacer privado este lienzo?",
-          "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
-        }
-      }
     },
     "import": {
       "errors": {

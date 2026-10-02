@@ -899,6 +899,48 @@
     },
     "loading": {
       "collection": "Loading collection..."
+    },
+    "privacy": {
+      "label": "Privacy",
+      "schemes": {
+        "server-key": {
+          "title": "Shareable",
+          "description": "The server can read it, so it can be published with a link."
+        },
+        "user-e2ee": {
+          "title": "Private",
+          "description": "End-to-end encrypted. Only your devices can read it."
+        }
+      },
+      "needsIdentity": "Needs your recovery key on this device.",
+      "switchTo": {
+        "server-key": "Make it shareable",
+        "user-e2ee": "Make it private"
+      },
+      "switched": "Privacy updated",
+      "switchFailed": "Couldn't change privacy",
+      "confirm": {
+        "collection": {
+          "server-key": {
+            "title": "Make this collection shareable?",
+            "description": "Its name and places will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+          },
+          "user-e2ee": {
+            "title": "Make this collection private?",
+            "description": "Its name and places will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+          }
+        },
+        "canvas": {
+          "server-key": {
+            "title": "Make this canvas shareable?",
+            "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+          },
+          "user-e2ee": {
+            "title": "Make this canvas private?",
+            "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+          }
+        }
+      }
     }
   },
   "services": {
@@ -2205,32 +2247,10 @@
         "description": "Anyone on the internet with the link can view.",
         "copyAction": "Copy link",
         "revokeAction": "Revoke link"
-      },
-      "e2ee": {
-        "title": "End-to-end encrypted",
-        "description": "Only invited friends can decrypt this collection. Public link unavailable.",
-        "switchAction": "Switch to server-stored encryption"
-      },
-      "serverKey": {
-        "switchAction": "Switch to end-to-end encryption"
       }
     },
     "publicLink": {
       "copied": "Link copied to clipboard"
-    },
-    "schemeSwitch": {
-      "upgradeConfirm": {
-        "title": "Switch to end-to-end encryption?",
-        "description": "Every saved place in this collection will be re-encrypted under your personal key. The Parchment server will no longer be able to read them. Any public link will be revoked. Friends with access will be re-shared under the new key.",
-        "continueText": "Switch to end-to-end"
-      },
-      "downgradeConfirm": {
-        "title": "Switch to server-stored encryption?",
-        "description": "The Parchment server will be able to read every saved place in this collection. Friends with access will be re-shared under the new scheme. This cannot be undone without switching back and re-encrypting.",
-        "continueText": "Switch to server-stored"
-      },
-      "success": "Encryption scheme switched",
-      "failed": "Failed to switch encryption scheme"
     },
     "errors": {
       "loadFailed": "Failed to load shares",
@@ -2364,18 +2384,7 @@
       "editTitle": "Canvas details",
       "description": "Give it a name and decide who can read it.",
       "namePlaceholder": "Canvas name",
-      "descriptionPlaceholder": "What is this canvas for? (optional)",
-      "privacy": "Privacy"
-    },
-    "schemes": {
-      "server-key": {
-        "title": "Shareable",
-        "description": "Stored so it can be published with a link later."
-      },
-      "user-e2ee": {
-        "title": "Private",
-        "description": "End-to-end encrypted. Only your devices can read it."
-      }
+      "descriptionPlaceholder": "What is this canvas for? (optional)"
     },
     "layers": {
       "missing": "Missing layer",
@@ -2445,24 +2454,6 @@
     "delete": {
       "title": "Delete canvas?",
       "description": "\"{name}\" and its layers will be removed. This can't be undone."
-    },
-    "privacy": {
-      "needsIdentity": "Needs your recovery key on this device.",
-      "switched": "Canvas privacy updated",
-      "switchTo": {
-        "server-key": "Make it shareable",
-        "user-e2ee": "Make it private"
-      },
-      "confirm": {
-        "server-key": {
-          "title": "Make this canvas shareable?",
-          "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
-        },
-        "user-e2ee": {
-          "title": "Make this canvas private?",
-          "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
-        }
-      }
     },
     "import": {
       "errors": {

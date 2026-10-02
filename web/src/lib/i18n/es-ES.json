@@ -797,7 +797,14 @@
         "manage": "Gestionar colecciones",
         "untitled": "Colección sin título",
         "lastSaved": "Última guardada",
-        "sharedBy": "Compartida por {name}"
+        "sharedBy": "Compartida por {name}",
+        "locked": "Colección bloqueada",
+        "lockedNotice": {
+          "title": "Cifrada con tu clave de recuperación",
+          "contents": "Esta colección está cifrada de extremo a extremo y este dispositivo aún no tiene tu clave. Desbloquéala para ver su contenido.",
+          "details": "El nombre y el icono de esta colección están cifrados y este dispositivo aún no tiene tu clave. Desbloquéala para verlos.",
+          "unlock": "Desbloquear con clave de recuperación"
+        }
       },
       "routes": {
         "title": {

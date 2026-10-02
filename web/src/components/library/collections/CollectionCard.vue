@@ -5,8 +5,8 @@ import { ClockIcon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import type { Collection } from '@/types/library.types'
-import { type ThemeColor } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { collectionIcon } from '@/lib/library/collection-display'
 import { ItemRow } from '@/components/ui/item-row'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import CollectionContextMenu from '@/components/library/collections/CollectionContextMenu.vue'
@@ -77,12 +77,7 @@ function goToCollection() {
          - owner avatar badge for collections shared TO the user -->
     <template #icon="{ size }">
       <div class="relative shrink-0">
-        <ItemIcon
-          :icon="collection.icon"
-          :icon-pack="collection.iconPack ?? 'lucide'"
-          :color="collection.iconColor as ThemeColor"
-          :size="size"
-        />
+        <ItemIcon v-bind="collectionIcon(collection)" :size="size" />
         <div
           v-if="isLastSaved"
           class="absolute -top-1 -right-1 bg-muted text-muted-foreground ring-2 ring-background rounded-full p-[.15rem]"

@@ -3,6 +3,7 @@ import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { collectionIcon } from '@/lib/library/collection-display'
 import { SearchIcon, CheckIcon, ClockIcon } from 'lucide-vue-next'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
@@ -20,7 +21,7 @@ import type {
   Collection,
 } from '@/types/library.types'
 import type { Place } from '@/types/place.types'
-import { getThemeColorClasses, fuzzyFilter, type ThemeColor } from '@/lib/utils'
+import { getThemeColorClasses, fuzzyFilter } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { isOffline } from '@/lib/connectivity'
 import { isOfflineId } from '@/lib/sync/offline-id'
@@ -449,14 +450,9 @@ async function openCreateCollectionDialog() {
           <div class="relative mr-0.5">
             <div
               class="size-7 rounded-sm flex items-center justify-center shrink-0"
-              :class="getThemeColorClasses(collection.iconColor as ThemeColor)"
+              :class="getThemeColorClasses(collectionIcon(collection).color)"
             >
-              <ItemIcon
-                :icon="collection.icon"
-                :icon-pack="collection.iconPack ?? 'lucide'"
-                :color="collection.iconColor as ThemeColor"
-                size="sm"
-              />
+              <ItemIcon v-bind="collectionIcon(collection)" size="sm" />
             </div>
             <div
               v-if="collection.id === lastSavedCollectionId"

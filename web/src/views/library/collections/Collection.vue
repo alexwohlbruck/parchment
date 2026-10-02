@@ -7,10 +7,11 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useMapService } from '@/services/map/map.service'
 import { boundsOfPoints } from '@/lib/geo/map-bounds'
-import { type ThemeColor } from '@/lib/utils'
+import { collectionIcon } from '@/lib/library/collection-display'
 import BookmarkList from '@/components/library/bookmarks/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import CollectionContextMenu from '@/components/library/collections/CollectionContextMenu.vue'
+import CollectionLockedNotice from '@/components/library/collections/CollectionLockedNotice.vue'
 import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 // NOTE: the in-view back button was removed — the drawer (LeftSheet /
 // BottomSheet) now provides navigation controls. Route-change cleanup, if
@@ -77,6 +78,11 @@ function handleCollectionEdit() {
   collectionsService.fetchCollectionById(id)
 }
 
+async function handleUnlocked() {
+  await collectionsService.fetchCollections()
+  await collectionsService.fetchCollectionById(id)
+}
+
 function handleCollectionDelete() {
   router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
 }
@@ -92,12 +98,7 @@ function handleCollectionDelete() {
   <DetailPanelLayout v-else-if="collection">
     <template #title>
       <div class="flex items-center gap-2 min-w-0">
-        <ItemIcon
-          :icon="collection.icon"
-          :icon-pack="collection.iconPack ?? 'lucide'"
-          :color="collection.iconColor as ThemeColor"
-          size="sm"
-        />
+        <ItemIcon v-bind="collectionIcon(collection)" size="sm" />
         <div class="min-w-0">
           <h4 class="text-base font-semibold truncate">{{ collectionName }}</h4>
           <p
@@ -118,7 +119,13 @@ function handleCollectionDelete() {
       />
     </template>
 
+    <CollectionLockedNotice
+      v-if="collection.locked"
+      :collection="collection"
+      @unlocked="handleUnlocked"
+    />
     <BookmarkList
+      v-if="!collection.locked || collection.scheme === 'server-key'"
       :bookmarks="bookmarks"
       :loading="loading"
       :collection-id="id"

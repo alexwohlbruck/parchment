@@ -117,6 +117,20 @@ const SDF_RESOLUTION = 512
 
 export const BUILDING_SHADE_LAYER_ID = 'building-shade'
 
+/** Anything that can draw itself into the cast-shadow mask; see `shadowCasters`. */
+export type ShadowCaster = {
+  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
+}
+
+/**
+ * Layers casting shadows alongside the buildings — the 3D landmarks.
+ *
+ * Module-level and handed to every shade layer by reference, because the two
+ * have different lifetimes: a style swap rebuilds the shade layer, and a
+ * landmark layer added before that must not have to find the new one.
+ */
+export const shadowCasters = new Set<ShadowCaster>()
+
 /**
  * The layer currently on the map, for the dev tuning panel to drive.
  *
@@ -156,6 +170,7 @@ export function createBuildingShade(
     roofLayerId: BUILDING_3D_ROOF_LAYER,
     ...(minZoom === undefined ? {} : { minZoom }),
     shadowOffset: [...SHADOW_OFFSET],
+    shadowCasters,
     sdfResolution: SDF_RESOLUTION,
     edgeWidth: edgeWidth(),
     ...SHAPE,

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import type { Place } from '@/types/place.types'
-import { type ThemeColor } from '@/lib/utils'
+import { collectionIcon } from '@/lib/library/collection-display'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { Chip } from '@/components/ui/chip'
 import { SectionHeader } from '@/components/ui/section-header'
@@ -44,9 +44,7 @@ function openCollection(id: string) {
       >
         <template #leading>
           <ItemIcon
-            :icon="collection.icon"
-            :icon-pack="collection.iconPack ?? 'lucide'"
-            :color="collection.iconColor as ThemeColor"
+            v-bind="collectionIcon(collection)"
             size="xs"
             shape="circle"
             variant="solid"

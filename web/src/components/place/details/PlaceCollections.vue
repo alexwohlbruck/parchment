@@ -6,6 +6,7 @@ import { AppRoute } from '@/router'
 import type { Place } from '@/types/place.types'
 import { type ThemeColor } from '@/lib/utils'
 import { ItemIcon } from '@/components/ui/item-icon'
+import { Chip } from '@/components/ui/chip'
 import { SectionHeader } from '@/components/ui/section-header'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCollectionsService } from '@/services/library/collections.service'
@@ -35,24 +36,23 @@ function openCollection(id: string) {
   <div v-if="collections.length" class="flex flex-col gap-2">
     <SectionHeader :title="t('place.collections.savedIn')" />
     <div class="flex flex-wrap gap-1.5">
-      <button
+      <Chip
         v-for="collection in collections"
         :key="collection.id"
-        class="inline-flex items-center gap-1 rounded-full border pl-0.5 pr-2 py-0.5 bg-background transition-colors hover:bg-muted"
+        :label="collectionsService.getCollectionDisplayName(collection)"
         @click="openCollection(collection.id)"
       >
-        <ItemIcon
-          :icon="collection.icon"
-          :icon-pack="collection.iconPack ?? 'lucide'"
-          :color="collection.iconColor as ThemeColor"
-          size="xs"
-          shape="circle"
-          variant="solid"
-        />
-        <span class="text-xs font-medium">
-          {{ collectionsService.getCollectionDisplayName(collection) }}
-        </span>
-      </button>
+        <template #leading>
+          <ItemIcon
+            :icon="collection.icon"
+            :icon-pack="collection.iconPack ?? 'lucide'"
+            :color="collection.iconColor as ThemeColor"
+            size="xs"
+            shape="circle"
+            variant="solid"
+          />
+        </template>
+      </Chip>
     </div>
   </div>
 </template>

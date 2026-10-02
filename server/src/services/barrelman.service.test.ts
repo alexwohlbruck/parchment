@@ -20,17 +20,21 @@ mock.module('./integrations', () => ({
   },
 }))
 
-const { resolveBarrelmanConfig } = await import('./barrelman.service')
+const { resolveBarrelmanConfig, resolveLandmarksConfig } = await import('./barrelman.service')
 
 const ORIGINAL = {
   host: process.env.BARRELMAN_HOST,
   apiKey: process.env.BARRELMAN_API_KEY,
+  landmarksHost: process.env.LANDMARKS_HOST,
+  landmarksKey: process.env.LANDMARKS_API_KEY,
 }
 
 beforeEach(() => {
   configured = { host: 'https://barrelman.example', apiKey: 'configured-key' }
   delete process.env.BARRELMAN_HOST
   delete process.env.BARRELMAN_API_KEY
+  delete process.env.LANDMARKS_HOST
+  delete process.env.LANDMARKS_API_KEY
 })
 
 afterEach(() => {
@@ -38,6 +42,10 @@ afterEach(() => {
   else delete process.env.BARRELMAN_HOST
   if (ORIGINAL.apiKey) process.env.BARRELMAN_API_KEY = ORIGINAL.apiKey
   else delete process.env.BARRELMAN_API_KEY
+  if (ORIGINAL.landmarksHost) process.env.LANDMARKS_HOST = ORIGINAL.landmarksHost
+  else delete process.env.LANDMARKS_HOST
+  if (ORIGINAL.landmarksKey) process.env.LANDMARKS_API_KEY = ORIGINAL.landmarksKey
+  else delete process.env.LANDMARKS_API_KEY
 })
 
 describe('resolveBarrelmanConfig', () => {
@@ -81,5 +89,24 @@ describe('resolveBarrelmanConfig', () => {
     configured = undefined
 
     expect(resolveBarrelmanConfig()?.host).toBeUndefined()
+  })
+})
+
+describe('resolveLandmarksConfig', () => {
+  it('follows Barrelman when no landmarks host is set', () => {
+    process.env.BARRELMAN_HOST = 'http://127.0.0.1:5001'
+    expect(resolveLandmarksConfig()).toEqual(resolveBarrelmanConfig())
+  })
+
+  it('moves to its own host without taking the basemap with it', () => {
+    process.env.LANDMARKS_HOST = 'http://127.0.0.1:5011'
+    process.env.LANDMARKS_API_KEY = 'landmarks-key'
+    expect(resolveLandmarksConfig()).toEqual({ host: 'http://127.0.0.1:5011', apiKey: 'landmarks-key' })
+    expect(resolveBarrelmanConfig()?.host).toBe('https://barrelman.example')
+  })
+
+  it('never sends the Barrelman key to a different host', () => {
+    process.env.LANDMARKS_HOST = 'https://landmarks.example'
+    expect(resolveLandmarksConfig()).toEqual({ host: 'https://landmarks.example', apiKey: undefined })
   })
 })

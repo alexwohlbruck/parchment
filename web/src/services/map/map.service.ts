@@ -205,11 +205,8 @@ function mapService() {
     return requested
   }
 
-  // Auto-switch engine when premium status changes
   watch(canUseMapboxEngine, (canUse) => {
-    if (canUse && mapStore.settings.engine === MapEngine.MAPLIBRE) {
-      setMapEngine(MapEngine.MAPBOX)
-    } else if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
+    if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
       setMapEngine(MapEngine.MAPLIBRE)
     }
   })

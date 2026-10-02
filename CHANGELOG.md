@@ -7,6 +7,8 @@
 
 ### Changed
 
+* MapLibre is now the default map engine for everyone. Mapbox is still available in appearance settings for those with access.
+
 ### Fixed
 
 * Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.

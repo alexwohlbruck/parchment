@@ -1274,7 +1274,7 @@ export class MaplibreStrategy extends MapStrategy {
 
   addMarker(id: string, lngLat: LngLat) {
     this.removeMarker(id) // Remove existing marker if any
-    const marker = new Marker({ color: '#2563eb' })
+    const marker = new Marker({ color: this.selectedMarkerColor() })
       .setLngLat(lngLat as LngLatLike)
       .addTo(this.mapInstance)
     this.markers.set(id, marker)

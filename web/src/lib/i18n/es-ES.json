@@ -404,6 +404,7 @@
   "map": {
     "title": "Mapa",
     "searchThisArea": "Buscar en esta zona",
+    "returnToPlace": "Volver al lugar",
     "contextMenu": {
       "edit": "Editar mapa",
       "viewIn": "Ver en",

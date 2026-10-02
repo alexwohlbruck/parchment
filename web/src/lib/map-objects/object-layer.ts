@@ -70,7 +70,12 @@ const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6371008.8
  * nothing once, and a measurable share of a rebuild across a few thousand
  * trees, which is work done while somebody is panning.
  */
-export function project(lng: number, lat: number, elevation: number, out: Placed) {
+export function project(
+  lng: number,
+  lat: number,
+  elevation: number,
+  out: Pick<Placed, 'x' | 'y' | 'z' | 'perMetre'>,
+) {
   const perMetre = 1 / (EARTH_CIRCUMFERENCE * Math.cos((lat * Math.PI) / 180))
   out.x = (180 + lng) / 360
   out.y = (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))) / 360

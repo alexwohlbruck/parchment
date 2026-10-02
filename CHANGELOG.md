@@ -13,6 +13,7 @@
 
 ### Fixed
 
+* Opening a park or other area with the Mapbox map engine now moves the map to it.
 * Searching for a street now shows the street itself, separate from the addresses along it, without unrelated brands mixed in.
 * Inside a command palette command, only that command's options are listed, without unrelated settings results mixed in.
 * Searching for a street address no longer buries it under brands that merely share a word with it.

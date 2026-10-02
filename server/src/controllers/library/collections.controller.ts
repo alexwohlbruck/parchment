@@ -32,21 +32,28 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Create a new collection. Collections start as server-key, so metadata
-  // arrives in cleartext.
   .post(
     '/',
-    async ({ body, user }) => {
-      const createdCollection = await collectionsService.createCollection({
-        ...body,
-        userId: user.id,
-      })
-
-      return createdCollection
+    async ({ body, user, set }) => {
+      try {
+        return await collectionsService.createCollection({
+          ...body,
+          userId: user.id,
+        })
+      } catch (err) {
+        if (err instanceof collectionsService.PlaintextMetadataOnE2eeError) {
+          set.status = 400
+          return { error: err.message }
+        }
+        throw err
+      }
     },
     {
       body: t.Object({
         ...collectionMetadata,
+        scheme: t.Optional(
+          t.Union([t.Literal('server-key'), t.Literal('user-e2ee')]),
+        ),
         metadataEncrypted: t.Optional(t.String()),
         metadataKeyVersion: t.Optional(t.Number()),
         isPublic: t.Optional(t.Boolean()),
@@ -55,7 +62,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         tags: ['Library'],
         summary: 'Create a new collection',
         description:
-          'Creates a server-key collection. Pass metadata in cleartext; `metadataEncrypted` is accepted only from older clients.',
+          'Creates a collection, `server-key` unless `scheme` says otherwise. A server-key collection takes cleartext metadata. A user-e2ee collection takes none: the client seals it with `PUT /:id` once the id exists, and cleartext fields are rejected with 400.',
       },
     },
   )

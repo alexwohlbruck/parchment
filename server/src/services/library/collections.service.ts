@@ -269,11 +269,23 @@ export function resolveMetadataWrite(
     : { metadataEncrypted, metadataKeyVersion, isPublic }
 }
 
+/**
+ * A user-e2ee collection is created without metadata: its key is derived from
+ * the id, so the client seals the metadata once the id exists.
+ */
 export async function createCollection(params: CreateCollectionParams) {
-  const { userId, isPublic, metadataKeyVersion, ...metadata } = params
+  const {
+    userId,
+    isPublic,
+    metadataKeyVersion,
+    scheme = 'server-key',
+    ...metadata
+  } = params
   const newCollection: NewCollection = {
     id: generateId(),
-    ...resolveMetadataWrite('server-key', metadata),
+    ...resolveMetadataWrite(scheme, metadata),
+    scheme,
+    isSensitive: scheme === 'user-e2ee',
     metadataKeyVersion: metadataKeyVersion ?? 1,
     isPublic: isPublic ?? false,
     userId,

@@ -246,6 +246,16 @@ describe('POST /collections', () => {
     })
   })
 
+  test('400s on cleartext metadata for a user-e2ee collection', async () => {
+    createCollection.mockRejectedValueOnce(new PlaintextMetadataOnE2eeError())
+
+    const res = await req(app).post('/collections', {
+      body: { scheme: 'user-e2ee', name: 'Leaked' },
+    })
+
+    expect(res.status).toBe(400)
+  })
+
   test('422s on an unknown icon pack', async () => {
     const res = await req(app).post('/collections', {
       body: { name: 'Coffee', iconPack: 'emoji' },

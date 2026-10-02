@@ -34,6 +34,7 @@ import {
   PlaintextMetadataOnE2eeError,
   SchemeChangeMetadataError,
   resolveMetadataWrite,
+  createCollection,
   updateCollection,
   getAccessibleCollection,
   getSharedCollections,
@@ -416,6 +417,28 @@ describe('rotateCollectionKey', () => {
       )
     expect(updatedIncoming.encryptedData).toBe('new-ct')
     expect(updatedIncoming.nonce).toBe('new-n')
+  })
+})
+
+describe('createCollection', () => {
+  test('a user-e2ee collection starts with no metadata at all', async () => {
+    const created = await createCollection({
+      userId: aliceId,
+      scheme: 'user-e2ee',
+    })
+
+    expect(created).toMatchObject({
+      scheme: 'user-e2ee',
+      isSensitive: true,
+      name: null,
+      metadataEncrypted: null,
+    })
+  })
+
+  test('a user-e2ee collection refuses a cleartext name', async () => {
+    expect(
+      createCollection({ userId: aliceId, scheme: 'user-e2ee', name: 'Leaked' }),
+    ).rejects.toThrow(PlaintextMetadataOnE2eeError)
   })
 })
 

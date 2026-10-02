@@ -26,11 +26,10 @@ import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import { newViewFraction } from '@/lib/geo/map-bounds'
+import { boundsOfPoints, newViewFraction } from '@/lib/geo/map-bounds'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { Spinner } from '@/components/ui/spinner'
 import { findScrollAncestor } from '@/lib/scroll'
-import { boundsOfPoints } from '@/lib/geo/map-bounds'
 
 const route = useRoute()
 const router = useRouter()

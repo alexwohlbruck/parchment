@@ -2,6 +2,8 @@
 
 ### Added
 
+* A place's page now lists the collections you've saved it to. Tap one to open it.
+
 ### Changed
 
 ### Fixed

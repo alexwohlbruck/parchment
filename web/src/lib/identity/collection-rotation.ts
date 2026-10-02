@@ -12,9 +12,9 @@
  *      current key (version N, derived from the seed).
  *   2. Advance to version N+1 — derive a fresh key.
  *   3. Re-encrypt metadata + points under the new key.
- *   4. For each remaining recipient, ECIES-wrap the new key for their
- *      X25519 pubkey. Revoked recipients are not rewrapped; their share
- *      row is deleted in the same batch.
+ *   4. Seal the new key into each remaining recipient's share envelope.
+ *      Revoked recipients get none; their share row is deleted in the
+ *      same batch.
  *   5. POST the whole batch to the `/rotate-key` endpoint. The server
  *      runs it as a single DB transaction so no caller sees a
  *      half-rotated collection.
@@ -26,11 +26,8 @@
  */
 
 import { api } from '@/lib/api'
-import {
-  deriveCollectionKey,
-  encryptForFriend,
-  importPublicKey,
-} from './federation-crypto'
+import { deriveCollectionKey } from './federation-crypto'
+import { sealForRecipients } from './collection-share'
 import { encryptEnvelopeString, decryptEnvelopeString } from './crypto-envelope'
 import {
   collectionPointAAD,
@@ -127,7 +124,7 @@ export async function rotateCollectionKey(
   const metadata = collection.metadataEncrypted
     ? decryptCollectionMetadata({
         envelope: collection.metadataEncrypted,
-        seed,
+        source: { seed },
         userId: ownerUserId,
         collectionId: collection.id,
         keyVersion: oldVersion,
@@ -139,7 +136,7 @@ export async function rotateCollectionKey(
   const newMetadataEncrypted = metadata
     ? encryptCollectionMetadata({
         metadata,
-        seed,
+        source: { seed },
         userId: ownerUserId,
         collectionId: collection.id,
         keyVersion: newVersion,
@@ -160,29 +157,18 @@ export async function rotateCollectionKey(
     return { id: p.id, encryptedData: envelope, nonce: '' }
   })
 
-  // ---- Phase 3: rewrap the new key for each remaining recipient ----
-  //
-  // We wrap the raw 32 bytes of the new key itself; the friend decrypts to
-  // get the key back, then uses it for subsequent point + metadata reads.
-  // The v1 `encryptForFriend` path is used because current shares carry
-  // v1-shaped envelopes (ciphertext + nonce). A migration to v2 is tracked
-  // as a follow-up.
+  // ---- Phase 3: seal the new key for each remaining recipient ----
   onProgress?.('rewrapping', 0)
-  const newKeyB64 = btoa(String.fromCharCode(...newKey))
-  const updatedShareEnvelopes = remainingShares.map((s, i) => {
-    const friendPub = importPublicKey(s.recipientEncryptionKey)
-    const wrapped = encryptForFriend(
-      newKeyB64,
-      ownerEncryptionPrivateKey,
-      friendPub,
-      `parchment-collection-key-wrap:${collection.id}`,
-    )
-    onProgress?.('rewrapping', (i + 1) / Math.max(1, remainingShares.length))
-    return {
-      recipientHandle: s.recipientHandle,
-      encryptedData: wrapped.ciphertext,
-      nonce: wrapped.nonce,
-    }
+  const updatedShareEnvelopes = sealForRecipients({
+    share: {
+      collectionId: collection.id,
+      scheme: 'user-e2ee',
+      key: newKey,
+      keyVersion: newVersion,
+    },
+    ownerPrivateKey: ownerEncryptionPrivateKey,
+    recipients: remainingShares,
+    onEach: (done, total) => onProgress?.('rewrapping', done / total),
   })
 
   // ---- Phase 4: commit server-side in one transaction ----

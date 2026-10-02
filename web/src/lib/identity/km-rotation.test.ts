@@ -147,7 +147,7 @@ describe('rotateMasterKey — happy path', () => {
     const collectionId = 'c1'
     const oldCollectionMeta = encryptCollectionMetadata({
       metadata: { name: 'Favorites', icon: 'star', iconColor: '#fff' },
-      seed: oldSeed,
+      source: { seed: oldSeed },
       userId,
       collectionId,
     })

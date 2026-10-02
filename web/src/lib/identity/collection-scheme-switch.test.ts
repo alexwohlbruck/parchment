@@ -75,7 +75,7 @@ describe('upgradeCollectionToE2ee', () => {
     expect(
       decryptCollectionMetadata({
         envelope: body.newMetadataEncrypted,
-        seed: hoisted.seed,
+        source: { seed: hoisted.seed },
         userId: ownerUserId,
         collectionId: 'coll-1',
         keyVersion: body.newMetadataKeyVersion,
@@ -91,7 +91,7 @@ describe('downgradeCollectionToServerKey', () => {
         scheme: 'user-e2ee',
         metadataEncrypted: encryptCollectionMetadata({
           metadata,
-          seed: hoisted.seed,
+          source: { seed: hoisted.seed },
           userId: ownerUserId,
           collectionId: 'coll-1',
         }),

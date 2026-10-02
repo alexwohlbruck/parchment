@@ -62,12 +62,12 @@ import {
   deriveCollectionKey,
   exportPublicKey,
   encryptForFriend,
-  decryptFromFriend,
   importPublicKey,
 } from '@/lib/identity/federation-crypto'
 import { encryptEnvelopeString, decryptEnvelopeString } from '@/lib/identity/crypto-envelope'
 import { decryptCollectionMetadata } from './library-crypto'
 import { rotateCollectionKey } from './collection-rotation'
+import { openCollectionShare } from './collection-share'
 
 const { state, apiPostSpy } = hoisted
 
@@ -173,7 +173,7 @@ describe('rotateCollectionKey', () => {
     expect(
       decryptCollectionMetadata({
         envelope: payload.newMetadataEncrypted,
-        seed,
+        source: { seed },
         userId: ownerUserId,
         collectionId,
         keyVersion: 2,
@@ -198,17 +198,14 @@ describe('rotateCollectionKey', () => {
     expect(bobEnvelope).toBeDefined()
 
     const ownerPub = ownerEnc.publicKey
-    const decrypted = decryptFromFriend(
-      bobEnvelope!.encryptedData,
-      bobEnvelope!.nonce,
-      bobKeys.privateKey,
-      ownerPub,
-      `parchment-collection-key-wrap:${collectionId}`,
-    )
-    const newKeyB64 = decrypted
-    const newKeyBytes = Uint8Array.from(atob(newKeyB64), (c) => c.charCodeAt(0))
     const expectedNewKey = deriveCollectionKey(seed, collectionId, 2)
-    expect(newKeyBytes).toEqual(expectedNewKey)
+    const share = openCollectionShare({
+      envelope: bobEnvelope!,
+      recipientPrivateKey: bobKeys.privateKey,
+      senderPublicKey: ownerPub,
+    })
+    expect(share.key).toEqual(expectedNewKey)
+    expect(share.keyVersion).toBe(2)
 
     // New point ciphertext actually decrypts under the new key with the
     // right AAD — catches "we didn't bind AAD to the new key" bugs.

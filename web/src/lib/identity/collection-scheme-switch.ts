@@ -12,11 +12,8 @@
  */
 
 import { api } from '@/lib/api'
-import {
-  deriveCollectionKey,
-  encryptForFriend,
-  importPublicKey,
-} from './federation-crypto'
+import { deriveCollectionKey } from './federation-crypto'
+import { sealForRecipients } from './collection-share'
 import {
   collectionMetadataOf,
   decryptCollectionPoint,
@@ -76,23 +73,6 @@ export interface SwitchDowngradeInput {
   onProgress?: (phase: SwitchPhase, pctInPhase: number) => void
 }
 
-function wrapKeyForFriend(params: {
-  keyBytes: Uint8Array
-  ownerPrivate: Uint8Array
-  recipientPublicKey: string
-  collectionId: string
-}): { encryptedData: string; nonce: string } {
-  const friendPub = importPublicKey(params.recipientPublicKey)
-  const b64 = btoa(String.fromCharCode(...params.keyBytes))
-  const wrapped = encryptForFriend(
-    b64,
-    params.ownerPrivate,
-    friendPub,
-    `parchment-collection-key-wrap:${params.collectionId}`,
-  )
-  return { encryptedData: wrapped.ciphertext, nonce: wrapped.nonce }
-}
-
 /**
  * server-key → user-e2ee. Every current cleartext bookmark, and the
  * collection's own metadata, is encrypted under the new collection key.
@@ -124,7 +104,7 @@ export async function upgradeCollectionToE2ee(
     const envelope = encryptCollectionPoint({
       point: { ...bm, iconPack: bm.iconPack ?? 'lucide' },
       pointId: bm.id,
-      seed,
+      source: { seed },
       ownerUserId,
       collectionId: collection.id,
       keyVersion: newVersion,
@@ -135,7 +115,7 @@ export async function upgradeCollectionToE2ee(
 
   const newMetadataEncrypted = encryptCollectionMetadata({
     metadata: collectionMetadataOf(collection),
-    seed,
+    source: { seed },
     userId: ownerUserId,
     collectionId: collection.id,
     keyVersion: newVersion,
@@ -143,19 +123,16 @@ export async function upgradeCollectionToE2ee(
 
   // ---- Phase 2: rewrap share keys for remaining recipients ----
   onProgress?.('rewrapping', 0)
-  const updatedShareEnvelopes = remainingShares.map((s, i) => {
-    const wrapped = wrapKeyForFriend({
-      keyBytes: newKey,
-      ownerPrivate: ownerEncryptionPrivateKey,
-      recipientPublicKey: s.recipientEncryptionKey,
+  const updatedShareEnvelopes = sealForRecipients({
+    share: {
       collectionId: collection.id,
-    })
-    onProgress?.('rewrapping', (i + 1) / Math.max(1, remainingShares.length))
-    return {
-      recipientHandle: s.recipientHandle,
-      encryptedData: wrapped.encryptedData,
-      nonce: wrapped.nonce,
-    }
+      scheme: 'user-e2ee',
+      key: newKey,
+      keyVersion: newVersion,
+    },
+    ownerPrivateKey: ownerEncryptionPrivateKey,
+    recipients: remainingShares,
+    onEach: (done, total) => onProgress?.('rewrapping', done / total),
   })
 
   // ---- Phase 3: commit atomically ----
@@ -200,14 +177,13 @@ export async function downgradeCollectionToServerKey(
 
   const oldVersion = collection.metadataKeyVersion ?? 1
   const newVersion = oldVersion + 1
-  const newKey = deriveCollectionKey(seed, collection.id, newVersion)
 
   // ---- Phase 1: decrypt each point into a plaintext bookmark payload ----
   onProgress?.('transforming', 0)
   const newBookmarks = currentPoints.map((p, i) => {
     const point = decryptCollectionPoint({
       point: p,
-      seed,
+      source: { seed },
       ownerUserId,
       collectionId: collection.id,
       keyVersion: oldVersion,
@@ -229,19 +205,11 @@ export async function downgradeCollectionToServerKey(
 
   // ---- Phase 2: rewrap share keys for remaining recipients ----
   onProgress?.('rewrapping', 0)
-  const updatedShareEnvelopes = remainingShares.map((s, i) => {
-    const wrapped = wrapKeyForFriend({
-      keyBytes: newKey,
-      ownerPrivate: ownerEncryptionPrivateKey,
-      recipientPublicKey: s.recipientEncryptionKey,
-      collectionId: collection.id,
-    })
-    onProgress?.('rewrapping', (i + 1) / Math.max(1, remainingShares.length))
-    return {
-      recipientHandle: s.recipientHandle,
-      encryptedData: wrapped.encryptedData,
-      nonce: wrapped.nonce,
-    }
+  const updatedShareEnvelopes = sealForRecipients({
+    share: { collectionId: collection.id, scheme: 'server-key' },
+    ownerPrivateKey: ownerEncryptionPrivateKey,
+    recipients: remainingShares,
+    onEach: (done, total) => onProgress?.('rewrapping', done / total),
   })
 
   onProgress?.('committing', 0)

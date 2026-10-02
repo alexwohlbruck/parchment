@@ -286,7 +286,7 @@ function rebuildCollection(params: {
   try {
     metadata = decryptCollectionMetadata({
       envelope: params.oldEnvelope,
-      seed: params.oldSeed,
+      source: { seed: params.oldSeed },
       userId: params.userId,
       collectionId: params.collectionId,
       keyVersion: params.keyVersion,
@@ -298,7 +298,7 @@ function rebuildCollection(params: {
   }
   const metadataEncrypted = encryptCollectionMetadata({
     metadata,
-    seed: params.newSeed,
+    source: { seed: params.newSeed },
     userId: params.userId,
     collectionId: params.collectionId,
     keyVersion: params.keyVersion,

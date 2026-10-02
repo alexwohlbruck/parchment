@@ -84,15 +84,31 @@ function canvasAAD(params: { userId: string; canvasId: string }): AAD {
   }
 }
 
+/**
+ * Where a collection key comes from: the owner derives it from their seed, a
+ * share recipient holds it outright for the collection's current version.
+ */
+export type CollectionKeySource = { seed: Uint8Array } | { key: Uint8Array }
+
+function collectionKeyFrom(
+  source: CollectionKeySource,
+  collectionId: string,
+  version: number,
+): Uint8Array {
+  return 'key' in source
+    ? source.key
+    : deriveCollectionKey(source.seed, collectionId, version)
+}
+
 export function encryptCollectionMetadata(params: {
   metadata: CollectionMetadata
-  seed: Uint8Array
+  source: CollectionKeySource
   userId: string
   collectionId: string
   keyVersion?: number
 }): string {
-  const key = deriveCollectionKey(
-    params.seed,
+  const key = collectionKeyFrom(
+    params.source,
     params.collectionId,
     params.keyVersion ?? 1,
   )
@@ -112,7 +128,7 @@ export function encryptCollectionMetadata(params: {
  */
 export function decryptCollectionMetadata(params: {
   envelope: string
-  seed: Uint8Array
+  source: CollectionKeySource
   userId: string
   collectionId: string
   keyVersion?: number
@@ -127,7 +143,8 @@ export function decryptCollectionMetadata(params: {
         keyContext: `parchment-collection-${params.collectionId}`,
       },
     },
-    { version: 1, aad: collectionAAD(params) },
+    // Only the owner can re-derive an older version's key.
+    ...('seed' in params.source ? [{ version: 1, aad: collectionAAD(params) }] : []),
   ]
 
   let lastError: unknown
@@ -135,7 +152,7 @@ export function decryptCollectionMetadata(params: {
     try {
       const plaintext = decryptEnvelopeString({
         envelope: params.envelope,
-        key: deriveCollectionKey(params.seed, params.collectionId, attempt.version),
+        key: collectionKeyFrom(params.source, params.collectionId, attempt.version),
         aad: attempt.aad,
       })
       return JSON.parse(plaintext) as CollectionMetadata
@@ -193,7 +210,7 @@ export type CollectionPointFields = Omit<DecryptedPoint, 'id'>
 export function encryptCollectionPoint(params: {
   point: CollectionPointFields
   pointId: string
-  seed: Uint8Array
+  source: CollectionKeySource
   ownerUserId: string
   collectionId: string
   keyVersion?: number
@@ -211,7 +228,7 @@ export function encryptCollectionPoint(params: {
       iconColor: point.iconColor,
       frequentType: point.frequentType ?? null,
     }),
-    key: deriveCollectionKey(params.seed, params.collectionId, params.keyVersion ?? 1),
+    key: collectionKeyFrom(params.source, params.collectionId, params.keyVersion ?? 1),
     aad: collectionPointAAD({
       collectionId: params.collectionId,
       pointId: params.pointId,
@@ -229,13 +246,13 @@ export function encryptCollectionPoint(params: {
  */
 export function decryptCollectionPoint(params: {
   point: { id: string; encryptedData: string }
-  seed: Uint8Array
+  source: CollectionKeySource
   ownerUserId: string
   collectionId: string
   keyVersion?: number
 }): DecryptedPoint {
-  const key = deriveCollectionKey(
-    params.seed,
+  const key = collectionKeyFrom(
+    params.source,
     params.collectionId,
     params.keyVersion ?? 1,
   )

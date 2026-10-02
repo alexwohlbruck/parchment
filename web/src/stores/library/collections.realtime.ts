@@ -14,6 +14,7 @@
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { registerRealtimeHandlers } from '@/lib/realtime/realtime-events'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import type { Collection } from '@/types/library.types'
 
 function isCollectionLike(p: unknown): p is Collection {
@@ -128,23 +129,20 @@ registerRealtimeHandlers('collections', {
   'realtime:reconnected': applyReconnected,
 })
 
-// Encrypted-point updates are emitted by the server but they live in the
-// bookmarks store (rendered under a collection). We register a thin
-// handler here that forwards to the bookmarks store's accessor — not
-// ideal co-location, but simpler than adding a whole separate registry
-// for encrypted points.
+/** Re-decrypt a private collection's places, if this session had loaded them. */
+function refreshPrivatePoints(payload: unknown) {
+  const collectionId = (payload as { collectionId?: unknown } | null)?.collectionId
+  if (typeof collectionId !== 'string') return
+  const pointsStore = useEncryptedPointsStore()
+  if (!pointsStore.isLoaded(collectionId)) return
+  const collection = useCollectionsStore().getCollectionById(collectionId)
+  if (!collection) return
+  pointsStore.clearCollection(collectionId)
+  void useCollectionsService().fetchAndDecryptPoints(collection)
+}
+
 registerRealtimeHandlers('encrypted-points', {
-  'encrypted-point:created': (_p) => {
-    // Encrypted points need decryption before they're usable, which
-    // involves the per-collection key. Simplest correct behavior: fire
-    // a refetch on the owning collection so the service path that
-    // already handles decryption fills them in.
-    void useCollectionsService().fetchCollections()
-  },
-  'encrypted-point:updated': () => {
-    void useCollectionsService().fetchCollections()
-  },
-  'encrypted-point:deleted': () => {
-    void useCollectionsService().fetchCollections()
-  },
+  'encrypted-point:created': refreshPrivatePoints,
+  'encrypted-point:updated': refreshPrivatePoints,
+  'encrypted-point:deleted': refreshPrivatePoints,
 })

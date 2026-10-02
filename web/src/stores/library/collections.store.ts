@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Collection, Bookmark } from '@/types/library.types'
 import { isOfflineId } from '@/lib/sync/offline-id'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
+import { pointAsBookmark } from '@/lib/library/collection-points'
 
 interface NormalizedCollection extends Omit<Collection, 'places'> {
   bookmarkIds?: string[]
@@ -248,9 +250,31 @@ export const useCollectionsStore = defineStore('collections', () => {
     })
   }
 
+  /**
+   * The places in a collection, whichever way it stores them. A private
+   * collection's only exist once its points are decrypted this session.
+   */
+  /** A collection opened by public link: not in the library, but on the map. */
+  const publicCollection = shallowRef<{ id: string; places: Bookmark[] } | null>(null)
+
+  const getCollectionPlaces = computed(() => {
+    const pointsStore = useEncryptedPointsStore()
+    return (id: string): Bookmark[] => {
+      if (publicCollection.value?.id === id) return publicCollection.value.places
+      const collection = getCollectionById.value(id)
+      if (!collection) return []
+      if (collection.scheme !== 'user-e2ee') return collection.bookmarks ?? []
+      return pointsStore
+        .getPoints(id)
+        .map(point => pointAsBookmark(point, collection.userId))
+    }
+  })
+
   return {
     collections,
     lastSavedCollectionId,
+    getCollectionPlaces,
+    publicCollection,
     setLastSavedCollectionId,
     openCollectionId,
     getCollectionById,

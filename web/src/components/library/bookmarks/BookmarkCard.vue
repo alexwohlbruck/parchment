@@ -24,12 +24,11 @@ import ResponsiveDropdown, {
 const props = defineProps<{
   bookmark: Bookmark
   collectionId?: string
+  /** An encrypted copy in a private collection, not a bookmark row. */
+  encrypted?: boolean
 }>()
 
 const emit = defineEmits<{
-  edit: [bookmark: Bookmark]
-  unsave: [bookmark: Bookmark]
-  addToCollection: [bookmark: Bookmark]
   removeFromCollection: [bookmark: Bookmark]
 }>()
 
@@ -71,7 +70,7 @@ async function editBookmark() {
 }
 
 const menuItems = computed<MenuItemDefinition[]>(() => {
-  const items: MenuItemDefinition[] = [
+  const items: MenuItemDefinition[] = props.encrypted ? [] : [
     {
       type: 'item',
       id: 'edit',

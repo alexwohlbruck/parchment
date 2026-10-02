@@ -4,7 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { collectionIcon } from '@/lib/library/collection-display'
-import { SearchIcon, CheckIcon, ClockIcon } from 'lucide-vue-next'
+import { isSamePlace } from '@/lib/library/external-ids'
+import { SearchIcon, CheckIcon, ClockIcon, LockIcon } from 'lucide-vue-next'
+import { usePlaceCollections } from '@/composables/library/usePlaceCollections'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useCollectionsService } from '@/services/library/collections.service'
@@ -65,6 +67,32 @@ const bookmarkCollectionIds = ref<string[]>([])
 // the parent's prop update lands a tick later but we don't want to
 // wait or block the next click on stale state.
 const currentBookmark = ref<Bookmark | undefined>(props.bookmark)
+
+const storedBookmark = computed(() =>
+  currentBookmark.value?.id
+    ? bookmarksStore.getBookmarkById(currentBookmark.value.id)
+    : undefined,
+)
+const { privatePoints } = usePlaceCollections(() => ({
+  externalIds: props.place?.externalIds ?? storedBookmark.value?.externalIds,
+}))
+
+function isInCollection(collection: Collection) {
+  return (
+    bookmarkCollectionIds.value.includes(collection.id) ||
+    privatePoints.value.has(collection.id)
+  )
+}
+
+/**
+ * Collections this device can save into. Viewers can't write, and a private
+ * collection needs its owner's key, so only its owner on an unlocked device.
+ */
+function canSaveTo(collection: Collection) {
+  const owner = !collection.role || collection.role === 'owner'
+  if (collection.scheme === 'user-e2ee') return owner && !collection.locked
+  return owner || collection.role === 'editor'
+}
 
 watch(
   () => props.bookmark?.id,
@@ -152,9 +180,7 @@ async function fetchCollectionsForBookmark() {
 const frozenOrder = ref<Map<string, number>>(new Map())
 
 function buildFrozenOrder(): Map<string, number> {
-  const writable = collections.value.filter(
-    (c) => !c.role || c.role === 'owner' || c.role === 'editor',
-  )
+  const writable = collections.value.filter(canSaveTo)
   const lastSavedId = lastSavedCollectionId.value
   const ordered = writable
     .slice()
@@ -169,12 +195,7 @@ function buildFrozenOrder(): Map<string, number> {
 }
 
 const sortedAndFilteredCollections = computed(() => {
-  // Only offer collections the caller can actually write to. Viewer-role
-  // shared collections are read-only — showing them here just sets the
-  // user up for a 403 toast on click.
-  const writableCollections = collections.value.filter(
-    (c) => !c.role || c.role === 'owner' || c.role === 'editor',
-  )
+  const writableCollections = collections.value.filter(canSaveTo)
 
   const sourceCollections = fuzzyFilter(
     writableCollections,
@@ -225,9 +246,7 @@ const activePresetBookmark = computed(() => {
   let bm = id ? bookmarksStore.getBookmarkById(id) : undefined
   if (!bm && props.place?.externalIds) {
     const ids = props.place.externalIds
-    bm = bookmarksStore.bookmarks.find(b =>
-      Object.entries(ids).some(([p, v]) => b.externalIds[p] === v),
-    )
+    bm = bookmarksStore.bookmarks.find(b => isSamePlace(ids, b.externalIds))
   }
   return bm ?? null
 })
@@ -262,13 +281,33 @@ async function togglePreset(type: FrequentType) {
   }
 }
 
-async function onCollectionClick(collectionId: string) {
+async function onCollectionClick(collection: Collection) {
   if (isTogglingCollection.value) return
 
-  if (currentBookmark.value?.id) {
-    await toggleCollection(collectionId)
+  if (collection.scheme === 'user-e2ee') {
+    await togglePrivate(collection)
+  } else if (currentBookmark.value?.id) {
+    await toggleCollection(collection.id)
   } else if (props.place) {
-    await saveNewBookmark(collectionId)
+    await saveNewBookmark(collection.id)
+  }
+}
+
+/** A private collection holds its own encrypted copy, apart from any bookmark. */
+async function togglePrivate(collection: Collection) {
+  isTogglingCollection.value = true
+  try {
+    const point = privatePoints.value.get(collection.id)
+    if (point) {
+      await bookmarksService.removeFromPrivateCollection(collection, point)
+      return
+    }
+    const fields = props.place
+      ? bookmarksService.placeFields(props.place)
+      : storedBookmark.value
+    if (fields) await bookmarksService.saveToPrivateCollection(collection, fields)
+  } finally {
+    isTogglingCollection.value = false
   }
 }
 
@@ -335,51 +374,8 @@ async function saveNewBookmark(collectionId: string) {
 }
 
 async function openCreateCollectionDialog() {
-  try {
-    const newCollection = await createCollectionFromDialog()
-    if (!newCollection?.id) return
-
-    isTogglingCollection.value = true
-
-    // Place mode: there's no bookmark yet, so the freshly-made collection
-    // becomes the very first one for this place. Same codepath as picking an
-    // existing collection in place-mode.
-    if (!currentBookmark.value?.id && props.place) {
-      const bookmark = await bookmarksService.createBookmark(props.place, [
-        newCollection.id,
-      ])
-      if (bookmark) {
-        currentBookmark.value = bookmark
-        bookmarkCollectionIds.value = [newCollection.id]
-        emit('bookmark-created', bookmark, [newCollection.id])
-      }
-      return
-    }
-
-    const id = currentBookmark.value?.id
-    if (!id) return
-    const updatedIds = [...bookmarkCollectionIds.value, newCollection.id]
-
-    const updatedBookmark = await bookmarksService.updateBookmark(
-      id,
-      { collectionIds: updatedIds },
-      { addedCollectionId: newCollection.id },
-    )
-
-    if (updatedBookmark) {
-      bookmarkCollectionIds.value = updatedIds
-      emit('collections-changed', updatedIds)
-    } else {
-      await fetchCollectionsForBookmark()
-    }
-  } catch (error) {
-    console.error(
-      '[CollectionPicker] Error creating collection or adding bookmark:',
-      error,
-    )
-  } finally {
-    isTogglingCollection.value = false
-  }
+  const newCollection = await createCollectionFromDialog()
+  if (newCollection) await onCollectionClick(newCollection)
 }
 </script>
 
@@ -442,7 +438,7 @@ async function openCreateCollectionDialog() {
           variant="ghost"
           class="w-full justify-start h-auto min-h-11 px-2 py-2 text-sm font-normal flex items-center gap-2"
           :disabled="isTogglingCollection"
-          @click.prevent.stop="onCollectionClick(collection.id)"
+          @click.prevent.stop="onCollectionClick(collection)"
         >
           <div class="relative mr-0.5">
             <div
@@ -460,11 +456,15 @@ async function openCreateCollectionDialog() {
             </div>
           </div>
 
-          <span class="grow min-w-0 text-left">
-            {{ getDisplayName(collection) }}
+          <span class="grow min-w-0 text-left flex items-center gap-1.5">
+            <span class="truncate">{{ getDisplayName(collection) }}</span>
+            <LockIcon
+              v-if="collection.scheme === 'user-e2ee'"
+              class="size-3 text-muted-foreground shrink-0"
+            />
           </span>
           <CheckIcon
-            v-if="bookmarkCollectionIds.includes(collection.id)"
+            v-if="isInCollection(collection)"
             class="size-4 text-primary ml-auto"
           />
         </Button>

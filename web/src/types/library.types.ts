@@ -47,6 +47,8 @@ export interface DecryptedPoint {
   iconPack?: 'lucide' | 'maki'
   iconColor: string
   frequentType?: string | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type CollectionScheme = 'server-key' | 'user-e2ee'

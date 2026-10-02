@@ -52,7 +52,7 @@ export function useCollectionMarkersLayerService() {
   const openBookmarks = computed<Bookmark[]>(() => {
     const store = useCollectionsStore()
     const id = store.openCollectionId
-    return (id && store.getCollectionById(id)?.bookmarks) || []
+    return id ? store.getCollectionPlaces(id) : []
   })
 
   function updateData(mapStrategy: MapStrategy) {

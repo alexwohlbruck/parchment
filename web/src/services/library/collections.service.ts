@@ -7,6 +7,7 @@ import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import type {
+  Bookmark,
   CreateCollectionParams,
   Collection,
   DecryptedPoint,
@@ -614,9 +615,21 @@ export const useCollectionsService = createSharedComposable(() => {
     const pointsStore = useEncryptedPointsStore()
     const { id } = collection
 
-    if (pointsStore.isLoaded(id) || pointsStore.isLoading(id)) {
-      return pointsStore.getPoints(id)
-    }
+    if (pointsStore.isLoaded(id)) return pointsStore.getPoints(id)
+    const pending = inflightPoints.get(id)
+    if (pending) return pending
+
+    const load = decryptPoints(collection).finally(() => inflightPoints.delete(id))
+    inflightPoints.set(id, load)
+    return load
+  }
+
+  /** Concurrent callers share one fetch, and all get the decrypted result. */
+  const inflightPoints = new Map<string, Promise<DecryptedPoint[]>>()
+
+  async function decryptPoints(collection: Collection): Promise<DecryptedPoint[]> {
+    const pointsStore = useEncryptedPointsStore()
+    const { id } = collection
     pointsStore.beginLoad(id)
 
     try {
@@ -631,15 +644,17 @@ export const useCollectionsService = createSharedComposable(() => {
       const decrypted: DecryptedPoint[] = []
       for (const point of raw) {
         try {
-          decrypted.push(
-            decryptCollectionPoint({
+          decrypted.push({
+            ...decryptCollectionPoint({
               point,
               seed,
               ownerUserId,
               collectionId: id,
               keyVersion: collection.metadataKeyVersion ?? 1,
             }),
-          )
+            createdAt: point.createdAt,
+            updatedAt: point.updatedAt,
+          })
         } catch {
           console.warn(
             '[collections] could not decrypt point',
@@ -659,51 +674,41 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  async function createEncryptedPoint(
-    collectionId: string,
-    encryptedData: string,
-    nonce: string,
-  ) {
+  /** A collection someone shared by link, or null once the link is gone. */
+  async function fetchPublicCollection(
+    token: string,
+  ): Promise<{ collection: Collection; places: Bookmark[] } | null> {
     try {
-      const response = await api.post(
-        `/library/collections/${collectionId}/encrypted-points`,
-        { encryptedData, nonce },
-      )
-      return response.data
-    } catch (error) {
-      toast.error('Failed to create encrypted point')
+      const { data } = await api.get(`/public/collections/${token}`)
+      return { collection: data.collection, places: data.bookmarks }
+    } catch {
       return null
     }
   }
 
-  async function updateEncryptedPoint(
+  /** Decrypt every private collection the caller owns and can open. */
+  async function loadPrivatePoints() {
+    await Promise.all(
+      collectionsStore.collections
+        .filter(c => c.scheme === 'user-e2ee' && c.role === 'owner' && !c.locked)
+        .map(fetchAndDecryptPoints),
+    )
+  }
+
+  async function createEncryptedPoint(
     collectionId: string,
-    pointId: string,
-    encryptedData: string,
-    nonce: string,
+    point: { id: string; encryptedData: string },
   ) {
-    try {
-      const response = await api.put(
-        `/library/collections/${collectionId}/encrypted-points/${pointId}`,
-        { encryptedData, nonce },
-      )
-      return response.data
-    } catch (error) {
-      toast.error('Failed to update encrypted point')
-      return null
-    }
+    await api.post(`/library/collections/${collectionId}/encrypted-points`, {
+      ...point,
+      nonce: '',
+    })
   }
 
   async function deleteEncryptedPoint(collectionId: string, pointId: string) {
-    try {
-      await api.delete(
-        `/library/collections/${collectionId}/encrypted-points/${pointId}`,
-      )
-      return true
-    } catch (error) {
-      toast.error('Failed to delete encrypted point')
-      return false
-    }
+    await api.delete(
+      `/library/collections/${collectionId}/encrypted-points/${pointId}`,
+    )
   }
 
   return {
@@ -717,8 +722,9 @@ export const useCollectionsService = createSharedComposable(() => {
     getCollectionDisplayName,
     getEncryptedPoints,
     fetchAndDecryptPoints,
+    loadPrivatePoints,
+    fetchPublicCollection,
     createEncryptedPoint,
-    updateEncryptedPoint,
     deleteEncryptedPoint,
   }
 })

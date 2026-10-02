@@ -10,6 +10,7 @@ import { Chip } from '@/components/ui/chip'
 import { SectionHeader } from '@/components/ui/section-header'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useCollectionsService } from '@/services/library/collections.service'
+import { usePlaceCollections } from '@/composables/library/usePlaceCollections'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -20,8 +21,10 @@ const router = useRouter()
 const collectionsStore = useCollectionsStore()
 const collectionsService = useCollectionsService()
 
+const { collectionIds } = usePlaceCollections(() => props.place)
+
 const collections = computed(() =>
-  (props.place.collectionIds ?? []).flatMap((id) => {
+  collectionIds.value.flatMap((id) => {
     const collection = collectionsStore.getCollectionById(id)
     return collection ? [collection] : []
   }),

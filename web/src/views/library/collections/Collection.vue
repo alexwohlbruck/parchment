@@ -8,6 +8,10 @@ import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useMapService } from '@/services/map/map.service'
 import { boundsOfPoints } from '@/lib/geo/map-bounds'
 import { collectionIcon } from '@/lib/library/collection-display'
+import { useBookmarksService } from '@/services/library/bookmarks.service'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
+import type { Bookmark } from '@/types/library.types'
+import { LockIcon } from 'lucide-vue-next'
 import BookmarkList from '@/components/library/bookmarks/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import CollectionContextMenu from '@/components/library/collections/CollectionContextMenu.vue'
@@ -31,7 +35,18 @@ const collection = computed(() => {
   return collectionsStore.getCollectionById(id)
 })
 
-const bookmarks = computed(() => collection.value?.bookmarks || [])
+const bookmarksService = useBookmarksService()
+const pointsStore = useEncryptedPointsStore()
+const isPrivate = computed(() => collection.value?.scheme === 'user-e2ee')
+
+const bookmarks = computed(() => collectionsStore.getCollectionPlaces(id))
+
+async function removePrivatePlace(bookmark: Bookmark) {
+  const point = pointsStore.getPoints(id).find(p => p.id === bookmark.id)
+  if (collection.value && point) {
+    await bookmarksService.removeFromPrivateCollection(collection.value, point)
+  }
+}
 
 const collectionName = computed(() => {
   if (!collection.value) {
@@ -63,6 +78,9 @@ onMounted(async () => {
   if (!collection.value) {
     router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
     return
+  }
+  if (isPrivate.value && !collection.value.locked) {
+    await collectionsService.fetchAndDecryptPoints(collection.value)
   }
 
   loading.value = false
@@ -100,7 +118,13 @@ function handleCollectionDelete() {
       <div class="flex items-center gap-2 min-w-0">
         <ItemIcon v-bind="collectionIcon(collection)" size="sm" />
         <div class="min-w-0">
-          <h4 class="text-base font-semibold truncate">{{ collectionName }}</h4>
+          <h4 class="text-base font-semibold truncate flex items-center gap-1.5">
+            <span class="truncate">{{ collectionName }}</span>
+            <LockIcon
+              v-if="isPrivate && !collection.locked"
+              class="size-3.5 text-muted-foreground shrink-0"
+            />
+          </h4>
           <p
             v-if="collection.description"
             class="text-xs text-muted-foreground truncate"
@@ -125,6 +149,8 @@ function handleCollectionDelete() {
       :bookmarks="bookmarks"
       :loading="loading"
       :collection-id="id"
+      :encrypted="isPrivate"
+      @remove="removePrivatePlace"
     />
   </DetailPanelLayout>
 </template>

@@ -4,6 +4,7 @@
 
 * Choose whether a collection is shareable or private when you create it, and switch later from its edit screen. Collections, canvases and the share dialog now show privacy the same way.
 * A collection's public link now opens a page anyone can view, signed in or not.
+* Share a private collection with friends. They can open it, and editors can add places, while it stays end-to-end encrypted.
 * A place's page now lists the collections you've saved it to. Tap one to open it.
 * Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
 
@@ -19,6 +20,8 @@
 * Making a named collection private no longer fails.
 * Places saved to a private collection are now encrypted on your device, and the collection lists them. Before, they were stored where the server could read them.
 * On mobile, opening a link straight to a place or collection no longer bounces back to the map.
+* Opening a collection straight from a link now centres its places in view, instead of near the top edge.
+* Pressing Escape with a menu or popover open now closes just that, not the panel underneath.
 * The "Create collection" button in an empty library now works.
 * Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
 * On the MapLibre map, labels and points of interest now actually hide when turned off in appearance settings, while searching, and while browsing a collection.

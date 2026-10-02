@@ -1298,6 +1298,9 @@
       "reviews": "Opiniones",
       "visits": "Visitas"
     },
+    "collections": {
+      "savedIn": "Guardado en"
+    },
     "nearby": {
       "findNearby": "Encontrar cerca"
     },

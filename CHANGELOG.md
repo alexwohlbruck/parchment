@@ -2,6 +2,7 @@
 
 ### Added
 
+* A place's page now lists the collections you've saved it to. Tap one to open it.
 * Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
 
 ### Changed

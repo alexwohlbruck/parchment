@@ -304,7 +304,9 @@ api.interceptors.response.use(
 
     const { title, description } = getErrorMessage(error, kind)
 
-    if (status === 401) {
+    // Read the route off the URL: on a cold load the router hasn't settled yet.
+    const onPublicPage = router.resolve(window.location.pathname).meta.auth === false
+    if (status === 401 && !onPublicPage) {
       router.push({ name: AppRoute.SIGNIN })
     }
 

@@ -201,7 +201,7 @@ const filteredFriends = computed(() => {
 
 const publicUrl = computed(() => {
   if (!publicToken.value) return undefined
-  return buildPublicLinkUrl(serverUrl.value, publicToken.value)
+  return buildPublicLinkUrl(window.location.origin, publicToken.value)
 })
 
 /**

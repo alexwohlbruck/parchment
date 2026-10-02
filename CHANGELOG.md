@@ -2,9 +2,13 @@
 
 ### Added
 
+* Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
+
 ### Changed
 
 ### Fixed
+
+* Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
 
 ## [0.12.6] - 2026-10-01
 

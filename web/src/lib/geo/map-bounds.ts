@@ -51,3 +51,23 @@ export function newViewFraction(previousBounds: MapBounds, currentBounds: MapBou
   const newArea = currentArea - intersectionArea
   return newArea / currentArea
 }
+
+export interface LatLngBounds {
+  minLat: number
+  minLng: number
+  maxLat: number
+  maxLng: number
+}
+
+/** The box around a set of points, or null when there are none. */
+export function boundsOfPoints(
+  points: Iterable<{ lat: number; lng: number }>,
+): LatLngBounds | null {
+  let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity
+  for (const { lat, lng } of points) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
+    minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat)
+    minLng = Math.min(minLng, lng); maxLng = Math.max(maxLng, lng)
+  }
+  return Number.isFinite(minLat) ? { minLat, minLng, maxLat, maxLng } : null
+}

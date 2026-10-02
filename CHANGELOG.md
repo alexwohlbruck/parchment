@@ -11,7 +11,7 @@
 
 ### Fixed
 
-* Collections this device can't decrypt now say they're locked and offer to unlock with your recovery key, instead of showing a blank name or an empty list.
+* End-to-end encrypted collections this device can't open now say so and offer to unlock it, instead of showing a blank name or an empty list.
 * Making a named collection private no longer fails.
 * Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
 

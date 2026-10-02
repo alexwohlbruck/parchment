@@ -13,7 +13,7 @@ export function collectionIcon(collection: Collection): CollectionIcon {
     return { icon: 'Lock', iconPack: 'lucide', color: 'parchment' }
   }
   return {
-    icon: collection.icon,
+    icon: collection.icon ?? undefined,
     iconPack: collection.iconPack ?? 'lucide',
     color: (collection.iconColor as ThemeColor | undefined) ?? 'cobalt',
   }

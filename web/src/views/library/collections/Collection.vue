@@ -119,13 +119,9 @@ function handleCollectionDelete() {
       />
     </template>
 
-    <CollectionLockedNotice
-      v-if="collection.locked"
-      :collection="collection"
-      @unlocked="handleUnlocked"
-    />
+    <CollectionLockedNotice v-if="collection.locked" @unlocked="handleUnlocked" />
     <BookmarkList
-      v-if="!collection.locked || collection.scheme === 'server-key'"
+      v-else
       :bookmarks="bookmarks"
       :loading="loading"
       :collection-id="id"

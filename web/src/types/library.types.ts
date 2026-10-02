@@ -81,11 +81,11 @@ export interface Collection {
 
   // Display metadata. Server-key rows carry it from the server; for
   // user-e2ee rows the collections service fills it in after decrypting.
-  name?: string
-  description?: string
-  icon?: string
-  iconPack?: 'lucide' | 'maki'
-  iconColor?: string
+  name?: string | null
+  description?: string | null
+  icon?: string | null
+  iconPack?: 'lucide' | 'maki' | null
+  iconColor?: string | null
 
   // Client-only: the metadata is encrypted and this device can't open it.
   locked?: boolean

@@ -4,11 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { LockIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import RecoveryKeyDialog from '@/components/identity/RecoveryKeyDialog.vue'
-import type { Collection } from '@/types/library.types'
-
-defineProps<{
-  collection: Collection
-}>()
 
 const emit = defineEmits<{
   (e: 'unlocked'): void
@@ -28,11 +23,7 @@ const unlocking = ref(false)
         {{ t('library.entities.collections.lockedNotice.title') }}
       </p>
       <p class="text-sm text-muted-foreground">
-        {{
-          collection.scheme === 'user-e2ee'
-            ? t('library.entities.collections.lockedNotice.contents')
-            : t('library.entities.collections.lockedNotice.details')
-        }}
+        {{ t('library.entities.collections.lockedNotice.description') }}
       </p>
     </div>
     <Button variant="outline" size="sm" @click="unlocking = true">

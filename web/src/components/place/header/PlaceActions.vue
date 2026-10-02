@@ -15,7 +15,7 @@ import type { Place } from '@/types/place.types'
 import { usePlaceService } from '@/services/place/place.service'
 import CollectionPicker from '@/components/library/collections/CollectionPicker.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { type ThemeColor } from '@/lib/utils'
+import { collectionIcon } from '@/lib/library/collection-display'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import {
   Tooltip,
@@ -152,12 +152,7 @@ function onBookmarkDeleted() {
                   v-else-if="collectionIds.length === 1 && singleCollection"
                   class="absolute -top-1 -right-1 ring-2 ring-background rounded-sm"
                 >
-                  <ItemIcon
-                    :icon="singleCollection.icon"
-                    :icon-pack="singleCollection.iconPack ?? 'lucide'"
-                    :color="singleCollection.iconColor as ThemeColor"
-                    size="xs"
-                  />
+                  <ItemIcon v-bind="collectionIcon(singleCollection)" size="xs" />
                 </span>
               </Button>
             </TooltipTrigger>

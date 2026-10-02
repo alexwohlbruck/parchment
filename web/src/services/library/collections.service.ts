@@ -68,8 +68,28 @@ function stampMetadata(
 }
 
 /**
- * Fill in a collection's display metadata and set `locked` when it can't be.
- * Mutates and returns `collection`.
+ * A user-e2ee collection this device can't open is locked. A server-key row
+ * whose legacy envelope won't open just has no name; its places are readable.
+ */
+function markUnreadable(collection: Collection) {
+  collection.locked = collection.scheme === 'user-e2ee'
+}
+
+/** Store a decrypted legacy envelope's metadata in the clear, dropping it. */
+async function moveMetadataToCleartext(collection: Collection) {
+  try {
+    await api.put(`/library/collections/${collection.id}`, {
+      ...collectionMetadataOf(collection),
+      name: collection.name ?? '',
+    })
+    collection.metadataEncrypted = null
+  } catch (err) {
+    console.warn('[collections] failed to move metadata to cleartext', collection.id, err)
+  }
+}
+
+/**
+ * Fill in a collection's display metadata. Mutates and returns `collection`.
  *
  * Server-key rows arrive with metadata in the clear. Everything else is
  * decrypted: the owner's rows with their seed, shared rows from the ECIES
@@ -104,12 +124,12 @@ async function hydrateDecryptedMetadata<
         'friend count:',
         ctx.friendsStore.friends.length,
       )
-      collection.locked = true
+      markUnreadable(collection)
       return collection
     }
     if (!myEncPriv) {
       console.warn('[collections] shared metadata: no encryption private key')
-      collection.locked = true
+      markUnreadable(collection)
       return collection
     }
     try {
@@ -129,7 +149,7 @@ async function hydrateDecryptedMetadata<
           '[collections] shared envelope decrypted but has no metadata (old share format?)',
           collection.id,
         )
-        collection.locked = true
+        markUnreadable(collection)
       }
     } catch (err) {
       console.warn(
@@ -137,7 +157,7 @@ async function hydrateDecryptedMetadata<
         collection.id,
         err,
       )
-      collection.locked = true
+      markUnreadable(collection)
     }
     return collection
   }
@@ -156,21 +176,22 @@ async function hydrateDecryptedMetadata<
       }),
     )
   } catch {
-    collection.locked = true
+    markUnreadable(collection)
+    return collection
+  }
+  if (collection.scheme === 'server-key' && collection.role === 'owner') {
+    void moveMetadataToCleartext(collection)
   }
   return collection
 }
 
-/**
- * Owner server-key rows whose metadata isn't in the clear yet: rows from
- * before metadata followed the scheme, and the server-made starter collection.
- */
-function needsCleartextMetadata(collection: Collection): boolean {
+/** The server creates a starter collection it can't name in the user's language. */
+function isUnnamedStarter(collection: Collection): boolean {
   return (
     collection.role === 'owner' &&
     collection.scheme === 'server-key' &&
-    !collection.locked &&
-    (!!collection.metadataEncrypted || collection.name == null)
+    !collection.metadataEncrypted &&
+    collection.name == null
   )
 }
 
@@ -252,9 +273,7 @@ export const useCollectionsService = createSharedComposable(() => {
         }),
       )
 
-      await Promise.all(
-        hydrated.filter(needsCleartextMetadata).map(writeCleartextMetadata),
-      )
+      await Promise.all(hydrated.filter(isUnnamedStarter).map(nameStarterCollection))
 
       collectionsStore.setCollections(hydrated)
       return hydrated
@@ -264,29 +283,17 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  /**
-   * Store a server-key collection's metadata in the clear: the decrypted
-   * legacy envelope, or starter metadata for an unnamed collection. Mutates
-   * `collection` so the caller can flow it into the store.
-   */
-  async function writeCleartextMetadata(collection: Collection) {
-    const metadata: CollectionMetadata = collection.metadataEncrypted
-      ? { ...collectionMetadataOf(collection), name: collection.name ?? '' }
-      : {
-          name: t('library.entities.collections.starterName'),
-          icon: 'Bookmark',
-          iconColor: 'cobalt',
-        }
+  async function nameStarterCollection(collection: Collection) {
+    const metadata: CollectionMetadata = {
+      name: t('library.entities.collections.starterName'),
+      icon: 'Bookmark',
+      iconColor: 'cobalt',
+    }
     try {
       await api.put(`/library/collections/${collection.id}`, metadata)
       stampMetadata(collection, metadata)
-      collection.metadataEncrypted = null
     } catch (err) {
-      console.warn(
-        '[collections] failed to store cleartext metadata for',
-        collection.id,
-        err,
-      )
+      console.warn('[collections] failed to name starter collection', collection.id, err)
     }
   }
 
@@ -450,11 +457,7 @@ export const useCollectionsService = createSharedComposable(() => {
         // update. Worst case a recipient sees the old name until their
         // next re-share.
         void reissueShareEnvelopes(id, {
-          name: hydrated.name,
-          description: hydrated.description,
-          icon: hydrated.icon,
-          iconPack: hydrated.iconPack,
-          iconColor: hydrated.iconColor,
+          ...collectionMetadataOf(hydrated),
           scheme: hydrated.scheme,
         })
       }

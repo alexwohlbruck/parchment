@@ -836,10 +836,9 @@
         "sharedBy": "Shared by {name}",
         "locked": "Locked collection",
         "lockedNotice": {
-          "title": "Encrypted with your recovery key",
-          "contents": "This collection is end-to-end encrypted, and this device doesn't have your key yet. Unlock it to see what's inside.",
-          "details": "This collection's name and icon are encrypted, and this device doesn't have your key yet. Unlock it to see them.",
-          "unlock": "Unlock with recovery key"
+          "title": "End-to-end encrypted",
+          "description": "Only your devices can open this collection, and this one hasn't been set up yet.",
+          "unlock": "Unlock this device"
         }
       },
       "routes": {

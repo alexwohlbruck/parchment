@@ -2,10 +2,22 @@
 
 ### Added
 
+* Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
+
+### Changed
+
+### Fixed
+
+* Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
+
+## [0.12.6] - 2026-10-01
+
+### Added
+
 * 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
 * An optional camera position readout shows the map's coordinates, zoom, pitch and bearing, with a copy button. Turn it on in settings or press C.
 * Every place on the map now shows as a small coloured dot from zoom 15, so busy streets look busy before their icons have room to appear.
-* Opening a collection fits the map to all of its places and shows them as full-size, labelled markers at any zoom, with the map's own points of interest hidden.
+* When you pan away from a place you opened, a pin at the edge of the map points back to it. Tap it to return.
 
 ### Changed
 
@@ -13,8 +25,8 @@
 
 ### Fixed
 
-* Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
-* With the Mapbox engine, fitting the map to a place's shape, a brand's locations or a saved route no longer fails and leaves the camera where it was.
+* Opening a park or other area with the Mapbox map engine now moves the map to it.
+* Searching for a street now shows the street itself, separate from the addresses along it, without unrelated brands mixed in.
 * Inside a command palette command, only that command's options are listed, without unrelated settings results mixed in.
 * Searching for a street address no longer buries it under brands that merely share a word with it.
 

@@ -1,4 +1,5 @@
-import type { CameraOptions } from 'maplibre-gl'
+import { type CameraOptions } from 'maplibre-gl'
+import { SELECTED_MARKER_COLOR } from '@/lib/map-marker'
 import {
   TERRAIN_SOURCE_ID,
   TERRAIN_EXAGGERATION,
@@ -319,6 +320,11 @@ export class MapStrategy {
     }
   }
 
+  /** Colour of the pin `addMarker` drops. */
+  selectedMarkerColor(): string {
+    return SELECTED_MARKER_COLOR
+  }
+
   addMarker(id: string, lngLat: LngLat) {}
 
   addVueMarker(
@@ -414,7 +420,7 @@ export class MapStrategy {
     bounds: { minLat: number; minLng: number; maxLat: number; maxLng: number },
     options: any = {},
   ) {
-    // A plain array: either engine rejects the other's `LngLatBounds` instance.
+    // A plain array, since either engine rejects the other's LngLatBounds.
     const lngLatBounds: [[number, number], [number, number]] = [
       [bounds.minLng, bounds.minLat],
       [bounds.maxLng, bounds.maxLat],

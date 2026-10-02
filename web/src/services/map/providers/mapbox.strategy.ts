@@ -765,12 +765,14 @@ export class MapboxStrategy extends MapStrategy {
     }
   }
 
+  selectedMarkerColor() {
+    return cssHslToHex('hsl(var(--primary))')
+  }
+
   addMarker(id: string, lngLat: LngLat) {
     super.addMarker(id, lngLat)
 
-    const marker = new Marker({
-      color: cssHslToHex('hsl(var(--primary))'), // Convert CSS variable to hex color
-    })
+    const marker = new Marker({ color: this.selectedMarkerColor() })
       .setLngLat(lngLat)
       .addTo(this.mapInstance)
 

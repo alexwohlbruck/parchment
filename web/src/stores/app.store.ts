@@ -310,15 +310,19 @@ export const useAppStore = defineStore('app', () => {
   // access, and turning it on is the user gesture iOS requires to ask for it.
   const shakeForFeedback = useStorage<boolean>('shake-for-feedback', false)
 
-  // Width (px) of the peek-out area left by the collapsed left drawer's
-  // floating buttons. Map widgets in the top-left should add this much
-  // horizontal buffer to avoid being covered. 0 when drawer is expanded or
-  // not mounted.
-  const leftSheetOverlayWidth = ref(0)
-
   // Shared hidden state for the desktop LeftSheet so DesktopNavigation can
   // open the drawer when a nav link is clicked while it is collapsed.
   const leftSheetHidden = ref(false)
+
+  // The left drawer's floating button column, which overhangs the map beside
+  // the drawer. 0 when the drawer is not mounted.
+  const leftSheetButtonColumnWidth = ref(0)
+
+  // Horizontal buffer top-left map widgets need to clear the collapsed
+  // drawer's buttons.
+  const leftSheetOverlayWidth = computed(() =>
+    leftSheetHidden.value ? leftSheetButtonColumnWidth.value : 0,
+  )
 
   return {
     dialogs,
@@ -339,6 +343,7 @@ export const useAppStore = defineStore('app', () => {
     unitSystem,
     floorNumbering,
     shakeForFeedback,
+    leftSheetButtonColumnWidth,
     leftSheetOverlayWidth,
     leftSheetHidden,
   }

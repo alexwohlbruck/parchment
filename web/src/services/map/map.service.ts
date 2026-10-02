@@ -1629,6 +1629,10 @@ function mapService() {
       return mapStrategy?.mapInstance?.getZoom() || null
     },
 
+    getContainer(): HTMLElement | null {
+      return mapContainer ?? null
+    },
+
     /** Project lng/lat to map container pixel coordinates (for measure tool hit testing). */
     project(lngLat: LngLat): { x: number; y: number } | null {
       const map = mapStrategy?.mapInstance

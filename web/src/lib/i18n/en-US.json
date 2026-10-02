@@ -800,14 +800,15 @@
       }
     },
     "actions": {
-      "addToCollection": "Add to Collection",
+      "addToCollection": "Add to collection",
       "createNewCollection": "Create new collection",
       "searchCollections": "Search collections...",
       "removeFromCollection": "Remove from collection",
       "removedFromCollectionSuccess": "Removed from collection",
       "addedToCollection": "Added to {collection}",
       "failedToAddToCollection": "Failed to add to collection",
-      "saveToCollection": "Save to {collection}"
+      "saveToCollection": "Save to {collection}",
+      "newCollection": "New collection"
     },
     "empty": {
       "message": "no {entityPlural} yet",
@@ -839,6 +840,13 @@
           "title": "End-to-end encrypted",
           "description": "Only your devices can open this collection, and this one hasn't been set up yet.",
           "unlock": "Unlock this device"
+        },
+        "public": {
+          "subtitle": "Shared with you",
+          "gone": {
+            "title": "This link no longer works",
+            "description": "It may have been revoked, or the collection made private."
+          }
         }
       },
       "routes": {
@@ -863,12 +871,12 @@
     "confirmDelete": "Are you sure you want to delete \"{name}\"?",
     "dialog": {
       "createCollection": {
-        "title": "Create Collection",
-        "description": "Create a new collection to organize your bookmarks"
+        "title": "New collection",
+        "description": "Give it a name and decide who can read it."
       },
       "editCollection": {
-        "title": "Edit Collection",
-        "description": "Modify collection details"
+        "title": "Collection details",
+        "description": "Give it a name and decide who can read it."
       },
       "editBookmark": {
         "title": "Edit Bookmark",

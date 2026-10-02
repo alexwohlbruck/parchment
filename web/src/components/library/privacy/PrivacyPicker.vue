@@ -22,7 +22,7 @@ const OPTIONS = [
 
 <template>
   <div class="space-y-2">
-    <Label class="text-xs text-muted-foreground">
+    <Label class="block text-sm tracking-tight font-medium text-foreground">
       {{ t('library.privacy.label') }}
     </Label>
     <div class="grid grid-cols-2 gap-1.5">

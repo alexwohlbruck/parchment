@@ -30,7 +30,7 @@ const blocked = computed(() => target.value === 'user-e2ee' && !props.hasIdentit
 
 <template>
   <section class="space-y-2">
-    <p class="text-xs text-muted-foreground">{{ t('library.privacy.label') }}</p>
+    <p class="block text-sm tracking-tight font-medium text-foreground">{{ t('library.privacy.label') }}</p>
 
     <Alert :variant="isPrivate ? 'info' : 'default'">
       <LockIcon v-if="isPrivate" class="size-4" />

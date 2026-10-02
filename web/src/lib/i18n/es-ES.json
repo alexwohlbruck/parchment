@@ -764,14 +764,15 @@
       }
     },
     "actions": {
-      "addToCollection": "Añadir a Colección",
+      "addToCollection": "Añadir a colección",
       "createNewCollection": "Crear nueva colección",
       "searchCollections": "Buscar colecciones...",
       "removeFromCollection": "Eliminar de la colección",
       "removedFromCollectionSuccess": "Eliminado de la colección",
       "addedToCollection": "Añadido a {collection}",
       "failedToAddToCollection": "Error al añadir a la colección",
-      "saveToCollection": "Guardar en {collection}"
+      "saveToCollection": "Guardar en {collection}",
+      "newCollection": "Nueva colección"
     },
     "empty": {
       "message": "no hay {entityPlural} todavía",
@@ -803,6 +804,13 @@
           "title": "Cifrada de extremo a extremo",
           "description": "Solo tus dispositivos pueden abrir esta colección, y este aún no está configurado.",
           "unlock": "Desbloquear este dispositivo"
+        },
+        "public": {
+          "subtitle": "Compartida contigo",
+          "gone": {
+            "title": "Este enlace ya no funciona",
+            "description": "Puede que se haya revocado o que la colección sea ahora privada."
+          }
         }
       },
       "routes": {
@@ -827,12 +835,12 @@
     "confirmDelete": "¿Estás seguro de que deseas eliminar \"{name}\"?",
     "dialog": {
       "createCollection": {
-        "title": "Crear Colección",
-        "description": "Crear una nueva colección para organizar tus marcadores"
+        "title": "Nueva colección",
+        "description": "Ponle un nombre y decide quién puede leerla."
       },
       "editCollection": {
-        "title": "Editar Colección",
-        "description": "Modificar detalles de la colección"
+        "title": "Detalles de la colección",
+        "description": "Ponle un nombre y decide quién puede leerla."
       },
       "editBookmark": {
         "title": "Editar Marcador",

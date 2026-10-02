@@ -201,6 +201,8 @@ async function createCollection() {
           variant="outline"
           size="icon"
           class="h-10 w-10"
+          :aria-label="t('library.actions.newCollection')"
+          :title="t('library.actions.newCollection')"
           @click="createCollection"
         >
           <PlusIcon class="h-4 w-4" />

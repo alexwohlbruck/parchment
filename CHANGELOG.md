@@ -7,8 +7,12 @@
 
 ### Changed
 
+* A collection's name and icon now follow its encryption setting: readable on any signed-in device for standard collections, end-to-end encrypted along with the places for private ones.
+
 ### Fixed
 
+* Collections this device can't decrypt now say they're locked and offer to unlock with your recovery key, instead of showing a blank name or an empty list.
+* Making a named collection private no longer fails.
 * Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
 
 ## [0.12.6] - 2026-10-01

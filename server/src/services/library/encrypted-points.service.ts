@@ -185,37 +185,3 @@ export async function deleteAllEncryptedPointsInCollection(
 
   return result.length
 }
-
-/**
- * Toggle collection sensitive mode.
- *
- * DEPRECATED: legacy endpoint that only flips the flag; does NOT re-encrypt
- * existing points. The proper scheme-change flow lives in the collections
- * service and runs a transactional re-encrypt. This stays for backward
- * compatibility with clients that haven't been updated yet, but new
- * callers should use `changeCollectionScheme` instead.
- *
- * Both `is_sensitive` (compat mirror) and `scheme` are updated together so
- * reads remain consistent regardless of which field a caller inspects.
- */
-export async function setCollectionSensitive(
-  collectionId: string,
-  userId: string,
-  isSensitive: boolean,
-): Promise<boolean> {
-  const [updated] = await db
-    .update(collections)
-    .set({
-      isSensitive,
-      scheme: isSensitive ? 'user-e2ee' : 'server-key',
-      updatedAt: new Date(),
-    })
-    .where(
-      and(eq(collections.id, collectionId), eq(collections.userId, userId)),
-    )
-    .returning()
-
-  return !!updated
-}
-
-

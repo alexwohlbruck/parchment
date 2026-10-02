@@ -31,6 +31,10 @@ import {
   RotationVersionError,
   SchemeAlreadySetError,
   CollectionVersionConflictError,
+  PlaintextMetadataOnE2eeError,
+  SchemeChangeMetadataError,
+  resolveMetadataWrite,
+  updateCollection,
   getAccessibleCollection,
   getSharedCollections,
   deleteCollection,
@@ -80,6 +84,32 @@ describe('CollectionVersionConflictError', () => {
     expect(err.name).toBe('CollectionVersionConflictError')
     expect(err.message).toContain('2026-04-24T17:00:00.000Z')
     expect(err.message).toContain('2026-01-01T00:00:00.000Z')
+  })
+})
+
+describe('resolveMetadataWrite', () => {
+  test('server-key cleartext replaces any legacy envelope', () => {
+    expect(resolveMetadataWrite('server-key', { name: 'Coffee' })).toMatchObject(
+      { name: 'Coffee', metadataEncrypted: null },
+    )
+  })
+
+  test('server-key without cleartext keeps an older client’s envelope', () => {
+    expect(
+      resolveMetadataWrite('server-key', { metadataEncrypted: 'env' }),
+    ).toMatchObject({ metadataEncrypted: 'env' })
+  })
+
+  test('user-e2ee refuses cleartext metadata', () => {
+    expect(() =>
+      resolveMetadataWrite('user-e2ee', { metadataEncrypted: 'env', name: 'x' }),
+    ).toThrow(PlaintextMetadataOnE2eeError)
+  })
+
+  test('user-e2ee takes the envelope', () => {
+    expect(
+      resolveMetadataWrite('user-e2ee', { metadataEncrypted: 'env' }),
+    ).toMatchObject({ metadataEncrypted: 'env' })
   })
 })
 
@@ -389,7 +419,92 @@ describe('rotateCollectionKey', () => {
   })
 })
 
+describe('updateCollection', () => {
+  test('migrates a legacy server-key envelope to cleartext', async () => {
+    const id = await makeCollection(aliceId, { metadataEncrypted: 'legacy' })
+
+    const updated = await updateCollection(id, aliceId, {
+      name: 'Coffee',
+      icon: 'Coffee',
+    })
+
+    expect(updated).toMatchObject({
+      name: 'Coffee',
+      icon: 'Coffee',
+      metadataEncrypted: null,
+    })
+  })
+
+  test('never stores cleartext on a user-e2ee collection', async () => {
+    const id = await makeCollection(aliceId, {
+      scheme: 'user-e2ee',
+      metadataEncrypted: 'env',
+    })
+
+    expect(updateCollection(id, aliceId, { name: 'Leaked' })).rejects.toThrow(
+      PlaintextMetadataOnE2eeError,
+    )
+    const [row] = await db.select().from(collections).where(eq(collections.id, id))
+    expect(row.name).toBeNull()
+  })
+})
+
 describe('changeCollectionScheme', () => {
+  test('upgrade requires the new metadata envelope', async () => {
+    const id = await makeCollection(aliceId)
+    expect(
+      changeCollectionScheme({
+        collectionId: id,
+        userId: aliceId,
+        targetScheme: 'user-e2ee',
+        newMetadataKeyVersion: 2,
+        updatedShareEnvelopes: [],
+      }),
+    ).rejects.toThrow(SchemeChangeMetadataError)
+  })
+
+  test('upgrade swaps cleartext metadata for the envelope', async () => {
+    const id = await makeCollection(aliceId, { name: 'Home', icon: 'House' })
+
+    const result = await changeCollectionScheme({
+      collectionId: id,
+      userId: aliceId,
+      targetScheme: 'user-e2ee',
+      newMetadataEncrypted: 'env',
+      newMetadataKeyVersion: 2,
+      updatedShareEnvelopes: [],
+    })
+
+    expect(result).toMatchObject({
+      name: null,
+      icon: null,
+      metadataEncrypted: 'env',
+    })
+  })
+
+  test('downgrade swaps the envelope for cleartext metadata', async () => {
+    const id = await makeCollection(aliceId, {
+      scheme: 'user-e2ee',
+      metadataEncrypted: 'env',
+    })
+
+    const result = await changeCollectionScheme({
+      collectionId: id,
+      userId: aliceId,
+      targetScheme: 'server-key',
+      metadata: { name: 'Home', iconColor: 'cobalt' },
+      newMetadataKeyVersion: 2,
+      newBookmarks: [],
+      updatedShareEnvelopes: [],
+    })
+
+    expect(result).toMatchObject({
+      name: 'Home',
+      iconColor: 'cobalt',
+      metadataEncrypted: null,
+    })
+  })
+
   test('throws SchemeAlreadySetError when target equals current', async () => {
     const id = await makeCollection(aliceId)
     expect(

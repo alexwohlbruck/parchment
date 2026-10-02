@@ -13,10 +13,13 @@ import { emit } from '../realtime/emit'
 import { resolveCollectionRecipients } from '../realtime/recipients.service'
 import {
   CreateCollectionParams,
+  CollectionMetadata,
+  CollectionUpdate,
   NewCollection,
   NewBookmarkCollection,
   Collection,
 } from '../../types/library.types'
+import type { CollectionScheme } from '../../schema/library.schema'
 import { generateId } from '../../util'
 import { getBookmarkById } from './bookmarks.service'
 import { bookmarks as bookmarksSchema } from '../../schema/library.schema'
@@ -195,10 +198,8 @@ export async function getSharedCollections(
 
 /**
  * Create a single starter collection for a freshly-registered user. Called
- * from the user-creation hook. No metadata envelope is written here — the
- * server never sees the E2EE key. The client fills in an initial name/icon
- * the first time it loads the user's library and encounters an owner
- * collection without metadata.
+ * from the user-creation hook. The client names it in the user's language
+ * the first time it loads a library with an unnamed owner collection.
  */
 export async function createInitialCollection(userId: string) {
   const [inserted] = await db
@@ -212,13 +213,70 @@ export async function createInitialCollection(userId: string) {
   return inserted
 }
 
+const CLEARED_METADATA: Required<CollectionMetadata> = {
+  name: null,
+  description: null,
+  icon: null,
+  iconPack: null,
+  iconColor: null,
+}
+
+/**
+ * Thrown when a write would store cleartext metadata on a user-e2ee
+ * collection. Controllers map this to 400.
+ */
+export class PlaintextMetadataOnE2eeError extends Error {
+  constructor() {
+    super('Metadata on a user-e2ee collection must be encrypted')
+    this.name = 'PlaintextMetadataOnE2eeError'
+  }
+}
+
+/**
+ * Thrown when a scheme change omits the metadata its target scheme stores.
+ * Controllers map this to 400.
+ */
+export class SchemeChangeMetadataError extends Error {
+  constructor(scheme: CollectionScheme) {
+    super(
+      scheme === 'user-e2ee'
+        ? 'Switching to user-e2ee requires newMetadataEncrypted'
+        : 'Switching to server-key requires cleartext metadata',
+    )
+    this.name = 'SchemeChangeMetadataError'
+  }
+}
+
+/**
+ * The columns a metadata write touches under `scheme`. A server-key write
+ * with cleartext fields also drops any legacy envelope, which is how
+ * clients migrate rows written before metadata followed the scheme.
+ */
+export function resolveMetadataWrite(
+  scheme: CollectionScheme,
+  updates: CollectionUpdate,
+): Partial<NewCollection> {
+  const { metadataEncrypted, metadataKeyVersion, isPublic, ...cleartext } =
+    updates
+  const hasCleartext = Object.values(cleartext).some((v) => v !== undefined)
+
+  if (scheme === 'user-e2ee') {
+    if (hasCleartext) throw new PlaintextMetadataOnE2eeError()
+    return { metadataEncrypted, metadataKeyVersion, isPublic }
+  }
+  return hasCleartext
+    ? { ...cleartext, metadataEncrypted: null, isPublic }
+    : { metadataEncrypted, metadataKeyVersion, isPublic }
+}
+
 export async function createCollection(params: CreateCollectionParams) {
+  const { userId, isPublic, metadataKeyVersion, ...metadata } = params
   const newCollection: NewCollection = {
     id: generateId(),
-    metadataEncrypted: params.metadataEncrypted,
-    metadataKeyVersion: params.metadataKeyVersion ?? 1,
-    isPublic: params.isPublic || false,
-    userId: params.userId,
+    ...resolveMetadataWrite('server-key', metadata),
+    metadataKeyVersion: metadataKeyVersion ?? 1,
+    isPublic: isPublic ?? false,
+    userId,
   }
 
   const [inserted] = await db
@@ -235,17 +293,26 @@ export async function createCollection(params: CreateCollectionParams) {
 export async function updateCollection(
   id: string,
   userId: string,
-  updates: Partial<Collection>,
+  updates: CollectionUpdate,
 ) {
-  const { userId: _, id: __, ...validUpdates } = updates
+  const current = await getCollectionById(id, userId)
+  if (!current) return undefined
 
+  // Pinning the scheme makes a concurrent scheme switch fail this write
+  // rather than land metadata in the wrong form.
   const [updatedCollection] = await db
     .update(collections)
     .set({
-      ...validUpdates,
+      ...resolveMetadataWrite(current.scheme, updates),
       updatedAt: new Date(),
     })
-    .where(and(eq(collections.id, id), eq(collections.userId, userId)))
+    .where(
+      and(
+        eq(collections.id, id),
+        eq(collections.userId, userId),
+        eq(collections.scheme, current.scheme),
+      ),
+    )
     .returning()
 
   if (updatedCollection) {
@@ -560,9 +627,14 @@ export async function rotateCollectionKey(
 export interface ChangeCollectionSchemeParams {
   collectionId: string
   userId: string
-  targetScheme: 'server-key' | 'user-e2ee'
-  newMetadataEncrypted: string
+  targetScheme: CollectionScheme
   newMetadataKeyVersion: number
+
+  /** UPGRADE: the metadata envelope under the new collection key. */
+  newMetadataEncrypted?: string
+
+  /** DOWNGRADE: the decrypted metadata, stored in the cleartext columns. */
+  metadata?: CollectionMetadata
 
   /**
    * UPGRADE (server-key → user-e2ee): the client has already encrypted
@@ -653,9 +725,9 @@ export class CollectionVersionConflictError extends Error {
  *     from the plaintext payload.
  *   - Flip `scheme` + `is_sensitive=false`.
  *
- * Both paths also:
- *   - Update the collection metadata envelope + bump `metadata_key_version`.
- *   - Update every remaining share's rewrapped envelope.
+ * Metadata moves with the scheme: an upgrade swaps the cleartext columns
+ * for the new envelope, a downgrade does the reverse. Both paths bump
+ * `metadata_key_version` and update every remaining share's envelope.
  *
  * Owner-only. Returns the updated collection; null when not found.
  */
@@ -677,6 +749,11 @@ export async function changeCollectionScheme(
 
     if (current.scheme === params.targetScheme) {
       throw new SchemeAlreadySetError(params.targetScheme)
+    }
+
+    const toE2ee = params.targetScheme === 'user-e2ee'
+    if (toE2ee ? !params.newMetadataEncrypted : !params.metadata) {
+      throw new SchemeChangeMetadataError(params.targetScheme)
     }
 
     // CAS guard: if the caller staged this rotation against a specific
@@ -701,21 +778,21 @@ export async function changeCollectionScheme(
       .update(collections)
       .set({
         scheme: params.targetScheme,
-        isSensitive: params.targetScheme === 'user-e2ee',
-        metadataEncrypted: params.newMetadataEncrypted,
+        isSensitive: toE2ee,
+        ...(toE2ee
+          ? { ...CLEARED_METADATA, metadataEncrypted: params.newMetadataEncrypted }
+          : { ...params.metadata, metadataEncrypted: null }),
         metadataKeyVersion: params.newMetadataKeyVersion,
         // Public links are only allowed on server-key. Downgrading preserves
         // whatever token existed (or null); upgrading clears any token.
-        publicToken:
-          params.targetScheme === 'user-e2ee' ? null : current.publicToken,
-        publicRole:
-          params.targetScheme === 'user-e2ee' ? null : current.publicRole,
+        publicToken: toE2ee ? null : current.publicToken,
+        publicRole: toE2ee ? null : current.publicRole,
         updatedAt: new Date(),
       })
       .where(eq(collections.id, params.collectionId))
       .returning()
 
-    if (params.targetScheme === 'user-e2ee') {
+    if (toE2ee) {
       // --- UPGRADE: cleartext bookmarks → encrypted_points ---
       // Get bookmark ids linked to this collection so we can clean them up.
       const links = await tx

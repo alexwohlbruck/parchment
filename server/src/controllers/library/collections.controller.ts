@@ -6,6 +6,14 @@ import * as encryptedPointsService from '../../services/library/encrypted-points
 import * as sharingService from '../../services/sharing.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
 
+const collectionMetadata = {
+  name: t.Optional(t.String()),
+  description: t.Optional(t.String()),
+  icon: t.Optional(t.String()),
+  iconPack: t.Optional(t.Union([t.Literal('lucide'), t.Literal('maki')])),
+  iconColor: t.Optional(t.String()),
+}
+
 const collectionsRouter = new Elysia({ prefix: '/collections' })
   .use(i18nPlugin)
   .use(permissions(PermissionId.LIBRARY_WRITE))
@@ -24,8 +32,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Create a new collection. Metadata (name/description/icon/iconColor)
-  // is E2EE — client encrypts locally, server only stores the envelope.
+  // Create a new collection. Collections start as server-key, so metadata
+  // arrives in cleartext.
   .post(
     '/',
     async ({ body, user }) => {
@@ -38,13 +46,16 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
     {
       body: t.Object({
-        metadataEncrypted: t.String(),
+        ...collectionMetadata,
+        metadataEncrypted: t.Optional(t.String()),
         metadataKeyVersion: t.Optional(t.Number()),
         isPublic: t.Optional(t.Boolean()),
       }),
       detail: {
         tags: ['Library'],
         summary: 'Create a new collection',
+        description:
+          'Creates a server-key collection. Pass metadata in cleartext; `metadataEncrypted` is accepted only from older clients.',
       },
     },
   )
@@ -106,9 +117,10 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Update an existing collection. Accepts the encrypted metadata
-  // envelope (replaces whatever was there) and/or the `isPublic` flag.
-  // Owner or editor may write; viewers get 403.
+  // Update an existing collection. Metadata goes in the form the
+  // collection's scheme stores: cleartext fields for server-key, the
+  // `metadataEncrypted` envelope for user-e2ee. Owner or editor may write;
+  // viewers get 403.
   .put(
     '/:id',
     async ({ params: { id }, body, user, set, t }) => {
@@ -145,6 +157,10 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           set.status = 403
           return { error: t('errors.library.collectionViewerReadOnly') }
         }
+        if (err instanceof collectionsService.PlaintextMetadataOnE2eeError) {
+          set.status = 400
+          return { error: err.message }
+        }
         throw err
       }
     },
@@ -153,6 +169,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         id: t.String(),
       }),
       body: t.Object({
+        ...collectionMetadata,
         metadataEncrypted: t.Optional(t.String()),
         metadataKeyVersion: t.Optional(t.Number()),
         isPublic: t.Optional(t.Boolean()),
@@ -160,6 +177,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       detail: {
         tags: ['Library'],
         summary: 'Update a collection',
+        description:
+          'Server-key collections take cleartext metadata, which also clears any legacy envelope. User-e2ee collections take only `metadataEncrypted`; cleartext fields are rejected with 400.',
       },
     },
   )
@@ -191,35 +210,6 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Toggle sensitive mode for a collection
-  .put(
-    '/:id/sensitive',
-    async ({ params: { id }, body, user, set, t }) => {
-      const updated = await encryptedPointsService.setCollectionSensitive(
-        id,
-        user.id,
-        body.isSensitive,
-      )
-      if (!updated) {
-        set.status = 404
-        return { error: t('errors.library.collectionNotFound') }
-      }
-      return { success: true, isSensitive: body.isSensitive }
-    },
-    {
-      params: t.Object({
-        id: t.String(),
-      }),
-      body: t.Object({
-        isSensitive: t.Boolean(),
-      }),
-      detail: {
-        tags: ['Library'],
-        summary: 'Toggle sensitive mode for a collection',
-      },
-    },
-  )
-
   // Change a collection's encryption scheme atomically. The client
   // packages the whole migration (re-encrypted or decrypted point set
   // under the new scheme + rewrapped share envelopes + new metadata
@@ -233,6 +223,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           userId: user.id,
           targetScheme: body.targetScheme,
           newMetadataEncrypted: body.newMetadataEncrypted,
+          metadata: body.metadata,
           newMetadataKeyVersion: body.newMetadataKeyVersion,
           newEncryptedPoints: body.newEncryptedPoints,
           newBookmarks: body.newBookmarks,
@@ -245,7 +236,10 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         }
         return updated
       } catch (err) {
-        if (err instanceof collectionsService.SchemeAlreadySetError) {
+        if (
+          err instanceof collectionsService.SchemeAlreadySetError ||
+          err instanceof collectionsService.SchemeChangeMetadataError
+        ) {
           set.status = 400
           return { error: err.message }
         }
@@ -263,7 +257,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
           t.Literal('server-key'),
           t.Literal('user-e2ee'),
         ]),
-        newMetadataEncrypted: t.String(),
+        newMetadataEncrypted: t.Optional(t.String()),
+        metadata: t.Optional(t.Object(collectionMetadata)),
         newMetadataKeyVersion: t.Number(),
         expectedUpdatedAt: t.Optional(t.String()),
         newEncryptedPoints: t.Optional(
@@ -301,6 +296,8 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
       detail: {
         tags: ['Library'],
         summary: 'Change a collection\'s encryption scheme',
+        description:
+          'Metadata moves with the scheme: upgrading to user-e2ee requires `newMetadataEncrypted` and clears the cleartext fields; downgrading to server-key requires `metadata` and clears the envelope.',
       },
     },
   )

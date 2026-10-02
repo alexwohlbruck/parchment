@@ -29,7 +29,6 @@ const {
   updateEncryptedPoint,
   deleteEncryptedPoint,
   deleteAllEncryptedPointsInCollection,
-  setCollectionSensitive,
 } = await import('./encrypted-points.service')
 
 const e2eeCollection = { id: 'col-1', userId: 'user-1', scheme: 'user-e2ee' }
@@ -225,44 +224,5 @@ describe('deleteAllEncryptedPointsInCollection', () => {
     expect(
       await deleteAllEncryptedPointsInCollection('col-1', 'other'),
     ).toBe(0)
-  })
-})
-
-describe('setCollectionSensitive', () => {
-  test('turning it on switches the scheme to user-e2ee', async () => {
-    dbMock.setReturningRows([e2eeCollection])
-
-    expect(await setCollectionSensitive('col-1', 'user-1', true)).toBe(true)
-    expect(dbMock.updated[0]).toMatchObject({
-      isSensitive: true,
-      scheme: 'user-e2ee',
-    })
-  })
-
-  test('turning it off switches back to server-key', async () => {
-    dbMock.setReturningRows([serverKeyCollection])
-
-    await setCollectionSensitive('col-1', 'user-1', false)
-
-    expect(dbMock.updated[0]).toMatchObject({
-      isSensitive: false,
-      scheme: 'server-key',
-    })
-  })
-
-  test('keeps the flag and the scheme in step', async () => {
-    // Reads inspect one or the other depending on age; they must agree.
-    dbMock.setReturningRows([e2eeCollection])
-
-    await setCollectionSensitive('col-1', 'user-1', true)
-
-    const written = dbMock.updated[0] as any
-    expect(written.isSensitive).toBe(written.scheme === 'user-e2ee')
-  })
-
-  test('reports false when the collection is not the caller’s', async () => {
-    dbMock.setReturningRows([])
-
-    expect(await setCollectionSensitive('col-1', 'other', true)).toBe(false)
   })
 })

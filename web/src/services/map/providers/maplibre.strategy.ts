@@ -737,11 +737,30 @@ export class MaplibreStrategy extends MapStrategy {
       onReplace: refs => {
         if (this.landmarkLayer === layer) this.hideReplacedBuildings(refs)
       },
+      onAttribution: credits => {
+        if (this.landmarkLayer === layer) this.creditLandmarks(credits)
+      },
     })
     this.landmarkLayer = layer
     shadowCasters.add(layer)
     // Beside the other models: above the buildings, below every label.
     map.addLayer(layer as any, firstLabelLayer(map))
+  }
+
+  /**
+   * Put the credits of the models on screen into the map's attribution.
+   *
+   * Set on the landmark source itself, so the attribution control lists it
+   * beside OpenStreetMap's and drops it with the rest when the source goes.
+   * The control only re-reads sources on a metadata event, so one is fired;
+   * the landmark layer hears it too, and finds nothing changed.
+   */
+  private creditLandmarks(credits: string[]) {
+    const map = this.mapInstance
+    const source = map.getSource(LANDMARK_SOURCE) as { attribution?: string } | undefined
+    if (!source) return
+    source.attribution = credits.join(' · ') || undefined
+    map.fire('sourcedata', { dataType: 'source', sourceDataType: 'metadata', sourceId: LANDMARK_SOURCE })
   }
 
   /**

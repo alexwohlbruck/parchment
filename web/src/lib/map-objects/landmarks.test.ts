@@ -35,6 +35,12 @@ describe('parseLandmark', () => {
     expect(parseLandmark(feature({ model: 'eiffel-tower.glb' }))).toBeNull()
   })
 
+  it('carries the model’s credit, and none when it has none', () => {
+    expect(parseLandmark(feature({ attribution: ' "Lady Liberty" by Anna M ' }))?.attribution)
+      .toBe('"Lady Liberty" by Anna M')
+    expect(parseLandmark(feature({}))?.attribution).toBeNull()
+  })
+
   it('drops refs it cannot read rather than the whole landmark', () => {
     expect(parseLandmark(feature({ replaces: 'way/1 5013364 relation/2' }))?.replaces)
       .toEqual(['way/1', 'relation/2'])
@@ -47,8 +53,10 @@ describe('basemapIds', () => {
     expect(basemapIds(['way/27831699'])).toEqual([278316992, 278316990])
   })
 
-  it('encodes nodes and relations by Planetiler’s type digit', () => {
-    expect(basemapIds(['node/5', 'relation/7'])).toEqual([51, 73])
+  it('matches relations under both suffixes too', () => {
+    // The Statue of Liberty's terraces: relation 3079001 is 30790010.
+    expect(basemapIds(['relation/3079001'])).toEqual([30790013, 30790010])
+    expect(basemapIds(['node/5'])).toEqual([51, 50])
   })
 })
 

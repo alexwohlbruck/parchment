@@ -42,6 +42,8 @@ export type Landmark = {
   minzoom: number
   /** OSM refs, `way/123`. */
   replaces: string[]
+  /** A credit the map must show while drawing the model, when its licence asks. */
+  attribution: string | null
 }
 
 const MODEL_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.[0-9a-f]{12}\.glb$/
@@ -73,6 +75,7 @@ export function parseLandmark(feature: any): Landmark | null {
     minzoom: num(p.minzoom, 14),
     // MVT has no arrays, so the refs arrive space-separated.
     replaces: String(p.replaces ?? '').split(/\s+/).filter(ref => OSM_REF_RE.test(ref)),
+    attribution: typeof p.attribution === 'string' && p.attribution.trim() ? p.attribution.trim() : null,
   }
 }
 
@@ -82,10 +85,11 @@ export function parseLandmark(feature: any): Landmark | null {
  * Planetiler writes `osm_id * 10 + type`, and Parchment reads 1/2/3 as
  * node/way/relation elsewhere (`parsePlanetilerOsmId`). Its building layer does
  * not always follow that: the Las Vegas Eiffel Tower, way 27831699, arrives as
- * 278316990 while the Arc de Triomphe next to it is 1146970742. Both suffixes
- * are matched for a way rather than guessing which one a given build used —
- * a stray id in a filter costs nothing, a missed one leaves a building
- * standing inside the model.
+ * 278316990 while the Arc de Triomphe next to it is 1146970742, and the
+ * terraces around the Statue of Liberty — relations 3079001 and on — arrive
+ * as 30790010. So `0` is matched beside each type's own digit rather than
+ * guessing which one a given build used: a stray id in a filter costs
+ * nothing, a missed one leaves a building standing inside the model.
  */
 export function basemapIds(refs: Iterable<string>): number[] {
   const ids: number[] = []
@@ -93,9 +97,8 @@ export function basemapIds(refs: Iterable<string>): number[] {
     const m = OSM_REF_RE.exec(ref)
     if (!m) continue
     const base = Number(m[2]) * 10
-    if (m[1] === 'node') ids.push(base + 1)
-    else if (m[1] === 'way') ids.push(base + 2, base)
-    else ids.push(base + 3)
+    const digit = m[1] === 'node' ? 1 : m[1] === 'way' ? 2 : 3
+    ids.push(base + digit, base)
   }
   return ids
 }

@@ -180,6 +180,7 @@ export class LandmarkLayer {
   private models = new Map<string, Model>()
   private placements: Placement[] = []
   private replaced = ''
+  private credited = ''
   private scheduled = 0
   private listeners: Array<[string, (...args: any[]) => void]> = []
 
@@ -192,6 +193,8 @@ export class LandmarkLayer {
       modelUrl: (file: string) => string
       /** Called with the refs being drawn as landmarks whenever that set changes. */
       onReplace: (refs: string[]) => void
+      /** Called with the credits of the models being drawn whenever they change. */
+      onAttribution?: (credits: string[]) => void
       /** Multiplied into every colour; how a landmark joins the night map. */
       tint: [number, number, number]
     },
@@ -239,9 +242,11 @@ export class LandmarkLayer {
     this.models.clear()
     gl.deleteProgram(this.draw.program)
     gl.deleteProgram(this.shadow.program)
-    // Give the buildings back.
+    // Give the buildings back, and take the credits down with the models.
     if (this.replaced) this.options.onReplace([])
+    if (this.credited) this.options.onAttribution?.([])
     this.replaced = ''
+    this.credited = ''
     this.map = null
   }
 
@@ -291,15 +296,25 @@ export class LandmarkLayer {
     this.report()
   }
 
-  /** Hand the caller the refs of every landmark that can actually be drawn. */
+  /**
+   * Hand the caller the refs of every landmark that can actually be drawn,
+   * and the credits its models carry — a CC-BY model has to be credited on
+   * the map, but only while it is the one on screen.
+   */
   private report() {
-    const refs = [...new Set(
-      this.placements.filter(p => this.ready(p.model)).flatMap(p => p.replaces),
-    )].sort()
+    const drawn = this.placements.filter(p => this.ready(p.model))
+    const refs = [...new Set(drawn.flatMap(p => p.replaces))].sort()
     const key = refs.join(' ')
-    if (key === this.replaced) return
-    this.replaced = key
-    this.options.onReplace(refs)
+    if (key !== this.replaced) {
+      this.replaced = key
+      this.options.onReplace(refs)
+    }
+    const credits = [...new Set(drawn.flatMap(p => (p.attribution ? [p.attribution] : [])))].sort()
+    const credited = credits.join('\n')
+    if (credited !== this.credited) {
+      this.credited = credited
+      this.options.onAttribution?.(credits)
+    }
   }
 
   private ready(file: string) {

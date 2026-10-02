@@ -282,6 +282,18 @@
           "page": {
             "name": "Page"
           }
+        },
+        "pages": {
+          "map": "Map",
+          "dashboard": "Dashboard",
+          "directions": "Directions",
+          "collections": "Collections",
+          "routes": "Routes",
+          "layers": "Layers",
+          "canvases": "Canvases",
+          "lookout": "Lookout",
+          "timeline": "Timeline",
+          "settings": "Settings"
         }
       },
       "toggleTheme": {
@@ -346,6 +358,11 @@
           }
         }
       },
+      "toggleCameraPosition": {
+        "name": "Toggle camera position",
+        "description": "Show or hide the map's coordinates, zoom, pitch and bearing",
+        "keywords": "camera coordinates zoom pitch bearing debug"
+      },
       "openHotkeysMenu": {
         "name": "Keyboard shortcuts",
         "description": "View all available keyboard shortcuts",
@@ -393,6 +410,7 @@
   "map": {
     "title": "Map",
     "searchThisArea": "Search this area",
+    "returnToPlace": "Return to place",
     "contextMenu": {
       "edit": "Edit map",
       "viewIn": "View in",
@@ -1838,7 +1856,10 @@
           "whileRotating": "While rotating",
           "whileZooming": "While zooming",
           "whileActive": "While active"
-        }
+        },
+        "camera": "Camera position",
+        "cameraDescription": "Coordinates, zoom, pitch and bearing",
+        "cameraCopied": "Camera position copied"
       },
       "location": {
         "title": "Location",

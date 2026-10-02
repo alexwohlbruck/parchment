@@ -14,13 +14,7 @@ import {
   type SortContext,
   type FieldDefinition,
 } from '@/lib/search/search-filters'
-
-function resolveMapCenter(center: any): [number, number] {
-  if (Array.isArray(center)) return [center[0], center[1]]
-  if (center?.lng != null) return [center.lng, center.lat]
-  if (center?.lon != null) return [center.lon, center.lat]
-  return [0, 0]
-}
+import { resolveMapCenter } from '@/lib/map/map-camera'
 
 export const useSearchStore = defineStore('search', () => {
   // Core search state

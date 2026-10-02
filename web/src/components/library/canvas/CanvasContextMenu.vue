@@ -55,7 +55,7 @@ const appService = useAppService()
 const canvasesService = useCanvasesService()
 const { settings } = storeToRefs(mapStore)
 
-/** Terrain, HD roads and indoor maps are Mapbox features; MapLibre has no
+/** HD roads and indoor maps are Mapbox features; MapLibre has no
  *  answer to give, so a canvas can't override what isn't there. */
 const ROWS: {
   key: keyof CanvasMapSettings
@@ -64,7 +64,7 @@ const ROWS: {
   mapboxOnly?: boolean
 }[] = [
   { key: 'objects3d', icon: Building2Icon, label: '3dObjects' },
-  { key: 'terrain3d', icon: MountainSnowIcon, label: '3dTerrain', mapboxOnly: true },
+  { key: 'terrain3d', icon: MountainSnowIcon, label: '3dTerrain' },
   { key: 'hdRoads', icon: RouteIcon, label: 'hdRoads', mapboxOnly: true },
   { key: 'indoorMaps', icon: DoorOpenIcon, label: 'indoorMaps', mapboxOnly: true },
   { key: 'poiLabels', icon: InfoIcon, label: 'poiLabels' },

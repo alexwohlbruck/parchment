@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMapService } from '@/services/map/map.service'
 import { MarkerIds } from '@/types/map.types'
@@ -7,6 +7,7 @@ import { LngLat } from 'mapbox-gl'
 import { usePlaceService } from '@/services/place/place.service'
 import { useAbortController } from '@/composables/useAbortController'
 import Place from '@/components/place/PlacePanel.vue'
+import OffscreenMarkerHint from '@/components/map/markers/OffscreenMarkerHint.vue'
 import { AppRoute } from '@/router'
 
 const route = useRoute()
@@ -15,6 +16,7 @@ const { currentPlace, loading, fetchPlaceDetails, fetchPlaceDetailsByName, fetch
   usePlaceService()
 const { flyTo, fitBounds, addMarker, removeMarker, updatePlacePolygon } = useMapService()
 const { nextSignal } = useAbortController()
+const markerLngLat = shallowRef<LngLat | null>(null)
 
 async function loadPlace() {
   // Don't clear place - keep partial data visible during loading
@@ -138,32 +140,40 @@ function handlePlaceResult(place: any) {
     const { lat, lng } = place.geometry.value.center
 
     if (lat && lng) {
+      markerLngLat.value = new LngLat(lng, lat)
       removeMarker(MarkerIds.SELECTED_POI)
-      addMarker(MarkerIds.SELECTED_POI, new LngLat(lng, lat))
+      addMarker(MarkerIds.SELECTED_POI, markerLngLat.value)
 
       // Update polygon layer with place data
       updatePlacePolygon(place)
-
-      // Use different camera behavior based on geometry type
-      if (place.geometry.value.bounds && ['polygon', 'multipolygon', 'linestring'].includes(place.geometry.value.type)) {
-        // For geometries with bounds data, fit the view to the geometry area with padding
-        // The map service will automatically account for obstructing UI elements
-        // `map.service.fitBounds` computes a viewport-proportional,
-        // obstruction-aware padding and caps maxZoom at 19 by default.
-        fitBounds(place.geometry.value.bounds, {
-          duration: 1200,
-          easing: (t) => t * (2 - t), // easeOutQuad for smooth animation
-        })
-      } else {
-        // For points or geometries without bounds, use traditional flyTo with appropriate zoom
-        const zoom = place.geometry.value.type === 'point' ? 17 : 16
-        flyTo({
-          center: new LngLat(lng, lat),
-          zoom,
-        })
-      }
+      framePlace(place)
     }
   }
+}
+
+function framePlace(place: any) {
+  const { type, bounds, center } = place.geometry.value
+  // Use different camera behavior based on geometry type
+  if (bounds && ['polygon', 'multipolygon', 'linestring'].includes(type)) {
+    // For geometries with bounds data, fit the view to the geometry area with padding
+    // The map service will automatically account for obstructing UI elements
+    // `map.service.fitBounds` computes a viewport-proportional,
+    // obstruction-aware padding and caps maxZoom at 19 by default.
+    fitBounds(bounds, {
+      duration: 1200,
+      easing: (t) => t * (2 - t), // easeOutQuad for smooth animation
+    })
+  } else {
+    // For points or geometries without bounds, use traditional flyTo with appropriate zoom
+    flyTo({
+      center: new LngLat(center.lng, center.lat),
+      zoom: type === 'point' ? 17 : 16,
+    })
+  }
+}
+
+function returnToPlace() {
+  if (currentPlace.value?.geometry) framePlace(currentPlace.value)
 }
 
 onMounted(async () => {
@@ -191,4 +201,5 @@ onUnmounted(() => {
 
 <template>
   <Place :place="currentPlace" :loading="loading" @retry="loadPlace" />
+  <OffscreenMarkerHint :lng-lat="markerLngLat" @select="returnToPlace" />
 </template>

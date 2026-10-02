@@ -103,8 +103,9 @@ describe('which switches a canvas is offered', () => {
   it('leaves them out on MapLibre, which has no answer to give', () => {
     useMapStore().settings.engine = MapEngine.MAPLIBRE
     const rows = render(settings()).rows()
-    expect(rows).toHaveLength(5)
-    expect(rows.map(r => r.id)).not.toContain('terrain3d')
+    expect(rows).toHaveLength(6)
+    expect(rows.map(r => r.id)).toContain('terrain3d')
+    expect(rows.map(r => r.id)).not.toContain('hdRoads')
   })
 })
 

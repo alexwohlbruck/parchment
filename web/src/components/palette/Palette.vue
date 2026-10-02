@@ -761,32 +761,6 @@ const filterFunction = computed(() => {
             </CommandItem>
           </CommandGroup>
 
-          <!-- Settings entries are surfaced for argument-taking commands, but
-               NOT for place search — a place query ("park") shouldn't turn up
-               settings pages ("My Vehicles"). Settings are still reachable by
-               typing in the idle palette (the top-level list above). -->
-          <CommandGroup
-            v-if="!isSearch && filteredSettings.length"
-            :heading="t('settings.title')"
-          >
-            <CommandItem
-              v-for="entry in filteredSettings"
-              :key="`settings-search-${entry.pageId}-${entry.sectionId}-${entry.title}`"
-              :value="entry"
-              class="flex gap-2"
-              @select="onSettingSelected(entry)"
-            >
-              <SettingsIcon class="size-5 opacity-50" />
-              <div class="flex-1 flex flex-col">
-                <span class="font-semibold">{{ entry.title }}</span>
-                <span class="text-sm text-muted-foreground">
-                  {{ entry.pageTitle
-                  }}<template v-if="entry.level === 'item'">
-                    · {{ entry.sectionTitle }}</template>
-                </span>
-              </div>
-            </CommandItem>
-          </CommandGroup>
         </CommandList>
       </template>
 

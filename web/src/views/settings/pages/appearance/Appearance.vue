@@ -34,7 +34,9 @@ import type { PaletteColor } from '@/lib/palette'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SettingsSection, SettingsItem } from '@/components/settings'
+import { CommandName } from '@/stores/command.store'
 import Layers from '@/components/library/layers/LayerList.vue'
+import ControlSettingsSection from '@/components/map/controls/ControlSettingsSection.vue'
 
 // Theme store
 const themeStore = useThemeStore()
@@ -121,7 +123,10 @@ const handleColorChange = (value: any) => {
         </div>
       </SettingsItem>
 
-      <SettingsItem :title="$t('settings.appearance.appTheme.theme.title')">
+      <SettingsItem
+        :title="$t('settings.appearance.appTheme.theme.title')"
+        :command-id="CommandName.TOGGLE_THEME"
+      >
         <Select
           :model-value="isDark ? 'dark' : 'light'"
           @update:model-value="value => toggleDark(value === 'dark')"
@@ -171,7 +176,6 @@ const handleColorChange = (value: any) => {
       </SettingsItem>
 
       <SettingsItem
-        v-if="settings.engine === MapEngine.MAPBOX"
         :title="$t('settings.mapSettings.configuration.3dTerrain')"
         :icon="MountainSnowIcon"
         :badge="$t('settings.mapSettings.configuration.experimental')"
@@ -252,6 +256,8 @@ const handleColorChange = (value: any) => {
         />
       </SettingsItem>
     </SettingsSection>
+
+    <ControlSettingsSection />
 
     <SettingsSection
       id="style"

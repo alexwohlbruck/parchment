@@ -3,6 +3,7 @@ import { buildSearchSuggestions } from '@/services/search-suggestions.service'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Command, CommandArgumentOption } from '@/types/command.types'
+import type { Icon } from '@/types/app.types'
 import { Locale } from '@/lib/i18n'
 import { getPlaceRoute, getTransitStopRoute } from '@/lib/place/place-route'
 import {
@@ -12,15 +13,25 @@ import {
 import {
   ChevronsRightIcon,
   CogIcon,
+  CornerUpRightIcon,
   DraftingCompassIcon,
+  FrameIcon,
   GlobeIcon,
   HelpCircleIcon,
+  HistoryIcon,
   LanguagesIcon,
+  LayersIcon,
+  LayoutDashboardIcon,
+  LibraryIcon,
   LogOutIcon,
+  MapIcon,
+  Move3dIcon,
   PaletteIcon,
+  RouteIcon,
   SearchIcon,
   SettingsIcon,
   SunMoonIcon,
+  TelescopeIcon,
   TerminalIcon,
 } from 'lucide-vue-next'
 import { useDark, useToggle } from '@vueuse/core'
@@ -31,7 +42,11 @@ import { useMapService } from '@/services/map/map.service'
 import { useI18n } from 'vue-i18n'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import { ENGINE_PROJECTIONS, MapEngine } from '@/types/map.types'
+import {
+  ControlVisibility,
+  ENGINE_PROJECTIONS,
+  MapEngine,
+} from '@/types/map.types'
 import { useSearchService } from '@/services/search.service'
 import { useCommandService } from '@/services/command.service'
 import { getCategoryColor } from '@/services/place/place-colors'
@@ -61,6 +76,7 @@ export enum CommandName {
   UPDATE_THEME_RADIUS = 'updateThemeRadius',
   CHOOSE_MAP_ENGINE = 'chooseMapEngine',
   MAP_PROJECTION = 'mapProjection',
+  TOGGLE_CAMERA_POSITION = 'toggleCameraPosition',
   OPEN_HOTKEYS_MENU = 'openHotkeysMenu',
   UPDATE_LANGUAGE = 'updateLanguage',
   SIGN_OUT = 'signOut',
@@ -68,6 +84,46 @@ export enum CommandName {
 
 // TODO: Move command options to separate file
 
+// Destinations that open without params. Individual settings pages are
+// already searchable from the top-level palette. Built lazily because the
+// router imports this store, so AppRoute is undefined at module load.
+const gotoPages = (): {
+  route: AppRoute
+  key: string
+  icon: Icon
+  library?: boolean
+}[] => [
+  { route: AppRoute.MAP, key: 'map', icon: MapIcon },
+  { route: AppRoute.DASHBOARD, key: 'dashboard', icon: LayoutDashboardIcon },
+  { route: AppRoute.DIRECTIONS, key: 'directions', icon: CornerUpRightIcon },
+  {
+    route: AppRoute.LIBRARY_COLLECTIONS,
+    key: 'collections',
+    library: true,
+    icon: LibraryIcon,
+  },
+  {
+    route: AppRoute.LIBRARY_ROUTES,
+    key: 'routes',
+    library: true,
+    icon: RouteIcon,
+  },
+  {
+    route: AppRoute.LIBRARY_LAYERS,
+    key: 'layers',
+    library: true,
+    icon: LayersIcon,
+  },
+  {
+    route: AppRoute.LIBRARY_CANVASES,
+    key: 'canvases',
+    library: true,
+    icon: FrameIcon,
+  },
+  { route: AppRoute.LOOKOUT, key: 'lookout', icon: TelescopeIcon },
+  { route: AppRoute.TIMELINE, key: 'timeline', icon: HistoryIcon },
+  { route: AppRoute.SETTINGS, key: 'settings', icon: SettingsIcon },
+]
 
 export const useCommandStore = defineStore('command', () => {
   const isDark = useDark()
@@ -81,7 +137,7 @@ export const useCommandStore = defineStore('command', () => {
   const placeSearchService = useSearchService()
 
   const mapStore = useMapStore()
-  const { settings } = storeToRefs(mapStore)
+  const { settings, controlSettings } = storeToRefs(mapStore)
 
   function commandIsAvailable(command: Command) {
     // Check command is compatible with map engine
@@ -243,13 +299,12 @@ export const useCommandStore = defineStore('command', () => {
             name: t('palette.commands.goto.arguments.page.name'),
             type: 'string',
             getItems() {
-              const routes = router.getRoutes()
-              return routes.map(route => {
-                return {
-                  value: route.name as string,
-                  name: route.name as string,
-                }
-              })
+              return gotoPages().map(page => ({
+                value: page.route,
+                name: t(`palette.commands.goto.pages.${page.key}`),
+                description: page.library ? t('library.title') : undefined,
+                icon: page.icon,
+              }))
             },
           },
         ],
@@ -374,6 +429,20 @@ export const useCommandStore = defineStore('command', () => {
             },
           },
         ],
+      },
+      {
+        id: CommandName.TOGGLE_CAMERA_POSITION,
+        name: t('palette.commands.toggleCameraPosition.name'),
+        description: t('palette.commands.toggleCameraPosition.description'),
+        keywords: t('palette.commands.toggleCameraPosition.keywords'),
+        icon: Move3dIcon,
+        hotkey: ['c'],
+        action: () => {
+          controlSettings.value.camera =
+            controlSettings.value.camera === ControlVisibility.ALWAYS
+              ? ControlVisibility.NEVER
+              : ControlVisibility.ALWAYS
+        },
       },
       {
         id: CommandName.OPEN_HOTKEYS_MENU,

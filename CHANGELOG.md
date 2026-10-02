@@ -6,6 +6,26 @@
 
 ### Fixed
 
+## [0.12.6] - 2026-10-01
+
+### Added
+
+* 3D terrain can now be turned on with the MapLibre map engine, not just Mapbox.
+* An optional camera position readout shows the map's coordinates, zoom, pitch and bearing, with a copy button. Turn it on in settings or press C.
+* Every place on the map now shows as a small coloured dot from zoom 15, so busy streets look busy before their icons have room to appear.
+* When you pan away from a place you opened, a pin at the edge of the map points back to it. Tap it to return.
+
+### Changed
+
+* The "Go to page" command now lists the app's main pages by name, like Directions, Library and Timeline, instead of internal route ids that led nowhere.
+
+### Fixed
+
+* Opening a park or other area with the Mapbox map engine now moves the map to it.
+* Searching for a street now shows the street itself, separate from the addresses along it, without unrelated brands mixed in.
+* Inside a command palette command, only that command's options are listed, without unrelated settings results mixed in.
+* Searching for a street address no longer buries it under brands that merely share a word with it.
+
 ## [0.12.5] - 2026-09-24
 
 ### Changed

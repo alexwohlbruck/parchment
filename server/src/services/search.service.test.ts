@@ -36,6 +36,13 @@ mock.module('./integrations', () => ({
   },
 }))
 
+const mockGetBrandSuggestions = mock(() => Promise.resolve([] as any[]))
+const actualBrandService = await import('./brand.service')
+mock.module('./brand.service', () => ({
+  ...actualBrandService,
+  getBrandSuggestions: mockGetBrandSuggestions,
+}))
+
 // ── Import under test (after mocks) ──────────────────────────────────────────
 import { search, searchByCategory } from './search.service'
 
@@ -107,6 +114,7 @@ describe('search service', () => {
     mockLookupPlaces.mockResolvedValue([])
     mockGetConfiguredIntegrations.mockReturnValue([])
     mockGetCachedIntegration.mockReturnValue(null)
+    mockGetBrandSuggestions.mockResolvedValue([])
   })
 
   // ── convertPresetToSearchResult ───────────────────────────────────────────
@@ -316,6 +324,43 @@ describe('search service', () => {
     test('echoes the query in the response', async () => {
       const resp = await search('user-1', { query: 'library' }) as any
       expect(resp.query).toBe('library')
+    })
+  })
+
+  describe('search — brands under a street address', () => {
+    const brand = (name: string) => ({ brandKey: name, name, locationCount: 3 })
+
+    test('drops fuzzy brand matches when the query starts with a house number', async () => {
+      mockLookupPlaces.mockResolvedValue([makePlace({ id: 'pelias/350-5th-ave' })])
+      mockGetBrandSuggestions.mockResolvedValue([brand('New York Life'), brand('New York Pizza')])
+
+      const resp = (await search('user-1', { query: '350 5th Ave, New York', lat: 40.75, lng: -73.98 })) as any
+
+      expect(resp.results.map((r: any) => r.id)).toEqual(['pelias/350-5th-ave'])
+    })
+
+    test('keeps an exact brand match even when the name starts with a number', async () => {
+      mockGetBrandSuggestions.mockResolvedValue([brand('99 Ranch Market')])
+
+      const resp = (await search('user-1', { query: '99 Ranch Market', lat: 37.77, lng: -122.41 })) as any
+
+      expect(resp.results.map((r: any) => r.title)).toEqual(['99 Ranch Market'])
+    })
+
+    test('drops fuzzy brand matches for a street name', async () => {
+      mockGetBrandSuggestions.mockResolvedValue([brand('2nd STREET')])
+
+      const resp = (await search('user-1', { query: 'Elm Street', lat: 35.22, lng: -80.84 })) as any
+
+      expect(resp.results).toEqual([])
+    })
+
+    test('keeps fuzzy brand matches for ordinary queries', async () => {
+      mockGetBrandSuggestions.mockResolvedValue([brand('New York Life')])
+
+      const resp = (await search('user-1', { query: 'new york', lat: 40.75, lng: -73.98 })) as any
+
+      expect(resp.results.map((r: any) => r.title)).toContain('New York Life')
     })
   })
 

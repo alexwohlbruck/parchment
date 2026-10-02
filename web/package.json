@@ -1,7 +1,7 @@
 {
   "name": "parchment",
   "private": true,
-  "version": "0.12.5",
+  "version": "0.12.6",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -78,7 +78,7 @@
     "lucide-vue-next": "0.475.0",
     "mapbox-gl": "^3.27.0",
     "mapillary-js": "^4.1.2",
-    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.4.1-transit.3",
+    "maplibre-gl": "github:alexwohlbruck/maplibre-gl-js#v6.4.1-poi-dots.1",
     "mitt": "^3.0.1",
     "mousetrap": "^1.6.5",
     "photoswipe": "^5.4.4",

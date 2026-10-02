@@ -26,31 +26,18 @@ function applyUpdated(payload: unknown) {
   const store = useCollectionsStore()
   const existing = store.collections.find((c) => c.id === payload.id)
 
-  // For a collection the caller doesn't own, the event's raw payload is
-  // K_m-encrypted metadata that the recipient can't decrypt. Direct
-  // upsert would wipe the name/icon we previously stamped from the
-  // ECIES share envelope. Refetch instead — `fetchCollectionById` runs
-  // the full hydrate pipeline (share-envelope branch included).
-  const iAmRecipient =
-    existing && existing.role && existing.role !== 'owner'
-  if (iAmRecipient) {
+  // Encrypted metadata has to go through the hydrate pipeline: the owner
+  // decrypts with their seed, a recipient through the share envelope.
+  if (payload.metadataEncrypted) {
     void useCollectionsService().fetchCollectionById(payload.id)
     return
   }
 
-  // Owner path: K_m decrypt works client-side, safe to upsert directly.
-  // Preserve any already-decrypted display fields in case the server's
-  // payload lacks them (e.g. the row was never fetched via the service
-  // that hydrates them).
-  const merged: Collection = {
+  store.updateCollection({
     ...payload,
-    name: payload.name ?? existing?.name,
-    description: payload.description ?? existing?.description,
-    icon: payload.icon ?? existing?.icon,
-    iconColor: payload.iconColor ?? existing?.iconColor,
+    locked: false,
     role: existing?.role ?? payload.role,
-  }
-  store.updateCollection(merged)
+  })
 }
 
 function applyDeleted(payload: unknown) {

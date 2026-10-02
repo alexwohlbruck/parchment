@@ -74,18 +74,21 @@ export interface Collection {
   createdAt: string
   updatedAt: string
 
-  // Opaque encrypted metadata envelope as returned by the server.
+  // Metadata envelope. Set on user-e2ee collections, and on server-key
+  // rows the owner's client has not yet moved to the cleartext fields.
   metadataEncrypted?: string | null
   metadataKeyVersion?: number
 
-  // Decrypted metadata fields. Populated client-side after fetch by
-  // the collections service; NEVER sent back to the server in cleartext.
-  // Use `collection.name` / `.description` / etc. for display.
+  // Display metadata. Server-key rows carry it from the server; for
+  // user-e2ee rows the collections service fills it in after decrypting.
   name?: string
   description?: string
   icon?: string
   iconPack?: 'lucide' | 'maki'
   iconColor?: string
+
+  // Client-only: the metadata is encrypted and this device can't open it.
+  locked?: boolean
 
   // Caller's effective role on this collection. `'owner'` on collections the
   // caller owns; a `ShareRole` when the collection is shared TO the caller.

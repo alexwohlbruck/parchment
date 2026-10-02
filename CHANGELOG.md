@@ -13,6 +13,7 @@
 ### Fixed
 
 * Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
+* On the MapLibre map, labels and points of interest now actually hide when turned off in appearance settings, while searching, and while browsing a collection.
 
 ## [0.12.6] - 2026-10-01
 

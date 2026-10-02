@@ -464,14 +464,9 @@ export class MaplibreStrategy extends MapStrategy {
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
-      mapEventBus.emit('contextmenu', {
-        lngLat: e.lngLat,
-        point: e.point,
-      })
+      this.emitContextMenu(e.lngLat, e.point)
     })
 
-    // Touch-and-hold for mobile context menu
-    this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
       if (useMapToolsStore().rawClickCapture) return
       const data = {

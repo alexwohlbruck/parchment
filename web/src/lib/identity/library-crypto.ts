@@ -89,8 +89,13 @@ export function encryptCollectionMetadata(params: {
   seed: Uint8Array
   userId: string
   collectionId: string
+  keyVersion?: number
 }): string {
-  const key = deriveCollectionKey(params.seed, params.collectionId)
+  const key = deriveCollectionKey(
+    params.seed,
+    params.collectionId,
+    params.keyVersion ?? 1,
+  )
   return encryptEnvelopeString({
     plaintext: JSON.stringify(params.metadata),
     key,
@@ -101,22 +106,61 @@ export function encryptCollectionMetadata(params: {
   })
 }
 
+/**
+ * Older envelopes were sealed under the v1 key regardless of rotation, or
+ * with the points' AAD context by the scheme switch; both still open.
+ */
 export function decryptCollectionMetadata(params: {
   envelope: string
   seed: Uint8Array
   userId: string
   collectionId: string
+  keyVersion?: number
 }): CollectionMetadata {
-  const key = deriveCollectionKey(params.seed, params.collectionId)
-  const plaintext = decryptEnvelopeString({
-    envelope: params.envelope,
-    key,
-    aad: collectionAAD({
-      userId: params.userId,
-      collectionId: params.collectionId,
-    }),
-  })
-  return JSON.parse(plaintext) as CollectionMetadata
+  const version = params.keyVersion ?? 1
+  const attempts: Array<{ version: number; aad: AAD }> = [
+    { version, aad: collectionAAD(params) },
+    {
+      version,
+      aad: {
+        ...collectionAAD(params),
+        keyContext: `parchment-collection-${params.collectionId}`,
+      },
+    },
+    { version: 1, aad: collectionAAD(params) },
+  ]
+
+  let lastError: unknown
+  for (const attempt of attempts) {
+    try {
+      const plaintext = decryptEnvelopeString({
+        envelope: params.envelope,
+        key: deriveCollectionKey(params.seed, params.collectionId, attempt.version),
+        aad: attempt.aad,
+      })
+      return JSON.parse(plaintext) as CollectionMetadata
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError
+}
+
+/** The display metadata a hydrated collection carries. */
+export function collectionMetadataOf(collection: {
+  name?: string | null
+  description?: string | null
+  icon?: string | null
+  iconPack?: 'lucide' | 'maki' | null
+  iconColor?: string | null
+}): CollectionMetadata {
+  return {
+    name: collection.name ?? undefined,
+    description: collection.description ?? undefined,
+    icon: collection.icon ?? undefined,
+    iconPack: collection.iconPack ?? undefined,
+    iconColor: collection.iconColor ?? undefined,
+  }
 }
 
 /**

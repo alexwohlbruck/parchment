@@ -32,6 +32,11 @@ import {
   importPublicKey,
 } from './federation-crypto'
 import { encryptEnvelopeString, decryptEnvelopeString } from './crypto-envelope'
+import {
+  collectionPointAAD,
+  decryptCollectionMetadata,
+  encryptCollectionMetadata,
+} from './library-crypto'
 import { getSeed } from './key-storage'
 import type { Collection } from '@/types/library.types'
 
@@ -79,24 +84,6 @@ export type RotationPhase =
   | 'done'
 
 /**
- * AAD used for the metadata + point envelopes on a collection. Matches the
- * binding the existing library-crypto uses (see `library-crypto.ts`).
- */
-function aadFor(
-  collectionId: string,
-  recordType: 'collection-metadata' | 'encrypted-point',
-  recordId: string,
-  userId: string,
-) {
-  return {
-    userId,
-    recordType,
-    recordId,
-    keyContext: `parchment-collection-${collectionId}`,
-  }
-}
-
-/**
  * Run the full rotate-on-revoke flow. Returns the server's view of the
  * updated collection on success.
  */
@@ -127,37 +114,35 @@ export async function rotateCollectionKey(
     const plaintext = decryptEnvelopeString({
       envelope: p.encryptedData,
       key: oldKey,
-      aad: aadFor(collection.id, 'encrypted-point', p.id, ownerUserId),
+      aad: collectionPointAAD({
+        collectionId: collection.id,
+        pointId: p.id,
+        ownerUserId,
+      }),
     })
     onProgress?.('decrypting', (i + 1) / Math.max(1, currentPoints.length))
     return { id: p.id, plaintext }
   })
 
-  const metadataPlaintext = collection.metadataEncrypted
-    ? decryptEnvelopeString({
+  const metadata = collection.metadataEncrypted
+    ? decryptCollectionMetadata({
         envelope: collection.metadataEncrypted,
-        key: oldKey,
-        aad: aadFor(
-          collection.id,
-          'collection-metadata',
-          collection.id,
-          ownerUserId,
-        ),
+        seed,
+        userId: ownerUserId,
+        collectionId: collection.id,
+        keyVersion: oldVersion,
       })
-    : ''
+    : null
 
   // ---- Phase 2: re-encrypt everything under the new key ----
   onProgress?.('encrypting', 0)
-  const newMetadataEncrypted = metadataPlaintext
-    ? encryptEnvelopeString({
-        plaintext: metadataPlaintext,
-        key: newKey,
-        aad: aadFor(
-          collection.id,
-          'collection-metadata',
-          collection.id,
-          ownerUserId,
-        ),
+  const newMetadataEncrypted = metadata
+    ? encryptCollectionMetadata({
+        metadata,
+        seed,
+        userId: ownerUserId,
+        collectionId: collection.id,
+        keyVersion: newVersion,
       })
     : ''
 
@@ -165,7 +150,11 @@ export async function rotateCollectionKey(
     const envelope = encryptEnvelopeString({
       plaintext: p.plaintext,
       key: newKey,
-      aad: aadFor(collection.id, 'encrypted-point', p.id, ownerUserId),
+      aad: collectionPointAAD({
+        collectionId: collection.id,
+        pointId: p.id,
+        ownerUserId,
+      }),
     })
     onProgress?.('encrypting', (i + 1) / Math.max(1, plaintextPoints.length))
     return { id: p.id, encryptedData: envelope, nonce: '' }

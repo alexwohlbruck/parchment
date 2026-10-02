@@ -66,6 +66,7 @@ interface ServerBlobValue {
 interface ServerCollection {
   id: string
   metadataEncrypted: string | null
+  metadataKeyVersion: number
 }
 
 /**
@@ -188,6 +189,7 @@ export async function rotateMasterKey(
       userId: params.userId,
       collectionId: c.id,
       oldEnvelope: c.metadataEncrypted,
+      keyVersion: c.metadataKeyVersion,
       oldSeed: params.oldSeed,
       newSeed,
     })
@@ -276,6 +278,7 @@ function rebuildCollection(params: {
   userId: string
   collectionId: string
   oldEnvelope: string
+  keyVersion: number
   oldSeed: Uint8Array
   newSeed: Uint8Array
 }): PreparedCollection | null {
@@ -286,6 +289,7 @@ function rebuildCollection(params: {
       seed: params.oldSeed,
       userId: params.userId,
       collectionId: params.collectionId,
+      keyVersion: params.keyVersion,
     })
   } catch {
     // Can't decrypt with old seed (already under new seed, or tampered).
@@ -297,6 +301,7 @@ function rebuildCollection(params: {
     seed: params.newSeed,
     userId: params.userId,
     collectionId: params.collectionId,
+    keyVersion: params.keyVersion,
   })
   return { id: params.collectionId, metadataEncrypted }
 }

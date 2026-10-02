@@ -9,6 +9,8 @@ import {
   encryptCanvasMetadata,
   decryptCanvasMetadata,
 } from './library-crypto'
+import { encryptEnvelopeString } from './crypto-envelope'
+import { deriveCollectionKey } from './federation-crypto'
 
 function seedOf(byte: number): Uint8Array {
   const s = new Uint8Array(32)
@@ -74,6 +76,73 @@ describe('encryptCollectionMetadata / decryptCollectionMetadata', () => {
         collectionId: 'c1',
       }),
     ).toThrow()
+  })
+})
+
+describe('collection metadata key versions', () => {
+  test('a rotated key opens only at its own version', () => {
+    const env = encryptCollectionMetadata({
+      metadata: { name: 'Rotated' },
+      seed,
+      userId,
+      collectionId: 'c1',
+      keyVersion: 3,
+    })
+
+    expect(
+      decryptCollectionMetadata({
+        envelope: env,
+        seed,
+        userId,
+        collectionId: 'c1',
+        keyVersion: 3,
+      }).name,
+    ).toBe('Rotated')
+    expect(() =>
+      decryptCollectionMetadata({ envelope: env, seed, userId, collectionId: 'c1' }),
+    ).toThrow()
+  })
+
+  test('opens an envelope sealed with the points’ AAD context', () => {
+    const env = encryptEnvelopeString({
+      plaintext: JSON.stringify({ name: 'Switched' }),
+      key: deriveCollectionKey(seed, 'c1', 2),
+      aad: {
+        userId,
+        recordType: 'collection-metadata',
+        recordId: 'c1',
+        keyContext: 'parchment-collection-c1',
+      },
+    })
+
+    expect(
+      decryptCollectionMetadata({
+        envelope: env,
+        seed,
+        userId,
+        collectionId: 'c1',
+        keyVersion: 2,
+      }).name,
+    ).toBe('Switched')
+  })
+
+  test('opens a v1 envelope on a collection whose key has since rotated', () => {
+    const env = encryptCollectionMetadata({
+      metadata: { name: 'Renamed after rotation' },
+      seed,
+      userId,
+      collectionId: 'c1',
+    })
+
+    expect(
+      decryptCollectionMetadata({
+        envelope: env,
+        seed,
+        userId,
+        collectionId: 'c1',
+        keyVersion: 2,
+      }).name,
+    ).toBe('Renamed after rotation')
   })
 })
 

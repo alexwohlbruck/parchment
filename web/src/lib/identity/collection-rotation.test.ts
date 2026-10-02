@@ -66,6 +66,7 @@ import {
   importPublicKey,
 } from '@/lib/identity/federation-crypto'
 import { encryptEnvelopeString, decryptEnvelopeString } from '@/lib/identity/crypto-envelope'
+import { decryptCollectionMetadata } from './library-crypto'
 import { rotateCollectionKey } from './collection-rotation'
 
 const { state, apiPostSpy } = hoisted
@@ -167,6 +168,17 @@ describe('rotateCollectionKey', () => {
 
     // Version advanced.
     expect(payload.newMetadataKeyVersion).toBe(2)
+
+    // The owner's normal read path opens the rotated metadata.
+    expect(
+      decryptCollectionMetadata({
+        envelope: payload.newMetadataEncrypted,
+        seed,
+        userId: ownerUserId,
+        collectionId,
+        keyVersion: 2,
+      }).name,
+    ).toBe('My Collection')
 
     // Revoked list passes through verbatim.
     expect(payload.revokeRecipientHandles).toEqual(['eve@peer.test'])

@@ -23,7 +23,10 @@
  */
 export const LANDMARK_TINT: Record<'light' | 'dark', [number, number, number]> = {
   light: [1, 1, 1],
-  dark: [0.36, 0.4, 0.5],
+  // Toward the dark map's blue, but not so far that copper stops reading as
+  // copper — the buildings around it are lit, and a landmark dimmer than
+  // them looks like a hole.
+  dark: [0.56, 0.62, 0.76],
 }
 
 /** One placement, in the units the layer wants. */

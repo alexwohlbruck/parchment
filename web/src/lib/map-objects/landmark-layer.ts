@@ -87,9 +87,16 @@ const MASK = `
   }`
 
 /**
- * MapLibre's fill-extrusion lighting, verbatim: a clamped dot against the
- * style light, remapped through its intensity and lifted for dark colours.
- * Any other model would put a landmark in a different light from its street.
+ * MapLibre's fill-extrusion lighting, so a landmark stands in the same light
+ * as its street: a clamped dot against the style light, remapped through its
+ * intensity and lifted for dark colours.
+ *
+ * Plus a sky term, which buildings do not need and sculpture does. The
+ * extrusion formula only ever lights walls and flat roofs; on a figure it
+ * leaves every face turned from the sun at one flat value, and a statue
+ * reads as a cut-out. Letting faces that look up catch a little more light
+ * and faces that look down a little less gives the folds and the arm their
+ * shape, without moving the brightness of a wall away from its neighbours.
  */
 const DRAW_FS = `#version 300 es
   precision highp float;
@@ -108,7 +115,8 @@ const DRAW_FS = `#version 300 es
     float value = dot(u_color, vec3(0.2126, 0.7152, 0.0722));
     float directional = clamp(dot(n, u_lightpos), 0.0, 1.0);
     directional = mix(1.0 - u_lightintensity, max(1.0 - value + u_lightintensity, 1.0), directional);
-    fragColor = vec4(clamp((u_color + 0.03) * directional * u_tint, 0.0, 1.0), 1.0);
+    float sky = mix(0.84, 1.05, n.z * 0.5 + 0.5);
+    fragColor = vec4(clamp((u_color + 0.03) * directional * sky * u_tint, 0.0, 1.0), 1.0);
   }`
 
 /**

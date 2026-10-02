@@ -8,6 +8,7 @@
 ### Changed
 
 * MapLibre is now the default map engine for everyone. Mapbox is still available in appearance settings for those with access.
+* The MapLibre map engine is updated: 3D terrain no longer jolts the camera when a pan or zoom ends, and Arabic, Hebrew and South Asian scripts draw correctly in labels.
 
 ### Fixed
 

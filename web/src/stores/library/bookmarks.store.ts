@@ -4,6 +4,7 @@ import { useStorage } from '@vueuse/core'
 import type { Bookmark } from '@/types/library.types'
 import { isOfflineId } from '@/lib/sync/offline-id'
 import { useCollectionsStore } from '@/stores/library/collections.store'
+import { isSamePlace } from '@/lib/library/external-ids'
 
 export const useBookmarksStore = defineStore('bookmarks', () => {
   const bookmarks = useStorage<Bookmark[]>('bookmarks', [])
@@ -22,11 +23,7 @@ export const useBookmarksStore = defineStore('bookmarks', () => {
 
   const isPlaceSaved = computed(() => {
     return (externalIds: Record<string, string>) => {
-      return bookmarks.value.some(place => {
-        return Object.entries(externalIds).some(([provider, id]) => {
-          return place.externalIds[provider] === id
-        })
-      })
+      return bookmarks.value.some(place => isSamePlace(externalIds, place.externalIds))
     }
   })
 

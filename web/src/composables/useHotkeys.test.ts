@@ -93,6 +93,35 @@ describe('useHotkeys', () => {
     wrapper.unmount()
   })
 
+  it('leaves Escape to an open popover', () => {
+    const sheet = vi.fn()
+    const wrapper = mount(binder('esc', sheet))
+    const popover = document.createElement('div')
+    popover.setAttribute('data-dismissable-layer', '')
+    popover.setAttribute('role', 'dialog')
+    document.body.appendChild(popover)
+
+    press('Escape', 27)
+
+    expect(sheet).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('still answers Escape over an always-open drawer', () => {
+    const sheet = vi.fn()
+    const wrapper = mount(binder('esc', sheet))
+    const drawer = document.createElement('div')
+    drawer.setAttribute('data-dismissable-layer', '')
+    drawer.setAttribute('data-vaul-drawer', '')
+    drawer.setAttribute('role', 'dialog')
+    document.body.appendChild(drawer)
+
+    press('Escape', 27)
+
+    expect(sheet).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
   it('runs every component bound to the same key', () => {
     const sheet = vi.fn()
     const view = vi.fn()

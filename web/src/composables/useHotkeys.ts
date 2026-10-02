@@ -33,6 +33,17 @@ interface HotkeyBinding {
 // It has to go on the prototype: `Mousetrap.init()` copies forwarding wrappers
 // onto the exported object, so assigning there replaces the wrapper and never
 // reaches the instance actually listening on the document.
+/**
+ * An open popover, dialog or menu closes itself on Escape, so the key is not
+ * also a hotkey. Drawers are skipped: the map sheets are always-open drawers.
+ */
+const ESCAPE_LAYERS =
+  '[data-dismissable-layer]:not([data-vaul-drawer]):is([role="dialog"], [role="menu"], [role="listbox"])'
+
+function escapeBelongsToLayer(): boolean {
+  return document.querySelector(ESCAPE_LAYERS) !== null
+}
+
 const defaultStopCallback = mousetrap.prototype.stopCallback
 mousetrap.prototype.stopCallback = function (
   this: unknown,
@@ -41,6 +52,7 @@ mousetrap.prototype.stopCallback = function (
   combo: string,
   sequence?: string,
 ) {
+  if (combo === 'esc' && escapeBelongsToLayer()) return true
   if (useHotkeyStore().allowsInInput(combo, element)) return false
   return defaultStopCallback.call(this, e, element, combo, sequence)
 }

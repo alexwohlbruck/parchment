@@ -58,6 +58,17 @@ export const FURNITURE_SOURCE = 'furniture'
  * the same colour on top of each other look like one, so the outline costs
  * nothing there, and the basemap is the cheaper source for it.
  */
+/**
+ * 3D landmark placements: a point per landmark, carrying its model and the
+ * buildings it replaces. Its own source rather than a bundle member, because
+ * it is not Martin — Barrelman builds these tiles itself — and because it may
+ * one day be served from somewhere else entirely. See `map-objects/landmarks.ts`.
+ */
+export const LANDMARK_SOURCE = 'landmarks'
+/** Barrelman's path under /tiles, and the tile's layer name. */
+export const LANDMARK_TILES = 'landmarks'
+export const LANDMARK_LAYER = 'Landmarks'
+
 /** The barrelman bundle behind {@link DETAIL_SOURCE}; see its `TILE_BUNDLES`. */
 export const DETAIL_TILES = 'detail'
 
@@ -154,7 +165,34 @@ export function detailSources(tileUrl: (source: string) => string) {
       minzoom: 17,
       maxzoom: 17,
     },
+    // Barrelman answers from z12 and the set barely changes past 14, so the
+    // tile is over-zoomed from there like the basemap is.
+    [LANDMARK_SOURCE]: {
+      type: 'vector' as const,
+      tiles: [tileUrl(LANDMARK_TILES)],
+      minzoom: 12,
+      maxzoom: 14,
+    },
   }
+}
+
+/**
+ * What keeps the landmark tiles loading. Never seen: the landmark layer reads
+ * the placements with `querySourceFeatures`, which only finds what some style
+ * layer has caused to load — the same reason the flat trees are muted rather
+ * than hidden (see `TREE_OPACITY`).
+ */
+export function landmarkLayers(): any[] {
+  return [
+    {
+      id: LANDMARK_LAYER,
+      type: 'circle',
+      source: LANDMARK_SOURCE,
+      'source-layer': LANDMARK_TILES,
+      minzoom: 12,
+      paint: { 'circle-opacity': 0, 'circle-radius': 1 },
+    },
+  ]
 }
 
 /** The paved surface and its edge, drawn beneath the pedestrian block. */

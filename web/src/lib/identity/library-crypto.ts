@@ -183,6 +183,43 @@ export function collectionPointAAD(params: {
   }
 }
 
+/** The place a point holds, before it has an id. */
+export type CollectionPointFields = Omit<DecryptedPoint, 'id'>
+
+/**
+ * Seal a place as a point. `pointId` is minted by the caller: the AAD binds
+ * it, so it has to exist before the server sees the row.
+ */
+export function encryptCollectionPoint(params: {
+  point: CollectionPointFields
+  pointId: string
+  seed: Uint8Array
+  ownerUserId: string
+  collectionId: string
+  keyVersion?: number
+}): string {
+  const { point } = params
+  return encryptEnvelopeString({
+    plaintext: JSON.stringify({
+      externalIds: point.externalIds,
+      name: point.name,
+      address: point.address ?? null,
+      lat: point.lat,
+      lng: point.lng,
+      icon: point.icon,
+      iconPack: point.iconPack,
+      iconColor: point.iconColor,
+      frequentType: point.frequentType ?? null,
+    }),
+    key: deriveCollectionKey(params.seed, params.collectionId, params.keyVersion ?? 1),
+    aad: collectionPointAAD({
+      collectionId: params.collectionId,
+      pointId: params.pointId,
+      ownerUserId: params.ownerUserId,
+    }),
+  })
+}
+
 /**
  * Decrypt one stored point into the plaintext place it represents.
  *

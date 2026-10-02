@@ -17,12 +17,11 @@ import {
   encryptForFriend,
   importPublicKey,
 } from './federation-crypto'
-import { encryptEnvelopeString } from './crypto-envelope'
 import {
   collectionMetadataOf,
-  collectionPointAAD,
   decryptCollectionPoint,
   encryptCollectionMetadata,
+  encryptCollectionPoint,
 } from './library-crypto'
 import { getSeed } from './key-storage'
 import type { Collection, CollectionScheme } from '@/types/library.types'
@@ -36,6 +35,7 @@ export interface ClearBookmarkRow {
   lat: number
   lng: number
   icon: string
+  iconPack?: 'lucide' | 'maki'
   iconColor: string
   frequentType?: string | null
 }
@@ -75,12 +75,6 @@ export interface SwitchDowngradeInput {
   ownerEncryptionPrivateKey: Uint8Array
   onProgress?: (phase: SwitchPhase, pctInPhase: number) => void
 }
-
-const pointAAD = (
-  collectionId: string,
-  pointId: string,
-  ownerUserId: string,
-) => collectionPointAAD({ collectionId, pointId, ownerUserId })
 
 function wrapKeyForFriend(params: {
   keyBytes: Uint8Array
@@ -127,20 +121,13 @@ export async function upgradeCollectionToE2ee(
   // ---- Phase 1: encrypt bookmarks as encrypted_points under the new key ----
   onProgress?.('transforming', 0)
   const newEncryptedPoints = currentBookmarks.map((bm, i) => {
-    const plaintext = JSON.stringify({
-      externalIds: bm.externalIds,
-      name: bm.name,
-      address: bm.address ?? null,
-      lat: bm.lat,
-      lng: bm.lng,
-      icon: bm.icon,
-      iconColor: bm.iconColor,
-      frequentType: bm.frequentType ?? null,
-    })
-    const envelope = encryptEnvelopeString({
-      plaintext,
-      key: newKey,
-      aad: pointAAD(collection.id, bm.id, ownerUserId),
+    const envelope = encryptCollectionPoint({
+      point: { ...bm, iconPack: bm.iconPack ?? 'lucide' },
+      pointId: bm.id,
+      seed,
+      ownerUserId,
+      collectionId: collection.id,
+      keyVersion: newVersion,
     })
     onProgress?.('transforming', (i + 1) / Math.max(1, currentBookmarks.length))
     return { id: bm.id, encryptedData: envelope, nonce: '' }
@@ -216,8 +203,6 @@ export async function downgradeCollectionToServerKey(
   const newKey = deriveCollectionKey(seed, collection.id, newVersion)
 
   // ---- Phase 1: decrypt each point into a plaintext bookmark payload ----
-  // Fields are picked explicitly rather than spread: the decrypt helper also
-  // returns `iconPack`, which the change-scheme body schema doesn't accept.
   onProgress?.('transforming', 0)
   const newBookmarks = currentPoints.map((p, i) => {
     const point = decryptCollectionPoint({
@@ -236,6 +221,7 @@ export async function downgradeCollectionToServerKey(
       lat: point.lat,
       lng: point.lng,
       icon: point.icon,
+      iconPack: point.iconPack,
       iconColor: point.iconColor,
       frequentType: point.frequentType ?? null,
     }

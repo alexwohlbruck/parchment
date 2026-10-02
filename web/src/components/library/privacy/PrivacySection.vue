@@ -15,6 +15,8 @@ const props = defineProps<{
   /** False on a device without the recovery key, which can't encrypt. */
   hasIdentity: boolean
   disabled?: boolean
+  /** Only the owner can move a record between schemes. */
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{ switch: [target: PrivacyScheme] }>()
@@ -43,7 +45,8 @@ const blocked = computed(() => target.value === 'user-e2ee' && !props.hasIdentit
           {{ t(`library.privacy.schemes.${scheme}.description`) }}
         </p>
 
-        <p v-if="blocked" class="text-muted-foreground mt-1">
+        <template v-if="readonly" />
+        <p v-else-if="blocked" class="text-muted-foreground mt-1">
           {{ t('library.privacy.needsIdentity') }}
         </p>
         <Button

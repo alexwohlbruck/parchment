@@ -17,7 +17,6 @@ import type {
 } from '@/types/library.types'
 import { useCollectionsService } from '@/services/library/collections.service'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
-import { getSeed } from '@/lib/identity/key-storage'
 import { encryptCollectionPoint } from '@/lib/identity/library-crypto'
 import { ref } from 'vue'
 import { api } from '@/lib/api'
@@ -116,8 +115,8 @@ export const useBookmarksService = createSharedComposable(() => {
     if (existing) return existing
 
     try {
-      const seed = await getSeed()
-      if (!seed) throw new Error('No identity seed on this device')
+      const source = await collectionsService.collectionKeySource(collection)
+      if (!source) throw new Error('No key to this collection on this device')
       const point: DecryptedPoint = {
         id: crypto.randomUUID(),
         externalIds: fields.externalIds,
@@ -137,7 +136,7 @@ export const useBookmarksService = createSharedComposable(() => {
         encryptedData: encryptCollectionPoint({
           point,
           pointId: point.id,
-          seed,
+          source,
           ownerUserId: collection.userId,
           collectionId: collection.id,
           keyVersion: collection.metadataKeyVersion,

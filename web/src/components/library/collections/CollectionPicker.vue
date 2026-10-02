@@ -84,14 +84,10 @@ function isInCollection(collection: Collection) {
   )
 }
 
-/**
- * Collections this device can save into. Viewers can't write, and a private
- * collection needs its owner's key, so only its owner on an unlocked device.
- */
+/** Viewers can't write, and a private collection needs its key on this device. */
 function canSaveTo(collection: Collection) {
-  const owner = !collection.role || collection.role === 'owner'
-  if (collection.scheme === 'user-e2ee') return owner && !collection.locked
-  return owner || collection.role === 'editor'
+  const writer = !collection.role || collection.role === 'owner' || collection.role === 'editor'
+  return writer && !(collection.scheme === 'user-e2ee' && collection.locked)
 }
 
 watch(

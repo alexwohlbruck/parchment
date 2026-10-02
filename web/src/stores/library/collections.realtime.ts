@@ -53,13 +53,20 @@ function applyPublicLinkChanged(payload: unknown) {
   applyUpdated(payload)
 }
 
-function applyRotatedOrSchemeChanged(payload: unknown) {
-  // Rotation and scheme changes return a fresh collection row. Upserting
-  // it is enough for the UI — but we ALSO need to drop any cached
-  // encrypted_points / bookmarks that belong to the old scheme, since
-  // the next fetch will bring the new ones. Simplest: let the service's
-  // refetch handle it when the user next opens the collection.
-  applyUpdated(payload)
+/**
+ * A new key or scheme invalidates every decrypted place. Refetching the
+ * collection opens its new share envelope; places on screen re-decrypt.
+ */
+async function applyRotatedOrSchemeChanged(payload: unknown) {
+  if (!isCollectionLike(payload)) return
+  const pointsStore = useEncryptedPointsStore()
+  const wasShowing = pointsStore.isLoaded(payload.id)
+  pointsStore.clearCollection(payload.id)
+  const service = useCollectionsService()
+  const fresh = await service.fetchCollectionById(payload.id)
+  if (wasShowing && fresh?.scheme === 'user-e2ee') {
+    void service.fetchAndDecryptPoints(fresh)
+  }
 }
 
 /**

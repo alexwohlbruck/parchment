@@ -19,17 +19,16 @@ import {
   encryptCollectionMetadata,
   decryptCollectionMetadata,
   decryptCollectionPoint,
+  type CollectionKeySource,
   type CollectionMetadata,
 } from '@/lib/identity/library-crypto'
 import {
-  decryptFromFriend,
-  encryptForFriend,
+  deriveCollectionKey,
   importPublicKey,
 } from '@/lib/identity/federation-crypto'
-import {
-  listSharesForResource,
-  updateShareEnvelope,
-} from '@/services/sharing.service'
+import { openCollectionShare } from '@/lib/identity/collection-share'
+import { useCollectionKeysStore } from '@/stores/library/collection-keys.store'
+import { listSharesForResource } from '@/services/sharing.service'
 import {
   downgradeCollectionToServerKey,
   upgradeCollectionToE2ee,
@@ -37,21 +36,6 @@ import {
 import { useAuthStore } from '@/stores/auth.store'
 
 // TODO: i18n error messages
-
-/**
- * Shape of the ECIES payload the owner ships in `incoming_shares.encryptedData`.
- * Stays in sync with what ShareDialog.addShare serializes.
- */
-interface SharedPayload {
-  collectionId: string
-  scheme: string
-  metadata?: {
-    name?: string
-    description?: string
-    icon?: string
-    iconColor?: string
-  }
-}
 
 function stampMetadata(
   collection: Collection,
@@ -93,89 +77,85 @@ async function moveMetadataToCleartext(collection: Collection) {
   }
 }
 
+function isOwnCollection(collection: Collection): boolean {
+  return collection.userId === useAuthStore().me?.id
+}
+
+/**
+ * Open the envelope a collection's owner sealed for this user and keep the
+ * key it carries. A new key version drops places decrypted under the old one.
+ */
+function openShareEnvelope(collection: Collection) {
+  if (!collection.shareEnvelope || !collection.senderHandle) return
+  const sender = useFriendsStore().friends.find(
+    f => f.friendHandle === collection.senderHandle,
+  )
+  const recipientPrivateKey = useIdentityStore().encryptionPrivateKey
+  if (!sender?.friendEncryptionKey || !recipientPrivateKey) return
+  try {
+    const share = openCollectionShare({
+      envelope: collection.shareEnvelope,
+      recipientPrivateKey,
+      senderPublicKey: importPublicKey(sender.friendEncryptionKey),
+    })
+    if (!share.key) return
+    const keysStore = useCollectionKeysStore()
+    const version = share.keyVersion ?? 1
+    if (keysStore.get(collection.id)?.version !== version) {
+      useEncryptedPointsStore().clearCollection(collection.id)
+    }
+    keysStore.set(collection.id, { key: share.key, version })
+  } catch (err) {
+    console.warn('[collections] could not open share envelope for', collection.id, err)
+  }
+}
+
+/** How this device reaches a collection's current key, or null when it can't. */
+async function collectionKeySource(
+  collection: Collection,
+): Promise<CollectionKeySource | null> {
+  if (isOwnCollection(collection)) {
+    const seed = await getSeed()
+    return seed ? { seed } : null
+  }
+  const shared = useCollectionKeysStore().get(collection.id)
+  return shared && shared.version === (collection.metadataKeyVersion ?? 1)
+    ? { key: shared.key }
+    : null
+}
+
+/** The current key itself, for sealing it into a friend's share envelope. */
+async function collectionKey(collection: Collection): Promise<Uint8Array | null> {
+  const source = await collectionKeySource(collection)
+  if (!source) return null
+  return 'key' in source
+    ? source.key
+    : deriveCollectionKey(source.seed, collection.id, collection.metadataKeyVersion ?? 1)
+}
+
 /**
  * Fill in a collection's display metadata. Mutates and returns `collection`.
- *
- * Server-key rows arrive with metadata in the clear. Everything else is
- * decrypted: the owner's rows with their seed, shared rows from the ECIES
- * share envelope the owner packaged for this recipient.
+ * Server-key rows arrive with it in the clear; a private collection's is
+ * sealed with the collection key, which owner and recipients both reach.
  */
-async function hydrateDecryptedMetadata<
-  T extends Collection & { bookmarks?: unknown },
->(
-  collection: T,
-  userId: string | undefined,
-  ctx?: { friendsStore?: ReturnType<typeof useFriendsStore>; identityStore?: ReturnType<typeof useIdentityStore> },
-): Promise<T> {
+async function hydrateDecryptedMetadata<T extends Collection>(collection: T): Promise<T> {
   collection.locked = false
-  if (!collection.metadataEncrypted) return collection
+  if (!isOwnCollection(collection)) openShareEnvelope(collection)
 
-  if (
-    collection.role &&
-    collection.role !== 'owner' &&
-    collection.shareEnvelope &&
-    collection.senderHandle &&
-    ctx?.friendsStore &&
-    ctx?.identityStore
-  ) {
-    const friend = ctx.friendsStore.friends.find(
-      (f) => f.friendHandle === collection.senderHandle,
-    )
-    const myEncPriv = ctx.identityStore.encryptionPrivateKey
-    if (!friend?.friendEncryptionKey) {
-      console.warn(
-        '[collections] shared metadata: friend record missing for sender',
-        collection.senderHandle,
-        'friend count:',
-        ctx.friendsStore.friends.length,
-      )
-      markUnreadable(collection)
-      return collection
-    }
-    if (!myEncPriv) {
-      console.warn('[collections] shared metadata: no encryption private key')
-      markUnreadable(collection)
-      return collection
-    }
-    try {
-      const senderPub = importPublicKey(friend.friendEncryptionKey)
-      const plaintext = decryptFromFriend(
-        collection.shareEnvelope.encryptedData,
-        collection.shareEnvelope.nonce,
-        myEncPriv,
-        senderPub,
-        'parchment-share-collection-v1',
-      )
-      const parsed = JSON.parse(plaintext) as SharedPayload
-      if (parsed.metadata) {
-        stampMetadata(collection, parsed.metadata)
-      } else {
-        console.warn(
-          '[collections] shared envelope decrypted but has no metadata (old share format?)',
-          collection.id,
-        )
-        markUnreadable(collection)
-      }
-    } catch (err) {
-      console.warn(
-        '[collections] failed to decrypt shared envelope for',
-        collection.id,
-        err,
-      )
-      markUnreadable(collection)
-    }
+  const source = await collectionKeySource(collection)
+  if (!collection.metadataEncrypted) {
+    if (collection.scheme === 'user-e2ee' && !source) collection.locked = true
     return collection
   }
 
-  const seed = userId ? await getSeed() : null
   try {
-    if (!seed || !userId) throw new Error('No identity seed on this device')
+    if (!source) throw new Error('No key to this collection on this device')
     stampMetadata(
       collection,
       decryptCollectionMetadata({
         envelope: collection.metadataEncrypted,
-        seed,
-        userId,
+        source,
+        userId: collection.userId,
         collectionId: collection.id,
         keyVersion: collection.metadataKeyVersion,
       }),
@@ -184,7 +164,7 @@ async function hydrateDecryptedMetadata<
     markUnreadable(collection)
     return collection
   }
-  if (collection.scheme === 'server-key' && collection.role === 'owner') {
+  if (collection.scheme === 'server-key' && isOwnCollection(collection)) {
     void moveMetadataToCleartext(collection)
   }
   return collection
@@ -213,22 +193,17 @@ export const useCollectionsService = createSharedComposable(() => {
     return collection.name || t('library.entities.collections.untitled')
   }
 
-  /**
-   * Seal metadata for a user-e2ee collection. Throws without a seed — the
-   * collection is locked on this device, so there is nothing to edit.
-   */
+  /** Seal metadata for a user-e2ee collection. Throws when it is locked here. */
   async function buildMetadataEnvelope(
     collection: Collection,
     metadata: CollectionMetadata,
   ): Promise<string> {
-    const seed = await getSeed()
-    if (!seed) throw new Error('No identity seed — cannot encrypt collection metadata')
-    const userId = authStore.me?.id
-    if (!userId) throw new Error('Not signed in')
+    const source = await collectionKeySource(collection)
+    if (!source) throw new Error('No key to this collection on this device')
     return encryptCollectionMetadata({
       metadata,
-      seed,
-      userId,
+      source,
+      userId: collection.userId,
       collectionId: collection.id,
       keyVersion: collection.metadataKeyVersion,
     })
@@ -270,11 +245,7 @@ export const useCollectionsService = createSharedComposable(() => {
         [...owned, ...shared].map(async (c) => {
           // Owner rows decrypt the K_m envelope; shared rows fall into
           // the ECIES share-envelope branch inside hydrateDecryptedMetadata.
-          return hydrateDecryptedMetadata(
-            c,
-            c.role === 'owner' ? userId : c.userId,
-            { friendsStore, identityStore },
-          )
+          return hydrateDecryptedMetadata(c)
         }),
       )
 
@@ -319,13 +290,7 @@ export const useCollectionsService = createSharedComposable(() => {
         await friendsStore.loadFriends()
       }
 
-      const hydrated = await hydrateDecryptedMetadata(
-        collection,
-        collection.role === 'owner' || !collection.role
-          ? authStore.me?.id
-          : collection.userId,
-        { friendsStore, identityStore },
-      )
+      const hydrated = await hydrateDecryptedMetadata(collection)
       collectionsStore.updateCollection(hydrated)
       return hydrated
     } catch (error) {
@@ -349,10 +314,7 @@ export const useCollectionsService = createSharedComposable(() => {
           `/library/collections/${data.id}`,
           { metadataEncrypted: await buildMetadataEnvelope(data, metadata) },
         )
-        created = await hydrateDecryptedMetadata(
-          { ...sealed, role: 'owner' },
-          authStore.me?.id,
-        )
+        created = await hydrateDecryptedMetadata({ ...sealed, role: 'owner' })
       } else {
         const { data } = await api.post<Collection>('/library/collections', {
           ...metadata,
@@ -368,82 +330,6 @@ export const useCollectionsService = createSharedComposable(() => {
       toast.error(t('services.collections.createError'))
       return null
     }
-  }
-
-  /**
-   * Reissue the ECIES share envelope for every recipient of a user-e2ee
-   * collection so their clients see the new metadata on next decrypt. The
-   * realtime event carries only the owner-sealed envelope, which recipients
-   * can't open.
-   */
-  async function reissueShareEnvelopes(
-    collectionId: string,
-    meta: {
-      name?: string
-      description?: string
-      icon?: string
-      iconPack?: 'lucide' | 'maki'
-      iconColor?: string
-      scheme: Collection['scheme']
-    },
-  ): Promise<void> {
-    const myEncPriv = identityStore.encryptionPrivateKey
-    if (!myEncPriv) return
-
-    let shares: Awaited<ReturnType<typeof listSharesForResource>>
-    try {
-      shares = await listSharesForResource('collection', collectionId)
-    } catch {
-      return
-    }
-    if (shares.length === 0) return
-
-    const payload = JSON.stringify({
-      collectionId,
-      scheme: meta.scheme,
-      metadata: {
-        name: meta.name,
-        description: meta.description,
-        icon: meta.icon,
-        iconPack: meta.iconPack,
-        iconColor: meta.iconColor,
-      },
-    })
-
-    // Parallelize. One failure shouldn't stop the rest — a single
-    // unreachable friend shouldn't block other recipients from seeing
-    // the new name.
-    await Promise.all(
-      shares
-        .filter((s) => s.status !== 'revoked')
-        .map(async (share) => {
-          const friend = friendsStore.friends.find(
-            (f) => f.friendHandle === share.recipientHandle,
-          )
-          if (!friend?.friendEncryptionKey) return
-          try {
-            const encrypted = encryptForFriend(
-              payload,
-              myEncPriv,
-              importPublicKey(friend.friendEncryptionKey),
-              'parchment-share-collection-v1',
-            )
-            await updateShareEnvelope({
-              recipientHandle: share.recipientHandle,
-              resourceType: 'collection',
-              resourceId: collectionId,
-              encryptedData: encrypted.ciphertext,
-              nonce: encrypted.nonce,
-            })
-          } catch (err) {
-            console.warn(
-              '[collections] failed to reissue envelope for',
-              share.recipientHandle,
-              err,
-            )
-          }
-        }),
-    )
   }
 
   async function updateCollection(id: string, updates: Partial<Collection>) {
@@ -468,23 +354,12 @@ export const useCollectionsService = createSharedComposable(() => {
       }
 
       const response = await api.put(`/library/collections/${id}`, body)
-      const hydrated = await hydrateDecryptedMetadata(
-        { ...(response.data as Collection), role: current.role },
-        authStore.me?.id,
-      )
+      const hydrated = await hydrateDecryptedMetadata({
+        ...(response.data as Collection),
+        role: current.role,
+      })
 
       collectionsStore.updateCollection(hydrated)
-
-      // Server-key recipients read the new metadata straight from the row.
-      if (metadataChanged && e2ee) {
-        // Fire-and-forget: failures here shouldn't block the local
-        // update. Worst case a recipient sees the old name until their
-        // next re-share.
-        void reissueShareEnvelopes(id, {
-          ...collectionMetadataOf(hydrated),
-          scheme: hydrated.scheme,
-        })
-      }
 
       toast.success(t('services.collections.updateSuccess'))
       return hydrated
@@ -541,10 +416,10 @@ export const useCollectionsService = createSharedComposable(() => {
                 .data.points ?? [],
           })
 
-    const hydrated = await hydrateDecryptedMetadata(
-      { ...switched, role: collection.role },
-      ownerUserId,
-    )
+    const hydrated = await hydrateDecryptedMetadata({
+      ...switched,
+      role: collection.role,
+    })
     collectionsStore.updateCollection(hydrated)
     useEncryptedPointsStore().clearCollection(collection.id)
     return hydrated
@@ -633,9 +508,8 @@ export const useCollectionsService = createSharedComposable(() => {
     pointsStore.beginLoad(id)
 
     try {
-      const seed = await getSeed()
-      const ownerUserId = collection.userId || authStore.me?.id
-      if (!seed || !ownerUserId) {
+      const source = await collectionKeySource(collection)
+      if (!source) {
         pointsStore.setPoints(id, [])
         return []
       }
@@ -647,8 +521,8 @@ export const useCollectionsService = createSharedComposable(() => {
           decrypted.push({
             ...decryptCollectionPoint({
               point,
-              seed,
-              ownerUserId,
+              source,
+              ownerUserId: collection.userId,
               collectionId: id,
               keyVersion: collection.metadataKeyVersion ?? 1,
             }),
@@ -686,11 +560,11 @@ export const useCollectionsService = createSharedComposable(() => {
     }
   }
 
-  /** Decrypt every private collection the caller owns and can open. */
+  /** Decrypt every private collection this device can open, own or shared. */
   async function loadPrivatePoints() {
     await Promise.all(
       collectionsStore.collections
-        .filter(c => c.scheme === 'user-e2ee' && c.role === 'owner' && !c.locked)
+        .filter(c => c.scheme === 'user-e2ee' && !c.locked)
         .map(fetchAndDecryptPoints),
     )
   }
@@ -723,6 +597,8 @@ export const useCollectionsService = createSharedComposable(() => {
     getEncryptedPoints,
     fetchAndDecryptPoints,
     loadPrivatePoints,
+    collectionKeySource,
+    collectionKey,
     fetchPublicCollection,
     createEncryptedPoint,
     deleteEncryptedPoint,

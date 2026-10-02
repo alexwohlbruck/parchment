@@ -189,6 +189,7 @@ defineExpose({
       v-if="liveCollection"
       :scheme="liveCollection.scheme"
       :has-identity="hasIdentity"
+      :readonly="liveCollection.role !== undefined && liveCollection.role !== 'owner'"
       :disabled="switching"
       @switch="switchPrivacy(liveCollection, $event)"
     />

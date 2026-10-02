@@ -21,6 +21,8 @@ import PeopleWithAccessList, {
 import GeneralAccessSection from './GeneralAccessSection.vue'
 import PrivacySection from '@/components/library/privacy/PrivacySection.vue'
 import { useCollectionPrivacy } from '@/composables/library/useCollectionPrivacy'
+import { useCollectionsService } from '@/services/library/collections.service'
+import { sealCollectionShare } from '@/lib/identity/collection-share'
 
 import { useFriendsStore } from '@/stores/friends.store'
 import { useIdentityStore } from '@/stores/identity.store'
@@ -37,7 +39,6 @@ import {
   type OutgoingShare,
 } from '@/services/sharing.service'
 import {
-  encryptForFriend,
   importPublicKey,
   buildSignableMessageV2,
   generateNonce as generateFederationNonce,
@@ -230,32 +231,24 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
 
   mutating.value = true
   try {
-    // The ECIES envelope carries everything the recipient needs to
-    // render the shared collection:
-    //   - the collection id + scheme (routing)
-    //   - the display metadata (name, icon, iconColor, description)
-    //     because the server-stored `metadataEncrypted` envelope is
-    //     encrypted under Alice's personal K_m which Bob can't derive
-    // So without this, Bob sees an untitled, iconless card (the bug
-    // the owner reported). Metadata lives in the payload for both
-    // server-key and user-e2ee schemes to keep one delivery path.
-    const friendPub = importPublicKey(friend.friendEncryptionKey)
-    const payload = JSON.stringify({
-      collectionId: props.collection.id,
-      scheme: props.collection.scheme,
-      metadata: {
-        name: props.collection.name,
-        description: props.collection.description,
-        icon: props.collection.icon,
-        iconColor: props.collection.iconColor,
+    const isPrivate = props.collection.scheme === 'user-e2ee'
+    const key = isPrivate
+      ? await collectionsService.collectionKey(props.collection)
+      : undefined
+    if (isPrivate && !key) {
+      toast.warning(t('sharing.errors.identityRequired'))
+      return
+    }
+    const encrypted = sealCollectionShare({
+      share: {
+        collectionId: props.collection.id,
+        scheme: props.collection.scheme,
+        key: key ?? undefined,
+        keyVersion: props.collection.metadataKeyVersion ?? 1,
       },
+      ownerPrivateKey: encryptionPrivateKey.value,
+      recipientPublicKey: importPublicKey(friend.friendEncryptionKey),
     })
-    const encrypted = encryptForFriend(
-      payload,
-      encryptionPrivateKey.value,
-      friendPub,
-      `parchment-share-collection-v1`,
-    )
 
     // Build the v2 federation envelope when the recipient is remote. The
     // server-side forwarder sends the envelope verbatim so the peer
@@ -282,7 +275,7 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
         payload: {
           resourceType: 'collection',
           resourceId: props.collection.id,
-          encryptedData: encrypted.ciphertext,
+          encryptedData: encrypted.encryptedData,
           nonce: encrypted.nonce,
           role,
         },
@@ -295,12 +288,13 @@ async function addShare(friendHandle: string, role: ShareRole = 'viewer') {
       resourceType: 'collection',
       resourceId: props.collection.id,
       role,
-      encryptedData: encrypted.ciphertext,
+      encryptedData: encrypted.encryptedData,
       nonce: encrypted.nonce,
       federationSignature,
       federationNonce,
       federationTimestamp,
     })
+    searchQuery.value = ''
     await refreshShares()
     emit('changed')
   } catch (err) {
@@ -433,6 +427,7 @@ async function onCopyPublicLink() {
 }
 
 const { switchPrivacy, switching, hasIdentity } = useCollectionPrivacy()
+const collectionsService = useCollectionsService()
 
 /** The collection prop goes stale once its scheme flips; the parent refetches. */
 async function onSwitchPrivacy(target: Collection['scheme']) {
@@ -538,12 +533,16 @@ const collectionName = computed(
       <PrivacySection
         :scheme="collection.scheme"
         :has-identity="hasIdentity"
+        :readonly="collection.role !== undefined && collection.role !== 'owner'"
         :disabled="mutating || switching"
         @switch="onSwitchPrivacy"
       />
 
+      <p v-if="collection.scheme === 'user-e2ee'" class="text-xs text-muted-foreground -mt-2">
+        {{ t('sharing.generalAccess.privateHint') }}
+      </p>
       <GeneralAccessSection
-        v-if="collection.scheme === 'server-key'"
+        v-else
         :public-token="publicToken"
         :public-url="publicUrl"
         :disabled="mutating || switching"

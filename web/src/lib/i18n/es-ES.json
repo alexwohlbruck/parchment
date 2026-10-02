@@ -877,11 +877,11 @@
       "schemes": {
         "server-key": {
           "title": "Compartible",
-          "description": "El servidor puede leerlo, así que puede publicarse con un enlace."
+          "description": "El servidor puede leerlo, así que puede tener un enlace público."
         },
         "user-e2ee": {
           "title": "Privado",
-          "description": "Cifrado de extremo a extremo. Solo tus dispositivos pueden leerlo."
+          "description": "Cifrado de extremo a extremo, así que el servidor no puede leerlo."
         }
       },
       "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
@@ -2133,7 +2133,8 @@
         "description": "Cualquier persona en internet con el enlace puede ver.",
         "copyAction": "Copiar enlace",
         "revokeAction": "Revocar enlace"
-      }
+      },
+      "privateHint": "Los enlaces públicos necesitan una colección compartible."
     },
     "publicLink": {
       "copied": "Enlace copiado al portapapeles"

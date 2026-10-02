@@ -913,11 +913,11 @@
       "schemes": {
         "server-key": {
           "title": "Shareable",
-          "description": "The server can read it, so it can be published with a link."
+          "description": "The server can read it, so it can have a public link."
         },
         "user-e2ee": {
           "title": "Private",
-          "description": "End-to-end encrypted. Only your devices can read it."
+          "description": "End-to-end encrypted, so the server can’t read it."
         }
       },
       "needsIdentity": "Needs your recovery key on this device.",
@@ -2255,7 +2255,8 @@
         "description": "Anyone on the internet with the link can view.",
         "copyAction": "Copy link",
         "revokeAction": "Revoke link"
-      }
+      },
+      "privateHint": "Public links need a shareable collection."
     },
     "publicLink": {
       "copied": "Link copied to clipboard"

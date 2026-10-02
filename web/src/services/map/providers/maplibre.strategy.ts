@@ -75,6 +75,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
+import { combineFilters } from '@/lib/map-style/combine-filters'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
 import { ISOLATED_COLLISION_LAYERS } from '@/lib/map-style/poi-dots'
 import {
@@ -240,7 +241,7 @@ function firstLabelLayer(map: MaplibreMap): string | undefined {
 }
 
 
-const NEVER_MATCH = ['==', 1, 0]
+const NEVER_MATCH = ['literal', false]
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
@@ -464,14 +465,9 @@ export class MaplibreStrategy extends MapStrategy {
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
-      mapEventBus.emit('contextmenu', {
-        lngLat: e.lngLat,
-        point: e.point,
-      })
+      this.emitContextMenu(e.lngLat, e.point)
     })
 
-    // Touch-and-hold for mobile context menu
-    this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
       if (useMapToolsStore().rawClickCapture) return
       const data = {
@@ -883,14 +879,13 @@ export class MaplibreStrategy extends MapStrategy {
     if (!this.baseFilters.has(id)) {
       this.baseFilters.set(id, this.mapInstance.getFilter(id) ?? null)
     }
-    const clauses = [
-      this.baseFilters.get(id),
-      this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
-      this.basemapHiders.get(id)?.size && NEVER_MATCH,
-    ].filter(Boolean)
     this.mapInstance.setFilter(
       id,
-      (clauses.length > 1 ? ['all', ...clauses] : (clauses[0] ?? null)) as any,
+      combineFilters([
+        this.baseFilters.get(id),
+        this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
+        this.basemapHiders.get(id)?.size && NEVER_MATCH,
+      ]),
     )
   }
 

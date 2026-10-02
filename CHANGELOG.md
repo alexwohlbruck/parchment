@@ -9,6 +9,8 @@
 ### Changed
 
 * A collection's name and icon now follow its encryption setting: readable on any signed-in device for standard collections, end-to-end encrypted along with the places for private ones.
+* MapLibre is now the default map engine for everyone. Mapbox is still available in appearance settings for those with access.
+* The MapLibre map engine is updated: 3D terrain no longer jolts the camera when a pan or zoom ends, and Arabic, Hebrew and South Asian scripts draw correctly in labels.
 
 ### Fixed
 
@@ -16,6 +18,7 @@
 * Making a named collection private no longer fails.
 * The "Create collection" button in an empty library now works.
 * Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.
+* On the MapLibre map, labels and points of interest now actually hide when turned off in appearance settings, while searching, and while browsing a collection.
 
 ## [0.12.6] - 2026-10-01
 

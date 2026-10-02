@@ -25,7 +25,7 @@ const emitter = mitt<MapEvents>()
 
 const defaultSettings: MapSettings = {
   theme: MapTheme.LIGHT,
-  engine: MapEngine.MAPBOX,
+  engine: MapEngine.MAPLIBRE,
   projection: MapProjection.GLOBE,
   basemap: 'standard',
   mapStyle: 'parchment',

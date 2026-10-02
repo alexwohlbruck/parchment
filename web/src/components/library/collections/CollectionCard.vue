@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ClockIcon } from 'lucide-vue-next'
+import { ClockIcon, LockIcon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { AppRoute } from '@/router'
 import type { Collection } from '@/types/library.types'
@@ -94,6 +94,13 @@ function goToCollection() {
           <AvatarFallback class="text-[8px]">{{ owner.initials }}</AvatarFallback>
         </Avatar>
       </div>
+    </template>
+
+    <template #title-trailing>
+      <LockIcon
+        v-if="collection.scheme === 'user-e2ee' && !collection.locked"
+        class="size-3 text-muted-foreground shrink-0"
+      />
     </template>
 
     <template #details="{ detailClass }">

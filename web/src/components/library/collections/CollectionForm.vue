@@ -4,7 +4,11 @@ import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { IconPicker } from '@/components/ui/icon-picker'
-import type { Collection } from '@/types/library.types'
+import PrivacyPicker from '@/components/library/privacy/PrivacyPicker.vue'
+import PrivacySection from '@/components/library/privacy/PrivacySection.vue'
+import { useCollectionPrivacy } from '@/composables/library/useCollectionPrivacy'
+import { useCollectionsStore } from '@/stores/library/collections.store'
+import type { Collection, CollectionScheme } from '@/types/library.types'
 import type { ThemeColor } from '@/lib/utils'
 import { useForm } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -32,6 +36,7 @@ const collectionSchema = toTypedSchema(
     iconPack: z.enum(['lucide', 'maki']).default('lucide'),
     iconColor: z.string().default('cobalt'),
     isPublic: z.boolean().default(false),
+    scheme: z.enum(['server-key', 'user-e2ee']).default('server-key'),
   }),
 )
 
@@ -42,6 +47,7 @@ interface CollectionFormValues {
   iconPack: 'lucide' | 'maki'
   iconColor: string
   isPublic: boolean
+  scheme: CollectionScheme
 }
 
 const { handleSubmit, values, meta, setFieldValue, resetForm } =
@@ -54,8 +60,24 @@ const { handleSubmit, values, meta, setFieldValue, resetForm } =
       iconPack: 'lucide',
       iconColor: 'cobalt',
       isPublic: false,
+      scheme: 'server-key',
     },
   })
+
+const collectionsStore = useCollectionsStore()
+const { switchPrivacy, switching, hasIdentity } = useCollectionPrivacy()
+
+/** The store's copy, so a privacy switch made here shows straight away. */
+const liveCollection = computed(() =>
+  props.collection
+    ? (collectionsStore.getCollectionById(props.collection.id) ?? props.collection)
+    : null,
+)
+
+const scheme = computed({
+  get: () => values.scheme,
+  set: (value: CollectionScheme) => setFieldValue('scheme', value),
+})
 
 onMounted(() => {
   if (props.collection) {
@@ -67,6 +89,7 @@ onMounted(() => {
         iconPack: props.collection.iconPack ?? 'lucide',
         iconColor: props.collection.iconColor ?? 'cobalt',
         isPublic: props.collection.isPublic,
+        scheme: props.collection.scheme,
       },
     })
   }
@@ -85,10 +108,7 @@ const collectionStyle = computed({
   },
 })
 
-const onSubmit = handleSubmit(formValues => {
-  console.log('Form submitted with values:', formValues)
-  return formValues
-})
+const onSubmit = handleSubmit(formValues => formValues)
 
 watch(
   () => meta.value.valid,
@@ -110,6 +130,7 @@ watch(
           iconPack: newCollection.iconPack ?? 'lucide',
           iconColor: newCollection.iconColor ?? 'cobalt',
           isPublic: newCollection.isPublic,
+          scheme: newCollection.scheme,
         },
       })
     }
@@ -164,5 +185,13 @@ defineExpose({
       </FormItem>
     </FormField>
 
+    <PrivacySection
+      v-if="liveCollection"
+      :scheme="liveCollection.scheme"
+      :has-identity="hasIdentity"
+      :disabled="switching"
+      @switch="switchPrivacy(liveCollection, $event)"
+    />
+    <PrivacyPicker v-else v-model="scheme" :has-identity="hasIdentity" />
   </form>
 </template>

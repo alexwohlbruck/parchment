@@ -29,6 +29,10 @@ import {
   listSharesForResource,
   updateShareEnvelope,
 } from '@/services/sharing.service'
+import {
+  downgradeCollectionToServerKey,
+  upgradeCollectionToE2ee,
+} from '@/lib/identity/collection-scheme-switch'
 import { useAuthStore } from '@/stores/auth.store'
 
 // TODO: i18n error messages
@@ -331,11 +335,30 @@ export const useCollectionsService = createSharedComposable(() => {
 
   async function createCollection(params: CreateCollectionParams) {
     try {
-      const response = await api.post('/library/collections', {
-        ...collectionMetadataOf(params),
-        isPublic: params.isPublic ?? false,
-      })
-      const created = { ...(response.data as Collection), role: 'owner' as const }
+      const metadata = collectionMetadataOf(params)
+      const isPublic = params.isPublic ?? false
+      let created: Collection
+
+      if (params.scheme === 'user-e2ee') {
+        const { data } = await api.post<Collection>('/library/collections', {
+          scheme: 'user-e2ee',
+          isPublic,
+        })
+        const { data: sealed } = await api.put<Collection>(
+          `/library/collections/${data.id}`,
+          { metadataEncrypted: await buildMetadataEnvelope(data, metadata) },
+        )
+        created = await hydrateDecryptedMetadata(
+          { ...sealed, role: 'owner' },
+          authStore.me?.id,
+        )
+      } else {
+        const { data } = await api.post<Collection>('/library/collections', {
+          ...metadata,
+          isPublic,
+        })
+        created = { ...data, role: 'owner' }
+      }
 
       collectionsStore.updateCollection(created)
       toast.success(t('services.collections.createSuccess'))
@@ -468,6 +491,62 @@ export const useCollectionsService = createSharedComposable(() => {
       toast.error(t('services.collections.updateError'))
       return null
     }
+  }
+
+  /**
+   * Re-package a collection under the other scheme: places and metadata move
+   * together, and every remaining share is rewrapped. Throws on failure.
+   */
+  async function changeScheme(
+    collection: Collection,
+    target: Collection['scheme'],
+  ): Promise<Collection> {
+    const ownerUserId = authStore.me?.id
+    const ownerEncryptionPrivateKey = identityStore.encryptionPrivateKey
+    if (!ownerUserId || !ownerEncryptionPrivateKey) {
+      throw new Error('No identity on this device')
+    }
+
+    if (friendsStore.friends.length === 0) await friendsStore.loadFriends()
+    const shares = await listSharesForResource('collection', collection.id)
+    const remainingShares = shares.flatMap((share) => {
+      if (share.status === 'revoked') return []
+      const friend = friendsStore.friends.find(
+        (f) => f.friendHandle === share.recipientHandle,
+      )
+      if (!friend?.friendEncryptionKey) return []
+      return [
+        {
+          id: share.id,
+          recipientHandle: share.recipientHandle,
+          recipientEncryptionKey: friend.friendEncryptionKey,
+        },
+      ]
+    })
+
+    const base = { collection, ownerUserId, remainingShares, ownerEncryptionPrivateKey }
+    const switched =
+      target === 'user-e2ee'
+        ? await upgradeCollectionToE2ee({
+            ...base,
+            currentBookmarks:
+              (await api.get(`/library/collections/${collection.id}`)).data
+                .bookmarks ?? [],
+          })
+        : await downgradeCollectionToServerKey({
+            ...base,
+            currentPoints:
+              (await api.get(`/library/collections/${collection.id}/encrypted-points`))
+                .data.points ?? [],
+          })
+
+    const hydrated = await hydrateDecryptedMetadata(
+      { ...switched, role: collection.role },
+      ownerUserId,
+    )
+    collectionsStore.updateCollection(hydrated)
+    useEncryptedPointsStore().clearCollection(collection.id)
+    return hydrated
   }
 
   async function deleteCollection(id: string) {
@@ -632,6 +711,7 @@ export const useCollectionsService = createSharedComposable(() => {
     fetchCollectionById,
     createCollection,
     updateCollection,
+    changeScheme,
     deleteCollection,
     getBookmarksInCollection,
     getCollectionDisplayName,

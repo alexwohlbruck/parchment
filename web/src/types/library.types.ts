@@ -131,6 +131,7 @@ export interface CreateBookmarkParams {
 }
 
 export interface CreateCollectionParams {
+  scheme?: CollectionScheme
   name: string
   description?: string
   icon?: string

@@ -36,6 +36,7 @@ import {
   resolveMetadataWrite,
   createCollection,
   updateCollection,
+  findPrivateCollectionIds,
   getAccessibleCollection,
   getSharedCollections,
   deleteCollection,
@@ -439,6 +440,17 @@ describe('createCollection', () => {
     expect(
       createCollection({ userId: aliceId, scheme: 'user-e2ee', name: 'Leaked' }),
     ).rejects.toThrow(PlaintextMetadataOnE2eeError)
+  })
+})
+
+describe('findPrivateCollectionIds', () => {
+  test('returns only the user-e2ee collections among the ids', async () => {
+    const shareable = await makeCollection(aliceId)
+    const hidden = await makeCollection(aliceId, { scheme: 'user-e2ee' })
+
+    expect(await findPrivateCollectionIds([shareable, hidden, 'missing'])).toEqual([
+      hidden,
+    ])
   })
 })
 

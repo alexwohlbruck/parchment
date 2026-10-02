@@ -106,6 +106,15 @@ describe('createEncryptedPoint', () => {
     })
   })
 
+  test('keeps the id the client sealed the envelope with', async () => {
+    dbMock.queueSelect([e2eeCollection])
+    dbMock.setReturningRows([point])
+
+    await createEncryptedPoint({ ...params, id: 'client-point-id' })
+
+    expect(dbMock.inserted[0]).toMatchObject({ id: 'client-point-id' })
+  })
+
   test('throws when the collection is not the caller’s', async () => {
     dbMock.queueSelect([])
 

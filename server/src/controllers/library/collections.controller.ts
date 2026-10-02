@@ -287,6 +287,9 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
               lat: t.Number(),
               lng: t.Number(),
               icon: t.Optional(t.String()),
+              iconPack: t.Optional(
+                t.Union([t.Literal('lucide'), t.Literal('maki')]),
+              ),
               iconColor: t.Optional(t.String()),
               frequentType: t.Optional(t.Nullable(t.String())),
             }),
@@ -456,6 +459,7 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
             id,
             user.id,
           ))!.userId,
+          id: body.id,
           encryptedData: body.encryptedData,
           nonce: body.nonce,
         })
@@ -478,12 +482,15 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
         id: t.String(),
       }),
       body: t.Object({
+        id: t.Optional(t.String({ minLength: 8, maxLength: 64 })),
         encryptedData: t.String(),
         nonce: t.String(),
       }),
       detail: {
         tags: ['Library'],
         summary: 'Create an encrypted point',
+        description:
+          'Pass `id` when the envelope was sealed with it: the point AAD binds the point id, so the client mints it before encrypting.',
       },
     },
   )

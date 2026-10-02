@@ -9,6 +9,8 @@ import { generateId } from '../../util'
 import { emit } from '../realtime/emit'
 
 export interface NewEncryptedPointParams {
+  /** Client-made, because the envelope's AAD already binds it. */
+  id?: string
   collectionId: string
   userId: string
   encryptedData: string
@@ -95,7 +97,7 @@ export async function createEncryptedPoint(
   const [point] = await db
     .insert(encryptedPoints)
     .values({
-      id: generateId(),
+      id: params.id ?? generateId(),
       collectionId: params.collectionId,
       userId: params.userId,
       encryptedData: params.encryptedData,

@@ -75,6 +75,16 @@ export async function getCollections(userId: string) {
     .where(eq(collections.userId, userId))
 }
 
+/** The ids among `ids` whose collections are user-e2ee. */
+export async function findPrivateCollectionIds(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return []
+  const rows = await db
+    .select({ id: collections.id })
+    .from(collections)
+    .where(and(inArray(collections.id, ids), eq(collections.scheme, 'user-e2ee')))
+  return rows.map((r) => r.id)
+}
+
 export async function getCollectionById(id: string, userId: string) {
   return (
     await db
@@ -673,6 +683,7 @@ export interface ChangeCollectionSchemeParams {
     lat: number
     lng: number
     icon?: string
+    iconPack?: 'lucide' | 'maki'
     iconColor?: string
     frequentType?: string | null
   }>
@@ -858,7 +869,7 @@ export async function changeCollectionScheme(
           const bookmarkId = bm.id ?? generateId()
           await tx.execute(
             sql`INSERT INTO bookmarks
-              (id, external_ids, name, address, geometry, icon, icon_color, preset_type, user_id)
+              (id, external_ids, name, address, geometry, icon, icon_pack, icon_color, preset_type, user_id)
               VALUES (
                 ${bookmarkId},
                 ${JSON.stringify(bm.externalIds)}::jsonb,
@@ -866,6 +877,7 @@ export async function changeCollectionScheme(
                 ${bm.address ?? null},
                 ST_SetSRID(ST_MakePoint(${bm.lng}, ${bm.lat}), 4326),
                 ${bm.icon ?? 'map-pin'},
+                ${bm.iconPack ?? 'lucide'},
                 ${bm.iconColor ?? '#F43F5E'},
                 ${bm.frequentType ?? null},
                 ${params.userId}

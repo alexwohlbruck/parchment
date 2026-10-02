@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useStorage } from '@vueuse/core'
 import type { Collection, Bookmark } from '@/types/library.types'
 import { isOfflineId } from '@/lib/sync/offline-id'
@@ -26,6 +26,9 @@ export const useCollectionsStore = defineStore('collections', () => {
   function setLastSavedCollectionId(id: string | null) {
     lastSavedCollectionId.value = id
   }
+
+  /** The collection whose page is open, which the map draws in full. */
+  const openCollectionId = ref<string | null>(null)
 
   const getCollectionById = computed(() => {
     return (id: string) => {
@@ -249,6 +252,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     collections,
     lastSavedCollectionId,
     setLastSavedCollectionId,
+    openCollectionId,
     getCollectionById,
     setCollections,
     updateCollection,

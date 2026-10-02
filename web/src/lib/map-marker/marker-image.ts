@@ -110,7 +110,10 @@ async function glyphBitmap(
   size: number,
 ): Promise<HTMLImageElement | null> {
   if (!name) return null
-  const svg = await resolveIconSvg(pack, name, color)
+  // Same fallback a DOM POI marker uses, so an unknown icon isn't an empty plate.
+  const svg =
+    (await resolveIconSvg(pack, name, color)) ??
+    (await resolveIconSvg('lucide', 'map-pin', color))
   if (!svg) return null
 
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))

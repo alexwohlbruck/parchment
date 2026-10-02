@@ -425,12 +425,23 @@ const collectionsRouter = new Elysia({ prefix: '/collections' })
     },
   )
 
-  // Get encrypted points in a collection
+  // Encrypted points of a collection the caller owns or has been shared.
+  // Rows live under the owner's id; readers decrypt with the shared key.
   .get(
     '/:id/encrypted-points',
-    async ({ params: { id }, user }) => {
-      const points =
-        await encryptedPointsService.getEncryptedPointsInCollection(id, user.id)
+    async ({ params: { id }, user, set, t }) => {
+      const collection = await collectionsService.getAccessibleCollection(
+        id,
+        user.id,
+      )
+      if (!collection) {
+        set.status = 404
+        return { error: t('errors.library.collectionNotFound') }
+      }
+      const points = await encryptedPointsService.getEncryptedPointsInCollection(
+        id,
+        collection.userId,
+      )
       return { points }
     },
     {

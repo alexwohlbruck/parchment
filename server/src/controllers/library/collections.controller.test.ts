@@ -637,6 +637,28 @@ describe('encrypted points', () => {
     expect(getEncryptedPointsInCollection).toHaveBeenCalledWith('col-1', TEST_USER.id)
   })
 
+  test('a share recipient reads the owner’s points', async () => {
+    getAccessibleCollection.mockResolvedValueOnce({
+      ...collection,
+      userId: OWNER_ID,
+      role: 'viewer',
+    })
+
+    const res = await req(app).get('/collections/col-1/encrypted-points')
+
+    expect(res.status).toBe(200)
+    expect(getEncryptedPointsInCollection).toHaveBeenCalledWith('col-1', OWNER_ID)
+  })
+
+  test('404s on points of a collection the caller cannot see', async () => {
+    getAccessibleCollection.mockResolvedValueOnce(null)
+
+    const res = await req(app).get('/collections/col-1/encrypted-points')
+
+    expect(res.status).toBe(404)
+    expect(getEncryptedPointsInCollection).not.toHaveBeenCalled()
+  })
+
   test('creates a point under the owner’s id when an editor writes', async () => {
     writeRole = 'editor'
     getAccessibleCollection.mockResolvedValue({

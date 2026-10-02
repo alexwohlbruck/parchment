@@ -14,7 +14,7 @@ import {
   FREQUENT_META,
   type FrequentType,
 } from '@/lib/frequents'
-import { openCollectionDialog } from './collection-dialog'
+import { createCollectionFromDialog } from './collection-dialog'
 import { storeToRefs } from 'pinia'
 import type {
   Bookmark,
@@ -335,11 +335,8 @@ async function saveNewBookmark(collectionId: string) {
 }
 
 async function openCreateCollectionDialog() {
-  const params = await openCollectionDialog()
-  if (!params) return
-
   try {
-    const newCollection = await collectionsService.createCollection(params)
+    const newCollection = await createCollectionFromDialog()
     if (!newCollection?.id) return
 
     isTogglingCollection.value = true

@@ -8,6 +8,7 @@ import {
   parkingLayers,
   treeLayers,
   landmarkLayers,
+  BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
@@ -19,7 +20,7 @@ import {
   cyclingStrokeLayers,
   cyclingWaysLayers,
 } from './cycling-layers'
-import { barrelmanBuildingsReady } from './barrelman-buildings'
+import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -503,9 +504,11 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
   const at = layers.findIndex(l => l.type === 'fill-extrusion')
   if (at < 0) return layers
 
+  // The bundle normally; `buildings_3d` alone on a Barrelman without bundles.
+  const source = barrelmanBuildingsTiles() === BUILDING_3D_TILES ? BUILDINGS_SOURCE : DETAIL_SOURCE
   const fromBarrelman = (layer: any) => ({
     ...layer,
-    source: DETAIL_SOURCE,
+    source,
     'source-layer': BUILDING_3D_TILES,
     // The same outlines have to go from here too, or the layer draws an edge
     // around a building that is no longer extruded under it.
@@ -608,6 +611,16 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sources: {
       [SOURCE]: vectorSource(tileServerUrl),
       ...detailSources(source => buildTileUrl(tileServerUrl, source)),
+      ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
+        ? {
+            [BUILDINGS_SOURCE]: {
+              type: 'vector' as const,
+              tiles: [buildTileUrl(tileServerUrl, BUILDING_3D_TILES)],
+              minzoom: 14,
+              maxzoom: 16,
+            },
+          }
+        : {}),
     },
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),

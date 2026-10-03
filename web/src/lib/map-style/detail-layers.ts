@@ -69,6 +69,13 @@ export const LANDMARK_SOURCE = 'landmarks'
 export const LANDMARK_TILES = 'landmarks'
 export const LANDMARK_LAYER = 'Landmarks'
 
+/**
+ * `buildings_3d` as a source of its own, for a Barrelman that serves it but
+ * not yet the `detail` bundle. Only added to the style when that is the case;
+ * see `barrelmanBuildingsTiles`.
+ */
+export const BUILDINGS_SOURCE = 'buildings'
+
 /** The barrelman bundle behind {@link DETAIL_SOURCE}; see its `TILE_BUNDLES`. */
 export const DETAIL_TILES = 'detail'
 

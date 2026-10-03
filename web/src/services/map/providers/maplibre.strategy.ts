@@ -364,14 +364,16 @@ export class MaplibreStrategy extends MapStrategy {
   private async adoptBarrelmanBuildings() {
     if (!this.tileServerUrl) return
     const base = this.tileServerUrl
-    // Ask for the bundle, not `buildings_3d` alone: the extrusion reads the
-    // bundle, and a Barrelman from before bundles serves `buildings_3d` but 404s
-    // `detail` — so probing the member would switch the style onto a source
-    // that draws no buildings at all.
-    await probeBarrelmanBuildings(
-      (z, x, y) => `${base}/${DETAIL_TILES}/${z}/${x}/${y}`,
-      this.mapInstance.getCenter(),
-    )
+    // The bundle first, since that is what the extrusion normally reads. A
+    // Barrelman from before bundles 404s `detail` but serves `buildings_3d`
+    // itself, and then the style reads that source directly instead: it is the
+    // only one with a building per OSM element, which is what lets a landmark
+    // hide exactly the buildings it replaces. The basemap merges every building
+    // of one height in a tile into a single feature.
+    const centre = this.mapInstance.getCenter()
+    await probeBarrelmanBuildings((z, x, y) => `${base}/${DETAIL_TILES}/${z}/${x}/${y}`, centre, DETAIL_TILES)
+    if (!barrelmanBuildingsReady())
+      await probeBarrelmanBuildings((z, x, y) => `${base}/${BUILDING_3D_TILES}/${z}/${x}/${y}`, centre, BUILDING_3D_TILES)
     // Only when the answer is yes. The style is already built on the basemap,
     // so a no leaves it exactly as it is — reloading on every startup for an
     // instance that has not been migrated would throw the map away and rebuild

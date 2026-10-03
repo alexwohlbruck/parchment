@@ -34,7 +34,10 @@ function applyUpdated(payload: unknown) {
     return
   }
 
+  // The event carries the bare row: keep what only the list fetch supplies,
+  // like a recipient's share envelope and the place ids.
   store.updateCollection({
+    ...existing,
     ...payload,
     locked: false,
     role: existing?.role ?? payload.role,

@@ -1,4 +1,10 @@
-import { Place, TransitDeparture } from './place.types'
+import type {
+  AttributedValue,
+  Place,
+  Review,
+  SourceReference,
+  TransitDeparture,
+} from './place.types'
 import { Source } from '../lib/constants'
 import { IntegrationId, IntegrationCapabilityId } from './integration.enums'
 import type {
@@ -660,6 +666,28 @@ export interface RideshareEstimateCapability {
   ): Promise<RideshareEstimateResponse>
 }
 
+export interface ReviewSubject {
+  name: string
+  lat: number
+  lng: number
+}
+
+export interface PlaceReviews {
+  reviews: AttributedValue<Review>[]
+  ratings?: {
+    rating: AttributedValue<number>
+    reviewCount: AttributedValue<number>
+  }
+  source: SourceReference
+}
+
+export interface ReviewsCapability {
+  getReviews(
+    subject: ReviewSubject,
+    options?: { signal?: AbortSignal },
+  ): Promise<PlaceReviews | null>
+}
+
 // ── Capability container ─────────────────────────────────────────────
 
 export interface IntegrationCapabilities {
@@ -682,6 +710,7 @@ export interface IntegrationCapabilities {
   transitRouting?: TransitRoutingCapability
   rideshareEstimate?: RideshareEstimateCapability
   feedback?: FeedbackCapability
+  reviews?: ReviewsCapability
 }
 
 /**

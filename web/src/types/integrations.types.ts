@@ -218,6 +218,8 @@ export const configSchemas: Record<
     // Wikimedia Commons doesn't require any configuration
   }),
 
+  mangroveSchema: z.object({}),
+
   barrelmanSchema: z.object({
     // The hosted instance, as with the other services that offer one. The
     // previous default assumed barrelman was something you ran yourself,

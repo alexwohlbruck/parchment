@@ -25,6 +25,7 @@ import { LyftIntegration } from './lyft-integration'
 import { OpenAqIntegration } from './openaq-integration'
 import { FirmsIntegration } from './firms-integration'
 import { QuackbackIntegration } from './quackback-integration'
+import { MangroveIntegration } from './mangrove-integration'
 
 /**
  * Registry for all integrations
@@ -65,6 +66,7 @@ export class IntegrationRegistry {
     this.registerIntegration(new OpenAqIntegration())
     this.registerIntegration(new FirmsIntegration())
     this.registerIntegration(new QuackbackIntegration())
+    this.registerIntegration(new MangroveIntegration())
   }
 
   /**

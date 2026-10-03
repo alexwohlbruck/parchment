@@ -27,7 +27,7 @@
  * origin at the anchor on the ground.
  */
 import { parseGlb, type GlbModel } from './glb.mjs'
-import { parseLandmark, type Landmark } from './landmarks'
+import { insideFootprint, parseLandmark, polygonRings, type Footprint, type Landmark } from './landmarks'
 import { project } from './object-layer'
 
 /** Where a landmark stands, in mercator units; see `project`. */
@@ -173,7 +173,12 @@ type Model = {
   /** Parsed and decoded, waiting for the next frame to put it on the GPU. */
   pending: { glb: GlbModel; images: Array<ImageBitmap | null> } | null
   primitives: Primitive[] | null
+  /** Plan extent in the model's own metres, once it has loaded. */
+  footprint: Footprint | null
 }
+
+/** What a landmark stands in for: OSM refs, and basemap ids found by footprint. */
+export type Replaced = { refs: string[]; featureIds: number[] }
 
 type Placement = Landmark & { placed: Anchor }
 
@@ -187,6 +192,8 @@ export class LandmarkLayer {
   private shadow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private models = new Map<string, Model>()
   private placements: Placement[] = []
+  /** Buildings found inside a drawn landmark's footprint, by the last gather. */
+  private contained: Replaced = { refs: [], featureIds: [] }
   private replaced = ''
   private credited = ''
   private scheduled = 0
@@ -199,8 +206,13 @@ export class LandmarkLayer {
       sourceLayer: string
       /** Where a model file name is fetched from. */
       modelUrl: (file: string) => string
-      /** Called with the refs being drawn as landmarks whenever that set changes. */
-      onReplace: (refs: string[]) => void
+      /** Called with what is being drawn as landmarks whenever that changes. */
+      onReplace: (replaced: Replaced) => void
+      /**
+       * The layers' building sources, searched for buildings that sit wholly
+       * inside a landmark's footprint — see `insideFootprint`.
+       */
+      buildings?: Array<{ source: string; sourceLayer: string }>
       /** Called with the credits of the models being drawn whenever they change. */
       onAttribution?: (credits: string[]) => void
       /** Multiplied into every colour; how a landmark joins the night map. */
@@ -226,8 +238,11 @@ export class LandmarkLayer {
       map.on(event, fn)
       this.listeners.push([event, fn])
     }
+    // Building tiles count too: they can arrive after the landmark's, and
+    // the footprint search has to see them.
+    const watched = new Set([this.options.source, ...(this.options.buildings ?? []).map(b => b.source)])
     listen('sourcedata', (e: { sourceId?: string }) => {
-      if (e?.sourceId === this.options.source) this.invalidate()
+      if (e?.sourceId && watched.has(e.sourceId)) this.invalidate()
     })
     // A landmark's minzoom is crossed by zooming, which no tile event reports.
     listen('zoomend', () => this.invalidate())
@@ -251,7 +266,7 @@ export class LandmarkLayer {
     gl.deleteProgram(this.draw.program)
     gl.deleteProgram(this.shadow.program)
     // Give the buildings back, and take the credits down with the models.
-    if (this.replaced) this.options.onReplace([])
+    if (this.replaced) this.options.onReplace({ refs: [], featureIds: [] })
     if (this.credited) this.options.onAttribution?.([])
     this.replaced = ''
     this.credited = ''
@@ -261,6 +276,11 @@ export class LandmarkLayer {
   /** What is being drawn, for the console. Dev only. */
   get drawn(): Array<{ id: string; model: string; ready: boolean }> {
     return this.placements.map(p => ({ id: p.id, model: p.model, ready: !!this.ready(p.model) }))
+  }
+
+  /** What the last report hid. Dev only. */
+  get hidden(): string {
+    return this.replaced
   }
 
   private invalidate() {
@@ -301,7 +321,45 @@ export class LandmarkLayer {
       project(landmark.lng, landmark.lat, ground + landmark.elevation, placed)
       this.placements.push({ ...landmark, placed })
     }
+    this.contained = this.findContained()
     this.report()
+  }
+
+  /**
+   * Buildings lying wholly inside the footprint of a landmark that can be
+   * drawn. Only buildings near a landmark are examined in full: the first
+   * vertex rules almost all of them out at a glance, which matters on a
+   * Manhattan tile with thousands of footprints.
+   */
+  private findContained(): Replaced {
+    const refs: string[] = []
+    const featureIds: number[] = []
+    const drawn = this.placements
+      .map(p => ({ p, footprint: this.models.get(p.model)?.footprint }))
+      .filter((d): d is { p: Placement; footprint: Footprint } => !!d.footprint)
+    if (!drawn.length) return { refs, featureIds }
+    for (const { source, sourceLayer } of this.options.buildings ?? []) {
+      let features: any[] = []
+      try {
+        features = this.map.querySourceFeatures(source, { sourceLayer })
+      } catch {
+        continue
+      }
+      for (const feature of features) {
+        const rings = polygonRings(feature.geometry)
+        const first = rings[0]?.[0]
+        if (!first) continue
+        for (const { p, footprint } of drawn) {
+          const reach = Math.max(-footprint.minX, footprint.maxX, -footprint.minZ, footprint.maxZ) * p.scale * 1.5
+          const k = Math.cos((p.lat * Math.PI) / 180) * 111320
+          if (Math.abs(first[0] - p.lng) * k > reach || Math.abs(first[1] - p.lat) * 110574 > reach) continue
+          if (!insideFootprint(p, footprint, rings)) continue
+          if (sourceLayer === 'building' && typeof feature.id === 'number') featureIds.push(feature.id)
+          else if (typeof feature.properties?.id === 'string') refs.push(feature.properties.id)
+        }
+      }
+    }
+    return { refs, featureIds }
   }
 
   /**
@@ -311,11 +369,12 @@ export class LandmarkLayer {
    */
   private report() {
     const drawn = this.placements.filter(p => this.ready(p.model))
-    const refs = [...new Set(drawn.flatMap(p => p.replaces))].sort()
-    const key = refs.join(' ')
+    const refs = [...new Set([...drawn.flatMap(p => p.replaces), ...this.contained.refs])].sort()
+    const featureIds = [...new Set(this.contained.featureIds)].sort((a, b) => a - b)
+    const key = `${refs.join(' ')}|${featureIds.join(' ')}`
     if (key !== this.replaced) {
       this.replaced = key
-      this.options.onReplace(refs)
+      this.options.onReplace({ refs, featureIds })
     }
     const credits = [...new Set(drawn.flatMap(p => (p.attribution ? [p.attribution] : [])))].sort()
     const credited = credits.join('\n')
@@ -332,7 +391,7 @@ export class LandmarkLayer {
 
   private load(file: string) {
     if (this.models.has(file)) return
-    const model: Model = { pending: null, primitives: null }
+    const model: Model = { pending: null, primitives: null, footprint: null }
     this.models.set(file, model)
     void (async () => {
       const response = await fetch(this.options.modelUrl(file))
@@ -345,7 +404,9 @@ export class LandmarkLayer {
         })
         : null))
       model.pending = { glb, images }
-      this.report()
+      model.footprint = { minX: glb.min[0], maxX: glb.max[0], minZ: glb.min[2], maxZ: glb.max[2] }
+      // Its footprint can now be searched, which the last gather could not.
+      this.invalidate()
       this.map?.triggerRepaint?.()
     })().catch(error => {
       // A model that will not load leaves its building standing, which is a

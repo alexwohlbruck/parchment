@@ -734,9 +734,10 @@ export class MaplibreStrategy extends MapStrategy {
       tint: LANDMARK_TINT[flavor],
       // Ignored once this layer is no longer the live one: a style swap
       // removes it after the next style's filters are already in place.
-      onReplace: refs => {
-        if (this.landmarkLayer === layer) this.hideReplacedBuildings(refs)
+      onReplace: replaced => {
+        if (this.landmarkLayer === layer) this.hideReplacedBuildings(replaced)
       },
+      buildings: this.buildingSources(),
       onAttribution: credits => {
         if (this.landmarkLayer === layer) this.creditLandmarks(credits)
       },
@@ -772,15 +773,30 @@ export class MaplibreStrategy extends MapStrategy {
    * roof-colour layer only works while it shares the extrusion's bucket, and
    * MapLibre only shares a bucket between layers whose filters match.
    */
-  private hideReplacedBuildings(refs: string[]) {
+  private hideReplacedBuildings({ refs, featureIds }: { refs: string[]; featureIds: number[] }) {
     const map = this.mapInstance
     for (const layer of map.getStyle()?.layers ?? []) {
       const sourceLayer = (layer as any)['source-layer']
       if (sourceLayer !== 'building' && sourceLayer !== BUILDING_3D_TILES) continue
       if (!this.buildingFilters.has(layer.id))
         this.buildingFilters.set(layer.id, (layer as any).filter ?? null)
-      map.setFilter(layer.id, withoutReplaced(this.buildingFilters.get(layer.id), sourceLayer, refs) as any)
+      map.setFilter(
+        layer.id,
+        withoutReplaced(this.buildingFilters.get(layer.id), sourceLayer, refs, featureIds) as any,
+      )
     }
+  }
+
+  /** Every source and source-layer the style draws buildings from. */
+  private buildingSources(): Array<{ source: string; sourceLayer: string }> {
+    const seen = new Map<string, { source: string; sourceLayer: string }>()
+    for (const layer of this.mapInstance.getStyle()?.layers ?? []) {
+      const sourceLayer = (layer as any)['source-layer']
+      const source = (layer as any).source
+      if (sourceLayer === 'building' || sourceLayer === BUILDING_3D_TILES)
+        seen.set(`${source}/${sourceLayer}`, { source, sourceLayer })
+    }
+    return [...seen.values()]
   }
 
   private async applyMapObjects() {

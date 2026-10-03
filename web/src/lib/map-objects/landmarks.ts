@@ -125,11 +125,63 @@ function asExpression(filter: any): any {
  * differently: Barrelman's `buildings_3d` carries the ref itself as `id`, the
  * basemap's `building` only has its numeric feature id. `base` is the layer's
  * filter as the style defined it, so repeated calls do not stack.
+ * `featureIds` are basemap feature ids found by footprint (`insideFootprint`),
+ * for buildings whose id does not match their ref.
  */
-export function withoutReplaced(base: any, sourceLayer: string, refs: string[]): any {
-  if (!refs.length) return base ?? null
+export function withoutReplaced(base: any, sourceLayer: string, refs: string[], featureIds: number[] = []): any {
+  if (!refs.length && !featureIds.length) return base ?? null
   const exclude = sourceLayer === 'building'
-    ? ['!', ['in', ['id'], ['literal', basemapIds(refs)]]]
+    ? ['!', ['in', ['id'], ['literal', [...basemapIds(refs), ...featureIds]]]]
     : ['!', ['in', ['get', 'id'], ['literal', refs]]]
   return base ? ['all', asExpression(base), exclude] : exclude
+}
+
+/** A model's plan extent, in its own metres: glTF x east, z south. */
+export type Footprint = { minX: number; maxX: number; minZ: number; maxZ: number }
+
+/** How far outside the model's footprint a building may reach and still be inside it. */
+const FOOTPRINT_TOLERANCE_M = 1.5
+
+/**
+ * Whether a building lies wholly inside a landmark model's footprint, and so
+ * is part of what the model stands in for.
+ *
+ * The fallback for when ids don't match, which on this basemap is often:
+ * Planetiler's building ids are not reliably the OSM id, so a building that
+ * `replaces` names correctly can still arrive under an unrelated number — the
+ * Washington Square Arch comes through as 33574370, which as an OSM ref is a
+ * building on Jones Street. Mapbox hides buildings by footprint for the same
+ * reason. Requiring the *whole* building to be inside is what keeps it safe:
+ * the star-shaped fort under the Statue of Liberty reaches well past her
+ * pedestal, so it stays, while the pedestal's own blocks go.
+ */
+export function insideFootprint(
+  landmark: Pick<Landmark, 'lng' | 'lat' | 'bearing' | 'scale'>,
+  footprint: Footprint,
+  rings: number[][][],
+): boolean {
+  const k = Math.cos((landmark.lat * Math.PI) / 180) * 111320
+  const b = (landmark.bearing * Math.PI) / 180
+  const [c, s] = [Math.cos(b), Math.sin(b)]
+  const tol = FOOTPRINT_TOLERANCE_M / landmark.scale
+  let any = false
+  for (const ring of rings)
+    for (const [lng, lat] of ring) {
+      const east = (lng - landmark.lng) * k
+      const south = -(lat - landmark.lat) * 110574
+      // Undo `localMatrix`'s turn and scale: map (east, south) → model (x, z).
+      const x = (c * east + s * south) / landmark.scale
+      const z = (-s * east + c * south) / landmark.scale
+      if (x < footprint.minX - tol || x > footprint.maxX + tol || z < footprint.minZ - tol || z > footprint.maxZ + tol)
+        return false
+      any = true
+    }
+  return any
+}
+
+/** A polygon or multipolygon's rings, flattened. */
+export function polygonRings(geometry: any): number[][][] {
+  if (geometry?.type === 'Polygon') return geometry.coordinates
+  if (geometry?.type === 'MultiPolygon') return geometry.coordinates.flat()
+  return []
 }

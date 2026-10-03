@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basemapIds, parseLandmark, withoutReplaced } from './landmarks'
+import { basemapIds, insideFootprint, parseLandmark, polygonRings, withoutReplaced } from './landmarks'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 
 const feature = (properties: Record<string, unknown>, coordinates = [-115.17217, 36.11247]) => ({
@@ -60,6 +60,44 @@ describe('basemapIds', () => {
   })
 })
 
+describe('insideFootprint', () => {
+  // A 20 m × 8 m model, long side east–west at bearing 0.
+  const footprint = { minX: -10, maxX: 10, minZ: -4, maxZ: 4 }
+  const at = { lng: -73.9971025, lat: 40.7312347, bearing: 0, scale: 1 }
+  const k = Math.cos((at.lat * Math.PI) / 180) * 111320
+  /** A box in metres east and north of the anchor, as a GeoJSON ring. */
+  const box = (e0: number, n0: number, e1: number, n1: number) => [[
+    [at.lng + e0 / k, at.lat + n0 / 110574], [at.lng + e1 / k, at.lat + n0 / 110574],
+    [at.lng + e1 / k, at.lat + n1 / 110574], [at.lng + e0 / k, at.lat + n1 / 110574],
+  ]]
+
+  it('takes a building lying within the model', () => {
+    expect(insideFootprint(at, footprint, box(-9.5, -3.5, 9.5, 3.5))).toBe(true)
+  })
+
+  it('leaves a building that reaches past it, however much of it is inside', () => {
+    // The fort under the Statue of Liberty: centred on the model, far larger.
+    expect(insideFootprint(at, footprint, box(-50, -50, 50, 50))).toBe(false)
+    expect(insideFootprint(at, footprint, box(5, -3, 15, 3))).toBe(false)
+  })
+
+  it('turns with the bearing', () => {
+    // The same long box, but laid north–south: inside only once turned 90°.
+    const ns = box(-3.5, -9.5, 3.5, 9.5)
+    expect(insideFootprint(at, footprint, ns)).toBe(false)
+    expect(insideFootprint({ ...at, bearing: 90 }, footprint, ns)).toBe(true)
+  })
+
+  it('scales with the placement', () => {
+    expect(insideFootprint({ ...at, scale: 0.5 }, footprint, box(-9.5, -3.5, 9.5, 3.5))).toBe(false)
+  })
+
+  it('reads multipolygons', () => {
+    const geometry = { type: 'MultiPolygon', coordinates: [box(-1, -1, 1, 1), box(-50, -50, -40, -40)] }
+    expect(insideFootprint(at, footprint, polygonRings(geometry))).toBe(false)
+  })
+})
+
 describe('withoutReplaced', () => {
   it('leaves the filter alone when nothing is replaced', () => {
     expect(withoutReplaced(['!has', 'hide_3d'], 'building', [])).toEqual(['!has', 'hide_3d'])
@@ -71,6 +109,12 @@ describe('withoutReplaced', () => {
       ['!', ['has', 'hide_3d']],
       ['!', ['in', ['id'], ['literal', [12, 10]]]],
     ])
+  })
+
+  it('adds basemap ids found by footprint to the ones derived from refs', () => {
+    expect(withoutReplaced(null, 'building', ['way/1'], [33574370])).toEqual(
+      ['!', ['in', ['id'], ['literal', [12, 10, 33574370]]]],
+    )
   })
 
   it('matches Barrelman’s buildings by the ref they carry', () => {

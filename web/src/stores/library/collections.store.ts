@@ -6,6 +6,7 @@ import { isOfflineId } from '@/lib/sync/offline-id'
 import { useBookmarksStore } from '@/stores/library/bookmarks.store'
 import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
 import { pointAsBookmark } from '@/lib/library/collection-points'
+import { persistableCollection } from '@/lib/library/collection-persistence'
 
 interface NormalizedCollection extends Omit<Collection, 'places'> {
   bookmarkIds?: string[]
@@ -14,7 +15,13 @@ interface NormalizedCollection extends Omit<Collection, 'places'> {
 // TODO: Use pinia-orm to normalize collections and bookmarks data
 
 export const useCollectionsStore = defineStore('collections', () => {
-  const collections = useStorage<NormalizedCollection[]>('collections', [])
+  const collections = useStorage<NormalizedCollection[]>('collections', [], undefined, {
+    serializer: {
+      read: (raw: string) => JSON.parse(raw) as NormalizedCollection[],
+      write: (list: NormalizedCollection[]) =>
+        JSON.stringify(list.map(c => persistableCollection(c as Collection))),
+    },
+  })
 
   // Per-device: id of the most recent collection the user saved a bookmark
   // to. Drives the bookmark button's default target (tooltip / icon / color)
@@ -250,13 +257,13 @@ export const useCollectionsStore = defineStore('collections', () => {
     })
   }
 
+  /** A collection opened by public link: not in the library, but on the map. */
+  const publicCollection = shallowRef<{ id: string; places: Bookmark[] } | null>(null)
+
   /**
    * The places in a collection, whichever way it stores them. A private
    * collection's only exist once its points are decrypted this session.
    */
-  /** A collection opened by public link: not in the library, but on the map. */
-  const publicCollection = shallowRef<{ id: string; places: Bookmark[] } | null>(null)
-
   const getCollectionPlaces = computed(() => {
     const pointsStore = useEncryptedPointsStore()
     return (id: string): Bookmark[] => {

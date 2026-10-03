@@ -327,17 +327,22 @@ export class LandmarkLayer {
 
   /**
    * Buildings lying wholly inside the footprint of a landmark that can be
-   * drawn. Only buildings near a landmark are examined in full: the first
-   * vertex rules almost all of them out at a glance, which matters on a
-   * Manhattan tile with thousands of footprints.
+   * drawn.
+   *
+   * Judged per id across every loaded tile, not per piece: one building can
+   * arrive cut into several tiles, and on the basemap one id can stand for
+   * many buildings — Planetiler merges every building of the same height in
+   * a z14 tile into a single multipolygon. A piece that happens to be clipped
+   * down to just the landmark's building says nothing about the rest of that
+   * id, and the filter would hide all of it. So an id qualifies only if no
+   * loaded piece of it lies outside a landmark.
    */
   private findContained(): Replaced {
-    const refs: string[] = []
-    const featureIds: number[] = []
     const drawn = this.placements
       .map(p => ({ p, footprint: this.models.get(p.model)?.footprint }))
       .filter((d): d is { p: Placement; footprint: Footprint } => !!d.footprint)
-    if (!drawn.length) return { refs, featureIds }
+    if (!drawn.length) return { refs: [], featureIds: [] }
+    const verdict = new Map<string | number, boolean>()
     for (const { source, sourceLayer } of this.options.buildings ?? []) {
       let features: any[] = []
       try {
@@ -346,18 +351,27 @@ export class LandmarkLayer {
         continue
       }
       for (const feature of features) {
+        const key = sourceLayer === 'building' ? feature.id : feature.properties?.id
+        if (key === undefined || key === null || verdict.get(key) === false) continue
         const rings = polygonRings(feature.geometry)
         const first = rings[0]?.[0]
-        if (!first) continue
-        for (const { p, footprint } of drawn) {
+        // The first vertex rules almost every building out without the full
+        // test, which matters on a Manhattan tile with thousands of them.
+        const inside = !!first && drawn.some(({ p, footprint }) => {
           const reach = Math.max(-footprint.minX, footprint.maxX, -footprint.minZ, footprint.maxZ) * p.scale * 1.5
           const k = Math.cos((p.lat * Math.PI) / 180) * 111320
-          if (Math.abs(first[0] - p.lng) * k > reach || Math.abs(first[1] - p.lat) * 110574 > reach) continue
-          if (!insideFootprint(p, footprint, rings)) continue
-          if (sourceLayer === 'building' && typeof feature.id === 'number') featureIds.push(feature.id)
-          else if (typeof feature.properties?.id === 'string') refs.push(feature.properties.id)
-        }
+          if (Math.abs(first[0] - p.lng) * k > reach || Math.abs(first[1] - p.lat) * 110574 > reach) return false
+          return insideFootprint(p, footprint, rings)
+        })
+        verdict.set(key, inside)
       }
+    }
+    const refs: string[] = []
+    const featureIds: number[] = []
+    for (const [key, inside] of verdict) {
+      if (!inside) continue
+      if (typeof key === 'number') featureIds.push(key)
+      else refs.push(key)
     }
     return { refs, featureIds }
   }

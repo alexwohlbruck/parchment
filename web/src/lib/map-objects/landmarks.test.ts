@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basemapIds, insideFootprint, parseLandmark, polygonRings, withoutReplaced } from './landmarks'
+import { insideFootprint, parseLandmark, polygonRings, withoutReplaced } from './landmarks'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 
 const feature = (properties: Record<string, unknown>, coordinates = [-115.17217, 36.11247]) => ({
@@ -47,19 +47,6 @@ describe('parseLandmark', () => {
   })
 })
 
-describe('basemapIds', () => {
-  it('matches both suffixes the basemap uses for a way', () => {
-    // 278316990 is what the deployed basemap calls the Las Vegas tower.
-    expect(basemapIds(['way/27831699'])).toEqual([278316992, 278316990])
-  })
-
-  it('matches relations under both suffixes too', () => {
-    // The Statue of Liberty's terraces: relation 3079001 is 30790010.
-    expect(basemapIds(['relation/3079001'])).toEqual([30790013, 30790010])
-    expect(basemapIds(['node/5'])).toEqual([51, 50])
-  })
-})
-
 describe('insideFootprint', () => {
   // A 20 m × 8 m model, long side east–west at bearing 0.
   const footprint = { minX: -10, maxX: 10, minZ: -4, maxZ: 4 }
@@ -104,17 +91,17 @@ describe('withoutReplaced', () => {
   })
 
   it('converts the legacy filter, since a style cannot mix the two syntaxes', () => {
-    expect(withoutReplaced(['!has', 'hide_3d'], 'building', ['way/1'])).toEqual([
+    expect(withoutReplaced(['!has', 'hide_3d'], 'building', [], [33574370])).toEqual([
       'all',
       ['!', ['has', 'hide_3d']],
-      ['!', ['in', ['id'], ['literal', [12, 10]]]],
+      ['!', ['in', ['id'], ['literal', [33574370]]]],
     ])
   })
 
-  it('adds basemap ids found by footprint to the ones derived from refs', () => {
-    expect(withoutReplaced(null, 'building', ['way/1'], [33574370])).toEqual(
-      ['!', ['in', ['id'], ['literal', [12, 10, 33574370]]]],
-    )
+  it('never turns a ref into a basemap id, since those ids are merged', () => {
+    // way/229651145 would be 2296511452 — which on the basemap can be the id
+    // of every building of that height in the tile.
+    expect(withoutReplaced(null, 'building', ['way/229651145'])).toBeNull()
   })
 
   it('matches Barrelman’s buildings by the ref they carry', () => {

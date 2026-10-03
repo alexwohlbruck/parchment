@@ -50,7 +50,7 @@ export type Landmark = {
 }
 
 const MODEL_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.[0-9a-f]{12}\.glb$/
-const OSM_REF_RE = /^(node|way|relation)\/(\d+)$/
+const OSM_REF_RE = /^(node|way|relation)\/\d+$/
 
 const num = (value: unknown, fallback: number) => {
   const n = typeof value === 'number' ? value : Number(value)
@@ -83,30 +83,6 @@ export function parseLandmark(feature: any): Landmark | null {
 }
 
 /**
- * The basemap's feature ids for a set of OSM refs.
- *
- * Planetiler writes `osm_id * 10 + type`, and Parchment reads 1/2/3 as
- * node/way/relation elsewhere (`parsePlanetilerOsmId`). Its building layer does
- * not always follow that: the Las Vegas Eiffel Tower, way 27831699, arrives as
- * 278316990 while the Arc de Triomphe next to it is 1146970742, and the
- * terraces around the Statue of Liberty — relations 3079001 and on — arrive
- * as 30790010. So `0` is matched beside each type's own digit rather than
- * guessing which one a given build used: a stray id in a filter costs
- * nothing, a missed one leaves a building standing inside the model.
- */
-export function basemapIds(refs: Iterable<string>): number[] {
-  const ids: number[] = []
-  for (const ref of refs) {
-    const m = OSM_REF_RE.exec(ref)
-    if (!m) continue
-    const base = Number(m[2]) * 10
-    const digit = m[1] === 'node' ? 1 : m[1] === 'way' ? 2 : 3
-    ids.push(base + digit, base)
-  }
-  return ids
-}
-
-/**
  * A legacy filter as an expression, for the two forms the building layers
  * use. A style filter is either all-legacy or all-expression, so the one we
  * extend has to be converted before an expression can be added beside it.
@@ -121,18 +97,26 @@ function asExpression(filter: any): any {
 /**
  * A building layer's filter with the replaced buildings taken out.
  *
- * Keyed by source-layer, because the two building sources name a building
- * differently: Barrelman's `buildings_3d` carries the ref itself as `id`, the
- * basemap's `building` only has its numeric feature id. `base` is the layer's
- * filter as the style defined it, so repeated calls do not stack.
- * `featureIds` are basemap feature ids found by footprint (`insideFootprint`),
- * for buildings whose id does not match their ref.
+ * The two building sources are filtered differently, because only one of
+ * them can be trusted with an id:
+ *
+ *   buildings_3d  Barrelman's, one feature per OSM element with the ref as
+ *                 `id`. The catalog's `replaces` matches it exactly.
+ *   building      The basemap's. Its feature ids are not OSM ids to rely on:
+ *                 Planetiler merges every building of one height in a z14
+ *                 tile into a single multipolygon under one member's id, so
+ *                 an id derived from a ref can stand for a whole district.
+ *                 Only ids found by footprint (`featureIds`) are filtered —
+ *                 ones whose every loaded piece lies inside a landmark.
+ *
+ * `base` is the layer's filter as the style defined it, so repeated calls do
+ * not stack.
  */
 export function withoutReplaced(base: any, sourceLayer: string, refs: string[], featureIds: number[] = []): any {
-  if (!refs.length && !featureIds.length) return base ?? null
   const exclude = sourceLayer === 'building'
-    ? ['!', ['in', ['id'], ['literal', [...basemapIds(refs), ...featureIds]]]]
-    : ['!', ['in', ['get', 'id'], ['literal', refs]]]
+    ? featureIds.length ? ['!', ['in', ['id'], ['literal', featureIds]]] : null
+    : refs.length ? ['!', ['in', ['get', 'id'], ['literal', refs]]] : null
+  if (!exclude) return base ?? null
   return base ? ['all', asExpression(base), exclude] : exclude
 }
 

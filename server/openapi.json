@@ -6211,6 +6211,7 @@
           "Library"
         ],
         "summary": "Create a new collection",
+        "description": "Creates a collection, `server-key` unless `scheme` says otherwise. A server-key collection takes cleartext metadata. A user-e2ee collection takes none: the client seals it with `PUT /:id` once the id exists, and cleartext fields are rejected with 400.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6218,6 +6219,42 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6227,16 +6264,49 @@
                   "isPublic": {
                     "type": "boolean"
                   }
-                },
-                "required": [
-                  "metadataEncrypted"
-                ]
+                }
               }
             },
             "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6246,16 +6316,49 @@
                   "isPublic": {
                     "type": "boolean"
                   }
-                },
-                "required": [
-                  "metadataEncrypted"
-                ]
+                }
               }
             },
             "text/plain": {
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
+                  "scheme": {
+                    "anyOf": [
+                      {
+                        "const": "server-key",
+                        "type": "string"
+                      },
+                      {
+                        "const": "user-e2ee",
+                        "type": "string"
+                      }
+                    ]
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6265,10 +6368,7 @@
                   "isPublic": {
                     "type": "boolean"
                   }
-                },
-                "required": [
-                  "metadataEncrypted"
-                ]
+                }
               }
             }
           }
@@ -6327,6 +6427,7 @@
           "Library"
         ],
         "summary": "Update a collection",
+        "description": "Server-key collections take cleartext metadata, which also clears any legacy envelope. User-e2ee collections take only `metadataEncrypted`; cleartext fields are rejected with 400.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6334,6 +6435,30 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6350,6 +6475,30 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6366,6 +6515,30 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string"
+                  },
+                  "iconPack": {
+                    "anyOf": [
+                      {
+                        "const": "lucide",
+                        "type": "string"
+                      },
+                      {
+                        "const": "maki",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "iconColor": {
+                    "type": "string"
+                  },
                   "metadataEncrypted": {
                     "type": "string"
                   },
@@ -6405,72 +6578,6 @@
         }
       }
     },
-    "/library/collections/{id}/sensitive": {
-      "put": {
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "in": "path",
-            "name": "id",
-            "required": true
-          }
-        ],
-        "operationId": "putLibraryCollectionsByIdSensitive",
-        "tags": [
-          "Library"
-        ],
-        "summary": "Toggle sensitive mode for a collection",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "isSensitive": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "isSensitive"
-                ]
-              }
-            },
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "isSensitive": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "isSensitive"
-                ]
-              }
-            },
-            "text/plain": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "isSensitive": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "isSensitive"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {}
-        }
-      }
-    },
     "/library/collections/{id}/change-scheme": {
       "post": {
         "parameters": [
@@ -6488,6 +6595,7 @@
           "Library"
         ],
         "summary": "Change a collection's encryption scheme",
+        "description": "Metadata moves with the scheme: upgrading to user-e2ee requires `newMetadataEncrypted` and clears the cleartext fields; downgrading to server-key requires `metadata` and clears the envelope.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6509,6 +6617,35 @@
                   },
                   "newMetadataEncrypted": {
                     "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "icon": {
+                        "type": "string"
+                      },
+                      "iconPack": {
+                        "anyOf": [
+                          {
+                            "const": "lucide",
+                            "type": "string"
+                          },
+                          {
+                            "const": "maki",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "iconColor": {
+                        "type": "string"
+                      }
+                    }
                   },
                   "newMetadataKeyVersion": {
                     "type": "number"
@@ -6576,6 +6713,18 @@
                         "icon": {
                           "type": "string"
                         },
+                        "iconPack": {
+                          "anyOf": [
+                            {
+                              "const": "lucide",
+                              "type": "string"
+                            },
+                            {
+                              "const": "maki",
+                              "type": "string"
+                            }
+                          ]
+                        },
                         "iconColor": {
                           "type": "string"
                         },
@@ -6624,7 +6773,6 @@
                 },
                 "required": [
                   "targetScheme",
-                  "newMetadataEncrypted",
                   "newMetadataKeyVersion",
                   "updatedShareEnvelopes"
                 ]
@@ -6649,6 +6797,35 @@
                   "newMetadataEncrypted": {
                     "type": "string"
                   },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "icon": {
+                        "type": "string"
+                      },
+                      "iconPack": {
+                        "anyOf": [
+                          {
+                            "const": "lucide",
+                            "type": "string"
+                          },
+                          {
+                            "const": "maki",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "iconColor": {
+                        "type": "string"
+                      }
+                    }
+                  },
                   "newMetadataKeyVersion": {
                     "type": "number"
                   },
@@ -6715,6 +6892,18 @@
                         "icon": {
                           "type": "string"
                         },
+                        "iconPack": {
+                          "anyOf": [
+                            {
+                              "const": "lucide",
+                              "type": "string"
+                            },
+                            {
+                              "const": "maki",
+                              "type": "string"
+                            }
+                          ]
+                        },
                         "iconColor": {
                           "type": "string"
                         },
@@ -6763,7 +6952,6 @@
                 },
                 "required": [
                   "targetScheme",
-                  "newMetadataEncrypted",
                   "newMetadataKeyVersion",
                   "updatedShareEnvelopes"
                 ]
@@ -6788,6 +6976,35 @@
                   "newMetadataEncrypted": {
                     "type": "string"
                   },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "icon": {
+                        "type": "string"
+                      },
+                      "iconPack": {
+                        "anyOf": [
+                          {
+                            "const": "lucide",
+                            "type": "string"
+                          },
+                          {
+                            "const": "maki",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "iconColor": {
+                        "type": "string"
+                      }
+                    }
+                  },
                   "newMetadataKeyVersion": {
                     "type": "number"
                   },
@@ -6854,6 +7071,18 @@
                         "icon": {
                           "type": "string"
                         },
+                        "iconPack": {
+                          "anyOf": [
+                            {
+                              "const": "lucide",
+                              "type": "string"
+                            },
+                            {
+                              "const": "maki",
+                              "type": "string"
+                            }
+                          ]
+                        },
                         "iconColor": {
                           "type": "string"
                         },
@@ -6902,7 +7131,6 @@
                 },
                 "required": [
                   "targetScheme",
-                  "newMetadataEncrypted",
                   "newMetadataKeyVersion",
                   "updatedShareEnvelopes"
                 ]
@@ -7228,6 +7456,7 @@
           "Library"
         ],
         "summary": "Create an encrypted point",
+        "description": "Pass `id` when the envelope was sealed with it: the point AAD binds the point id, so the client mints it before encrypting.",
         "requestBody": {
           "required": true,
           "content": {
@@ -7235,6 +7464,11 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "id": {
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "type": "string"
+                  },
                   "encryptedData": {
                     "type": "string"
                   },
@@ -7252,6 +7486,11 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "id": {
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "type": "string"
+                  },
                   "encryptedData": {
                     "type": "string"
                   },
@@ -7269,6 +7508,11 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "id": {
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "type": "string"
+                  },
                   "encryptedData": {
                     "type": "string"
                   },
@@ -14530,11 +14774,28 @@
                         },
                         "metadataEncrypted": {
                           "type": "string"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "encryptedData": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "encryptedData"
+                            ]
+                          }
                         }
                       },
                       "required": [
-                        "id",
-                        "metadataEncrypted"
+                        "id"
                       ]
                     }
                   },
@@ -14612,11 +14873,28 @@
                         },
                         "metadataEncrypted": {
                           "type": "string"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "encryptedData": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "encryptedData"
+                            ]
+                          }
                         }
                       },
                       "required": [
-                        "id",
-                        "metadataEncrypted"
+                        "id"
                       ]
                     }
                   },
@@ -14694,11 +14972,28 @@
                         },
                         "metadataEncrypted": {
                           "type": "string"
+                        },
+                        "points": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "encryptedData": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "encryptedData"
+                            ]
+                          }
                         }
                       },
                       "required": [
-                        "id",
-                        "metadataEncrypted"
+                        "id"
                       ]
                     }
                   },

@@ -3,14 +3,14 @@ import { useI18n } from 'vue-i18n'
 import { GlobeIcon, LockIcon } from 'lucide-vue-next'
 import { Label } from '@/components/ui/label'
 import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
-import type { PrivacyScheme } from './types'
+import type { EncryptionScheme } from '@/types/library.types'
 
 defineProps<{
   /** False on a device without the recovery key, which can't encrypt. */
   hasIdentity: boolean
 }>()
 
-const scheme = defineModel<PrivacyScheme>({ required: true })
+const scheme = defineModel<EncryptionScheme>({ required: true })
 
 const { t } = useI18n()
 

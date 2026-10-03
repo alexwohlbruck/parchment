@@ -20,6 +20,7 @@ import CollectionPicker from '@/components/library/collections/CollectionPicker.
 import ResponsiveDropdown, {
   type MenuItemDefinition,
 } from '@/components/responsive/ResponsiveDropdown.vue'
+import { canWriteCollection } from '@/lib/library/collection-access'
 
 const props = defineProps<{
   bookmark: Bookmark
@@ -98,7 +99,7 @@ const menuItems = computed<MenuItemDefinition[]>(() => {
   if (props.collectionId) {
     const collection = collectionsStore.getCollectionById(props.collectionId)
     const canWrite =
-      collection && (!collection.role || collection.role === 'owner' || collection.role === 'editor')
+      collection && canWriteCollection(collection)
     if (canWrite) {
       items.push({
         type: 'item',

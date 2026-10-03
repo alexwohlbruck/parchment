@@ -35,6 +35,7 @@ import type {
   UpdateBookmarkMutation,
 } from '@/services/library/bookmarks.sync'
 import { isSamePlace } from '@/lib/library/external-ids'
+import { canWriteCollection } from '@/lib/library/collection-access'
 
 /** Plain-JSON snapshot of a (possibly reactive) row, for queue payloads. */
 function snapshot<T>(value: T | undefined): T | undefined {
@@ -558,7 +559,7 @@ export const useBookmarksService = createSharedComposable(() => {
    */
   function resolveDefaultCollectionId(): string | null {
     const writable = collectionsStore.collections.filter(
-      c => !c.role || c.role === 'owner' || c.role === 'editor',
+      canWriteCollection,
     )
     if (writable.length === 0) return null
 

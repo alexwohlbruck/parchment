@@ -29,6 +29,7 @@ import { isOffline } from '@/lib/connectivity'
 import { isOfflineId } from '@/lib/sync/offline-id'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
+import { canWriteCollection } from '@/lib/library/collection-access'
 
 // Drives whichever mode applies for the given props at click time:
 //   - When a `bookmark` is in play, taps toggle collection membership.
@@ -86,8 +87,7 @@ function isInCollection(collection: Collection) {
 
 /** Viewers can't write, and a private collection needs its key on this device. */
 function canSaveTo(collection: Collection) {
-  const writer = !collection.role || collection.role === 'owner' || collection.role === 'editor'
-  return writer && !(collection.scheme === 'user-e2ee' && collection.locked)
+  return canWriteCollection(collection) && !(collection.scheme === 'user-e2ee' && collection.locked)
 }
 
 watch(

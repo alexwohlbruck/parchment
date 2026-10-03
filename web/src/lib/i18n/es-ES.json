@@ -803,7 +803,8 @@
         "lockedNotice": {
           "title": "Cifrada de extremo a extremo",
           "description": "Solo tus dispositivos pueden abrir esta colección, y este aún no está configurado.",
-          "unlock": "Desbloquear este dispositivo"
+          "unlock": "Desbloquear este dispositivo",
+          "reshare": "{name} compartió esta colección, pero no de una forma que este dispositivo pueda abrir. Pídele que vuelva a compartirla contigo."
         },
         "public": {
           "subtitle": "Compartida contigo",
@@ -2149,7 +2150,8 @@
       "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
       "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
       "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
-    }
+    },
+    "removeAction": "Quitar a {name}"
   },
   "auth": {
     "signIn": {

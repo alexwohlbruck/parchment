@@ -51,7 +51,9 @@ export interface DecryptedPoint {
   updatedAt?: string
 }
 
-export type CollectionScheme = 'server-key' | 'user-e2ee'
+/** Whether a record is readable by the server or end-to-end encrypted. */
+export type EncryptionScheme = 'server-key' | 'user-e2ee'
+export type CollectionScheme = EncryptionScheme
 export type ResharingPolicy = 'owner-only' | 'editors-can-share'
 export type ShareRole = 'viewer' | 'editor'
 

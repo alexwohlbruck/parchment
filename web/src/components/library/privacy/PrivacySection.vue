@@ -8,10 +8,10 @@ import { useI18n } from 'vue-i18n'
 import { GlobeIcon, LockIcon } from 'lucide-vue-next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import type { PrivacyScheme } from './types'
+import type { EncryptionScheme } from '@/types/library.types'
 
 const props = defineProps<{
-  scheme: PrivacyScheme
+  scheme: EncryptionScheme
   /** False on a device without the recovery key, which can't encrypt. */
   hasIdentity: boolean
   disabled?: boolean
@@ -19,12 +19,12 @@ const props = defineProps<{
   readonly?: boolean
 }>()
 
-const emit = defineEmits<{ switch: [target: PrivacyScheme] }>()
+const emit = defineEmits<{ switch: [target: EncryptionScheme] }>()
 
 const { t } = useI18n()
 
 const isPrivate = computed(() => props.scheme === 'user-e2ee')
-const target = computed<PrivacyScheme>(() =>
+const target = computed<EncryptionScheme>(() =>
   isPrivate.value ? 'server-key' : 'user-e2ee',
 )
 const blocked = computed(() => target.value === 'user-e2ee' && !props.hasIdentity)

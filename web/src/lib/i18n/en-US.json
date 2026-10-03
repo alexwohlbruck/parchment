@@ -839,7 +839,8 @@
         "lockedNotice": {
           "title": "End-to-end encrypted",
           "description": "Only your devices can open this collection, and this one hasn't been set up yet.",
-          "unlock": "Unlock this device"
+          "unlock": "Unlock this device",
+          "reshare": "{name} shared this collection, but not in a way this device can open. Ask them to share it with you again."
         },
         "public": {
           "subtitle": "Shared with you",
@@ -2271,7 +2272,8 @@
       "copyFailed": "Copy failed — select and copy the link manually",
       "identityRequired": "Set up your encryption keys in Settings before sharing",
       "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
-    }
+    },
+    "removeAction": "Remove {name}"
   },
   "auth": {
     "signIn": {

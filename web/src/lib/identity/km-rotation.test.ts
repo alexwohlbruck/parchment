@@ -81,7 +81,11 @@ import {
   encryptEnvelopeString,
   type AAD,
 } from '@/lib/identity/crypto-envelope'
-import { encryptCollectionMetadata } from '@/lib/identity/library-crypto'
+import {
+  decryptCollectionPoint,
+  encryptCollectionMetadata,
+  encryptCollectionPoint,
+} from '@/lib/identity/library-crypto'
 import { rotateMasterKey, RotationConflictError } from './km-rotation'
 
 // ---------------------------------------------------------------------------
@@ -147,7 +151,7 @@ describe('rotateMasterKey — happy path', () => {
     const collectionId = 'c1'
     const oldCollectionMeta = encryptCollectionMetadata({
       metadata: { name: 'Favorites', icon: 'star', iconColor: '#fff' },
-      seed: oldSeed,
+      source: { seed: oldSeed },
       userId,
       collectionId,
     })
@@ -250,6 +254,70 @@ describe('rotateMasterKey — happy path', () => {
     // OLD ones (otherwise we're uploading garbage or no-oping a phase).
     expect(body.blobs[0].encryptedBlob).not.toBe(oldBlobEnvelope)
     expect(body.collections[0].metadataEncrypted).not.toBe(oldCollectionMeta)
+  })
+})
+
+describe('rotateMasterKey — private collections', () => {
+  const userId = 'user-rot'
+
+  test('re-seals each point so the places open under the new seed', async () => {
+    const oldSeed = generateSeed()
+    state.storedSeed = oldSeed
+    const collectionId = 'c-private'
+    const place = {
+      externalIds: { osm: 'node/1' },
+      name: 'Coffee Land',
+      address: null,
+      lat: 40.67,
+      lng: -73.95,
+      icon: 'cafe',
+      iconPack: 'maki' as const,
+      iconColor: 'rose',
+      frequentType: null,
+    }
+    const oldPoint = encryptCollectionPoint({
+      point: place,
+      pointId: 'pt-1',
+      source: { seed: oldSeed },
+      ownerUserId: userId,
+      collectionId,
+      keyVersion: 2,
+    })
+
+    getHandlers.set('/me/blobs', () => ({ data: { blobs: [] } }))
+    getHandlers.set('/library/collections', () => ({
+      data: [
+        { id: collectionId, scheme: 'user-e2ee', metadataEncrypted: null, metadataKeyVersion: 2 },
+      ],
+    }))
+    getHandlers.set(`/library/collections/${collectionId}/encrypted-points`, () => ({
+      data: { points: [{ id: 'pt-1', encryptedData: oldPoint }] },
+    }))
+    getHandlers.set('/users/me/wrapped-keys', () => ({ data: { slots: [] } }))
+    let commitBody: any
+    postHandlers.set('/users/me/km-version/commit', (body) => {
+      commitBody = body
+      return { data: { kmVersion: 2 } }
+    })
+
+    const result = await rotateMasterKey({
+      userId,
+      oldSeed,
+      currentKmVersion: 1,
+      assertPasskeyForSlot: vi.fn(),
+    })
+
+    const [resealed] = commitBody.collections[0].points
+    expect(resealed.id).toBe('pt-1')
+    expect(
+      decryptCollectionPoint({
+        point: resealed,
+        source: { seed: result.newSeed },
+        ownerUserId: userId,
+        collectionId,
+        keyVersion: 2,
+      }).name,
+    ).toBe('Coffee Land')
   })
 })
 

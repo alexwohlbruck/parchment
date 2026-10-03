@@ -800,14 +800,15 @@
       }
     },
     "actions": {
-      "addToCollection": "Add to Collection",
+      "addToCollection": "Add to collection",
       "createNewCollection": "Create new collection",
       "searchCollections": "Search collections...",
       "removeFromCollection": "Remove from collection",
       "removedFromCollectionSuccess": "Removed from collection",
       "addedToCollection": "Added to {collection}",
       "failedToAddToCollection": "Failed to add to collection",
-      "saveToCollection": "Save to {collection}"
+      "saveToCollection": "Save to {collection}",
+      "newCollection": "New collection"
     },
     "empty": {
       "message": "no {entityPlural} yet",
@@ -833,7 +834,21 @@
         "manage": "Manage collections",
         "untitled": "Untitled collection",
         "lastSaved": "Last saved to",
-        "sharedBy": "Shared by {name}"
+        "sharedBy": "Shared by {name}",
+        "locked": "Locked collection",
+        "lockedNotice": {
+          "title": "End-to-end encrypted",
+          "description": "Only your devices can open this collection, and this one hasn't been set up yet.",
+          "unlock": "Unlock this device",
+          "reshare": "{name} shared this collection, but not in a way this device can open. Ask them to share it with you again."
+        },
+        "public": {
+          "subtitle": "Shared with you",
+          "gone": {
+            "title": "This link no longer works",
+            "description": "It may have been revoked, or the collection made private."
+          }
+        }
       },
       "routes": {
         "title": {
@@ -857,12 +872,12 @@
     "confirmDelete": "Are you sure you want to delete \"{name}\"?",
     "dialog": {
       "createCollection": {
-        "title": "Create Collection",
-        "description": "Create a new collection to organize your bookmarks"
+        "title": "New collection",
+        "description": "Give it a name and decide who can read it."
       },
       "editCollection": {
-        "title": "Edit Collection",
-        "description": "Modify collection details"
+        "title": "Collection details",
+        "description": "Give it a name and decide who can read it."
       },
       "editBookmark": {
         "title": "Edit Bookmark",
@@ -893,6 +908,48 @@
     },
     "loading": {
       "collection": "Loading collection..."
+    },
+    "privacy": {
+      "label": "Privacy",
+      "schemes": {
+        "server-key": {
+          "title": "Shareable",
+          "description": "The server can read it, so it can have a public link."
+        },
+        "user-e2ee": {
+          "title": "Private",
+          "description": "End-to-end encrypted, so the server can’t read it."
+        }
+      },
+      "needsIdentity": "Needs your recovery key on this device.",
+      "switchTo": {
+        "server-key": "Make it shareable",
+        "user-e2ee": "Make it private"
+      },
+      "switched": "Privacy updated",
+      "switchFailed": "Couldn't change privacy",
+      "confirm": {
+        "collection": {
+          "server-key": {
+            "title": "Make this collection shareable?",
+            "description": "Its name and places will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+          },
+          "user-e2ee": {
+            "title": "Make this collection private?",
+            "description": "Its name and places will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+          }
+        },
+        "canvas": {
+          "server-key": {
+            "title": "Make this canvas shareable?",
+            "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
+          },
+          "user-e2ee": {
+            "title": "Make this canvas private?",
+            "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
+          }
+        }
+      }
     }
   },
   "services": {
@@ -2200,31 +2257,10 @@
         "copyAction": "Copy link",
         "revokeAction": "Revoke link"
       },
-      "e2ee": {
-        "title": "End-to-end encrypted",
-        "description": "Only invited friends can decrypt this collection. Public link unavailable.",
-        "switchAction": "Switch to server-stored encryption"
-      },
-      "serverKey": {
-        "switchAction": "Switch to end-to-end encryption"
-      }
+      "privateHint": "Public links need a shareable collection."
     },
     "publicLink": {
       "copied": "Link copied to clipboard"
-    },
-    "schemeSwitch": {
-      "upgradeConfirm": {
-        "title": "Switch to end-to-end encryption?",
-        "description": "Every saved place in this collection will be re-encrypted under your personal key. The Parchment server will no longer be able to read them. Any public link will be revoked. Friends with access will be re-shared under the new key.",
-        "continueText": "Switch to end-to-end"
-      },
-      "downgradeConfirm": {
-        "title": "Switch to server-stored encryption?",
-        "description": "The Parchment server will be able to read every saved place in this collection. Friends with access will be re-shared under the new scheme. This cannot be undone without switching back and re-encrypting.",
-        "continueText": "Switch to server-stored"
-      },
-      "success": "Encryption scheme switched",
-      "failed": "Failed to switch encryption scheme"
     },
     "errors": {
       "loadFailed": "Failed to load shares",
@@ -2236,7 +2272,8 @@
       "copyFailed": "Copy failed — select and copy the link manually",
       "identityRequired": "Set up your encryption keys in Settings before sharing",
       "missingFriendKey": "This friend's keys aren't synced yet; try again in a moment"
-    }
+    },
+    "removeAction": "Remove {name}"
   },
   "auth": {
     "signIn": {
@@ -2358,18 +2395,7 @@
       "editTitle": "Canvas details",
       "description": "Give it a name and decide who can read it.",
       "namePlaceholder": "Canvas name",
-      "descriptionPlaceholder": "What is this canvas for? (optional)",
-      "privacy": "Privacy"
-    },
-    "schemes": {
-      "server-key": {
-        "title": "Shareable",
-        "description": "Stored so it can be published with a link later."
-      },
-      "user-e2ee": {
-        "title": "Private",
-        "description": "End-to-end encrypted. Only your devices can read it."
-      }
+      "descriptionPlaceholder": "What is this canvas for? (optional)"
     },
     "layers": {
       "missing": "Missing layer",
@@ -2439,24 +2465,6 @@
     "delete": {
       "title": "Delete canvas?",
       "description": "\"{name}\" and its layers will be removed. This can't be undone."
-    },
-    "privacy": {
-      "needsIdentity": "Needs your recovery key on this device.",
-      "switched": "Canvas privacy updated",
-      "switchTo": {
-        "server-key": "Make it shareable",
-        "user-e2ee": "Make it private"
-      },
-      "confirm": {
-        "server-key": {
-          "title": "Make this canvas shareable?",
-          "description": "Its name and layers will be stored so the server can read them, which is what makes a public link possible. You can switch back at any time."
-        },
-        "user-e2ee": {
-          "title": "Make this canvas private?",
-          "description": "Its name and layers will be encrypted on this device. Only devices holding your recovery key will be able to open it, and any public link is revoked."
-        }
-      }
     },
     "import": {
       "errors": {

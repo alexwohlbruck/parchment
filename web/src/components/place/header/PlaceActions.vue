@@ -15,7 +15,7 @@ import type { Place } from '@/types/place.types'
 import { usePlaceService } from '@/services/place/place.service'
 import CollectionPicker from '@/components/library/collections/CollectionPicker.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
-import { type ThemeColor } from '@/lib/utils'
+import { collectionIcon } from '@/lib/library/collection-display'
 import ResponsivePopover from '@/components/responsive/ResponsivePopover.vue'
 import {
   Tooltip,
@@ -23,6 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { usePlaceCollections } from '@/composables/library/usePlaceCollections'
 
 const props = defineProps<{
   place: Partial<Place>
@@ -35,13 +36,7 @@ const { t } = useI18n()
 
 const bookmarkId = computed(() => props.place?.bookmark?.id || null)
 
-// The collections this bookmark currently belongs to. Sourced from the
-// place's local state which the picker keeps fresh by emitting
-// `collections-changed` after each toggle and `bookmark-created` /
-// `bookmark-deleted` for create/delete transitions.
-const collectionIds = computed<string[]>(
-  () => props.place?.collectionIds ?? [],
-)
+const { collectionIds } = usePlaceCollections(() => props.place)
 
 // The single collection to surface as a colored mini-badge when the
 // bookmark lives in exactly one collection. Resolved against the local
@@ -152,18 +147,13 @@ function onBookmarkDeleted() {
                   v-else-if="collectionIds.length === 1 && singleCollection"
                   class="absolute -top-1 -right-1 ring-2 ring-background rounded-sm"
                 >
-                  <ItemIcon
-                    :icon="singleCollection.icon"
-                    :icon-pack="singleCollection.iconPack ?? 'lucide'"
-                    :color="singleCollection.iconColor as ThemeColor"
-                    size="xs"
-                  />
+                  <ItemIcon v-bind="collectionIcon(singleCollection)" size="xs" />
                 </span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>
               {{
-                bookmarkId
+                collectionIds.length
                   ? t('library.entities.collections.manage')
                   : t('general.save')
               }}

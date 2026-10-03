@@ -83,13 +83,14 @@ export const bookmarks = pgTable(
 )
 
 /**
- * Collections (user-defined bookmark folders). Metadata
- * (name / description / icon / iconColor) is fully E2EE under a per-
- * collection AES key derived from the user's seed. The server stores
- * only the ciphertext envelope; it never sees the plaintext metadata.
+ * Collections (user-defined bookmark folders). `scheme` governs the whole
+ * record, metadata as well as places:
  *
- * `isPublic`, `isSensitive` stay cleartext because the server needs
- * them for access control and feed/discovery behaviour.
+ *   'server-key' — name / description / icon / colour in the cleartext
+ *     columns, places in `bookmarks`. `metadataEncrypted` is null, except on
+ *     legacy rows the owner's client has not migrated yet.
+ *   'user-e2ee'  — metadata in `metadataEncrypted` under the per-collection
+ *     key, places in `encrypted_points`. The cleartext columns stay null.
  */
 export const collections = pgTable(
   'collections',
@@ -120,6 +121,11 @@ export const collections = pgTable(
     // the role anonymous visitors get; 'viewer' today, always.
     publicToken: text('public_token'),
     publicRole: text('public_role').$type<ShareRole>(),
+    name: text('name'),
+    description: text('description'),
+    icon: text('icon'),
+    iconPack: text('icon_pack').$type<'lucide' | 'maki'>(),
+    iconColor: text('icon_color'),
     metadataEncrypted: text('metadata_encrypted'),
     metadataKeyVersion: integer('metadata_key_version').notNull().default(1),
     createdAt: timestamp('created_at').defaultNow().notNull(),

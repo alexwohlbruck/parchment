@@ -3,6 +3,7 @@ import { permissions } from '../../middleware/auth.middleware'
 import { PermissionId } from '../../types/auth.types'
 import * as bookmarksService from '../../services/library/bookmarks.service'
 import * as sharingService from '../../services/sharing.service'
+import { findPrivateCollectionIds } from '../../services/library/collections.service'
 import { i18nPlugin } from '../../lib/i18n/plugin'
 import type { TranslateFn } from '../../lib/i18n/i18n.types'
 
@@ -15,6 +16,15 @@ import type { TranslateFn } from '../../lib/i18n/i18n.types'
 async function assertCanWriteCollections(userId: string, collectionIds: string[]) {
   for (const cid of collectionIds) {
     await sharingService.requireWriteAccessToCollection(userId, cid)
+  }
+}
+
+/** A plaintext bookmark must never land in a user-e2ee collection. */
+class PrivateCollectionBookmarkError extends Error {}
+
+async function assertShareableCollections(collectionIds: string[]) {
+  if ((await findPrivateCollectionIds(collectionIds)).length > 0) {
+    throw new PrivateCollectionBookmarkError()
   }
 }
 
@@ -33,6 +43,10 @@ function mapSharingError(
   if (err instanceof sharingService.InsufficientRoleError) {
     set.status = 403
     return { error: t('errors.library.collectionViewerReadOnly') }
+  }
+  if (err instanceof PrivateCollectionBookmarkError) {
+    set.status = 400
+    return { error: t('errors.library.privateCollectionBookmark') }
   }
   return null
 }
@@ -55,6 +69,7 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
 
       try {
         await assertCanWriteCollections(user.id, body.collectionIds)
+        await assertShareableCollections(body.collectionIds)
         const createdBookmark = await bookmarksService.createBookmark(
           {
             ...body,
@@ -121,6 +136,9 @@ const bookmarksRouter = new Elysia({ prefix: '/bookmarks' })
           const scope = new Set<string>(body.collectionIds)
           for (const cid of currentIds) if (!newIds.has(cid)) scope.add(cid)
           await assertCanWriteCollections(user.id, Array.from(scope))
+          await assertShareableCollections(
+            body.collectionIds.filter((cid) => !currentIds.includes(cid)),
+          )
         }
 
         const updated = await bookmarksService.updateBookmark(id, user.id, body)

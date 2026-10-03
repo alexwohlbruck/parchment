@@ -4,8 +4,10 @@ import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { SectionHeader } from '@/components/ui/section-header'
-import { MessageSquareQuoteIcon, StarIcon, ThumbsUpIcon } from 'lucide-vue-next'
+import { MessageSquareQuoteIcon, PenLineIcon, ThumbsUpIcon } from 'lucide-vue-next'
 import PlaceSection from '../details/PlaceSection.vue'
+import StarRating from './StarRating.vue'
+import { SOURCE } from '@/lib/constants'
 import type { Place } from '@/types/place.types'
 
 dayjs.extend(relativeTime)
@@ -35,14 +37,14 @@ const hasMore = computed(
   () => !props.expanded && reviews.value.length > COLLAPSED_COUNT,
 )
 
-// Aggregate rating (0–1 normalized on the model → 0–5 for display).
-const ratingOutOfFive = computed(() => {
-  const r = props.place.ratings?.rating?.value
-  return typeof r === 'number' ? r * 5 : null
-})
+const rating = computed(() => props.place.ratings?.rating?.value ?? null)
 const reviewCount = computed(() => props.place.ratings?.reviewCount?.value ?? 0)
-const filledStars = computed(() =>
-  ratingOutOfFive.value === null ? 0 : Math.round(ratingOutOfFive.value),
+
+const sourceNames = computed(
+  () => new Map((props.place.sources ?? []).map((s) => [s.id, s.name])),
+)
+const mangroveUrl = computed(
+  () => props.place.sources?.find((s) => s.id === SOURCE.MANGROVE)?.url,
 )
 
 function relativeDate(iso?: string): string | null {
@@ -60,23 +62,12 @@ function relativeDate(iso?: string): string | null {
       />
 
       <!-- Aggregate rating summary -->
-      <div v-if="ratingOutOfFive !== null" class="flex items-center gap-2">
+      <div v-if="rating !== null" class="flex items-center gap-2">
         <span class="text-2xl font-semibold tabular-nums">
-          {{ ratingOutOfFive.toFixed(1) }}
+          {{ (rating * 5).toFixed(1) }}
         </span>
         <div class="flex flex-col gap-0.5">
-          <div class="flex items-center gap-0.5">
-            <StarIcon
-              v-for="i in 5"
-              :key="i"
-              class="size-3.5"
-              :class="
-                i <= filledStars
-                  ? 'fill-amber-400 text-amber-400'
-                  : 'text-muted-foreground/30'
-              "
-            />
-          </div>
+          <StarRating :rating="rating" />
           <span v-if="reviewCount" class="text-xs text-muted-foreground">
             {{ t('place.reviews.ratings', { count: n(reviewCount) }, reviewCount) }}
           </span>
@@ -90,12 +81,28 @@ function relativeDate(iso?: string): string | null {
           :key="review.value.id"
           class="border-t pt-3 first:border-t-0 first:pt-0"
         >
+          <div
+            v-if="review.value.rating !== undefined || review.value.authorName"
+            class="mb-1 flex items-center gap-2 text-xs"
+          >
+            <StarRating
+              v-if="review.value.rating !== undefined"
+              :rating="review.value.rating"
+              size="sm"
+            />
+            <span v-if="review.value.authorName" class="font-medium">
+              {{ review.value.authorName }}
+            </span>
+          </div>
           <p class="text-sm leading-relaxed text-foreground">
             {{ review.value.text }}
           </p>
           <div
             class="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground"
           >
+            <span v-if="sourceNames.get(review.sourceId)">
+              {{ sourceNames.get(review.sourceId) }}
+            </span>
             <span v-if="relativeDate(review.value.createdAt)">
               {{ relativeDate(review.value.createdAt) }}
             </span>
@@ -123,6 +130,17 @@ function relativeDate(iso?: string): string | null {
             : t('place.reviews.showAll', { count: n(reviews.length) })
         }}
       </button>
+
+      <a
+        v-if="mangroveUrl"
+        :href="mangroveUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+      >
+        <PenLineIcon class="size-3.5" />
+        {{ t('place.reviews.writeOnMangrove') }}
+      </a>
     </template>
   </PlaceSection>
 </template>

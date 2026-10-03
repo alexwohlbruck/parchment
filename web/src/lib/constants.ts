@@ -24,4 +24,5 @@ export const SOURCE = {
   FOURSQUARE: 'foursquare',
   TRIPADVISOR: 'tripadvisor',
   OPENTABLE: 'opentable',
+  MANGROVE: 'mangrove',
 } as const

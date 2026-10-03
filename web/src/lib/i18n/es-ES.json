@@ -1291,7 +1291,8 @@
       "title": "Opiniones",
       "ratings": "{count} valoración | {count} valoraciones",
       "showAll": "Ver las {count} opiniones",
-      "showLess": "Ver menos"
+      "showLess": "Ver menos",
+      "writeOnMangrove": "Escribe una opinión en Mangrove"
     },
     "tabs": {
       "overview": "Resumen",
@@ -1947,7 +1948,8 @@
         "brandCatalog": "Catálogo de marcas",
         "transitRouting": "Rutas de tránsito",
         "rideshareEstimate": "Viajes compartidos",
-        "feedback": "Comentarios"
+        "feedback": "Comentarios",
+        "reviews": "Opiniones"
       },
       "descriptions": {
         "google-maps": "Servicios completos de mapas y ubicación",
@@ -1966,6 +1968,7 @@
         "wikidata": "Base de conocimiento estructurado para enriquecer información de lugares",
         "wikipedia": "Contenido gratuito de enciclopedia y descripciones de lugares",
         "wikimedia": "Repositorio gratuito de medios para imágenes de lugares",
+        "mangrove": "Opiniones y valoraciones de lugares, abiertas y escritas por la comunidad",
         "openweathermap": "Datos meteorológicos e información de calidad del aire",
         "axiom": "Enviar registros y trazas del servidor a Axiom para depuración y monitoreo",
         "barrelman": "Motor de búsqueda y espacial OSM autoalojado",

@@ -1341,7 +1341,8 @@
       "title": "Reviews",
       "ratings": "{count} rating | {count} ratings",
       "showAll": "Show all {count} reviews",
-      "showLess": "Show less"
+      "showLess": "Show less",
+      "writeOnMangrove": "Write a review on Mangrove"
     },
     "tabs": {
       "overview": "Overview",
@@ -2055,7 +2056,8 @@
         "brandCatalog": "Brand Catalog",
         "transitRouting": "Transit Routing",
         "rideshareEstimate": "Rideshare",
-        "feedback": "Feedback"
+        "feedback": "Feedback",
+        "reviews": "Reviews"
       },
       "descriptions": {
         "google-maps": "Comprehensive mapping and location services",
@@ -2075,6 +2077,7 @@
         "wikidata": "Structured knowledge base for enriching place information",
         "wikipedia": "Free encyclopedia content and place descriptions",
         "wikimedia": "Free media repository for place images",
+        "mangrove": "Open, community-written place reviews and ratings",
         "openweathermap": "Weather data and air quality information",
         "axiom": "Send server logs and traces to Axiom for debugging and monitoring",
         "barrelman": "Self-hosted OSM search and spatial engine",

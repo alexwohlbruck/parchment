@@ -35,10 +35,11 @@ interface HotkeyBinding {
 // reaches the instance actually listening on the document.
 /**
  * An open popover, dialog or menu closes itself on Escape, so the key is not
- * also a hotkey. Drawers are skipped: the map sheets are always-open drawers.
+ * also a hotkey. Drawers are skipped (the map sheets are always open), and so
+ * are layers still animating out.
  */
 const ESCAPE_LAYERS =
-  '[data-dismissable-layer]:not([data-vaul-drawer]):is([role="dialog"], [role="menu"], [role="listbox"])'
+  '[data-dismissable-layer]:not([data-vaul-drawer]):not([data-state="closed"]):is([role="dialog"], [role="menu"], [role="listbox"])'
 
 function escapeBelongsToLayer(): boolean {
   return document.querySelector(ESCAPE_LAYERS) !== null

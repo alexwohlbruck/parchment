@@ -107,6 +107,21 @@ describe('useHotkeys', () => {
     wrapper.unmount()
   })
 
+  it('answers Escape once a popover is animating out', () => {
+    const sheet = vi.fn()
+    const wrapper = mount(binder('esc', sheet))
+    const closing = document.createElement('div')
+    closing.setAttribute('data-dismissable-layer', '')
+    closing.setAttribute('role', 'dialog')
+    closing.setAttribute('data-state', 'closed')
+    document.body.appendChild(closing)
+
+    press('Escape', 27)
+
+    expect(sheet).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
   it('still answers Escape over an always-open drawer', () => {
     const sheet = vi.fn()
     const wrapper = mount(binder('esc', sheet))

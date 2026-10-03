@@ -3,7 +3,7 @@
  * A collection someone shared by link, read-only. Reachable signed out, so it
  * reads the public endpoint and stays out of the viewer's own library.
  */
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { LinkIcon } from 'lucide-vue-next'
 import { useCollectionsService } from '@/services/library/collections.service'
@@ -33,24 +33,37 @@ const title = computed(
   () => collection.value?.name || t('library.entities.collections.untitled'),
 )
 
-;(async () => {
-  const shared = await collectionsService.fetchPublicCollection(props.token)
-  loading.value = false
-  if (!shared) return
-  collection.value = shared.collection
-  places.value = shared.places
-  collectionsStore.publicCollection = { id: shared.collection.id, places: shared.places }
-  collectionsStore.openCollectionId = shared.collection.id
-  const bounds = boundsOfPoints(shared.places)
-  if (bounds) mapService.fitBounds(bounds, { maxZoom: 15 })
-})()
-
-onUnmounted(() => {
-  if (collectionsStore.openCollectionId === collection.value?.id) {
+function clearMap() {
+  if (collectionsStore.openCollectionId === collectionsStore.publicCollection?.id) {
     collectionsStore.openCollectionId = null
   }
   collectionsStore.publicCollection = null
-})
+}
+
+watch(
+  () => props.token,
+  async (token, _old, onCleanup) => {
+    let stale = false
+    onCleanup(() => {
+      stale = true
+    })
+    loading.value = true
+    clearMap()
+    const shared = await collectionsService.fetchPublicCollection(token)
+    if (stale) return
+    loading.value = false
+    collection.value = shared?.collection ?? null
+    places.value = shared?.places ?? []
+    if (!shared) return
+    collectionsStore.publicCollection = { id: shared.collection.id, places: shared.places }
+    collectionsStore.openCollectionId = shared.collection.id
+    const bounds = boundsOfPoints(shared.places)
+    if (bounds) mapService.fitBounds(bounds, { maxZoom: 15 })
+  },
+  { immediate: true },
+)
+
+onUnmounted(clearMap)
 </script>
 
 <template>

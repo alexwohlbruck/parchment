@@ -98,7 +98,11 @@ function handleCollectionEdit() {
 
 async function handleUnlocked() {
   await collectionsService.fetchCollections()
-  await collectionsService.fetchCollectionById(id)
+  const unlocked = await collectionsService.fetchCollectionById(id)
+  if (unlocked?.scheme === 'user-e2ee' && !unlocked.locked) {
+    pointsStore.clearCollection(id)
+    await collectionsService.fetchAndDecryptPoints(unlocked)
+  }
 }
 
 function handleCollectionDelete() {
@@ -143,7 +147,11 @@ function handleCollectionDelete() {
       />
     </template>
 
-    <CollectionLockedNotice v-if="collection.locked" @unlocked="handleUnlocked" />
+    <CollectionLockedNotice
+      v-if="collection.locked"
+      :collection="collection"
+      @unlocked="handleUnlocked"
+    />
     <BookmarkList
       v-else
       :bookmarks="bookmarks"

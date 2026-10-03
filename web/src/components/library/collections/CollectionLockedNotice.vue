@@ -1,16 +1,34 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { LockIcon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import RecoveryKeyDialog from '@/components/identity/RecoveryKeyDialog.vue'
+import { useIdentityStore } from '@/stores/identity.store'
+import { useFriendsStore } from '@/stores/friends.store'
+import type { Collection } from '@/types/library.types'
+
+const props = defineProps<{ collection: Collection }>()
 
 const emit = defineEmits<{
   (e: 'unlocked'): void
 }>()
 
 const { t } = useI18n()
+const identityStore = useIdentityStore()
+const friendsStore = useFriendsStore()
 const unlocking = ref(false)
+
+/**
+ * Importing a key only helps when this device lacks one. A shared collection
+ * whose envelope holds no usable key needs its owner to share again.
+ */
+const sharer = computed(() => {
+  const handle = props.collection.senderHandle
+  if (!handle || !identityStore.isSetupComplete) return null
+  const friend = friendsStore.friends.find(f => f.friendHandle === handle)
+  return friend?.friendName || handle.split('@')[0]
+})
 </script>
 
 <template>
@@ -23,10 +41,14 @@ const unlocking = ref(false)
         {{ t('library.entities.collections.lockedNotice.title') }}
       </p>
       <p class="text-sm text-muted-foreground">
-        {{ t('library.entities.collections.lockedNotice.description') }}
+        {{
+          sharer
+            ? t('library.entities.collections.lockedNotice.reshare', { name: sharer })
+            : t('library.entities.collections.lockedNotice.description')
+        }}
       </p>
     </div>
-    <Button variant="outline" size="sm" @click="unlocking = true">
+    <Button v-if="!sharer" variant="outline" size="sm" @click="unlocking = true">
       {{ t('library.entities.collections.lockedNotice.unlock') }}
     </Button>
 

@@ -42,6 +42,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   set: [key: string, value: string | null]
   brand: [brand: NsiBrand]
+  logo: [url: string | null]
   submit: [comment: string]
 }>()
 
@@ -79,7 +80,10 @@ const showBrands = computed(
 )
 
 function applyUpgrade() {
-  for (const change of upgrade.value?.changes ?? []) set(change.key, change.to)
+  const applied = upgrade.value
+  if (!applied) return
+  for (const change of applied.changes) set(change.key, change.to)
+  if (applied.brand) emit('logo', applied.brand.logoUrl)
 }
 
 function declineBrand() {

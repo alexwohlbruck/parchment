@@ -76,13 +76,11 @@ export default defineConfig({
       use: { 
         ...devices['Desktop Chrome'],
         storageState: 'e2e/.auth/user.json',
-        // Enable WebGL support in headless mode
+        // Software compositing, with WebGL still on SwiftShader. Forcing ANGLE
+        // onto SwiftShader also composites every frame through it, which kept
+        // CI's two cores saturated even on idle pages.
         launchOptions: {
-          args: [
-            '--use-gl=angle',
-            '--use-angle=swiftshader',
-            '--disable-gpu-sandbox',
-          ],
+          args: ['--disable-gpu'],
         },
         // NOTE: no `contextOptions.storageState` here — it used to be set to
         // `undefined`, which silently clobbers the storageState above. The

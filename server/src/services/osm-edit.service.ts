@@ -197,19 +197,24 @@ export async function submitEdit(
       ? parseInt(newVersion, 10)
       : (live?.version ?? 0) + 1
 
-    await db.insert(osmEdits).values({
-      id: generateId(),
-      userId,
-      action: input.action,
-      osmType: input.element.type,
-      osmId: String(osmId),
-      version: resultVersion,
-      changesetId: String(changesetId),
-      tags: input.element.tags,
-      lat: input.element.lat ?? live?.lat,
-      lng: input.element.lon ?? live?.lon,
-      comment: input.comment,
-    })
+    // The upload is already on OSM; a retry here would duplicate the element.
+    try {
+      await db.insert(osmEdits).values({
+        id: generateId(),
+        userId,
+        action: input.action,
+        osmType: input.element.type,
+        osmId: String(osmId),
+        version: resultVersion,
+        changesetId: String(changesetId),
+        tags: input.element.tags,
+        lat: input.element.lat ?? live?.lat,
+        lng: input.element.lon ?? live?.lon,
+        comment: input.comment,
+      })
+    } catch (error) {
+      logError('Failed to record OSM edit', error)
+    }
 
     return {
       changesetId,

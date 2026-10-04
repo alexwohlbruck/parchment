@@ -323,16 +323,6 @@ export function matchBrand(kv: string, name: string): NsiBrand | null {
   return null
 }
 
-/** The tags a brand would add or correct on a feature, ignoring equal values. */
-export function brandTagDiff(
-  brand: NsiBrand,
-  tags: Record<string, string>,
-): Array<{ key: string; from: string | null; to: string }> {
-  return Object.entries(brand.tags)
-    .filter(([key, value]) => tags[key] !== value)
-    .map(([key, value]) => ({ key, from: tags[key] ?? null, to: value }))
-}
-
 export function getBrandById(id: string): NsiBrand | null {
   return getIndex()?.byId.get(id) ?? null
 }

@@ -2751,11 +2751,16 @@
     "brand": {
       "isThis": "Is this one of these chains?",
       "addsTags": "Fills in {count} detail | Fills in {count} detail | Fills in {count} details",
-      "matchTitle": "This looks like {brand}",
-      "matchHint": "Chains are tagged the same way everywhere. Apply the standard details?",
-      "apply": "Apply",
-      "dismiss": "Not this chain",
       "chainsHeading": "Chains"
+    },
+    "upgrade": {
+      "title": "Some tags are out of date",
+      "hint": "Bring them in line with current OpenStreetMap conventions?",
+      "brandTitle": "This looks like {brand}",
+      "brandHint": "Chains are tagged the same way everywhere. Apply the standard details?",
+      "apply": "Apply updates",
+      "decline": "Not {brand}",
+      "ignore": "Ignore"
     },
     "section": {
       "basics": "Details",

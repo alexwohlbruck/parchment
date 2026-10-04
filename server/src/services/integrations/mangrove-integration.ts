@@ -20,7 +20,10 @@ import {
 const API_URL = 'https://api.mangrove.reviews'
 const REVIEW_LIMIT = 200
 
-export interface MangroveConfig extends IntegrationConfig {}
+export interface MangroveConfig extends IntegrationConfig {
+  /** Client id registered with Mangrove's signer; enables writing reviews. */
+  signerClientId?: string
+}
 
 /** Open, signed place reviews from mangrove.reviews. Keyless. */
 export class MangroveIntegration implements Integration<MangroveConfig> {

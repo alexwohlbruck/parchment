@@ -289,6 +289,7 @@ const availableIntegrations: IntegrationDefinition[] = [
     paid: false,
     cloud: true,
     configSchema: 'mangroveSchema',
+    publicFields: ['signerClientId'],
     scope: [IntegrationScope.SYSTEM],
   },
   {

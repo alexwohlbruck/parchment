@@ -10724,6 +10724,127 @@
         }
       }
     },
+    "/osm/tags/upgrades": {
+      "post": {
+        "parameters": [],
+        "operationId": "postOsmTagsUpgrades",
+        "tags": [
+          "OSM"
+        ],
+        "summary": "Suggest tag upgrades",
+        "description": "Mirrors iD's outdated-tags check: replaces deprecated tags, adds tags the matched preset implies, and applies Name Suggestion Index brand tags when the name matches a chain. Returns the changes and the matched brand, if any.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tags": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "geometry": {
+                    "anyOf": [
+                      {
+                        "const": "point",
+                        "type": "string"
+                      },
+                      {
+                        "const": "vertex",
+                        "type": "string"
+                      },
+                      {
+                        "const": "area",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "tags"
+                ]
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tags": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "geometry": {
+                    "anyOf": [
+                      {
+                        "const": "point",
+                        "type": "string"
+                      },
+                      {
+                        "const": "vertex",
+                        "type": "string"
+                      },
+                      {
+                        "const": "area",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "tags"
+                ]
+              }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tags": {
+                    "type": "object",
+                    "patternProperties": {
+                      "^(.*)$": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "geometry": {
+                    "anyOf": [
+                      {
+                        "const": "point",
+                        "type": "string"
+                      },
+                      {
+                        "const": "vertex",
+                        "type": "string"
+                      },
+                      {
+                        "const": "area",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "tags"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {}
+        }
+      }
+    },
     "/osm/brands/search": {
       "get": {
         "parameters": [

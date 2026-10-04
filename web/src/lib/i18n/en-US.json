@@ -1342,7 +1342,23 @@
       "ratings": "{count} rating | {count} ratings",
       "showAll": "Show all {count} reviews",
       "showLess": "Show less",
-      "writeOnMangrove": "Write a review on Mangrove"
+      "writeOnMangrove": "Write a review on Mangrove",
+      "yours": "Your review",
+      "write": "Write a review",
+      "empty": "No reviews yet.",
+      "form": {
+        "opinion": "What was it like?",
+        "nickname": "Name shown with your review (optional)",
+        "publicNotice": "Reviews are published openly on Mangrove under CC BY 4.0, where anyone can read and reuse them.",
+        "post": "Post review",
+        "update": "Update review",
+        "edit": "Edit",
+        "delete": "Delete",
+        "posted": "Review posted",
+        "updated": "Review updated",
+        "deleted": "Review deleted",
+        "failed": "Couldn't save your review"
+      }
     },
     "tabs": {
       "overview": "Overview",

@@ -1292,7 +1292,23 @@
       "ratings": "{count} valoración | {count} valoraciones",
       "showAll": "Ver las {count} opiniones",
       "showLess": "Ver menos",
-      "writeOnMangrove": "Escribe una opinión en Mangrove"
+      "writeOnMangrove": "Escribe una opinión en Mangrove",
+      "yours": "Tu opinión",
+      "write": "Escribir una opinión",
+      "empty": "Aún no hay opiniones.",
+      "form": {
+        "opinion": "¿Qué tal fue?",
+        "nickname": "Nombre que aparece con tu opinión (opcional)",
+        "publicNotice": "Las opiniones se publican abiertamente en Mangrove con licencia CC BY 4.0, donde cualquiera puede leerlas y reutilizarlas.",
+        "post": "Publicar opinión",
+        "update": "Actualizar opinión",
+        "edit": "Editar",
+        "delete": "Eliminar",
+        "posted": "Opinión publicada",
+        "updated": "Opinión actualizada",
+        "deleted": "Opinión eliminada",
+        "failed": "No se pudo guardar tu opinión"
+      }
     },
     "tabs": {
       "overview": "Resumen",

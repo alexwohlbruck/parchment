@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { SectionHeader } from '@/components/ui/section-header'
-import { MessageSquareQuoteIcon, PenLineIcon, ThumbsUpIcon } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
+import {
+  MessageSquareQuoteIcon,
+  PenLineIcon,
+  PencilIcon,
+  ThumbsUpIcon,
+} from 'lucide-vue-next'
 import PlaceSection from '../details/PlaceSection.vue'
 import StarRating from './StarRating.vue'
+import ReviewForm from './ReviewForm.vue'
+import { useMangroveReview } from '@/composables/place/useMangroveReview'
+import { toast } from '@/lib/toast'
 import { SOURCE } from '@/lib/constants'
+import type { ReviewInput } from '@/services/place/mangrove-review.service'
 import type { Place } from '@/types/place.types'
 
 dayjs.extend(relativeTime)
@@ -24,8 +34,19 @@ const { t, n } = useI18n()
 
 const COLLAPSED_COUNT = 3
 
-const reviews = computed(() => props.place.reviews ?? [])
+const { canReview, ownReview, savedNickname, saving, save, remove } =
+  useMangroveReview(toRef(props, 'place'))
+const editing = ref(false)
+
+const reviews = computed(() =>
+  (props.place.reviews ?? []).filter(
+    (review) => review.value.id !== ownReview.value?.signature,
+  ),
+)
 const hasReviews = computed(() => reviews.value.length > 0)
+const isVisible = computed(
+  () => hasReviews.value || canReview.value || !!ownReview.value,
+)
 
 const showAll = ref(false)
 const visibleReviews = computed(() =>
@@ -50,10 +71,33 @@ const mangroveUrl = computed(
 function relativeDate(iso?: string): string | null {
   return iso ? dayjs(iso).fromNow() : null
 }
+
+async function onSave(input: Omit<ReviewInput, 'osmId'>) {
+  const isEdit = !!ownReview.value
+  try {
+    await save(input)
+    editing.value = false
+    toast.success(
+      isEdit ? t('place.reviews.form.updated') : t('place.reviews.form.posted'),
+    )
+  } catch (error) {
+    toast.error(t('place.reviews.form.failed'), { cause: error })
+  }
+}
+
+async function onDelete() {
+  try {
+    await remove()
+    editing.value = false
+    toast.success(t('place.reviews.form.deleted'))
+  } catch (error) {
+    toast.error(t('place.reviews.form.failed'), { cause: error })
+  }
+}
 </script>
 
 <template>
-  <PlaceSection v-if="hasReviews">
+  <PlaceSection v-if="isVisible">
     <template #main>
       <!-- Heading -->
       <SectionHeader
@@ -74,8 +118,50 @@ function relativeDate(iso?: string): string | null {
         </div>
       </div>
 
+      <ReviewForm
+        v-if="editing"
+        :review="ownReview"
+        :saved-nickname="savedNickname"
+        :saving="saving"
+        @save="onSave"
+        @delete="onDelete"
+        @cancel="editing = false"
+      />
+      <div v-else-if="ownReview" class="space-y-1 rounded-lg bg-muted/50 p-3">
+        <div class="flex items-center gap-2 text-xs">
+          <StarRating :rating="ownReview.rating / 100" size="sm" />
+          <span class="font-medium">{{ t('place.reviews.yours') }}</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            class="ml-auto h-7 gap-1.5 px-2 text-xs"
+            @click="editing = true"
+          >
+            <PencilIcon class="size-3" />
+            {{ t('place.reviews.form.edit') }}
+          </Button>
+        </div>
+        <p v-if="ownReview.opinion" class="text-sm leading-relaxed">
+          {{ ownReview.opinion }}
+        </p>
+      </div>
+      <Button
+        v-else-if="canReview"
+        size="sm"
+        variant="outline"
+        class="w-fit gap-1.5"
+        @click="editing = true"
+      >
+        <PenLineIcon class="size-3.5" />
+        {{ t('place.reviews.write') }}
+      </Button>
+
+      <p v-if="!hasReviews && !ownReview" class="text-sm text-muted-foreground">
+        {{ t('place.reviews.empty') }}
+      </p>
+
       <!-- Review list -->
-      <ul class="space-y-3">
+      <ul v-if="hasReviews" class="space-y-3">
         <li
           v-for="review in visibleReviews"
           :key="review.value.id"
@@ -132,7 +218,7 @@ function relativeDate(iso?: string): string | null {
       </button>
 
       <a
-        v-if="mangroveUrl"
+        v-if="mangroveUrl && !canReview"
         :href="mangroveUrl"
         target="_blank"
         rel="noopener noreferrer"

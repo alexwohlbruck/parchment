@@ -101,6 +101,8 @@ const MASK = `
 const DRAW_FS = `#version 300 es
   precision highp float;
   uniform vec3 u_color;
+  /** 1 when the primitive's texture paints its surface rather than only cutting it. */
+  uniform float u_painted;
   uniform vec3 u_tint;
   uniform vec3 u_lightpos;
   uniform float u_lightintensity;
@@ -109,14 +111,18 @@ const DRAW_FS = `#version 300 es
   out vec4 fragColor;
   void main() {
     cut();
+    // A painted texture carries the surface's colour, multiplied by the
+    // material's — which is how a facade gets a grid of windows that
+    // mipmaps to the right tone at a distance instead of shimmering.
+    vec3 base = u_painted > 0.5 ? u_color * texture(u_mask, v_uv).rgb : u_color;
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
-    float value = dot(u_color, vec3(0.2126, 0.7152, 0.0722));
+    float value = dot(base, vec3(0.2126, 0.7152, 0.0722));
     float directional = clamp(dot(n, u_lightpos), 0.0, 1.0);
     directional = mix(1.0 - u_lightintensity, max(1.0 - value + u_lightintensity, 1.0), directional);
     float sky = mix(0.84, 1.05, n.z * 0.5 + 0.5);
-    fragColor = vec4(clamp((u_color + 0.03) * directional * sky * u_tint, 0.0, 1.0), 1.0);
+    fragColor = vec4(clamp((base + 0.03) * directional * sky * u_tint, 0.0, 1.0), 1.0);
   }`
 
 /**
@@ -165,6 +171,8 @@ type Primitive = {
   /** sRGB, to match what the rest of the pipeline writes straight out. */
   color: [number, number, number]
   texture: WebGLTexture | null
+  /** Whether the texture paints colour (opaque), as opposed to only cutting with alpha. */
+  painted: boolean
   cutoff: number
   doubleSided: boolean
 }
@@ -230,7 +238,7 @@ export class LandmarkLayer {
   onAdd(map: any, gl: WebGL2RenderingContext) {
     this.map = map
     this.draw = program(gl, DRAW_VS, DRAW_FS,
-      ['u_matrix', 'u_local', 'u_turn', 'u_color', 'u_tint', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff'])
+      ['u_matrix', 'u_local', 'u_turn', 'u_color', 'u_painted', 'u_tint', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
       ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff'])
 
@@ -467,6 +475,14 @@ export class LandmarkLayer {
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
           gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+          // A facade is almost always seen at a grazing angle on a pitched map,
+          // where plain trilinear filtering blurs a window grid to mush long
+          // before it is small. Anisotropic filtering keeps it crisp.
+          const aniso = gl.getExtension('EXT_texture_filter_anisotropic')
+          if (aniso) {
+            const max = gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)
+            gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, max))
+          }
           image.close()
         }
 
@@ -481,6 +497,7 @@ export class LandmarkLayer {
           indexType: p.index.BYTES_PER_ELEMENT === 4 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
           color: [srgb(p.color[0]), srgb(p.color[1]), srgb(p.color[2])],
           texture,
+          painted: !!texture && p.alphaMode !== 'MASK',
           cutoff: texture && p.alphaMode === 'MASK' ? p.alphaCutoff : -1,
           doubleSided: p.doubleSided,
         }
@@ -564,6 +581,7 @@ export class LandmarkLayer {
         if (primitive.doubleSided) gl.disable(gl.CULL_FACE)
         else gl.enable(gl.CULL_FACE)
         gl.uniform3fv(u.u_color, primitive.color)
+        gl.uniform1f(u.u_painted, primitive.painted ? 1 : 0)
       }
       gl.uniform1f(u.u_cutoff, primitive.cutoff)
       if (primitive.texture) {

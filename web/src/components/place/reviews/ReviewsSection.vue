@@ -14,10 +14,19 @@ import {
 import PlaceSection from '../details/PlaceSection.vue'
 import StarRating from './StarRating.vue'
 import ReviewForm from './ReviewForm.vue'
-import { useMangroveReview } from '@/composables/place/useMangroveReview'
+import MangroveSignIn from './MangroveSignIn.vue'
+import {
+  SessionRequiredError,
+  useMangroveReview,
+} from '@/composables/place/useMangroveReview'
+import { useMangroveStore } from '@/stores/mangrove.store'
 import { toast } from '@/lib/toast'
 import { SOURCE } from '@/lib/constants'
-import type { ReviewInput } from '@/services/place/mangrove-review.service'
+import {
+  SignInCancelledError,
+  type MangroveProvider,
+  type ReviewInput,
+} from '@/services/place/mangrove-review.service'
 import type { Place } from '@/types/place.types'
 
 dayjs.extend(relativeTime)
@@ -34,9 +43,22 @@ const { t, n } = useI18n()
 
 const COLLAPSED_COUNT = 3
 
-const { canReview, ownReview, savedNickname, saving, save, remove } =
-  useMangroveReview(toRef(props, 'place'))
+const {
+  canReview,
+  hasSession,
+  ownReview,
+  saving,
+  signingIn,
+  signIn,
+  cancelSignIn,
+  save,
+  remove,
+} = useMangroveReview(toRef(props, 'place'))
+const mangroveStore = useMangroveStore()
 const editing = ref(false)
+
+/** The post, update or delete waiting on the person to sign in. */
+const pendingAction = ref<(() => Promise<void>) | null>(null)
 
 const reviews = computed(() =>
   (props.place.reviews ?? []).filter(
@@ -72,27 +94,64 @@ function relativeDate(iso?: string): string | null {
   return iso ? dayjs(iso).fromNow() : null
 }
 
-async function onSave(input: Omit<ReviewInput, 'osmId'>) {
-  const isEdit = !!ownReview.value
+async function run(action: () => Promise<void>) {
+  if (!hasSession.value) {
+    pendingAction.value = action
+    return
+  }
   try {
+    await action()
+  } catch (error) {
+    if (error instanceof SessionRequiredError) {
+      pendingAction.value = action
+      toast.info(t('place.reviews.signIn.expired'))
+      return
+    }
+    toast.error(t('place.reviews.form.failed'), { cause: error })
+  }
+}
+
+function onSave(input: Omit<ReviewInput, 'osmId'>) {
+  const isEdit = !!ownReview.value
+  return run(async () => {
     await save(input)
     editing.value = false
     toast.success(
       isEdit ? t('place.reviews.form.updated') : t('place.reviews.form.posted'),
     )
-  } catch (error) {
-    toast.error(t('place.reviews.form.failed'), { cause: error })
-  }
+  })
 }
 
-async function onDelete() {
-  try {
+function onDelete() {
+  return run(async () => {
     await remove()
     editing.value = false
     toast.success(t('place.reviews.form.deleted'))
+  })
+}
+
+async function onSignIn(provider: MangroveProvider) {
+  try {
+    await signIn(provider)
   } catch (error) {
-    toast.error(t('place.reviews.form.failed'), { cause: error })
+    if (!(error instanceof SignInCancelledError)) {
+      toast.error(t('place.reviews.signIn.failed'), { cause: error })
+    }
+    return
   }
+  const action = pendingAction.value
+  pendingAction.value = null
+  if (action) await run(action)
+}
+
+function onCancelSignIn() {
+  cancelSignIn()
+  pendingAction.value = null
+}
+
+function stopEditing() {
+  onCancelSignIn()
+  editing.value = false
 }
 </script>
 
@@ -118,15 +177,22 @@ async function onDelete() {
         </div>
       </div>
 
-      <ReviewForm
-        v-if="editing"
-        :review="ownReview"
-        :saved-nickname="savedNickname"
-        :saving="saving"
-        @save="onSave"
-        @delete="onDelete"
-        @cancel="editing = false"
-      />
+      <template v-if="editing">
+        <ReviewForm
+          :review="ownReview"
+          :default-nickname="mangroveStore.session?.accountName"
+          :saving="saving || !!pendingAction"
+          @save="onSave"
+          @delete="onDelete"
+          @cancel="stopEditing"
+        />
+        <MangroveSignIn
+          v-if="pendingAction"
+          :waiting="signingIn"
+          @sign-in="onSignIn"
+          @cancel="onCancelSignIn"
+        />
+      </template>
       <div v-else-if="ownReview" class="space-y-1 rounded-lg bg-muted/50 p-3">
         <div class="flex items-center gap-2 text-xs">
           <StarRating :rating="ownReview.rating / 100" size="sm" />

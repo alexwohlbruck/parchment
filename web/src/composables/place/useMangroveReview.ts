@@ -1,83 +1,122 @@
-import { computed, ref, shallowRef, watch, type Ref } from 'vue'
-import { useAuthStore } from '@/stores/auth.store'
+import { computed, onScopeDispose, ref, shallowRef, watch, type Ref } from 'vue'
+import { useMangroveStore } from '@/stores/mangrove.store'
 import { SOURCE } from '@/lib/constants'
 import { useCanReviewPlace } from './useCanReviewPlace'
 import {
   deleteOwnReview,
   fetchOwnReview,
-  getSavedNickname,
+  isExpiredSession,
   saveReview,
+  signIn as signInWithSigner,
+  type MangroveProvider,
+  type MangroveSession,
   type OwnReview,
   type ReviewInput,
 } from '@/services/place/mangrove-review.service'
 import type { Place } from '@/types/place.types'
 
-/** The signed-in user's Mangrove review of a place, and the means to change it. */
+export class SessionRequiredError extends Error {
+  constructor() {
+    super('Sign in to Mangrove to continue')
+  }
+}
+
+/** The person's Mangrove review of a place, and the means to change it. */
 export function useMangroveReview(place: Ref<Partial<Place>>) {
-  const authStore = useAuthStore()
-  const userId = computed(() => authStore.me?.id ?? null)
-  const { subject, canReview } = useCanReviewPlace(place)
+  const mangroveStore = useMangroveStore()
+  const { subject, signerClientId, canReview } = useCanReviewPlace(place)
 
   const ownReview = shallowRef<OwnReview | null>(null)
-  const savedNickname = ref<string>()
-  const loading = ref(false)
   const saving = ref(false)
+  const signingIn = ref(false)
+  let signInAbort: AbortController | null = null
+
+  const hasSession = computed(() => !!mangroveStore.activeSession)
 
   async function refresh() {
     ownReview.value = null
-    if (!canReview.value) return
-    const id = userId.value!
-    const sub = subject.value!
-    loading.value = true
+    const sub = subject.value
+    const author = mangroveStore.session
+    if (!canReview.value || !sub || !author) return
     try {
-      const [review, nickname] = await Promise.all([
-        fetchOwnReview(id, sub),
-        getSavedNickname(id),
-      ])
-      if (sub !== subject.value) return
-      ownReview.value = review
-      savedNickname.value = nickname
+      const review = await fetchOwnReview(author, sub)
+      if (sub === subject.value) ownReview.value = review
     } catch (error) {
       console.error('Failed to load own Mangrove review', error)
-    } finally {
-      loading.value = false
     }
   }
 
-  watch([subject, canReview], refresh, { immediate: true })
+  watch(
+    [subject, canReview, () => mangroveStore.session?.publicKey],
+    refresh,
+    { immediate: true },
+  )
 
-  async function save(input: Omit<ReviewInput, 'osmId'>) {
+  async function signIn(provider: MangroveProvider) {
+    signInAbort?.abort()
+    signInAbort = new AbortController()
+    signingIn.value = true
+    try {
+      mangroveStore.setSession(
+        await signInWithSigner(signerClientId.value!, provider, signInAbort.signal),
+      )
+    } finally {
+      signingIn.value = false
+      signInAbort = null
+    }
+  }
+
+  function cancelSignIn() {
+    signInAbort?.abort()
+  }
+
+  onScopeDispose(cancelSignIn)
+
+  /** Runs a signed action, dropping the session if the signer has expired it. */
+  async function withSession<T>(action: (session: MangroveSession) => Promise<T>) {
+    const session = mangroveStore.activeSession
+    if (!session) throw new SessionRequiredError()
     saving.value = true
     try {
-      await saveReview(
-        userId.value!,
+      return await action(session)
+    } catch (error) {
+      if (isExpiredSession(error)) {
+        mangroveStore.expireSession()
+        throw new SessionRequiredError()
+      }
+      throw error
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function save(input: Omit<ReviewInput, 'osmId'>) {
+    await withSession((session) =>
+      saveReview(
+        session,
         subject.value!,
         { ...input, osmId: place.value.externalIds?.[SOURCE.OSM] },
         ownReview.value,
-      )
-      await refresh()
-    } finally {
-      saving.value = false
-    }
+      ),
+    )
+    await refresh()
   }
 
   async function remove() {
-    if (!ownReview.value) return
-    saving.value = true
-    try {
-      await deleteOwnReview(userId.value!, ownReview.value.signature)
-      ownReview.value = null
-    } finally {
-      saving.value = false
-    }
+    const review = ownReview.value
+    if (!review) return
+    await withSession((session) => deleteOwnReview(session, review.signature))
+    ownReview.value = null
   }
 
   return {
     canReview,
+    hasSession,
     ownReview,
-    savedNickname,
-    loading,
     saving,
+    signingIn,
+    signIn,
+    cancelSignIn,
     save,
     remove,
   }

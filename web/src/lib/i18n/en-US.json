@@ -1358,6 +1358,14 @@
         "updated": "Review updated",
         "deleted": "Review deleted",
         "failed": "Couldn't save your review"
+      },
+      "signIn": {
+        "title": "Sign in to Mangrove to post",
+        "description": "Your review is published under your Mangrove account, the same one used on mangrove.reviews and other apps.",
+        "waiting": "Finish signing in in the new window…",
+        "passkey": "Passkey",
+        "expired": "Your Mangrove sign-in expired. Sign in again to continue.",
+        "failed": "Couldn't sign in to Mangrove"
       }
     },
     "tabs": {

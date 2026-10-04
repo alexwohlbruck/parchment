@@ -1308,6 +1308,14 @@
         "updated": "Opinión actualizada",
         "deleted": "Opinión eliminada",
         "failed": "No se pudo guardar tu opinión"
+      },
+      "signIn": {
+        "title": "Inicia sesión en Mangrove para publicar",
+        "description": "Tu opinión se publica con tu cuenta de Mangrove, la misma que usas en mangrove.reviews y otras aplicaciones.",
+        "waiting": "Termina de iniciar sesión en la nueva ventana…",
+        "passkey": "Llave de acceso",
+        "expired": "Tu sesión de Mangrove ha caducado. Vuelve a iniciar sesión para continuar.",
+        "failed": "No se pudo iniciar sesión en Mangrove"
       }
     },
     "tabs": {

@@ -12,7 +12,7 @@ import type {
 
 const props = defineProps<{
   review: OwnReview | null
-  savedNickname?: string
+  defaultNickname?: string
   saving: boolean
 }>()
 
@@ -27,7 +27,7 @@ const { t } = useI18n()
 // Mangrove rates 0–100; the form works in whole stars.
 const stars = ref(props.review ? Math.round(props.review.rating / 20) : 0)
 const opinion = ref(props.review?.opinion ?? '')
-const nickname = ref(props.review?.nickname ?? props.savedNickname ?? '')
+const nickname = ref(props.review?.nickname ?? props.defaultNickname ?? '')
 
 const canSave = computed(() => stars.value > 0 && !props.saving)
 

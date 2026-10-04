@@ -26,6 +26,11 @@ describe('suggestTagUpgrades', () => {
     expect(changes.some((c) => c.key === 'name')).toBe(false)
   })
 
+  test('matches a chain by operator when there is no name', () => {
+    const { brand } = suggestTagUpgrades({ amenity: 'atm', operator: 'Capital One' })
+    expect(brand?.wikidata).toBe('Q1034654')
+  })
+
   test('respects a declined chain', () => {
     const { brand } = suggestTagUpgrades({
       amenity: 'fast_food',

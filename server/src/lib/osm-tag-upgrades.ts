@@ -64,7 +64,7 @@ function declined(tags: Record<string, string>, brand: NsiBrand): boolean {
 
 function applyBrand(tags: Record<string, string>): NsiBrand | null {
   const primary = getPrimaryTag(tags)
-  const name = tags.name || tags.brand
+  const name = tags.name || tags.brand || tags.operator
   if (!primary || !name) return null
 
   const brand = matchBrand(`${primary.key}/${primary.value}`, name)

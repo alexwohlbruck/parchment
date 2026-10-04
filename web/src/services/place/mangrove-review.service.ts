@@ -1,12 +1,17 @@
-import { loadBlob, saveBlob } from '@/lib/identity/personal-blob'
 import { originalSignature } from '@server/lib/mangrove'
 
-type Keypair = { publicKey: CryptoKey; privateKey: CryptoKey }
-
-interface StoredReviewer {
-  jwk: JsonWebKey
-  nickname?: string
+export interface MangroveSession {
+  token: string
+  reviewerId: string
+  did?: string
+  /** PEM public key the signer signs with; identifies the reviewer's reviews. */
+  publicKey: string
+  /** Display name at the login provider, offered as the review's nickname. */
+  accountName?: string
+  expiresAt: number
 }
+
+export type MangroveProvider = 'osm' | 'bluesky' | 'google' | 'github' | 'passkey'
 
 export interface OwnReview {
   /** Signature of the original review, which edits and deletes must target. */
@@ -24,55 +29,102 @@ export interface ReviewInput {
   osmId?: string
 }
 
-const KEY_BLOB = 'mangrove-reviewer'
+/** Who wrote a review: the signer's key, plus every key bound to their identity. */
+export type Reviewer = Pick<MangroveSession, 'publicKey' | 'did'>
+
 const CLIENT_ID = 'https://parchment.app'
+const CALLBACK_PATH = '/oauth/mangrove.html'
+const CHANNEL = 'mangrove-signer'
+const SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000
+const POPUP_TIMEOUT_MS = 5 * 60 * 1000
 
 // The library bundles its own polyfills, so it loads only once someone reviews.
-const mangrove = () => import('mangrove-reviews')
+const reviewer = () => import('mangrove-reviews')
+const signer = () => import('mangrove-reviews/signer')
 
-const reviewers = new Map<string, Promise<StoredReviewer | null>>()
-
-function loadReviewer(userId: string): Promise<StoredReviewer | null> {
-  let reviewer = reviewers.get(userId)
-  if (!reviewer) {
-    reviewer = loadBlob<StoredReviewer>(KEY_BLOB, userId)
-    reviewers.set(userId, reviewer)
-    reviewer.catch(() => reviewers.delete(userId))
+export class SignInCancelledError extends Error {
+  constructor() {
+    super('Mangrove sign-in was cancelled')
   }
-  return reviewer
 }
 
-async function saveReviewer(userId: string, reviewer: StoredReviewer) {
-  await saveBlob(KEY_BLOB, userId, reviewer)
-  reviewers.set(userId, Promise.resolve(reviewer))
+/** A request the signer refused because the session is unknown or expired. */
+export function isExpiredSession(error: unknown): boolean {
+  return (error as { status?: number } | null)?.status === 401
 }
 
-async function createReviewer(userId: string): Promise<StoredReviewer> {
-  const { generateKeypair, keypairToJwk } = await mangrove()
-  const reviewer = { jwk: await keypairToJwk(await generateKeypair()) }
-  await saveReviewer(userId, reviewer)
-  return reviewer
+/**
+ * Log in through Mangrove's signer in a popup. The popup returns to a static
+ * page on this origin, which hands the session back over a BroadcastChannel.
+ */
+export async function signIn(
+  clientId: string,
+  provider: MangroveProvider,
+  signal?: AbortSignal,
+): Promise<MangroveSession> {
+  // Opened before any await so the click still counts as the user's gesture.
+  const popup = window.open('', 'mangrove-signer', 'width=520,height=720,popup=yes')
+  const { loginUrl, getAccount } = await signer()
+  const state = crypto.randomUUID()
+  const redirectUri = `${location.origin}${CALLBACK_PATH}`
+  const url = loginUrl(clientId, redirectUri, provider, undefined, state)
+  if (popup) popup.location.href = url
+  else window.open(url, '_blank')
+
+  const callback = await new Promise<{
+    sessionToken: string
+    reviewerId: string
+    did: string | null
+  }>((resolve, reject) => {
+    const channel = new BroadcastChannel(CHANNEL)
+    const finish = () => {
+      channel.close()
+      clearTimeout(timeout)
+      signal?.removeEventListener('abort', cancel)
+    }
+    const cancel = () => {
+      finish()
+      popup?.close()
+      reject(new SignInCancelledError())
+    }
+    // Provider pages sever the popup's opener, so `popup.closed` can't be
+    // trusted; the caller cancels instead, or the wait times out.
+    const timeout = setTimeout(cancel, POPUP_TIMEOUT_MS)
+    signal?.addEventListener('abort', cancel)
+
+    channel.onmessage = ({ data }) => {
+      if (data?.type !== 'mangrove-signer-callback' || data.state !== state) return
+      finish()
+      if (data.sessionToken && data.reviewerId) resolve(data)
+      else reject(new Error(data.error || 'Mangrove sign-in failed'))
+    }
+  })
+
+  const account = await getAccount(callback.sessionToken)
+  return {
+    token: callback.sessionToken,
+    reviewerId: callback.reviewerId,
+    did: account.did ?? callback.did ?? undefined,
+    publicKey: account.public_key,
+    accountName: account.account_name ?? undefined,
+    expiresAt: Date.now() + SESSION_LIFETIME_MS,
+  }
 }
 
-async function toKeypair(reviewer: StoredReviewer): Promise<Keypair> {
-  const { jwkToKeypair } = await mangrove()
-  return jwkToKeypair(reviewer.jwk)
-}
-
-export async function getSavedNickname(userId: string) {
-  return (await loadReviewer(userId))?.nickname
+export async function signOut(session: MangroveSession): Promise<void> {
+  const { revokeSession } = await signer()
+  await revokeSession(session.token).catch(() => {})
 }
 
 export async function fetchOwnReview(
-  userId: string,
+  author: Reviewer,
   sub: string,
 ): Promise<OwnReview | null> {
-  const reviewer = await loadReviewer(userId)
-  if (!reviewer) return null
-
-  const { getReviews, publicToPem } = await mangrove()
-  const kid = await publicToPem((await toKeypair(reviewer)).publicKey)
-  const { reviews } = await getReviews({ sub, kid })
+  const { getReviews } = await reviewer()
+  const query: Parameters<typeof getReviews>[0] & { did?: string } = author.did
+    ? { sub, did: author.did }
+    : { sub, kid: author.publicKey }
+  const { reviews } = await getReviews(query)
   const latest = reviews[0]
   if (!latest) return null
 
@@ -85,40 +137,30 @@ export async function fetchOwnReview(
 }
 
 export async function saveReview(
-  userId: string,
+  session: MangroveSession,
   sub: string,
   input: ReviewInput,
   existing: OwnReview | null,
 ): Promise<void> {
-  const reviewer = (await loadReviewer(userId)) ?? (await createReviewer(userId))
-  const keypair = await toKeypair(reviewer)
-  const { signAndSubmitReview, editReview } = await mangrove()
-
-  const nickname = input.nickname?.trim() || undefined
+  const { signAndSubmitReview, editReview } = await signer()
   const content = {
     rating: input.rating,
-    opinion: input.opinion.trim(),
-    metadata: { client_id: CLIENT_ID, nickname, osm_id: input.osmId },
+    opinion: input.opinion.trim() || undefined,
+    metadata: {
+      client_id: CLIENT_ID,
+      nickname: input.nickname?.trim() || undefined,
+      osm_id: input.osmId,
+    },
   }
 
-  if (existing) await editReview(keypair, existing.signature, content)
-  else await signAndSubmitReview(keypair, { sub, ...content })
-
-  if (nickname !== reviewer.nickname) {
-    await saveReviewer(userId, { ...reviewer, nickname })
-  }
+  if (existing) await editReview(session.token, existing.signature, content)
+  else await signAndSubmitReview(session.token, { sub, ...content })
 }
 
 export async function deleteOwnReview(
-  userId: string,
+  session: MangroveSession,
   signature: string,
 ): Promise<void> {
-  const reviewer = await loadReviewer(userId)
-  if (!reviewer) return
-  const { signAndSubmitReview } = await mangrove()
-  await signAndSubmitReview(await toKeypair(reviewer), {
-    sub: `urn:maresi:${signature}`,
-    action: 'delete',
-    metadata: { client_id: CLIENT_ID },
-  })
+  const { deleteReview } = await signer()
+  await deleteReview(session.token, signature)
 }

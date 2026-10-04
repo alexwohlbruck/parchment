@@ -1,55 +1,45 @@
-import { describe, test, expect, vi, beforeEach } from 'vitest'
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
+import {
+  deleteOwnReview,
+  fetchOwnReview,
+  saveReview,
+  signIn,
+  SignInCancelledError,
+  type MangroveSession,
+} from './mangrove-review.service'
 
-const blobs = vi.hoisted(() => new Map<string, unknown>())
-const mangrove = vi.hoisted(() => ({
-  generateKeypair: vi.fn(async () => ({ publicKey: 'pub', privateKey: 'priv' })),
-  keypairToJwk: vi.fn(async () => ({ kty: 'EC' })),
-  jwkToKeypair: vi.fn(async () => ({ publicKey: 'pub', privateKey: 'priv' })),
-  publicToPem: vi.fn(async () => 'PEM'),
-  getReviews: vi.fn(),
-  signAndSubmitReview: vi.fn(async () => true),
-  editReview: vi.fn(async () => true),
+const signer = vi.hoisted(() => ({
+  loginUrl: vi.fn(() => 'https://signer.example/auth/login'),
+  getAccount: vi.fn(async () => ({
+    public_key: 'PEM',
+    did: 'did:plc:abc',
+    account_name: 'Ana',
+  })),
+  signAndSubmitReview: vi.fn(async () => ({})),
+  editReview: vi.fn(async () => ({})),
+  deleteReview: vi.fn(async () => ({})),
 }))
+const reviewer = vi.hoisted(() => ({ getReviews: vi.fn() }))
 
-vi.mock('@/lib/identity/personal-blob', () => ({
-  loadBlob: vi.fn(async (type: string, userId: string) =>
-    blobs.get(`${userId}:${type}`) ?? null,
-  ),
-  saveBlob: vi.fn(async (type: string, userId: string, value: unknown) => {
-    blobs.set(`${userId}:${type}`, value)
-  }),
-}))
-vi.mock('mangrove-reviews', () => mangrove)
+vi.mock('mangrove-reviews/signer', () => signer)
+vi.mock('mangrove-reviews', () => reviewer)
 
 const SUB = 'geo:1,2?q=Cafe&u=50'
-let service: typeof import('./mangrove-review.service')
-let user = 0
-
-beforeEach(async () => {
-  vi.clearAllMocks()
-  user += 1
-  service = await import('./mangrove-review.service')
-})
-
+const session: MangroveSession = {
+  token: 'tok',
+  reviewerId: 'r1',
+  publicKey: 'PEM',
+  expiresAt: Date.now() + 60_000,
+}
 const input = { rating: 80, opinion: ' Lovely ', nickname: ' ana ', osmId: 'node/1' }
 
+beforeEach(() => vi.clearAllMocks())
+
 describe('saveReview', () => {
-  test('creates a key on first review and reuses it after', async () => {
-    const userId = `u${user}`
-    await service.saveReview(userId, SUB, input, null)
-    await service.saveReview(userId, SUB, input, null)
+  test('signs a new review through the signer with Parchment as the client', async () => {
+    await saveReview(session, SUB, input, null)
 
-    expect(mangrove.generateKeypair).toHaveBeenCalledTimes(1)
-    expect(blobs.get(`${userId}:mangrove-reviewer`)).toEqual({
-      jwk: { kty: 'EC' },
-      nickname: 'ana',
-    })
-  })
-
-  test('submits a new review with trimmed text and Parchment as the client', async () => {
-    await service.saveReview(`u${user}`, SUB, input, null)
-
-    expect(mangrove.signAndSubmitReview).toHaveBeenCalledWith(expect.anything(), {
+    expect(signer.signAndSubmitReview).toHaveBeenCalledWith('tok', {
       sub: SUB,
       rating: 80,
       opinion: 'Lovely',
@@ -62,62 +52,117 @@ describe('saveReview', () => {
   })
 
   test('edits the original review when one exists', async () => {
-    const existing = { signature: 'orig', rating: 40, opinion: 'Meh' }
-    await service.saveReview(`u${user}`, SUB, input, existing)
+    await saveReview(session, SUB, input, { signature: 'orig', rating: 40, opinion: '' })
 
-    expect(mangrove.editReview).toHaveBeenCalledWith(
-      expect.anything(),
+    expect(signer.editReview).toHaveBeenCalledWith(
+      'tok',
       'orig',
       expect.objectContaining({ rating: 80, opinion: 'Lovely' }),
     )
-    expect(mangrove.signAndSubmitReview).not.toHaveBeenCalled()
+    expect(signer.signAndSubmitReview).not.toHaveBeenCalled()
   })
 })
 
-describe('deleteOwnReview', () => {
-  test('deletes the original review without exposing the page URL', async () => {
-    const userId = `u${user}`
-    await service.saveReview(userId, SUB, input, null)
-    await service.deleteOwnReview(userId, 'orig')
-
-    expect(mangrove.signAndSubmitReview).toHaveBeenLastCalledWith(expect.anything(), {
-      sub: 'urn:maresi:orig',
-      action: 'delete',
-      metadata: { client_id: 'https://parchment.app' },
-    })
-  })
+test('deleteOwnReview deletes by the original signature', async () => {
+  await deleteOwnReview(session, 'orig')
+  expect(signer.deleteReview).toHaveBeenCalledWith('tok', 'orig')
 })
 
 describe('fetchOwnReview', () => {
-  test('is null before the user has ever reviewed', async () => {
-    expect(await service.fetchOwnReview(`u${user}`, SUB)).toBeNull()
-    expect(mangrove.getReviews).not.toHaveBeenCalled()
-  })
+  const edit = {
+    signature: 'edit-sig',
+    payload: {
+      sub: 'urn:maresi:orig-sig',
+      action: 'edit',
+      rating: 60,
+      opinion: 'Better now',
+      metadata: { nickname: 'ana' },
+    },
+  }
 
   test('returns the latest edit, keyed by the review it edits', async () => {
-    const userId = `u${user}`
-    await service.saveReview(userId, SUB, input, null)
-    mangrove.getReviews.mockResolvedValue({
-      reviews: [
-        {
-          signature: 'edit-sig',
-          payload: {
-            sub: 'urn:maresi:orig-sig',
-            action: 'edit',
-            rating: 60,
-            opinion: 'Better now',
-            metadata: { nickname: 'ana' },
-          },
-        },
-      ],
-    })
+    reviewer.getReviews.mockResolvedValue({ reviews: [edit] })
 
-    expect(await service.fetchOwnReview(userId, SUB)).toEqual({
+    expect(await fetchOwnReview(session, SUB)).toEqual({
       signature: 'orig-sig',
       rating: 60,
       opinion: 'Better now',
       nickname: 'ana',
     })
-    expect(mangrove.getReviews).toHaveBeenCalledWith({ sub: SUB, kid: 'PEM' })
+  })
+
+  test('looks up every key of the identity when there is one', async () => {
+    reviewer.getReviews.mockResolvedValue({ reviews: [] })
+
+    await fetchOwnReview({ publicKey: 'PEM', did: 'did:plc:abc' }, SUB)
+    expect(reviewer.getReviews).toHaveBeenLastCalledWith({ sub: SUB, did: 'did:plc:abc' })
+
+    await fetchOwnReview({ publicKey: 'PEM' }, SUB)
+    expect(reviewer.getReviews).toHaveBeenLastCalledWith({ sub: SUB, kid: 'PEM' })
+  })
+})
+
+describe('signIn', () => {
+  let popup: { location: { href: string }; close: ReturnType<typeof vi.fn> }
+
+  beforeEach(() => {
+    popup = { location: { href: '' }, close: vi.fn() }
+    vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window)
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  function callback(state: string | null, extra: Record<string, unknown> = {}) {
+    const channel = new BroadcastChannel('mangrove-signer')
+    channel.postMessage({
+      type: 'mangrove-signer-callback',
+      state,
+      sessionToken: 'tok',
+      reviewerId: 'r1',
+      did: null,
+      ...extra,
+    })
+    channel.close()
+  }
+
+  const stateOf = () =>
+    (signer.loginUrl.mock.calls.at(-1) as unknown as unknown[])[4] as string
+
+  test('opens the popup synchronously, then resolves with the account', async () => {
+    const pending = signIn('client', 'osm')
+    expect(window.open).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(signer.loginUrl).toHaveBeenCalled())
+
+    callback(stateOf())
+    const result = await pending
+
+    expect(popup.location.href).toBe('https://signer.example/auth/login')
+    expect(result).toMatchObject({
+      token: 'tok',
+      reviewerId: 'r1',
+      did: 'did:plc:abc',
+      publicKey: 'PEM',
+      accountName: 'Ana',
+    })
+  })
+
+  test('ignores a callback carrying another state', async () => {
+    const abort = new AbortController()
+    const pending = signIn('client', 'osm', abort.signal)
+    await vi.waitFor(() => expect(signer.loginUrl).toHaveBeenCalled())
+
+    callback('someone-else')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    abort.abort()
+
+    await expect(pending).rejects.toBeInstanceOf(SignInCancelledError)
+    expect(signer.getAccount).not.toHaveBeenCalled()
+  })
+
+  test('rejects with the signer error', async () => {
+    const pending = signIn('client', 'osm')
+    await vi.waitFor(() => expect(signer.loginUrl).toHaveBeenCalled())
+
+    callback(stateOf(), { sessionToken: null, error: 'access_denied' })
+    await expect(pending).rejects.toThrow('access_denied')
   })
 })

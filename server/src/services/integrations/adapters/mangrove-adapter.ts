@@ -1,18 +1,14 @@
-import type {
-  PlaceReviews,
-  ReviewSubject,
-} from '../../../types/integration.types'
+import type { PlaceReviews } from '../../../types/integration.types'
 import type { AttributedValue, Review } from '../../../types/place.types'
 import { SOURCE } from '../../../lib/constants'
-
-/** Metres around the place's centre that a review's location may fall within. */
-const SUBJECT_UNCERTAINTY_M = 50
+import { mangroveSubjectUrl, originalSignature } from '../../../lib/mangrove'
 
 export interface MangroveReview {
   signature: string
   payload: {
     sub: string
     iat: number
+    action?: string | null
     rating?: number | null
     opinion?: string | null
     metadata?: {
@@ -22,18 +18,6 @@ export interface MangroveReview {
       family_name?: string
     } | null
   }
-}
-
-/**
- * The `geo:` URI Mangrove files place reviews under. Mangrove matches it by
- * proximity plus a case- and punctuation-insensitive name comparison.
- */
-export function mangroveSubject({ name, lat, lng }: ReviewSubject): string {
-  return `geo:${lat},${lng}?q=${encodeURIComponent(name)}&u=${SUBJECT_UNCERTAINTY_M}`
-}
-
-export function mangroveSubjectUrl(sub: string): string {
-  return `https://mangrove.reviews/search?sub=${encodeURIComponent(sub)}`
 }
 
 function authorName(metadata: MangroveReview['payload']['metadata']) {
@@ -58,7 +42,8 @@ export function adaptMangroveReviews(
   const reviews: AttributedValue<Review>[] = []
   const ratings: number[] = []
 
-  for (const { signature, payload } of results) {
+  for (const result of results) {
+    const { payload } = result
     const rating = payload.rating ?? undefined
     if (rating !== undefined) ratings.push(rating)
 
@@ -67,7 +52,7 @@ export function adaptMangroveReviews(
 
     reviews.push(
       attr({
-        id: signature,
+        id: originalSignature(result),
         text,
         rating: rating === undefined ? undefined : rating / 100,
         authorName: authorName(payload.metadata),

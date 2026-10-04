@@ -23,6 +23,7 @@ import type {
   PlaceVisitHistory,
   PlaceVisitHistoryRequest,
 } from './location-history.types'
+import type { ReviewSubject } from '../lib/mangrove'
 
 export {
   IntegrationId,
@@ -664,12 +665,6 @@ export interface RideshareEstimateCapability {
   getRideshareEstimates(
     request: RideshareEstimateRequest,
   ): Promise<RideshareEstimateResponse>
-}
-
-export interface ReviewSubject {
-  name: string
-  lat: number
-  lng: number
 }
 
 export interface PlaceReviews {

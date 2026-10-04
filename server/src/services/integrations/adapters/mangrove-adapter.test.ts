@@ -1,9 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import {
-  adaptMangroveReviews,
-  mangroveSubject,
-  type MangroveReview,
-} from './mangrove-adapter'
+import { adaptMangroveReviews, type MangroveReview } from './mangrove-adapter'
 import { SOURCE } from '../../../lib/constants'
 
 const SUB = 'geo:35.2271,-80.8431?q=Amelie%27s&u=50'
@@ -17,14 +13,6 @@ function review(
     payload: { sub: SUB, iat: 1_790_000_000, ...payload },
   }
 }
-
-describe('mangroveSubject', () => {
-  test('builds a geo URI carrying the encoded name and an uncertainty', () => {
-    expect(
-      mangroveSubject({ name: "Amelie's Café", lat: 35.2271, lng: -80.8431 }),
-    ).toBe('geo:35.2271,-80.8431?q=Amelie\'s%20Caf%C3%A9&u=50')
-  })
-})
 
 describe('adaptMangroveReviews', () => {
   test('returns null when the subject has no reviews', () => {
@@ -64,6 +52,14 @@ describe('adaptMangroveReviews', () => {
     expect(result.reviews.map((r) => r.value.id)).toEqual(['a', 'c'])
     expect(result.ratings?.rating.value).toBe(0.75)
     expect(result.ratings?.reviewCount.value).toBe(2)
+  })
+
+  test('keys an edited review by the review it edits', () => {
+    const edit = review(
+      { sub: 'urn:maresi:orig-sig', action: 'edit', rating: 60, opinion: 'Updated' },
+      'edit-sig',
+    )
+    expect(adaptMangroveReviews([edit], SUB)!.reviews[0].value.id).toBe('orig-sig')
   })
 
   test('omits the aggregate when no review is rated', () => {

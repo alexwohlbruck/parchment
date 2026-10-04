@@ -4,7 +4,6 @@ import type {
   IntegrationConfig,
   IntegrationTestResult,
   PlaceReviews,
-  ReviewSubject,
   ReviewsCapability,
 } from '../../types/integration.types'
 import {
@@ -12,9 +11,9 @@ import {
   IntegrationId,
 } from '../../types/integration.types'
 import { APP_USER_AGENT, SOURCE } from '../../lib/constants'
+import { mangroveSubject, type ReviewSubject } from '../../lib/mangrove'
 import {
   adaptMangroveReviews,
-  mangroveSubject,
   type MangroveReview,
 } from './adapters/mangrove-adapter'
 

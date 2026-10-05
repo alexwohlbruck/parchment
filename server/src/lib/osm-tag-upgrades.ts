@@ -1,5 +1,6 @@
 import { matchTags, type GeometryType } from './osm-presets'
 import { getPrimaryTag } from './osm-presets'
+import { simplify } from 'name-suggestion-index'
 import { matchBrand, type NsiBrand } from './nsi'
 
 /**
@@ -73,8 +74,8 @@ function applyBrand(tags: Record<string, string>): NsiBrand | null {
   if (existing && existing !== brand.wikidata) return null
 
   for (const [key, value] of Object.entries(brand.tags)) {
-    // A branch's own name ("Taco Bell Cantina") outranks the chain's.
-    if (key === 'name' && tags.name) continue
+    // Fix the spelling of the chain's name, but keep a branch's own name.
+    if (key === 'name' && tags.name && simplify(tags.name) !== simplify(value)) continue
     tags[key] = value
   }
   return brand

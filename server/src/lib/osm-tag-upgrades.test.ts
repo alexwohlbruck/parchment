@@ -16,14 +16,13 @@ describe('suggestTagUpgrades', () => {
     expect(changes).toContainEqual({ key: 'artwork_type', from: null, to: 'statue' })
   })
 
-  test("applies a chain's tags and keeps the branch's own name", () => {
+  test("applies a chain's tags and corrects the spelling of its name", () => {
     const { changes, brand } = suggestTagUpgrades({
       amenity: 'fast_food',
-      name: 'taco bell',
+      name: 'mcdonalds',
     })
-    expect(brand?.wikidata).toBe('Q752941')
-    expect(changes).toContainEqual({ key: 'brand:wikidata', from: null, to: 'Q752941' })
-    expect(changes.some((c) => c.key === 'name')).toBe(false)
+    expect(brand?.wikidata).toBe('Q38076')
+    expect(changes).toContainEqual({ key: 'name', from: 'mcdonalds', to: "McDonald's" })
   })
 
   test('matches a chain by operator when there is no name', () => {

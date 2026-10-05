@@ -95,6 +95,24 @@ function compileExclusions(properties: any): RegExp[] {
   })
 }
 
+/**
+ * Simplified name → brand. A chain's own display name outranks another
+ * entry's alias for it, so a franchisee tagged `name=McDonald's` can't claim
+ * "mcdonalds"; reach settles the rest.
+ */
+function indexNames(entries: BrandEntry[]): Map<string, NsiBrand> {
+  const ranked = new Map<string, { brand: NsiBrand; rank: number }>()
+  const offer = (name: string, brand: NsiBrand, rank: number) => {
+    const current = ranked.get(name)
+    if (name && (!current || rank > current.rank)) ranked.set(name, { brand, rank })
+  }
+  for (const { brand, simple, aliases } of entries) {
+    offer(simple, brand, WORLDWIDE_REACH * 2 + brand.reach)
+    for (const alias of aliases) offer(alias, brand, brand.reach)
+  }
+  return new Map([...ranked].map(([name, { brand }]) => [name, brand]))
+}
+
 function buildIndex(): BrandIndex | null {
   try {
     const nsiRaw = loadAndRelease<any>(dataPath('json', 'nsi.min.json'))
@@ -165,14 +183,9 @@ function buildIndex(): BrandIndex | null {
         }
 
         kvEntry.entries.push({ brand, simple, aliases: [...aliases] })
-
-        for (const simplified of [simple, ...aliases]) {
-          if (simplified && !kvEntry.byName.has(simplified)) {
-            kvEntry.byName.set(simplified, brand)
-          }
-        }
       }
 
+      kvEntry.byName = indexNames(kvEntry.entries)
       byKv.set(kv, kvEntry)
     }
 

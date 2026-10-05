@@ -370,7 +370,9 @@ function uniformLocs(gl, prog, names) {
 function createTexture(gl, size, useFloat, filter = gl.NEAREST) {
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
-  const [ifmt, type] = useFloat ? [gl.RGBA32F, gl.FLOAT] : [gl.RGBA, gl.UNSIGNED_BYTE];
+  // PARCHMENT: half floats resolve a 1024 grid exactly, at half the bandwidth
+  // of RGBA32F that every JFA pass pays nine times over.
+  const [ifmt, type] = useFloat ? [gl.RGBA16F, gl.HALF_FLOAT] : [gl.RGBA, gl.UNSIGNED_BYTE];
   gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, size, size, 0, gl.RGBA, type, null);
   for (const [p, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE],
                         [gl.TEXTURE_MIN_FILTER, filter], [gl.TEXTURE_MAG_FILTER, filter]])
@@ -402,43 +404,46 @@ function drawQuad(gl, quadBuf) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-function saveGlState(gl) {
-  const G = gl;
+// PARCHMENT: state comes from MapLibre's own cache, never `getParameter` —
+// each query is a synchronous round trip to the GPU process that stalls the frame.
+const PAINTER_STATE = ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
+  'bindFramebuffer', 'viewport', 'depthTest', 'depthMask', 'depthFunc', 'depthRange',
+  'stencilTest', 'stencilFunc', 'stencilOp', 'stencilMask', 'colorMask', 'blend', 'blendFunc',
+  'blendColor', 'blendEquation', 'cullFace', 'cullFaceSide', 'frontFace', 'activeTexture',
+  'bindTexture', 'clearColor', 'clearDepth', 'clearStencil'];
+
+function saveGlState(ctx) {
   return {
-    fbo: G.getParameter(G.FRAMEBUFFER_BINDING),
-    vp: G.getParameter(G.VIEWPORT),
-    depth: G.isEnabled(G.DEPTH_TEST),
-    depthFunc: G.getParameter(G.DEPTH_FUNC),
-    depthMask: G.getParameter(G.DEPTH_WRITEMASK),
-    depthRange: G.getParameter(G.DEPTH_RANGE),
-    stencil: G.isEnabled(G.STENCIL_TEST),
-    stencilFunc: G.getParameter(G.STENCIL_FUNC),
-    stencilRef: G.getParameter(G.STENCIL_REF),
-    stencilValueMask: G.getParameter(G.STENCIL_VALUE_MASK),
-    stencilWriteMask: G.getParameter(G.STENCIL_WRITEMASK),
-    stencilOp: [G.getParameter(G.STENCIL_FAIL), G.getParameter(G.STENCIL_PASS_DEPTH_FAIL), G.getParameter(G.STENCIL_PASS_DEPTH_PASS)],
-    blend: G.isEnabled(G.BLEND),
-    cull: G.isEnabled(G.CULL_FACE),
-    cullFace: G.getParameter(G.CULL_FACE_MODE),
-    frontFace: G.getParameter(G.FRONT_FACE),
-    vao: G.getParameter(G.VERTEX_ARRAY_BINDING),
+    fbo: ctx.bindFramebuffer.current ?? null,
+    vp: ctx.viewport.current,
+    vao: ctx.bindVertexArray.current ?? null,
   };
 }
 
-function restoreGlState(gl, s) {
-  const en = (cap, on) => gl[on ? 'enable' : 'disable'](cap);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, s.fbo);
-  gl.viewport(s.vp[0], s.vp[1], s.vp[2], s.vp[3]);
-  gl.depthFunc(s.depthFunc);
-  gl.depthMask(s.depthMask);
-  gl.depthRange(s.depthRange[0], s.depthRange[1]);
-  gl.stencilFunc(s.stencilFunc, s.stencilRef, s.stencilValueMask);
-  gl.stencilMask(s.stencilWriteMask);
-  gl.stencilOp(...s.stencilOp);
-  en(gl.DEPTH_TEST, s.depth); en(gl.STENCIL_TEST, s.stencil);
-  en(gl.BLEND, s.blend); en(gl.CULL_FACE, s.cull);
-  gl.cullFace(s.cullFace);
-  gl.frontFace(s.frontFace);
+/** Hand the context back: re-bind the target MapLibre draws into and let it
+ *  re-apply everything else lazily on its next draw. */
+function restoreGlState(ctx, s) {
+  for (const k of PAINTER_STATE) if (ctx[k]) ctx[k].dirty = true;
+  ctx.bindFramebuffer.set(s.fbo);
+  ctx.viewport.set(s.vp);
+  ctx.bindVertexArray.set(s.vao);
+}
+
+// PARCHMENT: ground-pass cache helpers.
+const bucketIds = new WeakMap();
+let nextBucketId = 1;
+function bucketId(bucket) {
+  let id = bucketIds.get(bucket);
+  if (!id) bucketIds.set(bucket, (id = nextBucketId++));
+  return id;
+}
+function sameKey(a, b) {
+  if (!b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+function nextPow2(n) {
+  return 2 ** Math.ceil(Math.log2(Math.max(1, n)));
 }
 
 // Composite buffers store (value@overscaledZ, value@overscaledZ+1) — matching
@@ -706,7 +711,8 @@ export class WallShadowLayer {
     }
     if (!tiles.length) return;
 
-    const saved = saveGlState(gl);
+    const ctx = this._map.painter.context; // PARCHMENT
+    const saved = saveGlState(ctx);
     gl.disable(gl.RASTERIZER_DISCARD);
 
     // Pinned defaults for attribute slots a tile may not supply (data-driven
@@ -723,23 +729,24 @@ export class WallShadowLayer {
     gl.vertexAttrib2f(LOC.a_roof_color, W, W);
     gl.vertexAttrib4f(LOC.a_roof_color4, W, W, W, W);
 
-    if (this.groundFx) {
-      this._shadowPass(gl, tiles);
-      this._seedPass(gl, tiles);
-      this._jfaPass(gl);
+    // PARCHMENT: straight down there are no walls and the ground effects sit
+    // under the roofs that cover them, so the plan view skips their passes.
+    const planView = Math.abs(this._map.getPitch?.() ?? 0) < PLAN_VIEW_PITCH;
+    if (this.groundFx && !planView) {
+      // PARCHMENT: the shadow mask and SDF only depend on the camera and the
+      // geometry, so a frame that changes neither reuses them.
+      const key = this._groundKey(tiles, saved.vp);
+      if (!key || !sameKey(key, this._groundCache)) {
+        this._shadowPass(gl, tiles);
+        this._seedPass(gl, tiles);
+        this._jfaPass(gl, this._aoRadiusUv(saved.vp) * this._sdfRes);
+        this._groundCache = key;
+      }
       this._compPass(gl, saved);
     }
     if (this.wallShade) this._buildingPass(gl, tiles);
 
-    restoreGlState(gl, saved);
-    this._vao.bind(saved.vao);
-
-    // MapLibre's painter caches GL state; invalidate everything we touched.
-    const ctx = this._map.painter?.context;
-    if (ctx) for (const k of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
-      'depthMask', 'depthFunc', 'depthRange', 'activeTexture', 'bindTexture',
-      'stencilFunc', 'stencilOp', 'blend', 'blendFunc', 'cullFace'])
-      if (ctx[k]) ctx[k].dirty = true;
+    restoreGlState(ctx, saved); // PARCHMENT
   }
 
   /**
@@ -763,6 +770,28 @@ export class WallShadowLayer {
     const pitchFade = this.topDownOpacity + (1 - this.topDownOpacity) * (pt * pt * (3 - 2 * pt));
 
     return zoomFade * pitchFade;
+  }
+
+  /** PARCHMENT: the AO radius as a fraction of the SDF, shared by the flood and the composite. */
+  _aoRadiusUv(vp) {
+    const t = Math.min(Math.max((this._map.getZoom() - this._minZoom) / (this._maxZoom - this._minZoom), 0), 1);
+    const radiusPx = this.aoRadiusMin + t * (this.aoRadiusMax - this.aoRadiusMin);
+    return Math.min(radiusPx / Math.max(vp[2], vp[3]), 0.2);
+  }
+
+  /**
+   * PARCHMENT: everything the shadow, seed and flood passes read. Null under
+   * terrain, whose DEM tiles can land between frames without the camera moving.
+   */
+  _groundKey(tiles, vp) {
+    if (this._terrain()) return null;
+    const key = [vp[2], vp[3], this.shadowOffset[0], this.shadowOffset[1], this._heightScale,
+      this._aoRadiusUv(vp)];
+    for (const { bucket, matrix, zf } of tiles) {
+      key.push(bucketId(bucket), zf);
+      for (let i = 0; i < 16; i++) key.push(matrix[i]);
+    }
+    return key;
   }
 
   /* ── 1. shadow mask → FBO[2] with stencil (no overlap) ── */
@@ -812,8 +841,11 @@ export class WallShadowLayer {
 
   /* ── 3. JFA passes → FBO ping-pong ── */
 
-  _jfaPass(gl) {
+  _jfaPass(gl, reachTexels) {
     const N = this._sdfRes;
+    // PARCHMENT: occlusion ends at the AO radius, so the flood only has to
+    // reach that far; strides beyond it are full-target passes that change nothing.
+    const first = Math.min(N >> 1, nextPow2(Math.ceil(reachTexels) + 1));
     const U = this._uJfa;
     this._vao.bind(null);
 
@@ -822,7 +854,7 @@ export class WallShadowLayer {
     gl.uniform1i(U.u_tex, 0);
 
     let read = 0;
-    for (let stride = N >> 1; stride >= 1; stride >>= 1) {
+    for (let stride = first; stride >= 1; stride >>= 1) {
       const write = 1 - read;
       gl.bindFramebuffer(gl.FRAMEBUFFER, this._fbo[write]);
       gl.clearColor(0, 0, 0, 0);
@@ -848,10 +880,7 @@ export class WallShadowLayer {
     gl.useProgram(this._compProg);
 
     const vw = vp[2], vh = vp[3];
-    const zoom = this._map.getZoom();
-    const t = Math.min(Math.max((zoom - this._minZoom) / (this._maxZoom - this._minZoom), 0), 1);
-    const radiusPx = this.aoRadiusMin + t * (this.aoRadiusMax - this.aoRadiusMin);
-    gl.uniform1f(U.u_radius, Math.min(radiusPx / Math.max(vw, vh), 0.2));
+    gl.uniform1f(U.u_radius, this._aoRadiusUv(vp));
     const opacity = this.groundOpacity(); // PARCHMENT
     gl.uniform1f(U.u_intensity, this.aoIntensity * opacity);
     gl.uniform1f(U.u_shadowAlpha, this.shadowAlpha * opacity);

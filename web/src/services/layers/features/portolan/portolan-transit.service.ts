@@ -301,6 +301,7 @@ const heldTransitions = new Map<number, Map<string, HeldFeat>>(
 )
 const hydratedSig = new Map<number, string>()
 let stationsRaw: any | null = null
+let hydratedKeys = new Set<string>()
 let hydrateQueued = 0
 
 function clearMounts() {
@@ -315,6 +316,7 @@ function clearMounts() {
 function clearHydration() {
   for (const m of heldTransitions.values()) m.clear()
   hydratedSig.clear()
+  hydratedKeys = new Set()
   stationsRaw = null
 }
 
@@ -2500,7 +2502,17 @@ function hydrateSymbols() {
       }
     }
   }
+  // Hydration runs on every idle, and setData makes the map render and go
+  // idle again: an unchanged sweep has to stop here or the loop never ends.
+  if (stationsRaw && sameKeys(seen, hydratedKeys)) return
+  hydratedKeys = seen
   prepareStations({ type: 'FeatureCollection', features: feats })
+}
+
+function sameKeys(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false
+  for (const k of a) if (!b.has(k)) return false
+  return true
 }
 
 /** Normalize the hydrated symbols and make them the live stations data —

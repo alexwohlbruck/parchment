@@ -9,6 +9,8 @@ import {
   encryptCanvasMetadata,
   decryptCanvasMetadata,
 } from './library-crypto'
+import { encryptEnvelopeString } from './crypto-envelope'
+import { deriveCollectionKey } from './federation-crypto'
 
 function seedOf(byte: number): Uint8Array {
   const s = new Uint8Array(32)
@@ -29,13 +31,13 @@ describe('encryptCollectionMetadata / decryptCollectionMetadata', () => {
     }
     const env = encryptCollectionMetadata({
       metadata: meta,
-      seed,
+      source: { seed },
       userId,
       collectionId: 'c1',
     })
     const out = decryptCollectionMetadata({
       envelope: env,
-      seed,
+      source: { seed },
       userId,
       collectionId: 'c1',
     })
@@ -45,14 +47,14 @@ describe('encryptCollectionMetadata / decryptCollectionMetadata', () => {
   test('AAD binds collection id — wrong id fails', () => {
     const env = encryptCollectionMetadata({
       metadata: { name: 'x' },
-      seed,
+      source: { seed },
       userId,
       collectionId: 'c1',
     })
     expect(() =>
       decryptCollectionMetadata({
         envelope: env,
-        seed,
+        source: { seed },
         userId,
         collectionId: 'c2',
       }),
@@ -62,18 +64,85 @@ describe('encryptCollectionMetadata / decryptCollectionMetadata', () => {
   test('different users cannot decrypt', () => {
     const env = encryptCollectionMetadata({
       metadata: { name: 'x' },
-      seed,
+      source: { seed },
       userId,
       collectionId: 'c1',
     })
     expect(() =>
       decryptCollectionMetadata({
         envelope: env,
-        seed,
+        source: { seed },
         userId: 'user-2',
         collectionId: 'c1',
       }),
     ).toThrow()
+  })
+})
+
+describe('collection metadata key versions', () => {
+  test('a rotated key opens only at its own version', () => {
+    const env = encryptCollectionMetadata({
+      metadata: { name: 'Rotated' },
+      source: { seed },
+      userId,
+      collectionId: 'c1',
+      keyVersion: 3,
+    })
+
+    expect(
+      decryptCollectionMetadata({
+        envelope: env,
+        source: { seed },
+        userId,
+        collectionId: 'c1',
+        keyVersion: 3,
+      }).name,
+    ).toBe('Rotated')
+    expect(() =>
+      decryptCollectionMetadata({ envelope: env, source: { seed }, userId, collectionId: 'c1' }),
+    ).toThrow()
+  })
+
+  test('opens an envelope sealed with the points’ AAD context', () => {
+    const env = encryptEnvelopeString({
+      plaintext: JSON.stringify({ name: 'Switched' }),
+      key: deriveCollectionKey(seed, 'c1', 2),
+      aad: {
+        userId,
+        recordType: 'collection-metadata',
+        recordId: 'c1',
+        keyContext: 'parchment-collection-c1',
+      },
+    })
+
+    expect(
+      decryptCollectionMetadata({
+        envelope: env,
+        source: { seed },
+        userId,
+        collectionId: 'c1',
+        keyVersion: 2,
+      }).name,
+    ).toBe('Switched')
+  })
+
+  test('opens a v1 envelope on a collection whose key has since rotated', () => {
+    const env = encryptCollectionMetadata({
+      metadata: { name: 'Renamed after rotation' },
+      source: { seed },
+      userId,
+      collectionId: 'c1',
+    })
+
+    expect(
+      decryptCollectionMetadata({
+        envelope: env,
+        source: { seed },
+        userId,
+        collectionId: 'c1',
+        keyVersion: 2,
+      }).name,
+    ).toBe('Renamed after rotation')
   })
 })
 
@@ -102,7 +171,7 @@ describe('encryptCanvasMetadata / decryptCanvasMetadata', () => {
   test('canvas + collection with the same id are separately keyed', () => {
     const collEnv = encryptCollectionMetadata({
       metadata: { name: 'col' },
-      seed,
+      source: { seed },
       userId,
       collectionId: 'same-id',
     })

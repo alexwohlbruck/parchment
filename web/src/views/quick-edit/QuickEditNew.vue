@@ -286,6 +286,7 @@ async function handleSubmit(comment: string) {
           :sandbox-server="sandboxServer"
           @set="setTag"
           @brand="applyBrand"
+          @logo="brandLogo = $event"
           @submit="handleSubmit"
         />
       </template>

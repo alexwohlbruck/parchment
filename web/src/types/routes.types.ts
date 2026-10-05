@@ -7,8 +7,10 @@
  * back to the server in cleartext for user-e2ee routes.
  */
 
+import type { EncryptionScheme } from '@/types/library.types'
+
 export type RouteMode = 'walking' | 'cycling' | 'driving'
-export type RouteScheme = 'server-key' | 'user-e2ee'
+export type RouteScheme = EncryptionScheme
 export type RoutePathMode = 'snap' | 'straight'
 
 /** A point the user dropped, with an optional reverse-geocoded label. */

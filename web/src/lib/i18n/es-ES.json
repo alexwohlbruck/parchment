@@ -764,14 +764,15 @@
       }
     },
     "actions": {
-      "addToCollection": "Añadir a Colección",
+      "addToCollection": "Añadir a colección",
       "createNewCollection": "Crear nueva colección",
       "searchCollections": "Buscar colecciones...",
       "removeFromCollection": "Eliminar de la colección",
       "removedFromCollectionSuccess": "Eliminado de la colección",
       "addedToCollection": "Añadido a {collection}",
       "failedToAddToCollection": "Error al añadir a la colección",
-      "saveToCollection": "Guardar en {collection}"
+      "saveToCollection": "Guardar en {collection}",
+      "newCollection": "Nueva colección"
     },
     "empty": {
       "message": "no hay {entityPlural} todavía",
@@ -797,7 +798,21 @@
         "manage": "Gestionar colecciones",
         "untitled": "Colección sin título",
         "lastSaved": "Última guardada",
-        "sharedBy": "Compartida por {name}"
+        "sharedBy": "Compartida por {name}",
+        "locked": "Colección bloqueada",
+        "lockedNotice": {
+          "title": "Cifrada de extremo a extremo",
+          "description": "Solo tus dispositivos pueden abrir esta colección, y este aún no está configurado.",
+          "unlock": "Desbloquear este dispositivo",
+          "reshare": "{name} compartió esta colección, pero no de una forma que este dispositivo pueda abrir. Pídele que vuelva a compartirla contigo."
+        },
+        "public": {
+          "subtitle": "Compartida contigo",
+          "gone": {
+            "title": "Este enlace ya no funciona",
+            "description": "Puede que se haya revocado o que la colección sea ahora privada."
+          }
+        }
       },
       "routes": {
         "title": {
@@ -821,12 +836,12 @@
     "confirmDelete": "¿Estás seguro de que deseas eliminar \"{name}\"?",
     "dialog": {
       "createCollection": {
-        "title": "Crear Colección",
-        "description": "Crear una nueva colección para organizar tus marcadores"
+        "title": "Nueva colección",
+        "description": "Ponle un nombre y decide quién puede leerla."
       },
       "editCollection": {
-        "title": "Editar Colección",
-        "description": "Modificar detalles de la colección"
+        "title": "Detalles de la colección",
+        "description": "Ponle un nombre y decide quién puede leerla."
       },
       "editBookmark": {
         "title": "Editar Marcador",
@@ -857,6 +872,48 @@
     },
     "loading": {
       "collection": "Cargando colección..."
+    },
+    "privacy": {
+      "label": "Privacidad",
+      "schemes": {
+        "server-key": {
+          "title": "Compartible",
+          "description": "El servidor puede leerlo, así que puede tener un enlace público."
+        },
+        "user-e2ee": {
+          "title": "Privado",
+          "description": "Cifrado de extremo a extremo, así que el servidor no puede leerlo."
+        }
+      },
+      "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
+      "switchTo": {
+        "server-key": "Hacerlo compartible",
+        "user-e2ee": "Hacerlo privado"
+      },
+      "switched": "Se actualizó la privacidad",
+      "switchFailed": "No se pudo cambiar la privacidad",
+      "confirm": {
+        "collection": {
+          "server-key": {
+            "title": "¿Hacer compartible esta colección?",
+            "description": "Su nombre y sus lugares se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
+          },
+          "user-e2ee": {
+            "title": "¿Hacer privada esta colección?",
+            "description": "Su nombre y sus lugares se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirla, y se revocará cualquier enlace público."
+          }
+        },
+        "canvas": {
+          "server-key": {
+            "title": "¿Hacer compartible este lienzo?",
+            "description": "Su nombre y sus capas se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
+          },
+          "user-e2ee": {
+            "title": "¿Hacer privado este lienzo?",
+            "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
+          }
+        }
+      }
     }
   },
   "services": {
@@ -2105,31 +2162,10 @@
         "copyAction": "Copiar enlace",
         "revokeAction": "Revocar enlace"
       },
-      "e2ee": {
-        "title": "Cifrado de extremo a extremo",
-        "description": "Sólo los amigos invitados pueden descifrar esta colección. El enlace público no está disponible.",
-        "switchAction": "Cambiar a cifrado gestionado por el servidor"
-      },
-      "serverKey": {
-        "switchAction": "Cambiar a cifrado de extremo a extremo"
-      }
+      "privateHint": "Los enlaces públicos necesitan una colección compartible."
     },
     "publicLink": {
       "copied": "Enlace copiado al portapapeles"
-    },
-    "schemeSwitch": {
-      "upgradeConfirm": {
-        "title": "¿Cambiar a cifrado de extremo a extremo?",
-        "description": "Cada lugar guardado en esta colección se volverá a cifrar con tu clave personal. El servidor de Parchment ya no podrá leerlos. Cualquier enlace público será revocado. Los amigos con acceso se volverán a compartir con la nueva clave.",
-        "continueText": "Cambiar a extremo a extremo"
-      },
-      "downgradeConfirm": {
-        "title": "¿Cambiar a cifrado gestionado por el servidor?",
-        "description": "El servidor de Parchment podrá leer cada lugar guardado en esta colección. Los amigos con acceso se volverán a compartir con el nuevo esquema. Esto no se puede deshacer sin volver a cambiar y cifrar.",
-        "continueText": "Cambiar a gestionado por el servidor"
-      },
-      "success": "Esquema de cifrado cambiado",
-      "failed": "No se pudo cambiar el esquema de cifrado"
     },
     "errors": {
       "loadFailed": "No se pudieron cargar los recursos compartidos",
@@ -2141,7 +2177,8 @@
       "copyFailed": "Error al copiar — selecciona y copia el enlace manualmente",
       "identityRequired": "Configura tus claves de cifrado en Ajustes antes de compartir",
       "missingFriendKey": "Las claves de este amigo aún no están sincronizadas; inténtalo en un momento"
-    }
+    },
+    "removeAction": "Quitar a {name}"
   },
   "auth": {
     "signIn": {
@@ -2263,18 +2300,7 @@
       "editTitle": "Detalles del lienzo",
       "description": "Ponle un nombre y decide quién puede leerlo.",
       "namePlaceholder": "Nombre del lienzo",
-      "descriptionPlaceholder": "¿Para qué es este lienzo? (opcional)",
-      "privacy": "Privacidad"
-    },
-    "schemes": {
-      "server-key": {
-        "title": "Compartible",
-        "description": "Se guarda de forma que pueda publicarse con un enlace más adelante."
-      },
-      "user-e2ee": {
-        "title": "Privado",
-        "description": "Cifrado de extremo a extremo. Solo tus dispositivos pueden leerlo."
-      }
+      "descriptionPlaceholder": "¿Para qué es este lienzo? (opcional)"
     },
     "layers": {
       "missing": "Capa no encontrada",
@@ -2344,24 +2370,6 @@
     "delete": {
       "title": "¿Eliminar el lienzo?",
       "description": "«{name}» y sus capas se eliminarán. Esto no se puede deshacer."
-    },
-    "privacy": {
-      "needsIdentity": "Necesita tu clave de recuperación en este dispositivo.",
-      "switched": "Se actualizó la privacidad del lienzo",
-      "switchTo": {
-        "server-key": "Hacerlo compartible",
-        "user-e2ee": "Hacerlo privado"
-      },
-      "confirm": {
-        "server-key": {
-          "title": "¿Hacer compartible este lienzo?",
-          "description": "Su nombre y sus capas se guardarán de forma que el servidor pueda leerlos, que es lo que permite un enlace público. Puedes revertirlo cuando quieras."
-        },
-        "user-e2ee": {
-          "title": "¿Hacer privado este lienzo?",
-          "description": "Su nombre y sus capas se cifrarán en este dispositivo. Solo los dispositivos con tu clave de recuperación podrán abrirlo, y se revocará cualquier enlace público."
-        }
-      }
     },
     "import": {
       "errors": {

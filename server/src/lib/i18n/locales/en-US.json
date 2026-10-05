@@ -140,7 +140,8 @@
       "routeNotFound": "Route not found",
       "routeUpdateFailed": "Route not found or update failed",
       "routeDeleteFailed": "Route not found or delete failed",
-      "canvasNotFound": "Canvas not found"
+      "canvasNotFound": "Canvas not found",
+      "privateCollectionBookmark": "Private collections store places encrypted; save to them from a device with your key"
     },
     "avatar": {
       "invalidType": "File must be JPEG, PNG, or WebP",

@@ -33,7 +33,7 @@ import {
   CYCLING_WAYS_SUFFIX,
   scaleOutputs,
 } from './cycling-layers'
-import { BUILDING_TINT } from './building-color.mjs'
+import { BUILDING_PASTELS, BUILDING_TINT } from './building-color.mjs'
 import { terrainSource } from './terrain'
 import { TREE_OPACITY } from './detail-layers'
 import { getCustomColorTint } from '@/lib/color-tint'
@@ -1100,7 +1100,7 @@ describe('assembled styles', () => {
    * the happy one.
    */
   describe('building colour', () => {
-    const evaluate = (flavor: 'light' | 'dark', properties: Record<string, unknown>) => {
+    const evaluate = (flavor: 'light' | 'dark', properties: Record<string, unknown>, id?: number) => {
       const layer = (buildLayers({ flavor }) as any[]).find(l => l.id === layerGroups.building3d)
       const parsed = expression.createPropertyExpression(
         layer.paint['fill-extrusion-color'],
@@ -1108,9 +1108,12 @@ describe('assembled styles', () => {
         (latest as any)['paint_fill-extrusion']['fill-extrusion-color'],
       )
       expect(parsed.result).toBe('success')
-      const c = (parsed as any).value.evaluate({ zoom: 16 }, { properties })
+      const c = (parsed as any).value.evaluate({ zoom: 16 }, { properties, id })
       return [c.r, c.g, c.b].map(v => Math.round(v * 255))
     }
+
+    /** An unpainted building whose id lands on the flavor's own colour rather than a cast. */
+    const plain = (flavor: 'light' | 'dark') => evaluate(flavor, {}, BUILDING_PASTELS[flavor].length)
 
     const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
     /** How colourful, in channel units — 0 for any grey, 255 for a pure hue. */
@@ -1142,17 +1145,23 @@ describe('assembled styles', () => {
      * and 52 `white`, so this is the common case, not a contrived one.
      */
     test.each(['light', 'dark'] as const)('%s: greys render as plain buildings', flavor => {
-      const plain = evaluate(flavor, {})
       for (const colour of ['black', 'white', '#808080', 'lightgray']) {
-        expect(evaluate(flavor, { colour }), colour).toEqual(plain)
+        expect(evaluate(flavor, { colour }), colour).toEqual(plain(flavor))
       }
+    })
+
+    test('unpainted buildings take a daylight cast by id, and none at night', () => {
+      const casts = new Set([0, 1, 2, 3, 4, 5].map(id => evaluate('light', {}, id).join()))
+      expect(casts.size).toBe(BUILDING_PASTELS.light.length + 1)
+      expect(evaluate('light', {}, 7)).toEqual(evaluate('light', {}, 1))
+      expect(evaluate('dark', {}, 0)).toEqual(evaluate('dark', {}, 3))
     })
 
     test('an unparseable colour renders plain rather than black', () => {
       // `to-color` yields black instead of throwing, which the luminance
       // subtraction then treats as any other neutral.
       for (const colour of ['brick', 'light_grey', '#70c2dcb']) {
-        expect(evaluate('light', { colour }), colour).toEqual(evaluate('light', {}))
+        expect(evaluate('light', { colour }), colour).toEqual(plain('light'))
       }
     })
 

@@ -4,6 +4,7 @@ import {
   withoutReplaced,
 } from './landmarks'
 import { anchorMatrix, localMatrix } from './landmark-layer'
+import { parseGlb, poseGlb, sampleChannel } from './glb.mjs'
 
 const feature = (properties: Record<string, unknown>, coordinates = [-115.17217, 36.11247]) => ({
   geometry: { type: 'Point', coordinates },
@@ -254,5 +255,110 @@ describe('groundGrid', () => {
     const [lng, lat] = groundGrid({ ...at, bearing: 90 }, footprint)[0]
     expect((lng - at.lng) * k).toBeCloseTo(4, 6)
     expect((lat - at.lat) * 110574).toBeCloseTo(10, 6)
+  })
+})
+
+/**
+ * A two-node GLB: a static base and an arm 10 m above it, both one triangle,
+ * the arm turning once about +Y over 4 s in quarter-turn keyframes.
+ */
+function turningGlb(interpolation = 'LINEAR'): ArrayBuffer {
+  const quarter = (k: number) => [0, Math.sin((k * Math.PI) / 4), 0, Math.cos((k * Math.PI) / 4)]
+  const bin = new ArrayBuffer(144)
+  new Float32Array(bin, 0, 9).set([1, 0, 0, 2, 0, 0, 1, 1, 0])
+  new Uint16Array(bin, 36, 3).set([0, 1, 2])
+  new Float32Array(bin, 44, 5).set([0, 1, 2, 3, 4])
+  new Float32Array(bin, 64, 20).set([0, 1, 2, 3, 4].flatMap(quarter))
+  const json = {
+    asset: { version: '2.0' },
+    scene: 0,
+    scenes: [{ nodes: [0] }],
+    nodes: [{ name: 'base', mesh: 0, children: [1] }, { name: 'arm', mesh: 0, translation: [0, 10, 0] }],
+    meshes: [{ primitives: [{ attributes: { POSITION: 0 }, indices: 1 }] }],
+    accessors: [
+      { bufferView: 0, componentType: 5126, count: 3, type: 'VEC3', min: [1, 0, 0], max: [2, 1, 0] },
+      { bufferView: 1, componentType: 5123, count: 3, type: 'SCALAR' },
+      { bufferView: 2, componentType: 5126, count: 5, type: 'SCALAR', min: [0], max: [4] },
+      { bufferView: 3, componentType: 5126, count: 5, type: 'VEC4' },
+    ],
+    bufferViews: [
+      { buffer: 0, byteOffset: 0, byteLength: 36 },
+      { buffer: 0, byteOffset: 36, byteLength: 6 },
+      { buffer: 0, byteOffset: 44, byteLength: 20 },
+      { buffer: 0, byteOffset: 64, byteLength: 80 },
+    ],
+    buffers: [{ byteLength: 144 }],
+    animations: [{
+      channels: [{ sampler: 0, target: { node: 1, path: 'rotation' } }],
+      samplers: [{ input: 2, output: 3, interpolation }],
+    }],
+  }
+  let text = new TextEncoder().encode(JSON.stringify(json))
+  const padded = new Uint8Array(Math.ceil(text.length / 4) * 4).fill(0x20)
+  padded.set(text)
+  text = padded
+  const out = new ArrayBuffer(12 + 8 + text.length + 8 + 144)
+  const view = new DataView(out)
+  view.setUint32(0, 0x46546c67, true)
+  view.setUint32(4, 2, true)
+  view.setUint32(8, out.byteLength, true)
+  view.setUint32(12, text.length, true)
+  view.setUint32(16, 0x4e4f534a, true)
+  new Uint8Array(out, 20, text.length).set(text)
+  view.setUint32(20 + text.length, 144, true)
+  view.setUint32(24 + text.length, 0x004e4942, true)
+  new Uint8Array(out, 28 + text.length, 144).set(new Uint8Array(bin))
+  return out
+}
+
+const apply = (m: ArrayLike<number>, [x, y, z]: number[]) =>
+  [0, 1, 2].map(r => m[r] * x + m[4 + r] * y + m[8 + r] * z + m[12 + r])
+
+describe('animated landmarks', () => {
+  it('flattens every node as before unless animation is asked for', () => {
+    const model = parseGlb(turningGlb())
+    expect(model.animation).toBeNull()
+    expect(model.primitives.map(p => p.node)).toEqual([-1, -1])
+    expect(Array.from(model.primitives[1].position.slice(0, 3))).toEqual([1, 10, 0])
+  })
+
+  it('leaves a moving node’s primitive in its own frame, and the rest baked', () => {
+    const still = parseGlb(turningGlb())
+    const model = parseGlb(turningGlb(), { animation: true })
+    expect(model.primitives.map(p => p.node)).toEqual([-1, 1])
+    expect(Array.from(model.primitives[0].position)).toEqual(Array.from(still.primitives[0].position))
+    expect(Array.from(model.primitives[1].position.slice(0, 3))).toEqual([1, 0, 0])
+    // Bounds are the rest pose either way: they decide which buildings hide.
+    expect(model.min).toEqual(still.min)
+    expect(model.max).toEqual(still.max)
+    expect(model.animation!.duration).toBe(4)
+  })
+
+  it('poses the node through its clip, about its own origin', () => {
+    const model = parseGlb(turningGlb(), { animation: true })
+    const at = (t: number) => apply(poseGlb(model, t)!.get(1)!, [1, 0, 0])
+    const close = (a: number[], b: number[]) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], 5))
+    // At rest, exactly where the flattened model has it.
+    close(at(0), [1, 10, 0])
+    // A quarter turn about +Y carries +X to -Z.
+    close(at(1), [0, 10, -1])
+    close(at(2), [-1, 10, 0])
+    // Looping: a whole turn later it is back.
+    close(at(5), at(1))
+    close(at(4), at(0))
+  })
+
+  it('slerps between keyframes at a steady rate', () => {
+    const model = parseGlb(turningGlb(), { animation: true })
+    const q = sampleChannel(model.animation!.channels[0], 0.5)
+    const half = Math.PI / 8
+    ;[0, Math.sin(half), 0, Math.cos(half)].forEach((v, i) => expect(q[i]).toBeCloseTo(v, 6))
+  })
+
+  it('draws a clip it cannot play standing still, rather than not at all', () => {
+    const model = parseGlb(turningGlb('CUBICSPLINE'), { animation: true })
+    expect(model.animation).toBeNull()
+    expect(model.primitives.map(p => p.node)).toEqual([-1, -1])
+    expect(poseGlb(model, 1)).toBeNull()
   })
 })

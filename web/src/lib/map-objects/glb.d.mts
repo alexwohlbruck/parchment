@@ -13,6 +13,36 @@ export type GlbPrimitive = {
   alphaMode: 'OPAQUE' | 'MASK' | 'BLEND'
   alphaCutoff: number
   doubleSided: boolean
+  /**
+   * The moving node this primitive is drawn with, or -1. Its vertices are in
+   * that node's frame; `poseGlb` gives the node's matrix at a moment.
+   */
+  node: number
+}
+
+export type GlbChannel = {
+  node: number
+  path: 'translation' | 'rotation' | 'scale'
+  step: boolean
+  /** Seconds. */
+  times: Float32Array
+  values: Float32Array
+}
+
+/** The first animation clip, when parsed with `{ animation: true }`. */
+export type GlbAnimation = {
+  /** Seconds in one loop. */
+  duration: number
+  nodes: Array<{
+    parent: number
+    matrix: number[] | null
+    translation: number[]
+    rotation: number[]
+    scale: number[]
+  }>
+  channels: GlbChannel[]
+  /** The nodes the clip moves. */
+  joints: Set<number>
 }
 
 export type GlbModel = {
@@ -20,7 +50,12 @@ export type GlbModel = {
   /** Axis-aligned bounds, in the model's own units. */
   min: [number, number, number]
   max: [number, number, number]
+  /** Null unless asked for and present; see `parseGlb`. */
+  animation: GlbAnimation | null
 }
 
-export declare function parseGlb(buffer: ArrayBuffer): GlbModel
+export declare function parseGlb(buffer: ArrayBuffer, options?: { animation?: boolean }): GlbModel
+/** Moving nodes' matrices (column-major, to model space) `seconds` into the looped clip. */
+export declare function poseGlb(model: Pick<GlbModel, 'animation'>, seconds: number): Map<number, Float32Array> | null
+export declare function sampleChannel(channel: GlbChannel, t: number): number[]
 export declare function loadGlb(url: string): Promise<GlbModel>

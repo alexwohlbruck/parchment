@@ -25,8 +25,15 @@
  * Placement is a position, a bearing and a scale and nothing else, which is
  * the model frame Barrelman documents: +Y up, -Z north, +X east, metres,
  * origin at the anchor, at the lowest ground under the footprint.
+ *
+ * A few landmarks move: a Ferris wheel turns. Such a model carries a standard
+ * glTF clip of rigid node motion (see `poseGlb`), and its moving parts are
+ * drawn through their node's matrix each frame, shadow included. The layer
+ * asks for frames only while a moving landmark is on screen, so a map with
+ * none in view stays idle, and it holds them at rest for anyone who prefers
+ * reduced motion.
  */
-import { parseGlb, type GlbModel } from './glb.mjs'
+import { parseGlb, poseGlb, type GlbAnimation, type GlbModel } from './glb.mjs'
 import {
   ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialLight, MAX_ENTRANCES, parseLandmark, polygonRings,
   type Footprint, type Landmark, type LandmarkFlavor,
@@ -83,6 +90,8 @@ const GROUND_SINK = 0.5
  */
 const GROUND_BLEND = 25
 
+const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+
 /** Locations shared by both programs, so one VAO serves the draw and the shadow. */
 const LOC = { a_position: 0, a_normal: 1, a_uv: 2 }
 
@@ -116,24 +125,37 @@ const ATTRIBUTES = `
   layout(location = 2) in vec2 a_uv;`
 
 /**
+ * Where a moving part stands this frame, in model space: its node's matrix
+ * from `poseGlb`, rigid, so its upper 3×3 turns normals too. The identity for
+ * everything that does not move.
+ */
+const NODE = `
+  uniform mat4 u_node;`
+
+/**
  * Model space → the map's frame, in metres around the anchor: east, south,
- * up. `u_local` carries the axis swap, the bearing and the scale; `u_matrix`
- * the anchor's position and the camera, composed in double precision on the
- * CPU so a model is not quantised to the four-metre float32 grid mercator
- * coordinates land on.
+ * up. `u_node` moves a turning part within the model; `u_local` carries the
+ * axis swap, the bearing and the scale; `u_matrix` the anchor's position and
+ * the camera, composed in double precision on the CPU so a model is not
+ * quantised to the four-metre float32 grid mercator coordinates land on.
+ *
+ * The ground is applied after the node, so a part follows the terrain under
+ * where it is now, not where it started.
  */
 const DRAW_VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform mat3 u_local;
   uniform mat3 u_turn;
+  ${NODE}
   ${GROUND}
   ${ATTRIBUTES}
   out vec3 v_normal;
   out vec2 v_uv;
   void main() {
-    v_normal = u_turn * a_normal;
+    v_normal = u_turn * (mat3(u_node) * a_normal);
     v_uv = a_uv;
-    gl_Position = u_matrix * vec4(u_local * onGround(a_position), 1.0);
+    vec3 p = (u_node * vec4(a_position, 1.0)).xyz;
+    gl_Position = u_matrix * vec4(u_local * onGround(p), 1.0);
   }`
 
 /**
@@ -272,10 +294,11 @@ const SHADOW_VS = `#version 300 es
   uniform vec2 u_shear;
   /** Metres the origin sits above the ground. */
   uniform float u_lift;
+  ${NODE}
   ${ATTRIBUTES}
   out vec2 v_uv;
   void main() {
-    vec3 q = u_local * a_position;
+    vec3 q = u_local * (u_node * vec4(a_position, 1.0)).xyz;
     float h = q.z + u_lift;
     gl_Position = u_matrix * vec4(q.xy + u_shear * h, -u_lift, 1.0);
     v_uv = a_uv;
@@ -312,6 +335,8 @@ type Primitive = {
   doubleSided: boolean
   /** The glTF material's name, which is how windows and doors are found. */
   material: string
+  /** The moving node it is drawn with, or -1; see `poseGlb`. */
+  node: number
 }
 
 type Model = {
@@ -322,6 +347,12 @@ type Model = {
   footprint: Footprint | null
   /** When a placement last wanted it; see EVICT_AFTER_MS. */
   used: number
+  /** Its clip, for a model with parts that move. */
+  animation: GlbAnimation | null
+  /** The moving nodes' matrices, and the clip time they are for. */
+  pose: { at: number; nodes: Map<number, Float32Array> } | null
+  /** Metres from its origin that it reaches, sideways or up, once loaded. */
+  reach: number
 }
 
 /** What a landmark stands in for: OSM refs, and basemap ids found by footprint. */
@@ -367,6 +398,8 @@ export class LandmarkLayer {
   private credited = ''
   private scheduled = 0
   private listeners: Array<[string, (...args: any[]) => void]> = []
+  /** `prefers-reduced-motion`; when it matches, moving parts hold still at t = 0. */
+  private stillness: MediaQueryList | null = null
 
   constructor(
     private options: {
@@ -400,9 +433,10 @@ export class LandmarkLayer {
     this.map = map
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_color', 'u_painted', 'u_tint', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
-        'u_emission', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend'])
+        'u_emission', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
-      ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff'])
+      ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node'])
+    this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.glow = program(gl, GLOW_VS, GLOW_FS,
       ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend'])
     const vao = gl.createVertexArray()!
@@ -745,12 +779,12 @@ export class LandmarkLayer {
       known.used = now
       return
     }
-    const model: Model = { pending: null, primitives: null, footprint: null, used: now }
+    const model: Model = { pending: null, primitives: null, footprint: null, used: now, animation: null, pose: null, reach: 0 }
     this.models.set(file, model)
     void (async () => {
       const response = await fetch(this.options.modelUrl(file))
       if (!response.ok) throw new Error(`${file}: ${response.status}`)
-      const glb = parseGlb(await response.arrayBuffer())
+      const glb = parseGlb(await response.arrayBuffer(), { animation: true })
       // Unpremultiplied: a painted window texture is alpha 0 on its panes,
       // and premultiplying would turn every window black by day.
       const images = await Promise.all(glb.primitives.map(p => p.image
@@ -760,7 +794,12 @@ export class LandmarkLayer {
         })
         : null))
       model.pending = { glb, images }
+      // At rest, for a model that moves: the footprint decides which
+      // buildings it hides, and the ground is sampled under it, so it is
+      // what the model covers as it stands rather than all it sweeps.
       model.footprint = { minX: glb.min[0], maxX: glb.max[0], minZ: glb.min[2], maxZ: glb.max[2] }
+      model.animation = glb.animation
+      model.reach = Math.max(-glb.min[0], glb.max[0], -glb.min[2], glb.max[2], glb.max[1])
       // Its footprint can now be searched, which the last gather could not.
       this.invalidate()
       this.map?.triggerRepaint?.()
@@ -838,6 +877,7 @@ export class LandmarkLayer {
           cutoff: texture && p.alphaMode === 'MASK' ? p.alphaCutoff : -1,
           doubleSided: p.doubleSided,
           material: p.material,
+          node: p.node,
         }
       })
       model.pending = null
@@ -886,7 +926,7 @@ export class LandmarkLayer {
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniform2f(u.u_shear, frame.shear[0] / perMetre, frame.shear[1] / perMetre)
       gl.uniform1f(u.u_lift, p.elevation)
-      this.drawPrimitives(gl, model.primitives, u, false)
+      this.drawPrimitives(gl, model.primitives, u, false, this.poseOf(model))
     }
     gl.bindVertexArray(null)
   }
@@ -921,6 +961,8 @@ export class LandmarkLayer {
     gl.uniform3fv(u.u_tint, this.options.flavor.tint)
 
     const now = performance.now()
+    let moving = false
+    let onScreen: ((p: Placement, reach: number) => boolean) | null = null
     for (const p of placements) {
       const model = this.drawnModel(p)
       if (!model?.primitives) continue
@@ -929,11 +971,45 @@ export class LandmarkLayer {
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
       this.groundUniforms(gl, u, p)
-      this.drawPrimitives(gl, model.primitives, u, true)
+      const pose = this.poseOf(model, now)
+      this.drawPrimitives(gl, model.primitives, u, true, pose)
+      if (pose && !moving && !this.stillness?.matches) moving = (onScreen ??= this.onScreen())(p, model.reach)
     }
     if (this.options.flavor.night) this.drawEntrances(gl, matrix, placements)
     gl.bindVertexArray(null)
     this.restore()
+    // Something on screen is moving, so ask for the next frame. Only then:
+    // a map with nothing turning in view stays idle between gestures.
+    if (moving) this.map.triggerRepaint?.()
+  }
+
+  /**
+   * A model's moving parts as they stand now, looping, or held at t = 0 for
+   * someone who has asked for less motion. Shared by every placement of the
+   * model, and by its shadow, within a frame.
+   */
+  private poseOf(model: Model, now = performance.now()): Map<number, Float32Array> | null {
+    if (!model.animation) return null
+    const at = this.stillness?.matches ? 0 : now / 1000
+    if (model.pose?.at !== at) model.pose = { at, nodes: poseGlb(model, at) ?? new Map() }
+    return model.pose.nodes
+  }
+
+  /**
+   * Whether a placement can be seen, with its model's reach to spare —
+   * sideways, and up, which on a pitched map can bring a tall model's top
+   * into view while its anchor is below the bottom edge.
+   */
+  private onScreen(): (p: Placement, reach: number) => boolean {
+    const bounds = this.map.getBounds?.()
+    if (!bounds) return () => true
+    const [w, s, e, n] = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
+    return (p, reach) => {
+      const metres = reach * p.scale
+      const dLat = metres / 110574
+      const dLng = metres / (111320 * Math.max(0.01, Math.cos((p.lat * Math.PI) / 180)))
+      return p.lng >= w - dLng && p.lng <= e + dLng && p.lat >= s - dLat && p.lat <= n + dLat
+    }
   }
 
   /**
@@ -983,8 +1059,13 @@ export class LandmarkLayer {
     primitives: Primitive[],
     u: Record<string, WebGLUniformLocation | null>,
     shaded: boolean,
+    pose: Map<number, Float32Array> | null,
   ) {
+    let node: Float32Array | null = null
     for (const primitive of primitives) {
+      // Set only when it changes: a static model sets the identity once.
+      const at = (primitive.node >= 0 && pose?.get(primitive.node)) || IDENTITY
+      if (at !== node) gl.uniformMatrix4fv(u.u_node, false, (node = at))
       if (shaded) {
         if (primitive.doubleSided) gl.disable(gl.CULL_FACE)
         else gl.enable(gl.CULL_FACE)

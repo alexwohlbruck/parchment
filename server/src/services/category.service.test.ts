@@ -318,6 +318,11 @@ describe('CategoryService', () => {
       }
     })
 
+    test('they come first, so the client\'s 1000-category registry includes them', () => {
+      const ids = service.loadCategories('en-US').slice(0, 1000).map((c) => c.id)
+      expect(ids[0]).toBe('power/outlet')
+    })
+
     test('"charger" still leads with EV charging', () => {
       expect(service.searchCategories('ev charger', 'en-US')[0]?.id).toBe('amenity/charging_station')
     })

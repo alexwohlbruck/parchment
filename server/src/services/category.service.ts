@@ -334,9 +334,26 @@ export class CategoryService {
         categories.push(category)
       }
 
+      // Sort categories by relevance (more specific tags first, then alphabetically)
+      categories.sort((a, b) => {
+        const aTagCount = Object.keys(a.tags).length
+        const bTagCount = Object.keys(b.tags).length
+
+        if (aTagCount !== bTagCount) {
+          return bTagCount - aTagCount // More tags = more specific
+        }
+
+        return a.name.localeCompare(b.name)
+      })
+
+      // Derived categories go first, after the sort. The client loads only the
+      // first 1000 (category.store), and a one-tag category sorts far past that,
+      // so a derived one at the end was missing from the client's registry: the
+      // results header fell back to the raw id and showed no icon.
+      const derivedCategories: CategoryResult[] = []
       for (const derived of DERIVED_CATEGORIES) {
         const resolved = resolvePresetIcon(derived.id, derived.icon)
-        categories.push({
+        derivedCategories.push({
           id: derived.id,
           type: 'category',
           name: derived.name,
@@ -350,18 +367,7 @@ export class CategoryService {
           aliases: derived.aliases,
         })
       }
-
-      // Sort categories by relevance (more specific tags first, then alphabetically)
-      categories.sort((a, b) => {
-        const aTagCount = Object.keys(a.tags).length
-        const bTagCount = Object.keys(b.tags).length
-
-        if (aTagCount !== bTagCount) {
-          return bTagCount - aTagCount // More tags = more specific
-        }
-
-        return a.name.localeCompare(b.name)
-      })
+      categories.unshift(...derivedCategories)
 
       // Cache the results
       const cacheData: CachedCategoryData = {

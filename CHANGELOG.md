@@ -4,6 +4,7 @@
 
 ### Changed
 
+* 3D trees are rounder and more natural, vary in colour, and cast shadows; benches and bins look more like the real thing.
 * The light map is brighter: buildings are near-white with soft pastel tints, shaded walls are lighter, and the ground is cleaner.
 
 ### Fixed

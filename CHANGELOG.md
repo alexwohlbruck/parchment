@@ -2,6 +2,7 @@
 
 ### Added
 
+* Search "power outlet" (or "charge my phone") to find places to plug in: cafés with outlets, phone charging stations and public sockets. There's also a Power Outlets shortcut in the search palette.
 * Quick edit suggests tag updates as you edit, like iD does: outdated tags, missing details for the place type, and a chain's standard tags, with one tap to apply or decline.
 * Choose whether a collection is shareable or private when you create it, and switch later from its edit screen. Collections, canvases and the share dialog now show privacy the same way.
 * A collection's public link now opens a page anyone can view, signed in or not.

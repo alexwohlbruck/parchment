@@ -197,7 +197,7 @@ function smoothNormals(parts, creaseDegrees) {
 }
 
 /** Scale and shift so the model is one unit tall, based at the origin, centred. */
-function toUnit(parts) {
+function toUnit(parts, fit) {
   const min = [Infinity, Infinity, Infinity]
   const max = [-Infinity, -Infinity, -Infinity]
   for (const part of parts)
@@ -207,18 +207,23 @@ function toUnit(parts) {
         max[c] = Math.max(max[c], part.position[i + c])
       }
 
-  const scale = 1 / Math.max(max[1] - min[1], 1e-6)
-  const cx = (min[0] + max[0]) / 2
-  const cz = (min[2] + max[2]) / 2
+  // A model's own far variant reuses its transform, so the two line up exactly.
+  const { scale, cx, cz, base } = fit ?? {
+    scale: 1 / Math.max(max[1] - min[1], 1e-6),
+    cx: (min[0] + max[0]) / 2,
+    cz: (min[2] + max[2]) / 2,
+    base: min[1],
+  }
   for (const part of parts) {
     const out = new Float32Array(part.position.length)
     for (let i = 0; i < part.position.length; i += 3) {
       out[i] = (part.position[i] - cx) * scale
-      out[i + 1] = (part.position[i + 1] - min[1]) * scale
+      out[i + 1] = (part.position[i + 1] - base) * scale
       out[i + 2] = (part.position[i + 2] - cz) * scale
     }
     part.position = out
   }
+  return { scale, cx, cz, base }
 }
 
 /**
@@ -929,43 +934,33 @@ function icosphere(subdivisions) {
  * does. The underside is pulled up because leaves hang off branches — a canopy
  * is a dome on a flatter base, not a ball.
  */
-function blob(m, [cx, cy, cz], [rx, ry, rz], { seed = 1, lump = 0.12, subdivisions = 2, flat = 0.55 } = {}) {
+function blob(m, [cx, cy, cz], [rx, ry, rz], { seed = 1, lump = 0.12, subdivisions = 2, flat = 0.55, taper = 0, ripple = 0 } = {}) {
   const r = rng(seed)
   const waves = Array.from({ length: 4 }, () => {
     const d = [r() * 2 - 1, r() * 2 - 1, r() * 2 - 1]
     const l = Math.hypot(...d) || 1
     return { d: d.map(c => c / l), f: 2 + r() * 3, p: r() * Math.PI * 2, a: 0.5 + r() * 0.5 }
   })
+  // Finer waves for the soft bumps along a crown's edge — the clumps of leaves
+  // a canopy is made of, without the hard seams of separate shapes.
+  const ripples = Array.from({ length: 6 }, () => {
+    const d = [r() * 2 - 1, r() * 2 - 1, r() * 2 - 1]
+    const l = Math.hypot(...d) || 1
+    return { d: d.map(c => c / l), f: 7 + r() * 4, p: r() * Math.PI * 2 }
+  })
   const { verts, faces } = icosphere(subdivisions)
   const placed = verts.map(([x, y, z]) => {
     let k = 0
     for (const w of waves) k += w.a * Math.sin((x * w.d[0] + y * w.d[1] + z * w.d[2]) * w.f + w.p)
-    const s = 1 + (lump * k) / waves.length
+    let q = 0
+    for (const w of ripples) q += Math.sin((x * w.d[0] + y * w.d[1] + z * w.d[2]) * w.f + w.p)
+    const s = 1 + (lump * k) / waves.length + (ripple * q) / ripples.length
     const yy = y < 0 ? y * flat : y
-    return [cx + x * rx * s, cy + yy * ry * s, cz + z * rz * s]
+    // Narrower towards the top: an egg at a little taper, a flame at a lot.
+    const w = 1 - taper * (y + 1) / 2
+    return [cx + x * rx * s * w, cy + yy * ry * s, cz + z * rz * s * w]
   })
   for (const [a, b, c] of faces) face(m, placed[a], placed[b], placed[c])
-  return m
-}
-
-/** A closed cone tier for a conifer, its rim jittered so the stack reads as needles. */
-function tier(m, y0, height, radius, { seed = 1, sides = 14, jitter = 0.12 } = {}) {
-  const r = rng(seed)
-  const rim = Array.from({ length: sides }, (_, i) => {
-    const a = (i / sides) * Math.PI * 2 + r() * 0.15
-    const k = radius * (1 - jitter / 2 + r() * jitter)
-    // The rim droops between branch tips, which is what makes a tier read as
-    // layered boughs rather than a lampshade.
-    const sag = i % 2 ? height * 0.08 : 0
-    return [Math.cos(a) * k, y0 - sag, Math.sin(a) * k]
-  })
-  const apex = [0, y0 + height, 0]
-  const base = [0, y0 + height * 0.12, 0]
-  for (let i = 0; i < sides; i++) {
-    const j = (i + 1) % sides
-    face(m, rim[i], apex, rim[j])
-    face(m, rim[j], base, rim[i])
-  }
   return m
 }
 
@@ -993,35 +988,6 @@ function frond(m, crown, length, yaw, droop, seed) {
   for (let i = 0; i < moved.length; i += 3) face(m, moved[i], moved[i + 1], moved[i + 2])
 }
 
-/** Several lumps around a centre, the way a broadleaf crown breaks into clumps. */
-function crown(m, centre, radius, count, seed, { height = 1, lift = 0.25 } = {}) {
-  const r = rng(seed)
-  blob(m, centre, [radius, radius * 0.8 * height, radius], { seed: seed + 1 })
-  for (let i = 0; i < count; i++) {
-    const a = (i / count) * Math.PI * 2 + r() * 0.6
-    const d = radius * (0.55 + r() * 0.25)
-    const k = radius * (0.48 + r() * 0.18)
-    const y = centre[1] + (r() - 0.35) * radius * lift * 2 * height
-    blob(m, [centre[0] + Math.cos(a) * d, y, centre[2] + Math.sin(a) * d], [k, k * 0.85 * height, k], { seed: seed + 10 + i, subdivisions: 1 })
-  }
-  blob(m, [centre[0], centre[1] + radius * 0.62 * height, centre[2]], [radius * 0.55, radius * 0.45 * height, radius * 0.55], { seed: seed + 99, subdivisions: 1 })
-}
-
-/** A trunk, with a couple of limbs into the crown so it is not a pole stuck in a ball. */
-function trunk(m, top, radius, seed, limbs = 2) {
-  cylinder(m, 7, radius, radius * 0.75, 0, top)
-  const r = rng(seed)
-  for (let i = 0; i < limbs; i++) {
-    const limb = mesh()
-    cylinder(limb, 5, radius * 0.5, radius * 0.3, 0, top * 0.45)
-    const pts = []
-    for (let k = 0; k < limb.position.length; k += 3) pts.push([limb.position[k], limb.position[k + 1], limb.position[k + 2]])
-    const moved = turn(pts, r() * Math.PI * 2, 0.5 + r() * 0.3).map(([x, y, z]) => [x, y + top * 0.7, z])
-    for (let k = 0; k < moved.length; k += 3) face(m, moved[k], moved[k + 1], moved[k + 2])
-  }
-  return m
-}
-
 /**
  * The trees, generated. Modelled in metres; `toUnit` rescales each to one unit
  * tall, and the layer scales height and spread per instance.
@@ -1030,63 +996,60 @@ function trunk(m, top, radius, seed, limbs = 2) {
  * feature's id, so a street is a row of different trees rather than one tree
  * repeated.
  */
+/** Detail per level: crown subdivisions for broadleaf and conifer, and trunk sides. */
+const NEAR = { crown: 3, cone: 2, sides: 7 }
+const FAR = { crown: 1, cone: 1, sides: 4 }
+
+/**
+ * A tree whose far variant is itself at lower detail, rather than a fitted
+ * proxy — so a distant tree keeps its own silhouette and swapping is invisible.
+ */
+const lod = make => Object.assign(() => make(NEAR), { far: () => make(FAR) })
+
 const TREES = {
-  // Round street tree: a full dome of clumps on a clear trunk.
-  'tree-broadleaf-a': () => {
-    const leaves = mesh()
-    crown(leaves, [0, 5.2, 0], 2.8, 6, 11)
-    return [{ role: 'bark', ...trunk(mesh(), 3.4, 0.24, 1) }, { role: 'foliage', ...leaves }]
-  },
-  // Spreading: wide and low, like a mature oak or plane.
-  'tree-broadleaf-b': () => {
-    const leaves = mesh()
-    crown(leaves, [0, 4.6, 0], 3.4, 8, 23, { height: 0.72, lift: 0.18 })
-    return [{ role: 'bark', ...trunk(mesh(), 3, 0.3, 2, 3) }, { role: 'foliage', ...leaves }]
-  },
-  // Upright oval: a narrow, tall crown — a pear or a hornbeam.
-  'tree-broadleaf-c': () => {
-    const leaves = mesh()
-    crown(leaves, [0, 5.8, 0], 2.1, 5, 37, { height: 1.55 })
-    return [{ role: 'bark', ...trunk(mesh(), 3, 0.22, 3) }, { role: 'foliage', ...leaves }]
-  },
-  // Irregular: clumps at different heights, the most natural of the four.
-  'tree-broadleaf-d': () => {
-    const leaves = mesh()
-    const r = rng(53)
-    blob(leaves, [0, 5, 0], [2.4, 2, 2.4], { seed: 54 })
-    for (let i = 0; i < 6; i++) {
-      const a = r() * Math.PI * 2
-      const d = 1 + r() * 1.3
-      const k = 1.1 + r() * 0.6
-      blob(leaves, [Math.cos(a) * d, 4.2 + r() * 2.4, Math.sin(a) * d], [k, k * 0.85, k], { seed: 60 + i, subdivisions: 1 })
-    }
-    return [{ role: 'bark', ...trunk(mesh(), 3.4, 0.23, 4) }, { role: 'foliage', ...leaves }]
-  },
-  // Classic spruce: stacked tiers narrowing to a point.
-  'tree-conifer-a': () => {
-    const leaves = mesh()
-    for (let i = 0; i < 5; i++) tier(leaves, 1.6 + i * 1.9, 3.1, 2.5 - i * 0.42, { seed: 70 + i })
-    return [{ role: 'bark', ...cylinder(mesh(), 6, 0.22, 0.12, 0, 4) }, { role: 'foliage', ...leaves }]
-  },
-  // Rounded pine: a soft column of clumps.
-  'tree-conifer-b': () => {
-    const leaves = mesh()
-    blob(leaves, [0, 6.2, 0], [1.9, 3.4, 1.9], { seed: 80, lump: 0.16 })
-    blob(leaves, [0, 9.6, 0], [1.1, 1.3, 1.1], { seed: 81, subdivisions: 1 })
-    return [{ role: 'bark', ...cylinder(mesh(), 6, 0.22, 0.14, 0, 4) }, { role: 'foliage', ...leaves }]
-  },
-  // Tall and narrow: a fir, many shallow tiers.
-  'tree-conifer-c': () => {
-    const leaves = mesh()
-    for (let i = 0; i < 7; i++) tier(leaves, 1.4 + i * 1.5, 2.4, 1.8 - i * 0.22, { seed: 90 + i, sides: 12 })
-    return [{ role: 'bark', ...cylinder(mesh(), 6, 0.2, 0.1, 0, 3) }, { role: 'foliage', ...leaves }]
-  },
+  // Each crown is one smooth, softly undulating solid rather than a cluster of
+  // puffs: read from map distance a crown is a single mass, and the light
+  // gradient across it carries the form better than its outline does.
+  // Ovoid: the common street tree, taller than wide.
+  'tree-broadleaf-a': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.32, 0.24, 0, 2.8) },
+    { role: 'foliage', ...blob(mesh(), [0, 6.4, 0], [2.8, 4.1, 2.8], { subdivisions: q.crown, seed: 11, lump: 0.05, ripple: 0.07, flat: 0.8, taper: 0.16 }) },
+  ]),
+  // Round: a full, broad crown.
+  'tree-broadleaf-b': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.42, 0.3, 0, 2.4) },
+    { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [3.5, 3.4, 3.5], { subdivisions: q.crown, seed: 23, lump: 0.06, ripple: 0.07, flat: 0.75, taper: 0.1 }) },
+  ]),
+  // Columnar: narrow and tall.
+  'tree-broadleaf-c': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.16, 0, 2.4) },
+    { role: 'foliage', ...blob(mesh(), [0, 6.8, 0], [2.2, 4.9, 2.2], { subdivisions: q.crown, seed: 37, lump: 0.05, ripple: 0.06, flat: 0.85, taper: 0.2 }) },
+  ]),
+  // Irregular: a gently lopsided crown, the odd one out in a row.
+  'tree-broadleaf-d': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.34, 0.25, 0, 2.6) },
+    { role: 'foliage', ...blob(mesh(), [0, 6, 0], [3.1, 3.7, 2.7], { subdivisions: q.crown, seed: 54, lump: 0.1, ripple: 0.08, flat: 0.75, taper: 0.12 }) },
+  ]),
+  // Spruce: a smooth cone, widest low down.
+  'tree-conifer-a': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.12, 0, 2.4) },
+    { role: 'foliage', ...blob(mesh(), [0, 6.6, 0], [2.7, 5.4, 2.7], { subdivisions: q.cone, seed: 70, lump: 0.04, flat: 0.45, taper: 0.85 }) },
+  ]),
+  // Pine: a soft, slightly tapered column.
+  'tree-conifer-b': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.14, 0, 3.6) },
+    { role: 'foliage', ...blob(mesh(), [0, 8, 0], [2.2, 4.2, 2.2], { subdivisions: q.cone, seed: 80, lump: 0.07, flat: 0.7, taper: 0.4 }) },
+  ]),
+  // Fir: tall and narrow, coming to a point.
+  'tree-conifer-c': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.2, 0.1, 0, 2) },
+    { role: 'foliage', ...blob(mesh(), [0, 7, 0], [2, 6.2, 2], { subdivisions: q.cone, seed: 90, lump: 0.04, flat: 0.4, taper: 0.9 }) },
+  ]),
   // Cypress: a slim flame.
-  'tree-conifer-d': () => {
-    const leaves = mesh()
-    blob(leaves, [0, 5.6, 0], [1.25, 4.6, 1.25], { seed: 100, lump: 0.1, flat: 0.8 })
-    return [{ role: 'bark', ...cylinder(mesh(), 6, 0.18, 0.12, 0, 1.6) }, { role: 'foliage', ...leaves }]
-  },
+  'tree-conifer-d': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.18, 0.12, 0, 1.6) },
+    { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [1.3, 4.6, 1.3], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
+  ]),
   ...Object.fromEntries([['a', 9, 9, 110], ['b', 12, 7, 120], ['c', 6, 10, 130]].map(([k, height, count, seed]) => [
     `tree-palm-${k}`,
     () => {
@@ -1124,8 +1087,8 @@ async function main() {
   const written = []
   const manifest = {}
 
-  const emit = async (name, parts) => {
-    toUnit(parts)
+  const emit = async (name, parts, ownFar) => {
+    const fit = toUnit(parts)
     // Before the far LOD is fitted, so its proxy post is fitted to the slimmed
     // trunk rather than to the one nobody will see.
     const slimmed = slimTrunks(parts)
@@ -1151,7 +1114,11 @@ async function main() {
     // `toUnit` over it re-centres on its own bounding box — which for a
     // five-sided prism is not its axis, so every proxy came out shifted off
     // centre and about 8% wide.
-    const far = farLod(parts)
+    let far = farLod(parts)
+    if (ownFar) {
+      toUnit(ownFar, fit)
+      far = ownFar
+    }
     // Oriented in its own right: these solids are built here rather than
     // vendored, and `cylinder` and `lozenge` wind their walls the wrong way
     // round — so every proxy was inside out until this ran over it too.
@@ -1180,7 +1147,7 @@ async function main() {
     )
   }
 
-  for (const [name, build] of Object.entries(TREES)) await emit(name, build())
+  for (const [name, build] of Object.entries(TREES)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build())
 
   // What was actually written, so the app asks for exactly that. Not every

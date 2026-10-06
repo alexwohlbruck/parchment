@@ -895,12 +895,13 @@ export class MaplibreStrategy extends MapStrategy {
       combineFilters([
         this.baseFilters.get(id),
         this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
-        // A recycling point is drawn as a 3D bin from the zoom furniture
-        // appears, and bins carry no badge, so neither does it.
+        // An unnamed recycling point is a street container, drawn as a 3D bin
+        // from the zoom furniture appears, and bins carry no badge. A named
+        // one is a recycling centre: it keeps its badge and gets no bin.
         this.map3dObjects && layerGroups.poi.includes(id) && [
           'step', ['zoom'], true,
           FURNITURE_OBJECTS.minzoom,
-          ['!', ['in', ['get', 'subclass'], ['literal', ['recycling', 'waste_basket', 'waste_disposal']]]],
+          ['!', ['all', ['==', ['get', 'subclass'], 'recycling'], ['!', ['has', 'name']]]],
         ],
         this.basemapHiders.get(id)?.size && NEVER_MATCH,
       ]),

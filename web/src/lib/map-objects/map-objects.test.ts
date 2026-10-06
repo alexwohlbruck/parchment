@@ -210,9 +210,8 @@ describe('models', () => {
   /**
    * The layer's only per-instance transform is a height in metres and a
    * lateral scale, which is only correct if the model is exactly one unit tall
-   * standing on its own origin. The vendored source models are not — Kenney
-   * wraps each in a parent node and offsets the mesh inside it — so this is
-   * really a test that the build script's normalisation ran.
+   * standing on its own origin, so this is really a test that the build
+   * script's normalisation ran.
    */
   test.each(ALL)('%s is a unit tall, based at the origin', name => {
     const model = load(name)
@@ -254,7 +253,7 @@ describe('models', () => {
    * A stand-in may not be bigger than the thing it stands in for.
    *
    * glTF lets several primitives share one vertex buffer and differ only by
-   * their indices, which is what Kenney's exporter does — so a part's position
+   * their indices, which is what many exporters do — so a part's position
    * array spans the whole model, and measuring it directly gave every trunk the
    * bounds of its own canopy. Distant trees came out wrapped in a brown crate
    * as tall and as wide as the tree.

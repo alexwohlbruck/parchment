@@ -180,12 +180,33 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
   const request = () => {
     if (!queued) queued = requestAnimationFrame(hydrate)
   }
+
+  // POIs arriving mid-gesture are hydrated as their tiles land, at most this
+  // often, so a pan or zoom never shows a block with its POIs missing.
+  const TILE_REFRESH_MS = 300
+  let lastTileRefresh = 0
+  let trailing = 0
+  const onSourceData = (e: any) => {
+    if (!tiles || e.sourceId !== tiles || !e.tile) return
+    const wait = lastTileRefresh + TILE_REFRESH_MS - performance.now()
+    if (wait <= 0) {
+      lastTileRefresh = performance.now()
+      request()
+    } else if (!trailing) {
+      trailing = window.setTimeout(() => {
+        trailing = 0
+        lastTileRefresh = performance.now()
+        request()
+      }, wait)
+    }
+  }
   const onStyle = () => {
     signature = ''
     if (!map.getSource(SOURCE)) tiles = null
     request()
   }
   map.on('idle', request)
+  map.on('sourcedata', onSourceData)
   map.on('style.load', onStyle)
   request()
 
@@ -193,8 +214,10 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     refresh: onStyle,
     detach() {
       map.off('idle', request)
+      map.off('sourcedata', onSourceData)
       map.off('style.load', onStyle)
       if (queued) cancelAnimationFrame(queued)
+      if (trailing) clearTimeout(trailing)
     },
   }
 }

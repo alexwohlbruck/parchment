@@ -15,6 +15,7 @@ import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
+import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
 const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS })
@@ -210,9 +211,8 @@ describe('models', () => {
   /**
    * The layer's only per-instance transform is a height in metres and a
    * lateral scale, which is only correct if the model is exactly one unit tall
-   * standing on its own origin. The vendored source models are not — Kenney
-   * wraps each in a parent node and offsets the mesh inside it — so this is
-   * really a test that the build script's normalisation ran.
+   * standing on its own origin, so this is really a test that the build
+   * script's normalisation ran.
    */
   test.each(ALL)('%s is a unit tall, based at the origin', name => {
     const model = load(name)
@@ -254,7 +254,7 @@ describe('models', () => {
    * A stand-in may not be bigger than the thing it stands in for.
    *
    * glTF lets several primitives share one vertex buffer and differ only by
-   * their indices, which is what Kenney's exporter does — so a part's position
+   * their indices, which is what many exporters do — so a part's position
    * array spans the whole model, and measuring it directly gave every trunk the
    * bounds of its own canopy. Distant trees came out wrapped in a brown crate
    * as tall and as wide as the tree.
@@ -328,8 +328,15 @@ describe('trees', () => {
     expect(at({}).height).toBeGreaterThan(0)
   })
 
-  test('a measured crown sets the spread directly', () => {
-    expect(at({ diameter_crown: '11' }).spread).toBe(11)
+  test('a measured crown sets the width directly', () => {
+    expect(at({ diameter_crown: '11' }).width).toBe(11)
+  })
+
+  test('an unmeasured tree keeps its model\'s proportions, give or take', () => {
+    const t = at({})
+    expect(t.width).toBeUndefined()
+    expect(t.spread / t.height).toBeGreaterThanOrEqual(0.85)
+    expect(t.spread / t.height).toBeLessThanOrEqual(1.15)
   })
 
   test('an absurd height is ignored in favour of a plausible one', () => {
@@ -385,7 +392,8 @@ describe('trees', () => {
   })
 
   test('the 3D form starts at the same zoom as the flat one', () => {
-    expect(TREE_OBJECTS.minzoom).toBe(16)
+    const flat = treeLayers('light').find(l => l['source-layer'] === TREE_OBJECTS.sourceLayer)
+    expect(TREE_OBJECTS.minzoom).toBe(flat.minzoom)
   })
 })
 
@@ -490,8 +498,14 @@ describe('street furniture', () => {
 
   test('furniture is drawn at its real size', () => {
     const bench = at({ kind: 'bench', direction: 'N' })!
-    expect(bench.spread).toBeCloseTo(1.8, 2)
-    expect(bench.height).toBeLessThan(1)
+    let [low, high] = [Infinity, -Infinity]
+    for (const p of load('bench').primitives)
+      for (let i = 0; i < p.position.length; i += 3) {
+        low = Math.min(low, p.position[i])
+        high = Math.max(high, p.position[i])
+      }
+    expect((high - low) * bench.spread).toBeCloseTo(1.8, 1)
+    expect(bench.height).toBeLessThan(1.3)
   })
 })
 

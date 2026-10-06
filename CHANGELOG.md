@@ -4,6 +4,10 @@
 
 ### Changed
 
+* 3D trees are smoother and more natural, vary in colour, cast shadows, and now appear from further out; benches and bins look more like the real thing.
+* Places on upper floors or inside tall buildings now sit on the roof or at their floor, instead of at street level.
+* The light map is brighter: buildings are near-white with soft pastel tints, shaded walls are lighter, and the ground is cleaner.
+
 ### Fixed
 
 ## [0.12.7] - 2026-10-06

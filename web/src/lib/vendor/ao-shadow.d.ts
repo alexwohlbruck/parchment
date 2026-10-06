@@ -25,6 +25,11 @@ export interface WallShadowLayerOptions {
   aoOffset?: [number, number, number]
   edge?: number
   edgeWidth?: number
+  /** Drawn into the cast-shadow mask with the buildings; see `_casterShadows`. */
+  shadowCasters?: Set<{
+    drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
+    shadowVersion?: number
+  }>
 }
 
 export class WallShadowLayer {
@@ -37,5 +42,5 @@ export class WallShadowLayer {
   groundFx: boolean
   onAdd(map: any, gl: WebGL2RenderingContext): void
   onRemove(map: any, gl: WebGL2RenderingContext): void
-  render(gl: WebGL2RenderingContext): void
+  render(gl: WebGL2RenderingContext, args?: unknown): void
 }

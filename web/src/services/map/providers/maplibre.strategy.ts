@@ -1,3 +1,4 @@
+import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
@@ -92,6 +93,7 @@ import {
   OBJECT_SOLID,
   OBJECT_SPECS,
 } from '@/lib/map-objects'
+import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -107,6 +109,7 @@ import {
   shadeLight,
   sunShadow,
   BUILDING_SHADE_LAYER_ID,
+  shadowCasters,
 } from '@/lib/map/building-shade'
 function getPrimaryThemeHex(): string {
   try {
@@ -257,6 +260,7 @@ export class MaplibreStrategy extends MapStrategy {
   private map3dObjects = true
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
+  private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
   private objectModels: Promise<Record<string, GlbModel>> | null = null
 
   constructor(
@@ -405,6 +409,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Note: setupPoiHandlers() is idempotent — it early-returns if handlers
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
+    this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
     this.mapInstance.on('style.load', () => {
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
@@ -414,7 +419,9 @@ export class MaplibreStrategy extends MapStrategy {
       this.applyBuildingShade()
       this.updateRoofEdge()
       // A style swap drops custom layers with it, and rebuilds the flat form's
-      // visibility from the stylesheet.
+      // visibility from the stylesheet. A dropped layer must stop casting too:
+      // its buffers went with the old style.
+      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
       this.objectLayer = null
       void this.applyMapObjects()
       mapEventBus.emit('style.load', this.mapInstance)
@@ -658,6 +665,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
     this.map3dBuildings = value
     this.applyBuildingShade()
+    this.poiElevation?.refresh()
   }
 
   /**
@@ -671,6 +679,7 @@ export class MaplibreStrategy extends MapStrategy {
   override setMap3dObjects(value: boolean) {
     this.map3dObjects = value
     void this.applyMapObjects()
+    for (const id of layerGroups.poi) this.applyBasemapFilter(id)
   }
 
   private async applyMapObjects() {
@@ -689,6 +698,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
 
     if (!this.map3dObjects) {
+      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
       if (this.objectLayer && map.getLayer(this.objectLayer.id)) {
         map.removeLayer(this.objectLayer.id)
       }
@@ -734,6 +744,7 @@ export class MaplibreStrategy extends MapStrategy {
     // part of it — but a symbol layer ignores depth entirely, so the only thing
     // keeping a tree from covering a place marker is drawing it first.
     map.addLayer(this.objectLayer as any, firstLabelLayer(map))
+    shadowCasters.add(this.objectLayer)
     flat()
   }
 
@@ -884,6 +895,14 @@ export class MaplibreStrategy extends MapStrategy {
       combineFilters([
         this.baseFilters.get(id),
         this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
+        // An unnamed recycling point is a street container, drawn as a 3D bin
+        // from the zoom furniture appears, and bins carry no badge. A named
+        // one is a recycling centre: it keeps its badge and gets no bin.
+        this.map3dObjects && layerGroups.poi.includes(id) && [
+          'step', ['zoom'], true,
+          FURNITURE_OBJECTS.minzoom,
+          ['!', ['all', ['==', ['get', 'subclass'], 'recycling'], ['!', ['has', 'name']]]],
+        ],
         this.basemapHiders.get(id)?.size && NEVER_MATCH,
       ]),
     )
@@ -1270,6 +1289,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   destroy() {
+    this.poiElevation?.detach()
     try {
       this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()

@@ -383,7 +383,7 @@ function applyNetworkVisibility() {
   const v = networkHidden ? 'none' : 'visible'
   let layers: any[] = []
   try {
-    layers = map.getStyle()?.layers ?? []
+    layers = styleLayers()
   } catch {
     return // style not ready — the mount path re-applies
   }
@@ -604,7 +604,7 @@ function syncIsolatedLine() {
     },
   }
   removeIsolatedLine()
-  map.addSource(SRC_ISOLATED_LINE, {
+  addSource(SRC_ISOLATED_LINE, {
     type: 'geojson',
     tolerance: 0,
     buffer: 128,
@@ -614,7 +614,7 @@ function syncIsolatedLine() {
   const layout = { 'line-cap': 'round', 'line-join': 'round' }
 
   if (engine === MapEngine.MAPBOX) {
-    map.addLayer({
+    addLayer({
       id: ISOLATED_LINE,
       type: 'line',
       source: SRC_ISOLATED_LINE,
@@ -632,7 +632,7 @@ function syncIsolatedLine() {
   }
 
   const buildings = buildingLayer()
-  map.addLayer(
+  addLayer(
     {
       id: ISOLATED_LINE,
       type: 'line',
@@ -648,7 +648,7 @@ function syncIsolatedLine() {
     buildings ?? firstLabelLayer(),
   )
   if (!buildings) return
-  map.addLayer(
+  addLayer(
     {
       id: ISOLATED_LINE_GHOST,
       type: 'line',
@@ -829,7 +829,7 @@ function applyStationScale() {
 }
 
 function applyStationZoomRelax() {
-  if (!map?.getStyle()) return
+  if (!map?.style) return
   for (const [id, z] of Object.entries(STATION_ZOOM)) {
     if (!map.getLayer(id)) continue
     map.setLayerZoomRange(id, stopsNarrowed() ? z.isolated : z.usual, 24)
@@ -1270,7 +1270,7 @@ let ribbonAnchor: string | undefined
  * `after` names a layer the anchor has to clear — see `firstLabelLayerId`.
  */
 function firstLabelLayer(after?: string): string | undefined {
-  return firstLabelLayerId(map?.getStyle?.()?.layers ?? [], after)
+  return firstLabelLayerId(map ? styleLayers() : [], after)
 }
 
 /**
@@ -1289,6 +1289,29 @@ const OCCLUDED_OPACITY = 0.28
 const ghostId = (id: string) => `${id}-ghost`
 
 /**
+ * MapLibre validates every added layer and source against a serialization of
+ * the whole style, so a feed's few hundred generated layers cost O(n²). They
+ * are built here, not authored, and skip it.
+ */
+function addLayer(spec: any, before?: string) {
+  if (engine !== MapEngine.MAPLIBRE || !map.style?.addLayer) return map.addLayer(spec, before)
+  map.style.addLayer(spec, before, { validate: false })
+  map._update(true)
+}
+
+function addSource(id: string, spec: any) {
+  if (engine !== MapEngine.MAPLIBRE || !map.style?.addSource) return map.addSource(id, spec)
+  map.style.addSource(id, spec, { validate: false })
+  map._update(true)
+}
+
+/** The style's layers in draw order, without serializing the style. */
+function styleLayers(m: any = map): any[] {
+  if (typeof m?.getLayersOrder !== 'function') return m?.getStyle?.()?.layers ?? []
+  return m.getLayersOrder().map((id: string) => m.getLayer(id)).filter(Boolean)
+}
+
+/**
  * Can this style take layers yet? Parsed, not fully fetched: that is all
  * addLayer and the label/building anchors need, and isStyleLoaded() is
  * false while any one pyramid has a tile in flight (see hydrationReady).
@@ -1296,7 +1319,7 @@ const ghostId = (id: string) => `${id}-ghost`
  */
 function styleReady(m: any): boolean {
   try {
-    return !!m.getStyle()?.layers?.length
+    return styleLayers(m).length > 0
   } catch {
     return false
   }
@@ -1339,15 +1362,21 @@ async function sync() {
     scheduleResync(m)
     return
   }
-  addSourcesAndLayers(regions)
-  await reconcileFeeds(regions)
+  const built = addSourcesAndLayers(regions)
+  const mountedAny = await reconcileFeeds(regions)
   if (map !== m) return
-  restoreHeldTransitions()
-  refreshLabelPaint()
+  // Runs on every moveend; the re-applies are for what was just added, and
+  // each costs a setData or a style edit, so a pan that added nothing skips them.
+  if (built) {
+    restoreHeldTransitions()
+    refreshLabelPaint()
+    applyStations()
+  }
   remeasureRows()
-  applyStations()
-  applyTileFilters()
-  applyRibbonDim()
+  if (built || mountedAny) {
+    applyTileFilters()
+    applyRibbonDim()
+  }
   requestHydrate()
 }
 
@@ -1392,7 +1421,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
     // data-driven — ours is, since a class's opacity comes from the feed's
     // style manifest. Folding that alpha into the colour buys back a
     // constant line-opacity and paints the same pixels.
-    map.addLayer({
+    addLayer({
       ...spec,
       slot: 'middle',
       paint: {
@@ -1409,7 +1438,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
     return
   }
 
-  map.addLayer(
+  addLayer(
     {
       ...spec,
       paint: {
@@ -1430,7 +1459,7 @@ function addRibbonLayer(spec: any, opacity: Expr, structural: Expr) {
     offset: spec.paint['line-offset'],
     ghost: true,
   })
-  map.addLayer(
+  addLayer(
     {
       ...spec,
       id: gid,
@@ -1491,8 +1520,9 @@ const hits = (box: number[] | undefined, p: {w:number;e:number;s:number;n:number
 /** Reconcile the mounted set against the viewport. Cheap and idempotent:
  *  when the desired set already matches, this touches nothing, which is
  *  what lets it run on every moveend. */
-async function reconcileFeeds(regions: PortolanIndexEntry[]) {
-  if (!map?.getSource(SRC_STATIONS)) return
+/** Mount the feeds the viewport wants; true when any was newly mounted. */
+async function reconcileFeeds(regions: PortolanIndexEntry[]): Promise<boolean> {
+  if (!map?.getSource(SRC_STATIONS)) return false
   const b = map.getBounds()
   const near = padded(b, MOUNT_PAD)
   const far = padded(b, KEEP_PAD)
@@ -1524,15 +1554,16 @@ async function reconcileFeeds(regions: PortolanIndexEntry[]) {
   if (fresh.length) {
     const m = map
     await Promise.all(fresh.map(r => ensureFeedStyle(r.feed)))
-    if (map !== m) return
+    if (map !== m) return false
   }
   for (const r of want) mountFeed(r)
+  return fresh.length > 0
 }
 
 // ── sources + layers (MapView.vue:985-1286 addLayers, 1442-1499 clones) ─
 
-function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
-  if (map.getSource(SRC_STATIONS)) return // this style is already built
+function addSourcesAndLayers(regions: PortolanIndexEntry[]): boolean {
+  if (map.getSource(SRC_STATIONS)) return false // this style is already built
   // setStyle({diff:false}) — a theme swap, a basemap swap — takes every
   // layer we added with it while the map object stays the same. The
   // mounted set would otherwise still name feeds that are no longer on
@@ -1548,10 +1579,10 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
   // path is skipped and the ramps ride the vector tiles directly.
   if (forkOffsets) {
     for (const b of BANDS) {
-      map.addSource(srcBuild(b.key), { type: 'geojson', data: EMPTY_FC, lineMetrics: true })
+      addSource(srcBuild(b.key), { type: 'geojson', data: EMPTY_FC, lineMetrics: true })
     }
   }
-  map.addSource(SRC_STATIONS, { type: 'geojson', data: EMPTY_FC })
+  addSource(SRC_STATIONS, { type: 'geojson', data: EMPTY_FC })
 
   // transition/bridge twins. Steady is skipped: steady ribbons render
   // straight off the vector tiles below. The twins' width/opacity
@@ -1594,6 +1625,7 @@ function addSourcesAndLayers(regions: PortolanIndexEntry[]) {
   // Freshly mounted layers know nothing of a dim or a hide already in force.
   if (networkDimmed) applyStationDim()
   if (networkHidden) applyNetworkVisibility()
+  return true
 }
 
 /**
@@ -1615,7 +1647,7 @@ function mountFeed(r: PortolanIndexEntry) {
   const anchor = ribbonAnchor && map.getLayer(ribbonAnchor) ? ribbonAnchor : undefined
 
   const src = srcTiles(r.feed)
-  map.addSource(src, {
+  addSource(src, {
     type: 'vector',
     tiles: [`${proxyBase()}/${encodeURIComponent(r.feed)}/{z}/{x}/{y}.mvt`],
     minzoom: 0,
@@ -1697,8 +1729,8 @@ function mountFeed(r: PortolanIndexEntry) {
 function unmountFeed(feed: string) {
   if (!mounted.has(feed)) return
   mounted.delete(feed)
-  if (!map?.getStyle?.()) return
-  for (const l of map.getStyle().layers ?? []) {
+  if (!map?.style) return
+  for (const l of styleLayers()) {
     const id: string = l.id
     if (l.source === srcTiles(feed) || id.endsWith(`-${feed}`) || id.startsWith(`${srcTiles(feed)}-`)) {
       if (map.getLayer(id)) map.removeLayer(id)
@@ -1740,8 +1772,17 @@ function refreshLabelPaint() {
  *  The logic is pure and lives in portolan-expressions, where it is
  *  tested against the real styles in both themes — this got shipped
  *  wrong twice while it was guesswork spread across two files. */
+let labelPaintMemo: { style: any; dark: boolean; mapboxDark: boolean | undefined; paint: any } | null = null
 function basemapLabelPaint() {
-  return labelPaintFor(map?.getStyle?.()?.layers ?? [], themeDark, mapboxIsDark())
+  const style = map?.style
+  const mapboxDark = mapboxIsDark()
+  const memo = labelPaintMemo
+  if (memo && style && memo.style === style && memo.dark === themeDark && memo.mapboxDark === mapboxDark) {
+    return memo.paint
+  }
+  const paint = labelPaintFor(map?.getStyle?.()?.layers ?? [], themeDark, mapboxDark)
+  labelPaintMemo = { style, dark: themeDark, mapboxDark, paint }
+  return paint
 }
 
 /**
@@ -1862,7 +1903,7 @@ function addSymbolLayers() {
   // EVERY dot appears at once — a half-drawn set of stops reads as
   // missing data, not "the important ones". Labels are the scarce
   // resource and get the ranking; dots are all-or-nothing.
-  map.addLayer({
+  addLayer({
     id: 'portolan-station-markers',
     ...slot,
     type: 'symbol',
@@ -1920,7 +1961,7 @@ function addSymbolLayers() {
     14,
     ['get', 'vec'],
   ]
-  map.addLayer({
+  addLayer({
     id: 'portolan-cats',
     ...slot,
     type: 'symbol',
@@ -1949,7 +1990,7 @@ function addSymbolLayers() {
 
   // WORD labels are not bullets: routes named "Orange Line" set as text
   // running along the ribbon, the way a road map labels a highway
-  map.addLayer({
+  addLayer({
     id: 'portolan-cat-text',
     ...slot,
     type: 'symbol',
@@ -2037,7 +2078,7 @@ function addSymbolLayers() {
   const solo: Expr = ['<', ['coalesce', ['get', 'nmarkers'], 1], 2]
   const labelGate: Expr = ['step', ['zoom'], isStation, 15, ['all', isStation, solo]]
   const labelPadding: Expr = ['interpolate', ['linear'], ['zoom'], 11, 34, 12, 22, 13, 13, 14, 6, 16, 2]
-  map.addLayer({
+  addLayer({
     id: 'portolan-station-labels',
     ...slot,
     type: 'symbol',
@@ -2066,7 +2107,7 @@ function addSymbolLayers() {
   })
   // per-corridor labels for complexes at z15+: this corridor's name and
   // ITS bullets (Fulton St splits into A·C / J·Z / 2·3 / 4·5 labels)
-  map.addLayer({
+  addLayer({
     id: 'portolan-station-labels-hi',
     ...slot,
     type: 'symbol',
@@ -2140,7 +2181,7 @@ function applyTileFilters() {
   if (cls) clauses.push(cls)
   for (const [id, structural] of structuralFilter) {
     if (!map.getLayer(id)) continue
-    map.setFilter(id, composeFilter(structural, clauses))
+    map.setFilter(id, composeFilter(structural, clauses), { validate: false })
   }
 }
 
@@ -2277,7 +2318,7 @@ function applyStationDim() {
   const o = networkDimmed && !stopsNarrowed() ? isolationDim() : 1
   let layers: any[] = []
   try {
-    layers = map.getStyle()?.layers ?? []
+    layers = styleLayers()
   } catch {
     return // style not ready — the mount path re-applies
   }
@@ -2409,9 +2450,11 @@ function restoreHeldTransitions() {
 }
 
 function tileSourceIds(): string[] {
-  const style = map?.getStyle()
-  if (!style) return []
-  return Object.keys(style.sources ?? {}).filter(s => s.startsWith('portolan-tiles-'))
+  // The live source registry where the engine exposes one: getStyle() would
+  // serialize every layer just to list the source ids.
+  const registry = map?.style?.tileManagers ?? map?.style?.sourceCaches
+  const ids = registry ? Object.keys(registry) : Object.keys(map?.getStyle?.()?.sources ?? {})
+  return ids.filter(s => s.startsWith('portolan-tiles-'))
 }
 
 /** One sweep per frame, never one per event: every region source fires

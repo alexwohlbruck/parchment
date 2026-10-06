@@ -206,7 +206,7 @@ export function buildingColor(
  * a lit surface. Each sits within a few points of the flavor's own near-white.
  */
 export const BUILDING_PASTELS = {
-  light: ['hsl(32, 48%, 94%)', 'hsl(212, 24%, 95%)', 'hsl(350, 42%, 95%)', 'hsl(44, 46%, 94%)', 'hsl(160, 26%, 94%)'],
+  light: ['hsl(30, 34%, 89%)', 'hsl(212, 20%, 89%)', 'hsl(350, 28%, 90%)', 'hsl(44, 36%, 88%)', 'hsl(160, 18%, 88%)'],
   dark: [],
 }
 

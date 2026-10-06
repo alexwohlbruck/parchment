@@ -2,15 +2,22 @@
 
 ### Added
 
-* Famous landmarks can be drawn as small 3D models instead of plain blocks, lit and shadowed like the buildings around them. It starts with the Eiffel Tower, and needs the MapLibre engine with 3D objects turned on.
+### Changed
+
+### Fixed
+
+## [0.13.0] - 2026-10-06
+
+### Added
+
+* 3D landmarks: dozens of famous buildings, stadiums and rides in New York, Charlotte and Paris are drawn as small 3D models instead of plain blocks, lit and shadowed like the buildings around them and glowing at night. Some move, like the Wonder Wheel and Carowinds' SkyTower. Needs the MapLibre engine with 3D objects on.
+* Roller coaster tracks are drawn on the map.
 
 ### Changed
 
 * 3D trees are smoother and more natural, vary in colour, cast shadows, and now appear from further out; benches and bins look more like the real thing.
 * Places on upper floors or inside tall buildings now sit on the roof or at their floor, instead of at street level.
 * The light map is brighter: buildings are near-white with soft pastel tints, shaded walls are lighter, and the ground is cleaner.
-
-### Fixed
 
 ## [0.12.7] - 2026-10-06
 

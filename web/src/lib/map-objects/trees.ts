@@ -121,6 +121,7 @@ export function treeInstance(
     // ±12% on the model's own greens, so a stand of trees is not one flat
     // block of colour.
     shade: 0.88 + hash(seed, 4) * 0.24,
+    tint: hash(seed, 6),
     model: pick(TREE_FAMILIES[family], hash(seed, 5)),
   }
 }

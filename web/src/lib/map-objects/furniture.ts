@@ -26,7 +26,7 @@ export const FURNITURE_MODELS = {
 const SIZE = {
   'waste-basket': { height: 0.94 },
   recycling: { height: 1.1 },
-  bench: { height: 0.91 },
+  bench: { height: 1.16 },
 }
 
 /** `amenity` values that share a model. */

@@ -71,7 +71,8 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     paint: [0.22, 0.47, 0.36],
     interior: [0.16, 0.18, 0.17],
     bench: [0.88, 0.8, 0.68],
-    bin: [0.45, 0.6, 0.5],
+    bin: [0.35, 0.37, 0.4],
+    recycling: [0.22, 0.36, 0.56],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
@@ -82,7 +83,8 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     paint: [0.12, 0.23, 0.17],
     interior: [0.06, 0.07, 0.07],
     bench: [0.36, 0.32, 0.27],
-    bin: [0.17, 0.25, 0.2],
+    bin: [0.16, 0.17, 0.19],
+    recycling: [0.1, 0.16, 0.26],
   },
 }
 

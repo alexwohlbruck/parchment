@@ -206,7 +206,7 @@ export function buildingColor(
  * a lit surface. Each sits within a few points of the flavor's own near-white.
  */
 export const BUILDING_PASTELS = {
-  light: ['hsl(30, 34%, 89%)', 'hsl(212, 20%, 89%)', 'hsl(350, 28%, 90%)', 'hsl(44, 36%, 88%)', 'hsl(160, 18%, 88%)'],
+  light: ['hsl(32, 22%, 89%)', 'hsl(210, 12%, 89%)', 'hsl(355, 16%, 89.5%)', 'hsl(44, 24%, 88.5%)', 'hsl(150, 10%, 88.5%)'],
   dark: [],
 }
 
@@ -218,7 +218,9 @@ export function unpaintedBuildingColor(flavor, colorToken = '@building_3d_fill_e
   const pastels = BUILDING_PASTELS[flavor] ?? []
   if (!pastels.length) return colorToken
   return [
-    'match', ['%', ['to-number', ['id'], 0], pastels.length + 1],
+    // OpenMapTiles ids end in a type digit (osm id × 10 + type), so the last
+    // digit is dropped or every building lands in the same couple of buckets.
+    'match', ['%', ['floor', ['/', ['to-number', ['id'], 0], 10]], pastels.length + 1],
     ...pastels.flatMap((c, i) => [i, c]),
     colorToken,
   ]

@@ -460,6 +460,7 @@ export function buildLayers(options: {
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
   base = withBuildingCasts(base, flavor)
+  base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor)
   base = withPoiDots(base)
 
@@ -598,6 +599,16 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   }
 
   return out
+}
+
+/** The plan-view outline, rounded exactly as far as the extrusion it traces. */
+function withRoundedRoofEdge(layers: any[]): any[] {
+  const radius = layers.find(l => l.type === 'fill-extrusion')?.layout?.['fill-extrusion-rounded-corner-distance']
+  if (!radius) return layers
+  return layers.map(l => l.id !== BUILDING_ROOF_EDGE_LAYER ? l : {
+    ...l,
+    layout: { ...l.layout, 'line-rounded-corner-distance': radius },
+  })
 }
 
 /** The extruded buildings' colour, with the flavor's casts for unpainted ones. */

@@ -55,29 +55,25 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
  * way it looks at noon. The layer resolves them per draw rather than baking them
  * in: switching theme is a uniform, not a reload.
  *
- * Daylight foliage is `#B6E694`, as a plain sRGB triple. The models' own
- * `baseColorFactor` is nominally linear and this comment used to say these were
- * too, but nothing in the pipeline treats them that way: the fragment shader
- * writes the colour straight to `gl_FragColor` and the drawing buffer is not
- * sRGB, so what is written here is what the screen shows. Converting a hex to
- * linear before pasting it in renders the tree several steps too dark.
- *
- * What does move it is the shading — the half-lambert term against ambient, and
- * the instance's own `shade`. A crown seen from above keeps roughly 93-100% of
- * the value below, so the named colour is close to what the top of a tree
- * reads as, and its flanks sit under that.
+ * Colours are plain sRGB triples, written straight to the screen: nothing in
+ * the pipeline linearises them. Foliage carries an `-alt`, the bluer green an
+ * instance moves toward with its `tint`, so a street of trees varies in hue
+ * and not only in value. The shader darkens a crown's underside on top of this,
+ * so the named colour is roughly what the sunlit top of a tree reads as.
  */
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
-    bark: [0.55, 0.42, 0.32],
-    foliage: [0.713, 0.901, 0.579],
-    metal: [0.46, 0.49, 0.51],
-    wood: [0.56, 0.42, 0.29],
-    paint: [0.24, 0.44, 0.32],
+    bark: [0.47, 0.36, 0.27],
+    foliage: [0.56, 0.78, 0.42],
+    'foliage-alt': [0.42, 0.68, 0.45],
+    metal: [0.3, 0.36, 0.33],
+    wood: [0.62, 0.47, 0.31],
+    paint: [0.22, 0.47, 0.36],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
-    foliage: [0.15, 0.27, 0.16],
+    foliage: [0.17, 0.3, 0.17],
+    'foliage-alt': [0.12, 0.25, 0.18],
     metal: [0.2, 0.23, 0.26],
     wood: [0.24, 0.18, 0.13],
     paint: [0.12, 0.23, 0.17],

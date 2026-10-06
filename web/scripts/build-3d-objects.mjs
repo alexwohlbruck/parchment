@@ -2,22 +2,18 @@
 /**
  * Builds the models the 3D object layer draws.
  *
- * Two kinds of input, one kind of output.
- *
- * Trees come from Kenney's Nature Kit (CC0, vendored under
- * `src/assets/models-src`), because a hand-modelled tree has a silhouette no
- * amount of procedural cylinder-stacking gets to. Street furniture is generated
- * here, because a bin is a cylinder and a bench is six boxes, and getting the
- * proportions right at 1.8m is worth more than getting the style right.
+ * Everything here is generated. Trees are built from lumpy ellipsoids and
+ * jittered cone tiers, so a crown is round from every side — including straight
+ * down, where a low-poly game asset reads as a hexagon. Street furniture is
+ * built from boxes and cylinders, because a bin is a drum and a bench is a few
+ * slats, and getting the proportions right at 1.8m is what carries recognition.
  *
  * Everything is put through the same normalisation, and that is the real job of
  * this script:
  *
- *   role      A primitive's material name becomes `bark`, `foliage`, `metal`,
- *             `wood` or `paint`. glTF has no field for "this is the leafy part",
- *             and the layer needs one so it can recolour per flavor — the
- *             source colours are a game palette (Kenney's leaves are turquoise)
- *             and would look wrong on a map either way.
+ *   role      Every part is tagged `bark`, `foliage`, `metal`, `wood` or
+ *             `paint`, written as its material name, so the layer can colour
+ *             it per flavor.
  *   unit      Scaled and translated so the model is exactly 1 tall with its
  *             base at y=0 and centred on x/z, which is what lets the layer's
  *             only per-instance transform be a height in metres.
@@ -33,13 +29,11 @@
  *
  * Run with: bun run build:models
  */
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseGlb } from '../src/lib/map-objects/glb.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const SRC = resolve(HERE, '../src/assets/models-src')
 const OUT = resolve(HERE, '../public/models')
 const MANIFEST = resolve(HERE, '../src/lib/map-objects/models.json')
 
@@ -59,16 +53,6 @@ const ROLE_COLOR = {
   metal: [0.42, 0.45, 0.47, 1],
   wood: [0.55, 0.41, 0.28, 1],
   paint: [0.24, 0.42, 0.30, 1],
-}
-
-/** Kenney names its materials by what they are, which is most of the work. */
-function roleOf(materialName) {
-  const name = materialName.toLowerCase()
-  if (name.includes('leaf') || name.includes('leafs') || name.includes('foliage')) return 'foliage'
-  if (name.includes('wood') || name.includes('bark') || name.includes('trunk')) return 'bark'
-  if (ROLE_COLOR[name]) return name
-  // `_defaultMat` and friends: the odd extra part on a couple of the pines.
-  return 'foliage'
 }
 
 /** How far apart two faces can lean and still share a smoothed normal. */
@@ -132,7 +116,7 @@ function cylinder(m, sides, bottomRadius, topRadius, base, height) {
 }
 
 /** A lozenge fitted to a box — the far LOD's stand-in for a canopy. */
-function lozenge(m, [x0, y0, z0], [x1, y1, z1], sides = 6, stacks = 3) {
+function lozenge(m, [x0, y0, z0], [x1, y1, z1], sides = 9, stacks = 3) {
   const cx = (x0 + x1) / 2
   const cz = (z0 + z1) / 2
   const rx = (x1 - x0) / 2
@@ -839,45 +823,52 @@ function toGlb(name, parts) {
 const FURNITURE = {
   'waste-basket': () => {
     const drum = mesh()
-    cylinder(drum, 10, 0.21, 0.25, 0.12, 0.78)
-    const post = mesh()
-    cylinder(post, 6, 0.05, 0.05, 0, 0.16)
+    cylinder(drum, 16, 0.22, 0.26, 0.1, 0.76)
+    const rim = mesh()
+    cylinder(rim, 16, 0.285, 0.285, 0.84, 0.05)
+    const foot = mesh()
+    cylinder(foot, 10, 0.16, 0.16, 0, 0.12)
     return [
       { role: 'metal', ...drum },
-      { role: 'metal', ...post },
+      { role: 'metal', ...rim },
+      { role: 'metal', ...foot },
     ]
   },
   recycling: () => {
     const body = mesh()
-    box(body, [-0.38, 0, -0.32], [0.38, 1.0, 0.32])
+    box(body, [-0.38, 0, -0.32], [0.38, 0.95, 0.32])
+    // A domed lid, so it reads as a bin rather than a crate from above.
     const lid = mesh()
-    box(lid, [-0.41, 1.0, -0.35], [0.41, 1.1, 0.35])
+    blob(lid, [0, 0.95, 0], [0.4, 0.16, 0.34], { seed: 7, lump: 0, subdivisions: 2, flat: 0.2 })
     return [
       { role: 'paint', ...body },
-      { role: 'metal', ...lid },
+      { role: 'paint', ...lid },
     ]
   },
   bench: () => {
     const seat = mesh()
     // Slats, so a bench reads as a bench from above rather than as a plank.
-    for (let i = 0; i < 3; i++) {
-      const z = -0.24 + i * 0.18
-      box(seat, [-0.9, 0.42, z], [0.9, 0.47, z + 0.13])
+    for (let i = 0; i < 4; i++) {
+      const z = -0.25 + i * 0.13
+      box(seat, [-0.9, 0.42, z], [0.9, 0.46, z + 0.1])
     }
     const back = mesh()
-    for (let i = 0; i < 2; i++) {
-      const y = 0.62 + i * 0.17
-      box(back, [-0.9, y, 0.24], [0.9, y + 0.12, 0.3])
+    for (let i = 0; i < 3; i++) {
+      const y = 0.56 + i * 0.12
+      box(back, [-0.9, y, 0.25 + i * 0.03], [0.9, y + 0.09, 0.3 + i * 0.03])
     }
-    const legs = mesh()
-    for (const x of [-0.78, 0.78]) {
-      box(legs, [x - 0.04, 0, -0.28], [x + 0.04, 0.44, -0.2])
-      box(legs, [x - 0.04, 0, 0.22], [x + 0.04, 0.82, 0.3])
+    const frame = mesh()
+    for (const x of [-0.82, 0.82]) {
+      box(frame, [x - 0.03, 0, -0.27], [x + 0.03, 0.42, -0.21])
+      box(frame, [x - 0.03, 0, 0.22], [x + 0.03, 0.86, 0.3])
+      // Armrests, the detail that says "park bench" at a glance.
+      box(frame, [x - 0.035, 0.6, -0.27], [x + 0.035, 0.64, 0.26])
+      box(frame, [x - 0.025, 0.41, -0.245], [x + 0.025, 0.61, -0.215])
     }
     return [
       { role: 'wood', ...seat },
       { role: 'wood', ...back },
-      { role: 'metal', ...legs },
+      { role: 'metal', ...frame },
     ]
   },
 }
@@ -886,58 +877,244 @@ const FURNITURE = {
 // Trees
 // ---------------------------------------------------------------------------
 
-/**
- * Which vendored model each named tree uses.
- *
- * Several per species on purpose: `trees.ts` picks between them from the
- * feature's id, so a street is a row of different trees rather than one tree
- * repeated, which is the single biggest thing separating this from a diagram.
- */
-const TREES = {
-  'tree-broadleaf-a': 'tree_default',
-  'tree-broadleaf-b': 'tree_oak',
-  'tree-broadleaf-c': 'tree_fat',
-  'tree-broadleaf-d': 'tree_detailed',
-  'tree-conifer-a': 'tree_pineRoundA',
-  'tree-conifer-b': 'tree_pineRoundC',
-  'tree-conifer-c': 'tree_pineTallA',
-  'tree-conifer-d': 'tree_cone',
-  'tree-palm-a': 'tree_palm',
-  'tree-palm-b': 'tree_palmTall',
-  'tree-palm-c': 'tree_palmShort',
+/** A seeded PRNG, so a regenerated model is byte-identical to the last one. */
+function rng(seed) {
+  let s = seed >>> 0
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0
+    let t = s
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
 }
 
-async function loadSource(file) {
-  const bytes = await readFile(join(SRC, `${file}.glb`))
-  const model = parseGlb(
-    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-  )
-  // Merge the source's primitives by role, so a model that splits its canopy
-  // across two materials still comes out as one foliage primitive.
-  const byRole = new Map()
-  for (const primitive of model.primitives) {
-    const role = roleOf(primitive.material)
-    const existing = byRole.get(role)
-    if (!existing) {
-      byRole.set(role, {
-        role,
-        position: Array.from(primitive.position),
-        normal: Array.from(primitive.normal),
-        index: Array.from(primitive.index),
-      })
-      continue
+/** A unit icosphere: round from every side, which a canopy has to be. */
+function icosphere(subdivisions) {
+  const t = (1 + Math.sqrt(5)) / 2
+  let verts = [
+    [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t],
+    [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],
+  ].map(v => { const l = Math.hypot(...v); return v.map(c => c / l) })
+  let faces = [
+    [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4],
+    [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8],
+    [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+  ]
+  for (let i = 0; i < subdivisions; i++) {
+    const cache = new Map()
+    const mid = (a, b) => {
+      const key = a < b ? `${a}_${b}` : `${b}_${a}`
+      if (!cache.has(key)) {
+        const m = verts[a].map((c, k) => c + verts[b][k])
+        const l = Math.hypot(...m)
+        verts.push(m.map(c => c / l))
+        cache.set(key, verts.length - 1)
+      }
+      return cache.get(key)
     }
-    const base = existing.position.length / 3
-    existing.position.push(...primitive.position)
-    existing.normal.push(...primitive.normal)
-    for (const i of primitive.index) existing.index.push(i + base)
+    faces = faces.flatMap(([a, b, c]) => {
+      const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a)
+      return [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]
+    })
   }
-  return [...byRole.values()].map(part => ({
-    role: part.role,
-    position: new Float32Array(part.position),
-    normal: new Float32Array(part.normal),
-    index: part.index,
-  }))
+  return { verts, faces }
+}
+
+/**
+ * One lump of foliage: a lumpy ellipsoid with a flattened underside.
+ *
+ * The lumps are a few low-frequency waves over the sphere's directions, seeded,
+ * so neighbouring blobs differ and the outline breaks up the way a real crown's
+ * does. The underside is pulled up because leaves hang off branches — a canopy
+ * is a dome on a flatter base, not a ball.
+ */
+function blob(m, [cx, cy, cz], [rx, ry, rz], { seed = 1, lump = 0.12, subdivisions = 2, flat = 0.55 } = {}) {
+  const r = rng(seed)
+  const waves = Array.from({ length: 4 }, () => {
+    const d = [r() * 2 - 1, r() * 2 - 1, r() * 2 - 1]
+    const l = Math.hypot(...d) || 1
+    return { d: d.map(c => c / l), f: 2 + r() * 3, p: r() * Math.PI * 2, a: 0.5 + r() * 0.5 }
+  })
+  const { verts, faces } = icosphere(subdivisions)
+  const placed = verts.map(([x, y, z]) => {
+    let k = 0
+    for (const w of waves) k += w.a * Math.sin((x * w.d[0] + y * w.d[1] + z * w.d[2]) * w.f + w.p)
+    const s = 1 + (lump * k) / waves.length
+    const yy = y < 0 ? y * flat : y
+    return [cx + x * rx * s, cy + yy * ry * s, cz + z * rz * s]
+  })
+  for (const [a, b, c] of faces) face(m, placed[a], placed[b], placed[c])
+  return m
+}
+
+/** A closed cone tier for a conifer, its rim jittered so the stack reads as needles. */
+function tier(m, y0, height, radius, { seed = 1, sides = 14, jitter = 0.12 } = {}) {
+  const r = rng(seed)
+  const rim = Array.from({ length: sides }, (_, i) => {
+    const a = (i / sides) * Math.PI * 2 + r() * 0.15
+    const k = radius * (1 - jitter / 2 + r() * jitter)
+    // The rim droops between branch tips, which is what makes a tier read as
+    // layered boughs rather than a lampshade.
+    const sag = i % 2 ? height * 0.08 : 0
+    return [Math.cos(a) * k, y0 - sag, Math.sin(a) * k]
+  })
+  const apex = [0, y0 + height, 0]
+  const base = [0, y0 + height * 0.12, 0]
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides
+    face(m, rim[i], apex, rim[j])
+    face(m, rim[j], base, rim[i])
+  }
+  return m
+}
+
+/** Rotate a part's points about the Y axis, then tip them about the X axis. */
+function turn(points, yaw, pitch) {
+  const [cy, sy, cp, sp] = [Math.cos(yaw), Math.sin(yaw), Math.cos(pitch), Math.sin(pitch)]
+  return points.map(([x, y, z]) => {
+    const y1 = y * cp - z * sp
+    const z1 = y * sp + z * cp
+    return [x * cy + z1 * sy, y1, -x * sy + z1 * cy]
+  })
+}
+
+/** A palm frond: a flattened lumpless blob, swung out and drooping from the crown. */
+function frond(m, crown, length, yaw, droop, seed) {
+  const f = mesh()
+  blob(f, [0, 0, length / 2], [0.22 * length / 2.4 + 0.12, 0.05, length / 2], { seed, lump: 0.02, subdivisions: 1, flat: 1 })
+  const pts = []
+  for (let i = 0; i < f.position.length; i += 3) {
+    // Bend along its length: the tip falls further than the base.
+    const z = f.position[i + 2]
+    pts.push([f.position[i], f.position[i + 1] - (z / length) ** 2 * length * 0.35, z])
+  }
+  const moved = turn(pts, yaw, droop).map(([x, y, z]) => [x + crown[0], y + crown[1], z + crown[2]])
+  for (let i = 0; i < moved.length; i += 3) face(m, moved[i], moved[i + 1], moved[i + 2])
+}
+
+/** Several lumps around a centre, the way a broadleaf crown breaks into clumps. */
+function crown(m, centre, radius, count, seed, { height = 1, lift = 0.25 } = {}) {
+  const r = rng(seed)
+  blob(m, centre, [radius, radius * 0.8 * height, radius], { seed: seed + 1 })
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + r() * 0.6
+    const d = radius * (0.55 + r() * 0.25)
+    const k = radius * (0.48 + r() * 0.18)
+    const y = centre[1] + (r() - 0.35) * radius * lift * 2 * height
+    blob(m, [centre[0] + Math.cos(a) * d, y, centre[2] + Math.sin(a) * d], [k, k * 0.85 * height, k], { seed: seed + 10 + i, subdivisions: 1 })
+  }
+  blob(m, [centre[0], centre[1] + radius * 0.62 * height, centre[2]], [radius * 0.55, radius * 0.45 * height, radius * 0.55], { seed: seed + 99, subdivisions: 1 })
+}
+
+/** A trunk, with a couple of limbs into the crown so it is not a pole stuck in a ball. */
+function trunk(m, top, radius, seed, limbs = 2) {
+  cylinder(m, 7, radius, radius * 0.75, 0, top)
+  const r = rng(seed)
+  for (let i = 0; i < limbs; i++) {
+    const limb = mesh()
+    cylinder(limb, 5, radius * 0.5, radius * 0.3, 0, top * 0.45)
+    const pts = []
+    for (let k = 0; k < limb.position.length; k += 3) pts.push([limb.position[k], limb.position[k + 1], limb.position[k + 2]])
+    const moved = turn(pts, r() * Math.PI * 2, 0.5 + r() * 0.3).map(([x, y, z]) => [x, y + top * 0.7, z])
+    for (let k = 0; k < moved.length; k += 3) face(m, moved[k], moved[k + 1], moved[k + 2])
+  }
+  return m
+}
+
+/**
+ * The trees, generated. Modelled in metres; `toUnit` rescales each to one unit
+ * tall, and the layer scales height and spread per instance.
+ *
+ * Several per family on purpose: `trees.ts` picks between them from the
+ * feature's id, so a street is a row of different trees rather than one tree
+ * repeated.
+ */
+const TREES = {
+  // Round street tree: a full dome of clumps on a clear trunk.
+  'tree-broadleaf-a': () => {
+    const leaves = mesh()
+    crown(leaves, [0, 5.2, 0], 2.8, 6, 11)
+    return [{ role: 'bark', ...trunk(mesh(), 3.4, 0.24, 1) }, { role: 'foliage', ...leaves }]
+  },
+  // Spreading: wide and low, like a mature oak or plane.
+  'tree-broadleaf-b': () => {
+    const leaves = mesh()
+    crown(leaves, [0, 4.6, 0], 3.4, 8, 23, { height: 0.72, lift: 0.18 })
+    return [{ role: 'bark', ...trunk(mesh(), 3, 0.3, 2, 3) }, { role: 'foliage', ...leaves }]
+  },
+  // Upright oval: a narrow, tall crown — a pear or a hornbeam.
+  'tree-broadleaf-c': () => {
+    const leaves = mesh()
+    crown(leaves, [0, 5.8, 0], 2.1, 5, 37, { height: 1.55 })
+    return [{ role: 'bark', ...trunk(mesh(), 3, 0.22, 3) }, { role: 'foliage', ...leaves }]
+  },
+  // Irregular: clumps at different heights, the most natural of the four.
+  'tree-broadleaf-d': () => {
+    const leaves = mesh()
+    const r = rng(53)
+    blob(leaves, [0, 5, 0], [2.4, 2, 2.4], { seed: 54 })
+    for (let i = 0; i < 6; i++) {
+      const a = r() * Math.PI * 2
+      const d = 1 + r() * 1.3
+      const k = 1.1 + r() * 0.6
+      blob(leaves, [Math.cos(a) * d, 4.2 + r() * 2.4, Math.sin(a) * d], [k, k * 0.85, k], { seed: 60 + i, subdivisions: 1 })
+    }
+    return [{ role: 'bark', ...trunk(mesh(), 3.4, 0.23, 4) }, { role: 'foliage', ...leaves }]
+  },
+  // Classic spruce: stacked tiers narrowing to a point.
+  'tree-conifer-a': () => {
+    const leaves = mesh()
+    for (let i = 0; i < 5; i++) tier(leaves, 1.6 + i * 1.9, 3.1, 2.5 - i * 0.42, { seed: 70 + i })
+    return [{ role: 'bark', ...cylinder(mesh(), 6, 0.22, 0.12, 0, 4) }, { role: 'foliage', ...leaves }]
+  },
+  // Rounded pine: a soft column of clumps.
+  'tree-conifer-b': () => {
+    const leaves = mesh()
+    blob(leaves, [0, 6.2, 0], [1.9, 3.4, 1.9], { seed: 80, lump: 0.16 })
+    blob(leaves, [0, 9.6, 0], [1.1, 1.3, 1.1], { seed: 81, subdivisions: 1 })
+    return [{ role: 'bark', ...cylinder(mesh(), 6, 0.22, 0.14, 0, 4) }, { role: 'foliage', ...leaves }]
+  },
+  // Tall and narrow: a fir, many shallow tiers.
+  'tree-conifer-c': () => {
+    const leaves = mesh()
+    for (let i = 0; i < 7; i++) tier(leaves, 1.4 + i * 1.5, 2.4, 1.8 - i * 0.22, { seed: 90 + i, sides: 12 })
+    return [{ role: 'bark', ...cylinder(mesh(), 6, 0.2, 0.1, 0, 3) }, { role: 'foliage', ...leaves }]
+  },
+  // Cypress: a slim flame.
+  'tree-conifer-d': () => {
+    const leaves = mesh()
+    blob(leaves, [0, 5.6, 0], [1.25, 4.6, 1.25], { seed: 100, lump: 0.1, flat: 0.8 })
+    return [{ role: 'bark', ...cylinder(mesh(), 6, 0.18, 0.12, 0, 1.6) }, { role: 'foliage', ...leaves }]
+  },
+  ...Object.fromEntries([['a', 9, 9, 110], ['b', 12, 7, 120], ['c', 6, 10, 130]].map(([k, height, count, seed]) => [
+    `tree-palm-${k}`,
+    () => {
+      const bark = mesh()
+      // A gently curving trunk, in segments that thin towards the crown.
+      const r = rng(seed)
+      const lean = 0.06 + r() * 0.05
+      const segs = 6
+      for (let i = 0; i < segs; i++) {
+        const seg = mesh()
+        cylinder(seg, 8, 0.28 - i * 0.02, 0.26 - i * 0.02, 0, height / segs + 0.05)
+        for (let v = 0; v < seg.position.length; v += 3) {
+          const y = seg.position[v + 1] + (i * height) / segs
+          seg.position[v] += (y / height) ** 2 * height * lean
+          seg.position[v + 1] = y
+        }
+        const pts = []
+        for (let v = 0; v < seg.position.length; v += 3) pts.push([seg.position[v], seg.position[v + 1], seg.position[v + 2]])
+        for (let v = 0; v < pts.length; v += 3) face(bark, pts[v], pts[v + 1], pts[v + 2])
+      }
+      const top = [height * lean, height, 0]
+      const leaves = mesh()
+      for (let i = 0; i < count; i++)
+        frond(leaves, top, 2.6 + r() * 0.6, (i / count) * Math.PI * 2 + r() * 0.3, -0.25 - r() * 0.35, seed + i)
+      blob(leaves, top, [0.45, 0.4, 0.45], { seed: seed + 50, subdivisions: 1 })
+      return [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
+    },
+  ])),
 }
 
 // ---------------------------------------------------------------------------
@@ -1003,11 +1180,7 @@ async function main() {
     )
   }
 
-  const available = new Set((await readdir(SRC)).map(f => f.replace(/\.glb$/, '')))
-  for (const [name, source] of Object.entries(TREES)) {
-    if (!available.has(source)) throw new Error(`missing vendored model: ${source}.glb`)
-    await emit(name, await loadSource(source))
-  }
+  for (const [name, build] of Object.entries(TREES)) await emit(name, build())
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build())
 
   // What was actually written, so the app asks for exactly that. Not every

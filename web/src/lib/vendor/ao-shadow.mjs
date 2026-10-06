@@ -716,7 +716,9 @@ export class WallShadowLayer {
       if (!bucket || !m) continue;
       tiles.push({ coord, tile, bucket, matrix: m instanceof Float32Array ? m : new Float32Array(m), zf: zoomFactor(this._map, coord) });
     }
-    // PARCHMENT: a caster still throws a shadow where there are no buildings.
+    // PARCHMENT: a caster still throws a shadow where there are no buildings —
+    // a landmark standing in open ground, or in a region the basemap has no
+    // buildings for.
     if (!tiles.length && !this.shadowCasters.size) return;
 
     const ctx = this._map.painter.context; // PARCHMENT

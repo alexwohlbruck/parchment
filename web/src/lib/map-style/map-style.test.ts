@@ -22,7 +22,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
   maplibreProjection,
 } from './build'
-import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES } from './detail-layers'
+import { DETAIL_SOURCE, DETAIL_TILES, BUILDING_3D_TILES, COASTER_TRACK_TILES } from './detail-layers'
 import { setBarrelmanBuildingsReady } from './barrelman-buildings'
 import spec from './spec.json'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
@@ -1362,6 +1362,82 @@ describe('assembled styles', () => {
       expect(evaluate('surface')).toBe(true)
       expect(evaluate('multi-storey')).toBe(false)
       expect(evaluate('underground')).toBe(false)
+    })
+
+    /**
+     * Coaster tracks are ours too. A track crosses over the paths and the
+     * elevated roads, so it draws above them, and a station roof covers it,
+     * so it draws under the buildings — and so under every label.
+     */
+    describe('coaster tracks', () => {
+      const ids = ['Coaster track casing', 'Coaster track']
+
+      test('come from the detail bundle, from z14', () => {
+        for (const id of ids) {
+          const layer = style.layers.find(l => l.id === id) as any
+          expect(layer, id).toBeTruthy()
+          expect(layer.type).toBe('line')
+          expect(layer.source).toBe(DETAIL_SOURCE)
+          expect(layer['source-layer']).toBe(COASTER_TRACK_TILES)
+          expect(layer.minzoom).toBe(14)
+        }
+      })
+
+      test('draw over the paths and elevated roads, under the buildings and labels', () => {
+        const firstBuilding = style.layers.findIndex(l => (l as any)['source-layer'] === 'building')
+        const firstLabel = style.layers.findIndex(l => l.type === 'symbol' && !!(l.layout as any)?.['text-field'])
+        expect(at('Coaster track casing')).toBeLessThan(at('Coaster track'))
+        expect(at('Coaster track casing')).toBeGreaterThan(at('Path bridge'))
+        expect(at('Coaster track casing')).toBeGreaterThan(at('Highway bridge'))
+        expect(at('Coaster track')).toBeLessThan(firstBuilding)
+        expect(at('Coaster track')).toBeLessThan(firstLabel)
+      })
+
+      const colour = (flavor: 'light' | 'dark', properties: Record<string, unknown>) => {
+        const layer = (buildLayers({ flavor }) as any[]).find(l => l.id === 'Coaster track')
+        const parsed = expression.createPropertyExpression(
+          layer.paint['line-color'],
+          'Coaster track.paint.line-color',
+          (latest as any).paint_line['line-color'],
+        )
+        expect(parsed.result).toBe('success')
+        const c = (parsed as any).value.evaluate({ zoom: 16 }, { properties })
+        return [c.r, c.g, c.b].map(v => Math.round(v * 255))
+      }
+
+      test.each(['light', 'dark'] as const)('%s: a coloured track keeps its hue, softened toward steel', flavor => {
+        const steel = colour(flavor, {})
+        const [r, g, b] = colour(flavor, { colour: 'red' })
+        expect(r).toBeGreaterThan(g + 60)
+        expect(r).toBeGreaterThan(b + 60)
+        // Not the brochure red either.
+        expect(r).toBeLessThan(255)
+        expect([r, g, b]).not.toEqual(steel)
+      })
+
+      test.each(['light', 'dark'] as const)('%s: a colour that will not parse falls back to steel', flavor => {
+        const steel = colour(flavor, {})
+        expect(colour(flavor, { colour: 'rusty' })).toEqual(steel)
+        expect(colour(flavor, { colour: '' })).toEqual(steel)
+      })
+
+      test('steel differs between the flavors', () => {
+        expect(colour('light', {})).not.toEqual(colour('dark', {}))
+      })
+
+      test('a stretch on a higher layer sorts above a lower one', () => {
+        const layer = style.layers.find(l => l.id === 'Coaster track') as any
+        const parsed = expression.createPropertyExpression(
+          layer.layout['line-sort-key'],
+          'Coaster track.layout.line-sort-key',
+          (latest as any).layout_line['line-sort-key'],
+        )
+        expect(parsed.result).toBe('success')
+        const key = (properties: Record<string, unknown>) =>
+          (parsed as any).value.evaluate({ zoom: 16 }, { properties })
+        expect(key({ layer: 3 })).toBeGreaterThan(key({ layer: 1 }))
+        expect(key({})).toBe(0)
+      })
     })
 
     test('trees stand above the buildings, where the models have to sit', () => {

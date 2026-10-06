@@ -9,6 +9,7 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   probeBarrelmanBuildings,
   barrelmanBuildingsReady,
+  barrelmanBuildingsTiles,
   setBarrelmanBuildingsReady,
 } from './barrelman-buildings'
 
@@ -73,5 +74,19 @@ describe('probeBarrelmanBuildings', () => {
     // z14 tile containing Charlotte — a fixed tile would answer for open ocean
     // on an instance whose view exists but was never populated.
     expect(fetchMock.mock.calls[0][0]).toBe('https://tiles.test/buildings_3d/14/4512/6477')
+  })
+
+  test('remembers which tiles answered, so a member can stand in for the bundle', async () => {
+    // A Barrelman from before bundles: `detail` 404s, `buildings_3d` serves.
+    vi.stubGlobal('fetch', vi.fn(async (u: string) => ({
+      ok: u.includes('/buildings_3d/'),
+      arrayBuffer: async () => new ArrayBuffer(64),
+    })) as any)
+    const tile = (tiles: string) => (z: number, x: number, y: number) => `https://tiles.test/${tiles}/${z}/${x}/${y}`
+    await probeBarrelmanBuildings(tile('detail'), CENTRE, 'detail')
+    expect(barrelmanBuildingsTiles()).toBeNull()
+    const changed = await probeBarrelmanBuildings(tile('buildings_3d'), CENTRE, 'buildings_3d')
+    expect(changed).toBe(true)
+    expect(barrelmanBuildingsTiles()).toBe('buildings_3d')
   })
 })

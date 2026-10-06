@@ -83,7 +83,14 @@ import {
   probeBarrelmanBuildings,
   barrelmanBuildingsReady,
 } from '@/lib/map-style/barrelman-buildings'
-import { OBJECT_FLAT_LAYERS, TREE_OPACITY, DETAIL_TILES } from '@/lib/map-style/detail-layers'
+import {
+  OBJECT_FLAT_LAYERS,
+  TREE_OPACITY,
+  DETAIL_TILES,
+  BUILDING_3D_TILES,
+  LANDMARK_SOURCE,
+  LANDMARK_TILES,
+} from '@/lib/map-style/detail-layers'
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
@@ -93,6 +100,8 @@ import {
   OBJECT_SOLID,
   OBJECT_SPECS,
 } from '@/lib/map-objects'
+import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
+import { LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, withoutReplaced } from '@/lib/map-objects/landmarks'
 import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
@@ -221,6 +230,9 @@ const ROOF_EDGE_FADE_PITCH = 8
 /** The one custom layer every 3D scene object is drawn by. */
 const OBJECT_LAYER_ID = 'map-objects'
 
+/** The custom layer drawing 3D landmarks; see `applyLandmarks`. */
+const LANDMARK_LAYER_ID = 'map-landmarks'
+
 /**
  * The first label layer the 3D objects have to stay behind.
  *
@@ -262,6 +274,9 @@ export class MaplibreStrategy extends MapStrategy {
   private objectLayer: ObjectLayer | null = null
   private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
   private objectModels: Promise<Record<string, GlbModel>> | null = null
+  /** Landmarks, and the building filters as the style had them before any were hidden. */
+  private landmarkLayer: LandmarkLayer | null = null
+  private buildingFilters = new Map<string, unknown>()
 
   constructor(
     container: string | HTMLElement,
@@ -353,14 +368,16 @@ export class MaplibreStrategy extends MapStrategy {
   private async adoptBarrelmanBuildings() {
     if (!this.tileServerUrl) return
     const base = this.tileServerUrl
-    // Ask for the bundle, not `buildings_3d` alone: the extrusion reads the
-    // bundle, and a Barrelman from before bundles serves `buildings_3d` but 404s
-    // `detail` — so probing the member would switch the style onto a source
-    // that draws no buildings at all.
-    await probeBarrelmanBuildings(
-      (z, x, y) => `${base}/${DETAIL_TILES}/${z}/${x}/${y}`,
-      this.mapInstance.getCenter(),
-    )
+    // The bundle first, since that is what the extrusion normally reads. A
+    // Barrelman from before bundles 404s `detail` but serves `buildings_3d`
+    // itself, and then the style reads that source directly instead: it is the
+    // only one with a building per OSM element, which is what lets a landmark
+    // hide exactly the buildings it replaces. The basemap merges every building
+    // of one height in a tile into a single feature.
+    const centre = this.mapInstance.getCenter()
+    await probeBarrelmanBuildings((z, x, y) => `${base}/${DETAIL_TILES}/${z}/${x}/${y}`, centre, DETAIL_TILES)
+    if (!barrelmanBuildingsReady())
+      await probeBarrelmanBuildings((z, x, y) => `${base}/${BUILDING_3D_TILES}/${z}/${x}/${y}`, centre, BUILDING_3D_TILES)
     // Only when the answer is yes. The style is already built on the basemap,
     // so a no leaves it exactly as it is — reloading on every startup for an
     // instance that has not been migrated would throw the map away and rebuild
@@ -424,6 +441,11 @@ export class MaplibreStrategy extends MapStrategy {
       if (this.objectLayer) shadowCasters.delete(this.objectLayer)
       this.objectLayer = null
       void this.applyMapObjects()
+      // The new style has its own building filters and no landmark layer.
+      if (this.landmarkLayer) shadowCasters.delete(this.landmarkLayer)
+      this.landmarkLayer = null
+      this.buildingFilters.clear()
+      this.applyLandmarks()
       mapEventBus.emit('style.load', this.mapInstance)
     })
     this.mapInstance.on('move', () => {
@@ -680,6 +702,114 @@ export class MaplibreStrategy extends MapStrategy {
     this.map3dObjects = value
     void this.applyMapObjects()
     for (const id of layerGroups.poi) this.applyBasemapFilter(id)
+    this.applyLandmarks()
+  }
+
+  /**
+   * Landmarks ride on the 3D objects setting: they are models standing in the
+   * scene like the trees, and a user who has turned models off wants none.
+   *
+   * The layer loads its own models, lazily and per landmark, so turning it on
+   * costs nothing until one is in view.
+   */
+  private applyLandmarks() {
+    const map = this.mapInstance
+    const want = this.map3dObjects && !!this.tileServerUrl && !!map.getSource(LANDMARK_SOURCE)
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+
+    if (!want) {
+      const layer = this.landmarkLayer
+      if (layer) {
+        shadowCasters.delete(layer)
+        // Removing it hands the buildings back, through `onReplace([])`.
+        if (map.getLayer(layer.id)) map.removeLayer(layer.id)
+      }
+      this.landmarkLayer = null
+      return
+    }
+    if (this.landmarkLayer && map.getLayer(LANDMARK_LAYER_ID)) {
+      this.landmarkLayer.setFlavor(LANDMARK_FLAVOR[flavor])
+      return
+    }
+
+    const base = this.tileServerUrl!
+    const layer: LandmarkLayer = new LandmarkLayer({
+      id: LANDMARK_LAYER_ID,
+      source: LANDMARK_SOURCE,
+      sourceLayer: LANDMARK_TILES,
+      modelUrl: file => `${base}/${LANDMARK_TILES}/models/${file}`,
+      flavor: LANDMARK_FLAVOR[flavor],
+      // Ignored once this layer is no longer the live one: a style swap
+      // removes it after the next style's filters are already in place.
+      onReplace: replaced => {
+        if (this.landmarkLayer === layer) this.hideReplacedBuildings(replaced)
+      },
+      buildings: this.buildingSources(),
+      onAttribution: credits => {
+        if (this.landmarkLayer === layer) this.creditLandmarks(credits)
+      },
+    })
+    this.landmarkLayer = layer
+    shadowCasters.add(layer)
+    // Beside the other models: above the buildings, below every label.
+    map.addLayer(layer as any, firstLabelLayer(map))
+  }
+
+  /**
+   * Put the credits of the models on screen into the map's attribution.
+   *
+   * Set on the landmark source itself, so the attribution control lists it
+   * beside OpenStreetMap's and drops it with the rest when the source goes.
+   * The control only re-reads sources on a metadata event, so one is fired;
+   * the landmark layer hears it too, and finds nothing changed.
+   */
+  private creditLandmarks(credits: string[]) {
+    const map = this.mapInstance
+    const source = map.getSource(LANDMARK_SOURCE) as { attribution?: string } | undefined
+    if (!source) return
+    source.attribution = credits.join(' · ') || undefined
+    map.fire('sourcedata', { dataType: 'source', sourceDataType: 'metadata', sourceId: LANDMARK_SOURCE })
+  }
+
+  /**
+   * Take the buildings a landmark replaces out of every layer that draws
+   * them — the extrusion, its roof-colour twin, the roof edge and the flat
+   * footprint — so nothing of the old building shows through the model. A
+   * coaster's track ways are among its refs, so the same pass takes them out
+   * of the track and its casing.
+   *
+   * All of them, and with the same filter, for a reason beyond tidiness: the
+   * roof-colour layer only works while it shares the extrusion's bucket, and
+   * MapLibre only shares a bucket between layers whose filters match.
+   */
+  private hideReplacedBuildings({ refs, featureIds }: { refs: string[]; featureIds: number[] }) {
+    const map = this.mapInstance
+    for (const layer of map.getStyle()?.layers ?? []) {
+      const sourceLayer = (layer as any)['source-layer']
+      if (!REPLACEABLE_SOURCE_LAYERS.includes(sourceLayer)) continue
+      if (!this.buildingFilters.has(layer.id))
+        this.buildingFilters.set(layer.id, (layer as any).filter ?? null)
+      map.setFilter(
+        layer.id,
+        withoutReplaced(this.buildingFilters.get(layer.id), sourceLayer, refs, featureIds) as any,
+      )
+    }
+  }
+
+  /**
+   * Every source and source-layer the style draws buildings from, for the
+   * landmark layer's footprint test. Not the coaster tracks: see
+   * `REPLACEABLE_SOURCE_LAYERS` for why those go by ref alone.
+   */
+  private buildingSources(): Array<{ source: string; sourceLayer: string }> {
+    const seen = new Map<string, { source: string; sourceLayer: string }>()
+    for (const layer of this.mapInstance.getStyle()?.layers ?? []) {
+      const sourceLayer = (layer as any)['source-layer']
+      const source = (layer as any).source
+      if (sourceLayer === 'building' || sourceLayer === BUILDING_3D_TILES)
+        seen.set(`${source}/${sourceLayer}`, { source, sourceLayer })
+    }
+    return [...seen.values()]
   }
 
   private async applyMapObjects() {

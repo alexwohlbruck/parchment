@@ -2,6 +2,8 @@
 
 ### Added
 
+* Famous landmarks can be drawn as small 3D models instead of plain blocks, lit and shadowed like the buildings around them. It starts with the Eiffel Tower, and needs the MapLibre engine with 3D objects turned on.
+
 ### Changed
 
 * 3D trees are smoother and more natural, vary in colour, cast shadows, and now appear from further out; benches and bins look more like the real thing.

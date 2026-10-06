@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { insideFootprint, parseLandmark, polygonRings, withoutReplaced } from './landmarks'
+import { footprintSamples, insideFootprint, parseLandmark, polygonRings, withoutReplaced } from './landmarks'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 
 const feature = (properties: Record<string, unknown>, coordinates = [-115.17217, 36.11247]) => ({
@@ -164,5 +164,30 @@ describe('anchorMatrix', () => {
     const x = m[0] * 10 + m[12]
     expect(x).toBeCloseTo(0.25 + 1e-6, 10)
     expect(m[13]).toBeCloseTo(0.5, 10)
+  })
+})
+
+describe('footprintSamples', () => {
+  const footprint = { minX: -10, maxX: 10, minZ: -4, maxZ: 4 }
+  const at = { lng: -73.9971025, lat: 40.7312347, bearing: 0, scale: 1 }
+  const k = Math.cos((at.lat * Math.PI) / 180) * 111320
+
+  it('puts the corners where the model stands', () => {
+    // -Z is north, so (maxX, minZ) is the north-east corner.
+    const [lng, lat] = footprintSamples(at, footprint)[2]
+    expect((lng - at.lng) * k).toBeCloseTo(10, 6)
+    expect((lat - at.lat) * 110574).toBeCloseTo(4, 6)
+  })
+
+  it('turns and scales with the placement, staying on the footprint', () => {
+    const turned = { ...at, bearing: 37, scale: 0.5 }
+    const points = footprintSamples(turned, footprint)
+    expect(points).toHaveLength(9)
+    // insideFootprint undoes the same turn, so every sample lands on it.
+    expect(insideFootprint(turned, footprint, [points])).toBe(true)
+    // A quarter turn swaps a side's midpoint from north to east.
+    const [lng, lat] = footprintSamples({ ...at, bearing: 90 }, footprint)[5]
+    expect((lng - at.lng) * k).toBeCloseTo(4, 6)
+    expect((lat - at.lat) * 110574).toBeCloseTo(0, 6)
   })
 })

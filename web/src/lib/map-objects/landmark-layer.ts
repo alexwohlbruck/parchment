@@ -24,10 +24,10 @@
  *
  * Placement is a position, a bearing and a scale and nothing else, which is
  * the model frame Barrelman documents: +Y up, -Z north, +X east, metres,
- * origin at the anchor on the ground.
+ * origin at the anchor, at the lowest ground under the footprint.
  */
 import { parseGlb, type GlbModel } from './glb.mjs'
-import { insideFootprint, parseLandmark, polygonRings, type Footprint, type Landmark } from './landmarks'
+import { footprintSamples, insideFootprint, parseLandmark, polygonRings, type Footprint, type Landmark } from './landmarks'
 import { project } from './object-layer'
 
 /** Where a landmark stands, in mercator units; see `project`. */
@@ -324,13 +324,29 @@ export class LandmarkLayer {
       if (!landmark || seen.has(landmark.id) || zoom < landmark.minzoom) continue
       seen.add(landmark.id)
       this.load(landmark.model)
-      const ground = terrain ? (terrain.queryTerrainElevation([landmark.lng, landmark.lat]) ?? 0) : 0
+      const ground = terrain ? this.lowestGround(terrain, landmark) : 0
       const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
       project(landmark.lng, landmark.lat, ground + landmark.elevation, placed)
       this.placements.push({ ...landmark, placed })
     }
     this.contained = this.findContained()
     this.report()
+  }
+
+  /**
+   * The lowest terrain under a landmark's footprint, which its model is built
+   * up from. Until the model has loaded its extent is unknown, so the anchor
+   * stands in; the load invalidates and this runs again.
+   */
+  private lowestGround(terrain: any, landmark: Landmark): number {
+    const footprint = this.models.get(landmark.model)?.footprint
+    const points = footprint ? footprintSamples(landmark, footprint) : [[landmark.lng, landmark.lat]]
+    let lowest = Infinity
+    for (const point of points) {
+      const h = terrain.queryTerrainElevation(point)
+      if (typeof h === 'number' && h < lowest) lowest = h
+    }
+    return Number.isFinite(lowest) ? lowest : 0
   }
 
   /**

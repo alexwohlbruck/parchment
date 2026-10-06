@@ -163,6 +163,33 @@ export function insideFootprint(
   return any
 }
 
+/**
+ * Points to sample the ground at under a placed footprint: its corners, the
+ * middle of each side, and the anchor. A model is built up from the lowest
+ * ground it touches, so it stands on the lowest of these and its uphill side
+ * sinks into the slope rather than its downhill side floating.
+ */
+export function footprintSamples(
+  landmark: Pick<Landmark, 'lng' | 'lat' | 'bearing' | 'scale'>,
+  footprint: Footprint,
+): [number, number][] {
+  const k = Math.cos((landmark.lat * Math.PI) / 180) * 111320
+  const b = (landmark.bearing * Math.PI) / 180
+  const [c, s] = [Math.cos(b), Math.sin(b)]
+  const { minX, maxX, minZ, maxZ } = footprint
+  const midX = (minX + maxX) / 2, midZ = (minZ + maxZ) / 2
+  const plan: [number, number][] = [
+    [0, 0], [minX, minZ], [maxX, minZ], [maxX, maxZ], [minX, maxZ],
+    [midX, minZ], [maxX, midZ], [midX, maxZ], [minX, midZ],
+  ]
+  // The inverse of `insideFootprint`'s turn: model (x, z) → map (east, south).
+  return plan.map(([x, z]) => {
+    const east = landmark.scale * (c * x - s * z)
+    const south = landmark.scale * (s * x + c * z)
+    return [landmark.lng + east / k, landmark.lat - south / 110574]
+  })
+}
+
 /** A polygon or multipolygon's rings, flattened. */
 export function polygonRings(geometry: any): number[][][] {
   if (geometry?.type === 'Polygon') return geometry.coordinates

@@ -17,7 +17,7 @@
  * Anything outside that throws rather than degrading, because a model that
  * loads wrong draws garbage rather than nothing.
  *
- * Node transforms matter because real exports have them: Kenney's kit wraps
+ * Node transforms matter because real exports have them: kits commonly wrap
  * every model in a parent node and offsets the mesh inside it, so a reader that
  * ignores the hierarchy places the model slightly underground.
  *

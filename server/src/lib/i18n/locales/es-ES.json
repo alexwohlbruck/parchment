@@ -140,7 +140,8 @@
       "routeNotFound": "Ruta no encontrada",
       "routeUpdateFailed": "Ruta no encontrada o error al actualizar",
       "routeDeleteFailed": "Ruta no encontrada o error al eliminar",
-      "canvasNotFound": "Lienzo no encontrado"
+      "canvasNotFound": "Lienzo no encontrado",
+      "privateCollectionBookmark": "Las colecciones privadas guardan los lugares cifrados; guárdalos desde un dispositivo con tu clave"
     },
     "avatar": {
       "invalidType": "El archivo debe ser JPEG, PNG o WebP",

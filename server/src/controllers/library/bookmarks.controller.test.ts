@@ -63,6 +63,14 @@ mock.module('../../services/library/bookmarks.service', () => ({
   getBookmarks,
 }))
 
+let privateIds: string[] = []
+const findPrivateCollectionIds = mock(async (ids: string[]) =>
+  ids.filter((id) => privateIds.includes(id)),
+)
+mock.module('../../services/library/collections.service', () => ({
+  findPrivateCollectionIds,
+}))
+
 mock.module('../../middleware/auth.middleware', () => authMockModule())
 
 const bookmarks = (await import('./bookmarks.controller')).default
@@ -77,6 +85,7 @@ const validBookmark = {
 }
 
 beforeEach(() => {
+  privateIds = []
   resetAuth()
   requireWriteAccessToCollection.mockClear()
   requireWriteAccessToCollection.mockImplementation(async () => undefined)
@@ -146,6 +155,17 @@ describe('POST /bookmarks', () => {
       'col-1',
       'col-2',
     ])
+  })
+
+  test('400s when a collection is private, writing nothing', async () => {
+    privateIds = ['col-2']
+
+    const res = await req(app).post('/bookmarks', {
+      body: { ...validBookmark, collectionIds: ['col-1', 'col-2'] },
+    })
+
+    expect(res.status).toBe(400)
+    expect(createBookmark).not.toHaveBeenCalled()
   })
 
   test('allows a standalone bookmark with no collections', async () => {
@@ -256,6 +276,19 @@ describe('PUT /bookmarks/:id — reassignment authorization', () => {
 
     expect(getCollectionsForBookmark).not.toHaveBeenCalled()
     expect(requireWriteAccessToCollection).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /bookmarks/:id — private collections', () => {
+  test('400s when adding the bookmark to a private collection', async () => {
+    privateIds = ['col-private']
+
+    const res = await req(app).put('/bookmarks/bm-1', {
+      body: { collectionIds: ['col-1', 'col-private'] },
+    })
+
+    expect(res.status).toBe(400)
+    expect(updateBookmark).not.toHaveBeenCalled()
   })
 })
 

@@ -22,11 +22,11 @@ export const FURNITURE_MODELS = {
   bench: '/models/bench.glb',
 }
 
-/** Real sizes, in metres: height, then the longest horizontal dimension. */
+/** Real heights, in metres; each model's own proportions give its footprint. */
 const SIZE = {
-  'waste-basket': { height: 0.94, spread: 0.5 },
-  recycling: { height: 1.1, spread: 0.82 },
-  bench: { height: 0.91, spread: 1.8 },
+  'waste-basket': { height: 0.94 },
+  recycling: { height: 0.94 },
+  bench: { height: 1.16 },
 }
 
 /** `amenity` values that share a model. */
@@ -104,7 +104,9 @@ export function furnitureInstance(feature: any, lng: number, lat: number): Objec
     lng,
     lat,
     height: size.height,
-    spread: size.spread,
+    // The models are built at true proportions and normalised to one unit
+    // tall, so they scale evenly: width follows height.
+    spread: size.height,
     heading: heading ?? hash(seed, 7) * Math.PI * 2,
     // Furniture varies less than planting does: these are manufactured, and a
     // row of visibly different bins would read as a mistake.

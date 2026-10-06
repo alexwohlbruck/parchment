@@ -7,10 +7,15 @@ import { useCollectionsService } from '@/services/library/collections.service'
 import { useCollectionsStore } from '@/stores/library/collections.store'
 import { useMapService } from '@/services/map/map.service'
 import { boundsOfPoints } from '@/lib/geo/map-bounds'
-import { type ThemeColor } from '@/lib/utils'
+import { collectionIcon } from '@/lib/library/collection-display'
+import { useBookmarksService } from '@/services/library/bookmarks.service'
+import { useEncryptedPointsStore } from '@/stores/library/encrypted-points.store'
+import type { Bookmark } from '@/types/library.types'
+import { LockIcon } from 'lucide-vue-next'
 import BookmarkList from '@/components/library/bookmarks/BookmarkList.vue'
 import { ItemIcon } from '@/components/ui/item-icon'
 import CollectionContextMenu from '@/components/library/collections/CollectionContextMenu.vue'
+import CollectionLockedNotice from '@/components/library/collections/CollectionLockedNotice.vue'
 import DetailPanelLayout from '@/components/sheet/layouts/DetailPanelLayout.vue'
 // NOTE: the in-view back button was removed — the drawer (LeftSheet /
 // BottomSheet) now provides navigation controls. Route-change cleanup, if
@@ -30,7 +35,18 @@ const collection = computed(() => {
   return collectionsStore.getCollectionById(id)
 })
 
-const bookmarks = computed(() => collection.value?.bookmarks || [])
+const bookmarksService = useBookmarksService()
+const pointsStore = useEncryptedPointsStore()
+const isPrivate = computed(() => collection.value?.scheme === 'user-e2ee')
+
+const bookmarks = computed(() => collectionsStore.getCollectionPlaces(id))
+
+async function removePrivatePlace(bookmark: Bookmark) {
+  const point = pointsStore.getPoints(id).find(p => p.id === bookmark.id)
+  if (collection.value && point) {
+    await bookmarksService.removeFromPrivateCollection(collection.value, point)
+  }
+}
 
 const collectionName = computed(() => {
   if (!collection.value) {
@@ -63,6 +79,9 @@ onMounted(async () => {
     router.push({ name: AppRoute.LIBRARY_COLLECTIONS })
     return
   }
+  if (isPrivate.value && !collection.value.locked) {
+    await collectionsService.fetchAndDecryptPoints(collection.value)
+  }
 
   loading.value = false
 })
@@ -75,6 +94,15 @@ onUnmounted(() => {
 
 function handleCollectionEdit() {
   collectionsService.fetchCollectionById(id)
+}
+
+async function handleUnlocked() {
+  await collectionsService.fetchCollections()
+  const unlocked = await collectionsService.fetchCollectionById(id)
+  if (unlocked?.scheme === 'user-e2ee' && !unlocked.locked) {
+    pointsStore.clearCollection(id)
+    await collectionsService.fetchAndDecryptPoints(unlocked)
+  }
 }
 
 function handleCollectionDelete() {
@@ -92,14 +120,15 @@ function handleCollectionDelete() {
   <DetailPanelLayout v-else-if="collection">
     <template #title>
       <div class="flex items-center gap-2 min-w-0">
-        <ItemIcon
-          :icon="collection.icon"
-          :icon-pack="collection.iconPack ?? 'lucide'"
-          :color="collection.iconColor as ThemeColor"
-          size="sm"
-        />
+        <ItemIcon v-bind="collectionIcon(collection)" size="sm" />
         <div class="min-w-0">
-          <h4 class="text-base font-semibold truncate">{{ collectionName }}</h4>
+          <h4 class="text-base font-semibold truncate flex items-center gap-1.5">
+            <span class="truncate">{{ collectionName }}</span>
+            <LockIcon
+              v-if="isPrivate && !collection.locked"
+              class="size-3.5 text-muted-foreground shrink-0"
+            />
+          </h4>
           <p
             v-if="collection.description"
             class="text-xs text-muted-foreground truncate"
@@ -118,10 +147,18 @@ function handleCollectionDelete() {
       />
     </template>
 
+    <CollectionLockedNotice
+      v-if="collection.locked"
+      :collection="collection"
+      @unlocked="handleUnlocked"
+    />
     <BookmarkList
+      v-else
       :bookmarks="bookmarks"
       :loading="loading"
       :collection-id="id"
+      :encrypted="isPrivate"
+      @remove="removePrivatePlace"
     />
   </DetailPanelLayout>
 </template>

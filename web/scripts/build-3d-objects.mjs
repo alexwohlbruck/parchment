@@ -2,22 +2,18 @@
 /**
  * Builds the models the 3D object layer draws.
  *
- * Two kinds of input, one kind of output.
- *
- * Trees come from Kenney's Nature Kit (CC0, vendored under
- * `src/assets/models-src`), because a hand-modelled tree has a silhouette no
- * amount of procedural cylinder-stacking gets to. Street furniture is generated
- * here, because a bin is a cylinder and a bench is six boxes, and getting the
- * proportions right at 1.8m is worth more than getting the style right.
+ * Everything here is generated. Trees are built from lumpy ellipsoids and
+ * jittered cone tiers, so a crown is round from every side — including straight
+ * down, where a low-poly game asset reads as a hexagon. Street furniture is
+ * built from boxes and cylinders, because a bin is a drum and a bench is a few
+ * slats, and getting the proportions right at 1.8m is what carries recognition.
  *
  * Everything is put through the same normalisation, and that is the real job of
  * this script:
  *
- *   role      A primitive's material name becomes `bark`, `foliage`, `metal`,
- *             `wood` or `paint`. glTF has no field for "this is the leafy part",
- *             and the layer needs one so it can recolour per flavor — the
- *             source colours are a game palette (Kenney's leaves are turquoise)
- *             and would look wrong on a map either way.
+ *   role      Every part is tagged `bark`, `foliage`, `metal`, `wood` or
+ *             `paint`, written as its material name, so the layer can colour
+ *             it per flavor.
  *   unit      Scaled and translated so the model is exactly 1 tall with its
  *             base at y=0 and centred on x/z, which is what lets the layer's
  *             only per-instance transform be a height in metres.
@@ -33,13 +29,11 @@
  *
  * Run with: bun run build:models
  */
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseGlb } from '../src/lib/map-objects/glb.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const SRC = resolve(HERE, '../src/assets/models-src')
 const OUT = resolve(HERE, '../public/models')
 const MANIFEST = resolve(HERE, '../src/lib/map-objects/models.json')
 
@@ -59,16 +53,10 @@ const ROLE_COLOR = {
   metal: [0.42, 0.45, 0.47, 1],
   wood: [0.55, 0.41, 0.28, 1],
   paint: [0.24, 0.42, 0.30, 1],
-}
-
-/** Kenney names its materials by what they are, which is most of the work. */
-function roleOf(materialName) {
-  const name = materialName.toLowerCase()
-  if (name.includes('leaf') || name.includes('leafs') || name.includes('foliage')) return 'foliage'
-  if (name.includes('wood') || name.includes('bark') || name.includes('trunk')) return 'bark'
-  if (ROLE_COLOR[name]) return name
-  // `_defaultMat` and friends: the odd extra part on a couple of the pines.
-  return 'foliage'
+  interior: [0.16, 0.18, 0.17, 1],
+  bench: [0.87, 0.78, 0.66, 1],
+  bin: [0.34, 0.36, 0.38, 1],
+  recycling: [0.2, 0.33, 0.52, 1],
 }
 
 /** How far apart two faces can lean and still share a smoothed normal. */
@@ -132,7 +120,7 @@ function cylinder(m, sides, bottomRadius, topRadius, base, height) {
 }
 
 /** A lozenge fitted to a box — the far LOD's stand-in for a canopy. */
-function lozenge(m, [x0, y0, z0], [x1, y1, z1], sides = 6, stacks = 3) {
+function lozenge(m, [x0, y0, z0], [x1, y1, z1], sides = 9, stacks = 3) {
   const cx = (x0 + x1) / 2
   const cz = (z0 + z1) / 2
   const rx = (x1 - x0) / 2
@@ -213,7 +201,7 @@ function smoothNormals(parts, creaseDegrees) {
 }
 
 /** Scale and shift so the model is one unit tall, based at the origin, centred. */
-function toUnit(parts) {
+function toUnit(parts, fit) {
   const min = [Infinity, Infinity, Infinity]
   const max = [-Infinity, -Infinity, -Infinity]
   for (const part of parts)
@@ -223,18 +211,23 @@ function toUnit(parts) {
         max[c] = Math.max(max[c], part.position[i + c])
       }
 
-  const scale = 1 / Math.max(max[1] - min[1], 1e-6)
-  const cx = (min[0] + max[0]) / 2
-  const cz = (min[2] + max[2]) / 2
+  // A model's own far variant reuses its transform, so the two line up exactly.
+  const { scale, cx, cz, base } = fit ?? {
+    scale: 1 / Math.max(max[1] - min[1], 1e-6),
+    cx: (min[0] + max[0]) / 2,
+    cz: (min[2] + max[2]) / 2,
+    base: min[1],
+  }
   for (const part of parts) {
     const out = new Float32Array(part.position.length)
     for (let i = 0; i < part.position.length; i += 3) {
       out[i] = (part.position[i] - cx) * scale
-      out[i + 1] = (part.position[i + 1] - min[1]) * scale
+      out[i + 1] = (part.position[i + 1] - base) * scale
       out[i + 2] = (part.position[i + 2] - cz) * scale
     }
     part.position = out
   }
+  return { scale, cx, cz, base }
 }
 
 /**
@@ -242,7 +235,7 @@ function toUnit(parts) {
  *
  * Walks the index rather than the position array, which is not a detail: glTF
  * lets several primitives share one vertex buffer and differ only by their
- * indices, and Kenney's exporter does exactly that. Every part of a tree
+ * indices, and many exporters do exactly that. Every part of a tree
  * therefore *owns* a position array spanning the whole tree, and measuring it
  * directly gives the trunk the bounds of the canopy — which is what wrapped
  * every distant tree in a brown crate as tall and as wide as itself.
@@ -261,7 +254,7 @@ function boundsOf(part) {
 /**
  * How much of a trunk counts as "the bottom", for measuring its girth.
  *
- * A trunk's bounding box is not its width. Kenney's trees model the branches
+ * A trunk's bounding box is not its width. A trunk with limbs carries them
  * as part of the trunk, so the box around one is as wide and as tall as the
  * whole tree — fitting a prism to it wrapped every distant tree in a brown
  * crate with the canopy poking out. Measuring across the bottom of the trunk,
@@ -356,7 +349,7 @@ function signedVolume(part) {
  * detail and becomes the difference between drawing it and not. Two sources of
  * geometry meet here and neither could be trusted on its own: `cylinder` and
  * `lozenge` build their walls clockwise, so every far model came out inside
- * out, and Kenney's palms and one of the conifers carry triangles wound against
+ * out, and imported models commonly carry triangles wound against
  * their neighbours — 186 of 190 in one case. Culled, those become holes, and a
  * hole in a crown looks exactly like the depth-fighting this was meant to cure.
  *
@@ -375,7 +368,7 @@ function signedVolume(part) {
 function orientFaces(part) {
   // Only where "the same way round" means anything. An edge with three or four
   // triangles on it has no consistent answer, and walking one anyway does not
-  // fail quietly: run over Kenney's conifer it flipped a skirt and left the
+  // fail quietly: run over a non-manifold conifer it flipped a skirt and left the
   // model with seventy-two edges bounding nothing, which is a hole.
   if (!isManifold(part)) return false
 
@@ -507,7 +500,7 @@ function orientFaces(part) {
  * winning a fragment shades it by the opposite normal — the crown breaks into
  * light and dark wedges that crawl as the camera moves. Culling settles it, but
  * only for a mesh with an inside: cull an open shell and you see straight
- * through it. Kenney's conifers are stacked skirts open underneath, and culling
+ * through it. A conifer built from open skirts is open underneath, and culling
  * them punched a white hole through the bottom of every tree.
  *
  * So the holes are filled here rather than worked around at draw time. A
@@ -606,7 +599,7 @@ function capHoles(part) {
  * the shaft above the flare comes out around half of it, so this is roughly
  * twice as generous as it sounds.
  *
- * Kenney's trees are modelled to read at arm's length in a game, where a chunky
+ * Game-kit trees are modelled to read at arm's length, where a chunky
  * trunk is part of the style — theirs run from 15% of the crown up to 68%, and
  * one is very nearly as wide as the tree. Seen from above that is a brown post
  * with a bush balanced on it. But a real street tree is nearer 5%, and cutting
@@ -836,108 +829,381 @@ function toGlb(name, parts) {
  * long and 0.45m to the seat — and a game-kit prop would have to be
  * re-proportioned anyway. Modelled at real size in metres; `toUnit` rescales.
  */
+/**
+ * A box with rounded vertical edges, capped top and bottom. `r` is the corner
+ * radius; `seg` the arc segments per corner (0 for a plain box outline).
+ */
+function roundedBox(m, [x0, y0, z0], [x1, y1, z1], r, seg = 3) {
+  const corners = [[x1 - r, z1 - r, 0], [x0 + r, z1 - r, 1], [x0 + r, z0 + r, 2], [x1 - r, z0 + r, 3]]
+  const ring = []
+  for (const [cx, cz, q] of corners)
+    for (let i = 0; i <= seg; i++) {
+      const a = (q + i / Math.max(seg, 1)) * Math.PI / 2
+      ring.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r])
+    }
+  const lo = ring.map(([x, z]) => [x, y0, z])
+  const hi = ring.map(([x, z]) => [x, y1, z])
+  const cLo = [(x0 + x1) / 2, y0, (z0 + z1) / 2]
+  const cHi = [(x0 + x1) / 2, y1, (z0 + z1) / 2]
+  for (let i = 0; i < ring.length; i++) {
+    const j = (i + 1) % ring.length
+    quad(m, lo[i], lo[j], hi[j], hi[i])
+    face(m, hi[i], hi[j], cHi)
+    face(m, lo[j], lo[i], cLo)
+  }
+  return m
+}
+
+/**
+ * A convex profile in the side plane (z forward-back, y up), extruded across x.
+ * The bench is drawn in profile, so its frames, slats and armrests can lean.
+ */
+function prism(m, profile, x0, x1) {
+  const n = profile.length
+  const a = profile.map(([z, y]) => [x0, y, z])
+  const b = profile.map(([z, y]) => [x1, y, z])
+  const cz = profile.reduce((t, p) => t + p[0], 0) / n
+  const cy = profile.reduce((t, p) => t + p[1], 0) / n
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n
+    quad(m, a[i], a[j], b[j], b[i])
+    face(m, b[i], b[j], [x1, cy, cz])
+    face(m, a[j], a[i], [x0, cy, cz])
+  }
+  return m
+}
+
+/** Triangulate a simple polygon (counter-clockwise) by ear clipping. */
+function earClip(pts) {
+  const idx = pts.map((_, i) => i)
+  const cross = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+  const inside = (p, a, b, c) => cross(a, b, p) > 0 && cross(b, c, p) > 0 && cross(c, a, p) > 0
+  const tris = []
+  let guard = 0
+  while (idx.length > 3 && guard++ < 10000) {
+    for (let k = 0; k < idx.length; k++) {
+      const [i0, i1, i2] = [idx[(k + idx.length - 1) % idx.length], idx[k], idx[(k + 1) % idx.length]]
+      const [a, b, c] = [pts[i0], pts[i1], pts[i2]]
+      if (cross(a, b, c) <= 0) continue
+      if (idx.some(j => j !== i0 && j !== i1 && j !== i2 && inside(pts[j], a, b, c))) continue
+      tris.push([i0, i1, i2])
+      idx.splice(k, 1)
+      break
+    }
+  }
+  tris.push([idx[0], idx[1], idx[2]])
+  return tris
+}
+
+/** Any simple outline in the side plane (z, y), extruded across x. */
+function extrude(m, outline, x0, x1) {
+  const area = outline.reduce((t, p, i) => t + p[0] * outline[(i + 1) % outline.length][1] - outline[(i + 1) % outline.length][0] * p[1], 0)
+  const pts = area < 0 ? [...outline].reverse() : outline
+  const a = pts.map(([z, y]) => [x0, y, z])
+  const b = pts.map(([z, y]) => [x1, y, z])
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length
+    quad(m, a[j], a[i], b[i], b[j])
+  }
+  for (const [i, j, k] of earClip(pts)) {
+    face(m, b[i], b[j], b[k])
+    face(m, a[k], a[j], a[i])
+  }
+  return m
+}
+
+/** A rounded rectangle cross-section of a slat, `w` deep by `t` thick, tilted. */
+function slat(z, y, w, t, tilt, seg, round = 0.012) {
+  const [c, s] = [Math.cos(tilt), Math.sin(tilt)]
+  const r = Math.min(t / 2 - 0.001, round)
+  const pts = []
+  const corners = [[w / 2 - r, t / 2 - r, 0], [-w / 2 + r, t / 2 - r, 1], [-w / 2 + r, -t / 2 + r, 2], [w / 2 - r, -t / 2 + r, 3]]
+  for (const [cx, cy, q] of corners)
+    for (let i = 0; i <= seg; i++) {
+      const ang = (q + i / Math.max(seg, 1)) * Math.PI / 2
+      const [px, py] = [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]
+      pts.push([z + px * c - py * s, y + px * s + py * c])
+    }
+  return pts
+}
+
+/** A thick straight bar between two points in the side plane. */
+function bar([z0, y0], [z1, y1], w) {
+  const [dz, dy] = [z1 - z0, y1 - y0]
+  const l = Math.hypot(dz, dy) || 1
+  const [nz, ny] = [(-dy / l) * w / 2, (dz / l) * w / 2]
+  return [[z0 + nz, y0 + ny], [z1 + nz, y1 + ny], [z1 - nz, y1 - ny], [z0 - nz, y0 - ny]].reverse()
+}
+
+/** Detail per level for furniture: arc segments, drum sides, slat count, ribs. */
+const FURN_NEAR = { seg: 2, sides: 24, slats: 4, ribs: 16 }
+const FURN_FAR = { seg: 0, sides: 6, slats: 1, ribs: 0 }
+const furnLod = make => Object.assign(() => make(FURN_NEAR), { far: () => make(FURN_FAR) })
+
+/**
+ * Generated rather than sourced, because these are simple solids whose
+ * *proportions* carry the recognition. Modelled at real size in metres;
+ * `toUnit` rescales and the layer scales them evenly back. Parts never share
+ * an exact face or corner, so each stays a solid.
+ */
 const FURNITURE = {
-  'waste-basket': () => {
-    const drum = mesh()
-    cylinder(drum, 10, 0.21, 0.25, 0.12, 0.78)
-    const post = mesh()
-    cylinder(post, 6, 0.05, 0.05, 0, 0.16)
-    return [
-      { role: 'metal', ...drum },
-      { role: 'metal', ...post },
-    ]
-  },
-  recycling: () => {
+  // Bins are one shape in two colours, so a glance tells rubbish from
+  // recycling: a rounded drum, a fat rim and a dark opening.
+  'waste-basket': furnLod(q => {
     const body = mesh()
-    box(body, [-0.38, 0, -0.32], [0.38, 1.0, 0.32])
-    const lid = mesh()
-    box(lid, [-0.41, 1.0, -0.35], [0.41, 1.1, 0.35])
+    cylinder(body, q.sides, 0.25, 0.28, 0.05, 0.78)
+    const rim = mesh()
+    cylinder(rim, q.sides, 0.31, 0.31, 0.8, 0.09)
+    const opening = mesh()
+    cylinder(opening, q.sides, 0.25, 0.25, 0.82, 0.08)
+    const foot = mesh()
+    cylinder(foot, q.sides, 0.22, 0.23, 0, 0.07)
     return [
-      { role: 'paint', ...body },
-      { role: 'metal', ...lid },
+      { role: 'bin', ...body },
+      { role: 'bin', ...rim },
+      { role: 'bin', ...foot },
+      { role: 'interior', ...opening },
     ]
-  },
-  bench: () => {
-    const seat = mesh()
-    // Slats, so a bench reads as a bench from above rather than as a plank.
-    for (let i = 0; i < 3; i++) {
-      const z = -0.24 + i * 0.18
-      box(seat, [-0.9, 0.42, z], [0.9, 0.47, z + 0.13])
-    }
-    const back = mesh()
-    for (let i = 0; i < 2; i++) {
-      const y = 0.62 + i * 0.17
-      box(back, [-0.9, y, 0.24], [0.9, y + 0.12, 0.3])
-    }
-    const legs = mesh()
-    for (const x of [-0.78, 0.78]) {
-      box(legs, [x - 0.04, 0, -0.28], [x + 0.04, 0.44, -0.2])
-      box(legs, [x - 0.04, 0, 0.22], [x + 0.04, 0.82, 0.3])
-    }
+  }),
+  recycling: furnLod(q => {
+    const body = mesh()
+    cylinder(body, q.sides, 0.25, 0.28, 0.05, 0.78)
+    const rim = mesh()
+    cylinder(rim, q.sides, 0.31, 0.31, 0.8, 0.09)
+    const opening = mesh()
+    cylinder(opening, q.sides, 0.25, 0.25, 0.82, 0.08)
+    const foot = mesh()
+    cylinder(foot, q.sides, 0.22, 0.23, 0, 0.07)
     return [
-      { role: 'wood', ...seat },
-      { role: 'wood', ...back },
-      { role: 'metal', ...legs },
+      { role: 'recycling', ...body },
+      { role: 'recycling', ...rim },
+      { role: 'recycling', ...foot },
+      { role: 'interior', ...opening },
     ]
-  },
+  }),
+  // A park bench after 2GIS's: two flat end panels in a seat-and-back
+  // silhouette, one thick seat plank and one wide back plank, all one colour.
+  bench: furnLod(q => {
+    const L = 0.86
+    const parts = mesh()
+    // The end panel's outline (z forward-back, y up). The model faces -z, so
+    // the back is at +z. Splayed legs, a seat shelf, a tall back with a head.
+    const panel = q.slats > 1
+      ? [[-0.34, 0], [-0.22, 0], [-0.17, 0.26], [-0.09, 0.36], [0.11, 0.37], [0.25, 0.3],
+         [0.32, 0.07], [0.33, 0], [0.46, 0.01], [0.38, 0.45], [0.43, 1.01], [0.52, 1.03],
+         [0.52, 1.12], [0.43, 1.16], [0.33, 1.15], [0.27, 1.08], [0.14, 0.68], [-0.04, 0.6],
+         [-0.2, 0.61], [-0.32, 0.55], [-0.34, 0.48]]
+      : [[-0.34, 0], [-0.2, 0], [-0.2, 0.36], [0.28, 0.36], [0.28, 0], [0.42, 0],
+         [0.46, 1.12], [0.3, 1.12], [-0.34, 0.6]]
+    for (const x of [-L - 0.03, L + 0.03]) extrude(parts, panel, x - 0.03, x + 0.03)
+    // Seat: one thick plank resting on the panels' shelf.
+    extrude(parts, [[-0.33, 0.47], [0.24, 0.47], [0.26, 0.56], [-0.31, 0.58]], -L, L)
+    // Back: a wide plank following the panels' lean.
+    extrude(parts, [[0.2, 0.66], [0.28, 0.65], [0.43, 1.06], [0.35, 1.08]], -L + 0.001, L - 0.001)
+    return [{ role: 'bench', ...parts }]
+  }),
 }
 
 // ---------------------------------------------------------------------------
 // Trees
 // ---------------------------------------------------------------------------
 
-/**
- * Which vendored model each named tree uses.
- *
- * Several per species on purpose: `trees.ts` picks between them from the
- * feature's id, so a street is a row of different trees rather than one tree
- * repeated, which is the single biggest thing separating this from a diagram.
- */
-const TREES = {
-  'tree-broadleaf-a': 'tree_default',
-  'tree-broadleaf-b': 'tree_oak',
-  'tree-broadleaf-c': 'tree_fat',
-  'tree-broadleaf-d': 'tree_detailed',
-  'tree-conifer-a': 'tree_pineRoundA',
-  'tree-conifer-b': 'tree_pineRoundC',
-  'tree-conifer-c': 'tree_pineTallA',
-  'tree-conifer-d': 'tree_cone',
-  'tree-palm-a': 'tree_palm',
-  'tree-palm-b': 'tree_palmTall',
-  'tree-palm-c': 'tree_palmShort',
+/** A seeded PRNG, so a regenerated model is byte-identical to the last one. */
+function rng(seed) {
+  let s = seed >>> 0
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0
+    let t = s
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
 }
 
-async function loadSource(file) {
-  const bytes = await readFile(join(SRC, `${file}.glb`))
-  const model = parseGlb(
-    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-  )
-  // Merge the source's primitives by role, so a model that splits its canopy
-  // across two materials still comes out as one foliage primitive.
-  const byRole = new Map()
-  for (const primitive of model.primitives) {
-    const role = roleOf(primitive.material)
-    const existing = byRole.get(role)
-    if (!existing) {
-      byRole.set(role, {
-        role,
-        position: Array.from(primitive.position),
-        normal: Array.from(primitive.normal),
-        index: Array.from(primitive.index),
-      })
-      continue
+/** A unit icosphere: round from every side, which a canopy has to be. */
+function icosphere(subdivisions) {
+  const t = (1 + Math.sqrt(5)) / 2
+  let verts = [
+    [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t],
+    [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],
+  ].map(v => { const l = Math.hypot(...v); return v.map(c => c / l) })
+  let faces = [
+    [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4],
+    [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8],
+    [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+  ]
+  for (let i = 0; i < subdivisions; i++) {
+    const cache = new Map()
+    const mid = (a, b) => {
+      const key = a < b ? `${a}_${b}` : `${b}_${a}`
+      if (!cache.has(key)) {
+        const m = verts[a].map((c, k) => c + verts[b][k])
+        const l = Math.hypot(...m)
+        verts.push(m.map(c => c / l))
+        cache.set(key, verts.length - 1)
+      }
+      return cache.get(key)
     }
-    const base = existing.position.length / 3
-    existing.position.push(...primitive.position)
-    existing.normal.push(...primitive.normal)
-    for (const i of primitive.index) existing.index.push(i + base)
+    faces = faces.flatMap(([a, b, c]) => {
+      const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a)
+      return [[a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]]
+    })
   }
-  return [...byRole.values()].map(part => ({
-    role: part.role,
-    position: new Float32Array(part.position),
-    normal: new Float32Array(part.normal),
-    index: part.index,
-  }))
+  return { verts, faces }
+}
+
+/**
+ * One lump of foliage: a lumpy ellipsoid with a flattened underside.
+ *
+ * The lumps are a few low-frequency waves over the sphere's directions, seeded,
+ * so neighbouring blobs differ and the outline breaks up the way a real crown's
+ * does. The underside is pulled up because leaves hang off branches — a canopy
+ * is a dome on a flatter base, not a ball.
+ */
+function blob(m, [cx, cy, cz], [rx, ry, rz], { seed = 1, lump = 0.12, subdivisions = 2, flat = 0.55, taper = 0, ripple = 0 } = {}) {
+  const r = rng(seed)
+  const waves = Array.from({ length: 4 }, () => {
+    const d = [r() * 2 - 1, r() * 2 - 1, r() * 2 - 1]
+    const l = Math.hypot(...d) || 1
+    return { d: d.map(c => c / l), f: 2 + r() * 3, p: r() * Math.PI * 2, a: 0.5 + r() * 0.5 }
+  })
+  // Finer waves for the soft bumps along a crown's edge — the clumps of leaves
+  // a canopy is made of, without the hard seams of separate shapes.
+  const ripples = Array.from({ length: 6 }, () => {
+    const d = [r() * 2 - 1, r() * 2 - 1, r() * 2 - 1]
+    const l = Math.hypot(...d) || 1
+    return { d: d.map(c => c / l), f: 7 + r() * 4, p: r() * Math.PI * 2 }
+  })
+  const { verts, faces } = icosphere(subdivisions)
+  const placed = verts.map(([x, y, z]) => {
+    let k = 0
+    for (const w of waves) k += w.a * Math.sin((x * w.d[0] + y * w.d[1] + z * w.d[2]) * w.f + w.p)
+    let q = 0
+    for (const w of ripples) q += Math.sin((x * w.d[0] + y * w.d[1] + z * w.d[2]) * w.f + w.p)
+    const s = 1 + (lump * k) / waves.length + (ripple * q) / ripples.length
+    const yy = y < 0 ? y * flat : y
+    // Narrower towards the top: an egg at a little taper, a flame at a lot.
+    const w = 1 - taper * (y + 1) / 2
+    return [cx + x * rx * s * w, cy + yy * ry * s, cz + z * rz * s * w]
+  })
+  for (const [a, b, c] of faces) face(m, placed[a], placed[b], placed[c])
+  return m
+}
+
+/** Rotate a part's points about the Y axis, then tip them about the X axis. */
+function turn(points, yaw, pitch) {
+  const [cy, sy, cp, sp] = [Math.cos(yaw), Math.sin(yaw), Math.cos(pitch), Math.sin(pitch)]
+  return points.map(([x, y, z]) => {
+    const y1 = y * cp - z * sp
+    const z1 = y * sp + z * cp
+    return [x * cy + z1 * sy, y1, -x * sy + z1 * cy]
+  })
+}
+
+/** A palm frond: a flattened lumpless blob, swung out and drooping from the crown. */
+function frond(m, crown, length, yaw, droop, seed) {
+  const f = mesh()
+  blob(f, [0, 0, length / 2], [0.22 * length / 2.4 + 0.12, 0.05, length / 2], { seed, lump: 0.02, subdivisions: 1, flat: 1 })
+  const pts = []
+  for (let i = 0; i < f.position.length; i += 3) {
+    // Bend along its length: the tip falls further than the base.
+    const z = f.position[i + 2]
+    pts.push([f.position[i], f.position[i + 1] - (z / length) ** 2 * length * 0.35, z])
+  }
+  const moved = turn(pts, yaw, droop).map(([x, y, z]) => [x + crown[0], y + crown[1], z + crown[2]])
+  for (let i = 0; i < moved.length; i += 3) face(m, moved[i], moved[i + 1], moved[i + 2])
+}
+
+/**
+ * The trees, generated. Modelled in metres; `toUnit` rescales each to one unit
+ * tall, and the layer scales height and spread per instance.
+ *
+ * Several per family on purpose: `trees.ts` picks between them from the
+ * feature's id, so a street is a row of different trees rather than one tree
+ * repeated.
+ */
+/** Detail per level: crown subdivisions for broadleaf and conifer, and trunk sides. */
+const NEAR = { crown: 3, cone: 2, sides: 7 }
+const FAR = { crown: 1, cone: 1, sides: 4 }
+
+/**
+ * A tree whose far variant is itself at lower detail, rather than a fitted
+ * proxy — so a distant tree keeps its own silhouette and swapping is invisible.
+ */
+const lod = make => Object.assign(() => make(NEAR), { far: () => make(FAR) })
+
+const TREES = {
+  // Each crown is one smooth, softly undulating solid rather than a cluster of
+  // puffs: read from map distance a crown is a single mass, and the light
+  // gradient across it carries the form better than its outline does.
+  // Ovoid: the common street tree, taller than wide.
+  'tree-broadleaf-a': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.32, 0.22, 0, 4.4) },
+    { role: 'foliage', ...blob(mesh(), [0, 6.4, 0], [2.8, 4.1, 2.8], { subdivisions: q.crown, seed: 11, lump: 0.05, ripple: 0.07, flat: 0.8, taper: 0.16 }) },
+  ]),
+  // Round: a full, broad crown.
+  'tree-broadleaf-b': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.42, 0.28, 0, 4.2) },
+    { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [3.5, 3.4, 3.5], { subdivisions: q.crown, seed: 23, lump: 0.06, ripple: 0.07, flat: 0.75, taper: 0.1 }) },
+  ]),
+  // Columnar: narrow and tall.
+  'tree-broadleaf-c': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.15, 0, 3.8) },
+    { role: 'foliage', ...blob(mesh(), [0, 6.8, 0], [2.2, 4.9, 2.2], { subdivisions: q.crown, seed: 37, lump: 0.05, ripple: 0.06, flat: 0.85, taper: 0.2 }) },
+  ]),
+  // Irregular: a gently lopsided crown, the odd one out in a row.
+  'tree-broadleaf-d': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.34, 0.23, 0, 4.4) },
+    { role: 'foliage', ...blob(mesh(), [0, 6, 0], [3.1, 3.7, 2.7], { subdivisions: q.crown, seed: 54, lump: 0.1, ripple: 0.08, flat: 0.75, taper: 0.12 }) },
+  ]),
+  // Spruce: a smooth cone, widest low down.
+  'tree-conifer-a': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.12, 0, 5.2) },
+    { role: 'foliage', ...blob(mesh(), [0, 6.6, 0], [2.7, 5.4, 2.7], { subdivisions: q.cone, seed: 70, lump: 0.04, flat: 0.45, taper: 0.85 }) },
+  ]),
+  // Pine: a soft, slightly tapered column.
+  'tree-conifer-b': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.14, 0, 6.2) },
+    { role: 'foliage', ...blob(mesh(), [0, 8, 0], [2.2, 4.2, 2.2], { subdivisions: q.cone, seed: 80, lump: 0.07, flat: 0.7, taper: 0.4 }) },
+  ]),
+  // Fir: tall and narrow, coming to a point.
+  'tree-conifer-c': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.2, 0.1, 0, 5.6) },
+    { role: 'foliage', ...blob(mesh(), [0, 7, 0], [2, 6.2, 2], { subdivisions: q.cone, seed: 90, lump: 0.04, flat: 0.4, taper: 0.9 }) },
+  ]),
+  // Cypress: a slim flame.
+  'tree-conifer-d': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.18, 0.12, 0, 3) },
+    { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [1.75, 4.6, 1.75], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
+  ]),
+  ...Object.fromEntries([['a', 9, 9, 110], ['b', 12, 7, 120], ['c', 6, 10, 130]].map(([k, height, count, seed]) => [
+    `tree-palm-${k}`,
+    () => {
+      const bark = mesh()
+      // A gently curving trunk, in segments that thin towards the crown.
+      const r = rng(seed)
+      const lean = 0.06 + r() * 0.05
+      const segs = 6
+      for (let i = 0; i < segs; i++) {
+        const seg = mesh()
+        cylinder(seg, 8, 0.28 - i * 0.02, 0.26 - i * 0.02, 0, height / segs + 0.05)
+        for (let v = 0; v < seg.position.length; v += 3) {
+          const y = seg.position[v + 1] + (i * height) / segs
+          seg.position[v] += (y / height) ** 2 * height * lean
+          seg.position[v + 1] = y
+        }
+        const pts = []
+        for (let v = 0; v < seg.position.length; v += 3) pts.push([seg.position[v], seg.position[v + 1], seg.position[v + 2]])
+        for (let v = 0; v < pts.length; v += 3) face(bark, pts[v], pts[v + 1], pts[v + 2])
+      }
+      const top = [height * lean, height, 0]
+      const leaves = mesh()
+      for (let i = 0; i < count; i++)
+        frond(leaves, top, 2.6 + r() * 0.6, (i / count) * Math.PI * 2 + r() * 0.3, -0.25 - r() * 0.35, seed + i)
+      blob(leaves, top, [0.45, 0.4, 0.45], { seed: seed + 50, subdivisions: 1 })
+      return [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
+    },
+  ])),
 }
 
 // ---------------------------------------------------------------------------
@@ -947,8 +1213,11 @@ async function main() {
   const written = []
   const manifest = {}
 
-  const emit = async (name, parts) => {
-    toUnit(parts)
+  const emit = async (name, parts, ownFar) => {
+    // A level of detail can leave a part out entirely; an empty part has no volume.
+    parts = parts.filter(p => p.index.length)
+    ownFar = ownFar?.filter(p => p.index.length)
+    const fit = toUnit(parts)
     // Before the far LOD is fitted, so its proxy post is fitted to the slimmed
     // trunk rather than to the one nobody will see.
     const slimmed = slimTrunks(parts)
@@ -974,7 +1243,11 @@ async function main() {
     // `toUnit` over it re-centres on its own bounding box — which for a
     // five-sided prism is not its axis, so every proxy came out shifted off
     // centre and about 8% wide.
-    const far = farLod(parts)
+    let far = farLod(parts)
+    if (ownFar) {
+      toUnit(ownFar, fit)
+      far = ownFar
+    }
     // Oriented in its own right: these solids are built here rather than
     // vendored, and `cylinder` and `lozenge` wind their walls the wrong way
     // round — so every proxy was inside out until this ran over it too.
@@ -1003,12 +1276,8 @@ async function main() {
     )
   }
 
-  const available = new Set((await readdir(SRC)).map(f => f.replace(/\.glb$/, '')))
-  for (const [name, source] of Object.entries(TREES)) {
-    if (!available.has(source)) throw new Error(`missing vendored model: ${source}.glb`)
-    await emit(name, await loadSource(source))
-  }
-  for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build())
+  for (const [name, build] of Object.entries(TREES)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

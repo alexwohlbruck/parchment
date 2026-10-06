@@ -251,8 +251,9 @@ function navTransitioning(value: boolean) {
   isNavTransitioning.value = value
 }
 
-// Open bottom sheet when a map subview is opened
-watch(isBottomSheetView, async isOpen => {
+// Open bottom sheet when a map subview is opened, including a cold load
+// straight onto one: a closed sheet there would dismiss itself back to the map.
+watch(isBottomSheetView, async (isOpen, wasOpen) => {
   if (isOpen) {
     // Small delay to allow other drawers to start their close animation
     // This works in conjunction with useDrawerCoordination to prevent race conditions
@@ -264,11 +265,11 @@ watch(isBottomSheetView, async isOpen => {
     // dialog route (e.g. /settings/integrations) or a full-screen takeover
     // (e.g. /street/:id street view). The user wants to stay there; pushing to
     // MAP here would bounce them back immediately.
-    if (!route.meta.dialog && !route.meta.hideUI) {
+    if (wasOpen && !route.meta.dialog && !route.meta.hideUI) {
       router.push({ name: AppRoute.MAP })
     }
   }
-})
+}, { immediate: true })
 
 // Navigate back to map when the bottom sheet is dismissed — but not when it
 // closed because we navigated to a dialog route or a full-screen takeover

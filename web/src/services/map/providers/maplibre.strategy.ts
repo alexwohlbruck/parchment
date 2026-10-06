@@ -1,3 +1,4 @@
+import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
@@ -75,6 +76,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
+import { combineFilters } from '@/lib/map-style/combine-filters'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
 import { ISOLATED_COLLISION_LAYERS } from '@/lib/map-style/poi-dots'
 import {
@@ -100,6 +102,7 @@ import {
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
 import { LANDMARK_FLAVOR, withoutReplaced } from '@/lib/map-objects/landmarks'
+import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -253,7 +256,7 @@ function firstLabelLayer(map: MaplibreMap): string | undefined {
 }
 
 
-const NEVER_MATCH = ['==', 1, 0]
+const NEVER_MATCH = ['literal', false]
 
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
@@ -269,6 +272,7 @@ export class MaplibreStrategy extends MapStrategy {
   private map3dObjects = true
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
+  private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
   private objectModels: Promise<Record<string, GlbModel>> | null = null
   /** Landmarks, and the building filters as the style had them before any were hidden. */
   private landmarkLayer: LandmarkLayer | null = null
@@ -422,6 +426,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Note: setupPoiHandlers() is idempotent — it early-returns if handlers
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
+    this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
     this.mapInstance.on('style.load', () => {
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
@@ -431,10 +436,13 @@ export class MaplibreStrategy extends MapStrategy {
       this.applyBuildingShade()
       this.updateRoofEdge()
       // A style swap drops custom layers with it, and rebuilds the flat form's
-      // visibility from the stylesheet.
+      // visibility from the stylesheet. A dropped layer must stop casting too:
+      // its buffers went with the old style.
+      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
       this.objectLayer = null
       void this.applyMapObjects()
       // The new style has its own building filters and no landmark layer.
+      if (this.landmarkLayer) shadowCasters.delete(this.landmarkLayer)
       this.landmarkLayer = null
       this.buildingFilters.clear()
       this.applyLandmarks()
@@ -486,14 +494,9 @@ export class MaplibreStrategy extends MapStrategy {
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
-      mapEventBus.emit('contextmenu', {
-        lngLat: e.lngLat,
-        point: e.point,
-      })
+      this.emitContextMenu(e.lngLat, e.point)
     })
 
-    // Touch-and-hold for mobile context menu
-    this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
       if (useMapToolsStore().rawClickCapture) return
       const data = {
@@ -684,6 +687,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
     this.map3dBuildings = value
     this.applyBuildingShade()
+    this.poiElevation?.refresh()
   }
 
   /**
@@ -697,6 +701,7 @@ export class MaplibreStrategy extends MapStrategy {
   override setMap3dObjects(value: boolean) {
     this.map3dObjects = value
     void this.applyMapObjects()
+    for (const id of layerGroups.poi) this.applyBasemapFilter(id)
     this.applyLandmarks()
   }
 
@@ -817,6 +822,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
 
     if (!this.map3dObjects) {
+      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
       if (this.objectLayer && map.getLayer(this.objectLayer.id)) {
         map.removeLayer(this.objectLayer.id)
       }
@@ -862,6 +868,7 @@ export class MaplibreStrategy extends MapStrategy {
     // part of it — but a symbol layer ignores depth entirely, so the only thing
     // keeping a tree from covering a place marker is drawing it first.
     map.addLayer(this.objectLayer as any, firstLabelLayer(map))
+    shadowCasters.add(this.objectLayer)
     flat()
   }
 
@@ -1007,14 +1014,21 @@ export class MaplibreStrategy extends MapStrategy {
     if (!this.baseFilters.has(id)) {
       this.baseFilters.set(id, this.mapInstance.getFilter(id) ?? null)
     }
-    const clauses = [
-      this.baseFilters.get(id),
-      this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
-      this.basemapHiders.get(id)?.size && NEVER_MATCH,
-    ].filter(Boolean)
     this.mapInstance.setFilter(
       id,
-      (clauses.length > 1 ? ['all', ...clauses] : (clauses[0] ?? null)) as any,
+      combineFilters([
+        this.baseFilters.get(id),
+        this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
+        // An unnamed recycling point is a street container, drawn as a 3D bin
+        // from the zoom furniture appears, and bins carry no badge. A named
+        // one is a recycling centre: it keeps its badge and gets no bin.
+        this.map3dObjects && layerGroups.poi.includes(id) && [
+          'step', ['zoom'], true,
+          FURNITURE_OBJECTS.minzoom,
+          ['!', ['all', ['==', ['get', 'subclass'], 'recycling'], ['!', ['has', 'name']]]],
+        ],
+        this.basemapHiders.get(id)?.size && NEVER_MATCH,
+      ]),
     )
   }
 
@@ -1399,6 +1413,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   destroy() {
+    this.poiElevation?.detach()
     try {
       this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()

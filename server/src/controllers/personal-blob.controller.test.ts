@@ -33,12 +33,16 @@ const deletePersonalBlob = mock(async (_userId: string, _type: string) => undefi
 const listPersonalBlobTypes = mock(async (_userId: string) => [
   { blobType: 'settings', kmVersion: 3 },
 ])
+// Not called by this controller, but integration.service (imported for a
+// constant) needs it to resolve against the mocked module.
+const getPersonalBlobsByTypePrefix = mock(async (_userId: string, _prefix: string) => [])
 
 mock.module('../services/personal-blob.service', () => ({
   getPersonalBlob,
   putPersonalBlob,
   deletePersonalBlob,
   listPersonalBlobTypes,
+  getPersonalBlobsByTypePrefix,
 }))
 
 mock.module('../middleware/auth.middleware', () => authMockModule())

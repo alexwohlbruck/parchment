@@ -28,6 +28,7 @@ export interface WallShadowLayerOptions {
   /** Drawn into the cast-shadow mask with the buildings; see `_casterShadows`. */
   shadowCasters?: Set<{
     drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
+    shadowVersion?: number
   }>
 }
 

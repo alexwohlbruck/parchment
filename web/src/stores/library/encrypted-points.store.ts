@@ -45,6 +45,20 @@ export const useEncryptedPointsStore = defineStore('encrypted-points', () => {
     endLoad(collectionId)
   }
 
+  function addPoint(collectionId: string, point: DecryptedPoint) {
+    pointsByCollection.value = {
+      ...pointsByCollection.value,
+      [collectionId]: [...getPoints(collectionId), point],
+    }
+  }
+
+  function removePoint(collectionId: string, pointId: string) {
+    pointsByCollection.value = {
+      ...pointsByCollection.value,
+      [collectionId]: getPoints(collectionId).filter(p => p.id !== pointId),
+    }
+  }
+
   function endLoad(collectionId: string) {
     const next = new Set(loading.value)
     next.delete(collectionId)
@@ -78,6 +92,8 @@ export const useEncryptedPointsStore = defineStore('encrypted-points', () => {
     isLoading,
     beginLoad,
     setPoints,
+    addPoint,
+    removePoint,
     endLoad,
     clearCollection,
     clear,

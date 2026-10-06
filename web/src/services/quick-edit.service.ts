@@ -1,7 +1,6 @@
 import { api } from '@/lib/api'
 import type {
   BrandChoice,
-  BrandSuggestion,
   DuplicateCandidate,
   NsiBrand,
   EditablePreset,
@@ -11,6 +10,7 @@ import type {
   OsmElementType,
   PresetSummary,
   TagSuggestion,
+  TagUpgrade,
   SubmitEditInput,
   SubmitEditResult,
 } from '@/types/quick-edit.types'
@@ -38,13 +38,11 @@ export function useQuickEditService() {
   ): Promise<{
     element: OsmLiveElement
     preset: EditablePreset | null
-    brand: BrandSuggestion | null
   }> {
     const response = await api.get<{
       element: OsmLiveElement
       preset: EditablePreset | null
-      brand: BrandSuggestion | null
-    }>(`/osm/element/${type}/${id}`)
+      }>(`/osm/element/${type}/${id}`)
     return response.data
   }
 
@@ -65,6 +63,18 @@ export function useQuickEditService() {
       { params: { q, key } },
     )
     return response.data.results
+  }
+
+  async function suggestTagUpgrades(
+    tags: Record<string, string>,
+    signal?: AbortSignal,
+  ): Promise<TagUpgrade> {
+    const response = await api.post<TagUpgrade>(
+      '/osm/tags/upgrades',
+      { tags },
+      { signal },
+    )
+    return response.data
   }
 
   async function findDuplicates(
@@ -111,6 +121,7 @@ export function useQuickEditService() {
     getElement,
     searchBrands,
     suggestTags,
+    suggestTagUpgrades,
     findDuplicates,
     submitEdit,
     getPendingEdits,

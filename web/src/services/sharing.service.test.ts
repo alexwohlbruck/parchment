@@ -9,27 +9,16 @@ import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest'
 import { buildPublicLinkUrl } from '@/services/sharing.service'
 
 describe('buildPublicLinkUrl', () => {
-  test('joins server URL + token at /public/collections/', () => {
-    const url = buildPublicLinkUrl(
-      'https://parchment.app',
-      'abc123_token',
+  test('points at the web app page for the token', () => {
+    expect(buildPublicLinkUrl('https://parchment.app', 'abc123_token')).toBe(
+      'https://parchment.app/shared/abc123_token',
     )
-    expect(url).toBe('https://parchment.app/public/collections/abc123_token')
   })
 
-  test('strips trailing slash on the server URL', () => {
-    // Important: concatenation would produce a double slash otherwise,
-    // which some CDNs + browsers normalize inconsistently.
-    const url = buildPublicLinkUrl(
-      'https://parchment.app/',
-      'tok',
+  test('strips a trailing slash on the origin', () => {
+    expect(buildPublicLinkUrl('https://parchment.app/', 'tok')).toBe(
+      'https://parchment.app/shared/tok',
     )
-    expect(url).toBe('https://parchment.app/public/collections/tok')
-  })
-
-  test('works for localhost dev URLs', () => {
-    const url = buildPublicLinkUrl('http://localhost:5000', 'dev_tok')
-    expect(url).toBe('http://localhost:5000/public/collections/dev_tok')
   })
 })
 

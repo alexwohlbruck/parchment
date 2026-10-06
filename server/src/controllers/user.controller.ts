@@ -1161,7 +1161,10 @@ app.use(requireAuth).post(
         t.Array(
           t.Object({
             id: t.String(),
-            metadataEncrypted: t.String(),
+            metadataEncrypted: t.Optional(t.String()),
+            points: t.Optional(
+              t.Array(t.Object({ id: t.String(), encryptedData: t.String() })),
+            ),
           }),
         ),
       ),

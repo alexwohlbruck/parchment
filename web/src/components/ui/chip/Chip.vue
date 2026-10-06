@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, useSlots, type Component } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/toggle'
 import {
@@ -78,8 +78,14 @@ const emit = defineEmits<{
   'action-click': []
 }>()
 
+const slots = useSlots()
+
 const chipClasses = computed(() => {
-  return cn('rounded-full gap-1 bg-background pl-2.5', className)
+  return cn(
+    'rounded-full gap-1 bg-background pl-2.5',
+    slots.leading && 'h-auto gap-1.5 py-0.5 pl-0.5 pr-2.5 text-xs',
+    className,
+  )
 })
 
 const isPressed = computed(() => {
@@ -184,6 +190,7 @@ function getDropdownItemComponent(): Component {
     :disabled="disabled"
     @click="handleClick"
   >
+    <slot name="leading" />
     <component v-if="displayIcon" :is="displayIcon" class="size-3.5" />
     <span class="whitespace-nowrap">{{ displayLabel }}</span>
   </Button>

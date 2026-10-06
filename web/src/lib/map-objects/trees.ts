@@ -131,7 +131,7 @@ export const TREE_OBJECTS: ObjectSourceSpec = {
   sourceLayer: TREE_TILES,
   // Matches the flat form's minzoom: the two are the same features, and a zoom
   // where one draws and the other does not would show as trees appearing twice.
-  minzoom: 16,
+  minzoom: 14.5,
   toInstance: treeInstance,
 }
 
@@ -204,7 +204,7 @@ function rowPositions(feature: any): Array<[number, number]> {
 export const TREE_ROW_OBJECTS: ObjectSourceSpec = {
   source: DETAIL_SOURCE,
   sourceLayer: TREE_ROW_TILES,
-  minzoom: 16,
+  minzoom: 14.5,
   positions: rowPositions,
   // A row is one feature, so each tree along it is seeded by its index or they
   // would all come out identical.

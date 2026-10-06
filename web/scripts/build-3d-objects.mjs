@@ -55,7 +55,8 @@ const ROLE_COLOR = {
   paint: [0.24, 0.42, 0.30, 1],
   interior: [0.16, 0.18, 0.17, 1],
   bench: [0.87, 0.78, 0.66, 1],
-  bin: [0.42, 0.55, 0.47, 1],
+  bin: [0.34, 0.36, 0.38, 1],
+  recycling: [0.2, 0.33, 0.52, 1],
 }
 
 /** How far apart two faces can lean and still share a smoothed normal. */
@@ -872,6 +873,45 @@ function prism(m, profile, x0, x1) {
   return m
 }
 
+/** Triangulate a simple polygon (counter-clockwise) by ear clipping. */
+function earClip(pts) {
+  const idx = pts.map((_, i) => i)
+  const cross = (a, b, c) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+  const inside = (p, a, b, c) => cross(a, b, p) > 0 && cross(b, c, p) > 0 && cross(c, a, p) > 0
+  const tris = []
+  let guard = 0
+  while (idx.length > 3 && guard++ < 10000) {
+    for (let k = 0; k < idx.length; k++) {
+      const [i0, i1, i2] = [idx[(k + idx.length - 1) % idx.length], idx[k], idx[(k + 1) % idx.length]]
+      const [a, b, c] = [pts[i0], pts[i1], pts[i2]]
+      if (cross(a, b, c) <= 0) continue
+      if (idx.some(j => j !== i0 && j !== i1 && j !== i2 && inside(pts[j], a, b, c))) continue
+      tris.push([i0, i1, i2])
+      idx.splice(k, 1)
+      break
+    }
+  }
+  tris.push([idx[0], idx[1], idx[2]])
+  return tris
+}
+
+/** Any simple outline in the side plane (z, y), extruded across x. */
+function extrude(m, outline, x0, x1) {
+  const area = outline.reduce((t, p, i) => t + p[0] * outline[(i + 1) % outline.length][1] - outline[(i + 1) % outline.length][0] * p[1], 0)
+  const pts = area < 0 ? [...outline].reverse() : outline
+  const a = pts.map(([z, y]) => [x0, y, z])
+  const b = pts.map(([z, y]) => [x1, y, z])
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length
+    quad(m, a[j], a[i], b[i], b[j])
+  }
+  for (const [i, j, k] of earClip(pts)) {
+    face(m, b[i], b[j], b[k])
+    face(m, a[k], a[j], a[i])
+  }
+  return m
+}
+
 /** A rounded rectangle cross-section of a slat, `w` deep by `t` thick, tilted. */
 function slat(z, y, w, t, tilt, seg, round = 0.012) {
   const [c, s] = [Math.cos(tilt), Math.sin(tilt)]
@@ -907,8 +947,8 @@ const furnLod = make => Object.assign(() => make(FURN_NEAR), { far: () => make(F
  * an exact face or corner, so each stays a solid.
  */
 const FURNITURE = {
-  // A litter bin, kept simple so it reads at a glance: a rounded drum, a fat
-  // rim and a dark opening.
+  // Bins are one shape in two colours, so a glance tells rubbish from
+  // recycling: a rounded drum, a fat rim and a dark opening.
   'waste-basket': furnLod(q => {
     const body = mesh()
     cylinder(body, q.sides, 0.25, 0.28, 0.05, 0.78)
@@ -925,46 +965,41 @@ const FURNITURE = {
       { role: 'interior', ...opening },
     ]
   }),
-  // A municipal recycling bin: rounded body, a lid that overhangs it, and a
-  // coloured band so it reads as recycling rather than as a cabinet.
   recycling: furnLod(q => {
     const body = mesh()
-    roundedBox(body, [-0.36, 0.04, -0.3], [0.36, 0.9, 0.3], 0.07, q.seg)
-    const band = mesh()
-    roundedBox(band, [-0.37, 0.62, -0.31], [0.37, 0.72, 0.31], 0.075, q.seg)
-    const lid = mesh()
-    roundedBox(lid, [-0.4, 0.91, -0.34], [0.4, 1.0, 0.34], 0.09, q.seg)
-    const base = mesh()
-    roundedBox(base, [-0.33, 0, -0.27], [0.33, 0.03, 0.27], 0.05, q.seg)
+    cylinder(body, q.sides, 0.25, 0.28, 0.05, 0.78)
+    const rim = mesh()
+    cylinder(rim, q.sides, 0.31, 0.31, 0.8, 0.09)
+    const opening = mesh()
+    cylinder(opening, q.sides, 0.25, 0.25, 0.82, 0.08)
+    const foot = mesh()
+    cylinder(foot, q.sides, 0.22, 0.23, 0, 0.07)
     return [
-      { role: 'metal', ...body },
-      { role: 'paint', ...band },
-      { role: 'metal', ...lid },
-      { role: 'metal', ...base },
+      { role: 'recycling', ...body },
+      { role: 'recycling', ...rim },
+      { role: 'recycling', ...foot },
+      { role: 'interior', ...opening },
     ]
   }),
-  // A soft, chunky bench in one colour: a thick two-plank seat, a reclined
-  // back plank, and end panels whose legs and armrest curve into each other.
+  // A park bench after 2GIS's: two flat end panels in a seat-and-back
+  // silhouette, one thick seat plank and one wide back plank, all one colour.
   bench: furnLod(q => {
-    const L = 0.84
-    const seg = q.seg ? 3 : 0
+    const L = 0.86
     const parts = mesh()
-    if (q.slats > 1) {
-      prism(parts, slat(-0.13, 0.45, 0.2, 0.07, 0, seg, 0.03), -L, L)
-      prism(parts, slat(0.085, 0.45, 0.2, 0.07, 0, seg, 0.03), -L + 0.001, L - 0.001)
-    } else {
-      prism(parts, slat(-0.02, 0.45, 0.42, 0.07, 0, 0), -L, L)
-    }
-    prism(parts, slat(0.24, 0.72, 0.28, 0.06, Math.PI / 2 - 0.22, seg, 0.03), -L + 0.002, L - 0.002)
-    for (const x of [-L - 0.035, L + 0.035]) {
-      const [a, b] = [x - 0.035, x + 0.035]
-      // Back post, from the foot up past the back plank.
-      prism(parts, slat(0.2, 0.43, 0.11, 0.9, 0.12, seg, 0.04), a, b)
-      // Front leg, splayed slightly forward.
-      prism(parts, slat(-0.25, 0.21, 0.1, 0.44, -0.18, seg, 0.04), a + 0.001, b - 0.001)
-      // Armrest, curving down to the front leg.
-      if (q.slats > 1) prism(parts, slat(-0.04, 0.62, 0.5, 0.07, -0.08, seg, 0.03), a + 0.002, b - 0.002)
-    }
+    // The end panel's outline (z forward-back, y up). The model faces -z, so
+    // the back is at +z. Splayed legs, a seat shelf, a tall back with a head.
+    const panel = q.slats > 1
+      ? [[-0.34, 0], [-0.22, 0], [-0.17, 0.26], [-0.09, 0.36], [0.11, 0.37], [0.25, 0.3],
+         [0.32, 0.07], [0.33, 0], [0.46, 0.01], [0.38, 0.45], [0.43, 1.01], [0.52, 1.03],
+         [0.52, 1.12], [0.43, 1.16], [0.33, 1.15], [0.27, 1.08], [0.14, 0.68], [-0.04, 0.6],
+         [-0.2, 0.61], [-0.32, 0.55], [-0.34, 0.48]]
+      : [[-0.34, 0], [-0.2, 0], [-0.2, 0.36], [0.28, 0.36], [0.28, 0], [0.42, 0],
+         [0.46, 1.12], [0.3, 1.12], [-0.34, 0.6]]
+    for (const x of [-L - 0.03, L + 0.03]) extrude(parts, panel, x - 0.03, x + 0.03)
+    // Seat: one thick plank resting on the panels' shelf.
+    extrude(parts, [[-0.33, 0.47], [0.24, 0.47], [0.26, 0.56], [-0.31, 0.58]], -L, L)
+    // Back: a wide plank following the panels' lean.
+    extrude(parts, [[0.2, 0.66], [0.28, 0.65], [0.43, 1.06], [0.35, 1.08]], -L + 0.001, L - 0.001)
     return [{ role: 'bench', ...parts }]
   }),
 }

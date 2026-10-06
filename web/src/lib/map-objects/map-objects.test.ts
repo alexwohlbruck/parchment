@@ -498,7 +498,7 @@ describe('street furniture', () => {
         high = Math.max(high, p.position[i])
       }
     expect((high - low) * bench.spread).toBeCloseTo(1.8, 1)
-    expect(bench.height).toBeLessThan(1)
+    expect(bench.height).toBeLessThan(1.3)
   })
 })
 

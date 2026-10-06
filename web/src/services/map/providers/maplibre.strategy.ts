@@ -93,6 +93,7 @@ import {
   OBJECT_SOLID,
   OBJECT_SPECS,
 } from '@/lib/map-objects'
+import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -678,6 +679,7 @@ export class MaplibreStrategy extends MapStrategy {
   override setMap3dObjects(value: boolean) {
     this.map3dObjects = value
     void this.applyMapObjects()
+    for (const id of layerGroups.poi) this.applyBasemapFilter(id)
   }
 
   private async applyMapObjects() {
@@ -893,6 +895,13 @@ export class MaplibreStrategy extends MapStrategy {
       combineFilters([
         this.baseFilters.get(id),
         this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
+        // A recycling point is drawn as a 3D bin from the zoom furniture
+        // appears, and bins carry no badge, so neither does it.
+        this.map3dObjects && layerGroups.poi.includes(id) && [
+          'step', ['zoom'], true,
+          FURNITURE_OBJECTS.minzoom,
+          ['!', ['in', ['get', 'subclass'], ['literal', ['recycling', 'waste_basket', 'waste_disposal']]]],
+        ],
         this.basemapHiders.get(id)?.size && NEVER_MATCH,
       ]),
     )

@@ -106,17 +106,20 @@ const GROUND = `
   uniform vec4 u_bounds;
   uniform float u_blend;
   float groundAt(int i, int j) { return u_ground[j * ${GROUND_GRID} + i]; }
-  vec3 onGround(vec3 p) {
+  /** The ground's rise at a plan point in model metres, held at the grid's edge beyond it. */
+  float groundUnder(vec2 xz) {
     vec2 span = max(u_bounds.zw - u_bounds.xy, vec2(1e-3));
-    vec2 g = clamp((p.xz - u_bounds.xy) / span, 0.0, 1.0) * float(${GROUND_GRID - 1});
+    vec2 g = clamp((xz - u_bounds.xy) / span, 0.0, 1.0) * float(${GROUND_GRID - 1});
     ivec2 c = min(ivec2(floor(g)), ivec2(${GROUND_GRID - 2}));
     vec2 f = g - vec2(c);
-    float under = mix(
+    return mix(
       mix(groundAt(c.x, c.y), groundAt(c.x + 1, c.y), f.x),
       mix(groundAt(c.x, c.y + 1), groundAt(c.x + 1, c.y + 1), f.x),
       f.y);
+  }
+  vec3 onGround(vec3 p) {
     float follow = 1.0 - clamp(p.y / u_blend, 0.0, 1.0);
-    return p + vec3(0.0, mix(u_ground_mean, under, follow), 0.0);
+    return p + vec3(0.0, mix(u_ground_mean, groundUnder(p.xz), follow), 0.0);
   }`
 
 const ATTRIBUTES = `
@@ -292,15 +295,32 @@ const SHADOW_VS = `#version 300 es
   uniform mat4 u_matrix;
   uniform mat3 u_local;
   uniform vec2 u_shear;
-  /** Metres the origin sits above the ground. */
+  /** Metres the origin sits above the lowest ground under the model. */
   uniform float u_lift;
+  /** cos and sin of the bearing, and the scale: map metres back to model plan. */
+  uniform vec3 u_plan;
   ${NODE}
+  ${GROUND}
   ${ATTRIBUTES}
   out vec2 v_uv;
+  /** The ground's rise above the lowest point, in map metres, at a map point. */
+  float riseAt(vec2 m) {
+    vec2 xz = vec2(u_plan.x * m.x + u_plan.y * m.y, -u_plan.y * m.x + u_plan.x * m.y) / u_plan.z;
+    return groundUnder(xz) * u_plan.z;
+  }
   void main() {
-    vec3 q = u_local * (u_node * vec4(a_position, 1.0)).xyz;
-    float h = q.z + u_lift;
-    gl_Position = u_matrix * vec4(q.xy + u_shear * h, -u_lift, 1.0);
+    vec3 m = (u_node * vec4(a_position, 1.0)).xyz;
+    vec3 q = u_local * onGround(m);
+    // The shadow lands on the slope, not on a plane at the model's lowest
+    // point — otherwise, on a hill, it slides off its own base. Find where
+    // the vertex's shadow falls using the ground under the vertex, then read
+    // the ground there and shear by the height above it. One step is enough:
+    // the grid is coarse and a slope's change over a shadow's length small.
+    float below = q.z + u_lift - riseAt(q.xy);
+    vec2 land = q.xy + u_shear * max(below, 0.0);
+    float rise = riseAt(land);
+    float h = max(q.z + u_lift - rise, 0.0);
+    gl_Position = u_matrix * vec4(q.xy + u_shear * h, rise - u_lift, 1.0);
     v_uv = a_uv;
   }`
 
@@ -363,6 +383,8 @@ type Placement = Landmark & {
   /** Lifts off the base, per grid point, in model metres; see GROUND. */
   ground: Float32Array
   groundMean: number
+  /** Metres the base was sunk below the lowest ground; 0 with terrain off. */
+  sink: number
   /** Whether it is close enough for its detail model; see `drawnModel`. */
   detailed: boolean
   /** `entrances`, flattened for the glow's uniform array. */
@@ -435,7 +457,8 @@ export class LandmarkLayer {
       ['u_matrix', 'u_local', 'u_turn', 'u_color', 'u_painted', 'u_tint', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
         'u_emission', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend', 'u_node'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
-      ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node'])
+      ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff', 'u_node', 'u_plan',
+        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend'])
     this.stillness = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
     this.glow = program(gl, GLOW_VS, GLOW_FS,
       ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend'])
@@ -644,7 +667,7 @@ export class LandmarkLayer {
   ): Placement {
     const footprint = this.models.get(landmark.model)?.footprint
     const ground = new Float32Array(GROUND_GRID * GROUND_GRID)
-    let base = 0, groundMean = 0
+    let base = 0, groundMean = 0, sink = 0
     if (sample) {
       const heights = (footprint ? groundGrid(landmark, footprint) : [[landmark.lng, landmark.lat] as [number, number]]).map(sample)
       // A 0 among real heights is a tile that has not loaded, not the sea:
@@ -653,6 +676,7 @@ export class LandmarkLayer {
       const known = loaded ? heights.filter(h => h !== 0) : heights
       const lowest = Math.min(...known)
       base = lowest - GROUND_SINK
+      sink = GROUND_SINK
       if (footprint) {
         heights.forEach((h, i) => { ground[i] = (loaded && h === 0 ? 0 : h - lowest) / landmark.scale })
         groundMean = ground.reduce((a, b) => a + b, 0) / ground.length
@@ -661,7 +685,7 @@ export class LandmarkLayer {
     const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
     project(landmark.lng, landmark.lat, base + landmark.elevation, placed)
     const doors = new Float32Array(landmark.entrances.flat())
-    return { ...landmark, placed, ground, groundMean, detailed, doors }
+    return { ...landmark, placed, ground, groundMean, sink, detailed, doors }
   }
 
   /**
@@ -925,7 +949,11 @@ export class LandmarkLayer {
       gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.matrix, p.placed))
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniform2f(u.u_shear, frame.shear[0] / perMetre, frame.shear[1] / perMetre)
-      gl.uniform1f(u.u_lift, p.elevation)
+      // The origin sits GROUND_SINK below the lowest ground when terrain is on.
+      gl.uniform1f(u.u_lift, p.elevation - p.sink)
+      const b = (p.bearing * Math.PI) / 180
+      gl.uniform3f(u.u_plan, Math.cos(b), Math.sin(b), p.scale)
+      this.groundUniforms(gl, u, p)
       this.drawPrimitives(gl, model.primitives, u, false, this.poseOf(model))
     }
     gl.bindVertexArray(null)

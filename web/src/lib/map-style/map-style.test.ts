@@ -953,6 +953,12 @@ describe('assembled styles', () => {
     ['dark glyph POIs', () => buildMapStyle({ ...opts, theme: 'dark', poiStyle: 'glyph' })],
   ]
 
+  // The fork registers this at runtime on its own bundled spec; the npm spec
+  // used here needs the same entry, which mirrors the extrusion's own.
+  ;(latest as any).layout_line['line-rounded-corner-distance'] ??= {
+    ...(latest as any)['layout_fill-extrusion']['fill-extrusion-rounded-corner-distance'],
+  }
+
   test.each(cases)('%s validates against the MapLibre style spec', (_name, make) => {
     expect(validateStyleMin(make()).map(e => e.message)).toEqual([])
   })

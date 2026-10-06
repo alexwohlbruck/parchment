@@ -17,6 +17,7 @@
  * Everything here is engine-neutral, like the object specs beside it; the GL
  * lives in `landmark-layer.ts`.
  */
+import { BUILDING_3D_TILES, COASTER_TRACK_TILES } from '@/lib/map-style/detail-layers'
 
 /** How a landmark joins one flavor of the map. */
 export type LandmarkFlavor = {
@@ -198,6 +199,19 @@ function asExpression(filter: any): any {
 }
 
 /**
+ * The source-layers a landmark can take features out of, by `replaces`.
+ *
+ * The buildings, and the coaster tracks: a coaster model draws its own track,
+ * so the flat line under it has to go too or it shows through the gaps
+ * between the supports. Tracks are filtered by ref only, like `buildings_3d`,
+ * and never by footprint (`buildingSources` in the strategy leaves them out).
+ * A coaster's footprint is a box hundreds of metres across, and the track of
+ * every smaller ride standing inside it would vanish with no model drawn for
+ * it.
+ */
+export const REPLACEABLE_SOURCE_LAYERS: readonly string[] = ['building', BUILDING_3D_TILES, COASTER_TRACK_TILES]
+
+/**
  * A building layer's filter with the replaced buildings taken out.
  *
  * The two building sources are filtered differently, because only one of
@@ -205,6 +219,7 @@ function asExpression(filter: any): any {
  *
  *   buildings_3d  Barrelman's, one feature per OSM element with the ref as
  *                 `id`. The catalog's `replaces` matches it exactly.
+ *   coaster_tracks  Barrelman's too, with the same `id`, so the same filter.
  *   building      The basemap's. Its feature ids are not OSM ids to rely on:
  *                 Planetiler merges every building of one height in a z14
  *                 tile into a single multipolygon under one member's id, so

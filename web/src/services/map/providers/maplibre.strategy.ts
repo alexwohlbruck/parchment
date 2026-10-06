@@ -101,7 +101,7 @@ import {
   OBJECT_SPECS,
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
-import { LANDMARK_FLAVOR, withoutReplaced } from '@/lib/map-objects/landmarks'
+import { LANDMARK_FLAVOR, REPLACEABLE_SOURCE_LAYERS, withoutReplaced } from '@/lib/map-objects/landmarks'
 import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import {
   terrainSource,
@@ -774,7 +774,9 @@ export class MaplibreStrategy extends MapStrategy {
   /**
    * Take the buildings a landmark replaces out of every layer that draws
    * them — the extrusion, its roof-colour twin, the roof edge and the flat
-   * footprint — so nothing of the old building shows through the model.
+   * footprint — so nothing of the old building shows through the model. A
+   * coaster's track ways are among its refs, so the same pass takes them out
+   * of the track and its casing.
    *
    * All of them, and with the same filter, for a reason beyond tidiness: the
    * roof-colour layer only works while it shares the extrusion's bucket, and
@@ -784,7 +786,7 @@ export class MaplibreStrategy extends MapStrategy {
     const map = this.mapInstance
     for (const layer of map.getStyle()?.layers ?? []) {
       const sourceLayer = (layer as any)['source-layer']
-      if (sourceLayer !== 'building' && sourceLayer !== BUILDING_3D_TILES) continue
+      if (!REPLACEABLE_SOURCE_LAYERS.includes(sourceLayer)) continue
       if (!this.buildingFilters.has(layer.id))
         this.buildingFilters.set(layer.id, (layer as any).filter ?? null)
       map.setFilter(
@@ -794,7 +796,11 @@ export class MaplibreStrategy extends MapStrategy {
     }
   }
 
-  /** Every source and source-layer the style draws buildings from. */
+  /**
+   * Every source and source-layer the style draws buildings from, for the
+   * landmark layer's footprint test. Not the coaster tracks: see
+   * `REPLACEABLE_SOURCE_LAYERS` for why those go by ref alone.
+   */
   private buildingSources(): Array<{ source: string; sourceLayer: string }> {
     const seen = new Map<string, { source: string; sourceLayer: string }>()
     for (const layer of this.mapInstance.getStyle()?.layers ?? []) {

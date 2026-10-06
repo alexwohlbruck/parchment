@@ -85,12 +85,15 @@ export const TREE_TILES = 'street_trees'
 export const TREE_ROW_TILES = 'tree_rows'
 export const FURNITURE_TILES = 'street_furniture'
 export const BUILDING_3D_TILES = 'buildings_3d'
+export const COASTER_TRACK_TILES = 'coaster_tracks'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
 export const TREE_LAYER = 'Trees'
 export const TREE_ROW_LAYER = 'Tree rows'
 export const FURNITURE_LAYER = 'Street furniture'
+export const COASTER_TRACK_LAYER = 'Coaster track'
+export const COASTER_TRACK_CASING_LAYER = 'Coaster track casing'
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */
 export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
@@ -122,14 +125,29 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     // the model's own foliage lands — see `OBJECT_PALETTE` in `map-objects`.
     tree: 'hsl(104, 40%, 55%)',
     furniture: 'hsl(210, 12%, 52%)',
+    // Galvanised steel, for a track OSM gives no colour: a cool mid grey,
+    // darker than the paving so it reads as a structure standing on it.
+    coaster: 'hsl(212, 10%, 52%)',
+    coasterCasing: 'hsla(212, 14%, 98%, 0.85)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
     parkingCasing: 'hsl(216, 24%, 21%)',
     tree: 'hsl(112, 30%, 40%)',
     furniture: 'hsl(210, 12%, 44%)',
+    coaster: 'hsl(212, 12%, 62%)',
+    coasterCasing: 'hsla(216, 30%, 12%, 0.8)',
   },
 }
+
+/**
+ * How far a track's own `colour` is pulled toward the flavor's steel: OSM
+ * colours are written as the paint looks in a brochure, and a pure `red`
+ * thread is the loudest thing on the map. Further at night, where a saturated
+ * line reads as lit rather than painted (the same reason `BUILDING_TINT` is
+ * quieter at night).
+ */
+const COASTER_STEEL_PULL: Record<FlavorId, number> = { light: 0.25, dark: 0.45 }
 
 /**
  * Multi-storey and underground parking are not ground at all — the first is a
@@ -148,7 +166,8 @@ export function detailSources(tileUrl: (source: string) => string) {
   return {
     /**
      * The bundle's window is the union of its members': `bicycle_ways` starts
-     * at 9, `parking_areas` at 13, `buildings_3d` at 14, the trees at 16, and
+     * at 9, `parking_areas` at 13, `buildings_3d` and `coaster_tracks` at 14, the
+     * trees at 16, and
      * every one of them stops at 16. A member below its own floor contributes
      * nothing to the tile, so the low zooms cost only what the cycling layers
      * put there — and MapLibre asks for nothing at all until a *visible* layer
@@ -290,6 +309,54 @@ export function treeLayers(flavor: FlavorId): any[] {
         'circle-opacity': TREE_OPACITY,
         'circle-pitch-alignment': 'map',
       },
+    },
+  ]
+}
+
+/**
+ * Roller coaster tracks, as a slim rail over a faint casing.
+ *
+ * From the bundle's `coaster_tracks` (barrelman's `create-detail-views.sql`),
+ * which serves a closed track as its ring, so both layers here are only ever
+ * fed lines. Where a 3D landmark models the coaster, its track ways are among
+ * the landmark's `replaces` and the strategy filters them out of both layers
+ * the moment the model is ready — see `REPLACEABLE_SOURCE_LAYERS`.
+ *
+ * `colour` is OSM's, so anything goes: `to-color` tries it and falls through
+ * to steel when it is missing or is not a colour MapLibre can parse.
+ *
+ * `layer` orders the stretches that pass over each other. Only within a
+ * layer — the casing still draws under every rail — but that is what costs
+ * nothing, and a crossing reads well enough without the casing interleaved.
+ */
+export function coasterTrackLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const color = [
+    'interpolate', ['linear'], COASTER_STEEL_PULL[flavor],
+    0, ['to-color', ['get', 'colour'], c.coaster],
+    1, c.coaster,
+  ]
+  const sortKey = ['coalesce', ['get', 'layer'], 0]
+  const width = (extra: number) =>
+    ['interpolate', ['exponential', 1.6], ['zoom'], 14, 0.6 + extra, 16, 1.4 + extra, 18, 2.6 + extra * 1.5, 20, 5 + extra * 2]
+  const common = {
+    type: 'line',
+    source: DETAIL_SOURCE,
+    'source-layer': COASTER_TRACK_TILES,
+    minzoom: 14,
+  }
+  return [
+    {
+      ...common,
+      id: COASTER_TRACK_CASING_LAYER,
+      layout: { 'line-join': 'round', 'line-cap': 'round', 'line-sort-key': sortKey },
+      paint: { 'line-color': c.coasterCasing, 'line-width': width(1.6) },
+    },
+    {
+      ...common,
+      id: COASTER_TRACK_LAYER,
+      layout: { 'line-join': 'round', 'line-cap': 'round', 'line-sort-key': sortKey },
+      paint: { 'line-color': color, 'line-width': width(0) },
     },
   ]
 }

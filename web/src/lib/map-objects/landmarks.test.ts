@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialLight, MAX_ENTRANCES, parseLandmark, polygonRings,
-  withoutReplaced,
+  REPLACEABLE_SOURCE_LAYERS, withoutReplaced,
 } from './landmarks'
+import { coasterTrackLayers } from '@/lib/map-style/detail-layers'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 import { parseGlb, poseGlb, sampleChannel } from './glb.mjs'
 
@@ -172,6 +173,29 @@ describe('withoutReplaced', () => {
     expect(withoutReplaced(null, 'buildings_3d', ['way/1'])).toEqual(
       ['!', ['in', ['get', 'id'], ['literal', ['way/1']]]],
     )
+  })
+
+  it('matches coaster tracks by ref, the way it matches Barrelman’s buildings', () => {
+    expect(withoutReplaced(null, 'coaster_tracks', ['way/543823785', 'way/670967416'])).toEqual(
+      ['!', ['in', ['get', 'id'], ['literal', ['way/543823785', 'way/670967416']]]],
+    )
+    // And hands the track back when the model goes.
+    expect(withoutReplaced(null, 'coaster_tracks', [])).toBeNull()
+  })
+
+  it('ignores footprint ids on the tracks, which are matched by ref alone', () => {
+    expect(withoutReplaced(null, 'coaster_tracks', [], [2296511452])).toBeNull()
+  })
+})
+
+describe('REPLACEABLE_SOURCE_LAYERS', () => {
+  it('covers both building sources and the coaster tracks', () => {
+    expect([...REPLACEABLE_SOURCE_LAYERS].sort()).toEqual(['building', 'buildings_3d', 'coaster_tracks'])
+  })
+
+  it('names the source-layer the track layers actually read', () => {
+    for (const layer of coasterTrackLayers('light'))
+      expect(REPLACEABLE_SOURCE_LAYERS, layer.id).toContain(layer['source-layer'])
   })
 })
 

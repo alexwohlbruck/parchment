@@ -8,6 +8,7 @@ import {
   parkingLayers,
   treeLayers,
   landmarkLayers,
+  coasterTrackLayers,
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
@@ -564,6 +565,14 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
 
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
+
+  // Coaster tracks stand over the paths and the elevated roads they cross,
+  // and under every building — a station roof or a shed over the track
+  // covers it — and so under every label too.
+  const firstBuilding = out.findIndex(
+    l => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES,
+  )
+  out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, ...coasterTrackLayers(flavor))
 
   // Both building source-layers: the flat fill still reads the basemap's
   // `building`, the extrusions read Barrelman's `buildings_3d`, and the trees go

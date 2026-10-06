@@ -79,7 +79,7 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.28, dark: 0.2 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.18, dark: 0.2 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58

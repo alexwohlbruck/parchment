@@ -66,6 +66,7 @@ const build = (overrides: Partial<Parameters<typeof buildSavedPlacesProjection>[
     frequentsLabel: 'Frequents',
     uncategorizedLabel: 'Unfiled',
     lockedLabel: 'Locked collection',
+    untitledLabel: 'Untitled collection',
     ...overrides,
   })
 
@@ -164,16 +165,24 @@ describe('buildSavedPlacesProjection', () => {
     expect(meta.get(UNCATEGORIZED_LAYER_ID)?.count).toBe(1)
   })
 
-  it('labels an undecryptable collection as locked, not unfiled', () => {
-    // A device that hasn't imported the recovery key can't read collection
-    // metadata. Falling back to the unfiled label would put two identical
-    // rows in the selector.
+  it('labels a locked collection as locked, not unfiled', () => {
     const { layers } = build({
-      collections: [{ ...collection('col-1', ''), name: undefined } as Collection],
+      collections: [
+        { ...collection('col-1', ''), name: undefined, locked: true } as Collection,
+      ],
       bookmarks: [bookmark('bm-1', ['col-1']), bookmark('bm-2')],
     })
 
     expect(layers.map(l => l.name)).toEqual(['Locked collection', 'Unfiled'])
+  })
+
+  it('labels a readable collection with no name as untitled', () => {
+    const { layers } = build({
+      collections: [{ ...collection('col-1', ''), name: undefined } as Collection],
+      bookmarks: [bookmark('bm-1', ['col-1'])],
+    })
+
+    expect(layers.map(l => l.name)).toEqual(['Untitled collection'])
   })
 
   it('buckets frequents separately from unfiled places', () => {

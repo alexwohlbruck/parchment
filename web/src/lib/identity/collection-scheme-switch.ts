@@ -12,13 +12,14 @@
  */
 
 import { api } from '@/lib/api'
+import { deriveCollectionKey } from './federation-crypto'
+import { sealForRecipients } from './collection-share'
 import {
-  deriveCollectionKey,
-  encryptForFriend,
-  importPublicKey,
-} from './federation-crypto'
-import { encryptEnvelopeString, decryptEnvelopeString } from './crypto-envelope'
-import { collectionPointAAD, decryptCollectionPoint } from './library-crypto'
+  collectionMetadataOf,
+  decryptCollectionPoint,
+  encryptCollectionMetadata,
+  encryptCollectionPoint,
+} from './library-crypto'
 import { getSeed } from './key-storage'
 import type { Collection, CollectionScheme } from '@/types/library.types'
 
@@ -31,6 +32,7 @@ export interface ClearBookmarkRow {
   lat: number
   lng: number
   icon: string
+  iconPack?: 'lucide' | 'maki'
   iconColor: string
   frequentType?: string | null
 }
@@ -71,42 +73,12 @@ export interface SwitchDowngradeInput {
   onProgress?: (phase: SwitchPhase, pctInPhase: number) => void
 }
 
-const pointAAD = (
-  collectionId: string,
-  pointId: string,
-  ownerUserId: string,
-) => collectionPointAAD({ collectionId, pointId, ownerUserId })
-
-function metaAAD(collectionId: string, ownerUserId: string) {
-  return {
-    userId: ownerUserId,
-    recordType: 'collection-metadata' as const,
-    recordId: collectionId,
-    keyContext: `parchment-collection-${collectionId}`,
-  }
-}
-
-function wrapKeyForFriend(params: {
-  keyBytes: Uint8Array
-  ownerPrivate: Uint8Array
-  recipientPublicKey: string
-  collectionId: string
-}): { encryptedData: string; nonce: string } {
-  const friendPub = importPublicKey(params.recipientPublicKey)
-  const b64 = btoa(String.fromCharCode(...params.keyBytes))
-  const wrapped = encryptForFriend(
-    b64,
-    params.ownerPrivate,
-    friendPub,
-    `parchment-collection-key-wrap:${params.collectionId}`,
-  )
-  return { encryptedData: wrapped.ciphertext, nonce: wrapped.nonce }
-}
-
 /**
- * server-key → user-e2ee. Every current cleartext bookmark is encrypted
- * under the new collection key and sent as an encrypted_points batch.
- * After the switch the cleartext rows are deleted on the server.
+ * server-key → user-e2ee. Every current cleartext bookmark, and the
+ * collection's own metadata, is encrypted under the new collection key.
+ * After the switch the server holds no cleartext for the collection.
+ *
+ * `collection` must be hydrated: its metadata fields are what gets sealed.
  */
 export async function upgradeCollectionToE2ee(
   input: SwitchUpgradeInput,
@@ -129,56 +101,38 @@ export async function upgradeCollectionToE2ee(
   // ---- Phase 1: encrypt bookmarks as encrypted_points under the new key ----
   onProgress?.('transforming', 0)
   const newEncryptedPoints = currentBookmarks.map((bm, i) => {
-    const plaintext = JSON.stringify({
-      externalIds: bm.externalIds,
-      name: bm.name,
-      address: bm.address ?? null,
-      lat: bm.lat,
-      lng: bm.lng,
-      icon: bm.icon,
-      iconColor: bm.iconColor,
-      frequentType: bm.frequentType ?? null,
-    })
-    const envelope = encryptEnvelopeString({
-      plaintext,
-      key: newKey,
-      aad: pointAAD(collection.id, bm.id, ownerUserId),
+    const envelope = encryptCollectionPoint({
+      point: { ...bm, iconPack: bm.iconPack ?? 'lucide' },
+      pointId: bm.id,
+      source: { seed },
+      ownerUserId,
+      collectionId: collection.id,
+      keyVersion: newVersion,
     })
     onProgress?.('transforming', (i + 1) / Math.max(1, currentBookmarks.length))
     return { id: bm.id, encryptedData: envelope, nonce: '' }
   })
 
-  // Re-encrypt metadata under the new key.
-  const newMetadataEncrypted = collection.metadataEncrypted
-    ? reEncryptMetadata({
-        seed,
-        oldVersion: collection.metadataKeyVersion ?? 1,
-        newKey,
-        collectionId: collection.id,
-        ownerUserId,
-        existingEnvelope: collection.metadataEncrypted,
-      })
-    : encryptEnvelopeString({
-        plaintext: JSON.stringify({}),
-        key: newKey,
-        aad: metaAAD(collection.id, ownerUserId),
-      })
+  const newMetadataEncrypted = encryptCollectionMetadata({
+    metadata: collectionMetadataOf(collection),
+    source: { seed },
+    userId: ownerUserId,
+    collectionId: collection.id,
+    keyVersion: newVersion,
+  })
 
   // ---- Phase 2: rewrap share keys for remaining recipients ----
   onProgress?.('rewrapping', 0)
-  const updatedShareEnvelopes = remainingShares.map((s, i) => {
-    const wrapped = wrapKeyForFriend({
-      keyBytes: newKey,
-      ownerPrivate: ownerEncryptionPrivateKey,
-      recipientPublicKey: s.recipientEncryptionKey,
+  const updatedShareEnvelopes = sealForRecipients({
+    share: {
       collectionId: collection.id,
-    })
-    onProgress?.('rewrapping', (i + 1) / Math.max(1, remainingShares.length))
-    return {
-      recipientHandle: s.recipientHandle,
-      encryptedData: wrapped.encryptedData,
-      nonce: wrapped.nonce,
-    }
+      scheme: 'user-e2ee',
+      key: newKey,
+      keyVersion: newVersion,
+    },
+    ownerPrivateKey: ownerEncryptionPrivateKey,
+    recipients: remainingShares,
+    onEach: (done, total) => onProgress?.('rewrapping', done / total),
   })
 
   // ---- Phase 3: commit atomically ----
@@ -200,7 +154,8 @@ export async function upgradeCollectionToE2ee(
 /**
  * user-e2ee → server-key. Every current encrypted_point is decrypted under
  * the current key; its plaintext payload is shipped to the server as a
- * fresh bookmark row. Encrypted points are dropped on the server.
+ * fresh bookmark row, and the hydrated metadata moves to cleartext columns.
+ * Encrypted points and the metadata envelope are dropped on the server.
  *
  * This is a trust downgrade — the server starts seeing every point in
  * cleartext. The UI should confirm loudly before running this.
@@ -222,16 +177,13 @@ export async function downgradeCollectionToServerKey(
 
   const oldVersion = collection.metadataKeyVersion ?? 1
   const newVersion = oldVersion + 1
-  const newKey = deriveCollectionKey(seed, collection.id, newVersion)
 
   // ---- Phase 1: decrypt each point into a plaintext bookmark payload ----
-  // Fields are picked explicitly rather than spread: the decrypt helper also
-  // returns `iconPack`, which the change-scheme body schema doesn't accept.
   onProgress?.('transforming', 0)
   const newBookmarks = currentPoints.map((p, i) => {
     const point = decryptCollectionPoint({
       point: p,
-      seed,
+      source: { seed },
       ownerUserId,
       collectionId: collection.id,
       keyVersion: oldVersion,
@@ -245,43 +197,19 @@ export async function downgradeCollectionToServerKey(
       lat: point.lat,
       lng: point.lng,
       icon: point.icon,
+      iconPack: point.iconPack,
       iconColor: point.iconColor,
       frequentType: point.frequentType ?? null,
     }
   })
 
-  // Re-encrypt metadata under the new key version (still e2ee for the
-  // envelope itself — only the points downgrade to cleartext).
-  const newMetadataEncrypted = collection.metadataEncrypted
-    ? reEncryptMetadata({
-        seed,
-        oldVersion,
-        newKey,
-        collectionId: collection.id,
-        ownerUserId,
-        existingEnvelope: collection.metadataEncrypted,
-      })
-    : encryptEnvelopeString({
-        plaintext: JSON.stringify({}),
-        key: newKey,
-        aad: metaAAD(collection.id, ownerUserId),
-      })
-
   // ---- Phase 2: rewrap share keys for remaining recipients ----
   onProgress?.('rewrapping', 0)
-  const updatedShareEnvelopes = remainingShares.map((s, i) => {
-    const wrapped = wrapKeyForFriend({
-      keyBytes: newKey,
-      ownerPrivate: ownerEncryptionPrivateKey,
-      recipientPublicKey: s.recipientEncryptionKey,
-      collectionId: collection.id,
-    })
-    onProgress?.('rewrapping', (i + 1) / Math.max(1, remainingShares.length))
-    return {
-      recipientHandle: s.recipientHandle,
-      encryptedData: wrapped.encryptedData,
-      nonce: wrapped.nonce,
-    }
+  const updatedShareEnvelopes = sealForRecipients({
+    share: { collectionId: collection.id, scheme: 'server-key' },
+    ownerPrivateKey: ownerEncryptionPrivateKey,
+    recipients: remainingShares,
+    onEach: (done, total) => onProgress?.('rewrapping', done / total),
   })
 
   onProgress?.('committing', 0)
@@ -289,7 +217,7 @@ export async function downgradeCollectionToServerKey(
     `/library/collections/${collection.id}/change-scheme`,
     {
       targetScheme: 'server-key' as CollectionScheme,
-      newMetadataEncrypted,
+      metadata: collectionMetadataOf(collection),
       newMetadataKeyVersion: newVersion,
       newBookmarks,
       updatedShareEnvelopes,
@@ -297,34 +225,4 @@ export async function downgradeCollectionToServerKey(
   )
   onProgress?.('done', 1)
   return data
-}
-
-/**
- * Unwrap an existing metadata envelope under the current key and re-seal
- * it under the new key. Works for both directions of the switch since
- * metadata stays encrypted in both schemes.
- */
-function reEncryptMetadata(params: {
-  seed: Uint8Array
-  oldVersion: number
-  newKey: Uint8Array
-  collectionId: string
-  ownerUserId: string
-  existingEnvelope: string
-}): string {
-  const oldKey = deriveCollectionKey(
-    params.seed,
-    params.collectionId,
-    params.oldVersion,
-  )
-  const plaintext = decryptEnvelopeString({
-    envelope: params.existingEnvelope,
-    key: oldKey,
-    aad: metaAAD(params.collectionId, params.ownerUserId),
-  })
-  return encryptEnvelopeString({
-    plaintext,
-    key: params.newKey,
-    aad: metaAAD(params.collectionId, params.ownerUserId),
-  })
 }

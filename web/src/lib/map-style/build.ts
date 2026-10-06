@@ -12,7 +12,7 @@ import {
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
-import { buildingColor, BUILDING_TINT } from './building-color.mjs'
+import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
 import {
@@ -459,6 +459,7 @@ export function buildLayers(options: {
   let base = specLayers
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
+  base = withBuildingCasts(base, flavor)
   base = useBarrelmanBuildings(base, flavor)
   base = withPoiDots(base)
 
@@ -539,6 +540,7 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
         // building: a building that records only `building:colour` should wear
         // it on the roof too, not band at the roofline.
         ['roof_colour', 'colour'],
+        unpaintedBuildingColor(flavor),
       ),
     },
   }
@@ -596,6 +598,22 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   }
 
   return out
+}
+
+/** The extruded buildings' colour, with the flavor's casts for unpainted ones. */
+function withBuildingCasts(layers: any[], flavor: FlavorId): any[] {
+  return layers.map(l => l.type !== 'fill-extrusion' ? l : {
+    ...l,
+    paint: {
+      ...l.paint,
+      'fill-extrusion-color': buildingColor(
+        BUILDING_TINT[flavor],
+        '@building_3d_fill_extrusion_color',
+        ['colour'],
+        unpaintedBuildingColor(flavor),
+      ),
+    },
+  })
 }
 
 /** The full street basemap. */

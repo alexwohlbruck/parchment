@@ -414,6 +414,13 @@
       "when": 1789149077385,
       "tag": "0058_clean_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1790906508760,
+      "tag": "0059_collection_cleartext_metadata",
+      "breakpoints": true
     }
   ]
 }

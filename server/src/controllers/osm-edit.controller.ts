@@ -10,7 +10,8 @@ import {
   matchTags,
 } from '../lib/osm-presets'
 import { categoryService } from '../services/category.service'
-import { searchBrands, matchBrand, brandTagDiff, type NsiBrand } from '../lib/nsi'
+import { searchBrands, type NsiBrand } from '../lib/nsi'
+import { suggestTagUpgrades } from '../lib/osm-tag-upgrades'
 import { suggestKeys, suggestValues } from '../lib/osm-taginfo'
 import {
   getLiveElement,
@@ -40,25 +41,6 @@ function editErrorStatus(error: OsmEditError): number {
     case 'invalid': return 400
     default: return 502
   }
-}
-
-/**
- * The chain a feature's name identifies, when its tags don't already say so.
- * Mirrors iD's "looks like a common feature with nonstandard tags" check.
- */
-function brandSuggestion(tags: Record<string, string>) {
-  if (tags['brand:wikidata'] || tags['nobrand'] || tags['not:brand:wikidata']) {
-    return null
-  }
-  const primary = getPrimaryTag(tags)
-  const name = tags.name || tags.brand || tags.operator
-  if (!primary || !name) return null
-
-  const brand = matchBrand(`${primary.key}/${primary.value}`, name)
-  if (!brand) return null
-
-  const diff = brandTagDiff(brand, tags)
-  return diff.length ? { brand, diff } : null
 }
 
 /** A preset as the picker shows it, with the app's own resolved POI icon. */
@@ -182,7 +164,7 @@ publicApi.get(
       const geometryHint = element.type === 'node' ? 'point' : 'area'
       const match = matchTags(element.tags, geometryHint)
       const preset = match ? presetPayload(match.preset.id, language) : null
-      return { element, preset, brand: brandSuggestion(element.tags) }
+      return { element, preset }
     } catch (error: any) {
       if (error instanceof OsmEditError) {
         return status(editErrorStatus(error), { message: error.message })
@@ -271,6 +253,28 @@ publicApi.get(
       summary: 'Find nearby elements matching a preset',
       description:
         'Checks Overpass for existing elements with the same primary tags near a point, to avoid duplicate POIs.',
+    },
+  },
+)
+
+/**
+ * POST /osm/tags/upgrades — Suggested updates for a feature's tags.
+ */
+publicApi.post(
+  '/tags/upgrades',
+  ({ body }) => suggestTagUpgrades(body.tags, body.geometry),
+  {
+    body: t.Object({
+      tags: t.Record(t.String(), t.String()),
+      geometry: t.Optional(
+        t.Union([t.Literal('point'), t.Literal('vertex'), t.Literal('area')]),
+      ),
+    }),
+    detail: {
+      tags: ['OSM'],
+      summary: 'Suggest tag upgrades',
+      description:
+        'Mirrors iD\'s outdated-tags check: replaces deprecated tags, adds tags the matched preset implies, and applies Name Suggestion Index brand tags when the name matches a chain. Returns the changes and the matched brand, if any.',
     },
   },
 )

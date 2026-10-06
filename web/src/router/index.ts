@@ -43,6 +43,7 @@ export enum AppRoute {
   LAYER_EDITOR = 'layer-editor',
   CANVAS_EDITOR = 'canvas-editor',
   CANVAS_PUBLIC = 'canvas-public',
+  COLLECTION_PUBLIC = 'collection-public',
   COLLECTION = 'collection',
   ROUTE_BUILDER = 'route-builder',
   ROUTE_BUILDER_EDIT = 'route-builder-edit',
@@ -280,6 +281,13 @@ const router = createRouter({
             // overrides the map subtree's own `auth: true`.
             auth: false,
           },
+        },
+        {
+          path: '/shared/:token',
+          name: AppRoute.COLLECTION_PUBLIC,
+          component: () => import('@/views/library/collections/PublicCollection.vue'),
+          props: true,
+          meta: { auth: false },
         },
         {
           path: '/routes/new',

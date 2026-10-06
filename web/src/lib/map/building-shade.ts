@@ -79,7 +79,7 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.28, dark: 0.2 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.18, dark: 0.2 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58
@@ -110,20 +110,18 @@ function edgeWidth(): number {
 }
 
 /**
- * The SDF the ground AO is computed in. 1024 costs ~40MB of VRAM; half that
- * costs a quarter of it and is not far off visually, which is the better trade
- * on a phone.
+ * The SDF the ground AO is computed in. The occlusion is a soft falloff tens of
+ * pixels wide, so 512 draws the same picture as 1024 at a quarter of the flood.
  */
-function sdfResolution(): number {
-  const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-  return coarse ? 512 : 1024
-}
+const SDF_RESOLUTION = 512
 
 export const BUILDING_SHADE_LAYER_ID = 'building-shade'
 
 /** Anything that can draw itself into the cast-shadow mask; see `shadowCasters`. */
 export type ShadowCaster = {
   drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
+  /** Changes whenever what it casts changes; without one the shadow mask is redrawn every frame. */
+  shadowVersion?: number
 }
 
 /**
@@ -175,7 +173,7 @@ export function createBuildingShade(
     ...(minZoom === undefined ? {} : { minZoom }),
     shadowOffset: [...SHADOW_OFFSET],
     shadowCasters,
-    sdfResolution: sdfResolution(),
+    sdfResolution: SDF_RESOLUTION,
     edgeWidth: edgeWidth(),
     ...SHAPE,
     ...TUNING[flavor],

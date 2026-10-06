@@ -205,11 +205,8 @@ function mapService() {
     return requested
   }
 
-  // Auto-switch engine when premium status changes
   watch(canUseMapboxEngine, (canUse) => {
-    if (canUse && mapStore.settings.engine === MapEngine.MAPLIBRE) {
-      setMapEngine(MapEngine.MAPBOX)
-    } else if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
+    if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
       setMapEngine(MapEngine.MAPLIBRE)
     }
   })
@@ -753,7 +750,15 @@ function mapService() {
       left: padding.left ?? 0,
       right: padding.right ?? 0,
     })
+    fitOwesPadding = false
   })
+
+  /**
+   * A fit cleared the transform padding and framed against the obstruction
+   * itself. Until that padding is restored, restoring it must not move the
+   * scene, even when it lands late (a cold load readies the map after the fit).
+   */
+  let fitOwesPadding = false
 
   /**
    * Change the transform padding without moving anything on screen.
@@ -846,6 +851,7 @@ function mapService() {
     // Clear it (without moving the scene); the hold's release restores it
     // the same way once the ease has landed.
     setPaddingPreservingScreen({ top: 0, bottom: 0, left: 0, right: 0 })
+    fitOwesPadding = true
 
     // Both strategies fall back to 1000ms when a caller omits it. The hold is
     // strictly time-based — see createAnimationHold for why `moveend` cannot
@@ -1133,7 +1139,15 @@ function mapService() {
     // answer hasn't moved. A sheet travelling through the half-screen cap
     // produces long runs of identical padding.
     const target = roundPadding(padding as Padding)
-    if (paddingEquals(target, map.getPadding())) return
+    if (paddingEquals(target, map.getPadding())) {
+      fitOwesPadding = false
+      return
+    }
+    if (fitOwesPadding) {
+      setPaddingPreservingScreen(target as Required<Padding>)
+      fitOwesPadding = false
+      return
+    }
     map.setPadding(target as any)
   }
 

@@ -1,32 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  GlobeIcon,
-  LinkIcon,
-  LockIcon,
-  ShieldCheckIcon,
-} from 'lucide-vue-next'
-import type { CollectionScheme } from '@/types/library.types'
+import { GlobeIcon, LinkIcon, LockIcon } from 'lucide-vue-next'
 
-/**
- * The "General access" block in the share dialog. Behaviour depends on
- * the collection's encryption scheme:
- *
- *   - server-key:
- *     - Toggle between `restricted` (only invited friends) and
- *       `anyone-with-link` (public-link shareable). The link itself is
- *       rendered alongside with copy/revoke affordances.
- *
- *   - user-e2ee:
- *     - Public links are disallowed. Show a one-line explainer with a
- *       `Switch to server-stored` button that hands off to the
- *       scheme-switch flow.
- */
+/** Whether a shareable collection is invite-only or open to anyone with its link. */
 const props = defineProps<{
-  scheme: CollectionScheme
   publicToken: string | null | undefined
   /** The public URL — undefined when no token is set. */
   publicUrl?: string
@@ -38,7 +17,6 @@ const emit = defineEmits<{
   (e: 'mint-public-link'): void
   (e: 'revoke-public-link'): void
   (e: 'copy-public-link'): void
-  (e: 'request-scheme-switch'): void
 }>()
 
 const { t } = useI18n()
@@ -52,106 +30,68 @@ const hasPublicLink = computed(() => !!props.publicToken)
       {{ t('sharing.generalAccess.title') }}
     </div>
 
-    <!-- User-e2ee: link sharing disallowed -->
-    <Alert v-if="scheme === 'user-e2ee'" variant="info">
-      <ShieldCheckIcon class="size-4" />
-      <AlertDescription class="text-xs">
-        <p class="font-medium">
-          {{ t('sharing.generalAccess.e2ee.title') }}
+    <div
+      v-if="!hasPublicLink"
+      class="flex items-start gap-3 rounded-md border p-3"
+    >
+      <LockIcon class="size-4 text-muted-foreground shrink-0 mt-0.5" />
+      <div class="flex-1">
+        <p class="text-sm font-medium">
+          {{ t('sharing.generalAccess.restricted.title') }}
         </p>
-        <p class="text-muted-foreground">
-          {{ t('sharing.generalAccess.e2ee.description') }}
+        <p class="text-xs text-muted-foreground">
+          {{ t('sharing.generalAccess.restricted.description') }}
         </p>
-        <Button
-          variant="link"
-          size="sm"
-          class="px-0 mt-1 h-auto"
-          :disabled="disabled"
-          @click="emit('request-scheme-switch')"
-        >
-          {{ t('sharing.generalAccess.e2ee.switchAction') }}
-        </Button>
-      </AlertDescription>
-    </Alert>
-
-    <!-- Server-key: two states (restricted / anyone-with-link) -->
-    <template v-else>
-      <div
-        v-if="!hasPublicLink"
-        class="flex items-start gap-3 rounded-md border p-3"
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="disabled"
+        @click="emit('mint-public-link')"
       >
-        <LockIcon class="size-4 text-muted-foreground shrink-0 mt-0.5" />
-        <div class="flex-1">
+        {{ t('sharing.generalAccess.restricted.enableAction') }}
+      </Button>
+    </div>
+
+    <div
+      v-else
+      class="rounded-md border p-3 overflow-hidden"
+    >
+      <div class="flex items-start gap-3">
+        <GlobeIcon class="size-4 text-primary shrink-0 mt-0.5" />
+        <div class="flex-1 min-w-0">
           <p class="text-sm font-medium">
-            {{ t('sharing.generalAccess.restricted.title') }}
+            {{ t('sharing.generalAccess.anyoneWithLink.title') }}
           </p>
           <p class="text-xs text-muted-foreground">
-            {{ t('sharing.generalAccess.restricted.description') }}
+            {{ t('sharing.generalAccess.anyoneWithLink.description') }}
           </p>
         </div>
+      </div>
+      <!-- Actions as a balanced button row under the description. The
+           URL itself isn't displayed — users interact via Copy, not by
+           reading. Hover-tooltip on Copy surfaces it for sanity checks. -->
+      <div class="flex gap-2 mt-3">
         <Button
           variant="outline"
           size="sm"
-          :disabled="disabled"
-          @click="emit('mint-public-link')"
+          class="flex-1"
+          :disabled="disabled || !publicUrl"
+          :title="publicUrl"
+          @click="emit('copy-public-link')"
         >
-          {{ t('sharing.generalAccess.restricted.enableAction') }}
+          <LinkIcon class="size-3.5 mr-1.5" />
+          {{ t('sharing.generalAccess.anyoneWithLink.copyAction') }}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          :disabled="disabled"
+          @click="emit('revoke-public-link')"
+        >
+          {{ t('sharing.generalAccess.anyoneWithLink.revokeAction') }}
         </Button>
       </div>
-
-      <div
-        v-else
-        class="rounded-md border p-3 overflow-hidden"
-      >
-        <div class="flex items-start gap-3">
-          <GlobeIcon class="size-4 text-primary shrink-0 mt-0.5" />
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium">
-              {{ t('sharing.generalAccess.anyoneWithLink.title') }}
-            </p>
-            <p class="text-xs text-muted-foreground">
-              {{ t('sharing.generalAccess.anyoneWithLink.description') }}
-            </p>
-          </div>
-        </div>
-        <!-- Actions as a balanced button row under the description. The
-             URL itself isn't displayed — users interact via Copy, not by
-             reading. Hover-tooltip on Copy surfaces it for sanity checks. -->
-        <div class="flex gap-2 mt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            class="flex-1"
-            :disabled="disabled || !publicUrl"
-            :title="publicUrl"
-            @click="emit('copy-public-link')"
-          >
-            <LinkIcon class="size-3.5 mr-1.5" />
-            {{ t('sharing.generalAccess.anyoneWithLink.copyAction') }}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            :disabled="disabled"
-            @click="emit('revoke-public-link')"
-          >
-            {{ t('sharing.generalAccess.anyoneWithLink.revokeAction') }}
-          </Button>
-        </div>
-      </div>
-
-      <!-- Upgrade affordance: server-key → user-e2ee. Placed below the
-           public-link block so the "make it more private" hint is visible
-           but not competing with the main share configuration. -->
-      <Button
-        variant="link"
-        size="sm"
-        class="px-0 h-auto text-xs"
-        :disabled="disabled"
-        @click="emit('request-scheme-switch')"
-      >
-        {{ t('sharing.generalAccess.serverKey.switchAction') }}
-      </Button>
-    </template>
+    </div>
   </section>
 </template>

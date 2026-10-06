@@ -33,6 +33,10 @@ describe('poiElevation', () => {
     expect(poiElevation([-74.02, 40.71], undefined, near)).toBe(0)
   })
 
+  test('a level tag outside every building stays on the ground', () => {
+    expect(poiElevation([-74.02, 40.71], 4, near)).toBe(0)
+  })
+
   test('a courtyard hole is not inside the building', () => {
     const ring = square(0, 0, 0.001, 30)
     ring.rings.push([[0.0004, 0.0004], [0.0006, 0.0004], [0.0006, 0.0006], [0.0004, 0.0006], [0.0004, 0.0004]])

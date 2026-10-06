@@ -72,11 +72,12 @@ export function poiElevation(
 ): number {
   let roof = 0
   for (const b of near(point)) if (b.height > roof && contains(point, b)) roof = b.height
+  // Outside every building there is nothing to stand on, whatever level it claims.
+  if (!roof) return 0
   const storey = typeof level === 'number' ? level : parseFloat(String(level))
   if (Number.isFinite(storey)) {
     if (storey <= 0) return 0
-    const height = storey * LEVEL_HEIGHT + CLEARANCE
-    return roof ? Math.min(height, roof + CLEARANCE) : height
+    return Math.min(storey * LEVEL_HEIGHT + CLEARANCE, roof + CLEARANCE)
   }
-  return roof ? roof + CLEARANCE : 0
+  return roof + CLEARANCE
 }

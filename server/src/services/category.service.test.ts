@@ -303,4 +303,23 @@ describe('CategoryService', () => {
       expect(first).toBe(second)
     })
   })
+
+  describe('derived categories', () => {
+    test('"power outlet" finds barrelman\'s power/outlet category first', () => {
+      const [top] = service.searchCategories('power outlet', 'en-US')
+      expect(top?.id).toBe('power/outlet')
+      expect(top?.iconName).toBe('PlugZap')
+      expect(top?.iconPack).toBe('lucide')
+    })
+
+    test('everyday phrasings reach it too', () => {
+      for (const q of ['outlet', 'charge my phone', 'power socket']) {
+        expect(service.searchCategories(q, 'en-US')[0]?.id).toBe('power/outlet')
+      }
+    })
+
+    test('"charger" still leads with EV charging', () => {
+      expect(service.searchCategories('ev charger', 'en-US')[0]?.id).toBe('amenity/charging_station')
+    })
+  })
 })

@@ -114,6 +114,30 @@ const CUSTOM_ALIASES: Record<string, string[]> = {
 
 
 /**
+ * Categories barrelman derives that the iD schema has no preset for, so they
+ * would otherwise never match a search. `power/outlet` is barrelman's umbrella
+ * for every place with a public power outlet: individual sockets, device
+ * charging stations, power supply cabinets, and venues such as cafes tagged
+ * `power_supply` or with a household or USB `socket:*`. Browsing it sends
+ * `categories: ['power/outlet']` like any other category.
+ *
+ * "charger" alone is left out: it should keep finding EV charging.
+ */
+const DERIVED_CATEGORIES: Array<{ id: string; name: string; icon: string; tags: Record<string, string>; aliases: string[] }> = [
+  {
+    id: 'power/outlet',
+    name: 'Power Outlet',
+    icon: 'PlugZap',
+    tags: { power: 'outlet' },
+    aliases: [
+      'power outlets', 'outlet', 'electrical outlet', 'power socket', 'wall socket',
+      'plug socket', 'socket', 'plug', 'phone charger', 'phone charging', 'charge phone',
+      'charge my phone', 'device charging', 'laptop charging', 'usb charging', 'place to charge',
+    ],
+  },
+]
+
+/**
  * Check if two strings are a fuzzy prefix match — one is a prefix of the other
  * and the length difference is small. Handles plurals in any language without
  * hardcoded suffix rules:
@@ -308,6 +332,23 @@ export class CategoryService {
         }
 
         categories.push(category)
+      }
+
+      for (const derived of DERIVED_CATEGORIES) {
+        const resolved = resolvePresetIcon(derived.id, derived.icon)
+        categories.push({
+          id: derived.id,
+          type: 'category',
+          name: derived.name,
+          icon: derived.icon,
+          iconName: resolved.icon,
+          iconPack: resolved.iconPack,
+          iconCategory: getPlaceCategory(derived.id),
+          tags: derived.tags,
+          geometry: ['point', 'area'],
+          searchable: true,
+          aliases: derived.aliases,
+        })
       }
 
       // Sort categories by relevance (more specific tags first, then alphabetically)

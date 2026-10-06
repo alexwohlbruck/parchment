@@ -736,7 +736,7 @@ export class WallShadowLayer {
       // PARCHMENT: the shadow mask and SDF only depend on the camera and the
       // geometry, so a frame that changes neither reuses them.
       const key = this._groundKey(tiles, saved.vp);
-      if (!key || !sameKey(key, this._groundCache)) {
+      if (!sameKey(key, this._groundCache)) {
         this._shadowPass(gl, tiles);
         this._seedPass(gl, tiles);
         this._jfaPass(gl, this._aoRadiusUv(saved.vp) * this._sdfRes);
@@ -780,16 +780,21 @@ export class WallShadowLayer {
   }
 
   /**
-   * PARCHMENT: everything the shadow, seed and flood passes read. Null under
-   * terrain, whose DEM tiles can land between frames without the camera moving.
+   * PARCHMENT: everything the shadow, seed and flood passes read — under
+   * terrain that includes the DEM each tile samples, which can land between
+   * frames without the camera moving.
    */
   _groundKey(tiles, vp) {
-    if (this._terrain()) return null;
+    const terrain = this._terrain();
     const key = [vp[2], vp[3], this.shadowOffset[0], this.shadowOffset[1], this._heightScale,
       this._aoRadiusUv(vp)];
-    for (const { bucket, matrix, zf } of tiles) {
+    for (const { coord, bucket, matrix, zf } of tiles) {
       key.push(bucketId(bucket), zf);
       for (let i = 0; i < 16; i++) key.push(matrix[i]);
+      if (!terrain) continue;
+      const dem = terrain.getTerrainData(coord);
+      key.push(dem?.texture ? bucketId(dem.texture) : 0, dem?.u_terrain_exaggeration ?? 0);
+      if (dem?.u_terrain_matrix) for (let i = 0; i < 16; i++) key.push(dem.u_terrain_matrix[i]);
     }
     return key;
   }

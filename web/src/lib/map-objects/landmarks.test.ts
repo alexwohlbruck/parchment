@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { footprintSamples, insideFootprint, parseLandmark, polygonRings, withoutReplaced } from './landmarks'
+import { GROUND_GRID, groundGrid, insideFootprint, parseLandmark, polygonRings, withoutReplaced } from './landmarks'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 
 const feature = (properties: Record<string, unknown>, coordinates = [-115.17217, 36.11247]) => ({
@@ -167,27 +167,29 @@ describe('anchorMatrix', () => {
   })
 })
 
-describe('footprintSamples', () => {
+describe('groundGrid', () => {
   const footprint = { minX: -10, maxX: 10, minZ: -4, maxZ: 4 }
   const at = { lng: -73.9971025, lat: 40.7312347, bearing: 0, scale: 1 }
   const k = Math.cos((at.lat * Math.PI) / 180) * 111320
 
-  it('puts the corners where the model stands', () => {
-    // -Z is north, so (maxX, minZ) is the north-east corner.
-    const [lng, lat] = footprintSamples(at, footprint)[2]
-    expect((lng - at.lng) * k).toBeCloseTo(10, 6)
+  it('runs row by row from the north-west corner', () => {
+    const points = groundGrid(at, footprint)
+    expect(points).toHaveLength(GROUND_GRID * GROUND_GRID)
+    // -Z is north, so the first point is (minX, minZ): the north-west corner.
+    const [lng, lat] = points[0]
+    expect((lng - at.lng) * k).toBeCloseTo(-10, 6)
     expect((lat - at.lat) * 110574).toBeCloseTo(4, 6)
+    // The end of the first row is the north-east corner.
+    expect((points[GROUND_GRID - 1][0] - at.lng) * k).toBeCloseTo(10, 6)
   })
 
   it('turns and scales with the placement, staying on the footprint', () => {
     const turned = { ...at, bearing: 37, scale: 0.5 }
-    const points = footprintSamples(turned, footprint)
-    expect(points).toHaveLength(9)
     // insideFootprint undoes the same turn, so every sample lands on it.
-    expect(insideFootprint(turned, footprint, [points])).toBe(true)
-    // A quarter turn swaps a side's midpoint from north to east.
-    const [lng, lat] = footprintSamples({ ...at, bearing: 90 }, footprint)[5]
+    expect(insideFootprint(turned, footprint, [groundGrid(turned, footprint)])).toBe(true)
+    // A quarter turn puts the north-west corner at the north-east.
+    const [lng, lat] = groundGrid({ ...at, bearing: 90 }, footprint)[0]
     expect((lng - at.lng) * k).toBeCloseTo(4, 6)
-    expect((lat - at.lat) * 110574).toBeCloseTo(0, 6)
+    expect((lat - at.lat) * 110574).toBeCloseTo(10, 6)
   })
 })

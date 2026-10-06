@@ -101,6 +101,7 @@ import {
   OBJECT_SPECS,
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
+import { FURNITURE_OBJECTS } from '@/lib/map-objects/furniture'
 import { LANDMARK_TINT, withoutReplaced } from '@/lib/map-objects/landmarks'
 import {
   terrainSource,
@@ -701,6 +702,7 @@ export class MaplibreStrategy extends MapStrategy {
     this.map3dObjects = value
     void this.applyMapObjects()
     this.applyLandmarks()
+    for (const id of layerGroups.poi) this.applyBasemapFilter(id)
   }
 
   /**
@@ -1017,6 +1019,13 @@ export class MaplibreStrategy extends MapStrategy {
       combineFilters([
         this.baseFilters.get(id),
         this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
+        // A recycling point is drawn as a 3D bin from the zoom furniture
+        // appears, and bins carry no badge, so neither does it.
+        this.map3dObjects && layerGroups.poi.includes(id) && [
+          'step', ['zoom'], true,
+          FURNITURE_OBJECTS.minzoom,
+          ['!', ['in', ['get', 'subclass'], ['literal', ['recycling', 'waste_basket', 'waste_disposal']]]],
+        ],
         this.basemapHiders.get(id)?.size && NEVER_MATCH,
       ]),
     )

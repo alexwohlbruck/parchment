@@ -25,7 +25,7 @@ export const FURNITURE_MODELS = {
 /** Real heights, in metres; each model's own proportions give its footprint. */
 const SIZE = {
   'waste-basket': { height: 0.94 },
-  recycling: { height: 1.1 },
+  recycling: { height: 0.94 },
   bench: { height: 1.16 },
 }
 

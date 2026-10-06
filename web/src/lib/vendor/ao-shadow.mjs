@@ -919,7 +919,8 @@ export class WallShadowLayer {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.depthMask(true);
-    const dr = this._map.painter?.depthRangeFor3D;
+    // PARCHMENT: MapLibre 6 keeps this on the render context; older forks on the painter.
+    const dr = this._map.painter?.renderContext?.depthRangeFor3D ?? this._map.painter?.depthRangeFor3D;
     if (dr) gl.depthRange(dr[0], dr[1]);
     gl.disable(gl.BLEND);
     gl.disable(gl.STENCIL_TEST);

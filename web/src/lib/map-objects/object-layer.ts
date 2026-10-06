@@ -573,7 +573,8 @@ export class ObjectLayer {
     // the origin is what lets the instance offsets stay small.
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const shifted = translate(matrix as ArrayLike<number>, this.origin)
-    const range = this.map.painter?.depthRangeFor3D
+    const painter = this.map.painter
+    const range = painter?.renderContext?.depthRangeFor3D ?? painter?.depthRangeFor3D
 
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)

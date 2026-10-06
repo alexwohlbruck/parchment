@@ -35,8 +35,12 @@ export const TERRAIN_EXAGGERATION = 1.2
  */
 const TERRAIN_MAXZOOM = 15
 
-/** Terrarium tiles are 256px, not the 512 a DEM source otherwise defaults to. */
-const TERRAIN_TILE_SIZE = 256
+/**
+ * Terrarium tiles are 256px, but declared at 512 so each covers twice the
+ * screen: a quarter of the terrain tiles to cover, mesh and render into, at
+ * ~10m a pixel at street zooms — no coarser than the data behind them.
+ */
+const TERRAIN_TILE_SIZE = 512
 
 export const TERRAIN_ATTRIBUTION =
   '<a href="https://registry.opendata.aws/terrain-tiles/" target="_blank">Terrain Tiles</a>'

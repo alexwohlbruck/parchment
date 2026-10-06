@@ -120,6 +120,8 @@ export const BUILDING_SHADE_LAYER_ID = 'building-shade'
 /** Anything that can draw itself into the cast-shadow mask; see `shadowCasters`. */
 export type ShadowCaster = {
   drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
+  /** Changes whenever what it casts changes; without one the shadow mask is redrawn every frame. */
+  shadowVersion?: number
 }
 
 /**

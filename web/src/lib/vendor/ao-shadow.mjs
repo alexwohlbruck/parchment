@@ -716,7 +716,8 @@ export class WallShadowLayer {
       if (!bucket || !m) continue;
       tiles.push({ coord, tile, bucket, matrix: m instanceof Float32Array ? m : new Float32Array(m), zf: zoomFactor(this._map, coord) });
     }
-    if (!tiles.length) return;
+    // PARCHMENT: a caster still throws a shadow where there are no buildings.
+    if (!tiles.length && !this.shadowCasters.size) return;
 
     const ctx = this._map.painter.context; // PARCHMENT
     const saved = saveGlState(ctx);
@@ -803,6 +804,9 @@ export class WallShadowLayer {
       key.push(dem?.texture ? bucketId(dem.texture) : 0, dem?.u_terrain_exaggeration ?? 0);
       if (dem?.u_terrain_matrix) for (let i = 0; i < 16; i++) key.push(dem.u_terrain_matrix[i]);
     }
+    // A caster without a version cannot say when it changed, and NaN never
+    // matches, so its presence simply turns the cache off.
+    for (const caster of this.shadowCasters) key.push(caster.shadowVersion ?? NaN);
     return key;
   }
 

@@ -131,6 +131,11 @@ const VALUE_PULL = 0.3
  *
  * `let` bindings cannot see each other — only the expression they wrap — so the
  * quantities are nested in dependency order rather than declared in one block.
+ *
+ * @param {number} amount
+ * @param {string} [colorToken]
+ * @param {string[]} [properties]
+ * @param {unknown} [fallback] What an unpainted building wears; the flavor's colour by default.
  */
 export function buildingColor(
   amount,

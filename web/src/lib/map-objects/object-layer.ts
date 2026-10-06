@@ -368,6 +368,8 @@ export class ObjectLayer {
   private pendingSince = 0
   private onSourceData?: (event: { sourceId?: string }) => void
   private onMoveEnd?: () => void
+  /** Bumped whenever the drawn instances change, so a cached shadow mask is redrawn. */
+  shadowVersion = 0
 
   constructor(
     private specs: ObjectSourceSpec[],
@@ -585,6 +587,7 @@ export class ObjectLayer {
    */
   private arrange() {
     this.needsArrange = false
+    this.shadowVersion++
     const zoom = this.map.getZoom()
     const origin = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
     this.origin = [origin.x, origin.y, 0]

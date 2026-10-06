@@ -1174,7 +1174,7 @@ const TREES = {
   // Cypress: a slim flame.
   'tree-conifer-d': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.18, 0.12, 0, 3) },
-    { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [1.3, 4.6, 1.3], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
+    { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [1.75, 4.6, 1.75], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
   ]),
   ...Object.fromEntries([['a', 9, 9, 110], ['b', 12, 7, 120], ['c', 6, 10, 130]].map(([k, height, count, seed]) => [
     `tree-palm-${k}`,

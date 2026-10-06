@@ -229,8 +229,10 @@ export type ObjectInstance = {
   lat: number
   /** Metres. */
   height: number
-  /** Metres, across. */
+  /** Metres per model unit across: the height, to keep the model's proportions. */
   spread: number
+  /** Metres across, where it was measured; overrides `spread` using the model's own width. */
+  width?: number
   /** Radians. */
   heading: number
   /** Multiplier on the model's own colours. */
@@ -258,6 +260,8 @@ export type ObjectSourceSpec = {
 type ModelBuffers = {
   /** Whether this model is a solid, and so safe to draw with back faces culled. */
   cullable: boolean
+  /** The model's widest horizontal extent, in model units. */
+  width: number
   primitives: Array<{
     position: WebGLBuffer
     normal: WebGLBuffer
@@ -421,6 +425,7 @@ export class ObjectLayer {
     for (const [name, model] of Object.entries(this.sources)) {
       this.models.set(name, {
         cullable: this.solid[name] ?? false,
+        width: modelWidth(model),
         primitives: model.primitives.map(p => {
           const color = this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]]
           return {
@@ -623,7 +628,8 @@ export class ObjectLayer {
         offset[i * 3 + 1] = y - origin.y
         offset[i * 3 + 2] = z
         shape[i * 3] = instance.height * perMetre
-        shape[i * 3 + 1] = instance.spread * perMetre
+        const across = instance.width === undefined ? instance.spread : instance.width / (this.models.get(model)?.width || 1)
+        shape[i * 3 + 1] = across * perMetre
         shape[i * 3 + 2] = instance.heading
         shade[i] = instance.shade
         tint[i] = instance.tint ?? 0
@@ -798,6 +804,15 @@ export class ObjectLayer {
     const length = Math.hypot(x, y, z) || 1
     return [x / length, y / length, z / length]
   }
+}
+
+/** The widest horizontal extent of a model, in its own units. */
+function modelWidth(model: GlbModel): number {
+  let width = 0
+  for (const p of model.primitives)
+    for (let i = 0; i < p.position.length; i += 3)
+      width = Math.max(width, 2 * Math.abs(p.position[i]), 2 * Math.abs(p.position[i + 2]))
+  return width
 }
 
 /** A foliage part's y bounds, so its underside can be shaded; nothing else is. */

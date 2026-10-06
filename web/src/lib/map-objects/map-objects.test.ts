@@ -328,8 +328,15 @@ describe('trees', () => {
     expect(at({}).height).toBeGreaterThan(0)
   })
 
-  test('a measured crown sets the spread directly', () => {
-    expect(at({ diameter_crown: '11' }).spread).toBe(11)
+  test('a measured crown sets the width directly', () => {
+    expect(at({ diameter_crown: '11' }).width).toBe(11)
+  })
+
+  test('an unmeasured tree keeps its model\'s proportions, give or take', () => {
+    const t = at({})
+    expect(t.width).toBeUndefined()
+    expect(t.spread / t.height).toBeGreaterThanOrEqual(0.85)
+    expect(t.spread / t.height).toBeLessThanOrEqual(1.15)
   })
 
   test('an absurd height is ignored in favour of a plausible one', () => {

@@ -61,12 +61,11 @@ const HEIGHT: Record<TreeFamily, { min: number; max: number }> = {
 /** A street tree is pruned to clear the traffic and the wires above it. */
 const STREET_HEIGHT = { min: 5, max: 9.5 }
 
-/** Canopy across, as a fraction of height. A palm's crown is a tuft. */
-const SPREAD: Record<TreeFamily, { min: number; max: number }> = {
-  broadleaf: { min: 0.55, max: 0.9 },
-  conifer: { min: 0.32, max: 0.5 },
-  palm: { min: 0.3, max: 0.45 },
-}
+/**
+ * How much wider or narrower than its model a tree may come out. The models
+ * carry each family's proportions; this only keeps a row from looking cloned.
+ */
+const SPREAD_VARIETY = { min: 0.85, max: 1.15 }
 
 /**
  * Trunk girth to height. A rough allometric rule — girth in metres times this
@@ -110,13 +109,14 @@ export function treeInstance(
 
   // A measured crown wins over any ratio; otherwise it follows the height.
   const crown = tagged(props.diameter_crown, 0.5, 40)
-  const spread = crown ?? height * lerp(SPREAD[family], hash(seed, 2))
+  const spread = height * lerp(SPREAD_VARIETY, hash(seed, 2))
 
   return {
     lng,
     lat,
     height,
     spread,
+    ...(crown === null ? {} : { width: crown }),
     heading: hash(seed, 3) * Math.PI * 2,
     // ±12% on the model's own greens, so a stand of trees is not one flat
     // block of colour.

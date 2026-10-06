@@ -9,11 +9,25 @@
  * when the set actually changed, so an idle map stays idle.
  */
 import { layerGroups } from '@/lib/map-style'
+import { COLLECTION_MARKERS_SOURCE_ID, SEARCH_RESULTS_SOURCE_ID } from '@/constants/layers'
 import { footprintIndex, poiElevation, type BuildingFootprint } from '@/lib/map/poi-elevation'
 
 const SOURCE = 'poi-dots-raised'
 const KEEPER = 'poi-tiles-keeper'
 const EMPTY = { type: 'FeatureCollection', features: [] }
+
+/**
+ * The app's own point overlays that take the same lift: collection markers and
+ * search results. Saved places are not here because their plate is a circle
+ * layer, which cannot be lifted, and a floating glyph over a grounded plate
+ * reads worse than both on the ground.
+ */
+const OVERLAY_SOURCES = [COLLECTION_MARKERS_SOURCE_ID, SEARCH_RESULTS_SOURCE_ID]
+
+const LIFT = ['coalesce', ['get', '_elev'], 0]
+
+/** What an overlay source was last given, before `_elev` was stamped on. */
+type Overlay = { raw: any; set: (data: any) => void; signature: string }
 
 type Ring = Array<[number, number]>
 
@@ -69,7 +83,7 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
         {
           ...spec,
           source: SOURCE,
-          layout: { ...layer.layout, 'symbol-height-offset': ['coalesce', ['get', '_elev'], 0] },
+          layout: { ...layer.layout, 'symbol-height-offset': LIFT },
         },
         before,
       )
@@ -77,11 +91,73 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     return true
   }
 
+  const overlays = new WeakMap<object, Overlay>()
+
+  /** Stamp a point collection with `_elev`, leaving anything that is not a point alone. */
+  function stamped(data: any, lift: boolean, near: (p: [number, number]) => BuildingFootprint[]) {
+    if (!data || typeof data !== 'object' || !Array.isArray(data.features)) return data
+    return {
+      ...data,
+      features: data.features.map((f: any) => {
+        const point = f.geometry?.type === 'Point' ? (f.geometry.coordinates as [number, number]) : null
+        if (!point) return f
+        const _elev = lift ? Math.round(poiElevation(point, f.properties?.level, near) * 2) / 2 : 0
+        return { ...f, properties: { ...f.properties, _elev } }
+      }),
+    }
+  }
+
+  const elevationSignature = (data: any) =>
+    Array.isArray(data?.features) ? data.features.map((f: any) => f.properties?._elev ?? 0).join(',') : ''
+
+  /**
+   * Take over an overlay source's `setData`, so whatever the owning service
+   * writes is stamped on the way in, and restamp what it last wrote when the
+   * buildings under it change. Lift its symbol layers to match.
+   */
+  function elevateOverlays(lift: boolean, near: (p: [number, number]) => BuildingFootprint[]) {
+    for (const id of OVERLAY_SOURCES) {
+      const source = map.getSource(id)
+      if (!source?.setData) continue
+      let overlay = overlays.get(source)
+      if (!overlay) {
+        const set = source.setData.bind(source)
+        const initial = source.serialize?.().data
+        overlay = { raw: typeof initial === 'object' ? initial : EMPTY, set, signature: '' }
+        overlays.set(source, overlay)
+        const own = overlay
+        source.setData = (data: any) => {
+          own.raw = data
+          const next = stamped(data, raised(), currentNear)
+          own.signature = elevationSignature(next)
+          return set(next)
+        }
+      }
+      const next = stamped(overlay.raw, lift, near)
+      const signature = elevationSignature(next)
+      if (signature !== overlay.signature) {
+        overlay.signature = signature
+        overlay.set(next)
+      }
+    }
+    for (const layerId of map.getLayersOrder()) {
+      const layer = map.getLayer(layerId)
+      if (layer?.type !== 'symbol' || !OVERLAY_SOURCES.includes(layer.source)) continue
+      if (map.getLayoutProperty(layerId, 'symbol-height-offset') === undefined)
+        map.setLayoutProperty(layerId, 'symbol-height-offset', LIFT)
+    }
+  }
+
+  /** The building index the last hydration built, for overlay writes between hydrations. */
+  let currentNear: (p: [number, number]) => BuildingFootprint[] = () => []
+
   function hydrate() {
     queued = 0
-    if (!mount() || !tiles) return
     const lift = raised()
     const near = lift ? footprintIndex(footprints(map)) : () => []
+    currentNear = near
+    elevateOverlays(lift, near)
+    if (!mount() || !tiles) return
     const seen = new Set<string>()
     const features: any[] = []
     for (const f of map.querySourceFeatures(tiles, { sourceLayer: 'poi' })) {

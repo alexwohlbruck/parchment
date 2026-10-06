@@ -404,6 +404,15 @@ export class LandmarkLayer {
   private evicted = 0
   private models = new Map<string, Model>()
   private placements: Placement[] = []
+  private version = 0
+
+  /**
+   * Changes whenever what this layer casts does, so the shade layer can keep
+   * its shadow mask between frames. Not cacheable while a landmark fades out.
+   */
+  get shadowVersion(): number {
+    return this.leaving.length ? NaN : this.version
+  }
   /** Landmarks that have left, still drawn until their buildings are back. */
   private leaving: Placement[] = []
   private lingering = 0
@@ -558,6 +567,7 @@ export class LandmarkLayer {
       features = []
     }
     const terrain = this.groundSampler()
+    this.version++
     const previous = new Map(this.placements.map(p => [p.id, p]))
     const minzoom = (l: Landmark) => l.minzoom - (previous.has(l.id) ? MINZOOM_HYSTERESIS : 0)
     const detailed = (l: Landmark) =>
@@ -905,6 +915,7 @@ export class LandmarkLayer {
         }
       })
       model.pending = null
+      this.version++
     }
   }
 

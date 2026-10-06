@@ -1,3 +1,4 @@
+import { attachPoiElevation } from '@/services/map/poi-elevation.service'
 import { MapStrategy } from '@/services/map/providers/map.strategy'
 import {
   Map as MaplibreMap,
@@ -258,6 +259,7 @@ export class MaplibreStrategy extends MapStrategy {
   private map3dObjects = true
   /** Trees and the rest; see `applyMapObjects`. */
   private objectLayer: ObjectLayer | null = null
+  private poiElevation: ReturnType<typeof attachPoiElevation> | null = null
   private objectModels: Promise<Record<string, GlbModel>> | null = null
 
   constructor(
@@ -406,6 +408,7 @@ export class MaplibreStrategy extends MapStrategy {
     // Note: setupPoiHandlers() is idempotent — it early-returns if handlers
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
+    this.poiElevation = attachPoiElevation(this.mapInstance, () => this.map3dBuildings)
     this.mapInstance.on('style.load', () => {
       this.reapplyBasemapFilters()
       this.setupPoiHandlers()
@@ -661,6 +664,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
     this.map3dBuildings = value
     this.applyBuildingShade()
+    this.poiElevation?.refresh()
   }
 
   /**
@@ -1275,6 +1279,7 @@ export class MaplibreStrategy extends MapStrategy {
   }
 
   destroy() {
+    this.poiElevation?.detach()
     try {
       this.destroyPoiClickHandling()
       this.poiHandlerCleanup?.()

@@ -215,7 +215,7 @@ const CROWN_OCCLUSION = 0.18
 export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
-export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint' | 'interior'
+export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin'
 
 /**
  * Colours by role. A `<role>-alt` entry is the colour an instance with a full

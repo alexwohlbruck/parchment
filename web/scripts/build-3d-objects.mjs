@@ -54,6 +54,8 @@ const ROLE_COLOR = {
   wood: [0.55, 0.41, 0.28, 1],
   paint: [0.24, 0.42, 0.30, 1],
   interior: [0.16, 0.18, 0.17, 1],
+  bench: [0.87, 0.78, 0.66, 1],
+  bin: [0.42, 0.55, 0.47, 1],
 }
 
 /** How far apart two faces can lean and still share a smoothed normal. */
@@ -871,9 +873,9 @@ function prism(m, profile, x0, x1) {
 }
 
 /** A rounded rectangle cross-section of a slat, `w` deep by `t` thick, tilted. */
-function slat(z, y, w, t, tilt, seg) {
+function slat(z, y, w, t, tilt, seg, round = 0.012) {
   const [c, s] = [Math.cos(tilt), Math.sin(tilt)]
-  const r = Math.min(t / 2, 0.012)
+  const r = Math.min(t / 2 - 0.001, round)
   const pts = []
   const corners = [[w / 2 - r, t / 2 - r, 0], [-w / 2 + r, t / 2 - r, 1], [-w / 2 + r, -t / 2 + r, 2], [w / 2 - r, -t / 2 + r, 3]]
   for (const [cx, cy, q] of corners)
@@ -905,43 +907,21 @@ const furnLod = make => Object.assign(() => make(FURN_NEAR), { far: () => make(F
  * an exact face or corner, so each stays a solid.
  */
 const FURNITURE = {
-  // A city litter basket: a wide drum of vertical ribs between two hoops, a
-  // rolled rim, and a dark opening — read from above as a bin, not a post.
+  // A litter bin, kept simple so it reads at a glance: a rounded drum, a fat
+  // rim and a dark opening.
   'waste-basket': furnLod(q => {
     const body = mesh()
-    cylinder(body, q.sides, 0.27, 0.3, 0.06, 0.8)
-    const hoops = mesh()
-    if (q.ribs) {
-      cylinder(hoops, q.sides, 0.285, 0.29, 0.22, 0.04)
-      cylinder(hoops, q.sides, 0.3, 0.305, 0.6, 0.04)
-    }
-    const ribs = mesh()
-    for (let i = 0; i < q.ribs; i++) {
-      const a = (i / q.ribs) * Math.PI * 2
-      const r = 0.29
-      const rib = mesh()
-      box(rib, [-0.012, 0.08, -0.012], [0.012, 0.84, 0.012])
-      for (let v = 0; v < rib.position.length; v += 3) {
-        const [x, y, z] = [rib.position[v], rib.position[v + 1], rib.position[v + 2]]
-        const rr = r + (y - 0.08) * 0.04
-        rib.position[v] = Math.cos(a) * (rr + x) - Math.sin(a) * z
-        rib.position[v + 2] = Math.sin(a) * (rr + x) + Math.cos(a) * z
-      }
-      for (let v = 0; v < rib.position.length; v += 9)
-        face(ribs, rib.position.slice(v, v + 3), rib.position.slice(v + 3, v + 6), rib.position.slice(v + 6, v + 9))
-    }
+    cylinder(body, q.sides, 0.25, 0.28, 0.05, 0.78)
     const rim = mesh()
-    cylinder(rim, q.sides, 0.325, 0.33, 0.86, 0.06)
+    cylinder(rim, q.sides, 0.31, 0.31, 0.8, 0.09)
     const opening = mesh()
-    cylinder(opening, q.sides, 0.29, 0.29, 0.87, 0.06)
+    cylinder(opening, q.sides, 0.25, 0.25, 0.82, 0.08)
     const foot = mesh()
-    cylinder(foot, q.sides, 0.24, 0.24, 0, 0.065)
+    cylinder(foot, q.sides, 0.22, 0.23, 0, 0.07)
     return [
-      { role: 'metal', ...body },
-      { role: 'metal', ...hoops },
-      { role: 'metal', ...ribs },
-      { role: 'metal', ...rim },
-      { role: 'metal', ...foot },
+      { role: 'bin', ...body },
+      { role: 'bin', ...rim },
+      { role: 'bin', ...foot },
       { role: 'interior', ...opening },
     ]
   }),
@@ -963,42 +943,29 @@ const FURNITURE = {
       { role: 'metal', ...base },
     ]
   }),
-  // A classic park bench: cast end frames whose front leg, seat rail, back
-  // post and armrest all lean, slats that curve down at the front edge, and a
-  // reclined back.
+  // A soft, chunky bench in one colour: a thick two-plank seat, a reclined
+  // back plank, and end panels whose legs and armrest curve into each other.
   bench: furnLod(q => {
-    const wood = mesh()
-    const L = 0.86
+    const L = 0.84
+    const seg = q.seg ? 3 : 0
+    const parts = mesh()
     if (q.slats > 1) {
-      // Seat: flat slats, the front one rolled down over the edge.
-      const seat = [[-0.2, 0.45, 0], [-0.1, 0.455, 0.02], [0.0, 0.46, 0.03], [0.1, 0.465, 0.04], [-0.27, 0.43, -0.6]]
-      for (const [z, y, tilt] of seat) prism(wood, slat(z, y, 0.085, 0.032, tilt, q.seg), -L, L)
-      // Back: three slats on a 15° recline.
-      for (let i = 0; i < 3; i++) {
-        const y = 0.6 + i * 0.12
-        const z = 0.17 + (y - 0.6) * 0.27
-        prism(wood, slat(z, y, 0.09, 0.03, Math.PI / 2 - 0.26, q.seg), -L, L)
-      }
+      prism(parts, slat(-0.13, 0.45, 0.2, 0.07, 0, seg, 0.03), -L, L)
+      prism(parts, slat(0.085, 0.45, 0.2, 0.07, 0, seg, 0.03), -L + 0.001, L - 0.001)
     } else {
-      prism(wood, [[-0.3, 0.42], [0.14, 0.44], [0.14, 0.48], [-0.3, 0.46]], -L, L)
-      prism(wood, [[0.16, 0.56], [0.2, 0.56], [0.27, 0.86], [0.23, 0.86]], -L, L)
+      prism(parts, slat(-0.02, 0.45, 0.42, 0.07, 0, 0), -L, L)
     }
-    const frame = mesh()
-    for (const x of [-0.78, 0.78]) {
-      const [a, b] = [x - 0.025, x + 0.025]
-      prism(frame, bar([-0.28, 0], [-0.22, 0.43], 0.05), a, b)
-      prism(frame, bar([0.16, 0], [0.22, 0.43], 0.05), a, b)
-      if (q.slats > 1) {
-        prism(frame, bar([-0.27, 0.41], [0.2, 0.41], 0.04), a - 0.002, b + 0.002)
-        prism(frame, bar([0.18, 0.4], [0.28, 0.82], 0.045), a + 0.001, b - 0.001)
-        prism(frame, bar([-0.3, 0.64], [0.2, 0.66], 0.05), a - 0.004, b + 0.004)
-        prism(frame, bar([-0.24, 0.44], [-0.27, 0.63], 0.04), a + 0.003, b - 0.003)
-      }
+    prism(parts, slat(0.24, 0.72, 0.28, 0.06, Math.PI / 2 - 0.22, seg, 0.03), -L + 0.002, L - 0.002)
+    for (const x of [-L - 0.035, L + 0.035]) {
+      const [a, b] = [x - 0.035, x + 0.035]
+      // Back post, from the foot up past the back plank.
+      prism(parts, slat(0.2, 0.43, 0.11, 0.9, 0.12, seg, 0.04), a, b)
+      // Front leg, splayed slightly forward.
+      prism(parts, slat(-0.25, 0.21, 0.1, 0.44, -0.18, seg, 0.04), a + 0.001, b - 0.001)
+      // Armrest, curving down to the front leg.
+      if (q.slats > 1) prism(parts, slat(-0.04, 0.62, 0.5, 0.07, -0.08, seg, 0.03), a + 0.002, b - 0.002)
     }
-    return [
-      { role: 'wood', ...wood },
-      { role: 'metal', ...frame },
-    ]
+    return [{ role: 'bench', ...parts }]
   }),
 }
 

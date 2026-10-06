@@ -36,6 +36,21 @@ type Anchor = { x: number; y: number; z: number; perMetre: number }
 /** Debounce for rebuilding the placement list; see `ObjectLayer.invalidate`. */
 const SETTLE = 80
 
+/**
+ * Zoom levels below its minzoom that a landmark already on screen is kept
+ * for. Without it, a pinch that wavers around the threshold swaps model and
+ * building back and forth.
+ */
+const MINZOOM_HYSTERESIS = 0.3
+
+/**
+ * How long a landmark that has left keeps being drawn, at most, while the
+ * buildings it hid are laid out again. A filter change re-parses the whole
+ * building source in the worker, and dropping the model before that lands
+ * leaves an empty lot for a few frames.
+ */
+const LINGER_MS = 1500
+
 /** Locations shared by both programs, so one VAO serves the draw and the shadow. */
 const LOC = { a_position: 0, a_normal: 1, a_uv: 2 }
 
@@ -200,6 +215,16 @@ export class LandmarkLayer {
   private shadow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private models = new Map<string, Model>()
   private placements: Placement[] = []
+  /** Landmarks that have left, still drawn until their buildings are back. */
+  private leaving: Placement[] = []
+  private lingering = 0
+  /**
+   * Building keys hidden, and the landmark each is hidden for. Kept between
+   * gathers: the tiles that proved a building lies inside a landmark come
+   * and go as the map zooms, and forgetting it with them flips the filter —
+   * and so re-lays out every building — on every zoom step.
+   */
+  private hiddenFor = new Map<string | number, string>()
   /** Buildings found inside a drawn landmark's footprint, by the last gather. */
   private contained: Replaced = { refs: [], featureIds: [] }
   private replaced = ''
@@ -264,6 +289,9 @@ export class LandmarkLayer {
     this.listeners = []
     if (this.scheduled) clearTimeout(this.scheduled)
     this.scheduled = 0
+    this.lingering++
+    this.leaving = []
+    this.hiddenFor.clear()
     for (const model of this.models.values())
       for (const p of model.primitives ?? []) {
         gl.deleteVertexArray(p.vao)
@@ -317,11 +345,13 @@ export class LandmarkLayer {
       features = []
     }
     const terrain = this.map.getTerrain?.() ? this.map : null
+    const previous = new Map(this.placements.map(p => [p.id, p]))
+    const minzoom = (l: Landmark) => l.minzoom - (previous.has(l.id) ? MINZOOM_HYSTERESIS : 0)
     const seen = new Set<string>()
     this.placements = []
     for (const feature of features) {
       const landmark = parseLandmark(feature)
-      if (!landmark || seen.has(landmark.id) || zoom < landmark.minzoom) continue
+      if (!landmark || seen.has(landmark.id) || zoom < minzoom(landmark)) continue
       seen.add(landmark.id)
       this.load(landmark.model)
       const ground = terrain ? this.lowestGround(terrain, landmark) : 0
@@ -329,8 +359,54 @@ export class LandmarkLayer {
       project(landmark.lng, landmark.lat, ground + landmark.elevation, placed)
       this.placements.push({ ...landmark, placed })
     }
+    // A landmark whose tile is between loads is still there: mid-zoom the
+    // old tiles go before the new ones arrive, and the query sees neither.
+    const view = this.view()
+    for (const p of previous.values()) {
+      if (seen.has(p.id) || zoom < minzoom(p) || !view(p)) continue
+      seen.add(p.id)
+      this.placements.push(p)
+    }
+    this.leave([...previous.values()].filter(p => !seen.has(p.id) && this.ready(p.model)), seen)
     this.contained = this.findContained()
     this.report()
+  }
+
+  /** Whether a point is on screen or near it, with half a screen to spare. */
+  private view(): (at: { lng: number; lat: number }) => boolean {
+    const bounds = this.map.getBounds?.()
+    if (!bounds) return () => true
+    const [w, s, e, n] = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()]
+    const [dx, dy] = [(e - w) / 2, (n - s) / 2]
+    return at => at.lng >= w - dx && at.lng <= e + dx && at.lat >= s - dy && at.lat <= n + dy
+  }
+
+  /**
+   * Keep drawing landmarks that have just left until the buildings they hid
+   * have been laid out again, so the swap back has no gap.
+   */
+  private leave(gone: Placement[], present: Set<string>) {
+    this.leaving = [...this.leaving.filter(p => !present.has(p.id) && !gone.some(g => g.id === p.id)), ...gone]
+    if (!gone.length) return
+    const token = ++this.lingering
+    const started = performance.now()
+    const check = () => {
+      if (token !== this.lingering || !this.map) return
+      const sources = (this.options.buildings ?? []).map(b => b.source)
+      const loaded = sources.every(id => {
+        try {
+          return this.map.isSourceLoaded(id)
+        } catch {
+          return true
+        }
+      })
+      if (loaded || performance.now() - started > LINGER_MS) {
+        this.leaving = []
+        this.map.triggerRepaint?.()
+      } else setTimeout(check, 100)
+    }
+    // Give the filter change a moment to start the reload it waits on.
+    setTimeout(check, 150)
   }
 
   /**
@@ -365,8 +441,11 @@ export class LandmarkLayer {
     const drawn = this.placements
       .map(p => ({ p, footprint: this.models.get(p.model)?.footprint }))
       .filter((d): d is { p: Placement; footprint: Footprint } => !!d.footprint)
-    if (!drawn.length) return { refs: [], featureIds: [] }
-    const verdict = new Map<string | number, boolean>()
+    if (!drawn.length) {
+      this.hiddenFor.clear()
+      return { refs: [], featureIds: [] }
+    }
+    const verdict = new Map<string | number, string | false>()
     for (const { source, sourceLayer } of this.options.buildings ?? []) {
       let features: any[] = []
       try {
@@ -381,19 +460,27 @@ export class LandmarkLayer {
         const first = rings[0]?.[0]
         // The first vertex rules almost every building out without the full
         // test, which matters on a Manhattan tile with thousands of them.
-        const inside = !!first && drawn.some(({ p, footprint }) => {
+        const inside = !!first && drawn.find(({ p, footprint }) => {
           const reach = Math.max(-footprint.minX, footprint.maxX, -footprint.minZ, footprint.maxZ) * p.scale * 1.5
           const k = Math.cos((p.lat * Math.PI) / 180) * 111320
           if (Math.abs(first[0] - p.lng) * k > reach || Math.abs(first[1] - p.lat) * 110574 > reach) return false
           return insideFootprint(p, footprint, rings)
         })
-        verdict.set(key, inside)
+        verdict.set(key, inside ? inside.p.id : false)
       }
     }
+    // A key goes back on show only on evidence: a loaded piece of it outside
+    // every landmark, or its landmark gone. One no tile holds right now stays
+    // hidden — there is nothing of it to draw, and it will be back.
+    const placed = new Set(drawn.map(d => d.p.id))
+    for (const [key, landmark] of verdict) {
+      if (landmark) this.hiddenFor.set(key, landmark)
+      else this.hiddenFor.delete(key)
+    }
+    for (const [key, landmark] of this.hiddenFor) if (!placed.has(landmark)) this.hiddenFor.delete(key)
     const refs: string[] = []
     const featureIds: number[] = []
-    for (const [key, inside] of verdict) {
-      if (!inside) continue
+    for (const key of this.hiddenFor.keys()) {
       if (typeof key === 'number') featureIds.push(key)
       else refs.push(key)
     }
@@ -420,6 +507,11 @@ export class LandmarkLayer {
       this.credited = credited
       this.options.onAttribution?.(credits)
     }
+  }
+
+  /** What to draw this frame: the placed landmarks and any still leaving. */
+  private drawable(): Placement[] {
+    return this.leaving.length ? [...this.placements, ...this.leaving] : this.placements
   }
 
   private ready(file: string) {
@@ -528,12 +620,13 @@ export class LandmarkLayer {
    */
   drawShadow(gl: WebGL2RenderingContext, frame: ShadowFrame) {
     this.upload(gl)
-    if (!this.placements.length) return
+    const placements = this.drawable()
+    if (!placements.length) return
     const { program, u } = this.shadow
     gl.useProgram(program)
     // Both faces: a shadow has no front.
     gl.disable(gl.CULL_FACE)
-    for (const p of this.placements) {
+    for (const p of placements) {
       const model = this.models.get(p.model)
       if (!model?.primitives) continue
       const { perMetre } = p.placed
@@ -548,7 +641,8 @@ export class LandmarkLayer {
 
   render(gl: WebGL2RenderingContext, args: any) {
     this.upload(gl)
-    if (!this.placements.length) return this.restore()
+    const placements = this.drawable()
+    if (!placements.length) return this.restore()
 
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const range = this.map.painter?.depthRangeFor3D
@@ -574,7 +668,7 @@ export class LandmarkLayer {
     gl.uniform1f(u.u_lightintensity, light.intensity)
     gl.uniform3fv(u.u_tint, this.options.tint)
 
-    for (const p of this.placements) {
+    for (const p of placements) {
       const model = this.models.get(p.model)
       if (!model?.primitives) continue
       gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(matrix, p.placed))

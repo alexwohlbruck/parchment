@@ -226,7 +226,7 @@ function toUnit(parts) {
  *
  * Walks the index rather than the position array, which is not a detail: glTF
  * lets several primitives share one vertex buffer and differ only by their
- * indices, and Kenney's exporter does exactly that. Every part of a tree
+ * indices, and many exporters do exactly that. Every part of a tree
  * therefore *owns* a position array spanning the whole tree, and measuring it
  * directly gives the trunk the bounds of the canopy — which is what wrapped
  * every distant tree in a brown crate as tall and as wide as itself.
@@ -245,7 +245,7 @@ function boundsOf(part) {
 /**
  * How much of a trunk counts as "the bottom", for measuring its girth.
  *
- * A trunk's bounding box is not its width. Kenney's trees model the branches
+ * A trunk's bounding box is not its width. A trunk with limbs carries them
  * as part of the trunk, so the box around one is as wide and as tall as the
  * whole tree — fitting a prism to it wrapped every distant tree in a brown
  * crate with the canopy poking out. Measuring across the bottom of the trunk,
@@ -340,7 +340,7 @@ function signedVolume(part) {
  * detail and becomes the difference between drawing it and not. Two sources of
  * geometry meet here and neither could be trusted on its own: `cylinder` and
  * `lozenge` build their walls clockwise, so every far model came out inside
- * out, and Kenney's palms and one of the conifers carry triangles wound against
+ * out, and imported models commonly carry triangles wound against
  * their neighbours — 186 of 190 in one case. Culled, those become holes, and a
  * hole in a crown looks exactly like the depth-fighting this was meant to cure.
  *
@@ -359,7 +359,7 @@ function signedVolume(part) {
 function orientFaces(part) {
   // Only where "the same way round" means anything. An edge with three or four
   // triangles on it has no consistent answer, and walking one anyway does not
-  // fail quietly: run over Kenney's conifer it flipped a skirt and left the
+  // fail quietly: run over a non-manifold conifer it flipped a skirt and left the
   // model with seventy-two edges bounding nothing, which is a hole.
   if (!isManifold(part)) return false
 
@@ -491,7 +491,7 @@ function orientFaces(part) {
  * winning a fragment shades it by the opposite normal — the crown breaks into
  * light and dark wedges that crawl as the camera moves. Culling settles it, but
  * only for a mesh with an inside: cull an open shell and you see straight
- * through it. Kenney's conifers are stacked skirts open underneath, and culling
+ * through it. A conifer built from open skirts is open underneath, and culling
  * them punched a white hole through the bottom of every tree.
  *
  * So the holes are filled here rather than worked around at draw time. A
@@ -590,7 +590,7 @@ function capHoles(part) {
  * the shaft above the flare comes out around half of it, so this is roughly
  * twice as generous as it sounds.
  *
- * Kenney's trees are modelled to read at arm's length in a game, where a chunky
+ * Game-kit trees are modelled to read at arm's length, where a chunky
  * trunk is part of the style — theirs run from 15% of the crown up to 68%, and
  * one is very nearly as wide as the tree. Seen from above that is a brown post
  * with a bush balanced on it. But a real street tree is nearer 5%, and cutting

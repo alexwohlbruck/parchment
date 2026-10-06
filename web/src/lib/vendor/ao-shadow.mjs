@@ -937,7 +937,9 @@ export class WallShadowLayer {
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    // PARCHMENT: colour only. Blending alpha too thinned the canvas wherever a
+    // shadow was partly transparent, and the page showed through as a light halo.
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
 
     drawQuad(gl, this._quadBuf);
   }

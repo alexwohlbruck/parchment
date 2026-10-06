@@ -825,57 +825,108 @@ function toGlb(name, parts) {
  * long and 0.45m to the seat — and a game-kit prop would have to be
  * re-proportioned anyway. Modelled at real size in metres; `toUnit` rescales.
  */
+/**
+ * A box with rounded vertical edges, capped top and bottom. `r` is the corner
+ * radius; `seg` the arc segments per corner (0 for a plain box outline).
+ */
+function roundedBox(m, [x0, y0, z0], [x1, y1, z1], r, seg = 3) {
+  const corners = [[x1 - r, z1 - r, 0], [x0 + r, z1 - r, 1], [x0 + r, z0 + r, 2], [x1 - r, z0 + r, 3]]
+  const ring = []
+  for (const [cx, cz, q] of corners)
+    for (let i = 0; i <= seg; i++) {
+      const a = (q + i / Math.max(seg, 1)) * Math.PI / 2
+      ring.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r])
+    }
+  const lo = ring.map(([x, z]) => [x, y0, z])
+  const hi = ring.map(([x, z]) => [x, y1, z])
+  const cLo = [(x0 + x1) / 2, y0, (z0 + z1) / 2]
+  const cHi = [(x0 + x1) / 2, y1, (z0 + z1) / 2]
+  for (let i = 0; i < ring.length; i++) {
+    const j = (i + 1) % ring.length
+    quad(m, lo[i], lo[j], hi[j], hi[i])
+    face(m, hi[i], hi[j], cHi)
+    face(m, lo[j], lo[i], cLo)
+  }
+  return m
+}
+
+/** Detail per level for furniture: arc segments, drum sides, slat count. */
+const FURN_NEAR = { seg: 3, sides: 20, slats: 5 }
+const FURN_FAR = { seg: 0, sides: 6, slats: 1 }
+const furnLod = make => Object.assign(() => make(FURN_NEAR), { far: () => make(FURN_FAR) })
+
+/**
+ * Generated rather than sourced, because these are simple solids whose
+ * *proportions* carry the recognition — a bin is a 0.9m drum, a bench is 1.8m
+ * long and 0.45m to the seat. Modelled at real size in metres; `toUnit`
+ * rescales. Parts never share an exact face or corner, so each stays a solid.
+ */
 const FURNITURE = {
-  'waste-basket': () => {
-    const drum = mesh()
-    cylinder(drum, 16, 0.22, 0.26, 0.1, 0.76)
+  // A city litter basket: a slightly flared drum, a heavier rim, a dark liner
+  // showing inside the opening, and a low foot ring.
+  'waste-basket': furnLod(q => {
+    const body = mesh()
+    cylinder(body, q.sides, 0.23, 0.27, 0.06, 0.8)
     const rim = mesh()
-    cylinder(rim, 16, 0.285, 0.285, 0.84, 0.05)
+    cylinder(rim, q.sides, 0.29, 0.29, 0.83, 0.07)
     const foot = mesh()
-    cylinder(foot, 10, 0.16, 0.16, 0, 0.12)
+    cylinder(foot, q.sides, 0.25, 0.25, 0, 0.05)
+    const liner = mesh()
+    cylinder(liner, q.sides, 0.235, 0.235, 0.85, 0.06)
     return [
-      { role: 'metal', ...drum },
+      { role: 'metal', ...body },
       { role: 'metal', ...rim },
       { role: 'metal', ...foot },
+      { role: 'bark', ...liner },
     ]
-  },
-  recycling: () => {
+  }),
+  // A municipal recycling bin: rounded body, a lid that overhangs it, and a
+  // coloured band so it reads as recycling rather than as a cabinet.
+  recycling: furnLod(q => {
     const body = mesh()
-    box(body, [-0.38, 0, -0.32], [0.38, 0.95, 0.32])
-    // A domed lid, so it reads as a bin rather than a crate from above.
+    roundedBox(body, [-0.36, 0.04, -0.3], [0.36, 0.9, 0.3], 0.07, q.seg)
+    const band = mesh()
+    roundedBox(band, [-0.37, 0.62, -0.31], [0.37, 0.72, 0.31], 0.075, q.seg)
     const lid = mesh()
-    blob(lid, [0, 0.95, 0], [0.4, 0.16, 0.34], { seed: 7, lump: 0, subdivisions: 2, flat: 0.2 })
+    roundedBox(lid, [-0.4, 0.91, -0.34], [0.4, 1.0, 0.34], 0.09, q.seg)
+    const base = mesh()
+    roundedBox(base, [-0.33, 0, -0.27], [0.33, 0.03, 0.27], 0.05, q.seg)
     return [
-      { role: 'paint', ...body },
-      { role: 'paint', ...lid },
+      { role: 'metal', ...body },
+      { role: 'paint', ...band },
+      { role: 'metal', ...lid },
+      { role: 'metal', ...base },
     ]
-  },
-  bench: () => {
-    const seat = mesh()
-    // Slats, so a bench reads as a bench from above rather than as a plank.
-    for (let i = 0; i < 4; i++) {
-      const z = -0.25 + i * 0.13
-      box(seat, [-0.9, 0.42, z], [0.9, 0.46, z + 0.1])
+  }),
+  // A park bench: spaced seat slats, a backrest leaning back, and cast side
+  // frames that run from foot to armrest.
+  bench: furnLod(q => {
+    const wood = mesh()
+    const seatSlats = Math.max(1, q.slats - 1)
+    const seatDepth = 0.46
+    for (let i = 0; i < seatSlats; i++) {
+      const z0 = -0.26 + (i * seatDepth) / seatSlats
+      const z1 = z0 + seatDepth / seatSlats - (seatSlats > 1 ? 0.025 : 0)
+      roundedBox(wood, [-0.88, 0.43, z0], [0.88, 0.47, z1], 0.012, q.seg ? 1 : 0)
     }
-    const back = mesh()
-    for (let i = 0; i < 3; i++) {
-      const y = 0.56 + i * 0.12
-      box(back, [-0.9, y, 0.25 + i * 0.03], [0.9, y + 0.09, 0.3 + i * 0.03])
+    const backSlats = Math.max(1, q.slats - 2)
+    for (let i = 0; i < backSlats; i++) {
+      const h = (0.28 - (backSlats - 1) * 0.03) / backSlats
+      const y0 = 0.55 + i * (h + 0.03)
+      const lean = 0.24 + (y0 - 0.55) * 0.3
+      roundedBox(wood, [-0.88, y0, lean], [0.88, y0 + h, lean + 0.035], 0.012, q.seg ? 1 : 0)
     }
     const frame = mesh()
-    for (const x of [-0.82, 0.82]) {
-      box(frame, [x - 0.03, 0, -0.27], [x + 0.03, 0.42, -0.21])
-      box(frame, [x - 0.03, 0, 0.22], [x + 0.03, 0.86, 0.3])
-      // Armrests, the detail that says "park bench" at a glance.
-      box(frame, [x - 0.035, 0.6, -0.27], [x + 0.035, 0.64, 0.26])
-      box(frame, [x - 0.025, 0.41, -0.245], [x + 0.025, 0.61, -0.215])
+    for (const x of [-0.8, 0.8]) {
+      roundedBox(frame, [x - 0.03, 0, -0.25], [x + 0.03, 0.42, -0.19], 0.01, q.seg ? 1 : 0)
+      roundedBox(frame, [x - 0.031, 0, 0.2], [x + 0.031, 0.88, 0.26], 0.01, q.seg ? 1 : 0)
+      if (q.seg) roundedBox(frame, [x - 0.032, 0.62, -0.26], [x + 0.032, 0.66, 0.24], 0.015, 1)
     }
     return [
-      { role: 'wood', ...seat },
-      { role: 'wood', ...back },
+      { role: 'wood', ...wood },
       { role: 'metal', ...frame },
     ]
-  },
+  }),
 }
 
 // ---------------------------------------------------------------------------
@@ -1148,7 +1199,7 @@ async function main() {
   }
 
   for (const [name, build] of Object.entries(TREES)) await emit(name, build(), build.far?.())
-  for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build())
+  for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

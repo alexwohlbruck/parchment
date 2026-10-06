@@ -733,7 +733,8 @@ export class LandmarkLayer {
     if (!placements.length) return this.restore()
 
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
-    const range = this.map.painter?.depthRangeFor3D
+    const painter = this.map.painter
+    const range = painter?.renderContext?.depthRangeFor3D ?? painter?.depthRangeFor3D
     const light = this.light()
     const { program, u } = this.draw
 

@@ -61,8 +61,8 @@ const SHAPE = {
  * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.11, aoIntensity: 0.16, strength: 0.04, edge: 0.18 },
-  dark: { shadowAlpha: 0.05, aoIntensity: 0.13, strength: 0.035, edge: 0.2 },
+  light: { shadowAlpha: 0.07, aoIntensity: 0.1, strength: 0.04, edge: 0.18 },
+  dark: { shadowAlpha: 0.035, aoIntensity: 0.08, strength: 0.035, edge: 0.2 },
 }
 
 /**

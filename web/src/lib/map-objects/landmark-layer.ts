@@ -408,11 +408,14 @@ export class LandmarkLayer {
 
   /**
    * Changes whenever what this layer casts does, so the shade layer can keep
-   * its shadow mask between frames. Not cacheable while a landmark fades out.
+   * its shadow mask between frames. Not cacheable while a landmark fades out,
+   * or while a moving part turns on screen: its shadow turns with it.
    */
   get shadowVersion(): number {
-    return this.leaving.length ? NaN : this.version
+    return this.leaving.length || this.moving ? NaN : this.version
   }
+  /** Whether a moving part was drawn on screen in the last frame. */
+  private moving = false
   /** Landmarks that have left, still drawn until their buildings are back. */
   private leaving: Placement[] = []
   private lingering = 0
@@ -1018,6 +1021,7 @@ export class LandmarkLayer {
     if (this.options.flavor.night) this.drawEntrances(gl, matrix, placements)
     gl.bindVertexArray(null)
     this.restore()
+    this.moving = moving
     // Something on screen is moving, so ask for the next frame. Only then:
     // a map with nothing turning in view stays idle between gestures.
     if (moving) this.map.triggerRepaint?.()

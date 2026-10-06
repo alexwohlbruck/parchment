@@ -12,6 +12,7 @@ import { layerGroups } from '@/lib/map-style'
 import { footprintIndex, poiElevation, type BuildingFootprint } from '@/lib/map/poi-elevation'
 
 const SOURCE = 'poi-dots-raised'
+const KEEPER = 'poi-tiles-keeper'
 const EMPTY = { type: 'FeatureCollection', features: [] }
 
 type Ring = Array<[number, number]>
@@ -49,6 +50,16 @@ export function attachPoiElevation(map: any, raised: () => boolean) {
     if (!layers.length) return false
     tiles = layers[0].source
     map.addSource(SOURCE, { type: 'geojson', data: EMPTY })
+    // MapLibre only parses a source-layer some layer reads, and hydration
+    // queries the tiles: an invisible reader keeps the POIs in them.
+    map.addLayer({
+      id: KEEPER,
+      type: 'circle',
+      source: tiles,
+      'source-layer': 'poi',
+      minzoom: Math.min(...layers.map((l: any) => l.minzoom ?? 0)),
+      paint: { 'circle-radius': 0, 'circle-opacity': 0, 'circle-stroke-width': 0 },
+    }, layers[0].id)
     for (const layer of layers) {
       const order = map.getLayersOrder()
       const before = order[order.indexOf(layer.id) + 1]

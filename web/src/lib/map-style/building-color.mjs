@@ -136,6 +136,7 @@ export function buildingColor(
   amount,
   colorToken = '@building_3d_fill_extrusion_color',
   properties = ['colour'],
+  fallback = colorToken,
 ) {
   // The first of `properties` the feature carries. One name is the ordinary
   // case; the roof passes `['roof_colour', 'colour']` so a building that
@@ -194,6 +195,31 @@ export function buildingColor(
                   ['min', 0, ['-', ['var', 'mid'], ['var', 'plain']]]]],
               'sub', ['*', ['var', 'bias'], ['-', ['var', 'high'], ['var', 'mid']], ['var', 'scale']],
               ['rgb', channel(0), channel(1), channel(2)]]]]]],
+    fallback,
+  ]
+}
+
+/**
+ * Faint casts for buildings that record no colour of their own, so a block of
+ * unpainted rowhouses reads as neighbours rather than one grey mass. Daylight
+ * only: night already separates buildings by light, and a cast there reads as
+ * a lit surface. Each sits within a few points of the flavor's own near-white.
+ */
+export const BUILDING_PASTELS = {
+  light: ['hsl(32, 48%, 94%)', 'hsl(212, 24%, 95%)', 'hsl(350, 42%, 95%)', 'hsl(44, 46%, 94%)', 'hsl(160, 26%, 94%)'],
+  dark: [],
+}
+
+/**
+ * The colour an unpainted building wears: the flavor's own, or one of its
+ * pastels picked by feature id so a building keeps its cast as tiles reload.
+ */
+export function unpaintedBuildingColor(flavor, colorToken = '@building_3d_fill_extrusion_color') {
+  const pastels = BUILDING_PASTELS[flavor] ?? []
+  if (!pastels.length) return colorToken
+  return [
+    'match', ['%', ['to-number', ['id'], 0], pastels.length + 1],
+    ...pastels.flatMap((c, i) => [i, c]),
     colorToken,
   ]
 }

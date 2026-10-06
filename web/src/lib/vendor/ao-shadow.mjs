@@ -807,6 +807,9 @@ export class WallShadowLayer {
     // A caster without a version cannot say when it changed, and NaN never
     // matches, so its presence simply turns the cache off.
     for (const caster of this.shadowCasters) key.push(caster.shadowVersion ?? NaN);
+    // Casters are drawn with the camera matrix, not per tile, so it has to be
+    // in the key too or their shadows stay put while the view moves.
+    if (this.shadowCasters.size && this._mainMatrix) for (let i = 0; i < 16; i++) key.push(this._mainMatrix[i]);
     return key;
   }
 

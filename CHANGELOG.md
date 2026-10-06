@@ -7,6 +7,8 @@
 
 ### Changed
 
+* 3D trees are rounder and more natural, vary in colour, and cast shadows; benches and bins look more like the real thing.
+
 ### Fixed
 
 * Places and labels hidden while searching or browsing a collection now come back at the current zoom, instead of only after zooming in or out.

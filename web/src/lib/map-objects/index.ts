@@ -63,9 +63,9 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
  */
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
-    bark: [0.47, 0.36, 0.27],
-    foliage: [0.56, 0.78, 0.42],
-    'foliage-alt': [0.42, 0.68, 0.45],
+    bark: [0.56, 0.45, 0.36],
+    foliage: [0.66, 0.83, 0.5],
+    'foliage-alt': [0.55, 0.77, 0.52],
     metal: [0.3, 0.36, 0.33],
     wood: [0.62, 0.47, 0.31],
     paint: [0.22, 0.47, 0.36],

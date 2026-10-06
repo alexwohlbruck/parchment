@@ -48,6 +48,12 @@ export const FAR_SUFFIX = '-far'
 const NEAR_PIXELS = 850
 
 /**
+ * Below this zoom every object is drawn with its far model: a tree is a few
+ * pixels across, and the near model's detail would be spent on nothing.
+ */
+const FAR_BELOW_ZOOM = 17
+
+/**
  * How long a burst of source events has to go quiet before the scene is
  * rebuilt, and the longest a continuous burst may hold that off. Milliseconds.
  */
@@ -137,9 +143,12 @@ const VS = `
     // decides whether the top or the bottom of a tree is lit.
     float sky = unit.z * 0.5 + 0.5;
     float lit = mix(sun, sky, 0.65);
+    // Foliage is softer still: a crown reads as one mass lit from above, the
+    // look of a baked canopy, rather than as a faceted solid.
+    if (u_occlusion.z > 0.0) lit = mix(sun, sky, 0.85);
     // A crown is darker underneath, where its own leaves shade it.
     float rise = clamp((a_position.y - u_occlusion.x) / max(u_occlusion.y - u_occlusion.x, 1e-4), 0.0, 1.0);
-    float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 0.9, rise));
+    float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
     vec3 base = mix(u_color, u_color_alt, a_tint);
     v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
 
@@ -180,7 +189,7 @@ const SHADOW_FS = `
   void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }`
 
 /** How much darker the bottom of a crown is than its top. */
-const CROWN_OCCLUSION = 0.24
+const CROWN_OCCLUSION = 0.18
 
 /**
  * Which way round an outward-facing triangle lands on screen.
@@ -584,7 +593,7 @@ export class ObjectLayer {
     this.origin = [origin.x, origin.y, 0]
 
     const nearLimit = NEAR_PIXELS * mercatorPerPixel(zoom)
-    const nearLimitSquared = nearLimit * nearLimit
+    const nearLimitSquared = zoom < FAR_BELOW_ZOOM ? 0 : nearLimit * nearLimit
 
     const buckets = new Map<string, Placed[]>()
     for (const p of this.placed) {

@@ -491,7 +491,13 @@ describe('street furniture', () => {
 
   test('furniture is drawn at its real size', () => {
     const bench = at({ kind: 'bench', direction: 'N' })!
-    expect(bench.spread).toBeCloseTo(1.8, 2)
+    let [low, high] = [Infinity, -Infinity]
+    for (const p of load('bench').primitives)
+      for (let i = 0; i < p.position.length; i += 3) {
+        low = Math.min(low, p.position[i])
+        high = Math.max(high, p.position[i])
+      }
+    expect((high - low) * bench.spread).toBeCloseTo(1.8, 1)
     expect(bench.height).toBeLessThan(1)
   })
 })

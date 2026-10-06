@@ -53,6 +53,7 @@ const ROLE_COLOR = {
   metal: [0.42, 0.45, 0.47, 1],
   wood: [0.55, 0.41, 0.28, 1],
   paint: [0.24, 0.42, 0.30, 1],
+  interior: [0.16, 0.18, 0.17, 1],
 }
 
 /** How far apart two faces can lean and still share a smoothed normal. */
@@ -850,34 +851,98 @@ function roundedBox(m, [x0, y0, z0], [x1, y1, z1], r, seg = 3) {
   return m
 }
 
-/** Detail per level for furniture: arc segments, drum sides, slat count. */
-const FURN_NEAR = { seg: 3, sides: 20, slats: 5 }
-const FURN_FAR = { seg: 0, sides: 6, slats: 1 }
+/**
+ * A convex profile in the side plane (z forward-back, y up), extruded across x.
+ * The bench is drawn in profile, so its frames, slats and armrests can lean.
+ */
+function prism(m, profile, x0, x1) {
+  const n = profile.length
+  const a = profile.map(([z, y]) => [x0, y, z])
+  const b = profile.map(([z, y]) => [x1, y, z])
+  const cz = profile.reduce((t, p) => t + p[0], 0) / n
+  const cy = profile.reduce((t, p) => t + p[1], 0) / n
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n
+    quad(m, a[i], a[j], b[j], b[i])
+    face(m, b[i], b[j], [x1, cy, cz])
+    face(m, a[j], a[i], [x0, cy, cz])
+  }
+  return m
+}
+
+/** A rounded rectangle cross-section of a slat, `w` deep by `t` thick, tilted. */
+function slat(z, y, w, t, tilt, seg) {
+  const [c, s] = [Math.cos(tilt), Math.sin(tilt)]
+  const r = Math.min(t / 2, 0.012)
+  const pts = []
+  const corners = [[w / 2 - r, t / 2 - r, 0], [-w / 2 + r, t / 2 - r, 1], [-w / 2 + r, -t / 2 + r, 2], [w / 2 - r, -t / 2 + r, 3]]
+  for (const [cx, cy, q] of corners)
+    for (let i = 0; i <= seg; i++) {
+      const ang = (q + i / Math.max(seg, 1)) * Math.PI / 2
+      const [px, py] = [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r]
+      pts.push([z + px * c - py * s, y + px * s + py * c])
+    }
+  return pts
+}
+
+/** A thick straight bar between two points in the side plane. */
+function bar([z0, y0], [z1, y1], w) {
+  const [dz, dy] = [z1 - z0, y1 - y0]
+  const l = Math.hypot(dz, dy) || 1
+  const [nz, ny] = [(-dy / l) * w / 2, (dz / l) * w / 2]
+  return [[z0 + nz, y0 + ny], [z1 + nz, y1 + ny], [z1 - nz, y1 - ny], [z0 - nz, y0 - ny]].reverse()
+}
+
+/** Detail per level for furniture: arc segments, drum sides, slat count, ribs. */
+const FURN_NEAR = { seg: 2, sides: 24, slats: 4, ribs: 16 }
+const FURN_FAR = { seg: 0, sides: 6, slats: 1, ribs: 0 }
 const furnLod = make => Object.assign(() => make(FURN_NEAR), { far: () => make(FURN_FAR) })
 
 /**
  * Generated rather than sourced, because these are simple solids whose
- * *proportions* carry the recognition — a bin is a 0.9m drum, a bench is 1.8m
- * long and 0.45m to the seat. Modelled at real size in metres; `toUnit`
- * rescales. Parts never share an exact face or corner, so each stays a solid.
+ * *proportions* carry the recognition. Modelled at real size in metres;
+ * `toUnit` rescales and the layer scales them evenly back. Parts never share
+ * an exact face or corner, so each stays a solid.
  */
 const FURNITURE = {
-  // A city litter basket: a slightly flared drum, a heavier rim, a dark liner
-  // showing inside the opening, and a low foot ring.
+  // A city litter basket: a wide drum of vertical ribs between two hoops, a
+  // rolled rim, and a dark opening — read from above as a bin, not a post.
   'waste-basket': furnLod(q => {
     const body = mesh()
-    cylinder(body, q.sides, 0.23, 0.27, 0.06, 0.8)
+    cylinder(body, q.sides, 0.27, 0.3, 0.06, 0.8)
+    const hoops = mesh()
+    if (q.ribs) {
+      cylinder(hoops, q.sides, 0.285, 0.29, 0.22, 0.04)
+      cylinder(hoops, q.sides, 0.3, 0.305, 0.6, 0.04)
+    }
+    const ribs = mesh()
+    for (let i = 0; i < q.ribs; i++) {
+      const a = (i / q.ribs) * Math.PI * 2
+      const r = 0.29
+      const rib = mesh()
+      box(rib, [-0.012, 0.08, -0.012], [0.012, 0.84, 0.012])
+      for (let v = 0; v < rib.position.length; v += 3) {
+        const [x, y, z] = [rib.position[v], rib.position[v + 1], rib.position[v + 2]]
+        const rr = r + (y - 0.08) * 0.04
+        rib.position[v] = Math.cos(a) * (rr + x) - Math.sin(a) * z
+        rib.position[v + 2] = Math.sin(a) * (rr + x) + Math.cos(a) * z
+      }
+      for (let v = 0; v < rib.position.length; v += 9)
+        face(ribs, rib.position.slice(v, v + 3), rib.position.slice(v + 3, v + 6), rib.position.slice(v + 6, v + 9))
+    }
     const rim = mesh()
-    cylinder(rim, q.sides, 0.29, 0.29, 0.83, 0.07)
+    cylinder(rim, q.sides, 0.325, 0.33, 0.86, 0.06)
+    const opening = mesh()
+    cylinder(opening, q.sides, 0.29, 0.29, 0.87, 0.06)
     const foot = mesh()
-    cylinder(foot, q.sides, 0.25, 0.25, 0, 0.05)
-    const liner = mesh()
-    cylinder(liner, q.sides, 0.235, 0.235, 0.85, 0.06)
+    cylinder(foot, q.sides, 0.24, 0.24, 0, 0.065)
     return [
       { role: 'metal', ...body },
+      { role: 'metal', ...hoops },
+      { role: 'metal', ...ribs },
       { role: 'metal', ...rim },
       { role: 'metal', ...foot },
-      { role: 'bark', ...liner },
+      { role: 'interior', ...opening },
     ]
   }),
   // A municipal recycling bin: rounded body, a lid that overhangs it, and a
@@ -898,29 +963,37 @@ const FURNITURE = {
       { role: 'metal', ...base },
     ]
   }),
-  // A park bench: spaced seat slats, a backrest leaning back, and cast side
-  // frames that run from foot to armrest.
+  // A classic park bench: cast end frames whose front leg, seat rail, back
+  // post and armrest all lean, slats that curve down at the front edge, and a
+  // reclined back.
   bench: furnLod(q => {
     const wood = mesh()
-    const seatSlats = Math.max(1, q.slats - 1)
-    const seatDepth = 0.46
-    for (let i = 0; i < seatSlats; i++) {
-      const z0 = -0.26 + (i * seatDepth) / seatSlats
-      const z1 = z0 + seatDepth / seatSlats - (seatSlats > 1 ? 0.025 : 0)
-      roundedBox(wood, [-0.88, 0.43, z0], [0.88, 0.47, z1], 0.012, q.seg ? 1 : 0)
-    }
-    const backSlats = Math.max(1, q.slats - 2)
-    for (let i = 0; i < backSlats; i++) {
-      const h = (0.28 - (backSlats - 1) * 0.03) / backSlats
-      const y0 = 0.55 + i * (h + 0.03)
-      const lean = 0.24 + (y0 - 0.55) * 0.3
-      roundedBox(wood, [-0.88, y0, lean], [0.88, y0 + h, lean + 0.035], 0.012, q.seg ? 1 : 0)
+    const L = 0.86
+    if (q.slats > 1) {
+      // Seat: flat slats, the front one rolled down over the edge.
+      const seat = [[-0.2, 0.45, 0], [-0.1, 0.455, 0.02], [0.0, 0.46, 0.03], [0.1, 0.465, 0.04], [-0.27, 0.43, -0.6]]
+      for (const [z, y, tilt] of seat) prism(wood, slat(z, y, 0.085, 0.032, tilt, q.seg), -L, L)
+      // Back: three slats on a 15° recline.
+      for (let i = 0; i < 3; i++) {
+        const y = 0.6 + i * 0.12
+        const z = 0.17 + (y - 0.6) * 0.27
+        prism(wood, slat(z, y, 0.09, 0.03, Math.PI / 2 - 0.26, q.seg), -L, L)
+      }
+    } else {
+      prism(wood, [[-0.3, 0.42], [0.14, 0.44], [0.14, 0.48], [-0.3, 0.46]], -L, L)
+      prism(wood, [[0.16, 0.56], [0.2, 0.56], [0.27, 0.86], [0.23, 0.86]], -L, L)
     }
     const frame = mesh()
-    for (const x of [-0.8, 0.8]) {
-      roundedBox(frame, [x - 0.03, 0, -0.25], [x + 0.03, 0.42, -0.19], 0.01, q.seg ? 1 : 0)
-      roundedBox(frame, [x - 0.031, 0, 0.2], [x + 0.031, 0.88, 0.26], 0.01, q.seg ? 1 : 0)
-      if (q.seg) roundedBox(frame, [x - 0.032, 0.62, -0.26], [x + 0.032, 0.66, 0.24], 0.015, 1)
+    for (const x of [-0.78, 0.78]) {
+      const [a, b] = [x - 0.025, x + 0.025]
+      prism(frame, bar([-0.28, 0], [-0.22, 0.43], 0.05), a, b)
+      prism(frame, bar([0.16, 0], [0.22, 0.43], 0.05), a, b)
+      if (q.slats > 1) {
+        prism(frame, bar([-0.27, 0.41], [0.2, 0.41], 0.04), a - 0.002, b + 0.002)
+        prism(frame, bar([0.18, 0.4], [0.28, 0.82], 0.045), a + 0.001, b - 0.001)
+        prism(frame, bar([-0.3, 0.64], [0.2, 0.66], 0.05), a - 0.004, b + 0.004)
+        prism(frame, bar([-0.24, 0.44], [-0.27, 0.63], 0.04), a + 0.003, b - 0.003)
+      }
     }
     return [
       { role: 'wood', ...wood },
@@ -1139,6 +1212,9 @@ async function main() {
   const manifest = {}
 
   const emit = async (name, parts, ownFar) => {
+    // A level of detail can leave a part out entirely; an empty part has no volume.
+    parts = parts.filter(p => p.index.length)
+    ownFar = ownFar?.filter(p => p.index.length)
     const fit = toUnit(parts)
     // Before the far LOD is fitted, so its proxy post is fitted to the slimmed
     // trunk rather than to the one nobody will see.

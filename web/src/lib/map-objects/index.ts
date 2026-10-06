@@ -69,6 +69,7 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     metal: [0.3, 0.36, 0.33],
     wood: [0.62, 0.47, 0.31],
     paint: [0.22, 0.47, 0.36],
+    interior: [0.16, 0.18, 0.17],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
@@ -77,6 +78,7 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     metal: [0.2, 0.23, 0.26],
     wood: [0.24, 0.18, 0.13],
     paint: [0.12, 0.23, 0.17],
+    interior: [0.06, 0.07, 0.07],
   },
 }
 

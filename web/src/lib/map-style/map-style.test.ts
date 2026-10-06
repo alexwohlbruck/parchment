@@ -1164,6 +1164,12 @@ describe('assembled styles', () => {
       expect(evaluate('dark', {}, 0)).toEqual(evaluate('dark', {}, 3))
     })
 
+    test('every part of a building shares its outline\'s cast', () => {
+      const outline = evaluate('light', {}, 41)
+      expect(evaluate('light', { group_id: 41 }, 7)).toEqual(outline)
+      expect(evaluate('light', { group_id: 41 }, 23)).toEqual(outline)
+    })
+
     test('an unparseable colour renders plain rather than black', () => {
       // `to-color` yields black instead of throwing, which the luminance
       // subtraction then treats as any other neutral.

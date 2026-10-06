@@ -218,9 +218,9 @@ export function unpaintedBuildingColor(flavor, colorToken = '@building_3d_fill_e
   const pastels = BUILDING_PASTELS[flavor] ?? []
   if (!pastels.length) return colorToken
   return [
-    // OpenMapTiles ids end in a type digit (osm id × 10 + type), so the last
-    // digit is dropped or every building lands in the same couple of buckets.
-    'match', ['%', ['floor', ['/', ['to-number', ['id'], 0], 10]], pastels.length + 1],
+    // Keyed on the building a part belongs to where the tiles say, so one
+    // building is one colour. Ids end in a type digit, dropped so the casts spread.
+    'match', ['%', ['floor', ['/', ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0], 10]], pastels.length + 1],
     ...pastels.flatMap((c, i) => [i, c]),
     colorToken,
   ]

@@ -51,6 +51,14 @@ const MINZOOM_HYSTERESIS = 0.3
  */
 const LINGER_MS = 1500
 
+/**
+ * Metres a landmark is set below the lowest ground sampled under it. The
+ * terrain is sampled at nine points and drawn as a mesh between them, so it
+ * can dip a little below every sample; a base that floats over that dip
+ * shows daylight under the building, which is worse than burying a plinth.
+ */
+const GROUND_SINK = 0.5
+
 /** Locations shared by both programs, so one VAO serves the draw and the shadow. */
 const LOC = { a_position: 0, a_normal: 1, a_uv: 2 }
 
@@ -275,7 +283,10 @@ export class LandmarkLayer {
     // the footprint search has to see them.
     const watched = new Set([this.options.source, ...(this.options.buildings ?? []).map(b => b.source)])
     listen('sourcedata', (e: { sourceId?: string }) => {
-      if (e?.sourceId && watched.has(e.sourceId)) this.invalidate()
+      if (!e?.sourceId) return
+      // Elevation tiles too: a landmark placed before the ground under it
+      // loaded was placed at 0.
+      if (watched.has(e.sourceId) || e.sourceId === map.getTerrain?.()?.source) this.invalidate()
     })
     // A landmark's minzoom is crossed by zooming, which no tile event reports.
     listen('zoomend', () => this.invalidate())
@@ -354,10 +365,7 @@ export class LandmarkLayer {
       if (!landmark || seen.has(landmark.id) || zoom < minzoom(landmark)) continue
       seen.add(landmark.id)
       this.load(landmark.model)
-      const ground = terrain ? this.lowestGround(terrain, landmark) : 0
-      const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
-      project(landmark.lng, landmark.lat, ground + landmark.elevation, placed)
-      this.placements.push({ ...landmark, placed })
+      this.placements.push(this.place(landmark, terrain))
     }
     // A landmark whose tile is between loads is still there: mid-zoom the
     // old tiles go before the new ones arrive, and the query sees neither.
@@ -365,7 +373,9 @@ export class LandmarkLayer {
     for (const p of previous.values()) {
       if (seen.has(p.id) || zoom < minzoom(p) || !view(p)) continue
       seen.add(p.id)
-      this.placements.push(p)
+      // Placed again rather than kept: the terrain under it may have loaded,
+      // or changed level of detail, since.
+      this.placements.push(this.place(p, terrain))
     }
     this.leave([...previous.values()].filter(p => !seen.has(p.id) && this.ready(p.model)), seen)
     this.contained = this.findContained()
@@ -417,12 +427,24 @@ export class LandmarkLayer {
   private lowestGround(terrain: any, landmark: Landmark): number {
     const footprint = this.models.get(landmark.model)?.footprint
     const points = footprint ? footprintSamples(landmark, footprint) : [[landmark.lng, landmark.lat]]
-    let lowest = Infinity
-    for (const point of points) {
-      const h = terrain.queryTerrainElevation(point)
-      if (typeof h === 'number' && h < lowest) lowest = h
-    }
-    return Number.isFinite(lowest) ? lowest : 0
+    const heights = points
+      .map(point => terrain.queryTerrainElevation(point))
+      .filter((h): h is number => typeof h === 'number' && Number.isFinite(h))
+    // MapLibre answers 0 for a point whose elevation tile has not loaded, and
+    // the lowest of the samples would take that 0 and bury the model. Real
+    // ground at exactly 0 under one corner and not the others is not a thing,
+    // so a 0 among non-zero samples is read as "not loaded yet"; the layer is
+    // placed again when the tile arrives.
+    const known = heights.some(h => h !== 0) ? heights.filter(h => h !== 0) : heights
+    return known.length ? Math.min(...known) - GROUND_SINK : 0
+  }
+
+  /** A landmark positioned on the ground as the terrain stands now. */
+  private place(landmark: Landmark, terrain: any): Placement {
+    const ground = terrain ? this.lowestGround(terrain, landmark) : 0
+    const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
+    project(landmark.lng, landmark.lat, ground + landmark.elevation, placed)
+    return { ...landmark, placed }
   }
 
   /**

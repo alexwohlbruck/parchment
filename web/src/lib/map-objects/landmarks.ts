@@ -5,6 +5,8 @@
  * landmarks`) — a point per landmark, with the model's file name, its bearing
  * and scale, and the OSM refs of every building and building part it stands in
  * for. The models themselves are content-addressed GLBs under the same path.
+ * Optionally a second, finer model (`detail`, from `detailzoom` up) and the
+ * doorways to light at night (`entrances`).
  *
  * Replacing a building is two halves that have to land together: the model
  * appears and the extrusion goes. `LandmarkLayer` reports which refs it is
@@ -16,17 +18,82 @@
  * lives in `landmark-layer.ts`.
  */
 
-/**
- * Multiplied into a landmark's own colours, per flavor. A landmark keeps its
- * materials, so unlike the trees it cannot be repainted by role; at night it
- * is dimmed and cooled toward the dark map's blue instead.
- */
-export const LANDMARK_TINT: Record<'light' | 'dark', [number, number, number]> = {
-  light: [1, 1, 1],
+/** How a landmark joins one flavor of the map. */
+export type LandmarkFlavor = {
+  /**
+   * Multiplied into a landmark's own colours. A landmark keeps its
+   * materials, so unlike the trees it cannot be repainted by role; at night
+   * it is dimmed and cooled toward the dark map's blue instead.
+   */
+  tint: [number, number, number]
+  /** Whether windows and doors are lit from inside; see `materialLight`. */
+  night: boolean
+}
+
+export const LANDMARK_FLAVOR: Record<'light' | 'dark', LandmarkFlavor> = {
+  light: { tint: [1, 1, 1], night: false },
   // Toward the dark map's blue, but not so far that copper stops reading as
   // copper — the buildings around it are lit, and a landmark dimmer than
   // them looks like a hole.
-  dark: [0.56, 0.62, 0.76],
+  dark: { tint: [0.56, 0.62, 0.76], night: true },
+}
+
+/** sRGB hex to 0–1 channels. */
+const hex = (h: string): [number, number, number] =>
+  [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255) as [number, number, number]
+
+/**
+ * What a material emits, by name, as Open Landmarks lights it
+ * (`rendering/lighting.js` and `lighting.json` there). Its models carry no
+ * emissive of their own; the renderer is expected to recognise `window` and
+ * `entrance` and light them for the time of day. Our own catalog uses the
+ * same names, so one rule serves both.
+ */
+const LIGHTS = {
+  window: {
+    // The library's slate glass. Forced at night only: by day a model's own
+    // window colour is what its author chose, and on a painted facade the
+    // colour is the whole wall's.
+    nightBase: hex('#64798a'),
+    day: { glow: hex('#ffe6bf'), intensity: 0.06 },
+    night: { glow: hex('#ffc983'), intensity: 0.5 },
+  },
+  entrance: {
+    day: { glow: hex('#fff0cd'), intensity: 0 },
+    night: { glow: hex('#fff0cd'), intensity: 2.4 },
+  },
+}
+
+/** The soft light pooled in front of a lit door; drawn at night only. */
+export const ENTRANCE_GLOW = { color: hex('#ffd9a0'), opacity: 0.45 }
+
+/**
+ * Whether a material is window glass that lights up. By prefix, because a GLB
+ * cannot repeat a material name: a model with two window colours names them
+ * `window` and `window-2`. Self-supporting `glass` is not a window and stays
+ * dark, as it does in Open Landmarks.
+ */
+export const isWindow = (material: string) => material.startsWith('window')
+
+/**
+ * How a primitive is lit for the time of day: a base colour to use instead of
+ * its own (sRGB, or null to keep it), and an emitted colour (sRGB) and
+ * intensity, added on top of the shading in linear light.
+ */
+export function materialLight(
+  material: string,
+  night: boolean,
+  painted: boolean,
+): { base: [number, number, number] | null; glow: [number, number, number]; intensity: number } | null {
+  if (isWindow(material)) {
+    const { glow, intensity } = night ? LIGHTS.window.night : LIGHTS.window.day
+    return { base: night && !painted ? LIGHTS.window.nightBase : null, glow, intensity }
+  }
+  if (material === 'entrance') {
+    const { glow, intensity } = night ? LIGHTS.entrance.night : LIGHTS.entrance.day
+    return { base: null, glow, intensity }
+  }
+  return null
 }
 
 /** One placement, in the units the layer wants. */
@@ -43,6 +110,14 @@ export type Landmark = {
   /** Metres above the ground the model's origin sits. */
   elevation: number
   minzoom: number
+  /**
+   * A finer model of the same landmark, drawn from `zoom` up once it has
+   * loaded. Same frame and bounds as `model`, which stays the one the
+   * footprint and the ground are worked out from.
+   */
+  detail: { model: string; zoom: number } | null
+  /** Lit doorways, in model axes and metres; glows drawn there at night. */
+  entrances: [number, number, number][]
   /** OSM refs, `way/123`. */
   replaces: string[]
   /** A credit the map must show while drawing the model, when its licence asks. */
@@ -55,6 +130,29 @@ const OSM_REF_RE = /^(node|way|relation)\/\d+$/
 const num = (value: unknown, fallback: number) => {
   const n = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(n) ? n : fallback
+}
+
+/** More than any real building has doors; the layer draws them in one call. */
+export const MAX_ENTRANCES = 32
+
+/**
+ * Entrance points from their tile property. MVT has no arrays, so they arrive
+ * as JSON; a malformed point is dropped rather than the landmark, since the
+ * glow is decoration.
+ */
+function parseEntrances(value: unknown): [number, number, number][] {
+  if (typeof value !== 'string' || !value) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    return []
+  }
+  if (!Array.isArray(parsed)) return []
+  return parsed
+    .filter((p): p is [number, number, number] =>
+      Array.isArray(p) && p.length === 3 && p.every(c => typeof c === 'number' && Number.isFinite(c)))
+    .slice(0, MAX_ENTRANCES)
 }
 
 /**
@@ -76,6 +174,11 @@ export function parseLandmark(feature: any): Landmark | null {
     scale: num(p.scale, 1),
     elevation: num(p.elevation, 0),
     minzoom: num(p.minzoom, 14),
+    // Both or neither: a detail model with no zoom has no point to switch at.
+    detail: MODEL_RE.test(p.detail ?? '') && Number.isFinite(Number(p.detailzoom ?? NaN))
+      ? { model: p.detail, zoom: Number(p.detailzoom) }
+      : null,
+    entrances: parseEntrances(p.entrances),
     // MVT has no arrays, so the refs arrive space-separated.
     replaces: String(p.replaces ?? '').split(/\s+/).filter(ref => OSM_REF_RE.test(ref)),
     attribution: typeof p.attribution === 'string' && p.attribution.trim() ? p.attribution.trim() : null,

@@ -27,7 +27,10 @@
  * origin at the anchor, at the lowest ground under the footprint.
  */
 import { parseGlb, type GlbModel } from './glb.mjs'
-import { GROUND_GRID, groundGrid, insideFootprint, parseLandmark, polygonRings, type Footprint, type Landmark } from './landmarks'
+import {
+  ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialLight, MAX_ENTRANCES, parseLandmark, polygonRings,
+  type Footprint, type Landmark, type LandmarkFlavor,
+} from './landmarks'
 import { project } from './object-layer'
 
 /** Where a landmark stands, in mercator units; see `project`. */
@@ -38,10 +41,21 @@ const SETTLE = 80
 
 /**
  * Zoom levels below its minzoom that a landmark already on screen is kept
- * for. Without it, a pinch that wavers around the threshold swaps model and
- * building back and forth.
+ * for, and below its detail zoom that the detail model is. Without it, a
+ * pinch that wavers around the threshold swaps one for the other back and
+ * forth.
  */
 const MINZOOM_HYSTERESIS = 0.3
+
+/**
+ * How long a model no placement wants stays on the GPU. Long enough that
+ * zooming out and back in again does not refetch it; short enough that
+ * touring a city full of landmarks does not keep every one of them.
+ */
+const EVICT_AFTER_MS = 60_000
+
+/** How often to look for models to evict. */
+const EVICT_EVERY_MS = 5_000
 
 /**
  * How long a landmark that has left keeps being drawn, at most, while the
@@ -155,6 +169,12 @@ const MASK = `
  * reads as a cut-out. Letting faces that look up catch a little more light
  * and faces that look down a little less gives the folds and the arm their
  * shape, without moving the brightness of a wall away from its neighbours.
+ *
+ * Then emission, for windows and doors lit from inside (see
+ * `materialLight`). It is added after the tint, so a lit window is not
+ * cooled with the night, and in linear light, which is how Open Landmarks'
+ * three.js renderer adds an emissive — so a pane glows the colour it does
+ * there rather than a washed-out one.
  */
 const DRAW_FS = `#version 300 es
   precision highp float;
@@ -164,6 +184,10 @@ const DRAW_FS = `#version 300 es
   uniform vec3 u_tint;
   uniform vec3 u_lightpos;
   uniform float u_lightintensity;
+  /** Emitted colour, linear, already scaled by its intensity. */
+  uniform vec3 u_emission;
+  /** 1 when a painted texture's alpha says where the panes are: 0 glass, 1 wall. */
+  uniform float u_panes;
   in vec3 v_normal;
   ${MASK}
   out vec4 fragColor;
@@ -172,7 +196,8 @@ const DRAW_FS = `#version 300 es
     // A painted texture carries the surface's colour, multiplied by the
     // material's — which is how a facade gets a grid of windows that
     // mipmaps to the right tone at a distance instead of shimmering.
-    vec3 base = u_painted > 0.5 ? u_color * texture(u_mask, v_uv).rgb : u_color;
+    vec4 paint = u_painted > 0.5 ? texture(u_mask, v_uv) : vec4(1.0);
+    vec3 base = u_color * paint.rgb;
     vec3 n = normalize(v_normal);
     // A double-sided face seen from behind is lit as the side you can see.
     if (!gl_FrontFacing) n = -n;
@@ -180,8 +205,60 @@ const DRAW_FS = `#version 300 es
     float directional = clamp(dot(n, u_lightpos), 0.0, 1.0);
     directional = mix(1.0 - u_lightintensity, max(1.0 - value + u_lightintensity, 1.0), directional);
     float sky = mix(0.84, 1.05, n.z * 0.5 + 0.5);
-    fragColor = vec4(clamp((base + 0.03) * directional * sky * u_tint, 0.0, 1.0), 1.0);
+    vec3 shaded = clamp((base + 0.03) * directional * sky * u_tint, 0.0, 1.0);
+    if (u_emission != vec3(0.0)) {
+      // The mask's mip chain averages panes and wall, so a facade too far
+      // off to show single windows still glows by the share that is glass.
+      float glass = u_panes > 0.5 ? 1.0 - paint.a : 1.0;
+      vec3 lit = pow(shaded, vec3(2.2)) + u_emission * glass;
+      shaded = pow(clamp(lit, 0.0, 1.0), vec3(1.0 / 2.2));
+    }
+    fragColor = vec4(shaded, 1.0);
   }`
+
+/**
+ * A lit doorway's glow: a soft disc that always faces the camera, added onto
+ * whatever is behind it. One quad per entrance, its centre read from a
+ * uniform array by instance, so a landmark's doors are one draw with no
+ * buffers of their own.
+ *
+ * The camera's right and up come from the matrix's first two rows, which in
+ * this frame (metres, uniform scale) are those axes up to scale. The disc is
+ * then pulled toward the camera by its radius: a door sits in a wall and on
+ * the ground, and a disc centred there would lose half of itself to each.
+ */
+const GLOW_VS = `#version 300 es
+  uniform mat4 u_matrix;
+  uniform mat3 u_local;
+  uniform vec3 u_points[${MAX_ENTRANCES}];
+  uniform float u_radius;
+  ${GROUND}
+  layout(location = 0) in vec2 a_corner;
+  out vec2 v_corner;
+  void main() {
+    vec3 centre = u_local * onGround(u_points[gl_InstanceID]);
+    mat4 m = u_matrix;
+    vec3 right = normalize(vec3(m[0][0], m[1][0], m[2][0]));
+    vec3 up = normalize(vec3(m[0][1], m[1][1], m[2][1]));
+    vec3 away = normalize(vec3(m[0][3], m[1][3], m[2][3]));
+    vec3 p = centre + (right * a_corner.x + up * a_corner.y - away) * u_radius;
+    v_corner = a_corner;
+    gl_Position = u_matrix * vec4(p, 1.0);
+  }`
+
+const GLOW_FS = `#version 300 es
+  precision highp float;
+  uniform vec3 u_glow;
+  uniform float u_opacity;
+  in vec2 v_corner;
+  out vec4 fragColor;
+  void main() {
+    float fall = 1.0 - clamp(length(v_corner), 0.0, 1.0);
+    fragColor = vec4(u_glow, u_opacity * fall * fall);
+  }`
+
+/** Metres from a door's glow's centre to where it fades out. */
+const GLOW_RADIUS = 2.5
 
 /**
  * The building shade layer's ground shadow, for a model: every vertex is
@@ -233,6 +310,8 @@ type Primitive = {
   painted: boolean
   cutoff: number
   doubleSided: boolean
+  /** The glTF material's name, which is how windows and doors are found. */
+  material: string
 }
 
 type Model = {
@@ -241,6 +320,8 @@ type Model = {
   primitives: Primitive[] | null
   /** Plan extent in the model's own metres, once it has loaded. */
   footprint: Footprint | null
+  /** When a placement last wanted it; see EVICT_AFTER_MS. */
+  used: number
 }
 
 /** What a landmark stands in for: OSM refs, and basemap ids found by footprint. */
@@ -251,6 +332,10 @@ type Placement = Landmark & {
   /** Lifts off the base, per grid point, in model metres; see GROUND. */
   ground: Float32Array
   groundMean: number
+  /** Whether it is close enough for its detail model; see `drawnModel`. */
+  detailed: boolean
+  /** `entrances`, flattened for the glow's uniform array. */
+  doors: Float32Array
 }
 
 export class LandmarkLayer {
@@ -261,6 +346,9 @@ export class LandmarkLayer {
   private map: any
   private draw!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
   private shadow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
+  private glow!: { program: WebGLProgram; u: Record<string, WebGLUniformLocation | null> }
+  private quad: { vao: WebGLVertexArrayObject; buffer: WebGLBuffer } | null = null
+  private evicted = 0
   private models = new Map<string, Model>()
   private placements: Placement[] = []
   /** Landmarks that have left, still drawn until their buildings are back. */
@@ -296,15 +384,15 @@ export class LandmarkLayer {
       buildings?: Array<{ source: string; sourceLayer: string }>
       /** Called with the credits of the models being drawn whenever they change. */
       onAttribution?: (credits: string[]) => void
-      /** Multiplied into every colour; how a landmark joins the night map. */
-      tint: [number, number, number]
+      /** How a landmark joins the map's flavor: its tint, and whether it is night. */
+      flavor: LandmarkFlavor
     },
   ) {
     this.id = options.id
   }
 
-  setTint(tint: [number, number, number]) {
-    this.options.tint = tint
+  setFlavor(flavor: LandmarkFlavor) {
+    this.options.flavor = flavor
     this.map?.triggerRepaint?.()
   }
 
@@ -312,9 +400,20 @@ export class LandmarkLayer {
     this.map = map
     this.draw = program(gl, DRAW_VS, DRAW_FS,
       ['u_matrix', 'u_local', 'u_turn', 'u_color', 'u_painted', 'u_tint', 'u_lightpos', 'u_lightintensity', 'u_mask', 'u_cutoff',
-        'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend'])
+        'u_emission', 'u_panes', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend'])
     this.shadow = program(gl, SHADOW_VS, SHADOW_FS,
       ['u_matrix', 'u_local', 'u_shear', 'u_lift', 'u_mask', 'u_cutoff'])
+    this.glow = program(gl, GLOW_VS, GLOW_FS,
+      ['u_matrix', 'u_local', 'u_points', 'u_radius', 'u_glow', 'u_opacity', 'u_ground', 'u_ground_mean', 'u_bounds', 'u_blend'])
+    const vao = gl.createVertexArray()!
+    const buffer = gl.createBuffer()!
+    gl.bindVertexArray(vao)
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
+    gl.enableVertexAttribArray(0)
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+    gl.bindVertexArray(null)
+    this.quad = { vao, buffer }
 
     const listen = (event: string, fn: (...args: any[]) => void) => {
       map.on(event, fn)
@@ -344,15 +443,16 @@ export class LandmarkLayer {
     this.lingering++
     this.leaving = []
     this.hiddenFor.clear()
-    for (const model of this.models.values())
-      for (const p of model.primitives ?? []) {
-        gl.deleteVertexArray(p.vao)
-        for (const b of p.buffers) gl.deleteBuffer(b)
-        if (p.texture) gl.deleteTexture(p.texture)
-      }
+    for (const model of this.models.values()) release(gl, model)
     this.models.clear()
     gl.deleteProgram(this.draw.program)
     gl.deleteProgram(this.shadow.program)
+    gl.deleteProgram(this.glow.program)
+    if (this.quad) {
+      gl.deleteVertexArray(this.quad.vao)
+      gl.deleteBuffer(this.quad.buffer)
+      this.quad = null
+    }
     // Give the buildings back, and take the credits down with the models.
     if (this.replaced) this.options.onReplace({ refs: [], featureIds: [] })
     if (this.credited) this.options.onAttribution?.([])
@@ -363,7 +463,11 @@ export class LandmarkLayer {
 
   /** What is being drawn, for the console. Dev only. */
   get drawn(): Array<{ id: string; model: string; ready: boolean }> {
-    return this.placements.map(p => ({ id: p.id, model: p.model, ready: !!this.ready(p.model) }))
+    return this.placements.map(p => {
+      const drawn = this.drawnModel(p)
+      const model = drawn && p.detail && drawn === this.models.get(p.detail.model) ? p.detail.model : p.model
+      return { id: p.id, model, ready: this.ready(p.model) }
+    })
   }
 
   /** What the last report hid. Dev only. */
@@ -399,14 +503,15 @@ export class LandmarkLayer {
     const terrain = this.groundSampler()
     const previous = new Map(this.placements.map(p => [p.id, p]))
     const minzoom = (l: Landmark) => l.minzoom - (previous.has(l.id) ? MINZOOM_HYSTERESIS : 0)
+    const detailed = (l: Landmark) =>
+      !!l.detail && zoom >= l.detail.zoom - (previous.get(l.id)?.detailed ? MINZOOM_HYSTERESIS : 0)
     const seen = new Set<string>()
     this.placements = []
     for (const feature of features) {
       const landmark = parseLandmark(feature)
       if (!landmark || seen.has(landmark.id) || zoom < minzoom(landmark)) continue
       seen.add(landmark.id)
-      this.load(landmark.model)
-      this.placements.push(this.place(landmark, terrain))
+      this.placements.push(this.place(landmark, terrain, detailed(landmark)))
     }
     // A landmark whose tile is between loads is still there: mid-zoom the
     // old tiles go before the new ones arrive, and the query sees neither.
@@ -416,7 +521,15 @@ export class LandmarkLayer {
       seen.add(p.id)
       // Placed again rather than kept: the terrain under it may have loaded,
       // or changed level of detail, since.
-      this.placements.push(this.place(p, terrain))
+      this.placements.push(this.place(p, terrain, detailed(p)))
+    }
+    // The low model is always wanted, detailed or not: it is what stands in
+    // until the detail model arrives, and its footprint is what hides the
+    // buildings and samples the ground.
+    const now = performance.now()
+    for (const p of [...this.placements, ...this.leaving]) {
+      this.load(p.model, now)
+      if (p.detailed) this.load(p.detail!.model, now)
     }
     this.leave([...previous.values()].filter(p => !seen.has(p.id) && this.ready(p.model)), seen)
     this.contained = this.findContained()
@@ -490,7 +603,11 @@ export class LandmarkLayer {
    * is unknown, so the anchor stands in; the load invalidates and this runs
    * again.
    */
-  private place(landmark: Landmark, sample: ((point: [number, number]) => number) | null): Placement {
+  private place(
+    landmark: Landmark,
+    sample: ((point: [number, number]) => number) | null,
+    detailed: boolean,
+  ): Placement {
     const footprint = this.models.get(landmark.model)?.footprint
     const ground = new Float32Array(GROUND_GRID * GROUND_GRID)
     let base = 0, groundMean = 0
@@ -509,7 +626,22 @@ export class LandmarkLayer {
     }
     const placed: Anchor = { x: 0, y: 0, z: 0, perMetre: 0 }
     project(landmark.lng, landmark.lat, base + landmark.elevation, placed)
-    return { ...landmark, placed, ground, groundMean }
+    const doors = new Float32Array(landmark.entrances.flat())
+    return { ...landmark, placed, ground, groundMean, detailed, doors }
+  }
+
+  /**
+   * The model to draw a placement with: its detail model when it is close
+   * enough and that has loaded, else its low one — so a landmark crossing the
+   * detail zoom keeps its old model on screen until the new one can replace
+   * it. Nothing until the low model is in, since that is what decides which
+   * buildings make way.
+   */
+  private drawnModel(p: Placement): Model | null {
+    const low = this.models.get(p.model)
+    if (!low?.primitives) return null
+    const detail = p.detailed ? this.models.get(p.detail!.model) : undefined
+    return detail?.primitives ? detail : low
   }
 
 
@@ -607,14 +739,20 @@ export class LandmarkLayer {
     return !!(model?.primitives || model?.pending)
   }
 
-  private load(file: string) {
-    if (this.models.has(file)) return
-    const model: Model = { pending: null, primitives: null, footprint: null }
+  private load(file: string, now: number) {
+    const known = this.models.get(file)
+    if (known) {
+      known.used = now
+      return
+    }
+    const model: Model = { pending: null, primitives: null, footprint: null, used: now }
     this.models.set(file, model)
     void (async () => {
       const response = await fetch(this.options.modelUrl(file))
       if (!response.ok) throw new Error(`${file}: ${response.status}`)
       const glb = parseGlb(await response.arrayBuffer())
+      // Unpremultiplied: a painted window texture is alpha 0 on its panes,
+      // and premultiplying would turn every window black by day.
       const images = await Promise.all(glb.primitives.map(p => p.image
         ? createImageBitmap(new Blob([p.image.bytes as BlobPart], { type: p.image.mimeType }), {
           premultiplyAlpha: 'none',
@@ -636,6 +774,7 @@ export class LandmarkLayer {
 
   /** Move decoded models onto the GPU. Only ever called inside a frame. */
   private upload(gl: WebGL2RenderingContext) {
+    this.evict(gl)
     for (const model of this.models.values()) {
       if (!model.pending) continue
       const { glb, images } = model.pending
@@ -694,11 +833,36 @@ export class LandmarkLayer {
           color: [srgb(p.color[0]), srgb(p.color[1]), srgb(p.color[2])],
           texture,
           painted: !!texture && p.alphaMode !== 'MASK',
+          // A painted texture is drawn opaque whatever its alpha says: on a
+          // facade the alpha is the window mask, not coverage.
           cutoff: texture && p.alphaMode === 'MASK' ? p.alphaCutoff : -1,
           doubleSided: p.doubleSided,
+          material: p.material,
         }
       })
       model.pending = null
+    }
+  }
+
+  /**
+   * Free the GPU copies of models no placement has wanted for a while. Only
+   * uploaded ones: one still downloading is about to be wanted, and one that
+   * failed is kept as a marker so it is not asked for again.
+   */
+  private evict(gl: WebGL2RenderingContext) {
+    const now = performance.now()
+    if (now - this.evicted < EVICT_EVERY_MS) return
+    this.evicted = now
+    // Whatever a placement still refers to stays, however long since it was
+    // drawn: a detailed landmark leaves its low model idle, but that is the
+    // one its footprint and its fallback come from.
+    const wanted = new Set(this.drawable().flatMap(p => p.detailed ? [p.model, p.detail!.model] : [p.model]))
+    for (const [file, model] of this.models) {
+      if (!model.primitives || wanted.has(file) || now - model.used < EVICT_AFTER_MS) continue
+      release(gl, model)
+      // Forgotten rather than kept empty, so a return fetches it again —
+      // from the HTTP cache, the name being content-addressed.
+      this.models.delete(file)
     }
   }
 
@@ -715,7 +879,7 @@ export class LandmarkLayer {
     // Both faces: a shadow has no front.
     gl.disable(gl.CULL_FACE)
     for (const p of placements) {
-      const model = this.models.get(p.model)
+      const model = this.drawnModel(p)
       if (!model?.primitives) continue
       const { perMetre } = p.placed
       gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(frame.matrix, p.placed))
@@ -754,23 +918,64 @@ export class LandmarkLayer {
 
     gl.uniform3fv(u.u_lightpos, light.position)
     gl.uniform1f(u.u_lightintensity, light.intensity)
-    gl.uniform3fv(u.u_tint, this.options.tint)
+    gl.uniform3fv(u.u_tint, this.options.flavor.tint)
 
+    const now = performance.now()
     for (const p of placements) {
-      const model = this.models.get(p.model)
+      const model = this.drawnModel(p)
       if (!model?.primitives) continue
+      model.used = now
       gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(matrix, p.placed))
       gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
       gl.uniformMatrix3fv(u.u_turn, false, localMatrix(p.bearing, 1))
-      const f = model.footprint
-      gl.uniform1fv(u.u_ground, p.ground)
-      gl.uniform1f(u.u_ground_mean, p.groundMean)
-      gl.uniform4f(u.u_bounds, f?.minX ?? 0, f?.minZ ?? 0, f?.maxX ?? 1, f?.maxZ ?? 1)
-      gl.uniform1f(u.u_blend, GROUND_BLEND / p.scale)
+      this.groundUniforms(gl, u, p)
       this.drawPrimitives(gl, model.primitives, u, true)
     }
+    if (this.options.flavor.night) this.drawEntrances(gl, matrix, placements)
     gl.bindVertexArray(null)
     this.restore()
+  }
+
+  /**
+   * The terrain under a placement, for GROUND. Always over the low model's
+   * footprint, whichever model is drawn: the two share a frame and bounds,
+   * and the ground was sampled over that one.
+   */
+  private groundUniforms(gl: WebGL2RenderingContext, u: Record<string, WebGLUniformLocation | null>, p: Placement) {
+    const f = this.models.get(p.model)?.footprint
+    gl.uniform1fv(u.u_ground, p.ground)
+    gl.uniform1f(u.u_ground_mean, p.groundMean)
+    gl.uniform4f(u.u_bounds, f?.minX ?? 0, f?.minZ ?? 0, f?.maxX ?? 1, f?.maxZ ?? 1)
+    gl.uniform1f(u.u_blend, GROUND_BLEND / p.scale)
+  }
+
+  /**
+   * The glow pooled in front of every lit doorway, after the models so it
+   * is hidden by whatever stands in front of it. Additive and without depth
+   * writes, so glows overlap without sorting and never hide anything.
+   */
+  private drawEntrances(gl: WebGL2RenderingContext, matrix: ArrayLike<number>, placements: Placement[]) {
+    const lit = placements.filter(p => p.doors.length && this.drawnModel(p))
+    if (!lit.length || !this.quad) return
+    const { program, u } = this.glow
+    gl.useProgram(program)
+    gl.disable(gl.CULL_FACE)
+    gl.enable(gl.BLEND)
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
+    gl.depthMask(false)
+    gl.uniform3fv(u.u_glow, ENTRANCE_GLOW.color)
+    gl.uniform1f(u.u_opacity, ENTRANCE_GLOW.opacity)
+    gl.uniform1f(u.u_radius, GLOW_RADIUS)
+    gl.bindVertexArray(this.quad.vao)
+    for (const p of lit) {
+      gl.uniformMatrix4fv(u.u_matrix, false, anchorMatrix(matrix, p.placed))
+      gl.uniformMatrix3fv(u.u_local, false, localMatrix(p.bearing, p.scale))
+      this.groundUniforms(gl, u, p)
+      gl.uniform3fv(u.u_points, p.doors)
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, p.doors.length / 3)
+    }
+    gl.depthMask(true)
+    gl.disable(gl.BLEND)
   }
 
   private drawPrimitives(
@@ -783,8 +988,16 @@ export class LandmarkLayer {
       if (shaded) {
         if (primitive.doubleSided) gl.disable(gl.CULL_FACE)
         else gl.enable(gl.CULL_FACE)
-        gl.uniform3fv(u.u_color, primitive.color)
+        const light = materialLight(primitive.material, this.options.flavor.night, primitive.painted)
+        gl.uniform3fv(u.u_color, light?.base ?? primitive.color)
         gl.uniform1f(u.u_painted, primitive.painted ? 1 : 0)
+        // Linear, to be added in linear light; see DRAW_FS.
+        const glow = light?.glow ?? [0, 0, 0]
+        const k = light?.intensity ?? 0
+        gl.uniform3f(u.u_emission, Math.pow(glow[0], 2.2) * k, Math.pow(glow[1], 2.2) * k, Math.pow(glow[2], 2.2) * k)
+        // Only a painted window knows where its panes are; any other window
+        // is glass all over.
+        gl.uniform1f(u.u_panes, primitive.painted && isWindow(primitive.material) ? 1 : 0)
       }
       gl.uniform1f(u.u_cutoff, primitive.cutoff)
       if (primitive.texture) {
@@ -802,7 +1015,7 @@ export class LandmarkLayer {
     const context = this.map?.painter?.context
     if (!context) return
     for (const key of ['program', 'bindVertexBuffer', 'bindElementBuffer', 'bindVertexArray',
-      'depthMask', 'depthFunc', 'depthRange', 'blend', 'cullFace', 'cullFaceSide', 'frontFace',
+      'depthMask', 'depthFunc', 'depthRange', 'blend', 'blendFunc', 'cullFace', 'cullFaceSide', 'frontFace',
       'activeTexture', 'bindTexture', 'stencilTest'])
       if (context[key]) context[key].dirty = true
   }
@@ -856,6 +1069,18 @@ export function localMatrix(bearingDeg: number, scale: number): Float32Array {
     0, 0, scale, // Y
     -s, c, 0, // Z
   ])
+}
+
+/** Hand a model's buffers and textures back to the GPU. */
+function release(gl: WebGL2RenderingContext, model: Model) {
+  for (const p of model.primitives ?? []) {
+    gl.deleteVertexArray(p.vao)
+    for (const b of p.buffers) gl.deleteBuffer(b)
+    if (p.texture) gl.deleteTexture(p.texture)
+  }
+  model.primitives = null
+  for (const image of model.pending?.images ?? []) image?.close()
+  model.pending = null
 }
 
 function program(gl: WebGL2RenderingContext, vs: string, fs: string, uniforms: string[]) {

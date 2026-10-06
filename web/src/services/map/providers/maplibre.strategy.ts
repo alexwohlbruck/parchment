@@ -99,7 +99,7 @@ import {
   OBJECT_SPECS,
 } from '@/lib/map-objects'
 import { LandmarkLayer } from '@/lib/map-objects/landmark-layer'
-import { LANDMARK_TINT, withoutReplaced } from '@/lib/map-objects/landmarks'
+import { LANDMARK_FLAVOR, withoutReplaced } from '@/lib/map-objects/landmarks'
 import {
   terrainSource,
   TERRAIN_SOURCE_ID,
@@ -723,7 +723,7 @@ export class MaplibreStrategy extends MapStrategy {
       return
     }
     if (this.landmarkLayer && map.getLayer(LANDMARK_LAYER_ID)) {
-      this.landmarkLayer.setTint(LANDMARK_TINT[flavor])
+      this.landmarkLayer.setFlavor(LANDMARK_FLAVOR[flavor])
       return
     }
 
@@ -733,7 +733,7 @@ export class MaplibreStrategy extends MapStrategy {
       source: LANDMARK_SOURCE,
       sourceLayer: LANDMARK_TILES,
       modelUrl: file => `${base}/${LANDMARK_TILES}/models/${file}`,
-      tint: LANDMARK_TINT[flavor],
+      flavor: LANDMARK_FLAVOR[flavor],
       // Ignored once this layer is no longer the live one: a style swap
       // removes it after the next style's filters are already in place.
       onReplace: replaced => {

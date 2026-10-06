@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { GROUND_GRID, groundGrid, insideFootprint, parseLandmark, polygonRings, withoutReplaced } from './landmarks'
+import {
+  GROUND_GRID, groundGrid, insideFootprint, LANDMARK_FLAVOR, materialLight, MAX_ENTRANCES, parseLandmark, polygonRings,
+  withoutReplaced,
+} from './landmarks'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 
 const feature = (properties: Record<string, unknown>, coordinates = [-115.17217, 36.11247]) => ({
@@ -44,6 +47,66 @@ describe('parseLandmark', () => {
   it('drops refs it cannot read rather than the whole landmark', () => {
     expect(parseLandmark(feature({ replaces: 'way/1 5013364 relation/2' }))?.replaces)
       .toEqual(['way/1', 'relation/2'])
+  })
+
+  it('reads a detail model and the zoom it takes over at', () => {
+    expect(parseLandmark(feature({ detail: 'eiffel-tower.0123456789ab.glb', detailzoom: 17 }))?.detail)
+      .toEqual({ model: 'eiffel-tower.0123456789ab.glb', zoom: 17 })
+    expect(parseLandmark(feature({}))?.detail).toBeNull()
+  })
+
+  it('keeps the low model alone when the detail is unusable', () => {
+    // Without a zoom there is nowhere to switch; a bad name is a bad URL.
+    expect(parseLandmark(feature({ detail: 'eiffel-tower.0123456789ab.glb' }))?.detail).toBeNull()
+    expect(parseLandmark(feature({ detail: '../detail.glb', detailzoom: 17 }))?.detail).toBeNull()
+    expect(parseLandmark(feature({ detail: '../detail.glb', detailzoom: 17 }))?.model)
+      .toBe('eiffel-tower.e33ae5cc890d.glb')
+  })
+
+  it('reads entrances from their JSON, dropping points it cannot use', () => {
+    expect(parseLandmark(feature({ entrances: '[[-25.662,0.04,-12.512],[1,2],[1,"a",3],[4,5,6]]' }))?.entrances)
+      .toEqual([[-25.662, 0.04, -12.512], [4, 5, 6]])
+    expect(parseLandmark(feature({ entrances: 'not json' }))?.entrances).toEqual([])
+    expect(parseLandmark(feature({}))?.entrances).toEqual([])
+    const many = JSON.stringify(Array.from({ length: MAX_ENTRANCES + 5 }, () => [0, 0, 0]))
+    expect(parseLandmark(feature({ entrances: many }))?.entrances).toHaveLength(MAX_ENTRANCES)
+  })
+})
+
+describe('materialLight', () => {
+  const night = LANDMARK_FLAVOR.dark.night
+  const day = LANDMARK_FLAVOR.light.night
+
+  it('is night on the dark map only', () => {
+    expect(night).toBe(true)
+    expect(day).toBe(false)
+  })
+
+  it('lights windows warm at night and barely by day, as Open Landmarks does', () => {
+    expect(materialLight('window', night, false)).toMatchObject({ intensity: 0.5 })
+    expect(materialLight('window', day, false)).toMatchObject({ intensity: 0.06, base: null })
+  })
+
+  it('turns plain windows slate at night, but never repaints a painted facade', () => {
+    const slate = [0x64 / 255, 0x79 / 255, 0x8a / 255]
+    expect(materialLight('window', night, false)?.base).toEqual(slate)
+    expect(materialLight('window', night, true)?.base).toBeNull()
+  })
+
+  it('lights entrances at night only', () => {
+    expect(materialLight('entrance', night, false)?.intensity).toBe(2.4)
+    expect(materialLight('entrance', day, false)?.intensity).toBe(0)
+  })
+
+  it('treats every suffixed window as a window, and glass as glass', () => {
+    // A GLB cannot repeat a material name, so a second window colour is `window-2`.
+    expect(materialLight('window-2', night, true)).toMatchObject({ intensity: 0.5, base: null })
+    expect(materialLight('glass', night, false)).toBeNull()
+  })
+
+  it('leaves every other material alone', () => {
+    expect(materialLight('stone', night, false)).toBeNull()
+    expect(materialLight('', night, true)).toBeNull()
   })
 })
 

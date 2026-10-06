@@ -12,18 +12,16 @@ import { useI18n } from 'vue-i18n'
 import ResponsiveDialog from '@/components/responsive/ResponsiveDialog.vue'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { IconPicker } from '@/components/ui/icon-picker'
-import { ITEM_ROW_SURFACES } from '@/components/ui/item-row'
 import { Spinner } from '@/components/ui/spinner'
 import { useCanvasesService } from '@/services/library/canvases.service'
 import { useAppService } from '@/services/app.service'
 import { useIdentityStore } from '@/stores/identity.store'
 import CanvasPrivacySection from './CanvasPrivacySection.vue'
+import PrivacyPicker from '@/components/library/privacy/PrivacyPicker.vue'
 import type { ThemeColor } from '@/lib/utils'
 import type { Canvas, CanvasScheme } from '@/types/canvas.types'
-import { GlobeIcon, LockIcon } from 'lucide-vue-next'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -61,11 +59,6 @@ watch(open, isOpen => {
   scheme.value = props.canvas?.scheme ?? 'server-key'
 })
 
-const SCHEMES: { value: CanvasScheme; icon: typeof GlobeIcon }[] = [
-  { value: 'server-key', icon: GlobeIcon },
-  { value: 'user-e2ee', icon: LockIcon },
-]
-
 /**
  * Both directions rewrite the whole canvas, so both confirm — the one that
  * hands contents to the server more loudly than the one that takes them back.
@@ -75,9 +68,9 @@ async function switchScheme(target: CanvasScheme) {
   const goingPrivate = target === 'user-e2ee'
 
   const confirmed = await appService.confirm({
-    title: t(`canvases.privacy.confirm.${target}.title`),
-    description: t(`canvases.privacy.confirm.${target}.description`),
-    continueText: t(`canvases.privacy.switchTo.${target}`),
+    title: t(`library.privacy.confirm.canvas.${target}.title`),
+    description: t(`library.privacy.confirm.canvas.${target}.description`),
+    continueText: t(`library.privacy.switchTo.${target}`),
     destructive: !goingPrivate,
   })
   if (!confirmed) return
@@ -86,7 +79,7 @@ async function switchScheme(target: CanvasScheme) {
   try {
     const updated = await canvasesService.changeScheme(props.canvas, target)
     if (updated) {
-      appService.toast.success(t('canvases.privacy.switched'))
+      appService.toast.success(t('library.privacy.switched'))
       open.value = false
     }
   } finally {
@@ -204,41 +197,7 @@ async function submit() {
           :placeholder="t('canvases.dialog.descriptionPlaceholder')"
         />
 
-        <div v-if="!isEditing" class="space-y-2">
-          <Label class="text-xs text-muted-foreground">
-            {{ t('canvases.dialog.privacy') }}
-          </Label>
-          <div class="grid grid-cols-2 gap-1.5">
-            <button
-              v-for="option in SCHEMES"
-              :key="option.value"
-              :disabled="option.value === 'user-e2ee' && !hasIdentity"
-              :class="[
-                ITEM_ROW_SURFACES.tile,
-                'flex flex-col items-start gap-1 p-3 text-left transition-colors',
-                option.value === scheme
-                  ? 'bg-secondary ring-1 ring-inset ring-primary/50'
-                  : 'hover:bg-secondary/40',
-                option.value === 'user-e2ee' &&
-                  !hasIdentity &&
-                  'opacity-50 cursor-not-allowed hover:bg-transparent',
-              ]"
-              @click="scheme = option.value"
-            >
-              <component :is="option.icon" class="size-4 text-muted-foreground" />
-              <span class="text-sm font-medium">
-                {{ t(`canvases.schemes.${option.value}.title`) }}
-              </span>
-              <span class="text-[11px] text-muted-foreground leading-snug">
-                {{
-                  option.value === 'user-e2ee' && !hasIdentity
-                    ? t('canvases.privacy.needsIdentity')
-                    : t(`canvases.schemes.${option.value}.description`)
-                }}
-              </span>
-            </button>
-          </div>
-        </div>
+        <PrivacyPicker v-if="!isEditing" v-model="scheme" :has-identity="hasIdentity" />
 
         <CanvasPrivacySection
           v-else-if="canvas"

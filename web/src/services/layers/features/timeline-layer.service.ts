@@ -186,8 +186,9 @@ export function useTimelineLayerService() {
     function render(list: LocationHistoryEntry[]) {
       clearMarkers()
 
+      // No empty layers: they still split the basemap's draw by source.
       if (list.length === 0) {
-        setPaths([])
+        clearPaths()
         return
       }
 
@@ -244,8 +245,6 @@ export function useTimelineLayerService() {
         { padding: 40, maxZoom: 15 },
       )
     }
-
-    ensurePathsScaffolding()
 
     // `immediate: true` covers both the "data already loaded" case (e.g. the
     // map mounted after the timeline page) and every subsequent update.

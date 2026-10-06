@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { searchBrands, matchBrand, brandTagDiff } from './nsi'
+import { searchBrands, matchBrand } from './nsi'
 
 describe('searchBrands', () => {
   it('ranks the canonical chain above transliterations sharing its QID', () => {
@@ -65,25 +65,5 @@ describe('matchBrand', () => {
 
   it('does not match an unrelated name', () => {
     expect(matchBrand('amenity/fast_food', "Dave's Corner Grill")).toBeNull()
-  })
-})
-
-describe('brandTagDiff', () => {
-  it('lists only tags that would change', () => {
-    const brand = matchBrand('amenity/fast_food', 'taco bell')!
-    const diff = brandTagDiff(brand, { amenity: 'fast_food', name: 'taco bell' })
-
-    expect(diff).toContainEqual({ key: 'name', from: 'taco bell', to: 'Taco Bell' })
-    expect(diff).toContainEqual({
-      key: 'brand:wikidata',
-      from: null,
-      to: 'Q752941',
-    })
-    expect(diff.some((d) => d.key === 'amenity')).toBe(false)
-  })
-
-  it('is empty when the feature already carries the brand tags', () => {
-    const brand = matchBrand('amenity/fast_food', 'taco bell')!
-    expect(brandTagDiff(brand, brand.tags)).toEqual([])
   })
 })

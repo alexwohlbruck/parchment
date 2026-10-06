@@ -101,7 +101,7 @@ export function useBookmarksLayerService() {
     for (const collection of useCollectionsStore().collections) {
       styles[collection.id] = {
         icon: collection.icon,
-        iconPack: collection.iconPack,
+        iconPack: collection.iconPack ?? undefined,
         iconColor: collection.iconColor,
       }
     }

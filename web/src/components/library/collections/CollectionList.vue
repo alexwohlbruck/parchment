@@ -18,9 +18,8 @@ import {
   CheckIcon,
 } from 'lucide-vue-next'
 import CollectionCard from '@/components/library/collections/CollectionCard.vue'
-import { openCollectionDialog } from './collection-dialog'
+import { createCollectionFromDialog } from './collection-dialog'
 import FrequentPlacesRow from '@/components/library/bookmarks/FrequentPlacesRow.vue'
-import { useCollectionsService } from '@/services/library/collections.service'
 import { fuzzyFilter } from '@/lib/utils'
 import type { Collection } from '@/types/library.types'
 
@@ -39,7 +38,6 @@ const sortOrder = ref<'asc' | 'desc'>('desc')
 // was only invited to, 'shared' hides their own. Keys a computed below.
 type OwnershipFilter = 'all' | 'mine' | 'shared'
 const ownershipFilter = ref<OwnershipFilter>('all')
-const collectionsService = useCollectionsService()
 
 watch(
   () => props.collections,
@@ -102,9 +100,7 @@ function setSortBy(field: 'name' | 'createdAt' | 'updatedAt') {
 }
 
 async function createCollection() {
-  const params = await openCollectionDialog()
-  if (!params) return
-  await collectionsService.createCollection(params)
+  await createCollectionFromDialog()
 }
 </script>
 
@@ -205,6 +201,8 @@ async function createCollection() {
           variant="outline"
           size="icon"
           class="h-10 w-10"
+          :aria-label="t('library.actions.newCollection')"
+          :title="t('library.actions.newCollection')"
           @click="createCollection"
         >
           <PlusIcon class="h-4 w-4" />

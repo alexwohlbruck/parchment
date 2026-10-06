@@ -33,6 +33,7 @@ import { useUnits } from '@/composables/useUnits'
 import { AppRoute } from '@/router'
 import type { Route } from '@/types/routes.types'
 import { formatDurationLong } from '@/lib/time-format'
+import { boundsOfPoints } from '@/lib/geo/map-bounds'
 import { StatRow, type StatRowItem } from '@/components/ui/stat'
 
 const props = defineProps<{ id: string }>()
@@ -93,17 +94,8 @@ const isPrivate = computed(() => route.value?.scheme === 'user-e2ee')
 function frameRoute() {
   const geom = route.value?.body?.geometry
   if (!geom || geom.length < 2) return
-  let minLat = Infinity,
-    minLng = Infinity,
-    maxLat = -Infinity,
-    maxLng = -Infinity
-  for (const [lng, lat] of geom) {
-    if (lat < minLat) minLat = lat
-    if (lat > maxLat) maxLat = lat
-    if (lng < minLng) minLng = lng
-    if (lng > maxLng) maxLng = lng
-  }
-  mapService.fitBounds({ minLat, minLng, maxLat, maxLng })
+  const bounds = boundsOfPoints(geom.map(([lng, lat]) => ({ lat, lng })))
+  if (bounds) mapService.fitBounds(bounds)
 }
 
 onMounted(async () => {

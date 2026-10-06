@@ -635,6 +635,10 @@ watch(
 )
 
 function handleOpenChange(open: boolean) {
+  // Vaul reports `false` while mounting closed; that changes nothing, and a
+  // parent that navigates on close would bounce a cold deep link.
+  if (open === props.open) return
+
   // Prevent closing this drawer if another drawer is currently dismissing
   // This prevents the focus-outside bug when non-modal drawers are transitioning
   if (!open && props.open && !props.modal && isDismissing()) {

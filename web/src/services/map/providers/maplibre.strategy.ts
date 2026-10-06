@@ -75,6 +75,7 @@ import {
   BUILDING_ROOF_EDGE_LAYER,
 } from '@/lib/map-style'
 import { isTransitPoi } from '@/lib/map-style/transit-poi.mjs'
+import { combineFilters } from '@/lib/map-style/combine-filters'
 import { registerPoiBadges, type BadgeHost } from '@/lib/map-style/poi-badge'
 import { ISOLATED_COLLISION_LAYERS } from '@/lib/map-style/poi-dots'
 import {
@@ -240,6 +241,8 @@ function firstLabelLayer(map: MaplibreMap): string | undefined {
 }
 
 
+const NEVER_MATCH = ['literal', false]
+
 export class MaplibreStrategy extends MapStrategy {
   mapInstance: MaplibreMap
   geolocateControl: GeolocateControl
@@ -403,6 +406,7 @@ export class MaplibreStrategy extends MapStrategy {
     // are already attached, because MapLibre's layer-scoped delegates use
     // getLayer() on each event and automatically adapt to style changes.
     this.mapInstance.on('style.load', () => {
+      this.reapplyBasemapFilters()
       this.setupPoiHandlers()
       this.updateCameraProjection()
       // A style swap drops the custom layer and restores the extrusion's own
@@ -461,14 +465,9 @@ export class MaplibreStrategy extends MapStrategy {
     })
     this.mapInstance.on('contextmenu', e => {
       e.preventDefault()
-      mapEventBus.emit('contextmenu', {
-        lngLat: e.lngLat,
-        point: e.point,
-      })
+      this.emitContextMenu(e.lngLat, e.point)
     })
 
-    // Touch-and-hold for mobile context menu
-    this.setupLongPressHandler()
     this.mapInstance.on('click', 'mapillary-image', e => {
       if (useMapToolsStore().rawClickCapture) return
       const data = {
@@ -606,25 +605,25 @@ export class MaplibreStrategy extends MapStrategy {
 
 
   setPoiLabels(value: boolean) {
-    this.setLayerGroupVisibility(layerGroups.poi, value)
+    this.setLayerGroupVisibility('poi', layerGroups.poi, value)
   }
 
   setRoadLabels(value: boolean) {
-    this.setLayerGroupVisibility(layerGroups.roadLabels, value)
+    this.setLayerGroupVisibility('roadLabels', layerGroups.roadLabels, value)
   }
 
   setTransitLabels(value: boolean) {
-    this.setLayerGroupVisibility(layerGroups.transit, value)
+    this.setLayerGroupVisibility('transit', layerGroups.transit, value)
   }
 
   setPlaceLabels(value: boolean) {
-    this.setLayerGroupVisibility(layerGroups.placeLabels, value)
+    this.setLayerGroupVisibility('placeLabels', layerGroups.placeLabels, value)
   }
 
   setBasemapGroup(name: string, value: boolean) {
     const ids = (layerGroups as Record<string, string | string[]>)[name]
     if (!Array.isArray(ids)) return
-    this.setLayerGroupVisibility(ids, value)
+    this.setLayerGroupVisibility(name, ids, value)
   }
 
 
@@ -851,35 +850,57 @@ export class MaplibreStrategy extends MapStrategy {
    * be added and removed without having to rebuild it.
    */
   setBasemapTransitPoisVisible(visible: boolean) {
-    for (const id of layerGroups.poi) {
+    this.transitPoisHidden = !visible
+    for (const id of layerGroups.poi) this.applyBasemapFilter(id)
+  }
+
+  /**
+   * Hidden by filter rather than `visibility: none`: MapLibre slices overzoomed tiles down
+   * to the source layers that visible layers read, so a group shown again stays empty there.
+   */
+  private setLayerGroupVisibility(group: string, layerIds: string[], visible: boolean) {
+    for (const id of layerIds) {
       if (!this.mapInstance.getLayer(id)) continue
-      if (!this.basePoiFilters.has(id)) {
-        this.basePoiFilters.set(id, this.mapInstance.getFilter(id) ?? null)
-      }
-      const base = this.basePoiFilters.get(id) ?? null
+      const hiders = this.basemapHiders.get(id) ?? new Set<string>()
       if (visible) {
-        this.mapInstance.setFilter(id, base as any)
-        continue
+        hiders.delete(group)
+        this.mapInstance.setLayoutProperty(id, 'visibility', 'visible')
+      } else {
+        hiders.add(group)
       }
-      const notTransit = ['!', isTransitPoi()]
-      this.mapInstance.setFilter(id, (base ? ['all', base, notTransit] : notTransit) as any)
+      this.basemapHiders.set(id, hiders)
+      this.applyBasemapFilter(id)
     }
   }
 
-  /** Each POI layer's filter as the style defined it; see above. */
-  private basePoiFilters = new Map<string, unknown>()
-
-  private setLayerGroupVisibility(layerIds: string[], visible: boolean) {
-    layerIds.forEach(id => {
-      if (this.mapInstance.getLayer(id)) {
-        this.mapInstance.setLayoutProperty(
-          id,
-          'visibility',
-          visible ? 'visible' : 'none',
-        )
-      }
-    })
+  /** The style's own filter for a layer, plus whichever of ours currently apply to it. */
+  private applyBasemapFilter(id: string) {
+    if (!this.mapInstance.getLayer(id)) return
+    if (!this.baseFilters.has(id)) {
+      this.baseFilters.set(id, this.mapInstance.getFilter(id) ?? null)
+    }
+    this.mapInstance.setFilter(
+      id,
+      combineFilters([
+        this.baseFilters.get(id),
+        this.transitPoisHidden && layerGroups.poi.includes(id) && ['!', isTransitPoi()],
+        this.basemapHiders.get(id)?.size && NEVER_MATCH,
+      ]),
+    )
   }
+
+  /** A new style brings its own filters, so ours are rebuilt on top of them. */
+  private reapplyBasemapFilters() {
+    this.baseFilters.clear()
+    const ids = new Set([...this.basemapHiders.keys(), ...layerGroups.poi])
+    for (const id of ids) this.applyBasemapFilter(id)
+  }
+
+  /** Each layer's filter as the style defined it. */
+  private baseFilters = new Map<string, unknown>()
+  /** The groups currently hiding each basemap layer. */
+  private basemapHiders = new Map<string, Set<string>>()
+  private transitPoisHidden = false
 
   getBasemapFromTheme() {
     if (!this.tileServerUrl) {

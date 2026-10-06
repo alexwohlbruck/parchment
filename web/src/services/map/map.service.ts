@@ -27,6 +27,7 @@ import { useSearchResultsLayerService } from '@/services/layers/features/search-
 import { useMarkerLayersService } from '@/services/layers/markers/marker-layers.service'
 import { useNotesLayerService } from '@/services/layers/features/notes-layer.service'
 import { useBookmarksLayerService } from '@/services/layers/features/bookmarks-layer.service'
+import { useCollectionMarkersLayerService } from '@/services/layers/features/collection-markers-layer.service'
 import { useEnvironmentDataService } from '@/services/layers/features/environment-data.service'
 import { useTimelineLayerService } from '@/services/layers/features/timeline-layer.service'
 import { usePortolanTransitService } from '@/services/layers/features/portolan/portolan-transit.service'
@@ -64,6 +65,7 @@ import { storedLocale } from '@/lib/i18n'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { useOrientationService } from '@/services/orientation.service'
 import { useSearchStore } from '@/stores/search.store'
+import { useCollectionsStore } from '@/stores/library/collections.store'
 import { api } from '@/lib/api'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
@@ -80,6 +82,7 @@ function mapService() {
   const markerLayersService = useMarkerLayersService()
   const notesLayerService = useNotesLayerService()
   const bookmarksLayerService = useBookmarksLayerService()
+  const collectionMarkersLayerService = useCollectionMarkersLayerService()
   const environmentDataService = useEnvironmentDataService()
   const timelineLayerService = useTimelineLayerService()
   const portolanTransitService = usePortolanTransitService()
@@ -202,11 +205,8 @@ function mapService() {
     return requested
   }
 
-  // Auto-switch engine when premium status changes
   watch(canUseMapboxEngine, (canUse) => {
-    if (canUse && mapStore.settings.engine === MapEngine.MAPLIBRE) {
-      setMapEngine(MapEngine.MAPBOX)
-    } else if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
+    if (!canUse && mapStore.settings.engine === MapEngine.MAPBOX) {
       setMapEngine(MapEngine.MAPLIBRE)
     }
   })
@@ -577,6 +577,10 @@ function mapService() {
         bookmarksLayerService.initializeBookmarksLayer(mapStrategy),
       )
 
+      initStep('collection markers', () =>
+        collectionMarkersLayerService.initializeCollectionMarkersLayer(mapStrategy),
+      )
+
       // Fill the Environment vector layers (perimeters, smoke) with data —
       // the layers themselves are default-layer templates that render natively.
       initStep('environment', () =>
@@ -645,7 +649,7 @@ function mapService() {
   }
 
   function setConfigProperties() {
-    mapStrategy?.setPoiLabels(mapStore.settings.poiLabels)
+    mapStrategy?.setPoiLabels(effectivePoiLabels.value)
     mapStrategy?.setRoadLabels(mapStore.settings.roadLabels)
     mapStrategy?.setTransitLabels(mapStore.settings.transitLabels)
     mapStrategy?.setPlaceLabels(mapStore.settings.placeLabels)
@@ -746,7 +750,15 @@ function mapService() {
       left: padding.left ?? 0,
       right: padding.right ?? 0,
     })
+    fitOwesPadding = false
   })
+
+  /**
+   * A fit cleared the transform padding and framed against the obstruction
+   * itself. Until that padding is restored, restoring it must not move the
+   * scene, even when it lands late (a cold load readies the map after the fit).
+   */
+  let fitOwesPadding = false
 
   /**
    * Change the transform padding without moving anything on screen.
@@ -839,6 +851,7 @@ function mapService() {
     // Clear it (without moving the scene); the hold's release restores it
     // the same way once the ease has landed.
     setPaddingPreservingScreen({ top: 0, bottom: 0, left: 0, right: 0 })
+    fitOwesPadding = true
 
     // Both strategies fall back to 1000ms when a caller omits it. The hold is
     // strictly time-based — see createAnimationHold for why `moveend` cannot
@@ -1046,12 +1059,15 @@ function mapService() {
     mapStore.settings.poiLabels = value ?? !mapStore.settings.poiLabels
   }
 
-  // POI labels are suppressed while search results are visible so they don't
-  // compete visually with the search result markers and labels.  When results
-  // are cleared the user's stored preference takes effect again automatically.
+  // Basemap POIs stand down while search results or an open collection have the
+  // map, so they don't compete with those markers; the stored preference returns after.
   const searchStore = useSearchStore()
+  const collectionsStore = useCollectionsStore()
   const effectivePoiLabels = computed(
-    () => mapStore.settings.poiLabels && !searchStore.hasResults,
+    () =>
+      mapStore.settings.poiLabels &&
+      !searchStore.hasResults &&
+      !collectionsStore.openCollectionId,
   )
   watch(effectivePoiLabels, value => {
     mapStrategy?.setPoiLabels(value)
@@ -1123,7 +1139,15 @@ function mapService() {
     // answer hasn't moved. A sheet travelling through the half-screen cap
     // produces long runs of identical padding.
     const target = roundPadding(padding as Padding)
-    if (paddingEquals(target, map.getPadding())) return
+    if (paddingEquals(target, map.getPadding())) {
+      fitOwesPadding = false
+      return
+    }
+    if (fitOwesPadding) {
+      setPaddingPreservingScreen(target as Required<Padding>)
+      fitOwesPadding = false
+      return
+    }
     map.setPadding(target as any)
   }
 
@@ -1314,6 +1338,7 @@ function mapService() {
     if (mapStrategy) {
       searchResultsLayerService.removeSearchResultsLayer(mapStrategy)
       bookmarksLayerService.removeBookmarksLayer(mapStrategy)
+      collectionMarkersLayerService.removeCollectionMarkersLayer(mapStrategy)
     }
 
     // Unbind the portolan renderer's map listeners and drop its layers

@@ -27,9 +27,9 @@ const EXPECTED_NOISE = [
   'Mapbox',
   // Errors thrown from inside the map bundle. The test stack configures no map
   // credentials, so maplibre reports style/source failures as minified error
-  // objects whose text is a single character ("L") — matched here by the source
-  // URL the collector appends, since the text itself identifies nothing.
-  'maplibre-gl.js',
+  // objects whose text identifies nothing — matched here by the package name in
+  // the source URL the collector appends, which survives bundle renames.
+  'maplibre-gl',
   'ResizeObserver',
   'CORS',
   'favicon',

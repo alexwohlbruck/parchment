@@ -26,7 +26,7 @@ import { useThemeStore } from '@/stores/theme.store'
 import { ItemIcon } from '@/components/ui/item-icon'
 import { useAuthService } from '@/services/auth.service'
 import { PermissionId } from '@/types/auth.types'
-import { newViewFraction } from '@/lib/geo/map-bounds'
+import { boundsOfPoints, newViewFraction } from '@/lib/geo/map-bounds'
 import { useGeolocationService } from '@/services/geolocation.service'
 import { Spinner } from '@/components/ui/spinner'
 import { findScrollAncestor } from '@/lib/scroll'
@@ -288,16 +288,12 @@ function handleSearchResultClick(place: Place, event: any) {
 // distance-sorted from the viewport centre). Suppresses moveend auto-refresh
 // while the programmatic move animates so it can't feed back into another search.
 function frameNearestResults(places: Place[], count: number) {
-  let minLat = Infinity, minLng = Infinity, maxLat = -Infinity, maxLng = -Infinity
-  for (const p of places.slice(0, count)) {
-    const c = p.geometry?.value?.center
-    if (!c) continue
-    minLat = Math.min(minLat, c.lat); maxLat = Math.max(maxLat, c.lat)
-    minLng = Math.min(minLng, c.lng); maxLng = Math.max(maxLng, c.lng)
-  }
-  if (Number.isFinite(minLat)) {
+  const bounds = boundsOfPoints(
+    places.slice(0, count).flatMap(p => p.geometry?.value?.center ?? []),
+  )
+  if (bounds) {
     programmaticMoveUntil = Date.now() + 2000
-    mapService.fitBounds({ minLat, minLng, maxLat, maxLng }, { maxZoom: 15 })
+    mapService.fitBounds(bounds, { maxZoom: 15 })
   }
 }
 

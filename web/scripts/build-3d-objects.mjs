@@ -1012,42 +1012,42 @@ const TREES = {
   // gradient across it carries the form better than its outline does.
   // Ovoid: the common street tree, taller than wide.
   'tree-broadleaf-a': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.32, 0.24, 0, 2.8) },
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.32, 0.22, 0, 4.4) },
     { role: 'foliage', ...blob(mesh(), [0, 6.4, 0], [2.8, 4.1, 2.8], { subdivisions: q.crown, seed: 11, lump: 0.05, ripple: 0.07, flat: 0.8, taper: 0.16 }) },
   ]),
   // Round: a full, broad crown.
   'tree-broadleaf-b': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.42, 0.3, 0, 2.4) },
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.42, 0.28, 0, 4.2) },
     { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [3.5, 3.4, 3.5], { subdivisions: q.crown, seed: 23, lump: 0.06, ripple: 0.07, flat: 0.75, taper: 0.1 }) },
   ]),
   // Columnar: narrow and tall.
   'tree-broadleaf-c': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.16, 0, 2.4) },
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.15, 0, 3.8) },
     { role: 'foliage', ...blob(mesh(), [0, 6.8, 0], [2.2, 4.9, 2.2], { subdivisions: q.crown, seed: 37, lump: 0.05, ripple: 0.06, flat: 0.85, taper: 0.2 }) },
   ]),
   // Irregular: a gently lopsided crown, the odd one out in a row.
   'tree-broadleaf-d': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.34, 0.25, 0, 2.6) },
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.34, 0.23, 0, 4.4) },
     { role: 'foliage', ...blob(mesh(), [0, 6, 0], [3.1, 3.7, 2.7], { subdivisions: q.crown, seed: 54, lump: 0.1, ripple: 0.08, flat: 0.75, taper: 0.12 }) },
   ]),
   // Spruce: a smooth cone, widest low down.
   'tree-conifer-a': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.12, 0, 2.4) },
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.12, 0, 5.2) },
     { role: 'foliage', ...blob(mesh(), [0, 6.6, 0], [2.7, 5.4, 2.7], { subdivisions: q.cone, seed: 70, lump: 0.04, flat: 0.45, taper: 0.85 }) },
   ]),
   // Pine: a soft, slightly tapered column.
   'tree-conifer-b': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.14, 0, 3.6) },
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.22, 0.14, 0, 6.2) },
     { role: 'foliage', ...blob(mesh(), [0, 8, 0], [2.2, 4.2, 2.2], { subdivisions: q.cone, seed: 80, lump: 0.07, flat: 0.7, taper: 0.4 }) },
   ]),
   // Fir: tall and narrow, coming to a point.
   'tree-conifer-c': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.2, 0.1, 0, 2) },
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.2, 0.1, 0, 5.6) },
     { role: 'foliage', ...blob(mesh(), [0, 7, 0], [2, 6.2, 2], { subdivisions: q.cone, seed: 90, lump: 0.04, flat: 0.4, taper: 0.9 }) },
   ]),
   // Cypress: a slim flame.
   'tree-conifer-d': lod(q => [
-    { role: 'bark', ...cylinder(mesh(), q.sides, 0.18, 0.12, 0, 1.6) },
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.18, 0.12, 0, 3) },
     { role: 'foliage', ...blob(mesh(), [0, 5.6, 0], [1.3, 4.6, 1.3], { subdivisions: q.cone, seed: 100, lump: 0.05, flat: 0.8, taper: 0.55 }) },
   ]),
   ...Object.fromEntries([['a', 9, 9, 110], ['b', 12, 7, 120], ['c', 6, 10, 130]].map(([k, height, count, seed]) => [

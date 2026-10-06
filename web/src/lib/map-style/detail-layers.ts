@@ -249,12 +249,12 @@ export function treeLayers(flavor: FlavorId): any[] {
       type: 'circle',
       source: DETAIL_SOURCE,
       'source-layer': TREE_TILES,
-      minzoom: 16,
+      minzoom: 14.5,
       paint: {
         'circle-color': c.tree,
         // A canopy, roughly: a street tree reads about 4m across, which is
         // this many pixels at each of these zooms.
-        'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 16, 2, 20, 14],
+        'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 14.5, 0.8, 16, 2, 20, 14],
         'circle-opacity': TREE_OPACITY,
         'circle-pitch-alignment': 'map',
       },
@@ -267,11 +267,11 @@ export function treeLayers(flavor: FlavorId): any[] {
       type: 'line',
       source: DETAIL_SOURCE,
       'source-layer': TREE_ROW_TILES,
-      minzoom: 16,
+      minzoom: 14.5,
       layout: { 'line-cap': 'round' },
       paint: {
         'line-color': c.tree,
-        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 16, 3, 20, 20],
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 14.5, 1.2, 16, 3, 20, 20],
         'line-opacity': TREE_OPACITY,
         'line-blur': 1,
       },

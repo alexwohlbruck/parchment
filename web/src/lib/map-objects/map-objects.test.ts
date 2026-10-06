@@ -15,6 +15,7 @@ import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
+import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
 const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS })
@@ -384,7 +385,8 @@ describe('trees', () => {
   })
 
   test('the 3D form starts at the same zoom as the flat one', () => {
-    expect(TREE_OBJECTS.minzoom).toBe(16)
+    const flat = treeLayers('light').find(l => l['source-layer'] === TREE_OBJECTS.sourceLayer)
+    expect(TREE_OBJECTS.minzoom).toBe(flat.minzoom)
   })
 })
 

@@ -19,6 +19,7 @@
 
 * The map no longer keeps redrawing while it sits still with transit on, which saves a lot of battery.
 * 3D buildings render much faster, especially in the top-down view.
+* Panning with transit on no longer stalls at the end of the gesture.
 * End-to-end encrypted collections this device can't open now say so and offer to unlock it, instead of showing a blank name or an empty list.
 * Making a named collection private no longer fails.
 * Places saved to a private collection are now encrypted on your device, and the collection lists them. Before, they were stored where the server could read them.

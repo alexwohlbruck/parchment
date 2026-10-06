@@ -1113,7 +1113,7 @@ describe('assembled styles', () => {
     }
 
     /** An unpainted building whose id lands on the flavor's own colour rather than a cast. */
-    const plain = (flavor: 'light' | 'dark') => evaluate(flavor, {}, BUILDING_PASTELS[flavor].length)
+    const plain = (flavor: 'light' | 'dark') => evaluate(flavor, {}, BUILDING_PASTELS[flavor].length * 10)
 
     const luma = ([r, g, b]: number[]) => 0.2126 * r + 0.7152 * g + 0.0722 * b
     /** How colourful, in channel units — 0 for any grey, 255 for a pure hue. */
@@ -1151,9 +1151,10 @@ describe('assembled styles', () => {
     })
 
     test('unpainted buildings take a daylight cast by id, and none at night', () => {
-      const casts = new Set([0, 1, 2, 3, 4, 5].map(id => evaluate('light', {}, id).join()))
-      expect(casts.size).toBe(BUILDING_PASTELS.light.length + 1)
-      expect(evaluate('light', {}, 7)).toEqual(evaluate('light', {}, 1))
+      const n = BUILDING_PASTELS.light.length + 1
+      const casts = new Set([...Array(n).keys()].map(i => evaluate('light', {}, i * 10 + 1).join()))
+      expect(casts.size).toBe(n)
+      expect(evaluate('light', {}, (n + 1) * 10 + 4)).toEqual(evaluate('light', {}, 10 + 1))
       expect(evaluate('dark', {}, 0)).toEqual(evaluate('dark', {}, 3))
     })
 

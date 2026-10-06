@@ -431,10 +431,13 @@ export class MaplibreStrategy extends MapStrategy {
       this.applyBuildingShade()
       this.updateRoofEdge()
       // A style swap drops custom layers with it, and rebuilds the flat form's
-      // visibility from the stylesheet.
+      // visibility from the stylesheet. A dropped layer must stop casting too:
+      // its buffers went with the old style.
+      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
       this.objectLayer = null
       void this.applyMapObjects()
       // The new style has its own building filters and no landmark layer.
+      if (this.landmarkLayer) shadowCasters.delete(this.landmarkLayer)
       this.landmarkLayer = null
       this.buildingFilters.clear()
       this.applyLandmarks()
@@ -817,6 +820,7 @@ export class MaplibreStrategy extends MapStrategy {
     }
 
     if (!this.map3dObjects) {
+      if (this.objectLayer) shadowCasters.delete(this.objectLayer)
       if (this.objectLayer && map.getLayer(this.objectLayer.id)) {
         map.removeLayer(this.objectLayer.id)
       }
@@ -862,6 +866,7 @@ export class MaplibreStrategy extends MapStrategy {
     // part of it — but a symbol layer ignores depth entirely, so the only thing
     // keeping a tree from covering a place marker is drawing it first.
     map.addLayer(this.objectLayer as any, firstLabelLayer(map))
+    shadowCasters.add(this.objectLayer)
     flat()
   }
 

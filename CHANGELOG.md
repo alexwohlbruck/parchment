@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Opening a shared link while signed out now takes you to that page after you sign in, including for new accounts finishing setup.
+
 ## [0.13.1] - 2026-10-07
 
 ### Fixed

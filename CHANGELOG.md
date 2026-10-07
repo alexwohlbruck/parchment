@@ -2,6 +2,8 @@
 
 ### Added
 
+* Monorails, like the Walt Disney World Monorail and Newark's AirTrain, are drawn on the map as an elevated beam.
+
 ### Changed
 
 ### Fixed

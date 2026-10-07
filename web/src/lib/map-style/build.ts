@@ -13,6 +13,7 @@ import {
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
+import { monorailLayers } from './monorail-layers'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
@@ -572,7 +573,13 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   const firstBuilding = out.findIndex(
     l => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES,
   )
-  out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, ...coasterTrackLayers(flavor))
+  // Monorails share the slot: an elevated beam passes over the bridges it crosses.
+  out.splice(
+    firstBuilding < 0 ? out.length : firstBuilding,
+    0,
+    ...monorailLayers(flavor, SOURCE),
+    ...coasterTrackLayers(flavor),
+  )
 
   // Both building source-layers: the flat fill still reads the basemap's
   // `building`, the extrusions read Barrelman's `buildings_3d`, and the trees go

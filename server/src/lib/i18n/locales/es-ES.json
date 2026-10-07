@@ -401,5 +401,22 @@
       "busStop": "Parada de autobús",
       "transitStop": "Parada de transporte público"
     }
+  },
+  "placeType": {
+    "country": "País",
+    "state": "Estado",
+    "province": "Provincia",
+    "region": "Región",
+    "county": "Condado",
+    "city": "Ciudad",
+    "town": "Pueblo",
+    "village": "Aldea",
+    "municipality": "Municipio",
+    "borough": "Distrito municipal",
+    "district": "Distrito",
+    "township": "Municipio",
+    "neighborhood": "Barrio",
+    "hamlet": "Caserío",
+    "postalCode": "Código postal"
   }
 }

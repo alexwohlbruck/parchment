@@ -401,5 +401,22 @@
       "busStop": "Bus stop",
       "transitStop": "Transit stop"
     }
+  },
+  "placeType": {
+    "country": "Country",
+    "state": "State",
+    "province": "Province",
+    "region": "Region",
+    "county": "County",
+    "city": "City",
+    "town": "Town",
+    "village": "Village",
+    "municipality": "Municipality",
+    "borough": "Borough",
+    "district": "District",
+    "township": "Township",
+    "neighborhood": "Neighborhood",
+    "hamlet": "Hamlet",
+    "postalCode": "Postal code"
   }
 }

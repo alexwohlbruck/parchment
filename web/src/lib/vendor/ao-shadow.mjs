@@ -599,12 +599,17 @@ export class WallShadowLayer {
   _bindTerrain(gl, U, coord) {
     const terrain = this._terrain();
     const data = terrain && coord ? terrain.getTerrainData(coord) : null;
+    // PARCHMENT: point the sampler at the DEM's unit even with terrain off. It
+    // is statically used, so left at its default of unit 0 it still counts as
+    // a read of whatever is bound there — and since the flood started stopping
+    // early, that is often the SDF texture the seed pass is drawing into. WebGL
+    // refuses the draw as a feedback loop and the footprints never land.
+    gl.uniform1i(U.u_terrain, TERRAIN_UNIT);
     if (!data) {
       gl.uniform1f(U.u_terrain_on, 0);
       return;
     }
     gl.uniform1f(U.u_terrain_on, 1);
-    gl.uniform1i(U.u_terrain, TERRAIN_UNIT);
     gl.uniform1f(U.u_terrain_dim, data.u_terrain_dim);
     gl.uniformMatrix4fv(U.u_terrain_matrix, false, data.u_terrain_matrix);
     gl.uniform4fv(U.u_terrain_unpack, data.u_terrain_unpack);

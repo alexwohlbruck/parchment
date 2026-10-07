@@ -6,6 +6,12 @@
 
 ### Fixed
 
+## [0.13.1] - 2026-10-07
+
+### Fixed
+
+* The map no longer comes up blank after an update. A browser that had the previous version cached could pair the new map engine with an old piece of it.
+
 ## [0.13.0] - 2026-10-06
 
 ### Added

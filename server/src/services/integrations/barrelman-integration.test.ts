@@ -15,6 +15,7 @@ const mockAxiosGet = http.get
 const mockAxiosPost = http.post
 
 const { BarrelmanIntegration } = await import('./barrelman-integration')
+const { initialization } = await import('../../lib/i18n/translate')
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -360,6 +361,37 @@ describe('BarrelmanIntegration', () => {
       mockAxiosPost.mockResolvedValueOnce({ data: [baseResult] })
       const [place] = await integration.searchPlaces('test')
       expect(place.address).toBeNull()
+    })
+  })
+
+  describe('adaptPlace — place type', () => {
+    test('a city boundary is a City, with its state to tell namesakes apart', async () => {
+      await initialization
+      mockAxiosPost.mockResolvedValueOnce({
+        data: [{
+          ...baseResult,
+          id: 'relation/177415', name: 'Charlotte', geom_type: 'area', categories: [],
+          tags: { name: 'Charlotte', boundary: 'administrative', admin_level: '8', border_type: 'city' },
+          address: { state: 'NC' },
+        }],
+      })
+      const [place] = await integration.searchPlaces('charlotte')
+      expect(place.placeType?.value).toBe('City')
+      expect(place.address?.value.region).toBe('NC')
+    })
+
+    test('a Pelias postal code is a Postal code, not an Address', async () => {
+      await initialization
+      mockAxiosPost.mockResolvedValueOnce({
+        data: [{
+          ...baseResult,
+          id: 'pelias/whosonfirst:postalcode:554711231', name: '28211', categories: ['pelias/postalcode'],
+          tags: { 'addr:city': 'Charlotte', 'addr:state': 'NC', 'addr:postcode': '28211' },
+          address: { city: 'Charlotte', state: 'NC', postcode: '28211' },
+        }],
+      })
+      const [place] = await integration.searchPlaces('28211')
+      expect(place.placeType?.value).toBe('Postal code')
     })
   })
 

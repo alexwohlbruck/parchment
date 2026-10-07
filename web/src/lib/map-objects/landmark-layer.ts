@@ -38,6 +38,7 @@ import {
   ENTRANCE_GLOW, GROUND_GRID, groundGrid, insideFootprint, isWindow, materialLight, MAX_ENTRANCES, parseLandmark, polygonRings,
   type Footprint, type Landmark, type LandmarkFlavor,
 } from './landmarks'
+import { planCoverage, type Coverage } from './landmark-coverage'
 import { project } from './object-layer'
 
 /** Where a landmark stands, in mercator units; see `project`. */
@@ -365,6 +366,8 @@ type Model = {
   primitives: Primitive[] | null
   /** Plan extent in the model's own metres, once it has loaded. */
   footprint: Footprint | null
+  /** What it covers in plan, once it has loaded; see `insideFootprint`. */
+  coverage?: Coverage
   /** When a placement last wanted it; see EVICT_AFTER_MS. */
   used: number
   /** Its clip, for a model with parts that move. */
@@ -717,8 +720,8 @@ export class LandmarkLayer {
 
 
   /**
-   * Buildings lying wholly inside the footprint of a landmark that can be
-   * drawn.
+   * Buildings lying wholly on the plan of a landmark that can be drawn —
+   * on what its model covers, not merely inside its bounding box.
    *
    * Judged per id across every loaded tile, not per piece: one building can
    * arrive cut into several tiles, and on the basemap one id can stand for
@@ -730,8 +733,8 @@ export class LandmarkLayer {
    */
   private findContained(): Replaced {
     const drawn = this.placements
-      .map(p => ({ p, footprint: this.models.get(p.model)?.footprint }))
-      .filter((d): d is { p: Placement; footprint: Footprint } => !!d.footprint)
+      .map(p => ({ p, coverage: this.models.get(p.model)?.coverage }))
+      .filter((d): d is { p: Placement; coverage: Coverage } => !!d.coverage)
     if (!drawn.length) {
       this.hiddenFor.clear()
       return { refs: [], featureIds: [] }
@@ -751,11 +754,12 @@ export class LandmarkLayer {
         const first = rings[0]?.[0]
         // The first vertex rules almost every building out without the full
         // test, which matters on a Manhattan tile with thousands of them.
-        const inside = !!first && drawn.find(({ p, footprint }) => {
-          const reach = Math.max(-footprint.minX, footprint.maxX, -footprint.minZ, footprint.maxZ) * p.scale * 1.5
+        const inside = !!first && drawn.find(({ p, coverage }) => {
+          const { minX, maxX, minZ, maxZ } = coverage.bounds
+          const reach = Math.max(-minX, maxX, -minZ, maxZ) * p.scale * 1.5
           const k = Math.cos((p.lat * Math.PI) / 180) * 111320
           if (Math.abs(first[0] - p.lng) * k > reach || Math.abs(first[1] - p.lat) * 110574 > reach) return false
-          return insideFootprint(p, footprint, rings)
+          return insideFootprint(p, coverage, rings)
         })
         verdict.set(key, inside ? inside.p.id : false)
       }
@@ -831,12 +835,13 @@ export class LandmarkLayer {
         })
         : null))
       model.pending = { glb, images }
-      // At rest, for a model that moves: the footprint decides which
-      // buildings it hides, and the ground is sampled under it, so it is
-      // what the model covers as it stands rather than all it sweeps.
+      // At rest, for a model that moves: the coverage decides which
+      // buildings it hides, and the ground is sampled under the footprint,
+      // so both are what the model covers as it stands, not all it sweeps.
       model.footprint = { minX: glb.min[0], maxX: glb.max[0], minZ: glb.min[2], maxZ: glb.max[2] }
       model.animation = glb.animation
       model.reach = Math.max(-glb.min[0], glb.max[0], -glb.min[2], glb.max[2], glb.max[1])
+      model.coverage = planCoverage(glb, poseGlb(glb, 0))
       // Its footprint can now be searched, which the last gather could not.
       this.invalidate()
       this.map?.triggerRepaint?.()

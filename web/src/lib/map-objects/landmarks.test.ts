@@ -6,6 +6,18 @@ import {
 import { coasterTrackLayers } from '@/lib/map-style/detail-layers'
 import { anchorMatrix, localMatrix } from './landmark-layer'
 import { parseGlb, poseGlb, sampleChannel } from './glb.mjs'
+import { planCoverage } from './landmark-coverage'
+
+/** A flat slab model over a plan box, as coverage: two roof triangles. */
+const slab = ({ minX, maxX, minZ, maxZ }: { minX: number; maxX: number; minZ: number; maxZ: number }) => planCoverage({
+  primitives: [{
+    position: new Float32Array([minX, 0, minZ, maxX, 0, minZ, maxX, 0, maxZ, minX, 0, maxZ]),
+    index: new Uint16Array([0, 1, 2, 0, 2, 3]),
+    node: -1,
+  }],
+  min: [minX, 0, minZ],
+  max: [maxX, 0, maxZ],
+})
 
 const feature = (properties: Record<string, unknown>, coordinates = [-115.17217, 36.11247]) => ({
   geometry: { type: 'Point', coordinates },
@@ -113,8 +125,8 @@ describe('materialLight', () => {
 })
 
 describe('insideFootprint', () => {
-  // A 20 m × 8 m model, long side east–west at bearing 0.
-  const footprint = { minX: -10, maxX: 10, minZ: -4, maxZ: 4 }
+  // A solid 20 m × 8 m model, long side east–west at bearing 0.
+  const footprint = slab({ minX: -10, maxX: 10, minZ: -4, maxZ: 4 })
   const at = { lng: -73.9971025, lat: 40.7312347, bearing: 0, scale: 1 }
   const k = Math.cos((at.lat * Math.PI) / 180) * 111320
   /** A box in metres east and north of the anchor, as a GeoJSON ring. */
@@ -274,7 +286,7 @@ describe('groundGrid', () => {
   it('turns and scales with the placement, staying on the footprint', () => {
     const turned = { ...at, bearing: 37, scale: 0.5 }
     // insideFootprint undoes the same turn, so every sample lands on it.
-    expect(insideFootprint(turned, footprint, [groundGrid(turned, footprint)])).toBe(true)
+    expect(insideFootprint(turned, slab(footprint), [groundGrid(turned, footprint)])).toBe(true)
     // A quarter turn puts the north-west corner at the north-east.
     const [lng, lat] = groundGrid({ ...at, bearing: 90 }, footprint)[0]
     expect((lng - at.lng) * k).toBeCloseTo(4, 6)

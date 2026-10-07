@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import path from 'path'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig, type Plugin } from 'vite'
@@ -11,7 +12,7 @@ const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'))
 const host = process.env.TAURI_DEV_HOST
 
 /**
- * Ship the chunk MapLibre's worker imports.
+ * Ship the chunk MapLibre's worker imports, under a content-hashed name.
  *
  * `maplibre.strategy.ts` pulls the worker in with `?url`, which copies the file
  * verbatim and hands back its URL. Verbatim means its own
@@ -26,23 +27,34 @@ const host = process.env.TAURI_DEV_HOST
  * and every source stays pending forever. No tiles are ever requested, no error
  * is raised, and the map renders blank.
  *
- * The worker's import is relative and unhashed, so the sibling has to keep that
- * exact name — hence `fileName` rather than the usual hashed asset naming.
+ * The sibling gets a hash in its name, and the worker's import is rewritten to
+ * match. An unhashed name broke the 0.13.0 release: the service worker had
+ * precached the previous MapLibre build's `maplibre-gl-shared.mjs`, so a
+ * returning browser paired the new (hashed) worker with the old shared chunk,
+ * whose minified exports no longer lined up, and the map came up blank. With
+ * both names hashed, a worker can only ever load the chunk it was built with.
  */
 function maplibreWorkerChunk(): Plugin {
   return {
     name: 'maplibre-worker-shared-chunk',
     apply: 'build',
-    generateBundle() {
+    generateBundle(_options, bundle) {
       const require = createRequire(import.meta.url)
-      const shared = require.resolve(
-        'maplibre-gl/dist/maplibre-gl-shared.mjs',
-      )
-      this.emitFile({
-        type: 'asset',
-        fileName: 'assets/maplibre-gl-shared.mjs',
-        source: readFileSync(shared, 'utf-8'),
-      })
+      const source = readFileSync(require.resolve('maplibre-gl/dist/maplibre-gl-shared.mjs'), 'utf-8')
+      const hash = createHash('sha256').update(source).digest('hex').slice(0, 10)
+      const name = `maplibre-gl-shared-${hash}.mjs`
+      this.emitFile({ type: 'asset', fileName: `assets/${name}`, source })
+      let rewritten = 0
+      for (const file of Object.values(bundle)) {
+        if (file.type !== 'asset' || !/maplibre-gl-worker[^/]*\.mjs$/.test(file.fileName)) continue
+        const text = typeof file.source === 'string' ? file.source : new TextDecoder().decode(file.source)
+        const next = text.replaceAll('./maplibre-gl-shared.mjs', `./${name}`)
+        if (next !== text) rewritten++
+        file.source = next
+      }
+      // A worker that still imports the old name would fail exactly as above,
+      // so a build that can't find it to rewrite is a broken build.
+      if (!rewritten) this.error('maplibre-worker-shared-chunk: no MapLibre worker importing ./maplibre-gl-shared.mjs was found to rewrite')
     },
   }
 }

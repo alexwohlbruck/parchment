@@ -6,6 +6,8 @@
 
 ### Fixed
 
+* Buildings near a 3D landmark no longer flatten a second after the map loads. A large ride such as a roller coaster hid every building standing anywhere within its outer bounds, so at Carowinds the entrance plaza, the Paladium and most of the buildings around Fury 325 lost their 3D shape. A landmark now hides only the buildings it actually stands on.
+
 ## [0.13.2] - 2026-10-07
 
 ### Fixed

@@ -16,7 +16,7 @@ import { Elysia } from 'elysia'
 import { integrationManager } from '../services/integrations'
 import { martinTileCache, portolanTileCache, type CachedResponse } from '../lib/tile-cache'
 import { IntegrationId } from '../types/integration.types'
-import { resolveBarrelmanConfig } from '../services/barrelman.service'
+import { resolveBarrelmanConfig, resolveLandmarksConfig } from '../services/barrelman.service'
 import { logError } from '../lib/logger'
 
 const app = new Elysia({ prefix: '/proxy' })
@@ -252,6 +252,60 @@ function storeMartin(
   martinTileCache.set(key, value)
   return martinResponse(value, 'MISS', gzipOk)
 }
+
+/**
+ * 3D landmarks: a vector tile of placements, and the GLB models they name.
+ *
+ * Separate from the Martin route below because they may not live on the same
+ * host — see `resolveLandmarksConfig` — and because neither wants its cache.
+ * Placement tiles are a few hundred bytes and mostly empty; models are
+ * content-addressed and immutable, so the browser and the edge hold them and
+ * a server-side copy would only spend the tile cache's budget twice.
+ *
+ * Declared before `/barrelman/:source/...`: the static `landmarks` segment
+ * wins over the parameter either way, but reading in order makes that plain.
+ */
+const LANDMARK_MODEL_RE = /^[a-z0-9]+(-[a-z0-9]+)*\.[0-9a-f]{12}\.glb$/
+const TILE_COORD_RE = /^\d{1,10}$/
+
+async function proxyLandmarks(path: string): Promise<Response> {
+  const config = resolveLandmarksConfig()
+  if (!config?.host) return new Response('Landmarks not configured', { status: 501 })
+  try {
+    const response = await fetch(new URL(`/tiles/landmarks/${path}`, config.host), {
+      headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
+    })
+    // Passed on as they came: a 204 is an empty tile, and the upstream's
+    // cache-control is already right for each kind of answer.
+    const headers: Record<string, string> = {}
+    for (const name of ['content-type', 'cache-control', 'content-length'])
+      if (response.headers.has(name)) headers[name] = response.headers.get(name)!
+    if (!response.ok) logError(`Landmarks proxy: ${response.status} for ${path}`)
+    return new Response(response.ok ? response.body : null, { status: response.status, headers })
+  } catch (error) {
+    logError('Landmarks proxy error', error, { path })
+    return new Response('Proxy error', { status: 502 })
+  }
+}
+
+app.get(
+  '/barrelman/landmarks/:z/:x/:y',
+  ({ params: { z, x, y } }) => {
+    if (![z, x, y].every(v => TILE_COORD_RE.test(v)))
+      return new Response('Invalid tile coordinates', { status: 400 })
+    return proxyLandmarks(`${z}/${x}/${y}`)
+  },
+  { detail: { tags: ['Proxy'], summary: 'Proxy 3D landmark placement tiles' } },
+)
+
+app.get(
+  '/barrelman/landmarks/models/:file',
+  ({ params: { file } }) => {
+    if (!LANDMARK_MODEL_RE.test(file)) return new Response('Not found', { status: 404 })
+    return proxyLandmarks(`models/${file}`)
+  },
+  { detail: { tags: ['Proxy'], summary: 'Proxy 3D landmark models' } },
+)
 
 // Proxy vector tile requests through the Barrelman integration.
 //

@@ -484,6 +484,10 @@ export class WallShadowLayer {
     this._heightScale = opts.heightScale ?? 0.38;
     this.shadowOffset = opts.shadowOffset ?? [-0.5, 0.5];
     this.shadowBlur = opts.shadowBlur ?? 2.0;
+    // PARCHMENT: other layers' geometry drawn into the same shadow mask — see
+    // `_casterShadows`. A live collection, so callers can come and go without
+    // the layer being rebuilt.
+    this.shadowCasters = opts.shadowCasters ?? new Set();
 
     // PARCHMENT: how the ground effects fade in and out — see `groundOpacity`.
     this.fadeZoom = opts.fadeZoom ?? 1.2;
@@ -687,8 +691,11 @@ export class WallShadowLayer {
 
   /* ── render orchestrator ── */
 
-  render(gl) {
+  render(gl, args) {
     if (!this.enabled || this._map.getZoom() < this._minZoom) return;
+    // PARCHMENT: the camera matrix in mercator, for shadow casters drawn in
+    // world space rather than per tile.
+    this._mainMatrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? null;
     const source = this._resolveSource();
     const layer = this._map.getLayer(this._layerId);
     if (!source || !layer) return;
@@ -709,7 +716,10 @@ export class WallShadowLayer {
       if (!bucket || !m) continue;
       tiles.push({ coord, tile, bucket, matrix: m instanceof Float32Array ? m : new Float32Array(m), zf: zoomFactor(this._map, coord) });
     }
-    if (!tiles.length) return;
+    // PARCHMENT: a caster still throws a shadow where there are no buildings —
+    // a landmark standing in open ground, or in a region the basemap has no
+    // buildings for.
+    if (!tiles.length && !this.shadowCasters.size) return;
 
     const ctx = this._map.painter.context; // PARCHMENT
     const saved = saveGlState(ctx);
@@ -796,6 +806,12 @@ export class WallShadowLayer {
       key.push(dem?.texture ? bucketId(dem.texture) : 0, dem?.u_terrain_exaggeration ?? 0);
       if (dem?.u_terrain_matrix) for (let i = 0; i < 16; i++) key.push(dem.u_terrain_matrix[i]);
     }
+    // A caster without a version cannot say when it changed, and NaN never
+    // matches, so its presence simply turns the cache off.
+    for (const caster of this.shadowCasters) key.push(caster.shadowVersion ?? NaN);
+    // Casters are drawn with the camera matrix, not per tile, so it has to be
+    // in the key too or their shadows stay put while the view moves.
+    if (this.shadowCasters.size && this._mainMatrix) for (let i = 0; i < 16; i++) key.push(this._mainMatrix[i]);
     return key;
   }
 
@@ -821,8 +837,30 @@ export class WallShadowLayer {
       gl.uniform1f(U.u_bt, sg.bComp === 2 ? zf : -1);
       this._drawSegs(gl, sg);
     }
+    this._casterShadows(gl); // PARCHMENT
     this._vao.bind(null);
     gl.disable(gl.STENCIL_TEST);
+  }
+
+  /**
+   * PARCHMENT: let other layers cast into this mask — 3D landmarks, which
+   * replace a building and so have to throw its shadow too.
+   *
+   * Drawing into the same mask, under the same stencil, is the point: the
+   * blur, the darkness and the daylight fade all apply to it unchanged, and
+   * where a landmark's shadow crosses a building's it is not darkened twice.
+   *
+   * A caster gets the shear in mercator units per metre of height. The tile
+   * draw above shifts by `shadowOffset * s` tile units per (scaled) metre,
+   * `s = 2^z / tileSize / 8`; a tile is 8192 units across 2^-z of the world,
+   * and z cancels — `shadowOffset * heightScale / 2^25`, with y flipped the
+   * same way `u_shadowOff` flips it.
+   */
+  _casterShadows(gl) {
+    if (!this.shadowCasters.size || !this._mainMatrix) return;
+    const k = this._heightScale / 2 ** 25;
+    const shear = [this.shadowOffset[0] * k, -this.shadowOffset[1] * k];
+    for (const caster of this.shadowCasters) caster.drawShadow(gl, { matrix: this._mainMatrix, shear });
   }
 
   /* ── 2. seed footprints → FBO[0] ── */
@@ -908,7 +946,9 @@ export class WallShadowLayer {
     gl.disable(gl.DEPTH_TEST);
     gl.depthMask(false);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    // PARCHMENT: colour only. Blending alpha too thinned the canvas wherever a
+    // shadow was partly transparent, and the page showed through as a light halo.
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);
 
     drawQuad(gl, this._quadBuf);
   }
@@ -921,7 +961,8 @@ export class WallShadowLayer {
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.depthMask(true);
-    const dr = this._map.painter?.depthRangeFor3D;
+    // PARCHMENT: MapLibre 6 keeps this on the render context; older forks on the painter.
+    const dr = this._map.painter?.renderContext?.depthRangeFor3D ?? this._map.painter?.depthRangeFor3D;
     if (dr) gl.depthRange(dr[0], dr[1]);
     gl.disable(gl.BLEND);
     gl.disable(gl.STENCIL_TEST);

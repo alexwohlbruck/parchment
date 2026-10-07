@@ -63,6 +63,21 @@ export function resolveBarrelmanConfig(): { host?: string; apiKey?: string } | u
 }
 
 /**
+ * Where 3D landmarks come from: Barrelman, unless `LANDMARKS_HOST` says
+ * otherwise.
+ *
+ * Landmarks live in Barrelman for now, but they are the one data set expected
+ * to move out to a service of their own — a repository that accepts models
+ * from anyone. Resolving them separately is what lets that happen, or lets a
+ * branch serve its own catalog, without the basemap moving with them.
+ */
+export function resolveLandmarksConfig(): { host?: string; apiKey?: string } | undefined {
+  const host = process.env.LANDMARKS_HOST
+  if (!host) return resolveBarrelmanConfig()
+  return { host, apiKey: process.env.LANDMARKS_API_KEY || undefined }
+}
+
+/**
  * Call a Barrelman endpoint and return its JSON response.
  *
  * Handles integration config lookup, the auth header, error response wrapping

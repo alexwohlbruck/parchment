@@ -131,11 +131,17 @@ const VALUE_PULL = 0.3
  *
  * `let` bindings cannot see each other — only the expression they wrap — so the
  * quantities are nested in dependency order rather than declared in one block.
+ *
+ * @param {number} amount
+ * @param {string} [colorToken]
+ * @param {string[]} [properties]
+ * @param {unknown} [fallback] What an unpainted building wears; the flavor's colour by default.
  */
 export function buildingColor(
   amount,
   colorToken = '@building_3d_fill_extrusion_color',
   properties = ['colour'],
+  fallback = colorToken,
 ) {
   // The first of `properties` the feature carries. One name is the ordinary
   // case; the roof passes `['roof_colour', 'colour']` so a building that
@@ -194,6 +200,33 @@ export function buildingColor(
                   ['min', 0, ['-', ['var', 'mid'], ['var', 'plain']]]]],
               'sub', ['*', ['var', 'bias'], ['-', ['var', 'high'], ['var', 'mid']], ['var', 'scale']],
               ['rgb', channel(0), channel(1), channel(2)]]]]]],
+    fallback,
+  ]
+}
+
+/**
+ * Faint casts for buildings that record no colour of their own, so a block of
+ * unpainted rowhouses reads as neighbours rather than one grey mass. Daylight
+ * only: night already separates buildings by light, and a cast there reads as
+ * a lit surface. Each sits within a few points of the flavor's own near-white.
+ */
+export const BUILDING_PASTELS = {
+  light: ['hsl(32, 22%, 89%)', 'hsl(210, 12%, 89%)', 'hsl(355, 16%, 89.5%)', 'hsl(44, 24%, 88.5%)', 'hsl(150, 10%, 88.5%)'],
+  dark: [],
+}
+
+/**
+ * The colour an unpainted building wears: the flavor's own, or one of its
+ * pastels picked by feature id so a building keeps its cast as tiles reload.
+ */
+export function unpaintedBuildingColor(flavor, colorToken = '@building_3d_fill_extrusion_color') {
+  const pastels = BUILDING_PASTELS[flavor] ?? []
+  if (!pastels.length) return colorToken
+  return [
+    // Keyed on the building a part belongs to where the tiles say, so one
+    // building is one colour. Ids end in a type digit, dropped so the casts spread.
+    'match', ['%', ['floor', ['/', ['to-number', ['coalesce', ['get', 'group_id'], ['id']], 0], 10]], pastels.length + 1],
+    ...pastels.flatMap((c, i) => [i, c]),
     colorToken,
   ]
 }

@@ -7,10 +7,13 @@ import {
   detailSources,
   parkingLayers,
   treeLayers,
+  landmarkLayers,
+  coasterTrackLayers,
+  BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
-import { buildingColor, BUILDING_TINT } from './building-color.mjs'
+import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
 import {
@@ -18,7 +21,7 @@ import {
   cyclingStrokeLayers,
   cyclingWaysLayers,
 } from './cycling-layers'
-import { barrelmanBuildingsReady } from './barrelman-buildings'
+import { barrelmanBuildingsReady, barrelmanBuildingsTiles } from './barrelman-buildings'
 import { poiDotLayer, POI_DOTS_LAYER } from './poi-dots'
 import lightTokens from './tokens.light.json'
 import darkTokens from './tokens.dark.json'
@@ -457,6 +460,8 @@ export function buildLayers(options: {
   let base = specLayers
   if (poiStyle === 'glyph') base = applyOverrides(base, poiStyles.glyph)
   base = applyOverrides(base, flavorStyles[flavor])
+  base = withBuildingCasts(base, flavor)
+  base = withRoundedRoofEdge(base)
   base = useBarrelmanBuildings(base, flavor)
   base = withPoiDots(base)
 
@@ -502,9 +507,11 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
   const at = layers.findIndex(l => l.type === 'fill-extrusion')
   if (at < 0) return layers
 
+  // The bundle normally; `buildings_3d` alone on a Barrelman without bundles.
+  const source = barrelmanBuildingsTiles() === BUILDING_3D_TILES ? BUILDINGS_SOURCE : DETAIL_SOURCE
   const fromBarrelman = (layer: any) => ({
     ...layer,
-    source: DETAIL_SOURCE,
+    source,
     'source-layer': BUILDING_3D_TILES,
     // The same outlines have to go from here too, or the layer draws an edge
     // around a building that is no longer extruded under it.
@@ -535,6 +542,7 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
         // building: a building that records only `building:colour` should wear
         // it on the roof too, not band at the roofline.
         ['roof_colour', 'colour'],
+        unpaintedBuildingColor(flavor),
       ),
     },
   }
@@ -558,6 +566,14 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
 
+  // Coaster tracks stand over the paths and the elevated roads they cross,
+  // and under every building — a station roof or a shed over the track
+  // covers it — and so under every label too.
+  const firstBuilding = out.findIndex(
+    l => l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES,
+  )
+  out.splice(firstBuilding < 0 ? out.length : firstBuilding, 0, ...coasterTrackLayers(flavor))
+
   // Both building source-layers: the flat fill still reads the basemap's
   // `building`, the extrusions read Barrelman's `buildings_3d`, and the trees go
   // above the last of either. Matching only the basemap's name would put them
@@ -565,7 +581,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   const lastBuilding = out
     .map(l => (l['source-layer'] === 'building' || l['source-layer'] === BUILDING_3D_TILES))
     .lastIndexOf(true)
-  out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor))
+  out.splice(lastBuilding < 0 ? out.length : lastBuilding + 1, 0, ...treeLayers(flavor), ...landmarkLayers())
 
   // Each tint goes straight over the road it repaints, so it covers the
   // asphalt and stays under that road's casing, its markings and every label.
@@ -594,6 +610,32 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   return out
 }
 
+/** The plan-view outline, rounded exactly as far as the extrusion it traces. */
+function withRoundedRoofEdge(layers: any[]): any[] {
+  const radius = layers.find(l => l.type === 'fill-extrusion')?.layout?.['fill-extrusion-rounded-corner-distance']
+  if (!radius) return layers
+  return layers.map(l => l.id !== BUILDING_ROOF_EDGE_LAYER ? l : {
+    ...l,
+    layout: { ...l.layout, 'line-rounded-corner-distance': radius },
+  })
+}
+
+/** The extruded buildings' colour, with the flavor's casts for unpainted ones. */
+function withBuildingCasts(layers: any[], flavor: FlavorId): any[] {
+  return layers.map(l => l.type !== 'fill-extrusion' ? l : {
+    ...l,
+    paint: {
+      ...l.paint,
+      'fill-extrusion-color': buildingColor(
+        BUILDING_TINT[flavor],
+        '@building_3d_fill_extrusion_color',
+        ['colour'],
+        unpaintedBuildingColor(flavor),
+      ),
+    },
+  })
+}
+
 /** The full street basemap. */
 export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification {
   const { tileServerUrl, theme, mapStyle, lang, categoryColors, poiStyle } = options
@@ -607,6 +649,16 @@ export function buildMapStyle(options: BasemapStyleOptions): StyleSpecification 
     sources: {
       [SOURCE]: vectorSource(tileServerUrl),
       ...detailSources(source => buildTileUrl(tileServerUrl, source)),
+      ...(barrelmanBuildingsTiles() === BUILDING_3D_TILES
+        ? {
+            [BUILDINGS_SOURCE]: {
+              type: 'vector' as const,
+              tiles: [buildTileUrl(tileServerUrl, BUILDING_3D_TILES)],
+              minzoom: 14,
+              maxzoom: 16,
+            },
+          }
+        : {}),
     },
     sky: SKY[flavor],
     layers: buildLayers({ flavor, categoryColors, lang, poiStyle }),

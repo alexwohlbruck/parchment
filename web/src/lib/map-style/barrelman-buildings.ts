@@ -20,6 +20,13 @@
 /** Null until the probe has answered; the style reads it as "not yet". */
 let available: boolean | null = null
 
+/**
+ * Which Barrelman tiles answered: the `detail` bundle, or — on an instance
+ * from before bundles — the `buildings_3d` source on its own. The style reads
+ * the extrusion from whichever it is.
+ */
+let answeredBy: string | null = null
+
 /** Tile servers already asked, so a style rebuild does not ask again. */
 const asked = new Map<string, Promise<boolean>>()
 
@@ -28,14 +35,20 @@ export function barrelmanBuildingsReady(): boolean {
   return available === true
 }
 
+/** The Barrelman tiles the buildings come from, once the probe has said yes. */
+export function barrelmanBuildingsTiles(): string | null {
+  return available === true ? answeredBy : null
+}
+
 /**
  * Test seam: force the answer, and forget which tile servers have been asked.
  *
  * Both, because they are one piece of state between them — leaving the cache
  * behind would have the next probe replay the previous test's answer.
  */
-export function setBarrelmanBuildingsReady(value: boolean | null): void {
+export function setBarrelmanBuildingsReady(value: boolean | null, tiles: string | null = null): void {
   available = value
+  answeredBy = tiles
   asked.clear()
 }
 
@@ -54,6 +67,8 @@ export function setBarrelmanBuildingsReady(value: boolean | null): void {
 export async function probeBarrelmanBuildings(
   tileUrl: (z: number, x: number, y: number) => string,
   centre: { lng: number; lat: number },
+  /** Which tiles `tileUrl` asks for, remembered on a yes. */
+  tiles: string | null = null,
 ): Promise<boolean> {
   const z = 14
   const n = 2 ** z
@@ -76,7 +91,8 @@ export async function probeBarrelmanBuildings(
   }
 
   const answer = await pending
-  const changed = answer !== available
+  const changed = answer !== available || (answer && tiles !== answeredBy)
   available = answer
+  if (answer) answeredBy = tiles
   return changed
 }

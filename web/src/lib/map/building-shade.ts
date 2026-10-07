@@ -61,8 +61,8 @@ const SHAPE = {
  * than inheriting daylight values wholesale.
  */
 const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; strength: number; edge: number }> = {
-  light: { shadowAlpha: 0.32, aoIntensity: 0.47, strength: 0.04, edge: 0.18 },
-  dark: { shadowAlpha: 0.135, aoIntensity: 0.35, strength: 0.035, edge: 0.2 },
+  light: { shadowAlpha: 0.16, aoIntensity: 0.23, strength: 0.04, edge: 0.18 },
+  dark: { shadowAlpha: 0.07, aoIntensity: 0.18, strength: 0.035, edge: 0.2 },
 }
 
 /**
@@ -79,7 +79,7 @@ const TUNING: Record<FlavorId, { shadowAlpha: number; aoIntensity: number; stren
  * Night runs softer still: with no sun there is nothing to justify a hard
  * light-and-shade split.
  */
-const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.28, dark: 0.2 }
+const LIGHT_INTENSITY: Record<FlavorId, number> = { light: 0.18, dark: 0.2 }
 
 /** How near the horizon the *shading* light may fall; see `shadeLight`. */
 const MAX_LIGHT_POLAR = 58
@@ -116,6 +116,22 @@ function edgeWidth(): number {
 const SDF_RESOLUTION = 512
 
 export const BUILDING_SHADE_LAYER_ID = 'building-shade'
+
+/** Anything that can draw itself into the cast-shadow mask; see `shadowCasters`. */
+export type ShadowCaster = {
+  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }): void
+  /** Changes whenever what it casts changes; without one the shadow mask is redrawn every frame. */
+  shadowVersion?: number
+}
+
+/**
+ * Layers casting shadows alongside the buildings — the 3D landmarks.
+ *
+ * Module-level and handed to every shade layer by reference, because the two
+ * have different lifetimes: a style swap rebuilds the shade layer, and a
+ * landmark layer added before that must not have to find the new one.
+ */
+export const shadowCasters = new Set<ShadowCaster>()
 
 /**
  * The layer currently on the map, for the dev tuning panel to drive.
@@ -156,6 +172,7 @@ export function createBuildingShade(
     roofLayerId: BUILDING_3D_ROOF_LAYER,
     ...(minZoom === undefined ? {} : { minZoom }),
     shadowOffset: [...SHADOW_OFFSET],
+    shadowCasters,
     sdfResolution: SDF_RESOLUTION,
     edgeWidth: edgeWidth(),
     ...SHAPE,

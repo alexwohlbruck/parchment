@@ -48,6 +48,12 @@ export const FAR_SUFFIX = '-far'
 const NEAR_PIXELS = 850
 
 /**
+ * Below this zoom every object is drawn with its far model: a tree is a few
+ * pixels across, and the near model's detail would be spent on nothing.
+ */
+const FAR_BELOW_ZOOM = 17
+
+/**
  * How long a burst of source events has to go quiet before the scene is
  * rebuilt, and the longest a continuous burst may hold that off. Milliseconds.
  */
@@ -70,7 +76,12 @@ const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6371008.8
  * nothing once, and a measurable share of a rebuild across a few thousand
  * trees, which is work done while somebody is panning.
  */
-export function project(lng: number, lat: number, elevation: number, out: Placed) {
+export function project(
+  lng: number,
+  lat: number,
+  elevation: number,
+  out: Pick<Placed, 'x' | 'y' | 'z' | 'perMetre'>,
+) {
   const perMetre = 1 / (EARTH_CIRCUMFERENCE * Math.cos((lat * Math.PI) / 180))
   out.x = (180 + lng) / 360
   out.y = (180 - (180 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))) / 360
@@ -83,6 +94,10 @@ const VS = `
   uniform vec3 u_light;
   uniform float u_ambient;
   uniform vec3 u_color;
+  /** The colour a fully tinted instance moves toward; equal to u_color for no tint. */
+  uniform vec3 u_color_alt;
+  /** Model-space y of the part's bottom and top, and how much darker its bottom is. */
+  uniform vec3 u_occlusion;
 
   attribute vec3 a_position;
   attribute vec3 a_normal;
@@ -92,6 +107,8 @@ const VS = `
   attribute vec3 a_shape;
   /** Instance: a per-object brightness, so a stand of trees is not one colour. */
   attribute float a_shade;
+  /** Instance: how far toward the role's alternate colour, 0-1. */
+  attribute float a_tint;
 
   varying vec3 v_color;
 
@@ -126,7 +143,14 @@ const VS = `
     // decides whether the top or the bottom of a tree is lit.
     float sky = unit.z * 0.5 + 0.5;
     float lit = mix(sun, sky, 0.65);
-    v_color = u_color * a_shade * mix(u_ambient, 1.0, lit);
+    // Foliage is softer still: a crown reads as one mass lit from above, the
+    // look of a baked canopy, rather than as a faceted solid.
+    if (u_occlusion.z > 0.0) lit = mix(sun, sky, 0.85);
+    // A crown is darker underneath, where its own leaves shade it.
+    float rise = clamp((a_position.y - u_occlusion.x) / max(u_occlusion.y - u_occlusion.x, 1e-4), 0.0, 1.0);
+    float occlusion = mix(1.0 - u_occlusion.z, 1.0, smoothstep(0.0, 1.0, rise));
+    vec3 base = mix(u_color, u_color_alt, a_tint);
+    v_color = base * a_shade * occlusion * mix(u_ambient, 1.0, lit);
 
     gl_Position = u_matrix * vec4(world, 1.0);
   }`
@@ -136,7 +160,36 @@ const FS = `
   varying vec3 v_color;
   void main() { gl_FragColor = vec4(v_color, 1.0); }`
 
-const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4 }
+const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4, a_tint: 5 }
+
+/**
+ * The cast shadow: the object sheared along the light onto the ground it
+ * stands on, drawn into the building shade layer's mask so the two blur, fade
+ * and overlap as one.
+ */
+const SHADOW_VS = `
+  uniform mat4 u_matrix;
+  uniform vec2 u_shear;
+  uniform float u_per_metre;
+  attribute vec3 a_position;
+  attribute vec3 a_offset;
+  attribute vec3 a_shape;
+  void main() {
+    float c = cos(a_shape.z);
+    float s = sin(a_shape.z);
+    vec3 p = vec3(a_position.x, -a_position.z, a_position.y);
+    p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
+    vec2 xy = a_offset.xy + p.xy * a_shape.y;
+    float metres = p.z * a_shape.x / u_per_metre;
+    gl_Position = u_matrix * vec4(xy + u_shear * metres, a_offset.z, 1.0);
+  }`
+
+const SHADOW_FS = `
+  precision mediump float;
+  void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); }`
+
+/** How much darker the bottom of a crown is than its top. */
+const CROWN_OCCLUSION = 0.18
 
 /**
  * Which way round an outward-facing triangle lands on screen.
@@ -162,8 +215,12 @@ const LOC = { a_position: 0, a_normal: 1, a_offset: 2, a_shape: 3, a_shade: 4 }
 export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
-export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint'
+export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
 
+/**
+ * Colours by role. A `<role>-alt` entry is the colour an instance with a full
+ * `tint` moves toward, so a stand of trees varies in hue as well as value.
+ */
 export type ObjectPalette = Record<string, [number, number, number]>
 
 /** One object read out of the source, in the units the shader wants. */
@@ -172,12 +229,16 @@ export type ObjectInstance = {
   lat: number
   /** Metres. */
   height: number
-  /** Metres, across. */
+  /** Metres per model unit across: the height, to keep the model's proportions. */
   spread: number
+  /** Metres across, where it was measured; overrides `spread` using the model's own width. */
+  width?: number
   /** Radians. */
   heading: number
   /** Multiplier on the model's own colours. */
   shade: number
+  /** How far toward each role's alternate colour, 0-1. Defaults to none. */
+  tint?: number
   /** Which model to draw it with. */
   model: string
 }
@@ -199,6 +260,8 @@ export type ObjectSourceSpec = {
 type ModelBuffers = {
   /** Whether this model is a solid, and so safe to draw with back faces culled. */
   cullable: boolean
+  /** The model's widest horizontal extent, in model units. */
+  width: number
   primitives: Array<{
     position: WebGLBuffer
     normal: WebGLBuffer
@@ -207,6 +270,9 @@ type ModelBuffers = {
     indexType: number
     role: string
     color: [number, number, number]
+    colorAlt: [number, number, number]
+    /** Model-space y bounds and occlusion strength; see `u_occlusion`. */
+    occlusion: [number, number, number]
   }>
 }
 
@@ -215,6 +281,7 @@ type Batch = {
   offset: Float32Array
   shape: Float32Array
   shade: Float32Array
+  tint: Float32Array
   count: number
   /**
    * Uploaded on the first frame that draws this batch, and not again.
@@ -225,7 +292,7 @@ type Batch = {
    * does. GL is touched only inside `render`, so the arrays are built off the
    * render path and handed over here.
    */
-  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer } | null
+  buffers: { offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer; tint: WebGLBuffer } | null
 }
 
 /**
@@ -291,9 +358,11 @@ export class ObjectLayer {
   private map: any
   private program!: WebGLProgram
   private uniforms: Record<string, WebGLUniformLocation | null> = {}
+  private shadowProgram!: WebGLProgram
+  private shadowUniforms: Record<string, WebGLUniformLocation | null> = {}
   private models = new Map<string, ModelBuffers>()
   private batches: Batch[] = []
-  private retired: Array<{ offset: WebGLBuffer; shape: WebGLBuffer; shade: WebGLBuffer }> = []
+  private retired: Array<Record<string, WebGLBuffer>> = []
   private placed: Placed[] = []
   private origin: [number, number, number] = [0, 0, 0]
   /** Zoom the current `placed` was gathered at; a change re-runs the gate. */
@@ -304,6 +373,8 @@ export class ObjectLayer {
   private pendingSince = 0
   private onSourceData?: (event: { sourceId?: string }) => void
   private onMoveEnd?: () => void
+  /** Bumped whenever the drawn instances change, so a cached shadow mask is redrawn. */
+  shadowVersion = 0
 
   constructor(
     private specs: ObjectSourceSpec[],
@@ -335,7 +406,10 @@ export class ObjectLayer {
   setFlavor(palette: ObjectPalette) {
     this.palette = palette
     for (const model of this.models.values())
-      for (const p of model.primitives) p.color = palette[p.role] ?? p.color
+      for (const p of model.primitives) {
+        p.color = palette[p.role] ?? p.color
+        p.colorAlt = palette[`${p.role}-alt`] ?? p.color
+      }
     this.map?.triggerRepaint?.()
   }
 
@@ -343,20 +417,29 @@ export class ObjectLayer {
     this.map = map
 
     this.program = link(gl, VS, FS)
-    this.uniforms = uniformsOf(gl, this.program, ['u_matrix', 'u_light', 'u_ambient', 'u_color'])
+    this.uniforms = uniformsOf(gl, this.program,
+      ['u_matrix', 'u_light', 'u_ambient', 'u_color', 'u_color_alt', 'u_occlusion'])
+    this.shadowProgram = link(gl, SHADOW_VS, SHADOW_FS)
+    this.shadowUniforms = uniformsOf(gl, this.shadowProgram, ['u_matrix', 'u_shear', 'u_per_metre'])
 
     for (const [name, model] of Object.entries(this.sources)) {
       this.models.set(name, {
         cullable: this.solid[name] ?? false,
-        primitives: model.primitives.map(p => ({
-          position: this.upload(gl, gl.ARRAY_BUFFER, p.position),
-          normal: this.upload(gl, gl.ARRAY_BUFFER, p.normal),
-          index: this.upload(gl, gl.ELEMENT_ARRAY_BUFFER, p.index),
-          count: p.index.length,
-          indexType: p.index.BYTES_PER_ELEMENT === 4 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
-          role: p.material,
-          color: this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]],
-        })),
+        width: modelWidth(model),
+        primitives: model.primitives.map(p => {
+          const color = this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]]
+          return {
+            position: this.upload(gl, gl.ARRAY_BUFFER, p.position),
+            normal: this.upload(gl, gl.ARRAY_BUFFER, p.normal),
+            index: this.upload(gl, gl.ELEMENT_ARRAY_BUFFER, p.index),
+            count: p.index.length,
+            indexType: p.index.BYTES_PER_ELEMENT === 4 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT,
+            role: p.material,
+            color,
+            colorAlt: this.palette[`${p.material}-alt`] ?? color,
+            occlusion: crownOcclusion(p.material, p.position),
+          }
+        }),
       })
     }
 
@@ -431,6 +514,7 @@ export class ObjectLayer {
     this.scheduled = 0
     this.map = null
     gl.deleteProgram(this.program)
+    gl.deleteProgram(this.shadowProgram)
     for (const model of this.models.values())
       for (const p of model.primitives) {
         gl.deleteBuffer(p.position)
@@ -508,12 +592,13 @@ export class ObjectLayer {
    */
   private arrange() {
     this.needsArrange = false
+    this.shadowVersion++
     const zoom = this.map.getZoom()
     const origin = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
     this.origin = [origin.x, origin.y, 0]
 
     const nearLimit = NEAR_PIXELS * mercatorPerPixel(zoom)
-    const nearLimitSquared = nearLimit * nearLimit
+    const nearLimitSquared = zoom < FAR_BELOW_ZOOM ? 0 : nearLimit * nearLimit
 
     const buckets = new Map<string, Placed[]>()
     for (const p of this.placed) {
@@ -536,17 +621,20 @@ export class ObjectLayer {
       const offset = new Float32Array(group.length * 3)
       const shape = new Float32Array(group.length * 3)
       const shade = new Float32Array(group.length)
+      const tint = new Float32Array(group.length)
       for (let i = 0; i < group.length; i++) {
         const { instance, x, y, z, perMetre } = group[i]
         offset[i * 3] = x - origin.x
         offset[i * 3 + 1] = y - origin.y
         offset[i * 3 + 2] = z
         shape[i * 3] = instance.height * perMetre
-        shape[i * 3 + 1] = instance.spread * perMetre
+        const across = instance.width === undefined ? instance.spread : instance.width / (this.models.get(model)?.width || 1)
+        shape[i * 3 + 1] = across * perMetre
         shape[i * 3 + 2] = instance.heading
         shade[i] = instance.shade
+        tint[i] = instance.tint ?? 0
       }
-      this.batches.push({ model, offset, shape, shade, count: group.length, buffers: null })
+      this.batches.push({ model, offset, shape, shade, tint, count: group.length, buffers: null })
     }
   }
 
@@ -568,7 +656,8 @@ export class ObjectLayer {
     // the origin is what lets the instance offsets stay small.
     const matrix = args?.defaultProjectionData?.mainMatrix ?? args?.modelViewProjectionMatrix ?? args
     const shifted = translate(matrix as ArrayLike<number>, this.origin)
-    const range = this.map.painter?.depthRangeFor3D
+    const painter = this.map.painter
+    const range = painter?.renderContext?.depthRangeFor3D ?? painter?.depthRangeFor3D
 
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
@@ -635,6 +724,8 @@ export class ObjectLayer {
       this.bindInstances(gl, batch)
       for (const primitive of model.primitives) {
         gl.uniform3fv(this.uniforms.u_color, primitive.color)
+        gl.uniform3fv(this.uniforms.u_color_alt, primitive.colorAlt)
+        gl.uniform3fv(this.uniforms.u_occlusion, primitive.occlusion)
         bindVec3(gl, LOC.a_position, primitive.position)
         bindVec3(gl, LOC.a_normal, primitive.normal)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
@@ -657,6 +748,7 @@ export class ObjectLayer {
       offset: gl.createBuffer()!,
       shape: gl.createBuffer()!,
       shade: gl.createBuffer()!,
+      tint: gl.createBuffer()!,
     }
     const attach = (buffer: WebGLBuffer, data: Float32Array, loc: number, size: number) => {
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -668,6 +760,40 @@ export class ObjectLayer {
     attach(batch.buffers.offset, batch.offset, LOC.a_offset, 3)
     attach(batch.buffers.shape, batch.shape, LOC.a_shape, 3)
     attach(batch.buffers.shade, batch.shade, LOC.a_shade, 1)
+    attach(batch.buffers.tint, batch.tint, LOC.a_tint, 1)
+  }
+
+  /**
+   * Cast this layer's shadows into the building shade layer's mask.
+   *
+   * Called from inside that layer's shadow pass, with its framebuffer, stencil
+   * and viewport already set, so only the program and the attributes are ours
+   * to touch. The pass leaves one of its own vertex arrays bound, and pointing
+   * attributes at our buffers while it is bound would rewrite it — so the
+   * default array is bound first and handed back clean.
+   */
+  drawShadow(gl: WebGL2RenderingContext, frame: { matrix: ArrayLike<number>; shear: [number, number] }) {
+    if (!this.batches.length || !this.placed.length) return
+    gl.bindVertexArray(null)
+    gl.useProgram(this.shadowProgram)
+    gl.uniformMatrix4fv(this.shadowUniforms.u_matrix, false, translate(frame.matrix, this.origin))
+    gl.uniform2f(this.shadowUniforms.u_shear, frame.shear[0], frame.shear[1])
+    gl.uniform1f(this.shadowUniforms.u_per_metre, this.placed[0].perMetre)
+    gl.disable(gl.CULL_FACE)
+    for (const batch of this.batches) {
+      const model = this.models.get(batch.model)
+      if (!model) continue
+      this.bindInstances(gl, batch)
+      for (const primitive of model.primitives) {
+        bindVec3(gl, LOC.a_position, primitive.position)
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.index)
+        gl.drawElementsInstanced(gl.TRIANGLES, primitive.count, primitive.indexType, 0, batch.count)
+      }
+    }
+    for (const loc of Object.values(LOC)) {
+      gl.vertexAttribDivisor(loc, 0)
+      gl.disableVertexAttribArray(loc)
+    }
   }
 
   /** The style's own light, so objects agree with the buildings beside them. */
@@ -678,6 +804,27 @@ export class ObjectLayer {
     const length = Math.hypot(x, y, z) || 1
     return [x / length, y / length, z / length]
   }
+}
+
+/** The widest horizontal extent of a model, in its own units. */
+function modelWidth(model: GlbModel): number {
+  let width = 0
+  for (const p of model.primitives)
+    for (let i = 0; i < p.position.length; i += 3)
+      width = Math.max(width, 2 * Math.abs(p.position[i]), 2 * Math.abs(p.position[i + 2]))
+  return width
+}
+
+/** A foliage part's y bounds, so its underside can be shaded; nothing else is. */
+function crownOcclusion(role: string, position: Float32Array): [number, number, number] {
+  if (role !== 'foliage') return [0, 1, 0]
+  let low = Infinity
+  let high = -Infinity
+  for (let i = 1; i < position.length; i += 3) {
+    low = Math.min(low, position[i])
+    high = Math.max(high, position[i])
+  }
+  return [low, high, CROWN_OCCLUSION]
 }
 
 /** `matrix * translate(origin)`, without pulling in a matrix library. */

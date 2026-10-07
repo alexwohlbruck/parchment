@@ -46,7 +46,12 @@ export const useAuthStore = defineStore('auth', () => {
   })
   const sessions = ref<Session[]>([])
   const sessionId = ref<Session['id'] | null>(null)
-  const stashedPath = ref<string | null>(null)
+  // Per-tab so it survives a reload of /signin or a checkout round trip
+  const stashedPath = useStorage<string | null>(
+    'parchment-stashed-path',
+    null,
+    sessionStorage,
+  )
   const authenticatedUserPromise = ref<Promise<any>>()
 
   /**
@@ -55,6 +60,10 @@ export const useAuthStore = defineStore('auth', () => {
    */
   function stashPath(path: string) {
     stashedPath.value = path
+  }
+
+  function goToStashedPath() {
+    router.push(stashedPath.value || { name: AppRoute.MAP })
   }
 
   function setAuthToken(token: Session['id']) {
@@ -76,7 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     if (!user.onboardingCompletedAt) return
 
-    router.push(stashedPath.value || { name: AppRoute.MAP })
+    goToStashedPath()
   }
   
   // Update user without navigation (for background refresh)
@@ -182,6 +191,7 @@ export const useAuthStore = defineStore('auth', () => {
     roles,
     sessionId,
     stashPath,
+    goToStashedPath,
     setAuthToken,
     setAuthenticatedUser,
     updateUser,

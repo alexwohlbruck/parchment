@@ -285,6 +285,23 @@ export function insideFootprint(
 export const GROUND_GRID = 7
 
 /**
+ * Where a point in a placed model's plan lands on the map: model (x, z) in its
+ * own units, turned and scaled as `localMatrix` does, to lng/lat. The inverse
+ * of `insideFootprint`'s turn.
+ */
+export function modelToLngLat(
+  landmark: Pick<Landmark, 'lng' | 'lat' | 'bearing' | 'scale'>,
+  x: number,
+  z: number,
+): [number, number] {
+  const k = Math.cos((landmark.lat * Math.PI) / 180) * 111320
+  const b = (landmark.bearing * Math.PI) / 180
+  const east = landmark.scale * (Math.cos(b) * x - Math.sin(b) * z)
+  const south = landmark.scale * (Math.sin(b) * x + Math.cos(b) * z)
+  return [landmark.lng + east / k, landmark.lat - south / 110574]
+}
+
+/**
  * Points to read the terrain at under a placed footprint: a GROUND_GRID ×
  * GROUND_GRID grid over its plan extent, row by row from minZ to maxZ and
  * minX to maxX within a row — the order the vertex shader indexes them in.
@@ -293,21 +310,12 @@ export function groundGrid(
   landmark: Pick<Landmark, 'lng' | 'lat' | 'bearing' | 'scale'>,
   footprint: Footprint,
 ): [number, number][] {
-  const k = Math.cos((landmark.lat * Math.PI) / 180) * 111320
-  const b = (landmark.bearing * Math.PI) / 180
-  const [c, s] = [Math.cos(b), Math.sin(b)]
   const { minX, maxX, minZ, maxZ } = footprint
   const n = GROUND_GRID - 1
   const points: [number, number][] = []
   for (let j = 0; j <= n; j++)
-    for (let i = 0; i <= n; i++) {
-      const x = minX + ((maxX - minX) * i) / n
-      const z = minZ + ((maxZ - minZ) * j) / n
-      // The inverse of `insideFootprint`'s turn: model (x, z) → map (east, south).
-      const east = landmark.scale * (c * x - s * z)
-      const south = landmark.scale * (s * x + c * z)
-      points.push([landmark.lng + east / k, landmark.lat - south / 110574])
-    }
+    for (let i = 0; i <= n; i++)
+      points.push(modelToLngLat(landmark, minX + ((maxX - minX) * i) / n, minZ + ((maxZ - minZ) * j) / n))
   return points
 }
 

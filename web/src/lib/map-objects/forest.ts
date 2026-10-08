@@ -178,7 +178,7 @@ const INTERIOR_REACH = 2
  * each seeded from its cell. A point is interior when every cell within
  * `INTERIOR_REACH` is planted too: nothing there is seen but its crown.
  */
-export function plantForest(rings: Ring[], bounds: Bounds, ex: ForestExclusions): ForestPoint[] {
+export function plantForest(rings: Ring[], bounds: Bounds, ex: ForestExclusions, stride = 1): ForestPoint[] {
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
   for (const [x, y] of rings[0] ?? []) {
     minX = Math.min(minX, x); maxX = Math.max(maxX, x)
@@ -190,14 +190,32 @@ export function plantForest(rings: Ring[], bounds: Bounds, ex: ForestExclusions)
   const i1 = Math.floor(Math.min(maxX, bounds.maxX) / FOREST_SPACING)
   if (i1 < i0 || j1 < j0) return []
 
-  const r = INTERIOR_REACH
-  const width = i1 - i0 + 1 + 2 * r
-  const clear = new Uint8Array(width * (j1 - j0 + 1 + 2 * r))
-  const at = (i: number, j: number) => (j - j0 + r) * width + (i - i0 + r)
   const point = (i: number, j: number): Point => [
     (i + 0.1 + cellHash(i, j, 1) * 0.8) * FOREST_SPACING,
     (j + 0.1 + cellHash(i, j, 2) * 0.8) * FOREST_SPACING,
   ]
+  const outside = ([x, y]: Point) => x < bounds.minX || x >= bounds.maxX || y < bounds.minY || y >= bounds.maxY
+  const free = (spans: Span[], [x, y]: Point) => within(spans, x) && !nearWay(ex, x, y) && !inArea(ex, x, y)
+
+  // A thinned planting is only ever drawn whole and far off, so it skips the interior test.
+  if (stride > 1) {
+    const out: ForestPoint[] = []
+    const first = (n: number) => Math.ceil(n / stride) * stride
+    for (let j = first(j0); j <= j1; j += stride) {
+      const spans = spansAt(rings, (j + 0.5) * FOREST_SPACING)
+      if (!spans.length) continue
+      for (let i = first(i0); i <= i1; i += stride) {
+        const p = point(i, j)
+        if (!outside(p) && free(spans, p)) out.push([lngOf(p[0]), latOf(p[1]), i, j, false])
+      }
+    }
+    return out
+  }
+
+  const r = INTERIOR_REACH
+  const width = i1 - i0 + 1 + 2 * r
+  const clear = new Uint8Array(width * (j1 - j0 + 1 + 2 * r))
+  const at = (i: number, j: number) => (j - j0 + r) * width + (i - i0 + r)
   for (let j = j0 - r; j <= j1 + r; j++) {
     const spans = spansAt(rings, (j + 0.5) * FOREST_SPACING)
     if (!spans.length) continue
@@ -230,11 +248,37 @@ const SPREAD = { min: 1.1, max: 1.5 }
 export const CROWN_SUFFIX = '-crown'
 
 /**
- * Below this zoom a wood is planted at every other cell each way, a quarter of
- * the trees, a little wider to fill in, standing on the wood's own green.
+ * Woods thin with distance from the view centre instead of stopping at a budget.
+ * Out to `NEAR_CELLS` every cell is planted; each doubling of distance after that
+ * keeps every other cell each way, so every octave costs about the same and a
+ * wood reaches the horizon. Survivors grow to keep the canopy closed.
  */
+export const NEAR_CELLS = 24
+/** Below this zoom even the nearest trees start one level thinned. */
 export const SPARSE_BELOW_ZOOM = 15
-const SPARSE_SPREAD = 1.3
+/** Width of the band, in octaves, over which one level gives way to the next. */
+const DITHER = 0.7
+const LEVEL_SPREAD = 1.3
+const LEVEL_HEIGHT = 1.12
+/** Beyond this level trees stop growing; they are a few pixels across by then. */
+const MAX_GROWTH = 3
+
+/** Continuous thinning level `distance` cells from the centre: 0 near, +1 per doubling past `NEAR_CELLS / 2`. */
+export function falloff(distance: number, floor = 0): number {
+  return Math.max(floor, 1 + Math.log2(Math.max(distance, 1e-9) / NEAR_CELLS))
+}
+
+/** How many times a cell's indices both halve evenly: the coarsest planting that keeps it. */
+export function latticeLevel(i: number, j: number): number {
+  let level = 0
+  while (level < 16 && ((i | j) & ((1 << (level + 1)) - 1)) === 0) level++
+  return level
+}
+
+/** Whether a cell keeps its tree at thinning level `level`, dithered so levels blend without an edge. */
+export function keeps(i: number, j: number, level: number): boolean {
+  return latticeLevel(i, j) >= Math.floor(level + (cellHash(i, j, 10) - 0.5) * DITHER)
+}
 
 const CROWNS: Record<string, string> = Object.fromEntries(
   Object.values(TREE_FAMILIES).flat().map(model => [model, `${model}${CROWN_SUFFIX}`]),
@@ -245,20 +289,21 @@ export function forestTree(
   lat: number,
   i: number,
   j: number,
-  { interior = false, sparse = false } = {},
+  { interior = false, level = 0 } = {},
 ): ObjectInstance {
   const family = cellHash(i, j, 3) < 0.7 ? 'broadleaf' : 'conifer'
-  const height = lerp(HEIGHT[family], cellHash(i, j, 4))
+  const growth = Math.min(level, MAX_GROWTH)
+  const height = lerp(HEIGHT[family], cellHash(i, j, 4)) * LEVEL_HEIGHT ** growth
   const model = pick(TREE_FAMILIES[family], cellHash(i, j, 9))
   return {
     lng,
     lat,
     height,
-    spread: height * lerp(SPREAD, cellHash(i, j, 5)) * (sparse ? SPARSE_SPREAD : 1),
+    spread: height * lerp(SPREAD, cellHash(i, j, 5)) * LEVEL_SPREAD ** growth,
     heading: cellHash(i, j, 6) * Math.PI * 2,
     shade: 0.84 + cellHash(i, j, 7) * 0.24,
     tint: cellHash(i, j, 8),
-    model: interior && !sparse ? CROWNS[model] : model,
+    model: interior && level < 1 ? CROWNS[model] : model,
   }
 }
 
@@ -298,85 +343,83 @@ function pieceKey(feature: any): string {
   return `${feature._z}/${feature._x}/${feature._y}/${feature.id ?? ''}/${first}/${g?.coordinates?.length}`
 }
 
-const current = new WeakMap<object, ForestPoint[]>()
-const thinned = new WeakMap<object, ForestPoint[]>()
-let sparse = false
+type Shown = { points: ForestPoint[]; levels: number[] }
+let shown = new Map<object, Shown>()
+let floor = 0
 let view: Bounds | null = null
+/** View centre, in grid cells. */
+let centre: Point = [0, 0]
 
 /** Planting goes block by block, so a wood is only planted where it is seen. */
-const BLOCK = 16 * FOREST_SPACING
+const BLOCK_CELLS = 16
+const BLOCK = BLOCK_CELLS * FOREST_SPACING
 
-const BUDGET = 6000
-
-/**
- * Where trees can still make the budget: the view, padded a tenth each way so
- * shadows from just off screen land, cut to the square around its centre that
- * `BUDGET` trees would fill. The budget keeps the nearest, so nothing past it is drawn.
- */
-function plantingBounds(map: any, sparse: boolean): Bounds | null {
+/** The view, padded a tenth each way so shadows from just off screen land. */
+function plantingBounds(map: any): Bounds | null {
   const b = map.getBounds?.()
   if (!b) return null
-  const x = (lng: number) => (lng + 180) / 360
-  const y = (lat: number) => 0.5 - Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / (2 * Math.PI)
-  const [x0, x1, y0, y1] = [x(b.getWest()), x(b.getEast()), y(b.getNorth()), y(b.getSouth())]
+  const [x0, x1, y0, y1] = [mercX(b.getWest()), mercX(b.getEast()), mercY(b.getNorth()), mercY(b.getSouth())]
   const pad = Math.max(x1 - x0, y1 - y0) * 0.1
-  const { lng, lat } = map.getCenter()
-  const reach = Math.sqrt(BUDGET / Math.PI) * FOREST_SPACING * (sparse ? 2 : 1) * 1.15
-  return {
-    minX: Math.max(x0 - pad, x(lng) - reach),
-    minY: Math.max(y0 - pad, y(lat) - reach),
-    maxX: Math.min(x1 + pad, x(lng) + reach),
-    maxY: Math.min(y1 + pad, y(lat) + reach),
-  }
+  return { minX: x0 - pad, minY: y0 - pad, maxX: x1 + pad, maxY: y1 + pad }
 }
 
-function plantingOf(feature: any) {
-  const known = current.get(feature)
-  if (known) return known
+const cellsFromCentre = (x: number, y: number) => Math.hypot(x - centre[0], y - centre[1])
+
+/** The coarsest stride every cell of a block can be planted at: set by its nearest corner. */
+function blockStride(bi: number, bj: number): number {
+  const nx = Math.min(Math.max(centre[0], bi * BLOCK_CELLS), (bi + 1) * BLOCK_CELLS)
+  const ny = Math.min(Math.max(centre[1], bj * BLOCK_CELLS), (bj + 1) * BLOCK_CELLS)
+  const level = Math.floor(falloff(cellsFromCentre(nx, ny), floor) - DITHER / 2)
+  return 2 ** Math.max(0, Math.min(level, Math.log2(BLOCK_CELLS)))
+}
+
+function plantingOf(feature: any): ForestPoint[] {
   const tile = tileBounds(feature)
   const points: ForestPoint[] = []
-  if (tile) {
-    const key = pieceKey(feature)
-    const area = view
-      ? { minX: Math.max(tile.minX, view.minX), minY: Math.max(tile.minY, view.minY), maxX: Math.min(tile.maxX, view.maxX), maxY: Math.min(tile.maxY, view.maxY) }
-      : tile
-    let polygons: Ring[][] | null = null
-    for (let bj = Math.floor(area.minY / BLOCK); bj * BLOCK < area.maxY; bj++)
-      for (let bi = Math.floor(area.minX / BLOCK); bi * BLOCK < area.maxX; bi++) {
-        const blockKey = `${key}|${bi},${bj}`
-        let block = planted.get(blockKey)
-        if (!block) {
-          const bounds = {
-            minX: Math.max(tile.minX, bi * BLOCK),
-            minY: Math.max(tile.minY, bj * BLOCK),
-            maxX: Math.min(tile.maxX, (bi + 1) * BLOCK),
-            maxY: Math.min(tile.maxY, (bj + 1) * BLOCK),
-          }
-          polygons ??= polygonsOf(feature.geometry)
-          exclusions ??= source ? exclusionsFor(source) : buildExclusions([], [])
-          block = bounds.minX < bounds.maxX && bounds.minY < bounds.maxY
-            ? polygons.flatMap(rings => plantForest(rings, bounds, exclusions!))
-            : []
-          if (planted.size >= MAX_PLANTED) planted.clear()
-          planted.set(blockKey, block)
+  if (!tile) return points
+  const key = pieceKey(feature)
+  const area = view
+    ? { minX: Math.max(tile.minX, view.minX), minY: Math.max(tile.minY, view.minY), maxX: Math.min(tile.maxX, view.maxX), maxY: Math.min(tile.maxY, view.maxY) }
+    : tile
+  let polygons: Ring[][] | null = null
+  for (let bj = Math.floor(area.minY / BLOCK); bj * BLOCK < area.maxY; bj++)
+    for (let bi = Math.floor(area.minX / BLOCK); bi * BLOCK < area.maxX; bi++) {
+      const stride = blockStride(bi, bj)
+      const blockKey = `${key}|${bi},${bj}|${stride}`
+      let block = planted.get(blockKey)
+      if (!block) {
+        const bounds = {
+          minX: Math.max(tile.minX, bi * BLOCK),
+          minY: Math.max(tile.minY, bj * BLOCK),
+          maxX: Math.min(tile.maxX, (bi + 1) * BLOCK),
+          maxY: Math.min(tile.maxY, (bj + 1) * BLOCK),
         }
-        for (const p of block) points.push(p)
+        polygons ??= polygonsOf(feature.geometry)
+        exclusions ??= source ? exclusionsFor(source) : buildExclusions([], [])
+        block = bounds.minX < bounds.maxX && bounds.minY < bounds.maxY
+          ? polygons.flatMap(rings => plantForest(rings, bounds, exclusions!, stride))
+          : []
+        if (planted.size >= MAX_PLANTED) planted.clear()
+        planted.set(blockKey, block)
       }
-  }
-  current.set(feature, points)
+      for (const p of block) points.push(p)
+    }
   return points
 }
 
-/** The trees a wood shows at the current zoom: every cell, or every other one each way. */
-function shownOf(feature: any): ForestPoint[] {
-  const all = plantingOf(feature)
-  if (!sparse) return all
-  let some = thinned.get(feature)
-  if (!some) {
-    some = all.filter(([, , i, j]) => i % 2 === 0 && j % 2 === 0)
-    thinned.set(feature, some)
+/** The trees a wood shows from the current view, each with its thinning level. */
+function shownOf(feature: any): Shown {
+  let known = shown.get(feature)
+  if (known) return known
+  known = { points: [], levels: [] }
+  for (const p of plantingOf(feature)) {
+    const level = falloff(cellsFromCentre(p[2] + 0.5, p[3] + 0.5), floor)
+    if (!keeps(p[2], p[3], level)) continue
+    known.points.push(p)
+    known.levels.push(level)
   }
-  return some
+  shown.set(feature, known)
+  return known
 }
 
 export const FOREST_OBJECTS: ObjectSourceSpec = {
@@ -385,19 +428,22 @@ export const FOREST_OBJECTS: ObjectSourceSpec = {
   minzoom: 14,
   distinct: false,
   followsView: true,
-  budget: BUDGET,
   prepare(map, spec) {
     source = { map, layer: spec.source }
     exclusions = null
-    sparse = map.getZoom() < SPARSE_BELOW_ZOOM
-    view = plantingBounds(map, sparse)
+    shown = new Map()
+    floor = map.getZoom() < SPARSE_BELOW_ZOOM ? 1 : 0
+    view = plantingBounds(map)
+    const { lng, lat } = map.getCenter()
+    centre = [mercX(lng) / FOREST_SPACING, mercY(lat) / FOREST_SPACING]
   },
   positions(feature) {
     if (feature.properties?.class !== 'wood') return []
-    return shownOf(feature).map(([lng, lat]) => [lng, lat] as [number, number])
+    return shownOf(feature).points.map(([lng, lat]) => [lng, lat] as [number, number])
   },
   toInstance(feature, lng, lat, index) {
-    const point = shownOf(feature)[index]
-    return point ? forestTree(lng, lat, point[2], point[3], { interior: point[4], sparse }) : null
+    const { points, levels } = shownOf(feature)
+    const point = points[index]
+    return point ? forestTree(lng, lat, point[2], point[3], { interior: point[4], level: levels[index] }) : null
   },
 }

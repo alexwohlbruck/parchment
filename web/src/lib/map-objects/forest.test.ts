@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, forestTree, plantForest, polygonsOf, spansAt, CROWN_SUFFIX, FOREST_SPACING } from './forest'
+import { buildExclusions, falloff, forestTree, keeps, latticeLevel, plantForest, polygonsOf, spansAt, CROWN_SUFFIX, FOREST_SPACING, NEAR_CELLS } from './forest'
 
 const square = (w: number, s: number, e: number, n: number) => ({
   type: 'Polygon',
@@ -65,12 +65,64 @@ describe('forest planting', () => {
     expect(trees.some(t => t[4])).toBe(true)
   })
 
-  test('interior trees draw only their crowns; sparse ones stay whole and grow wider', () => {
+  test('interior trees draw only their crowns; thinned ones stay whole and grow larger', () => {
     const edge = forestTree(0, 0, 4, 7)
     expect(edge.model.endsWith(CROWN_SUFFIX)).toBe(false)
     expect(forestTree(0, 0, 4, 7, { interior: true }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
-    const sparse = forestTree(0, 0, 4, 7, { interior: true, sparse: true })
-    expect(sparse.model).toBe(edge.model)
-    expect(sparse.spread).toBeGreaterThan(edge.spread)
+    const thinned = forestTree(0, 0, 4, 7, { interior: true, level: 1 })
+    expect(thinned.model).toBe(edge.model)
+    expect(thinned.spread).toBeGreaterThan(edge.spread)
+    expect(thinned.height).toBeGreaterThan(edge.height)
+  })
+
+  test('a strided planting is the full planting on the coarser lattice', () => {
+    const ex = buildExclusions([], [])
+    const key = (t: number[]) => `${t[2]},${t[3]}`
+    const full = plantForest(wood, everywhere, ex).filter(t => t[2] % 4 === 0 && t[3] % 4 === 0).map(key)
+    expect(plantForest(wood, everywhere, ex, 4).map(key)).toEqual(full)
+  })
+})
+
+describe('forest falloff', () => {
+  test('full density near the centre, one level per doubling beyond', () => {
+    expect(falloff(NEAR_CELLS / 4)).toBe(0)
+    expect(falloff(NEAR_CELLS)).toBeCloseTo(1)
+    expect(falloff(NEAR_CELLS * 4)).toBeCloseTo(3)
+    expect(falloff(0, 1)).toBe(1)
+  })
+
+  test('lattice level counts shared halvings', () => {
+    expect(latticeLevel(3, 8)).toBe(0)
+    expect(latticeLevel(4, 8)).toBe(2)
+    expect(latticeLevel(0, 0)).toBe(16)
+  })
+
+  const shownIn = (from: number, to: number) => {
+    let n = 0
+    for (let i = -to; i <= to; i++)
+      for (let j = -to; j <= to; j++) {
+        const d = Math.hypot(i + 0.5, j + 0.5)
+        if (d >= from && d < to && keeps(i + 4096, j + 4096, falloff(d))) n++
+      }
+    return n
+  }
+
+  test('each octave past the near ring costs about the same', () => {
+    const a = shownIn(NEAR_CELLS * 2, NEAR_CELLS * 4)
+    const b = shownIn(NEAR_CELLS * 4, NEAR_CELLS * 8)
+    expect(b / a).toBeGreaterThan(0.75)
+    expect(b / a).toBeLessThan(1.33)
+  })
+
+  test('levels blend over a band rather than meeting at a ring', () => {
+    const band = (d: number) => {
+      let kept = 0, total = 0
+      for (let i = 0; i < 4096; i += 2) for (let j = 1; j < 64; j += 2) { total++; if (keeps(i, j, falloff(d))) kept++ }
+      return kept / total
+    }
+    expect(band(NEAR_CELLS * 0.7)).toBe(1)
+    expect(band(NEAR_CELLS * 1.1)).toBeGreaterThan(0.05)
+    expect(band(NEAR_CELLS * 1.1)).toBeLessThan(0.95)
+    expect(band(NEAR_CELLS * 1.5)).toBeLessThan(0.05)
   })
 })

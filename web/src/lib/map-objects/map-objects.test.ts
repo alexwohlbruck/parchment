@@ -581,6 +581,14 @@ describe('planted areas', () => {
     const heights = Array.from({ length: 50 }, (_, i) => areaObject('shrub', -80, 35, i, 7)!.height)
     expect(Math.min(...heights)).toBeGreaterThanOrEqual(1.5)
   })
+
+  test('box-shaped shrubbery is clipped square, set in rows', () => {
+    const boxes = Array.from({ length: 20 }, (_, i) => areaObject('shrubbery', -80, 35, i, 3, 'box')!)
+    expect(new Set(boxes.map(b => b.model))).toEqual(new Set(['shrub-box']))
+    expect(new Set(boxes.map(b => b.heading))).toEqual(new Set([0]))
+    const loose = Array.from({ length: 20 }, (_, i) => areaObject('shrubbery', -80, 35, i, 3)!.model)
+    expect(loose).not.toContain('shrub-box')
+  })
 })
 
 /**

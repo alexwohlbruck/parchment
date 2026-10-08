@@ -1505,6 +1505,8 @@ const AREAS = {
     { role: 'foliage', ...blob(mesh(), [-0.18, 0.42, 0.05], [0.5, 0.42, 0.48], { seed: 43, lump: 0.25, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) },
     { role: 'foliage', ...blob(mesh(), [0.28, 0.36, -0.1], [0.38, 0.36, 0.36], { seed: 47, lump: 0.25, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.8 }) },
   ]),
+  // A clipped shrub: square-cut sides and a flat top, set close in a planting.
+  'shrub-box': furnLod(q => [{ role: 'foliage', ...roundedBox(mesh(), [-0.5, 0, -0.5], [0.5, 1, 0.5], 0.14, q.seg) }]),
   // A clump of bedding plants: a low green mound studded with blooms.
   flowers: lod(q => {
     const blooms = mesh()

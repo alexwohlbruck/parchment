@@ -1,5 +1,9 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, plantForest, polygonsOf, spansAt, FOREST_SPACING } from './forest'
+import { buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
+import { FOREST_GRID } from './forest'
+
+const plantForest = (rings: any, bounds: any, ex: any) => plant(rings, bounds, ex, FOREST_GRID)
+const FOREST_SPACING = FOREST_GRID.dx * MERCATOR_METRE
 
 const square = (w: number, s: number, e: number, n: number) => ({
   type: 'Polygon',

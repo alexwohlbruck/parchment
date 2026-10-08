@@ -90,7 +90,7 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     bench: [0.36, 0.32, 0.27],
     bin: [0.16, 0.17, 0.19],
     recycling: [0.1, 0.16, 0.26],
-    spray: [0.5, 0.56, 0.62],
+    spray: [0.7, 0.78, 0.84],
     stone: [0.3, 0.3, 0.29],
     water: [0.13, 0.2, 0.26],
     lamp: [1, 0.86, 0.58],

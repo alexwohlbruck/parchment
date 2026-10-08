@@ -628,7 +628,7 @@ const TRUNK_RATIO = 0.3
  */
 function slimTrunks(parts) {
   const bark = parts.filter(p => p.role === 'bark')
-  const foliage = parts.filter(p => p.role === 'foliage')
+  const foliage = parts.filter(p => p.role === 'foliage' || p.role === 'spray')
   if (!bark.length || !foliage.length) return
 
   const spread = (list, below = Infinity) => {
@@ -932,6 +932,51 @@ function slat(z, y, w, t, tilt, seg, round = 0.012) {
   return pts
 }
 
+/**
+ * A closed profile `[r, y, jag?]` spun about the y axis. `jag` pushes alternate
+ * vertices of that ring out and down by its amount, for a ragged edge.
+ */
+function lathe(m, sides, profile) {
+  const rings = profile.map(([r, y, jag = 0]) =>
+    Array.from({ length: sides }, (_, i) => {
+      const a = (i / sides) * Math.PI * 2
+      const k = i % 2 ? jag : -jag
+      return [Math.cos(a) * (r + k), y - k, Math.sin(a) * (r + k)]
+    }))
+  for (let k = 0; k < profile.length; k++) {
+    const [lo, hi] = [rings[k], rings[(k + 1) % profile.length]]
+    if (profile[k][0] === 0 && profile[(k + 1) % profile.length][0] === 0) continue
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides
+      if (profile[k][0] === 0) face(m, lo[i], hi[j], hi[i])
+      else if (profile[(k + 1) % profile.length][0] === 0) face(m, lo[i], lo[j], hi[i])
+      else quad(m, lo[i], lo[j], hi[j], hi[i])
+    }
+  }
+  return m
+}
+
+/** A flat ridged ribbon along `[r, y, width]` points, swept out at azimuth `a`. */
+function arc(m, a, path) {
+  const [c, s] = [Math.cos(a), Math.sin(a)]
+  const side = [-s, 0, c]
+  const rings = path.map(([r, y, w], k) => {
+    const [r0, y0] = path[Math.max(k - 1, 0)]
+    const [r1, y1] = path[Math.min(k + 1, path.length - 1)]
+    const l = Math.hypot(r1 - r0, y1 - y0)
+    const up = [(-(y1 - y0) / l) * c, (r1 - r0) / l, (-(y1 - y0) / l) * s]
+    return [90, 210, 330].map(d => {
+      const [u, v] = [Math.cos((d * Math.PI) / 180) * w, Math.sin((d * Math.PI) / 180) * (0.12 + w * 0.2)]
+      return [0, 1, 2].map(i => [r * c, y, r * s][i] + side[i] * u + up[i] * v)
+    })
+  })
+  for (let k = 0; k + 1 < rings.length; k++)
+    for (let i = 0; i < 3; i++) quad(m, rings[k][i], rings[k][(i + 1) % 3], rings[k + 1][(i + 1) % 3], rings[k + 1][i])
+  face(m, ...rings[0])
+  face(m, ...rings[rings.length - 1])
+  return m
+}
+
 /** A thick straight bar between two points in the side plane. */
 function bar([z0, y0], [z1, y1], w) {
   const [dz, dy] = [z1 - z0, y1 - y0]
@@ -1061,14 +1106,20 @@ const FURNITURE = {
     }
     return [{ role: 'stone', ...stone }, { role: 'water', ...water }]
   }),
-  // A jet in a pond: a plume rising off the water and falling back as a crown
-  // of spray, with a ring of foam where it lands. No basin; the pond is the basin.
+  // An aerating jet in a pond: a tall plume, a tulip of spray falling away
+  // from it, and a ring of foam where that lands. The pond is the basin.
   'fountain-jet': furnLod(q => {
-    const spray = mesh()
-    cylinder(spray, half(q), 0.18, 0.08, 0, 4.4)
-    cylinder(spray, half(q), 0.9, 0.3, 3.2, 1.4)
-    cylinder(spray, q.seg ? q.sides : 8, 1.8, 1.4, 0, 0.12)
-    return [{ role: 'spray', ...spray }]
+    const plume = lathe(mesh(), q.seg ? 6 : 5, q.seg
+      ? [[0, 0], [0.8, 0.1], [0.45, 1.5], [0.35, 7.2], [0.65, 8.7], [0.5, 9.6], [0, 10]]
+      : [[0, 0], [0.6, 0.2], [0.6, 8], [0, 10]])
+    if (!q.seg) {
+      const crown = lathe(mesh(), 5, [[0.8, 0], [1.2, 4.4], [2.2, 4.6], [4.6, 0]])
+      return [plume, crown].map(m => ({ role: 'spray', ...m }))
+    }
+    const parts = [plume, lathe(mesh(), 8, [[3.1, 0], [3.9, 0.55, 0.15], [5.1, 0]])]
+    const fall = [0, 0.2, 0.4, 0.6, 0.8, 1].map(t => [0.4 + 4 * t, 1.5 + 19.4 * t - 20.9 * t * t, 0.2 + 0.8 * t])
+    for (let i = 0; i < 6; i++) parts.push(arc(mesh(), ((i + 0.5) / 6) * Math.PI * 2, fall))
+    return parts.map(m => ({ role: 'spray', ...m }))
   }),
   // A cobra-head lamp, its arm reaching out over the road it faces (-z).
   'street-lamp': furnLod(q => {
@@ -1333,7 +1384,7 @@ async function main() {
     const holes = parts.reduce((n, part) => n + capHoles(part), 0)
     // Only the leafy parts. Smoothing bark rounds off the trunk's cap edge,
     // and smoothing a bench turns its slats into a ramp.
-    const foliage = parts.filter(p => p.role === 'foliage')
+    const foliage = parts.filter(p => p.role === 'foliage' || p.role === 'spray')
     if (foliage.length) smoothNormals(foliage, CREASE_DEGREES)
 
     const near = toGlb(name, parts)

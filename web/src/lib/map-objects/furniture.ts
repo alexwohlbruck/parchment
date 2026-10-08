@@ -37,7 +37,7 @@ const HEIGHT: Record<FurnitureModel, number> = {
   'bike-rack': 0.85,
   'drinking-water': 1.0,
   fountain: 2.08,
-  'fountain-jet': 4.6,
+  'fountain-jet': 8,
   'street-lamp': 7.86,
   'lamp-post': 4.4,
   bollard: 0.92,

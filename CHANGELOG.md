@@ -2,6 +2,8 @@
 
 ### Added
 
+* The 3D map now shows picnic tables, bike racks, drinking fountains, fountains, street lamps, bollards and billboards, and far more benches, each turned to face the road or path beside it.
+
 ### Changed
 
 ### Fixed

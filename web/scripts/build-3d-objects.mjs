@@ -39,6 +39,8 @@ const MANIFEST = resolve(HERE, '../src/lib/map-objects/models.json')
 
 /** Suffix on the cheap variant of every model. */
 export const FAR_SUFFIX = '-far'
+/** Suffix on a tree's trunkless crown; see `crownOnly`. */
+const CROWN_SUFFIX = '-crown'
 
 /**
  * Roles, and the default colour each is written with.
@@ -1416,7 +1418,16 @@ const FAR = { crown: 1, cone: 1, sides: 4 }
  * A tree whose far variant is itself at lower detail, rather than a fitted
  * proxy — so a distant tree keeps its own silhouette and swapping is invisible.
  */
-const lod = make => Object.assign(() => make(NEAR), { far: () => make(FAR) })
+const CROWN = { crown: 2, cone: 2, sides: 3 }
+
+/**
+ * A tree's crown alone, for the inside of a wood where no trunk shows. Built at
+ * a step less detail and fitted with the whole tree, so it sits where its crown would.
+ */
+const crownOnly = (make, q) => () => make(q).filter(p => p.role === 'foliage')
+
+const lod = make =>
+  Object.assign(() => make(NEAR), { far: () => make(FAR), crown: crownOnly(make, CROWN), crownFar: crownOnly(make, FAR) })
 
 const TREES = {
   // Each crown is one smooth, softly undulating solid rather than a cluster of
@@ -1560,9 +1571,13 @@ async function main() {
         (holes ? `   capped ${holes}` : '') +
         (solid ? '' : '   NOT SOLID (drawn double-sided)'),
     )
+    return fit
   }
 
-  for (const [name, build] of Object.entries(TREES)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(TREES)) {
+    const fit = await emit(name, build(), build.far?.())
+    if (build.crown) await emit(`${name}${CROWN_SUFFIX}`, build.crown(), build.crownFar(), fit)
+  }
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit, build.open)

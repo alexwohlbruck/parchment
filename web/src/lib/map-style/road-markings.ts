@@ -17,9 +17,9 @@ export const ROAD_GLYPH_TILES = 'road_glyphs'
 const FROM = 16
 const TO = 17
 
-const COLORS: Record<FlavorId, { asphalt: string; white: string; yellow: string }> = {
-  light: { asphalt: 'hsl(220, 9%, 80%)', white: 'hsl(0, 0%, 100%)', yellow: 'hsl(45, 92%, 58%)' },
-  dark: { asphalt: 'hsl(222, 10%, 25%)', white: 'hsla(0, 0%, 92%, 0.8)', yellow: 'hsla(45, 80%, 56%, 0.85)' },
+const COLORS: Record<FlavorId, { asphalt: string; white: string; yellow: string; green: string; red: string }> = {
+  light: { asphalt: 'hsl(36, 4%, 70%)', white: 'hsl(40, 30%, 98%)', yellow: 'hsl(43, 72%, 60%)', green: 'hsl(148, 26%, 60%)', red: 'hsl(9, 42%, 62%)' },
+  dark: { asphalt: 'hsl(222, 5%, 25%)', white: 'hsla(40, 15%, 88%, 0.82)', yellow: 'hsla(43, 58%, 56%, 0.85)', green: 'hsl(148, 20%, 33%)', red: 'hsl(9, 26%, 33%)' },
 }
 
 /** Pixels for a length in metres, at mid-US latitudes, exact enough for paint. */
@@ -81,6 +81,15 @@ export function roadMarkingLayers(flavor: FlavorId, bridge: boolean): any[] {
       minzoom: FROM,
       filter: band,
       paint: { 'fill-color': c.asphalt, 'fill-opacity': fadeIn(FROM) },
+    },
+    {
+      id: `Road lane fill${suffix}`,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': ROAD_MARKING_TILES,
+      minzoom: FROM,
+      filter: ['all', band, ['==', ['get', 'pattern'], 'fill']],
+      paint: { 'fill-color': ['match', ['get', 'color'], 'red', c.red, c.green], 'fill-opacity': fadeIn(FROM) },
     },
     line('Road line', [['!=', ['get', 'kind'], 'crosswalk'], ['!=', ['get', 'kind'], 'stop'], pattern('solid')], 0.15),
     // Dashes are measured in line widths: 3 m of paint, 9 m of gap.

@@ -8,20 +8,20 @@ const rgb = (hex: string): [number, number, number] =>
 /** The asphalt and paint match the flat roads' (see `road-markings.ts`), so a deck reads as the same road. */
 export const DECK_PALETTE: Record<FlavorId, DeckPalette> = {
   light: {
-    surface: [0.78, 0.79, 0.82],
+    surface: [0.71, 0.7, 0.69],
     concrete: [0.84, 0.83, 0.8],
     parapet: [0.91, 0.9, 0.87],
-    white: [1, 1, 1],
-    yellow: [0.97, 0.78, 0.21],
+    white: [0.99, 0.98, 0.97],
+    yellow: [0.89, 0.73, 0.31],
     route: rgb(palette.forest[400]),
     routeCasing: rgb(palette.forest[600]),
   },
   dark: {
-    surface: [0.23, 0.24, 0.28],
+    surface: [0.24, 0.25, 0.26],
     concrete: [0.31, 0.32, 0.34],
     parapet: [0.37, 0.38, 0.4],
-    white: [0.85, 0.85, 0.85],
-    yellow: [0.82, 0.66, 0.2],
+    white: [0.78, 0.77, 0.75],
+    yellow: [0.73, 0.61, 0.3],
     route: rgb(palette.forest[400]),
     routeCasing: rgb(palette.forest[600]),
   },

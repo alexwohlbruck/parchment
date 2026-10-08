@@ -45,6 +45,15 @@ describe('forest planting', () => {
     }
   })
 
+  test('grows on under a bridge', () => {
+    const coordinates = [[-80.851, 35.202], [-80.844, 35.202]]
+    const road = { properties: { class: 'primary' }, geometry: { type: 'LineString', coordinates } }
+    const bridge = { properties: { class: 'primary', brunnel: 'bridge' }, geometry: { type: 'LineString', coordinates } }
+    const all = plantForest(wood, everywhere, buildExclusions([], []))
+    expect(plantForest(wood, everywhere, buildExclusions([bridge], []))).toEqual(all)
+    expect(plantForest(wood, everywhere, buildExclusions([road], [])).length).toBeLessThan(all.length)
+  })
+
   test('two tiles of one wood plant disjoint sets', () => {
     const mid = (wood[0][0][0] + wood[0][1][0]) / 2
     const ex = buildExclusions([], [])

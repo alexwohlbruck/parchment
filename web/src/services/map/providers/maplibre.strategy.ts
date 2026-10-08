@@ -98,8 +98,9 @@ import {
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { DeckLayer } from '@/lib/map-decks/deck-layer'
 import { DECK_PALETTE } from '@/lib/map-decks/palette'
+import { flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
 import { SOURCE } from '@/lib/map-style/build'
-import { ROAD_MARKING_TILES } from '@/lib/map-style/road-markings'
+import { ROAD_MARKING_TILES, ROAD_SURFACE_TILES } from '@/lib/map-style/road-markings'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -918,6 +919,7 @@ export class MaplibreStrategy extends MapStrategy {
           basemap: SOURCE,
           roads: 'transportation',
           paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES },
+          surfaces: { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES },
           routes: () => Object.keys(map.getStyle()?.sources ?? {}).filter(id => /^route-\d+$/.test(id)),
         },
         DECK_PALETTE[flavor],
@@ -928,11 +930,8 @@ export class MaplibreStrategy extends MapStrategy {
       this.deckLayer = null
     }
     for (const layer of map.getStyle()?.layers ?? []) {
-      const flat = (layer as any)['source-layer']
-      const bridge = (flat === 'transportation' && layer.type === 'line' && /bridge/i.test(layer.id)) ||
-        (/^road_/.test(flat ?? '') && / bridge$/.test(layer.id))
-      if (!bridge) continue
-      const property = (layer.type === 'symbol' ? 'icon-opacity' : `${layer.type}-opacity`) as any
+      const property = flatBridgeOpacity(layer as any) as any
+      if (!property) continue
       if (active && !this.mutedBridges.has(layer.id)) {
         this.mutedBridges.set(layer.id, { property, value: map.getPaintProperty(layer.id, property) })
         map.setPaintProperty(layer.id, property, 0)

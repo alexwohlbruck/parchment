@@ -467,6 +467,7 @@ describe('trees', () => {
       expect(treeFamily({ genus }), genus).toBe('palm')
     expect(treeFamily({ leaf_type: 'needleleaved' })).toBe('conifer')
     expect(treeFamily({ leaf_type: 'broadleaved' })).toBe('broadleaf')
+    expect(treeFamily({ leaf_type: 'palm' })).toBe('palm')
     // A genus that names a conifer wins over a leaf type that disagrees.
     expect(treeFamily({ genus: 'Picea', leaf_type: 'broadleaved' })).toBe('conifer')
     expect(treeFamily({})).toBe('broadleaf')

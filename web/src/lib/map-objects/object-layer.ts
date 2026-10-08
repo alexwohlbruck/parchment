@@ -508,7 +508,9 @@ export class ObjectLayer {
     this.scheduled = setTimeout(() => {
       this.scheduled = 0
       if (!this.map) return
-      if (this.needsGather) this.gather()
+      // Tiles stream in all through a pan or orbit; gathering on each stalls the
+      // motion, so the gather waits for the `moveend` that always follows.
+      if (this.needsGather && !this.map.isMoving?.()) this.gather()
       if (this.needsArrange) this.arrange()
       this.map.triggerRepaint?.()
     }, wait) as unknown as number
@@ -564,11 +566,17 @@ export class ObjectLayer {
     const terrain = this.map.getTerrain?.() ? this.map : null
     const seen = new Set<string>()
 
-    const center = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
+    const { lng: centerLng, lat: centerLat } = this.map.getCenter()
+    const lngScale = Math.cos((centerLat * Math.PI) / 180)
+    const bounds = this.map.getBounds?.()
+    // Padded so a tree just off the edge still casts its shadow in.
+    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.1 : 0
+    const inView = (lng: number, lat: number) =>
+      !bounds ||
+      (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)
     for (const spec of this.specs) {
       if (zoom < spec.minzoom) continue
       spec.prepare?.(this.map, spec)
-      const first = this.placed.length
       let features: any[] = []
       try {
         features = this.map.querySourceFeatures(spec.source, { sourceLayer: spec.sourceLayer })
@@ -576,6 +584,7 @@ export class ObjectLayer {
         continue
       }
       const positions = spec.positions ?? pointPositions
+      const candidates: Array<[any, number, number, number]> = []
       for (const feature of features) {
         const key = spec.distinct === false ? undefined : feature.id ?? feature.properties?.id
         if (key !== undefined) {
@@ -586,19 +595,26 @@ export class ObjectLayer {
         const places = positions(feature)
         for (let i = 0; i < places.length; i++) {
           const [lng, lat] = places[i]
-          const instance = spec.toInstance(feature, lng, lat, i)
-          if (!instance) continue
-          const elevation = terrain ? (terrain.queryTerrainElevation([lng, lat]) ?? 0) : 0
-          const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0 }
-          project(lng, lat, elevation, placed)
-          this.placed.push(placed)
+          // A spec regathered on every pan can skip what is off screen; it will be back.
+          if (spec.followsView && !inView(lng, lat)) continue
+          candidates.push([feature, i, lng, lat])
         }
       }
-      if (spec.budget !== undefined && this.placed.length - first > spec.budget) {
-        const mine = this.placed.splice(first)
-        const away = (p: Placed) => (p.x - center.x) ** 2 + (p.y - center.y) ** 2
-        mine.sort((a, b) => away(a) - away(b))
-        this.placed.push(...mine.slice(0, spec.budget))
+      // Trimmed to the budget before any instance is built or terrain read: those
+      // are the expensive half, and a wood offers twice the trees it may draw.
+      if (spec.budget !== undefined && candidates.length > spec.budget) {
+        const away = (c: [any, number, number, number]) =>
+          ((c[2] - centerLng) * lngScale) ** 2 + (c[3] - centerLat) ** 2
+        candidates.sort((a, b) => away(a) - away(b))
+        candidates.length = spec.budget
+      }
+      for (const [feature, i, lng, lat] of candidates) {
+        const instance = spec.toInstance(feature, lng, lat, i)
+        if (!instance) continue
+        const elevation = terrain ? (terrain.queryTerrainElevation([lng, lat]) ?? 0) : 0
+        const placed: Placed = { instance, x: 0, y: 0, z: 0, perMetre: 0 }
+        project(lng, lat, elevation, placed)
+        this.placed.push(placed)
       }
     }
   }

@@ -12,8 +12,8 @@ import { lerp, pick } from './vary'
 /** About 10 m between trees at US latitudes. */
 export const FOREST_GRID = { dx: 13, dy: 13, jitter: 0.8 }
 
-const HEIGHT = { broadleaf: { min: 15, max: 28 }, conifer: { min: 17, max: 32 } }
-const SPREAD = { min: 1.15, max: 1.55 }
+const HEIGHT = { broadleaf: { min: 13, max: 26 }, conifer: { min: 15, max: 30 } }
+const SPREAD = { min: 1.1, max: 1.5 }
 
 /** Suffix on a tree's trunkless crown, built alongside it. */
 export const CROWN_SUFFIX = '-crown'

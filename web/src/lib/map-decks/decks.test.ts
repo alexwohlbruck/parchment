@@ -1,12 +1,14 @@
 import { describe, test, expect } from 'vitest'
-import { chains, clip, deckMesh, onDeck, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, beside, chains, clip, deckMesh, fitEdges, onDeck, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
 const y0 = 0.4012
 const line = (...xs: number[]): Point[] => xs.map(x => [0.2789 + x * M, y0])
 const chain = (points: Point[], grounded: [boolean, boolean], layer = 1): Chain =>
-  ({ points, grounded, layer, width: 10, kind: 'road' })
+  ({ points, grounded, layer, width: 10, kind: 'road', edges: [5, 5] })
+/** A line parallel to `line`, `metres` to the side `deckMesh` calls left. */
+const offset = (metres: number, ...xs: number[]): Point[] => line(...xs).map(([x, y]) => [x, y + metres * M])
 
 describe('chains', () => {
   test('pieces cut at a tile seam join back into one deck', () => {
@@ -77,5 +79,36 @@ describe('deck mesh and paint', () => {
     const lifted = onDeck([...line(40), [0.2789 + 40 * M, y0 + 50 * M]], [{ points: c.points, z, d: along(c.points), width: 10 }], 0.05)
     expect(lifted[0]).toBeCloseTo(z[1] + 0.05, 6)
     expect(lifted[1]).toBeNull()
+  })
+})
+
+describe('deck width', () => {
+  test('a point beside a deck reads as on the side the mesh calls left', () => {
+    expect(beside(line(0, 100), offset(6, 50)[0])).toMatchObject({ left: true, alongside: true })
+    expect(beside(line(0, 100), offset(-6, 50)[0]).left).toBe(false)
+    expect(beside(line(0, 100), line(130)[0]).alongside).toBe(false)
+  })
+
+  test('edges fit the kerbs, each side its own', () => {
+    const road = chain(line(0, 100), [true, true])
+    const [left, right] = fitEdges(road, [...offset(7, 10, 90), ...offset(-5, 10, 90)])
+    expect(left).toBeCloseTo(7, 0)
+    expect(right).toBeCloseTo(5, 0)
+  })
+
+  test('sidewalk bridges either side fold into the road deck', () => {
+    const road = chain(line(0, 100), [true, true])
+    const walk = (metres: number): Chain => ({ ...chain(offset(metres, 0, 100), [true, true]), kind: 'path', width: 2, edges: [1, 1] })
+    const decks = absorbPaths([road, walk(8), walk(-8)])
+    expect(decks).toHaveLength(1)
+    expect(decks[0].edges[0]).toBeCloseTo(9, 0)
+    expect(decks[0].edges[1]).toBeCloseTo(9, 0)
+  })
+
+  test('a footbridge of its own stays its own deck', () => {
+    const road = chain(line(0, 100), [true, true])
+    const far: Chain = { ...chain(offset(40, 0, 100), [true, true]), kind: 'path', width: 2, edges: [1, 1] }
+    const across: Chain = { ...chain([line(50)[0], offset(30, 50)[0]], [true, true]), kind: 'path', width: 2, edges: [1, 1] }
+    expect(absorbPaths([road, far, across])).toHaveLength(3)
   })
 })

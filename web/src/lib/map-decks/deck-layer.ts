@@ -13,7 +13,10 @@
 import { MercatorCoordinate } from 'maplibre-gl'
 import { translate } from '@/lib/map-objects/object-layer'
 import {
+  absorbPaths,
+  beside,
   chains,
+  fitEdges,
   clip,
   onEdge,
   deckMesh,
@@ -22,6 +25,7 @@ import {
   along,
   metresPerUnit,
   type Bounds,
+  type Chain,
   type Mesh,
   type Piece,
   type Point,
@@ -49,6 +53,8 @@ export type DeckSources = {
   roads: string
   /** Barrelman's lane paint, where it is served; optional. */
   paint?: { source: string; layer: string }
+  /** Barrelman's carriageways at their real width, which the decks are fitted to. */
+  surfaces?: { source: string; layer: string }
   /** Source ids whose lines are routes to lay over decks. */
   routes: () => string[]
 }
@@ -202,7 +208,8 @@ export class DeckLayer {
     const loaded = tiles.reduce<Bounds | null>((u, t) => u
       ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
       : { ...t }, null)
-    const decks = chains(pieces, p => !!loaded && onEdge(p, loaded, tolerance), tolerance)
+    const paint = this.paint()
+    const decks = absorbPaths(fitted(chains(pieces, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), this.kerbs()))
     const ground = this.ground()
     const solved = decks.flatMap(chain => {
       const groundAt = filled(chain.points.map(ground))
@@ -229,22 +236,14 @@ export class DeckLayer {
     for (const { chain, groundAt, z } of solved)
       deckMesh(chain, z, groundAt, this.origin, { surface: p.surface, concrete: p.concrete, parapet: p.parapet }, mesh)
 
-    const surfaces = solved.map(({ chain, z }) => ({ points: chain.points, z, d: along(chain.points), width: chain.width + 1 }))
+    const surfaces = solved.map(({ chain, z }) => ({ points: chain.points, z, d: along(chain.points), width: 2 * Math.max(...chain.edges) + 1 }))
     this.paintFrom = mesh.position.length / 3
-    if (this.sources.paint) {
-      for (const f of this.query(this.sources.paint.source, this.sources.paint.layer, ['==', ['get', 'bridge'], true])) {
-        const props = f.properties ?? {}
-        if (!props.bridge || props.kind === 'crosswalk') continue
-        const tile = tileBounds(f)
-        const color = props.color === 'yellow' ? p.yellow : p.white
-        const width = PAINT_WIDTH[props.kind] ?? 0.12
-        for (const line of linesOf(f.geometry))
-          for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)]) {
-            const offsets = props.pattern === 'double' ? [-0.15, 0.15] : [0]
-            for (const offset of offsets)
-              this.strip(mesh, run, surfaces, width, color, 0.04, offset, props.pattern === 'dashed')
-          }
-      }
+    for (const { props, runs } of paint) {
+      const color = props.color === 'yellow' ? p.yellow : p.white
+      const width = PAINT_WIDTH[props.kind] ?? 0.12
+      for (const run of runs)
+        for (const offset of props.pattern === 'double' ? [-0.15, 0.15] : [0])
+          this.strip(mesh, run, surfaces, width, color, 0.04, offset, props.pattern === 'dashed')
     }
     for (const id of this.sources.routes())
       for (const f of this.query(id))
@@ -255,6 +254,29 @@ export class DeckLayer {
         }
     this.version++
     return mesh
+  }
+
+  /** The bridges' own lane paint, as runs clipped to their tiles. */
+  private paint(): Paint[] {
+    if (!this.sources.paint) return []
+    return this.query(this.sources.paint.source, this.sources.paint.layer, ['==', ['get', 'bridge'], true]).flatMap(f => {
+      const props = f.properties ?? {}
+      if (!props.bridge || props.kind === 'crosswalk') return []
+      const tile = tileBounds(f)
+      const runs = linesOf(f.geometry).flatMap(line => (tile ? clip(line.map(mercator), tile) : [line.map(mercator)]))
+      return [{ props, runs }]
+    })
+  }
+
+  /** The outlines of the bridges' own carriageways. */
+  private kerbs(): Point[] {
+    if (!this.sources.surfaces) return []
+    const { source, layer } = this.sources.surfaces
+    return this.query(source, layer, ['==', ['get', 'bridge'], true]).flatMap(f => {
+      const g = f.geometry
+      const polygons = g?.type === 'Polygon' ? [g.coordinates] : g?.type === 'MultiPolygon' ? g.coordinates : []
+      return polygons.flat(2).map(mercator)
+    })
   }
 
   /** Paint along a line, lifted onto the decks under it, as flat quads. */
@@ -352,6 +374,24 @@ export class DeckLayer {
     gl.disable(gl.POLYGON_OFFSET_FILL)
     for (const loc of locs) gl.disableVertexAttribArray(loc)
   }
+}
+
+type Paint = { props: Record<string, any>; runs: Point[][] }
+
+/** Each road deck fitted to the kerbs nearest it, so a deck and its twin do not take each other's. */
+function fitted(decks: Chain[], kerbs: Point[]): Chain[] {
+  const roads = decks.filter(d => d.kind === 'road')
+  const owned = new Map<Chain, Point[]>()
+  for (const q of kerbs) {
+    let nearest: Chain | null = null
+    let distance = Infinity
+    for (const road of roads) {
+      const d = beside(road.points, q).distance
+      if (d < distance) [nearest, distance] = [road, d]
+    }
+    if (nearest) owned.set(nearest, [...(owned.get(nearest) ?? []), q])
+  }
+  return decks.map(d => (owned.has(d) ? { ...d, edges: fitEdges(d, owned.get(d)!) } : d))
 }
 
 /** Gaps in a ground profile filled from the nearest sampled point; null if there are none. */

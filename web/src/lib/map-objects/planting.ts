@@ -136,7 +136,7 @@ export function buildExclusions(ways: any[], areas: any[]): ForestExclusions {
   const cell = 32 * metre
   const segments = new Map<number, number[][]>()
   for (const way of ways) {
-    if (way.properties?.brunnel === 'tunnel') continue
+    if (way.properties?.brunnel === 'tunnel' || way.properties?.brunnel === 'bridge') continue
     const clearance = (CLEARANCE[way.properties?.class] ?? DEFAULT_CLEARANCE) * metre
     const lines =
       way.geometry?.type === 'LineString' ? [way.geometry.coordinates]

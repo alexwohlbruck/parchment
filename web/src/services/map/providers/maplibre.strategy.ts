@@ -90,6 +90,9 @@ import {
   BUILDING_3D_TILES,
   LANDMARK_SOURCE,
   LANDMARK_TILES,
+  WOOD_LAYER,
+  forestFloorColor,
+  woodColorOf,
 } from '@/lib/map-style/detail-layers'
 import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { slotBeforeId } from '@/lib/map/layer-slots'
@@ -824,6 +827,11 @@ export class MaplibreStrategy extends MapStrategy {
           layer.type === 'line' ? 'line-opacity' : 'circle-opacity',
           this.map3dObjects ? 0 : TREE_OPACITY,
         )
+      }
+      if (map.getLayer(WOOD_LAYER)) {
+        const wood = woodColorOf(map.getPaintProperty(WOOD_LAYER, 'fill-color'))
+        const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+        map.setPaintProperty(WOOD_LAYER, 'fill-color', this.map3dObjects ? forestFloorColor(wood, flavor) : wood)
       }
     }
 

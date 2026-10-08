@@ -423,3 +423,21 @@ export function pitchLayers(flavor: FlavorId): any[] {
     },
   ]
 }
+
+/** The basemap's woodland fill, which turns to bare soil under the 3D forest. */
+export const WOOD_LAYER = 'Wood'
+
+const FOREST_FLOOR: Record<FlavorId, string> = {
+  light: 'hsl(32, 36%, 60%)',
+  dark: 'hsl(30, 22%, 22%)',
+}
+
+/** Fades from the wood's own colour to soil as the forest fills in at z15. */
+export function forestFloorColor(wood: unknown, flavor: FlavorId): any {
+  return ['interpolate', ['linear'], ['zoom'], 14.5, wood, 15.5, FOREST_FLOOR[flavor]]
+}
+
+/** The colour `forestFloorColor` was built from, or the value unchanged. */
+export function woodColorOf(paint: unknown): any {
+  return Array.isArray(paint) && paint[0] === 'interpolate' ? paint[4] : paint
+}

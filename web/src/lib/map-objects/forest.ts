@@ -223,8 +223,8 @@ export function plantForest(rings: Ring[], bounds: Bounds, ex: ForestExclusions)
 }
 
 /** Woodland trees are old growth: taller and broader than the street trees of `trees.ts`. */
-const HEIGHT = { broadleaf: { min: 15, max: 28 }, conifer: { min: 17, max: 32 } }
-const SPREAD = { min: 1.15, max: 1.55 }
+const HEIGHT = { broadleaf: { min: 13, max: 26 }, conifer: { min: 15, max: 30 } }
+const SPREAD = { min: 1.1, max: 1.5 }
 
 /** Suffix on a tree's trunkless crown, built alongside it. */
 export const CROWN_SUFFIX = '-crown'

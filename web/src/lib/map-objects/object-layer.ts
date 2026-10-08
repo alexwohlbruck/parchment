@@ -255,6 +255,14 @@ export type ObjectSourceSpec = {
   positions?: (feature: any) => Array<[number, number]>
   /** Turns one position into an instance, or null to skip it. */
   toInstance: (feature: any, lng: number, lat: number, index: number) => ObjectInstance | null
+  /** Runs once per gather, before any feature, with the map. */
+  prepare?: (map: any, spec: ObjectSourceSpec) => void
+  /** False when one feature arrives as several tile pieces that must all be kept. Defaults to true. */
+  distinct?: boolean
+  /** Whether the objects depend on the view, so a pan has to gather again. */
+  followsView?: boolean
+  /** Most objects this spec may place, keeping those nearest the view centre. */
+  budget?: number
 }
 
 type ModelBuffers = {
@@ -457,7 +465,8 @@ export class ObjectLayer {
     }
     // Panning does not change which objects exist, only which of them are far
     // enough away to draw cheaply — so it asks for the cheap half of the work.
-    this.onMoveEnd = () => this.invalidate(this.map.getZoom() !== this.gatheredZoom)
+    const followsView = this.specs.some(s => s.followsView)
+    this.onMoveEnd = () => this.invalidate(followsView || this.map.getZoom() !== this.gatheredZoom)
     map.on('sourcedata', this.onSourceData)
     map.on('moveend', this.onMoveEnd)
     // The tiles are usually already loaded when the layer is added — turning
@@ -550,8 +559,11 @@ export class ObjectLayer {
     const terrain = this.map.getTerrain?.() ? this.map : null
     const seen = new Set<string>()
 
+    const center = MercatorCoordinate.fromLngLat(this.map.getCenter(), 0)
     for (const spec of this.specs) {
       if (zoom < spec.minzoom) continue
+      spec.prepare?.(this.map, spec)
+      const first = this.placed.length
       let features: any[] = []
       try {
         features = this.map.querySourceFeatures(spec.source, { sourceLayer: spec.sourceLayer })
@@ -560,7 +572,7 @@ export class ObjectLayer {
       }
       const positions = spec.positions ?? pointPositions
       for (const feature of features) {
-        const key = feature.id ?? feature.properties?.id
+        const key = spec.distinct === false ? undefined : feature.id ?? feature.properties?.id
         if (key !== undefined) {
           const scoped = `${spec.sourceLayer}:${key}`
           if (seen.has(scoped)) continue
@@ -576,6 +588,12 @@ export class ObjectLayer {
           project(lng, lat, elevation, placed)
           this.placed.push(placed)
         }
+      }
+      if (spec.budget !== undefined && this.placed.length - first > spec.budget) {
+        const mine = this.placed.splice(first)
+        const away = (p: Placed) => (p.x - center.x) ** 2 + (p.y - center.y) ** 2
+        mine.sort((a, b) => away(a) - away(b))
+        this.placed.push(...mine.slice(0, spec.budget))
       }
     }
   }

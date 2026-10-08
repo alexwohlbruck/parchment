@@ -1374,10 +1374,10 @@ const TREES = {
   // Spruce in tiers: stacked skirts of branches, each with a flat underside.
   // Far off the tiers merge, so one cone stands in for them.
   'tree-conifer-e': Object.assign(() => spruce(NEAR, SPRUCE_TIERS), { far: () => spruce(FAR, [[5, 2.9, 4.6, 171]]) }),
-  // Pines: a long bare trunk under short branches of drooping needle sprays.
-  // One holds an open crown high up; the other is fuller and more conical.
-  'tree-pine-a': lod(q => pine(q, 211, 15, [[7.4, 2.9], [9, 3], [10.6, 2.6], [12, 2.1], [13.3, 1.5]], { stubs: 4, branches: 3.5, sprays: 2.4 })),
-  'tree-pine-b': lod(q => pine(q, 221, 14, [[5.6, 3.3], [7, 3], [8.4, 2.6], [9.7, 2.2], [10.9, 1.7], [12, 1.2]], { stubs: 2, branches: 4, sprays: 2, width: 0.32 })),
+  // Pines built from layered, drooping needle skirts: a tall pine with an
+  // open, ragged crown high on a bare trunk, and a full conical fir.
+  'tree-pine-a': lod(q => pine(q, 211, 15, [[6.8, 2.6, 1.45], [8.3, 3.1, 1.5], [9.8, 2.6, 1.45], [11.1, 2.5, 1.4], [12.3, 1.8, 1.35], [13.3, 1.1, 1.3], [14.1, 0.6, 0.9]], { trunk: 14, base: 0.38, stubs: 4, lobes: 6, ragged: 0.4 })),
+  'tree-pine-b': lod(q => pine(q, 221, 14, [[2.8, 4, 2.6], [4.3, 3.6, 2.6], [5.8, 3.2, 2.5], [7.3, 2.7, 2.4], [8.7, 2.1, 2.3], [10, 1.5, 2.2], [11.3, 0.9, 2.7]], { trunk: 12, base: 0.45 })),
   // Flowering cherries: a short stout trunk under a wide, low crown in blossom.
   'tree-blossom-a': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.55, 0.36, 0, 2.8) },
@@ -1414,30 +1414,35 @@ function limb(m, a, b, r0, r1) {
 }
 
 /**
- * A spray of needles: a pointed blade, ridged along its top and notched along
- * its edges, that droops from `at` and flicks up again at the tip.
+ * One layer of needles: a closed star of drooping lobes around the trunk, each
+ * ridged down its middle, notched once along each edge, and lifting at the tip.
  */
-function spray(m, at, length, yaw, pitch, { droop = 0.7, curl = 0.3, width = 0.27, notches = 1 } = {}) {
-  const w = width * length
-  // [along, half-width, barb sweep]: barbs swept towards the tip, a notch between.
-  const stations = notches > 1
-    ? [[0.28, w, 0.1], [0.5, w * 0.45, 0], [0.7, w * 0.75, 0.1]]
-    : [[0.36, w, 0.12], [0.62, w * 0.45, 0]]
-  const mid = s => length * (curl * s ** 6 - droop * s * s)
-  const sections = stations.map(([s, half, sweep]) => {
-    const z = s * length
-    const y = mid(s)
-    const edge = [y - half * 0.85, z + sweep * length]
-    return [[-half, edge[0], edge[1]], [0, y + half * 0.3, z], [half, edge[0], edge[1]]]
-  })
-  const place = pts => turn(pts, yaw, -pitch).map(([x, y, z]) => [x + at[0], y + at[1], z + at[2]])
-  const [b, t] = place([[0, 0, 0], [0, mid(1) + length * 0.1, length]])
-  const rings = sections.map(place)
-  for (let k = 0; k < 3; k++) face(m, b, rings[0][(k + 1) % 3], rings[0][k])
-  for (let i = 0; i < rings.length - 1; i++)
-    for (let k = 0; k < 3; k++) quad(m, rings[i][k], rings[i][(k + 1) % 3], rings[i + 1][(k + 1) % 3], rings[i + 1][k])
-  const last = rings[rings.length - 1]
-  for (let k = 0; k < 3; k++) face(m, t, last[k], last[(k + 1) % 3])
+function needleLayer(m, y, radius, rise, lobes, phase, { barbs = true, reach = () => 1 } = {}) {
+  const step = (Math.PI * 2) / lobes
+  const at = (r, a, h) => [Math.cos(a) * r, y + h, Math.sin(a) * r]
+  const apex = [0, y + rise, 0]
+  const under = [0, y + rise * 0.12, 0]
+  const valleys = Array.from({ length: lobes }, (_, i) => at(radius * 0.5, (i + phase + 0.5) * step, rise * 0.3))
+  for (let i = 0; i < lobes; i++) {
+    const a = (i + phase) * step
+    const R = radius * reach(i)
+    const [prev, next] = [valleys[(i + lobes - 1) % lobes], valleys[i]]
+    const m1 = at(R * 0.45, a, rise * 0.5)
+    const m2 = at(R * 0.8, a, -rise * 0.04)
+    const tip = at(R, a, rise * 0.04)
+    face(m, apex, m1, prev)
+    face(m, apex, next, m1)
+    if (barbs) {
+      const [bl, nl] = [at(R * 0.68, a - step * 0.33, -rise * 0.02), at(R * 0.76, a - step * 0.08, rise * 0.08)]
+      const [br, nr] = [at(R * 0.68, a + step * 0.33, -rise * 0.02), at(R * 0.76, a + step * 0.08, rise * 0.08)]
+      face(m, prev, m1, bl), face(m, bl, m1, nl), face(m, nl, m1, m2), face(m, nl, m2, tip)
+      face(m, m1, next, br), face(m, m1, br, nr), face(m, m1, nr, m2), face(m, m2, nr, tip)
+      for (const [u, v] of [[prev, bl], [bl, nl], [nl, tip], [tip, nr], [nr, br], [br, next]]) face(m, under, u, v)
+    } else {
+      face(m, prev, m1, m2), face(m, prev, m2, tip), face(m, m1, next, m2), face(m, m2, next, tip)
+      face(m, under, prev, tip), face(m, under, tip, next)
+    }
+  }
   return m
 }
 
@@ -1459,51 +1464,38 @@ function skirt(m, y, radius, rise, points, phase) {
 }
 
 /**
- * A pine: a straight trunk with a few dead stubs low down, short bare branches
- * at each [y, reach] tier ending in drooping needle sprays, and a pointed
- * leader. Far off, stacked star-pointed skirts.
+ * A pine: a trunk with a few dead stubs below a crown of stacked needle layers,
+ * each [y, radius, rise], rotated so their lobes interleave. `ragged` varies
+ * lobe length and stunts the odd one. Far off, three star-pointed skirts.
  */
-function pine(q, seed, height, tiers, { stubs, branches, sprays, width = 0.27 }) {
+function pine(q, seed, height, layers, { trunk, base, stubs = 0, lobes = 7, ragged = 0 }) {
   const r = rng(seed)
-  const bark = cylinder(mesh(), q.sides, 0.24, 0.08, 0, height)
+  const bark = cylinder(mesh(), q.sides, base, 0.08, 0, trunk)
   const needles = mesh()
+  const top = layers.at(-1)
+  const crownTop = top[0] + top[2]
   if (q.crown <= 1) {
-    const step = Math.ceil(tiers.length / 3)
-    const picks = [0, step, step * 2].filter(i => i < tiers.length)
+    const picks = [0, Math.floor(layers.length / 3), Math.floor((layers.length * 2) / 3)]
     picks.forEach((i, k) => {
-      const [y, reach] = tiers[i]
-      const next = picks[k + 1] === undefined ? height + 0.7 : tiers[picks[k + 1]][0] + 1.2
-      skirt(needles, y + 0.4, reach * 0.95, next - y - 0.4, 6, k * 0.5)
+      const [y, radius] = layers[i]
+      const next = k === 2 ? crownTop : layers[picks[k + 1]][0] + layers[picks[k + 1]][2] * 0.6
+      // Based so its drooping points stop level with the layer's own.
+      const base = (y + 0.22 * next) / 1.22
+      skirt(needles, base, radius * 0.9, next - base, 6, k * 0.5)
     })
     return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
   }
   for (let k = 0; k < stubs; k++) {
-    const y = tiers[0][0] * (0.35 + (k / stubs) * 0.55)
+    const y = layers[0][0] * (0.35 + (k / stubs) * 0.5)
     const ang = k * 2.4 + r()
-    limb(bark, [0, y, 0], [Math.cos(ang) * 0.42, y + 0.2, Math.sin(ang) * 0.42], 0.06, 0.02)
+    limb(bark, [0, y, 0], [Math.cos(ang) * (base + 0.2), y + 0.2, Math.sin(ang) * (base + 0.2)], 0.06, 0.02)
   }
-  tiers.forEach(([y, reach], t) => {
-    const count = Math.floor(branches + 0.5 * (t % 2))
-    for (let k = 0; k < count; k++) {
-      const ang = (k / count) * Math.PI * 2 + t * 1.3 + r() * 0.6
-      const out = reach * (0.28 + r() * 0.12)
-      const rise = (r() - 0.5) * 0.6
-      const end = [Math.cos(ang) * out, y + rise + 0.3 + r() * 0.2, Math.sin(ang) * out]
-      limb(bark, [0, y + rise, 0], end, 0.09, 0.04)
-      const yaw = Math.PI / 2 - ang
-      const length = (reach - out) * (1.05 + r() * 0.15) + 0.2
-      spray(needles, end, length, yaw + (r() - 0.5) * 0.3, r() * 0.1, { notches: reach > 2.8 ? 2 : 1, width })
-      // Side sprays branch off a little way along the main one, herringbone fashion.
-      const fork = [end[0] + Math.cos(ang) * length * 0.22, end[1] + length * 0.03, end[2] + Math.sin(ang) * length * 0.22]
-      const n = Math.floor(sprays - 1 + r())
-      for (let j = 0; j < n; j++) {
-        const side = j % 2 ? -1 : 1
-        spray(needles, fork, length * (0.55 + r() * 0.12), yaw + side * (0.75 + r() * 0.25), r() * 0.1, { droop: 0.8, width })
-      }
-    }
+  layers.forEach(([y, radius, rise], t) => {
+    const last = t === layers.length - 1
+    const stunted = [Math.floor(r() * lobes), Math.floor(r() * lobes)]
+    const reach = i => (ragged && stunted.includes(i) ? 0.5 : 1 - ragged * r())
+    needleLayer(needles, y, radius, rise, last ? 5 : lobes, t * 0.5 + r() * 0.3, { barbs: radius > 1.4, reach })
   })
-  spray(needles, [0, height - 1, 0], 1.8, 0, Math.PI / 2 - 0.02, { droop: 0, curl: 0, width: 0.1 })
-  for (let k = 0; k < 2; k++) spray(needles, [0, height - 1.2, 0], 1.3, k * Math.PI + r(), 0.35, { droop: 0.5 })
   return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
 }
 

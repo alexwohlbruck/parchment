@@ -226,17 +226,51 @@ function tileBounds(feature: any): Bounds | null {
   return { minX: x / n, minY: y / n, maxX: (x + 1) / n, maxY: (y + 1) / n }
 }
 
-function intersect(a: Bounds, b: Bounds): Bounds | null {
-  const r = {
-    minX: Math.max(a.minX, b.minX), minY: Math.max(a.minY, b.minY),
-    maxX: Math.min(a.maxX, b.maxX), maxY: Math.min(a.maxY, b.maxY),
+/** Plantings by tile piece, so a pan re-ranks trees instead of re-planting them. */
+const planted = new Map<string, Array<[number, number, number, number]>>()
+const MAX_PLANTED = 4000
+
+let source: { map: any; layer: string } | null = null
+let exclusions: ForestExclusions | null = null
+
+function exclusionsFor({ map, layer }: { map: any; layer: string }): ForestExclusions {
+  const query = (sourceLayer: string) => {
+    try {
+      return map.querySourceFeatures(layer, { sourceLayer })
+    } catch {
+      return []
+    }
   }
-  return r.minX < r.maxX && r.minY < r.maxY ? r : null
+  return buildExclusions(query('transportation'), [
+    ...query('building'),
+    ...query('water'),
+    ...query('landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)),
+  ])
 }
 
-let view: Bounds | null = null
-let exclusions: ForestExclusions = buildExclusions([], [])
-const planted = new WeakMap<object, Array<[number, number, number, number]>>()
+function pieceKey(feature: any): string {
+  const g = feature.geometry
+  const first = g?.type === 'MultiPolygon' ? g.coordinates[0]?.[0]?.[0] : g?.coordinates?.[0]?.[0]
+  return `${feature._z}/${feature._x}/${feature._y}/${feature.id ?? ''}/${first}/${g?.coordinates?.length}`
+}
+
+const current = new WeakMap<object, Array<[number, number, number, number]>>()
+
+function plantingOf(feature: any) {
+  const known = current.get(feature)
+  if (known) return known
+  const key = pieceKey(feature)
+  let points = planted.get(key)
+  if (!points) {
+    const tile = tileBounds(feature)
+    exclusions ??= source ? exclusionsFor(source) : buildExclusions([], [])
+    points = tile ? polygonsOf(feature.geometry).flatMap(rings => plantForest(rings, tile, exclusions!)) : []
+    if (planted.size >= MAX_PLANTED) planted.clear()
+    planted.set(key, points)
+  }
+  current.set(feature, points)
+  return points
+}
 
 export const FOREST_OBJECTS: ObjectSourceSpec = {
   source: BASEMAP_SOURCE,
@@ -246,37 +280,15 @@ export const FOREST_OBJECTS: ObjectSourceSpec = {
   followsView: true,
   budget: 6000,
   prepare(map, spec) {
-    const b = map.getBounds()
-    const padX = (mercX(b.getEast()) - mercX(b.getWest())) * 0.15
-    const padY = (mercY(b.getSouth()) - mercY(b.getNorth())) * 0.15
-    view = {
-      minX: mercX(b.getWest()) - padX, maxX: mercX(b.getEast()) + padX,
-      minY: mercY(b.getNorth()) - padY, maxY: mercY(b.getSouth()) + padY,
-    }
-    const query = (sourceLayer: string) => {
-      try {
-        return map.querySourceFeatures(spec.source, { sourceLayer })
-      } catch {
-        return []
-      }
-    }
-    exclusions = buildExclusions(query('transportation'), [
-      ...query('building'),
-      ...query('water'),
-      ...query('landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)),
-    ])
+    source = { map, layer: spec.source }
+    exclusions = null
   },
   positions(feature) {
-    if (feature.properties?.class !== 'wood' || !view) return []
-    const tile = tileBounds(feature)
-    const bounds = tile ? intersect(tile, view) : view
-    if (!bounds) return []
-    const points = polygonsOf(feature.geometry).flatMap(rings => plantForest(rings, bounds, exclusions))
-    planted.set(feature, points)
-    return points.map(([lng, lat]) => [lng, lat] as [number, number])
+    if (feature.properties?.class !== 'wood') return []
+    return plantingOf(feature).map(([lng, lat]) => [lng, lat] as [number, number])
   },
   toInstance(feature, lng, lat, index) {
-    const point = planted.get(feature)?.[index]
+    const point = plantingOf(feature)[index]
     return point ? forestTree(lng, lat, point[2], point[3]) : null
   },
 }

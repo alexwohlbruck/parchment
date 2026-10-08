@@ -13,13 +13,14 @@ import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { sportPropInstance, SPORT_MODELS } from './sports'
+import { HUNG_MODELS, LINE_MODELS, lineInstance, measure, placeLine } from './lines'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
-const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS })
+const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS })
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -218,8 +219,13 @@ describe('models', () => {
   test.each(ALL)('%s is a unit tall, based at the origin', name => {
     const model = load(name)
     // glTF is Y-up; the layer swaps to Z-up on the way into the shader.
-    expect(model.min[1]).toBeCloseTo(0, 4)
-    expect(model.max[1]).toBeCloseTo(1, 3)
+    if ((HUNG_MODELS as string[]).includes(name)) {
+      expect(model.min[1]).toBeGreaterThan(0)
+      expect(model.max[1]).toBeLessThanOrEqual(1.0001)
+    } else {
+      expect(model.min[1]).toBeCloseTo(0, 4)
+      expect(model.max[1]).toBeCloseTo(1, 3)
+    }
     // Centred, so a heading rotates it about itself rather than swinging it.
     expect(Math.abs(model.min[0] + model.max[0])).toBeLessThan(0.02)
     expect(Math.abs(model.min[2] + model.max[2])).toBeLessThan(0.02)
@@ -521,6 +527,46 @@ describe('sports props', () => {
     expect(at({ kind: 'surface', sport: 'tennis' })).toBeNull()
     expect(at({ kind: 'lines', sport: 'tennis' })).toBeNull()
     expect(at({ kind: 'basketball-hoop' })).toBeNull()
+  })
+})
+
+describe('lines', () => {
+  const wire = { type: 'LineString', coordinates: [[-80.84, 35.2], [-80.838, 35.2], [-80.838, 35.202]] }
+
+  test('a power line puts a tower at every vertex and a wire span on every segment', () => {
+    const placed = placeLine('power_line', wire, null)
+    expect(placed.filter(p => p.model === 'power-tower')).toHaveLength(3)
+    const spans = placed.filter(p => p.model === 'power-wires')
+    expect(spans).toHaveLength(2)
+    expect(spans[0].bearing).toBeCloseTo(90, 0)
+    expect(spans[0].length).toBeCloseTo(measure([-80.84, 35.2], [-80.838, 35.2]).length, 3)
+  })
+
+  test('a tower at a bend turns halfway between its two spans', () => {
+    const corner = placeLine('power_line', wire, null).filter(p => p.model === 'power-tower')[1]
+    expect(corner.bearing).toBeCloseTo(45, 0)
+  })
+
+  test('a span runs along its segment', () => {
+    const span = placeLine('wall', wire, null)[0]
+    const wall = lineInstance('wall', '2.5', span)
+    expect(wall.height).toBe(2.5)
+    expect(wall.length).toBeCloseTo(span.length!, 6)
+    // The model's x runs 90° clockwise of the way it faces.
+    expect(headingToBearing(wall.heading)).toBeCloseTo((span.bearing + 90) % 360, 6)
+  })
+
+  test('each tile piece places only what is inside its own tile', () => {
+    const east = { minLng: -80.839, maxLng: -80.83, minLat: 35, maxLat: 36 }
+    const towers = placeLine('power_line', wire, east).filter(p => p.model === 'power-tower')
+    expect(towers).toHaveLength(2)
+  })
+
+  test('masts stand along electrified track at an even spacing', () => {
+    const track = { type: 'LineString', coordinates: [[-80.84, 35.2], [-80.83, 35.2]] }
+    const masts = placeLine('catenary', track, null).filter(p => p.model === 'catenary-mast')
+    const length = measure([-80.84, 35.2], [-80.83, 35.2]).length
+    expect(masts.length).toBe(Math.floor((length - 27.5) / 55) + 1)
   })
 })
 

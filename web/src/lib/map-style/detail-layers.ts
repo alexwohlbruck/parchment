@@ -87,6 +87,7 @@ export const FURNITURE_TILES = 'street_furniture'
 export const BUILDING_3D_TILES = 'buildings_3d'
 export const COASTER_TRACK_TILES = 'coaster_tracks'
 export const PITCH_TILES = 'sport_pitches'
+export const OBJECT_LINE_TILES = 'object_lines'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'

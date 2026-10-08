@@ -14,6 +14,8 @@ import {
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
 } from './detail-layers'
+import { asphaltRoads, roadMarkingLayers } from './road-markings'
+import { aboveBridgesIndex, bridgeBandIndex } from './brunnel'
 import { buildingColor, BUILDING_TINT, unpaintedBuildingColor } from './building-color.mjs'
 import { TRANSIT_POI_CLASSES } from './transit-poi.mjs'
 import { CYCLING_SUFFIX } from './cycling.mjs'
@@ -565,7 +567,7 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   const out = [...layers]
 
   const stadium = out.findIndex(l => l.id === 'Stadium')
-  out.splice(stadium < 0 ? 0 : stadium + 1, 0, ...pitchLayers(flavor))
+  if (stadium >= 0) out.splice(stadium + 1, 0, ...pitchLayers(flavor))
 
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))
@@ -611,7 +613,16 @@ function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
     }
   }
 
-  return out
+
+  // Lane geometry sits on top of each band of the road network: the ground's
+  // under the first bridge, the bridges' over the last.
+  const ground = bridgeBandIndex(out)
+  if (ground === undefined) return out
+  const roads = asphaltRoads(out, flavor)
+  const decks = aboveBridgesIndex(roads)
+  if (decks !== undefined) roads.splice(decks, 0, ...roadMarkingLayers(flavor, true))
+  roads.splice(ground, 0, ...roadMarkingLayers(flavor, false))
+  return roads
 }
 
 /** The plan-view outline, rounded exactly as far as the extrusion it traces. */
@@ -708,7 +719,7 @@ export function buildSatelliteStyle(
       poiStyle,
     }).filter(
       l =>
-        l.type === 'symbol' ||
+        (l.type === 'symbol' && (l as any).source === SOURCE) ||
         // Keep the arterial network so the imagery stays navigable.
         /^(Highway|Major road)$/.test(l.id),
     )

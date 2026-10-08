@@ -37,6 +37,10 @@ import type { GlbModel } from './glb.mjs'
 /** The suffix `build-3d-objects.mjs` puts on every cheap variant. */
 export const FAR_SUFFIX = '-far'
 
+/** The model a far variant stands in for; any other name is its own. */
+export const nearOf = (model: string) =>
+  model.endsWith(FAR_SUFFIX) ? model.slice(0, -FAR_SUFFIX.length) : model
+
 /**
  * How far from the centre of the view an object may be, in ground pixels,
  * before it is drawn with its far model.
@@ -218,7 +222,7 @@ const CROWN_OCCLUSION = 0.18
 export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
-export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
+export type ObjectRole = 'bark' | 'palm-bark' | 'foliage' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
 
 /**
  * Colours by role. A `<role>-alt` entry is the colour an instance with a full
@@ -662,14 +666,18 @@ export class ObjectLayer {
       const shape = new Float32Array(group.length * 3)
       const shade = new Float32Array(group.length)
       const tint = new Float32Array(group.length)
+      // A measured crown is sized against the near model's width even when the
+      // far one is drawn. The far model is a few fronds or a coarser solid, and
+      // its own width along x and z can differ by a tenth or more — enough
+      // that the tree would grow or shrink as it crossed the switch.
+      const nearWidth = this.models.get(nearOf(model))?.width || 1
       for (let i = 0; i < group.length; i++) {
         const { instance, x, y, z, perMetre } = group[i]
         offset[i * 3] = x - origin.x
         offset[i * 3 + 1] = y - origin.y
         offset[i * 3 + 2] = z
         shape[i * 3] = instance.height * perMetre
-        const across = instance.width === undefined ? instance.spread : instance.width / (this.models.get(model)?.width || 1)
-        shape[i * 3 + 1] = across * perMetre
+        shape[i * 3 + 1] = (instance.width === undefined ? instance.spread : instance.width / nearWidth) * perMetre
         shape[i * 3 + 2] = instance.heading
         shade[i] = instance.shade
         tint[i] = instance.tint ?? 0

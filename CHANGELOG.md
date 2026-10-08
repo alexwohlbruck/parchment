@@ -7,6 +7,7 @@
 
 ### Changed
 
+* 3D woods grow the trees OpenStreetMap says they hold: conifers in a needleleaved forest, broadleaves in a broadleaved one, an even mix in a mixed one.
 * 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.
 
 ### Fixed

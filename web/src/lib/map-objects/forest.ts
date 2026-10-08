@@ -8,8 +8,10 @@
  * own bounds, so a wood split across tiles is never planted twice.
  */
 import { SOURCE as BASEMAP_SOURCE } from '@/lib/map-style/build'
+import { DETAIL_SOURCE, WOOD_TILES } from '@/lib/map-style/detail-layers'
+import models from './models.json'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
-import { TREE_FAMILIES } from './trees'
+import { TREE_FAMILIES, treeFamily, type TreeFamily } from './trees'
 import { lerp, pick } from './vary'
 
 /** Grid pitch in Web Mercator units: about 10 m of ground at US latitudes. */
@@ -223,7 +225,11 @@ export function plantForest(rings: Ring[], bounds: Bounds, ex: ForestExclusions)
 }
 
 /** Woodland trees are old growth: taller and broader than the street trees of `trees.ts`. */
-const HEIGHT = { broadleaf: { min: 13, max: 26 }, conifer: { min: 15, max: 30 } }
+const HEIGHT: Record<TreeFamily, { min: number; max: number }> = {
+  broadleaf: { min: 13, max: 26 },
+  conifer: { min: 15, max: 30 },
+  palm: { min: 10, max: 20 },
+}
 const SPREAD = { min: 1.1, max: 1.5 }
 
 /** Suffix on a tree's trunkless crown, built alongside it. */
@@ -237,17 +243,34 @@ export const SPARSE_BELOW_ZOOM = 15
 const SPARSE_SPREAD = 1.3
 
 const CROWNS: Record<string, string> = Object.fromEntries(
-  Object.values(TREE_FAMILIES).flat().map(model => [model, `${model}${CROWN_SUFFIX}`]),
+  Object.values(TREE_FAMILIES)
+    .flat()
+    .filter(model => `${model}${CROWN_SUFFIX}` in models)
+    .map(model => [model, `${model}${CROWN_SUFFIX}`]),
 )
+
+/** What a wood says grows in it, from barrelman's `woods` tiles. */
+export type WoodTags = { leaf_type?: string; genus?: string }
+
+/** Share of broadleaves by `leaf_type`. No bare model exists, so leafless woods stay broadleaf. */
+const BROADLEAF_SHARE: Record<string, number> = { broadleaved: 1, leafless: 1, mixed: 0.5, needleleaved: 0 }
+const UNTAGGED_BROADLEAF_SHARE = 0.7
+
+/** The family a wood's tree at a cell belongs to: its genus, else its leaf type's mix. */
+export function woodFamily(wood: WoodTags, i: number, j: number): TreeFamily {
+  if (wood.genus) return treeFamily(wood)
+  const share = BROADLEAF_SHARE[wood.leaf_type ?? ''] ?? UNTAGGED_BROADLEAF_SHARE
+  return cellHash(i, j, 3) < share ? 'broadleaf' : 'conifer'
+}
 
 export function forestTree(
   lng: number,
   lat: number,
   i: number,
   j: number,
-  { interior = false, sparse = false } = {},
+  { interior = false, sparse = false, wood = {} as WoodTags } = {},
 ): ObjectInstance {
-  const family = cellHash(i, j, 3) < 0.7 ? 'broadleaf' : 'conifer'
+  const family = woodFamily(wood, i, j)
   const height = lerp(HEIGHT[family], cellHash(i, j, 4))
   const model = pick(TREE_FAMILIES[family], cellHash(i, j, 9))
   return {
@@ -258,7 +281,7 @@ export function forestTree(
     heading: cellHash(i, j, 6) * Math.PI * 2,
     shade: 0.84 + cellHash(i, j, 7) * 0.24,
     tint: cellHash(i, j, 8),
-    model: interior && !sparse ? CROWNS[model] : model,
+    model: interior && !sparse ? (CROWNS[model] ?? model) : model,
   }
 }
 
@@ -276,6 +299,18 @@ const MAX_PLANTED = 20000
 
 let source: { map: any; layer: string } | null = null
 let exclusions: ForestExclusions | null = null
+
+/** Tags of the woods in view that carry any, by basemap feature id. */
+let woods = new Map<number | string, WoodTags>()
+
+function woodsIn(map: any): Map<number | string, WoodTags> {
+  const out = new Map<number | string, WoodTags>()
+  try {
+    for (const f of map.querySourceFeatures(DETAIL_SOURCE, { sourceLayer: WOOD_TILES }))
+      if (f.id != null) out.set(f.id, f.properties)
+  } catch {}
+  return out
+}
 
 function exclusionsFor({ map, layer }: { map: any; layer: string }): ForestExclusions {
   const query = (sourceLayer: string) => {
@@ -391,6 +426,7 @@ export const FOREST_OBJECTS: ObjectSourceSpec = {
     exclusions = null
     sparse = map.getZoom() < SPARSE_BELOW_ZOOM
     view = plantingBounds(map, sparse)
+    woods = woodsIn(map)
   },
   positions(feature) {
     if (feature.properties?.class !== 'wood') return []
@@ -398,6 +434,8 @@ export const FOREST_OBJECTS: ObjectSourceSpec = {
   },
   toInstance(feature, lng, lat, index) {
     const point = shownOf(feature)[index]
-    return point ? forestTree(lng, lat, point[2], point[3], { interior: point[4], sparse }) : null
+    if (!point) return null
+    const wood = (feature.id != null && woods.get(feature.id)) || {}
+    return forestTree(lng, lat, point[2], point[3], { interior: point[4], sparse, wood })
   },
 }

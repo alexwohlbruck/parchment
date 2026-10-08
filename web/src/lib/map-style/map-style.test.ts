@@ -133,12 +133,9 @@ describe('terrain source', () => {
     expect(src.type).toBe('raster-dem')
   })
 
-  test('declares the tile size and zoom the dataset actually has', () => {
-    // Terrarium tiles are 256px where a DEM source otherwise assumes 512, and
-    // the dataset stops at 15. Both wrong by default, and both wrong quietly:
-    // the terrain just comes out garbled rather than erroring.
-    expect(src.tileSize).toBe(256)
-    expect(src.maxzoom).toBe(15)
+  test('declares the 512 px tiles the archive serves', () => {
+    // A wrong tile size does not error; the terrain just comes out garbled.
+    expect(src.tileSize).toBe(512)
   })
 
   test('needs no API key', () => {

@@ -10,7 +10,7 @@ import { describe, test, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseGlb } from './glb.mjs'
-import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
+import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS, type TreeFamily } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
@@ -74,10 +74,11 @@ describe('models', () => {
    */
   test.each(Object.keys(TREE_MODELS))('%s stands on a trunk, not a plinth', name => {
     const model = load(name)
-    const reach = (role: string, below = Infinity) => {
+    const canopy = (material: string) => material === 'foliage' || material === 'blossom'
+    const reach = (matches: (material: string) => boolean, below = Infinity) => {
       let radius = 0
       for (const p of model.primitives) {
-        if (p.material !== role) continue
+        if (!matches(p.material)) continue
         for (const v of p.index) {
           if (p.position[v * 3 + 1] > below) continue
           radius = Math.max(radius, Math.hypot(p.position[v * 3], p.position[v * 3 + 2]))
@@ -87,13 +88,13 @@ describe('models', () => {
     }
     let crownBottom = Infinity
     for (const p of model.primitives) {
-      if (p.material !== 'foliage') continue
+      if (!canopy(p.material)) continue
       for (const v of p.index) crownBottom = Math.min(crownBottom, p.position[v * 3 + 1])
     }
-    const crown = reach('foliage')
+    const crown = reach(canopy)
     // Only the length of trunk anyone can see; branches inside the crown are
     // behind the foliage they hold up.
-    const trunk = reach('bark', crownBottom)
+    const trunk = reach(m => m === 'bark', crownBottom)
     expect(crown).toBeGreaterThan(0)
     const ratio = trunk / crown
     const label = `${name} trunk is ${(ratio * 100).toFixed(0)}% of its crown`
@@ -356,9 +357,11 @@ describe('trees', () => {
   })
 
   test('family comes from the taxon first, then the leaf type', () => {
-    expect(treeFamily({ genus: 'Pinus' })).toBe('conifer')
-    expect(treeFamily({ genus: 'Washingtonia' })).toBe('palm')
-    expect(treeFamily({ species: 'Phoenix dactylifera' })).toBe('palm')
+    expect(treeFamily({ genus: 'Pinus' })).toBe('pine')
+    expect(treeFamily({ genus: 'Washingtonia' })).toBe('fanPalm')
+    expect(treeFamily({ species: 'Phoenix dactylifera' })).toBe('datePalm')
+    expect(treeFamily({ genus: 'Roystonea' })).toBe('palm')
+    expect(treeFamily({ species: 'Prunus serrulata' })).toBe('blossom')
     expect(treeFamily({ leaf_type: 'needleleaved' })).toBe('conifer')
     expect(treeFamily({ leaf_type: 'broadleaved' })).toBe('broadleaf')
     // A genus that names a conifer wins over a leaf type that disagrees.
@@ -367,11 +370,20 @@ describe('trees', () => {
   })
 
   test('a family only ever draws its own models', () => {
-    for (const [family, models] of Object.entries(TREE_FAMILIES)) {
+    const genus: Record<TreeFamily, string> = {
+      broadleaf: '',
+      conifer: 'Picea',
+      pine: 'Pinus',
+      palm: 'Roystonea',
+      fanPalm: 'Washingtonia',
+      datePalm: 'Phoenix',
+      blossom: 'Prunus',
+    }
+    for (const [family, models] of Object.entries(TREE_FAMILIES) as [TreeFamily, readonly string[]][]) {
       const drawn = new Set(
         Array.from({ length: 60 }, (_, i) =>
           treeInstance(
-            { properties: { id: `node/${i}`, genus: family === 'palm' ? 'Phoenix' : family === 'conifer' ? 'Pinus' : '' } },
+            { properties: { id: `node/${i}`, genus: genus[family] } },
             -73.97,
             40.76,
           )!.model,

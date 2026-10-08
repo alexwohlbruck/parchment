@@ -66,6 +66,9 @@ const ROLE_COLOR = {
   rim: [0.86, 0.4, 0.16, 1],
   frame: [0.95, 0.95, 0.94, 1],
   goalpost: [0.95, 0.8, 0.2, 1],
+  wire: [0.2, 0.21, 0.22, 1],
+  mesh: [0.68, 0.7, 0.7, 1],
+  lattice: [0.62, 0.64, 0.66, 1],
 }
 
 /** How far apart two faces can lean and still share a smoothed normal. */
@@ -1185,6 +1188,106 @@ const SPORTS = {
 }
 
 // ---------------------------------------------------------------------------
+// Lines: barriers, power lines and catenary
+// ---------------------------------------------------------------------------
+
+/** A thin square strut between two points, for lattices and wires. */
+function strut(m, a, b, r, capped = true) {
+  const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+  const len = Math.hypot(...d) || 1
+  const u = d.map(v => v / len)
+  const ref = Math.abs(u[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]
+  const cross = (p, q) => [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]]
+  const norm = v => { const l = Math.hypot(...v) || 1; return v.map(c => c / l) }
+  const s1 = norm(cross(u, ref)).map(v => v * r)
+  const s2 = norm(cross(u, s1)).map(v => v * r)
+  const corner = (p, i, j) => [p[0] + i * s1[0] + j * s2[0], p[1] + i * s1[1] + j * s2[1], p[2] + i * s1[2] + j * s2[2]]
+  const ring = p => [corner(p, 1, 1), corner(p, -1, 1), corner(p, -1, -1), corner(p, 1, -1)]
+  const lo = ring(a)
+  const hi = ring(b)
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4
+    quad(m, lo[i], lo[j], hi[j], hi[i])
+  }
+  if (capped) {
+    quad(m, hi[0], hi[1], hi[2], hi[3])
+    quad(m, lo[3], lo[2], lo[1], lo[0])
+  }
+  return m
+}
+
+/**
+ * Wires along x over one unit of span, each sagging by `sag` at mid-span. The
+ * cross-section stays square to x, so stretching a span to length leaves the
+ * wire as thin as it was built.
+ */
+function wires(m, attach, sag, r, pieces) {
+  const ring = ([x, y, z]) => [[x, y + r, z + r], [x, y - r, z + r], [x, y - r, z - r], [x, y + r, z - r]]
+  for (const [y, z] of attach)
+    for (let k = 0; k < pieces; k++) {
+      const at = t => [t - 0.5, y - sag * (1 - (2 * t - 1) ** 2), z]
+      const lo = ring(at(k / pieces))
+      const hi = ring(at((k + 1) / pieces))
+      for (let i = 0; i < 4; i++) quad(m, lo[i], lo[(i + 1) % 4], hi[(i + 1) % 4], hi[i])
+    }
+  return m
+}
+
+/** Keep a model's own height above the ground: for spans that hang in the air. */
+const standing = (make, height) => Object.assign(make, { fit: { scale: 1 / height, cx: 0, cz: 0, base: 0 } })
+
+/** Conductor attachment points on a lattice tower, in metres: [height, side]. */
+const TOWER_PHASES = [[23, -6.5], [23, 6.5], [28, -4], [28, 4], [29.8, 0]]
+const POLE_PHASES = [[10.4, -1.05], [10.4, 1.05], [11.1, 0]]
+
+/**
+ * Lines stood up as objects. A span runs one unit along x, so the layer can
+ * stretch it to any segment; a tower or pole carries its crossarms across z,
+ * square to the line it holds.
+ */
+const LINES = {
+  'fence-span': furnLod(q => [
+    { role: 'metal', ...box(mesh(), [-0.5, 1.12, -0.02], [0.5, 1.17, 0.02]) },
+    { role: 'metal', ...(q.seg ? box(mesh(), [-0.5, 0.06, -0.02], [0.5, 0.1, 0.02]) : mesh()) },
+    { role: 'mesh', ...box(mesh(), [-0.5, 0.1, -0.008], [0.5, 1.12, 0.008]) },
+  ]),
+  'fence-post': furnLod(q => [{ role: 'metal', ...cylinder(mesh(), half(q), 0.035, 0.03, 0, 1.2) }]),
+  'wall-span': furnLod(() => [{ role: 'stone', ...box(mesh(), [-0.5, 0, -0.15], [0.5, 1, 0.15]) }]),
+  'hedge-span': furnLod(q => [{ role: 'foliage', ...roundedBox(mesh(), [-0.5, 0, -0.4], [0.5, 1, 0.4], 0.2, q.seg ? 2 : 0) }]),
+  'guard-rail-span': standing(furnLod(() => [
+    { role: 'metal', ...box(mesh(), [-0.5, 0.55, -0.05], [0.5, 0.8, 0.05]) },
+  ]), 0.8),
+  'power-tower': furnLod(q => {
+    const steel = mesh()
+    const r = q.seg ? 0.12 : 0.2
+    const leg = (sx, sz) => strut(steel, [sx * 4, 0, sz * 4], [sx * 1, 30, sz * 1], r)
+    for (const [sx, sz] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) leg(sx, sz)
+    const at = (y, sx, sz) => { const w = 4 - (3 * y) / 30; return [sx * w, y, sz * w] }
+    if (q.seg)
+      for (const y of [6, 12, 18, 23, 28])
+        for (const [a, b] of [[[1, 1], [-1, 1]], [[-1, 1], [-1, -1]], [[-1, -1], [1, -1]], [[1, -1], [1, 1]]])
+          strut(steel, at(y, ...a), at(y, ...b), r * 0.7)
+    for (const [y, span] of [[23, 7], [28, 4.5]]) strut(steel, [0, y, -span], [0, y, span], r * 1.3)
+    return [{ role: 'lattice', ...steel }]
+  }),
+  'power-wires': standing(furnLod(q => [{ role: 'wire', ...wires(mesh(), TOWER_PHASES, 2.5, 0.12, q.seg ? 6 : 2) }]), 30),
+  'power-pole': furnLod(q => [
+    { role: 'wood', ...cylinder(mesh(), half(q), 0.15, 0.11, 0, 11.2) },
+    { role: 'wood', ...box(mesh(), [-0.06, 10.2, -1.25], [0.06, 10.32, 1.25]) },
+  ]),
+  'pole-wires': standing(furnLod(q => [{ role: 'wire', ...wires(mesh(), POLE_PHASES, 0.6, 0.05, q.seg ? 6 : 2) }]), 11.2),
+  'catenary-mast': furnLod(q => [
+    { role: 'metal', ...shift(cylinder(mesh(), half(q), 0.12, 0.1, 0, 7.4), [0, 0, 2.6]) },
+    { role: 'metal', ...box(mesh(), [-0.04, 6.7, -0.1], [0.04, 6.8, 2.55]) },
+    { role: 'metal', ...box(mesh(), [-0.03, 5.62, -0.05], [0.03, 6.7, 0.05]) },
+  ]),
+  'catenary-wires': standing(furnLod(q => [
+    { role: 'wire', ...wires(mesh(), [[5.6, 0]], 0, 0.04, 1) },
+    { role: 'wire', ...wires(mesh(), [[6.65, 0]], 0.5, 0.04, q.seg ? 6 : 2) },
+  ]), 7.4),
+}
+
+// ---------------------------------------------------------------------------
 // Trees
 // ---------------------------------------------------------------------------
 
@@ -1393,11 +1496,11 @@ async function main() {
   const written = []
   const manifest = {}
 
-  const emit = async (name, parts, ownFar) => {
+  const emit = async (name, parts, ownFar, fixed) => {
     // A level of detail can leave a part out entirely; an empty part has no volume.
     parts = parts.filter(p => p.index.length)
     ownFar = ownFar?.filter(p => p.index.length)
-    const fit = toUnit(parts)
+    const fit = toUnit(parts, fixed)
     // Before the far LOD is fitted, so its proxy post is fitted to the slimmed
     // trunk rather than to the one nobody will see.
     const slimmed = slimTrunks(parts)
@@ -1459,6 +1562,7 @@ async function main() {
   for (const [name, build] of Object.entries(TREES)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit)
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

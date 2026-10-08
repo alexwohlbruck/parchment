@@ -1532,19 +1532,25 @@ const AREAS = {
       { role: 'bloom', ...blooms },
     ]
   }),
-  // One table of panels, 4 m wide, tilted 25° toward the south (-z).
-  'solar-table': furnLod(q => {
+  // A 24 m segment of a panel row, 3.4 m up the slope, tilted 25° toward the
+  // south (-z). The layer stretches it along x to fit the row.
+  'solar-row': furnLod(q => {
     const tilt = (25 * Math.PI) / 180
-    const [front, back] = [-1 * Math.cos(tilt), 1 * Math.cos(tilt)]
-    const [low, high] = [0.6, 0.6 + 2 * Math.sin(tilt)]
-    const panel = mesh()
-    extrude(panel, [[front, low], [back, high], [back, high + 0.05], [front, low + 0.05]], -2, 2)
-    const posts = mesh()
-    for (const x of q.seg ? [-1.6, 0, 1.6] : [-1.6, 1.6]) {
-      box(posts, [x - 0.04, 0, front * 0.6 - 0.04], [x + 0.04, low + 0.15, front * 0.6 + 0.04])
-      box(posts, [x - 0.04, 0, back * 0.6 - 0.04], [x + 0.04, high - 0.2, back * 0.6 + 0.04])
+    const half = 1.7 * Math.cos(tilt)
+    const [low, high] = [0.6, 0.6 + 3.4 * Math.sin(tilt)]
+    const slab = (inset, lift) => {
+      const t = inset * Math.tan(tilt)
+      return [[-half + inset, low + t + lift], [half - inset, high - t + lift], [half - inset, high - t + lift + 0.06], [-half + inset, low + t + lift + 0.06]]
     }
-    return [{ role: 'pv', ...panel }, { role: 'metal', ...posts }]
+    const glass = extrude(mesh(), slab(0.05, 0.04), -11.95, 11.95)
+    if (!q.seg) return [{ role: 'pv', ...glass }]
+    const posts = mesh()
+    for (const x of [-9, -3, 3, 9])
+      for (const f of [0.15, 0.85]) {
+        const z = -half + 2 * half * f
+        box(posts, [x - 0.05, 0, z - 0.05], [x + 0.05, low + f * (high - low), z + 0.05])
+      }
+    return [{ role: 'pv', ...glass }, { role: 'pv-frame', ...extrude(mesh(), slab(0, 0), -12, 12) }, { role: 'metal', ...posts }]
   }),
 }
 

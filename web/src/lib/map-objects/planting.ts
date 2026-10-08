@@ -231,7 +231,7 @@ export function plant(rings: Ring[], bounds: Bounds, ex: ForestExclusions | null
 export type PlantedPlace = { interior: boolean; sparse: boolean }
 
 /** The tile a queried feature came from, as mercator bounds. */
-function tileBounds(feature: any): Bounds | null {
+export function tileBounds(feature: any): Bounds | null {
   const { _x: x, _y: y, _z: z } = feature
   if (typeof x !== 'number' || typeof y !== 'number' || typeof z !== 'number') return null
   const n = 2 ** z
@@ -270,7 +270,7 @@ function viewBounds(map: any): Bounds | null {
   return { minX: x0 - pad, minY: y0 - pad, maxX: x1 + pad, maxY: y1 + pad }
 }
 
-function pieceKey(feature: any): string {
+export function pieceKey(feature: any): string {
   const g = feature.geometry
   const first = g?.type === 'MultiPolygon' ? g.coordinates[0]?.[0]?.[0] : g?.coordinates?.[0]?.[0]
   return `${feature._z}/${feature._x}/${feature._y}/${feature.id ?? ''}/${first}/${g?.coordinates?.length}`

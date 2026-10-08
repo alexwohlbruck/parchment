@@ -861,7 +861,7 @@ function crownOcclusion(role: string, position: Float32Array): [number, number, 
 }
 
 /** `matrix * translate(origin)`, without pulling in a matrix library. */
-function translate(matrix: ArrayLike<number>, origin: [number, number, number]): Float32Array {
+export function translate(matrix: ArrayLike<number>, origin: [number, number, number]): Float32Array {
   const out = new Float32Array(16)
   for (let i = 0; i < 16; i++) out[i] = matrix[i]
   const [x, y, z] = origin

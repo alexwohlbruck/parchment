@@ -1233,8 +1233,11 @@ function wires(m, attach, sag, r, pieces) {
   return m
 }
 
-/** Keep a model's own height above the ground: for spans that hang in the air. */
-const standing = (make, height) => Object.assign(make, { fit: { scale: 1 / height, cx: 0, cz: 0, base: 0 } })
+/**
+ * Keep a model's own height above the ground: for spans that hang in the air.
+ * Drawn double-sided, since a stretched wire has no top to cull against.
+ */
+const standing = (make, height) => Object.assign(make, { fit: { scale: 1 / height, cx: 0, cz: 0, base: 0 }, open: true })
 
 /** Conductor attachment points on a lattice tower, in metres: [height, side]. */
 const TOWER_PHASES = [[23, -6.5], [23, 6.5], [28, -4], [28, 4], [29.8, 0]]
@@ -1496,7 +1499,7 @@ async function main() {
   const written = []
   const manifest = {}
 
-  const emit = async (name, parts, ownFar, fixed) => {
+  const emit = async (name, parts, ownFar, fixed, open = false) => {
     // A level of detail can leave a part out entirely; an empty part has no volume.
     parts = parts.filter(p => p.index.length)
     ownFar = ownFar?.filter(p => p.index.length)
@@ -1510,7 +1513,7 @@ async function main() {
     const turned = parts.filter(part => orientFaces(part)).length
     // Before smoothing, so a cap's own hard edge is one of the creases the
     // smoothing pass considers rather than a normal it never sees.
-    const holes = parts.reduce((n, part) => n + capHoles(part), 0)
+    const holes = open ? 0 : parts.reduce((n, part) => n + capHoles(part), 0)
     // Only the leafy parts. Smoothing bark rounds off the trunk's cap edge,
     // and smoothing a bench turns its slats into a ramp.
     const foliage = parts.filter(p => p.role === 'foliage')
@@ -1562,7 +1565,7 @@ async function main() {
   for (const [name, build] of Object.entries(TREES)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())
-  for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit)
+  for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit, build.open)
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

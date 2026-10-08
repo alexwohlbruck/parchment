@@ -65,12 +65,13 @@ describe('forest planting', () => {
     expect(trees.some(t => t[4])).toBe(true)
   })
 
-  test('interior trees draw only their crowns; sparse ones stay whole and grow wider', () => {
+  test('interior trees draw only their crowns; sparse ones stay whole and grow larger', () => {
     const edge = forestTree(0, 0, 4, 7)
     expect(edge.model.endsWith(CROWN_SUFFIX)).toBe(false)
     expect(forestTree(0, 0, 4, 7, { interior: true }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
     const sparse = forestTree(0, 0, 4, 7, { interior: true, sparse: true })
     expect(sparse.model).toBe(edge.model)
     expect(sparse.spread).toBeGreaterThan(edge.spread)
+    expect(sparse.height).toBeGreaterThan(edge.height)
   })
 })

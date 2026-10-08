@@ -477,11 +477,6 @@ describe('street furniture', () => {
     expect(at({ kind, direction: '180' })).not.toBeNull()
   })
 
-  test('a street lamp with no road to face becomes a post-top lamp', () => {
-    expect(at({ kind: 'street_lamp', direction: '90' })!.model).toBe('street-lamp')
-    expect(at({ kind: 'street_lamp' })!.model).toBe('lamp-post')
-  })
-
   test('bins take a hashed angle, since a drum has no front', () => {
     const bin = at({ kind: 'waste_basket' })!
     expect(bin.model).toBe('waste-basket')

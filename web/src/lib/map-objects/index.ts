@@ -14,6 +14,7 @@ import { FURNITURE_MODELS, FURNITURE_OBJECTS } from './furniture'
 import { SPORT_MODELS, SPORT_OBJECTS } from './sports'
 import { FOREST_OBJECTS } from './forest'
 import { LINE_MODELS, LINE_OBJECTS } from './lines'
+import { AREA_MODELS, AREA_OBJECTS } from './areas'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
@@ -22,6 +23,7 @@ export const OBJECT_SPECS: ObjectSourceSpec[] = [
   SPORT_OBJECTS,
   FOREST_OBJECTS,
   LINE_OBJECTS,
+  AREA_OBJECTS,
 ]
 
 /**
@@ -49,7 +51,7 @@ export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
 export const OBJECT_SOLID: Record<string, boolean> = models
 
 /** The models a catalogue entry names, for the tests to check against. */
-export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS }
+export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...AREA_MODELS }
 
 /**
  * Role colours, per flavor.
@@ -90,6 +92,9 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     goalpost: [0.96, 0.8, 0.22],
     wire: [0.22, 0.23, 0.24],
     mesh: [0.72, 0.74, 0.74],
+    bloom: [0.9, 0.52, 0.68],
+    'bloom-alt': [0.96, 0.82, 0.36],
+    pv: [0.18, 0.24, 0.38],
     lattice: [0.66, 0.68, 0.7],
   },
   dark: {
@@ -114,6 +119,9 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     goalpost: [0.6, 0.5, 0.16],
     wire: [0.08, 0.09, 0.1],
     mesh: [0.3, 0.31, 0.32],
+    bloom: [0.42, 0.24, 0.32],
+    'bloom-alt': [0.46, 0.4, 0.18],
+    pv: [0.08, 0.1, 0.16],
     lattice: [0.32, 0.34, 0.36],
   },
 }

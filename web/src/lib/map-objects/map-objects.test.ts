@@ -14,13 +14,14 @@ import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OB
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
 import { sportPropInstance, SPORT_MODELS } from './sports'
 import { HUNG_MODELS, LINE_MODELS, lineInstance, measure, placeLine } from './lines'
+import { AREA_MODELS, areaObject } from './areas'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
-const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS })
+const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...AREA_MODELS })
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -567,6 +568,18 @@ describe('lines', () => {
     const masts = placeLine('catenary', track, null).filter(p => p.model === 'catenary-mast')
     const length = measure([-80.84, 35.2], [-80.83, 35.2]).length
     expect(masts.length).toBe(Math.floor((length - 27.5) / 55) + 1)
+  })
+})
+
+describe('planted areas', () => {
+  test('solar tables face the equator in either hemisphere', () => {
+    expect(headingToBearing(areaObject('solar', -80, 35, 1, 1)!.heading)).toBeCloseTo(180, 6)
+    expect(headingToBearing(areaObject('solar', 150, -33, 1, 1)!.heading)).toBeCloseTo(0, 6)
+  })
+
+  test('a mapped shrub stands taller than scrub undergrowth may', () => {
+    const heights = Array.from({ length: 50 }, (_, i) => areaObject('shrub', -80, 35, i, 7)!.height)
+    expect(Math.min(...heights)).toBeGreaterThanOrEqual(1.5)
   })
 })
 

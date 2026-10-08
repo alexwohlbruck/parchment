@@ -88,6 +88,7 @@ export const BUILDING_3D_TILES = 'buildings_3d'
 export const COASTER_TRACK_TILES = 'coaster_tracks'
 export const PITCH_TILES = 'sport_pitches'
 export const OBJECT_LINE_TILES = 'object_lines'
+export const OBJECT_AREA_TILES = 'object_areas'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
@@ -97,6 +98,8 @@ export const FURNITURE_LAYER = 'Street furniture'
 export const COASTER_TRACK_LAYER = 'Coaster track'
 export const COASTER_TRACK_CASING_LAYER = 'Coaster track casing'
 export const PITCH_SURFACE_LAYER = 'Pitch surface'
+export const SOLAR_LAYER = 'Solar array'
+export const FLOWERBED_LAYER = 'Flower bed'
 export const PITCH_MARKING_LAYER = 'Pitch markings'
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */
@@ -139,6 +142,8 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     courtAsphalt: 'hsl(210, 8%, 74%)',
     field: 'hsl(104, 36%, 70%)',
     pitchLine: 'hsla(0, 0%, 100%, 0.95)',
+    solar: 'hsl(222, 22%, 60%)',
+    flowerbed: 'hsl(330, 38%, 84%)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
@@ -153,6 +158,8 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     courtAsphalt: 'hsl(216, 12%, 30%)',
     field: 'hsl(112, 22%, 28%)',
     pitchLine: 'hsla(0, 0%, 88%, 0.6)',
+    solar: 'hsl(222, 22%, 26%)',
+    flowerbed: 'hsl(330, 16%, 30%)',
   },
 }
 
@@ -441,4 +448,30 @@ export function forestFloorColor(wood: unknown, flavor: FlavorId): any {
 /** The colour `forestFloorColor` was built from, or the value unchanged. */
 export function woodColorOf(paint: unknown): any {
   return Array.isArray(paint) && paint[0] === 'interpolate' ? paint[4] : paint
+}
+
+/** Solar arrays and flower beds as flat ground, under the objects planted on them (see `map-objects/areas.ts`). */
+export function plantedAreaLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const kind = (k: string) => ['==', ['get', 'kind'], k]
+  return [
+    {
+      id: SOLAR_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': OBJECT_AREA_TILES,
+      minzoom: 14,
+      filter: kind('solar'),
+      paint: { 'fill-color': c.solar, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 0.9] },
+    },
+    {
+      id: FLOWERBED_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': OBJECT_AREA_TILES,
+      minzoom: 15,
+      filter: kind('flowerbed'),
+      paint: { 'fill-color': c.flowerbed, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0, 16, 1] },
+    },
+  ]
 }

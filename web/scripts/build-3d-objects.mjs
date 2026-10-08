@@ -104,16 +104,16 @@ function box(m, [x0, y0, z0], [x1, y1, z1]) {
   return m
 }
 
-const ring = (sides, radius, y) =>
+const ring = (sides, radius, y, phase = 0) =>
   Array.from({ length: sides }, (_, i) => {
-    const a = (i / sides) * Math.PI * 2
+    const a = ((i + phase) / sides) * Math.PI * 2
     return [Math.cos(a) * radius, y, Math.sin(a) * radius]
   })
 
 /** A tapered cylinder, capped top and bottom. */
-function cylinder(m, sides, bottomRadius, topRadius, base, height) {
-  const lo = ring(sides, bottomRadius, base)
-  const hi = ring(sides, topRadius, base + height)
+function cylinder(m, sides, bottomRadius, topRadius, base, height, phase = 0) {
+  const lo = ring(sides, bottomRadius, base, phase)
+  const hi = ring(sides, topRadius, base + height, phase)
   for (let i = 0; i < sides; i++) {
     const j = (i + 1) % sides
     quad(m, lo[i], lo[j], hi[j], hi[i])
@@ -1060,24 +1060,30 @@ const FURNITURE = {
     }
     return [{ role: 'stone', ...stone }, { role: 'water', ...water }]
   }),
-  // A cobra-head lamp, its arm reaching out over the road it faces (-z).
+  // A classic post-top lantern: fluted base, banded pole, four glass panes
+  // under a pyramid roof. Square, so a direction lines its panes up with the street.
   'street-lamp': furnLod(q => {
     const metal = mesh()
-    cylinder(metal, half(q), 0.09, 0.05, 0, 7.6)
-    extrude(metal, bar([0, 7.4], [-1.8, 7.72], 0.06), -0.03, 0.03)
-    const head = mesh()
-    extrude(head, [[-1.6, 7.66], [-2.3, 7.78], [-2.34, 7.86], [-1.64, 7.8]], -0.13, 0.13)
     const glass = mesh()
-    extrude(glass, [[-1.68, 7.65], [-2.26, 7.75], [-2.26, 7.77], [-1.68, 7.67]], -0.1, 0.1)
-    return [{ role: 'metal', ...metal }, { role: 'metal', ...head }, { role: 'lamp', ...glass }]
-  }),
-  // The same lamp with no road to face: a post-top lantern, round from every side.
-  'lamp-post': furnLod(q => {
-    const metal = mesh()
-    cylinder(metal, half(q), 0.1, 0.06, 0, 3.6)
-    cylinder(metal, half(q), 0.24, 0.05, 4.15, 0.25)
-    const glass = mesh()
-    cylinder(glass, half(q), 0.14, 0.22, 3.6, 0.55)
+    const round = q.seg ? 8 : 6
+    const square = (m, r0, r1, base, height) => cylinder(m, 4, r0 * Math.SQRT2, r1 * Math.SQRT2, base, height, 0.5)
+    cylinder(metal, round, 0.2, 0.11, 0, 0.42)
+    cylinder(metal, round, 0.075, 0.06, 0.42, q.seg ? 2.98 : 3.08)
+    if (q.seg) {
+      cylinder(metal, round, 0.13, 0.13, 0.4, 0.06)
+      for (const y of [1.3, 2.4]) cylinder(metal, round, 0.085, 0.085, y, 0.06)
+      cylinder(metal, round, 0.06, 0.12, 3.25, 0.15)
+    }
+    square(glass, 0.16, 0.22, 3.5, 0.48)
+    square(metal, 0.27, 0.06, 4.02, 0.24)
+    if (q.seg) {
+      square(metal, 0.11, 0.17, 3.4, 0.1)
+      square(metal, 0.29, 0.29, 3.98, 0.04)
+    }
+    if (q.seg) {
+      cylinder(metal, round, 0.025, 0.025, 4.26, 0.08)
+      cylinder(metal, round, 0.045, 0.015, 4.34, 0.08)
+    }
     return [{ role: 'metal', ...metal }, { role: 'lamp', ...glass }]
   }),
   bollard: furnLod(q => {

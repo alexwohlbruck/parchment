@@ -11,11 +11,13 @@ import { type ObjectPalette, type ObjectSourceSpec } from './object-layer'
 import models from './models.json'
 import { TREE_MODELS, TREE_OBJECTS, TREE_ROW_OBJECTS } from './trees'
 import { FURNITURE_MODELS, FURNITURE_OBJECTS } from './furniture'
+import { FOREST_OBJECTS } from './forest'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
   TREE_ROW_OBJECTS,
   FURNITURE_OBJECTS,
+  FOREST_OBJECTS,
 ]
 
 /**

@@ -25,6 +25,10 @@ export const CROWN_SUFFIX = '-crown'
 export const SPARSE_BELOW_ZOOM = 16
 const SPARSE_SPREAD = 1.3
 
+const CROWNS: Record<string, string> = Object.fromEntries(
+  Object.values(TREE_FAMILIES).flat().map(model => [model, `${model}${CROWN_SUFFIX}`]),
+)
+
 export function forestTree(
   lng: number,
   lat: number,
@@ -43,7 +47,7 @@ export function forestTree(
     heading: cellHash(i, j, 6) * Math.PI * 2,
     shade: 0.84 + cellHash(i, j, 7) * 0.24,
     tint: cellHash(i, j, 8),
-    model: interior && !sparse ? `${model}${CROWN_SUFFIX}` : model,
+    model: interior && !sparse ? CROWNS[model] : model,
   }
 }
 

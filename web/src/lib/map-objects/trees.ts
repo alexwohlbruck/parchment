@@ -13,8 +13,8 @@
  *   diameter_crown  the canopy across, in metres — sets the spread directly
  *   circumference   the trunk's girth. Not a height, but strongly correlated
  *                   with one, so a girth with no height still narrows it down
- *   leaf_type       broadleaved or needleleaved, the one tag with real coverage
- *                   (~13%), and the one that picks the model
+ *   leaf_type       broadleaved, needleleaved or palm, the one tag with real
+ *                   coverage (~13%), and most of the palms
  *   genus / species which family this is: pines, palms by kind, and flowering
  *                   cherries, none of which `leaf_type` can tell apart
  *   denotation      a street tree is pruned and smaller than one with room
@@ -93,6 +93,7 @@ export function treeFamily(props: Record<string, any>): TreeFamily {
   const named = GENERA.find(([genus]) => genus.test(taxon))
   if (named) return named[1]
   if (props.leaf_type === 'needleleaved') return 'conifer'
+  if (props.leaf_type === 'palm') return 'palm'
   return 'broadleaf'
 }
 

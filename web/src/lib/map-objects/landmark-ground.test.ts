@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groundContacts, groundLifts, MAX_CONTACTS, modelGround, type Contact } from './landmark-ground'
+import { elevationDrape, groundContacts, groundLifts, MAX_CONTACTS, modelGround, type Contact } from './landmark-ground'
 
 /** A sloping site: the raw DEM rises 0.1 m per metre east, from 190 m. */
 const dem = (x: number) => 190 + x * 0.1
@@ -129,5 +129,31 @@ describe('groundContacts', () => {
     expect(contacts).toHaveLength(MAX_CONTACTS)
     // From one corner of the plan to the other, not just the first rows.
     expect(Math.max(...contacts.map(c => c[2]))).toBeGreaterThan(400)
+  })
+})
+
+describe('elevationDrape', () => {
+  it('leaves a landmark with no elevation exactly as it was drawn before', () => {
+    // Every Open Landmarks asset, and every release before elevation was sent.
+    expect(elevationDrape(0, 1, true)).toEqual({ rigid: false, groundAt: 0, floor: -1e6 })
+    expect(elevationDrape(0, 1, false)).toEqual({ rigid: false, groundAt: 0, floor: -0 })
+  })
+
+  it('stands a raised model rigid, so nothing of it stretches to the ground', () => {
+    expect(elevationDrape(20, 1, true)).toMatchObject({ rigid: true, groundAt: 0 })
+    expect(elevationDrape(20, 1, false)).toMatchObject({ rigid: true, groundAt: 0 })
+  })
+
+  it('measures a sunk model\'s drape from the street it meets, in model metres', () => {
+    expect(elevationDrape(-7, 1, true)).toMatchObject({ rigid: false, groundAt: 7 })
+    // A model drawn at half size meets the street at twice the model depth.
+    expect(elevationDrape(-7, 0.5, true).groundAt).toBe(14)
+  })
+
+  it('clips at the flat map with the terrain off, and leaves it to the terrain with it on', () => {
+    // Map metres up from the anchor, which the elevation has already moved.
+    expect(elevationDrape(-5, 1, false).floor).toBe(5)
+    expect(elevationDrape(20, 1, false).floor).toBe(-20)
+    expect(elevationDrape(-5, 1, true).floor).toBeLessThan(-1000)
   })
 })

@@ -108,7 +108,12 @@ export type Landmark = {
   /** Degrees clockwise from north that the model's north is turned to. */
   bearing: number
   scale: number
-  /** Metres above the ground the model's origin sits. */
+  /**
+   * Metres the model is raised (positive) or sunk (negative) from where the
+   * layer grounds it: for a plinth or pier the map doesn't draw, or a field
+   * below the street. Sent beside the model rather than baked into it, so
+   * its own ground stays at y = 0. 0 for almost every landmark.
+   */
   elevation: number
   minzoom: number
   /**

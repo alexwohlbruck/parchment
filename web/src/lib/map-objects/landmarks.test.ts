@@ -34,6 +34,12 @@ describe('parseLandmark', () => {
     })
   })
 
+  it('reads a signed elevation, and 0 where the tile has none', () => {
+    expect(parseLandmark(feature({ elevation: 10 }))?.elevation).toBe(10)
+    expect(parseLandmark(feature({ elevation: -7 }))?.elevation).toBe(-7)
+    expect(parseLandmark(feature({}))?.elevation).toBe(0)
+  })
+
   it('refuses a model name that is not a content-addressed file', () => {
     // The name is pasted into a URL, so anything path-shaped is dropped.
     expect(parseLandmark(feature({ model: '../../auth/sessions' }))).toBeNull()

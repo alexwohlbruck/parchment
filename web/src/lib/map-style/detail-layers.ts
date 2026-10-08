@@ -370,11 +370,11 @@ const FOREST_FLOOR: Record<FlavorId, string> = {
 }
 
 /** Fades from the wood's own colour to soil as the trees come in at z16. */
-export function forestFloorColor(wood: unknown, flavor: FlavorId) {
+export function forestFloorColor(wood: unknown, flavor: FlavorId): any {
   return ['interpolate', ['linear'], ['zoom'], 15.5, wood, 16.5, FOREST_FLOOR[flavor]]
 }
 
 /** The colour `forestFloorColor` was built from, or the value unchanged. */
-export function woodColorOf(paint: unknown): unknown {
+export function woodColorOf(paint: unknown): any {
   return Array.isArray(paint) && paint[0] === 'interpolate' ? paint[4] : paint
 }

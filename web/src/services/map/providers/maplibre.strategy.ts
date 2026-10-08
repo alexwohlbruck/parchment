@@ -100,7 +100,7 @@ import { DeckLayer } from '@/lib/map-decks/deck-layer'
 import { DECK_PALETTE } from '@/lib/map-decks/palette'
 import { flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
 import { SOURCE } from '@/lib/map-style/build'
-import { ROAD_MARKING_TILES } from '@/lib/map-style/road-markings'
+import { ROAD_MARKING_TILES, ROAD_SURFACE_TILES } from '@/lib/map-style/road-markings'
 import { slotBeforeId } from '@/lib/map/layer-slots'
 import {
   ObjectLayer,
@@ -919,6 +919,7 @@ export class MaplibreStrategy extends MapStrategy {
           basemap: SOURCE,
           roads: 'transportation',
           paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES },
+          surfaces: { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES },
           routes: () => Object.keys(map.getStyle()?.sources ?? {}).filter(id => /^route-\d+$/.test(id)),
         },
         DECK_PALETTE[flavor],

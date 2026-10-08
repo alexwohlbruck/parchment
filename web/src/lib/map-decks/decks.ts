@@ -181,15 +181,15 @@ export function beside(points: Point[], q: Point): { distance: number; left: boo
 }
 
 /**
- * A road deck's edges fitted to the paint laid on it: the outermost line on
- * each side, plus the gutter to the kerb. A side with no paint mirrors the
- * other; with none at all the deck keeps its width.
+ * A road deck's edges fitted to its kerbs: the farthest outline point on each
+ * side. A side with none mirrors the other; with none at all the deck keeps
+ * its width.
  */
-export function fitEdges(chain: Chain, paint: Point[], gutter = 0.6): [number, number] {
+export function fitEdges(chain: Chain, kerbs: Point[]): [number, number] {
   const reach: [number, number] = [0, 0]
-  for (const q of paint) {
+  for (const q of kerbs) {
     const { distance, left, alongside } = beside(chain.points, q)
-    if (alongside && distance < MAX_REACH) reach[left ? 0 : 1] = Math.max(reach[left ? 0 : 1], distance + gutter)
+    if (alongside && distance < MAX_REACH) reach[left ? 0 : 1] = Math.max(reach[left ? 0 : 1], distance)
   }
   if (!reach[0] && !reach[1]) return chain.edges
   return [reach[0] || reach[1], reach[1] || reach[0]]

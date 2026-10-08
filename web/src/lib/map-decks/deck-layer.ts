@@ -53,6 +53,8 @@ export type DeckSources = {
   roads: string
   /** Barrelman's lane paint, where it is served; optional. */
   paint?: { source: string; layer: string }
+  /** Barrelman's carriageways at their real width, which the decks are fitted to. */
+  surfaces?: { source: string; layer: string }
   /** Source ids whose lines are routes to lay over decks. */
   routes: () => string[]
 }
@@ -79,8 +81,6 @@ const FS = `
 /** Paint widths in metres, and the dash for a dashed line. */
 const PAINT_WIDTH: Record<string, number> = { centre: 0.12, lane: 0.12, edge: 0.15, bike: 0.15, stop: 0.45 }
 const DASH = { on: 3, off: 9 }
-/** From an edge line to the kerb beyond it, in metres. */
-const KERB = 0.4
 
 const tileBounds = (feature: any): Bounds | null => {
   const { _x: x, _y: y, _z: z } = feature
@@ -209,7 +209,7 @@ export class DeckLayer {
       ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
       : { ...t }, null)
     const paint = this.paint()
-    const decks = absorbPaths(fitted(chains(pieces, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), paint))
+    const decks = absorbPaths(fitted(chains(pieces, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), this.kerbs()))
     const ground = this.ground()
     const solved = decks.flatMap(chain => {
       const groundAt = filled(chain.points.map(ground))
@@ -265,6 +265,17 @@ export class DeckLayer {
       const tile = tileBounds(f)
       const runs = linesOf(f.geometry).flatMap(line => (tile ? clip(line.map(mercator), tile) : [line.map(mercator)]))
       return [{ props, runs }]
+    })
+  }
+
+  /** The outlines of the bridges' own carriageways. */
+  private kerbs(): Point[] {
+    if (!this.sources.surfaces) return []
+    const { source, layer } = this.sources.surfaces
+    return this.query(source, layer, ['==', ['get', 'bridge'], true]).flatMap(f => {
+      const g = f.geometry
+      const polygons = g?.type === 'Polygon' ? [g.coordinates] : g?.type === 'MultiPolygon' ? g.coordinates : []
+      return polygons.flat(2).map(mercator)
     })
   }
 
@@ -367,23 +378,20 @@ export class DeckLayer {
 
 type Paint = { props: Record<string, any>; runs: Point[][] }
 
-/** Each road deck widened or narrowed to the kerbs its edge lines mark, each line counted toward the deck nearest it. */
-function fitted(decks: Chain[], paint: Paint[]): Chain[] {
+/** Each road deck fitted to the kerbs nearest it, so a deck and its twin do not take each other's. */
+function fitted(decks: Chain[], kerbs: Point[]): Chain[] {
   const roads = decks.filter(d => d.kind === 'road')
-  const kerbs = new Map<Chain, Point[]>()
-  for (const { props, runs } of paint) {
-    if (props.kind !== 'edge') continue
-    for (const q of runs.flat()) {
-      let nearest: Chain | null = null
-      let distance = Infinity
-      for (const road of roads) {
-        const d = beside(road.points, q).distance
-        if (d < distance) [nearest, distance] = [road, d]
-      }
-      if (nearest) kerbs.set(nearest, [...(kerbs.get(nearest) ?? []), q])
+  const owned = new Map<Chain, Point[]>()
+  for (const q of kerbs) {
+    let nearest: Chain | null = null
+    let distance = Infinity
+    for (const road of roads) {
+      const d = beside(road.points, q).distance
+      if (d < distance) [nearest, distance] = [road, d]
     }
+    if (nearest) owned.set(nearest, [...(owned.get(nearest) ?? []), q])
   }
-  return decks.map(d => (kerbs.has(d) ? { ...d, edges: fitEdges(d, kerbs.get(d)!, KERB) } : d))
+  return decks.map(d => (owned.has(d) ? { ...d, edges: fitEdges(d, owned.get(d)!) } : d))
 }
 
 /** Gaps in a ground profile filled from the nearest sampled point; null if there are none. */

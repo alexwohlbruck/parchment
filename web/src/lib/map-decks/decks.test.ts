@@ -89,11 +89,11 @@ describe('deck width', () => {
     expect(beside(line(0, 100), line(130)[0]).alongside).toBe(false)
   })
 
-  test('edges fit the kerb lines, each side its own', () => {
+  test('edges fit the kerbs, each side its own', () => {
     const road = chain(line(0, 100), [true, true])
-    const [left, right] = fitEdges(road, [...offset(7, 10, 90), ...offset(-5, 10, 90)], 0.4)
-    expect(left).toBeCloseTo(7.4, 0)
-    expect(right).toBeCloseTo(5.4, 0)
+    const [left, right] = fitEdges(road, [...offset(7, 10, 90), ...offset(-5, 10, 90)])
+    expect(left).toBeCloseTo(7, 0)
+    expect(right).toBeCloseTo(5, 0)
   })
 
   test('sidewalk bridges either side fold into the road deck', () => {

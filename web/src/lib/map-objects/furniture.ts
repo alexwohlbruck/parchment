@@ -1,16 +1,11 @@
 /**
- * Street furniture: bins, recycling containers and benches.
+ * Street furniture: benches, tables, racks, bins, lamps, bollards, fountains and
+ * billboards.
  *
- * Small enough that they only earn their place at the closest zooms, and small
- * enough that being *wrong* is cheap — nobody navigates by a bin. What they do
- * is make a street read as somewhere people are rather than as a diagram of
- * where the tarmac is.
- *
- * Benches are the one object with an orientation worth having, and OSM has a
- * tag for it — `direction`, the compass bearing the seat faces. Only about one
- * bench in thirty carries it, and a bench pointed the wrong way reads worse
- * than no bench at all: it is furniture, so a wrong angle looks like a mistake
- * where a wrong tree does not. So the untagged ones are skipped.
+ * `direction` is the compass bearing an object faces. Barrelman fills it from
+ * OSM where mapped and otherwise from the nearest road or path, so most objects
+ * with a front arrive with one. Those still without one are skipped when a wrong
+ * angle would read as a mistake, and drawn at a hashed angle when it would not.
  */
 import { FURNITURE_SOURCE, FURNITURE_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
@@ -20,22 +15,50 @@ export const FURNITURE_MODELS = {
   'waste-basket': '/models/waste-basket.glb',
   recycling: '/models/recycling.glb',
   bench: '/models/bench.glb',
+  'picnic-table': '/models/picnic-table.glb',
+  'bike-rack': '/models/bike-rack.glb',
+  'drinking-water': '/models/drinking-water.glb',
+  fountain: '/models/fountain.glb',
+  'street-lamp': '/models/street-lamp.glb',
+  'lamp-post': '/models/lamp-post.glb',
+  bollard: '/models/bollard.glb',
+  billboard: '/models/billboard.glb',
 }
+
+type FurnitureModel = keyof typeof FURNITURE_MODELS
 
 /** Real heights, in metres; each model's own proportions give its footprint. */
-const SIZE = {
-  'waste-basket': { height: 0.94 },
-  recycling: { height: 0.94 },
-  bench: { height: 1.16 },
+const HEIGHT: Record<FurnitureModel, number> = {
+  'waste-basket': 0.94,
+  recycling: 0.94,
+  bench: 1.16,
+  'picnic-table': 0.77,
+  'bike-rack': 0.85,
+  'drinking-water': 1.0,
+  fountain: 2.08,
+  'street-lamp': 7.86,
+  'lamp-post': 4.4,
+  bollard: 0.92,
+  billboard: 9.1,
 }
 
-/** `amenity` values that share a model. */
-const MODEL_FOR: Record<string, keyof typeof SIZE> = {
+/** Barrelman's `kind` values, and the model each draws as. */
+const MODEL_FOR: Record<string, FurnitureModel> = {
   waste_basket: 'waste-basket',
   recycling: 'recycling',
   waste_disposal: 'recycling',
   bench: 'bench',
+  picnic_table: 'picnic-table',
+  bicycle_parking: 'bike-rack',
+  drinking_water: 'drinking-water',
+  fountain: 'fountain',
+  street_lamp: 'street-lamp',
+  bollard: 'bollard',
+  billboard: 'billboard',
 }
+
+/** Models whose front is obvious enough that a guessed angle looks wrong. */
+const NEEDS_DIRECTION = new Set<FurnitureModel>(['bench', 'picnic-table', 'billboard'])
 
 /** The eight compass points, for `direction=NE` and friends. */
 const COMPASS: Record<string, number> = {
@@ -90,26 +113,27 @@ export function headingToBearing(heading: number): number {
 
 export function furnitureInstance(feature: any, lng: number, lat: number): ObjectInstance | null {
   const props = feature.properties ?? {}
-  const model = MODEL_FOR[props.kind]
+  let model = MODEL_FOR[props.kind]
   if (!model) return null
 
   const seed = props.id ?? feature.id ?? `${lng},${lat}`
   const heading = bearingOf(props.direction)
-  // A bench without a bearing is skipped; a bin is a drum and looks the same
-  // from every side, so it takes a hashed angle and nobody is any the wiser.
-  if (model === 'bench' && heading === null) return null
+  if (heading === null) {
+    if (NEEDS_DIRECTION.has(model)) return null
+    // A lamp with no road to reach over stands as a post-top lantern instead.
+    if (model === 'street-lamp') model = 'lamp-post'
+  }
 
-  const size = SIZE[model]
+  const height = HEIGHT[model]
   return {
     lng,
     lat,
-    height: size.height,
+    height,
     // The models are built at true proportions and normalised to one unit
     // tall, so they scale evenly: width follows height.
-    spread: size.height,
+    spread: height,
     heading: heading ?? hash(seed, 7) * Math.PI * 2,
-    // Furniture varies less than planting does: these are manufactured, and a
-    // row of visibly different bins would read as a mistake.
+    // Manufactured things vary less than planting does.
     shade: 0.94 + hash(seed, 8) * 0.12,
     model,
   }

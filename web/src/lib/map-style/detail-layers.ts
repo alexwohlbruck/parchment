@@ -86,6 +86,7 @@ export const TREE_ROW_TILES = 'tree_rows'
 export const FURNITURE_TILES = 'street_furniture'
 export const BUILDING_3D_TILES = 'buildings_3d'
 export const COASTER_TRACK_TILES = 'coaster_tracks'
+export const PITCH_TILES = 'sport_pitches'
 
 export const PARKING_LAYER = 'Parking'
 export const PARKING_CASING_LAYER = 'Parking outline'
@@ -94,6 +95,8 @@ export const TREE_ROW_LAYER = 'Tree rows'
 export const FURNITURE_LAYER = 'Street furniture'
 export const COASTER_TRACK_LAYER = 'Coaster track'
 export const COASTER_TRACK_CASING_LAYER = 'Coaster track casing'
+export const PITCH_SURFACE_LAYER = 'Pitch surface'
+export const PITCH_MARKING_LAYER = 'Pitch markings'
 
 /** Every layer that is the flat stand-in for a 3D object; see `TREE_OPACITY`. */
 export const OBJECT_FLAT_LAYERS = [TREE_LAYER, TREE_ROW_LAYER, FURNITURE_LAYER]
@@ -129,6 +132,12 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     // darker than the paving so it reads as a structure standing on it.
     coaster: 'hsl(212, 10%, 52%)',
     coasterCasing: 'hsla(212, 14%, 98%, 0.85)',
+    courtHard: 'hsl(198, 28%, 66%)',
+    courtClay: 'hsl(16, 48%, 66%)',
+    courtSand: 'hsl(42, 48%, 82%)',
+    courtAsphalt: 'hsl(210, 8%, 74%)',
+    field: 'hsl(104, 36%, 70%)',
+    pitchLine: 'hsla(0, 0%, 100%, 0.95)',
   },
   dark: {
     parking: 'hsl(216, 20%, 27%)',
@@ -137,6 +146,12 @@ const DETAIL_COLORS: Record<FlavorId, Record<string, string>> = {
     furniture: 'hsl(210, 12%, 44%)',
     coaster: 'hsl(212, 12%, 62%)',
     coasterCasing: 'hsla(216, 30%, 12%, 0.8)',
+    courtHard: 'hsl(205, 26%, 30%)',
+    courtClay: 'hsl(16, 30%, 30%)',
+    courtSand: 'hsl(40, 22%, 34%)',
+    courtAsphalt: 'hsl(216, 12%, 30%)',
+    field: 'hsl(112, 22%, 28%)',
+    pitchLine: 'hsla(0, 0%, 88%, 0.6)',
   },
 }
 
@@ -357,6 +372,54 @@ export function coasterTrackLayers(flavor: FlavorId): any[] {
       id: COASTER_TRACK_LAYER,
       layout: { 'line-join': 'round', 'line-cap': 'round', 'line-sort-key': sortKey },
       paint: { 'line-color': color, 'line-width': width(0) },
+    },
+  ]
+}
+
+/**
+ * Sport surfaces and their markings, from barrelman's `sport_pitches`. Flat, so
+ * they drape over terrain with the rest of the ground; the nets and goals stand
+ * on them as 3D objects (see `map-objects/sports.ts`).
+ */
+export function pitchLayers(flavor: FlavorId): any[] {
+  const c = DETAIL_COLORS[flavor]
+  const surface = ['coalesce', ['get', 'surface'], '']
+  const sport = ['coalesce', ['get', 'sport'], '']
+  return [
+    {
+      id: PITCH_SURFACE_LAYER,
+      type: 'fill',
+      source: DETAIL_SOURCE,
+      'source-layer': PITCH_TILES,
+      minzoom: 14,
+      filter: ['==', ['get', 'kind'], 'surface'],
+      paint: {
+        'fill-color': [
+          'case',
+          ['in', surface, ['literal', ['clay', 'dirt', 'tartan']]], c.courtClay,
+          ['==', surface, 'sand'], c.courtSand,
+          ['in', sport, ['literal', ['tennis', 'pickleball']]], c.courtHard,
+          ['in', sport, ['literal', ['beachvolleyball', 'beach_volleyball']]], c.courtSand,
+          ['==', sport, 'basketball'], c.courtAsphalt,
+          c.field,
+        ],
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 1],
+      },
+    },
+    {
+      id: PITCH_MARKING_LAYER,
+      type: 'line',
+      source: DETAIL_SOURCE,
+      'source-layer': PITCH_TILES,
+      minzoom: 15.5,
+      filter: ['==', ['get', 'kind'], 'lines'],
+      layout: { 'line-cap': 'butt', 'line-join': 'miter' },
+      paint: {
+        'line-color': c.pitchLine,
+        // About 8 cm of paint at mid-US latitudes, never thinner than a hairline.
+        'line-width': ['interpolate', ['exponential', 2], ['zoom'], 15.5, 0.6, 18, 1.2, 22, 8],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], 15.5, 0, 16.5, 1],
+      },
     },
   ]
 }

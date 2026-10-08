@@ -9,6 +9,7 @@ import {
   treeLayers,
   landmarkLayers,
   coasterTrackLayers,
+  pitchLayers,
   BUILDINGS_SOURCE,
   DETAIL_SOURCE,
   BUILDING_3D_TILES,
@@ -562,6 +563,9 @@ function useBarrelmanBuildings(layers: any[], flavor: FlavorId): any[] {
  */
 function spliceDetailLayers(layers: any[], flavor: FlavorId): any[] {
   const out = [...layers]
+
+  const stadium = out.findIndex(l => l.id === 'Stadium')
+  out.splice(stadium < 0 ? 0 : stadium + 1, 0, ...pitchLayers(flavor))
 
   const beforePeds = out.findIndex(l => l.id === 'Pedestrian area outline')
   out.splice(beforePeds < 0 ? out.length : beforePeds, 0, ...parkingLayers(flavor))

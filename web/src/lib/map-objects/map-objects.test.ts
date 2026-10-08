@@ -12,13 +12,14 @@ import { resolve } from 'node:path'
 import { parseGlb } from './glb.mjs'
 import { treeFamily, treeInstance, walkLine, TREE_FAMILIES, TREE_MODELS, TREE_OBJECTS } from './trees'
 import { bearingOf, headingToBearing, furnitureInstance, FURNITURE_MODELS } from './furniture'
+import { sportPropInstance, SPORT_MODELS } from './sports'
 import { CATALOGUE_MODELS, OBJECT_MODELS, OBJECT_PALETTE, OBJECT_SOLID } from './index'
 import { FAR_SUFFIX, FRONT_FACE, project } from './object-layer'
 import { MercatorCoordinate } from 'maplibre-gl'
 import { treeLayers } from '@/lib/map-style/detail-layers'
 
 const MODELS = resolve(__dirname, '../../../public/models')
-const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS })
+const ALL = Object.keys({ ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS })
 
 function load(name: string) {
   const bytes = readFileSync(resolve(MODELS, `${name}.glb`))
@@ -502,6 +503,24 @@ describe('street furniture', () => {
       }
     expect((high - low) * bench.spread).toBeCloseTo(1.8, 1)
     expect(bench.height).toBeLessThan(1.3)
+  })
+})
+
+describe('sports props', () => {
+  const at = (props: Record<string, unknown>) =>
+    sportPropInstance({ properties: { id: 'way/1', ...props } }, -80.84, 35.19)
+
+  test('a net spans the width barrelman measured', () => {
+    const net = at({ kind: 'tennis-net', direction: '90', width: 12.8 })!
+    expect(net.model).toBe('tennis-net')
+    expect(net.width).toBe(12.8)
+    expect(headingToBearing(net.heading)).toBeCloseTo(90, 6)
+  })
+
+  test('surfaces, markings and unfaced props draw no object', () => {
+    expect(at({ kind: 'surface', sport: 'tennis' })).toBeNull()
+    expect(at({ kind: 'lines', sport: 'tennis' })).toBeNull()
+    expect(at({ kind: 'basketball-hoop' })).toBeNull()
   })
 })
 

@@ -429,13 +429,13 @@ export function pitchLayers(flavor: FlavorId): any[] {
 export const WOOD_LAYER = 'Wood'
 
 const FOREST_FLOOR: Record<FlavorId, string> = {
-  light: 'hsl(32, 24%, 62%)',
-  dark: 'hsl(30, 14%, 22%)',
+  light: 'hsl(32, 36%, 60%)',
+  dark: 'hsl(30, 22%, 22%)',
 }
 
-/** Fades from the wood's own colour to soil as the forest fills in at z16. */
+/** Fades from the wood's own colour to soil as the forest fills in at z15. */
 export function forestFloorColor(wood: unknown, flavor: FlavorId): any {
-  return ['interpolate', ['linear'], ['zoom'], 15.5, wood, 16.5, FOREST_FLOOR[flavor]]
+  return ['interpolate', ['linear'], ['zoom'], 14.5, wood, 15.5, FOREST_FLOOR[flavor]]
 }
 
 /** The colour `forestFloorColor` was built from, or the value unchanged. */

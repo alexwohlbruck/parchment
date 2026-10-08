@@ -170,12 +170,18 @@ export function buildExclusions(ways: any[], areas: any[]): ForestExclusions {
 /** A planting grid: cell size in mercator metres along x and y, and how far a point may wander in its cell. */
 export type Grid = { dx: number; dy: number; jitter: number }
 
+/** A planted grid point: [lng, lat, i, j, interior]. */
+export type PlantedPoint = [number, number, number, number, boolean]
+
+/** Cells either way that must all be planted for a point to count as inside the area. */
+const INTERIOR_REACH = 2
+
 /**
- * Grid points inside an area and inside `bounds`, clear of every exclusion.
- * Returns [lng, lat, i, j] so each object can be seeded from its cell.
+ * Grid points inside an area and inside `bounds`, clear of every exclusion,
+ * each seeded from its cell. A point is interior when every cell within
+ * `INTERIOR_REACH` is planted too, so nothing but its top is ever seen.
  */
-export function plant(rings: Ring[], bounds: Bounds, ex: ForestExclusions | null, grid: Grid): Array<[number, number, number, number]> {
-  const out: Array<[number, number, number, number]> = []
+export function plant(rings: Ring[], bounds: Bounds, ex: ForestExclusions | null, grid: Grid): PlantedPoint[] {
   const [sx, sy] = [grid.dx * MERCATOR_METRE, grid.dy * MERCATOR_METRE]
   const slack = (1 - grid.jitter) / 2
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
@@ -187,21 +193,42 @@ export function plant(rings: Ring[], bounds: Bounds, ex: ForestExclusions | null
   const j1 = Math.floor(Math.min(maxY, bounds.maxY) / sy)
   const i0 = Math.floor(Math.max(minX, bounds.minX) / sx)
   const i1 = Math.floor(Math.min(maxX, bounds.maxX) / sx)
+  if (i1 < i0 || j1 < j0) return []
 
-  for (let j = j0; j <= j1; j++) {
+  const r = INTERIOR_REACH
+  const width = i1 - i0 + 1 + 2 * r
+  const clear = new Uint8Array(width * (j1 - j0 + 1 + 2 * r))
+  const at = (i: number, j: number) => (j - j0 + r) * width + (i - i0 + r)
+  const point = (i: number, j: number): Point => [
+    (i + slack + cellHash(i, j, 1) * grid.jitter) * sx,
+    (j + slack + cellHash(i, j, 2) * grid.jitter) * sy,
+  ]
+  for (let j = j0 - r; j <= j1 + r; j++) {
     const spans = spansAt(rings, (j + 0.5) * sy)
     if (!spans.length) continue
-    for (let i = i0; i <= i1; i++) {
-      const x = (i + slack + cellHash(i, j, 1) * grid.jitter) * sx
-      const y = (j + slack + cellHash(i, j, 2) * grid.jitter) * sy
-      if (x < bounds.minX || x >= bounds.maxX || y < bounds.minY || y >= bounds.maxY) continue
-      if (!within(spans, x)) continue
-      if (ex && (nearWay(ex, x, y) || inArea(ex, x, y))) continue
-      out.push([lngOf(x), latOf(y), i, j])
+    for (let i = i0 - r; i <= i1 + r; i++) {
+      const [x, y] = point(i, j)
+      if (within(spans, x) && !(ex && (nearWay(ex, x, y) || inArea(ex, x, y)))) clear[at(i, j)] = 1
     }
   }
+
+  const out: PlantedPoint[] = []
+  for (let j = j0; j <= j1; j++)
+    for (let i = i0; i <= i1; i++) {
+      if (!clear[at(i, j)]) continue
+      const [x, y] = point(i, j)
+      if (x < bounds.minX || x >= bounds.maxX || y < bounds.minY || y >= bounds.maxY) continue
+      let interior = true
+      for (let dj = -r; dj <= r && interior; dj++)
+        for (let di = -r; di <= r; di++)
+          if (!clear[at(i + di, j + dj)]) { interior = false; break }
+      out.push([lngOf(x), latOf(y), i, j, interior])
+    }
   return out
 }
+
+/** Where a planted object stands within its area, and how thinly the area is planted. */
+export type PlantedPlace = { interior: boolean; sparse: boolean }
 
 /** The tile a queried feature came from, as mercator bounds. */
 function tileBounds(feature: any): Bounds | null {
@@ -258,12 +285,16 @@ export function plantedSpec(options: {
   sourceLayer: string
   minzoom: number
   budget: number
+  /** Below this zoom only every other cell each way is planted. */
+  sparseBelow?: number
   grid: (feature: any) => Grid | null
   clear: (feature: any) => boolean
-  instance: (feature: any, lng: number, lat: number, i: number, j: number) => ObjectInstance | null
+  instance: (feature: any, lng: number, lat: number, i: number, j: number, place: PlantedPlace) => ObjectInstance | null
 }): PlantedSpec {
-  const planted = new Map<string, Array<[number, number, number, number]>>()
-  const current = new WeakMap<object, Array<[number, number, number, number]>>()
+  const planted = new Map<string, PlantedPoint[]>()
+  const current = new WeakMap<object, PlantedPoint[]>()
+  const thinned = new WeakMap<object, PlantedPoint[]>()
+  let sparse = false
   let map: any = null
   let basemap = BASEMAP_SOURCE
   let detail: (sourceLayer: string) => [string, string?] = layer => [DETAIL_SOURCE, layer]
@@ -272,10 +303,10 @@ export function plantedSpec(options: {
   const plantingOf = (feature: any) => {
     const known = current.get(feature)
     if (known) return known
-    let points: Array<[number, number, number, number]>
+    let points: PlantedPoint[]
     if (feature.geometry?.type === 'Point') {
       const [lng, lat] = feature.geometry.coordinates
-      points = [[lng, lat, Math.round(lng * 1e6), Math.round(lat * 1e6)]]
+      points = [[lng, lat, Math.round(lng * 1e6), Math.round(lat * 1e6), false]]
     } else {
       const key = pieceKey(feature)
       const grid = options.grid(feature)
@@ -293,6 +324,17 @@ export function plantedSpec(options: {
     return points
   }
 
+  const shownOf = (feature: any) => {
+    const all = plantingOf(feature)
+    if (!sparse) return all
+    let some = thinned.get(feature)
+    if (!some) {
+      some = all.filter(([, , i, j]) => i % 2 === 0 && j % 2 === 0)
+      thinned.set(feature, some)
+    }
+    return some
+  }
+
   return {
     source: options.source,
     sourceLayer: options.sourceLayer,
@@ -306,11 +348,12 @@ export function plantedSpec(options: {
       basemap = (spec as PlantedSpec).exclusionsFrom ?? BASEMAP_SOURCE
       detail = (spec as PlantedSpec).detailFrom ?? (layer => [DETAIL_SOURCE, layer])
       exclusions = null
+      sparse = m.getZoom() < (options.sparseBelow ?? -Infinity)
     },
-    positions: feature => plantingOf(feature).map(([lng, lat]) => [lng, lat] as [number, number]),
+    positions: feature => shownOf(feature).map(([lng, lat]) => [lng, lat] as [number, number]),
     toInstance(feature, lng, lat, index) {
-      const point = plantingOf(feature)[index]
-      return point ? options.instance(feature, lng, lat, point[2], point[3]) : null
+      const point = shownOf(feature)[index]
+      return point ? options.instance(feature, lng, lat, point[2], point[3], { interior: point[4], sparse }) : null
     },
   }
 }

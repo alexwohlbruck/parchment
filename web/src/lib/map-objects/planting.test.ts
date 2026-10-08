@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
-import { FOREST_GRID } from './forest'
+import { forestTree, CROWN_SUFFIX, FOREST_GRID } from './forest'
 
 const plantForest = (rings: any, bounds: any, ex: any) => plant(rings, bounds, ex, FOREST_GRID)
 const FOREST_SPACING = FOREST_GRID.dx * MERCATOR_METRE
@@ -52,5 +52,29 @@ describe('forest planting', () => {
     const east = plantForest(wood, { ...everywhere, minX: mid }, ex)
     const all = plantForest(wood, everywhere, ex)
     expect(west.length + east.length).toBe(all.length)
+  })
+
+  test('only trees well inside the wood are interior', () => {
+    const road = { properties: { class: 'primary' }, geometry: { type: 'LineString', coordinates: [[-80.851, 35.202], [-80.844, 35.202]] } }
+    const trees = plantForest(wood, everywhere, buildExclusions([road], []))
+    const metres = (a: number, b: number) => Math.abs(a - b) * 111000
+    for (const [lng, lat, , , interior] of trees) {
+      const fromEdge = Math.min(
+        metres(lat, 35.2), metres(lat, 35.204), metres(lat, 35.202),
+        metres(lng, -80.85) * 0.82, metres(lng, -80.845) * 0.82,
+      )
+      if (fromEdge < 15) expect(interior, `${lng},${lat}`).toBe(false)
+      if (fromEdge > 50) expect(interior, `${lng},${lat}`).toBe(true)
+    }
+    expect(trees.some(t => t[4])).toBe(true)
+  })
+
+  test('interior trees draw only their crowns; sparse ones stay whole and grow wider', () => {
+    const edge = forestTree(0, 0, 4, 7)
+    expect(edge.model.endsWith(CROWN_SUFFIX)).toBe(false)
+    expect(forestTree(0, 0, 4, 7, { interior: true, sparse: false }).model).toBe(`${edge.model}${CROWN_SUFFIX}`)
+    const sparse = forestTree(0, 0, 4, 7, { interior: true, sparse: true })
+    expect(sparse.model).toBe(edge.model)
+    expect(sparse.spread).toBeGreaterThan(edge.spread)
   })
 })

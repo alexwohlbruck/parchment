@@ -440,7 +440,7 @@ const FOREST_FLOOR: Record<FlavorId, string> = {
   dark: 'hsl(30, 14%, 22%)',
 }
 
-/** Fades from the wood's own colour to soil as the trees come in at z16. */
+/** Fades from the wood's own colour to soil as the forest fills in at z16. */
 export function forestFloorColor(wood: unknown, flavor: FlavorId): any {
   return ['interpolate', ['linear'], ['zoom'], 15.5, wood, 16.5, FOREST_FLOOR[flavor]]
 }

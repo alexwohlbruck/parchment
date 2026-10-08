@@ -472,13 +472,14 @@ describe('street furniture', () => {
     }
   })
 
-  /**
-   * A bench pointed the wrong way reads as a mistake in a way a wrong tree does
-   * not — it is furniture, and furniture faces something.
-   */
-  test('a bench without a direction is skipped', () => {
-    expect(at({ kind: 'bench' })).toBeNull()
-    expect(at({ kind: 'bench', direction: '180' })!.model).toBe('bench')
+  test.each(['bench', 'picnic_table', 'billboard'])('a %s without a direction is skipped', kind => {
+    expect(at({ kind })).toBeNull()
+    expect(at({ kind, direction: '180' })).not.toBeNull()
+  })
+
+  test('a street lamp with no road to face becomes a post-top lamp', () => {
+    expect(at({ kind: 'street_lamp', direction: '90' })!.model).toBe('street-lamp')
+    expect(at({ kind: 'street_lamp' })!.model).toBe('lamp-post')
   })
 
   test('bins take a hashed angle, since a drum has no front', () => {
@@ -493,7 +494,7 @@ describe('street furniture', () => {
   })
 
   test('an amenity with no model is skipped rather than guessed at', () => {
-    expect(at({ kind: 'drinking_water' })).toBeNull()
+    expect(at({ kind: 'vending_machine' })).toBeNull()
   })
 
   test('furniture is drawn at its real size', () => {

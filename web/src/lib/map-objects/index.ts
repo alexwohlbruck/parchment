@@ -73,6 +73,10 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     bench: [0.88, 0.8, 0.68],
     bin: [0.35, 0.37, 0.4],
     recycling: [0.22, 0.36, 0.56],
+    stone: [0.8, 0.78, 0.74],
+    water: [0.55, 0.72, 0.82],
+    lamp: [1, 0.95, 0.82],
+    panel: [0.95, 0.94, 0.91],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
@@ -85,6 +89,10 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     bench: [0.36, 0.32, 0.27],
     bin: [0.16, 0.17, 0.19],
     recycling: [0.1, 0.16, 0.26],
+    stone: [0.3, 0.3, 0.29],
+    water: [0.13, 0.2, 0.26],
+    lamp: [1, 0.86, 0.58],
+    panel: [0.42, 0.42, 0.4],
   },
 }
 

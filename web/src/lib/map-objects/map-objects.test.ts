@@ -175,13 +175,19 @@ describe('models', () => {
     '%s presents its outward faces as FRONT_FACE claims',
     name => {
       let tested = 0
-      for (const primitive of load(name).primitives) {
+      const model = load(name)
+      const upOf = (p: (typeof model.primitives)[number], i: number) =>
+        [0, 1, 2].reduce((sum, k) => sum + p.normal[p.index[i + k] * 3 + 1], 0) / 3
+      let steepest = -1
+      for (const p of model.primitives) for (let i = 0; i < p.index.length; i += 3) steepest = Math.max(steepest, upOf(p, i))
+      // A cone or a lumpy crown never faces straight up; its most upward faces stand in.
+      const floor = Math.min(0.9, steepest - 0.05)
+      for (const primitive of model.primitives) {
         for (let i = 0; i < primitive.index.length; i += 3) {
           const triangle = [primitive.index[i], primitive.index[i + 1], primitive.index[i + 2]]
           // Only the faces a plan view can see. Those are the ones that have to
           // survive the cull, so they are the ones worth asking about.
-          const up = triangle.reduce((sum, v) => sum + primitive.normal[v * 3 + 1], 0) / 3
-          if (up < 0.9) continue
+          if (upOf(primitive, i) < floor) continue
           const screen = triangle.map(v => {
             const [x, y, z] = [0, 1, 2].map(c => primitive.position[v * 3 + c])
             // Model space to the map's, mirroring the swap in `VS`, and then to

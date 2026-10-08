@@ -57,6 +57,7 @@ const ROLE_COLOR = {
   bench: [0.87, 0.78, 0.66, 1],
   bin: [0.34, 0.36, 0.38, 1],
   recycling: [0.2, 0.33, 0.52, 1],
+  spray: [0.9, 0.95, 0.99, 1],
   stone: [0.74, 0.72, 0.68, 1],
   water: [0.45, 0.62, 0.72, 1],
   lamp: [1, 0.93, 0.76, 1],
@@ -1059,6 +1060,15 @@ const FURNITURE = {
       cylinder(water, q.sides, 0.58, 0.58, 1.62, 0.08)
     }
     return [{ role: 'stone', ...stone }, { role: 'water', ...water }]
+  }),
+  // A jet in a pond: a plume rising off the water and falling back as a crown
+  // of spray, with a ring of foam where it lands. No basin; the pond is the basin.
+  'fountain-jet': furnLod(q => {
+    const spray = mesh()
+    cylinder(spray, half(q), 0.18, 0.08, 0, 4.4)
+    cylinder(spray, half(q), 0.9, 0.3, 3.2, 1.4)
+    cylinder(spray, q.seg ? q.sides : 8, 1.8, 1.4, 0, 0.12)
+    return [{ role: 'spray', ...spray }]
   }),
   // A cobra-head lamp, its arm reaching out over the road it faces (-z).
   'street-lamp': furnLod(q => {

@@ -488,6 +488,11 @@ describe('street furniture', () => {
     expect(bin.heading).toBeGreaterThanOrEqual(0)
   })
 
+  test('a fountain in a pond is a jet, not a basin', () => {
+    expect(at({ kind: 'fountain_jet' })!.model).toBe('fountain-jet')
+    expect(at({ kind: 'fountain' })!.model).toBe('fountain')
+  })
+
   test('waste disposal shares the recycling model', () => {
     expect(at({ kind: 'waste_disposal' })!.model).toBe('recycling')
     expect(at({ kind: 'recycling' })!.model).toBe('recycling')

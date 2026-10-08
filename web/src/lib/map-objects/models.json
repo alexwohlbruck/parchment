@@ -11,6 +11,8 @@
   "drinking-water-far": true,
   "fountain": true,
   "fountain-far": true,
+  "fountain-jet": true,
+  "fountain-jet-far": true,
   "lamp-post": true,
   "lamp-post-far": true,
   "picnic-table": true,

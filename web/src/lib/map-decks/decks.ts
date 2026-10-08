@@ -26,6 +26,8 @@ export type Piece = {
 export type Chain = Piece & {
   /** Whether each end meets a way on the ground. */
   grounded: [boolean, boolean]
+  /** Metres from the centreline to the deck's left and right edges. */
+  edges: [number, number]
 }
 
 export type Bounds = { minX: number; minY: number; maxX: number; maxY: number }
@@ -148,8 +150,82 @@ export function chains(pieces: Piece[], cut: (p: Point) => boolean, tolerance: n
   return joined.map((c, id) => {
     const ends = [c.points[0], c.points[c.points.length - 1]]
     const [a, b] = ends.map(p => !cut(p) && !elsewhere(p, id))
-    return { ...c, grounded: [a, b] as [boolean, boolean] }
+    return { ...c, grounded: [a, b] as [boolean, boolean], edges: [c.width / 2, c.width / 2] as [number, number] }
   })
+}
+
+/** Farthest a kerb or sidewalk may lie from a deck's centreline and still be part of it, in metres. */
+export const MAX_REACH = 16
+
+/**
+ * Where a point lies beside a line: metres from it, which side (left in the
+ * sense of `deckMesh`), and whether it falls alongside a segment rather than
+ * off either end of the line.
+ */
+export function beside(points: Point[], q: Point): { distance: number; left: boolean; alongside: boolean } {
+  let best = { distance: Infinity, left: true, alongside: false }
+  const scale = metresPerUnit(q[1])
+  for (let i = 1; i < points.length; i++) {
+    const [a, b] = [points[i - 1], points[i]]
+    const dx = b[0] - a[0]
+    const dy = b[1] - a[1]
+    const raw = ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)
+    const t = Math.max(0, Math.min(1, raw))
+    const distance = Math.hypot(a[0] + dx * t - q[0], a[1] + dy * t - q[1]) * scale
+    if (distance < best.distance) {
+      const alongside = (raw >= 0 || i > 1) && (raw <= 1 || i < points.length - 1)
+      best = { distance, left: (q[0] - a[0]) * -dy + (q[1] - a[1]) * dx > 0, alongside }
+    }
+  }
+  return best
+}
+
+/**
+ * A road deck's edges fitted to the paint laid on it: the outermost line on
+ * each side, plus the gutter to the kerb. A side with no paint mirrors the
+ * other; with none at all the deck keeps its width.
+ */
+export function fitEdges(chain: Chain, paint: Point[], gutter = 0.6): [number, number] {
+  const reach: [number, number] = [0, 0]
+  for (const q of paint) {
+    const { distance, left, alongside } = beside(chain.points, q)
+    if (alongside && distance < MAX_REACH) reach[left ? 0 : 1] = Math.max(reach[left ? 0 : 1], distance + gutter)
+  }
+  if (!reach[0] && !reach[1]) return chain.edges
+  return [reach[0] || reach[1], reach[1] || reach[0]]
+}
+
+/**
+ * Sidewalks and cycle tracks mapped as bridges of their own beside a road
+ * bridge, folded into its deck: the deck widens to take them in, and they are
+ * no longer decks themselves.
+ */
+export function absorbPaths(decks: Chain[]): Chain[] {
+  const roads = decks.filter(d => d.kind === 'road').map(d => ({ ...d, edges: [...d.edges] as [number, number] }))
+  const kept: Chain[] = []
+  for (const path of decks) {
+    if (path.kind !== 'path') {
+      if (path.kind !== 'road') kept.push(path)
+      continue
+    }
+    const samples = path.points.flatMap((p, i) => (i ? [[(p[0] + path.points[i - 1][0]) / 2, (p[1] + path.points[i - 1][1]) / 2] as Point, p] : [p]))
+    const host = roads.find(road => {
+      if (road.layer !== path.layer) return false
+      const near = samples.map(q => beside(road.points, q))
+      const side = near[0].left
+      const inside = near.filter(n => n.alongside).map(n => n.distance)
+      return inside.length >= near.length / 2 && Math.max(...inside) - Math.min(...inside) < 4 &&
+        near.every(n => n.left === side && n.distance < Math.max(road.edges[side ? 0 : 1], 1) + MAX_REACH / 2)
+    })
+    if (!host) {
+      kept.push(path)
+      continue
+    }
+    const near = samples.map(q => beside(host.points, q)).filter(n => n.alongside)
+    const side = near[0].left ? 0 : 1
+    host.edges[side] = Math.max(host.edges[side], ...near.map(n => n.distance + path.width / 2))
+  }
+  return [...roads, ...kept]
 }
 
 /** Whether a point lies on the edge of a box, within `tolerance`. */
@@ -225,7 +301,8 @@ export function deckMesh(
   const pts = chain.points
   const n = pts.length
   const scale = 1 / metresPerUnit(pts[Math.floor(n / 2)][1])
-  const half = (chain.width / 2) * scale
+  const [toLeft, toRight] = chain.edges.map(e => e * scale)
+  const span = chain.edges[0] + chain.edges[1]
   // Mitred sides, the mitre capped so a hairpin does not spike.
   const sides = pts.map((p, i) => {
     const a = pts[Math.max(0, i - 1)]
@@ -244,11 +321,11 @@ export function deckMesh(
       const dot = nx * -uy + ny * ux
       m = 1 / Math.max(0.5, Math.abs(dot))
     }
-    nx *= half * m
-    ny *= half * m
+    nx *= m
+    ny *= m
     return {
-      left: [p[0] + nx - origin[0], p[1] + ny - origin[1]] as Point,
-      right: [p[0] - nx - origin[0], p[1] - ny - origin[1]] as Point,
+      left: [p[0] + nx * toLeft - origin[0], p[1] + ny * toLeft - origin[1]] as Point,
+      right: [p[0] - nx * toRight - origin[0], p[1] - ny * toRight - origin[1]] as Point,
     }
   })
   const h = (m: number) => m * scale
@@ -271,7 +348,7 @@ export function deckMesh(
   const inset = (s: { left: Point; right: Point }, side: 'left' | 'right', by: number): Point => {
     const other = side === 'left' ? s.right : s.left
     const p = s[side]
-    const k = by / (chain.width || 1)
+    const k = by / (span || 1)
     return [p[0] + (other[0] - p[0]) * k, p[1] + (other[1] - p[1]) * k]
   }
   for (let i = 1; i < n; i++) {
@@ -306,7 +383,7 @@ export function deckMesh(
     const t = (at_ - d[k - 1]) / (d[k] - d[k - 1] || 1)
     const cx = pts[k - 1][0] + (pts[k][0] - pts[k - 1][0]) * t - origin[0]
     const cy = pts[k - 1][1] + (pts[k][1] - pts[k - 1][1]) * t - origin[1]
-    const r = Math.min(0.9, chain.width / 6) * scale
+    const r = Math.min(0.9, span / 6) * scale
     const corners: Point[] = [[cx - r, cy - r], [cx + r, cy - r], [cx + r, cy + r], [cx - r, cy + r]]
     for (let c = 0; c < 4; c++) {
       const [a, b] = [corners[c], corners[(c + 1) % 4]]

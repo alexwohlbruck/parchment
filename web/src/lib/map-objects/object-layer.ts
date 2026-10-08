@@ -103,8 +103,8 @@ const VS = `
   attribute vec3 a_normal;
   /** Instance: mercator position, relative to the layer's current origin. */
   attribute vec3 a_offset;
-  /** Instance: height and lateral scale in mercator units, plus a heading. */
-  attribute vec3 a_shape;
+  /** Instance: height and lateral scale in mercator units, a heading, and a stretch along the model's x. */
+  attribute vec4 a_shape;
   /** Instance: a per-object brightness, so a stand of trees is not one colour. */
   attribute float a_shade;
   /** Instance: how far toward the role's alternate colour, 0-1. */
@@ -120,7 +120,7 @@ const VS = `
     // orientation so it opens correctly in any viewer; the swap happens here.
     // It is a rotation, so it leaves the models' winding alone — which is not
     // the same as leaving them facing the right way. See \`FRONT_FACE\`.
-    vec3 p = vec3(a_position.x, -a_position.z, a_position.y);
+    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
     vec3 n = vec3(a_normal.x, -a_normal.z, a_normal.y);
 
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
@@ -173,11 +173,11 @@ const SHADOW_VS = `
   uniform float u_per_metre;
   attribute vec3 a_position;
   attribute vec3 a_offset;
-  attribute vec3 a_shape;
+  attribute vec4 a_shape;
   void main() {
     float c = cos(a_shape.z);
     float s = sin(a_shape.z);
-    vec3 p = vec3(a_position.x, -a_position.z, a_position.y);
+    vec3 p = vec3(a_position.x * a_shape.w, -a_position.z, a_position.y);
     p = vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z);
     vec2 xy = a_offset.xy + p.xy * a_shape.y;
     float metres = p.z * a_shape.x / u_per_metre;
@@ -233,6 +233,8 @@ export type ObjectInstance = {
   spread: number
   /** Metres across, where it was measured; overrides `spread` using the model's own width. */
   width?: number
+  /** Metres along the model's x, stretching it to span a segment; see `modelLength`. */
+  length?: number
   /** Radians. */
   heading: number
   /** Multiplier on the model's own colours. */
@@ -270,6 +272,8 @@ type ModelBuffers = {
   cullable: boolean
   /** The model's widest horizontal extent, in model units. */
   width: number
+  /** The model's extent along x, in model units. */
+  length: number
   primitives: Array<{
     position: WebGLBuffer
     normal: WebGLBuffer
@@ -434,6 +438,7 @@ export class ObjectLayer {
       this.models.set(name, {
         cullable: this.solid[name] ?? false,
         width: modelWidth(model),
+        length: modelLength(model),
         primitives: model.primitives.map(p => {
           const color = this.palette[p.material] ?? [p.color[0], p.color[1], p.color[2]]
           return {
@@ -637,7 +642,7 @@ export class ObjectLayer {
     for (const [model, group] of buckets) {
       if (!this.models.has(model)) continue
       const offset = new Float32Array(group.length * 3)
-      const shape = new Float32Array(group.length * 3)
+      const shape = new Float32Array(group.length * 4)
       const shade = new Float32Array(group.length)
       const tint = new Float32Array(group.length)
       for (let i = 0; i < group.length; i++) {
@@ -645,10 +650,12 @@ export class ObjectLayer {
         offset[i * 3] = x - origin.x
         offset[i * 3 + 1] = y - origin.y
         offset[i * 3 + 2] = z
-        shape[i * 3] = instance.height * perMetre
-        const across = instance.width === undefined ? instance.spread : instance.width / (this.models.get(model)?.width || 1)
-        shape[i * 3 + 1] = across * perMetre
-        shape[i * 3 + 2] = instance.heading
+        const buffers = this.models.get(model)
+        shape[i * 4] = instance.height * perMetre
+        const across = instance.width === undefined ? instance.spread : instance.width / (buffers?.width || 1)
+        shape[i * 4 + 1] = across * perMetre
+        shape[i * 4 + 2] = instance.heading
+        shape[i * 4 + 3] = instance.length === undefined ? 1 : instance.length / ((buffers?.length || 1) * across)
         shade[i] = instance.shade
         tint[i] = instance.tint ?? 0
       }
@@ -776,7 +783,7 @@ export class ObjectLayer {
       gl.vertexAttribDivisor(loc, 1)
     }
     attach(batch.buffers.offset, batch.offset, LOC.a_offset, 3)
-    attach(batch.buffers.shape, batch.shape, LOC.a_shape, 3)
+    attach(batch.buffers.shape, batch.shape, LOC.a_shape, 4)
     attach(batch.buffers.shade, batch.shade, LOC.a_shade, 1)
     attach(batch.buffers.tint, batch.tint, LOC.a_tint, 1)
   }
@@ -831,6 +838,14 @@ function modelWidth(model: GlbModel): number {
     for (let i = 0; i < p.position.length; i += 3)
       width = Math.max(width, 2 * Math.abs(p.position[i]), 2 * Math.abs(p.position[i + 2]))
   return width
+}
+
+/** A model's extent along x, in its own units. */
+function modelLength(model: GlbModel): number {
+  let length = 0
+  for (const p of model.primitives)
+    for (let i = 0; i < p.position.length; i += 3) length = Math.max(length, 2 * Math.abs(p.position[i]))
+  return length
 }
 
 /** A foliage part's y bounds, so its underside can be shaded; nothing else is. */

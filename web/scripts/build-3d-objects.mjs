@@ -57,6 +57,10 @@ const ROLE_COLOR = {
   bench: [0.87, 0.78, 0.66, 1],
   bin: [0.34, 0.36, 0.38, 1],
   recycling: [0.2, 0.33, 0.52, 1],
+  stone: [0.74, 0.72, 0.68, 1],
+  water: [0.45, 0.62, 0.72, 1],
+  lamp: [1, 0.93, 0.76, 1],
+  panel: [0.93, 0.92, 0.89, 1],
 }
 
 /** How far apart two faces can lean and still share a smoothed normal. */
@@ -939,6 +943,7 @@ function bar([z0, y0], [z1, y1], w) {
 const FURN_NEAR = { seg: 2, sides: 24, slats: 4, ribs: 16 }
 const FURN_FAR = { seg: 0, sides: 6, slats: 1, ribs: 0 }
 const furnLod = make => Object.assign(() => make(FURN_NEAR), { far: () => make(FURN_FAR) })
+const half = q => Math.max(6, q.sides / 2)
 
 /**
  * Generated rather than sourced, because these are simple solids whose
@@ -1001,6 +1006,94 @@ const FURNITURE = {
     // Back: a wide plank following the panels' lean.
     extrude(parts, [[0.2, 0.66], [0.28, 0.65], [0.43, 1.06], [0.35, 1.08]], -L + 0.001, L - 0.001)
     return [{ role: 'bench', ...parts }]
+  }),
+  // Long axis across x like the bench, so a table facing its path sits along it.
+  'picnic-table': furnLod(q => {
+    const L = 0.9
+    const wood = mesh()
+    extrude(wood, [[-0.38, 0.72], [0.38, 0.72], [0.38, 0.77], [-0.38, 0.77]], -L, L)
+    for (const z of [-0.62, 0.62])
+      extrude(wood, [[z - 0.14, 0.42], [z + 0.14, 0.42], [z + 0.14, 0.46], [z - 0.14, 0.46]], -L, L)
+    for (const x of [-L + 0.2, L - 0.2]) {
+      if (!q.seg) {
+        box(wood, [x - 0.05, 0, -0.5], [x + 0.05, 0.71, 0.5])
+        continue
+      }
+      extrude(wood, bar([-0.6, 0], [0.02, 0.71], 0.08), x - 0.04, x + 0.04)
+      extrude(wood, bar([0.6, 0], [-0.02, 0.71], 0.08), x - 0.04, x + 0.04)
+      extrude(wood, [[-0.76, 0.36], [0.76, 0.36], [0.76, 0.41], [-0.76, 0.41]], x - 0.04, x + 0.04)
+    }
+    return [{ role: 'wood', ...wood }]
+  }),
+  // Sheffield stands, each hoop square to the kerb so bikes park across it.
+  'bike-rack': furnLod(q => {
+    const metal = mesh()
+    const hoop = q.seg
+      ? [bar([-0.35, 0], [-0.35, 0.72], 0.05), bar([-0.37, 0.7], [-0.25, 0.83], 0.05),
+         bar([-0.27, 0.82], [0.27, 0.82], 0.05), bar([0.25, 0.83], [0.37, 0.7], 0.05),
+         bar([0.35, 0.72], [0.35, 0], 0.05)]
+      : [[[-0.38, 0], [-0.32, 0], [-0.32, 0.79], [0.32, 0.79], [0.32, 0], [0.38, 0], [0.38, 0.85], [-0.38, 0.85]]]
+    for (const x of [-0.8, 0, 0.8])
+      for (const profile of hoop) extrude(metal, profile, x - 0.025, x + 0.025)
+    return [{ role: 'metal', ...metal }]
+  }),
+  'drinking-water': furnLod(q => {
+    const body = mesh()
+    cylinder(body, q.sides, 0.16, 0.13, 0, 0.82)
+    cylinder(body, q.sides, 0.2, 0.26, 0.82, 0.12)
+    box(body, [-0.025, 0.94, -0.24], [0.025, 1.0, -0.12])
+    const basin = mesh()
+    cylinder(basin, q.sides, 0.2, 0.2, 0.9, 0.05)
+    return [{ role: 'paint', ...body }, { role: 'water', ...basin }]
+  }),
+  fountain: furnLod(q => {
+    const stone = mesh()
+    const water = mesh()
+    const sides = q.seg ? q.sides * 2 : 8
+    cylinder(stone, sides, 1.9, 1.9, 0, 0.45)
+    cylinder(water, sides, 1.75, 1.75, 0.38, 0.1)
+    cylinder(stone, half(q), 0.22, 0.18, 0.45, 1.05)
+    if (q.seg) {
+      cylinder(stone, q.sides, 0.35, 0.65, 1.5, 0.18)
+      cylinder(stone, q.sides, 0.08, 0.06, 1.68, 0.4)
+      cylinder(water, q.sides, 0.58, 0.58, 1.62, 0.08)
+    }
+    return [{ role: 'stone', ...stone }, { role: 'water', ...water }]
+  }),
+  // A cobra-head lamp, its arm reaching out over the road it faces (-z).
+  'street-lamp': furnLod(q => {
+    const metal = mesh()
+    cylinder(metal, half(q), 0.09, 0.05, 0, 7.6)
+    extrude(metal, bar([0, 7.4], [-1.8, 7.72], 0.06), -0.03, 0.03)
+    const head = mesh()
+    extrude(head, [[-1.6, 7.66], [-2.3, 7.78], [-2.34, 7.86], [-1.64, 7.8]], -0.13, 0.13)
+    const glass = mesh()
+    extrude(glass, [[-1.68, 7.65], [-2.26, 7.75], [-2.26, 7.77], [-1.68, 7.67]], -0.1, 0.1)
+    return [{ role: 'metal', ...metal }, { role: 'metal', ...head }, { role: 'lamp', ...glass }]
+  }),
+  // The same lamp with no road to face: a post-top lantern, round from every side.
+  'lamp-post': furnLod(q => {
+    const metal = mesh()
+    cylinder(metal, half(q), 0.1, 0.06, 0, 3.6)
+    cylinder(metal, half(q), 0.24, 0.05, 4.15, 0.25)
+    const glass = mesh()
+    cylinder(glass, half(q), 0.14, 0.22, 3.6, 0.55)
+    return [{ role: 'metal', ...metal }, { role: 'lamp', ...glass }]
+  }),
+  bollard: furnLod(q => {
+    const metal = mesh()
+    cylinder(metal, half(q), 0.1, 0.1, 0, 0.85)
+    cylinder(metal, half(q), 0.095, 0.05, 0.85, 0.07)
+    return [{ role: 'metal', ...metal }]
+  }),
+  // A monopole billboard whose face looks out at the road (-z).
+  billboard: furnLod(q => {
+    const metal = mesh()
+    cylinder(metal, half(q), 0.32, 0.26, 0, 6.2)
+    box(metal, [-4.6, 5.9, 0.12], [4.6, 9.1, 0.42])
+    const face = mesh()
+    box(face, [-4.5, 6.0, -0.02], [4.5, 9.0, 0.14])
+    return [{ role: 'metal', ...metal }, { role: 'panel', ...face }]
   }),
 }
 

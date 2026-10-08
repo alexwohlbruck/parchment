@@ -68,6 +68,8 @@ const ROLE_COLOR = {
   goalpost: [0.95, 0.8, 0.2, 1],
   wire: [0.2, 0.21, 0.22, 1],
   mesh: [0.68, 0.7, 0.7, 1],
+  bloom: [0.86, 0.5, 0.66, 1],
+  pv: [0.16, 0.22, 0.34, 1],
   lattice: [0.62, 0.64, 0.66, 1],
 }
 
@@ -1493,6 +1495,47 @@ const TREES = {
 }
 
 // ---------------------------------------------------------------------------
+// Plantings and arrays
+// ---------------------------------------------------------------------------
+
+/** What scrub, flower beds and solar fields are planted with; see `areas.ts`. */
+const AREAS = {
+  'shrub-a': lod(q => [{ role: 'foliage', ...blob(mesh(), [0, 0.5, 0], [0.62, 0.5, 0.55], { seed: 41, lump: 0.22, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) }]),
+  'shrub-b': lod(q => [
+    { role: 'foliage', ...blob(mesh(), [-0.18, 0.42, 0.05], [0.5, 0.42, 0.48], { seed: 43, lump: 0.25, subdivisions: q.crown > 1 ? 2 : 0, flat: 0.8 }) },
+    { role: 'foliage', ...blob(mesh(), [0.28, 0.36, -0.1], [0.38, 0.36, 0.36], { seed: 47, lump: 0.25, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.8 }) },
+  ]),
+  // A clump of bedding plants: a low green mound studded with blooms.
+  flowers: lod(q => {
+    const blooms = mesh()
+    const r = rng(53)
+    for (let k = 0; k < (q.crown > 1 ? 5 : 3); k++) {
+      const a = r() * Math.PI * 2
+      const d = 0.15 + r() * 0.25
+      blob(blooms, [Math.cos(a) * d, 0.32 + r() * 0.06, Math.sin(a) * d], [0.1, 0.07, 0.1], { seed: 60 + k, lump: 0.1, subdivisions: 0 })
+    }
+    return [
+      { role: 'foliage', ...blob(mesh(), [0, 0.15, 0], [0.48, 0.18, 0.48], { seed: 51, lump: 0.2, subdivisions: q.crown > 1 ? 1 : 0, flat: 0.9 }) },
+      { role: 'bloom', ...blooms },
+    ]
+  }),
+  // One table of panels, 4 m wide, tilted 25° toward the south (-z).
+  'solar-table': furnLod(q => {
+    const tilt = (25 * Math.PI) / 180
+    const [front, back] = [-1 * Math.cos(tilt), 1 * Math.cos(tilt)]
+    const [low, high] = [0.6, 0.6 + 2 * Math.sin(tilt)]
+    const panel = mesh()
+    extrude(panel, [[front, low], [back, high], [back, high + 0.05], [front, low + 0.05]], -2, 2)
+    const posts = mesh()
+    for (const x of q.seg ? [-1.6, 0, 1.6] : [-1.6, 1.6]) {
+      box(posts, [x - 0.04, 0, front * 0.6 - 0.04], [x + 0.04, low + 0.15, front * 0.6 + 0.04])
+      box(posts, [x - 0.04, 0, back * 0.6 - 0.04], [x + 0.04, high - 0.2, back * 0.6 + 0.04])
+    }
+    return [{ role: 'pv', ...panel }, { role: 'metal', ...posts }]
+  }),
+}
+
+// ---------------------------------------------------------------------------
 
 async function main() {
   await mkdir(OUT, { recursive: true })
@@ -1566,6 +1609,7 @@ async function main() {
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit, build.open)
+  for (const [name, build] of Object.entries(AREAS)) await emit(name, build(), build.far?.())
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

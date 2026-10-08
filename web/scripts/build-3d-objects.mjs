@@ -1373,25 +1373,11 @@ const TREES = {
   // Spruce in tiers: stacked skirts of branches, each with a flat underside.
   // Far off the tiers merge, so one cone stands in for them.
   'tree-conifer-e': Object.assign(() => spruce(NEAR, SPRUCE_TIERS), { far: () => spruce(FAR, [[5, 2.9, 4.6, 171]]) }),
-  // Pines: a long bare trunk with the crown held up at the top. Loblolly-like
-  // clumps, and an umbrella pine's broad flat dome.
-  'tree-pine-a': lod(q => {
-    const crown = mesh()
-    for (const [x, y, z, rx, ry, seed] of [[0, 13.6, 0, 2.6, 2.1, 181], [1.5, 11.6, 0.6, 2, 1.5, 182], [-1.3, 11.9, -0.9, 1.9, 1.4, 183], [0.3, 10.2, -1.4, 1.7, 1.2, 184]])
-      blob(crown, [x, y, z], [rx, ry, rx], { subdivisions: q.crown - 1, seed, lump: 0.14, ripple: 0.1, flat: 0.5 })
-    return [
-      { role: 'bark', ...cylinder(mesh(), q.sides, 0.5, 0.22, 0, 13.5) },
-      { role: 'foliage', ...crown },
-    ]
-  }),
-  'tree-pine-b': lod(q => {
-    const bark = cylinder(mesh(), q.sides, 0.55, 0.3, 0, 8.6)
-    bark.position.forEach((v, i) => { if (i % 3 === 0) bark.position[i] = v + (bark.position[i + 1] / 8.6) ** 2 * 0.8 })
-    return [
-      { role: 'bark', ...bark },
-      { role: 'foliage', ...blob(mesh(), [0.8, 9.6, 0], [4.4, 1.9, 4.2], { subdivisions: q.crown, seed: 191, lump: 0.1, ripple: 0.1, flat: 0.35, taper: 0.05 }) },
-    ]
-  }),
+  // Pines: a long bare trunk under loose, flat tufts of needles. Loblolly
+  // holds an open, irregular crown at the very top; white pine keeps
+  // tiered tufts further down, widest low.
+  'tree-pine-a': lod(q => pine(q, 211, 15, [[9.6, 1.9], [10.6, 2], [11.6, 1.8], [12.5, 1.7], [13.4, 1.4], [14.2, 1.1]], 0.03)),
+  'tree-pine-b': lod(q => pine(q, 221, 14, [[6.2, 2.4], [7.4, 2.3], [8.6, 2], [9.8, 1.7], [11, 1.4], [12.1, 1], [13, 0.7]], 0.02)),
   // Flowering cherries: a short stout trunk under a wide, low crown in blossom.
   'tree-blossom-a': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.55, 0.36, 0, 2.8) },
@@ -1404,6 +1390,38 @@ const TREES = {
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * A pine: a trunk to `height` and, at each [y, reach] tier, a ring of flat
+ * needle tufts out to `reach`, with a small tuft for the leader on top.
+ */
+function pine(q, seed, height, tiers, lean) {
+  const r = rng(seed)
+  const bark = cylinder(mesh(), q.sides, 0.24, 0.1, 0, height)
+  bark.position.forEach((v, i) => { if (i % 3 === 0) bark.position[i] = v + (bark.position[i + 1] / height) ** 2 * height * lean })
+  const needles = mesh()
+  const sway = y => (y / height) ** 2 * height * lean
+  if (q.crown <= 1) {
+    const [low, reach] = tiers[0]
+    const mid = (low + height) / 2
+    blob(needles, [sway(mid), mid, 0], [reach * 1.05, (height - low) / 2 + 0.5, reach], { subdivisions: 1, seed, lump: 0.1, flat: 0.6 })
+    return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+  }
+  tiers.forEach(([y, reach], t) => {
+    const count = 3 + (t % 2)
+    for (let k = 0; k < count; k++) {
+      const angle = (k / count) * Math.PI * 2 + t * 1.3 + r() * 0.6
+      const out = reach * (0.45 + r() * 0.25)
+      const size = reach * (0.55 + r() * 0.2)
+      blob(needles, [sway(y) + Math.cos(angle) * out, y + r() * 0.4, Math.sin(angle) * out], [size, 0.55 + r() * 0.2, size * 0.85], {
+        subdivisions: 1, seed: seed + t * 10 + k, lump: 0.18, ripple: 0.12, flat: 0.5,
+      })
+    }
+  })
+  const [top] = tiers.at(-1)
+  blob(needles, [sway(height), Math.max(top + 0.6, height - 0.2), 0], [0.7, 0.9, 0.7], { subdivisions: 1, seed: seed + 99, lump: 0.1 })
+  return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+}
 
 async function main() {
   await mkdir(OUT, { recursive: true })

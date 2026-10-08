@@ -82,6 +82,13 @@ const STREET_HEIGHT = { min: 5, max: 9.5 }
 const SPREAD_VARIETY = { min: 0.85, max: 1.15 }
 
 /**
+ * Above this height a crown widens more slowly than the tree grows, as real
+ * crowns do; a 35 m pine is not three times as wide as a 12 m one.
+ */
+const CROWN_REFERENCE = 12
+const CROWN_GROWTH = 0.55
+
+/**
  * Trunk girth to height. A rough allometric rule — girth in metres times this
  * lands within a couple of metres for the street and park trees this draws,
  * which is far closer than the family's midpoint would be.
@@ -124,7 +131,8 @@ export function treeInstance(
 
   // A measured crown wins over any ratio; otherwise it follows the height.
   const crown = tagged(props.diameter_crown, 0.5, 40)
-  const spread = height * lerp(SPREAD_VARIETY, hash(seed, 2))
+  const proportion = height > CROWN_REFERENCE ? (CROWN_REFERENCE / height) ** (1 - CROWN_GROWTH) : 1
+  const spread = height * proportion * lerp(SPREAD_VARIETY, hash(seed, 2))
 
   return {
     lng,

@@ -69,8 +69,8 @@ describe('models', () => {
    * the upper one is how the first attempt went too far the other way and left
    * every crown floating on a stick.
    *
-   * Measured at the widest point, which on these models is the flare where the
-   * trunk meets the ground; the shaft above it comes out around half this.
+   * Measured near the ground, at the flare where the trunk meets it; the
+   * shaft above comes out around half this.
    */
   test.each(Object.keys(TREE_MODELS))('%s stands on a trunk, not a plinth', name => {
     const model = load(name)
@@ -92,9 +92,8 @@ describe('models', () => {
       for (const v of p.index) crownBottom = Math.min(crownBottom, p.position[v * 3 + 1])
     }
     const crown = reach(canopy)
-    // Only the length of trunk anyone can see; branches inside the crown are
-    // behind the foliage they hold up.
-    const trunk = reach(m => m === 'bark', crownBottom)
+    // Near the ground, below any limbs reaching out under the crown.
+    const trunk = reach(m => m === 'bark', Math.min(crownBottom, 0.3))
     expect(crown).toBeGreaterThan(0)
     const ratio = trunk / crown
     const label = `${name} trunk is ${(ratio * 100).toFixed(0)}% of its crown`

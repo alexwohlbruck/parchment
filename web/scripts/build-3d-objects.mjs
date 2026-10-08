@@ -650,7 +650,8 @@ function slimTrunks(parts) {
   for (const part of foliage)
     for (const v of part.index) crownBottom = Math.min(crownBottom, part.position[v * 3 + 1])
 
-  const trunk = spread(bark, crownBottom)
+  // Low down only, below any limbs that reach out under the crown.
+  const trunk = spread(bark, Math.min(crownBottom, 0.3))
   const crown = spread(foliage)
   if (trunk < 1e-4 || crown < 1e-4) return
   const scale = Math.min(1, (TRUNK_RATIO * crown) / trunk)
@@ -1376,8 +1377,8 @@ const TREES = {
   // Pines: a long bare trunk under loose, flat tufts of needles. Loblolly
   // holds an open, irregular crown at the very top; white pine keeps
   // tiered tufts further down, widest low.
-  'tree-pine-a': lod(q => pine(q, 211, 15, [[9.6, 1.9], [10.6, 2], [11.6, 1.8], [12.5, 1.7], [13.4, 1.4], [14.2, 1.1]], 0.03)),
-  'tree-pine-b': lod(q => pine(q, 221, 14, [[6.2, 2.4], [7.4, 2.3], [8.6, 2], [9.8, 1.7], [11, 1.4], [12.1, 1], [13, 0.7]], 0.02)),
+  'tree-pine-a': lod(q => pine(q, 211, 15, [[10, 2.4], [11.1, 2.5], [12.2, 2.2], [13.2, 1.8], [14.1, 1.3]], 6)),
+  'tree-pine-b': lod(q => pine(q, 221, 14, [[7, 2.6], [8.3, 2.5], [9.6, 2.2], [10.8, 1.8], [11.9, 1.4], [12.9, 0.9]], 5)),
   // Flowering cherries: a short stout trunk under a wide, low crown in blossom.
   'tree-blossom-a': lod(q => [
     { role: 'bark', ...cylinder(mesh(), q.sides, 0.55, 0.36, 0, 2.8) },
@@ -1391,35 +1392,61 @@ const TREES = {
 
 // ---------------------------------------------------------------------------
 
+/** A thin square limb from `a` to `b`, capped at both ends. */
+function limb(m, a, b, r0, r1) {
+  const d = b.map((c, i) => c - a[i])
+  const len = Math.hypot(...d) || 1
+  const t = d.map(c => c / len)
+  const up = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]
+  const u = [t[1] * up[2] - t[2] * up[1], t[2] * up[0] - t[0] * up[2], t[0] * up[1] - t[1] * up[0]]
+  const ul = Math.hypot(...u)
+  u.forEach((c, i) => { u[i] = c / ul })
+  const v = [t[1] * u[2] - t[2] * u[1], t[2] * u[0] - t[0] * u[2], t[0] * u[1] - t[1] * u[0]]
+  const at = (p, r, k) => {
+    const ang = (k / 4) * Math.PI * 2
+    return p.map((c, i) => c + (Math.cos(ang) * u[i] + Math.sin(ang) * v[i]) * r)
+  }
+  const lo = [0, 1, 2, 3].map(k => at(a, r0, k))
+  const hi = [0, 1, 2, 3].map(k => at(b, r1, k))
+  for (let k = 0; k < 4; k++) quad(m, lo[k], hi[k], hi[(k + 1) % 4], lo[(k + 1) % 4])
+  quad(m, lo[3], lo[2], lo[1], lo[0])
+  quad(m, hi[0], hi[1], hi[2], hi[3])
+  return m
+}
+
 /**
- * A pine: a trunk to `height` and, at each [y, reach] tier, a ring of flat
- * needle tufts out to `reach`, with a small tuft for the leader on top.
+ * A pine: a straight trunk, a few dead stubs low down, and bare limbs out to
+ * flat, angular pads of needles at each [y, reach] tier. Far off, one crown.
  */
-function pine(q, seed, height, tiers, lean) {
+function pine(q, seed, height, tiers, stubs) {
   const r = rng(seed)
-  const bark = cylinder(mesh(), q.sides, 0.24, 0.1, 0, height)
-  bark.position.forEach((v, i) => { if (i % 3 === 0) bark.position[i] = v + (bark.position[i + 1] / height) ** 2 * height * lean })
+  const bark = cylinder(mesh(), q.sides, 0.24, 0.08, 0, height)
   const needles = mesh()
-  const sway = y => (y / height) ** 2 * height * lean
   if (q.crown <= 1) {
     const [low, reach] = tiers[0]
     const mid = (low + height) / 2
-    blob(needles, [sway(mid), mid, 0], [reach * 1.05, (height - low) / 2 + 0.5, reach], { subdivisions: 1, seed, lump: 0.1, flat: 0.6 })
+    blob(needles, [0, mid, 0], [reach * 0.95, (height - low) / 2 + 0.4, reach * 0.95], { subdivisions: 1, seed, lump: 0.12, flat: 0.6 })
     return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
+  }
+  for (let k = 0; k < stubs; k++) {
+    const y = tiers[0][0] * (0.35 + (k / stubs) * 0.55)
+    const ang = k * 2.4 + r()
+    limb(bark, [0, y, 0], [Math.cos(ang) * 0.42, y + 0.2, Math.sin(ang) * 0.42], 0.06, 0.02)
   }
   tiers.forEach(([y, reach], t) => {
     const count = 3 + (t % 2)
     for (let k = 0; k < count; k++) {
-      const angle = (k / count) * Math.PI * 2 + t * 1.3 + r() * 0.6
-      const out = reach * (0.45 + r() * 0.25)
-      const size = reach * (0.55 + r() * 0.2)
-      blob(needles, [sway(y) + Math.cos(angle) * out, y + r() * 0.4, Math.sin(angle) * out], [size, 0.55 + r() * 0.2, size * 0.85], {
-        subdivisions: 1, seed: seed + t * 10 + k, lump: 0.18, ripple: 0.12, flat: 0.5,
+      const ang = (k / count) * Math.PI * 2 + t * 1.3 + r() * 0.6
+      const out = reach * (0.7 + r() * 0.25)
+      const tip = [Math.cos(ang) * out, y + 0.5 + r() * 0.4, Math.sin(ang) * out]
+      limb(bark, [0, y, 0], tip, 0.08, 0.035)
+      const size = 0.8 + reach * 0.25 + r() * 0.3
+      blob(needles, [tip[0], tip[1] + 0.15, tip[2]], [size, 0.42 + r() * 0.15, size * 0.8], {
+        subdivisions: 0, seed: seed + t * 10 + k, lump: 0.3, flat: 0.45,
       })
     }
   })
-  const [top] = tiers.at(-1)
-  blob(needles, [sway(height), Math.max(top + 0.6, height - 0.2), 0], [0.7, 0.9, 0.7], { subdivisions: 1, seed: seed + 99, lump: 0.1 })
+  blob(needles, [0, height + 0.3, 0], [0.8, 0.9, 0.8], { subdivisions: 0, seed: seed + 99, lump: 0.2 })
   return [{ role: 'bark', ...bark }, { role: 'foliage', ...needles }]
 }
 

@@ -360,3 +360,21 @@ export function coasterTrackLayers(flavor: FlavorId): any[] {
     },
   ]
 }
+
+/** The basemap's woodland fill, which turns to bare soil under the 3D forest. */
+export const WOOD_LAYER = 'Wood'
+
+const FOREST_FLOOR: Record<FlavorId, string> = {
+  light: 'hsl(32, 24%, 62%)',
+  dark: 'hsl(30, 14%, 22%)',
+}
+
+/** Fades from the wood's own colour to soil as the trees come in at z16. */
+export function forestFloorColor(wood: unknown, flavor: FlavorId) {
+  return ['interpolate', ['linear'], ['zoom'], 15.5, wood, 16.5, FOREST_FLOOR[flavor]]
+}
+
+/** The colour `forestFloorColor` was built from, or the value unchanged. */
+export function woodColorOf(paint: unknown): unknown {
+  return Array.isArray(paint) && paint[0] === 'interpolate' ? paint[4] : paint
+}

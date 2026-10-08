@@ -61,7 +61,12 @@ const ROLE_COLOR = {
   water: [0.45, 0.62, 0.72, 1],
   lamp: [1, 0.93, 0.76, 1],
   panel: [0.93, 0.92, 0.89, 1],
+  blossom: [0.93, 0.7, 0.78, 1],
+  thatch: [0.6, 0.5, 0.36, 1],
 }
+
+/** Roles that make up a crown: smoothed, measured as the crown, and fitted with a lozenge. */
+const CANOPY = new Set(['foliage', 'blossom'])
 
 /** How far apart two faces can lean and still share a smoothed normal. */
 const CREASE_DEGREES = 78
@@ -627,7 +632,7 @@ const TRUNK_RATIO = 0.3
  */
 function slimTrunks(parts) {
   const bark = parts.filter(p => p.role === 'bark')
-  const foliage = parts.filter(p => p.role === 'foliage')
+  const foliage = parts.filter(p => CANOPY.has(p.role))
   if (!bark.length || !foliage.length) return
 
   const spread = (list, below = Infinity) => {
@@ -674,9 +679,11 @@ function slimTrunks(parts) {
 function farLod(parts) {
   const out = []
   for (const part of parts) {
+    // A palm's skirt is a sliver under its crown by the time this is drawn.
+    if (part.role === 'thatch') continue
     const { min, max } = boundsOf(part)
     const m = mesh()
-    if (part.role === 'foliage') {
+    if (CANOPY.has(part.role)) {
       lozenge(m, min, max)
     } else {
       const radius = baseRadius(part, min, max)
@@ -1200,17 +1207,49 @@ function turn(points, yaw, pitch) {
 }
 
 /** A palm frond: a flattened lumpless blob, swung out and drooping from the crown. */
-function frond(m, crown, length, yaw, droop, seed) {
+function frond(m, crown, length, yaw, droop, seed, { width = 0.22 * length / 2.4 + 0.12, bend = 0.35 } = {}) {
   const f = mesh()
-  blob(f, [0, 0, length / 2], [0.22 * length / 2.4 + 0.12, 0.05, length / 2], { seed, lump: 0.02, subdivisions: 1, flat: 1 })
+  blob(f, [0, 0, length / 2], [width, 0.05, length / 2], { seed, lump: 0.02, subdivisions: 1, flat: 1 })
   const pts = []
   for (let i = 0; i < f.position.length; i += 3) {
     // Bend along its length: the tip falls further than the base.
     const z = f.position[i + 2]
-    pts.push([f.position[i], f.position[i + 1] - (z / length) ** 2 * length * 0.35, z])
+    pts.push([f.position[i], f.position[i + 1] - (z / length) ** 2 * length * bend, z])
   }
   const moved = turn(pts, yaw, droop).map(([x, y, z]) => [x + crown[0], y + crown[1], z + crown[2]])
   for (let i = 0; i < moved.length; i += 3) face(m, moved[i], moved[i + 1], moved[i + 2])
+}
+
+/** A palm trunk: segments that thin towards the crown and curve over by `lean`. */
+function palmTrunk(height, lean, base, top) {
+  const bark = mesh()
+  const segs = 6
+  for (let i = 0; i < segs; i++) {
+    const seg = mesh()
+    const radius = k => base + ((top - base) * k) / segs
+    cylinder(seg, 8, radius(i), radius(i + 1), 0, height / segs + 0.05)
+    for (let v = 0; v < seg.position.length; v += 3) {
+      const y = seg.position[v + 1] + (i * height) / segs
+      seg.position[v] += (y / height) ** 2 * height * lean
+      seg.position[v + 1] = y
+    }
+    const pts = []
+    for (let v = 0; v < seg.position.length; v += 3) pts.push([seg.position[v], seg.position[v + 1], seg.position[v + 2]])
+    for (let v = 0; v < pts.length; v += 3) face(bark, pts[v], pts[v + 1], pts[v + 2])
+  }
+  return bark
+}
+
+const SPRUCE_TIERS = [[2.6, 2.9, 2.2, 171], [4.6, 2.3, 2.1, 172], [6.5, 1.7, 1.9, 173], [8.2, 1.05, 1.9, 174]]
+
+function spruce(q, tiers) {
+  const crown = mesh()
+  for (const [y, radius, rise, seed] of tiers)
+    blob(crown, [0, y, 0], [radius, rise, radius], { subdivisions: q.cone, seed, lump: 0.05, flat: 0.25, taper: 0.8 })
+  return [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.38, 0.1, 0, 9) },
+    { role: 'foliage', ...crown },
+  ]
 }
 
 /**
@@ -1278,23 +1317,9 @@ const TREES = {
   ...Object.fromEntries([['a', 9, 9, 110], ['b', 12, 7, 120], ['c', 6, 10, 130]].map(([k, height, count, seed]) => [
     `tree-palm-${k}`,
     () => {
-      const bark = mesh()
-      // A gently curving trunk, in segments that thin towards the crown.
       const r = rng(seed)
       const lean = 0.06 + r() * 0.05
-      const segs = 6
-      for (let i = 0; i < segs; i++) {
-        const seg = mesh()
-        cylinder(seg, 8, 0.28 - i * 0.02, 0.26 - i * 0.02, 0, height / segs + 0.05)
-        for (let v = 0; v < seg.position.length; v += 3) {
-          const y = seg.position[v + 1] + (i * height) / segs
-          seg.position[v] += (y / height) ** 2 * height * lean
-          seg.position[v + 1] = y
-        }
-        const pts = []
-        for (let v = 0; v < seg.position.length; v += 3) pts.push([seg.position[v], seg.position[v + 1], seg.position[v + 2]])
-        for (let v = 0; v < pts.length; v += 3) face(bark, pts[v], pts[v + 1], pts[v + 2])
-      }
+      const bark = palmTrunk(height, lean, 0.28, 0.16)
       const top = [height * lean, height, 0]
       const leaves = mesh()
       for (let i = 0; i < count; i++)
@@ -1303,6 +1328,79 @@ const TREES = {
       return [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
     },
   ])),
+  // Fan palms, after Washingtonia and Sabal: a tight ball of stiff fans on a
+  // straight trunk, the tall one wearing a skirt of dead fronds beneath it.
+  ...Object.fromEntries([['a', 16, 22, 0.32, true, 140], ['b', 9, 26, 0.36, false, 150]].map(([k, height, count, base, skirt, seed]) => [
+    `tree-palm-fan-${k}`,
+    () => {
+      const r = rng(seed)
+      const lean = 0.015 + r() * 0.02
+      const bark = palmTrunk(height, lean, base, base * 0.8)
+      const top = [height * lean, height, 0]
+      const leaves = mesh()
+      for (let i = 0; i < count; i++) {
+        const tilt = -0.75 + (i % 5) * 0.32 + r() * 0.15
+        frond(leaves, top, 2.7 + r() * 0.5, i * 2.4 + r() * 0.3, tilt, seed + i, { width: 0.8, bend: 0.08 })
+      }
+      blob(leaves, top, [0.8, 0.7, 0.8], { seed: seed + 50, subdivisions: 1 })
+      const parts = [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
+      if (skirt) {
+        const thatch = cylinder(mesh(), 9, base * 1.9, base * 2.6, height * 0.78, height * 0.2)
+        thatch.position.forEach((v, i) => { if (i % 3 === 0) thatch.position[i] = v + height * lean * 0.85 })
+        parts.push({ role: 'thatch', ...thatch })
+      }
+      return parts
+    },
+  ])),
+  // Date palm, after Phoenix: a stout trunk under a dense crown of long arching
+  // fronds, some still climbing and the older ones hanging low.
+  ...Object.fromEntries([['a', 9, 28, 0.62, 160], ['b', 13, 22, 0.55, 165]].map(([k, height, count, base, seed]) => [
+    `tree-palm-date-${k}`,
+    () => {
+      const r = rng(seed)
+      const lean = 0.01 + r() * 0.03
+      const bark = palmTrunk(height, lean, base, base * 0.78)
+      const top = [height * lean, height, 0]
+      const leaves = mesh()
+      for (let i = 0; i < count; i++) {
+        const upper = i % 2 === 0
+        frond(leaves, top, 4.2 + r() * 0.8, i * 2.4 + r() * 0.2, upper ? -0.75 - r() * 0.25 : -0.05 - r() * 0.3, seed + i, { width: 0.42, bend: upper ? 0.3 : 0.45 })
+      }
+      blob(leaves, top, [0.9, 0.7, 0.9], { seed: seed + 50, subdivisions: 1 })
+      return [{ role: 'bark', ...bark }, { role: 'foliage', ...leaves }]
+    },
+  ])),
+  // Spruce in tiers: stacked skirts of branches, each with a flat underside.
+  // Far off the tiers merge, so one cone stands in for them.
+  'tree-conifer-e': Object.assign(() => spruce(NEAR, SPRUCE_TIERS), { far: () => spruce(FAR, [[5, 2.9, 4.6, 171]]) }),
+  // Pines: a long bare trunk with the crown held up at the top. Loblolly-like
+  // clumps, and an umbrella pine's broad flat dome.
+  'tree-pine-a': lod(q => {
+    const crown = mesh()
+    for (const [x, y, z, rx, ry, seed] of [[0, 13.6, 0, 2.6, 2.1, 181], [1.5, 11.6, 0.6, 2, 1.5, 182], [-1.3, 11.9, -0.9, 1.9, 1.4, 183], [0.3, 10.2, -1.4, 1.7, 1.2, 184]])
+      blob(crown, [x, y, z], [rx, ry, rx], { subdivisions: q.crown - 1, seed, lump: 0.14, ripple: 0.1, flat: 0.5 })
+    return [
+      { role: 'bark', ...cylinder(mesh(), q.sides, 0.5, 0.22, 0, 13.5) },
+      { role: 'foliage', ...crown },
+    ]
+  }),
+  'tree-pine-b': lod(q => {
+    const bark = cylinder(mesh(), q.sides, 0.55, 0.3, 0, 8.6)
+    bark.position.forEach((v, i) => { if (i % 3 === 0) bark.position[i] = v + (bark.position[i + 1] / 8.6) ** 2 * 0.8 })
+    return [
+      { role: 'bark', ...bark },
+      { role: 'foliage', ...blob(mesh(), [0.8, 9.6, 0], [4.4, 1.9, 4.2], { subdivisions: q.crown, seed: 191, lump: 0.1, ripple: 0.1, flat: 0.35, taper: 0.05 }) },
+    ]
+  }),
+  // Flowering cherries: a short stout trunk under a wide, low crown in blossom.
+  'tree-blossom-a': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.55, 0.36, 0, 2.8) },
+    { role: 'blossom', ...blob(mesh(), [0, 5, 0], [3.9, 3, 3.9], { subdivisions: q.crown, seed: 201, lump: 0.18, ripple: 0.14, flat: 0.6 }) },
+  ]),
+  'tree-blossom-b': lod(q => [
+    { role: 'bark', ...cylinder(mesh(), q.sides, 0.46, 0.3, 0, 3.2) },
+    { role: 'blossom', ...blob(mesh(), [0, 5.4, 0], [3.3, 3.2, 3.3], { subdivisions: q.crown, seed: 211, lump: 0.16, ripple: 0.14, flat: 0.7, taper: 0.06 }) },
+  ]),
 }
 
 // ---------------------------------------------------------------------------
@@ -1329,7 +1427,7 @@ async function main() {
     const holes = parts.reduce((n, part) => n + capHoles(part), 0)
     // Only the leafy parts. Smoothing bark rounds off the trunk's cap edge,
     // and smoothing a bench turns its slats into a ramp.
-    const foliage = parts.filter(p => p.role === 'foliage')
+    const foliage = parts.filter(p => CANOPY.has(p.role))
     if (foliage.length) smoothNormals(foliage, CREASE_DEGREES)
 
     const near = toGlb(name, parts)

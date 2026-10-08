@@ -77,6 +77,9 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     water: [0.55, 0.72, 0.82],
     lamp: [1, 0.95, 0.82],
     panel: [0.95, 0.94, 0.91],
+    blossom: [0.97, 0.76, 0.84],
+    'blossom-alt': [0.98, 0.86, 0.9],
+    thatch: [0.74, 0.64, 0.48],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
@@ -93,6 +96,9 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     water: [0.13, 0.2, 0.26],
     lamp: [1, 0.86, 0.58],
     panel: [0.42, 0.42, 0.4],
+    blossom: [0.36, 0.24, 0.3],
+    'blossom-alt': [0.4, 0.3, 0.35],
+    thatch: [0.25, 0.21, 0.16],
   },
 }
 

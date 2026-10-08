@@ -215,7 +215,7 @@ const CROWN_OCCLUSION = 0.18
 export const FRONT_FACE: 'cw' | 'ccw' = 'cw'
 
 /** What a primitive is made of, which is how it gets its colour. */
-export type ObjectRole = 'bark' | 'foliage' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
+export type ObjectRole = 'bark' | 'foliage' | 'blossom' | 'thatch' | 'metal' | 'wood' | 'paint' | 'interior' | 'bench' | 'bin' | 'recycling'
 
 /**
  * Colours by role. A `<role>-alt` entry is the colour an instance with a full
@@ -815,9 +815,11 @@ function modelWidth(model: GlbModel): number {
   return width
 }
 
-/** A foliage part's y bounds, so its underside can be shaded; nothing else is. */
+const CANOPY = new Set(['foliage', 'blossom'])
+
+/** A crown's y bounds, so its underside can be shaded; nothing else is. */
 function crownOcclusion(role: string, position: Float32Array): [number, number, number] {
-  if (role !== 'foliage') return [0, 1, 0]
+  if (!CANOPY.has(role)) return [0, 1, 0]
   let low = Infinity
   let high = -Infinity
   for (let i = 1; i < position.length; i += 3) {

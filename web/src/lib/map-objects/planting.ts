@@ -261,6 +261,15 @@ function exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) 
   ])
 }
 
+/** The view in mercator units, padded a tenth each way so shadows from just off screen land. */
+function viewBounds(map: any): Bounds | null {
+  const b = map.getBounds?.()
+  if (!b) return null
+  const [x0, x1, y0, y1] = [mercX(b.getWest()), mercX(b.getEast()), mercY(b.getNorth()), mercY(b.getSouth())]
+  const pad = Math.max(x1 - x0, y1 - y0) * 0.1
+  return { minX: x0 - pad, minY: y0 - pad, maxX: x1 + pad, maxY: y1 + pad }
+}
+
 function pieceKey(feature: any): string {
   const g = feature.geometry
   const first = g?.type === 'MultiPolygon' ? g.coordinates[0]?.[0]?.[0] : g?.coordinates?.[0]?.[0]
@@ -299,6 +308,50 @@ export function plantedSpec(options: {
   let basemap = BASEMAP_SOURCE
   let detail: (sourceLayer: string) => [string, string?] = layer => [DETAIL_SOURCE, layer]
   let exclusions: ForestExclusions | null = null
+  let view: Bounds | null = null
+  let center: Point = [0, 0]
+
+  /**
+   * One tile piece planted block by block, only where trees can still make the
+   * budget: inside the view and within the square around its centre that
+   * `budget` objects at this spacing would fill. The budget keeps the nearest.
+   */
+  const plantPiece = (feature: any, grid: Grid, tile: Bounds, clear: boolean): PlantedPoint[] => {
+    const key = pieceKey(feature)
+    const pitch = Math.max(grid.dx, grid.dy) * MERCATOR_METRE * (sparse ? 2 : 1)
+    const reach = Math.sqrt(options.budget / Math.PI) * pitch * 1.15
+    const block = 16 * grid.dx * MERCATOR_METRE
+    const area = {
+      minX: Math.max(tile.minX, view?.minX ?? -Infinity, center[0] - reach),
+      minY: Math.max(tile.minY, view?.minY ?? -Infinity, center[1] - reach),
+      maxX: Math.min(tile.maxX, view?.maxX ?? Infinity, center[0] + reach),
+      maxY: Math.min(tile.maxY, view?.maxY ?? Infinity, center[1] + reach),
+    }
+    const points: PlantedPoint[] = []
+    let polygons: Ring[][] | null = null
+    for (let bj = Math.floor(area.minY / block); bj * block < area.maxY; bj++)
+      for (let bi = Math.floor(area.minX / block); bi * block < area.maxX; bi++) {
+        const blockKey = `${key}|${bi},${bj}`
+        let planting = planted.get(blockKey)
+        if (!planting) {
+          const bounds = {
+            minX: Math.max(tile.minX, bi * block),
+            minY: Math.max(tile.minY, bj * block),
+            maxX: Math.min(tile.maxX, (bi + 1) * block),
+            maxY: Math.min(tile.maxY, (bj + 1) * block),
+          }
+          polygons ??= polygonsOf(feature.geometry)
+          if (clear) exclusions ??= map ? exclusionsFor(map, basemap, detail) : buildExclusions([], [])
+          planting = bounds.minX < bounds.maxX && bounds.minY < bounds.maxY
+            ? polygons.flatMap(rings => plant(rings, bounds, clear ? exclusions : null, grid))
+            : []
+          if (planted.size >= 20000) planted.clear()
+          planted.set(blockKey, planting)
+        }
+        for (const p of planting) points.push(p)
+      }
+    return points
+  }
 
   const plantingOf = (feature: any) => {
     const known = current.get(feature)
@@ -308,17 +361,9 @@ export function plantedSpec(options: {
       const [lng, lat] = feature.geometry.coordinates
       points = [[lng, lat, Math.round(lng * 1e6), Math.round(lat * 1e6), false]]
     } else {
-      const key = pieceKey(feature)
       const grid = options.grid(feature)
-      points = planted.get(key) ?? []
-      if (!planted.has(key) && grid) {
-        const tile = tileBounds(feature)
-        const clear = options.clear(feature)
-        if (clear) exclusions ??= map ? exclusionsFor(map, basemap, detail) : buildExclusions([], [])
-        points = tile ? polygonsOf(feature.geometry).flatMap(rings => plant(rings, tile, clear ? exclusions : null, grid)) : []
-        if (planted.size >= 4000) planted.clear()
-        planted.set(key, points)
-      }
+      const tile = tileBounds(feature)
+      points = grid && tile ? plantPiece(feature, grid, tile, options.clear(feature)) : []
     }
     current.set(feature, points)
     return points
@@ -349,6 +394,9 @@ export function plantedSpec(options: {
       detail = (spec as PlantedSpec).detailFrom ?? (layer => [DETAIL_SOURCE, layer])
       exclusions = null
       sparse = m.getZoom() < (options.sparseBelow ?? -Infinity)
+      view = viewBounds(m)
+      const { lng, lat } = m.getCenter()
+      center = [mercX(lng), mercY(lat)]
     },
     positions: feature => shownOf(feature).map(([lng, lat]) => [lng, lat] as [number, number]),
     toInstance(feature, lng, lat, index) {

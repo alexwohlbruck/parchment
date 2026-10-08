@@ -58,6 +58,9 @@ const FAR_BELOW_ZOOM = 17
  * rebuilt, and the longest a continuous burst may hold that off. Milliseconds.
  */
 const SETTLE = 80
+
+/** Fewest milliseconds between gathers while the camera is still moving. */
+const MOVING_GATHER = 600
 const AT_MOST = 300
 
 /** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
@@ -379,6 +382,7 @@ export class ObjectLayer {
   private origin: [number, number, number] = [0, 0, 0]
   /** Zoom the current `placed` was gathered at; a change re-runs the gate. */
   private gatheredZoom = NaN
+  private gatheredAt = 0
   private needsGather = true
   private needsArrange = true
   private scheduled = 0
@@ -508,9 +512,10 @@ export class ObjectLayer {
     this.scheduled = setTimeout(() => {
       this.scheduled = 0
       if (!this.map) return
-      // Tiles stream in all through a pan or orbit; gathering on each stalls the
-      // motion, so the gather waits for the `moveend` that always follows.
-      if (this.needsGather && !this.map.isMoving?.()) this.gather()
+      // Tiles stream in all through a pan or orbit. Gathering on each stalls the
+      // motion, so mid-move it runs at most every `MOVING_GATHER` ms.
+      const now = performance.now()
+      if (this.needsGather && (!this.map.isMoving?.() || now - this.gatheredAt > MOVING_GATHER)) this.gather()
       if (this.needsArrange) this.arrange()
       this.map.triggerRepaint?.()
     }, wait) as unknown as number
@@ -559,6 +564,7 @@ export class ObjectLayer {
    */
   private gather() {
     this.needsGather = false
+    this.gatheredAt = performance.now()
     const zoom = this.map.getZoom()
     this.gatheredZoom = zoom
     this.placed = []

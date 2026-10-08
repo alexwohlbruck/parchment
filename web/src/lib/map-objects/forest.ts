@@ -22,7 +22,7 @@ export const CROWN_SUFFIX = '-crown'
  * Below this zoom a wood is planted at every other cell each way, a quarter of
  * the trees, a little wider to fill in, standing on the wood's own green.
  */
-export const SPARSE_BELOW_ZOOM = 16
+export const SPARSE_BELOW_ZOOM = 15
 const SPARSE_SPREAD = 1.3
 
 const CROWNS: Record<string, string> = Object.fromEntries(
@@ -54,7 +54,7 @@ export function forestTree(
 export const FOREST_OBJECTS = plantedSpec({
   source: BASEMAP_SOURCE,
   sourceLayer: 'landcover',
-  minzoom: 15,
+  minzoom: 14,
   budget: 6000,
   sparseBelow: SPARSE_BELOW_ZOOM,
   grid: feature => (feature.properties?.class === 'wood' ? FOREST_GRID : null),

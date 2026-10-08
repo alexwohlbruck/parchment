@@ -233,7 +233,7 @@ export const CROWN_SUFFIX = '-crown'
  * Below this zoom a wood is planted at every other cell each way, a quarter of
  * the trees, a little wider to fill in, standing on the wood's own green.
  */
-export const SPARSE_BELOW_ZOOM = 16
+export const SPARSE_BELOW_ZOOM = 15
 const SPARSE_SPREAD = 1.3
 
 const CROWNS: Record<string, string> = Object.fromEntries(
@@ -272,7 +272,7 @@ function tileBounds(feature: any): Bounds | null {
 
 /** Plantings by tile piece, so a pan re-ranks trees instead of re-planting them. */
 const planted = new Map<string, ForestPoint[]>()
-const MAX_PLANTED = 4000
+const MAX_PLANTED = 20000
 
 let source: { map: any; layer: string } | null = null
 let exclusions: ForestExclusions | null = null
@@ -301,18 +301,67 @@ function pieceKey(feature: any): string {
 const current = new WeakMap<object, ForestPoint[]>()
 const thinned = new WeakMap<object, ForestPoint[]>()
 let sparse = false
+let view: Bounds | null = null
+
+/** Planting goes block by block, so a wood is only planted where it is seen. */
+const BLOCK = 16 * FOREST_SPACING
+
+const BUDGET = 6000
+
+/**
+ * Where trees can still make the budget: the view, padded a tenth each way so
+ * shadows from just off screen land, cut to the square around its centre that
+ * `BUDGET` trees would fill. The budget keeps the nearest, so nothing past it is drawn.
+ */
+function plantingBounds(map: any, sparse: boolean): Bounds | null {
+  const b = map.getBounds?.()
+  if (!b) return null
+  const x = (lng: number) => (lng + 180) / 360
+  const y = (lat: number) => 0.5 - Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / (2 * Math.PI)
+  const [x0, x1, y0, y1] = [x(b.getWest()), x(b.getEast()), y(b.getNorth()), y(b.getSouth())]
+  const pad = Math.max(x1 - x0, y1 - y0) * 0.1
+  const { lng, lat } = map.getCenter()
+  const reach = Math.sqrt(BUDGET / Math.PI) * FOREST_SPACING * (sparse ? 2 : 1) * 1.15
+  return {
+    minX: Math.max(x0 - pad, x(lng) - reach),
+    minY: Math.max(y0 - pad, y(lat) - reach),
+    maxX: Math.min(x1 + pad, x(lng) + reach),
+    maxY: Math.min(y1 + pad, y(lat) + reach),
+  }
+}
 
 function plantingOf(feature: any) {
   const known = current.get(feature)
   if (known) return known
-  const key = pieceKey(feature)
-  let points = planted.get(key)
-  if (!points) {
-    const tile = tileBounds(feature)
-    exclusions ??= source ? exclusionsFor(source) : buildExclusions([], [])
-    points = tile ? polygonsOf(feature.geometry).flatMap(rings => plantForest(rings, tile, exclusions!)) : []
-    if (planted.size >= MAX_PLANTED) planted.clear()
-    planted.set(key, points)
+  const tile = tileBounds(feature)
+  const points: ForestPoint[] = []
+  if (tile) {
+    const key = pieceKey(feature)
+    const area = view
+      ? { minX: Math.max(tile.minX, view.minX), minY: Math.max(tile.minY, view.minY), maxX: Math.min(tile.maxX, view.maxX), maxY: Math.min(tile.maxY, view.maxY) }
+      : tile
+    let polygons: Ring[][] | null = null
+    for (let bj = Math.floor(area.minY / BLOCK); bj * BLOCK < area.maxY; bj++)
+      for (let bi = Math.floor(area.minX / BLOCK); bi * BLOCK < area.maxX; bi++) {
+        const blockKey = `${key}|${bi},${bj}`
+        let block = planted.get(blockKey)
+        if (!block) {
+          const bounds = {
+            minX: Math.max(tile.minX, bi * BLOCK),
+            minY: Math.max(tile.minY, bj * BLOCK),
+            maxX: Math.min(tile.maxX, (bi + 1) * BLOCK),
+            maxY: Math.min(tile.maxY, (bj + 1) * BLOCK),
+          }
+          polygons ??= polygonsOf(feature.geometry)
+          exclusions ??= source ? exclusionsFor(source) : buildExclusions([], [])
+          block = bounds.minX < bounds.maxX && bounds.minY < bounds.maxY
+            ? polygons.flatMap(rings => plantForest(rings, bounds, exclusions!))
+            : []
+          if (planted.size >= MAX_PLANTED) planted.clear()
+          planted.set(blockKey, block)
+        }
+        for (const p of block) points.push(p)
+      }
   }
   current.set(feature, points)
   return points
@@ -333,14 +382,15 @@ function shownOf(feature: any): ForestPoint[] {
 export const FOREST_OBJECTS: ObjectSourceSpec = {
   source: BASEMAP_SOURCE,
   sourceLayer: 'landcover',
-  minzoom: 15,
+  minzoom: 14,
   distinct: false,
   followsView: true,
-  budget: 6000,
+  budget: BUDGET,
   prepare(map, spec) {
     source = { map, layer: spec.source }
     exclusions = null
     sparse = map.getZoom() < SPARSE_BELOW_ZOOM
+    view = plantingBounds(map, sparse)
   },
   positions(feature) {
     if (feature.properties?.class !== 'wood') return []

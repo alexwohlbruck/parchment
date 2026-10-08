@@ -1251,13 +1251,16 @@ function frond(m, base, { length, yaw, rise, fall, width, droop, stations, keel 
   }
 }
 
+/** How much wider a far frond is than the near one at the same point; see `palm`. */
+const FAR_FROND_WIDTH = 1.35
+
 /** How wide a frond is along its length, as a fraction of that length. */
 const FROND_WIDTH = {
   // Pinnate: a bare stalk, then leaflets that run most of its length and taper
   // to the tip.
-  feather: s => 0.075 * (0.2 + 0.8 * smoothstep(0.05, 0.4, s)) * (1 - 0.8 * smoothstep(0.45, 1, s)),
+  feather: s => 0.11 * (0.2 + 0.8 * smoothstep(0.05, 0.4, s)) * (1 - 0.8 * smoothstep(0.45, 1, s)),
   // Palmate: a long bare stalk, then a fan as wide as it is long.
-  fan: s => 0.32 * (0.05 + 0.95 * smoothstep(0.25, 0.7, s)),
+  fan: s => 0.4 * (0.05 + 0.95 * smoothstep(0.25, 0.7, s)),
 }
 
 /**
@@ -1312,7 +1315,11 @@ function palm({ height, lean, base, top, kind, fronds, farEvery, farStations, cr
   const stations = far ? farStations : [1, 2, 3, 4, 5].map(k => k / 6)
   fronds.forEach((spec, i) => {
     if (far && i % farEvery) return
-    frond(leaves, crown, { ...spec, width: FROND_WIDTH[kind], stations, keel: !far })
+    // A far blade has one joint, so it is a kite: widest at that joint and
+    // tapering both ways, it covers about half the near blade's area. Widened
+    // to make up for it, or the distant crown reads as a few pencil strokes.
+    const width = far ? s => FROND_WIDTH[kind](s) * FAR_FROND_WIDTH : FROND_WIDTH[kind]
+    frond(leaves, crown, { ...spec, width, stations, keel: !far })
   })
   if (shaftFrom < height) {
     const shaft = palmTrunk(mesh(), { height, lean, from: shaftFrom, base: crownshaft.radius, top: crownshaft.radius * 0.85, sides, rings: far ? 2 : 3 })
@@ -1431,19 +1438,19 @@ const TREES = {
   // Each frond's arch is set by its age, oldest last: climbing, spreading,
   // hanging. The far LOD keeps a spread of them and three joints instead of seven.
   'tree-palm-a': palmLod({
-    height: 12, lean: 0.05, base: 0.3, top: 0.2, kind: 'feather',
-    crownshaft: { length: 1.6, radius: 0.24 },
+    height: 12, lean: 0.05, base: 0.58, top: 0.34, kind: 'feather',
+    crownshaft: { length: 1.6, radius: 0.4 },
     fronds: crownOf(15, 110, {
       length: 5,
-      arch: [{ rise: 0.75, fall: -0.5, droop: 0.6 }, { rise: 0.35, fall: -1.1, droop: 0.65 }, { rise: 0.05, fall: -1.45, droop: 0.7 }],
+      arch: [{ rise: 0.75, fall: -0.65, droop: 0.75 }, { rise: 0.35, fall: -1.2, droop: 0.8 }, { rise: 0.05, fall: -1.45, droop: 0.85 }],
     }),
     farEvery: 2, farStations: [0.4],
   }),
   'tree-palm-b': palmLod({
-    height: 13, lean: 0.015, base: 0.34, top: 0.24, kind: 'fan',
+    height: 13, lean: 0.015, base: 0.56, top: 0.4, kind: 'fan',
     hub: [0.45, 0.5, 0.45],
     fronds: crownOf(24, 120, {
-      length: 2.5,
+      length: 2.75,
       arch: [
         { rise: 1.15, fall: 0.75, droop: 0.3 }, { rise: 0.7, fall: 0.25, droop: 0.3 }, { rise: 0.25, fall: -0.25, droop: 0.3 },
         { rise: -0.2, fall: -0.7, droop: 0.3 }, { rise: -0.65, fall: -1.1, droop: 0.3 },
@@ -1452,11 +1459,11 @@ const TREES = {
     farEvery: 3, farStations: [0.7],
   }),
   'tree-palm-c': palmLod({
-    height: 8, lean: 0.12, base: 0.26, top: 0.18, kind: 'feather',
-    crownshaft: { length: 1.1, radius: 0.21 },
+    height: 8, lean: 0.12, base: 0.46, top: 0.3, kind: 'feather',
+    crownshaft: { length: 1.1, radius: 0.36 },
     fronds: crownOf(13, 130, {
       length: 4.2,
-      arch: [{ rise: 0.65, fall: -0.7, droop: 0.6 }, { rise: 0.3, fall: -1.25, droop: 0.65 }, { rise: 0, fall: -1.55, droop: 0.7 }],
+      arch: [{ rise: 0.65, fall: -0.7, droop: 0.75 }, { rise: 0.3, fall: -1.25, droop: 0.8 }, { rise: 0, fall: -1.55, droop: 0.85 }],
     }),
     farEvery: 2, farStations: [0.4],
   }),

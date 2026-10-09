@@ -1810,7 +1810,7 @@
         "3dObjects": "Objetos 3D",
         "3dObjectsDescription": "Dibuja árboles y mobiliario urbano como modelos. Solo MapLibre.",
         "hdRoads": "Carreteras HD",
-        "hdRoadsDescription": "Visualización de carreteras de alta definición con detalles mejorados",
+        "hdRoadsDescription": "Dibuja carriles, pasos de peatones y flechas de giro a nivel de calle",
         "indoorMaps": "Mapas de interiores",
         "indoorMapsDescription": "Muestra planos de aeropuertos, centros comerciales y estadios, con un selector de plantas. Requiere el mapa base estándar.",
         "poiLabels": "Etiquetas de POI",

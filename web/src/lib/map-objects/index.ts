@@ -11,13 +11,21 @@ import { type ObjectPalette, type ObjectSourceSpec } from './object-layer'
 import models from './models.json'
 import { TREE_MODELS, TREE_OBJECTS, TREE_ROW_OBJECTS } from './trees'
 import { FURNITURE_MODELS, FURNITURE_OBJECTS } from './furniture'
+import { SPORT_MODELS, SPORT_OBJECTS } from './sports'
 import { FOREST_OBJECTS } from './forest'
+import { LINE_MODELS, LINE_OBJECTS } from './lines'
+import { AREA_MODELS, AREA_OBJECTS } from './areas'
+import { SOLAR_MODELS, SOLAR_OBJECTS } from './solar'
 
 export const OBJECT_SPECS: ObjectSourceSpec[] = [
   TREE_OBJECTS,
   TREE_ROW_OBJECTS,
   FURNITURE_OBJECTS,
+  SPORT_OBJECTS,
   FOREST_OBJECTS,
+  LINE_OBJECTS,
+  AREA_OBJECTS,
+  SOLAR_OBJECTS,
 ]
 
 /**
@@ -45,7 +53,7 @@ export const OBJECT_MODELS: Record<string, string> = Object.fromEntries(
 export const OBJECT_SOLID: Record<string, boolean> = models
 
 /** The models a catalogue entry names, for the tests to check against. */
-export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
+export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS, ...SPORT_MODELS, ...LINE_MODELS, ...AREA_MODELS, ...SOLAR_MODELS }
 
 /**
  * Role colours, per flavor.
@@ -66,6 +74,9 @@ export const CATALOGUE_MODELS = { ...TREE_MODELS, ...FURNITURE_MODELS }
 export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
   light: {
     bark: [0.56, 0.45, 0.36],
+    // A palm's trunk is grey, not brown: ringed, fibrous, and pale as concrete
+    // on a royal palm.
+    'palm-bark': [0.62, 0.58, 0.52],
     foliage: [0.66, 0.83, 0.5],
     'foliage-alt': [0.55, 0.77, 0.52],
     metal: [0.3, 0.36, 0.33],
@@ -75,13 +86,29 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     bench: [0.88, 0.8, 0.68],
     bin: [0.35, 0.37, 0.4],
     recycling: [0.22, 0.36, 0.56],
+    spray: [0.92, 0.96, 1],
     stone: [0.8, 0.78, 0.74],
     water: [0.55, 0.72, 0.82],
     lamp: [1, 0.95, 0.82],
     panel: [0.95, 0.94, 0.91],
+    blossom: [0.97, 0.76, 0.84],
+    'blossom-alt': [0.98, 0.86, 0.9],
+    thatch: [0.74, 0.64, 0.48],
+    net: [0.45, 0.48, 0.48],
+    tape: [0.97, 0.97, 0.95],
+    rim: [0.88, 0.42, 0.18],
+    frame: [0.97, 0.97, 0.96],
+    goalpost: [0.96, 0.8, 0.22],
+    wire: [0.22, 0.23, 0.24],
+    mesh: [0.72, 0.74, 0.74],
+    bloom: [0.9, 0.52, 0.68],
+    'bloom-alt': [0.96, 0.82, 0.36],
+    pv: [0.26, 0.34, 0.5],
+    lattice: [0.66, 0.68, 0.7],
   },
   dark: {
     bark: [0.17, 0.14, 0.12],
+    'palm-bark': [0.2, 0.19, 0.17],
     foliage: [0.17, 0.3, 0.17],
     'foliage-alt': [0.12, 0.25, 0.18],
     metal: [0.2, 0.23, 0.26],
@@ -91,10 +118,25 @@ export const OBJECT_PALETTE: Record<FlavorId, ObjectPalette> = {
     bench: [0.36, 0.32, 0.27],
     bin: [0.16, 0.17, 0.19],
     recycling: [0.1, 0.16, 0.26],
+    spray: [0.7, 0.78, 0.84],
     stone: [0.3, 0.3, 0.29],
     water: [0.13, 0.2, 0.26],
     lamp: [1, 0.86, 0.58],
     panel: [0.42, 0.42, 0.4],
+    blossom: [0.36, 0.24, 0.3],
+    'blossom-alt': [0.4, 0.3, 0.35],
+    thatch: [0.25, 0.21, 0.16],
+    net: [0.2, 0.22, 0.22],
+    tape: [0.6, 0.6, 0.58],
+    rim: [0.55, 0.27, 0.12],
+    frame: [0.62, 0.62, 0.6],
+    goalpost: [0.6, 0.5, 0.16],
+    wire: [0.08, 0.09, 0.1],
+    mesh: [0.3, 0.31, 0.32],
+    bloom: [0.42, 0.24, 0.32],
+    'bloom-alt': [0.46, 0.4, 0.18],
+    pv: [0.22, 0.29, 0.45],
+    lattice: [0.32, 0.34, 0.36],
   },
 }
 

@@ -6,17 +6,28 @@
 import { DETAIL_SOURCE, OBJECT_AREA_TILES } from '@/lib/map-style/detail-layers'
 import type { ObjectInstance, ObjectSourceSpec } from './object-layer'
 import { bearingOf } from './furniture'
-import { MERCATOR_METRE, pieceKey, polygonsOf, spansAt, tileBounds, type Bounds } from './planting'
+import {
+  MERCATOR_METRE,
+  builtExclusionsFor,
+  isClear,
+  pieceKey,
+  polygonsOf,
+  spansAt,
+  tileBounds,
+  type Bounds,
+  type ForestExclusions,
+} from './planting'
 
 export const SOLAR_MODELS = {
   'solar-row': '/models/solar-row.glb',
 }
 
-/** Row pitch, longest slab and end inset, in mercator metres. */
+/** Row pitch, longest slab, end inset, shortest slab and the step clearance is checked at, in mercator metres. */
 const PITCH = 8
 const SEGMENT = 24
 const INSET = 1
 const SHORTEST = 3
+const STEP = 1.5
 
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6371008.8
 
@@ -26,11 +37,29 @@ export type SolarRow = { lng: number; lat: number; length: number }
 const lngOf = (x: number) => x * 360 - 180
 const latOf = (y: number) => (360 / Math.PI) * Math.atan(Math.exp((1 - 2 * y) * Math.PI)) - 90
 
+/** The stretches of `[x0, x1]` at height `y` that stay clear of every exclusion. */
+function clearRuns(x0: number, x1: number, y: number, ex: ForestExclusions | null): Array<[number, number]> {
+  if (!ex) return [[x0, x1]]
+  const step = STEP * MERCATOR_METRE
+  const runs: Array<[number, number]> = []
+  let start: number | null = null
+  for (let x = x0; ; x = Math.min(x + step, x1)) {
+    const clear = isClear(ex, x, y)
+    if (clear && start === null) start = x
+    if (start !== null && (!clear || x >= x1)) {
+      runs.push([start, clear ? x : x - step])
+      start = null
+    }
+    if (x >= x1) break
+  }
+  return runs
+}
+
 /**
  * Rows across a polygon on a world-anchored pitch, clipped to `bounds` so a
- * polygon split across tiles is laid once.
+ * polygon split across tiles is laid once, and broken around `exclusions`.
  */
-export function solarRows(geometry: any, bounds: Bounds): SolarRow[] {
+export function solarRows(geometry: any, bounds: Bounds, exclusions: ForestExclusions | null = null): SolarRow[] {
   const [pitch, segment, inset] = [PITCH, SEGMENT, INSET].map(m => m * MERCATOR_METRE)
   const out: SolarRow[] = []
   for (const rings of polygonsOf(geometry)) {
@@ -43,13 +72,16 @@ export function solarRows(geometry: any, bounds: Bounds): SolarRow[] {
       const lat = latOf(y)
       const metres = EARTH_CIRCUMFERENCE * Math.cos((lat * Math.PI) / 180)
       for (const [a, b] of spansAt(rings, y)) {
-        const x0 = Math.max(a + inset, bounds.minX)
-        const x1 = Math.min(b - inset, bounds.maxX)
-        if ((x1 - x0) / MERCATOR_METRE < SHORTEST) continue
-        const n = Math.ceil((x1 - x0) / segment)
-        const step = (x1 - x0) / n
-        for (let k = 0; k < n; k++)
-          out.push({ lng: lngOf(x0 + (k + 0.5) * step), lat, length: step * metres })
+        const left = Math.max(a + inset, bounds.minX)
+        const right = Math.min(b - inset, bounds.maxX)
+        if (right <= left) continue
+        for (const [x0, x1] of clearRuns(left, right, y, exclusions)) {
+          if ((x1 - x0) / MERCATOR_METRE < SHORTEST) continue
+          const n = Math.ceil((x1 - x0) / segment)
+          const step = (x1 - x0) / n
+          for (let k = 0; k < n; k++)
+            out.push({ lng: lngOf(x0 + (k + 0.5) * step), lat, length: step * metres })
+        }
       }
     }
   }
@@ -73,6 +105,8 @@ export function solarRow(row: SolarRow): ObjectInstance {
 
 function solarSpec(): ObjectSourceSpec {
   const laid = new Map<string, SolarRow[]>()
+  let map: any = null
+  let exclusions: ForestExclusions | null = null
   const rowsOf = (feature: any): SolarRow[] => {
     if (feature.properties?.kind !== 'solar') return []
     const tile = tileBounds(feature)
@@ -80,7 +114,8 @@ function solarSpec(): ObjectSourceSpec {
     const key = pieceKey(feature)
     let rows = laid.get(key)
     if (!rows) {
-      rows = solarRows(feature.geometry, tile)
+      exclusions ??= map ? builtExclusionsFor(map) : null
+      rows = solarRows(feature.geometry, tile, exclusions)
       if (laid.size >= 5000) laid.clear()
       laid.set(key, rows)
     }
@@ -92,7 +127,11 @@ function solarSpec(): ObjectSourceSpec {
     minzoom: 17,
     distinct: false,
     followsView: true,
-    budget: 1000,
+    budget: 5000,
+    prepare(m) {
+      map = m
+      exclusions = null
+    },
     positions: feature => rowsOf(feature).map(r => [r.lng, r.lat] as [number, number]),
     toInstance: (feature, _lng, _lat, index) => {
       const row = rowsOf(feature)[index]

@@ -130,6 +130,9 @@ function inArea(ex: ForestExclusions, x: number, y: number): boolean {
   return !!near && near.some(rings => inside(rings, x, y))
 }
 
+/** Whether a point is clear of every way and excluded area. */
+export const isClear = (ex: ForestExclusions, x: number, y: number) => !nearWay(ex, x, y) && !inArea(ex, x, y)
+
 /** Index the ways and open areas a forest must leave clear. */
 export function buildExclusions(ways: any[], areas: any[]): ForestExclusions {
   const metre = MERCATOR_METRE
@@ -245,19 +248,28 @@ const OPEN_DETAIL: Array<[string, (f: any) => boolean]> = [
   [PARKING_TILES, () => true],
 ]
 
-function exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) => [string, string?]): ForestExclusions {
-  const query = (source: string, sourceLayer?: string) => {
-    try {
-      return map.querySourceFeatures(source, sourceLayer ? { sourceLayer } : {})
-    } catch {
-      return []
-    }
+const querySource = (map: any, source: string, sourceLayer?: string) => {
+  try {
+    return map.querySourceFeatures(source, sourceLayer ? { sourceLayer } : {})
+  } catch {
+    return []
   }
-  return buildExclusions(query(basemap, 'transportation'), [
-    ...query(basemap, 'building'),
-    ...query(basemap, 'water'),
-    ...query(basemap, 'landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)),
-    ...OPEN_DETAIL.flatMap(([layer, keep]) => query(...detail(layer)).filter(keep)),
+}
+
+/** The basemap's ways, buildings and water, as exclusions. */
+export function builtExclusionsFor(map: any, basemap: string = BASEMAP_SOURCE): ForestExclusions {
+  return buildExclusions(querySource(map, basemap, 'transportation'), [
+    ...querySource(map, basemap, 'building'),
+    ...querySource(map, basemap, 'water'),
+  ])
+}
+
+function exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) => [string, string?]): ForestExclusions {
+  return buildExclusions(querySource(map, basemap, 'transportation'), [
+    ...querySource(map, basemap, 'building'),
+    ...querySource(map, basemap, 'water'),
+    ...querySource(map, basemap, 'landuse').filter((f: any) => OPEN_LANDUSE.has(f.properties?.class)),
+    ...OPEN_DETAIL.flatMap(([layer, keep]) => querySource(map, ...detail(layer)).filter(keep)),
   ])
 }
 

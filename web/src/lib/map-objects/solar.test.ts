@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
 import { solarRow, solarRows } from './solar'
+import { buildExclusions, MERCATOR_METRE } from './planting'
 import { headingToBearing } from './furniture'
 
 const square = (w: number, s: number, e: number, n: number) => ({
@@ -37,6 +38,27 @@ describe('solar rows', () => {
     const length = (rows: typeof whole) => rows.reduce((t, r) => t + r.length, 0)
     expect(length(west) + length(east)).toBeCloseTo(length(whole), -1)
     expect(new Set([...west, ...east].map(r => r.lat)).size).toBe(new Set(whole.map(r => r.lat)).size)
+  })
+
+  test('rows break around a road through the field, keeping its clearance', () => {
+    const road = { properties: { class: 'service' }, geometry: { type: 'LineString', coordinates: [[-80.8485, 35.199], [-80.8485, 35.203]] } }
+    const rows = solarRows(field, everywhere, buildExclusions([road], []))
+    const roadX = (-80.8485 + 180) / 360
+    const gap = 6 * MERCATOR_METRE
+    for (const r of rows) {
+      const half = r.length / 2 / (2 * Math.PI * 6371008.8 * Math.cos((r.lat * Math.PI) / 180))
+      const x = (r.lng + 180) / 360
+      expect(x + half < roadX - gap + 1e-9 || x - half > roadX + gap - 1e-9).toBe(true)
+    }
+    expect(new Set(rows.map(r => r.lat)).size).toBe(new Set(solarRows(field, everywhere).map(r => r.lat)).size)
+  })
+
+  test('rows leave out buildings inside the field', () => {
+    const shed = { geometry: square(-80.8487, 35.2008, -80.8483, 35.2012) }
+    const lat = 35.201
+    const near = (rows: ReturnType<typeof solarRows>) => rows.filter(r => Math.abs(r.lat - lat) < 0.0002 && Math.abs(r.lng + 80.8485) < 0.0002)
+    expect(near(solarRows(field, everywhere)).length).toBeGreaterThan(0)
+    expect(near(solarRows(field, everywhere, buildExclusions([], [shed])))).toHaveLength(0)
   })
 
   test('rows lean with the ground across a whole row pitch', () => {

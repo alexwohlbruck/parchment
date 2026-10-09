@@ -15,6 +15,8 @@ import earcut from 'earcut'
 import { translate } from '@/lib/map-objects/object-layer'
 import {
   absorbPaths,
+  besideGround,
+  dedupe,
   densify,
   edgePoints,
   joinNeighbours,
@@ -192,7 +194,7 @@ export class DeckLayer {
       if (rendered) {
         try {
           const h = rendered.getElevationForLngLat(at, transform)
-          if (Number.isFinite(h)) return h
+          if (Number.isFinite(h) && h !== 0) return h
         } catch {
           // Off the rendered tiles its fallback needs a camera the globe may not have yet.
         }
@@ -224,7 +226,7 @@ export class DeckLayer {
       const kind = props.class === 'rail' || props.class === 'transit' ? 'rail' : props.class === 'path' ? 'path' : 'road'
       for (const line of linesOf(f.geometry))
         for (const run of tile ? clip(line.map(mercator), tile) : [line.map(mercator)])
-          pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind })
+          pieces.push({ points: run, layer: Math.max(1, Number(props.layer) || 1), width: WIDTH[props.class] ?? 6, kind, zoom: f._z })
     }
     const center = MercatorCoordinate.fromLngLat(this.map.getCenter())
     this.origin = [center.x, center.y]
@@ -235,12 +237,12 @@ export class DeckLayer {
       ? { minX: Math.min(u.minX, t.minX), minY: Math.min(u.minY, t.minY), maxX: Math.max(u.maxX, t.maxX), maxY: Math.max(u.maxY, t.maxY) }
       : { ...t }, null)
     const paint = this.paint()
-    const decks = absorbPaths(fitted(chains(pieces, p => !!loaded && onEdge(p, loaded, tolerance), tolerance), this.kerbs()))
+    const decks = absorbPaths(fitted(chains(dedupe(pieces), p => !!loaded && onEdge(p, loaded, tolerance), tolerance), this.kerbs()))
       .map(chain => ({ ...chain, points: densify(chain.points, SAMPLE) }))
     const ground = this.ground()
     const solved = decks.flatMap(chain => {
       const [left, right] = edgePoints(chain)
-      const groundAt = filled(chain.points.map((q, i) => highest([ground(q), ground(left[i]), ground(right[i])])))
+      const groundAt = filled(besideGround(chain.points.map(ground), left.map(ground), right.map(ground), along(chain.points)))
       return groundAt ? [{ chain, groundAt, z: solve(chain, groundAt) }] : []
     })
     // An end left in the air because it meets another deck takes that deck's
@@ -444,12 +446,6 @@ function fitted(decks: Chain[], kerbs: Point[]): Chain[] {
     if (nearest) owned.set(nearest, [...(owned.get(nearest) ?? []), q])
   }
   return decks.map(d => (owned.has(d) ? { ...d, edges: fitEdges(d, owned.get(d)!) } : d))
-}
-
-/** The highest of several ground samples, ignoring those not yet loaded. */
-function highest(samples: number[]): number {
-  const known = samples.filter(h => !Number.isNaN(h))
-  return known.length ? Math.max(...known) : NaN
 }
 
 /** Gaps in a ground profile filled from the nearest sampled point; null if there are none. */

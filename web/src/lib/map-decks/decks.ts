@@ -21,6 +21,39 @@ export type Piece = {
   /** Carriageway width in metres. */
   width: number
   kind: 'road' | 'rail' | 'path'
+  /** Zoom of the tile the piece came from. */
+  zoom?: number
+}
+
+function boxOf(points: Point[], pad: number): Bounds {
+  const xs = points.map(p => p[0])
+  const ys = points.map(p => p[1])
+  return { minX: Math.min(...xs) - pad, minY: Math.min(...ys) - pad, maxX: Math.max(...xs) + pad, maxY: Math.max(...ys) + pad }
+}
+
+/**
+ * Pieces with the stretches a closer tile also carries cut away. A parent
+ * tile stays loaded while its children stream in, so the same bridge can
+ * arrive twice, once simplified, and would stand as two overlapping decks.
+ */
+export function dedupe(pieces: Piece[], tolerance = 4): Piece[] {
+  const boxes = new Map(pieces.map(p => [p, boxOf(p.points, tolerance / metresPerUnit(p.points[0][1]))]))
+  const overlap = (a: Bounds, b: Bounds) => a.minX <= b.maxX && b.minX <= a.maxX && a.minY <= b.maxY && b.minY <= a.maxY
+  return pieces.flatMap(piece => {
+    const closer = pieces.filter(o => (o.zoom ?? 0) > (piece.zoom ?? 0) && o.kind === piece.kind && o.layer === piece.layer &&
+      overlap(boxes.get(o)!, boxes.get(piece)!))
+    if (!closer.length) return [piece]
+    const runs: Point[][] = []
+    let run: Point[] = []
+    for (const p of densify(piece.points, tolerance / 2)) {
+      if (closer.some(o => beside(o.points, p).distance < tolerance)) {
+        if (run.length >= 2) runs.push(run)
+        run = []
+      } else run.push(p)
+    }
+    if (run.length >= 2) runs.push(run)
+    return runs.map(points => ({ ...piece, points }))
+  })
 }
 
 export type Chain = Piece & {
@@ -312,6 +345,22 @@ export function edgePoints(chain: Chain): [Point[], Point[]] {
     right.push([p[0] - nx * chain.edges[1], p[1] - ny * chain.edges[1]])
   })
   return [left, right]
+}
+
+/**
+ * The ground a deck must clear: under its centreline, or higher under either
+ * edge, but rising toward an edge no faster than the deck may climb from its
+ * nearer end. A road enters a bridge in a cut as often as on a bank, and the
+ * slopes beside it at the abutment are not something to climb over.
+ */
+export function besideGround(centre: number[], left: number[], right: number[], d: number[]): number[] {
+  const total = d[d.length - 1] ?? 0
+  return centre.map((g, i) => {
+    const edges = [left[i], right[i]].filter(h => !Number.isNaN(h))
+    const base = Number.isNaN(g) ? (edges.length ? Math.min(...edges) : NaN) : g
+    if (Number.isNaN(base) || !edges.length) return base
+    return Math.max(base, Math.min(Math.max(...edges), base + MAX_GRADE * Math.min(d[i], total - d[i])))
+  })
 }
 
 /**

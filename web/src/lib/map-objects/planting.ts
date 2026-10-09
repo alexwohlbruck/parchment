@@ -325,12 +325,12 @@ function exclusionsFor(map: any, basemap: string, detail: (sourceLayer: string) 
   ])
 }
 
-/** The view in mercator units, padded a tenth each way so shadows from just off screen land. */
+/** The view in mercator units, padded a third each way, so a pan reveals trees already planted. */
 function viewBounds(map: any): Bounds | null {
   const b = map.getBounds?.()
   if (!b) return null
   const [x0, x1, y0, y1] = [mercX(b.getWest()), mercX(b.getEast()), mercY(b.getNorth()), mercY(b.getSouth())]
-  const pad = Math.max(x1 - x0, y1 - y0) * 0.1
+  const pad = Math.max(x1 - x0, y1 - y0) * 0.35
   return { minX: x0 - pad, minY: y0 - pad, maxX: x1 + pad, maxY: y1 + pad }
 }
 

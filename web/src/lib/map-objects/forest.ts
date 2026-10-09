@@ -95,7 +95,7 @@ export const FOREST_OBJECTS = plantedSpec({
   source: BASEMAP_SOURCE,
   sourceLayer: 'landcover',
   minzoom: 14,
-  budget: 10000,
+  budget: 18000,
   sparseBelow: SPARSE_BELOW_ZOOM,
   grid: feature => (feature.properties?.class === 'wood' ? FOREST_GRID : null),
   clear: () => true,

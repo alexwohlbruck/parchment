@@ -64,7 +64,7 @@ const FAR_BELOW_ZOOM = 17
 const SETTLE = 80
 
 /** Fewest milliseconds between gathers while the camera is still moving. */
-const MOVING_GATHER = 600
+const MOVING_GATHER = 350
 const AT_MOST = 300
 
 /** Mercator units per CSS pixel at a given zoom — MapLibre's 512px tile grid. */
@@ -635,8 +635,8 @@ export class ObjectLayer {
     const { lng: centerLng, lat: centerLat } = this.map.getCenter()
     const lngScale = Math.cos((centerLat * Math.PI) / 180)
     const bounds = this.map.getBounds?.()
-    // Padded so a tree just off the edge still casts its shadow in.
-    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.1 : 0
+    // Padded so a pan reveals objects already gathered.
+    const pad = bounds ? Math.max(bounds.getEast() - bounds.getWest(), bounds.getNorth() - bounds.getSouth()) * 0.35 : 0
     const inView = (lng: number, lat: number) =>
       !bounds ||
       (lng >= bounds.getWest() - pad && lng <= bounds.getEast() + pad && lat >= bounds.getSouth() - pad && lat <= bounds.getNorth() + pad)

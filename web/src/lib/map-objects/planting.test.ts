@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
+import { blockedAlong, buildExclusions, plant, polygonsOf, spansAt, MERCATOR_METRE } from './planting'
 import { forestTree, CROWN_SUFFIX, FOREST_GRID } from './forest'
 
 const plantForest = (rings: any, bounds: any, ex: any) => plant(rings, bounds, ex, FOREST_GRID)
@@ -86,5 +86,39 @@ describe('forest planting', () => {
     expect(sparse.model).toBe(edge.model)
     expect(sparse.spread).toBeGreaterThan(edge.spread)
     expect(sparse.height).toBeGreaterThan(edge.height)
+  })
+})
+
+describe('blocked spans along a line', () => {
+  test('match a point-by-point clearance check for ways at any angle', () => {
+    const rnd = (k: number) => ((Math.sin(k * 12.9898) * 43758.5453) % 1 + 1) % 1
+    const ways = Array.from({ length: 12 }, (_, k) => ({
+      properties: { class: 'service' },
+      geometry: { type: 'LineString', coordinates: [[-80 + rnd(k) * 0.002, 35 + rnd(k + 50) * 0.002], [-80 + rnd(k + 100) * 0.002, 35 + rnd(k + 150) * 0.002]] },
+    }))
+    const ex = buildExclusions(ways, [])
+    const segs = ways.map(w => polygonsOf({ type: 'Polygon', coordinates: [w.geometry.coordinates] })[0][0])
+    const pad = 1.5 * MERCATOR_METRE
+    const r = 6 * MERCATOR_METRE + pad
+    const [x0, x1] = [segs.flat().reduce((m, p) => Math.min(m, p[0]), 1), segs.flat().reduce((m, p) => Math.max(m, p[0]), 0)]
+    const [ya, yb] = [segs.flat().reduce((m, p) => Math.min(m, p[1]), 1), segs.flat().reduce((m, p) => Math.max(m, p[1]), 0)]
+    const distance = (x: number, y: number, [a, b]: number[][]) => {
+      const [dx, dy] = [b[0] - a[0], b[1] - a[1]]
+      const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy)))
+      return Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y)
+    }
+    let mismatches = 0
+    for (let row = 0; row < 20; row++) {
+      const y = ya + ((yb - ya) * row) / 19
+      const blocked = blockedAlong(ex, y, x0, x1, pad)
+      for (let k = 0; k <= 400; k++) {
+        const x = x0 + ((x1 - x0) * k) / 400
+        const near = segs.map(s => distance(x, y, s)).filter(d => Math.abs(d - r) > r * 1e-3)
+        if (near.length < segs.length) continue
+        const expected = near.some(d => d < r)
+        if (blocked.some(([a, b]) => x >= a && x <= b) !== expected) mismatches++
+      }
+    }
+    expect(mismatches).toBe(0)
   })
 })

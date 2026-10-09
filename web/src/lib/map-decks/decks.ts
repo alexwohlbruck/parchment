@@ -236,12 +236,15 @@ export const MAX_REACH = 16
 /**
  * Where a point lies beside a line: metres from it, which side (left in the
  * sense of `deckMesh`), and whether it falls alongside a segment rather than
- * off either end of the line.
+ * off either end of the line. `segments`, by the index of their second
+ * point, limits the search to those.
  */
-export function beside(points: Point[], q: Point): { distance: number; left: boolean; alongside: boolean; segment: number; t: number } {
+export function beside(points: Point[], q: Point, segments?: number[]): { distance: number; left: boolean; alongside: boolean; segment: number; t: number } {
   let best = { distance: Infinity, left: true, alongside: false, segment: 1, t: 0 }
   const scale = metresPerUnit(q[1])
-  for (let i = 1; i < points.length; i++) {
+  const count = segments ? segments.length : points.length - 1
+  for (let k = 0; k < count; k++) {
+    const i = segments ? segments[k] : k + 1
     const [a, b] = [points[i - 1], points[i]]
     const dx = b[0] - a[0]
     const dy = b[1] - a[1]
@@ -358,6 +361,41 @@ export function heightAt(d: number[], z: number[], at: number): number {
   return z[z.length - 1]
 }
 
+/** A line's segments by grid cell, each by the index of its second point. */
+type SegmentIndex = { cell: number; cells: Map<number, number[]> }
+
+/** Metres across a cell of a segment index. */
+const INDEX_CELL = 24
+
+const cellKey = (x: number, y: number) => x * 4194304 + y
+
+function segmentIndex(points: Point[]): SegmentIndex {
+  const cell = INDEX_CELL / metresPerUnit(points[0][1])
+  const cells = new Map<number, number[]>()
+  for (let i = 1; i < points.length; i++) {
+    const [a, b] = [points[i - 1], points[i]]
+    for (let x = Math.floor(Math.min(a[0], b[0]) / cell); x <= Math.floor(Math.max(a[0], b[0]) / cell); x++)
+      for (let y = Math.floor(Math.min(a[1], b[1]) / cell); y <= Math.floor(Math.max(a[1], b[1]) / cell); y++) {
+        const list = cells.get(cellKey(x, y))
+        if (list) list.push(i)
+        else cells.set(cellKey(x, y), [i])
+      }
+  }
+  return { cell, cells }
+}
+
+/** The segments of an indexed line that may lie within `metres` of a point; a segment can appear more than once. */
+function nearSegments({ cell, cells }: SegmentIndex, p: Point, metres: number): number[] {
+  const r = metres / metresPerUnit(p[1])
+  const out: number[] = []
+  for (let x = Math.floor((p[0] - r) / cell); x <= Math.floor((p[0] + r) / cell); x++)
+    for (let y = Math.floor((p[1] - r) / cell); y <= Math.floor((p[1] + r) / cell); y++) {
+      const list = cells.get(cellKey(x, y))
+      if (list) for (const i of list) out.push(i)
+    }
+  return out
+}
+
 /** Per vertex, whether each side of a deck (left, right) runs against another deck. */
 export type Sides = [boolean[], boolean[]]
 
@@ -437,11 +475,16 @@ export function smooth(z: number[], d: number[], ground: number[], span = 24): n
 export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?: boolean }>, gap = 1.5, step = 1.5): Sides[] {
   const open: Sides[] = decks.map(({ chain }) => [chain.points.map(() => false), chain.points.map(() => false)])
   const bounds = decks.map(({ chain }) => boundsOf(chain.points, Math.max(...chain.edges) + gap))
+  const indexes = decks.map(({ chain }) => segmentIndex(chain.points))
   for (const [a, A] of decks.entries())
     for (const [b, B] of decks.entries()) {
       if (a === b || A.chain.kind === 'rail' || B.chain.kind === 'rail' || !meets(bounds[a], bounds[b])) continue
+      // Farthest a point of one may lie from the other and still meet it.
+      const reach = Math.max(...A.chain.edges) + Math.max(...B.chain.edges) + gap
       A.chain.points.forEach((p, i) => {
-        const near = beside(B.chain.points, p)
+        const candidates = nearSegments(indexes[b], p, reach)
+        if (!candidates.length) return
+        const near = beside(B.chain.points, p, candidates)
         if (!near.alongside) return
         const [j, t] = [near.segment, near.t]
         const zb = B.z[j - 1] + (B.z[j] - B.z[j - 1]) * t
@@ -450,7 +493,7 @@ export function joinNeighbours(decks: Array<{ chain: Chain; z: number[]; fixed?:
           B.chain.points[j - 1][0] + (B.chain.points[j][0] - B.chain.points[j - 1][0]) * t,
           B.chain.points[j - 1][1] + (B.chain.points[j][1] - B.chain.points[j - 1][1]) * t,
         ]
-        const facing = beside(A.chain.points, q).left ? 0 : 1
+        const facing = beside(A.chain.points, q, nearSegments(indexes[a], q, reach)).left ? 0 : 1
         if (near.distance > sideAt(A.chain, facing, i) + sideAt(B.chain, near.left ? 0 : 1, j - 1, t) + gap) return
         open[a][facing][i] = true
         if (!A.fixed) A.z[i] = Math.max(A.z[i], zb)

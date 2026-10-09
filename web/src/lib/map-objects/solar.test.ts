@@ -39,6 +39,12 @@ describe('solar rows', () => {
     expect(new Set([...west, ...east].map(r => r.lat)).size).toBe(new Set(whole.map(r => r.lat)).size)
   })
 
+  test('rows lean with the ground across a whole row pitch', () => {
+    const row = solarRow({ lng: -80, lat: 35, length: 18 })
+    expect(row.conform).toEqual({ across: 8 })
+    expect(row.length).toBe(18)
+  })
+
   test('rows face the equator in either hemisphere', () => {
     expect(headingToBearing(solarRow({ lng: -80, lat: 35, length: 20 }).heading)).toBeCloseTo(180, 6)
     expect(headingToBearing(solarRow({ lng: 150, lat: -33, length: 20 }).heading)).toBeCloseTo(0, 6)

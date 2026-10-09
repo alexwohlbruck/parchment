@@ -56,7 +56,7 @@ export function solarRows(geometry: any, bounds: Bounds): SolarRow[] {
   return out
 }
 
-/** Toward the equator, whichever hemisphere it is in. */
+/** Toward the equator, whichever hemisphere it is in, tilted with the ground across a whole row pitch. */
 export function solarRow(row: SolarRow): ObjectInstance {
   return {
     lng: row.lng,
@@ -67,6 +67,7 @@ export function solarRow(row: SolarRow): ObjectInstance {
     heading: bearingOf(row.lat >= 0 ? 180 : 0)!,
     shade: 1,
     model: 'solar-row',
+    conform: { across: PITCH },
   }
 }
 

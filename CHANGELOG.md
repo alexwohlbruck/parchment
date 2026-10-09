@@ -12,6 +12,7 @@
 * Trees tagged with their genus now take their own shape in 3D: tall pines, tiered spruces, fan palms, date palms and pink flowering cherries, each keeping its shape in the distance.
 * Monorails, like the Walt Disney World Monorail and Newark's AirTrain, are drawn on the map as an elevated beam.
 * Points of interest can now be switched on and off from the layer selector.
+* With 3D terrain and objects on, road tunnels now run underground: up close, each entrance is cut into the ground with retaining walls, a headwall and a dark mouth.
 
 ### Changed
 

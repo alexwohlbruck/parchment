@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { buildExclusions, falloff, forestTree, keeps, latticeLevel, plantForest, polygonsOf, spansAt, CROWN_SUFFIX, FOREST_SPACING, NEAR_CELLS } from './forest'
+import { buildExclusions, falloff, forestCamera, forestTree, keeps, latticeLevel, plantForest, polygonsOf, screenSpacing, spansAt, CROWN_SUFFIX, FOREST_SPACING } from './forest'
 
 const square = (w: number, s: number, e: number, n: number) => ({
   type: 'Polygon',
@@ -84,11 +84,19 @@ describe('forest planting', () => {
 })
 
 describe('forest falloff', () => {
-  test('full density near the centre, one level per doubling beyond', () => {
-    expect(falloff(NEAR_CELLS / 4)).toBe(0)
-    expect(falloff(NEAR_CELLS)).toBeCloseTo(1)
-    expect(falloff(NEAR_CELLS * 4)).toBeCloseTo(3)
-    expect(falloff(0, 1)).toBe(1)
+  const camera = { x: 0, y: 0, altitude: 30, focal: 1266, spacing: 8 }
+  const levelAt = (dx: number, dy: number) => falloff(screenSpacing(camera, dx, dy), camera.spacing)
+
+  test('full density while cells are wide apart on screen, one level per halving after', () => {
+    expect(falloff(32, 8)).toBe(0)
+    expect(falloff(8, 8)).toBeCloseTo(1)
+    expect(falloff(2, 8)).toBeCloseTo(3)
+    expect(falloff(32, 8, 1)).toBe(1)
+  })
+
+  test('cells closer to the camera are never thinner than those beyond them', () => {
+    for (let d = 1; d < 2000; d *= 1.5) expect(levelAt(d * 1.5, 0)).toBeGreaterThanOrEqual(levelAt(d, 0))
+    expect(levelAt(10, 0)).toBe(0)
   })
 
   test('lattice level counts shared halvings', () => {
@@ -97,32 +105,42 @@ describe('forest falloff', () => {
     expect(latticeLevel(0, 0)).toBe(16)
   })
 
-  const shownIn = (from: number, to: number) => {
+  const shownWithin = (radius: number) => {
     let n = 0
-    for (let i = -to; i <= to; i++)
-      for (let j = -to; j <= to; j++) {
-        const d = Math.hypot(i + 0.5, j + 0.5)
-        if (d >= from && d < to && keeps(i + 4096, j + 4096, falloff(d))) n++
-      }
+    for (let i = -radius; i <= radius; i++)
+      for (let j = 0; j <= radius; j++)
+        if (Math.hypot(i, j) < radius && keeps(i + 8192, j + 8192, levelAt(i + 0.5, j + 0.5))) n++
     return n
   }
 
-  test('each octave past the near ring costs about the same', () => {
-    const a = shownIn(NEAR_CELLS * 2, NEAR_CELLS * 4)
-    const b = shownIn(NEAR_CELLS * 4, NEAR_CELLS * 8)
-    expect(b / a).toBeGreaterThan(0.75)
-    expect(b / a).toBeLessThan(1.33)
+  test('a wood running to the horizon costs a bounded number of trees', () => {
+    const near = shownWithin(400)
+    const far = shownWithin(1600)
+    expect(far).toBeLessThan(near * 1.3)
   })
 
   test('levels blend over a band rather than meeting at a ring', () => {
-    const band = (d: number) => {
-      let kept = 0, total = 0
-      for (let i = 0; i < 4096; i += 2) for (let j = 1; j < 64; j += 2) { total++; if (keeps(i, j, falloff(d))) kept++ }
-      return kept / total
+    const kept = (level: number) => {
+      let n = 0, total = 0
+      for (let i = 0; i < 4096; i += 2) for (let j = 1; j < 64; j += 2) { total++; if (keeps(i, j, level)) n++ }
+      return n / total
     }
-    expect(band(NEAR_CELLS * 0.7)).toBe(1)
-    expect(band(NEAR_CELLS * 1.1)).toBeGreaterThan(0.05)
-    expect(band(NEAR_CELLS * 1.1)).toBeLessThan(0.95)
-    expect(band(NEAR_CELLS * 1.5)).toBeLessThan(0.05)
+    expect(kept(0.6)).toBe(1)
+    expect(kept(1.1)).toBeGreaterThan(0.05)
+    expect(kept(1.1)).toBeLessThan(0.95)
+    expect(kept(1.4)).toBe(0)
+  })
+
+  test('the camera stands behind the centre, by the pitch, facing the bearing', () => {
+    const map = {
+      getCenter: () => ({ lng: 0, lat: 0 }), getZoom: () => 18, getPitch: () => 60, getBearing: () => 0,
+      getCanvas: () => ({ clientWidth: 390, clientHeight: 844 }), transform: { cameraToCenterDistance: 1266 },
+    }
+    const cam = forestCamera(map)
+    const centreY = 0.5 / FOREST_SPACING
+    expect(cam.y).toBeGreaterThan(centreY)
+    expect(cam.x).toBeCloseTo(0.5 / FOREST_SPACING)
+    expect(cam.altitude).toBeCloseTo((cam.y - centreY) / Math.tan(Math.PI / 3))
+    expect(cam.spacing).toBeGreaterThan(6)
   })
 })

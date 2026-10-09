@@ -248,24 +248,58 @@ const SPREAD = { min: 1.1, max: 1.5 }
 export const CROWN_SUFFIX = '-crown'
 
 /**
- * Woods thin with distance from the view centre instead of stopping at a budget.
- * Out to `NEAR_CELLS` every cell is planted; each doubling of distance after that
- * keeps every other cell each way, so every octave costs about the same and a
- * wood reaches the horizon. Survivors grow to keep the canopy closed.
+ * Woods thin by how far apart their trees land on screen, not at a budget.
+ * While neighbouring cells are at least `spacing` pixels apart every cell is
+ * planted; each halving of that keeps every other cell each way, and survivors
+ * grow to keep the canopy closed. A wood reaches the horizon with no edge, and
+ * the count is bounded by screen area rather than by a radius.
  */
-export const NEAR_CELLS = 24
-/** Below this zoom even the nearest trees start one level thinned. */
 export const SPARSE_BELOW_ZOOM = 15
-/** Width of the band, in octaves, over which one level gives way to the next. */
+/** Trees a full screen of forest should come to, roughly; sets `spacing` from the screen size. */
+const SCREEN_TREES = 6000
+const MIN_SPACING = 6
+/** Width of the band, in levels, over which one level gives way to the next. */
 const DITHER = 0.7
 const LEVEL_SPREAD = 1.3
 const LEVEL_HEIGHT = 1.12
 /** Beyond this level trees stop growing; they are a few pixels across by then. */
 const MAX_GROWTH = 3
 
-/** Continuous thinning level `distance` cells from the centre: 0 near, +1 per doubling past `NEAR_CELLS / 2`. */
-export function falloff(distance: number, floor = 0): number {
-  return Math.max(floor, 1 + Math.log2(Math.max(distance, 1e-9) / NEAR_CELLS))
+/** The camera in grid cells: ground position, height, and focal length in CSS pixels. */
+export type ForestCamera = { x: number; y: number; altitude: number; focal: number; spacing: number }
+
+/**
+ * How far apart, in screen pixels, neighbouring cells `dx, dy` cells from the
+ * camera's ground point appear: perspective, and foreshortening toward the horizon.
+ */
+export function screenSpacing(camera: ForestCamera, dx: number, dy: number): number {
+  const distance = Math.hypot(dx, dy, camera.altitude)
+  return (camera.focal / distance) * Math.sqrt(Math.max(camera.altitude / distance, 0.05))
+}
+
+/** Continuous thinning level for cells `apart` pixels apart: 0 while wide enough, +1 per halving. */
+export function falloff(apart: number, spacing: number, floor = 0): number {
+  return Math.max(floor, 1 + Math.log2(spacing / Math.max(apart, 1e-9)))
+}
+
+/** Where the camera stands over the ground, from the map's centre, pitch, bearing and zoom. */
+export function forestCamera(map: any): ForestCamera {
+  const { lng, lat } = map.getCenter()
+  const canvas = map.getCanvas?.()
+  const height = canvas?.clientHeight || 800
+  const width = canvas?.clientWidth || 800
+  const focal = map.transform?.cameraToCenterDistance ?? 1.5 * height
+  const reach = focal / (512 * 2 ** map.getZoom()) / FOREST_SPACING
+  const pitch = (map.getPitch() * Math.PI) / 180
+  const bearing = (map.getBearing() * Math.PI) / 180
+  const back = reach * Math.sin(pitch)
+  return {
+    x: mercX(lng) / FOREST_SPACING - back * Math.sin(bearing),
+    y: mercY(lat) / FOREST_SPACING + back * Math.cos(bearing),
+    altitude: reach * Math.cos(pitch),
+    focal,
+    spacing: Math.max(MIN_SPACING, Math.sqrt((width * height) / SCREEN_TREES)),
+  }
 }
 
 /** How many times a cell's indices both halve evenly: the coarsest planting that keeps it. */
@@ -347,8 +381,7 @@ type Shown = { points: ForestPoint[]; levels: number[] }
 let shown = new Map<object, Shown>()
 let floor = 0
 let view: Bounds | null = null
-/** View centre, in grid cells. */
-let centre: Point = [0, 0]
+let camera: ForestCamera = { x: 0, y: 0, altitude: 1, focal: 1, spacing: MIN_SPACING }
 
 /** Planting goes block by block, so a wood is only planted where it is seen. */
 const BLOCK_CELLS = 16
@@ -363,14 +396,27 @@ function plantingBounds(map: any): Bounds | null {
   return { minX: x0 - pad, minY: y0 - pad, maxX: x1 + pad, maxY: y1 + pad }
 }
 
-const cellsFromCentre = (x: number, y: number) => Math.hypot(x - centre[0], y - centre[1])
+const levelAt = (x: number, y: number) =>
+  falloff(screenSpacing(camera, x - camera.x, y - camera.y), camera.spacing, floor)
 
-/** The coarsest stride every cell of a block can be planted at: set by its nearest corner. */
+/** The coarsest stride every cell of a block can be planted at: set by its point nearest the camera. */
 function blockStride(bi: number, bj: number): number {
-  const nx = Math.min(Math.max(centre[0], bi * BLOCK_CELLS), (bi + 1) * BLOCK_CELLS)
-  const ny = Math.min(Math.max(centre[1], bj * BLOCK_CELLS), (bj + 1) * BLOCK_CELLS)
-  const level = Math.floor(falloff(cellsFromCentre(nx, ny), floor) - DITHER / 2)
+  const nx = Math.min(Math.max(camera.x, bi * BLOCK_CELLS), (bi + 1) * BLOCK_CELLS)
+  const ny = Math.min(Math.max(camera.y, bj * BLOCK_CELLS), (bj + 1) * BLOCK_CELLS)
+  const level = Math.floor(levelAt(nx, ny) - DITHER / 2)
   return 2 ** Math.max(0, Math.min(level, Math.log2(BLOCK_CELLS)))
+}
+
+/** A block already planted at a finer stride, cut down to `stride`, so a pan away from it need not replant. */
+function coarsened(block: string, stride: number): ForestPoint[] | undefined {
+  for (let finer = stride / 2; finer >= 1; finer /= 2) {
+    const points = planted.get(`${block}|${finer}`)
+    if (!points) continue
+    const kept = points.filter(([, , i, j]) => i % stride === 0 && j % stride === 0).map(p => [...p.slice(0, 4), false] as ForestPoint)
+    planted.set(`${block}|${stride}`, kept)
+    return kept
+  }
+  return undefined
 }
 
 function plantingOf(feature: any): ForestPoint[] {
@@ -386,7 +432,7 @@ function plantingOf(feature: any): ForestPoint[] {
     for (let bi = Math.floor(area.minX / BLOCK); bi * BLOCK < area.maxX; bi++) {
       const stride = blockStride(bi, bj)
       const blockKey = `${key}|${bi},${bj}|${stride}`
-      let block = planted.get(blockKey)
+      let block = planted.get(blockKey) ?? coarsened(`${key}|${bi},${bj}`, stride)
       if (!block) {
         const bounds = {
           minX: Math.max(tile.minX, bi * BLOCK),
@@ -413,7 +459,7 @@ function shownOf(feature: any): Shown {
   if (known) return known
   known = { points: [], levels: [] }
   for (const p of plantingOf(feature)) {
-    const level = falloff(cellsFromCentre(p[2] + 0.5, p[3] + 0.5), floor)
+    const level = levelAt(p[2] + 0.5, p[3] + 0.5)
     if (!keeps(p[2], p[3], level)) continue
     known.points.push(p)
     known.levels.push(level)
@@ -434,8 +480,7 @@ export const FOREST_OBJECTS: ObjectSourceSpec = {
     shown = new Map()
     floor = map.getZoom() < SPARSE_BELOW_ZOOM ? 1 : 0
     view = plantingBounds(map)
-    const { lng, lat } = map.getCenter()
-    centre = [mercX(lng) / FOREST_SPACING, mercY(lat) / FOREST_SPACING]
+    camera = forestCamera(map)
   },
   positions(feature) {
     if (feature.properties?.class !== 'wood') return []

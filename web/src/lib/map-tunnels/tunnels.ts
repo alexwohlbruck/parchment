@@ -32,6 +32,10 @@ export const LID = 0.3
 export const FACADE = 4
 /** The shortest forecourt a portal is given, in metres, so a mouth in a hillside has walls to stand in. */
 export const FORECOURT = 9
+/** How far the roof stands over the ground it was read from, in metres: just clear, so the ground hides its slab but not its face. */
+export const RISE = 0.2
+/** How far back over the bore its roof is built, in metres, until the ground covers it. */
+export const ROOF_SPAN = [4, 15]
 /** Metres a wall's top is averaged over, so the ground's noise does not show in it. */
 const RIM_SPAN = 9
 /** Sharpest turn, in radians, from one way onto the next that still carries the same road. */
@@ -155,6 +159,8 @@ export type Cut = {
   open: number
   /** The top of the headwall over the portal. */
   crown: number
+  /** The vertex in the bore the roof over it runs back to. */
+  roof: number
 }
 
 /**
@@ -168,6 +174,7 @@ export type Cut = {
  * until it meets the ground, and more steeply only where the road reaches a
  * `junction` first. The cut opens where the floor has met the ground and is
  * nearly level with the higher rim, and no nearer than a forecourt's length.
+ * The roof runs back over the bore until the ground stands as high as the crown.
  */
 export function solveCut(d: number[], at: number, ground: number[], beside: [number[], number[]], cover: number, junction = true): Cut {
   const rims = beside.map(rim => rim.map((_, i) => {
@@ -186,7 +193,9 @@ export function solveCut(d: number[], at: number, ground: number[], beside: [num
   const crown = Math.min(Math.max(cover, rims[0][at], rims[1][at], portal + HEADROOM + ROOF), portal + HEADROOM + ROOF + FACADE)
   if (crown - portal >= HEADROOM + ROOF) while (open > 0 && d[at] - d[open] < FORECOURT) open--
   const walls = rims.map(rim => floor.map((f, i) => (i > at ? f + HEADROOM + ROOF : i <= open ? f : Math.max(rim[i], f)))) as [number[], number[]]
-  return { floor, walls, open, crown }
+  let roof = at
+  while (roof < d.length - 1 && d[roof] - d[at] < ROOF_SPAN[1] && (d[roof] - d[at] < ROOF_SPAN[0] || ground[roof] < crown)) roof++
+  return { floor, walls, open, crown, roof }
 }
 
 export type PortalColors = { surface: number[]; concrete: number[]; parapet: number[]; bore: number[] }
@@ -251,18 +260,20 @@ export function portalMesh(points: Point[], at: number, edges: [number, number],
     }
     quad(out.lid, at3(wall[a].left, walls[0][a] + LID), at3(wall[a].right, walls[1][a] + LID), at3(wall[b].right, walls[1][b] + LID), at3(wall[b].left, walls[0][b] + LID), colors.concrete)
   }
-  // The headwall over the opening, facing out along the cut, and its coping.
+  // The headwall and the roof behind it, as one block out to the copings,
+  // only just over the ground so the face shows and the slab barely does.
   const mouth = floor[at] + HEADROOM
-  const crown = cut.crown + LID
-  const [l, r] = [wall[at].left, wall[at].right]
-  const back = outline([points[at], points[Math.min(n - 1, at + 1)]], [edges[0] + KERB, edges[1] + KERB], origin)[0]
-  const inward = [back.left[0] - l[0], back.left[1] - l[1]]
-  const depth = (COPING[0] * scale) / (Math.hypot(inward[0], inward[1]) || 1)
-  const [bl, br] = [l, r].map(q => [q[0] + inward[0] * depth, q[1] + inward[1] * depth] as Point)
-  for (const mesh of [out.inside, out.outside]) quad(mesh, at3(r, mouth), at3(l, mouth), at3(l, crown), at3(r, crown), colors.concrete)
-  quad(out.outside, at3(r, crown), at3(l, crown), at3(l, crown + COPING[1]), at3(r, crown + COPING[1]), colors.parapet)
-  quad(out.outside, at3(r, crown + COPING[1]), at3(l, crown + COPING[1]), at3(bl, crown + COPING[1]), at3(br, crown + COPING[1]), colors.parapet)
-  quad(out.outside, at3(br, crown + COPING[1]), at3(bl, crown + COPING[1]), at3(bl, crown), at3(br, crown), colors.parapet)
+  const top = cut.crown + RISE
+  const front = [at3(coping[at].right, mouth), at3(coping[at].left, mouth), at3(coping[at].left, top), at3(coping[at].right, top)]
+  for (const mesh of [out.inside, out.outside]) quad(mesh, front[0], front[1], front[2], front[3], colors.concrete)
+  for (let i = at + 1; i <= cut.roof; i++) {
+    const [a, b] = [coping[i - 1], coping[i]]
+    quad(out.outside, at3(a.left, top), at3(a.right, top), at3(b.right, top), at3(b.left, top), colors.parapet)
+    quad(out.outside, at3(b.left, floor[i]), at3(a.left, floor[i - 1]), at3(a.left, top), at3(b.left, top), colors.concrete)
+    quad(out.outside, at3(a.right, floor[i - 1]), at3(b.right, floor[i]), at3(b.right, top), at3(a.right, top), colors.concrete)
+  }
+  const end = coping[cut.roof]
+  quad(out.outside, at3(end.left, floor[cut.roof]), at3(end.right, floor[cut.roof]), at3(end.right, top), at3(end.left, top), colors.concrete)
   // The bore, darkening away from the light, closed off at its far end.
   for (let i = at + 1; i < n; i++) {
     const [a, b] = [i - 1, i]

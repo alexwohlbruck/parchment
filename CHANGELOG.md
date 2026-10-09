@@ -8,6 +8,7 @@
 ### Changed
 
 * 3D terrain is far sharper across the US, built from lidar surveys. Streets, embankments and interchanges now show in the relief.
+* 3D forests now reach the horizon, thinning gradually with distance instead of stopping at a hard-edged circle.
 
 ### Fixed
 

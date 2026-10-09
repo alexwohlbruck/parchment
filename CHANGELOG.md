@@ -11,6 +11,7 @@
 * The 3D map now shows picnic tables, bike racks, drinking fountains, fountains, street lamps, bollards and billboards, and far more benches, each turned to face the road or path beside it.
 * Trees tagged with their genus now take their own shape in 3D: tall pines, tiered spruces, fan palms, date palms and pink flowering cherries, each keeping its shape in the distance.
 * Monorails, like the Walt Disney World Monorail and Newark's AirTrain, are drawn on the map as an elevated beam.
+* Points of interest can now be switched on and off from the layer selector.
 
 ### Changed
 

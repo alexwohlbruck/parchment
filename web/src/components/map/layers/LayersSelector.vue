@@ -169,6 +169,18 @@ function transitClassNodes(): SelectorNode[] {
   }))
 }
 
+// Basemap POIs are drawn by the style, not a `layers` row, so this toggle
+// writes the same stored setting as the appearance page.
+function poiNode(): SelectorNode {
+  return {
+    id: 'basemap-pois',
+    name: t('layers.selector.pois'),
+    icon: 'MapPin',
+    visible: mapStore.settings.poiLabels,
+    onToggle: (visible: boolean) => mapService.togglePoiLabels(visible),
+  }
+}
+
 function groupNode(node: any): SelectorNode {
   // Sort by the group tree's own `order` first — that's how "Frequents" pins
   // above the collections — and fall back to name for anything sharing one.
@@ -204,7 +216,7 @@ function groupNode(node: any): SelectorNode {
  * dropped — an expandable row with nothing inside is just a dead end.
  */
 const mapLayerNodes = computed<SelectorNode[]>(() => {
-  const result: SelectorNode[] = []
+  const result: SelectorNode[] = [poiNode()]
 
   for (const item of mainReorderableItems.value) {
     const isGroup = !('groupId' in item)

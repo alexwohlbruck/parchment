@@ -64,6 +64,11 @@ const ROLE_COLOR = {
   water: [0.45, 0.62, 0.72, 1],
   lamp: [1, 0.93, 0.76, 1],
   panel: [0.93, 0.92, 0.89, 1],
+  net: [0.25, 0.27, 0.27, 1],
+  tape: [0.95, 0.95, 0.93, 1],
+  rim: [0.86, 0.4, 0.16, 1],
+  frame: [0.95, 0.95, 0.94, 1],
+  goalpost: [0.95, 0.8, 0.2, 1],
 }
 
 /** How far apart two faces can lean and still share a smoothed normal. */
@@ -1107,6 +1112,82 @@ const FURNITURE = {
 }
 
 // ---------------------------------------------------------------------------
+// Sports equipment
+// ---------------------------------------------------------------------------
+
+/** Moves a freshly built part, so a cylinder can stand somewhere but the origin. */
+function shift(m, [dx, dy, dz]) {
+  for (let i = 0; i < m.position.length; i += 3) {
+    m.position[i] += dx
+    m.position[i + 1] += dy
+    m.position[i + 2] += dz
+  }
+  return m
+}
+
+/** A net strung across x between two posts, its tape along the top. */
+function courtNet(q, span, bottom, top, post) {
+  const sides = half(q)
+  return [
+    { role: 'metal', ...shift(cylinder(mesh(), sides, 0.04, 0.035, 0, post), [-span, 0, 0]) },
+    { role: 'metal', ...shift(cylinder(mesh(), sides, 0.04, 0.035, 0, post), [span, 0, 0]) },
+    { role: 'net', ...box(mesh(), [-span + 0.05, bottom, -0.01], [span - 0.05, top, 0.01]) },
+    { role: 'tape', ...box(mesh(), [-span + 0.05, top, -0.015], [span - 0.05, top + 0.06, 0.015]) },
+  ]
+}
+
+/**
+ * Nets, hoops and goals for the courts and fields barrelman lays out. Each faces
+ * -z like the furniture: a net's span runs across x, and a hoop or a goal looks
+ * out over the court in front of it.
+ */
+const SPORTS = {
+  'tennis-net': furnLod(q => courtNet(q, 6.4, 0.06, 0.9, 1.07)),
+  'pickleball-net': furnLod(q => courtNet(q, 3.35, 0.06, 0.86, 0.91)),
+  'volleyball-net': furnLod(q => courtNet(q, 5, 1.43, 2.37, 2.55)),
+  'basketball-hoop': furnLod(q => {
+    const rim = mesh()
+    if (q.seg) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2
+        const [x, z] = [Math.cos(a) * 0.23, -0.38 + Math.sin(a) * 0.23]
+        box(rim, [x - 0.02, 3.04, z - 0.02], [x + 0.02, 3.06, z + 0.02])
+      }
+      box(rim, [-0.06, 3.03, -0.16], [0.06, 3.07, -0.03])
+    } else {
+      box(rim, [-0.23, 3.04, -0.61], [0.23, 3.06, -0.15])
+    }
+    return [
+      { role: 'metal', ...shift(cylinder(mesh(), half(q), 0.08, 0.07, 0, 3.3), [0, 0, 1]) },
+      { role: 'metal', ...(q.seg ? box(mesh(), [-0.05, 3.0, 0.04], [0.05, 3.12, 0.96]) : mesh()) },
+      { role: 'panel', ...box(mesh(), [-0.9, 2.9, -0.03], [0.9, 3.95, 0.03]) },
+      { role: 'rim', ...rim },
+    ]
+  }),
+  'soccer-goal': furnLod(q => {
+    const frame = mesh()
+    box(frame, [-3.78, 2.38, -0.06], [3.78, 2.5, 0.06])
+    box(frame, [-3.7, 0, 1.77], [3.7, 0.05, 1.83])
+    for (const x of [-3.72, 3.72]) {
+      if (q.seg) box(frame, [x - 0.03, 0, 0.07], [x + 0.03, 0.05, 1.76])
+      extrude(frame, bar([0.08, 2.38], [1.78, 0.06], 0.05), x - 0.025, x + 0.025)
+    }
+    return [
+      { role: 'frame', ...shift(cylinder(mesh(), half(q), 0.06, 0.06, 0, 2.37), [-3.72, 0, 0]) },
+      { role: 'frame', ...shift(cylinder(mesh(), half(q), 0.06, 0.06, 0, 2.37), [3.72, 0, 0]) },
+      { role: 'frame', ...frame },
+    ]
+  }),
+  'football-goalpost': furnLod(q => [
+    { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.1, 0.09, 0, 2.94), [0, 0, 1.5]) },
+    { role: 'goalpost', ...box(mesh(), [-0.08, 2.95, 0.1], [0.08, 3.15, 1.45]) },
+    { role: 'goalpost', ...box(mesh(), [-2.88, 2.95, -0.1], [2.88, 3.15, 0.09]) },
+    { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.05, 0.04, 3.16, 9.04), [-2.82, 0, 0]) },
+    { role: 'goalpost', ...shift(cylinder(mesh(), half(q), 0.05, 0.04, 3.16, 9.04), [2.82, 0, 0]) },
+  ]),
+}
+
+// ---------------------------------------------------------------------------
 // Trees
 // ---------------------------------------------------------------------------
 
@@ -1549,6 +1630,7 @@ async function main() {
     if (build.crown) await emit(`${name}${CROWN_SUFFIX}`, build.crown(), build.crownFar(), fit)
   }
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

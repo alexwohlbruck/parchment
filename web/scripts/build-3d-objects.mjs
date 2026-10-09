@@ -1532,14 +1532,15 @@ const AREAS = {
       { role: 'bloom', ...blooms },
     ]
   }),
-  // A 24 m length of panel row, 3.4 m up the slope and tilted 25° toward the
-  // south (-z), with no posts: the layer stretches it to span the whole row.
-  'solar-row': () => {
+  // A 24 m length of panel row, 3 m up the slope and tilted 25° toward the
+  // south (-z), with no posts; the layer stretches it along its row. Fitted
+  // from the ground rather than the slab, so it keeps its clearance and size.
+  'solar-row': Object.assign(() => {
     const tilt = (25 * Math.PI) / 180
-    const half = 1.7 * Math.cos(tilt)
-    const [low, high] = [0.6, 0.6 + 3.4 * Math.sin(tilt)]
+    const half = 1.5 * Math.cos(tilt)
+    const [low, high] = [0.6, 0.6 + 3 * Math.sin(tilt)]
     return [{ role: 'pv', ...extrude(mesh(), [[-half, low], [half, high], [half, high + 0.06], [-half, low + 0.06]], -12, 12) }]
-  },
+  }, { fit: { scale: 1 / 2, cx: 0, cz: 0, base: 0 } }),
 }
 
 // ---------------------------------------------------------------------------
@@ -1620,7 +1621,7 @@ async function main() {
   for (const [name, build] of Object.entries(FURNITURE)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(SPORTS)) await emit(name, build(), build.far?.())
   for (const [name, build] of Object.entries(LINES)) await emit(name, build(), build.far?.(), build.fit, build.open)
-  for (const [name, build] of Object.entries(AREAS)) await emit(name, build(), build.far?.())
+  for (const [name, build] of Object.entries(AREAS)) await emit(name, build(), build.far?.(), build.fit)
 
   // What was actually written, so the app asks for exactly that. Not every
   // model earns a far variant, and a request for one that was skipped is a 404

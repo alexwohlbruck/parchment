@@ -240,7 +240,10 @@ export class DeckLayer {
     const ground = this.ground()
     const solved = decks.flatMap(chain => {
       const [left, right] = edgePoints(chain)
-      const groundAt = filled(chain.points.map((q, i) => highest([ground(q), ground(left[i]), ground(right[i])])))
+      // The ends meet the road on its centreline; between them the deck clears the ground under either edge.
+      const last = chain.points.length - 1
+      const groundAt = filled(chain.points.map((q, i) =>
+        i === 0 || i === last ? ground(q) : highest([ground(q), ground(left[i]), ground(right[i])])))
       return groundAt ? [{ chain, groundAt, z: solve(chain, groundAt) }] : []
     })
     // An end left in the air because it meets another deck takes that deck's

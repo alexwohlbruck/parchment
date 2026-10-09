@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { absorbPaths, beside, besideGround, chains, dedupe, clip, cutOut, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
+import { absorbPaths, beside, besideGround, boundsOf, chains, covered, dedupe, clip, cutOut, parseLine, parseProfile, deckMesh, densify, fitEdges, joinNeighbours, onDeck, smooth, solve, along, LAYER_CLEARANCE, MAX_GRADE, type Chain, type Point } from './decks'
 
 // About a metre in mercator units at Charlotte's latitude.
 const M = 1 / 32780000
@@ -212,5 +212,48 @@ describe('besideGround', () => {
     expect(g[0]).toBe(100)
     expect(g[1]).toBeCloseTo(100 + MAX_GRADE * 6, 6)
     expect(g[3]).toBeCloseTo(100 + MAX_GRADE * 60, 6)
+  })
+})
+
+describe('served profiles', () => {
+  test('decimetres to metres', () => {
+    expect(parseProfile('2054,2061,-5')).toEqual([205.4, 206.1, -0.5])
+    expect(parseProfile(undefined)).toEqual([])
+  })
+
+  test('exact samples from lng,lat and steps in 1e-7 degrees', () => {
+    expect(parseLine('-808469645,352217126;-182,187')).toEqual([[-80.8469645, 35.2217126], [-80.8469827, 35.2217313]])
+  })
+})
+
+describe('covered', () => {
+  test('a basemap bridge lying on a served deck is drawn already; one beside it is not', () => {
+    const deck = chain(line(0, 100), [true, true])
+    const served = [{ chain: deck, bounds: boundsOf(deck.points, 8) }]
+    const piece = (points: Point[]) => ({ points, layer: 1, width: 10, kind: 'road' as const })
+    expect(covered(piece(offset(1, 0, 50, 100)), served)).toBe(true)
+    expect(covered(piece(offset(20, 0, 50, 100)), served)).toBe(false)
+  })
+})
+
+describe('deckMesh structure', () => {
+  const colors = { surface: [0, 0, 0], concrete: [1, 1, 1], parapet: [0.5, 0.5, 0.5] }
+  const mesh = () => ({ position: [] as number[], normal: [] as number[], color: [] as number[] })
+  const triangles = (m: ReturnType<typeof mesh>, shade: number) => m.color.filter((_, i) => i % 9 === 0 && m.color[i] === shade).length
+
+  test('a deck running at the ground is just road: no slab, parapets or piers', () => {
+    const c = chain(line(0, 40, 80), [true, true])
+    const m = deckMesh(c, [100.2, 100.3, 100.2], [100, 100, 100], c.points[0], colors, mesh())
+    expect(triangles(m, 0)).toBe(4)
+    expect(triangles(m, 1) + triangles(m, 0.5)).toBe(0)
+  })
+
+  test('piers stand where they are given', () => {
+    const c = chain(line(0, 40, 80), [true, true])
+    const m = deckMesh(c, [110, 110, 110], [100, 100, 100], c.points[0], colors, mesh(), [[], []], [20])
+    const spaced = deckMesh(c, [110, 110, 110], [100, 100, 100], c.points[0], colors, mesh())
+    const slab = 3 * 2 * 2
+    expect(triangles(m, 1) - slab).toBe(8)
+    expect(triangles(spaced, 1) - slab).toBe(8 * 3)
   })
 })

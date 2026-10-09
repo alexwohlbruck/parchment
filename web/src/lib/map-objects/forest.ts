@@ -256,8 +256,8 @@ export const CROWN_SUFFIX = '-crown'
  */
 export const SPARSE_BELOW_ZOOM = 15
 /** Trees a full screen of forest should come to, roughly; sets `spacing` from the screen size. */
-const SCREEN_TREES = 6000
-const MIN_SPACING = 6
+const SCREEN_TREES = 9000
+const MIN_SPACING = 5
 /** Width of the band, in levels, over which one level gives way to the next. */
 const DITHER = 0.7
 const LEVEL_SPREAD = 1.3

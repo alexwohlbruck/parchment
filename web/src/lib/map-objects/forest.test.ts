@@ -141,6 +141,6 @@ describe('forest falloff', () => {
     expect(cam.y).toBeGreaterThan(centreY)
     expect(cam.x).toBeCloseTo(0.5 / FOREST_SPACING)
     expect(cam.altitude).toBeCloseTo((cam.y - centreY) / Math.tan(Math.PI / 3))
-    expect(cam.spacing).toBeGreaterThan(6)
+    expect(cam.spacing).toBeGreaterThan(5)
   })
 })

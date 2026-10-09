@@ -100,6 +100,8 @@ import { loadGlb, type GlbModel } from '@/lib/map-objects/glb.mjs'
 import { DeckLayer } from '@/lib/map-decks/deck-layer'
 import { DECK_PALETTE } from '@/lib/map-decks/palette'
 import { flatBridgeOpacity } from '@/lib/map-decks/flat-bridges'
+import { TunnelLayer } from '@/lib/map-tunnels/tunnel-layer'
+import { isFlatTunnel, mutedTunnelOpacity } from '@/lib/map-tunnels/flat-tunnels'
 import { SOURCE } from '@/lib/map-style/build'
 import { ROAD_MARKING_TILES, ROAD_SURFACE_TILES } from '@/lib/map-style/road-markings'
 import { slotBeforeId } from '@/lib/map/layer-slots'
@@ -456,6 +458,8 @@ export class MaplibreStrategy extends MapStrategy {
       this.landmarkLayer = null
       this.deckLayer = null
       this.mutedBridges.clear()
+      this.tunnelLayer = null
+      this.mutedTunnels.clear()
       this.buildingFilters.clear()
       this.applyLandmarks()
       mapEventBus.emit('style.load', this.mapInstance)
@@ -903,27 +907,33 @@ export class MaplibreStrategy extends MapStrategy {
   private deckLayer: DeckLayer | null = null
   /** Flat bridge layers muted under the decks, with the opacity each had. */
   private mutedBridges = new Map<string, { property: any; value: unknown }>()
+  private tunnelLayer: TunnelLayer | null = null
+  /** Flat tunnel layers muted from street zoom, with the opacity each had. */
+  private mutedTunnels = new Map<string, unknown>()
 
   /**
-   * Bridges as 3D decks, with the terrain and 3D objects both on: the decks
-   * stand on the ground the terrain gives their ends, so without it they would
-   * float. The flat bridge layers are muted under them rather than hidden, so
-   * their tiles keep loading for the decks to read.
+   * Bridges as 3D decks and tunnels as cuts down to their portals, with the
+   * terrain and 3D objects both on: each stands on or digs into the ground the
+   * terrain gives, so without it they would float. The flat layers are muted
+   * under them rather than hidden, so their tiles keep loading for them to read.
    */
   private applyDecks() {
     const map = this.mapInstance
     const active = this.map3dObjects && !!map.getTerrain?.()
+    const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
+    const routes = () => Object.keys(map.getStyle()?.sources ?? {}).filter(id => /^route-\d+$/.test(id))
+    const paint = this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}
+    const surfaces = { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES }
+    if (active && !this.tunnelLayer) {
+      this.tunnelLayer = new TunnelLayer({ basemap: SOURCE, roads: 'transportation', ...paint, surfaces, routes }, DECK_PALETTE[flavor])
+      map.addLayer(this.tunnelLayer as any, firstLabelLayer(map))
+    } else if (!active && this.tunnelLayer) {
+      if (map.getLayer(this.tunnelLayer.id)) map.removeLayer(this.tunnelLayer.id)
+      this.tunnelLayer = null
+    }
     if (active && !this.deckLayer) {
-      const flavor = this.options.theme === 'dark' ? 'dark' : 'light'
       this.deckLayer = new DeckLayer(
-        {
-          basemap: SOURCE,
-          roads: 'transportation',
-          ...(this.builtHdRoads ? { paint: { source: DETAIL_SOURCE, layer: ROAD_MARKING_TILES } } : {}),
-          surfaces: { source: DETAIL_SOURCE, layer: ROAD_SURFACE_TILES },
-          profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES },
-          routes: () => Object.keys(map.getStyle()?.sources ?? {}).filter(id => /^route-\d+$/.test(id)),
-        },
+        { basemap: SOURCE, roads: 'transportation', ...paint, surfaces, profiles: { source: DETAIL_SOURCE, layer: BRIDGE_DECK_TILES }, routes },
         DECK_PALETTE[flavor],
       )
       map.addLayer(this.deckLayer as any, firstLabelLayer(map))
@@ -940,6 +950,17 @@ export class MaplibreStrategy extends MapStrategy {
       } else if (!active && this.mutedBridges.has(layer.id)) {
         map.setPaintProperty(layer.id, property, this.mutedBridges.get(layer.id)!.value as any)
         this.mutedBridges.delete(layer.id)
+      }
+    }
+    for (const layer of map.getStyle()?.layers ?? []) {
+      if (!isFlatTunnel(layer as any)) continue
+      if (active && !this.mutedTunnels.has(layer.id)) {
+        const value = map.getPaintProperty(layer.id, 'line-opacity')
+        this.mutedTunnels.set(layer.id, value)
+        map.setPaintProperty(layer.id, 'line-opacity', mutedTunnelOpacity(value) as any)
+      } else if (!active && this.mutedTunnels.has(layer.id)) {
+        map.setPaintProperty(layer.id, 'line-opacity', this.mutedTunnels.get(layer.id) as any)
+        this.mutedTunnels.delete(layer.id)
       }
     }
   }
